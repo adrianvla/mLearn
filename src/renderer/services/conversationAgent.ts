@@ -41,6 +41,7 @@ const MANUAL_COMPACTION_MIN_MESSAGES = MANUAL_COMPACTION_KEEP_RECENT_MESSAGES + 
 // ============================================================================
 
 interface AgentDeps {
+  getInteractionMode?: () => import('../../shared/world').ConversationInteractionMode;
   getTraceContext?: () => RuntimeTraceContext;
   getSettings: () => Settings;
   tokenize: (text: string) => Promise<Token[]>;
@@ -138,12 +139,12 @@ function getCorrectionPromptGuidelines(features?: LanguageFeatures): string[] {
 
 const TOOL_PROMPT_GUIDELINES: Record<string, ToolPromptGuidelineFactory> = {
   correct_mistake: (langName, features) => [
-    `- Use "correct_mistake" when you notice grammar, vocabulary, or spelling errors in the learner's messages. Attach it to your response subtly.\n  - If the learner makes multiple mistakes, use a single "correct_mistake" call with all corrections in the "corrections" array.\n  - If the learner explicitly asks you to call a tool or to mark/correct a specific span, you MUST call the appropriate tool even for meta/tool-testing requests and even when the text is not in ${langName}.\n  - IMPORTANT: The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.\n  - When the same word or phrase appears multiple times in the learner's message, provide context_before and/or context_after to identify which occurrence to correct.\n  - Only correct actual mistakes in the target language; do not "correct" text that is already correct, translate it, or rewrite it merely as a stylistic preference.${getCorrectionPromptGuidelines(features).length > 0 ? `\n  - Language-specific correction guidance:\n${getCorrectionPromptGuidelines(features).map((guideline) => `    - ${guideline}`).join('\n')}` : ''}`,
+    `- Use "correct_mistake" only when the user explicitly requests correction or has agreed to a practice activity that includes feedback. An error alone is not an invitation to teach. Do not quote, rewrite, or explain the error in your spoken/text response without that invitation.\n  - If the learner makes multiple mistakes, use a single "correct_mistake" call with all corrections in the "corrections" array.\n  - If the learner explicitly asks you to call a tool or to mark/correct a specific span, you MUST call the appropriate tool even for meta/tool-testing requests and even when the text is not in ${langName}.\n  - IMPORTANT: The error_span must be copied EXACTLY from the learner's message. Do not translate or alter it.\n  - When the same word or phrase appears multiple times in the learner's message, provide context_before and/or context_after to identify which occurrence to correct.\n  - Only correct actual mistakes in the target language; do not "correct" text that is already correct, translate it, or rewrite it merely as a stylistic preference.${getCorrectionPromptGuidelines(features).length > 0 ? `\n  - Language-specific correction guidance:\n${getCorrectionPromptGuidelines(features).map((guideline) => `    - ${guideline}`).join('\n')}` : ''}`,
     `- "correct_mistake" must ALWAYS be called at the very end of your response.`,
-    `- "correct_mistake" must ALWAYS be called if the user makes a mistake.`,
+    `- In ordinary conversation, respond to meaning. If an error prevents understanding, ask a natural clarification instead of grading the message.`,
   ],
   create_quiz: (_langName) => [
-    `- Use "create_quiz" when a good teaching moment arises. Vary between MCQ, text-input, and fill-in types. This tool MUST NOT be called when the user makes a mistake in their message.`,
+    `- Use "create_quiz" only when the user explicitly requests a quiz or agrees to an exercise. Keep the scope proportional to that request; begin with one question unless more were requested.`,
     `- When making multiple quizzes in one turn, call "create_quiz" multiple times in the exact order they should appear.`,
     `- If you want to create a quiz, do NOT write in plain text the quiz, but USE the tool "create_quiz" accordingly.`,
   ],
@@ -191,6 +192,7 @@ function buildConversationPrompt(
   voice: boolean,
   checker: boolean,
   socialClimate?: string,
+  interactionMode: import('../../shared/world').ConversationInteractionMode = 'social',
 ): LLMChatMessage {
   const enabled = new Set(tools.map(tool => tool.name));
   const guidelines = TOOL_GUIDELINE_ORDER.filter(name => enabled.has(name))
@@ -199,8 +201,16 @@ function buildConversationPrompt(
     `Participate as the individual described below. Preserve their identity, relationships, and lived continuity in every interaction modality. Canonical source material is background; it must not overwrite this individual's lived memories.`,
     `## Conversation
 Respond in ${langName}. Adapt to the supplied learner state without assuming that a curriculum level or a lookup is measured knowledge. Keep responses concise and let the participant's personality govern their speech.`,
+    `## Social presence and learning boundaries
+Ordinary chats are conversations between people. Choose what to say from your own motives, current situation, relationship, and unresolved history before considering learning adaptation. Do not introduce studying, drills, quizzes, grading, or corrections unless the user explicitly requests them or agrees to them in the conversation. Ambiguous words, fragments, greetings, and mentions of tests are not requests for instruction: interpret them in the current social context or ask a brief in-character clarification.
+Keep established plans, times, and events consistent with the supplied history. Resolve vague references against that history before asking for clarification; if still uncertain, ask rather than inventing a shared incident. You may propose a new plan or express your own perspective, but do not present an invented past arrangement or the user's unspoken agreement as fact.
+Learning targets and learner metadata are private adaptation context, not shared facts or your personal agenda. You may quietly reuse useful language, adjust comprehensibility, or create a plausible opportunity for clarification. Do not announce these adaptations. Never use persona bluntness, teasing, concern, or a supposed teaching moment as a reason to correct an ordinary message. Understand imperfect phrasing and answer its meaning; a socially plausible clarification asks about the intended meaning, not the correct grammar. In scenarios, embody the world's constraints and your own goals; the situation provides the opportunity to use language.
+When tutoring is explicitly requested, preserve your personality and relationship. Match the requested scope, allow follow-up turns, and stop teaching when the conversation moves on. A disposable thread does not by itself authorize pedagogy.
+Use messenger rhythm: a brief reaction or question is often enough. Let the user answer before resolving uncertainty or launching an activity. Longer messages are appropriate when the person and situation justify them; do not default to headings, numbered lists, or exhaustive answer slabs.`,
+    ...(interactionMode === 'practice' ? ['## Explicit practice activity\nThe user selected a practice activity. Teaching is appropriate within the supplied practice intent; preserve your identity and relationship. Do not expand a narrow request into a course or assume every message needs correction. A Practice room is not permanent consent. The latest user refusal or end of practice overrides earlier requests and this activity label. After that exit, answer the social meaning without quoting, rewriting, explaining, or joking about errors; do not slip correction into teasing and then claim practice is over. Resume feedback only when requested again.'] : interactionMode === 'scenario' ? ['## Scenario activity\nPlay the situation through your own motives. Learning objectives are private world-design constraints, not instructions to announce a lesson.'] : []),
+    ...(!voice ? ['## Message shape\nWrite the messages this person would actually send. A spontaneous reaction followed by a distinct question or thought can be two messages: put <message-break/> on its own line between those beats, rather than packing them into an answer paragraph. A single thought can stay one message; a sustained story or explanation can be longer. Choose the rhythm from the person and moment. Use only a few deliberate beats, never split every sentence, repeat yourself, or insert boundaries inside an explanation. Do not simulate the user’s answers or continue past a question that needs their reply.'] : []),
     ...(voice ? [voiceInteractionRules(langName, features)] : []),
-    ...(features.tutorPromptGuidelines ?? []),
+    ...(features.tutorPromptGuidelines?.length ? [`Only during explicitly requested teaching, apply this package guidance:\n${features.tutorPromptGuidelines.join("\n")}`] : []),
     ...(features.casualRegisterPromptGuidelines?.length
       ? [`When this participant uses a casual register, follow this language guidance:\n${features.casualRegisterPromptGuidelines.join('\n')}`] : []),
     `## Tool Usage Guidelines
@@ -360,7 +370,7 @@ const AGENT_TOOLS: LLMToolDefinition[] = [
 const VOICE_AGENT_TOOLS: LLMToolDefinition[] = [
   {
     name: 'note_mistake',
-    description: 'Note a clear grammar, vocabulary, or usage mistake from the learner during the voice conversation. Do not use this for pronunciation or reading corrections because live speech transcripts may be unstable. It records feedback in the session aftermath; it does not infer word knowledge. MUST be called at the end of your response if the learner made a clear non-pronunciation mistake.',
+    description: 'Note a clear grammar, vocabulary, or usage mistake from the learner during the voice conversation. Do not use this for pronunciation or reading corrections because live speech transcripts may be unstable. It records feedback in the session aftermath; it does not infer word knowledge. Use only for feedback explicitly requested within the current feedback agreement. An ended or refused agreement forbids this tool; when feedback is appropriate, call it at the end of your response.',
     parameters: {
       type: 'object',
       properties: {
@@ -486,9 +496,9 @@ function voiceInteractionRules(langName: string, features: LanguageFeatures): st
 - Treat each learner message as a speech-to-text transcript. If the transcript looks malformed, fragmented, random, clearly not intended as a message to you, or likely damaged by speech recognition, ask one short clarification instead of guessing.
 - If the transcript is understandable but surprising, respond to what was transcribed. Do not silently rewrite it into a more likely sentence.
 - Do not guess what the learner "probably meant" from phonetic similarity or a plausible nearby phrase. If a correction would require assuming different words than the transcript contains, ask the learner to repeat it instead.
-- If the learner makes a clear grammar, vocabulary, or usage mistake, gently mention the correction in your speech AND call the "note_mistake" tool.
+- Only when the user explicitly requests feedback or agrees to correction during practice, gently mention a clear grammar, vocabulary, or usage mistake AND call the "note_mistake" tool.
 - Do NOT correct pronunciation, reading, accent, or sound-alike issues in voice mode unless the learner explicitly asks for pronunciation feedback. Live speech-to-text can be unstable, so pronunciation corrections are likely to be wrong.
-- The "note_mistake" tool MUST be called at the END of your response whenever the learner makes a clear non-pronunciation error.
+- When correction is appropriate under that agreement, call "note_mistake" at the END of your response. Otherwise respond to meaning without unsolicited correction.
 - Only call "note_mistake" for words that appear exactly in the learner's latest transcribed message. Copy the word and context from that transcript; never invent or infer a different word.
 - Do NOT call "note_mistake" with empty fields. If you are unsure whether the transcript is correct or whether there was a mistake, do not call it.
 - Do NOT correct speech patterns that are valid informal/casual variations. Only correct actual mistakes.
@@ -834,7 +844,7 @@ function streamConversationSummary(
     const bridge = getBridge();
     let accumulated = '';
 
-    const systemMsg = applicationTaskMessage('conversation-summary', `You compact language-tutor conversation history for ${langName}. Summarize only durable context needed for future turns: learner goals, mistakes already discussed, vocabulary or grammar focus, media context, personal facts, promises, open questions, and tool results. Do not invent facts. Do not include meta commentary. Output concise bullet points.`);
+    const systemMsg = applicationTaskMessage('conversation-summary', `You compact social conversation history in ${langName}. Preserve durable context needed for believable future turns: each person's perspective and motives, relationship developments, established facts, emotional stakes, promises, disagreements, unresolved questions, current activities, and tool results. Preserve who said or knew what; distinguish proposals from things that actually happened. Include learning goals, corrections, or exercises only when actually discussed, without reframing ordinary interaction as tutoring. Do not invent facts. Do not include meta commentary. Output concise bullet points.`);
 
     const userMsg: LLMChatMessage = {
       role: 'user',
@@ -1201,14 +1211,14 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     const memoryEnabled = settingsObj.agentMemoryEnabled;
 
     const baseTools = isVoice ? VOICE_AGENT_TOOLS : AGENT_TOOLS;
-    const mistakeCheckerEnabled = settingsObj.agentMistakeChecker && !isVoice;
+    const mistakeCheckerEnabled = settingsObj.agentMistakeChecker && !isVoice && deps.getInteractionMode?.() === 'practice';
     const effectiveDisabled = new Set(deps.getDisabledTools?.() ?? []);
     if (!memoryEnabled) effectiveDisabled.add('save_memory');
     if (mistakeCheckerEnabled) effectiveDisabled.add('correct_mistake');
     const tools = baseTools.filter(tool => !effectiveDisabled.has(tool.name));
     const climate = deps.getTurnSocialState?.();
     const systemMsg = buildConversationPrompt(langName, deps.getWorldContext?.(lastUserMessageText(conversationHistory)) ?? '',
-      deps.getLanguageFeatures(), tools, isVoice, mistakeCheckerEnabled, climate ? renderSocialClimate(climate) : undefined);
+      deps.getLanguageFeatures(), tools, isVoice, mistakeCheckerEnabled, climate ? renderSocialClimate(climate) : undefined, deps.getInteractionMode?.() ?? 'social');
 
     const messages: LLMChatMessage[] = [
       systemMsg,

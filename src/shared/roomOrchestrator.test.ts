@@ -208,6 +208,24 @@ describe('makeThread', () => {
 });
 
 describe('runRoomTurn', () => {
+  it('removes private reasoning before interpreting message boundaries', async () => {
+    const { appended, appendEvent } = makeAppender();
+    await runRoomTurn({ room: room('r1', ['p_a']), participants: [participant('p_a', 'Anna')], seaEvents: [],
+      threadEvents: [messageEvent('user', 1, USER_ACTOR, 'Hello', ['p_a', USER_ACTOR])],
+      runAgentTurn: async () => ({ text: '<think>Private planning\n<message-break/>\nPrivate continuation</think>Hello!' }), appendEvent });
+    expect(appended.map(event => (event.payload as { text: string }).text)).toEqual(['Hello!']);
+  });
+
+  it('persists deliberate message beats separately without splitting ordinary paragraphs', async () => {
+    const { appended, appendEvent } = makeAppender();
+    await runRoomTurn({ room: room('r1', ['p_a']), participants: [participant('p_a', 'Anna')], seaEvents: [],
+      threadEvents: [messageEvent('user', 1, USER_ACTOR, 'Test?', ['p_a', USER_ACTOR])],
+      runAgentTurn: async () => ({ text: 'Test?\n<message-break/>\nTomorrow’s?\n\nI need to know before leaving.' }), appendEvent });
+    expect(appended.map(event => (event.payload as { text: string }).text)).toEqual(['Test?', 'Tomorrow’s?\n\nI need to know before leaving.']);
+    expect(appended.map(event => event.actorId)).toEqual(['p_a', 'p_a']);
+    expect(appended.every(event => event.witnesses.includes(USER_ACTOR))).toBe(true);
+  });
+
   it('pins an accepted incoming call to its authoritative contacting participant', async () => {
     const a = participant('p_a', 'Anna');
     const b = participant('p_b', 'Bella');

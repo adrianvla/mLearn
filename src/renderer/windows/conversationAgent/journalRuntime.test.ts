@@ -93,6 +93,16 @@ describe('journalRuntime', () => {
     expect(store.threadEvents()).toEqual([]);
   });
 
+  it('restores answered widget state from durable sidecars without adding a chat bubble', () => {
+    const quiz = { type: 'quiz', data: { question: 'Q', correctAnswer: 'A' } };
+    const rows = [event({ id: 'question', type: 'message.character', actorId: 'a', payload: { text: 'One question', widgets: [quiz] } }),
+      event({ id: 'answer', type: 'widget.response', payload: { messageEventId: 'question', widgetIndex: 0, userAnswer: 'A', isCorrect: true } })];
+    const messages = eventsToDisplayMessages(rows, participants, 'You');
+    expect(messages).toHaveLength(1);
+    expect(messages[0].widgets?.[0]).toEqual({ ...quiz, resolved: true, data: { ...quiz.data, userAnswer: 'A', isCorrect: true } });
+    expect(messages[0].widget).toEqual(messages[0].widgets?.[0]);
+  });
+
   it('folds message sidecars into display messages and skips malformed events', () => {
     const widget = { type: 'quiz' as const, data: { question: 'Q' } };
     const extraWidget = { type: 'stats' as const, data: {} };

@@ -115,7 +115,7 @@ export async function createSandbox(input: CreateCastInput): Promise<Thread> {
     const ids = [...new Set(request.participantIds)];
     const intent = request.intent?.trim() || undefined;
     const title = request.title?.trim() || undefined;
-    const requestHash = createHash('sha256').update(JSON.stringify({ ids, intent, title })).digest('hex');
+    const requestHash = createHash('sha256').update(JSON.stringify({ ids, intent, title, ...(request.interactionMode ? { interactionMode: request.interactionMode } : {}) })).digest('hex');
     const state = await loadWorld();
     const existing = state.threads.find(thread => thread.sandbox?.operationId === request.operationId);
     if (existing) {
@@ -135,7 +135,7 @@ export async function createSandbox(input: CreateCastInput): Promise<Thread> {
       baselineHeads[room.id] = events.at(-1)?.seq ?? 0;
     }
     const thread: Thread = {
-      id: `thr_${randomUUID()}`, title, intent, state: 'active', createdAt: Date.now(),
+      id: `thr_${randomUUID()}`, title, intent, interactionMode: request.interactionMode, state: 'active', createdAt: Date.now(),
       sandbox: { operationId: request.operationId, requestHash, bindings, baselineHeads },
     };
     await saveWorld({ ...state, threads: [...state.threads, thread] });
@@ -166,7 +166,7 @@ export async function createPersistentRoom(input: CreateCastInput): Promise<Room
       const sortedIds = [...ids].sort();
       const sameRoster = existing.participantIds.length === sortedIds.length
         && [...existing.participantIds].sort().every((id, index) => id === sortedIds[index]);
-      if (!sameRoster) throw new Error('[world] persistent room creation conflict');
+      if (!sameRoster || (existing.interactionMode ?? 'social') !== (request.interactionMode ?? 'social')) throw new Error('[world] persistent room creation conflict');
       return existing;
     }
     const members = ids.map(id => {
@@ -175,13 +175,15 @@ export async function createPersistentRoom(input: CreateCastInput): Promise<Room
       return person;
     });
     if (ids.length === 1) {
-      const direct = state.rooms.find(room => room.participantIds.length === 1 && room.participantIds[0] === ids[0]);
+      const direct = state.rooms.find(room => room.participantIds.length === 1 && room.participantIds[0] === ids[0]
+        && (room.interactionMode ?? 'social') === (request.interactionMode ?? 'social'));
       if (direct) return direct;
     }
     const room: Room = {
       id: `room-${randomUUID()}`,
       title: request.title?.trim() || members.map(person => person.displayName).join(', '),
       participantIds: ids,
+      interactionMode: request.interactionMode,
       createdByOperation: request.operationId,
       createdAt: Date.now(),
     };

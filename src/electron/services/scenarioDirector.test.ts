@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { compileContext } from '../../shared/contextCompiler';
@@ -47,6 +48,43 @@ beforeEach(async () => {
 afterEach(() => temp.cleanup());
 
 describe('Director production staging and activation', () => {
+  it.skipIf(!process.env.MLEARN_EVAL_KEY_FILE)('evaluates real Director generation, activation and durable social constraints', async () => {
+    const key = readFileSync(process.env.MLEARN_EVAL_KEY_FILE!, 'utf8').trim();
+    completion.mockImplementation(async (messages: { role: string; content: string }[], signal: AbortSignal) => {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST', signal, headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'deepseek/deepseek-v4-flash-0731', messages: messages.map(({ role, content }) => ({ role, content })),
+          max_tokens: 4000, reasoning: { effort: 'low' } }),
+      });
+      expect(response.status).toBe(200);
+      return (await response.json()).choices[0].message.content;
+    });
+    const staged = await director.prepareScenario({ operationId: 'live-disagreement', participantIds: [], interactionMode: 'scenario',
+      intent: 'Private learning objective: polite disagreement in a business situation. Create a client who needs a delivery next week for an event, while the supplier (the user) cannot meet that deadline. Let the situation create a negotiation. Nobody is a language teacher.' });
+    expect(staged.status).toBe('ready');
+    const activated = await director.activateScenario(staged.operationId);
+    if ('participantIds' in activated) throw new Error('Expected disposable scenario');
+    expect(activated.interactionMode).toBe('scenario');
+    const cast = threadParticipants(activated, []);
+    expect(cast.length).toBeGreaterThan(0);
+    const contexts = cast.map(participant => compileContext({ participant, participants: cast, thread: activated, seaEvents: [] }));
+    const saved = (await import('./worldStore')).loadWorld;
+    expect((await saved()).threads.find(thread => thread.id === activated.id)).toEqual(activated);
+    if (process.env.MLEARN_EVAL_OUTPUT) writeFileSync(process.env.MLEARN_EVAL_OUTPUT, JSON.stringify({ scenario: staged.scenario, activated, contexts }, null, 2));
+  }, 120000);
+
+  it('turns private learning objectives into situations rather than teacher identities', async () => {
+    await director.prepareScenario({ ...request, intent: 'Create an opportunity for polite disagreement.' });
+    const message = completion.mock.calls[0][0][0];
+    for (const prompt of [message.content, message.applicationTask.instruction]) {
+      expect(prompt).not.toContain('fictional language-practice situation');
+      expect(prompt).toContain('world constraints');
+      expect(prompt).toContain('The owner remains the user, outside the AI cast');
+      expect(prompt).toContain('Do not create a stand-in');
+      expect(prompt).toContain('explicitly requests teaching');
+    }
+  });
+
   it('reviews, atomically adopts and speaks through distinct scoped generated individuals', async () => {
     const stage = await director.prepareScenario(request);
     expect(stage.status).toBe('ready'); expect(stage.origin).toBe('generated');

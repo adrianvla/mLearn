@@ -173,10 +173,35 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     dispose();
   });
 
+  it('keeps Messenger quiet until message analysis is opened, without losing word lookup', () => {
+    mockSettings.colour_codes = { '名詞': '#ff0000' };
+    mockSettings.blur_words = true;
+    const onHover = vi.fn();
+    const token: Token = { word: '何時', surface: '何時', actual_word: '何時', reading: 'いつ', type: '名詞', partOfSpeech: '名詞' };
+    const dispose = render(() => <ChatBubble message={{ role: 'assistant', content: '何時', tokens: [token], timestamp: 0 }} onTokenHover={onHover} />, container);
+    let word = container.querySelector('.chat-token') as HTMLElement;
+    expect(word.textContent).toBe('何時');
+    expect(word.style.color).toBe('');
+    expect(word.classList.contains('blur')).toBe(false);
+    expect(word.hasAttribute('grammar')).toBe(false);
+    word.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(onHover).toHaveBeenCalled();
+    const inspect = container.querySelector('.chat-bubble-inspect') as HTMLButtonElement;
+    expect(inspect.getAttribute('aria-pressed')).toBe('false');
+    inspect.click();
+    word = container.querySelector('.chat-token') as HTMLElement;
+    expect(word.querySelector('rt')?.textContent).toBe('いつ');
+    expect(word.style.color).toBe('#ff0000');
+    expect(inspect.getAttribute('aria-pressed')).toBe('true');
+    inspect.click();
+    expect(container.querySelector('rt')).toBeNull();
+    dispose();
+  });
+
   it.each(['user', 'assistant'] as const)('renders %s chat through the shared annotated word without stars', role => {
     mockSettings.colour_codes = { '名詞': '#ff0000' };
     const token: Token = { word: '何時', surface: '何時', actual_word: '何時', reading: 'いつ', type: '名詞', partOfSpeech: '名詞' };
-    const dispose = render(() => <ChatBubble message={{ role, content: '何時', tokens: [token], timestamp: 0 }} />, container);
+    const dispose = render(() => <ChatBubble studyMode message={{ role, content: '何時', tokens: [token], timestamp: 0 }} />, container);
     const word = container.querySelector('.chat-token.subtitle-word') as HTMLElement;
     expect(word).not.toBeNull();
     expect(word.style.color).toBe('#ff0000');

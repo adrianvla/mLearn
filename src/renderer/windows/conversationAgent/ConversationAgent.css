@@ -52,7 +52,6 @@
   line-height: var(--line-height-normal);
 }
 
-.has-call-surface .ca-header-spacer { display: none; }
 .has-call-surface > .ca-chat-panel { display: none; }
 .ca-provider-details { padding: var(--spacing-2); border-bottom: 1px solid var(--border-color); }
 
@@ -72,9 +71,10 @@
   -webkit-app-region: no-drag;
 }
 
-.ca-header-spacer { flex: 1; }
 
 .ca-header-title {
+  min-width: 0;
+  flex-shrink: 1;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   overflow: hidden;
@@ -215,11 +215,11 @@
 .ca-sidebar-toggle { display: none; }
 :root[data-sidebar-layout='drawer'] .ca-sidebar-toggle { display: inline-flex; }
 .ca-chat-content { background: var(--bg-opaque); display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
-.ca-header-contact { min-width: 0; padding: var(--spacing-1); }
+.ca-header-contact { min-width: 0; max-width: 100%; overflow: hidden; padding: var(--spacing-1); }
 .ca-header-contact > .btn-content { min-width: 0; gap: var(--spacing-2); }
-.ca-header-identity { flex: 1; }
+.ca-header-identity { flex: 1; overflow: hidden; }
 .ca-message-row { display: flex; flex-direction: column; min-width: 0; }
-.ca-jump-latest { position: absolute; bottom: 7rem; inset-inline-end: var(--spacing-4); z-index: var(--z-dropdown); box-shadow: var(--shadow-md); }
+.ca-jump-latest { position: absolute; bottom: 7rem; inset-inline-end: max(var(--spacing-4), calc((100% - 64rem) / 2 + var(--spacing-4))); z-index: var(--z-dropdown); box-shadow: var(--shadow-md); }
 .ca-annotation-notice { display: flex; gap: var(--spacing-2); align-items: center; padding: var(--spacing-1) var(--spacing-4); color: var(--text-secondary); font-size: var(--font-size-xs); }
 
 .ca-voice-overlay {
@@ -236,7 +236,8 @@
 .ca-overflow-menu {
   display: flex;
   flex-direction: column;
-  min-width: 15rem;
+  width: 18rem;
+  max-width: calc(100vw - 2 * var(--spacing-4));
   padding: var(--spacing-1);
   gap: var(--spacing-1);
 }
@@ -254,6 +255,18 @@
   flex-direction: column;
   gap: var(--spacing-3);
   min-height: 0;
+}
+
+.ca-message-content {
+  width: 100%;
+  max-width: 64rem;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  gap: var(--spacing-3);
+  min-width: 0;
+  min-height: 100%;
 }
 
 /* Empty state positioning inside messages */
@@ -290,6 +303,9 @@
 
 /* Input row */
 .ca-input-row {
+  width: 100%;
+  max-width: 64rem;
+  margin-inline: auto;
   display: flex;
   align-items: flex-end;
   gap: var(--spacing-2);
@@ -499,4 +515,31 @@ textarea.ca-chat-textarea,
 .ca-chat-content > .ca-header { padding-inline-start: var(--spacing-4); }
 .ca-history-sidebar .room-sidebar { padding-top: calc(var(--spacing-4) + var(--window-controls-block-start-inset)); }
 :root[data-sidebar-layout='drawer'] .ca-chat-content > .ca-header { padding-inline-start: calc(var(--spacing-1) + var(--window-controls-inline-start-inset)); }
-:root[data-sidebar-layout='drawer'] .ca-header .ca-provider-label { display: none; }
+.ca-header .ca-provider-label { display: none; }
+
+/* Keep transport detail out of the identity row. Failures belong beside the
+   unavailable composer; the menu retains full provider information. */
+.ca-header .ca-connection-info { flex: 0 1 auto; max-width: 12rem; font-size: var(--font-size-xs); }
+.ca-connection-info > .btn-content { min-width: 0; gap: var(--spacing-2); }
+.ca-header .ca-provider-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ca-header .connection-status { flex-shrink: 0; }
+.ca-overflow-anchor { flex-shrink: 0; }
+.ca-provider-details .ca-connection-info > .btn-content { flex-wrap: wrap; justify-content: flex-start; }
+.ca-provider-details .ca-connection-reason { max-width: none; white-space: normal; line-height: var(--line-height-normal); }
+.ca-provider-notice { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); padding: var(--spacing-2) var(--spacing-4); color: var(--text-secondary); font-size: var(--font-size-sm); line-height: var(--line-height-normal); }
+.ca-provider-notice > span { min-width: 0; }
+.ca-provider-notice > button { flex-shrink: 0; }
+
+.ca-message-row.ca-message-continuation {
+  margin-top: calc(var(--spacing-1) - var(--spacing-3));
+}
+
+.ca-ai-notice {
+  margin: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+.ca-overflow-item > .btn-content { width: 100%; justify-content: flex-start; }

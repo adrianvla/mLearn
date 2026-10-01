@@ -125,7 +125,7 @@ export function renderCompiledContext(
     if (lp.grammarExposure && lp.grammarExposure.length > 0) {
       parts.push(`Grammar seen repeatedly (unmeasured, exposure-ranked — practice candidates, not failures): ${lp.grammarExposure.join(', ')}`);
     }
-    if (parts.length > 0) sections.push(`## Learner\n${parts.join('\n')}`);
+    if (parts.length > 0) sections.push(`## Private language adaptation\nThis metadata is not shared knowledge or your personal agenda. Use it quietly to adjust comprehensibility and plausible language exposure, without announcing it or treating it as a request for teaching.\n${parts.join('\n')}`);
   }
   if (ctx.scenario) {
     const scene = ctx.scenario;

@@ -559,6 +559,10 @@
       "Unreachable": "Unreachable"
     },
     "ConversationAgent": {
+      "MessageAnalysis": {
+        "Open": "Show analysis",
+        "Close": "Hide analysis"
+      },
       "Agents": {},
       "Clear": "Clear conversation",
       "Connection": {
@@ -774,10 +778,10 @@
         "MediaContext": "This conversation will use context from: {media}",
         "ChangeScenario": "Review another setup",
         "UseScenario": "Use this situation",
-        "GeneratedNotice": "This is a generated fictional practice situation, not researched canon. Review it before starting.",
+        "GeneratedNotice": "This is a generated fictional situation, not researched canon. Review it before starting.",
         "PrivatePreview": "Private starting state — shown here for your review, not shared with everyone.",
         "Scene": "Situation",
-        "TemporaryHint": "This practice is saved separately. Memories and edits here do not change your world.",
+        "TemporaryHint": "This conversation is saved separately. Memories and edits here do not change your world.",
         "Title": "New conversation",
         "Hint": "Pick who the conversation is with, and optionally set a goal for it.",
         "Placeholder": "What do you want to talk about or practice?",
@@ -793,7 +797,7 @@
         "PreparedGoalLabel": "Practice focus",
         "ToggleParticipant": "Include {name} in the conversation",
         "ScopeLabel": "Where should this live?",
-        "ScopeTemporary": "Practice",
+        "ScopeTemporary": "Temporary",
         "ScopePersistent": "In my world",
         "PersistentHint": "Messages, memories and relationships here become part of your persistent world."
       },
@@ -935,6 +939,7 @@
         "SharedChats": "Shared chats",
         "NewMessage": "New message",
         "NewPractice": "New practice",
+        "NewScenario": "New scenario",
         "EmptyPractice": "No practice chats yet.",
         "Chats": "Chats",
         "Tab": "Contacts",
@@ -1397,10 +1402,10 @@
     "Home": {
       "Cards": {
         "AITutor": {
-          "Description": "Practice with an AI conversation partner",
+          "Description": "Chat, explore situations and practice languages.",
           "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
           "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
-          "Title": "AI Tutor"
+          "Title": "Messenger"
         },
         "Flashcards": {
           "Description": "Review your vocabulary with spaced repetition",

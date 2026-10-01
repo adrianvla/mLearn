@@ -107,9 +107,10 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     const bridge = getBridge().world;
     const trimmedIntent = mode() === 'message' ? '' : intent().trim();
     const persistent = scope() === 'persistent';
-    const key = JSON.stringify({ ids, intent: trimmedIntent, scope: scope() });
+    const key = JSON.stringify({ ids, intent: trimmedIntent, scope: scope(), mode: mode() });
     if (key !== creationKey) { creationKey = key; creationOperationId = crypto.randomUUID(); }
     const request = { operationId: creationOperationId!, participantIds: ids,
+      interactionMode: mode() === 'message' ? 'social' as const : mode() === 'practice' ? 'practice' as const : 'scenario' as const,
       ...(persistent ? { scope: 'persistent' as const } : {}),
       ...(trimmedIntent ? { intent: trimmedIntent } : {}) };
     if (trimmedIntent) {
@@ -120,7 +121,8 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     }
     if (persistent) {
       if (ids.length === 1 && mode() === 'message') {
-        const existing = props.world?.rooms.filter(room => room.participantIds.length === 1 && room.participantIds[0] === ids[0])
+        const existing = props.world?.rooms.filter(room => room.participantIds.length === 1 && room.participantIds[0] === ids[0]
+          && (room.interactionMode ?? 'social') === 'social')
           .sort((a, b) => b.createdAt - a.createdAt)[0];
         if (existing) { await props.onCreated({ roomId: existing.id, threadId: null }); return; }
       }
@@ -203,7 +205,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     <ModalForm
       isOpen={!addingContact()}
       onClose={() => { void close(); }}
-      title={t(mode() === 'message' ? 'mlearn.ConversationAgent.Contacts.NewMessage' : mode() === 'practice' ? 'mlearn.ConversationAgent.Contacts.NewPractice' : 'mlearn.ConversationAgent.NewConversation.Title')}
+      title={t(mode() === 'message' ? 'mlearn.ConversationAgent.Contacts.NewMessage' : mode() === 'practice' ? 'mlearn.ConversationAgent.Contacts.NewPractice' : 'mlearn.ConversationAgent.Contacts.NewScenario')}
       size="sm"
       showCloseButton={true}
       closeOnOverlay={!busy()}
@@ -268,8 +270,8 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
             </Button>
           </Show>
-          <Show when={mode() !== 'message'}><Disclosure title={t('mlearn.ConversationAgent.Contacts.OptionalGoal')} open={Boolean(props.initialIntent || saved?.request.intent)}>
-          <FormField label={t(props.initialIntent || saved?.request.intent
+          <Show when={mode() !== 'message'}><Disclosure title={t(mode() === 'scenario' ? 'mlearn.ConversationAgent.NewConversation.Scene' : 'mlearn.ConversationAgent.Contacts.OptionalGoal')} open={Boolean(props.initialIntent || saved?.request.intent)}>
+          <FormField label={t(mode() === 'scenario' ? 'mlearn.ConversationAgent.NewConversation.Scene' : props.initialIntent || saved?.request.intent
             ? 'mlearn.ConversationAgent.NewConversation.PreparedGoalLabel'
             : 'mlearn.ConversationAgent.NewConversation.IntentLabel')}>
             <Textarea

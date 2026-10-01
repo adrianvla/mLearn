@@ -3,7 +3,7 @@
  * Renders a single message with tokenized text, widgets, and timestamps
  */
 
-import { Component, Show, For, createSignal, createMemo, createEffect } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo, createEffect, createContext, useContext } from 'solid-js';
 import { useLanguage, useLocalization } from '../../context';
 import { formatClockTime } from '../../utils/timeFormatting';
 import { Button, Input, Spinner, RefreshIcon, CheckIcon, CrossIcon, ScissorsIcon, SafeHtml } from '../../components';
@@ -78,8 +78,14 @@ function joinChatTokenText(tokens: readonly Token[], separator: string): string 
     .join(separator);
 }
 
+const ChatAnalysisContext = createContext<() => boolean>(() => true);
+
 interface ChatBubbleProps {
+  /** Explicit practice may expose analysis immediately. */
+  studyMode?: boolean;
   showSpeaker?: boolean;
+  showAvatar?: boolean;
+  showTimestamp?: boolean;
   message: ConversationMessage & { displayName?: string };
   isStreaming?: boolean;
   /** True when waiting for the request to be sent / before streaming starts */
@@ -90,12 +96,15 @@ interface ChatBubbleProps {
   triggerKey?: string;
   onQuizAnswer?: (widgetIndex: number, answer: string) => void;
   onRegenerate?: () => void;
+  onErrorRecovery?: () => void;
   /** Base64 data URI for the agent's profile photo — shown to the left of assistant bubbles */
   avatarSrc?: string;
 }
 
 export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   const { t, locale } = useLocalization();
+  const [inspecting, setInspecting] = createSignal(false);
+  const annotations = () => props.studyMode === true || inspecting();
 
 
   const formatTime = (ts: number): string => formatClockTime(ts, locale());
@@ -108,7 +117,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   const isError = () => props.message.isError === true;
 
   const hasCorrections = () =>
-    props.message.role === 'user' && props.message.corrections && props.message.corrections.length > 0;
+    annotations() && props.message.role === 'user' && props.message.corrections && props.message.corrections.length > 0;
 
   const hasTokens = () =>
     props.message.tokens && props.message.tokens.length > 0;
@@ -126,15 +135,16 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   };
 
   return (
-    <div class={`chat-bubble ${props.message.role}${props.avatarSrc && isAssistant() ? ' has-avatar' : ''}${isError() ? ' error' : ''}`}>
+    <ChatAnalysisContext.Provider value={annotations}>
+    <div class={`chat-bubble ${props.message.role}${props.avatarSrc && isAssistant() ? ' has-avatar' : ''}${isError() ? ' error' : ''}${annotations() ? ' showing-analysis' : ' quiet-text'}`}>
       <Show when={props.avatarSrc && isAssistant()}>
-        <img class="chat-bubble-avatar" src={props.avatarSrc} alt="" />
+        <img class={`chat-bubble-avatar${props.showAvatar === false ? ' grouped-avatar' : ''}`}  src={props.avatarSrc} alt="" />
       </Show>
       <div class="chat-bubble-inner">
       <Show when={props.showSpeaker !== false && isAssistant() && props.message.displayName}>
         <div class="chat-bubble-speaker">{props.message.displayName}</div>
       </Show>
-      <div class="chat-bubble-content">
+      <div class="chat-bubble-content selectable">
         <Show when={isError()}>
           <div class="chat-error-banner">
             <div class="chat-error-header">
@@ -148,10 +158,10 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
               <span class="chat-error-title">{t('mlearn.ConversationAgent.ErrorTitle')}</span>
             </div>
             <div class="chat-error-message">{props.message.content}</div>
-            <Show when={props.onRegenerate}>
-              <button type="button" class="chat-error-retry" onClick={() => props.onRegenerate?.()}>
+            <Show when={props.onErrorRecovery || props.onRegenerate}>
+              <button type="button" class="chat-error-retry" onClick={() => (props.onErrorRecovery ?? props.onRegenerate)?.()}>
                 <RefreshIcon size={14} />
-                {t('mlearn.Global.TryAgain')}
+                {t(props.onErrorRecovery ? 'mlearn.ConversationAgent.Banner.SettingsLink' : 'mlearn.Global.TryAgain')}
               </button>
             </Show>
           </div>
@@ -194,6 +204,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
           </Show>
           <Show when={!hasCorrections() && hasTokens() && !isAssistant()}>
             <TokenizedText
+              content={props.message.content}
               tokens={props.message.tokens!}
               onTokenHover={props.onTokenHover}
               onTokenLeave={props.onTokenLeave}
@@ -259,9 +270,15 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
 
       <Show when={props.message.role !== 'system'}>
         <div
-          class="chat-bubble-footer"
+          class={`chat-bubble-footer${props.showTimestamp === false ? ' grouped-footer' : ''}`}
         >
-          <span>{formatTime(props.message.timestamp)}</span>
+          <Show when={props.showTimestamp !== false}><span>{formatTime(props.message.timestamp)}</span></Show>
+          <Show when={!props.studyMode && !isError() && (hasTokens() || props.message.corrections?.length)}>
+            <button type="button" class="chat-bubble-inspect" aria-pressed={inspecting()}
+              onClick={() => setInspecting(value => !value)}>
+              {t(inspecting() ? 'mlearn.ConversationAgent.MessageAnalysis.Close' : 'mlearn.ConversationAgent.MessageAnalysis.Open')}
+            </button>
+          </Show>
           <Show when={isAssistant() && !props.isStreaming && props.onRegenerate}>
             <Button buttonType="icon"
                 class="chat-bubble-regenerate"
@@ -277,6 +294,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
       </Show>
       </div>
     </div>
+    </ChatAnalysisContext.Provider>
   );
 };
 
@@ -520,6 +538,7 @@ const CorrectedTokenizedText: Component<CorrectedTokenizedTextProps> = (props) =
 
 // Tokenized text renderer with hover trigger modes
 interface TokenizedTextProps {
+  content?: string;
   tokens: Token[];
   onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
   onTokenLeave?: () => void;
@@ -529,26 +548,29 @@ interface TokenizedTextProps {
 
 const TokenizedText: Component<TokenizedTextProps> = (props) => {
   const { currentLangData } = useLanguage();
-  const tokenSeparator = createMemo(() => getTokenJoinSeparator(currentLangData()));
-
-  return (
-    <span>
-      <For each={props.tokens}>
-        {(token, index) => (
-          <>
-            <Show when={index() > 0}>{tokenSeparator()}</Show>
-            <ChatToken
-              token={token}
-              onTokenHover={props.onTokenHover}
-              onTokenLeave={props.onTokenLeave}
-              triggerMode={props.triggerMode}
-              triggerKey={props.triggerKey}
-            />
-          </>
-        )}
-      </For>
-    </span>
-  );
+  const segments = createMemo(() => {
+    if (props.content === undefined) {
+      const separator = getTokenJoinSeparator(currentLangData());
+      return props.tokens.flatMap((token, index) => index ? [separator, token] : [token]);
+    }
+    const result: (string | Token)[] = [];
+    let cursor = 0;
+    for (const token of props.tokens) {
+      const surface = getChatTokenText(token);
+      const start = surface ? props.content.indexOf(surface, cursor) : -1;
+      // Normalization must never replace the author's text with reconstructed tokens.
+      if (start < 0) return [props.content];
+      if (start > cursor) result.push(props.content.slice(cursor, start));
+      result.push(token);
+      cursor = start + surface.length;
+    }
+    result.push(props.content.slice(cursor));
+    return result;
+  });
+  return <span><For each={segments()}>{segment => typeof segment === 'string' ? segment :
+    <ChatToken token={segment} onTokenHover={props.onTokenHover} onTokenLeave={props.onTokenLeave}
+      triggerMode={props.triggerMode} triggerKey={props.triggerKey} />
+  }</For></span>;
 };
 
 // Individual token with hover trigger mode support (mirrors OcrWord pattern)
@@ -561,7 +583,7 @@ interface ChatTokenProps {
 }
 
 const ChatToken: Component<ChatTokenProps> = (props) => (
-  <SubtitleWord class="chat-token" compact token={props.token} index={0} onHover={props.onTokenHover} onLeave={props.onTokenLeave} />
+  <SubtitleWord class="chat-token" compact annotations={useContext(ChatAnalysisContext)()} token={props.token} index={0} onHover={props.onTokenHover} onLeave={props.onTokenLeave} />
 );
 
 // Quiz widget

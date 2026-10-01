@@ -559,6 +559,10 @@
       "TetheredServerEnabledDescription": "将本地 Python 后端暴露给此网络中的其他设备。仅在需要与手机或平板同步时需要。"
     },
     "ConversationAgent": {
+      "MessageAnalysis": {
+        "Open": "显示解析",
+        "Close": "隐藏解析"
+      },
       "Agents": {},
       "Clear": "清除对话",
       "Connection": {
@@ -774,10 +778,10 @@
         "MediaContext": "此对话将使用以下媒体的上下文：{media}",
         "ChangeScenario": "修改设置",
         "UseScenario": "使用此情境",
-        "GeneratedNotice": "这是生成的虚构练习情境，并非经过考证的原作设定。请在开始前确认。",
+        "GeneratedNotice": "这是生成的虚构情境，并非经过考据的原作设定。开始前请先检查。",
         "PrivatePreview": "私有初始状态——仅供你在此审核，不会分享给所有人。",
         "Scene": "情境",
-        "TemporaryHint": "此练习单独保存。这里的记忆和编辑不会改变你的世界。",
+        "TemporaryHint": "此对话单独保存。这里的记忆和编辑不会改变你的世界。",
         "Title": "新对话",
         "Hint": "选择对话对象，并可选择设定一个目标。",
         "Placeholder": "你想聊什么或练习什么？",
@@ -793,7 +797,7 @@
         "PreparedGoalLabel": "练习重点",
         "ToggleParticipant": "将 {name} 加入对话",
         "ScopeLabel": "保存在哪里？",
-        "ScopeTemporary": "练习",
+        "ScopeTemporary": "临时",
         "ScopePersistent": "在我的世界中",
         "PersistentHint": "这里的消息、记忆和关系将成为你永久世界的一部分。"
       },
@@ -935,6 +939,7 @@
         "SharedChats": "共同聊天",
         "NewMessage": "新消息",
         "NewPractice": "新练习",
+        "NewScenario": "新建情境",
         "EmptyPractice": "还没有练习对话。",
         "Chats": "聊天",
         "Tab": "联系人",
@@ -1397,10 +1402,10 @@
     "Home": {
       "Cards": {
         "AITutor": {
-          "Description": "与 AI 对话伙伴一起练习",
+          "Description": "聊天、探索情境并练习语言。",
           "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
           "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
-          "Title": "AI 导师"
+          "Title": "聊天"
         },
         "Flashcards": {
           "Description": "通过间隔重复复习词汇",

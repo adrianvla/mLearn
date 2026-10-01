@@ -660,6 +660,29 @@ describe('checkerAgent', () => {
       expect(messages[0].content).toContain('Japanese');
     });
 
+    it('returns a feedback agreement only when grounded in the current user message', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+      const promise = agent.checkMessage('No corrections now. Ice cream?', 'English', undefined, { includeCorrections: true, recentConversation: [] });
+      streamCallback!({ toolCalls: [{ id: 'agreement', name: 'report_feedback_agreement', arguments: { active: false, scope: 'Social conversation without correction', evidence: 'No corrections now.' } }], done: true });
+      expect(await promise).toMatchObject({ feedbackAgreement: { active: false, scope: 'Social conversation without correction', evidence: 'No corrections now.' } });
+      expect(mockBridge.llm.llmStream.mock.calls[0][1].some((tool: { name: string }) => tool.name === 'report_feedback_agreement')).toBe(true);
+      const invalid = agent.checkMessage('Ice cream?', 'English', undefined, { includeCorrections: true, recentConversation: [] });
+      streamCallback!({ toolCalls: [{ id: 'invented', name: 'report_feedback_agreement', arguments: { active: true, scope: 'Correct everything', evidence: 'Please correct me' } }], done: true });
+      expect(await invalid).not.toHaveProperty('feedbackAgreement');
+    });
+
+    it('uses recent conversation to bound feedback and honor an ended teaching agreement', async () => {
+      const { createCheckerAgent } = await import('./checkerAgent');
+      const agent = createCheckerAgent();
+      const recentConversation = [{ role: 'user' as const, content: 'Practice is over. No corrections now.' }];
+      const promise = agent.checkMessage('Yesterday I eat ice cream.', 'English', undefined, { includeCorrections: true, recentConversation });
+      streamCallback!({ done: true }); await promise;
+      const [messages] = mockBridge.llm.llmStream.mock.calls[0];
+      expect(messages[0].content).toContain('A Practice room is not permanent consent');
+      expect(JSON.parse(messages[1].content)).toEqual({ currentMessage: 'Yesterday I eat ice cream.', recentConversation });
+    });
+
     it('appends custom instructions when provided', async () => {
       const { createCheckerAgent } = await import('./checkerAgent');
       const agent = createCheckerAgent();

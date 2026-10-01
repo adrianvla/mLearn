@@ -559,6 +559,10 @@
       "TetheredServerEnabledDescription": "Открывает локальный Python-бэкенд для других устройств в этой сети. Нужно только при синхронизации с телефоном или планшетом."
     },
     "ConversationAgent": {
+      "MessageAnalysis": {
+        "Open": "Показать разбор",
+        "Close": "Скрыть разбор"
+      },
       "Agents": {},
       "Clear": "Очистить беседу",
       "Connection": {
@@ -774,10 +778,10 @@
         "MediaContext": "Контекст для этой беседы: {media}",
         "ChangeScenario": "Изменить подготовку",
         "UseScenario": "Использовать ситуацию",
-        "GeneratedNotice": "Это сгенерированная вымышленная ситуация, а не изученный канон. Проверьте её перед началом.",
+        "GeneratedNotice": "Это сгенерированная вымышленная ситуация, а не исследованный канон. Проверьте её перед началом.",
         "PrivatePreview": "Личное начальное состояние — показано для проверки, не сообщается всем.",
         "Scene": "Ситуация",
-        "TemporaryHint": "Эта практика сохраняется отдельно. Воспоминания и изменения здесь не меняют ваш мир.",
+        "TemporaryHint": "Этот разговор сохраняется отдельно. Воспоминания и изменения здесь не меняют ваш мир.",
         "Title": "Новый диалог",
         "Hint": "Выберите собеседников и при желании задайте цель разговора.",
         "Placeholder": "О чём хотите поговорить или что потренировать?",
@@ -793,7 +797,7 @@
         "PreparedGoalLabel": "Тема практики",
         "ToggleParticipant": "Добавить {name} в разговор",
         "ScopeLabel": "Где это должно жить?",
-        "ScopeTemporary": "Практика",
+        "ScopeTemporary": "Временно",
         "ScopePersistent": "В моём мире",
         "PersistentHint": "Сообщения, воспоминания и отношения здесь становятся частью вашего постоянного мира."
       },
@@ -935,6 +939,7 @@
         "SharedChats": "Общие чаты",
         "NewMessage": "Новое сообщение",
         "NewPractice": "Новая практика",
+        "NewScenario": "Новый сценарий",
         "EmptyPractice": "Пока нет тренировочных чатов.",
         "Chats": "Чаты",
         "Tab": "Контакты",
@@ -1397,10 +1402,10 @@
     "Home": {
       "Cards": {
         "AITutor": {
-          "Description": "Практикуйтесь с ИИ-собеседником",
+          "Description": "Общайтесь, погружайтесь в ситуации и практикуйте языки.",
           "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
           "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
-          "Title": "ИИ-репетитор"
+          "Title": "Мессенджер"
         },
         "Flashcards": {
           "Description": "Повторяйте слова с интервальным повторением",

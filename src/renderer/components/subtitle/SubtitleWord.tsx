@@ -51,6 +51,8 @@ export interface SubtitleWordProps {
   class?: string;
   /** Dense text keeps word colors/readings/prosody, but omits frequency stars. */
   compact?: boolean;
+  /** Quiet surfaces retain lookup and selection without study decoration. */
+  annotations?: boolean;
   index: number;
   lookAheadPos?: string; // POS of the next token (for prosody rendering)
   onClick?: (token: Token) => void;
@@ -60,6 +62,7 @@ export interface SubtitleWordProps {
 
 export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const { settings } = useSettings();
+  const annotationsEnabled = () => props.annotations !== false;
   const {
     currentLangData,
     isTokenTranslatable,
@@ -134,17 +137,17 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     }
 
     // Blur unknown words when blur_words is enabled
-    if (settings.blur_words && !wordIsKnown()) {
+    if (annotationsEnabled() && settings.blur_words && !wordIsKnown()) {
       classes.push('blur');
     }
     // Blur known words when blurKnownWords is enabled
-    if (settings.blurKnownWords && wordIsKnown()) {
+    if (annotationsEnabled() && settings.blurKnownWords && wordIsKnown()) {
       classes.push('blur');
     }
     
     // Add part-of-speech class
     const pos = getPos();
-    if (pos) {
+    if (annotationsEnabled() && pos) {
       const posClass = toPosClass(pos);
       if (posClass) classes.push(posClass);
     }
@@ -220,7 +223,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Get color from user overrides or package POS metadata.
   const getWordColor = createMemo((): string | undefined => {
-    if (!flashcardCtx.isKnowledgeReady()) return undefined;
+    if (!annotationsEnabled() || !flashcardCtx.isKnowledgeReady()) return undefined;
     if (!settings.enableWordColoring) return undefined;
     if (!settings.colorKnownWords && wordIsKnown()) return undefined;
     if (!settings.do_colour_codes) return undefined;
@@ -239,8 +242,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return {
       cursor,
       position: 'relative',
-      display: 'inline-block',
-      ...(compactTokenLayout ? { 'margin-right': '0.1em' } : {}),
+      display: annotationsEnabled() ? 'inline-block' : 'inline',
+      ...(annotationsEnabled() && compactTokenLayout ? { 'margin-right': '0.1em' } : {}),
       ...(color ? { color } : {}),
     };
   };
@@ -260,7 +263,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   // Show reading annotations only when both settings and language metadata allow them.
   const showReadingAnnotation = createMemo(() => {
     const features = getLanguageFeatures();
-    if (!features.supportsReadings) return false;
+    if (!annotationsEnabled() || !features.supportsReadings) return false;
 
     if (!readingAnnotationsEnabled(settings)) return false;
 
@@ -274,8 +277,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
 
   // Custom attributes for CSS selectors
   const customAttrs = createMemo(() => ({
-    known: wordIsKnown() ? 'true' : 'false',
-    grammar: getPos(),
+    known: annotationsEnabled() ? (wordIsKnown() ? 'true' : 'false') : undefined,
+    grammar: annotationsEnabled() ? getPos() : undefined,
   }));
 
   // Get word frequency (like old app's wordFreq[word])
@@ -303,7 +306,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const wordUsesReadingScript = createMemo(() => isReadingScriptText(displayWord(), currentLangData()));
 
   const canRenderProsodyOverlay = createMemo(() => (
-    getProsodyOverlayRenderer(currentLangData(), getLanguageFeatures().prosodyRenderer) !== null
+    annotationsEnabled() && getProsodyOverlayRenderer(currentLangData(), getLanguageFeatures().prosodyRenderer) !== null
     && prosodyVisible(settings)
   ));
 
@@ -317,7 +320,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   // Whether to show frequency stars
   // Only show when word has dictionary data and a valid frequency level
   const showFrequencyStars = createMemo(() => {
-    if (props.compact) return false;
+    if (!annotationsEnabled() || props.compact) return false;
     if (!cachedTranslation()) return false;
     const freq = wordFreqEntry();
     if (freq === null || !isDisplayableFrequencyLevel(freq.raw_level, getFreqLevelNames(), currentLangData())) return false;
@@ -390,11 +393,14 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={handleClick}
+      tabIndex={props.annotations !== undefined && annotationsEnabled() && isWordTranslatable() ? 0 : undefined}
+      onFocus={() => { if (props.annotations !== undefined && isWordTranslatable()) triggerHoverFromElement(); }}
+      onBlur={props.onLeave}
       data-token-index={props.index}
       data-word-id={randomId}
       {...{ known: customAttrs().known, grammar: customAttrs().grammar } as JSX.HTMLAttributes<HTMLSpanElement>}
     >
-      {renderSubtitleWord()}
+      <Show when={annotationsEnabled()} fallback={displayWord()}>{renderSubtitleWord()}</Show>
       {/* Frequency stars */}
       <Show when={showFrequencyStars()}>
         <FrequencyStars

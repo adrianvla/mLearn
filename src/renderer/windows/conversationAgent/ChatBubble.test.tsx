@@ -97,6 +97,14 @@ describe('ChatBubble hover triggers', () => {
     container.remove();
   });
 
+  it('preserves authored whitespace and untokenized text in ordinary user messages', async () => {
+    const { ChatBubble } = await import('./ChatBubble');
+    const dispose = render(() => <ChatBubble message={{ role: 'user', timestamp: 0,
+      content: 'hola  mundo\n! ', tokens: [{ word: 'hola', actual_word: 'hola', type: 'noun' }, { word: 'mundo', actual_word: 'mundo', type: 'noun' }] }} />, container);
+    expect(container.querySelector('.chat-bubble-content')?.textContent).toBe('hola  mundo\n! ');
+    dispose();
+  }, 15000);
+
   async function renderChatBubble(triggerMode: WordHoverTriggerMode, callbacks?: {
     onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
     onTokenLeave?: () => void;

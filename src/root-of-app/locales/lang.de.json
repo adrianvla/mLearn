@@ -559,6 +559,10 @@
       "TetheredServerEnabledDescription": "Macht das lokale Python-Backend für andere Geräte in diesem Netzwerk erreichbar. Nur beim Synchronisieren mit einem Telefon oder Tablet nötig."
     },
     "ConversationAgent": {
+      "MessageAnalysis": {
+        "Open": "Analyse anzeigen",
+        "Close": "Analyse ausblenden"
+      },
       "Agents": {},
       "Clear": "Gespräch löschen",
       "Connection": {
@@ -774,10 +778,10 @@
         "MediaContext": "Dieses Gespräch bezieht sich auf: {media}",
         "ChangeScenario": "Aufbau ändern",
         "UseScenario": "Diese Situation verwenden",
-        "GeneratedNotice": "Dies ist eine generierte fiktive Übungssituation, kein recherchierter Kanon. Prüfe sie vor dem Start.",
+        "GeneratedNotice": "Dies ist eine generierte fiktive Situation, kein recherchierter Kanon. Prüfe sie, bevor du beginnst.",
         "PrivatePreview": "Privater Ausgangszustand — nur zur Prüfung hier angezeigt, nicht mit allen geteilt.",
         "Scene": "Situation",
-        "TemporaryHint": "Diese Übung wird separat gespeichert. Erinnerungen und Änderungen hier verändern deine Welt nicht.",
+        "TemporaryHint": "Diese Unterhaltung wird separat gespeichert. Erinnerungen und Änderungen hier verändern deine Welt nicht.",
         "Title": "Neue Unterhaltung",
         "Hint": "Wähle, mit wem du conversieren möchtest, und lege optional ein Ziel fest.",
         "Placeholder": "Worüber möchtest du sprechen oder üben?",
@@ -793,7 +797,7 @@
         "PreparedGoalLabel": "Übungsschwerpunkt",
         "ToggleParticipant": "{name} in die Unterhaltung aufnehmen",
         "ScopeLabel": "Wo soll dies bestehen?",
-        "ScopeTemporary": "Übung",
+        "ScopeTemporary": "Vorübergehend",
         "ScopePersistent": "In meiner Welt",
         "PersistentHint": "Nachrichten, Erinnerungen und Beziehungen hier werden Teil deiner dauerhaften Welt."
       },
@@ -935,6 +939,7 @@
         "SharedChats": "Gemeinsame Chats",
         "NewMessage": "Neue Nachricht",
         "NewPractice": "Neue Übung",
+        "NewScenario": "Neues Szenario",
         "EmptyPractice": "Noch keine Übungschats.",
         "Chats": "Chats",
         "Tab": "Kontakte",
@@ -1397,10 +1402,10 @@
     "Home": {
       "Cards": {
         "AITutor": {
-          "Description": "Übe mit einem KI-Gesprächspartner",
+          "Description": "Chatte, erkunde Situationen und übe Sprachen.",
           "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
           "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
-          "Title": "KI-Tutor"
+          "Title": "Messenger"
         },
         "Flashcards": {
           "Description": "Vokabeln mit Spaced Repetition wiederholen",

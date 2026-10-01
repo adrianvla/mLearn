@@ -13,6 +13,7 @@ import type { LLMModelStatus, LLMStreamChunk } from '../../../shared/types';
 import type { JournalEvent, JournalEventDraft, WorldSnapshot } from '../../../shared/world';
 import type { TurnReviewRequest, TurnReviewResult } from '../../../shared/conversationReview';
 
+const mockForceHideHover = vi.hoisted(() => vi.fn());
 const mockCloudToken = vi.hoisted(() => vi.fn(async () => 'fresh-token'));
 let desktopRuntime = false;
 
@@ -205,6 +206,7 @@ vi.mock('../../hooks', () => ({
     showHover: vi.fn(),
     hideHover: vi.fn(),
     cancelHide: vi.fn(),
+    forceHide: mockForceHideHover,
   }),
   useTranslation: () => ({
     translateWord: async () => null,
@@ -479,7 +481,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('returns to a saved practice conversation and selects its sidebar tab', async () => {
     testSettings.livingWorldEnabled = false;
-    currentWorld = { rooms: [], participants: [], threads: [{ id: 'practice-a', state: 'active', createdAt: 2,
+    currentWorld = { rooms: [], participants: [], threads: [{ id: 'practice-a', interactionMode: 'practice', state: 'active', createdAt: 2,
       sandbox: { operationId: 'practice', requestHash: 'hash', bindings: [{ baseline: worldFixture.participants[0] }], baselineHeads: {} } }] };
     mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'practice-a', threadId: 'practice-a' }));
     const { ConversationContent } = await import('./App');
@@ -685,6 +687,135 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     annotation.resolve([]);
   });
 
+  it('reads an earlier queued exit before checking the next user message', async () => {
+    currentWorld.threads[0] = { ...currentWorld.threads[0], interactionMode: 'practice', intent: 'Correct every message until I stop.' };
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const textarea = () => container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    const send = async (text: string) => {
+      await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]')).not.toBeNull());
+      textarea().value = text; textarea().dispatchEvent(new Event('input', { bubbles: true }));
+      (container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
+    };
+    await vi.waitFor(() => expect(textarea().disabled).toBe(false));
+    await send('No corrections now.');
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Okay.', done: true });
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
+    const delayedStopChecker = streamCallback;
+    await send('Yesterday I eat vanilla.');
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(3));
+    emitChunk({ content: 'I prefer chocolate.', done: true });
+    await vi.waitFor(() => expect(journalEvents.filter(event => event.type === 'message.character')).toHaveLength(2));
+    delayedStopChecker({ toolCalls: [{ id: 'stop', name: 'report_feedback_agreement', arguments: {
+      active: false, scope: 'Social conversation', evidence: 'No corrections now.',
+    } }], done: true });
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(4));
+    const envelope = JSON.parse(mockBridge.llm.llmStream.mock.calls[3][0][1].content);
+    expect(envelope.feedbackAgreement).toEqual({ active: false, scope: 'Social conversation', evidence: 'No corrections now.' });
+    emitChunk({ done: true });
+  });
+
+  it('persists ended feedback, reopens quietly, and supplies it to both character and checker', async () => {
+    currentWorld.threads[0] = { ...currentWorld.threads[0], interactionMode: 'practice', intent: 'Correct every message until I stop.' };
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const textarea = () => container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea().disabled).toBe(false));
+    textarea().value = 'No corrections now. Ice cream?'; textarea().dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Chocolate.', done: true });
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
+    emitChunk({ toolCalls: [{ id: 'agreement', name: 'report_feedback_agreement', arguments: {
+      active: false, scope: 'Social conversation', evidence: 'No corrections now.',
+    } }], done: true });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'feedback.agreement')).toBe(true));
+    dispose(); dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(chatText(container)).toContain('Chocolate.'));
+    expect(container.querySelector('.chat-bubble.showing-analysis')).toBeNull();
+    mockBridge.llm.llmStream.mockClear();
+    textarea().value = 'Yesterday I eat vanilla.'; textarea().dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    expect(JSON.stringify(mockBridge.llm.llmStream.mock.calls[0][0])).toContain('Saved feedback agreement');
+    emitChunk({ content: 'I prefer chocolate.', done: true });
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
+    const envelope = JSON.parse(mockBridge.llm.llmStream.mock.calls[1][0][1].content);
+    expect(envelope.initialPracticeIntent).toBe('Correct every message until I stop.');
+    expect(envelope.feedbackAgreement).toEqual({ active: false, scope: 'Social conversation', evidence: 'No corrections now.' });
+    emitChunk({ done: true });
+  });
+
+  it('keeps deliberate beats separate while streaming, saves each once, and restores them on reopening', async () => {
+    testSettings.agentMistakeChecker = false;
+    testSettings.agentSafetyChecker = false;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
+    textarea.value = 'Who took lunch?'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
+    emitChunk({ content: 'What?!\n<message-break/>\nWho was it?' });
+    expect(container.querySelectorAll('.chat-bubble.assistant')).toHaveLength(2);
+    expect(chatText(container)).not.toContain('<message-break/>');
+    expect(container.querySelectorAll('.ca-message-continuation')).toHaveLength(1);
+    emitChunk({ done: true });
+    await vi.waitFor(() => expect(journalEvents.filter(event => event.type === 'message.character')).toHaveLength(2));
+    expect(journalEvents.filter(event => event.type === 'message.character').map(event => (event.payload as { text: string }).text)).toEqual(['What?!', 'Who was it?']);
+    await vi.waitFor(() => expect(container.querySelectorAll('.chat-bubble.assistant')).toHaveLength(2));
+    dispose();
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelectorAll('.chat-bubble.assistant')).toHaveLength(2));
+    expect(chatText(container)).toContain('Who was it?');
+    expect(container.querySelectorAll('.ca-message-continuation')).toHaveLength(1);
+  });
+
+  it('lets the user compose the next message during a reply without losing or prematurely sending the draft', async () => {
+    testSettings.agentMistakeChecker = false;
+    testSettings.agentSafetyChecker = false;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
+    textarea.value = 'Hello'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
+    expect(textarea.disabled).toBe(false);
+    textarea.value = 'And another thing'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+    emitChunk({ content: 'Hi there', done: true });
+    await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]')).not.toBeNull());
+    expect(textarea.value).toBe('And another thing');
+    expect(journalEvents.filter(event => event.type === 'message.user')).toHaveLength(1);
+  });
+
+  it('stops a response under review without committing it later or losing the next draft', async () => {
+    desktopRuntime = true;
+    const review = deferred<TurnReviewResult>();
+    mockBridge.world.reviewConversationTurn.mockImplementationOnce(() => review.promise);
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
+    textarea.value = 'Hello'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
+    emitChunk({ content: 'A cancelled reply', done: true });
+    await vi.waitFor(() => expect(mockBridge.world.reviewConversationTurn).toHaveBeenCalledOnce());
+    textarea.value = 'My next thought'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('button[aria-label="mlearn.ConversationAgent.StopStreaming"]') as HTMLButtonElement).click();
+    expect(mockBridge.world.cancelConversationReview).toHaveBeenCalledOnce();
+    review.resolve({ status: 'approved', text: 'A cancelled reply', reason: 'none', restrictUserContext: false, reviewId: 'cancelled' });
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    expect(journalEvents.filter(event => event.type === 'message.character')).toHaveLength(0);
+    expect(chatText(container)).not.toContain('A cancelled reply');
+    expect(textarea.value).toBe('My next thought');
+  });
+
   it('opens persistent Room history and commits replies directly to Sea without creating a Thread', async () => {
     mockBridge.kvStore.kvGet.mockResolvedValue(null);
     const { ConversationContent } = await import('./App');
@@ -777,6 +908,40 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(chatText(container)).toContain('こんにちは、元気？');
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(2));
     expect(container.querySelector('.chat-bubble.error')).toBeNull();
+  });
+
+  it('dismisses word lookup while dragging to select message text', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-messages')).not.toBeNull());
+    const messages = container.querySelector('.ca-messages')!;
+    messages.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 0 }));
+    expect(mockForceHideHover).not.toHaveBeenCalled();
+    messages.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, buttons: 1 }));
+    messages.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 1 }));
+    expect(mockForceHideHover).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps model failures readable and offers settings beside the failed reply', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
+    const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
+    textarea.value = 'hello';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    const send = container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
+    await vi.waitFor(() => expect(send.disabled).toBe(false));
+    send.click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
+    emitChunk({ error: 'Cloud LLM error: 400 {"error":{"message":"example/model is not a valid model ID"},"user_id":"private-account"}' });
+    await vi.waitFor(() => expect(container.querySelector('.chat-error-message')?.textContent).toBe('mlearn.ConversationAgent.Recovery.Model'));
+    expect(container.textContent).not.toContain('private-account');
+    const recovery = container.querySelector('.chat-error-retry') as HTMLButtonElement;
+    expect(recovery?.textContent).toContain('mlearn.ConversationAgent.Banner.SettingsLink');
+    recovery.click();
+    expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'settings' });
+    expect(journalEvents.filter(event => event.type === 'message.user')).toHaveLength(1);
   });
 
   it('refreshes cloud authentication and waits for desktop persistence before sending', async () => {
@@ -1053,6 +1218,45 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.textContent).toContain('mlearn.ConversationAgent.LivingWorld.ConsentTitle'));
     expect(container.querySelector('.new-conversation-form')).toBeNull();
     expect(mockBridge.world.createPersistentRoom).not.toHaveBeenCalled();
+  });
+
+  it('exposes scenario creation separately from explicit practice', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
+    await vi.waitFor(() => expect(container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')).not.toBeNull());
+    (container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some(button => button.textContent === 'mlearn.ConversationAgent.Contacts.NewScenario')).toBe(true));
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Contacts.NewScenario')!.click();
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-scope')).not.toBeNull());
+  });
+
+  it('persists quiz feedback before continuing and restores it on remount', async () => {
+    appendJournalEvent({ roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' }, type: 'message.character', actorId: 'agent-a', witnesses: ['user', 'agent-a'],
+      payload: { text: 'One question', widgets: [{ type: 'quiz', data: { type: 'mcq', question: 'Choose', options: ['A', 'B'], correctAnswer: 'A' } }] } });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.quiz-options button')).not.toBeNull());
+    const answer = container.querySelector('.quiz-options button') as HTMLButtonElement;
+    answer.click(); answer.click();
+    await vi.waitFor(() => expect(journalEvents.filter(event => event.type === 'widget.response')).toHaveLength(1));
+    expect(journalEvents.find(event => event.type === 'widget.response')).toMatchObject({ actorId: 'user', scope: { kind: 'thread', threadId: 'thread-a' },
+      payload: { messageEventId: 'evt-1', widgetIndex: 0, userAnswer: 'A', isCorrect: true } });
+    dispose();
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.quiz-result-correct')).not.toBeNull());
+    expect(container.querySelectorAll('.quiz-options button')[1]).toHaveProperty('disabled', true);
+  });
+
+  it('restores a persisted draft after remount and saves edits in order', async () => {
+    mockBridge.kvStore.kvGet.mockImplementation(async (...args: unknown[]) => args[0] === 'conversation-draft:room-a:thread-a'
+      ? JSON.stringify({ text: 'Unsent thought' }) : JSON.stringify({ roomId: 'room-a', threadId: 'thread-a' }));
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect((container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement)?.value).toBe('Unsent thought'));
+    const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    input.value = 'Revised thought'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.waitFor(() => expect(mockBridge.kvStore.kvSet).toHaveBeenCalledWith('conversation-draft:room-a:thread-a', JSON.stringify({ text: 'Revised thought' })));
   });
 
   it('keeps drafts scoped to their conversation while browsing searchable history', async () => {

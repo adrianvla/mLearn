@@ -1,3 +1,7 @@
+import { conversationStreamMessages } from '../../../shared/conversationMessageShape';
+import { streamingMessages, type ConversationOverlay } from './conversationStreaming';
+import { followsTailAfterScroll, type MessageScrollMetrics } from './messageScroll';
+import { sameMessageGroup } from './messageGrouping';
 import { tutorSessionIntent } from '../../services/tutorSessionIntent';
 /**
  * Conversation Agent Window App Component
@@ -16,6 +20,7 @@ import {
 } from '../../services/cloudSessionManager';
 import {
   describeProviderFailure,
+  classifyProviderFailure,
   probeProvider,
   type ProviderFailure,
 } from '../../services/providerFailure';
@@ -56,6 +61,7 @@ import { createJournalThreadStore, eventsToDisplayMessages, buildLLMHistory } fr
 import { runRoomTurn } from '../../../shared/roomOrchestrator';
 import { compileContext, visibleThreadEventsFor, type CompiledContext, type LearnerProjection } from '../../../shared/contextCompiler';
 import { renderCompiledContext } from './roomMessages';
+import { currentFeedbackAgreement, renderFeedbackAgreement } from '../../services/feedbackAgreement';
 import { createVoicePrefetch } from './voicePrefetch';
 import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type ThreadMediaRef, type WorldSnapshot } from '../../../shared/world';
 import { getLearningLanguageLevelForLanguage, getTokenizerCacheNamespace, shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
@@ -75,7 +81,7 @@ const mediaRefFromContext = (context: ConversationAgentContext): ThreadMediaRef 
   characterContext: context.characterContext,
 });
 
-type EventMessage = ConversationMessage & { eventId: string };
+type EventMessage = ConversationMessage & { eventId: string; actorId?: string };
 
 function windowTruncate<T>(history: T[]): T[] {
   return history.slice(-HISTORY_WINDOW);
@@ -240,7 +246,7 @@ export const ConversationContent: Component = () => {
 
 
   // Word hover state
-  const { hoverData, isVisible, showHover, hideHover, cancelHide } = useWordHover();
+  const { hoverData, isVisible, showHover, hideHover, cancelHide, forceHide } = useWordHover();
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
@@ -266,7 +272,7 @@ export const ConversationContent: Component = () => {
   // the inline confirm routes the user to consent instead of selecting.
   const [livingWorldPrompt, setLivingWorldPrompt] = createSignal<{ roomId: string; threadId?: string } | null>(null);
   const journal = createJournalThreadStore();
-  const [liveOverlay, setLiveOverlay] = createSignal<(ConversationMessage & { displayName?: string }) | null>(null);
+  const [liveOverlay, setLiveOverlay] = createSignal<ConversationOverlay | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
   const interruptedSpokenText = new Map<string, { text: string; interruptedAt: string }>();
   const supersededEvents = new Set<string>();
@@ -275,8 +281,16 @@ export const ConversationContent: Component = () => {
   const restrictedUserEventIds = new Set<string>();
   const pendingMemoryWrites = new Map<string, string[]>();
   const approvedMemoryWrites = new Map<string, string[]>();
-  onCleanup(() => { for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId); });
   let selectionSession = 0;
+  let cancelConversationTurn: (() => void) | null = null;
+  onCleanup(() => {
+    selectionSession++;
+    cancelConversationTurn?.();
+    cancelConversationTurn = null;
+    for (const runtime of participantAgents.values()) runtime.abortStream();
+    participantAgents.clear();
+    for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
+  });
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
   const [sidebarView, setSidebarView] = createSignal<'chats' | 'contacts' | 'practice'>('chats');
   const [addingContact, setAddingContact] = createSignal(false);
@@ -357,6 +371,7 @@ export const ConversationContent: Component = () => {
   const [explainerPosition, setExplainerPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
 
   let messagesRef: HTMLDivElement | undefined;
+  let messageContentRef: HTMLDivElement | undefined;
   let textareaRef: HTMLTextAreaElement | undefined;
 
   createEffect(() => {
@@ -469,7 +484,7 @@ export const ConversationContent: Component = () => {
       const interrupted = interruptedSpokenText.get(eventId);
       return { ...message, ...messageOverrides().get(eventId), ...(interrupted ? { content: interrupted.text, interrupted: true, interruptedAt: interrupted.interruptedAt } : {}) };
     }));
-  const messages = createMemo(() => liveOverlay() ? [...displayMessages(), liveOverlay()!] : displayMessages());
+  const messages = createMemo(() => [...displayMessages(), ...streamingMessages(liveOverlay())]);
   const [streamingMessageIndex, setStreamingMessageIndex] = createSignal<number | null>(null);
   const updateMessageOverride = (eventId: string, update: (message: ConversationMessage) => ConversationMessage) => {
     const message = displayMessages().find((item) => (item as EventMessage).eventId === eventId);
@@ -579,6 +594,7 @@ export const ConversationContent: Component = () => {
     if (cached && !compiled) return cached;
     const runtimeSession = selectionSession;
     const runtimeAgent = createConversationAgent({
+    getInteractionMode: () => activeThread()?.interactionMode ?? activeRoom()?.interactionMode ?? 'social',
     getTraceContext: () => ({ source: isVoiceCallActive() ? 'voice' : 'conversation', roomId: selection()?.roomId, threadId: selection()?.threadId ?? undefined, participantId: participant.id, sourceEventId: lastUserMessageEventId ?? undefined }),
     getSettings: () => settings,
     tokenize: tokenizeCached,
@@ -623,7 +639,7 @@ export const ConversationContent: Component = () => {
       }),
       rosterParticipants(),
       youLabel(),
-    ),
+    ) + renderFeedbackAgreement(currentFeedbackAgreement(journal.threadEvents())),
     getTurnSocialState: () => {
       // Checker verdicts land AFTER the turn's prompt is built (the checker runs
       // post-turn), so a fresh verdict rides the NEXT prompt instead — one-shot.
@@ -708,13 +724,32 @@ export const ConversationContent: Component = () => {
     const room = activeRoom();
     const threadId = selection()?.threadId;
     const session = selectionSession;
+    const initialPracticeIntent = activeThread()?.intent;
+    const recentConversation = displayMessages().filter(message => !message.isError && (message.role === 'user' || message.role === 'assistant'))
+      .slice(-12).map(message => ({ role: message.role as 'user' | 'assistant', content: message.content.slice(-4000) }));
+    const includeCorrections = settings.agentMistakeChecker && (activeThread()?.interactionMode ?? activeRoom()?.interactionMode ?? 'social') === 'practice';
     void enqueueCheckerTask(async () => {
+      // Earlier queued checks may have committed a changed agreement. Read the
+      // captured conversation, bounded to this message, when this task runs.
+      const feedbackEvents = includeCorrections && room
+        ? threadId ? await getBridge().journal.readThread(room.id, threadId)
+          : await getBridge().journal.readSeaProjection(room.id)
+        : [];
+      const feedbackAgreement = currentFeedbackAgreement(feedbackEvents, messageEventId);
       const result = await checkerAgent.checkMessage(userText, promptLangName(), customInstructions, {
         speakerRole: 'user',
-        includeCorrections: settings.agentMistakeChecker,
+        includeCorrections,
+        ...(includeCorrections ? { recentConversation, initialPracticeIntent, feedbackAgreement } : {}),
         includeSafety: settings.agentSafetyChecker,
         languageFeatures: getLanguageFeatures(),
       });
+      if (result.feedbackAgreement && room) {
+        await getBridge().journal.appendEvent(room.id, { roomId: room.id,
+          scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'feedback.agreement',
+          actorId: HARNESS_ACTOR, witnesses: [USER_ACTOR, ...room.participantIds],
+          payload: { sourceEventId: messageEventId, ...result.feedbackAgreement } });
+        if (session === selectionSession) await journal.refresh();
+      }
       if (session !== selectionSession) return;
       if (result.error === 'quota' && settings.agentSafetyChecker) { agent.lockSafety(); setIsSafetyLockedState(true); return; }
       if (result.socialClimate) {
@@ -790,6 +825,17 @@ export const ConversationContent: Component = () => {
   });
 
   const draftBySelection = new Map<string, string>();
+  const [draftReadyKey, setDraftReadyKey] = createSignal<string | null>(null);
+  let draftWrites: Promise<void> = Promise.resolve();
+  createEffect(() => {
+    const key = draftReadyKey();
+    const text = inputText();
+    if (!key) return;
+    draftBySelection.set(key, text);
+    // Serialize writes: a slower earlier edit must not replace the newest draft.
+    draftWrites = draftWrites.then(() => getBridge().kvStore.kvSet(`conversation-draft:${key}`, JSON.stringify({ text })))
+      .catch(error => log.error('Unable to save conversation draft', error));
+  });
   const scrollBySelection = new Map<string, number>();
   let pendingScrollKey: string | null = null;
   const selectionKey = (roomId: string, threadId: string | null) => `${roomId}:${threadId ?? ''}`;
@@ -803,6 +849,9 @@ export const ConversationContent: Component = () => {
       return;
     }
     const mySession = ++selectionSession;
+    setDraftReadyKey(null);
+    cancelConversationTurn?.();
+    cancelConversationTurn = null;
     setConversationLoadError(false);
     try {
       for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
@@ -844,13 +893,23 @@ export const ConversationContent: Component = () => {
       setMessageOverrides(new Map());
       setAnnotationFailed(false);
       participantAgents.clear();
-      setSidebarView(selectedSandbox ? 'practice' : 'chats');
+      setSidebarView((selectedSandbox?.interactionMode ?? requestedThread?.interactionMode ?? snapshot.rooms.find(item => item.id === roomId)?.interactionMode) === 'practice' ? 'practice' : 'chats');
       const key = selectionKey(roomId, threadId);
       pendingScrollKey = scrollBySelection.has(key) ? key : null;
       setSelection({ roomId, threadId });
+      if (!draftBySelection.has(key)) {
+        try {
+          await draftWrites;
+          const rawDraft = await getBridge().kvStore.kvGet(`conversation-draft:${key}`);
+          const savedDraft: unknown = rawDraft ? JSON.parse(rawDraft) : null;
+          if (isRecord(savedDraft) && typeof savedDraft.text === 'string') draftBySelection.set(key, savedDraft.text);
+        } catch (error) { log.error('Unable to restore conversation draft', error); }
+        if (mySession !== selectionSession) return;
+      }
       // The first selection can finish while a learner has already begun typing
       // in the visible composer. Do not erase that draft on initial hydration.
       if (previous || !inputText()) setInputText(draftBySelection.get(key) ?? '');
+      setDraftReadyKey(key);
       await journal.select({ roomId, threadId, continuityRoomIds: selectedSandbox ? Object.keys(selectedSandbox.sandbox!.baselineHeads) : snapshot.rooms.map(item => item.id), baselineHeads: selectedSandbox?.sandbox?.baselineHeads });
       if (mySession !== selectionSession) return;
       await getBridge().kvStore.kvSet(SELECTION_KEY, JSON.stringify({ roomId, threadId }));
@@ -1042,13 +1101,18 @@ export const ConversationContent: Component = () => {
   // Dictionary hydration and new messages must not pull a reader away from history.
   const [followingTail, setFollowingTail] = createSignal(true);
   let scrollFrame: number | undefined;
-  createEffect(() => { selection()?.roomId; selection()?.threadId; setFollowingTail(true); });
+  let lastScrollMetrics: MessageScrollMetrics | undefined;
+  const handleMessageScroll = (element: HTMLDivElement): void => {
+    const current = { top: element.scrollTop, height: element.scrollHeight, viewport: element.clientHeight };
+    setFollowingTail(followsTailAfterScroll(followingTail(), lastScrollMetrics, current));
+    lastScrollMetrics = current;
+  };
+  createEffect(() => { selection()?.roomId; selection()?.threadId; lastScrollMetrics = undefined; setFollowingTail(true); });
   const scrollToLatest = (): void => {
     setFollowingTail(true);
     if (messagesRef) messagesRef.scrollTop = messagesRef.scrollHeight;
   };
-  createEffect(() => {
-    messages();
+  const scheduleMessageScroll = (): void => {
     if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame);
     if (conversationsLoading()) return;
     const restoreKey = pendingScrollKey;
@@ -1063,7 +1127,15 @@ export const ConversationContent: Component = () => {
         messagesRef.scrollTop = scrollBySelection.get(restoreKey)!;
         setFollowingTail(messagesRef.scrollHeight - messagesRef.clientHeight - messagesRef.scrollTop < 80);
       } else if (followingTail()) messagesRef.scrollTop = messagesRef.scrollHeight;
+      lastScrollMetrics = { top: messagesRef.scrollTop, height: messagesRef.scrollHeight, viewport: messagesRef.clientHeight };
     });
+  };
+  createEffect(() => { messages(); scheduleMessageScroll(); });
+  onMount(() => {
+    const observer = new ResizeObserver(() => scheduleMessageScroll());
+    if (messageContentRef) observer.observe(messageContentRef);
+    if (messagesRef) observer.observe(messagesRef);
+    onCleanup(() => observer.disconnect());
   });
   onCleanup(() => { if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame); });
 
@@ -1155,7 +1227,7 @@ export const ConversationContent: Component = () => {
 
   // Word hover handler for chat tokens
   const handleTokenHover = async (token: Token, rect: DOMRect, el: HTMLElement) => {
-    if (!isTokenTranslatable(token)) return;
+    if (window.getSelection()?.isCollapsed === false || !isTokenTranslatable(token)) return;
 
     const lookupWord = getTokenLookupWord(token, getLanguageFeatures().tokenizerCapabilities);
     const requestId = ++hoverRequestId;
@@ -1218,6 +1290,18 @@ export const ConversationContent: Component = () => {
     setExplainerOpen(false);
   };
 
+  const providerErrorOverlay = (error: unknown): ConversationOverlay => {
+    const failure = classifyProviderFailure(error, settings.llmProvider);
+    const description = describeProviderFailure(error, t, settings.llmProvider);
+    return {
+      role: 'assistant',
+      content: failure.id === 'unknown' ? t(failure.key) : description,
+      timestamp: Date.now(),
+      isError: true,
+      recovery: failure.recovery === 'settings' ? 'settings' : undefined,
+    };
+  };
+
   const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void, keepStreaming = false): StreamCallbacks => {
     const session = selectionSession;
     let streamTokenizeId = 0;
@@ -1231,8 +1315,9 @@ export const ConversationContent: Component = () => {
       onChunk: (accumulated) => {
         if (session !== selectionSession) return;
         setIsWaiting(false);
-        const visibleContent = stripPartialToolCall(accumulated);
-        setLiveOverlay((overlay) => overlay ? { ...overlay, content: visibleContent } : overlay);
+        const beats = conversationStreamMessages(stripPartialToolCall(accumulated));
+        const visibleContent = beats.join('\n\n');
+        setLiveOverlay((overlay) => overlay ? { ...overlay, content: visibleContent, beats } : overlay);
 
         if (visibleContent.trim()) {
           if (streamTokenizeTimer) clearTimeout(streamTokenizeTimer);
@@ -1240,7 +1325,7 @@ export const ConversationContent: Component = () => {
             const tokenizeId = ++streamTokenizeId;
             agent.tokenize(visibleContent).then((tokens) => {
               if (session !== selectionSession || tokenizeId !== streamTokenizeId) return;
-              if (tokens.length > 0) setLiveOverlay((overlay) => overlay ? { ...overlay, tokens } : overlay);
+              if (tokens.length > 0) setLiveOverlay((overlay) => overlay ? { ...overlay, tokens: (overlay.beats?.length ?? 0) > 1 ? undefined : tokens } : overlay);
             }).catch(error => log.warn('Stream annotation unavailable', error));
           }, 300);
         }
@@ -1264,7 +1349,7 @@ export const ConversationContent: Component = () => {
         if (session !== selectionSession) return;
         log.error('Conversation response failed', error);
         clearAssistantStreamState();
-        setLiveOverlay({ role: 'assistant', content: describeProviderFailure(error, t, settings.llmProvider), timestamp: Date.now(), isError: true });
+        setLiveOverlay(providerErrorOverlay(error));
       },
     };
   };
@@ -1295,7 +1380,7 @@ export const ConversationContent: Component = () => {
         }
         if (isElectron()) await getBridge().settings.awaitSettingsSaved();
       } catch (error) {
-        setLiveOverlay({ role: 'assistant', content: describeProviderFailure(error, t, settings.llmProvider), timestamp: Date.now(), isError: true });
+        setLiveOverlay(providerErrorOverlay(error));
         return;
       }
     }
@@ -1329,7 +1414,8 @@ export const ConversationContent: Component = () => {
           const participant = rosterParticipants().find((candidate) => candidate.id === participantId);
           if (!participant) return { text: '' };
           if (session !== selectionSession) throw new Error('Conversation selection changed');
-          setLiveOverlay((overlay) => overlay ? { ...overlay, displayName: participant.displayName } : overlay);
+          setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now(), displayName: participant.displayName, actorId: participant.id });
+          setStreamingMessageIndex(displayMessages().length);
           const runtimeAgent = getParticipantAgent(participant, context);
           pendingMemoryWrites.delete(participant.id);
           runtimeAgent.loadHistory(windowTruncate(buildLLMHistory(
@@ -1340,47 +1426,57 @@ export const ConversationContent: Component = () => {
           const last = history.at(-1);
           const currentText = contextOnly ? text : last?.content ?? lastContextMessage(context);
           if (!contextOnly && last) runtimeAgent.popHistory(1);
-          return new Promise((resolve, reject) => runtimeAgent.processMessage(currentText, [], {
-            ...buildStreamCallbacks((final, tokens, widgets, streamStats) => {
-              void (async () => {
-                if (session !== selectionSession) throw new Error('Conversation selection changed');
-                if (voiceTurnTiming && streamStats && !prefetchLogged) {
-                  prefetchLogged = true;
-                  const dispatchMs = voiceTurnTiming.requestDispatchTs - voiceTurnTiming.speechEndTs;
-                  const { cacheHit, compileMs } = voiceContextPrefetch.lastStats();
-                  log.info('[VoicePrefetch] voice turn', { cacheHit, compileMs, totalMs: dispatchMs + streamStats.timeToFirstToken });
-                }
-                  if (!isElectron()) { pendingResponse = { tokens, widgets }; approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []); resolve({ text: final }); return; }
-                const operationId = crypto.randomUUID();
-                reviewOperations.add(operationId);
-                try {
-                  const result = await getBridge().world.reviewConversationTurn({ operationId, roomId: room.id,
-                    threadId: threadId ?? undefined, participantId: participant.id, sourceEventId: userEvent?.id,
-                    userText: text, assistantText: final,
-                    auxiliaryText: widgets?.length ? JSON.stringify(widgets).slice(0, 12_000) : undefined,
-                    recent: history.filter(message => message.role === 'user' || message.role === 'assistant')
-                      .slice(-12).map(message => ({ role: message.role as 'user' | 'assistant', content: message.content.slice(-4000) })),
-                    repairContext: renderCompiledContext(context, rosterParticipants(), youLabel()).slice(0, 30_000),
-                    language: promptLangName() });
+          return new Promise((resolve, reject) => {
+            const cancel = () => reject(new Error('Conversation response cancelled'));
+            cancelConversationTurn = cancel;
+            runtimeAgent.processMessage(currentText, [], {
+              ...buildStreamCallbacks((final, tokens, widgets, streamStats) => {
+                void (async () => {
                   if (session !== selectionSession) throw new Error('Conversation selection changed');
-                  if (result.status === 'unavailable') throw new Error(result.error);
-                  if (result.restrictUserContext && userEvent) restrictedUserEventIds.add(userEvent.id);
-                  if (result.status === 'support') { pendingResponse = {}; pendingMemoryWrites.delete(participant.id); resolve({ text: t('mlearn.ConversationAgent.Story.SupportResponse'), reviewEvent: result.reviewEvent }); return; }
-                  pendingResponse = result.status === 'approved' ? { tokens, widgets } : {};
-                  if (result.status === 'approved' && !result.restrictUserContext) approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []);
-                  else pendingMemoryWrites.delete(participant.id);
-                  resolve({ text: result.text, reviewEvent: result.reviewEvent });
-                } finally { reviewOperations.delete(operationId); }
-              })().catch(reject);
-            }, true),
-            onError: (error) => reject(new Error(error)),
-          }));
+                  if (voiceTurnTiming && streamStats && !prefetchLogged) {
+                    prefetchLogged = true;
+                    const dispatchMs = voiceTurnTiming.requestDispatchTs - voiceTurnTiming.speechEndTs;
+                    const { cacheHit, compileMs } = voiceContextPrefetch.lastStats();
+                    log.info('[VoicePrefetch] voice turn', { cacheHit, compileMs, totalMs: dispatchMs + streamStats.timeToFirstToken });
+                  }
+                    if (!isElectron()) { pendingResponse = { tokens, widgets }; approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []); resolve({ text: final }); return; }
+                  const operationId = crypto.randomUUID();
+                  reviewOperations.add(operationId);
+                  try {
+                    const result = await getBridge().world.reviewConversationTurn({ operationId, roomId: room.id,
+                      threadId: threadId ?? undefined, participantId: participant.id, sourceEventId: userEvent?.id,
+                      userText: text, assistantText: final,
+                      auxiliaryText: widgets?.length ? JSON.stringify(widgets).slice(0, 12_000) : undefined,
+                      recent: history.filter(message => message.role === 'user' || message.role === 'assistant')
+                        .slice(-12).map(message => ({ role: message.role as 'user' | 'assistant', content: message.content.slice(-4000) })),
+                      repairContext: renderCompiledContext(context, rosterParticipants(), youLabel()).slice(0, 30_000),
+                      language: promptLangName() });
+                    if (session !== selectionSession) throw new Error('Conversation selection changed');
+                    if (result.status === 'unavailable') throw new Error(result.error);
+                    if (result.restrictUserContext && userEvent) restrictedUserEventIds.add(userEvent.id);
+                    if (result.status === 'support') { pendingResponse = {}; pendingMemoryWrites.delete(participant.id); resolve({ text: t('mlearn.ConversationAgent.Story.SupportResponse'), reviewEvent: result.reviewEvent }); return; }
+                    pendingResponse = result.status === 'approved' ? { tokens, widgets } : {};
+                    if (result.status === 'approved' && !result.restrictUserContext) approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []);
+                    else pendingMemoryWrites.delete(participant.id);
+                    resolve({ text: result.text, reviewEvent: result.reviewEvent });
+                  } finally { reviewOperations.delete(operationId); }
+                })().catch(reject).finally(() => {
+                  if (cancelConversationTurn === cancel) cancelConversationTurn = null;
+                });
+              }, true),
+              onError: (error) => {
+                if (cancelConversationTurn === cancel) cancelConversationTurn = null;
+                reject(new Error(error));
+              },
+            });
+          });
         },
-        appendEvent: async (draft) => {
+        appendEvent: async (draft, shape) => {
           if (session !== selectionSession) throw new Error('Conversation selection changed');
-          const event = await journal.append(draft.type === 'message.character' && pendingResponse.widgets
+          const event = await journal.append(draft.type === 'message.character' && pendingResponse.widgets && (!shape || shape.index === shape.count - 1)
             ? { ...draft, payload: { ...(draft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
             : draft);
+          if (draft.type === 'message.character') setLiveOverlay(null);
           if (draft.type === 'message.character') {
             const writes = approvedMemoryWrites.get(draft.actorId) ?? [];
             approvedMemoryWrites.delete(draft.actorId); pendingMemoryWrites.delete(draft.actorId);
@@ -1395,7 +1491,7 @@ export const ConversationContent: Component = () => {
           if (draft.type === 'message.character' && contextOnly && modality === 'text' && settings.autoSpeak && settings.speechEnabled) {
             speakAssistantText((draft.payload as MessagePayload).text);
           }
-          if (draft.type === 'message.character' && pendingResponse.tokens?.length) {
+          if (draft.type === 'message.character' && pendingResponse.tokens?.length && (!shape || shape.count === 1)) {
             updateMessageOverride(event.id, (message) => ({ ...message, tokens: pendingResponse.tokens }));
           }
           return event;
@@ -1417,7 +1513,7 @@ export const ConversationContent: Component = () => {
     } catch (error) {
       log.error('Conversation turn failed', error);
       if (session === selectionSession) {
-        setLiveOverlay({ role: 'assistant', content: describeProviderFailure(error, t, settings.llmProvider), timestamp: Date.now(), isError: true });
+        setLiveOverlay(providerErrorOverlay(error));
       }
     } finally {
       if (session === selectionSession) {
@@ -1501,7 +1597,17 @@ export const ConversationContent: Component = () => {
   };
 
   const handleAbort = () => {
-    agent.abortStream();
+    // Invalidate callbacks before cancelling inference or review. A completed
+    // provider response is still cancellable until it enters the journal.
+    selectionSession++;
+    for (const runtime of participantAgents.values()) runtime.abortStream();
+    participantAgents.clear();
+    for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
+    reviewOperations.clear();
+    cancelConversationTurn?.();
+    cancelConversationTurn = null;
+    pendingMemoryWrites.clear(); approvedMemoryWrites.clear();
+    setLiveOverlay(null);
     clearAssistantStreamState();
 
     // If the only message is an empty/partial first assistant greeting with no
@@ -1549,7 +1655,8 @@ export const ConversationContent: Component = () => {
 
   const normalizeQuizAnswer = (answer: string): string => answer.trim().toLocaleLowerCase();
 
-  const handleQuizAnswer = (messageIndex: number, widgetIndex: number, answer: string) => {
+  const pendingWidgetAnswers = new Set<string>();
+  const handleQuizAnswer = async (messageIndex: number, widgetIndex: number, answer: string) => {
     if (isSafetyLockedState()) return;
     // Extract quiz data before updating state to determine follow-up action
     const msgs = messages();
@@ -1567,6 +1674,25 @@ export const ConversationContent: Component = () => {
     }
 
     const eventId = (targetMsg as ConversationMessage & { eventId?: string } | undefined)?.eventId;
+    const room = activeRoom();
+    const threadId = selection()?.threadId;
+    const responseKey = `${eventId}:${widgetIndex}`;
+    if (!eventId || !room || !targetWidget || targetWidget.type !== 'quiz'
+      || targetWidget.resolved || pendingWidgetAnswers.has(responseKey)) return;
+    const responseSession = selectionSession;
+    pendingWidgetAnswers.add(responseKey);
+    try {
+      await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
+        type: 'widget.response', actorId: USER_ACTOR, witnesses: [USER_ACTOR, ...room.participantIds],
+        payload: { messageEventId: eventId, widgetIndex, userAnswer: answer, isCorrect: quizIsCorrect } });
+    } catch (error) {
+      log.error('Unable to save quiz answer', error);
+      setLiveOverlay(providerErrorOverlay(error));
+      return;
+    } finally {
+      pendingWidgetAnswers.delete(responseKey);
+    }
+    if (responseSession !== selectionSession) return;
     if (eventId) updateMessageOverride(eventId, (message) => {
       const msg = { ...message };
       const widgets = msg.widgets || (msg.widget ? [msg.widget] : []);
@@ -1620,7 +1746,6 @@ export const ConversationContent: Component = () => {
   };
 
   const handleClear = () => {
-    openComposer('message');
     setLiveOverlay(null);
     clearAssistantStreamState();
   };
@@ -1669,7 +1794,7 @@ export const ConversationContent: Component = () => {
     && connectionFailure()?.recovery === 'settings'
   );
 
-  const ConnectionInfo = () => (
+  const ConnectionInfo: Component<{ details?: boolean }> = (props) => (
     <Button
           variant="ghost"
           class={`ca-connection-info ${canActOnConnection() ? 'is-actionable' : ''}`}
@@ -1683,7 +1808,7 @@ export const ConversationContent: Component = () => {
             showLabel={isCheckingConnection() || !isConnected()}
             size="sm"
           />
-          <Show when={!isCheckingConnection() && !isConnected()}>
+          <Show when={props.details && !isCheckingConnection() && !isConnected()}>
             <span class="ca-connection-reason">{connectionLabel()}</span>
           </Show>
           <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
@@ -1721,7 +1846,6 @@ export const ConversationContent: Component = () => {
             )}
           </Show>
         </div>
-        <div class="ca-header-spacer" />
         <Show when={!callSurfaceOpen()}><ConnectionInfo /></Show>
         <Show when={!callSurfaceOpen()}><Button buttonType="icon"
           variant="ghost"
@@ -1744,9 +1868,11 @@ export const ConversationContent: Component = () => {
             label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
             class="ca-overflow-menu"
           >
-            <Show when={callSurfaceOpen()}><div class="ca-provider-details"><ConnectionInfo /></div></Show>
+            <div class="ca-provider-details"><ConnectionInfo details /></div>
+            <p class="ca-ai-notice">{t('mlearn.ConversationAgent.Disclaimer')}</p>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewMessage')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('practice'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewPractice')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('scenario'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewScenario')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
@@ -1857,7 +1983,10 @@ export const ConversationContent: Component = () => {
             </Show>
 
             {/* Messages */}
-            <div class="ca-messages" aria-busy={conversationsLoading()} ref={messagesRef} onScroll={event => { const element = event.currentTarget; setFollowingTail(element.scrollHeight - element.clientHeight - element.scrollTop < 80); }}>
+            <div class="ca-messages" aria-busy={conversationsLoading()} ref={messagesRef} onScroll={event => handleMessageScroll(event.currentTarget)}
+              onPointerDown={event => { if (event.button === 0) forceHide(); }}
+              onPointerMove={event => { if (event.buttons & 1) forceHide(); }}>
+              <div class="ca-message-content" ref={messageContentRef}>
               <Show when={!conversationsLoading()} fallback={
                 <div class="ca-history-loading" role="status" aria-label={t('mlearn.Global.Loading')}>
                   <SkeletonCard title={false} lines={2} animate={false} class="ca-history-placeholder user" />
@@ -1895,19 +2024,25 @@ export const ConversationContent: Component = () => {
                       <div
                         ref={registerMessage}
                         data-event-id={(msg() as EventMessage).eventId}
-                        class={`ca-message-row${(msg() as EventMessage).eventId === contactEventId() ? ' ca-contact-target' : ''}`}
+                        class={`ca-message-row${sameMessageGroup(messages()[index - 1] as EventMessage, msg() as EventMessage) ? ' ca-message-continuation' : ''}${(msg() as EventMessage).eventId === contactEventId() ? ' ca-contact-target' : ''}`}
                       >
                         <ChatBubble
                           message={msg()}
-                          showSpeaker={rosterParticipants().length > 1}
+                          showSpeaker={rosterParticipants().length > 1 && !sameMessageGroup(messages()[index - 1] as EventMessage, msg() as EventMessage)}
+                          showAvatar={!sameMessageGroup(msg() as EventMessage, messages()[index + 1] as EventMessage)}
+                          showTimestamp={!sameMessageGroup(msg() as EventMessage, messages()[index + 1] as EventMessage)}
                           isStreaming={msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null && isStreaming()}
                           isWaiting={isWaiting() && msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null}
+                          studyMode={(activeThread()?.interactionMode ?? activeRoom()?.interactionMode) === 'practice' && currentFeedbackAgreement(journal.threadEvents())?.active !== false}
                           onTokenHover={handleTokenHover}
                           onTokenLeave={handleTokenLeave}
                           triggerMode={currentTriggerMode()}
                           triggerKey={currentKey()}
                           onQuizAnswer={(widgetIndex, answer) => handleQuizAnswer(index, widgetIndex, answer)}
                           onRegenerate={undefined}
+                          onErrorRecovery={(msg() as ConversationOverlay).recovery === 'settings'
+                            ? () => { void getBridge().window.openWindow({ type: 'settings' }); }
+                            : undefined}
                           avatarSrc={rosterParticipants().length === 1 ? rosterParticipants()[0]?.profilePhoto : undefined}
                         />
                       </div>
@@ -1917,6 +2052,7 @@ export const ConversationContent: Component = () => {
               </Show>
               </Show>
               </Show>
+              </div>
             </div>
 
             {/* Word Hover Popup */}
@@ -1949,7 +2085,7 @@ export const ConversationContent: Component = () => {
               initialPosition={explainerPosition()}
             />
 
-            <Show when={isSafetyLockedState()} fallback={<div class="ca-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</div>}>
+            <Show when={isSafetyLockedState()}>
               <div class="ca-safety-lockout">
                 {t('mlearn.ConversationAgent.Safety.LockoutMessage')}
               </div>
@@ -1959,6 +2095,12 @@ export const ConversationContent: Component = () => {
               <span>{t('mlearn.ConversationAgent.Contacts.AnnotationUnavailable')}</span>
               <Button size="sm" variant="ghost" onClick={() => { setAnnotationFailed(false); setAnnotationRetry(value => value + 1); }}>{t('mlearn.Global.Retry')}</Button>
             </div></Show>
+            <Show when={!isCheckingConnection() && !isConnected()}>
+              <div class="ca-provider-notice" role="status">
+                <span>{connectionLabel()}</span>
+                <Show when={canActOnConnection()}><Button variant="ghost" size="sm" onClick={handleConnectionStatusClick}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button></Show>
+              </div>
+            </Show>
             {/* Input */}
             <div class="ca-input-area">
               <div class="ca-input-row">
@@ -1992,7 +2134,7 @@ export const ConversationContent: Component = () => {
                     onKeyDown={handleKeyDown}
                     rows={1}
                     resize="none"
-                    disabled={conversationsLoading() || conversationLoadError() || !hasActiveRoomSelection() || rosterParticipants().length === 0 || isStreaming() || isCompactingContext() || !isConnected() || isSafetyLockedState()}
+                    disabled={conversationsLoading() || conversationLoadError() || !hasActiveRoomSelection() || rosterParticipants().length === 0 || !isConnected() || isSafetyLockedState()}
                     ghost
                   />
 

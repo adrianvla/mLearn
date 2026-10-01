@@ -16,3 +16,20 @@
 .room-sidebar-sessions { padding: var(--spacing-2); }
 .room-sidebar-notice { padding-inline: var(--spacing-3); font-size: var(--font-size-xs); color: var(--text-secondary); }
 .room-sidebar-story-action { display: flex; justify-content: flex-start; padding: var(--spacing-2); border-bottom: 1px solid var(--border-color); }
+
+.room-sidebar-list .btn.list-row {
+  padding-block: var(--spacing-2);
+  border: 1px solid transparent;
+}
+.room-sidebar-list .btn.list-row--selected,
+.room-sidebar-list .btn.list-row--selected:hover:not(:disabled) {
+  background: var(--bg-secondary) !important;
+  border-color: transparent !important;
+}
+.room-sidebar-list .list-row__trailing {
+  align-self: flex-start;
+  padding-top: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+.room-sidebar-list .list-row__copy { gap: var(--spacing-1); }

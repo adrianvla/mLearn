@@ -118,6 +118,9 @@ describe('renderCompiledContext', () => {
     const out = renderCompiledContext(ctx, [p1], 'You');
     expect(out).toContain('Learning target (chosen goal, not assessed ability): Package band zero');
     expect(out).not.toContain('Level estimate:');
+    expect(out).toContain('## Private language adaptation');
+    expect(out).toContain('not shared knowledge or your personal agenda');
+    expect(out).not.toContain('## Learner\n');
   });
 
   it('renders the grammar exposure line with unmeasured phrasing when present', () => {

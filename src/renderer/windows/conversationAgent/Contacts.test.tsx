@@ -33,6 +33,21 @@ const click = (el: HTMLElement, label: string): void => {
 };
 
 describe('Contacts are independent from conversations', () => {
+  it('groups by requested activity rather than temporary retention', () => {
+    const el = mount(() => <RoomSidebar world={{ participants: [], rooms: [
+      { id: 'social', title: 'Ordinary chat', participantIds: [], createdAt: 1 },
+      { id: 'practice', title: 'Agreed feedback', participantIds: [], interactionMode: 'practice', createdAt: 2 }],
+      threads: [{ id: 'scenario', title: 'Deadline negotiation', state: 'active', interactionMode: 'scenario', createdAt: 3,
+        sandbox: { operationId: 'scenario', requestHash: 'hash', bindings: [], baselineHeads: {} } }] }}
+      roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
+      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+    expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Deadline negotiation');
+    expect(el.querySelector('.room-sidebar-list')?.textContent).not.toContain('Agreed feedback');
+    click(el, 'mlearn.ConversationAgent.Contacts.Practice');
+    expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Agreed feedback');
+    expect(el.querySelector('.room-sidebar-list')?.textContent).not.toContain('Deadline negotiation');
+  });
+
   it('opens the Sea when its latest message is newer than an earlier thread', () => {
     const selectRoom = vi.fn();
     const selectThread = vi.fn();

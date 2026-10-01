@@ -74,10 +74,10 @@ function skipMarkdownSyntax(consumer: TokenConsumer): void {
 }
 
 /** Consume NLP tokens that match `text`, returning the matched tokens */
-function consumeTokensForText(consumer: TokenConsumer, text: string): Token[] {
+function consumeTokensForText(consumer: TokenConsumer, text: string): Array<Token | string> {
   if (!text) return [];
 
-  const result: Token[] = [];
+  const result: Array<Token | string> = [];
   let textPos = 0;
 
   while (textPos < text.length && consumer.pos < consumer.tokens.length) {
@@ -100,11 +100,11 @@ function consumeTokensForText(consumer: TokenConsumer, text: string): Token[] {
     } else {
       // Mismatch — try to skip whitespace alignment
       if (/^\s+$/.test(text[textPos])) {
-        result.push({ word: text[textPos], type: '', partOfSpeech: '' } as Token);
+        result.push(text[textPos]);
         textPos++;
       } else {
         // Push remaining text as a plain token with word content
-        result.push({ word: text[textPos], type: '', partOfSpeech: '' } as Token);
+        result.push(text[textPos]);
         textPos++;
       }
     }
@@ -112,7 +112,7 @@ function consumeTokensForText(consumer: TokenConsumer, text: string): Token[] {
 
   // If we didn't consume all the text, add remainder as plain token
   if (textPos < text.length) {
-    result.push({ word: text.slice(textPos), type: '', partOfSpeech: '' } as Token);
+    result.push(text.slice(textPos));
   }
 
   return result;
@@ -209,7 +209,7 @@ function renderTextTokens(
 
   return (
     <For each={consumed}>
-      {(token) => (
+      {(token) => typeof token === 'string' ? token : (
         <TokenComp
           token={token}
           onTokenHover={props.onTokenHover}
@@ -282,7 +282,7 @@ function renderMarkedToken(
       // Code spans: skip consuming tokens, render as plain code
       const codeTokens = consumeTokensForText(consumer, code.text);
       skipMarkdownSyntax(consumer);
-      return <code class="ca-md-code">{codeTokens.map((t) => t.word).join('')}</code>;
+      return <code class="ca-md-code">{codeTokens.map((t) => typeof t === 'string' ? t : t.word).join('')}</code>;
     }
 
     case 'code': {
@@ -292,7 +292,7 @@ function renderMarkedToken(
       skipMarkdownSyntax(consumer);
       return (
         <pre class="ca-md-pre">
-          <code>{codeTokens.map((t) => t.word).join('')}</code>
+          <code>{codeTokens.map((t) => typeof t === 'string' ? t : t.word).join('')}</code>
         </pre>
       );
     }

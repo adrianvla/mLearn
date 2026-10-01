@@ -209,6 +209,19 @@ describe('recovery', () => {
   });
 });
 
+describe('provider error envelopes', () => {
+  it('extracts a nested error without exposing provider account metadata', () => {
+    const error = new Error('Cloud LLM error: 400 {"error":{"message":"upstream said no","code":400},"user_id":"private-account"}');
+    expect(describeProviderFailure(error, identity)).toBe('upstream said no');
+  });
+
+  it('offers model recovery for a rejected hosted model ID', () => {
+    const error = new Error('Cloud LLM error: 400 {"error":{"message":"example/model is not a valid model ID","code":400},"user_id":"private-account"}');
+    expect(classifyProviderFailure(error, 'openai-compatible').recovery).toBe('settings');
+    expect(describeProviderFailure(error, identity, 'openai-compatible')).toBe('mlearn.ConversationAgent.Recovery.Model');
+  });
+});
+
 describe('presentations', () => {
   it('clears a dead cloud session wherever the failure is reported', () => {
     // Doing this only where a surface remembered to meant the next request

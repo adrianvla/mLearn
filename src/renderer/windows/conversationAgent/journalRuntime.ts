@@ -14,6 +14,7 @@ import { inferenceEvents } from '../../../shared/inferenceBoundary';
 
 type JournalDisplayMessage = ConversationMessage & {
   eventId: string;
+  actorId: string;
   displayName: string;
   modality?: 'voice';
 };
@@ -109,6 +110,7 @@ export function eventsToDisplayMessages(
       const isUser = event.type === 'message.user';
       const message: JournalDisplayMessage = {
         eventId: event.id,
+        actorId: event.actorId,
         displayName: isUser ? youLabel : (participantsById.get(event.actorId)?.displayName ?? event.actorId),
         role: isUser ? 'user' : 'assistant',
         timestamp: event.createdAt,
@@ -119,6 +121,23 @@ export function eventsToDisplayMessages(
       if (payload.widgets) message.widgets = payload.widgets;
       messagesByEventId.set(event.id, message);
       messages.push(message);
+      continue;
+    }
+
+    if (event.type === 'widget.response') {
+      const payload = event.payload;
+      if (!isRecord(payload) || typeof payload.messageEventId !== 'string'
+        || !Number.isInteger(payload.widgetIndex) || typeof payload.widgetIndex !== 'number'
+        || typeof payload.userAnswer !== 'string' || typeof payload.isCorrect !== 'boolean') continue;
+      const message = messagesByEventId.get(payload.messageEventId);
+      const widgets = message?.widgets ?? (message?.widget ? [message.widget] : []);
+      const widget = widgets[payload.widgetIndex];
+      if (!message || !widget || widget.type !== 'quiz' || widget.resolved) continue;
+      const updated = [...widgets];
+      updated[payload.widgetIndex] = { ...widget, resolved: true,
+        data: { ...widget.data, userAnswer: payload.userAnswer, isCorrect: payload.isCorrect } };
+      message.widgets = updated;
+      message.widget = updated[updated.length - 1];
       continue;
     }
 

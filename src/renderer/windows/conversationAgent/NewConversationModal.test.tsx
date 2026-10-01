@@ -137,6 +137,29 @@ describe('NewConversationModal', () => {
     expect(createSandbox).not.toHaveBeenCalled();
   });
 
+  it('reuses only social direct messages even when practice and scenario rooms are newer', async () => {
+    const onCreated = vi.fn();
+    const existing: WorldSnapshot = { ...world(), rooms: [
+      { id: 'social', title: 'Rin', participantIds: [rin.id], createdAt: 1 },
+      { id: 'practice', title: 'Practice', participantIds: [rin.id], createdAt: 2, interactionMode: 'practice' },
+      { id: 'scenario', title: 'Situation', participantIds: [rin.id], createdAt: 3, interactionMode: 'scenario' },
+    ] };
+    dispose = render(() => <NewConversationModal mode="message" world={existing} onClose={vi.fn()} onCreated={onCreated} />, container);
+    personButton('Rin').click(); startButton().click();
+    await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'social', threadId: null }));
+    expect(createPersistentRoom).not.toHaveBeenCalled();
+  });
+
+  it('creates a social direct message when only a practice room exists', async () => {
+    const onCreated = vi.fn();
+    const existing: WorldSnapshot = { ...world(), rooms: [
+      { id: 'practice', title: 'Practice', participantIds: [rin.id], createdAt: 2, interactionMode: 'practice' },
+    ] };
+    dispose = render(() => <NewConversationModal mode="message" world={existing} onClose={vi.fn()} onCreated={onCreated} />, container);
+    personButton('Rin').click(); startButton().click();
+    await vi.waitFor(() => expect(createPersistentRoom).toHaveBeenCalledWith(expect.objectContaining({ interactionMode: 'social', participantIds: [rin.id] })));
+  });
+
   it('keeps inline contact creation in New Message persistent', async () => {
     createParticipant.mockResolvedValueOnce({ id: 'person-new', displayName: 'Mara', kind: 'persistent', personaText: '', setupComplete: true });
     const onCreated = vi.fn();
@@ -170,7 +193,7 @@ describe('NewConversationModal', () => {
     personButton('Rin').click();
     startButton().click();
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'sandbox-1', threadId: 'sandbox-1' }));
-    expect(createSandbox).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: [rin.id] });
+    expect(createSandbox).toHaveBeenCalledWith({ interactionMode: 'practice', operationId: expect.any(String), participantIds: [rin.id] });
     expect(createPersistentRoom).not.toHaveBeenCalled();
   });
 
@@ -187,8 +210,16 @@ describe('NewConversationModal', () => {
     expect(createPersistentRoom).not.toHaveBeenCalled();
   });
 
-  it('carries the tutor purpose into scenario setup without asking the learner to re-enter it', () => {
-    dispose = render(() => <NewConversationModal world={world()} initialIntent="Practise describing my work" onClose={vi.fn()} onCreated={vi.fn()} />, container);
+  it('labels scenario setup as a situation rather than a practice goal', () => {
+    dispose = render(() => <NewConversationModal mode="scenario" world={world()} initialIntent="Negotiate a deadline" onClose={vi.fn()} onCreated={vi.fn()} />, container);
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Contacts.NewScenario');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.Scene');
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.Contacts.OptionalGoal');
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.PreparedGoalLabel');
+  });
+
+  it('carries the tutor purpose into practice setup without asking the learner to re-enter it', () => {
+    dispose = render(() => <NewConversationModal mode="practice" world={world()} initialIntent="Practise describing my work" onClose={vi.fn()} onCreated={vi.fn()} />, container);
     expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('Practise describing my work');
     expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.PreparedGoalLabel');
     expect(container.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.IntentLabel');
@@ -217,7 +248,7 @@ describe('NewConversationModal', () => {
     startButton().click();
 
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'sandbox-1', threadId: 'sandbox-1' }));
-    expect(createSandbox).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1', 'participant-2'] });
+    expect(createSandbox).toHaveBeenCalledWith({ interactionMode: 'scenario', operationId: expect.any(String), participantIds: ['participant-1', 'participant-2'] });
     expect(createRoom).not.toHaveBeenCalled();
     expect(applyMembership).not.toHaveBeenCalled();
     expect(createPersistentRoom).not.toHaveBeenCalled();
@@ -234,7 +265,7 @@ describe('NewConversationModal', () => {
     expect(personButton('Alex').getAttribute('aria-pressed')).toBe('false');
     startButton().click();
 
-    await vi.waitFor(() => expect(createSandbox).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1'] }));
+    await vi.waitFor(() => expect(createSandbox).toHaveBeenCalledWith({ interactionMode: 'scenario', operationId: expect.any(String), participantIds: ['participant-1'] }));
   });
 
   it('passes the intent separately instead of turning the selection into text', async () => {
@@ -268,7 +299,7 @@ describe('NewConversationModal', () => {
     typeIntent(text);
     startButton().click();
 
-    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: [], intent: text }));
+    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith({ interactionMode: 'scenario', operationId: expect.any(String), participantIds: [], intent: text }));
     await vi.waitFor(() => expect(container.textContent).toContain('A busy café'));
     expect(onCreated).not.toHaveBeenCalled();
     expect(createParticipant).not.toHaveBeenCalled();
@@ -299,7 +330,7 @@ describe('NewConversationModal', () => {
     typeIntent('Alex');
     startButton().click();
 
-    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-2'], intent: 'Alex' }));
+    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith({ interactionMode: 'scenario', operationId: expect.any(String), participantIds: ['participant-2'], intent: 'Alex' }));
     expect(createParticipant).not.toHaveBeenCalled();
   });
 
@@ -321,7 +352,7 @@ describe('NewConversationModal', () => {
     expect(pressed[0].textContent).toContain('Alex');
     startButton().click();
 
-    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['alex-2'], intent: 'Alex' }));
+    await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith({ interactionMode: 'scenario', operationId: expect.any(String), participantIds: ['alex-2'], intent: 'Alex' }));
     expect(createParticipant).not.toHaveBeenCalled();
   });
 
@@ -383,7 +414,7 @@ describe('persistent scope creation', () => {
     startButton().click();
 
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'room-9', threadId: null }));
-    expect(createPersistentRoom).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent' });
+    expect(createPersistentRoom).toHaveBeenCalledWith({ interactionMode: 'scenario', operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent' });
     expect(createSandbox).not.toHaveBeenCalled();
   });
   it('routes a persistent intent through Director staging with the scope attached', async () => {
@@ -396,7 +427,7 @@ describe('persistent scope creation', () => {
     startButton().click();
 
     await vi.waitFor(() => expect(prepareScenario).toHaveBeenCalledWith(
-      { operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent', intent: 'plan the garden' }));
+      { interactionMode: 'scenario', operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent', intent: 'plan the garden' }));
     expect(createPersistentRoom).not.toHaveBeenCalled();
     expect(onCreated).not.toHaveBeenCalled();
   });
@@ -455,7 +486,7 @@ describe('living world consent', () => {
     expect(getSettingsMock).toHaveBeenCalled();
     persistedSettingsHandler!({ ...DEFAULT_SETTINGS, livingWorldEnabled: true });
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'room-9', threadId: null }));
-    expect(createPersistentRoom).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent' });
+    expect(createPersistentRoom).toHaveBeenCalledWith({ interactionMode: 'scenario', operationId: expect.any(String), participantIds: ['participant-1'], scope: 'persistent' });
     expect(createSandbox).not.toHaveBeenCalled();
   });
 
@@ -469,7 +500,7 @@ describe('living world consent', () => {
     startButton().click();
 
     await vi.waitFor(() => expect(onCreated).toHaveBeenCalledWith({ roomId: 'sandbox-1', threadId: 'sandbox-1' }));
-    expect(createSandbox).toHaveBeenCalledWith({ operationId: expect.any(String), participantIds: ['participant-1'] });
+    expect(createSandbox).toHaveBeenCalledWith({ interactionMode: 'scenario', operationId: expect.any(String), participantIds: ['participant-1'] });
     expect(createPersistentRoom).not.toHaveBeenCalled();
     expect(updateSettingsMock).not.toHaveBeenCalled();
   });

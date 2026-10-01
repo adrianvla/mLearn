@@ -26,6 +26,8 @@ export type EventType =
   | 'integration'
   | 'correction'
   | 'safety_flag'
+  | 'widget.response'
+  | 'feedback.agreement'
   | 'scenario_evolved'
   | 'intention'
   | 'occurrence.simulated'
@@ -285,7 +287,11 @@ export type ContactActionResult =
 
 import { resolveStoryCanon, type StoryBranch, type UnitRange, type StoryTrack, type StoryAdvanceRecord } from './story';
 
+export type ConversationInteractionMode = 'social' | 'practice' | 'scenario';
+
 export interface Room {
+  /** Activity semantics, independent of retention. Absent legacy mode is social. */
+  interactionMode?: ConversationInteractionMode;
   /** Persistent situation; survives individual encounters and Room return. */
   scenario?: ScenarioSpec;
   scenarioRef?: string;
@@ -311,6 +317,7 @@ export interface ThreadMediaRef {
 }
 
 export interface Thread {
+  interactionMode?: ConversationInteractionMode;
   id: string;
   roomId?: string;
   title?: string;
@@ -333,6 +340,7 @@ export interface Thread {
 }
 
 export interface CreateCastInput {
+  interactionMode?: ConversationInteractionMode;
   operationId: string;
   participantIds: string[];
   intent?: string;

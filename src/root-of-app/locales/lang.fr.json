@@ -559,6 +559,10 @@
       "TetheredServerEnabledDescription": "Expose le backend Python local aux autres appareils de ce réseau. Nécessaire uniquement lors de la synchronisation avec un téléphone ou une tablette."
     },
     "ConversationAgent": {
+      "MessageAnalysis": {
+        "Open": "Afficher l’analyse",
+        "Close": "Masquer l’analyse"
+      },
       "Agents": {},
       "Clear": "Effacer la conversation",
       "Connection": {
@@ -774,10 +778,10 @@
         "MediaContext": "Cette conversation utilisera le contexte de : {media}",
         "ChangeScenario": "Modifier la préparation",
         "UseScenario": "Utiliser cette situation",
-        "GeneratedNotice": "Cette situation fictive est générée, sans recherche canonique. Vérifiez-la avant de commencer.",
+        "GeneratedNotice": "Cette situation fictive a été générée et ne repose pas sur des recherches du canon. Vérifiez-la avant de commencer.",
         "PrivatePreview": "État initial privé — affiché ici pour vérification, pas partagé avec tout le monde.",
         "Scene": "Situation",
-        "TemporaryHint": "Cet entraînement est enregistré séparément. Les souvenirs et modifications ici ne changent pas votre monde.",
+        "TemporaryHint": "Cette conversation est enregistrée séparément. Les souvenirs et modifications ici ne changent pas votre monde.",
         "Title": "Nouvelle conversation",
         "Hint": "Choisissez avec qui converser et, si vous le souhaitez, fixez un objectif.",
         "Placeholder": "De quoi voulez-vous parler ou vous exercer ?",
@@ -793,7 +797,7 @@
         "PreparedGoalLabel": "Objectif de pratique",
         "ToggleParticipant": "Inclure {name} dans la conversation",
         "ScopeLabel": "Où cela doit-il vivre ?",
-        "ScopeTemporary": "Entraînement",
+        "ScopeTemporary": "Temporaire",
         "ScopePersistent": "Dans mon monde",
         "PersistentHint": "Les messages, souvenirs et relations deviennent partie intégrante de votre monde persistent."
       },
@@ -935,6 +939,7 @@
         "SharedChats": "Discussions partagées",
         "NewMessage": "Nouveau message",
         "NewPractice": "Nouvel exercice",
+        "NewScenario": "Nouveau scénario",
         "EmptyPractice": "Aucune discussion d'entraînement pour le moment.",
         "Chats": "Discussions",
         "Tab": "Contacts",
@@ -1397,10 +1402,10 @@
     "Home": {
       "Cards": {
         "AITutor": {
-          "Description": "Entraînez-vous avec un partenaire de conversation IA",
+          "Description": "Discutez, explorez des situations et pratiquez les langues.",
           "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
           "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
-          "Title": "Tuteur IA"
+          "Title": "Messagerie"
         },
         "Flashcards": {
           "Description": "Révisez le vocabulaire par répétition espacée",

@@ -52,14 +52,14 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
       return { id: room.id, title: person?.displayName ?? room.title, person, preview,
         roomId: room.id, roomIds: [room.id], threadId: preview ? preview.threadId : latestThread?.id, sessionTitle: latestThread?.title,
         unread: room.unreadCount ?? 0, timestamp: preview?.timestamp ?? room.createdAt,
-        temporary: false, loading: !preview && (props.previewLoading?.(room.id) || threads.some(thread => props.previewLoading?.(`${room.id}/${thread.id}`))) };
+        practice: room.interactionMode === 'practice', temporary: false, loading: !preview && (props.previewLoading?.(room.id) || threads.some(thread => props.previewLoading?.(`${room.id}/${thread.id}`))) };
     });
     // Legacy migration and older creation flows can leave several Rooms for
     // one contact. Group only by stable identity; every original scope stays
     // available below, without merging or rewriting journal history.
     const directChats = new Map<string, typeof persistent[number]>();
     for (const chat of persistent) {
-      const key = chat.person ? `contact:${chat.person.id}` : `room:${chat.roomId}`;
+      const key = chat.person ? `contact:${chat.person.id}:${chat.practice}` : `room:${chat.roomId}`;
       const existing = directChats.get(key);
       if (!existing) { directChats.set(key, chat); continue; }
       const latest = chat.timestamp > existing.timestamp ? chat : existing;
@@ -72,10 +72,10 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
       const title = thread.title || profiles.map(profile => profile.displayName).join(', ') || t('mlearn.ConversationAgent.Sidebar.UntitledThread');
       const preview = props.previews?.[`${thread.id}/${thread.id}`];
       return { id: thread.id, roomId: thread.id, roomIds: [thread.id], threadId: thread.id, title, person, preview,
-        timestamp: preview?.timestamp ?? thread.createdAt, unread: 0, temporary: true, sessionTitle: thread.title,
+        timestamp: preview?.timestamp ?? thread.createdAt, unread: 0, practice: thread.interactionMode === 'practice', temporary: true, sessionTitle: thread.title,
         loading: !preview && props.previewLoading?.(`${thread.id}/${thread.id}`) };
     });
-    return [...directChats.values(), ...temporary].filter(chat => chat.temporary === (tab() === 'practice') && matches(chat.title, chat.preview?.text, chat.sessionTitle))
+    return [...directChats.values(), ...temporary].filter(chat => chat.practice === (tab() === 'practice') && matches(chat.title, chat.preview?.text, chat.sessionTitle))
       .sort((a, b) => b.timestamp - a.timestamp);
   });
   const earlierSessions = createMemo(() => {
@@ -127,7 +127,7 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
             aria-current={chatSelected(chat)}
             leading={<Avatar name={chat.title} src={chat.person?.profilePhoto} />}
             headline={chat.title}
-            description={chat.loading ? <SkeletonLine width="80%" animate={false} /> : chat.preview?.text || chat.sessionTitle || t(chat.temporary ? 'mlearn.ConversationAgent.Contacts.PracticeChat' : 'mlearn.ConversationAgent.Contacts.SayHello')}
+            description={chat.loading ? <SkeletonLine width="80%" animate={false} /> : chat.preview?.text || chat.sessionTitle || t(chat.practice ? 'mlearn.ConversationAgent.Contacts.PracticeChat' : 'mlearn.ConversationAgent.Contacts.SayHello')}
             trailing={<><Show when={chat.preview}><time dateTime={new Date(chat.timestamp).toISOString()}>{timestamp(chat.timestamp)}</time></Show>
               <Show when={chat.unread > 0}><Badge>{chat.unread}</Badge></Show>
             </>}

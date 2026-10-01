@@ -78,6 +78,15 @@ describe('worldIpc', () => {
     expect((await mod.getWorldState()).rooms.map(room => room.title).sort()).toEqual(['First', 'Second']);
   });
 
+  it('persists explicit practice independently of disposable retention and conflicts on changed mode', async () => {
+    const person = await mod.createParticipant({ displayName: 'Sam', kind: 'persistent', personaText: 'Keeps a garden' });
+    const request = { operationId: 'mode-test', participantIds: [person.id], interactionMode: 'practice' as const };
+    const first = await mod.createSandbox(request);
+    expect(first.interactionMode).toBe('practice');
+    expect((await mod.getWorldState()).threads[0].interactionMode).toBe('practice');
+    await expect(mod.createSandbox({ ...request, interactionMode: 'scenario' })).rejects.toThrow(/conflict/);
+  });
+
   it('creates and resumes independent practice with a pinned cast and no permanent topology', async () => {
     const person = await mod.createParticipant({ displayName: 'Sam', kind: 'persistent', personaText: 'Keeps a garden' });
     const original = await mod.getWorldState();

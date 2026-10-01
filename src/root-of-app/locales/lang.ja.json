@@ -559,6 +559,10 @@
       "TetheredServerEnabledDescription": "ローカルネットワーク上の他のデバイスにローカルPythonバックエンドを公開します。電話やタブレットと同期する場合のみ必要です。"
     },
     "ConversationAgent": {
+      "MessageAnalysis": {
+        "Open": "解析を表示",
+        "Close": "解析を隠す"
+      },
       "Agents": {},
       "Clear": "会話をクリア",
       "Connection": {
@@ -774,10 +778,10 @@
         "MediaContext": "この会話で参照するメディア: {media}",
         "ChangeScenario": "設定を変更",
         "UseScenario": "この状況を使う",
-        "GeneratedNotice": "これは生成された架空の練習です。原作の調査に基づくものではありません。開始前に確認してください。",
+        "GeneratedNotice": "これは生成された架空の状況で、原作設定を調査したものではありません。開始する前に確認してください。",
         "PrivatePreview": "非公開の初期状態 — 確認用の表示で、全員に共有される情報ではありません。",
         "Scene": "状況",
-        "TemporaryHint": "この練習は別に保存されます。ここでの記憶や編集は、あなたの世界を変更しません。",
+        "TemporaryHint": "この会話は別に保存されます。ここでの記憶や編集はあなたの世界を変更しません。",
         "Title": "新しい会話",
         "Hint": "会話の相手を選び、必要なら目標を設定します。",
         "Placeholder": "何について話したり練習したりしたいですか？",
@@ -793,7 +797,7 @@
         "PreparedGoalLabel": "練習のテーマ",
         "ToggleParticipant": "{name} を会話に加える",
         "ScopeLabel": "どこに保存しますか？",
-        "ScopeTemporary": "練習",
+        "ScopeTemporary": "一時的",
         "ScopePersistent": "自分の世界",
         "PersistentHint": "ここでの会話、記憶、関係は永続的な世界の一部になります。"
       },
@@ -935,6 +939,7 @@
         "SharedChats": "共有チャット",
         "NewMessage": "新しいメッセージ",
         "NewPractice": "新しい練習",
+        "NewScenario": "新しいシナリオ",
         "EmptyPractice": "練習チャットはまだありません。",
         "Chats": "チャット",
         "Tab": "連絡先",
@@ -1397,10 +1402,10 @@
     "Home": {
       "Cards": {
         "AITutor": {
-          "Description": "AI会話パートナーと練習する",
+          "Description": "会話やシチュエーションを楽しみ、言語を練習しましょう。",
           "SetupRequiredDescription": "Setup required — configure an AI provider in Settings",
           "SetupRequiredTooltip": "AI Tutor requires setup. Go to Settings → AI Configuration to enable it.",
-          "Title": "AIチューター"
+          "Title": "メッセンジャー"
         },
         "Flashcards": {
           "Description": "間隔反復で語彙を復習",

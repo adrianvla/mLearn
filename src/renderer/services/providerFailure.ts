@@ -256,7 +256,9 @@ export function readProviderFailureMessage(error: unknown): string {
   if (jsonStart !== -1) {
     try {
       const parsed = JSON.parse(trimmed.slice(jsonStart)) as Record<string, unknown>;
-      const message = typeof parsed.error === 'string' ? parsed.error
+      const nestedError = getErrorRecord(parsed.error);
+      const message = typeof nestedError?.message === 'string' ? nestedError.message
+        : typeof parsed.error === 'string' ? parsed.error
         : typeof parsed.message === 'string' ? parsed.message
         : typeof parsed.detail === 'string' ? parsed.detail
         : null;
@@ -281,7 +283,7 @@ const QUOTA_PATTERN = /quota|rate limit|insufficient|billing|credit|usage limit/
  * "model is not ready" copy the capability gate uses rather than inventing a
  * conversation-specific version of that state.
  */
-const MODEL_UNAVAILABLE_PATTERN = /nobinaryfound|no model|model.*(not found|not loaded|missing|unavailable)|llama.*binary/;
+const MODEL_UNAVAILABLE_PATTERN = /nobinaryfound|no model|model.*(not found|not loaded|missing|unavailable)|(?:invalid|not a valid|unknown) model(?: id)?|llama.*binary/;
 
 /**
  * Clear a session that can no longer be used, and offer re-authentication.

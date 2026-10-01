@@ -10,6 +10,7 @@
  */
 
 import { compileContext, visibleEventsFor, type CompiledContext } from './contextCompiler';
+import { splitConversationMessages } from './conversationMessageShape';
 import { selectSpeaker } from './speakerSelection';
 import { sanitizeJournalMessageText, sanitizeModelSpeech } from './modelContent';
 import type { LLMChatMessage } from './types';
@@ -127,7 +128,7 @@ export interface RunRoomTurnInput {
   seaEvents: JournalEvent[]; // room sea stream (witness-relevant)
   threadEvents: JournalEvent[]; // active thread INCLUDING the triggering user message as the last event
   runAgentTurn: RoomAgentRunner; // injected (renderer supplies AgentInstance-backed runner)
-  appendEvent: (draft: JournalEventDraft) => Promise<JournalEvent>;
+  appendEvent: (draft: JournalEventDraft, shape?: { index: number; count: number }) => Promise<JournalEvent>;
   contextTurn?: { text: string; threadId?: string };
   modality?: 'text' | 'voice';
   /** A trusted ingress (for example an accepted incoming call) may pin the
@@ -200,18 +201,23 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
       currentThreadEvents.push(result.reviewEvent);
       if (result.reviewEvent.scope.kind === 'sea') currentSeaEvents.push(result.reviewEvent);
     }
-    const draft: JournalEventDraft = {
-      roomId: room.id,
-      scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
-      type: 'message.character',
-      actorId: speakerId,
-      witnesses: unique([...room.participantIds, userActorId]),
-      payload: { text: sanitizeModelSpeech(result.text), modality: input.modality ?? 'text' } satisfies MessagePayload,
-    };
-    const appended = await appendEvent(draft);
+    const speech = sanitizeModelSpeech(result.text);
+    const beats = input.modality === 'voice' ? [speech] : splitConversationMessages(speech);
+    const messages = beats.length ? beats : [''];
     speakerIds.push(speakerId);
-    events.push(appended);
-    currentThreadEvents.push(appended);
+    for (const [index, beat] of messages.entries()) {
+      const draft: JournalEventDraft = {
+        roomId: room.id,
+        scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
+        type: 'message.character',
+        actorId: speakerId,
+        witnesses: unique([...room.participantIds, userActorId]),
+        payload: { text: sanitizeModelSpeech(beat), modality: input.modality ?? 'text' } satisfies MessagePayload,
+      };
+      const appended = await appendEvent(draft, { index, count: messages.length });
+      events.push(appended);
+      currentThreadEvents.push(appended);
+    }
   };
 
   await runAndAppend(firstSpeakerId, contexts.get(firstSpeakerId)!);

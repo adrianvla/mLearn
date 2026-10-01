@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync, writeFileSync } from 'node:fs';
 import type {
   LLMStreamChunk,
   ConversationAgentContext,
@@ -80,6 +81,7 @@ vi.mock('../../shared/backends', () => ({ getBackend: () => mockBackend }));
 // ============================================================================
 
 interface MockDeps {
+  getInteractionMode?: () => import('../../shared/world').ConversationInteractionMode;
   getSettings: () => typeof DEFAULT_SETTINGS;
   tokenize: (text: string) => Promise<Token[]>;
   getLanguage: () => string;
@@ -171,6 +173,60 @@ describe('createConversationAgent', () => {
   // ==========================================================================
   // Factory
   // ==========================================================================
+
+  it.skipIf(!process.env.MLEARN_EVAL_KEY_FILE)('evaluates real social and practice responses through the production prompt builder', async () => {
+    const key = readFileSync(process.env.MLEARN_EVAL_KEY_FILE!, 'utf8').trim();
+    const results: unknown[] = [];
+    const samples = [
+      { name: 'ambiguous-test', mode: 'social', text: 'テスト', history: [] },
+      { name: 'greeting', mode: 'social', text: 'おはよう。今日も早いね', history: [] },
+      { name: 'ordinary-error', mode: 'social', text: '昨日、公園に行くでした。めっちゃ寒かった', history: [] },
+      { name: 'explicit-quiz', mode: 'social', text: '日本語の問題を一問だけ出して', history: [] },
+      { name: 'practice', mode: 'practice', text: '文法の問題を一問だけ出して', history: [] },
+      { name: 'agreed-correction', mode: 'social', text: '昨日、公園に行くでした', history: [{ role: 'user', content: 'これから書く文の間違いを直して' }, { role: 'assistant', content: '一文ずつな。送れ。' }] },
+      { name: 'leave-teaching', mode: 'social', text: '問題はもういい。昼メシ何食う？', history: [{ role: 'user', content: '日本語の問題を一問出して' }, { role: 'assistant', content: '一問だけだぞ。昨日、公園に行く。過去形にしろ。' }] },
+      { name: 'scenario-disagreement', mode: 'scenario', text: '来週までには難しいです', history: [] },
+      { name: 'social-clarification', mode: 'social', text: 'あ、さっきのあれ、やっぱ無理かも', history: [{ role: 'assistant', content: '放課後、訓練場に来い。昨日の続きだ。' }] },
+      { name: 'social-surprise', mode: 'social', text: '今見た！お前の弁当、先生が食ってたぞ', history: [{ role: 'assistant', content: '弁当は冷蔵庫に入れた。勝手に触んなよ。訓練終わったら食う。' }] },
+      { name: 'social-continuity', mode: 'social', text: 'じゃ日曜の午後で。何持ってけばいい？', history: [{ role: 'user', content: '土曜はバイトで行けない。日曜の午後なら空いてる' }, { role: 'assistant', content: '日曜でいい。訓練場に来い。遅れんなよ。' }] },
+      { name: 'private-adaptation', mode: 'social', text: 'テスト', history: [] },
+    ] as const;
+    const selectedNames = process.env.MLEARN_EVAL_SAMPLES?.split(',');
+    const selected = samples.filter(sample => !selectedNames || selectedNames.includes(sample.name));
+    expect(selected.length).toBeGreaterThan(0);
+    for (const sample of selected) {
+      mockBridge.llm.llmStream.mockClear();
+      const persona = sample.mode === 'scenario'
+        ? 'You are a client who needs a delivery next week for an event. You want a viable plan, not a lesson. Your supplier is the user. Your current constraint is the event date.'
+        : 'You are Katsuki Bakugo, a blunt, proud and competitive hero student. You know the user as a fellow student. You are on your way to training, irritated about arriving late. You speak casually and directly, with short reactions; you have no teaching agenda.';
+      const participant: Participant = { id: 'eval-person', displayName: 'Bakugo', kind: 'persistent', personaText: persona };
+      const worldContext = sample.name === 'private-adaptation' ? renderCompiledContext(compileContext({
+        participant, participants: [participant], seaEvents: [], learnerProjection: {
+          language: 'ja', learningTarget: 'Polite disagreement', failedWords: ['予約', '条件'], wordsBasis: 'prediction',
+          grammarPoints: ['conditional forms'], grammarBasis: 'prediction', grammarExposure: ['polite requests'],
+        },
+      }), [participant], 'You') : persona;
+      const agent = createConversationAgent(createMockDeps({ getWorldContext: () => worldContext,
+        getInteractionMode: () => sample.mode, getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }) }));
+      agent.loadHistory(sample.history.map(message => ({ role: message.role, content: message.content })));
+      agent.processMessage(sample.text, [], createCallbacks().callbacks);
+      const [messages, tools] = mockBridge.llm.llmStream.mock.calls[0];
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'deepseek/deepseek-v4-flash-0731', stream: false, max_tokens: 1200,
+          messages: messages.map((message: LLMChatMessage) => ({ role: message.role, content: message.content })),
+          tools: tools.map((tool: { name: string; description: string; parameters: unknown }) => ({ type: 'function', function: tool })),
+          reasoning: { effort: 'low' } }),
+      });
+      expect(response.status, sample.name).toBe(200);
+      const body = await response.json();
+      const output = body.choices[0].message;
+      results.push({ name: sample.name, mode: sample.mode, user: sample.text, history: sample.history, output: { role: output.role, content: output.content, tool_calls: output.tool_calls }, usage: body.usage });
+      agent.abortStream();
+      if (process.env.MLEARN_EVAL_OUTPUT) writeFileSync(process.env.MLEARN_EVAL_OUTPUT, JSON.stringify(results, null, 2));
+    }
+    expect(results).toHaveLength(selected.length);
+  }, 180000);
 
   describe('factory', () => {
     it('returns an AgentInstance with all required methods', () => {
@@ -382,6 +438,22 @@ describe('createConversationAgent', () => {
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
       const sysMsg = messages.find((m: { role: string }) => m.role === 'system');
       expect(sysMsg.content).not.toContain('character readings');
+    });
+
+    it.each([false, true])('does not mandate unsolicited teaching in voice=%s', (voice) => {
+      const agent = createConversationAgent(createMockDeps({
+        isVoiceMode: () => voice,
+        getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: false }),
+      }));
+      agent.processMessage('test', [], createCallbacks().callbacks);
+      const message = mockBridge.llm.llmStream.mock.calls[0][0][0];
+      for (const prompt of [message.content, message.applicationTask.instruction]) {
+        expect(prompt).not.toContain('must ALWAYS be called if the user makes a mistake');
+        expect(prompt).not.toContain('when a good teaching moment arises');
+        expect(prompt).not.toContain('whenever the learner makes a clear non-pronunciation error');
+        expect(prompt).toContain('explicitly requests');
+        expect(prompt).toContain('Ambiguous');
+      }
     });
 
     it('includes language-provided tutor prompt guidelines', () => {
@@ -689,7 +761,7 @@ describe('createConversationAgent', () => {
       threadIntent: 'Practise collecting a bread order.',
     });
     const world = renderCompiledContext(context, [participant], 'Learner');
-    const agent = createConversationAgent(createMockDeps({ getLanguageName: () => 'English', getLanguage: () => 'en', getWorldContext: () => world }));
+    const agent = createConversationAgent(createMockDeps({ getInteractionMode: () => 'practice', getLanguageName: () => 'English', getLanguage: () => 'en', getWorldContext: () => world }));
     agent.loadHistory([{ role: 'system', content: 'Previous conversation summary:\nThe learner ordered bread.' }, { role: 'user', content: 'Can I collect it tomorrow?' }, { role: 'assistant', content: 'Yes, after opening.' }]);
     agent.processMessage('Please remind me what we agreed.', [], createCallbacks().callbacks);
     const [messages, tools, tier] = mockBridge.llm.llmStream.mock.calls[0];
@@ -2029,6 +2101,7 @@ describe('createConversationAgent', () => {
       expect(messages[0].content).toContain('Do NOT correct pronunciation, reading, accent, or sound-alike issues in voice mode');
       const noteMistake = tools.find((tool) => tool.name === 'note_mistake');
       expect(noteMistake?.description).toContain('Do not use this for pronunciation');
+      expect(noteMistake?.description).toContain('current feedback agreement');
       expect(noteMistake?.parameters.properties.type.enum).not.toContain('pronunciation');
     });
 
@@ -2250,6 +2323,7 @@ describe('createConversationAgent', () => {
   describe('disabled tools', () => {
     it('excludes correct_mistake tool when agentMistakeChecker is enabled', () => {
       const deps = createMockDeps({
+        getInteractionMode: () => 'practice',
         getSettings: () => ({ ...DEFAULT_SETTINGS, agentMistakeChecker: true }),
       });
       const agent = createConversationAgent(deps);
@@ -2474,7 +2548,9 @@ describe('createConversationAgent', () => {
 
       expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
       const [messages] = mockBridge.llm.llmStream.mock.calls[0];
-      expect(messages[0].content).toContain('compact language-tutor conversation history');
+      expect(messages[0].content).toContain('social conversation history');
+      expect(messages[0].content).toContain('motives');
+      expect(messages[0].content).toContain('only when actually discussed');
       expect(messages[1].content).toContain('message 1');
       expect(messages[1].content).toContain('message 6');
       expect(messages[1].content).not.toContain('message 7');
