@@ -3458,6 +3458,12 @@
         "Ambiguous": "Mehrere Lesarten"
       },
       "NoTranslation": "Keine Übersetzung gefunden",
+      "ResolutionProvider": "Vom installierten Sprachpaket gewählt. Prüfe bei Bedarf die Alternativen.",
+      "DictionaryAlternatives": "Wörterbuchalternativen ({count})",
+      "ResolutionOrder": "Nach Wörterbuchreihenfolge gewählt. Andere Lesungen oder Bedeutungen können passen.",
+      "ResolutionHint": "Mit einem Tokenizer-Hinweis gewählt. Prüfe bei Bedarf die Alternativen.",
+      "ResolutionLearner": "Deine Auswahl für diese Form und diesen Kontext.",
+      "ResolutionSaveFailed": "Die Auswahl konnte nicht gespeichert werden. Versuche es erneut.",
       "Status": {
         "Known": "Bekannt",
         "Learning": "Lernend",

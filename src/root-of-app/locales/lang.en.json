@@ -3458,6 +3458,12 @@
         "Ambiguous": "Multiple readings"
       },
       "NoTranslation": "No translation found",
+      "ResolutionProvider": "Selected by the installed language package. Check alternatives if it does not fit.",
+      "DictionaryAlternatives": "Dictionary alternatives ({count})",
+      "ResolutionOrder": "Selected by dictionary order. Other readings or meanings may fit.",
+      "ResolutionHint": "Selected using a tokenizer hint. Check alternatives if it does not fit.",
+      "ResolutionLearner": "Your selection for this encountered form and context.",
+      "ResolutionSaveFailed": "Could not save this selection. Try again.",
       "Status": {
         "Known": "Known",
         "Learning": "Learning",

@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
-import { CompoundDecomposition, compoundAnalysisFor, grammarOccurrencesForToken, resolveCompoundDisplay } from './WordHover';
+import { DictionaryAlternatives, CompoundDecomposition, compoundAnalysisFor, grammarOccurrencesForToken, resolveCompoundDisplay } from './WordHover';
 import type { GraphWordLookup } from '../../../shared/graph/ipc';
 import type { LanguageData, WordFrequencyEntry, WordFrequencyMap } from '../../../shared/types';
 import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
@@ -123,5 +124,29 @@ describe('German compound hover analysis', () => {
     expect(resolveCompoundDisplay(lookup(null), word, compoundLanguage, germanVocabulary)).toEqual({ kind: 'none' });
     // Graph-attested structure is primary — even without a declared strategy.
     expect(resolveCompoundDisplay(lookup(attestedAnalysis), word, { name: 'German' }, germanVocabulary).kind).toBe('attested');
+  });
+});
+
+
+describe('dictionary alternatives', () => {
+  let dispose: (() => void) | undefined;
+  afterEach(() => { dispose?.(); document.body.innerHTML = ''; });
+  it('shows alternatives without claiming certainty and exposes pending/failed correction states', () => {
+    const host = document.createElement('div'); document.body.appendChild(host);
+    const chosen = vi.fn();
+    const [saving, setSaving] = createSignal(false); const [failed, setFailed] = createSignal(false);
+    dispose = render(() => <DictionaryAlternatives saving={saving()} failed={failed()} onChoose={chosen} t={identityT}
+      resolution={{ selectedId: 'first', basis: 'token-hint', candidates: [
+        { id: 'first', label: 'X', data: [{ reading: 'first', definitions: 'first meaning' }], metadata: { 'unknown::value': [1, 2] } },
+        { id: 'second', label: 'X', data: [{ reading: 'second', definitions: 'second meaning' }] },
+      ] }} />, host);
+    expect(host.textContent).toContain('mlearn.WordHover.ResolutionHint');
+    expect(host.textContent).toContain('second meaning');
+    const buttons = host.querySelectorAll('button');
+    expect(buttons[0].getAttribute('aria-pressed')).toBe('true');
+    buttons[1].click(); expect(chosen).toHaveBeenCalledWith('second');
+    setSaving(true); expect(buttons[1].disabled).toBe(true); expect(host.querySelector('[role="status"]')).not.toBeNull();
+    setSaving(false); setFailed(true); expect(buttons[1].disabled).toBe(false);
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('mlearn.WordHover.ResolutionSaveFailed');
   });
 });

@@ -1465,6 +1465,8 @@ export interface LanguageTokenizerRuntimeConfig {
   innerTokenCharacters?: string[];
   /** Normalize readings emitted by the tokenizer before sending them to the renderer. */
   outputReadingNormalizer?: LanguageReadingNormalizer;
+  /** Adapter input sources, in package-selected order; only attested dictionary forms replace the default. */
+  lemmaSources?: string[];
   /** Token POS labels to suppress from tokenizer output. */
   ignoredPos?: string[];
   /** Suffix-based lemma fallback rules used when a tokenizer cannot recover a dictionary form. */
@@ -1517,6 +1519,8 @@ export interface LanguageDictionaryRuntimeConfig {
      * when the configured tokenizer is trusted to provide lemmas.
      */
     seedForms?: Array<'surface' | 'tokenizer-lemma' | (string & {})>;
+    /** Package-owned hint keys and dictionary payload paths used to narrow valid candidates. */
+    contextMatch?: Array<{ hint: string; entryPath?: Array<string | number>; field?: string; normalizer?: LanguageReadingNormalizer }>;
     /** Ordered text normalizers to apply when direct lookup misses. */
     normalizers?: LanguageTextNormalizerStep[];
     /** Whether normalizers run as one cumulative pipeline or branch across variants. Defaults to "pipeline". */
@@ -1857,6 +1861,22 @@ export interface TranslationResponse {
    * without pretending to be Japanese pitch data.
    */
   data: [TranslationEntry?, TranslationEntry?, unknown?];
+  /** Adapter-owned alternatives. IDs are opaque; an ordering choice is not a confidence estimate. */
+  resolution?: {
+    selectedId: string;
+    basis: string;
+    selectionUnavailable?: boolean;
+    requestedSelectionId?: string;
+    candidates: Array<{ id: string; label: string; data: TranslationResponse['data']; metadata?: unknown }>;
+  };
+}
+
+/** Context is passed intact to the installed resolver; core does not interpret package-owned hints. */
+export interface WordLookupContext {
+  surface?: string;
+  text?: string;
+  hints?: Record<string, unknown>;
+  selectionId?: string;
 }
 
 // ============================================================================

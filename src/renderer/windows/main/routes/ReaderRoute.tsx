@@ -1,3 +1,4 @@
+import { tokenLookupContext } from '../../../hooks/useTranslation';
 import { hasSignedInCloudSession, withCloudAuth } from '../../../services/cloudSessionManager';
 import { classifyProviderFailure } from '../../../services/providerFailure';
 /**
@@ -353,6 +354,7 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
                     <>
                       <OcrWord
                         token={token}
+                        lookupContext={tokenLookupContext(token, bodyText())}
                         onWordEnter={(hoverToken, event) => {
                           const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
                           props.onWordHover(hoverToken, rect, bodyText());
@@ -2865,7 +2867,7 @@ export const ReaderRoute: Component = () => {
 
     // Check if translation is already cached (from pre-warm)
     // This ensures the prosody pill shows immediately on first hover
-    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, wordLookupOptions);
+    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, { ...wordLookupOptions, context: tokenLookupContext(token, contextPhrase) });
 
     // Set cached data if available, otherwise clear
     setOcrTranslationData(cachedTranslation);
@@ -2884,7 +2886,7 @@ export const ReaderRoute: Component = () => {
     if (!cachedTranslation) {
       try {
         // Use dictionary form for translation lookup (handles conjugations like 屈して -> 屈する)
-        const translation = await translateWord(lookupWord);
+        const translation = await translateWord(lookupWord, tokenLookupContext(token, contextPhrase));
         if (requestId !== ocrHoverRequestId) return;
         setOcrTranslationData(translation);
       } catch (_e) {
@@ -3339,6 +3341,7 @@ export const ReaderRoute: Component = () => {
               translationData={ocrTranslationData() || undefined}
               isOCR={true}
               headwordFontFamily={readerTextFontFamily()} /*this is tech debt but idc*/
+              lookupContext={tokenLookupContext(hoverData.token, ocrContextPhrase())}
               contextPhrase={ocrContextPhrase()}
               ocrImageElement={(() => {
                 // Find the correct page image based on anchor position

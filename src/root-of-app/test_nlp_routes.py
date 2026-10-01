@@ -87,3 +87,19 @@ def test_translate_route_does_not_fall_back_to_active_module_for_missing_request
     response = nlp.get_translation(nlp.TranslationRequest(word="سلام", language="fa"))
 
     assert response == {"data": []}
+
+
+def test_translate_route_invokes_optional_resolver_and_preserves_unknown_candidate_data(monkeypatch):
+    context = {"surface": "X", "hints": {"new::category": {"values": ["a", "b"]}}}
+    expected = {"data": [], "resolution": {"selectedId": "package-owned", "basis": "package-owned-basis", "candidates": [{"id": "package-owned", "label": "X", "data": [], "metadata": {"new::category": {"values": ["a", "b"]}}}]}}
+    class Module:
+        language = "zz"
+        def LANGUAGE_RESOLVE(self, word, received):
+            assert word == "X"
+            assert received == context
+            assert _dictionary_target_for_language("zz") == "fr"
+            return expected
+    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language: Module())
+    result = nlp.get_translation(nlp.TranslationRequest(word="X", language="zz", dictionaryTargetLanguage="fr", context=context))
+    assert result == expected
+    assert nlp.TranslationResponse(**result).model_dump()["resolution"] == expected["resolution"]

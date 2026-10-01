@@ -1,4 +1,4 @@
-import type { LanguageData, Token } from '../../shared/types';
+import type { WordLookupContext, LanguageData, Token } from '../../shared/types';
 import { getDictionaryLookupCandidates, type LanguageTokenizerCapabilities } from '../../shared/languageFeatures';
 
 export { getWordFormCandidates, type WordFormCandidateOptions } from '../../shared/utils/wordForms';
@@ -84,4 +84,9 @@ export function getTokenWordFormCandidates(
   }
 
   return candidates;
+}
+
+export function tokenLookupContext(token: Token, text?: string): WordLookupContext {
+  return { surface: token.surface ?? token.word, ...(text ? { text } : {}),
+    hints: { ...token.features, ...(token.reading ? { reading: token.reading } : {}) } };
 }

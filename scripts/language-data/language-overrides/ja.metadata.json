@@ -160,6 +160,10 @@
                 "required": true,
                 "fallback": "none",
                 "outputReadingNormalizer": "kana-to-hiragana",
+                "lemmaSources": [
+                    "dictionary-form",
+                    "normalized-form"
+                ],
                 "ignoredPos": [
                     "空白"
                 ],
@@ -257,6 +261,13 @@
                         "common",
                         "score-desc",
                         "short-reading"
+                    ],
+                    "contextMatch": [
+                        {
+                            "hint": "reading",
+                            "field": "reading",
+                            "normalizer": "kana-to-hiragana"
+                        }
                     ]
                 }
             }

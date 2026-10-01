@@ -161,6 +161,17 @@ describe('OcrWord', () => {
       dispose();
     });
 
+    it('uses a corrected interpretation for the inline reading and passes its encounter context', () => {
+      const context = { surface: rubyToken.word, text: 'synthetic encounter', hints: { arbitrary: { value: 7 } } };
+      mockGetCachedTranslation.mockImplementation((_word, _language, options) => options.context === context
+        ? { data: [{ word: rubyToken.word, reading: 'corrected' }], resolution: { selectedId: 'chosen', basis: 'learner-selection', candidates: [] } }
+        : null);
+      const dispose = render(() => <OcrWord token={rubyToken} lookupContext={context} withReadingAnnotation />, container);
+      expect(container.querySelector('rt')?.textContent).toBe('corrected');
+      dispose();
+      mockGetCachedTranslation.mockReset();
+    });
+
     it('renders ruby with the reading when enabled and the metadata supports it', () => {
       const dispose = render(() => (
         <OcrWord token={rubyToken} withReadingAnnotation />

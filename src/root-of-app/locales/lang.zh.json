@@ -3458,6 +3458,12 @@
         "Ambiguous": "多种解析"
       },
       "NoTranslation": "未找到翻译",
+      "ResolutionProvider": "由已安装的语言包选择。若不合适，请检查其他候选。",
+      "DictionaryAlternatives": "词典候选（{count}）",
+      "ResolutionOrder": "按词典顺序选择。其他读音或含义也可能适用。",
+      "ResolutionHint": "根据分词提示选择。若不合适，请检查其他候选。",
+      "ResolutionLearner": "你为当前词形和语境选择的候选。",
+      "ResolutionSaveFailed": "无法保存此选择。请重试。",
       "Status": {
         "Known": "已掌握",
         "Learning": "学习中",

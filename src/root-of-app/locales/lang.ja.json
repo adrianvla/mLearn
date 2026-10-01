@@ -3458,6 +3458,12 @@
         "Ambiguous": "複数の解釈"
       },
       "NoTranslation": "翻訳が見つかりません",
+      "ResolutionProvider": "インストール済み言語パッケージの選択です。文脈に合わなければ候補を確認してください。",
+      "DictionaryAlternatives": "辞書の候補（{count}）",
+      "ResolutionOrder": "辞書の順序で選択しています。別の読みや意味が合う場合があります。",
+      "ResolutionHint": "分かち書きの情報で選択しています。文脈に合わなければ候補を確認してください。",
+      "ResolutionLearner": "この表記と文脈についての選択です。",
+      "ResolutionSaveFailed": "選択を保存できませんでした。もう一度お試しください。",
       "Status": {
         "Known": "既知",
         "Learning": "学習中",

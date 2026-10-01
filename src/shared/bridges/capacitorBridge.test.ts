@@ -1927,27 +1927,30 @@ describe('knowledgeEvents bridge (Capacitor journal)', () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
     const day = 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    const base = now - 95 * day; // well past the 90-day retention window
-    const oldRollup = (t: number) => ({ t, kind: 'rollup', source: 'srs', aspect: 'meaning', timesSeenDelta: 1 }) as never;
-    await bridge.knowledgeEvents.appendKnowledgeEvents({
-      'ja:hist': [
-        event(now - 10 * day),
-        oldRollup(base),
-        oldRollup(base + 2 * 60 * 60 * 1000), // same ISO week as base → collapses into it
-        oldRollup(base + 8 * day),            // guaranteed different ISO week → retained
-        { t: base, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known' } as never,
-      ],
-    });
-    const stored = await bridge.knowledgeEvents.getKnowledgeEvents('ja:hist');
-    const events = stored['ja:hist']!;
-    const rollups = events.filter((e) => e.kind === 'rollup');
-    // Two stale rollups in one ISO week collapse to the later one; the third week is kept.
-    expect(rollups).toHaveLength(2);
-    // Claims survive regardless of age — retention never touches epistemic events.
-    expect(events.filter((e) => e.kind === 'claim')).toHaveLength(1);
-    // The anchor event is always retained.
-    expect(events[0].kind).toBe('rating');
+    const now = Date.UTC(2026, 9, 1, 12);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      const base = now - 95 * day; // well past the 90-day retention window
+      const oldRollup = (t: number) => ({ t, kind: 'rollup', source: 'srs', aspect: 'meaning', timesSeenDelta: 1 }) as never;
+      await bridge.knowledgeEvents.appendKnowledgeEvents({
+        'ja:hist': [
+          event(now - 10 * day),
+          oldRollup(base),
+          oldRollup(base + 2 * 60 * 60 * 1000), // same ISO week as base → collapses into it
+          oldRollup(base + 8 * day),            // guaranteed different ISO week → retained
+          { t: base, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known' } as never,
+        ],
+      });
+      const stored = await bridge.knowledgeEvents.getKnowledgeEvents('ja:hist');
+      const events = stored['ja:hist']!;
+      const rollups = events.filter((e) => e.kind === 'rollup');
+      // Two stale rollups in one ISO week collapse to the later one; the third week is kept.
+      expect(rollups).toHaveLength(2);
+      // Claims survive regardless of age — retention never touches epistemic events.
+      expect(events.filter((e) => e.kind === 'claim')).toHaveLength(1);
+      // The anchor event is always retained.
+      expect(events[0].kind).toBe('rating');
+    } finally { clock.mockRestore(); }
   });
 
   it('keeps unconsolidated history intact when nothing is stale', async () => {

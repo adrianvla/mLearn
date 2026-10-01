@@ -43,6 +43,7 @@ class TranslationRequest(BaseModel):
     language: Optional[str] = Field(default=None, max_length=32)
     dictionary_target_language: Optional[str] = Field(default=None, max_length=32)
     dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
+    context: Optional[dict] = None
 
     def requested_dictionary_target_language(self) -> Optional[str]:
         return self.dictionary_target_language or self.dictionaryTargetLanguage
@@ -50,6 +51,7 @@ class TranslationRequest(BaseModel):
 
 class TranslationResponse(BaseModel):
     data: List
+    resolution: Optional[dict] = None
 
 
 @router.post("/tokenize", response_model=TokenizeResponse)
@@ -69,11 +71,14 @@ def get_translation(req: TranslationRequest):
     if mod is None:
         return {"data": []}
     target_language = req.requested_dictionary_target_language()
+    def resolve():
+        resolver = getattr(mod, "LANGUAGE_RESOLVE", None)
+        return resolver(req.word, req.context) if callable(resolver) else mod.LANGUAGE_TRANSLATE(req.word)
     if target_language:
         language = req.language or getattr(mod, "language", None)
         with dictionary_target_language_override(language, target_language):
-            return mod.LANGUAGE_TRANSLATE(req.word)
-    return mod.LANGUAGE_TRANSLATE(req.word)
+            return resolve()
+    return resolve()
 
 
 class DictionaryWordsRequest(BaseModel):

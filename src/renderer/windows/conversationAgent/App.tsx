@@ -43,7 +43,7 @@ import { ParticipantEditorModal } from './ParticipantEditorModal';
 import { ContactProfileModal } from './ContactProfileModal';
 import { useConversationPreviews } from './useConversationPreviews';
 import { createMessagePreparationQueue, messagePreparations } from './messagePreparation';
-import { warmTranslationCache } from '../../hooks/useTranslation';
+import { tokenLookupContext, warmTranslationCache } from '../../hooks/useTranslation';
 import { RuntimeInspector } from './RuntimeInspector';
 import { NewConversationModal } from './NewConversationModal';
 import { StoryProgressModal } from './StoryProgressModal';
@@ -1233,8 +1233,8 @@ export const ConversationContent: Component = () => {
     const requestId = ++hoverRequestId;
 
     // Show immediately with cached data if available
-    const cached = getCachedTranslation(lookupWord, settings.language, wordLookupOptions);
-    setTranslationData(cached ? { data: cached.data } : null);
+    const cached = getCachedTranslation(lookupWord, settings.language, { ...wordLookupOptions, context: tokenLookupContext(token) });
+    setTranslationData(cached ?? null);
     setDictionaryEntries([]);
     setIsLoadingDict(true);
 
@@ -1250,10 +1250,10 @@ export const ConversationContent: Component = () => {
     // Fetch translation
     if (!cached) {
       try {
-        const result = await translateWord(lookupWord);
+        const result = await translateWord(lookupWord, tokenLookupContext(token));
         if (requestId !== hoverRequestId) return;
         if (result) {
-          setTranslationData({ data: result.data });
+          setTranslationData(result);
         }
       } catch (e) {
         log.error("error", e);
@@ -2065,6 +2065,7 @@ export const ConversationContent: Component = () => {
                   anchorRect={data.anchorRect}
                   dictionaryEntries={dictionaryEntries()}
                   translationData={translationData() || undefined}
+                  lookupContext={tokenLookupContext(data.token)}
                   isLoading={isLoadingDict()}
                   visible={isVisible()}
                   contextPhrase={data.word}

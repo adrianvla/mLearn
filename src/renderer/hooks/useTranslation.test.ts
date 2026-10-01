@@ -1,7 +1,7 @@
 import { createRoot } from 'solid-js';
 import type { TranslationResponse, DictionaryEntry, LanguageData, Token } from '../../shared/types';
 
-type MockTranslateOptions = { dictionaryTargetLanguage?: string };
+type MockTranslateOptions = { dictionaryTargetLanguage?: string; context?: import('../../shared/types').WordLookupContext };
 const mockTranslate = vi.fn<(word: string, language?: string, options?: MockTranslateOptions) => Promise<TranslationResponse>>();
 const mockTokenize = vi.fn<(text: string, language?: string) => Promise<unknown[]>>();
 const mockKvGet = vi.fn<(key: string) => Promise<string | null>>().mockResolvedValue(null);
@@ -139,6 +139,55 @@ describe('useTranslation', () => {
 });
 
 describe('fetchTranslation', () => {
+  it('acknowledges a learner selection and restores it after cache/module loss', async () => {
+    vi.resetModules();
+    const durable = new Map<string, string>();
+    mockKvGet.mockImplementation(async key => durable.get(key) ?? null);
+    mockKvSet.mockImplementation(async (key, value) => { durable.set(key, value); });
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
+    const selected: TranslationResponse = { ...makeTranslationResponse('second'), resolution: { selectedId: 'opaque-second', basis: 'learner-selection', candidates: [] } };
+    mockTranslate.mockResolvedValue(selected);
+    const context = { surface: 'X', hints: { reading: 'hint' } };
+    const first = await import('./useTranslation');
+    await first.selectTranslationCandidate('X', 'opaque-second', 'zz', { context });
+    expect([...durable.values()].map(value => JSON.parse(value).selectionId)).toEqual(['opaque-second']);
+    expect(first.getCachedTranslation('X', 'zz', { context })).toEqual(selected);
+    vi.resetModules();
+    mockTranslate.mockRejectedValue(new Error('offline'));
+    const second = await import('./useTranslation');
+    expect(await second.fetchTranslation('X', 'zz', { context })).toEqual(selected);
+    mockKvGet.mockResolvedValue(null);
+    mockKvSet.mockResolvedValue(undefined);
+  });
+
+  it('rejects an unacknowledged correction without publishing it to the cache', async () => {
+    vi.resetModules();
+    mockKvGet.mockResolvedValue(null);
+    mockKvSet.mockRejectedValueOnce(new Error('write refused'));
+    mockTranslate.mockResolvedValue({ ...makeTranslationResponse('second'), resolution: { selectedId: 'second', basis: 'learner-selection', candidates: [] } });
+    const { selectTranslationCandidate, getCachedTranslation } = await import('./useTranslation');
+    const context = { surface: 'X' };
+    await expect(selectTranslationCandidate('X', 'second', 'zz', { context })).rejects.toThrow('write refused');
+    expect(getCachedTranslation('X', 'zz', { context })).toBeNull();
+  });
+
+  it('keeps context-specific candidates separate from dictionary-order cache and forwards unknown hints', async () => {
+    vi.resetModules();
+    mockKvGet.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
+    mockTranslate.mockClear();
+    mockTranslate.mockImplementation(async (_word, _language, options) => makeTranslationResponse(String(options?.context?.hints?.reading ?? 'default')));
+    const { fetchTranslation, getCachedTranslation } = await import('./useTranslation');
+    const context = { surface: 'X', hints: { reading: 'second', 'package::unknown': { value: [1, 2] } } };
+    const ordinary = await fetchTranslation('X', 'zz');
+    const contextual = await fetchTranslation('X', 'zz', { context });
+    expect(contextual.data[0]?.reading).toBe('secondreading');
+    expect(ordinary.data[0]?.reading).toBe('defaultreading');
+    expect(mockTranslate).toHaveBeenLastCalledWith('X', 'zz', { context });
+    expect(getCachedTranslation('X', 'zz', { context })).toEqual(contextual);
+    expect(getCachedTranslation('X', 'zz')).toEqual(ordinary);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockKvGet.mockResolvedValue(null);
@@ -1603,4 +1652,70 @@ describe('conversation eager annotation warming', () => {
     const { warmTranslationCache } = await import('./useTranslation');
     await expect(warmTranslationCache(['uncached'], undefined, undefined, 'synthetic', undefined, undefined, { throwOnFailure: true })).rejects.toThrow('offline');
   });
+});
+
+
+describe('resolution review probes', () => {
+  beforeEach(()=>{
+    vi.resetModules(); vi.clearAllMocks();
+    mockKvGet.mockReset().mockResolvedValue(null);mockKvSet.mockReset().mockResolvedValue(undefined);
+    mockTranslate.mockReset();mockGetCachedTranslationByLanguageDB.mockReset().mockResolvedValue(null);
+    mockSetCachedTranslationByLanguageDB.mockReset().mockResolvedValue(undefined);
+  });
+  const choice=(id:string):TranslationResponse=>({...makeTranslationResponse(id),resolution:{selectedId:id,basis:'learner-selection',candidates:[]}});
+  it('resolution race probe: delayed earlier cache write must not replace a later durable selection', async()=>{
+    const durable=new Map<string,string>();
+    mockKvGet.mockImplementation(async key=>durable.get(key)??null);
+    mockKvSet.mockImplementation(async(key,value)=>{durable.set(key,value);});
+    mockTranslate.mockImplementation(async(_w,_l,opts)=>choice(opts?.context?.selectionId??'default'));
+    let release!:()=>void;mockSetCachedTranslationByLanguageDB.mockImplementationOnce(()=>new Promise<void>(r=>{release=r;}));
+    const {selectTranslationCandidate,getCachedTranslation}=await import('./useTranslation');
+    const context={surface:'X'};
+    const first=selectTranslationCandidate('X','first','zz',{context});
+    await vi.waitFor(()=>expect(release).toBeTypeOf('function'));
+    await selectTranslationCandidate('X','second','zz',{context});
+    expect([...durable.values()].map(value => JSON.parse(value).selectionId)).toEqual(['second']);
+    release();await first;
+    expect(getCachedTranslation('X','zz',{context})?.resolution?.selectedId).toBe('second');
+  });
+  it('resolution override probe: existing custom translation applies to new contextual consumers', async()=>{
+    const durable=new Map<string,string>();mockKvGet.mockImplementation(async key=>durable.get(key)??null);
+    mockKvSet.mockImplementation(async(key,value)=>{durable.set(key,value);});
+    mockTranslate.mockResolvedValue(makeTranslationResponse('backend'));
+    const {useTranslation,fetchTranslation}=await import('./useTranslation');
+    let hook!:ReturnType<typeof useTranslation>;let dispose!:()=>void;
+    createRoot(d=>{dispose=d;hook=useTranslation({language:'zz'});});
+    const custom=makeTranslationResponse('user-edit');await hook.setOverride('X',custom);
+    expect(await fetchTranslation('X','zz',{context:{surface:'X'}})).toEqual(custom);
+    dispose();
+  });
+  it('resolution stale selection probe: cached fallback remains available offline after candidate disappears', async()=>{
+    mockKvGet.mockImplementation(async key=>key.startsWith('ml_lookup_selection::')?'removed-id':null);
+    let cached:TranslationResponse|null=null;mockGetCachedTranslationByLanguageDB.mockImplementation(async()=>cached);
+    mockSetCachedTranslationByLanguageDB.mockImplementation(async(_word,value)=>{cached=value;});
+    const fallback:TranslationResponse={...makeTranslationResponse('fallback'),resolution:{selectedId:'current-id',basis:'dictionary-order',selectionUnavailable:true,candidates:[]}};
+    mockTranslate.mockResolvedValueOnce(fallback).mockRejectedValue(new Error('offline'));
+    const {fetchTranslation}=await import('./useTranslation');
+    const context={surface:'X'};expect(await fetchTranslation('X','zz',{context})).toEqual(fallback);
+    await expect(fetchTranslation('X','zz',{context})).resolves.toEqual(fallback);
+  });
+});
+
+describe('resolution broadcast version review',()=>{
+ it('resolution broadcast probe: delayed message must not put new-package data into old-package cache',async()=>{
+   vi.resetModules();vi.clearAllMocks();
+   const durable=new Map<string,string>();mockKvGet.mockImplementation(async key=>durable.get(key)??null);
+   mockKvSet.mockImplementation(async(key,value)=>{durable.set(key,value);});mockSetCachedTranslationByLanguageDB.mockReset().mockResolvedValue(undefined);
+   mockTranslate.mockImplementation(async(_w,_l,opts)=>({...makeTranslationResponse(opts?.context?.selectionId??'fallback'),resolution:{selectedId:opts?.context?.selectionId??'fallback',basis:'learner-selection',candidates:[]}}));
+   let channel:any;const messages:any[]=[];
+   vi.stubGlobal('BroadcastChannel',class {onmessage:any;constructor(){channel=this;}postMessage(data:any){messages.push(data);}close(){}});
+   try{
+     const {selectTranslationCandidate,getCachedTranslation}=await import('./useTranslation');
+     const context={surface:'X'};const oldData={languageData:{bundle:{sha256:'old'}}} as LanguageData;const newData={languageData:{bundle:{sha256:'new'}}} as LanguageData;
+     await selectTranslationCandidate('X','old-id','zz',{context,languageData:oldData});const lateOldMessage=messages[0];
+     await selectTranslationCandidate('X','new-id','zz',{context,languageData:newData});
+     channel.onmessage({data:lateOldMessage});await Promise.resolve();await Promise.resolve();await Promise.resolve();
+     expect(getCachedTranslation('X','zz',{context,languageData:oldData})?.resolution?.selectedId).not.toBe('new-id');
+   }finally{vi.unstubAllGlobals();}
+ });
 });

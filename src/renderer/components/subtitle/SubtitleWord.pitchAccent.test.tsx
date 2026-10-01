@@ -150,6 +150,17 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     container.remove();
   });
 
+  it('uses the selected interpretation for the inline reading rather than a stale tokenizer hint', () => {
+    const token: Token = { word: '人', actual_word: '人', type: 'noun', reading: 'stale' };
+    const context = { surface: token.word, hints: { arbitrary: ['opaque'] } };
+    mockGetCachedTranslation.mockImplementation((_word, _language, options) => options.context === context
+      ? { data: [{ word: token.word, reading: 'corrected' }], resolution: { selectedId: 'chosen', basis: 'learner-selection', candidates: [] } }
+      : null);
+    const dispose = render(() => <SubtitleWord token={token} lookupContext={context} index={0} />, container);
+    expect(container.querySelector('rt')?.textContent).toBe('corrected');
+    dispose();
+  });
+
   it('marks ruby pitch overlays so accent lines stay within the reading annotation', () => {
     const token: Token = {
       word: '何時',

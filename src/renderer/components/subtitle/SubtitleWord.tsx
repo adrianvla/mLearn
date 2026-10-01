@@ -5,7 +5,7 @@ import { getWrittenComprehensionStatus } from '../../utils/writtenComprehension'
  */
 
 import { Component, createEffect, createMemo, createSignal, Show, onCleanup } from 'solid-js';
-import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type WordLookupContext } from '../../../shared/types';
 import {
   hideReadingAnnotationsForKnownWords,
   readingAnnotationsEnabled,
@@ -22,13 +22,13 @@ import {
 } from '../../../shared/languageFeatures';
 import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { getCachedReading, getCachedTranslation, cacheVersion } from '../../hooks/useTranslation';
-import { extractProsodyData } from '../../utils/translationCacheParsers';
+import { extractProsodyData, extractReadingValue } from '../../utils/translationCacheParsers';
 import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { FrequencyStars } from '../common';
 import { WordWithReading } from '../language-specific';
 import { matchesKeybind } from '../common/Input/KeybindInput';
 import type { JSX } from 'solid-js/jsx-runtime';
-import { getTokenLookupWord } from '../../utils/wordForms';
+import { getTokenLookupWord, tokenLookupContext } from '../../utils/wordForms';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
 import '../language-specific/RubyText.css';
@@ -48,6 +48,7 @@ function toPosClass(pos: string): string | null {
 
 export interface SubtitleWordProps {
   token: Token;
+  lookupContext?: WordLookupContext;
   class?: string;
   /** Dense text keeps word colors/readings/prosody, but omits frequency stars. */
   compact?: boolean;
@@ -106,6 +107,8 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
   const lookupWord = createMemo(() => getTokenLookupWord(props.token, tokenizerCapabilities()) || displayWord());
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
+  const contextualTranslation = createMemo(() => getCachedTranslation(lookupWord(), settings.language,
+    { ...lookupOptions, context: props.lookupContext ?? tokenLookupContext(props.token) }));
 
   // Get the part of speech
   const getPos = () => props.token.partOfSpeech ?? props.token.type ?? '';
@@ -255,8 +258,10 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     return getCachedReading(word, settings.language, lookupOptions);
   });
 
-  // Get effective reading (token.reading takes precedence, then cached)
+  // A resolved dictionary choice supersedes the tokenizer's reading hint.
   const effectiveReading = createMemo(() => {
+    const resolved = contextualTranslation();
+    if (resolved?.resolution) return extractReadingValue(resolved.data, currentLangData()) || props.token.reading || cachedReadingVal() || null;
     return props.token.reading || cachedReadingVal() || null;
   });
 
@@ -291,7 +296,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
     cacheVersion(); // reactive dependency: recompute when cache changes
     const word = lookupWord();
     if (!word) return null;
-    return getCachedTranslation(word, settings.language, lookupOptions);
+    return contextualTranslation() ?? getCachedTranslation(word, settings.language, lookupOptions);
   });
 
   const prosodyPosition = createMemo(() => {

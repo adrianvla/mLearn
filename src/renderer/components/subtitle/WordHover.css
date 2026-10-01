@@ -398,3 +398,13 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 .subtitle_hover .word-hover-inspect { flex-shrink: 0; border: none; background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(var(--font-size-xs) * var(--word-hover-scale)); padding: var(--spacing-1); white-space: nowrap; cursor: pointer; }
 .subtitle_hover .word-hover-inspect:hover { color: var(--text-primary); text-decoration: underline; }
 .subtitle_hover .word-hover-inspect:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+.subtitle_hover .word-hover-alternatives { margin-block: 0.5rem; }
+.subtitle_hover .word-hover-alternatives summary { cursor: pointer; }
+.subtitle_hover .word-hover-alternatives button {
+  display: flex; flex-direction: column; gap: 0.25rem; width: 100%;
+  padding: 0.5rem; margin-block: 0.25rem; text-align: start;
+  color: var(--text-primary); background: var(--bg-secondary);
+  border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+}
+.subtitle_hover .word-hover-alternatives button[aria-pressed="true"] { border-color: var(--accent-primary); }

@@ -1,6 +1,7 @@
 import atexit
 import contextvars
 import functools
+import hashlib
 import html
 import json
 import os
@@ -195,6 +196,16 @@ class dictionary_target_language_override:
 
 def _deserialize_entry(blob: bytes):
     return json.loads(zlib.decompress(blob).decode("utf-8"))
+
+
+def _same_json_value(left: Any, right: Any) -> bool:
+    if isinstance(left, bool) or isinstance(right, bool):
+        return type(left) is type(right) and left == right
+    if isinstance(left, dict) or isinstance(right, dict):
+        return isinstance(left, dict) and isinstance(right, dict) and left.keys() == right.keys() and all(_same_json_value(left[key], right[key]) for key in left)
+    if isinstance(left, list) or isinstance(right, list):
+        return isinstance(left, list) and isinstance(right, list) and len(left) == len(right) and all(_same_json_value(a, b) for a, b in zip(left, right))
+    return left == right
 
 
 def _string_at_path(value: Any, path: Any) -> str:
@@ -730,6 +741,14 @@ class GenericLanguageModule:
             return self._translate_simple_headword(word)
         return {"data": []}
 
+    def LANGUAGE_RESOLVE(self, word, context=None):
+        if self._dictionary_schema != "headword-reading-zlib-json":
+            return self.LANGUAGE_TRANSLATE(word)
+        self._ensure_dictionary_connection()
+        if not self._db_conn:
+            return {"data": []}
+        return self._translate_headword_reading(word, context)
+
     def LANGUAGE_DICTIONARY_WORDS(self):
         """Enumerate dictionary headwords as (word, reading) pairs.
 
@@ -1170,7 +1189,7 @@ class GenericLanguageModule:
             return [self._normalize_rough_lemma(word, tokenizer_config)]
         return []
 
-    def _translate_headword_reading(self, word: str):
+    def _translate_headword_reading(self, word: str, context=None):
         matches = []
         matched_word = word
         for seed in self._lookup_seed_candidates(word):
@@ -1193,7 +1212,51 @@ class GenericLanguageModule:
                 break
         if not matches:
             return {"data": []}
-        best = sorted(matches, key=self._rank_headword_reading_entry)[0]
+        ordered = sorted(matches, key=self._rank_headword_reading_entry)
+        context = context if isinstance(context, dict) else {}
+        hints = context.get("hints") if isinstance(context.get("hints"), dict) else {}
+        rules = (self._dictionary_config.get("lookup") or {}).get("contextMatch", [])
+        hinted = ordered
+        for rule in rules if isinstance(rules, list) else []:
+            if not isinstance(rule, dict) or rule.get("hint") not in hints:
+                continue
+            value = hints[rule["hint"]]
+            normalizer = rule.get("normalizer") or "none"
+            normalize = lambda item: _normalize_token_reading(item, normalizer, self.metadata) if isinstance(item, str) else item
+            getter = {"reading": self._headword_reading_entry_reading, "headword": self._headword_reading_entry_headword}.get(rule.get("field"))
+            path = rule.get("entryPath")
+            if isinstance(path, list) and path:
+                def getter(entry):
+                    value = entry
+                    for segment in path:
+                        if isinstance(value, dict) and isinstance(segment, str):
+                            value = value.get(segment)
+                        elif isinstance(value, list) and isinstance(segment, int) and 0 <= segment < len(value):
+                            value = value[segment]
+                        else:
+                            return None
+                    return value
+            elif getter is None:
+                continue
+            matching = [entry for entry in hinted if _same_json_value(normalize(getter(entry)), normalize(value))]
+            if matching:
+                hinted = matching
+        best = hinted[0]
+        basis = "token-hint" if hinted != ordered else "dictionary-order"
+        candidate_id = lambda entry: hashlib.sha256(json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+        selected = next((entry for entry in ordered if candidate_id(entry) == context.get("selectionId")), None)
+        if selected is not None:
+            best, basis = selected, "learner-selection"
+        result = self._render_headword_reading_result(best, matched_word, matches)
+        result["resolution"] = {
+            "selectedId": candidate_id(best), "basis": basis,
+            "candidates": [{"id": candidate_id(entry), "label": self._headword_reading_entry_headword(entry) or matched_word,
+                "data": self._render_headword_reading_result(entry, matched_word, [entry])["data"], "metadata": entry} for entry in ordered],
+            **({"selectionUnavailable": True} if context.get("selectionId") and selected is None else {}),
+        }
+        return result
+
+    def _render_headword_reading_result(self, best, matched_word: str, matches):
         reading = self._headword_reading_entry_reading(best)
         prosody_headword = self._headword_reading_entry_headword(best) or matched_word
         prosody = self._prosody_entry_cached(prosody_headword, reading) or {}
@@ -1215,7 +1278,7 @@ class GenericLanguageModule:
             html_string = html.escape(str(best))
 
         one_line = self._extract_gloss_line(html_string)
-        reading = reading or word
+        reading = reading or matched_word
         return {
             "data": [
                 {"reading": reading, "definitions": one_line},
@@ -1535,7 +1598,7 @@ class GenericLanguageModule:
             for token in tokenizer_obj.tokenize(text, self._sudachi_mode):
                 surface = token.surface()
                 pos = token.part_of_speech()[0]
-                actual_word = token.dictionary_form()
+                actual_word = self._sudachi_lexical_form(token, tokenizer_config)
                 reading = _normalize_token_reading(token.reading_form(), reading_normalizer, self.metadata)
                 if actual_word == surface and not self._entries_by_headword_cached(actual_word):
                     actual_word = self._apply_lemma_fallback_rules(surface, pos, tokenizer_config)
@@ -1547,6 +1610,21 @@ class GenericLanguageModule:
                         "reading": reading,
                     })
         return token_list
+
+    def _sudachi_lexical_form(self, token, tokenizer_config: dict[str, Any]) -> str:
+        fallback = token.dictionary_form()
+        sources = tokenizer_config.get("lemmaSources")
+        if not isinstance(sources, list):
+            return fallback
+        getters = {"dictionary-form": token.dictionary_form, "normalized-form": getattr(token, "normalized_form", None)}
+        for source in sources:
+            getter = getters.get(source) if isinstance(source, str) else None
+            if not callable(getter):
+                continue
+            candidate = getter()
+            if isinstance(candidate, str) and candidate and self._entries_by_headword_cached(candidate):
+                return candidate
+        return fallback
 
     def _apply_lemma_fallback_rules(self, surface: str, pos: str, tokenizer_config: dict[str, Any]) -> str:
         rules = tokenizer_config.get("lemmaFallbackRules") or []
@@ -1632,7 +1710,7 @@ class GenericLanguageModule:
         sudachi_lock = _get_sudachi_tokenizer_lock(self.language, tokenizer_config)
         with sudachi_lock:
             for token in tokenizer_obj.tokenize(word, self._sudachi_mode):
-                add(token.dictionary_form())
+                add(self._sudachi_lexical_form(token, tokenizer_config))
         return candidates
 
     def _missing_tokenizer_fallback(self, tokenizer_type: str, tokenizer_config: dict[str, Any], text: str):

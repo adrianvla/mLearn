@@ -6,6 +6,7 @@
 import { Component, JSX, Show, For, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationResponse } from '../../../shared/types';
 import { useSettings, useLanguage, useFlashcards } from '../../context';
+import { tokenLookupContext } from '../../hooks/useTranslation';
 import { useWordHover, useDictionary, useTranslation, getCachedTranslation } from '../../hooks';
 import { SubtitleWord } from './SubtitleWord';
 import { WordHover } from './WordHover';
@@ -134,7 +135,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     
     // Check if translation is already cached (from pre-fetch)
     // This ensures prosody and level metadata show immediately on first hover
-    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, lookupOptions);
+    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, { ...lookupOptions, context: tokenLookupContext(token, props.originalText || tokensToPlainText(props.tokens, currentLangData())) });
     
     setTranslationData(cachedTranslation ?? null);
     setDictionaryEntries([]);
@@ -154,7 +155,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (!cachedTranslation) {
       try {
         // Use dictionary form (actual_word) for translation lookup
-        const translation = await translateWord(lookupWord);
+        const translation = await translateWord(lookupWord, tokenLookupContext(token, props.originalText || tokensToPlainText(props.tokens, currentLangData())));
         
         // Check if this request is still current (race condition protection)
         if (requestId !== hoverRequestId) return;
@@ -399,7 +400,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
       (async () => {
         try {
-          const translation = await translateWord(lookupWord);
+          const translation = await translateWord(lookupWord, tokenLookupContext(token, props.originalText || tokensToPlainText(props.tokens, currentLangData())));
           const first = translation?.data?.[0] as { definitions?: string | string[] } | undefined;
           let translationText = '';
           if (first?.definitions) {
@@ -448,6 +449,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
                     <Show when={index() > 0}>{tokenSeparator()}</Show>
                     <SubtitleWord
                       token={token}
+                      lookupContext={tokenLookupContext(token, props.originalText || tokensToPlainText(props.tokens, currentLangData()))}
                       index={index()}
                       lookAheadPos={index() < props.tokens.length - 1 ? (props.tokens[index() + 1].partOfSpeech ?? props.tokens[index() + 1].type) : undefined}
                       onClick={handleWordClick}
@@ -499,6 +501,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             translationData={translationData() || undefined}
             isLoading={isLoadingDict()}
             headwordFontFamily={subtitleStyle()['font-family']}
+            lookupContext={tokenLookupContext(data.token, props.originalText || tokensToPlainText(props.tokens, currentLangData()))}
             contextPhrase={props.originalText || tokensToPlainText(props.tokens, currentLangData())}
             onClose={hideHover}
             visible={isVisible()}

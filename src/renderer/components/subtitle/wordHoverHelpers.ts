@@ -1,4 +1,4 @@
-import type { FlashcardContent, DictionaryEntry, FlashcardProsody, LanguageData, Token, TranslationEntry } from '../../../shared/types';
+import type { FlashcardContent, DictionaryEntry, FlashcardProsody, LanguageData, Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
 import { WORD_STATUS, SRS_EASE } from '../../../shared/constants';
 import type { WordStatus } from '../../../shared/constants';
 import type { WordLookupCandidateOptions } from '../../hooks/useTranslation';
@@ -27,6 +27,7 @@ export { WORD_STATUS_VALUES } from '../../../shared/constants';
 
 export interface WordHoverTranslationData {
   data?: unknown[];
+  resolution?: TranslationResponse['resolution'];
 }
 
 /** Keep the compact gloss separate from the package's detailed dictionary
@@ -49,7 +50,8 @@ export function resolveWordHoverContent(
       .map((entry) => entry.meanings?.join('; ') ?? '')
       .filter((definition) => definition && definition !== shortDefinitionHtml);
   return {
-    reading: ((!identity || identity.word === identity.surface) ? tokenReading?.trim() : '')
+    reading: (translationData?.resolution ? extractReadingValue(translationData.data, languageData) : '')
+      || ((!identity || identity.word === identity.surface) ? tokenReading?.trim() : '')
       || extractReadingValue(translationData?.data, languageData)
       || extractReadingValue(dictionaryEntries, languageData)
       || '',

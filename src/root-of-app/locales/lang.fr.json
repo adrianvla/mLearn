@@ -3458,6 +3458,12 @@
         "Ambiguous": "Plusieurs lectures"
       },
       "NoTranslation": "Aucune traduction trouvée",
+      "ResolutionProvider": "Choix du module linguistique installé. Vérifiez les alternatives si nécessaire.",
+      "DictionaryAlternatives": "Autres entrées du dictionnaire ({count})",
+      "ResolutionOrder": "Choix selon l’ordre du dictionnaire. D’autres lectures ou sens peuvent convenir.",
+      "ResolutionHint": "Choix guidé par le segmenteur. Vérifiez les alternatives si nécessaire.",
+      "ResolutionLearner": "Votre choix pour cette forme et ce contexte.",
+      "ResolutionSaveFailed": "Impossible d’enregistrer ce choix. Réessayez.",
       "Status": {
         "Known": "Connu",
         "Learning": "En apprentissage",

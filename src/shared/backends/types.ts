@@ -61,6 +61,7 @@ export interface OCRWarmupResult {
 
 export interface TranslateRequestOptions {
   dictionaryTargetLanguage?: string;
+  context?: import('../types').WordLookupContext;
 }
 
 /** A dictionary headword with its reading; reading is empty when the schema has none. */

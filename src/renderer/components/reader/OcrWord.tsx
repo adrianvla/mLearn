@@ -6,15 +6,15 @@ import { getWrittenComprehensionStatus } from '../../utils/writtenComprehension'
  */
 
 import { Component, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
-import { DEFAULT_SETTINGS, type Token } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type WordLookupContext } from '../../../shared/types';
 import { useSettings, useFlashcards, useLanguage } from '../../context';
 import { matchesKeybind } from '../common/Input/KeybindInput';
-import { getTokenLookupWord } from '../../utils/wordForms';
+import { getTokenLookupWord, tokenLookupContext } from '../../utils/wordForms';
 import { readingAnnotationsEnabled } from '../../../shared/readingAnnotationSettings';
 import { getPartOfSpeechColor, getProsodyPositionFromOverride } from '../../../shared/languageFeatures';
 import { coloredProsodyAllowedOnSurface } from '../../../shared/prosodySettings';
 import { getCachedTranslation, cacheVersion } from '../../hooks/useTranslation';
-import { extractProsodyData } from '../../utils/translationCacheParsers';
+import { extractProsodyData, extractReadingValue } from '../../utils/translationCacheParsers';
 import { getColoredProsodyConfig } from '../../utils/coloredProsody';
 import type { WordRenderTextContext } from '../../utils/wordRenderText';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
@@ -23,6 +23,7 @@ import './OcrOverlay.css';
 
 export interface OcrWordProps {
   token: Token;
+  lookupContext?: WordLookupContext;
   onWordEnter?: (token: Token, e: MouseEvent) => void;
   onWordLeave?: () => void;
   /** Disable passive tracking for temporary, untokenized OCR fallback text. */
@@ -66,7 +67,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   const showReading = () => (
     props.withReadingAnnotation === true
     && readingAnnotationsEnabled(settings)
-    && Boolean(props.token.reading)
+    && Boolean(effectiveReading())
   );
 
   const getPos = () => props.token.partOfSpeech ?? props.token.type ?? '';
@@ -97,7 +98,13 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     cacheVersion(); // reactive dependency: recompute when cache changes
     const word = lookupWord();
     if (!word) return null;
-    return getCachedTranslation(word, settings.language, lookupOptions);
+    return getCachedTranslation(word, settings.language, { ...lookupOptions, context: props.lookupContext ?? tokenLookupContext(props.token) })
+      ?? getCachedTranslation(word, settings.language, lookupOptions);
+  });
+
+  const effectiveReading = createMemo(() => {
+    const resolved = cachedTranslation();
+    return (resolved?.resolution ? extractReadingValue(resolved.data, currentLangData()) : null) || props.token.reading;
   });
 
   const prosodyPosition = createMemo(() => {
@@ -126,7 +133,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   // The reading is passed through even when annotations are hidden so the
   // word slot renderer can color tone-marked text (hanzi chars → tone syllables).
   const readingForDisplay = () => (
-    showReading() || coloredProsodyActive() ? props.token.reading : undefined
+    showReading() || coloredProsodyActive() ? effectiveReading() : undefined
   );
   
   // Trigger hover using the stable element reference

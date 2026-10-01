@@ -6,15 +6,16 @@ import { placeWordHover, wordHoverAvailableSize } from './wordHoverPlacement';
  */
 
 import { Component, JSX, Show, For, createMemo, createSignal, createEffect, onCleanup, onMount } from 'solid-js';
-import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type LanguageData, type WordFrequencyMap } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type LanguageData, type WordFrequencyMap, type WordLookupContext, type TranslationResponse } from '../../../shared/types';
 import { isDarkColorScheme } from '../../../shared/constants';
 import { useSettings, useFlashcards, useLanguage, useLocalization } from '../../context';
 import { toUniqueIdentifier } from '../../services/statsService';
 import { getCachedExplanation } from '../../services/llmProvider';
 import { requireCapability } from '../../services/capabilityUnavailable';
 import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '../../services/ankiWordsCache';
-import { useTokenizer, getCachedTranslation } from '../../hooks/useTranslation';
+import { useTokenizer, getCachedTranslation, tokenLookupContext, selectTranslationCandidate } from '../../hooks/useTranslation';
 import { Button, PillLabel, Modal, ToggleSwitch, SafeHtml, SkeletonText } from '../common';
+import { extractDefinitionValues } from '../../utils/translationCacheParsers';
 import { ProsodyOverlay } from '../language-specific';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
@@ -134,6 +135,30 @@ export function resolveCompoundDisplay(
   return { kind: 'none' };
 }
 
+export const DictionaryAlternatives: Component<{
+  resolution?: TranslationResponse['resolution']; languageData?: LanguageData | null;
+  saving: boolean; failed: boolean; onChoose: (id: string) => void;
+  t: (key: string, params?: Record<string, string>) => string;
+}> = props => (
+  <Show when={(props.resolution?.candidates.length ?? 0) > 1}>
+    <details class="word-hover-alternatives">
+      <summary>{props.t('mlearn.WordHover.DictionaryAlternatives', { count: String(props.resolution?.candidates.length ?? 0) })}</summary>
+      <p>{props.t(props.resolution?.basis === 'learner-selection' ? 'mlearn.WordHover.ResolutionLearner'
+        : props.resolution?.basis === 'token-hint' ? 'mlearn.WordHover.ResolutionHint'
+        : props.resolution?.basis === 'dictionary-order' ? 'mlearn.WordHover.ResolutionOrder' : 'mlearn.WordHover.ResolutionProvider')}</p>
+      <For each={props.resolution?.candidates}>{candidate => (
+        <button type="button" disabled={props.saving} aria-pressed={candidate.id === props.resolution?.selectedId}
+          onClick={() => props.onChoose(candidate.id)}>
+          <strong>{candidate.label} {candidate.data[0]?.reading}</strong>
+          <span>{extractDefinitionValues(candidate.data[0], props.languageData).join('; ')}</span>
+        </button>
+      )}</For>
+      <Show when={props.saving}><p role="status">{props.t('mlearn.Knowledge.Popup.Saving')}</p></Show>
+      <Show when={props.failed}><p role="alert">{props.t('mlearn.WordHover.ResolutionSaveFailed')}</p></Show>
+    </details>
+  </Show>
+);
+
 export interface WordHoverProps {
   token: Token;
   word: string;
@@ -141,6 +166,7 @@ export interface WordHoverProps {
   anchorRect?: DOMRect;
   dictionaryEntries?: DictionaryEntry[];
   translationData?: WordHoverTranslationData;
+  lookupContext?: WordLookupContext;
   isLoading?: boolean;
   level?: number;
   contextPhrase?: string; // The subtitle text for context
@@ -198,6 +224,35 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     word: props.word || props.token.word,
   }, tokenizerCapabilities()));
   const actualWord = createMemo(() => displayForms().headword || displayWord());
+  const [selectedResponse, setSelectedResponse] = createSignal<TranslationResponse>();
+  const [selectingCandidate, setSelectingCandidate] = createSignal(false);
+  const [selectionFailed, setSelectionFailed] = createSignal(false);
+  const selectedTranslationData = () => (props.lookupContext ? getCachedTranslation(actualWord(), settings.language, {
+    context: props.lookupContext, dictionaryTargetLanguage, languageData: currentLangData,
+  }) : null) ?? selectedResponse() ?? props.translationData;
+  let selectionRequest = 0;
+  createEffect(() => {
+    void props.token; void props.translationData;
+    selectionRequest++;
+    setSelectedResponse(undefined); setSelectionFailed(false); setSelectingCandidate(false);
+  });
+  onCleanup(() => { selectionRequest++; });
+  const chooseCandidate = async (id: string) => {
+    const request = ++selectionRequest;
+    setSelectingCandidate(true); setSelectionFailed(false);
+    try {
+      const result = await selectTranslationCandidate(actualWord(), id, settings.language, {
+        dictionaryTargetLanguage, languageData: currentLangData,
+        context: props.lookupContext ?? tokenLookupContext(props.token),
+      });
+      if (request === selectionRequest) setSelectedResponse(result);
+    } catch {
+      if (request === selectionRequest) setSelectionFailed(true);
+    } finally {
+      if (request === selectionRequest) setSelectingCandidate(false);
+    }
+  };
+
   const isShown = createMemo(() => props.visible !== false);
 
   
@@ -308,7 +363,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     void props.anchorRect;
     void props.position.x;
     void props.position.y;
-    void props.translationData;
+    void selectedTranslationData();
     void props.dictionaryEntries;
     void wordHoverScale(settings);
     if (!visible || !subtitleHoverRef) return;
@@ -376,7 +431,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         const { content, ease } = await buildWordHoverFlashcardContent({
           token: props.token,
           word,
-          translationData: props.translationData,
+          translationData: selectedTranslationData(),
           entry,
           contextPhrase: props.contextPhrase,
           isOcr,
@@ -461,7 +516,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   const hoverContent = createMemo(() => resolveWordHoverContent(
     props.token.reading,
-    props.translationData,
+    selectedTranslationData(),
     props.dictionaryEntries,
     currentLangData(),
     { word: actualWord(), surface: props.token.surface || props.token.word },
@@ -471,7 +526,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return resolveProsodyForHover({
       word: actualWord(),
       reading: hoverContent().reading,
-      translationData: props.translationData,
+      translationData: selectedTranslationData(),
       showProsody: prosodyVisible(settings),
       getCanonicalForm,
       getWordVariants,
@@ -708,6 +763,8 @@ export const WordHover: Component<WordHoverProps> = (props) => {
             </Show>
 
             <Show when={!props.isLoading}>
+              <DictionaryAlternatives resolution={selectedTranslationData()?.resolution} languageData={currentLangData()}
+                saving={selectingCandidate()} failed={selectionFailed()} onChoose={id => void chooseCandidate(id)} t={t} />
               <Show when={hoverContent().dictionaryHtml.length > 0}>
                 <div class="word-hover-dictionary">
                   <Show when={hoverContent().shortDefinitionHtml}><hr /></Show>
