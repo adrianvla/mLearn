@@ -1052,6 +1052,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
   function abortStream(): void {
     aborted = true;
+    streamRequestId++;
     clearStreamTimeout();
     streamCleanup?.();
     streamCleanup = null;
@@ -1093,6 +1094,9 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     existingWidgets: ChatWidget[] = [],
     deferredTerminalToolCalls: ToolCall[] = [],
   ): Promise<void> {
+    const requestId = streamRequestId;
+    const ownsRequest = () => !aborted && requestId === streamRequestId;
+    if (!ownsRequest()) return;
     // Ensure all tool call IDs are unique. LLMs occasionally generate duplicate
     // tool_call_id values within a single response, which causes a 400 error
     // from OpenAI-compatible APIs when the conversation history is sent back.
@@ -1132,7 +1136,9 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     conversationHistory.push(assistantMsg);
 
     for (const tc of nonTerminalToolCalls) {
+      if (!ownsRequest()) return;
       const result = await performTool(tc, widgets, callbacks);
+      if (!ownsRequest()) return;
       toolResponses.push({
         role: 'tool' as const,
         toolName: tc.name,
@@ -1145,7 +1151,9 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
     // Only terminal-only (correct_mistake) flow can finalize immediately.
     if (nonTerminalToolCalls.length === 0) {
       for (const terminalCall of allDeferredTerminalCalls) {
+        if (!ownsRequest()) return;
         const result = await performTool(terminalCall, widgets, callbacks);
+        if (!ownsRequest()) return;
         conversationHistory.push({
           role: 'tool' as const,
           toolName: terminalCall.name,
@@ -1156,7 +1164,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
       // Finalize with level adaptation if needed
       finalizeResponse(visibleContent, language, langName, widgets, callbacks, streamStats).catch(() => {
-        if (!aborted) {
+        if (ownsRequest()) {
           callbacks.onDone(visibleContent, undefined, widgets.length > 0 ? widgets : undefined, streamStats);
         }
       });
@@ -1168,7 +1176,7 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
       conversationHistory.push(tr);
     }
 
-    if (aborted) return;
+    if (!ownsRequest()) return;
 
     // For tools that return data (fetch_url/get_conversation_context), do a follow-up pass.
     // Keep the already streamed text visible and append follow-up text to it.
@@ -1362,7 +1370,9 @@ export function createConversationAgent(deps: AgentDeps): AgentInstance {
 
         if (deferredTerminalToolCalls.length > 0) {
           for (const terminalCall of deferredTerminalToolCalls) {
+            if (aborted || myRequestId !== streamRequestId) return;
             const result = await performTool(terminalCall, widgets, callbacks);
+            if (aborted || myRequestId !== streamRequestId) return;
             conversationHistory.push({
               role: 'tool' as const,
               toolName: terminalCall.name,

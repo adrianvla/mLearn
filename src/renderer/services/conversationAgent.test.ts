@@ -1633,6 +1633,39 @@ describe('createConversationAgent', () => {
   // ==========================================================================
 
   describe('tool: save_memory', () => {
+    it.each(['terminal', 'follow-up'])('does not execute the rest of an old %s tool batch after a successor starts', async (path) => {
+      const onVoiceNudgeScheduled = vi.fn();
+      const successor = createCallbacks();
+      let agent!: ReturnType<typeof createConversationAgent>;
+      const onMemorySaved = vi.fn((content: string) => {
+        if (content === 'First completed write') {
+          agent.abortStream();
+          agent.processMessage('Successor user turn', [], successor.callbacks);
+        }
+      });
+      agent = createConversationAgent(createMockDeps({ isVoiceMode: () => true, onMemorySaved, onVoiceNudgeScheduled }));
+      const old = createCallbacks();
+      agent.processMessage('Earlier user turn', [], old.callbacks);
+      sendDone([
+        ...(path === 'follow-up' ? [{ id: 'context', name: 'get_conversation_context', arguments: {} }] : []),
+        { id: 'first', name: 'save_memory', arguments: { content: 'First completed write' } },
+        { id: 'nudge', name: 'schedule_nudge', arguments: { seconds: 5, prompt: 'Stale follow-up' } },
+        { id: 'later', name: 'save_memory', arguments: { content: 'Unexecuted old write' } },
+      ]);
+      if (path === 'follow-up') {
+        await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
+        sendChunk('A follow-up response'); sendDone();
+      }
+      await new Promise<void>(resolve => queueMicrotask(resolve));
+      await new Promise<void>(resolve => queueMicrotask(resolve));
+      expect(onMemorySaved).toHaveBeenCalledOnce();
+      expect(onVoiceNudgeScheduled).not.toHaveBeenCalled();
+      expect(old.onDone).not.toHaveBeenCalled();
+      expect(agent.getHistory().at(-1)).toEqual({ role: 'user', content: 'Successor user turn' });
+      sendChunk('A current response'); sendDone();
+      await vi.waitFor(() => expect(successor.onDone).toHaveBeenCalled());
+    });
+
     it('calls onMemorySaved with the memory content', async () => {
       const onMemorySaved = vi.fn();
       const deps = createMockDeps({

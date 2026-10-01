@@ -283,8 +283,10 @@ export const ConversationContent: Component = () => {
   const approvedMemoryWrites = new Map<string, string[]>();
   let selectionSession = 0;
   let cancelConversationTurn: (() => void) | null = null;
+  let activeTurn: { modality: 'text' | 'voice'; cancelled: boolean; reviews: Set<string> } | null = null;
   onCleanup(() => {
     selectionSession++;
+    if (activeTurn) activeTurn.cancelled = true;
     cancelConversationTurn?.();
     cancelConversationTurn = null;
     for (const runtime of participantAgents.values()) runtime.abortStream();
@@ -611,6 +613,7 @@ export const ConversationContent: Component = () => {
     flashcardCtx,
     isVoiceMode: isVoiceCallActive,
     onVoiceMistake: (mistake: VoiceMistake) => {
+      if (runtimeSession !== selectionSession) return;
       if (!isValidVoiceMistake(mistake)) return;
       setVoiceMistakes((prev) => [...prev, mistake]);
       // Grammar evidence requires a real pattern: the note_mistake tool has no
@@ -619,7 +622,9 @@ export const ConversationContent: Component = () => {
         flashcardCtx.trackGrammarFailed(mistake.word);
       }
     },
-    onVoiceNudgeScheduled: scheduleVoiceNudge,
+    onVoiceNudgeScheduled: (nudge) => {
+      if (runtimeSession === selectionSession) scheduleVoiceNudge(nudge);
+    },
     onMemorySaved: (content: string) => {
       if (runtimeSession !== selectionSession) return;
       pendingMemoryWrites.set(participant.id, [...(pendingMemoryWrites.get(participant.id) ?? []), content]);
@@ -849,6 +854,8 @@ export const ConversationContent: Component = () => {
       return;
     }
     const mySession = ++selectionSession;
+    if (activeTurn) activeTurn.cancelled = true;
+    activeTurn = null;
     setDraftReadyKey(null);
     cancelConversationTurn?.();
     cancelConversationTurn = null;
@@ -1302,8 +1309,9 @@ export const ConversationContent: Component = () => {
     };
   };
 
-  const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void, keepStreaming = false): StreamCallbacks => {
+  const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void, keepStreaming = false, ownsTurn: () => boolean = () => true): StreamCallbacks => {
     const session = selectionSession;
+    const current = () => session === selectionSession && ownsTurn();
     let streamTokenizeId = 0;
     let streamTokenizeTimer: ReturnType<typeof setTimeout> | null = null;
     const finishAnnotation = (): void => {
@@ -1313,7 +1321,7 @@ export const ConversationContent: Component = () => {
     };
     return {
       onChunk: (accumulated) => {
-        if (session !== selectionSession) return;
+        if (!current()) return;
         setIsWaiting(false);
         const beats = conversationStreamMessages(stripPartialToolCall(accumulated));
         const visibleContent = beats.join('\n\n');
@@ -1324,14 +1332,14 @@ export const ConversationContent: Component = () => {
           streamTokenizeTimer = setTimeout(() => {
             const tokenizeId = ++streamTokenizeId;
             agent.tokenize(visibleContent).then((tokens) => {
-              if (session !== selectionSession || tokenizeId !== streamTokenizeId) return;
+              if (!current() || tokenizeId !== streamTokenizeId) return;
               if (tokens.length > 0) setLiveOverlay((overlay) => overlay ? { ...overlay, tokens: (overlay.beats?.length ?? 0) > 1 ? undefined : tokens } : overlay);
             }).catch(error => log.warn('Stream annotation unavailable', error));
           }, 300);
         }
       },
       onToolCall: (widget: ChatWidget) => {
-        if (session !== selectionSession) return;
+        if (!current()) return;
         setIsWaiting(false);
         setLiveOverlay((overlay) => {
           if (!overlay) return overlay;
@@ -1341,12 +1349,13 @@ export const ConversationContent: Component = () => {
       },
       onDone: (finalContent, tokens, widgets, streamStats) => {
         finishAnnotation();
+        if (!current()) return;
         onDone?.(finalContent, tokens, widgets, streamStats);
         if (!keepStreaming) clearAssistantStreamState();
       },
       onError: (error) => {
         finishAnnotation();
-        if (session !== selectionSession) return;
+        if (!current()) return;
         log.error('Conversation response failed', error);
         clearAssistantStreamState();
         setLiveOverlay(providerErrorOverlay(error));
@@ -1355,51 +1364,67 @@ export const ConversationContent: Component = () => {
   };
 
   const runConversationTurn = async (text: string, contextOnly = false, modality: 'text' | 'voice' = isVoiceCallActive() ? 'voice' : 'text'): Promise<void> => {
-    await initialSelection;
-    await contextIngress;
-    const room = activeRoom();
-    const threadId = selection()?.threadId;
-    if (!text || isStreaming() || isSafetyLockedState()) return;
-    if (!room) {
-      const snapshot = await getBridge().world.getWorldState();
-      const firstRoom = snapshot.rooms[0];
-      if (!firstRoom) return;
-      setWorld(snapshot);
-      // Consent boundary: a first send must not enter a persistent Room while
-      // Living World is off; it targets a disposable sandbox instead, if any.
-      const fallbackThread = settings.livingWorldEnabled ? undefined : snapshot.threads.find(thread => thread.sandbox);
-      if (!settings.livingWorldEnabled && !fallbackThread) return;
-      await selectRoom(fallbackThread ? fallbackThread.id : firstRoom.id);
-      return runConversationTurn(text, contextOnly, modality);
-    }
-    if (isRemoteLLMProvider(settings.llmProvider)) {
-      try {
-        if (settings.llmProvider === 'cloud') {
-          const accessToken = await ensureCloudAccessToken({ interactive: true });
-          if (!accessToken) throw new CloudSessionCancelledError();
-        }
-        if (isElectron()) await getBridge().settings.awaitSettingsSaved();
-      } catch (error) {
-        setLiveOverlay(providerErrorOverlay(error));
-        return;
-      }
-    }
-    cancelVoiceScheduledNudge();
-    turnHeuristicSocial = inferTurnAffect(text, turnSocialOpts(text));
-    // Speech end ≈ the final STT result that triggered this send; the LLM
-    // request dispatches when the agent turn below reaches processMessage.
-    const voiceTurnTiming = isVoiceCallActive() ? { speechEndTs: lastVadSpeechEndTs ?? Date.now(), requestDispatchTs: 0 } : null;
-    let prefetchLogged = false;
-    const witnesses = [USER_ACTOR, ...room.participantIds];
+    if (!text || activeTurn || isStreaming() || isSafetyLockedState()) return;
     const session = selectionSession;
-    const userEvent = contextOnly ? null : await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality: isVoiceCallActive() ? 'voice' : 'text' } satisfies MessagePayload });
-    if (session !== selectionSession) return;
-    lastUserMessageEventId = userEvent?.id ?? null;
-    lastUserMessageEventRoomId = room.id;
-    setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now() });
+    const turn = { modality, cancelled: false, reviews: new Set<string>() };
+    activeTurn = turn;
+    const ownsTurn = () => session === selectionSession && activeTurn === turn && !turn.cancelled;
+    // Reserve before preflight: teardown must also cancel a call waiting for
+    // credentials, settings, or context, and a second send cannot race it.
     startAssistantStream(displayMessages().length);
-    let pendingResponse: { tokens?: Token[]; widgets?: ChatWidget[] } = {};
     try {
+      await initialSelection;
+      if (!ownsTurn()) return;
+      await contextIngress;
+      if (!ownsTurn()) return;
+      const room = activeRoom();
+      const threadId = selection()?.threadId;
+      if (!room) {
+        const snapshot = await getBridge().world.getWorldState();
+        if (!ownsTurn()) return;
+        const firstRoom = snapshot.rooms[0];
+        if (!firstRoom) return;
+        setWorld(snapshot);
+        // Consent boundary: a first send must not enter a persistent Room while
+        // Living World is off; it targets a disposable sandbox instead, if any.
+        const fallbackThread = settings.livingWorldEnabled ? undefined : snapshot.threads.find(thread => thread.sandbox);
+        if (!settings.livingWorldEnabled && !fallbackThread) return;
+        turn.cancelled = true;
+        activeTurn = null;
+        clearAssistantStreamState();
+        await selectRoom(fallbackThread ? fallbackThread.id : firstRoom.id);
+        return runConversationTurn(text, contextOnly, modality);
+      }
+      if (isRemoteLLMProvider(settings.llmProvider)) {
+        try {
+          if (settings.llmProvider === 'cloud') {
+            const accessToken = await ensureCloudAccessToken({ interactive: true });
+            if (!ownsTurn()) return;
+            if (!accessToken) throw new CloudSessionCancelledError();
+          }
+          if (isElectron()) await getBridge().settings.awaitSettingsSaved();
+          if (!ownsTurn()) return;
+        } catch (error) {
+          if (ownsTurn()) setLiveOverlay(providerErrorOverlay(error));
+          return;
+        }
+      }
+      cancelVoiceScheduledNudge();
+      turnHeuristicSocial = inferTurnAffect(text, turnSocialOpts(text));
+      // Speech end ≈ the final STT result that triggered this send; the LLM
+      // request dispatches when the agent turn below reaches processMessage.
+      const voiceTurnTiming = isVoiceCallActive() ? { speechEndTs: lastVadSpeechEndTs ?? Date.now(), requestDispatchTs: 0 } : null;
+      let prefetchLogged = false;
+      const witnesses = [USER_ACTOR, ...room.participantIds];
+      const previousSourceEventId = lastUserMessageEventRoomId === room.id ? lastUserMessageEventId : null;
+      const userEvent = contextOnly ? null : await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality } satisfies MessagePayload });
+      if (!ownsTurn()) return;
+      const memorySourceEventId = userEvent?.id ?? previousSourceEventId;
+      lastUserMessageEventId = userEvent?.id ?? null;
+      lastUserMessageEventRoomId = room.id;
+      setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now() });
+      startAssistantStream(displayMessages().length);
+      let pendingResponse: { tokens?: Token[]; widgets?: ChatWidget[] } = {};
       await runRoomTurn({
         thread: activeThread() ?? undefined,
         room,
@@ -1413,7 +1438,7 @@ export const ConversationContent: Component = () => {
         runAgentTurn: async (participantId, context) => {
           const participant = rosterParticipants().find((candidate) => candidate.id === participantId);
           if (!participant) return { text: '' };
-          if (session !== selectionSession) throw new Error('Conversation selection changed');
+          if (!ownsTurn()) throw new Error('Conversation response cancelled');
           setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now(), displayName: participant.displayName, actorId: participant.id });
           setStreamingMessageIndex(displayMessages().length);
           const runtimeAgent = getParticipantAgent(participant, context);
@@ -1432,7 +1457,7 @@ export const ConversationContent: Component = () => {
             runtimeAgent.processMessage(currentText, [], {
               ...buildStreamCallbacks((final, tokens, widgets, streamStats) => {
                 void (async () => {
-                  if (session !== selectionSession) throw new Error('Conversation selection changed');
+                  if (!ownsTurn()) throw new Error('Conversation response cancelled');
                   if (voiceTurnTiming && streamStats && !prefetchLogged) {
                     prefetchLogged = true;
                     const dispatchMs = voiceTurnTiming.requestDispatchTs - voiceTurnTiming.speechEndTs;
@@ -1442,6 +1467,7 @@ export const ConversationContent: Component = () => {
                     if (!isElectron()) { pendingResponse = { tokens, widgets }; approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []); resolve({ text: final }); return; }
                   const operationId = crypto.randomUUID();
                   reviewOperations.add(operationId);
+                  turn.reviews.add(operationId);
                   try {
                     const result = await getBridge().world.reviewConversationTurn({ operationId, roomId: room.id,
                       threadId: threadId ?? undefined, participantId: participant.id, sourceEventId: userEvent?.id,
@@ -1451,7 +1477,7 @@ export const ConversationContent: Component = () => {
                         .slice(-12).map(message => ({ role: message.role as 'user' | 'assistant', content: message.content.slice(-4000) })),
                       repairContext: renderCompiledContext(context, rosterParticipants(), youLabel()).slice(0, 30_000),
                       language: promptLangName() });
-                    if (session !== selectionSession) throw new Error('Conversation selection changed');
+                    if (!ownsTurn()) throw new Error('Conversation response cancelled');
                     if (result.status === 'unavailable') throw new Error(result.error);
                     if (result.restrictUserContext && userEvent) restrictedUserEventIds.add(userEvent.id);
                     if (result.status === 'support') { pendingResponse = {}; pendingMemoryWrites.delete(participant.id); resolve({ text: t('mlearn.ConversationAgent.Story.SupportResponse'), reviewEvent: result.reviewEvent }); return; }
@@ -1459,11 +1485,11 @@ export const ConversationContent: Component = () => {
                     if (result.status === 'approved' && !result.restrictUserContext) approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []);
                     else pendingMemoryWrites.delete(participant.id);
                     resolve({ text: result.text, reviewEvent: result.reviewEvent });
-                  } finally { reviewOperations.delete(operationId); }
+                  } finally { reviewOperations.delete(operationId); turn.reviews.delete(operationId); }
                 })().catch(reject).finally(() => {
                   if (cancelConversationTurn === cancel) cancelConversationTurn = null;
                 });
-              }, true),
+              }, true, ownsTurn),
               onError: (error) => {
                 if (cancelConversationTurn === cancel) cancelConversationTurn = null;
                 reject(new Error(error));
@@ -1472,16 +1498,17 @@ export const ConversationContent: Component = () => {
           });
         },
         appendEvent: async (draft, shape) => {
-          if (session !== selectionSession) throw new Error('Conversation selection changed');
+          if (!ownsTurn()) throw new Error('Conversation response cancelled');
           const event = await journal.append(draft.type === 'message.character' && pendingResponse.widgets && (!shape || shape.index === shape.count - 1)
             ? { ...draft, payload: { ...(draft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
             : draft);
+          if (!ownsTurn()) throw new Error('Conversation response cancelled');
           if (draft.type === 'message.character') setLiveOverlay(null);
           if (draft.type === 'message.character') {
             const writes = approvedMemoryWrites.get(draft.actorId) ?? [];
             approvedMemoryWrites.delete(draft.actorId); pendingMemoryWrites.delete(draft.actorId);
             for (const content of writes) {
-              const sourceEventId = lastUserMessageEventRoomId === room.id && !restrictedUserEventIds.has(lastUserMessageEventId ?? '') ? lastUserMessageEventId : null;
+              const sourceEventId = memorySourceEventId && !restrictedUserEventIds.has(memorySourceEventId) ? memorySourceEventId : null;
               void journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
                 type: 'memory.belief', actorId: HARNESS_ACTOR, witnesses: [USER_ACTOR, draft.actorId],
                 payload: { ownerId: draft.actorId, kind: 'belief', text: content,
@@ -1497,7 +1524,7 @@ export const ConversationContent: Component = () => {
           return event;
         },
       });
-      if (session !== selectionSession) return;
+      if (!ownsTurn()) return;
       setLiveOverlay(null);
       if (userEvent && (settings.agentMistakeChecker || settings.agentSafetyChecker)) runCheckerOnMessage(text, userEvent.id);
       if (userEvent) {
@@ -1511,12 +1538,13 @@ export const ConversationContent: Component = () => {
           .catch(() => undefined);
       }
     } catch (error) {
-      log.error('Conversation turn failed', error);
-      if (session === selectionSession) {
+      if (ownsTurn()) {
+        log.error('Conversation turn failed', error);
         setLiveOverlay(providerErrorOverlay(error));
       }
     } finally {
-      if (session === selectionSession) {
+      if (activeTurn === turn) {
+        activeTurn = null;
         clearAssistantStreamState();
         turnHeuristicSocial = null;
       }
@@ -1591,7 +1619,24 @@ export const ConversationContent: Component = () => {
   };
 
   const abortCallResponse = () => {
+    // Call teardown owns only turns begun in that call. A completed text
+    // response may still be awaiting review when the learner opens a call.
+    const turn = activeTurn;
+    if (!turn || turn.modality !== 'voice') return;
+    turn.cancelled = true;
+    activeTurn = null;
+    selectionSession++;
+    for (const operationId of turn.reviews) {
+      void getBridge().world.cancelConversationReview(operationId);
+      reviewOperations.delete(operationId);
+    }
+    turn.reviews.clear();
+    cancelConversationTurn?.();
+    cancelConversationTurn = null;
     for (const runtime of participantAgents.values()) runtime.abortStream();
+    participantAgents.clear();
+    pendingMemoryWrites.clear(); approvedMemoryWrites.clear();
+    turnHeuristicSocial = null;
     setLiveOverlay(null);
     clearAssistantStreamState();
   };
@@ -1600,6 +1645,8 @@ export const ConversationContent: Component = () => {
     // Invalidate callbacks before cancelling inference or review. A completed
     // provider response is still cancellable until it enters the journal.
     selectionSession++;
+    if (activeTurn) activeTurn.cancelled = true;
+    activeTurn = null;
     for (const runtime of participantAgents.values()) runtime.abortStream();
     participantAgents.clear();
     for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
@@ -2204,6 +2251,7 @@ export const ConversationContent: Component = () => {
               profilePhoto={voiceContactParticipantId() || rosterParticipants().length === 1 ? activeVoiceParticipant()?.profilePhoto : undefined}
               defaultVoiceSampleId={activeVoiceParticipant()?.voiceSampleId}
               onCallStateChange={(active, reason, error) => {
+                if (!active) abortCallResponse();
                 if (reason === 'failed' && error) setContactIngressError(error);
                 setIsVoiceCallActive(active);
                 if (!active) cancelVoiceScheduledNudge();

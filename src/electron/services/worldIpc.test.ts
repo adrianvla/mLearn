@@ -235,7 +235,7 @@ describe('worldIpc', () => {
   });
 
   it('membership add appends a membership event and persists the updated room', async () => {
-    seedWorld([room('r1', ['p1'])]);
+    seedWorld([room('r1', ['p1'])], [], [participant('p1', 'Member'), participant('p2', 'New member')]);
     const result = await mod.applyMembership('r1', 'p2', 'add');
 
     expect(result.event).not.toBeNull();
@@ -256,7 +256,7 @@ describe('worldIpc', () => {
   });
 
   it('membership add when already present is a no-op (event null, room untouched)', async () => {
-    seedWorld([room('r1', ['p1'])]);
+    seedWorld([room('r1', ['p1'])], [], [participant('p1', 'Member')]);
     const result = await mod.applyMembership('r1', 'p1', 'add');
 
     expect(result.event).toBeNull();
@@ -277,6 +277,16 @@ describe('worldIpc', () => {
 
     const state = await mod.getWorldState();
     expect(state.rooms[0].participantIds).toEqual(['p1']);
+  });
+
+  it.each(['missing', 'temporary', 'archived'] as const)('rejects an unavailable %s membership addition without changing roster or history', async state => {
+    const candidate = state === 'missing' ? [] : [{ ...participant('p2', 'Other'),
+      ...(state === 'temporary' ? { kind: 'temporary' as const } : { archivedAt: 1 }),
+    }];
+    seedWorld([room('r1', ['p1'])], [], [participant('p1', 'Member'), ...candidate]);
+    await expect(mod.applyMembership('r1', 'p2', 'add')).rejects.toThrow(/persistent person is unavailable/);
+    expect((await mod.getWorldState()).rooms[0].participantIds).toEqual(['p1']);
+    expect((await journal.subscribeRoom('r1', 10)).events).toHaveLength(0);
   });
 
   it('membership on a missing room throws', async () => {

@@ -456,6 +456,7 @@ let activeSender: Electron.WebContents | null = null;
 const MAX_QUEUED_AUDIO_CHUNKS = 256;
 let pendingAudioChunks: Float32Array[] = [];
 let pendingTokenCleanup: (() => void) | null = null;
+let sessionGeneration = 0;
 
 // ============================================================================
 // TTS Abort
@@ -613,9 +614,7 @@ function startSession(
   ttsProvider?: string,
 ): void {
   log.info('[VoiceService] Starting voice session', { language, mode, silenceThreshold, ttsProvider });
-  if (activeWs) {
-    stopSession();
-  }
+  stopSession();
 
   const token = getQuitToken();
   if (!token) {
@@ -653,7 +652,11 @@ function waitForQuitTokenAndStart(
   ttsProvider?: string,
 ): void {
   pendingTokenCleanup?.();
+  const generation = sessionGeneration;
   pendingTokenCleanup = onQuitTokenAvailable((token) => {
+    if (generation !== sessionGeneration) return;
+    sessionGeneration += 1;
+    pendingTokenCleanup?.();
     pendingTokenCleanup = null;
     if (sender.isDestroyed()) return;
     doStartSession(language, mode, silenceThreshold, sender, token, ttsProvider);
@@ -681,8 +684,23 @@ function doStartSession(
     activeWs = ws;
     activeSession = true;
     activeSender = sender;
+    const ownsSession = () => activeWs === ws && activeSender === sender;
+    const failSession = (error: string, closeSocket = true) => {
+      if (!ownsSession()) return;
+      // Detach before notifying or closing: neither a late callback nor an
+      // intentional teardown may clear or send events to the next session.
+      activeWs = null;
+      activeSession = false;
+      activeSender = null;
+      pendingAudioChunks = [];
+      if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, { error });
+      if (closeSocket) {
+        try { ws.close(); } catch (closeError) { log.warn('[VoiceService] Failed to close voice stream:', closeError); }
+      }
+    };
 
     ws.on('open', () => {
+      if (!ownsSession() || sender.isDestroyed()) return;
       log.info('[VoiceService] WebSocket connected to Python backend');
       if (activeSender && !activeSender.isDestroyed()) {
         sendSessionStatus(activeSender, {
@@ -702,7 +720,7 @@ function doStartSession(
     });
 
     ws.on('message', (rawData: WebSocket.RawData) => {
-      if (!activeSender || activeSender.isDestroyed()) return;
+      if (!ownsSession() || !activeSender || activeSender.isDestroyed()) return;
       try {
         const msg = JSON.parse(rawData.toString());
         switch (msg.type) {
@@ -746,9 +764,7 @@ function doStartSession(
             break;
           case 'error':
             log.error('[VoiceService] Backend error:', msg.message);
-            activeSender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
-              error: msg.message,
-            });
+            failSession(typeof msg.message === 'string' ? msg.message : 'Voice stream reported an error');
             break;
         }
       } catch (e) {
@@ -757,21 +773,15 @@ function doStartSession(
     });
 
     ws.on('error', (err) => {
+      if (!ownsSession()) return;
       log.error('[VoiceService] WebSocket error:', err);
-      if (activeSender) {
-        activeSender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
-          error: err.message || 'WebSocket connection error',
-        });
-      }
+      failSession(err.message || 'WebSocket connection error');
     });
 
     ws.on('close', () => {
+      if (!ownsSession()) return;
       log.info('[VoiceService] WebSocket closed');
-      if (activeWs === ws) {
-        activeWs = null;
-        activeSession = false;
-        activeSender = null;
-      }
+      failSession('Voice stream disconnected', false);
     });
   } catch (err) {
     log.error('[VoiceService] Failed to connect:', err);
@@ -782,6 +792,7 @@ function doStartSession(
 }
 
 function stopSession(): void {
+  sessionGeneration += 1;
   activeSession = false;
   activeSender = null;
   pendingAudioChunks = [];

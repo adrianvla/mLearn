@@ -333,7 +333,7 @@ vi.mock('../../components/subtitle/ExplainerPopup', () => ({
 }));
 
 vi.mock('./VoiceTab', () => ({
-  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string; onAbort?: () => void; onStatusChange?: (status: string) => void; onCallStateChange?: (active: boolean, reason?: 'failed' | 'completed', error?: string) => void }) => {
+  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string; onSendMessage?: (text: string) => Promise<void>; onAbort?: () => void; onStatusChange?: (status: string) => void; onCallStateChange?: (active: boolean, reason?: 'failed' | 'completed', error?: string) => void }) => {
     voiceTabMounts++;
     return (
     <div
@@ -343,6 +343,8 @@ vi.mock('./VoiceTab', () => ({
       data-voice-sample={props.defaultVoiceSampleId}
     ><button onClick={() => props.onCallStateChange?.(false, 'failed', "No module named kokoro")}>Simulate voice failure</button>
       <button onClick={() => props.onStatusChange?.('Listening…')}>Simulate listening</button>
+      <button onClick={() => props.onCallStateChange?.(true)}>Start call session</button>
+      <button onClick={() => void props.onSendMessage?.('A spoken question')}>Send voice transcript</button>
       <button onClick={() => props.onAbort?.()}>Abort call response</button>
       <button onClick={() => { props.onCallStateChange?.(true); props.onCallStateChange?.(false, 'completed'); }}>Complete call</button>
     </div>
@@ -685,6 +687,121 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(chatText(container)).toContain('The latest completed reply'));
     annotation.resolve([]);
+  });
+
+  it.each(['Abort call response', 'Complete call', 'Simulate voice failure'])('cancels an in-call review on %s without admitting unheard content', async (action) => {
+    desktopRuntime = true;
+    testSettings.agentMistakeChecker = false;
+    testSettings.agentSafetyChecker = false;
+    const review = deferred<TurnReviewResult>();
+    mockBridge.world.reviewConversationTurn.mockImplementationOnce(() => review.promise);
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false));
+    call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click();
+    button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Unheard secret for a later turn', done: true });
+    await vi.waitFor(() => expect(mockBridge.world.reviewConversationTurn).toHaveBeenCalledOnce());
+    button(action).click();
+    expect(mockBridge.world.cancelConversationReview).toHaveBeenCalledOnce();
+    review.resolve({ status: 'approved', text: 'Unheard secret for a later turn', reason: 'none', restrictUserContext: false, reviewId: 'cancelled-call' });
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    expect(journalEvents.filter(event => event.type === 'message.character' || event.type === 'memory.belief')).toHaveLength(0);
+    expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+    expect(chatText(container)).not.toContain('Unheard secret');
+    expect(mockBridge.world.triggerReflection).not.toHaveBeenCalled();
+  });
+
+  it('keeps a successor voice overlay when a cancelled turn finishes its in-flight journal append', async () => {
+    desktopRuntime = true;
+    testSettings.agentMistakeChecker = false;
+    testSettings.agentSafetyChecker = false;
+    const append = deferred<JournalEvent>();
+    let delayedDraft: JournalEventDraft | undefined;
+    mockBridge.journal.appendEvent.mockImplementationOnce(async (_roomId, draft) => appendJournalEvent(draft));
+    mockBridge.journal.appendEvent.mockImplementationOnce(async (_roomId, draft) => { delayedDraft = draft; return append.promise; });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false));
+    call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click();
+    button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Earlier approved response', done: true });
+    await vi.waitFor(() => expect(delayedDraft?.type).toBe('message.character'));
+    button('Abort call response').click();
+    button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
+    emitChunk({ content: 'Successor is still speaking' });
+    expect(chatText(container)).toContain('Successor is still speaking');
+    append.resolve(appendJournalEvent(delayedDraft!));
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    expect(chatText(container)).toContain('Successor is still speaking');
+    emitChunk({ done: true });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character' && (event.payload as { text: string }).text === 'Successor is still speaking')).toBe(true));
+  });
+
+  it.each(['Complete call', 'Simulate voice failure'])('cancels a voice send waiting for settings on %s', async (action) => {
+    desktopRuntime = true;
+    testSettings.llmProvider = 'openai-compatible';
+    const preflight = deferred<void>();
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false));
+    call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click();
+    mockBridge.settings.awaitSettingsSaved.mockImplementationOnce(() => preflight.promise);
+    button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.settings.awaitSettingsSaved).toHaveBeenCalled());
+    button(action).click();
+    preflight.resolve();
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+    expect(journalEvents).toHaveLength(0);
+  });
+
+  it('allows a new room to send while the cancelled prior preflight is still pending', async () => {
+    desktopRuntime = true;
+    currentWorld.rooms.push({ id: 'room-b', title: 'Other chat', participantIds: ['agent-a'], createdAt: 2 });
+    currentWorld.threads.push({ id: 'thread-b', roomId: 'room-b', state: 'active', createdAt: 2 });
+    const preflight = deferred<void>();
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const input = () => container.querySelector<HTMLTextAreaElement>('.ca-chat-textarea')!;
+    await vi.waitFor(() => expect(input().disabled).toBe(false));
+    // Availability is established independently; this test owns the save
+    // barrier, not a live OpenAI-compatible endpoint or model selection.
+    testSettings.llmProvider = 'openai-compatible';
+    mockBridge.settings.awaitSettingsSaved.mockClear();
+    mockBridge.settings.awaitSettingsSaved.mockImplementationOnce(() => preflight.promise);
+    const send = (text: string) => {
+      input().value = text; input().dispatchEvent(new Event('input', { bubbles: true }));
+      container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Send"]')!.click();
+    };
+    send('Old preflight');
+    await vi.waitFor(() => expect(mockBridge.settings.awaitSettingsSaved).toHaveBeenCalledOnce());
+    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
+    await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]')).not.toBeNull());
+    send('New room message');
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    expect(journalEvents.filter(event => event.type === 'message.user').map(event => event.roomId)).toEqual(['room-b']);
+    preflight.resolve();
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce();
+    emitChunk({ content: 'New room response', done: true });
+    await vi.waitFor(() => expect(chatText(container)).toContain('New room response'));
   });
 
   it('reads an earlier queued exit before checking the next user message', async () => {

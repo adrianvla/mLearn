@@ -744,6 +744,29 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     );
   });
 
+  it.each(['replace', 'stop'] as const)('ignores a queued backend token after session %s', (action) => {
+    mockQuitToken = null;
+    mod.setupVoiceIPC();
+    const oldEvent = createFakeEvent();
+    onHandlers.get('voice-start-session')?.(oldEvent, 'en', 'vad', 1.5);
+    const delayedCallback = mockQuitTokenAvailableCallback!;
+    oldEvent.sender.send.mockClear();
+    let replacement: typeof lastCreatedWebSocket = null;
+    if (action === 'replace') {
+      mockQuitToken = 'current-token';
+      onHandlers.get('voice-start-session')?.(createFakeEvent(), 'de', 'vad', 1.5);
+      replacement = lastCreatedWebSocket;
+    } else {
+      onHandlers.get('voice-stop-session')?.(oldEvent);
+    }
+
+    // A callback already queued by the backend can run after unsubscription.
+    delayedCallback('late-token');
+    expect(lastCreatedWebSocket).toBe(replacement);
+    expect(oldEvent.sender.send).not.toHaveBeenCalled();
+    expect(mockQuitTokenAvailableCallback).toBeNull();
+  });
+
   it('closes the WebSocket when stopSession is called', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
@@ -852,6 +875,46 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
       'voice-session-error',
       expect.objectContaining({ error: 'ECONNREFUSED' }),
     );
+  });
+
+  it('ignores late callbacks from a replaced voice socket and preserves its successor audio queue', () => {
+    mod.setupVoiceIPC();
+    const first = createFakeEvent(), second = createFakeEvent();
+    onHandlers.get('voice-start-session')?.(first, 'en', 'vad', 1.5);
+    const oldSocket = lastCreatedWebSocket!;
+    onHandlers.get('voice-start-session')?.(second, 'en', 'vad', 1.5);
+    const currentSocket = lastCreatedWebSocket!;
+    currentSocket.readyState = 0;
+    first.sender.send.mockClear(); second.sender.send.mockClear();
+    onHandlers.get('voice-audio-chunk')?.(second, new Float32Array([0.2]));
+    oldSocket._emit('open');
+    oldSocket._emit('message', JSON.stringify({ type: 'ready' }));
+    oldSocket._emit('message', JSON.stringify({ type: 'stt', text: 'obsolete', isFinal: true }));
+    oldSocket._emit('error', new Error('obsolete failure'));
+    oldSocket._emit('close');
+    expect(first.sender.send).not.toHaveBeenCalled();
+    expect(second.sender.send).not.toHaveBeenCalled();
+    expect(oldSocket.send).not.toHaveBeenCalled();
+    currentSocket.readyState = MockWebSocket.OPEN;
+    currentSocket._emit('open');
+    expect(currentSocket.send).toHaveBeenCalledOnce();
+    currentSocket._emit('message', JSON.stringify({ type: 'stt', text: 'current', isFinal: true }));
+    expect(second.sender.send).toHaveBeenCalledWith('voice-stt-result', expect.objectContaining({ text: 'current' }));
+  });
+
+  it('reports unexpected clean socket closure once and ignores intentional shutdown', () => {
+    mod.setupVoiceIPC();
+    const first = createFakeEvent();
+    onHandlers.get('voice-start-session')?.(first, 'en', 'vad', 1.5);
+    first.sender.send.mockClear();
+    const socket = lastCreatedWebSocket!;
+    socket._emit('close'); socket._emit('close');
+    expect(first.sender.send.mock.calls.filter(call => call[0] === 'voice-session-error')).toHaveLength(1);
+    const second = createFakeEvent();
+    onHandlers.get('voice-start-session')?.(second, 'en', 'vad', 1.5);
+    second.sender.send.mockClear();
+    onHandlers.get('voice-stop-session')?.(second);
+    expect(second.sender.send).not.toHaveBeenCalled();
   });
 
   it('uses default silence threshold of 0.8 when not provided', () => {

@@ -94,6 +94,9 @@ export async function applyMembership(
     if (!room) {
       throw new Error(`[world] room not found: ${roomId}`);
     }
+    if (kind === 'add' && !state.participants.some(person => person.id === participantId && person.kind === 'persistent' && !person.archivedAt)) {
+      throw new Error('[world] selected persistent person is unavailable');
+    }
     const result = applyMembershipChange(room, participantId, kind);
     if (result.event === null) {
       return { room: result.room, event: null };
