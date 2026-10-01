@@ -2,6 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createSignal } from 'solid-js';
+import type { ConversationMessage, VoiceTtsAudio, VoiceTtsRequestIdentity } from '../../../shared/types';
 
 const cleanup = () => undefined;
 
@@ -49,7 +51,7 @@ type VoiceDeviceStatus = {
   device?: 'cuda' | 'mps' | 'cpu';
   cpuWarning?: boolean;
 };
-type TestTtsStatus = VoiceDeviceStatus & { generating?: boolean; playing?: boolean };
+type TestTtsStatus = VoiceDeviceStatus & Partial<VoiceTtsRequestIdentity> & { generating?: boolean; playing?: boolean; error?: string };
 type TestModelStatus = VoiceDeviceStatus & {
   sttDownloaded: boolean;
   ttsDownloaded: boolean;
@@ -62,6 +64,7 @@ let modelProgressHandler: ((status: TestModelStatus) => void) | undefined;
 let ttsStatusHandler: ((status: TestTtsStatus) => void) | undefined;
 let sessionReadyHandler: (() => void) | undefined;
 let sessionErrorHandler: ((data: { error: string }) => void) | undefined;
+let ttsAudioHandler: ((audio: VoiceTtsAudio) => void) | undefined;
 
 const testSettings = {
   ttsProvider: 'kokoro' as const,
@@ -78,6 +81,9 @@ const readyModels: TestModelStatus = {
   progress: 1,
 };
 const mockVoiceFlush = vi.fn();
+const mockTtsGenerate = vi.fn();
+const mockTtsStop = vi.fn();
+const mockRequestAccess = vi.fn().mockResolvedValue(true);
 
 vi.mock('../../context', () => ({
   useSettings: () => ({ settings: testSettings, updateSettings: vi.fn() }),
@@ -89,7 +95,7 @@ vi.mock('../../context', () => ({
       ));
     },
   }),
-  useLowPowerGate: () => ({ requestAccess: vi.fn().mockResolvedValue(true) }),
+  useLowPowerGate: () => ({ requestAccess: mockRequestAccess }),
 }));
 
 vi.mock('../../../shared/bridges', () => ({
@@ -102,7 +108,7 @@ vi.mock('../../../shared/bridges', () => ({
       }),
       onVoiceSttResult: vi.fn(() => cleanup),
       onVoiceVadEvent: vi.fn(() => cleanup),
-      onVoiceTtsAudio: vi.fn(() => cleanup),
+      onVoiceTtsAudio: vi.fn((callback: typeof ttsAudioHandler) => { ttsAudioHandler = callback; return cleanup; }),
       onVoiceTtsStatus: vi.fn((callback: typeof ttsStatusHandler) => {
         ttsStatusHandler = callback;
         return cleanup;
@@ -116,7 +122,8 @@ vi.mock('../../../shared/bridges', () => ({
       voiceSendTtsState: vi.fn(),
       voiceStartSession: vi.fn(),
       voiceStopSession: vi.fn(),
-      voiceTtsStop: vi.fn(),
+      voiceTtsStop: mockTtsStop,
+      voiceTtsGenerate: mockTtsGenerate,
       voiceFlush: mockVoiceFlush,
     },
   }),
@@ -155,6 +162,7 @@ describe('VoiceTab CPU warning banner', () => {
     sessionErrorHandler = undefined;
     testSettings.voiceMode = 'vad';
     mockVoiceFlush.mockClear();
+    mockTtsGenerate.mockClear(); mockTtsStop.mockClear(); mockRequestAccess.mockReset().mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -221,15 +229,78 @@ describe('VoiceTab CPU warning banner', () => {
     dispose();
   });
 
-  it('shows the CPU warning when the TTS status reports cpuWarning', async () => {
+  it('ignores CPU warnings from unrelated TTS requests', async () => {
     const dispose = await mountVoiceTab();
 
     ttsStatusHandler?.({ generating: false, playing: false, cpuWarning: true });
 
-    await vi.waitFor(() => {
-      expect(container.textContent).toContain('Realtime voice may lag');
-    });
+    expect(container.textContent).not.toContain('Realtime voice may lag');
 
+    dispose();
+  });
+
+  it('rejects a retired phrase completion and audio while its successor owns generation', async () => {
+    const { VoiceTab } = await import('./VoiceTab');
+    const [messages, setMessages] = createSignal<ConversationMessage[]>([]);
+    const audioContext = vi.fn(); vi.stubGlobal('AudioContext', audioContext);
+    const dispose = render(() => <VoiceTab autoStartCall messages={messages()} isStreaming={false}
+      onSendMessage={vi.fn()} onAbort={vi.fn()} isConnected language="test-language" onRequestGreeting={vi.fn()} />, container);
+    await vi.waitFor(() => expect(sessionReadyHandler).toBeDefined());
+    setMessages([{ role: 'assistant', content: 'First phrase. Second phrase. Third phrase.', timestamp: 1 }]);
+    await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(1));
+    const first = mockTtsGenerate.mock.calls[0][6];
+    expect(first).toEqual(expect.objectContaining({ sessionId: expect.any(String), requestId: expect.any(String) }));
+    ttsStatusHandler!({ ...first, generating: false });
+    await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(2));
+    const second = mockTtsGenerate.mock.calls[1][6];
+    ttsStatusHandler!({ ...first, generating: false });
+    ttsAudioHandler!({ ...first, samples: [1], sampleRate: 16000 });
+    ttsStatusHandler!({ generating: false, cpuWarning: true });
+    await Promise.resolve();
+    expect(mockTtsGenerate).toHaveBeenCalledTimes(2);
+    expect(audioContext).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('Realtime voice may lag');
+    ttsStatusHandler!({ ...second, generating: true, cpuWarning: true });
+    expect(container.textContent).toContain('Realtime voice may lag');
+    ttsStatusHandler!({ ...second, generating: false });
+    await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(3));
+    dispose(); vi.unstubAllGlobals();
+  });
+
+  it('does not let a stale access denial release a newer phrase request', async () => {
+    let denyFirst: ((allowed: boolean) => void) | undefined;
+    mockRequestAccess.mockImplementationOnce(() => new Promise<boolean>(resolve => { denyFirst = resolve; }));
+    const { VoiceTab } = await import('./VoiceTab');
+    const [messages, setMessages] = createSignal<ConversationMessage[]>([]);
+    const dispose = render(() => <VoiceTab autoStartCall messages={messages()} isStreaming={false}
+      onSendMessage={vi.fn()} onAbort={vi.fn()} isConnected language="test-language" onRequestGreeting={vi.fn()} />, container);
+    await vi.waitFor(() => expect(sessionReadyHandler).toBeDefined());
+    setMessages([{ role: 'assistant', content: 'Obsolete phrase.', timestamp: 1 }]);
+    await vi.waitFor(() => expect(denyFirst).toBeDefined());
+    setMessages(previous => [...previous, { role: 'assistant', content: 'Successor phrase. Following phrase.', timestamp: 2 }]);
+    await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(1));
+    const successor = mockTtsGenerate.mock.calls[0][6];
+    denyFirst!(false); await Promise.resolve();
+    setMessages(previous => previous.map((message, i) => i === 1 ? { ...message, content: message.content + ' Another phrase.' } : message));
+    await Promise.resolve();
+    expect(mockTtsGenerate).toHaveBeenCalledTimes(1);
+    dispose();
+    expect(mockTtsStop).toHaveBeenLastCalledWith(successor);
+  });
+
+  it('does not retry into another consumer when its owned phrase is replaced', async () => {
+    const { VoiceTab } = await import('./VoiceTab');
+    const [messages, setMessages] = createSignal<ConversationMessage[]>([]);
+    const dispose = render(() => <VoiceTab autoStartCall messages={messages()} isStreaming={false}
+      onSendMessage={vi.fn()} onAbort={vi.fn()} isConnected language="test-language" onRequestGreeting={vi.fn()} />, container);
+    await vi.waitFor(() => expect(sessionReadyHandler).toBeDefined());
+    setMessages([{ role: 'assistant', content: 'First phrase. Following phrase.', timestamp: 1 }]);
+    await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(1));
+    const request = mockTtsGenerate.mock.calls[0][6];
+    ttsStatusHandler!({ ...request, generating: false, error: 'Speech stopped because another speech request started.' });
+    await Promise.resolve();
+    expect(mockTtsGenerate).toHaveBeenCalledTimes(1);
+    expect(mockTtsStop).toHaveBeenCalledWith(request);
     dispose();
   });
 

@@ -12,7 +12,8 @@ import { Button, ProgressBar, RangeInput, EmptyState, AlertBanner, Spinner, Sele
 import type { SelectOption } from '../../components/common';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { ChatBubble } from './ChatBubble';
-import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceVadEvent, Token, VoiceSessionStatus, VoiceCallTTSProvider } from '../../../shared/types';
+import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceMode, VoiceVadEvent, Token, VoiceSessionStatus, VoiceCallTTSProvider } from '../../../shared/types';
+import { matchesVoiceTtsRequest } from '../../../shared/utils/voiceTtsOwnership';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
@@ -140,7 +141,7 @@ function providerFromVoiceTtsChoice(choice: VoiceTtsChoice): LocalVoiceTtsProvid
 export interface VoiceTabProps {
   /** Start a call immediately after the tab mounts. */
   autoStartCall?: boolean;
-  messages: ConversationMessage[];
+  messages: Array<ConversationMessage & { eventId?: string; actorId?: string }>;
   isStreaming: boolean;
   onSendMessage: (text: string) => void;
   /** Fired on every non-final STT partial while listening (feeds speculative prefetch). */
@@ -248,6 +249,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   // TTS generation guard — prevents stale audio from playing after cancellation
   let ttsAborted = false;
+  let callSessionId = crypto.randomUUID();
+  let activeTtsRequest: VoiceTtsRequestIdentity | null = null;
   // Sentence timing for estimating interruption position within a sentence
   let ttsCurrentSentenceStartTime = 0;
   let ttsCurrentSentenceDuration = 0;
@@ -257,7 +260,6 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let ttsTurnStartTime = 0;
   let ttsScheduledDuration = 0;
   let currentTtsText = '';
-  let ttsHadError = false;
   // Barge-in detection: consecutive mic-loud frames during TTS playback
   let bargeInFrames = 0;
   const BARGE_IN_THRESHOLD = 0.28;
@@ -746,7 +748,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // TTS audio — schedule streamed chunks for gapless playback
     cleanups.push(bridge.voice.onVoiceTtsAudio((audio: VoiceTtsAudio) => {
-      if (ttsAborted) return; // ignore audio from a cancelled generation
+      if (ttsAborted || !matchesVoiceTtsRequest(audio, activeTtsRequest)) return;
       log.info('[VoiceTab] TTS audio received', {
         samples: audio.samples.length,
         sampleRate: audio.sampleRate,
@@ -759,18 +761,23 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // TTS status
     cleanups.push(bridge.voice.onVoiceTtsStatus((status) => {
+      if (!matchesVoiceTtsRequest(status, activeTtsRequest)) return;
       log.info('[VoiceTab] TTS status', status);
       applyVoiceDeviceStatus(status);
       if (status.error) {
-        ttsHadError = true;
         addDebugEvent('TTS error', status.error, 'error');
+        stopTTSPlayback();
+        setTtsModelLoading(false);
+        setTtsDownloadProgress(0);
+        setCallState('listening');
+        showToast({ message: status.error, variant: 'error' });
+        return;
       }
       setTtsModelLoading(status.modelLoading ?? false);
       if (status.downloadProgress !== undefined) {
         setTtsDownloadProgress(status.downloadProgress);
       }
       if (status.generating) {
-        ttsHadError = false;
         ttsGenerationActive = true;
         addDebugEvent('TTS', status.playing ? 'Playback started' : 'Generating audio', 'active');
         if (status.playing) {
@@ -779,16 +786,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         } else {
           setCallState('processing');
         }
-      } else {
+      } else if (status.generating === false) {
+        activeTtsRequest = null;
         ttsGenerationActive = false;
         finishVoiceTtsPhraseRequest(voiceTtsTurn);
         setTtsModelLoading(false);
         setTtsDownloadProgress(0);
-        if (ttsHadError) {
-          ttsHadError = false;
-        } else {
-          addDebugEvent('TTS', 'Generation finished', 'info');
-        }
+        addDebugEvent('TTS', 'Generation finished', 'info');
         requestNextVoiceTtsPhrase();
         finishTtsIfPlaybackDrained();
       }
@@ -938,17 +942,29 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     addDebugEvent('LLM -> TTS', `${next.phrase.length} chars queued for streamed TTS`, 'active');
 
     ttsGenerationActive = true;
+    const message = props.messages[voiceTtsTurn.messageIndex];
+    const request: VoiceTtsRequestIdentity = {
+      sessionId: callSessionId,
+      requestId: crypto.randomUUID(),
+      utteranceId: message?.eventId ?? `${callSessionId}:${voiceTtsTurn.messageIndex}`,
+      ...(message?.actorId ? { actorId: message.actorId } : {}),
+    };
+    activeTtsRequest = request;
 
     void (async () => {
       try {
         const allowed = await requestAccess('tts');
+        if (activeTtsRequest !== request) return;
         if (!allowed || ttsAborted || !isCallActive()) {
+          activeTtsRequest = null;
           finishVoiceTtsPhraseRequest(voiceTtsTurn);
           ttsGenerationActive = false;
           return;
         }
-        getBridge().voice.voiceTtsGenerate(next.phrase, props.language, ttsSpeed(), sampleId, provider);
+        getBridge().voice.voiceTtsGenerate(next.phrase, props.language, ttsSpeed(), sampleId, provider, undefined, request);
       } catch (error) {
+        if (activeTtsRequest !== request) return;
+        activeTtsRequest = null;
         log.error('[VoiceTab] Failed to request streamed TTS phrase:', error);
         finishVoiceTtsPhraseRequest(voiceTtsTurn);
         ttsGenerationActive = false;
@@ -1195,6 +1211,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     ttsSources.push(source);
 
     source.onended = () => {
+      if (!ttsSources.includes(source)) return;
       ttsSources = ttsSources.filter((s) => s !== source);
       ttsQueueIndex++;
       finishTtsIfPlaybackDrained();
@@ -1263,7 +1280,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   };
 
   const stopTTSPlayback = () => {
+    const request = activeTtsRequest;
+    activeTtsRequest = null;
     for (const source of ttsSources) {
+      source.onended = null;
       try { source.stop(); } catch (e) {
         log.error("error", e);
       }
@@ -1284,7 +1304,6 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     ttsScheduledDuration = 0;
     currentTtsText = '';
     bargeInFrames = 0;
-    ttsHadError = false;
     if (ttsPlaybackTimer) {
       clearTimeout(ttsPlaybackTimer);
       ttsPlaybackTimer = null;
@@ -1293,7 +1312,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       ttsAudioContext.close();
       ttsAudioContext = null;
     }
-    getBridge().voice.voiceTtsStop();
+    getBridge().voice.voiceTtsStop(request ?? { sessionId: callSessionId });
   };
 
   // ============================================================================
@@ -1301,6 +1320,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // ============================================================================
 
   const startCall = async () => {
+    callSessionId = crypto.randomUUID();
     log.info('[VoiceTab] Starting voice call', {
       language: props.language,
       mode: voiceMode(),

@@ -187,7 +187,12 @@ async function flushMicrotasks(depth = 20) {
 }
 
 function createSender(destroyed = false) {
-  return { send: vi.fn(), isDestroyed: vi.fn(() => destroyed), id: 1 };
+  const listeners = new Map<string, () => void>();
+  return { send: vi.fn(), isDestroyed: vi.fn(() => destroyed), id: 1,
+    once: vi.fn((event: string, callback: () => void) => { listeners.set(event, callback); }),
+    removeListener: vi.fn((event: string, callback: () => void) => { if (listeners.get(event) === callback) listeners.delete(event); }),
+    destroy: () => { destroyed = true; listeners.get('destroyed')?.(); },
+  };
 }
 
 function createFakeEvent(opts?: { destroyed?: boolean }) {
@@ -1147,6 +1152,43 @@ describe('VOICE_SAMPLE_RENAME handler', () => {
 });
 
 describe('VOICE_SAMPLE_TRANSCRIBE handler', () => {
+  it.each(['deleted', 'cancelled', 'newer-transcript'])('does not write a delayed transcript when the sample was %s', async (change) => {
+    const sample = { id: 'transcribe-a', name: 'Original', filename: 'a.wav', createdAt: 1 };
+    let manifest = [sample];
+    existsSyncFn.mockImplementation((p: string) => p.endsWith('.json'));
+    readFileSyncFn.mockImplementation(() => JSON.stringify(manifest));
+    let release: (() => void) | undefined;
+    httpRequestFn.mockImplementation((_opts: unknown, cb: (res: FakeResponse) => void) => {
+      const response = makeFakeResponse(200, Buffer.from('{"text":"obsolete transcript"}')); cb(response);
+      return { write: vi.fn(), end: () => { release = () => { response._emit('data', Buffer.from('{"text":"obsolete transcript"}')); response._emit('end'); }; }, on: vi.fn() };
+    });
+    const controller = new AbortController();
+    const pending = mod.ensureVoiceSampleTranscript(sample, [sample], 'en', false, controller.signal);
+    if (change === 'deleted') manifest = [];
+    if (change === 'cancelled') controller.abort();
+    if (change === 'newer-transcript') manifest = [{ ...sample, transcript: 'newer transcript' } as typeof sample];
+    release!();
+    await expect(pending).rejects.toThrow();
+    expect(writeFileSyncFn).not.toHaveBeenCalled();
+  });
+
+  it('merges a delayed transcription into the current manifest without losing rename or unrelated upload', async () => {
+    const sample = { id: 'transcribe-a', name: 'Original', filename: 'a.wav', createdAt: 1 };
+    let manifest = [sample];
+    existsSyncFn.mockImplementation((p: string) => p.endsWith('.json'));
+    readFileSyncFn.mockImplementation(() => JSON.stringify(manifest));
+    let release: (() => void) | undefined;
+    httpRequestFn.mockImplementation((_opts: unknown, cb: (res: FakeResponse) => void) => {
+      const response = makeFakeResponse(200, Buffer.from('{"text":"current transcript"}')); cb(response);
+      return { write: vi.fn(), end: () => { release = () => { response._emit('data', Buffer.from('{"text":"current transcript"}')); response._emit('end'); }; }, on: vi.fn() };
+    });
+    const pending = mod.ensureVoiceSampleTranscript(sample, [sample], 'en');
+    manifest = [{ ...sample, name: 'Renamed' }, { id: 'new-upload', name: 'New upload', filename: 'b.wav', createdAt: 2 }];
+    release!(); await pending;
+    const updated = JSON.parse(writeFileSyncFn.mock.calls.find(call => (call[0] as string).endsWith('.json'))![1]);
+    expect(updated).toEqual([{ ...manifest[0], transcript: 'current transcript' }, manifest[1]]);
+  });
+
   it('throws when sample id is not found in the manifest', async () => {
     mod.setupVoiceIPC();
     existsSyncFn.mockReturnValue(false);
@@ -1460,6 +1502,158 @@ describe('VOICE_MODEL_DOWNLOAD handler', () => {
 });
 
 describe('VOICE_TTS_GENERATE handler — local TTS', () => {
+  it.each(['qwen3', 'system'])('cancels owned %s work when its renderer is destroyed', async (provider) => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    const kill = vi.fn(); execFileFn.mockReturnValue({ kill });
+    onHandlers.get('voice-tts-generate')?.(event, 'A phrase', 'en', 1, undefined, provider, undefined, { sessionId: 'call-a', requestId: 'phrase-a' });
+    await flushMicrotasks();
+    const socket = lastCreatedWebSocket;
+    event.sender.destroy();
+    if (provider === 'system') expect(kill).toHaveBeenCalledWith('SIGKILL');
+    else {
+      expect(socket!.close).toHaveBeenCalled();
+      socket!._emit('open');
+      expect(socket!.send).not.toHaveBeenCalled();
+    }
+  });
+
+  it('reports a disconnected stream as failure rather than successful delivery', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    const request = { sessionId: 'call-a', requestId: 'phrase-a' };
+    onHandlers.get('voice-tts-generate')?.(event, 'A phrase', 'en', 1, undefined, 'qwen3', undefined, request);
+    await flushMicrotasks(); event.sender.send.mockClear();
+    lastCreatedWebSocket!._emit('close'); await flushMicrotasks();
+    expect(event.sender.send).toHaveBeenCalledExactlyOnceWith('voice-tts-status', expect.objectContaining({ ...request, generating: false, error: expect.stringContaining('disconnected') }));
+  });
+
+  it('sends one terminal result and cannot revive a completed request with late stream events', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    const request = { sessionId: 'current-call', requestId: 'current-phrase' };
+    onHandlers.get('voice-tts-generate')?.(event, 'A phrase', 'en', 1, undefined, 'qwen3', undefined, request);
+    await flushMicrotasks();
+    const socket = lastCreatedWebSocket!;
+    event.sender.send.mockClear();
+    socket._emit('message', JSON.stringify({ type: 'error', message: 'Synthesis failed' }));
+    await flushMicrotasks();
+    expect(event.sender.send).toHaveBeenCalledTimes(1);
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', expect.objectContaining({ ...request, generating: false, error: 'Synthesis failed' }));
+    event.sender.send.mockClear();
+    socket._emit('message', JSON.stringify({ type: 'status', generating: true }));
+    socket._emit('message', JSON.stringify({ type: 'audio', samples: [1], sampleRate: 24000 }));
+    expect(event.sender.send).not.toHaveBeenCalled();
+  });
+
+  it('cannot let a replaced system process finish or stop its successor', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const completions: Array<(error?: Error) => void> = [];
+    const children: Array<{ kill: ReturnType<typeof vi.fn> }> = [];
+    execFileFn.mockImplementation((_command, _args, callback) => {
+      completions.push(callback as (error?: Error) => void);
+      const child = { kill: vi.fn() }; children.push(child); return child;
+    });
+    const a = { sessionId: 'system-call', requestId: 'old-system' };
+    const b = { sessionId: 'system-call', requestId: 'new-system' };
+    onHandlers.get('voice-tts-generate')?.(event, 'Earlier speech', 'en', 1, undefined, 'system', undefined, a);
+    onHandlers.get('voice-tts-generate')?.(event, 'Current speech', 'en', 1, undefined, 'system', undefined, b);
+    event.sender.send.mockClear();
+    completions[0](Object.assign(new Error('cancelled'), { code: 'ENOENT' }));
+    await flushMicrotasks();
+    expect(execFileFn).toHaveBeenCalledTimes(2);
+    expect(event.sender.send).not.toHaveBeenCalled();
+    onHandlers.get('voice-tts-stop')?.(event, a);
+    expect(children[1].kill).not.toHaveBeenCalled();
+    completions[1]();
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', expect.objectContaining({ ...b, generating: false }));
+  });
+
+  it('rejects malformed identities before cancelling a valid current request', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    const currentIdentity = { sessionId: 'current-call', requestId: 'current-phrase' };
+    onHandlers.get('voice-tts-generate')?.(event, 'Current phrase', 'en', 1, undefined, 'qwen3', undefined, currentIdentity);
+    await flushMicrotasks();
+    const current = lastCreatedWebSocket!;
+    current.close.mockClear(); event.sender.send.mockClear();
+    onHandlers.get('voice-tts-generate')?.(event, 'Malformed replacement', 'en', 1, undefined, 'qwen3', undefined, { sessionId: '', requestId: 42 });
+    await flushMicrotasks();
+    expect(current.close).not.toHaveBeenCalled();
+    current._emit('message', JSON.stringify({ type: 'audio', sampleRate: 24000, samples: [0.25] }));
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-audio', expect.objectContaining(currentIdentity));
+  });
+
+  it('echoes the request identity and ignores every late event from a replaced TTS stream', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    const a = { sessionId: 'call-a', utteranceId: 'utterance-a', actorId: 'person-a', requestId: 'phrase-a' };
+    const b = { sessionId: 'call-b', utteranceId: 'utterance-b', actorId: 'person-b', requestId: 'phrase-b' };
+    onHandlers.get('voice-tts-generate')?.(event, 'Earlier phrase', 'en', 1, undefined, 'qwen3', undefined, a);
+    await flushMicrotasks();
+    const old = lastCreatedWebSocket!;
+    onHandlers.get('voice-tts-generate')?.(event, 'Current phrase', 'en', 1, undefined, 'qwen3', undefined, b);
+    await flushMicrotasks();
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', expect.objectContaining({ ...a, generating: false, error: expect.any(String) }));
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', expect.objectContaining({ ...b, generating: true }));
+    event.sender.send.mockClear();
+    old._emit('message', JSON.stringify({ type: 'status', generating: false }));
+    old._emit('message', JSON.stringify({ type: 'audio', sampleRate: 24000, samples: [0.5] }));
+    old._emit('message', JSON.stringify({ type: 'done' }));
+    await flushMicrotasks();
+    expect(event.sender.send).not.toHaveBeenCalled();
+    const current = lastCreatedWebSocket!;
+    current._emit('message', JSON.stringify({ type: 'audio', sampleRate: 24000, samples: [0.25] }));
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-audio', expect.objectContaining(b));
+  });
+
+  it('does not stop a newer request or another sender when an old owner tears down', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    const request = { sessionId: 'current-call', requestId: 'current-phrase' };
+    onHandlers.get('voice-tts-generate')?.(event, 'Current phrase', 'en', 1, undefined, 'qwen3', undefined, request);
+    await flushMicrotasks();
+    const current = lastCreatedWebSocket!;
+    current.close.mockClear(); event.sender.send.mockClear();
+    onHandlers.get('voice-tts-stop')?.(event, { sessionId: 'old-call', requestId: 'old-phrase' });
+    onHandlers.get('voice-tts-stop')?.(createFakeEvent(), request);
+    expect(current.close).not.toHaveBeenCalled();
+    expect(event.sender.send).not.toHaveBeenCalled();
+    onHandlers.get('voice-tts-stop')?.(event, request);
+    expect(current.close).toHaveBeenCalled();
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', { ...request, generating: false, playing: false });
+  });
+
+  it('cannot resurrect replaced TTS while its model status preflight is pending', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const release: Array<() => void> = [];
+    const deferredStatus = (_opts: unknown, cb: (res: FakeResponse) => void) => {
+      const response = makeFakeResponse(200, Buffer.from('{"loaded":true}'));
+      cb(response);
+      release.push(() => { response._emit('data', '{"loaded":true}'); response._emit('end'); });
+      return { on: vi.fn() };
+    };
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }))
+      .mockImplementationOnce(deferredStatus).mockImplementationOnce(deferredStatus);
+    onHandlers.get('voice-tts-generate')?.(event, 'Old preflight', 'en', 1, undefined, 'qwen3');
+    onHandlers.get('voice-tts-generate')?.(event, 'Current phrase', 'en', 1, undefined, 'qwen3');
+    await flushMicrotasks();
+    const current = lastCreatedWebSocket;
+    event.sender.send.mockClear();
+    release.forEach(done => done());
+    await flushMicrotasks();
+    expect(lastCreatedWebSocket).toBe(current);
+    expect(event.sender.send).not.toHaveBeenCalled();
+  });
+
   it('uses killable system TTS when provider is system', async () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();

@@ -29,6 +29,8 @@ import type {
   VoiceVadEvent,
   VoiceTtsAudio,
   VoiceTtsStatus,
+  VoiceTtsRequestIdentity,
+  VoiceTtsStopScope,
   VoiceMode,
   VoiceSessionReady,
   VoiceSessionStatus,
@@ -287,8 +289,8 @@ export interface VoiceBridge {
   voiceUpdateSilenceThreshold: (threshold: number) => void;
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) => () => void;
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
-  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string) => void;
-  voiceTtsStop: () => void;
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string, request?: VoiceTtsRequestIdentity) => void;
+  voiceTtsStop: (scope?: VoiceTtsStopScope) => void;
   voiceSendTtsState: (active: boolean) => void;
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;

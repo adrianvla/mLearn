@@ -15,7 +15,8 @@ import { Button } from '../Button/Button';
 import { ProgressBar } from '../Feedback/ProgressBar';
 import { ConfirmDialog } from '../Modal/ConfirmDialog';
 import { PlayIcon, PauseIcon, TrashIcon } from '../Misc';
-import type { VoiceSample, VoiceTtsAudio } from '../../../../shared/types';
+import type { VoiceSample, VoiceTtsAudio, VoiceTtsRequestIdentity } from '../../../../shared/types';
+import { matchesVoiceTtsRequest } from '../../../../shared/utils/voiceTtsOwnership';
 import './VoiceSamplePicker.css';
 import { getLogger } from '../../../../shared/utils/logger';
 
@@ -49,11 +50,14 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
   const [ttsPlaying, setTtsPlaying] = createSignal(false);
   const [ttsModelLoading, setTtsModelLoading] = createSignal(false);
   const [ttsDownloadProgress, setTtsDownloadProgress] = createSignal(0);
+  const [ttsError, setTtsError] = createSignal('');
   let ttsAudioContext: AudioContext | null = null;
   let ttsSource: AudioBufferSourceNode | null = null;
   let ttsQueue: VoiceTtsAudio[] = [];
   let ttsQueueIndex = 0;
   let ttsCleanups: Array<() => void> = [];
+  const previewSessionId = crypto.randomUUID();
+  let previewRequest: VoiceTtsRequestIdentity | null = null;
 
   // Reactively sync transcript whenever props.value or voice samples change
   createEffect(() => {
@@ -74,6 +78,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
     // Listen for TTS audio chunks and status
     const bridge = getBridge();
     ttsCleanups.push(bridge.voice.onVoiceTtsAudio((audio: VoiceTtsAudio) => {
+      if (!matchesVoiceTtsRequest(audio, previewRequest)) return;
       if (!ttsGenerating() && !ttsPlaying()) return;
       ttsQueue.push(audio);
       if (!ttsPlaying()) {
@@ -83,7 +88,13 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
     }));
 
     ttsCleanups.push(bridge.voice.onVoiceTtsStatus((status) => {
-      if (!status.generating) {
+      if (!matchesVoiceTtsRequest(status, previewRequest)) return;
+      if (status.error) {
+        stopTtsPlayback();
+        setTtsError(status.error);
+        return;
+      }
+      if (status.generating === false) {
         setTtsGenerating(false);
         setTtsModelLoading(false);
       }
@@ -93,6 +104,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
       if (status.downloadProgress !== undefined) {
         setTtsDownloadProgress(status.downloadProgress);
       }
+      if (!ttsGenerating() && !ttsPlaying()) previewRequest = null;
     }));
   });
 
@@ -231,6 +243,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
   function playNextTtsChunk() {
     if (ttsQueueIndex >= ttsQueue.length) {
       setTtsPlaying(false);
+      if (!ttsGenerating()) previewRequest = null;
       return;
     }
 
@@ -243,20 +256,28 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
     const buffer = ttsAudioContext.createBuffer(1, audio.samples.length, audio.sampleRate);
     buffer.getChannelData(0).set(audio.samples);
 
-    ttsSource = ttsAudioContext.createBufferSource();
-    ttsSource.buffer = buffer;
-    ttsSource.connect(ttsAudioContext.destination);
+    const request = previewRequest;
+    const source = ttsAudioContext.createBufferSource();
+    ttsSource = source;
+    source.buffer = buffer;
+    source.connect(ttsAudioContext.destination);
 
-    ttsSource.onended = () => {
+    source.onended = () => {
+      if (previewRequest !== request || ttsSource !== source) return;
+      source.disconnect();
+      ttsSource = null;
       ttsQueueIndex++;
       playNextTtsChunk();
     };
 
-    ttsSource.start();
+    source.start();
   }
 
   function stopTtsPlayback() {
+    const request = previewRequest;
+    previewRequest = null;
     if (ttsSource) {
+      ttsSource.onended = null;
       try { ttsSource.stop(); } catch (e) {
         log.error("error", e);
       }
@@ -267,7 +288,9 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
     ttsQueueIndex = 0;
     setTtsGenerating(false);
     setTtsPlaying(false);
-    getBridge().voice.voiceTtsStop();
+    setTtsModelLoading(false);
+    setTtsDownloadProgress(0);
+    if (request) getBridge().voice.voiceTtsStop(request);
   }
 
   function handleTtsTest() {
@@ -281,20 +304,26 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
 
     ttsQueue = [];
     ttsQueueIndex = 0;
+    const request: VoiceTtsRequestIdentity = { sessionId: previewSessionId, requestId: crypto.randomUUID() };
+    previewRequest = request;
+    setTtsError('');
     setTtsGenerating(true);
 
     const voiceSampleId = props.value || undefined;
     if (props.ttsProvider === 'cloud') {
       void withCloudAuth(async (token) => {
-        getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider, token);
+        if (previewRequest !== request) return;
+        getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider, token, request);
       }).catch((error) => {
+        if (previewRequest !== request) return;
         log.error("error", error);
-        setTtsGenerating(false);
+        stopTtsPlayback();
+        setTtsError(error instanceof Error ? error.message : String(error));
       });
       return;
     }
 
-    getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider);
+    getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider, undefined, request);
   }
 
   async function handleDelete() {
@@ -406,12 +435,13 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
           onInput={(e) => setTtsTestText(e.currentTarget.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleTtsTest(); }}
           disabled={ttsGenerating()}
+          error={ttsError()}
         />
         <Button buttonType="icon"
           size="sm"
-          loading={ttsGenerating()}
+          aria-busy={ttsGenerating()}
           icon={
-            ttsPlaying()
+            ttsPlaying() || ttsGenerating()
               ? <PauseIcon size={14} />
               : <PlayIcon size={14} />
           }

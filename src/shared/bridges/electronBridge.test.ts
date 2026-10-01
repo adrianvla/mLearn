@@ -1022,8 +1022,9 @@ describe('voiceBridge', () => {
 
   it('voiceTtsGenerate passes all args to ipc.voiceTtsGenerate', () => {
     const bridge = createElectronBridge();
-    bridge.voice.voiceTtsGenerate('hello', 'en', 1.0, 'sample-id', 'kokoro', 'cloud-token');
-    expect(mockIPC.voiceTtsGenerate).toHaveBeenCalledWith('hello', 'en', 1.0, 'sample-id', 'kokoro', 'cloud-token');
+    const request = { sessionId: 'call-a', requestId: 'phrase-a', actorId: 'actor-a', utteranceId: 'message-a' };
+    bridge.voice.voiceTtsGenerate('hello', 'en', 1.0, 'sample-id', 'kokoro', 'cloud-token', request);
+    expect(mockIPC.voiceTtsGenerate).toHaveBeenCalledWith('hello', 'en', 1.0, 'sample-id', 'kokoro', 'cloud-token', request);
   });
 
   it('voiceTtsStop delegates to ipc.voiceTtsStop', () => {

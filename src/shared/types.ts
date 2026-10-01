@@ -3100,7 +3100,20 @@ export interface VoiceVadEvent {
   chunkSeconds?: number;
 }
 
-export interface VoiceTtsAudio {
+/** Stable delivery ownership; unrelated windows and phrases cannot share events. */
+export interface VoiceTtsRequestIdentity {
+  sessionId: string;
+  requestId: string;
+  utteranceId?: string;
+  actorId?: string;
+}
+
+export interface VoiceTtsStopScope {
+  sessionId: string;
+  requestId?: string;
+}
+
+export interface VoiceTtsAudio extends Partial<VoiceTtsRequestIdentity> {
   samples: Float32Array;
   sampleRate: number;
   sentenceIndex?: number;
@@ -3110,7 +3123,7 @@ export interface VoiceTtsAudio {
   sampleCount?: number;
 }
 
-export interface VoiceTtsStatus {
+export interface VoiceTtsStatus extends Partial<VoiceTtsRequestIdentity> {
   generating: boolean;
   playing: boolean;
   modelLoading?: boolean;
