@@ -206,6 +206,7 @@ const mockWordSyncState = vi.hoisted(() => ({
     learningLanguageLevels: {} as Record<string, number>,
     use_anki: false,
     ratingKeyboardMode: 'mnemonic' as const,
+    showReadingAnnotations: true,
   },
   levelNames: { 5: 'N5' } as Record<string, string>,
   wordFrequency: {
@@ -679,6 +680,7 @@ beforeEach(() => {
     mockWordSyncState.settings.language = 'ja';
     mockWordSyncState.settings.learningLanguageLevels = {};
     mockWordSyncState.settings.use_anki = false;
+    mockWordSyncState.settings.showReadingAnnotations = true;
     mockWordSyncState.levelNames = { 5: 'N5' };
     mockWordSyncState.wordFrequency = {
       '赤い': {
@@ -1282,6 +1284,29 @@ beforeEach(() => {
     expect(mockRatingObservation).toHaveBeenCalledTimes(4);
     expect(allAttemptIds().size).toBe(2);
     dispose();
+  });
+
+  it('records no reading assistance when annotations are disabled during retrieval', async () => {
+    const features = await import('../../../shared/languageFeatures');
+    vi.mocked(features.wordNeedsReadingAnnotation).mockReturnValue(true);
+    mockWordSyncState.settings.showReadingAnnotations = false;
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    try {
+      await settle();
+      await settle();
+      press(' ');
+      await settle();
+      press('3');
+      await settle();
+      expect(mockSubmitRating).toHaveBeenCalled();
+      expect(mockSubmitRating.mock.calls[0][2].scaffolds).toEqual({});
+      expect(mockSubmitRating.mock.calls[0][1]).toContainEqual(expect.objectContaining({ capability: 'surface-reading' }));
+    } finally {
+      vi.mocked(features.wordNeedsReadingAnnotation).mockReturnValue(false);
+      dispose();
+    }
   });
 
   it('keeps the same prompt after a refused journal write and retries one attempt', async () => {

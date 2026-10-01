@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createSignal } from 'solid-js';
 import type { LanguageData } from '../../../shared/types';
 import { FlashcardWordTitle } from './FlashcardWordTitle';
 
@@ -13,6 +14,7 @@ let mockSettings: {
   uiLanguage: string;
   dictionaryTargetLanguages: Record<string, string>;
   showProsody: boolean;
+  showReadingAnnotations?: boolean;
   coloredProsodyRelevantOnly?: boolean;
 } = {
   language: 'de',
@@ -106,6 +108,23 @@ describe('FlashcardWordTitle', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('keeps optional readings hidden but reveals the reading answer', () => {
+    mockSettings.showReadingAnnotations = false;
+    mockLanguageData = makeLanguageData({
+      textProcessing: { readingAnnotation: { type: 'script-reading', annotationScripts: ['Han'] } },
+    });
+    const [revealed, setRevealed] = createSignal(false);
+    const dispose = render(() => <FlashcardWordTitle readingAnswer={revealed()}
+      content={{ type: 'word', front: '家', reading: 'jiā', back: 'house' }} />, container);
+    expect(container.querySelector('rt')).toBeNull();
+    expect(container.textContent).toBe('家');
+    setRevealed(true);
+    expect(container.querySelector('rt')?.textContent).toBe('jiā');
+    setRevealed(false);
+    expect(container.querySelector('rt')).toBeNull();
+    dispose();
   });
 
   it('does not force ruby reading annotations for languages without reading annotation metadata', () => {

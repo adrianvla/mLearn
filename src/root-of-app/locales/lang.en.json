@@ -2656,9 +2656,16 @@
           },
           "Title": "Word Hover Behavior",
           "TriggerMode": {
-            "Description": "How word translation popup is triggered in the reader",
+            "Description": "How word popups open across reading, subtitles, and conversations",
             "Label": "Hover Trigger Mode"
           }
+        }
+      },
+      "WordInteractions": {
+        "Title": "Word interactions",
+        "Size": {
+          "Label": "Word popup size",
+          "Description": "Shared across reading, subtitles, and conversations. 100% uses the reader’s standard size."
         }
       },
       "SRS": {

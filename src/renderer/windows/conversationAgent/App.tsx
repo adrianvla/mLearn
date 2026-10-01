@@ -2059,7 +2059,6 @@ export const ConversationContent: Component = () => {
             <Show when={hoverData()} keyed>
               {(data) => data.token ? (
                 <WordHover
-                  presentation="compact"
                   token={data.token}
                   word={data.word}
                   position={data.position}

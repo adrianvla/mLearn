@@ -6,7 +6,7 @@
 /* Import shared pill and prosody overlay styling */
 @import url('../common/Label/Label.css');
 
-/* Main container - CSS-driven width based on content, capped at 400px */
+/* Shared popup presentation, scaled from the reader's comfortable baseline. */
 .word-hover-container {
   position: fixed;
   z-index: var(--z-modal-backdrop);
@@ -27,7 +27,7 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   text-align: left;
-  font-size: var(--font-size-xl);
+  font-size: calc(var(--font-size-xl) * var(--word-hover-scale));
   font-weight: var(--font-weight-normal);
   z-index: var(--z-sticky );
   box-shadow: var(--shadow-lg);
@@ -37,14 +37,14 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   display: flex;
   flex-direction: column;
   font-family: var(--font-family-sans);
-  max-height: min(350px, calc(100dvh - var(--spacing-8)));
+  max-height: min(calc(350px * var(--word-hover-scale)), var(--word-hover-available-height));
   overflow: hidden;
   box-sizing: border-box;
   text-shadow: none !important;
   -webkit-text-stroke: unset !important;
-  width: min(600px, calc(100vw - var(--spacing-4)));
-  min-width: min(280px, calc(100vw - var(--spacing-4)));
-  max-width: min(600px, calc(100vw - var(--spacing-4)));
+  width: min(calc(600px * var(--word-hover-scale)), var(--word-hover-available-width));
+  min-width: min(280px, var(--word-hover-available-width));
+  max-width: min(calc(600px * var(--word-hover-scale)), var(--word-hover-available-width));
 }
 
 
@@ -58,6 +58,11 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   opacity: 1;
   display: flex;
   pointer-events: auto;
+}
+
+.subtitle_hover.word-hover--readings-hidden ruby rt,
+.subtitle_hover.word-hover--readings-hidden ruby rp {
+  display: none;
 }
 
 /* Scrollbar styling */
@@ -123,13 +128,13 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 .word-hover-headword {
   padding-right: var(--spacing-12);
   margin-bottom: var(--spacing-1);
-  font-size:var(--font-size-3xl);
+  font-size: calc(var(--font-size-3xl) * var(--word-hover-scale));
 }
 
 .word-hover-encountered-form {
   margin-bottom: var(--spacing-2);
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: calc(var(--font-size-sm) * var(--word-hover-scale));
 }
 
 .word-hover-short-definition {
@@ -271,12 +276,12 @@ body:has(.magnifying-glass.visible) .word-hover-container{
 
 .hover-compound__label,
 .hover-compound__note {
-  font-size: var(--font-size-sm);
+  font-size: calc(var(--font-size-sm) * var(--word-hover-scale));
   color: var(--text-secondary);
 }
 
 .hover-compound__row {
-  font-size: var(--font-size-sm);
+  font-size: calc(var(--font-size-sm) * var(--word-hover-scale));
   color: var(--text-primary);
 }
 
@@ -390,17 +395,6 @@ body:has(.magnifying-glass.visible) .word-hover-container{
   }
 }
 
-.subtitle_hover .word-hover-inspect { flex-shrink: 0; border: none; background: transparent; color: var(--text-secondary); font: inherit; font-size: var(--font-size-xs); padding: var(--spacing-1); white-space: nowrap; cursor: pointer; }
+.subtitle_hover .word-hover-inspect { flex-shrink: 0; border: none; background: transparent; color: var(--text-secondary); font: inherit; font-size: calc(var(--font-size-xs) * var(--word-hover-scale)); padding: var(--spacing-1); white-space: nowrap; cursor: pointer; }
 .subtitle_hover .word-hover-inspect:hover { color: var(--text-primary); text-decoration: underline; }
 .subtitle_hover .word-hover-inspect:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; border-radius: var(--radius-sm); }
-
-/* Shared compact variant: placement still measures the actual panel. */
-.subtitle_hover.subtitle_hover--compact {
-  width: min(20rem, calc(100vw - var(--spacing-4)));
-  max-width: min(20rem, calc(100vw - var(--spacing-4)));
-  font-size: var(--font-size-sm);
-}
-.subtitle_hover--compact .word-hover-headword { font-size: var(--font-size-xl); }
-.subtitle_hover--compact .subtitle_hover_content { padding: var(--spacing-3); }
-.subtitle_hover--compact .word-hover-dictionary { max-height: 5rem; overflow: auto; }
-.subtitle_hover--compact .footer { padding: var(--spacing-2); }

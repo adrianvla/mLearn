@@ -190,6 +190,8 @@ export interface Settings {
   showReadingAnnotations?: boolean;
   readingAnnotationMoreContrast?: boolean;
   readingAnnotationSizePercent?: number;
+  /** Global word-popup size relative to the reader's default presentation. */
+  wordHoverSizePercent?: number;
   hideReadingForKnownWords?: boolean;
   /** Preferred persisted toggle for prosody/accent display. Prefer prosodyVisible() when reading it. */
   showProsody: boolean;
@@ -654,6 +656,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showReadingAnnotations: true,
   readingAnnotationMoreContrast: false,
   readingAnnotationSizePercent: 100,
+  wordHoverSizePercent: 100,
   enable_flashcard_creation: true,
   automaticFlashcardCreation: false,
   flashcard_deck: null,

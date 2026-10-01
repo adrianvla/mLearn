@@ -27,6 +27,9 @@ import {
   prosodyScaffoldStance,
 } from '@shared/scaffoldPreferences';
 import { getColoredProsodyConfig, getColoredProsodyPalette } from '../../../utils/coloredProsody';
+import { wordHoverSizePercent } from '@shared/wordHoverSettings';
+import { WordHoverActivationSettings } from '../WordHoverActivationSettings';
+import { readingScaffoldStance, applyReadingScaffoldStance } from '@shared/scaffoldPreferences';
 
 /** Labels for CSS variables (user-friendly names) */
 const CSS_VAR_LABELS: Record<string, { label: string; description: string }> = {
@@ -86,7 +89,7 @@ export function buildPartOfSpeechColorEntries(
 }
 
 export const CustomizationTab: Component = () => {
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, isSettingManaged } = useSettings();
   const { t } = useLocalization();
   const { currentLangData, getLanguageFeatures } = useLanguage();
 
@@ -194,6 +197,33 @@ export const CustomizationTab: Component = () => {
       }}
       padding="lg"
     >
+
+      <SettingGroup title={t('mlearn.Settings.WordInteractions.Title')}>
+        <WordHoverActivationSettings />
+        <SettingRow
+          label={t('mlearn.Settings.WordInteractions.Size.Label')}
+          description={t('mlearn.Settings.WordInteractions.Size.Description')}
+          settingKey="wordHoverSizePercent"
+        >
+          <div class="word-hover-size-control">
+            <RangeInput min={60} max={140} step={5} value={wordHoverSizePercent(settings)}
+              aria-label={t('mlearn.Settings.WordInteractions.Size.Label')}
+              onChange={(value) => updateSettings({ wordHoverSizePercent: value })} />
+            <output class="word-hover-size-value">{wordHoverSizePercent(settings)}%</output>
+          </div>
+        </SettingRow>
+        <Show when={getLanguageFeatures().supportsReadings || isSettingManaged('showReadingAnnotations')}>
+          <SettingRow label={t('mlearn.Settings.Scaffold.Reading.Label')}
+            description={t('mlearn.Settings.Scaffold.Reading.Description')} settingKey="showReadingAnnotations">
+            <Select value={readingScaffoldStance(settings)}
+              onChange={(event) => updateSettings(applyReadingScaffoldStance(event.currentTarget.value as 'require' | 'adaptive' | 'forbid'))}>
+              <option value="require">{t('mlearn.Settings.Scaffold.Reading.Always')}</option>
+              <option value="adaptive">{t('mlearn.Settings.Scaffold.Reading.Adaptive')}</option>
+              <option value="forbid">{t('mlearn.Settings.Scaffold.Reading.Never')}</option>
+            </Select>
+          </SettingRow>
+        </Show>
+      </SettingGroup>
 
       <Show when={supportsReadingAppearance()}>
         <SettingGroup title={t('mlearn.Settings.Groups.ReadingAppearance')}>

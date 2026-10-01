@@ -2603,9 +2603,16 @@
           },
           "Title": "Comportement de l'info-bulle",
           "TriggerMode": {
-            "Description": "Comment déclencher la traduction au survol dans le lecteur",
+            "Description": "Comment ouvrir les fenêtres de mots dans la lecture, les sous-titres et les conversations",
             "Label": "Mode de déclenchement"
           }
+        }
+      },
+      "WordInteractions": {
+        "Title": "Interactions avec les mots",
+        "Size": {
+          "Label": "Taille des fenêtres de mots",
+          "Description": "Commune à la lecture, aux sous-titres et aux conversations. 100% correspond à la taille habituelle du lecteur."
         }
       },
       "SRS": {

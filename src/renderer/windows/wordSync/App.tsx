@@ -24,6 +24,7 @@ import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { PendingRetraction } from '../../../shared/retractionRecovery';
 import type { RetractionProjection } from '../../context/FlashcardContext';
 import { coloredProsodyAllowedOnSurface, prosodyVisible } from '../../../shared/prosodySettings';
+import { readingAnnotationsEnabled } from '../../../shared/readingAnnotationSettings';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
@@ -1418,7 +1419,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     if (!w) return {};
     const scaffolds: AttemptScaffolds = {};
     if (!additionalInfoInAnswer()) {
-      if (displayedReading() && wordNeedsReadingAnnotation(w.word, displayedReading(), langCtx.currentLangData())) {
+      if (readingAnnotationsEnabled(settings) && displayedReading() && wordNeedsReadingAnnotation(w.word, displayedReading(), langCtx.currentLangData())) {
         scaffolds.reading = true;
       }
       if (
@@ -1772,6 +1773,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                     <WordWithReading
                       word={w().word}
                       reading={displayedReading()}
+                      annotationVisibility={showAnswer() ? 'answer' : 'preference'}
                       language={settings.language}
                       languageData={langCtx.currentLangData()}
                       coloredProsody={wordColoredProsodyCtx}

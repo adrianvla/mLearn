@@ -11,6 +11,7 @@ export interface RangeInputProps {
   class?: string;
   style?: import('solid-js').JSX.CSSProperties;
   tabIndex?: number;
+  'aria-label'?: string;
 }
 
 /**
@@ -73,6 +74,7 @@ export const RangeInput: Component<RangeInputProps> = (props) => {
           class={`range-input ${props.class ?? ''}`}
           style={props.style}
           tabIndex={props.tabIndex}
+          aria-label={props['aria-label']}
       />
   );
 };

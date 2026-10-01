@@ -350,7 +350,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
           <div class="flashcard-word-header">
-            <FlashcardWordTitle content={content()} language={props.flashcard.language}/>
+            <FlashcardWordTitle content={content()} language={props.flashcard.language} readingAnswer={isFlipped()}/>
             <Show when={props.onPlayTts}>
               <Button buttonType="icon"
                 icon="volume"

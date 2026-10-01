@@ -1,3 +1,4 @@
+import { placeWordHover, wordHoverAvailableSize } from './wordHoverPlacement';
 /**
  * Word Hover Component
  * Popup that appears when hovering over a word
@@ -34,6 +35,8 @@ import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLang
 import { compoundSplitterConfig, getContentFontFamily, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
 import type { LanguageCompoundSplittingConfig } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
+import { wordHoverScale } from '../../../shared/wordHoverSettings';
+import { readingAnnotationsEnabled } from '../../../shared/readingAnnotationSettings';
 import type { GrammarOccurrence } from '../../../shared/grammar/occurrences';
 import { decomposeCompound, MIN_PART_LENGTH, type CompoundAnalysis, type CompoundLexicon } from '../../../shared/graph/morphology/compounds';
 import './WordHover.css';
@@ -132,8 +135,6 @@ export function resolveCompoundDisplay(
 }
 
 export interface WordHoverProps {
-  /** Compact shared presentation for secondary surfaces such as a messenger. */
-  presentation?: 'default' | 'compact';
   token: Token;
   word: string;
   position: { x: number; y: number };
@@ -289,55 +290,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return { minX, maxX, minY, maxY, vw, vh, hasNavbar, hasSidebar, hasStatusbar, sidebarWidth, navbarHeight, statusbarHeight };
   };
 
-  // Calculate position with boundary constraints
-  const calculateBoundedPosition = (width: number, hoverHeight: number): { left: number; top: number } => {
-    const anchor = props.anchorRect;
+  const [availableSize, setAvailableSize] = createSignal(wordHoverAvailableSize(getUIBounds()));
+  const updatePosition = () => {
+    if (!subtitleHoverRef) return;
     const bounds = getUIBounds();
-    const { minX, maxX, minY, maxY, vh, navbarHeight, statusbarHeight } = bounds;
-    
-    // Calculate centered position relative to anchor
-    const anchorCenterX = anchor ? (anchor.left + anchor.right) / 2 : props.position.x;
-    const anchorTop = anchor ? anchor.top : props.position.y;
-    const anchorBottom = anchor ? anchor.bottom : props.position.y + 16;
-    
-    // Start with centered position
-    let left = anchorCenterX - width / 2;
-    
-    const margin = 8;
-    // Calculate available space above/below accounting for UI elements
-    const effectiveTop = navbarHeight + UI_BOUNDARY_PADDING;
-    const effectiveBottom = vh - statusbarHeight - UI_BOUNDARY_PADDING;
-    
-    const spaceAbove = anchorTop - effectiveTop - margin;
-    const spaceBelow = effectiveBottom - anchorBottom - margin;
-    // In video mode (subtitles at bottom), prefer positioning above the word
-    const placeAbove = spaceAbove >= hoverHeight || spaceAbove > spaceBelow;
-    
-    let top = placeAbove
-      ? anchorTop - hoverHeight - margin
-      : anchorBottom + margin;
-    
-    // Horizontal clamping within safe bounds
-    // First, clamp to right edge (maxX is the rightmost position the right edge of hover can be)
-    if (left + width > maxX) {
-      left = maxX - width;
-    }
-    // Then, clamp to left edge (ensure left doesn't go below minX)
-    if (left < minX) {
-      left = minX;
-    }
-    
-    // Vertical clamping within safe bounds
-    // First, clamp to bottom edge (maxY is the bottommost position the bottom edge of hover can be)
-    if (top + hoverHeight > maxY) {
-      top = maxY - hoverHeight;
-    }
-    // Then, clamp to top edge (ensure top doesn't go below minY)
-    if (top < minY) {
-      top = minY;
-    }
-    
-    return { left: Math.round(left), top: Math.round(top) };
+    setAvailableSize(wordHoverAvailableSize(bounds));
+    const anchor = props.anchorRect ?? {
+      left: props.position.x, right: props.position.x,
+      top: props.position.y, bottom: props.position.y + 16,
+    };
+    setComputedPosition(placeWordHover(getHoverDimensions(), bounds, anchor));
   };
 
   createEffect(() => {
@@ -348,37 +310,24 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     void props.position.y;
     void props.translationData;
     void props.dictionaryEntries;
-    
+    void wordHoverScale(settings);
     if (!visible || !subtitleHoverRef) return;
-
-    requestAnimationFrame(() => {
-      const { width, height } = getHoverDimensions();
-      const newPos = calculateBoundedPosition(width, height);
-      setComputedPosition(newPos);
-    });
+    const frame = requestAnimationFrame(updatePosition);
+    onCleanup(() => cancelAnimationFrame(frame));
   });
 
   createEffect(() => {
-    const visible = isShown();
-    if (!visible || !subtitleHoverRef) return;
-
-    const ro = new ResizeObserver(() => {
-      const { width, height } = getHoverDimensions();
-      const newPos = calculateBoundedPosition(width, height);
-      setComputedPosition(newPos);
+    if (!isShown() || !subtitleHoverRef) return;
+    const observer = new ResizeObserver(updatePosition);
+    observer.observe(subtitleHoverRef);
+    for (const chrome of Array.from(document.querySelectorAll('.reader-nav, .video-nav, .reader-sidebar, .reader-unknown-words-sidebar, .reader-status, .reader-status-bar'))) {
+      observer.observe(chrome);
+    }
+    window.addEventListener('resize', updatePosition);
+    onCleanup(() => {
+      observer.disconnect();
+      window.removeEventListener('resize', updatePosition);
     });
-
-    ro.observe(subtitleHoverRef);
-
-    requestAnimationFrame(() => {
-      const { width, height } = getHoverDimensions();
-      const newPos = calculateBoundedPosition(width, height);
-      setComputedPosition(newPos);
-    });
-
-    return () => {
-      ro.disconnect();
-    };
   });
 
   const hoverStyle = createMemo((): JSX.CSSProperties => {
@@ -689,7 +638,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       ref={hoverRef}
     >
       <div
-        class={`subtitle_hover ${props.presentation === 'compact' ? 'subtitle_hover--compact' : ''} ${isShown() ? 'show-hover' : ''} ${isDarkColorScheme(settings.colorScheme) ? 'dark' : ''}`}
+        class={`subtitle_hover ${isShown() ? 'show-hover' : ''} ${isDarkColorScheme(settings.colorScheme) ? 'dark' : ''}`}
+        classList={{ 'word-hover--readings-hidden': !readingAnnotationsEnabled(settings) }}
+        style={{ '--word-hover-scale': wordHoverScale(settings), '--word-hover-available-width': `${availableSize().width}px`, '--word-hover-available-height': `${availableSize().height}px` }}
         role="dialog"
         aria-label={actualWord()}
         ref={(el) => { subtitleHoverRef = el; }}
@@ -757,10 +708,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
             </Show>
 
             <Show when={!props.isLoading}>
-              <Show when={hoverContent().dictionaryHtml.length > 0 && (props.presentation !== 'compact' || !hoverContent().shortDefinitionHtml)}>
+              <Show when={hoverContent().dictionaryHtml.length > 0}>
                 <div class="word-hover-dictionary">
                   <Show when={hoverContent().shortDefinitionHtml}><hr /></Show>
-                  <For each={props.presentation === 'compact' ? hoverContent().dictionaryHtml.slice(0, 1) : hoverContent().dictionaryHtml}>
+                  <For each={hoverContent().dictionaryHtml}>
                     {(html, index) => (
                       <>
                         <Show when={index() > 0}><hr /></Show>

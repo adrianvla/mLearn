@@ -2603,9 +2603,16 @@
           },
           "Title": "Tooltip-Verhalten",
           "TriggerMode": {
-            "Description": "Wie das Übersetzungs-Tooltip im Reader ausgelöst wird",
+            "Description": "Wie Wort-Popups beim Lesen, in Untertiteln und Gesprächen geöffnet werden",
             "Label": "Auslösemodus"
           }
+        }
+      },
+      "WordInteractions": {
+        "Title": "Wortinteraktionen",
+        "Size": {
+          "Label": "Größe der Wort-Popups",
+          "Description": "Gilt beim Lesen, für Untertitel und Gespräche. 100% entspricht der Standardgröße im Reader."
         }
       },
       "SRS": {

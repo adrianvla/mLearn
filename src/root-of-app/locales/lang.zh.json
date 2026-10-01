@@ -2656,9 +2656,16 @@
           },
           "Title": "单词悬停行为",
           "TriggerMode": {
-            "Description": "阅读器中如何触发单词翻译弹出窗口",
+            "Description": "在阅读、字幕和对话中打开单词弹窗的方式",
             "Label": "悬停触发模式"
           }
+        }
+      },
+      "WordInteractions": {
+        "Title": "单词交互",
+        "Size": {
+          "Label": "单词弹窗大小",
+          "Description": "阅读、字幕和对话共用。100%为阅读器的标准大小。"
         }
       },
       "SRS": {
