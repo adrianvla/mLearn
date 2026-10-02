@@ -29,7 +29,7 @@ import { hashWordSync } from '../../services/srsAlgorithm';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
-import { nextAttemptId, isAccessMeasurable } from '../../../shared/knowledgeEvents';
+import { nextAttemptId, isAccessMeasurable, providedAccessScaffolds } from '../../../shared/knowledgeEvents';
 import { isLearningDecision, type LearningDecision } from '../../../shared/learningDecision';
 import { projectionStateForCapability } from '../../components/common/WordStatusPillKnowledge/knowledgeSummary';
 import { KnowledgeLoadError, KnowledgeSkeleton } from '../../components/common';
@@ -648,7 +648,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         record.pending?.payload.assessmentQuality,
       );
       if (!next) throw new Error('Word Sync assessment history is invalid');
-      return { index: next.index, meta: { ...record.meta, assessment: next.state } };
+      return { index: next.index, meta: { ...record.meta, assessment: next.state, suppliedScaffolds: undefined } };
     }
     const levels = sortedLevels();
     if (levels.length === 0) return { index: record.queue.length, meta: { samplingLevel: record.meta.samplingLevel, lastRating: record.meta.lastRating } };
@@ -756,7 +756,9 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     const decision = sessionController()?.current()?.meta.encounter?.decision;
     if (!decision) return undefined;
     return decision.baseline?.key !== decision.selected.key
-      ? t('mlearn.WordSync.GraphChoiceReason', { word: String(decision.detail.baselineWord ?? '') })
+      ? Array.isArray(decision.detail.sourceLabels) && decision.detail.sourceLabels.length > 0
+        ? t('mlearn.WordSync.GraphChoiceSourceReason', { source: decision.detail.sourceLabels.join(', '), word: String(decision.detail.baselineWord ?? '') })
+        : t('mlearn.WordSync.GraphChoiceReason', { word: String(decision.detail.baselineWord ?? '') })
       : t('mlearn.WordSync.PoolChoiceReason', { count: String(decision.detail.candidateCount) });
   });
 
@@ -1543,6 +1545,8 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     observedScaffolds()?.presentation === presentationCount() ? observedScaffolds()?.scaffolds : undefined,
     displayedPromptScaffolds(),
   ));
+  const referenceSupplied = createMemo(() => testedAccesses().length > 0
+    && testedAccesses().every(capability => promptScaffolds()[`provided-access:${capability}`] === true));
   let scaffoldWrite: { controller: WordController; promise: Promise<boolean> } | undefined;
   async function savePromptAssistance(expected?: { controller: WordController; id: string; index: number; presentation: number }): Promise<WordSession | null> {
     const controller = sessionController();
@@ -1551,7 +1555,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     if (!controller || !record || record.queue[record.index]?.id !== word) return null;
     const origin = expected ?? { controller, id: record.id, index: record.index, presentation: presentationCount() };
     if (controller !== origin.controller || record.id !== origin.id || record.index !== origin.index || presentationCount() !== origin.presentation) return null;
-    if (record.meta.assessment || record.pending) return record;
+    if (record.pending) return record;
     const scaffolds = promptScaffolds();
     if (JSON.stringify(scaffolds) === JSON.stringify(record.meta.suppliedScaffolds ?? {})) return record;
     if (scaffoldWrite?.controller === controller) {
@@ -1702,9 +1706,23 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           </PillLabel>
         </Show>
         <Show when={currentWord()}>
-          {(word) => <Button variant="default" size="sm" class="word-sync-inspect" onClick={() => {
+          {(word) => <Button variant="default" size="sm" class="word-sync-inspect"
+            disabled={!!sessionController()?.current()?.pending || ((assessmentMode() || !sessionController()?.current()?.revealed)
+              && (currentProjection.loading() || testedAccesses().length === 0))} onClick={async () => {
             const surface = word().word;
-            const decision = sessionController()?.current()?.meta.encounter?.decision;
+            const controller = sessionController();
+            const record = controller?.current();
+            const presentation = presentationCount();
+            if (!controller || !record || record.pending) return;
+            // Diagnostic prompts are armed immediately; that is not an answer reveal.
+            if (assessmentMode() || !record.revealed) {
+              if (currentProjection.loading() || testedAccesses().length === 0) return;
+              setObservedScaffolds({ presentation, scaffolds: mergeScaffolds(promptScaffolds(), providedAccessScaffolds(testedAccesses())) });
+              const saved = await savePromptAssistance();
+              if (!saved || sessionController() !== controller || saved.id !== record.id || saved.index !== record.index
+                || currentWord()?.word !== surface || presentationCount() !== presentation) return;
+            }
+            const decision = controller.current()?.meta.encounter?.decision;
             openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface, decision ? {
               policyTrace: decision.detail.trace as PolicyTrace,
               policyBrief: currentDecisionReason(),
@@ -1758,6 +1776,9 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       <Show when={sessionWriteFailure() === 'assistance'}>
         <KnowledgeLoadError message={t('mlearn.WordSync.AssistanceSaveFailed')}
           onRetry={() => { setSessionWriteFailure(null); void savePromptAssistance(); }} class="word-sync-projection-error" />
+      </Show>
+      <Show when={referenceSupplied()}>
+        <p class="word-sync-rating-write" role="status">{t('mlearn.WordSync.ReferenceConsulted')}</p>
       </Show>
       <Show when={!assessmentMode()}>
       <details class="word-sync-queue-details">
@@ -1873,6 +1894,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                 canRetry={canRetryRetraction(retractionWrite())}
                 onRetry={() => { void undoLastWordSyncRating(); }}
               />
+              <Show when={!referenceSupplied()} fallback={
+                <Button variant="primary" disabled={!sessionPresentation().canRate || sessionWriteFailure() === 'assistance'
+                  || ratingWrite() !== null || undoBlocking()} onClick={skipCurrentWord}>
+                  {t('mlearn.WordSync.ContinueAfterReference')}
+                </Button>
+              }>
               <RatingMatrix
                 capabilities={testedAccesses()}
                 capabilityLabels={{}}
@@ -1884,6 +1911,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                     || (currentProjection.projection() === undefined && !currentProjection.loading()))}
                 onSubmit={handleSubmitProfile}
               />
+              </Show>
               <Button variant="ghost" disabled={!sessionPresentation().canRate || ratingWrite() !== null || undoBlocking()} onClick={skipCurrentWord}>
                 {t('mlearn.LevelStudy.Placement.Skip')}
               </Button>
@@ -2017,6 +2045,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             class="word-sync-rating-write"
             failedClass="word-sync-rating-write--failed"
           />
+          <Show when={!referenceSupplied()} fallback={
+            <Button variant="primary" disabled={!sessionPresentation().canRate || sessionWriteFailure() === 'assistance'
+              || ratingWrite() !== null || undoBlocking()} onClick={skipCurrentWord}>
+              {t('mlearn.WordSync.ContinueAfterReference')}
+            </Button>
+          }>
           <RatingMatrix
             capabilities={testedAccesses()}
             capabilityLabels={Object.fromEntries(testedAccesses().map((capability) => {
@@ -2036,6 +2070,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                 || (currentProjection.projection() === undefined && !currentProjection.loading()))}
             onSubmit={handleSubmitProfile}
           />
+          </Show>
         </div>
 
         </Show>

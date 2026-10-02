@@ -3638,7 +3638,12 @@
       "SelectionSaveFailed": "La prochaine question n’a pas pu être enregistrée. Réessayez pour reprendre la session enregistrée.",
       "PoolChoiceReason": "Choisi parmi {count} mots admissibles de ce niveau. Votre réponse ne met à jour que les aspects testés par cette question.",
       "GraphChoiceReason": "Les liens avec des connaissances connexes ont donné priorité à ce mot devant {word} à ce niveau. Vérifiez les aspects que vous pouvez retrouver.",
-      "AssistanceSaveFailed": "Les aides de cette question n’ont pas pu être enregistrées. Réessayez avant d’enregistrer une réponse."
+      "AssistanceSaveFailed": "Les aides de cette question n’ont pas pu être enregistrées. Réessayez avant d’enregistrer une réponse.",
+      "SavingAssistance": "Enregistrement des aides de cette question…",
+      "ReferenceConsulted": "Une référence a été consultée avant la réponse. Cette rencontre ne peut pas établir un rappel autonome.",
+      "ContinueAfterReference": "Continuer",
+      "TestedAccesses": "Aspects vérifiés : {aspects}",
+      "GraphChoiceSourceReason": "Les liens avec {source} ont donné priorité à ce mot devant {word} à ce niveau. Vérifiez les aspects que vous pouvez retrouver."
     },
     "Menu": {
       "About": "À propos de mLearn",

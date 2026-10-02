@@ -8,6 +8,7 @@ import type { Flashcard, LanguageData, ReviewQueue, Settings } from '../../../sh
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { FlashcardReview } from './FlashcardReview';
 import { knowledgeInspection, closeKnowledgeInspector } from '../../services/openKnowledgeInspector';
+import { inProcessStudySessionLocks } from '../../learning/studySessionController';
 import { surfaceEntityId } from '../../../shared/graph/load';
 import { getNextCard, hashWordSync } from '../../services/srsAlgorithm';
 import type { KnowledgeProjection } from '../../../shared/graph/ipc';
@@ -302,6 +303,7 @@ describe('FlashcardReview', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    localStorage.clear();
     container = document.createElement('div');
     document.body.appendChild(container);
     vi.clearAllMocks();
@@ -455,6 +457,101 @@ describe('FlashcardReview', () => {
     expect(inspection.policyTrace?.version).toBeTypeOf('string');
     expect(inspection.policyTrace?.selectedKey).toBeTypeOf('string');
     expect(mockSubmitRating).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('persists consulted answers before opening and carries the supplied accesses into review after restart', async () => {
+    let dispose = render(() => <FlashcardReview />, container);
+    const actions = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!;
+    actions.click();
+    Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
+    expect(knowledgeInspection()).toBeUndefined();
+    await flushEffects();
+    expect(knowledgeInspection()?.surface).toBe('犬');
+    closeKnowledgeInspector();
+    dispose();
+    dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledWith('犬', expect.any(Array), expect.objectContaining({
+      persistence: 'immediate',
+      scaffolds: expect.objectContaining({ 'provided-access:sense-recognition': true, 'provided-access:surface-reading': true }),
+    }));
+    dispose();
+  });
+
+  it('refuses to open reference content when its assistance record cannot be saved', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    const failure = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
+    Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
+    await flushEffects();
+    expect(knowledgeInspection()).toBeUndefined();
+    expect(container.textContent).toContain('AssistanceSaveFailed');
+    failure.mockRestore();
+    dispose();
+  });
+
+  it('retries a legacy card in the language captured by its original assisted encounter', async () => {
+    setMockCard(makeCard({ language: undefined }));
+    const dispose = render(() => <FlashcardReview />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
+    Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
+    await flushEffects();
+    closeKnowledgeInspector();
+    mockSubmitRating.mockRejectedValueOnce(new Error('journal unavailable'));
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    mockSettings.language = 'other-package';
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.TryAgain')!.click();
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(2);
+    expect(mockSubmitRating.mock.calls[1][2]).toMatchObject({ language: 'ja', attemptId: (mockSubmitRating.mock.calls[0][2] as { attemptId: string }).attemptId });
+    dispose();
+  });
+
+  it('keeps reference exposure through a pending durable rating and clears it only on acknowledgment', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
+    Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
+    await flushEffects();
+    closeKnowledgeInspector();
+    const key = `mlearn-review-assistance:${encodeURIComponent(JSON.stringify(['ja', 'card-1']))}`;
+    const retained = localStorage.getItem(key);
+    expect(retained).not.toBeNull();
+    let acknowledge!: () => void;
+    mockSubmitRating.mockImplementationOnce(() => new Promise(resolve => {
+      acknowledge = () => resolve({ attemptId: 'acknowledged', completed: false });
+    }));
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    expect(localStorage.getItem(key)).toBe(retained);
+    acknowledge();
+    await flushEffects();
+    expect(localStorage.getItem(key)).toBeNull();
+    dispose();
+  });
+
+  it('drops delayed reference admission after the displayed card changes', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const lock = vi.spyOn(inProcessStudySessionLocks, 'request').mockImplementation(async (_name, callback) => {
+      await gate;
+      await callback();
+    });
+    const dispose = render(() => <FlashcardReview />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
+    Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
+    setMockCard(makeCard({ id: 'another', content: { type: 'word', front: 'another-surface', back: 'different' } }));
+    await flushEffects();
+    release();
+    await flushEffects();
+    expect(knowledgeInspection()).toBeUndefined();
+    expect(localStorage.getItem(`mlearn-review-assistance:${encodeURIComponent(JSON.stringify(['ja', 'card-1']))}`)).toBeNull();
+    lock.mockRestore();
     dispose();
   });
 

@@ -9,7 +9,7 @@ import { selectWordSyncDecision, wordSyncDecisionWindow } from './wordSyncDecisi
 function supportedProjection(): KnowledgeProjection {
   const target = { entityId: 'future:surface:first', capability: 'future::access' };
   const graph = loadLinguisticGraph({ schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: { provider: 'v3' },
-    entities: ['future::prior', target.entityId].map(id => ({ id, kind: 'surface' })),
+    entities: ['future::prior', target.entityId].map(id => ({ id, kind: 'surface', ...(id === 'future::prior' ? { label: 'Unfamiliar prior label' } : {}) })),
     relations: [{ from: 'future::prior', to: target.entityId, type: 'future::route', confidence: 1 }] });
   const prediction = predictTargetAccessibility({ graph, direct: null, target, classify: () => 'unknown',
     languageData: { name: 'Future', learning: { capabilities: { 'future::access': { supportRules: [{
@@ -30,6 +30,7 @@ describe('bounded operational Word Sync decisions', () => {
     expect(result?.decision.baseline?.key).toBe('second');
     expect(result?.decision.selected.targets).toEqual([{ kind: 'surface', id: first.surfaceId, capability: 'future::access' }]);
     expect(result?.decision.selected.task.requested).toEqual(['future::access']);
+    expect(result?.decision.detail.sourceLabels).toEqual(['Unfamiliar prior label']);
     expect(result?.decision.detail.trace).toMatchObject({ inputs: { candidateCount: 2, selection: 'ranked', rng: { draws: [] } } });
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });

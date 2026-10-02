@@ -26,7 +26,7 @@ import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { qualityToSrsRating, worstAttemptQuality } from '../../../shared/constants';
-import { nextAttemptId, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
+import { nextAttemptId, providedAccessScaffolds, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
 import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
 import type { AttemptQuality } from '../../../shared/constants';
@@ -39,6 +39,7 @@ import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteStat
 import './FlashcardReview.css';
 import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../../windows/flashcards/bulkDestructiveConfirm';
 import { getLogger } from '../../../shared/utils/logger';
+import { createReviewAssistanceStore, type ReviewAssistance } from '../../learning/reviewAssistance';
 
 const log = getLogger("renderer.components.flashcardReview");
 
@@ -47,12 +48,14 @@ interface ReviewRatingWrite {
   phase: StudySessionWriteStatus;
   attemptId: AttemptId;
   card: Flashcard;
+  language: string;
   observations: readonly ProfileObservation[];
   quality: AttemptQuality;
   easy: boolean;
   timing: AttemptTiming | null;
   origin: string;
   scaffolds?: AttemptScaffolds;
+  assistance?: { scope: string; record: ReviewAssistance };
 }
 
 export interface FlashcardReviewProps {
@@ -96,6 +99,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // attempt's evidence so an audio-cued reading rating stays cued
   // recognition instead of fabricating unassisted recall evidence.
   const [wordAudioPreReveal, setWordAudioPreReveal] = createSignal(false);
+  const assistanceStore = createReviewAssistanceStore(localStorage,
+    typeof navigator !== 'undefined' && navigator.locks ? navigator.locks : null);
+  const [referenceAssistance, setReferenceAssistance] = createSignal<ReviewAssistance | null>(null);
+  const [assistanceWrite, setAssistanceWrite] = createSignal<StudySessionWriteStatus | null>(null);
+  let retryReference: (() => void) | undefined;
+  let referenceEncounter = 0;
+  let disposed = false;
+  onCleanup(() => { disposed = true; });
   const [cardsAnswered, setCardsAnswered] = createSignal(0);
   const [showTtsModal, setShowTtsModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
@@ -141,6 +152,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const { langData, currentLangData } = useLanguage();
   const { playTts, isGenerating: ttsGenerating, stop: stopTts, metadata: ttsMetadata, playingField: ttsPlayingField } = useFlashcardTts();
   const languageForCard = (card: Flashcard): string => card.language || settings.language;
+  const assistanceScope = (card: Flashcard) => JSON.stringify([languageForCard(card), card.id]);
   const languageDataForCard = (card: Flashcard) => {
     const language = languageForCard(card);
     return langData[language] ?? (language === settings.language ? currentLangData() : null);
@@ -288,12 +300,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const t0 = performance.now();
     try {
       const result = await submitRating(write.card.content.front, write.observations, {
-        language: languageForCard(write.card),
+        language: write.language,
         attemptId: write.attemptId,
         ...(write.timing ? { timing: write.timing } : {}),
         taskType: 'srs-review',
         origin: write.origin,
-        persistence: 'background',
+        persistence: write.assistance ? 'immediate' : 'background',
         ...(write.scaffolds ? { scaffolds: write.scaffolds } : {}),
         scheduler: {
           cardId: write.card.id,
@@ -303,6 +315,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         },
       });
       const afterAwait = performance.now();
+      if (write.assistance) {
+        try { await assistanceStore.acknowledge(write.assistance.scope, write.assistance.record); }
+        catch (error) {
+          // The rating is committed. Retaining assistance is conservative;
+          // retrying the rating would misrepresent the failure that occurred.
+          log.warn('Failed to clear acknowledged review assistance:', error);
+          showToast({ message: t('mlearn.WordSync.AssistanceSaveFailed'), variant: 'error' });
+        }
+      }
       batch(() => {
         setShowAnswer(false);
         setRatingWrite(null);
@@ -317,6 +338,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       // The answer changed the pool: end the encounter so the next read
       // re-selects instead of replaying the just-rated pick through the pin.
       decisionPin.advance();
+      referenceEncounter += 1;
+      refreshReferenceAssistance();
       resetReviewScroll();
     } catch (error) {
       log.warn('Failed to save flashcard review rating:', error);
@@ -327,6 +350,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleBulkRate = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
     const card = currentCard();
     if (!card || !ratingArmed() || observations.length === 0) return;
+    let assistance: ReviewAssistance | null;
+    try { assistance = assistanceStore.read(assistanceScope(card)); }
+    catch (error) {
+      log.warn('Failed to read review assistance:', error);
+      setAssistanceWrite('failed');
+      retryReference = () => refreshReferenceAssistance();
+      return;
+    }
+    const scaffolds = { ...assistance?.scaffolds, ...(wordAudioPreReveal() ? { audio: true } : {}) };
     const timing = stopTiming();
     // A mixed profile schedules on its weakest evidence — the same reduction
     // word sync applies, read from the one ordering (missed dominates
@@ -338,12 +370,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       phase: 'pending',
       attemptId: nextAttemptId(),
       card,
+      language: languageForCard(card),
       observations,
       quality,
       easy: opts?.easy === true,
       timing,
       origin: knowledge.projection()?.surfaceKnown === false ? 'flashcard-review:unmapped' : 'flashcard-review',
-      ...(wordAudioPreReveal() ? { scaffolds: { audio: true } satisfies AttemptScaffolds } : {}),
+      ...(Object.keys(scaffolds).length ? { scaffolds } : {}),
+      ...(assistance ? { assistance: { scope: assistanceScope(card), record: assistance } } : {}),
     });
   };
 
@@ -365,7 +399,54 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const canRate = createMemo(() =>
     presentation().canRate && !isRetractionWriteBlocking(retractionWrite()));
   const ratingArmed = createMemo(() => canRate() && !!currentCard()
-    && knowledge.projection()?.status === 'ready' && ratingPersistenceState() !== 'failed');
+    && knowledge.projection()?.status === 'ready' && ratingPersistenceState() !== 'failed' && assistanceWrite() === null);
+
+  function refreshReferenceAssistance(): void {
+    const card = currentCard();
+    try {
+      setReferenceAssistance(card ? assistanceStore.read(assistanceScope(card)) : null);
+      setAssistanceWrite(null);
+      retryReference = undefined;
+    } catch (error) {
+      log.warn('Failed to restore review assistance:', error);
+      setAssistanceWrite('failed');
+      retryReference = refreshReferenceAssistance;
+    }
+  }
+
+  function withReferenceContent(open: () => void): void {
+    const card = currentCard();
+    if (!card || ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() === 'pending') return;
+    if (showAnswer()) { open(); return; }
+    const encounter = referenceEncounter;
+    const scope = assistanceScope(card);
+    const sameEncounter = () => !disposed && referenceEncounter === encounter
+      && !!currentCard() && assistanceScope(currentCard()!) === scope && ratingWrite() === null;
+    const save = () => {
+      if (!sameEncounter()) return;
+      setAssistanceWrite('pending');
+      const capabilities = getTestedAccesses({ languageData: languageDataForCard(card), surface: card.content.front,
+        hasReadingData: cardHasReadingData(card), hasProsodyData: cardHasProsodyData(card), taskType: 'srs-review' });
+      void assistanceStore.provide(scope, providedAccessScaffolds(capabilities), sameEncounter).then(record => {
+        if (!record || !sameEncounter()) return;
+        setReferenceAssistance(record);
+        setAssistanceWrite(null);
+        retryReference = undefined;
+        open();
+      }).catch(error => {
+        if (!sameEncounter()) return;
+        log.warn('Failed to save review reference exposure:', error);
+        setAssistanceWrite('failed');
+        retryReference = save;
+      });
+    };
+    save();
+  }
+
+  createEffect(on(() => currentCard() ? assistanceScope(currentCard()!) : null, () => {
+    referenceEncounter += 1;
+    refreshReferenceAssistance();
+  }));
 
   const sessionTotal = createMemo(() => cardsAnswered() + counts().total);
   // Calculate session progress percentage
@@ -735,13 +816,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   // selection (brief reason + emitted trace) where the
                   // knowledge lives. No recomputation anywhere.
                   const decision = currentDecision();
-                  openKnowledgeInspector(surfaceKnowledgeInspection(
+                  withReferenceContent(() => openKnowledgeInspector(surfaceKnowledgeInspection(
                       language,
                       surface,
                       decision?.trace !== undefined ? { policyTrace: decision.trace, policyBrief: decision.encounter.why } : undefined,
-                  ));
+                  )));
                   }}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>
-                  <Button variant="ghost" size="xs" onClick={() => { setShowCardActions(false); handleOpenEditModal(); }} title={t('mlearn.Flashcards.Modals.EditCard.EditButton')} icon={<EditIcon size={14} />}>
+                  <Button variant="ghost" size="xs" onClick={() => { setShowCardActions(false); withReferenceContent(handleOpenEditModal); }} title={t('mlearn.Flashcards.Modals.EditCard.EditButton')} icon={<EditIcon size={14} />}>
                     {t('mlearn.Flashcards.Modals.EditCard.EditButton')}
                   </Button>
                   <Show when={isElectron()}>
@@ -816,6 +897,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
         {/* Buttons container */}
         <div class="flashcard-buttons-container">
+          <WriteStatusBanner status={assistanceWrite()}
+            savingLabelKey="mlearn.WordSync.SavingAssistance" failedLabelKey="mlearn.WordSync.AssistanceSaveFailed"
+            canRetry={assistanceWrite() === 'failed'} onRetry={() => retryReference?.()} />
+          <Show when={referenceAssistance()}>
+            <p class="flashcard-rating-write" role="status">{t('mlearn.WordSync.ReferenceConsulted')}</p>
+          </Show>
           {/* Show answer button */}
           <Show when={presentation().phase !== 'complete' && currentCard() && !showAnswer()}>
             <Button buttonType="default" variant="primary" size="lg" class="flashcard-show-answer-btn" onClick={handleFlip}>

@@ -3638,7 +3638,12 @@
       "SelectionSaveFailed": "次の問題を保存できませんでした。保存済みのセッションから続けるには再試行してください。",
       "PoolChoiceReason": "このレベルの対象語 {count} 個から選びました。回答で更新されるのは、この問題で確認する側面だけです。",
       "GraphChoiceReason": "関連する知識とのつながりにより、このレベルでは {word} よりこの語を優先しました。どの側面を思い出せるか確認しましょう。",
-      "AssistanceSaveFailed": "この問題で表示したヒントを保存できませんでした。回答を記録する前に再試行してください。"
+      "AssistanceSaveFailed": "この問題で表示したヒントを保存できませんでした。回答を記録する前に再試行してください。",
+      "SavingAssistance": "この問題のヒントを保存中…",
+      "ReferenceConsulted": "回答前に参考情報を確認しました。この回答は自力で思い出せた証拠にはなりません。",
+      "ContinueAfterReference": "続ける",
+      "TestedAccesses": "確認する側面：{aspects}",
+      "GraphChoiceSourceReason": "{source} とのつながりにより、このレベルでは {word} よりこの語を優先しました。どの側面を思い出せるか確認しましょう。"
     },
     "Menu": {
       "About": "mLearnについて",

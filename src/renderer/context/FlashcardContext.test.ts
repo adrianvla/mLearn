@@ -4815,6 +4815,23 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('consulted review preserves retention and does not create a retrieval lapse or independent meaning', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'consulted', state: 'review', interval: 86400000,
+      dueDate: Date.now() - 1000, reviews: 3, lapses: 2,
+      content: { type: 'word', front: 'consulted-source', back: 'answer' } });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'missed' }], {
+      taskType: 'srs-review', language: 'ja', scaffolds: { 'provided-access:sense-recognition': true },
+      scheduler: { cardId: card.id, rating: 'again', tested: ['sense-recognition'] },
+    });
+    expect(ctx.store.flashcards[card.id]).toMatchObject({ ease: card.ease, interval: card.interval,
+      dueDate: card.dueDate, reviews: card.reviews, lapses: card.lapses });
+    expect(Object.values(ctx.store.dailyStats).flatMap(byLanguage => Object.values(byLanguage)).map(day => day.lapses)).toEqual([0]);
+    expect(ctx.getAccessStatus(card.content.front, 'sense-recognition').status).toBe('unknown');
+    dispose();
+  });
+
   it('isWordKnownComprehensiveSync can target a non-active stored word language explicitly', async () => {
     mockSettings.language = 'ja';
     mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (

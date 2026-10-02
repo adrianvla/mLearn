@@ -71,6 +71,8 @@ export function selectWordSyncDecision(input: { id: string; at: number;
     selected: snapshot(selected), baseline: baseline && baseline.action !== 'DEFER' ? snapshot(baseline) : null,
     detail: { scope: 'bounded-same-level-pool', candidateCount: candidates.length,
       baselineWord: baseline?.candidate.word,
+      sourceLabels: [...new Set((selected.candidate.meta?.support as ReturnType<typeof candidateSupport> | undefined)?.contributors
+        .flatMap(contributor => contributor.sourceLabel ? [contributor.sourceLabel] : []) ?? [])].slice(0, 3),
       trace: selected.trace, baselineTrace: baseline?.trace,
       limits: ['Plain word prompts measure surface familiarity, not isolated dictionary senses.',
         'Declared support is a relative heuristic preference, not probability, measured effort or learning gain.'] } };

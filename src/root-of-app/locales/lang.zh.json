@@ -3638,7 +3638,12 @@
       "SelectionSaveFailed": "无法保存下一题。请重试以继续已保存的练习。",
       "PoolChoiceReason": "从本级别的 {count} 个适用词中选出。你的回答只会更新此题实际测试的方面。",
       "GraphChoiceReason": "与相关知识的联系使本级别中这个词优先于 {word}。请检查哪些方面能够回忆起来。",
-      "AssistanceSaveFailed": "无法保存本题已显示的提示。请先重试，再记录回答。"
+      "AssistanceSaveFailed": "无法保存本题已显示的提示。请先重试，再记录回答。",
+      "SavingAssistance": "正在保存本题的提示…",
+      "ReferenceConsulted": "回答前查看了参考信息。本次回答不能证明独立回忆能力。",
+      "ContinueAfterReference": "继续",
+      "TestedAccesses": "检查内容：{aspects}",
+      "GraphChoiceSourceReason": "与 {source} 的联系使本级别中这个词优先于 {word}。请检查哪些方面能够回忆起来。"
     },
     "Menu": {
       "About": "关于 mLearn",

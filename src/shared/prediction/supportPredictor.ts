@@ -58,6 +58,7 @@ export function predictTargetAccessibility(input: PredictionInput): Prediction {
     const credit = boundedSupportWeight(source.rule.weight) * source.confidence * (state.basis === 'claim' ? 0.5 : 1) * calibration;
     if (credit <= 0) continue;
     possible.push({ source: source.target, target: { ...target }, basis: state.basis,
+      ...(graph.nodes.get(source.target.entityId)?.label ? { sourceLabel: graph.nodes.get(source.target.entityId)!.label } : {}),
       observationIds: [...new Set(state.observationIds ?? [])].sort(),
       package: { language: graph.asset.language, sourceVersions: { ...graph.asset.sourceVersions },
         ...(input.languageData?.languageData?.version ? { metadataVersion: input.languageData.languageData.version } : {}) },

@@ -424,6 +424,7 @@ describe('WordSyncContent', () => {
     mountContent(WordSyncContent);
     await settle();
     buttonByText('mlearn.Knowledge.Popup.Inspect').click();
+    await settle();
     expect(knowledgeInspection()).toMatchObject({ language: 'ja', surface: '赤い', target: { kind: 'surface' } });
     closeKnowledgeInspector();
   }, 20000);
@@ -563,6 +564,34 @@ describe('WordSyncContent', () => {
       timing: expect.objectContaining({ interrupted: true, interruptionCount: 1 }),
     }));
     window.dispatchEvent(new Event('focus'));
+  });
+
+  it('records placement inspection as assistance even though the diagnostic prompt is already armed', async () => {
+    closeKnowledgeInspector();
+    mockWordSyncState.wordFrequency = Object.fromEntries(['a', 'b', 'c'].map(word => [word, { reading: word, raw_level: 5, level: 'Level' }]));
+    mockWordSyncState.levelNames = { 5: 'Level' };
+    await mountAssessment();
+    await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Placement.Start').click();
+    await settle(); await settle();
+    const before = JSON.parse(localStorage.getItem('mlearn-study-word-sync-assessment:ja')!);
+    expect(before.revealed).toBe(true);
+    buttonByText('mlearn.Knowledge.Popup.Inspect').click();
+    await settle();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync-assessment:ja')!)).toMatchObject({
+      meta: { suppliedScaffolds: { 'provided-access:surface-recognition': true } },
+    });
+    closeKnowledgeInspector();
+    buttonByText('mlearn.WordSync.ContinueAfterReference').click();
+    await settle(); await settle();
+    const after = JSON.parse(localStorage.getItem('mlearn-study-word-sync-assessment:ja')!);
+    expect(after.rated).toBe(0);
+    expect(after.meta.assessment.draws).toEqual([{ key: before.queue[before.index].id, level: 5, outcome: 'skipped' }]);
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    expect(after.meta.suppliedScaffolds?.['provided-access:surface-recognition']).not.toBe(true);
+    press('3');
+    await settle(); await settle();
+    expect(mockSubmitRating).toHaveBeenCalledOnce();
   });
 
   it('discards a malformed assessment history and starts a fresh deterministic session', async () => {
@@ -2073,6 +2102,69 @@ beforeEach(() => {
     expect(mockSubmitRating.mock.calls[0][2]).toMatchObject({ scaffolds: { reading: true } });
     disposeResumed();
     } finally { vi.mocked(features.wordNeedsReadingAnnotation).mockReturnValue(false); }
+  });
+
+  it('saves reference exposure before inspection and keeps consulted accesses unmeasured across restart', async () => {
+    closeKnowledgeInspector();
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    buttonByText('mlearn.Knowledge.Popup.Inspect').click();
+    expect(knowledgeInspection()).toBeUndefined();
+    await settle();
+    expect(knowledgeInspection()).toMatchObject({ surface: '赤い' });
+    expect(lastControllerSession()).toMatchObject({ meta: { suppliedScaffolds: {
+      'provided-access:sense-recognition': true,
+    } } });
+    closeKnowledgeInspector();
+    dispose();
+    const disposeResumed = mountContent(WordSyncContent);
+    await settle();
+    press(' ');
+    await settle();
+    expect(container.textContent).toContain('mlearn.WordSync.ReferenceConsulted');
+    buttonByText('mlearn.WordSync.ContinueAfterReference').click();
+    await settle();
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    expect(lastControllerSession()).toMatchObject({ rated: 0 });
+    disposeResumed();
+  });
+
+  it('keeps reference content closed when saving its exposure fails', async () => {
+    closeKnowledgeInspector();
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    const persist = localStorage.setItem.bind(localStorage);
+    const failure = vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === 'mlearn-study-word-sync:ja') throw new Error('quota');
+      persist(key, value);
+    });
+    buttonByText('mlearn.Knowledge.Popup.Inspect').click();
+    await settle();
+    expect(knowledgeInspection()).toBeUndefined();
+    expect(container.textContent).toContain('mlearn.WordSync.AssistanceSaveFailed');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    failure.mockRestore();
+    dispose();
+  });
+
+  it('allows post-reveal verification without retroactively supplying the recall task', async () => {
+    closeKnowledgeInspector();
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    press(' ');
+    await settle();
+    buttonByText('mlearn.Knowledge.Popup.Inspect').click();
+    await settle();
+    expect(knowledgeInspection()?.surface).toBe('赤い');
+    expect(lastControllerSession()).not.toMatchObject({ meta: { suppliedScaffolds: { 'provided-access:sense-recognition': true } } });
+    closeKnowledgeInspector();
+    press('3');
+    await settle();
+    expect(mockSubmitRating).toHaveBeenCalledOnce();
+    dispose();
   });
 
   it('shows only the residual Reading probe and writes only its aspect', async () => {

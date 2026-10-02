@@ -2365,7 +2365,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     };
     if (wasNew) target.dailyStats[today][language].newCardsStudied++;
     else target.dailyStats[today][language].reviewCardsStudied++;
-    if (scheduler.rating === 'again' && card.state === 'review') target.dailyStats[today][language].lapses++;
+    target.dailyStats[today][language].lapses += Math.max(0, updated.lapses - card.lapses);
     if ((card.state === 'learning' || card.state === 'new') && updated.state === 'review') {
       target.dailyStats[today][language].graduated++;
     }

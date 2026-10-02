@@ -3638,7 +3638,12 @@
       "SelectionSaveFailed": "Die nächste Frage konnte nicht gespeichert werden. Versuche es erneut, um mit der gespeicherten Sitzung fortzufahren.",
       "PoolChoiceReason": "Aus {count} geeigneten Wörtern dieser Stufe ausgewählt. Deine Antwort aktualisiert nur die hier geprüften Aspekte.",
       "GraphChoiceReason": "Verbindungen zu verwandtem Wissen gaben diesem Wort auf dieser Stufe Vorrang vor {word}. Prüfe, welche Aspekte du abrufen kannst.",
-      "AssistanceSaveFailed": "Die Hilfen für diese Frage konnten nicht gespeichert werden. Versuche es erneut, bevor du eine Antwort erfasst."
+      "AssistanceSaveFailed": "Die Hilfen für diese Frage konnten nicht gespeichert werden. Versuche es erneut, bevor du eine Antwort erfasst.",
+      "SavingAssistance": "Hilfen für diese Frage werden gespeichert…",
+      "ReferenceConsulted": "Vor der Antwort wurde eine Referenz angesehen. Diese Begegnung belegt keinen selbstständigen Abruf.",
+      "ContinueAfterReference": "Weiter",
+      "TestedAccesses": "Geprüft: {aspects}",
+      "GraphChoiceSourceReason": "Verbindungen zu {source} gaben diesem Wort auf dieser Stufe Vorrang vor {word}. Prüfe, welche Aspekte du abrufen kannst."
     },
     "Menu": {
       "About": "Über mLearn",

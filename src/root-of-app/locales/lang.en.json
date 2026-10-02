@@ -3638,7 +3638,12 @@
       "SelectionSaveFailed": "The next question could not be saved. Retry to continue from the saved session.",
       "PoolChoiceReason": "Selected from {count} eligible words at this level. Your answer updates only the aspects this prompt tests.",
       "GraphChoiceReason": "Connections to related knowledge placed this word ahead of {word} at this level. Check which aspects you can retrieve.",
-      "AssistanceSaveFailed": "Prompt assistance could not be saved. Retry before recording an answer."
+      "AssistanceSaveFailed": "Prompt assistance could not be saved. Retry before recording an answer.",
+      "SavingAssistance": "Saving prompt assistance…",
+      "ReferenceConsulted": "Reference consulted before answering. This encounter cannot establish independent recall.",
+      "ContinueAfterReference": "Continue",
+      "TestedAccesses": "Checking: {aspects}",
+      "GraphChoiceSourceReason": "Connections to {source} placed this word ahead of {word} at this level. Check which aspects you can retrieve."
     },
     "Menu": {
       "About": "About mLearn",

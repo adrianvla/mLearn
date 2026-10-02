@@ -83,6 +83,11 @@ export const SCAFFOLD_INVALIDATES: Readonly<Record<string, readonly CapabilityKe
   audio: ['surface-reading'],
 };
 
+/** A generic exposure addresses supplied accesses, including package-owned IDs. */
+export function providedAccessScaffolds(capabilities: readonly CapabilityKey[]): AttemptScaffolds {
+  return Object.fromEntries(capabilities.map(capability => [`provided-access:${capability}`, true]));
+}
+
 /**
  * Whether an attempt under these scaffold conditions can produce evidence for
  * `capability`. `scaffolds === undefined` (writer did not know) keeps the
@@ -90,6 +95,7 @@ export const SCAFFOLD_INVALIDATES: Readonly<Record<string, readonly CapabilityKe
  */
 export function isAccessMeasurable(capability: CapabilityKey, scaffolds?: AttemptScaffolds): boolean {
   if (!scaffolds) return true;
+  if (scaffolds[`provided-access:${capability}`] === true) return false;
   for (const [scaffoldId, invalidates] of Object.entries(SCAFFOLD_INVALIDATES)) {
     if (scaffolds[scaffoldId] && invalidates.includes(capability)) return false;
   }

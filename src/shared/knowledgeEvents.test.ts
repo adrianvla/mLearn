@@ -4,6 +4,8 @@ import {
   eventIsMeasurable,
   isAccessMeasurable,
   measurableAccesses,
+  providedAccessScaffolds,
+  retentionConditionFor,
   nextAttemptId,
   stripRetractedLog,
   stripRetractions,
@@ -129,6 +131,17 @@ describe('scaffold-aware measurability', () => {
     const audioPlayed: AttemptScaffolds = { audio: true };
     expect(isAccessMeasurable('surface-reading', audioPlayed)).toBe(false);
     expect(isAccessMeasurable('sense-recognition', audioPlayed)).toBe(true);
+  });
+
+  it('enforces explicitly supplied arbitrary accesses in writer, replay and retention without a linguistic registry', () => {
+    const capability = 'future::unheard-of-structured-access';
+    const scaffolds = providedAccessScaffolds([capability, 'surface-reading']);
+    expect(isAccessMeasurable(capability, scaffolds)).toBe(false);
+    expect(isAccessMeasurable('sense-recognition', scaffolds)).toBe(true);
+    const cued = event({ targetRef: { kind: 'surface', id: 'future::entity', capability }, scaffolds });
+    expect(eventIsMeasurable(JSON.parse(JSON.stringify(cued)))).toBe(false);
+    expect(retentionConditionFor([capability, 'surface-reading'], scaffolds)).toBe('supplied');
+    expect(retentionConditionFor([capability, 'sense-recognition'], scaffolds)).toBe('assisted');
   });
 
   it('unreported presentation state keeps the legacy measurable default (acceptance A)', () => {

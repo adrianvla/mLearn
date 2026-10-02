@@ -20,6 +20,8 @@ export interface SourceKnowledge {
 
 export interface SupportContributor {
   source: LearnableTarget;
+  /** Package-owned display text, frozen with the decision's provenance. */
+  sourceLabel?: string;
   target: LearnableTarget;
   basis: SourceKnowledge['basis'];
   observationIds: string[];

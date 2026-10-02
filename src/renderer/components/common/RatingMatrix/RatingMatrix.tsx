@@ -342,6 +342,9 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
 
   return (
     <div class="rating-matrix" classList={{ 'rating-matrix--expanded': expanded() }}>
+      <Show when={!expanded() && props.capabilities.length > 0}>
+        <p class="rating-matrix__tested">{t('mlearn.WordSync.TestedAccesses', { aspects: props.capabilities.map(capabilityLabel).join(' · ') })}</p>
+      </Show>
       <div class="rating-matrix__bar" classList={{ 'rating-matrix__bar--head': expanded() }}>
         <Show when={expanded()}>
           <span class="rating-matrix__corner" aria-hidden="true" />
