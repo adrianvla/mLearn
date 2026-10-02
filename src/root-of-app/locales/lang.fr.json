@@ -776,15 +776,15 @@
         "VisualActivity": "Exercice visuel — répondez à l’écran.",
         "MemoryRecordFailed": "La réponse n’a pas été prononcée, car les notes de conversation n’ont pas pu être enregistrées.",
         "Delivery": {
-          "pending": "Aucune lecture enregistrée.",
-          "playing": "Lecture partielle enregistrée.",
-          "completed": "Lecture terminée.",
-          "interrupted": "Lecture interrompue.",
-          "stopped": "Lecture arrêtée.",
-          "failed": "Échec de la synthèse vocale.",
-          "Estimated": "Fragment de phrase estimé.",
-          "Generated": "Réponse générée",
-          "GeneratedDescription": "Texte généré ; ceci n’est pas une transcription de la lecture."
+          "pending": "Aucune parole n’est enregistrée pour cette réponse.",
+          "playing": "Une partie de cette réponse a été prononcée.",
+          "completed": "Prononcé pendant l’appel.",
+          "interrupted": "Parole interrompue.",
+          "stopped": "Parole arrêtée.",
+          "failed": "La lecture vocale de cette réponse a échoué.",
+          "Estimated": "La dernière partie prononcée est estimée.",
+          "Generated": "Réponse complète",
+          "GeneratedDescription": "Voici la réponse complète préparée pour être prononcée. Seule la transcription ci-dessus a été enregistrée comme prononcée."
         },
         "NoAudio": "La synthèse s’est terminée sans audio lisible. La réponse n’a pas été enregistrée comme diffusée.",
         "DeliveryRecordFailed": "Impossible d’enregistrer la lecture. La synthèse a été arrêtée ; la diffusion reste non confirmée."

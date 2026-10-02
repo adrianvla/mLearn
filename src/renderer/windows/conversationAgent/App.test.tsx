@@ -1833,7 +1833,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-auto-start')).toBe('true'));
   });
 
-  it('prioritizes call identity and state and moves provider details into the menu', async () => {
+  it('keeps conversation purpose and history scope in the call header and moves provider details into the menu', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
     const callButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
@@ -1842,7 +1842,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Simulate listening')!.click();
     const header = container.querySelector('.ca-header')!;
     expect(header.querySelector('.ca-header-title')?.textContent).toBe('Tutor');
-    expect(header.querySelector('[role="status"]')?.textContent).toBe('Listening…');
+    expect(header.querySelector('[role="status"]')).toBeNull();
+    expect(header.querySelector('.ca-header-context')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.Conversation');
+    expect(header.querySelector('.ca-header-context')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.ScopePersistent');
     expect(header.querySelector('.ca-connection-info')).toBeNull();
     expect(callButton()).toBeNull();
     (header.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();

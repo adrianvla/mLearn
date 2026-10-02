@@ -776,15 +776,15 @@
         "VisualActivity": "视觉练习：请在屏幕上作答。",
         "MemoryRecordFailed": "无法保存对话笔记，因此未播放回复。",
         "Delivery": {
-          "pending": "未记录播放。",
-          "playing": "已记录部分播放。",
-          "completed": "播放已完成。",
-          "interrupted": "播放被打断。",
-          "stopped": "播放已停止。",
-          "failed": "语音合成失败。",
-          "Estimated": "部分语句为估计值。",
-          "Generated": "生成的回复",
-          "GeneratedDescription": "这是生成的文本，并非播放记录。"
+          "pending": "此回复没有已说出内容的记录。",
+          "playing": "此回复的一部分已说出。",
+          "completed": "已在通话中说出。",
+          "interrupted": "语音被打断。",
+          "stopped": "语音已停止。",
+          "failed": "此回复的语音播放失败。",
+          "Estimated": "最后说出的短语为估计内容。",
+          "Generated": "完整回复",
+          "GeneratedDescription": "这是为语音准备的完整回复。只有上方的转录内容被记录为已说出。"
         },
         "NoAudio": "合成结束时没有可播放的音频。回复未被记录为已播放。",
         "DeliveryRecordFailed": "无法保存播放记录。语音已停止，播放仍未确认。"

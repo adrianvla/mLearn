@@ -366,7 +366,6 @@ export const ConversationContent: Component = () => {
   const [voiceContactParticipantId, setVoiceContactParticipantId] = createSignal<string | null>(null);
   const [incomingCall, setIncomingCall] = createSignal<{ contactId: string; callId: string; participantId?: string } | null>(null);
   const [contactIngressError, setContactIngressError] = createSignal<string | null>(null);
-  const [voiceHeaderStatus, setVoiceHeaderStatus] = createSignal('');
   const callSurfaceOpen = () => Boolean(voiceOverlayRequested() || isVoiceCallActive() || voiceAftermath());
   const voiceParticipants = () => voiceContactParticipantId()
     ? rosterParticipants().filter(person => person.id === voiceContactParticipantId()) : rosterParticipants();
@@ -2001,15 +2000,12 @@ export const ConversationContent: Component = () => {
               <Show when={rosterParticipants().length === 1}><Avatar size="sm" name={rosterParticipants()[0].displayName} src={rosterParticipants()[0].profilePhoto} /></Show>
               <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
             </Button>
-            <Show when={!callSurfaceOpen() && activeRoom()}>
+            <Show when={activeRoom()}>
               <span class="ca-header-context">{t((activeThread()?.interactionMode ?? activeRoom()?.interactionMode) === 'practice'
                 ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · {t(activeThread()?.sandbox
                 ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}</span>
             </Show>
           </div>
-          <Show when={callSurfaceOpen()}>
-            <span class="ca-call-header-state" role="status" aria-live="polite">{voiceAftermath() ? t('mlearn.ConversationAgent.Voice.Aftermath.Title') : voiceHeaderStatus() || t('mlearn.ConversationAgent.Voice.CheckingModels')}</span>
-          </Show>
           <Show when={!callSurfaceOpen() && (activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined))} keyed>
             {(media) => (
               <Button variant="ghost" class="ca-media-chip" onClick={openDetails}>
@@ -2361,9 +2357,6 @@ export const ConversationContent: Component = () => {
           <Show when={voiceAftermath()} fallback={<VoiceTab
               autoStartCall={voiceOverlayRequested()}
               participants={voiceParticipants()}
-              contextLabel={`${t((activeThread()?.interactionMode ?? activeRoom()?.interactionMode) === 'practice'
-                ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · ${t(activeThread()?.sandbox
-                ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}`}
               onDismiss={() => batch(() => { setVoiceOverlayRequested(false); setVoiceContactParticipantId(null); })}
               messages={messages()}
               speechMessages={speechMessages()}
@@ -2374,7 +2367,6 @@ export const ConversationContent: Component = () => {
               onIdleSilence={handleVoiceIdleSilence}
               scheduledNudge={voiceScheduledNudge()}
               onAbort={abortCallResponse}
-              onStatusChange={setVoiceHeaderStatus}
               onSpeechEnd={(ts) => { lastVadSpeechEndTs = ts; }}
               agentName={callIdentity()}
               profilePhoto={voiceContactParticipantId() || rosterParticipants().length === 1 ? activeVoiceParticipant()?.profilePhoto : undefined}

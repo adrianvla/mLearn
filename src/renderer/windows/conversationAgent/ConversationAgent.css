@@ -46,12 +46,6 @@
   line-height: var(--line-height-normal);
 }
 
-.ca-call-header-state {
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
 .has-call-surface > .ca-chat-panel { display: none; }
 .ca-provider-details { padding: var(--spacing-2); border-bottom: 1px solid var(--border-color); }
 

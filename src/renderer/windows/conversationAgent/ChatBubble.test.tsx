@@ -121,6 +121,34 @@ describe('ChatBubble hover triggers', () => {
     dispose();
   });
 
+  it('keeps completed speech quiet and exposes its record through the existing message analysis', () => {
+    const dispose = render(() => <ChatBubble message={{ role: 'assistant', timestamp: 0,
+      content: 'A complete reply.', generatedContent: 'A complete  reply.',
+      voiceDelivery: { state: 'completed', basis: 'playback-complete' } }} />, container);
+    expect(container.querySelector('.chat-bubble-content')?.textContent).toBe('A complete reply.');
+    expect(container.querySelector('.chat-voice-delivery')).toBeNull();
+    const analysis = container.querySelector<HTMLButtonElement>('.chat-bubble-inspect')!;
+    analysis.click();
+    expect(container.querySelector('.chat-voice-delivery')?.textContent).toContain('mlearn.ConversationAgent.Voice.Delivery.completed');
+    expect(container.querySelector('details')?.open).toBe(false);
+    expect(container.querySelector('details')?.textContent).toContain('A complete  reply.');
+    analysis.click();
+    expect(container.querySelector('.chat-voice-delivery')).toBeNull();
+    dispose();
+  });
+
+  it.each(['pending', 'playing', 'stopped', 'failed'] as const)('keeps %s speech visible without presenting unheard text as a spoken reply', (state) => {
+    const dispose = render(() => <ChatBubble message={{ role: 'assistant', timestamp: 0,
+      content: '', generatedContent: 'Unheard planned reply.', voiceDelivery: { state } }} />, container);
+    const delivery = container.querySelector('.chat-voice-delivery')!;
+    expect(delivery.textContent).toContain(`mlearn.ConversationAgent.Voice.Delivery.${state}`);
+    expect(container.querySelector('.ca-markdown')).toBeNull();
+    const details = delivery.querySelector('details')!;
+    expect(details.open).toBe(false);
+    expect(details.textContent).toContain('Unheard planned reply.');
+    dispose();
+  });
+
   async function renderChatBubble(triggerMode: WordHoverTriggerMode, callbacks?: {
     onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
     onTokenLeave?: () => void;

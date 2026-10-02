@@ -776,15 +776,15 @@
         "VisualActivity": "Visual activity — answer on screen.",
         "MemoryRecordFailed": "The reply was not spoken because conversation notes could not be saved.",
         "Delivery": {
-          "pending": "No playback recorded.",
-          "playing": "Partial playback recorded.",
-          "completed": "Playback completed.",
-          "interrupted": "Playback interrupted.",
-          "stopped": "Playback stopped.",
-          "failed": "Speech failed.",
-          "Estimated": "Partial phrase estimated.",
-          "Generated": "Generated response",
-          "GeneratedDescription": "Generated text; this is not a playback transcript."
+          "pending": "No speech is recorded for this reply.",
+          "playing": "Part of this reply was spoken.",
+          "completed": "Spoken in the call.",
+          "interrupted": "Speech interrupted.",
+          "stopped": "Speech stopped.",
+          "failed": "Speech failed for this reply.",
+          "Estimated": "The last spoken phrase is estimated.",
+          "Generated": "Full reply",
+          "GeneratedDescription": "This is the full reply prepared for speech. Only the transcript above was recorded as spoken."
         },
         "NoAudio": "Speech finished without playable audio. The response was not recorded as delivered.",
         "DeliveryRecordFailed": "Could not save the playback record. Speech stopped; delivery remains unconfirmed."

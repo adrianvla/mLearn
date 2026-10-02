@@ -776,15 +776,15 @@
         "VisualActivity": "Visuelle Übung — antworte auf dem Bildschirm.",
         "MemoryRecordFailed": "Die Antwort wurde nicht gesprochen, weil Gesprächsnotizen nicht gespeichert werden konnten.",
         "Delivery": {
-          "pending": "Keine Wiedergabe aufgezeichnet.",
-          "playing": "Teilweise Wiedergabe aufgezeichnet.",
-          "completed": "Wiedergabe abgeschlossen.",
-          "interrupted": "Wiedergabe unterbrochen.",
-          "stopped": "Wiedergabe gestoppt.",
-          "failed": "Sprachausgabe fehlgeschlagen.",
-          "Estimated": "Teil des Satzes geschätzt.",
-          "Generated": "Generierte Antwort",
-          "GeneratedDescription": "Generierter Text; dies ist kein Wiedergabeprotokoll."
+          "pending": "Für diese Antwort ist keine Sprachausgabe aufgezeichnet.",
+          "playing": "Ein Teil dieser Antwort wurde gesprochen.",
+          "completed": "Im Anruf gesprochen.",
+          "interrupted": "Sprachausgabe unterbrochen.",
+          "stopped": "Sprachausgabe beendet.",
+          "failed": "Die Sprachausgabe dieser Antwort ist fehlgeschlagen.",
+          "Estimated": "Der letzte gesprochene Satzteil ist geschätzt.",
+          "Generated": "Vollständige Antwort",
+          "GeneratedDescription": "Dies ist die vollständige, für die Sprachausgabe vorbereitete Antwort. Nur der Text oben wurde als gesprochen aufgezeichnet."
         },
         "NoAudio": "Die Sprachausgabe endete ohne abspielbares Audio. Die Antwort wurde nicht als wiedergegeben erfasst.",
         "DeliveryRecordFailed": "Das Wiedergabeprotokoll konnte nicht gespeichert werden. Die Sprachausgabe wurde gestoppt; die Wiedergabe bleibt unbestätigt."
