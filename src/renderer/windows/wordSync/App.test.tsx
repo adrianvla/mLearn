@@ -2130,6 +2130,224 @@ beforeEach(() => {
     disposeResumed();
   });
 
+  it.each(['normal', 'assessment'] as const)('explains a refused %s reference continuation and retries without assessment evidence', async mode => {
+    closeKnowledgeInspector();
+    if (mode === 'assessment') {
+      mockWordSyncState.wordFrequency = Object.fromEntries(['a', 'b', 'c'].map(word => [word, { reading: word, raw_level: 5, level: 'Level' }]));
+      mockWordSyncState.levelNames = { 5: 'Level' };
+      await mountAssessment();
+      await settle(); await settle();
+      buttonByText('mlearn.LevelStudy.Placement.Start').click();
+    } else {
+      const { WordSyncContent } = await import('./App');
+      mountContent(WordSyncContent);
+    }
+    await settle(); await settle();
+    buttonByText('mlearn.Knowledge.Popup.Inspect').click();
+    await settle();
+    closeKnowledgeInspector();
+    if (mode === 'normal') { press(' '); await settle(); }
+    const key = mode === 'assessment' ? 'mlearn-study-word-sync-assessment:ja' : 'mlearn-study-word-sync:ja';
+    const before = localStorage.getItem(key)!;
+    const persist = localStorage.setItem.bind(localStorage);
+    const refusal = vi.spyOn(localStorage, 'setItem').mockImplementation((storageKey, value) => {
+      if (storageKey === key) throw new Error('quota');
+      persist(storageKey, value);
+    });
+    buttonByText('mlearn.WordSync.ContinueAfterReference').click();
+    await settle(); await settle();
+    expect(localStorage.getItem(key)).toBe(before);
+    expect(container.textContent).toContain('mlearn.WordSync.ReferenceConsulted');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('mlearn.WordSync.NavigationSaveFailed');
+    refusal.mockRestore();
+    buttonByText('mlearn.Global.TryAgain').click();
+    await settle(); await settle();
+    const after = JSON.parse(localStorage.getItem(key)!);
+    const original = JSON.parse(before);
+    expect(after.visited).toEqual([...original.visited, original.index]);
+    expect(after.rated).toBe(0);
+    expect(after.index).not.toBe(original.index);
+    expect(container.textContent).not.toContain('mlearn.WordSync.NavigationSaveFailed');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    if (mode === 'assessment') expect(after.meta.assessment.draws).toEqual([{ key: original.queue[original.index].id, level: 5, outcome: 'skipped' }]);
+  });
+
+  it('holds one pending reference continuation and ignores its refused callback after a language change', async () => {
+    closeKnowledgeInspector();
+    const [language, setLanguage] = createSignal('ja');
+    mockWordSyncState.scopeLanguage = language;
+    let pause = false;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    let requests = 0;
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: {
+      request: async (name: string, callback: () => void | Promise<void>) => {
+        if (pause && name === 'mlearn-study-word-sync:ja') { requests++; await gate; }
+        await callback();
+      },
+    } });
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    buttonByText('mlearn.Knowledge.Popup.Inspect').click();
+    await settle();
+    closeKnowledgeInspector();
+    press(' '); await settle();
+    const before = localStorage.getItem('mlearn-study-word-sync:ja');
+    pause = true;
+    const continueButton = buttonByText('mlearn.WordSync.ContinueAfterReference');
+    continueButton.click();
+    await settle();
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBe(before);
+    expect(continueButton.disabled).toBe(true);
+    expect(container.textContent).toContain('mlearn.WordSync.NavigationSaving');
+    continueButton.click();
+    expect(requests).toBe(1);
+    setLanguage('de');
+    await settle(); await settle();
+    const replacement = localStorage.getItem('mlearn-study-word-sync:de');
+    expect(replacement).not.toBeNull();
+    const persist = localStorage.setItem.bind(localStorage);
+    vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === 'mlearn-study-word-sync:ja') throw new Error('quota');
+      persist(key, value);
+    });
+    release();
+    await settle(); await settle();
+    expect(localStorage.getItem('mlearn-study-word-sync:de')).toBe(replacement);
+    expect(container.textContent).not.toContain('mlearn.WordSync.NavigationSaveFailed');
+    expect(container.textContent).not.toContain('mlearn.WordSync.NavigationSaving');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges one reference continuation under a delayed lock before moving to the next question', async () => {
+    closeKnowledgeInspector();
+    mockWordSyncState.wordFrequency = Object.fromEntries(['a', 'b', 'c'].map(word => [word, { reading: word, raw_level: 5, level: 'Level' }]));
+    let pause = false;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    let requests = 0;
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: {
+      request: async (_name: string, callback: () => void | Promise<void>) => {
+        if (pause) { requests++; await gate; }
+        await callback();
+      },
+    } });
+    await mountAssessment();
+    await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Placement.Start').click();
+    await settle(); await settle();
+    buttonByText('mlearn.Knowledge.Popup.Inspect').click();
+    await settle(); closeKnowledgeInspector();
+    const before = localStorage.getItem('mlearn-study-word-sync-assessment:ja')!;
+    pause = true;
+    const next = buttonByText('mlearn.WordSync.ContinueAfterReference');
+    next.click(); next.click();
+    press('3');
+    await settle();
+    expect(requests).toBe(1);
+    expect(localStorage.getItem('mlearn-study-word-sync-assessment:ja')).toBe(before);
+    expect(container.textContent).toContain('mlearn.WordSync.NavigationSaving');
+    pause = false; release();
+    await settle(); await settle();
+    const after = JSON.parse(localStorage.getItem('mlearn-study-word-sync-assessment:ja')!);
+    const original = JSON.parse(before);
+    expect(after.visited).toEqual([original.index]);
+    expect(after.rated).toBe(0);
+    expect(after.meta.assessment.draws).toEqual([{ key: original.queue[original.index].id, level: 5, outcome: 'skipped' }]);
+    expect(after.index).not.toBe(original.index);
+    expect(container.textContent).not.toContain('mlearn.WordSync.NavigationSaving');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
+  it.each(['restart', 'filter'] as const)('does not reset a replacement language after an old %s clear acknowledges', async action => {
+    const [language, setLanguage] = createSignal('ja');
+    mockWordSyncState.scopeLanguage = language;
+    let pause = false;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: {
+      request: async (name: string, callback: () => void | Promise<void>) => {
+        if (pause && name === 'mlearn-study-word-sync:ja') await gate;
+        await callback();
+      },
+    } });
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    press(' '); await settle(); press('3'); await settle(); await settle();
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+    pause = true;
+    if (action === 'restart') {
+      container.querySelector<HTMLButtonElement>('.word-sync-recheck-btn')!.click();
+      container.querySelector<HTMLButtonElement>('.mock-confirm-dialog-confirm')!.click();
+    } else {
+      buttonByText('mlearn.WordSync.Filter').click();
+      mockCommonState.filterBuilderProps!.onChange([{ kind: 'operator', op: 'AND' }]);
+    }
+    await settle();
+    setLanguage('de');
+    await settle(); await settle();
+    press(' '); await settle();
+    const replacement = localStorage.getItem('mlearn-study-word-sync:de');
+    expect(replacement).not.toBeNull();
+    const replacementPrompt = container.querySelector('.word-sync-word');
+    expect(replacementPrompt).not.toBeNull();
+    pause = false; release();
+    await settle(); await settle();
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBeNull();
+    expect(localStorage.getItem('mlearn-study-word-sync:de')).toBe(replacement);
+    expect(container.querySelector('.word-sync-word')).toBe(replacementPrompt);
+    expect(container.textContent).not.toContain('mlearn.WordSync.InvalidFilter');
+    expect(container.textContent).not.toContain('mlearn.WordSync.SessionStartFailed');
+  });
+
+  it.each([false, true])('keeps a delayed old assessment dismissal out of its replacement (refused=%s)', async refused => {
+    const [language, setLanguage] = createSignal('ja');
+    mockWordSyncState.scopeLanguage = language;
+    mockWordSyncState.wordFrequency = Object.fromEntries(['a', 'b', 'c'].map(word => [word, { reading: word, raw_level: 5, level: 'Level' }]));
+    let pause = false;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: {
+      request: async (name: string, callback: () => void | Promise<void>) => {
+        if (pause && name === 'mlearn-study-word-sync-assessment:ja') await gate;
+        await callback();
+      },
+    } });
+    await mountAssessment();
+    await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Placement.Start').click();
+    await settle(); await settle();
+    for (let i = 0; i < 5; i++) { press('3'); await settle(); await settle(); }
+    expect(container.querySelector('[data-testid="word-sync-assessment-summary"]')).not.toBeNull();
+    pause = true;
+    buttonByText('mlearn.LevelStudy.Placement.Dismiss').click();
+    await settle();
+    setLanguage('de');
+    await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Placement.Start').click();
+    await settle(); await settle();
+    const replacementPrompt = container.querySelector('.word-sync-assessment-card');
+    expect(replacementPrompt).not.toBeNull();
+    const replacement = localStorage.getItem('mlearn-study-word-sync-assessment:de');
+    if (refused) {
+      const remove = localStorage.removeItem.bind(localStorage);
+      vi.spyOn(localStorage, 'removeItem').mockImplementation(key => {
+        if (key === 'mlearn-study-word-sync-assessment:ja') throw new Error('quota');
+        remove(key);
+      });
+    }
+    pause = false; release();
+    await settle(); await settle();
+    expect(localStorage.getItem('mlearn-study-word-sync-assessment:de')).toBe(replacement);
+    expect(container.querySelector('.word-sync-assessment-card')).toBe(replacementPrompt);
+    for (let i = 0; i < 5; i++) { press('3'); await settle(); await settle(); }
+    expect(container.querySelector('[data-testid="word-sync-assessment-summary"]')).not.toBeNull();
+    expect(container.textContent).not.toContain('mlearn.WordSync.DismissFailed');
+  });
+
   it('keeps reference content closed when saving its exposure fails', async () => {
     closeKnowledgeInspector();
     const { WordSyncContent } = await import('./App');

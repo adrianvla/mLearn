@@ -3644,6 +3644,8 @@
       "AssistanceSaveFailed": "无法保存本题已显示的提示。请先重试，再记录回答。",
       "SavingAssistance": "正在保存本题的提示…",
       "ReferenceConsulted": "回答前查看了参考信息。本次回答不能证明独立回忆能力。",
+      "NavigationSaving": "正在保存当前位置…",
+      "NavigationSaveFailed": "无法保存当前位置。同一道题仍然打开。请重试以继续。",
       "ContinueAfterReference": "继续",
       "TestedAccesses": "检查内容：{aspects}",
       "GraphChoiceSourceReason": "与 {source} 的联系使本级别中这个词优先于 {word}。请检查哪些方面能够回忆起来。"

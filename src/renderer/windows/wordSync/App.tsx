@@ -228,6 +228,20 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
    * named reasons, each rendered where it actually happens.
    */
   const [sessionWriteFailure, setSessionWriteFailure] = createSignal<'start' | 'select' | 'assistance' | 'dismiss' | null>(null);
+  const [navigationWrite, setNavigationWrite] = createSignal<{
+    controller: WordController; id: string; index: number; presentation: number;
+    language: string; state: 'pending' | 'failed';
+  } | null>(null);
+  let disposed = false;
+  const currentNavigationWrite = createMemo(() => {
+    const write = navigationWrite();
+    const controller = sessionController();
+    const record = controller?.current();
+    return write && write.controller === controller && write.language === settings.language
+      && record?.id === write.id && record.index === write.index && presentationCount() === write.presentation
+      ? write : null;
+  });
+  const navigationPending = () => currentNavigationWrite()?.state === 'pending';
   const [assessmentReady, setAssessmentReady] = createSignal(false);
   const [assessmentPlan, setAssessmentPlan] = createSignal<WordSyncAssessmentPool[]>([]);
   let retrySessionStart: (() => void) | null = null;
@@ -628,9 +642,22 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   function skipCurrentWord() {
     const controller = sessionController();
     const record = controller?.current();
-    if (!controller || !record) return;
+    if (!controller || !record || record.pending || record.index >= record.queue.length
+      || ratingWrite() !== null || undoBlocking() || navigationPending()) return;
+    const owner = { controller, id: record.id, index: record.index, presentation: presentationCount(),
+      language: settings.language, state: 'pending' as const };
+    setNavigationWrite(owner);
     void controller.skip(record).then((accepted) => {
-      if (accepted) pickNext();
+      if (disposed || sessionController() !== controller || settings.language !== owner.language
+        || navigationWrite() !== owner) return;
+      // A stale lock action adopts the durable owner. Only an unchanged
+      // refused question owns this failure; it must not label its replacement.
+      if (!accepted && controller.current() === record && presentationCount() === owner.presentation) {
+        setNavigationWrite({ ...owner, state: 'failed' });
+        return;
+      }
+      setNavigationWrite(null);
+      pickNext();
     });
   }
 
@@ -766,7 +793,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   // One logical attempt and one reactive update: row writes must not repeatedly
   // rebuild knowledge consumers before the next word can render.
   const commitProfileRating = async (write: Pick<RatingWrite, 'word' | 'language' | 'observations' | 'timing' | 'scaffolds'>): Promise<void> => {
-    if (undoBlocking()) return;
+    if (undoBlocking() || navigationPending()) return;
     const controller = sessionController();
     let current = controller?.current();
     if (!controller || !current || current.queue[current.index]?.id !== write.word.word) return;
@@ -781,7 +808,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       const scaffolds = mergeScaffolds(write.scaffolds, current.meta.suppliedScaffolds);
       const observations = write.observations.filter(observation => isAccessMeasurable(observation.capability, scaffolds));
       if (observations.length === 0) {
-        if (await controller.skip(current)) pickNext();
+        skipCurrentWord();
         return;
       }
       await controller.reserve(current, {
@@ -821,7 +848,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     // projection refuses (the encounter re-presents once it settles).
     const projection = currentProjection.projection();
     const unmeasured = projection === undefined && !currentProjection.loading();
-    if (!w || !revealed || sessionWriteFailure() === 'assistance' || (!assessmentMode() && (!translationText() || translation.state !== 'ready')) || ratingWrite() !== null || (projection?.status !== 'ready' && !unmeasured) || observations.length === 0
+    if (!w || !revealed || navigationPending() || sessionWriteFailure() === 'assistance' || (!assessmentMode() && (!translationText() || translation.state !== 'ready')) || ratingWrite() !== null || (projection?.status !== 'ready' && !unmeasured) || observations.length === 0
       || observations.some((observation) => !testedAccesses().some((capability) => capability === observation.capability))) return;
     // opts.easy is scheduler-only and Word Sync has no scheduler — the
     // recorded evidence (fluent) is identical either way, so it is ignored.
@@ -933,9 +960,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   }
 
   async function recheckAll() {
+    if (navigationPending()) return;
     const controller = sessionController();
     const record = controller?.current();
+    const language = settings.language;
     if (controller && record && !await controller.clear(record)) return;
+    if (disposed || sessionController() !== controller || settings.language !== language) return;
     controller?.dispose();
     setSessionController(null);
     setSessionWriteFailure(null);
@@ -960,7 +990,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   }
 
   async function undoLastWordSyncRating() {
-    if (ratingWrite() !== null || undoBlocking()) return;
+    if (ratingWrite() !== null || undoBlocking() || navigationPending()) return;
     const stack = undoStack();
     const undoEntry = stack[stack.length - 1];
     const controller = sessionController();
@@ -1261,6 +1291,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
 
   onMount(() => window.addEventListener('keydown', handleKeyDown));
   onCleanup(() => {
+    disposed = true;
     window.removeEventListener('keydown', handleKeyDown);
     stopWordTiming();
     sessionController()?.dispose();
@@ -1616,9 +1647,14 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   };
 
   const dismissAssessment = async () => {
+    if (navigationPending()) return;
     const controller = sessionController();
     const record = controller?.current();
-    if (controller && record && !await controller.clear(record)) {
+    const language = settings.language;
+    const accepted = !controller || !record || await controller.clear(record);
+    if (disposed || sessionController() !== controller || settings.language !== language) return;
+    if (!accepted) {
+      if (controller?.current() !== record) return;
       // A refused clear discards nothing, so say so where the learner is
       // looking (the summary they just pressed Dismiss on) instead of
       // silently doing nothing.
@@ -1650,7 +1686,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         <Button
           variant="default"
           size="sm"
-          disabled={ratingWrite() !== null}
+          disabled={ratingWrite() !== null || navigationPending()}
           ref={(element) => { filterTriggerRef = element; }}
           onClick={(e) => {
             filterTriggerRef = e.currentTarget;
@@ -1675,10 +1711,13 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             paletteItems={filterContext().paletteItems}
             tokens={filterTokens()}
             onChange={(tokens) => {
+              if (navigationPending()) return;
               const controller = sessionController();
               const record = controller?.current();
+              const language = settings.language;
               void (async () => {
                 if (controller && record && !await controller.clear(record)) return;
+                if (disposed || sessionController() !== controller || settings.language !== language) return;
                 controller?.dispose();
                 batch(() => {
                   setSessionController(null);
@@ -1708,13 +1747,13 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         </Show>
         <Show when={currentWord()}>
           {(word) => <Button variant="default" size="sm" class="word-sync-inspect"
-            disabled={!!sessionController()?.current()?.pending || ((assessmentMode() || !sessionController()?.current()?.revealed)
+            disabled={navigationPending() || !!sessionController()?.current()?.pending || ((assessmentMode() || !sessionController()?.current()?.revealed)
               && (currentProjection.loading() || testedAccesses().length === 0))} onClick={async () => {
             const surface = word().word;
             const controller = sessionController();
             const record = controller?.current();
             const presentation = presentationCount();
-            if (!controller || !record || record.pending) return;
+            if (!controller || !record || record.pending || navigationPending()) return;
             // Diagnostic prompts are armed immediately; that is not an answer reveal.
             if (assessmentMode() || !record.revealed) {
               if (currentProjection.loading() || testedAccesses().length === 0) return;
@@ -1778,6 +1817,15 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         <KnowledgeLoadError message={t('mlearn.WordSync.AssistanceSaveFailed')}
           onRetry={() => { setSessionWriteFailure(null); void savePromptAssistance(); }} class="word-sync-projection-error" />
       </Show>
+      <WriteStatusBanner
+        status={currentNavigationWrite()?.state ?? null}
+        savingLabelKey="mlearn.WordSync.NavigationSaving"
+        failedLabelKey="mlearn.WordSync.NavigationSaveFailed"
+        canRetry={currentNavigationWrite()?.state === 'failed'}
+        onRetry={skipCurrentWord}
+        class="word-sync-rating-write"
+        failedClass="word-sync-rating-write--failed"
+      />
       <Show when={referenceSupplied()}>
         <p class="word-sync-rating-write" role="status">{t('mlearn.WordSync.ReferenceConsulted')}</p>
       </Show>
@@ -1897,7 +1945,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
               />
               <Show when={!referenceSupplied()} fallback={
                 <Button variant="primary" disabled={!sessionPresentation().canRate || sessionWriteFailure() === 'assistance'
-                  || ratingWrite() !== null || undoBlocking()} onClick={skipCurrentWord}>
+                  || ratingWrite() !== null || undoBlocking() || navigationPending()} onClick={skipCurrentWord}>
                   {t('mlearn.WordSync.ContinueAfterReference')}
                 </Button>
               }>
@@ -1907,13 +1955,13 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                 keyboardMode={settings.ratingKeyboardMode}
                 resetKey={`${word().word}:${presentationCount()}`}
                 armed={sessionPresentation().canRate && !!currentWord() && !finished()
-                  && ratingWrite() === null && !undoBlocking()
+                  && ratingWrite() === null && !undoBlocking() && !navigationPending()
                   && (currentProjection.projection()?.status === 'ready'
                     || (currentProjection.projection() === undefined && !currentProjection.loading()))}
                 onSubmit={handleSubmitProfile}
               />
               </Show>
-              <Button variant="ghost" disabled={!sessionPresentation().canRate || ratingWrite() !== null || undoBlocking()} onClick={skipCurrentWord}>
+              <Button variant="ghost" disabled={!sessionPresentation().canRate || ratingWrite() !== null || undoBlocking() || navigationPending()} onClick={skipCurrentWord}>
                 {t('mlearn.LevelStudy.Placement.Skip')}
               </Button>
             </section>
@@ -1978,7 +2026,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                       the same escape the assessment surface offers. */}
                   <div class="word-sync-unavailable-actions">
                     <Button onClick={() => refetchTranslation()}>{t('mlearn.Global.TryAgain')}</Button>
-                    <Button variant="ghost" onClick={skipCurrentWord}>{t('mlearn.WordSync.SkipWord')}</Button>
+                    <Button variant="ghost" disabled={navigationPending()} onClick={skipCurrentWord}>{t('mlearn.WordSync.SkipWord')}</Button>
                   </div>
                 </div>
               </Show>
@@ -2048,7 +2096,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           />
           <Show when={!referenceSupplied()} fallback={
             <Button variant="primary" disabled={!sessionPresentation().canRate || sessionWriteFailure() === 'assistance'
-              || ratingWrite() !== null || undoBlocking()} onClick={skipCurrentWord}>
+              || ratingWrite() !== null || undoBlocking() || navigationPending()} onClick={skipCurrentWord}>
               {t('mlearn.WordSync.ContinueAfterReference')}
             </Button>
           }>
@@ -2066,7 +2114,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             keyboardMode={settings.ratingKeyboardMode}
             resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
             armed={sessionPresentation().canRate && translation.state === 'ready' && !!translationText() && !!currentWord() && !finished()
-              && ratingWrite() === null && !undoBlocking()
+              && ratingWrite() === null && !undoBlocking() && !navigationPending()
               && (currentProjection.projection()?.status === 'ready'
                 || (currentProjection.projection() === undefined && !currentProjection.loading()))}
             onSubmit={handleSubmitProfile}

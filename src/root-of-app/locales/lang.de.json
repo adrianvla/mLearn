@@ -3644,6 +3644,8 @@
       "AssistanceSaveFailed": "Die Hilfen für diese Frage konnten nicht gespeichert werden. Versuche es erneut, bevor du eine Antwort erfasst.",
       "SavingAssistance": "Hilfen für diese Frage werden gespeichert…",
       "ReferenceConsulted": "Vor der Antwort wurde eine Referenz angesehen. Diese Begegnung belegt keinen selbstständigen Abruf.",
+      "NavigationSaving": "Dein Fortschritt wird gespeichert…",
+      "NavigationSaveFailed": "Deine Position konnte nicht gespeichert werden. Dieselbe Frage bleibt geöffnet. Versuche es erneut, um fortzufahren.",
       "ContinueAfterReference": "Weiter",
       "TestedAccesses": "Geprüft: {aspects}",
       "GraphChoiceSourceReason": "Verbindungen zu {source} gaben diesem Wort auf dieser Stufe Vorrang vor {word}. Prüfe, welche Aspekte du abrufen kannst."

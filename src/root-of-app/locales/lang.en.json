@@ -3644,6 +3644,8 @@
       "AssistanceSaveFailed": "Prompt assistance could not be saved. Retry before recording an answer.",
       "SavingAssistance": "Saving prompt assistance…",
       "ReferenceConsulted": "Reference consulted before answering. This encounter cannot establish independent recall.",
+      "NavigationSaving": "Saving your place…",
+      "NavigationSaveFailed": "Your place could not be saved. The same question is still open. Retry to continue.",
       "ContinueAfterReference": "Continue",
       "TestedAccesses": "Checking: {aspects}",
       "GraphChoiceSourceReason": "Connections to {source} placed this word ahead of {word} at this level. Check which aspects you can retrieve."

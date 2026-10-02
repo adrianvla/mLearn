@@ -3644,6 +3644,8 @@
       "AssistanceSaveFailed": "Les aides de cette question n’ont pas pu être enregistrées. Réessayez avant d’enregistrer une réponse.",
       "SavingAssistance": "Enregistrement des aides de cette question…",
       "ReferenceConsulted": "Une référence a été consultée avant la réponse. Cette rencontre ne peut pas établir un rappel autonome.",
+      "NavigationSaving": "Enregistrement de votre position…",
+      "NavigationSaveFailed": "Votre position n’a pas pu être enregistrée. La même question reste ouverte. Réessayez pour continuer.",
       "ContinueAfterReference": "Continuer",
       "TestedAccesses": "Aspects vérifiés : {aspects}",
       "GraphChoiceSourceReason": "Les liens avec {source} ont donné priorité à ce mot devant {word} à ce niveau. Vérifiez les aspects que vous pouvez retrouver."
