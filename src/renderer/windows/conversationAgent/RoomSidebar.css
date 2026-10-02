@@ -1,4 +1,18 @@
-.room-sidebar { display: flex; flex-direction: column; height: 100%; min-width: 0; min-height: 0; padding-block: var(--spacing-4) var(--spacing-2); overflow: hidden; gap: var(--spacing-3); }
+.room-sidebar {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding-block: var(--spacing-4) var(--spacing-2);
+    overflow: hidden;
+    gap: var(--spacing-3);
+
+    app-region: drag;
+}
+nav.room-sidebar button, nav.room-sidebar input {
+    app-region: no-drag;
+}
 .room-sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-2); padding-inline: var(--spacing-4); }
 .room-sidebar-title { color: var(--text-primary); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin: 0; }
 .room-sidebar-search { padding-inline: var(--spacing-3); }

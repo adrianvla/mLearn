@@ -81,7 +81,7 @@
     "srs"
   ],
   "author": "",
-  "license": "ISC",
+  "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@capacitor/android": "^8.1.0",
     "@capacitor/cli": "^8.1.0",

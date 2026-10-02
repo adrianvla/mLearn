@@ -1,563 +1,206 @@
 # mLearn
 
-[![Version](https://img.shields.io/github/package-json/v/adrianvla/mLearn?label=version&color=blue)](https://github.com/adrianvla/mLearn/releases)
-[![License](https://img.shields.io/badge/license-Sustainable%20Use%20License-green)](LICENSE)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/adrianvla/mLearn)
+### Learn from what you love. Build on what you know.
 
-> **Supercharge your language learning journey by watching native content**
+[![Latest release](https://img.shields.io/github/v/release/adrianvla/mLearn?label=release)](https://github.com/adrianvla/mLearn/releases/latest)
+[![Source-available: SUL 1.0](https://img.shields.io/badge/license-SUL_1.0-blue)](LICENSE)
 
-mLearn is an all-in-one immersion app that knows what you know. Watch videos, read manga, chat with an AI tutor, and review flashcards — all while the app passively tracks every word you encounter to build a personalized model of your knowledge.
+mLearn brings **interactive subtitles, manga OCR, books, flashcards, and an AI tutor** into one language-learning app. Watch an anime episode, read a novel, follow a video, or work through course material. Look up what you do not understand, keep useful words in context, and practise using them.
 
-**[Website](https://mlearn.kikan.net)** | **[Discord](https://l.kikan.net/mlearn-discord)** | **[Releases](https://github.com/adrianvla/mLearn/releases)** | **[Issues](https://github.com/adrianvla/mLearn/issues)**
+**Free desktop app · Windows, macOS & Linux · Local AI options · Source-available**
 
-<img src="https://mlearn.kikan.net/img/mlearn-screenshot.png" alt="mLearn overview with feature legends" width="800" />
+**[Download mLearn](https://mlearn.kikan.net/download)** · **[Website & demos](https://mlearn.kikan.net)** · **[Discord](https://l.kikan.net/mlearn-discord)**
 
-<img src="https://mlearn.kikan.net/img/reader-ai-explanation.webp" alt="Reader / OCR — manga and PDF reading with real-time OCR" width="800" />
----
+[Get started](#get-started) · [v2.10 preview](#v210-preview) · [For schools](#for-schools) · [For developers](#for-developers)
 
-## Features
+<img src="https://mlearn.kikan.net/img/mlearn-screenshot.png" alt="mLearn desktop overview: video immersion, word lookup, and learning tools" width="900" />
 
-### Core Learning Modes
+## Your content becomes your learning material
 
-| Feature | Description |
-|---------|-------------|
-| **Video Immersion** | Drag & drop videos or stream URLs (`.m3u8`, `.mp4`). Color-coded subtitle overlay with instant word lookup. One-click flashcard creation with video screenshots. |
-| **Reader / OCR** | Open image folders or PDFs with real-time OCR (RapidOCR, PaddleOCR, MangaOCR). Click any text for instant lookup. Double-page spread mode, furigana toggle, magnifying glass. |
-| **AI Conversation Agent** | Full AI tutor with voice chat. Built-in Qwen3-4B (runs offline), Ollama, or Cloud LLM. Corrects mistakes, creates quizzes, adapts to your level. |
-| **SRS Flashcards** | Anki-like spaced repetition with 5 tabs: Review, Browse, Generate, Suggested, Statistics. Bulk TTS generation, LLM example sentences, pitch accent display. |
-| **Word Passive Tracking** | Auto-tracks every word you see/hover across all media. Failed words feed into your SRS queue automatically. |
-| **Word Sync** | Intelligent vocabulary assessment with kanji-boosted weighted sampling. Efficiently tests what you actually don't know. |
+Spend your study time with something you actually want to understand. mLearn keeps lookup, context, and review close to the material instead of making you move text between separate tools.
 
-### Social & Sync
+| What you want to do | How mLearn helps |
+|---|---|
+| **Understand a video** | Interactive, colour-coded subtitles with word lookup. Save a word with its sentence and a screenshot. Use local videos, supported stream URLs, or the desktop overlay and browser extension. |
+| **Read manga, books, and documents** | Open image folders, PDFs, or EPUBs. OCR makes text in images available for lookup; reading and pronunciation aids, including furigana and pitch accent, are available where supported. |
+| **Remember useful words** | Create flashcards from your content and review them with built-in spaced repetition. Add audio and example sentences. Anki integration is available, but Anki is not required. |
+| **Practise using the language** | Ask an AI tutor for explanations, have a conversation, or practise speaking with voice input and output. Choose local or remote AI according to your setup. |
+| **See what you have been learning** | Track word encounters, assess vocabulary with Word Sync, and explore learning statistics and character knowledge where the language supports it. |
+| **Learn with someone else** | Use Watch Together for synchronised playback, and the flashcard companion to continue reviewing on another device. |
 
-| Feature | Description |
-|---------|-------------|
-| **Watch Together** | Sync video playback across devices. Local network or cloud rooms with cloud-synced playback. |
-| **Between-Devices Sync** | Desktop ↔ Mobile sync via tethered mode (local network) or cloud. Bidirectional settings + flashcard sync. |
-| **Cloud Flashcard Sync** | Share flashcards instantly via QR code through the cloud. |
+Start with the video player or reader. Add flashcards, assessments, and AI when they help; you do not need to configure every feature to begin.
 
-### AI & Voice
+<details>
+<summary><strong>See the video player and reader</strong></summary>
 
-| Feature | Description |
-|---------|-------------|
-| **Text-to-Speech** | Kokoro (82M), Qwen3-TTS (1.7B), System TTS, or remote. Voice cloning with custom samples. |
-| **Speech-to-Text** | Whisper-small via faster-whisper with Silero VAD. Voice activity detection or push-to-talk modes. |
-| **LLM Word Explainer** | Instant AI explanations for any word with 500-entry cache. |
-| **Bulk AI Generation** | Generate example sentences and audio for hundreds of cards at once. |
+### Video, subtitles, and lookup
 
-### Visual & Customization
+<img src="https://mlearn.kikan.net/img/video-player.png" alt="Video player with interactive subtitles and word lookup" width="900" />
 
-| Feature | Description |
-|---------|-------------|
-| **Video Overlay** | Transparent always-on-top subtitle window for **any video player**. Syncs with the browser extension for streaming sites. Auto-positioning, geometry locking, drag & drop subtitles. |
-| **Text Overlay** | Full-screen overlay for **web browsing**. Click any text on a webpage to look up words instantly without leaving the page. |
-| **Browser Extension** | Chrome/Firefox extension that brings mLearn's subtitle overlay to any streaming website. |
-| **Statistics Dashboard** | Heatmaps, streaks, immersion tracking, review activity, level breakdowns, word acquisition analytics. |
-| **Kanji Grid** | Visual knowledge map of all kanji colored by status with level filtering. |
-| **7 Themes** | Light, Dark, Darker, Light High Contrast, Dark High Contrast, Glass Light, Glass Dark. |
-| **Plugin System** | Extensible plugin architecture for custom learning tools. |
+### Reading with OCR and explanations
 
-### Mobile
+<img src="https://mlearn.kikan.net/img/reader-ai-explanation.webp" alt="mLearn reader with text recognition, word lookup, and AI explanations" width="900" />
 
-| Feature | Description |
-|---------|-------------|
-| **iOS & Android** | 🚧 Coming Soon. Full mobile app via Capacitor. Reuses desktop routes with mobile-optimized layout. Tethered mode connects to desktop backend. |
-| **Flashcards PWA** | ✅ [mlearn-app.kikan.net](https://mlearn-app.kikan.net/) — Progressive Web App for flashcard review. Syncs with desktop via cloud or tethered mode. Use it on any device with a browser while waiting for native apps. [Source](https://github.com/adrianvla/mlearn-mobile-app) |
+Desktop screenshots; development builds may look different.
 
----
+</details>
 
-## What's New in v2.0
+## Get started
 
-v2.0 is a complete rewrite in **TypeScript + SolidJS** with major new capabilities:
+1. **[Download the desktop app](https://mlearn.kikan.net/download)** and choose your learning language and dictionary language. Language data is downloaded on demand.
+2. **Bring some content.** Open a video and its subtitles, or a book, PDF, or image folder in the reader.
+3. **Look up a word and keep going.** Save useful material for review, or ask for an explanation when you need one.
 
-- **AI Conversation Agent** — Full AI tutor with voice chat, tool calling, and memory
-- **OCR Reader** — Manga/comic/PDF reader with 3 OCR engines
-- **Statistics Dashboard** — Comprehensive analytics with heatmaps and immersion tracking
-- **Watch Together** — Synced video watching with cloud playback sync
-- **TTS / Voice** — Kokoro, Qwen3-TTS, voice cloning
-- **STT / Speech Recognition** — Whisper-based voice input
-- **Browser Extension** — Chrome/Firefox extension for streaming sites
-- **Video Overlay** — Always-on-top synced subtitles for any video player
-- **Text Overlay** — Click-to-lookup word overlay for web browsing
-- **Between-Devices Sync** — Mobile ↔ Desktop sync
-- **Cloud Backend** — Remote server support in addition to local/tethered
-- **Word Passive Tracking** — Auto-tracks word encounters across all media
-- **Word Sync** — Smart vocabulary assessment with kanji-boosted sampling
-- **Flashcards PWA** — [mlearn-app.kikan.net](https://mlearn-app.kikan.net/) for flashcard review on any device with sync ([source](https://github.com/adrianvla/mlearn-mobile-app))
-- **Mobile App** — iOS/Android via Capacitor (coming soon)
-- **Plugin System** — Extensible plugin host architecture
-- **Kanji Grid** — Visual kanji knowledge map
-- **7 Themes** — Including glass themes
-- **Bulk AI Generation** — Bulk TTS + example generation
-- **Video Clipping** — Auto-clip video segments for flashcards
+| Platform | What to use |
+|---|---|
+| **Windows, macOS, Linux** | [Official desktop releases](https://github.com/adrianvla/mLearn/releases/latest). Check the release assets for your operating system and processor. |
+| **Phone or tablet** | [Flashcards web app](https://mlearn-app.kikan.net/) for companion review. Native iOS and Android apps are in development. |
+| **Browser** | Optional [browser extension](extension/) paired with the desktop app. Website and subtitle compatibility vary. |
 
----
+Japanese and German are supported through downloadable language packages. Check the **in-app catalog** for the current selection, compatible package versions, and available dictionary languages. OCR, pronunciation data, and other capabilities vary by package.
 
-## Platform Support
+Local AI models and runtime components can require additional downloads and memory. Start with the core reading and video tools; choose AI components to suit your machine.
 
-| Platform | Status |
-|----------|--------|
-| macOS (Apple Silicon) | ✅ Fully supported |
-| macOS (Intel) | ✅ Fully supported |
-| Linux (x86_64) | ✅ Fully supported |
-| Windows (x86_64) | ✅ Fully supported |
-| iOS | 🚧 Coming Soon — [Get notified](https://mlearn.kikan.net) |
-| Android | 🚧 Coming Soon — [Get notified](https://mlearn.kikan.net) |
-| Web (Flashcards PWA) | ✅ [mlearn-app.kikan.net](https://mlearn-app.kikan.net/) — sync your flashcards and review on any device ([source](https://github.com/adrianvla/mlearn-mobile-app)) |
-| Browser Extension | ✅ Chrome / Firefox |
+<a id="v210-preview"></a>
 
----
+## Coming in v2.10: more than a known-word list
 
-## Tech Stack
+> [!NOTE]
+> **Development preview.** The work below is on [`dev`](https://github.com/adrianvla/mLearn/tree/dev), not a promise that it is included in the latest downloadable release. For everyday use, choose an official release.
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | SolidJS (signals-based reactivity), TypeScript |
-| **Desktop** | Electron 41, multi-window architecture |
-| **Mobile** | Capacitor 8 (iOS/Android) |
-| **Backend** | Python FastAPI (port 7752) |
-| **Build** | Vite 6 with custom multi-page config |
-| **Testing** | Vitest with coverage |
-| **Styling** | CSS per component, 7-theme system |
+**You can know a word by sound without recognising it in writing. You can recognise its written form without knowing how to pronounce it. That difference should count.**
 
----
+v2.10 introduces a **linguistic graph and a separate learner model**. The graph connects word forms, meanings, pronunciations, characters, word parts, and grammar patterns. Your learner model keeps study evidence, your own knowledge assessments, and unassessed items distinct.
 
+| Change | Why it matters when learning |
+|---|---|
+| **Partial knowledge has a place** | Meaning, written recognition, spoken recognition, reading, and pronunciation are distinct capabilities. Missing one does not erase everything else you know about a word. |
+| **Familiarity is not mistaken for mastery** | Seeing a word is recorded as exposure. Exposure alone does not certify that you know it; unassessed items can remain **Untracked**. |
+| **Connections help without inventing progress** | Related words and familiar components can support predictions, but a prediction is not recorded as demonstrated knowledge. |
+| **You can inspect the model** | Explore an item's graph neighbourhood and inspect available relations, evidence, and capability states. You can correct a status without erasing the review evidence behind it. |
+| **Learning tools share a common model** | Knowledge displays, ratings, and assessment draw on the same learning-state rules. The learning-plan interface brings assessment, Word Sync, and character study together. |
 
-## Screenshots
+The aim is simple: **a useful account of your progress, not just a larger number of “known” words.**
 
+### Conversations with a purpose
 
-<img src="https://mlearn.kikan.net/img/mlearn-screenshot.png" alt="mLearn overview with feature legends" width="800" />
+The development branch also adds **scenario-based AI practice**: choose participants and a goal, review the proposed situation, then start practising. Temporary practice sessions are separate from ongoing conversations in persistent **Rooms**, which require an explicit opt-in.
 
-<img src="https://mlearn.kikan.net/img/video-player.png" alt="Video player with subtitle overlay and word lookup" width="800" />
+Use a real-world situation, a scene to role-play, or a topic from your content. The point is to use the language, not only ask the AI to translate it.
 
-<img src="https://mlearn.kikan.net/img/reader-ocr.png" alt="Reader / OCR — manga and PDF reading with real-time OCR" width="800" />
+<details>
+<summary><strong>Under the hood: language structure is not learner history</strong></summary>
 
-<img src="https://mlearn.kikan.net/img/reader-ai-explanation.webp" alt="Reader / OCR — manga and PDF reading with real-time OCR" width="800" />
+The graph describes the language. A separate evidence journal and learner projection describe the learner. Graph relationships can inform predictions without silently turning them into knowledge claims.
 
-<img src="https://mlearn.kikan.net/img/ai-tutor.webp" alt="AI Conversation Agent with voice chat" width="800" />
+```mermaid
+flowchart LR
+    P[Language packages] --> G[Linguistic graph]
+    E[Encounters, ratings and reviews] --> J[Learner evidence journal]
+    J --> K[Knowledge projection]
+    G --> H[Predictions and structural hints]
+    K --> U[Learning tools and inspection]
+    H --> U
+```
 
-<img src="https://mlearn.kikan.net/img/flashcards.webp" alt="SRS Flashcards with review and statistics" width="800" />
+Explore the development implementation: [graph types and relations](https://github.com/adrianvla/mLearn/blob/dev/src/shared/graph/types.ts), [learner access paths](https://github.com/adrianvla/mLearn/blob/dev/src/shared/graph/access.ts), [effective knowledge](https://github.com/adrianvla/mLearn/blob/dev/src/shared/knowledge/effectiveKnowledge.ts), and the [graph inspector](https://github.com/adrianvla/mLearn/tree/dev/src/renderer/windows/graphInspector).
 
-<img src="https://mlearn.kikan.net/img/kanji-grid.webp" alt="Kanji knowledge grid" width="800" />
+</details>
 
-<img src="https://mlearn.kikan.net/img/word-tracking.png" alt="Word Passive Tracking — auto-tracks every word you encounter" width="800" />
+## Local AI, optional cloud
 
-<img src="https://mlearn.kikan.net/img/watch-together.png" alt="Watch Together — synced video playback across devices" width="800" />
+**The learning app does not require a cloud AI subscription.** Installed dictionaries, local media, flashcards, and supported on-device AI can be used offline after the required components have been downloaded.
 
-<img src="https://mlearn.kikan.net/img/overlay-video.png" alt="Video overlay with synced subtitles over a streaming site" width="800" />
+For AI, use the built-in local model option, connect to Ollama, or select a remote provider. Text generation, speech recognition, and speech synthesis have their own resource requirements; choose the components you need.
 
-<img src="https://mlearn.kikan.net/img/overlay-web.png" alt="Text overlay — click any webpage text to look up words" width="800" />
+Online media, hosted AI, and network sync still depend on their respective services. Optional hosted features have usage limits and separate terms. Data handling depends on which services you enable; see the [Privacy Policy](PRIVACY_POLICY.md), rather than assuming that every configuration keeps everything on-device.
 
----
+## For schools
 
-## Quick Start
+**Bring authentic material into the classroom without requiring every learner to follow the same interests.** A teacher can choose a video or text, learners can look up unfamiliar language and keep vocabulary in context, and Watch Together can coordinate playback.
 
-### Download
-Get the latest release from the [Releases page](https://github.com/adrianvla/mLearn/releases).
+Local installations and institution-managed AI let schools choose their deployment model. Start with the [Institutional Use Guide](SCHOOL_DEPLOYMENT.md) and a small evaluation before planning a wider rollout.
 
-### Run from Source
+**Self-hosted management preview on `dev`:** the [Management Console](https://github.com/adrianvla/mLearn/tree/dev/management) adds administrator, teacher, and learner accounts; permission-scoped groups; configurable policies; school-owned AI providers and quotas; and authorised conversation and usage review. It is separate from the hosted mLearn Cloud service.
+
+In a managed deployment, authorised staff may have access to learner conversations. Schools need to communicate that visibility and arrange their own supervision, consent, and data-handling procedures. The hosted Cloud LLM relay is restricted to users aged **18 or the local age of majority, whichever is higher**; that is not a blanket age restriction on local classroom use.
+
+**[Discuss a school evaluation](mailto:adrian@kikan.net)** · [Deployment guide](SCHOOL_DEPLOYMENT.md) · [Privacy](PRIVACY_POLICY.md)
+
+## For developers
+
+mLearn combines a **SolidJS + TypeScript desktop interface**, **Electron**, a **Python/FastAPI language backend**, installable language packages, and local or remote AI. The development branch also contains the graph-based learner model and a **Rust** self-hosted management backend.
+
+### Run the development branch
+
+With Git, Node.js, and npm installed:
 
 ```bash
-# Clone the repository
-git clone https://github.com/adrianvla/mLearn.git
+git clone --branch dev https://github.com/adrianvla/mLearn.git
 cd mLearn
-
-# Install dependencies
 npm install
-
-# Language data and dictionaries are downloaded on demand from the configured catalog.
-# See "How to Add Your Own Language" for the catalog contract.
-
-# Development mode (Vite + Electron)
 npm run dev
-
-# Or start the mobile dev server
-npm run dev:mobile
 ```
 
-### Build for Production
+Language data and dictionaries are downloaded on demand, including during development. You do not need to build a dictionary catalog just to run the app.
+
+> [!IMPORTANT]
+> `dev` is a working branch and can contain incomplete features or data migrations. Back up important learning data before testing development builds. Include the commit or app version when reporting a problem.
+
+<details>
+<summary><strong>Checks, builds, and where to look</strong></summary>
 
 ```bash
-# macOS
-npm run dist:mac
-
-# Windows
-npm run dist:win
-
-# Linux
-npm run dist:linux
-
-# All platforms
-npm run dist
+npm run typecheck        # Renderer/shared and Electron TypeScript checks
+npm test                # Vitest suite
+npm run build           # Build the desktop app
+npm run dist:mac         # Package for macOS
+npm run dist:win         # Package for Windows
+npm run dist:linux       # Package for Linux
 ```
 
----
+Packaging requirements vary by target platform. Browser-extension and native-mobile work have separate build commands in [`package.json`](package.json).
 
-## Architecture Overview
+| Area | Entry point |
+|---|---|
+| Desktop UI and learning surfaces | [`src/renderer/`](src/renderer/) |
+| Electron services and IPC | [`src/electron/`](src/electron/) |
+| Shared contracts and platform adapters | [`src/shared/`](src/shared/) |
+| Tokenisation, dictionaries, OCR, and language runtime | [`src/root-of-app/`](src/root-of-app/) |
+| Language-package builders | [`scripts/language-data/`](https://github.com/adrianvla/mLearn/tree/dev/scripts/language-data) |
+| Self-hosted school administration | [`management/`](https://github.com/adrianvla/mLearn/tree/dev/management) |
+| Plugins | [`examples/plugins/`](examples/plugins/) |
 
-```
-Renderer (SolidJS) → getBridge() → Electron IPC | Capacitor local storage
-                   → getBackend() → Python Backend (port 7752, HTTP)
-Electron Main → Web Server (port 7753, tethered mode)
-```
+See [`AGENTS.md`](AGENTS.md) for architecture and repository conventions. Renderer integrations use `getBridge()` and `getBackend()` rather than direct Electron IPC.
 
-The app uses platform abstraction layers so the same renderer code works across Electron, Capacitor, and web:
-- **`getBridge()`** — PlatformBridge for IPC/storage (16 sub-interfaces)
-- **`getBackend()`** — BackendAdapter for Python API calls (local / tethered / cloud modes)
-- **`getPlatform()`** — `'electron' | 'capacitor' | 'web'`
+</details>
 
-**15 Desktop Windows** (each a separate Vite entry):
-Main, Welcome, Video, Reader, Flashcards, Conversation Agent, Statistics, Settings, Kanji Grid, Word Definition, Word DB Editor, Word Sync, Connect QR, Plugin Host, Licenses, **Overlay**
+### Extend mLearn
 
-**Mobile** (in development): Single `mobile.html` with HashRouter, reuses desktop routes wrapped in `MobileLayout` + `BottomTabBar`.
+Language support is package-driven: dictionaries, frequency data, reading aids, pronunciation information, and optional adapters can be supplied through compatible catalogs. In the v2.10 graph model, packages can also declare namespaced entities and learner capabilities instead of forcing every language into one fixed set of categories.
 
----
+**[Language catalog and integration guide](docs/ADDING_LANGUAGES.md)** · [Plugin examples](examples/plugins/) · [Issues](https://github.com/adrianvla/mLearn/issues)
 
-## How to Add Your Own Language
-
-Languages are installed at runtime from a language catalog. The app does not require language modules, dictionaries, or frequency files to be bundled in this repository.
-
-The default catalog URL is:
-
-```text
-https://mlearn.kikan.net/language-catalog.json
-```
-
-Users and developers can point the app at a different compatible catalog in **Settings → Connection → Language Catalog URL**. Internally this is the `languageCatalogUrl` setting.
-
-A catalog is only an index. It tells the app which language archives and dictionary archives are available, where to download them, and which checksums to verify. Runtime behavior comes from the files installed from those archives into the user's `language-data/` directory.
-
-### Catalog shape
-
-The catalog is a JSON file with a top-level `languages` object. Each language has a core language package plus optional dictionary packs keyed by definition language:
-
-```json
-{
-  "schemaVersion": 1,
-  "generatedAt": "2026-07-06T00:00:00.000Z",
-  "languages": {
-    "example": {
-      "name": "Example Language",
-      "nameTranslated": "Example",
-      "version": "example-package-2026.07.06",
-      "minimumAppVersion": "2.7.0",
-      "bundle": {
-        "url": "https://example.com/language-data/v1/example/language-package-2026.07.06.tar.gz",
-        "sizeBytes": 123456,
-        "sha256": "..."
-      },
-      "files": [
-        {
-          "id": "language-metadata",
-          "path": "languages/example.json",
-          "required": true
-        }
-      ],
-      "dictionaryPacks": {
-        "en": {
-          "targetLanguage": "en",
-          "name": "English",
-          "version": "example-en-dictionary-2026.07.06",
-          "bundle": {
-            "url": "https://example.com/language-data/v1/example-en/dictionary-2026.07.06.tar.gz",
-            "sizeBytes": 123456,
-            "sha256": "..."
-          },
-          "assets": [
-            {
-              "id": "dictionary-en",
-              "path": "dictionaries/example/en/dictionary.db",
-              "required": true
-            }
-          ]
-        }
-      }
-    }
-  }
-}
-```
-
-`bundle.url` may also be written as a relative `href`; relative links are resolved against the catalog URL. Archive paths must be safe relative paths, and archive contents are extracted under `files/`.
-
-`minimumAppVersion` is optional. When present, it must be a semantic `major.minor.patch` version. Clients compare it numerically, including normal prerelease ordering, and keep incompatible language packages visible but unavailable for installation. Catalog entries without it remain compatible with older clients.
-
-### Installed file layout
-
-Core language packages and dictionary packs should install into stable, language-grouped paths:
-
-```text
-languages/<code>.json
-languages/<code>.freq.json
-dictionaries/<code>/<target>/dictionary.db
-dictionaries/<code>/<target>/metadata.json
-models/<code>/...
-adapters/<code>_adapter.py
-```
-
-Dictionary packs are separate from the core language package so users can install only the definition languages they need. A user can install multiple dictionary packs for the same learning language, such as `ja -> en`, `ja -> fr`, and `ja -> de`.
-
-### Language metadata
-
-The installed `languages/<code>.json` file is the language contract. It tells the app how to tokenize, normalize, display, OCR, look up, and study the language. Prefer metadata-driven building blocks over hardcoded app behavior.
-
-```json
-{
-  "name": "Example Language",
-  "name_translated": "Example",
-  "colour_codes": {
-    "NOUN": "#ebccfd",
-    "VERB": "#ffefd1"
-  },
-  "translatable": ["NOUN", "VERB"],
-  "frequencyLevels": {
-    "names": { "1": "A1", "2": "A2" },
-    "displayOrder": "ascending",
-    "difficulty": "higher-is-harder"
-  },
-  "textProcessing": {
-    "scriptProfile": {
-      "acceptedScripts": ["Latn"],
-      "wordScriptValidation": "contains-required"
-    },
-    "lexemeNormalization": {
-      "surface": [{ "type": "case-fold" }]
-    },
-    "readingAnnotation": {
-      "enabled": false
-    },
-    "partOfSpeech": {
-      "translatable": ["NOUN", "VERB"],
-      "colors": {
-        "NOUN": "#ebccfd",
-        "VERB": "#ffefd1"
-      }
-    },
-    "tokenJoinSeparator": " "
-  },
-  "runtime": {
-    "nlp": {
-      "tokenizer": {
-        "type": "unicode-word",
-        "capabilities": ["segments"],
-        "fallback": "unicode-word"
-      },
-      "dictionary": {
-        "type": "sqlite-zlib-json",
-        "schema": "simple-headword-zlib-json",
-        "targetPathTemplate": "dictionaries/{language}/{target}/dictionary.db",
-        "metadataPath": "dictionaries/example/en/metadata.json",
-        "renderer": "simple-glosses"
-      }
-    }
-  },
-  "languageData": {
-    "version": "example-package-2026.07.06",
-    "assets": [
-      {
-        "id": "language-metadata",
-        "path": "languages/example.json",
-        "required": true
-      },
-      {
-        "id": "frequency",
-        "path": "languages/example.freq.json",
-        "required": true
-      }
-    ],
-    "dictionaryPacks": {
-      "en": {
-        "targetLanguage": "en",
-        "name": "English",
-        "version": "example-en-dictionary-2026.07.06",
-        "assets": [
-          {
-            "id": "dictionary-en",
-            "path": "dictionaries/example/en/dictionary.db",
-            "required": true
-          },
-          {
-            "id": "metadata-en",
-            "path": "dictionaries/example/en/metadata.json",
-            "required": true
-          }
-        ]
-      }
-    }
-  }
-}
-```
-
-The most important metadata areas are:
-
-- `runtime.nlp.tokenizer` — declares how trusted tokenization works. Use a generic tokenizer when possible; only add a Python adapter when metadata cannot express the behavior.
-- `runtime.nlp.dictionary` — declares the installed dictionary DB schema and lookup paths.
-- `textProcessing.scriptProfile` — tells the app what scripts count as words for Reader, OCR, subtitles, STT, and filtering.
-- `textProcessing.lexemeNormalization` — maps inflected/variant forms to dictionary lookup candidates.
-- `textProcessing.readingAnnotation` — enables ruby/furigana-style readings only for languages that actually need them.
-- `textProcessing.partOfSpeech` and `colour_codes` — define POS aliases, translatable tags, and display colors.
-- `frequencyLevels` and `grammarLevels` — define labels and ordering. The UI derives `visualLevel` from this metadata instead of assuming JLPT.
-- `prosody` — optional. Use this only when the language has accent/stress/tone data that should be rendered in word/flashcard surfaces.
-- `languageData.dictionaryPacks` — one dictionary package per definition language, e.g. `ja -> en`, `ja -> fr`, `de -> en`.
-
-### Python adapters
-
-Most languages should use `src/root-of-app/generic_language.py` through metadata. If a language needs behavior that cannot be described with metadata, include an adapter in the package and opt in explicitly:
-
-```json
-{
-  "runtime": {
-    "nlp": {
-      "adapter": {
-        "type": "python-module",
-        "path": "adapters/example_adapter.py"
-      }
-    }
-  }
-}
-```
-
-Do not publish `languages/<code>.py` as a convention or fallback. Undeclared adapter files are ignored.
-
-### Building a catalog
-
-Any static host, CDN, or API can serve a compatible catalog and archives. The first-party mLearn deployment uses the separate `mlearn-website` repository to build dictionaries, package archives, upload assets, and deploy the catalog:
-
-```bash
-npm run build:dictionaries
-npm run package:language-data
-npm run test:language-data
-npm run deploy:language-data
-```
-
-Those commands are implementation details of the first-party catalog, not requirements for third-party catalogs. A third-party catalog only needs to publish the JSON shape above and serve the referenced archives.
-
-### Testing a catalog
-
-After publishing a catalog or running one locally:
-
-1. Open Settings or the welcome window.
-2. Set **Language Catalog URL** to the catalog JSON URL.
-3. Select the learning language.
-4. Select the dictionary definition language.
-5. Install language data.
-6. Smoke-test tokenization, dictionary lookup, Reader/OCR, subtitles, flashcards, Word Sync, and Level Study.
-
-If the app needs a new generic capability for a language, add it to the shared language metadata schema and consume it through `src/shared/languageFeatures.ts`; do not hardcode a language branch in renderer or Electron code.
-
----
+For a substantial feature or architectural change, open an issue to discuss scope before writing a large PR. Bug reports are most useful with the app version or commit, operating system, and reproduction steps. Remove private learning content and credentials from logs before sharing them.
 
 ## FAQ
 
-### Which languages are supported?
-mLearn currently publishes **Japanese** and **German** packages in the default catalog. More languages can be added by publishing package metadata and assets to a compatible catalog.
+**Do I need Anki or an AI account?**  
+No. mLearn includes its own flashcard review system, and core reading and video tools do not require an AI account. Remote services may require their own accounts or usage allowance.
 
-### Can the app work offline?
-Yes. Installed language packages and dictionary packs work offline after download. Features that depend on cloud AI, online video sources, or an unavailable runtime component still need the relevant service/component.
+**Does mLearn provide the anime, books, or other media?**  
+Bring your own files or use supported online sources. mLearn supplies the learning tools, not rights to third-party content.
 
-### Can the app work without Anki?
-Yes. Flashcards are built into mLearn.
+**Will it work on every streaming site?**  
+Compatibility depends on the site, available subtitles, and browser integration. Local video and subtitle files are an alternative. Avoid assuming that an overlay can extract subtitles from every player.
 
-### Is it free?
-mLearn is free to use and **source-available**. It is licensed under the [Sustainable Use License v1.0](LICENSE).
+**Is the whole app available on my phone?**  
+The [web companion](https://mlearn-app.kikan.net/) supports flashcard review. Native iOS and Android apps are still in development.
 
-> **Why source-available?** This project represents thousands of hours of work (around ~1.5 years of development at the time of writing this) across NLP pipelines, OCR engines, AI tutoring systems, and multi-platform architecture. The Sustainable Use License keeps the code transparent and accessible for personal use and non-commercial sharing, while protecting against resale or exploitation — so the app can remain free for learners without being stripped for parts.
+## License and project
 
-### How do I stream a video?
-Paste a link to a streaming playlist (e.g., ending in `.m3u8` or `.mp4`) into the video player, or drag & drop a local video file.
+mLearn is **free to use and source-available** under the [Sustainable Use License v1.0](LICENSE). Modification and redistribution are governed by that license. Third-party libraries, language data, and models retain their own license terms.
 
-### How do I add subtitles?
-Drag & drop subtitle files (`.srt`, `.vtt`, `.ass`) onto the video player or overlay window.
+[License](LICENSE) · [EULA](EULA.md) · [Terms of Service](TERMS_OF_SERVICE.md) · [Privacy Policy](PRIVACY_POLICY.md)
 
-### How does the overlay work?
-**Video Overlay** — Open it from the video player's context menu or via the browser extension. It's a transparent, always-on-top window that syncs with the video and lets you look up words without leaving your content.
-
-**Text Overlay** — Activate text mode from the browser extension or overlay controls. The window becomes fullscreen and click-through: click any text on a webpage to get an instant word lookup popup.
-
-### Where is language data stored?
-Downloaded language data is stored in the user's application data directory under `language-data/`. Replacing the app binary does not remove installed language packages or dictionaries.
-
-### How do I use the browser extension?
-Build it with `npm run build:extension`, then load the `extension/dist/` folder as an unpacked extension in Chrome/Edge/Firefox. It will communicate with the running mLearn desktop app.
-
-### I found a bug!
-Please open a [GitHub issue](https://github.com/adrianvla/mLearn/issues).
-
----
-
-## Development
-
-### Commands
-
-```bash
-npm run dev           # Vite (3000) + Electron concurrent
-npm run typecheck     # CRITICAL: both tsconfigs before commit
-npm run build         # Production build
-npm run test          # Vitest (all 3 projects)
-npm run test:coverage # Vitest with coverage
-npm run dev:mobile    # Capacitor watch mode
-npm run build:mobile  # Capacitor build → dist-mobile/
-npm run build:extension # Build browser extension
-```
-
-### Project Structure
-
-```
-src/
-├── electron/        # Main process (CommonJS). IPC, window management, services
-├── renderer/        # SolidJS UI. Components, windows, hooks, contexts
-├── shared/          # Types, constants, platform bridges/backends
-├── root-of-app/     # Python FastAPI backend. NLP, translation, OCR, TTS
-└── html/            # Electron window entries + mobile.html
-extension/           # Chrome/Firefox browser extension
-android/, ios/       # Capacitor native projects
-examples/plugins/    # Plugin templates
-```
-
-### Before Committing
-1. `npm run typecheck` — validates both tsconfigs
-2. New IPC → add to `IPC_CHANNELS`, implement in both bridges
-3. Settings changes → update `Settings` interface + `DEFAULT_SETTINGS`
-4. New renderer code → use `getBridge()`/`getBackend()`, never direct IPC
-
----
-
-## Legal
-
-- End User License Agreement: [EULA.md](EULA.md)
-- Terms of Service: [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)
-- Privacy Policy: [PRIVACY_POLICY.md](PRIVACY_POLICY.md)
-- School Deployment Guide: [SCHOOL_DEPLOYMENT.md](SCHOOL_DEPLOYMENT.md)
-
-Web versions of these documents are available at [mlearn.kikan.net](https://mlearn.kikan.net).
-
----
-
-## License
-
-This software is licensed under the **Sustainable Use License v1.0**. See the [LICENSE](LICENSE) file for the full text.
-
-```
-Copyright (C) 2024-2026 Adrian Vlasov
-
-Sustainable Use License — Version 1.0
-
-By using the software, you agree to all of the terms and conditions below.
-
-The licensor grants you a non-exclusive, royalty-free, worldwide,
-non-sublicensable, non-transferable license to use, copy,
-distribute, make available, and prepare derivative works of
-the software, in each case subject to the limitations below.
-
-You may use or modify the software only for your own internal
-business purposes or for non-commercial or personal use. You
-may distribute the software or provide it to others only if
-you do so free of charge for non-commercial purposes.
-```
-
-Additional licenses for third-party libraries may be found in the **Settings → About** section of the app.
-
----
-
-<p align="center">
-  Made with ❤
-</p>
+Built by **Adrian Vlasov**. Feedback from learners, language contributors, and teachers helps shape the project. Star the repository to show your interest, share it with another learner, or [tell us what worked and what got in the way](https://github.com/adrianvla/mLearn/issues).
