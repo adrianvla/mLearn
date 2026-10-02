@@ -1,6 +1,6 @@
-import { For, Show, createMemo, createSignal, type Component } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal, on, type Component } from 'solid-js';
 import { threadParticipants, type Participant, type WorldSnapshot } from '../../../shared/world';
-import { Avatar, Badge, Button, Disclosure, Input, ListRow, PlusIcon, SearchIcon, SkeletonLine, SkeletonRows, TabContainer } from '../../components/common';
+import { Avatar, Badge, Button, Disclosure, Input, ListRow, PlusIcon, SearchIcon, SkeletonLine, SkeletonRows, Select, TabContainer } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import { formatClockTime, formatDateShort } from '../../utils/timeFormatting';
 import type { ConversationPreviews } from './conversationPreviews';
@@ -10,9 +10,11 @@ interface RoomSidebarProps {
   world: WorldSnapshot | null;
   loading?: boolean;
   loadError?: boolean;
-  view?: 'chats' | 'contacts' | 'practice';
+  view?: 'chats' | 'contacts';
   roomId: string | null;
   threadId: string | null;
+  /** Changes on explicit re-entry, including reopening the same conversation. */
+  selectionRevision?: number;
   previews?: ConversationPreviews;
   previewsError?: string;
   previewLoading?: (key: string) => boolean;
@@ -23,7 +25,7 @@ interface RoomSidebarProps {
   onStoryProgress: () => void;
   onAddContact: () => void;
   onSelectContact: (person: Participant) => void;
-  onViewChange?: (view: 'chats' | 'contacts' | 'practice') => void;
+  onViewChange?: (view: 'chats' | 'contacts') => void;
 }
 
 export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
@@ -31,6 +33,8 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
   const { settings } = useSettings();
   const [query, setQuery] = createSignal('');
   const [localTab, setTab] = createSignal('chats');
+  const [activity, setActivity] = createSignal<'all' | 'conversation' | 'practice'>('all');
+  const startConversation = (): void => activity() === 'practice' ? props.onPractice() : props.onNewConversation();
   const tab = () => props.view ?? localTab();
   const matches = (...parts: (string | undefined)[]) => parts.some(part => part?.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase()));
   const people = createMemo(() => (props.world?.participants ?? [])
@@ -39,20 +43,32 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
   const archivedPeople = createMemo(() => (props.world?.participants ?? [])
     .filter(person => person.archivedAt && matches(person.displayName))
     .sort((a, b) => a.displayName.localeCompare(b.displayName, settings.uiLanguage)));
-  const chats = createMemo(() => {
+  const allChats = createMemo(() => {
     const world = props.world;
     if (!world) return [];
     const persistent = world.rooms.map(room => {
       const threads = world.threads.filter(thread => thread.roomId === room.id && thread.state !== 'archived');
-      const candidates = [props.previews?.[room.id], ...threads.map(thread => props.previews?.[`${room.id}/${thread.id}`])]
+      const modeMatches = (mode: string | undefined): boolean => activity() === 'all' || (mode === 'practice') === (activity() === 'practice');
+      const eligibleThreads = threads.filter(thread => modeMatches(thread.interactionMode ?? room.interactionMode));
+      const preferredThread = props.roomId === room.id
+        ? world.threads.find(thread => thread.id === props.threadId && thread.roomId === room.id && modeMatches(thread.interactionMode ?? room.interactionMode)) : undefined;
+      const preferredSea = props.roomId === room.id && !props.threadId && modeMatches(room.interactionMode);
+      const candidates = [modeMatches(room.interactionMode) ? props.previews?.[room.id] : undefined,
+        ...eligibleThreads.map(thread => props.previews?.[`${room.id}/${thread.id}`])]
         .filter(item => item !== undefined).sort((a, b) => b.timestamp - a.timestamp);
-      const preview = candidates[0];
-      const latestThread = threads.slice().sort((a, b) => b.createdAt - a.createdAt)[0];
+      const latestPreview = candidates[0];
+      const latestThread = eligibleThreads.slice().sort((a, b) => b.createdAt - a.createdAt)[0];
+      // A filtered row opens a matching conversation. Returning to an older session
+      // keeps its style and preview, rather than labeling it as the newest session.
+      const targetThread = preferredSea ? undefined : preferredThread ?? (latestPreview ? eligibleThreads.find(thread => thread.id === latestPreview.threadId)
+        : latestThread ?? (modeMatches(room.interactionMode) ? undefined : threads.slice().sort((a, b) => b.createdAt - a.createdAt)[0]));
+      const preview = preferredSea ? props.previews?.[room.id] : preferredThread ? props.previews?.[`${room.id}/${preferredThread.id}`] : latestPreview;
       const person = room.participantIds.length === 1 ? world.participants.find(item => item.id === room.participantIds[0]) : undefined;
       return { id: room.id, title: person?.displayName ?? room.title, person, preview,
-        roomId: room.id, roomIds: [room.id], threadId: preview ? preview.threadId : latestThread?.id, sessionTitle: latestThread?.title,
-        unread: room.unreadCount ?? 0, timestamp: preview?.timestamp ?? room.createdAt,
-        practice: room.interactionMode === 'practice', temporary: false, loading: !preview && (props.previewLoading?.(room.id) || threads.some(thread => props.previewLoading?.(`${room.id}/${thread.id}`))) };
+        roomId: room.id, roomIds: [room.id], threadId: targetThread?.id, sessionTitle: targetThread?.title,
+        unread: room.unreadCount ?? 0, timestamp: preview?.timestamp ?? targetThread?.createdAt ?? room.createdAt,
+        practice: (targetThread?.interactionMode ?? room.interactionMode) === 'practice', temporary: false,
+        loading: !preview && (props.previewLoading?.(room.id) || eligibleThreads.some(thread => props.previewLoading?.(`${room.id}/${thread.id}`))) };
     });
     // Legacy migration and older creation flows can leave several Rooms for
     // one contact. Group only by stable identity; every original scope stays
@@ -62,7 +78,8 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
       const key = chat.person ? `contact:${chat.person.id}:${chat.practice}` : `room:${chat.roomId}`;
       const existing = directChats.get(key);
       if (!existing) { directChats.set(key, chat); continue; }
-      const latest = chat.timestamp > existing.timestamp ? chat : existing;
+      const latest = chat.roomId === props.roomId ? chat : existing.roomId === props.roomId ? existing
+        : chat.timestamp > existing.timestamp ? chat : existing;
       directChats.set(key, { ...latest, roomIds: [...existing.roomIds, ...chat.roomIds],
         unread: existing.unread + chat.unread, loading: existing.loading || chat.loading });
     }
@@ -75,9 +92,19 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
         timestamp: preview?.timestamp ?? thread.createdAt, unread: 0, practice: thread.interactionMode === 'practice', temporary: true, sessionTitle: thread.title,
         loading: !preview && props.previewLoading?.(`${thread.id}/${thread.id}`) };
     });
-    return [...directChats.values(), ...temporary].filter(chat => chat.practice === (tab() === 'practice') && matches(chat.title, chat.preview?.text, chat.sessionTitle))
-      .sort((a, b) => b.timestamp - a.timestamp);
+    return [...directChats.values(), ...temporary].sort((a, b) => b.timestamp - a.timestamp);
   });
+  const chats = createMemo(() => allChats().filter(chat => (activity() === 'all' || chat.practice === (activity() === 'practice'))
+    && matches(chat.title, chat.preview?.text, chat.sessionTitle)));
+  // Returning or creating through another entry point must reveal the active conversation.
+  createEffect(on(() => [props.roomId, props.threadId, props.selectionRevision] as const, () => {
+    const selected = allChats().find(chat => chat.temporary ? chat.threadId === props.threadId : chat.roomIds.includes(props.roomId ?? ''));
+    const selectedThread = props.world?.threads.find(thread => thread.id === props.threadId);
+    const selectedRoom = props.world?.rooms.find(room => room.id === props.roomId);
+    const selectedPractice = (selectedThread?.interactionMode ?? selectedRoom?.interactionMode) === 'practice';
+    if (selected && activity() !== 'all' && selectedPractice !== (activity() === 'practice')) setActivity('all');
+    if (selected && !matches(selected.title, selected.preview?.text, selected.sessionTitle)) setQuery('');
+  }, { defer: true }));
   const earlierSessions = createMemo(() => {
     const selected = chats().find(chat => chat.roomIds.includes(props.roomId ?? '') && !chat.temporary);
     if (!selected) return [];
@@ -95,16 +122,16 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
       ? formatClockTime(date.getTime(), settings.uiLanguage)
       : formatDateShort(date, settings.uiLanguage);
   };
-  const chatSelected = (chat: ReturnType<typeof chats>[number]): boolean => chat.temporary
-    ? chat.threadId === props.threadId : chat.roomIds.includes(props.roomId ?? '');
+  const chatSelected = (chat: ReturnType<typeof chats>[number]): boolean =>
+    chat.roomId === props.roomId && (chat.threadId ?? null) === props.threadId;
 
   return <nav class="room-sidebar" aria-label={t('mlearn.ConversationAgent.Sidebar.Title')}>
     <div class="room-sidebar-header">
-      <h2 class="room-sidebar-title">{t(tab() === 'contacts' ? 'mlearn.ConversationAgent.Contacts.Tab' : tab() === 'practice' ? 'mlearn.ConversationAgent.Contacts.Practice' : 'mlearn.ConversationAgent.Contacts.Chats')}</h2>
+      <h2 class="room-sidebar-title">{t(tab() === 'contacts' ? 'mlearn.ConversationAgent.Contacts.Tab' : 'mlearn.ConversationAgent.Contacts.Chats')}</h2>
       <Show when={tab() === 'contacts'} fallback={<Button buttonType="icon" size="sm" variant="ghost" icon={<PlusIcon size={20} />}
         aria-label={t('mlearn.ConversationAgent.NewConversation.Title')}
         disabled={props.loading || props.loadError}
-        onClick={() => tab() === 'practice' ? props.onPractice() : props.onNewConversation()} />}>
+        onClick={startConversation} />}>
         <Button size="sm" variant="ghost" icon={<PlusIcon size={16} />} onClick={props.onAddContact}>{t('mlearn.ConversationAgent.Contacts.Add')}</Button>
       </Show>
     </div>
@@ -113,13 +140,17 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
         placeholder={t('mlearn.Global.Search')} aria-label={t('mlearn.Global.Search')} />
     </div>
     <TabContainer idBase="messenger" variant="segment" size="sm" class="room-sidebar-tabs" activeTab={tab()}
-      onTabChange={value => { setTab(value); setQuery(''); props.onViewChange?.(value as 'chats' | 'contacts' | 'practice'); }}
-      tabs={[{ id: 'chats', label: t('mlearn.ConversationAgent.Contacts.Chats') }, { id: 'contacts', label: t('mlearn.ConversationAgent.Contacts.Tab') },
-        { id: 'practice', label: t('mlearn.ConversationAgent.Contacts.Practice') }]}>
+      onTabChange={value => { setTab(value); setQuery(''); props.onViewChange?.(value as 'chats' | 'contacts'); }}
+      tabs={[{ id: 'chats', label: t('mlearn.ConversationAgent.Contacts.Chats') }, { id: 'contacts', label: t('mlearn.ConversationAgent.Contacts.Tab') }]}>
       <div class="room-sidebar-list" role="tabpanel" aria-busy={props.loading === true} id={`messenger-panel-${tab()}`} aria-labelledby={`messenger-tab-${tab()}`}>
         <Show when={!props.loading} fallback={<SkeletonRows rows={5} rowHeight="4rem" animate={false} class="room-sidebar-loading" />}>
         <Show when={!props.loadError} fallback={<p class="room-sidebar-notice" role="status">{t('mlearn.ConversationAgent.ErrorTitle')}</p>}>
         <Show when={tab() === 'contacts'} fallback={<>
+          <div class="room-sidebar-filter"><Select aria-label={t('mlearn.ConversationAgent.Contacts.FilterConversations')}
+            value={activity()} onChange={event => setActivity(event.currentTarget.value as 'all' | 'conversation' | 'practice')}
+            options={[{ value: 'all', label: t('mlearn.ConversationAgent.Contacts.AllConversations') },
+              { value: 'conversation', label: t('mlearn.ConversationAgent.NewConversation.Conversation') },
+              { value: 'practice', label: t('mlearn.ConversationAgent.NewConversation.CoachedPractice') }]} /></div>
           <Show when={props.previewsError}><p class="room-sidebar-notice" role="status">{t('mlearn.ConversationAgent.Contacts.PreviewUnavailable')}</p></Show>
           <For each={chats()}>{chat => <ListRow
             class={chat.temporary ? 'room-sidebar-thread' : 'room-sidebar-room'}
@@ -127,7 +158,8 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
             aria-current={chatSelected(chat)}
             leading={<Avatar name={chat.title} src={chat.person?.profilePhoto} />}
             headline={chat.title}
-            description={chat.loading ? <SkeletonLine width="80%" animate={false} /> : chat.preview?.text || chat.sessionTitle || t(chat.practice ? 'mlearn.ConversationAgent.Contacts.PracticeChat' : 'mlearn.ConversationAgent.Contacts.SayHello')}
+            description={<><span class="room-sidebar-scope">{t(chat.practice ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · {t(chat.temporary ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}</span>
+              <Show when={chat.loading} fallback={chat.preview?.text || (chat.sessionTitle !== chat.title ? chat.sessionTitle : '')}><SkeletonLine width="80%" animate={false} /></Show></>}
             trailing={<><Show when={chat.preview}><time dateTime={new Date(chat.timestamp).toISOString()}>{timestamp(chat.timestamp)}</time></Show>
               <Show when={chat.unread > 0}><Badge>{chat.unread}</Badge></Show>
             </>}
@@ -141,8 +173,9 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
             </Disclosure>
           </Show>
           <Show when={chats().length === 0}><div class="room-sidebar-empty">
-            <p>{t(query().trim() ? 'mlearn.ConversationAgent.Sidebar.NoMatches' : tab() === 'practice' ? 'mlearn.ConversationAgent.Contacts.EmptyPractice' : 'mlearn.ConversationAgent.Contacts.EmptyChats')}</p>
-            <Show when={!query().trim()}><Button variant="ghost" size="sm" onClick={() => tab() === 'practice' ? props.onPractice() : props.onNewConversation()}>
+            <p>{t(query().trim() ? 'mlearn.ConversationAgent.Sidebar.NoMatches' : activity() === 'all' ? 'mlearn.ConversationAgent.Contacts.EmptyChats' : 'mlearn.ConversationAgent.Contacts.NoFilteredConversations')}</p>
+            <Show when={!query().trim() && activity() !== 'all'}><Button variant="ghost" size="sm" onClick={() => setActivity('all')}>{t('mlearn.ConversationAgent.Contacts.AllConversations')}</Button></Show>
+            <Show when={!query().trim()}><Button variant="ghost" size="sm" onClick={startConversation}>
               {t('mlearn.ConversationAgent.NewConversation.Title')}
             </Button></Show>
           </div></Show>

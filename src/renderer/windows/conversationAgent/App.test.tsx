@@ -590,7 +590,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
   });
 
-  it('returns to a saved practice conversation and selects its sidebar tab', async () => {
+  it('returns to a saved practice conversation in the shared continuation list', async () => {
     testSettings.livingWorldEnabled = false;
     currentWorld = { rooms: [], participants: [], threads: [{ id: 'practice-a', interactionMode: 'practice', state: 'active', createdAt: 2,
       sandbox: { operationId: 'practice', requestHash: 'hash', bindings: [{ baseline: worldFixture.participants[0] }], baselineHeads: {} } }] };
@@ -598,7 +598,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(mockBridge.kvStore.kvSet).toHaveBeenCalledWith('conversation-selection', JSON.stringify({ roomId: 'practice-a', threadId: 'practice-a' })));
-    expect(container.querySelector('.room-sidebar-title')?.textContent).toBe('mlearn.ConversationAgent.Contacts.Practice');
+    expect(container.querySelector('.room-sidebar-title')?.textContent).toBe('mlearn.ConversationAgent.Contacts.Chats');
     expect(container.querySelectorAll('.room-sidebar-thread')).toHaveLength(1);
     expect(container.querySelector('.new-conversation-form')).toBeNull();
     expect(container.querySelector('.ca-header-context')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.CoachedPractice');
@@ -1598,14 +1598,15 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('[data-testid="thread-info-panel"]')).not.toBeNull());
   });
 
-  it('renders New message in the room sidebar', async () => {
+  it('offers one New conversation action from the unified chat list', async () => {
     currentWorld = { rooms: [], threads: [], participants: [] };
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]')).not.toBeNull());
-    (Array.from(container.querySelectorAll('.room-sidebar button')).find(button => button.textContent === 'mlearn.ConversationAgent.Contacts.Practice') as HTMLButtonElement).click();
+    const filter = container.querySelector('.room-sidebar-filter select') as HTMLSelectElement;
+    filter.value = 'practice'; filter.dispatchEvent(new Event('change', { bubbles: true }));
     expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]')).not.toBeNull();
     expect(Array.from(container.querySelectorAll('.ca-chat-content button')).some(button => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')).toBe(true);
   });

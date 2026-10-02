@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
+import { createSignal, type JSX } from 'solid-js';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { Participant } from '../../../shared/world';
 import type { WorldBridge } from '../../../shared/bridges/types';
@@ -33,7 +33,7 @@ const click = (el: HTMLElement, label: string): void => {
 };
 
 describe('Contacts are independent from conversations', () => {
-  it('groups by requested activity rather than temporary retention', () => {
+  it('continues all conversations together and filters by requested activity rather than retention', () => {
     const el = mount(() => <RoomSidebar world={{ participants: [], rooms: [
       { id: 'social', title: 'Ordinary chat', participantIds: [], createdAt: 1 },
       { id: 'practice', title: 'Agreed feedback', participantIds: [], interactionMode: 'practice', createdAt: 2 }],
@@ -42,10 +42,89 @@ describe('Contacts are independent from conversations', () => {
       roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
       onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
     expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Deadline negotiation');
-    expect(el.querySelector('.room-sidebar-list')?.textContent).not.toContain('Agreed feedback');
-    click(el, 'mlearn.ConversationAgent.Contacts.Practice');
+    expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Agreed feedback');
+    expect(el.querySelectorAll('[role="tab"]')).toHaveLength(2);
+    expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.ScopePersistent');
+    expect(el.querySelector('.room-sidebar-thread')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.ScopeTemporary');
+    const filter = el.querySelector('.room-sidebar-filter select') as HTMLSelectElement;
+    filter.value = 'practice'; filter.dispatchEvent(new Event('change', { bubbles: true }));
     expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Agreed feedback');
     expect(el.querySelector('.room-sidebar-list')?.textContent).not.toContain('Deadline negotiation');
+    filter.value = 'conversation'; filter.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Deadline negotiation');
+    expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Ordinary chat');
+    expect(el.querySelector('.room-sidebar-list')?.textContent).not.toContain('Agreed feedback');
+  });
+
+  it('reveals external re-entry into the same conversation outside the current filter', () => {
+    const [selected, setSelected] = createSignal<string | null>('social');
+    const [revision, setRevision] = createSignal(0);
+    const el = mount(() => <RoomSidebar world={{ participants: [], threads: [], rooms: [
+      { id: 'social', title: 'Ordinary chat', participantIds: [], createdAt: 1 },
+      { id: 'practice', title: 'Agreed feedback', participantIds: [], interactionMode: 'practice', createdAt: 2 }] }}
+      roomId={selected()} selectionRevision={revision()} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
+      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+    const filter = el.querySelector('.room-sidebar-filter select') as HTMLSelectElement;
+    filter.value = 'practice'; filter.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(el.querySelector('.room-sidebar-list')?.textContent).not.toContain('Ordinary chat');
+    setRevision(1);
+    expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Ordinary chat');
+    expect(el.querySelector('.list-row--selected')?.textContent).toContain('Ordinary chat');
+    filter.value = 'conversation'; filter.dispatchEvent(new Event('change', { bubbles: true }));
+    setSelected('practice');
+    expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Agreed feedback');
+    expect(el.querySelector('.list-row--selected')?.textContent).toContain('Agreed feedback');
+  });
+
+  it('keeps one composer and intentionally seeds coaching only from the coaching filter', () => {
+    const normal = vi.fn(); const practice = vi.fn();
+    const el = mount(() => <RoomSidebar world={{ rooms: [], threads: [], participants: [] }} roomId={null} threadId={null}
+      onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={normal} onPractice={practice}
+      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+    click(el, 'mlearn.ConversationAgent.NewConversation.Title'); expect(normal).toHaveBeenCalledOnce();
+    const filter = el.querySelector('.room-sidebar-filter select') as HTMLSelectElement;
+    filter.value = 'practice'; filter.dispatchEvent(new Event('change', { bubbles: true }));
+    click(el, 'mlearn.ConversationAgent.NewConversation.Title'); expect(practice).toHaveBeenCalledOnce();
+    click(el, 'mlearn.ConversationAgent.Contacts.Tab');
+    expect(el.querySelector('.room-sidebar-filter')).toBeNull();
+  });
+
+  it('labels an older selected session accurately and opens a matching session from the style filter', () => {
+    const selectThread = vi.fn();
+    const el = mount(() => <RoomSidebar world={{ participants: [], rooms: [{ id: 'mixed', title: 'Mara', participantIds: [], createdAt: 1 }],
+      threads: [{ id: 'coached', roomId: 'mixed', title: 'Recall focus', interactionMode: 'practice', state: 'active', createdAt: 2 },
+        { id: 'social', roomId: 'mixed', title: 'Coffee', interactionMode: 'social', state: 'active', createdAt: 3 }] }}
+      roomId="mixed" threadId="coached" previews={{ 'mixed/coached': { text: 'Earlier exercise', timestamp: 4, actorId: 'user', eventId: 'e1', threadId: 'coached' },
+        'mixed/social': { text: 'Later chat', timestamp: 10, actorId: 'user', eventId: 'e2', threadId: 'social' } }}
+      onSelectRoom={vi.fn()} onSelectThread={selectThread} onNewConversation={vi.fn()} onPractice={vi.fn()}
+      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+    expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.CoachedPractice');
+    expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('Earlier exercise');
+    const filter = el.querySelector('.room-sidebar-filter select') as HTMLSelectElement;
+    filter.value = 'conversation'; filter.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('Later chat');
+    expect(el.querySelector('.room-sidebar-room')?.getAttribute('aria-current')).toBe('false');
+    (el.querySelector('.room-sidebar-room') as HTMLButtonElement).click();
+    expect(selectThread).toHaveBeenLastCalledWith('social');
+    filter.value = 'practice'; filter.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(el.querySelector('.room-sidebar-room')?.getAttribute('aria-current')).toBe('true');
+    (el.querySelector('.room-sidebar-room') as HTMLButtonElement).click();
+    expect(selectThread).toHaveBeenLastCalledWith('coached');
+  });
+
+  it('keeps the open shared conversation visible instead of substituting its newer coached session', () => {
+    const selectRoom = vi.fn();
+    const el = mount(() => <RoomSidebar world={{ participants: [], rooms: [{ id: 'mixed', title: 'Mara', participantIds: [], createdAt: 1 }],
+      threads: [{ id: 'coached', roomId: 'mixed', interactionMode: 'practice', state: 'active', createdAt: 2 }] }}
+      roomId="mixed" threadId={null} previews={{ mixed: { text: 'Open conversation', timestamp: 4, actorId: 'user', eventId: 'e1' },
+        'mixed/coached': { text: 'Newer exercise', timestamp: 10, actorId: 'user', eventId: 'e2', threadId: 'coached' } }}
+      onSelectRoom={selectRoom} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
+      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+    expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('Open conversation');
+    expect(el.querySelector('.room-sidebar-room')?.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.CoachedPractice');
+    expect(el.querySelector('.room-sidebar-room')?.getAttribute('aria-current')).toBe('true');
+    (el.querySelector('.room-sidebar-room') as HTMLButtonElement).click();
+    expect(selectRoom).toHaveBeenCalledWith('mixed');
   });
 
   it('opens the Sea when its latest message is newer than an earlier thread', () => {

@@ -310,7 +310,8 @@ export const ConversationContent: Component = () => {
     for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
   });
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
-  const [sidebarView, setSidebarView] = createSignal<'chats' | 'contacts' | 'practice'>('chats');
+  const [sidebarView, setSidebarView] = createSignal<'chats' | 'contacts'>('chats');
+  const [conversationEntry, setConversationEntry] = createSignal(0);
   const [addingContact, setAddingContact] = createSignal(false);
   const [showStoryProgress, setShowStoryProgress] = createSignal(false);
   const [contactId, setContactId] = createSignal<string | null>(null);
@@ -952,7 +953,8 @@ export const ConversationContent: Component = () => {
       setMessageOverrides(new Map());
       setAnnotationFailed(false);
       participantAgents.clear();
-      setSidebarView((selectedSandbox?.interactionMode ?? requestedThread?.interactionMode ?? snapshot.rooms.find(item => item.id === roomId)?.interactionMode) === 'practice' ? 'practice' : 'chats');
+      setSidebarView('chats');
+      setConversationEntry(value => value + 1);
       const key = selectionKey(roomId, threadId);
       pendingScrollKey = scrollBySelection.has(key) ? key : null;
       setSelection({ roomId, threadId });
@@ -2037,7 +2039,7 @@ export const ConversationContent: Component = () => {
           >
             <div class="ca-provider-details"><ConnectionInfo details /></div>
             <p class="ca-ai-notice">{t('mlearn.ConversationAgent.Disclaimer')}</p>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer(sidebarView() === 'practice' ? 'practice' : 'message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.NewConversation.Title')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.NewConversation.Title')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
@@ -2124,7 +2126,7 @@ export const ConversationContent: Component = () => {
       <div class="ca-chat-panel">
           <ResponsiveSidebar id="conversation-sidebar" label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
             title={t('mlearn.ConversationAgent.Sidebar.Title')} open={sidebarVisible()} onOpenChange={setSidebarVisible} class="ca-history-sidebar">
-            <RoomSidebar world={world()} loading={initializingConversations() && !world()} loadError={conversationLoadError() && !world()} view={sidebarView()} roomId={selection()?.roomId ?? null} threadId={selection()?.threadId ?? null}
+            <RoomSidebar world={world()} loading={initializingConversations() && !world()} loadError={conversationLoadError() && !world()} view={sidebarView()} selectionRevision={conversationEntry()} roomId={selection()?.roomId ?? null} threadId={selection()?.threadId ?? null}
               previews={conversationPreviews.previews()} previewsError={conversationPreviews.error()} previewLoading={conversationPreviews.isLoading}
               onSelectRoom={roomId => { void selectRoom(roomId).catch(error => setContactIngressError(String(error))); }}
               onSelectThread={threadId => { const thread = world()?.threads.find(item => item.id === threadId); if (thread) void selectRoom(threadContextId(thread), threadId).catch(error => setContactIngressError(String(error))); }}
@@ -2176,7 +2178,7 @@ export const ConversationContent: Component = () => {
                     description={hasActiveRoomSelection() ? isConnected() ? t('mlearn.ConversationAgent.Empty.ReadyHint') : t('mlearn.ConversationAgent.Empty.SavedUnavailableHint') : t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
                     action={{
                       label: hasActiveRoomSelection() ? t(isConnected() ? 'mlearn.ConversationAgent.Empty.StartConversation' : 'mlearn.ConversationAgent.Recovery.Settings') : t('mlearn.ConversationAgent.NewConversation.Title'),
-                      onClick: hasActiveRoomSelection() ? isConnected() ? handleStartConversation : () => openCapabilitySettings('llm') : () => openComposer(sidebarView() === 'practice' ? 'practice' : 'message'),
+                      onClick: hasActiveRoomSelection() ? isConnected() ? handleStartConversation : () => openCapabilitySettings('llm') : () => openComposer('message'),
                       variant: 'primary',
                     }}
                     class="ca-empty"
