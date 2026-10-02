@@ -291,7 +291,7 @@ interface FlashcardContextValue {
   queueCounts: () => { new: number; learning: number; review: number; total: number };
 
   // Card management
-  addFlashcard: (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean, language?: string) => Promise<string>;
+  addFlashcard: (content: Partial<FlashcardContent> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean, language?: string, videoClip?: ArrayBuffer | Uint8Array | null) => Promise<string>;
   removeFlashcard: (id: string, neverShowAgain?: boolean) => Promise<boolean>;
   updateFlashcard: (id: string, updates: Partial<Flashcard>) => void;
   updateFlashcardContent: (id: string, content: Partial<FlashcardContent>, trackUserEdits?: boolean) => void;
@@ -1888,11 +1888,46 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   // Add new flashcard - now supports multiple cards per word
   // When use_anki is enabled, shows a choice modal (SRS vs Anki) before creation
+  /**
+   * Persist a prepared video clip under the id of the object that owns it.
+   *
+   * Same contract as `adoptPreparedImage`: the file name is the owner's id, so
+   * removing the card removes the clip.
+   */
+  const adoptPreparedVideo = async (ownerId: string, data: ArrayBuffer | Uint8Array): Promise<string | null> => {
+    try {
+      const buffer = data instanceof Uint8Array ? data : new Uint8Array(data);
+      return await getBridge().flashcards.saveFlashcardVideo(ownerId, buffer.buffer as ArrayBuffer);
+    } catch (error) {
+      log.warn('Failed to save flashcard video:', error);
+      return null;
+    }
+  };
+
+  /**
+   * Persist a prepared image under the id of the object that owns it.
+   *
+   * Ownership is the whole point: the file name is the owner's id, so the
+   * store's own delete paths (and `releaseUnusedFlashcardMedia`) can find it
+   * again. A capture surface must never pick its own name.
+   */
+  const adoptPreparedImage = async (ownerId: string, dataUrl: string): Promise<string | null> => {
+    try {
+      return await getBridge().flashcards.saveFlashcardImage(ownerId, dataUrl);
+    } catch (error) {
+      log.warn('Failed to save flashcard image:', error);
+      return null;
+    }
+  };
+
   const addFlashcard = async (
     content: Partial<FlashcardContent> & { front: string; back: string },
     initialEase?: number,
     skipAnkiChoice?: boolean,
     language?: string,
+    // A video clip the caller has already produced but not stored. It is
+    // persisted here, under this card's id, so it shares the card's lifetime.
+    videoClip?: ArrayBuffer | Uint8Array | null,
   ): Promise<string> => {
     log.info('%caddFlashcard called with:', 'color: magenta; font-weight: bold;', content.front);
     const lang = language ?? settings.language;
@@ -1931,13 +1966,33 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const now = Date.now();
     const id = SRS.generateUUID();
 
+    // Durable media is adopted here, under the id this card actually owns.
+    // Surfaces hand us a prepared data URL (an observation with no owner yet);
+    // persisting it anywhere else would create a file the store can never
+    // reference, which is how media outlived its own card.
+    let videoUrl = content.videoUrl;
+    if (videoClip) {
+      const savedVideo = await adoptPreparedVideo(id, videoClip);
+      if (savedVideo) {
+        videoUrl = savedVideo;
+        content = { ...content, skipExampleTts: true };
+      }
+    }
+
     let imageUrl = content.imageUrl;
+    let screenshotUrl = content.screenshotUrl;
     if (imageUrl?.startsWith('data:image/')) {
-      const bridge = getBridge();
-      const savedUrl = await bridge.flashcards.saveFlashcardImage(id, imageUrl);
+      const savedUrl = await adoptPreparedImage(id, imageUrl);
       if (savedUrl) {
         imageUrl = savedUrl;
+        // screenshotUrl is a legacy alias of imageUrl. When both were handed
+        // the same observation, point it at the adopted file so the alias
+        // cannot keep pointing at bytes that were never written.
+        if (screenshotUrl === content.imageUrl) screenshotUrl = imageUrl;
       }
+    }
+    if (screenshotUrl?.startsWith('data:image/')) {
+      screenshotUrl = await adoptPreparedImage(id, screenshotUrl) ?? screenshotUrl;
     }
 
     const newCard: Flashcard = {
@@ -1953,7 +2008,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         example: content.example,
         exampleMeaning: content.exampleMeaning,
         imageUrl,
-        videoUrl: content.videoUrl,
+        videoUrl,
         skipExampleTts: content.skipExampleTts,
         unpopulated: content.unpopulated,
         userEditedFields: content.userEditedFields,
@@ -1966,7 +2021,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         pronunciation: content.pronunciation,
         translation: content.translation,
         definition: content.definition,
-        screenshotUrl: content.screenshotUrl,
+        screenshotUrl,
         contextPhrase: content.contextPhrase,
       },
       state: 'new',
@@ -2903,15 +2958,22 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     );
     if (!keepSuggestion && !unpopulatedCard) return;
 
+    // A suggestion's image belongs to that suggestion. The id is resolved
+    // before any write so the file is created under the owner that will
+    // reference it, rather than under a throwaway capture name that the store
+    // can never point at.
     let imageUrl = params.imageUrl;
     let newId: string | undefined;
     if (imageUrl?.startsWith('data:image/')) {
-      const bridge = getBridge();
       const existing = store.suggestedFlashcards[suggestionKey];
       newId = unpopulatedCard?.id ?? existing?.id ?? crypto.randomUUID();
-      const savedUrl = await bridge.flashcards.saveFlashcardImage(newId, imageUrl);
+      const savedUrl = await adoptPreparedImage(newId, imageUrl);
       if (savedUrl) {
         imageUrl = savedUrl;
+      } else {
+        // The capture produced bytes we cannot store under this owner. Keep
+        // the suggestion and drop the media rather than storing it orphaned.
+        imageUrl = undefined;
       }
     }
 

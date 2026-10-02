@@ -64,6 +64,8 @@ const mockBridge = {
     deleteFlashcardVideo: vi.fn().mockResolvedValue(undefined),
     deleteFlashcardImage: vi.fn().mockResolvedValue(undefined),
     deleteFlashcardTts: vi.fn().mockResolvedValue(undefined),
+    saveFlashcardImage: vi.fn(),
+    saveFlashcardVideo: vi.fn(),
     generateFlashcardTts: vi.fn().mockResolvedValue(null),
   },
   migration: {
@@ -2917,6 +2919,138 @@ describe('FlashcardProvider', () => {
     const result = await ctx.removeFlashcard('nonexistent');
     expect(result).toBe(false);
     dispose();
+  });
+
+  // ─── Durable media ownership ─────────────────────────────────────
+  // Durable flashcard media must be named after the object that owns it.
+  // A capture surface produces prepared bytes; only the owner persists them.
+  // Anything written under a capture-scoped name is unreachable by every
+  // delete path, so it survives the card it was meant for.
+  describe('durable media ownership', () => {
+    it('stores a prepared image under the id of the card that owns it', async () => {
+      const { ctx, dispose } = await mountProvider();
+      seedAccepted();
+      mockBridge.flashcards.saveFlashcardImage.mockImplementationOnce(
+        async (ownerId: string) => `flashcard-image://${ownerId}.jpg`,
+      );
+
+      const id = await ctx.addFlashcard(
+        { front: '猫', back: 'cat', imageUrl: 'data:image/jpeg;base64,FRAME' },
+        undefined,
+        true,
+      );
+
+      expect(mockBridge.flashcards.saveFlashcardImage).toHaveBeenCalledTimes(1);
+      expect(mockBridge.flashcards.saveFlashcardImage).toHaveBeenCalledWith(id, 'data:image/jpeg;base64,FRAME');
+      expect(ctx.store.flashcards[id].content.imageUrl).toBe(`flashcard-image://${id}.jpg`);
+      dispose();
+    });
+
+    it('repoints the legacy screenshot alias at the adopted file', async () => {
+      const { ctx, dispose } = await mountProvider();
+      seedAccepted();
+      mockBridge.flashcards.saveFlashcardImage.mockImplementationOnce(
+        async (ownerId: string) => `flashcard-image://${ownerId}.jpg`,
+      );
+
+      const id = await ctx.addFlashcard(
+        {
+          front: '犬', back: 'dog',
+          imageUrl: 'data:image/jpeg;base64,FRAME',
+          screenshotUrl: 'data:image/jpeg;base64,FRAME',
+        },
+        undefined,
+        true,
+      );
+
+      const content = ctx.store.flashcards[id].content;
+      expect(content.imageUrl).toBe(`flashcard-image://${id}.jpg`);
+      expect(content.screenshotUrl).toBe(`flashcard-image://${id}.jpg`);
+      dispose();
+    });
+
+    it('leaves no image when the store refuses the capture', async () => {
+      const { ctx, dispose } = await mountProvider();
+      seedAccepted();
+      mockBridge.flashcards.saveFlashcardImage.mockRejectedValue(new Error('disk full'));
+
+      const id = await ctx.addFlashcard(
+        { front: '鳥', back: 'bird', imageUrl: 'data:image/jpeg;base64,FRAME' },
+        undefined,
+        true,
+      );
+
+      const content = ctx.store.flashcards[id].content;
+      expect(content.imageUrl).toBe('data:image/jpeg;base64,FRAME');
+      expect(content.screenshotUrl).toBeUndefined();
+      dispose();
+    });
+
+    it('stores a prepared video clip under the card id, not a word-derived one', async () => {
+      const { ctx, dispose } = await mountProvider();
+      seedAccepted();
+      mockBridge.flashcards.saveFlashcardVideo.mockImplementationOnce(
+        async (ownerId: string) => `flashcard-video://${ownerId}.mp4`,
+      );
+
+      const id = await ctx.addFlashcard(
+        { front: '雨', back: 'rain' },
+        undefined,
+        true,
+        undefined,
+        new Uint8Array([1, 2, 3]),
+      );
+
+      expect(mockBridge.flashcards.saveFlashcardVideo).toHaveBeenCalledTimes(1);
+      expect(mockBridge.flashcards.saveFlashcardVideo.mock.calls[0][0]).toBe(id);
+      const content = ctx.store.flashcards[id].content;
+      expect(content.videoUrl).toBe(`flashcard-video://${id}.mp4`);
+      expect(content.skipExampleTts).toBe(true);
+      dispose();
+    });
+
+    it('deleting the card removes the media it adopted', async () => {
+      const { ctx, dispose } = await mountProvider();
+      seedAccepted();
+      mockBridge.flashcards.saveFlashcardImage.mockImplementationOnce(
+        async (ownerId: string) => `flashcard-image://${ownerId}.jpg`,
+      );
+      mockBridge.flashcards.saveFlashcardVideo.mockImplementationOnce(
+        async (ownerId: string) => `flashcard-video://${ownerId}.mp4`,
+      );
+
+      const id = await ctx.addFlashcard(
+        { front: '風', back: 'wind', imageUrl: 'data:image/jpeg;base64,FRAME' },
+        undefined,
+        true,
+        undefined,
+        new Uint8Array([1, 2, 3]),
+      );
+      await ctx.removeFlashcard(id);
+
+      // The delete is addressed by owner id, so it must reach files named
+      // after the card. Under the old word-derived naming neither call hit.
+      expect(mockBridge.flashcards.deleteFlashcardImage).toHaveBeenCalledWith(id);
+      expect(mockBridge.flashcards.deleteFlashcardVideo).toHaveBeenCalledWith(id);
+      dispose();
+    });
+
+    it('never persists media for a card that was rejected before it existed', async () => {
+      const { ctx, dispose } = await mountProvider();
+      seedAccepted();
+      mockBridge.flashcards.saveFlashcards.mockRejectedValue(new Error('refused'));
+
+      await expect(ctx.addFlashcard(
+        { front: '海', back: 'sea', imageUrl: 'data:image/jpeg;base64,FRAME' },
+        undefined,
+        true,
+      )).rejects.toThrow();
+
+      // The card never landed, so the store holds no owner for the media that
+      // was adopted for it. The caller sees the failure and can retry.
+      expect(Object.keys(ctx.store.flashcards)).toHaveLength(0);
+      dispose();
+    });
   });
 
   it('removeFlashcard cleans up video file if present', async () => {
@@ -6128,6 +6262,98 @@ describe('FlashcardProvider', () => {
 
     mockSettings.use_anki = prevAnki;
     dispose();
+  });
+
+  // ─── Suggested flashcard media ownership ─────────────────────────
+  // A suggestion adopts its image under its own id, so the file is reachable
+  // by the existing suggestion delete paths.
+  describe('suggested flashcard media ownership', () => {
+    it('stores a suggestion image under the suggestion that owns it', async () => {
+      const { ctx, dispose } = await mountProvider();
+      flashcardsCb(makeEmptyStore());
+      mockSettings.learningLanguageLevel = null;
+      mockSettings.learningLanguageLevels = { ja: null };
+      mockBridge.flashcards.saveFlashcardImage.mockImplementationOnce(
+        async (ownerId: string) => `flashcard-image://${ownerId}.jpg`,
+      );
+
+      await ctx.captureSuggestedFlashcard({
+        word: '単語', level: 3, imageUrl: 'data:image/jpeg;base64,CROP',
+      });
+
+      expect(mockBridge.flashcards.saveFlashcardImage).toHaveBeenCalledTimes(1);
+      const suggestion = Object.values(ctx.store.suggestedFlashcards)[0];
+      expect(suggestion.imageUrl).toBe(`flashcard-image://${suggestion.id}.jpg`);
+      dispose();
+    });
+
+    it('reuses the existing suggestion id rather than creating a second file', async () => {
+      const { ctx, dispose } = await mountProvider();
+      flashcardsCb(makeEmptyStore());
+      mockSettings.learningLanguageLevel = null;
+      mockSettings.learningLanguageLevels = { ja: null };
+      mockBridge.flashcards.saveFlashcardImage.mockImplementation(
+        async (ownerId: string) => `flashcard-image://${ownerId}.jpg`,
+      );
+
+      await ctx.captureSuggestedFlashcard({ word: '単語', level: 3, imageUrl: 'data:image/jpeg;base64,A' });
+      const firstId = Object.values(ctx.store.suggestedFlashcards)[0].id;
+      await ctx.captureSuggestedFlashcard({ word: '単語', level: 3, imageUrl: 'data:image/jpeg;base64,B' });
+
+      expect(mockBridge.flashcards.saveFlashcardImage.mock.calls.map(c => c[0])).toEqual([firstId, firstId]);
+      dispose();
+    });
+
+    it('records the suggestion without media when the store refuses the image', async () => {
+      const { ctx, dispose } = await mountProvider();
+      flashcardsCb(makeEmptyStore());
+      mockSettings.learningLanguageLevel = null;
+      mockSettings.learningLanguageLevels = { ja: null };
+      mockBridge.flashcards.saveFlashcardImage.mockRejectedValue(new Error('disk full'));
+
+      await ctx.captureSuggestedFlashcard({
+        word: '単語', level: 3, imageUrl: 'data:image/jpeg;base64,CROP',
+      });
+
+      const suggestion = Object.values(ctx.store.suggestedFlashcards)[0];
+      expect(suggestion.word).toBe('単語');
+      expect(suggestion.imageUrl).toBeUndefined();
+      dispose();
+    });
+
+    it('keeps a suggestion text-only when no target geometry was available', async () => {
+      const { ctx, dispose } = await mountProvider();
+      flashcardsCb(makeEmptyStore());
+      mockSettings.learningLanguageLevel = null;
+      mockSettings.learningLanguageLevels = { ja: null };
+
+      await ctx.captureSuggestedFlashcard({ word: '単語', level: 3, imageUrl: undefined });
+
+      const suggestion = Object.values(ctx.store.suggestedFlashcards)[0];
+      expect(suggestion.word).toBe('単語');
+      expect(suggestion.imageUrl).toBeUndefined();
+      expect(mockBridge.flashcards.saveFlashcardImage).not.toHaveBeenCalled();
+      dispose();
+    });
+
+    it('two words on one page each adopt their own capture', async () => {
+      const { ctx, dispose } = await mountProvider();
+      flashcardsCb(makeEmptyStore());
+      mockSettings.learningLanguageLevel = null;
+      mockSettings.learningLanguageLevels = { ja: null };
+      mockBridge.flashcards.saveFlashcardImage.mockImplementation(
+        async (ownerId: string) => `flashcard-image://${ownerId}.jpg`,
+      );
+
+      await ctx.captureSuggestedFlashcard({ word: '猫', level: 3, imageUrl: 'data:image/jpeg;base64,OCC1' });
+      await ctx.captureSuggestedFlashcard({ word: '犬', level: 3, imageUrl: 'data:image/jpeg;base64,OCC2' });
+
+      const suggestions = Object.values(ctx.store.suggestedFlashcards);
+      expect(suggestions).toHaveLength(2);
+      expect(suggestions[0].id).not.toBe(suggestions[1].id);
+      expect(suggestions[0].imageUrl).not.toBe(suggestions[1].imageUrl);
+      dispose();
+    });
   });
 
   // ─── Priority 2: Suggested flashcard level filtering ──────────────

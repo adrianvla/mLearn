@@ -32,7 +32,7 @@ import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages, pdfToTextPages } from '../../../services/pdfService';
 import { epubToContentPages, isEpubFile, type EpubContent, type EpubReadingSpan } from '../../../services/epubService';
 import { captureBlobThumbnail, getRecentProgressPercent, saveToRecentItems } from '../../../services/thumbnailService';
-import { captureReaderImageForFlashcard } from '../../../services/flashcardImageCapture';
+import { captureReaderImageForOccurrence } from '../../../services/flashcardImageCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
@@ -1505,7 +1505,11 @@ export const ReaderRoute: Component = () => {
     const bookId = currentBookId();
 
     void (async () => {
-      const capturedPages = new Map<string, string | null>();
+      // A suggestion's image belongs to ONE word occurrence, so there is no
+      // page-scoped cache here any more. Two words on the same page each get
+      // their own crop around their own OCR box. Sharing one page image made
+      // every suggested card show the same whole page, which identifies
+      // nothing about the word the card is for.
       // Current-content passive exposures per word (R21): recorded coverage
       // recurrence, used by BOTH the suggestion filter and capture so a
       // repeatedly-blocking off-list term survives the level gate (the same
@@ -1528,17 +1532,14 @@ export const ReaderRoute: Component = () => {
         const freq = langCtx.getFrequency(entry.word);
         if (!allowedWords.has(entry.word)) continue;
         capturedSuggestionWords.add(entry.word);
-        let image = capturedPages.get(entry.pageId);
-        if (image === undefined) {
-          const pageImage = imageRefs()[entry.pageId];
-          if (!pageImage) {
-            image = null;
-          } else {
-            const cardId = `reader-page-${entry.pageId}-${Date.now()}`;
-            image = await captureReaderImageForFlashcard(pageImage, cardId);
-          }
-          capturedPages.set(entry.pageId, image);
-        }
+        const pageImage = imageRefs()[entry.pageId];
+        const anchorRect = getAnchorRectForWord(entry) ?? undefined;
+        // No reliable occurrence geometry means no image. The suggestion is
+        // still recorded with its text and context; it simply carries no
+        // media rather than a misleading page picture.
+        const image = pageImage && anchorRect
+          ? await captureReaderImageForOccurrence(pageImage, anchorRect, { cropPadding: settings.ocr_crop_padding })
+          : null;
         void flashcardCtx.captureSuggestedFlashcard({
           word: entry.word,
           reading: freq?.reading,

@@ -4,9 +4,7 @@ import type { WordStatus } from '../../../shared/constants';
 import type { WordLookupCandidateOptions } from '../../hooks/useTranslation';
 import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { getLogger } from '../../../shared/utils/logger';
-import { getBridge } from '../../../shared/bridges';
-import { generateUUID } from '../../services/srsAlgorithm';
-import { captureElementAndSave } from '../../services/canvasCapture';
+import { captureElementToDataUrl } from '../../services/canvasCapture';
 import { extractDefinitionValues, extractReadingValue } from '../../utils/translationCacheParsers';
 import {
   extractProsodyFromTranslationData,
@@ -234,10 +232,10 @@ export function resolveProsodyForHover(
   );
 }
 
-async function screenshotVideo(cardId: string): Promise<string> {
+async function screenshotVideo(): Promise<string> {
   const video = document.querySelector('video') as HTMLVideoElement | null;
   if (!video || video.readyState < 2) return '';
-  return (await captureElementAndSave(video, cardId)) ?? '';
+  return captureElementToDataUrl(video) ?? '';
 }
 
 function extractExampleHtml(wordUuid: string | undefined, fallbackText: string): string {
@@ -268,7 +266,6 @@ async function captureOcrScreenshot(
   anchorRect: DOMRect | undefined,
   ocrImageElement: HTMLImageElement | null | undefined,
   ocrCropPadding?: number,
-  cardId?: string,
 ): Promise<string> {
   try {
     let pageImg = ocrImageElement;
@@ -370,10 +367,7 @@ async function captureOcrScreenshot(
     ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
     ctx.restore();
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-    if (!cardId) return dataUrl;
-    const saved = await getBridge().flashcards.saveFlashcardImage(cardId, dataUrl);
-    return saved ?? '';
+    return canvas.toDataURL('image/jpeg', 0.5);
   } catch (e) {
     log.error("error", e);
     return '';
@@ -410,15 +404,16 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
   ).reading, params.languageData);
   const reading = rawReading && rawReading !== word ? rawReading : '';
   const prosody = extractProsodyFromTranslationData(params.translationData, params.languageData, reading);
-  const cardId = generateUUID();
+  // Capture produces PREPARED bytes, never a stored file. The card that ends
+  // up owning this content persists them under its own id in `addFlashcard`,
+  // so an abandoned or rejected capture leaves nothing behind.
   let screenshot = '';
   if (params.screenshotDataUrl) {
-    const saved = await getBridge().flashcards.saveFlashcardImage(cardId, params.screenshotDataUrl);
-    screenshot = saved ?? '';
+    screenshot = params.screenshotDataUrl;
   } else if (params.isOcr) {
-    screenshot = await captureOcrScreenshot(params.anchorRect, params.ocrImageElement, params.ocrCropPadding, cardId);
+    screenshot = await captureOcrScreenshot(params.anchorRect, params.ocrImageElement, params.ocrCropPadding);
   } else {
-    screenshot = await screenshotVideo(cardId);
+    screenshot = await screenshotVideo();
   }
 
   let exampleHtml: string;
@@ -456,6 +451,8 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
   };
 
   if (screenshot) {
+    // Both fields carry the same prepared observation; `addFlashcard` adopts
+    // it once and repoints the alias at the stored file.
     content.imageUrl = screenshot;
     content.screenshotUrl = screenshot;
   }

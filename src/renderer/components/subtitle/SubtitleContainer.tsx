@@ -43,6 +43,7 @@ export interface SubtitleContainerProps {
   subtitleEnd?: number;
   /** Video source URL (for video clip flashcards) */
   videoSrc?: string;
+  /** Prepared image data URL for the current video frame (see WordHoverProps). */
   lastScreenshot?: string;
   /** Stable identity of the current media cue within a playback visit. */
   encounterId?: string;

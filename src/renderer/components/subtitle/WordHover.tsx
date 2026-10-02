@@ -28,7 +28,6 @@ import {
   type WordHoverTranslationData,
 } from './wordHoverHelpers';
 import { clipVideo } from '../../services/videoClipService';
-import { getBridge } from '../../../shared/bridges';
 import { showToast } from '../common/Feedback/Toast';
 import { reportCaptureFailure } from '../../services/wordCaptureFailure';
 import { getTokenDisplayForms, getTokenWordFormCandidates } from '../../utils/wordForms';
@@ -450,27 +449,22 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           screenshotDataUrl: props.lastScreenshot,
         });
 
-        // If video mode, clip and save the video segment
+        // If video mode, clip the segment. The clip is handed to
+        // `addFlashcard`, which stores it under the new card's own id. Saving
+        // it here under a word-derived id created files that no delete path
+        // could reach, so they survived the card they belonged to.
+        let videoClip: Uint8Array | null = null;
         if (isVideoMode && props.videoSrc && props.subtitleStart != null && props.subtitleEnd != null) {
           const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
           const start = Math.max(0, props.subtitleStart - margin);
           const end = props.subtitleEnd + margin;
-          const videoData = await clipVideo(props.videoSrc, start, end);
-          if (videoData) {
-            const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
-            const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
-            if (videoUrl) {
-              content.videoUrl = videoUrl;
-              content.skipExampleTts = true;
-            } else {
-              showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
-            }
-          } else {
+          videoClip = await clipVideo(props.videoSrc, start, end);
+          if (!videoClip) {
             showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
           }
         }
 
-        await addFlashcard(content, ease, undefined, settings.language);
+        await addFlashcard(content, ease, undefined, settings.language, videoClip);
           // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
         // One announcement owner for every capture surface, so "did my card get

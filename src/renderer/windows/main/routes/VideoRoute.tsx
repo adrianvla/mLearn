@@ -33,7 +33,6 @@ import { reportCaptureFailure } from '../../../services/wordCaptureFailure';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords, planSubtitleCapture, recordCaptureAttempt, type SubtitleCaptureState } from '../../../utils/suggestedFlashcards';
 import { tokensToColoredHtml, parseWorkName, type ParseWorkNameOptions } from '../../../utils/subtitleParsing';
-import { toUniqueIdentifier } from '../../../services/statsService';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../../services/cloudSessionManager';
 import {
@@ -571,9 +570,12 @@ export const VideoRoute: Component = () => {
 
       void (async () => {
         try {
-          const batchImageId = crypto.randomUUID();
+          // Capture the frame as PREPARED bytes. This batch may admit any
+          // number of suggestions, so a durable file written here would have
+          // no owner: if every word is filtered out, nothing references it.
+          // Each admitted suggestion adopts these bytes under its own id.
           const [image, allowedWords] = await Promise.all([
-            captureVideoFrameForFlashcard(batchImageId),
+            captureVideoFrameForFlashcard(),
             filterSuggestedWords(
               captureEntries.map(entry => entry.word),
               settings.language,
@@ -644,6 +646,8 @@ export const VideoRoute: Component = () => {
       next.add(entry.key);
       return next;
     });
+    // Prepared media, adopted by the card once it exists. Never persisted here.
+    let videoClip: Uint8Array | null = null;
     try {
       const word = entry.word;
       const cached = getCachedTranslation(word, settings.language, wordLookupOptions);
@@ -673,8 +677,6 @@ export const VideoRoute: Component = () => {
         srsKnownEase: settings.known_ease_threshold / 1000,
       });
 
-      const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
-
       // If video mode, clip and save the video segment
       log.info('[VideoRoute] addVideoWordFlashcard: flashcardMediaType=', settings.flashcardMediaType, 'videoSrc=', videoSrc(), 'subtitleStart=', entry.subtitleStart, 'subtitleEnd=', entry.subtitleEnd);
       if (settings.flashcardMediaType === 'video' && videoSrc() && entry.subtitleStart != null && entry.subtitleEnd != null) {
@@ -685,15 +687,11 @@ export const VideoRoute: Component = () => {
         const videoData = await clipVideo(videoSrc(), start, end);
         log.info('[VideoRoute] addVideoWordFlashcard: clipVideo result=', videoData == null ? 'null' : `Uint8Array(${videoData.byteLength})`);
         if (videoData) {
-          const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
-          log.info('[VideoRoute] addVideoWordFlashcard: saveFlashcardVideo result=', videoUrl);
-          if (videoUrl) {
-            content.videoUrl = videoUrl;
-            content.skipExampleTts = true;
-            log.info('[VideoRoute] addVideoWordFlashcard: content.videoUrl set to', videoUrl);
-          } else {
-            showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
-          }
+          // Hold the clip until the card exists: `addFlashcard` stores it
+          // under the card's own id. Saving it here under a word-derived id
+          // produced files no delete path could ever reach.
+          videoClip = videoData;
+          log.info('[VideoRoute] addVideoWordFlashcard: video clip prepared');
         } else {
           showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
         }
@@ -701,12 +699,14 @@ export const VideoRoute: Component = () => {
         log.info('[VideoRoute] addVideoWordFlashcard: skipping video clip — condition not met');
       }
 
-      const imageUrl = await captureVideoFrameForFlashcard(cardId);
+      const imageUrl = await captureVideoFrameForFlashcard();
       if (imageUrl) {
         content.imageUrl = imageUrl;
       }
 
-      await flashcardCtx.addFlashcard(content, ease, undefined, settings.language);
+      // Media is adopted by the card that owns it. `addFlashcard` persists
+      // the prepared frame and clip under the id it assigns.
+      await flashcardCtx.addFlashcard(content, ease, undefined, settings.language, videoClip);
     } finally {
       setAddingSidebarWords(prev => {
         const next = new Set(prev);

@@ -18,7 +18,6 @@ import { useTokenizer, useTranslation, getCachedTranslation } from '../../hooks/
 import { useWatchTogether } from '../../hooks/useWatchTogether';
 import { cleanContextPhrase } from '../../utils/phraseExtraction';
 import { isWordInLanguageScript } from '../../../shared/utils/textUtils';
-import { toUniqueIdentifier } from '../../services/statsService';
 import { buildWordHoverFlashcardContent } from '../../components/subtitle/wordHoverHelpers';
 import { addAllCapturedWords } from '../../services/addAllCapturedWords';
 import { resolveCapturedWordEligibility } from '../../services/wordCaptureEligibility';
@@ -295,12 +294,14 @@ export const App: Component = () => {
     );
 
     cleanups.push(
-      bridge.overlay.onOverlayVideoScreenshot(async (screenshot: { dataUrl: string; timestamp: number }) => {
-        const cardId = `overlay-screenshot-${Date.now()}`;
-        const fileUrl = await getBridge().flashcards.saveFlashcardImage(cardId, screenshot.dataUrl);
-        if (fileUrl) {
-          setLastScreenshot(fileUrl);
-        }
+      // A captured frame is an OBSERVATION of the video, not a flashcard.
+      // The extension sends one on every pause and seek - including for
+      // videos that are not language content at all - so persisting here
+      // filled flashcard-images with frames that no card ever referenced.
+      // Hold it in memory; the image is written only if and when a capture
+      // surface adopts it into a real card (see `buildWordHoverFlashcardContent`).
+      bridge.overlay.onOverlayVideoScreenshot((screenshot: { dataUrl: string; timestamp: number }) => {
+        setLastScreenshot(screenshot.dataUrl);
       })
     );
 
@@ -728,26 +729,20 @@ export const App: Component = () => {
         screenshotDataUrl: lastScreenshot() || undefined,
       });
 
+      // Prepared only. `addFlashcard` stores the clip under the card's own id,
+      // so the clip can never outlive the card it belongs to.
+      let videoClip: Uint8Array | null = null;
       if (settings.flashcardMediaType === 'video' && (videoState()?.videoSrc || videoState()?.url) && entry.subtitleStart != null && entry.subtitleEnd != null) {
         const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
         const start = Math.max(0, entry.subtitleStart - margin);
         const end = entry.subtitleEnd + margin;
-        const videoData = await clipVideo(videoState()?.videoSrc || videoState()!.url!, start, end);
-        if (videoData) {
-          const cardId = content.word ? await toUniqueIdentifier(content.word) : crypto.randomUUID();
-          const videoUrl = await getBridge().flashcards.saveFlashcardVideo(cardId, videoData.buffer as ArrayBuffer);
-          if (videoUrl) {
-            content.videoUrl = videoUrl;
-            content.skipExampleTts = true;
-          } else {
-            showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
-          }
-        } else {
+        videoClip = await clipVideo(videoState()?.videoSrc || videoState()!.url!, start, end);
+        if (!videoClip) {
           showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
         }
       }
 
-      await flashcardCtx.addFlashcard(content, ease, undefined, settings.language);
+      await flashcardCtx.addFlashcard(content, ease, undefined, settings.language, videoClip);
     } finally {
       setAddingSidebarWords(prev => { const next = new Set(prev); next.delete(entry.key); return next; });
     }

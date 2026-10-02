@@ -13,7 +13,7 @@ import { startupDuration, startupMark, startupTime } from '../startupTiming';
 const SCHEMA = 1;
 const MAX_SNAPSHOTS = 8;
 const DATA_FILES = ['flashcards.json', 'world.json', 'settings.json', 'kv-store.json', 'knowledge-events.json', 'knowledge-events.json.migrated', 'voice-samples.json'] as const;
-const DATA_DIRS = ['journal', 'flashcard-images', 'flashcard-video', 'voice-samples', 'media-stats'] as const;
+const DATA_DIRS = ['journal', 'flashcard-images', 'flashcard-videos', 'voice-samples', 'media-stats'] as const;
 const IMPORT_DIRS = [...DATA_DIRS, 'flashcard-audio'] as const;
 const DB_FILE = 'knowledge-history.sqlite3';
 const RESTORE_ITEMS = [...DATA_FILES, ...IMPORT_DIRS, DB_FILE, `${DB_FILE}-wal`, `${DB_FILE}-shm`] as const;

@@ -1,4 +1,3 @@
-import { getBridge } from '../../shared/bridges';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('renderer.services.canvasCapture');
@@ -94,18 +93,4 @@ export function captureElementToDataUrl(
     log.error('Failed to capture element:', e);
     return null;
   }
-}
-
-/**
- * Capture a video or image element and save it via the flashcard image bridge.
- * @returns flashcard-image:// URL, or null when capture or save fails.
- */
-export async function captureElementAndSave(
-  source: HTMLVideoElement | HTMLImageElement,
-  cardId: string,
-  options?: CanvasCaptureOptions,
-): Promise<string | null> {
-  const dataUrl = captureElementToDataUrl(source, options);
-  if (!dataUrl) return null;
-  return await getBridge().flashcards.saveFlashcardImage(cardId, dataUrl);
 }

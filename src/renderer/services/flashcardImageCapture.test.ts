@@ -14,7 +14,7 @@ vi.mock('../../shared/bridges', () => ({
 import {
   captureFlashcardImage,
   captureVideoFrameForFlashcard,
-  captureReaderImageForFlashcard,
+  captureReaderImageForOccurrence,
   captureFallbackImage,
 } from './flashcardImageCapture';
 
@@ -39,6 +39,22 @@ function mockCanvasCreation(dataUrl: string | null = 'data:image/jpeg;base64,FAK
   return { canvas, ctx };
 }
 
+function readyVideo(width = 640, height = 360): HTMLVideoElement {
+  const video = document.createElement('video');
+  Object.defineProperty(video, 'videoWidth', { value: width, writable: true });
+  Object.defineProperty(video, 'videoHeight', { value: height, writable: true });
+  Object.defineProperty(video, 'readyState', { value: HAVE_CURRENT_DATA_READY_STATE, writable: true });
+  return video;
+}
+
+function readyImage(naturalWidth = 800, naturalHeight = 1200): HTMLImageElement {
+  const img = document.createElement('img');
+  Object.defineProperty(img, 'naturalWidth', { value: naturalWidth, writable: true });
+  Object.defineProperty(img, 'naturalHeight', { value: naturalHeight, writable: true });
+  Object.defineProperty(img, 'complete', { value: true, writable: true });
+  return img;
+}
+
 describe('flashcardImageCapture', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,200 +65,139 @@ describe('flashcardImageCapture', () => {
     document.createElement = originalCreateElement;
   });
 
-  describe('captureFlashcardImage', () => {
-    it('returns a flashcard-image:// URL on success', async () => {
+  describe('durable-write ownership', () => {
+    it('never persists a capture: an observation has no owner yet', async () => {
       mockCanvasCreation('data:image/jpeg;base64,OK');
-      mockSaveFlashcardImage.mockResolvedValue('flashcard-image://card-1');
 
-      const video = document.createElement('video');
-      Object.defineProperty(video, 'videoWidth', { value: 640, writable: true });
-      Object.defineProperty(video, 'videoHeight', { value: 360, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HAVE_CURRENT_DATA_READY_STATE, writable: true });
+      const result = await captureFlashcardImage(readyVideo());
 
-      const result = await captureFlashcardImage(video, 'card-1');
-
-      expect(result).toBe('flashcard-image://card-1');
-      expect(mockSaveFlashcardImage).toHaveBeenCalledWith('card-1', 'data:image/jpeg;base64,OK');
-    });
-
-    it('returns null when the source has no dimensions', async () => {
-      mockCanvasCreation();
-      mockSaveFlashcardImage.mockResolvedValue('flashcard-image://card-2');
-
-      const video = document.createElement('video');
-      Object.defineProperty(video, 'videoWidth', { value: 0, writable: true });
-      Object.defineProperty(video, 'videoHeight', { value: 0, writable: true });
-      Object.defineProperty(video, 'clientWidth', { value: 0, writable: true });
-      Object.defineProperty(video, 'clientHeight', { value: 0, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HAVE_CURRENT_DATA_READY_STATE, writable: true });
-
-      const result = await captureFlashcardImage(video, 'card-2', { readinessTimeoutMs: 0 });
-
-      expect(result).toBeNull();
+      expect(result).toBe('data:image/jpeg;base64,OK');
       expect(mockSaveFlashcardImage).not.toHaveBeenCalled();
     });
 
-    it('retries and succeeds when the video becomes ready after waiting', async () => {
-      vi.useFakeTimers();
-      mockCanvasCreation('data:image/jpeg;base64,RETRY');
-      mockSaveFlashcardImage.mockResolvedValue('flashcard-image://card-3');
+    it('repeated captures of the same video do not leak durable files', async () => {
+      mockCanvasCreation('data:image/jpeg;base64,FRAME');
+      const video = readyVideo();
+      document.querySelector = vi.fn((selector: string) => (selector === 'video' ? video : null)) as never;
 
-      const video = document.createElement('video');
-      Object.defineProperty(video, 'videoWidth', { value: 0, writable: true });
-      Object.defineProperty(video, 'videoHeight', { value: 0, writable: true });
-      Object.defineProperty(video, 'clientWidth', { value: 0, writable: true });
-      Object.defineProperty(video, 'clientHeight', { value: 0, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HTMLMediaElement.HAVE_NOTHING, writable: true });
+      for (let i = 0; i < 25; i += 1) {
+        expect(await captureVideoFrameForFlashcard()).toBe('data:image/jpeg;base64,FRAME');
+      }
 
-      const capturePromise = captureFlashcardImage(video, 'card-3', { readinessTimeoutMs: 500 });
+      expect(mockSaveFlashcardImage).not.toHaveBeenCalled();
+    });
+  });
 
-      await vi.advanceTimersByTimeAsync(50);
-      Object.defineProperty(video, 'videoWidth', { value: 640, writable: true });
-      Object.defineProperty(video, 'videoHeight', { value: 360, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HAVE_CURRENT_DATA_READY_STATE, writable: true });
-      video.dispatchEvent(new Event('canplay'));
+  describe('captureFlashcardImage', () => {
+    it('returns prepared image bytes on success', async () => {
+      mockCanvasCreation('data:image/jpeg;base64,OK');
 
-      const result = await capturePromise;
+      const result = await captureFlashcardImage(readyVideo());
 
-      expect(result).toBe('flashcard-image://card-3');
-      expect(mockSaveFlashcardImage).toHaveBeenCalledWith('card-3', 'data:image/jpeg;base64,RETRY');
-
-      vi.useRealTimers();
+      expect(result).toBe('data:image/jpeg;base64,OK');
     });
 
-    it('uses fallback when primary capture fails but fallback succeeds', async () => {
-      const { canvas } = mockCanvasCreation();
-      mockSaveFlashcardImage.mockResolvedValue('flashcard-image://card-4');
+    it('returns null when the source cannot be captured', async () => {
+      mockCanvasCreation(null);
 
-      canvas.toDataURL = vi
-        .fn()
-        .mockReturnValueOnce(null)
-        .mockReturnValue('data:image/jpeg;base64,FALLBACK');
-
-      const img = document.createElement('img');
-      Object.defineProperty(img, 'naturalWidth', { value: 800, writable: true });
-      Object.defineProperty(img, 'naturalHeight', { value: 600, writable: true });
-      Object.defineProperty(img, 'complete', { value: true, writable: true });
-
-      const result = await captureFlashcardImage(img, 'card-4');
-
-      expect(result).toBe('flashcard-image://card-4');
-      expect(mockSaveFlashcardImage).toHaveBeenCalledWith('card-4', 'data:image/jpeg;base64,FALLBACK');
-    });
-
-    it('returns null when primary capture and retry both fail for video', async () => {
-      vi.useFakeTimers();
-      mockCanvasCreation();
-      mockSaveFlashcardImage.mockResolvedValue('flashcard-image://fallback');
-
-      const video = document.createElement('video');
-      Object.defineProperty(video, 'videoWidth', { value: 0, writable: true });
-      Object.defineProperty(video, 'videoHeight', { value: 0, writable: true });
-      Object.defineProperty(video, 'clientWidth', { value: 0, writable: true });
-      Object.defineProperty(video, 'clientHeight', { value: 0, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HTMLMediaElement.HAVE_NOTHING, writable: true });
-
-      const capturePromise = captureFlashcardImage(video, 'card-fail', { readinessTimeoutMs: 50 });
-      await vi.advanceTimersByTimeAsync(100);
-      const result = await capturePromise;
+      const result = await captureFlashcardImage(readyVideo());
 
       expect(result).toBeNull();
-      expect(mockSaveFlashcardImage).not.toHaveBeenCalled();
-
-      vi.useRealTimers();
     });
   });
 
   describe('captureVideoFrameForFlashcard', () => {
-    it('returns null when no video element is present', async () => {
-      document.querySelector = vi.fn(() => null);
+    it('returns prepared image bytes for the current video', async () => {
+      mockCanvasCreation('data:image/jpeg;base64,OK');
+      const video = readyVideo(1280, 720);
+      document.querySelector = vi.fn((selector: string) => (selector === 'video' ? video : null)) as never;
 
-      const result = await captureVideoFrameForFlashcard('card-5');
+      const result = await captureVideoFrameForFlashcard();
 
-      expect(result).toBeNull();
+      expect(result).toBe('data:image/jpeg;base64,OK');
+      expect(mockSaveFlashcardImage).not.toHaveBeenCalled();
     });
 
-    it('captures the current video element when it is ready', async () => {
-      mockCanvasCreation('data:image/jpeg;base64,VIDEO');
-      mockSaveFlashcardImage.mockResolvedValue('flashcard-image://card-6');
+    it('returns null when there is no video', async () => {
+      document.querySelector = vi.fn(() => null) as never;
 
-      const video = document.createElement('video');
-      Object.defineProperty(video, 'videoWidth', { value: 1280, writable: true });
-      Object.defineProperty(video, 'videoHeight', { value: 720, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HAVE_CURRENT_DATA_READY_STATE, writable: true });
-
-      document.querySelector = vi.fn((selector: string) => (selector === 'video' ? video : null));
-
-      const result = await captureVideoFrameForFlashcard('card-6');
-
-      expect(result).toBe('flashcard-image://card-6');
+      expect(await captureVideoFrameForFlashcard()).toBeNull();
     });
   });
 
-  describe('captureReaderImageForFlashcard', () => {
-    it('returns a flashcard-image:// URL for a ready page image', async () => {
-      mockCanvasCreation('data:image/jpeg;base64,PAGE');
-      mockSaveFlashcardImage.mockResolvedValue('flashcard-image://card-7');
-
-      const img = document.createElement('img');
-      Object.defineProperty(img, 'naturalWidth', { value: 800, writable: true });
-      Object.defineProperty(img, 'naturalHeight', { value: 1200, writable: true });
-      Object.defineProperty(img, 'complete', { value: true, writable: true });
-
-      const result = await captureReaderImageForFlashcard(img, 'card-7');
-
-      expect(result).toBe('flashcard-image://card-7');
-    });
-
-    it('falls back to an anchor-based crop when full capture fails', async () => {
-      const { canvas, ctx } = mockCanvasCreation();
-      mockSaveFlashcardImage.mockResolvedValue('flashcard-image://card-8');
-
-      canvas.toDataURL = vi
-        .fn()
-        .mockReturnValueOnce(null)
-        .mockReturnValueOnce(null)
-        .mockReturnValue('data:image/jpeg;base64,CROP');
-
-      const img = document.createElement('img');
-      Object.defineProperty(img, 'naturalWidth', { value: 1000, writable: true });
-      Object.defineProperty(img, 'naturalHeight', { value: 1500, writable: true });
-      Object.defineProperty(img, 'complete', { value: true, writable: true });
+  describe('captureReaderImageForOccurrence', () => {
+    it('crops to the target occurrence rather than the whole page', async () => {
+      const { canvas, ctx } = mockCanvasCreation('data:image/jpeg;base64,CROP');
+      const img = readyImage(1000, 1500);
       img.getBoundingClientRect = vi.fn(() => new DOMRect(0, 0, 500, 750));
 
-      const anchorRect = new DOMRect(200, 300, 100, 50);
-      const result = await captureReaderImageForFlashcard(img, 'card-8', {
-        anchorRect,
+      const result = await captureReaderImageForOccurrence(img, new DOMRect(200, 300, 100, 50), {
         cropPadding: 40,
       });
 
-      expect(result).toBe('flashcard-image://card-8');
+      expect(result).toBe('data:image/jpeg;base64,CROP');
       expect(ctx.drawImage).toHaveBeenCalled();
+      expect(mockSaveFlashcardImage).not.toHaveBeenCalled();
+    });
+
+    it('returns null without an anchor: a targetless page image is not card media', async () => {
+      const { ctx } = mockCanvasCreation('data:image/jpeg;base64,PAGE');
+      const img = readyImage();
+      img.getBoundingClientRect = vi.fn(() => new DOMRect(0, 0, 500, 750));
+
+      expect(await captureReaderImageForOccurrence(img, undefined)).toBeNull();
+      expect(ctx.drawImage).not.toHaveBeenCalled();
+      expect(mockSaveFlashcardImage).not.toHaveBeenCalled();
+    });
+
+    it('returns null for a zero-sized anchor', async () => {
+      mockCanvasCreation('data:image/jpeg;base64,PAGE');
+      const img = readyImage();
+      img.getBoundingClientRect = vi.fn(() => new DOMRect(0, 0, 500, 750));
+
+      expect(await captureReaderImageForOccurrence(img, new DOMRect(10, 10, 0, 0))).toBeNull();
+    });
+
+    it('returns null for a page image that never decoded', async () => {
+      mockCanvasCreation('data:image/jpeg;base64,CROP');
+      const img = readyImage();
+      Object.defineProperty(img, 'naturalWidth', { value: 0, writable: true });
+      Object.defineProperty(img, 'naturalHeight', { value: 0, writable: true });
+      img.getBoundingClientRect = vi.fn(() => new DOMRect(0, 0, 500, 750));
+
+      expect(await captureReaderImageForOccurrence(img, new DOMRect(200, 300, 100, 50))).toBeNull();
+    });
+
+    it('produces a distinct capture per occurrence on one page', async () => {
+      const { canvas, ctx } = mockCanvasCreation('data:image/jpeg;base64,CROP');
+      const img = readyImage(1000, 1500);
+      img.getBoundingClientRect = vi.fn(() => new DOMRect(0, 0, 500, 750));
+
+      await captureReaderImageForOccurrence(img, new DOMRect(100, 100, 60, 40), { cropPadding: 40 });
+      const firstDraw = ctx.drawImage.mock.calls[0].slice(1);
+
+      await captureReaderImageForOccurrence(img, new DOMRect(380, 600, 60, 40), { cropPadding: 40 });
+      const secondDraw = ctx.drawImage.mock.calls[1].slice(1);
+
+      expect(firstDraw).not.toEqual(secondDraw);
+      expect(canvas.toDataURL).toHaveBeenCalledTimes(2);
+      // Sharing source decoding is fine; sharing a targetless final image is not.
+      expect(mockSaveFlashcardImage).not.toHaveBeenCalled();
     });
   });
 
   describe('captureFallbackImage', () => {
-    it('returns a flashcard-image:// URL for an image via center crop', async () => {
+    it('returns prepared center-crop bytes for an image', async () => {
       mockCanvasCreation('data:image/jpeg;base64,CENTER');
-      mockSaveFlashcardImage.mockResolvedValue('flashcard-image://card-9');
 
-      const img = document.createElement('img');
-      Object.defineProperty(img, 'naturalWidth', { value: 800, writable: true });
-      Object.defineProperty(img, 'naturalHeight', { value: 600, writable: true });
-      Object.defineProperty(img, 'complete', { value: true, writable: true });
+      const result = await captureFallbackImage(readyImage(800, 600));
 
-      const result = await captureFallbackImage(img, 'card-9');
-
-      expect(result).toBe('flashcard-image://card-9');
+      expect(result).toBe('data:image/jpeg;base64,CENTER');
+      expect(mockSaveFlashcardImage).not.toHaveBeenCalled();
     });
 
     it('returns null for a video source', async () => {
-      const video = document.createElement('video');
-      Object.defineProperty(video, 'videoWidth', { value: 0, writable: true });
-      Object.defineProperty(video, 'videoHeight', { value: 0, writable: true });
-      Object.defineProperty(video, 'readyState', { value: HTMLMediaElement.HAVE_NOTHING, writable: true });
-
-      const result = await captureFallbackImage(video, 'card-10');
+      const result = await captureFallbackImage(readyVideo());
 
       expect(result).toBeNull();
     });
