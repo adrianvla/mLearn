@@ -53,6 +53,7 @@ const settingsBridge: SettingsBridge = {
 };
 
 const flashcardBridge: FlashcardBridge = {
+  commitFlashcardRating: command => getIPC().commitFlashcardRating(command),
   enqueueFlashcardRating: command => getIPC().enqueueFlashcardRating(command),
   flushFlashcardRatings: () => getIPC().flushFlashcardRatings(),
   onFlashcardRatingsCommitted: callback => getIPC().onFlashcardRatingsCommitted(callback),

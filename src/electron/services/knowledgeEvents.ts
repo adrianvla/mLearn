@@ -1,3 +1,4 @@
+import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
 import fs from 'fs';
 import path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
@@ -57,6 +58,12 @@ function scheduleSave(): void {
 export function whenKnowledgeEventsReady(): Promise<void> {
   return readyPromise;
 }
+
+/** Internal persistence ownership; these records are not learner evidence. */
+export const reserveRatingCommand = (command: FlashcardRatingCommand, validateAdmission?: () => void) => ensureStore().reserveRatingCommand(command, validateAdmission);
+export const ratingLedgerId = (): string => ensureStore().ratingLedgerId;
+export const pendingRatingCommands = () => ensureStore().pendingRatingCommands();
+export const completeRatingCommands = (throughSequence: number, revision: number): void => ensureStore().completeRatingCommands(throughSequence, revision);
 
 /**
  * Open the store and, on first run, migrate the legacy JSON journal.

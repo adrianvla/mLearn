@@ -12,6 +12,31 @@ import { COMPACTION_KEY_BUDGET, KnowledgeHistoryStore, isKnowledgeEvent } from '
 
 const DAY = 24 * 60 * 60 * 1000;
 
+describe('durable rating command ownership', () => {
+  it('retains the exact command across restart without making it learning evidence', () => {
+    const file = path.join(dir, 'rating-command.sqlite3');
+    const first = KnowledgeHistoryStore.open(file);
+    const command = { attemptId: 'physical-response', events: {}, patch: { baseRev: 4, entries: [
+      { path: ['meta', 'future-owned-value'], before: undefined, after: { arbitrary: ['unknown', { value: 3 }] } },
+    ] } };
+    const accepted = first.reserveRatingCommand(command);
+    expect(accepted.sequence).toBe(1);
+    expect(first.sequenceCounter).toBe(0);
+    first.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    expect(restarted.pendingRatingCommands()).toEqual([accepted]);
+    // Retries use the admitted payload, not a reconstructed response.
+    expect(restarted.reserveRatingCommand({ ...command, events: { replacement: [] } })).toEqual(accepted);
+    restarted.completeRatingCommands(1, 6);
+    expect(restarted.pendingRatingCommands()).toEqual([]);
+    restarted.close();
+    const finished = KnowledgeHistoryStore.open(file);
+    expect(finished.reserveRatingCommand(command)).toMatchObject({ sequence: 1, revision: 6 });
+    expect(finished.sequenceCounter).toBe(0);
+    finished.close();
+  });
+});
+
 describe('canonical observation idempotency', () => {
   it('deduplicates retries while accepting distinct accesses of one attempt', () => {
     const s = store();

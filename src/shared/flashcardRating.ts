@@ -6,6 +6,8 @@ export interface FlashcardRatingCommand {
   attemptId: string;
   patch: StorePatch;
   events: KnowledgeEventLog;
+  /** First admission must still address these captured card pre-images. */
+  guardCardIds?: readonly string[];
   /** Additive counters must survive another window rating from the same revision. */
   counterDeltas?: readonly {
     path: readonly string[];
@@ -42,4 +44,28 @@ export function applyFlashcardRatingCommand<T extends object>(source: T, command
   return copyStoreWithPatch(result, { baseRev: command.patch.baseRev, entries: counters.map(({ path, value }) => ({
     path, before: getStorePath(result as Record<string, unknown>, path), after: value,
   })) });
+}
+
+/** Scheduling counters compose across windows independently of their scalar pre-images. */
+export function ratingCounterDeltas(patch: StorePatch): NonNullable<FlashcardRatingCommand['counterDeltas']> {
+  const counterDeltas: NonNullable<FlashcardRatingCommand['counterDeltas']>[number][] = [];
+  for (const entry of patch.entries) {
+    const fields = entry.path[0] === 'flashcards' ? ['reviews', 'lapses']
+      : entry.path[0] === 'meta' ? ['newCardsToday', 'reviewsToday']
+        : entry.path[0] === 'dailyStats' ? ['newCardsStudied', 'reviewCardsStudied', 'lapses', 'timeSpent', 'graduated'] : [];
+    for (const field of fields) {
+      const changedDate = entry.path[0] === 'meta' &&
+        (entry.before as Record<string, unknown> | undefined)?.newCardsDate !==
+        (entry.after as Record<string, unknown> | undefined)?.newCardsDate;
+      const before = changedDate ? 0 : (entry.before as Record<string, unknown> | undefined)?.[field] ?? 0;
+      const after = (entry.after as Record<string, unknown> | undefined)?.[field];
+      if (typeof before === 'number' && typeof after === 'number' && before !== after) {
+        counterDeltas.push({ path: [...entry.path, field], delta: after - before,
+          ...(entry.path[0] === 'meta' ? { scope: { path: [...entry.path, 'newCardsDate'],
+            value: (entry.after as Record<string, unknown>).newCardsDate } } : {}),
+        });
+      }
+    }
+  }
+  return counterDeltas;
 }

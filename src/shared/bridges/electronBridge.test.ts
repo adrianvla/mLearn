@@ -9,6 +9,7 @@ function createMockIPC() {
     onSettingsSaved: vi.fn(),
     getFlashcards: vi.fn(),
     saveFlashcards: vi.fn(),
+    commitFlashcardRating: vi.fn(),
     onFlashcards: vi.fn(),
     onFlashcardLoadError: vi.fn(),
     onNewDayFlashcards: vi.fn(),
@@ -275,6 +276,15 @@ describe('settingsBridge', () => {
 });
 
 describe('flashcardBridge', () => {
+  it('returns the main-owned review acknowledgement with its authoritative patch', async () => {
+    const bridge = createElectronBridge();
+    const command = { attemptId: 'one-encounter', patch: { baseRev: 8, entries: [] }, events: {} };
+    const acknowledgement = { patch: command.patch, rev: 9, attemptIds: [command.attemptId] };
+    mockIPC.commitFlashcardRating.mockResolvedValueOnce(acknowledgement);
+    await expect(bridge.flashcards.commitFlashcardRating(command)).resolves.toBe(acknowledgement);
+    expect(mockIPC.commitFlashcardRating).toHaveBeenCalledWith(command);
+  });
+
   it('getFlashcards delegates to ipc.getFlashcards', () => {
     const bridge = createElectronBridge();
     bridge.flashcards.getFlashcards();

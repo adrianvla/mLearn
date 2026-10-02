@@ -623,6 +623,10 @@ async function saveShardedFlashcards(store: FlashcardStore): Promise<void> {
 // ============================================================================
 
 const flashcardBridge: FlashcardBridge = {
+  async commitFlashcardRating(command) {
+    const rev = await this.enqueueFlashcardRating(command);
+    return { patch: command.patch, rev, attemptIds: [command.attemptId] };
+  },
   async enqueueFlashcardRating(command) {
     if (!await knowledgeEventsBridge.appendKnowledgeEvents(command.events)) throw new Error('Rating journal append refused');
     return this.saveFlashcardPatch(command.patch);

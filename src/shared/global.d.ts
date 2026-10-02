@@ -17,6 +17,7 @@ import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQ
 import type { GraphRelationType } from './graph/types';
 
 export interface MLearnIPC {
+  commitFlashcardRating: (command: FlashcardRatingCommand) => Promise<FlashcardRatingCommit>;
   enqueueFlashcardRating: (command: FlashcardRatingCommand) => Promise<number>;
   flushFlashcardRatings: () => Promise<void>;
   onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) => () => void;

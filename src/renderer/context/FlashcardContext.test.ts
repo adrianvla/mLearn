@@ -1,3 +1,4 @@
+import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
 import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -53,6 +54,7 @@ const mockBridge = {
     saveFlashcards: vi.fn(),
     saveFlashcardPatch: vi.fn(),
     enqueueFlashcardRating: vi.fn().mockResolvedValue(1),
+    commitFlashcardRating: vi.fn(),
     flushFlashcardRatings: vi.fn().mockResolvedValue(undefined),
     onFlashcardRatingsCommitted: vi.fn(() => () => {}),
     onNewDayFlashcards: vi.fn(),
@@ -733,6 +735,11 @@ function resetProviderTestHarness() {
       Promise.resolve((saved?.rev ?? 0) + 1));
     mockBridge.flashcards.enqueueFlashcardRating.mockReset().mockResolvedValue(1);
     mockBridge.flashcards.flushFlashcardRatings.mockReset().mockResolvedValue(undefined);
+    mockBridge.flashcards.commitFlashcardRating.mockReset().mockImplementation(async (command: FlashcardRatingCommand) => {
+      if (await mockAppendEvents(command.events) === false) throw new Error('rating journal append was refused');
+      const rev = await mockBridge.flashcards.saveFlashcardPatch(command.patch);
+      return { patch: command.patch, rev, attemptIds: [command.attemptId] };
+    });
     // Patches are applied to the committed authority, including peer edits.
     mockBridge.flashcards.saveFlashcardPatch.mockReset().mockImplementation((patch: StorePatch, removals, reset, authorization) => {
       const target = structuredClone(committed ?? delivered ?? makeEmptyStore());
@@ -1651,6 +1658,60 @@ describe('FlashcardProvider', () => {
     expect(ctx.store.wordCandidates['ja:別の語']).toEqual(remoteCandidate);
     dispose();
     vi.unstubAllGlobals();
+  });
+
+  it('restores the original pre-review card when a saved response hydrates before its failed ACK is retried', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'recovered-before-retry', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000,
+      content: { type: 'word', front: '学校', back: 'school' } });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    const command = { language: 'ja', attemptId: 'lost-ack' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' as const, tested: ['sense-recognition'] } };
+    let saved!: FlashcardRatingCommand;
+    mockBridge.flashcards.commitFlashcardRating.mockImplementationOnce(async rating => {
+      saved = rating;
+      if (await mockAppendEvents(rating.events) === false) throw new Error('journal failed');
+      throw new Error('acknowledgement interrupted');
+    });
+    try {
+      await expect(ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], command)).rejects.toThrow('acknowledgement interrupted');
+      const recovered = makeEmptyStore({ flashcards: { [card.id]: card } });
+      applyStorePatch(recovered as unknown as Record<string, unknown>, saved.patch);
+      recovered.rev = 1;
+      flashcardsCb(recovered);
+      expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+      await ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], command);
+      await ctx.undoLastAction();
+      expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+      expect(mockBridge.flashcards.saveFlashcards.mock.calls.at(-1)?.[3]).toEqual({
+        kind: 'undo-review', cardId: card.id, restoredReviews: 3,
+      });
+    } finally { dispose(); }
+  });
+
+  it('keeps a durably acknowledged rating successful and undoable when peer publication throws', async () => {
+    vi.stubGlobal('BroadcastChannel', class {
+      postMessage() { throw new Error('channel closed'); }
+      close() {}
+      set onmessage(_handler: (event: MessageEvent) => void) {}
+    });
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'notification-failure', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000,
+      content: { type: 'word', front: '学校', back: 'school' } });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    try {
+      await expect(ctx.submitRating(card.content.front, [], {
+        scheduler: { cardId: card.id, rating: 'good' },
+      })).resolves.toBeDefined();
+      expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+      await ctx.undoLastAction();
+      expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    } finally {
+      dispose();
+      vi.unstubAllGlobals();
+    }
   });
 
   it('broadcasts ratings as small patches and reloads peers that missed a revision', async () => {

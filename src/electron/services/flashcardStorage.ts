@@ -15,7 +15,7 @@ import { staleFlashcardRevisionMessage } from '../../shared/flashcardWriteRevisi
 import type { FlashcardStore, FlashcardWriteAuthorization, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { copyStoreWithPatch, getStorePath, storePatchRecorder, type StorePatch } from '../../shared/utils/storePatch';
-import { applyFlashcardRatingCommand, type FlashcardRatingCommand } from '../../shared/flashcardRating';
+import { applyFlashcardRatingCommand, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
 import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { RatingWriteQueue } from './ratingWriteQueue';
 import { calculateWordStats } from '../../shared/utils/wordStats';
@@ -33,46 +33,99 @@ export const enqueueFlashcardRating = (command: FlashcardRatingCommand): Promise
 export const flushFlashcardRatings = (): Promise<void> => ratingWrites.flush();
 
 function persistRatingCommands(commands: readonly FlashcardRatingCommand[]): Promise<number> {
-  return enqueueWrite(async () => {
-    const filePath = getFlashcardsPath();
-    const current = cachedStorePath === filePath && cachedStore
-      ? cachedStore : await loadFlashcardsFromDisk(filePath, loaded => writeStore(loaded, [], false));
-    const journal = await import('./knowledgeEvents');
-    const { isKnowledgeEvent } = await import('./knowledgeHistoryStore');
-    await journal.whenKnowledgeEventsReady();
-    const events: KnowledgeEventLog = {};
-    for (const command of commands) for (const [key, rows] of Object.entries(command.events)) {
-      if (rows.some(row => !isKnowledgeEvent(row) || row.attemptId !== command.attemptId)) {
-        throw new Error('Invalid flashcard rating evidence');
-      }
-      (events[key] ??= []).push(...rows);
-    }
-    const existing = journal.getKnowledgeEvents(Object.keys(events));
-    const additions: KnowledgeEventLog = {};
-    for (const [key, rows] of Object.entries(events)) {
-      const recorded = new Set((existing[key] ?? []).map(row => row.attemptId));
-      additions[key] = rows.filter(row => !recorded.has(row.attemptId));
-    }
-    await journal.appendKnowledgeEvents(additions);
+  return enqueueWrite(async () => (await commitRatingCommands(commands)).rev);
+}
 
-    let candidate = current;
-    const paths = new Map<string, readonly string[]>();
-    for (const command of commands) {
-      const { patch } = command;
-      candidate = applyFlashcardRatingCommand(candidate, command);
-      for (const entry of patch.entries) paths.set(JSON.stringify(entry.path), entry.path);
-    }
-    const recorder = storePatchRecorder(current as unknown as Record<string, unknown>);
-    for (const path of paths.values()) recorder.set(path, getStorePath(candidate as unknown as Record<string, unknown>, path));
-    const patch = recorder.build(current.rev ?? 0);
-    const rev = await writeStore(candidate, [], false);
-    for (const window of BrowserWindow.getAllWindows()) {
-      try {
-        if (!window.isDestroyed()) window.webContents.send(IPC_CHANNELS.FLASHCARD_RATINGS_COMMITTED, { patch, rev, attemptIds: commands.map(command => command.attemptId) });
-      } catch (error) { log.warn('Failed to notify a window about saved ratings:', error); }
-    }
-    return rev;
+/** Immediate Review admission and both effects share the main write queue. */
+export function commitFlashcardRating(command: FlashcardRatingCommand): Promise<FlashcardRatingCommit> {
+  return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
+    return commitRatingCommands([command]);
   });
+}
+
+/** Every mutation settles durable earlier responses before changing their authority. */
+async function recoverAdmittedRatingsBeforeWrite(): Promise<void> {
+  const journal = await import('./knowledgeEvents');
+  await journal.whenKnowledgeEventsReady();
+  if (journal.pendingRatingCommands().length > 0) await commitRatingCommands([]);
+}
+
+async function commitRatingCommands(commands: readonly FlashcardRatingCommand[], loaded?: FlashcardStore): Promise<FlashcardRatingCommit> {
+  const filePath = getFlashcardsPath();
+  const current = loaded ?? (cachedStorePath === filePath && cachedStore
+    ? cachedStore : await loadFlashcardsFromDisk(filePath, store => writeStore(store, [], false)));
+  const journal = await import('./knowledgeEvents');
+  const { isKnowledgeEvent } = await import('./knowledgeHistoryStore');
+  await journal.whenKnowledgeEventsReady();
+  const validate = (command: FlashcardRatingCommand): void => {
+    for (const rows of Object.values(command.events)) {
+      if (rows.some(row => !isKnowledgeEvent(row) || row.attemptId !== command.attemptId)) throw new Error('Invalid flashcard rating evidence');
+    }
+    // Validate counter declarations before durable admission or evidence append.
+    applyFlashcardRatingCommand(current, command);
+  };
+  for (const command of commands) {
+    journal.reserveRatingCommand(command, () => {
+      validate(command);
+      for (const id of command.guardCardIds ?? []) {
+        const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
+        if (!entry || JSON.stringify(current.flashcards[id]) !== JSON.stringify(entry.before)) throw new Error('The captured review card changed before admission');
+      }
+    });
+  }
+  const pending = journal.pendingRatingCommands();
+  const ledgerId = journal.ratingLedgerId();
+  const committedThrough = current.meta.ratingCommitLedgerId === ledgerId ? current.meta.ratingCommitSequence ?? 0 : 0;
+  if (!Number.isSafeInteger(committedThrough) || committedThrough < 0) throw new Error('Invalid saved rating commit frontier');
+  const remaining = pending.filter(entry => entry.sequence > committedThrough);
+  const events: KnowledgeEventLog = {};
+  let candidate = current;
+  const paths = new Map<string, readonly string[]>();
+  for (const { command } of remaining) {
+    validate(command);
+    for (const id of command.guardCardIds ?? []) {
+      const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
+      if (!entry || JSON.stringify(candidate.flashcards[id]) !== JSON.stringify(entry.before)) throw new Error('The admitted review card changed before recovery');
+    }
+    candidate = applyFlashcardRatingCommand(candidate, command);
+    for (const [key, rows] of Object.entries(command.events)) (events[key] ??= []).push(...rows);
+    for (const entry of command.patch.entries) paths.set(JSON.stringify(entry.path), entry.path);
+  }
+  // Journal identities protect every access of an admitted response through compaction.
+  if (remaining.length > 0) await journal.appendKnowledgeEvents(events);
+  const recorder = storePatchRecorder(current as unknown as Record<string, unknown>);
+  for (const path of paths.values()) recorder.set(path, getStorePath(candidate as unknown as Record<string, unknown>, path));
+  const through = remaining.at(-1)?.sequence ?? committedThrough;
+  let rev = current.rev ?? 0;
+  if (remaining.length > 0) {
+    // Commit the effects and their receipt in the SAME atomic library rename.
+    candidate = copyStoreWithPatch(candidate, { baseRev: current.rev ?? 0, entries: [
+      { path: ['meta', 'ratingCommitSequence'], before: current.meta.ratingCommitSequence, after: through },
+      { path: ['meta', 'ratingCommitLedgerId'], before: current.meta.ratingCommitLedgerId, after: ledgerId },
+    ] });
+    recorder.set(['meta', 'ratingCommitLedgerId'], ledgerId);
+    recorder.set(['meta', 'ratingCommitSequence'], through);
+    rev = await writeStore(candidate, [], false, undefined, { ledgerId, sequence: through });
+  }
+  // A crash after the library rename lands here on restart, with no replay.
+  if (pending.length > 0 && through > 0) journal.completeRatingCommands(through, rev);
+  const patch = remaining.length > 0 ? recorder.build(current.rev ?? 0) : {
+    baseRev: current.rev ?? 0,
+    entries: commands.flatMap(command => command.patch.entries.map(entry => ({
+      ...entry, after: getStorePath(current as unknown as Record<string, unknown>, entry.path),
+    }))),
+  };
+  const result: FlashcardRatingCommit = {
+    patch, rev,
+    attemptIds: [...new Set([...commands.map(command => command.attemptId), ...pending.map(entry => entry.command.attemptId)])],
+  };
+  if (remaining.length > 0) for (const window of BrowserWindow.getAllWindows()) {
+    try {
+      if (!window.isDestroyed()) window.webContents.send(IPC_CHANNELS.FLASHCARD_RATINGS_COMMITTED, result);
+    } catch (error) { log.warn('Failed to notify a window about saved ratings:', error); }
+  }
+  return result;
 }
 
 const CURRENT_VERSION = 3;
@@ -805,7 +858,13 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
   const filePath = getFlashcardsPath();
   if (cachedStore && cachedStorePath === filePath) return cachedStore;
   if (inflightLoad) return inflightLoad;
-  const load = loadFlashcardsFromDisk(filePath, saveFlashcards).finally(() => {
+  const load = enqueueWrite(async () => {
+    const loaded = await loadFlashcardsFromDisk(filePath, store => writeStore(store, [], false));
+    const journal = await import('./knowledgeEvents');
+    await journal.whenKnowledgeEventsReady();
+    if (journal.pendingRatingCommands().length > 0) await commitRatingCommands([], loaded);
+    return cachedStore ?? loaded;
+  }).finally(() => {
     if (inflightLoad === load) inflightLoad = undefined;
   });
   inflightLoad = load;
@@ -873,6 +932,7 @@ export async function releaseUnusedFlashcardMedia(
   }
   await flushFlashcardRatings();
   return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
     const authority: unknown = JSON.parse(await fs.promises.readFile(getFlashcardsPath(), 'utf-8'));
     const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
     if (!record(authority) || !record(authority.flashcards)
@@ -936,7 +996,10 @@ export async function releaseUnusedFlashcardMedia(
 
 export async function saveFlashcards(store: FlashcardStore, removedCardIds: readonly string[] = [], resetReviewProgress = false, authorization?: FlashcardWriteAuthorization): Promise<number> {
   await flushFlashcardRatings();
-  return enqueueWrite(() => writeStore(store, removedCardIds, resetReviewProgress, authorization));
+  return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
+    return writeStore(store, removedCardIds, resetReviewProgress, authorization);
+  });
 }
 
 /**
@@ -946,7 +1009,7 @@ export async function saveFlashcards(store: FlashcardStore, removedCardIds: read
  * this directly: re-entering the queue from within a queued write would await
  * the very write that is awaiting it, and the write would never settle.
  */
-async function writeStore(store: FlashcardStore, removedCardIds: readonly string[], resetReviewProgress: boolean, authorization?: FlashcardWriteAuthorization): Promise<number> {
+async function writeStore(store: FlashcardStore, removedCardIds: readonly string[], resetReviewProgress: boolean, authorization?: FlashcardWriteAuthorization, ratingReceipt?: { ledgerId: string; sequence: number }): Promise<number> {
     // TEMP DIAGNOSTIC: opt-in via the mlearn.ratingTrace file flag, since the
     // main process has no localStorage. `touch <userData>/ratingTrace.flag`.
     const traceOn = fs.existsSync(path.join(getUserDataPath(), 'ratingTrace.flag'));
@@ -963,6 +1026,16 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         currentRevision = 0;
+      }
+    }
+    const ownedMeta = (cachedStorePath === filePath ? cachedStore : persistedAuthority)?.meta;
+    if (ratingReceipt) {
+      store.meta.ratingCommitSequence = ratingReceipt.sequence;
+      store.meta.ratingCommitLedgerId = ratingReceipt.ledgerId;
+    } else {
+      for (const field of ['ratingCommitSequence', 'ratingCommitLedgerId'] as const) {
+        if (ownedMeta?.[field] !== undefined) Object.assign(store.meta, { [field]: ownedMeta[field] });
+        else delete store.meta[field];
       }
     }
     const expectedRevision = store.rev ?? 0;
@@ -1029,6 +1102,7 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
       cachedStorePath = filePath;
       return store.rev;
     } catch (error) {
+      invalidateFlashcardsCache();
       log.error('Failed to save flashcards:', error);
       throw error;
     }
@@ -1053,6 +1127,7 @@ export async function saveFlashcardPatch(
 ): Promise<number> {
   await flushFlashcardRatings();
   return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
     const filePath = getFlashcardsPath();
     // Resolve the current snapshot AFTER earlier writes finish. Capturing it
     // before entering the queue loses edits or targets an obsolete revision.
@@ -1092,6 +1167,7 @@ export function setupFlashcardIPC(): void {
       log.error('Failed to save pending ratings before quit:', error);
     });
   });
+  ipcMain.handle(IPC_CHANNELS.COMMIT_FLASHCARD_RATING, (_event, command: FlashcardRatingCommand) => commitFlashcardRating(command));
   ipcMain.handle(IPC_CHANNELS.ENQUEUE_FLASHCARD_RATING, (_event, command: FlashcardRatingCommand) => enqueueFlashcardRating(command));
   ipcMain.handle(IPC_CHANNELS.FLUSH_FLASHCARD_RATINGS, () => flushFlashcardRatings());
   ipcMain.on(IPC_CHANNELS.GET_FLASHCARDS, async (event, knownRev?: number) => {

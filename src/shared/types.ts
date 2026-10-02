@@ -2096,6 +2096,10 @@ export interface ReviewPresentation {
 
 /** Flashcard store scheduling and presentation metadata. */
 export interface FlashcardMeta {
+  /** Main-owned commit frontier; scheduler retry receipts, never evidence of ability. */
+  ratingCommitSequence?: number;
+  /** Namespaces the frontier to the authority that issued command sequences. */
+  ratingCommitLedgerId?: string;
   /** Language-scoped return position; consumed by the next acknowledged review. */
   reviewPresentations?: Record<string, ReviewPresentation>;
   /** Materialized learner cache schema; evidence remains in the journal. */

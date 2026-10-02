@@ -46,7 +46,7 @@ import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { createKnownWordSet } from '../utils/knowledgeUtils';
-import { applyFlashcardRatingCommand, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
+import { applyFlashcardRatingCommand, ratingCounterDeltas, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys } from '../utils/comprehensiveKnowledge';
 import { getWrittenComprehensionStatus } from '../utils/writtenComprehension';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
@@ -708,7 +708,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // background command queue). A retry is the same physical encounter, even if a peer
   // has meanwhile consumed its restored presentation.
   const admittedRatingCommands = new Map<AttemptId, {
-    word: string; observations: readonly AttemptObservation[]; options: RatingSubmissionOptions; presentationId?: string; cardFront?: string;
+    word: string; observations: readonly AttemptObservation[]; options: RatingSubmissionOptions; presentationId?: string; cardFront?: string; command?: FlashcardRatingCommand;
+    schedulerOutcome?: { undo: UndoEntry; completed: boolean; updated: Flashcard };
   }>();
   let pendingRecoveryRequested = false;
   let persistenceQueue: Promise<void> = Promise.resolve();
@@ -4321,7 +4322,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
       __mark('prepare');
       const background = options?.persistence === 'background' && isElectron() && schedulerResult !== undefined;
-      if (!background && Object.keys(eventsByKey).length > 0 && !await appendEventsIdempotentAcknowledged(eventsByKey)) {
+      const atomicScheduler = !background && isElectron() && schedulerResult !== undefined;
+      if (!atomicScheduler && !background && Object.keys(eventsByKey).length > 0 && !await appendEventsIdempotentAcknowledged(eventsByKey)) {
         throw new Error('rating journal append was refused');
       }
       __mark('journal');
@@ -4362,7 +4364,32 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         })) throw new Error('Self-assessment projection persistence was refused');
       } else if (schedulerResult) {
         // Persistence applies the declared entries to its current snapshot.
-        if (!background && !await saveFlashcardsImmediate(undefined, undefined, {
+        if (atomicScheduler) {
+          const envelope = admittedRatingCommands.get(attemptId)!;
+          envelope.schedulerOutcome ??= JSON.parse(JSON.stringify({
+            undo: schedulerResult.undo, completed: schedulerResult.completed, updated: schedulerResult.updated,
+          })) as NonNullable<typeof envelope.schedulerOutcome>;
+          // Recovery may hydrate this response before its original caller gets
+          // an ACK. Retry must keep the admitted Undo, never the rated pre-image.
+          schedulerResult = { ...schedulerResult, ...envelope.schedulerOutcome };
+          envelope.command ??= JSON.parse(JSON.stringify({
+            attemptId, events: eventsByKey, patch: patchRecorder.build(commandBase.rev ?? 0),
+            guardCardIds: scheduler ? [scheduler.cardId] : [],
+            counterDeltas: ratingCounterDeltas(patchRecorder.build(commandBase.rev ?? 0)),
+          })) as FlashcardRatingCommand;
+          let commit: FlashcardRatingCommit;
+          try {
+            commit = await getBridge().flashcards.commitFlashcardRating(envelope.command);
+          } catch (error) {
+            throw new Error(`rating scheduler persistence was refused: ${error instanceof Error ? error.message : String(error)}`);
+          }
+          handleRatingCommit(commit);
+          try {
+            broadcastChannel?.postMessage({ type: 'patch', patch: commit.patch, rev: commit.rev });
+          } catch (error) {
+            log.warn('Failed to notify peers about an acknowledged rating:', error);
+          }
+        } else if (!background && !await saveFlashcardsImmediate(undefined, undefined, {
           base: commandBase,
           guardCardIds: scheduler ? [scheduler.cardId] : undefined,
           patch: patchRecorder.build(commandBase.rev ?? 0),
@@ -4383,26 +4410,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             recalculateWordStats(statsKey);
             patchRecorder.set(['wordStatsMap', statsKey], unwrap(store.wordStatsMap[statsKey]));
             const patch = patchRecorder.build(commandBase.rev ?? 0);
-            const counterDeltas: NonNullable<FlashcardRatingCommand['counterDeltas']>[number][] = [];
-            for (const entry of patch.entries) {
-              const fields = entry.path[0] === 'flashcards' ? ['reviews', 'lapses']
-                : entry.path[0] === 'meta' ? ['newCardsToday', 'reviewsToday']
-                  : entry.path[0] === 'dailyStats' ? ['newCardsStudied', 'reviewCardsStudied', 'lapses', 'timeSpent', 'graduated'] : [];
-              for (const field of fields) {
-                const changedDate = entry.path[0] === 'meta' &&
-                  (entry.before as Record<string, unknown> | undefined)?.newCardsDate !==
-                  (entry.after as Record<string, unknown> | undefined)?.newCardsDate;
-                const before = changedDate ? 0 : (entry.before as Record<string, unknown> | undefined)?.[field] ?? 0;
-                const after = (entry.after as Record<string, unknown> | undefined)?.[field];
-                if (typeof before === 'number' && typeof after === 'number' && before !== after) {
-                  counterDeltas.push({ path: [...entry.path, field], delta: after - before,
-                    ...(entry.path[0] === 'meta' ? { scope: { path: [...entry.path, 'newCardsDate'],
-                      value: (entry.after as Record<string, unknown>).newCardsDate } } : {}),
-                  });
-                }
-              }
-            }
-            sendBackgroundRating({ attemptId, events: eventsByKey, patch, counterDeltas });
+            sendBackgroundRating({ attemptId, events: eventsByKey, patch, counterDeltas: ratingCounterDeltas(patch) });
           }
         });
 

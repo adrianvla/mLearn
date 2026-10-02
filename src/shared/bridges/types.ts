@@ -73,6 +73,7 @@ export interface SettingsBridge {
 }
 
 export interface FlashcardBridge {
+  commitFlashcardRating: (command: FlashcardRatingCommand) => Promise<FlashcardRatingCommit>;
   enqueueFlashcardRating: (command: FlashcardRatingCommand) => Promise<number>;
   flushFlashcardRatings: () => Promise<void>;
   onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) => () => void;

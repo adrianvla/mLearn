@@ -110,6 +110,7 @@ const mLearnIPC = {
   changeUILanguage: (langCode: string) => ipcRenderer.send(IPC_CHANNELS.CHANGE_UI_LANGUAGE, langCode),
 
   // ========== Flashcards ==========
+  commitFlashcardRating: (command: FlashcardRatingCommand): Promise<FlashcardRatingCommit> => ipcRenderer.invoke(IPC_CHANNELS.COMMIT_FLASHCARD_RATING, command),
   enqueueFlashcardRating: (command: FlashcardRatingCommand): Promise<number> =>
     ipcRenderer.invoke(IPC_CHANNELS.ENQUEUE_FLASHCARD_RATING, command),
   flushFlashcardRatings: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.FLUSH_FLASHCARD_RATINGS),

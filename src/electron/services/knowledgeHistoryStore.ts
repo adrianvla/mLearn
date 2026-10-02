@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
 import { isLearningDecision, learningDecisionMatchesOutcome, type LearningTargetAddress } from '../../shared/learningDecision';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { DatabaseSync } from 'node:sqlite';
@@ -238,6 +240,13 @@ function mergeTransitions(a: TransitionsState, b: TransitionsState): Transitions
  * key's full fold, versioned and rebuildable from rows + archives. Appends
  * advance checkpoints incrementally; compaction rewrites a key atomically.
  */
+export interface PendingRatingCommand {
+  sequence: number;
+  command: FlashcardRatingCommand;
+}
+
+export type RatingCommandReservation = PendingRatingCommand | { sequence: number; revision: number };
+
 export class KnowledgeHistoryStore {
   private db: DatabaseSync;
   private seq: SeqCounter;
@@ -268,6 +277,12 @@ export class KnowledgeHistoryStore {
   private migrateSchema(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS rating_commands (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        attempt_id TEXT NOT NULL UNIQUE,
+        command_json TEXT,
+        committed_revision INTEGER
+      );
       CREATE TABLE IF NOT EXISTS rows (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         seq INTEGER NOT NULL,
@@ -323,6 +338,42 @@ export class KnowledgeHistoryStore {
     const setMeta = this.db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING');
     setMeta.run('schemaVersion', String(KNOWLEDGE_STORE_SCHEMA_VERSION));
     setMeta.run('foldVersion', String(KNOWLEDGE_STORE_FOLD_VERSION));
+    setMeta.run('ratingLedgerId', randomUUID());
+  }
+
+  get ratingLedgerId(): string {
+    return (this.db.prepare("SELECT value FROM meta WHERE key = 'ratingLedgerId'").get() as { value: string }).value;
+  }
+
+  /** Technical commands live beside the journal, never among ability observations. */
+  reserveRatingCommand(command: FlashcardRatingCommand, validateAdmission?: () => void): RatingCommandReservation {
+    if (typeof command.attemptId !== 'string' || !command.attemptId) throw new Error('Invalid rating attempt identity');
+    const existing = this.db.prepare('SELECT sequence, command_json, committed_revision FROM rating_commands WHERE attempt_id = ?')
+      .get(command.attemptId) as { sequence: number; command_json: string | null; committed_revision: number | null } | undefined;
+    if (existing) {
+      if (existing.committed_revision !== null) return { sequence: existing.sequence, revision: existing.committed_revision };
+      if (!existing.command_json) throw new Error('The pending rating command is unreadable');
+      return { sequence: existing.sequence, command: JSON.parse(existing.command_json) as FlashcardRatingCommand };
+    }
+    validateAdmission?.();
+    const encoded = JSON.stringify(command);
+    const result = this.db.prepare('INSERT INTO rating_commands (attempt_id, command_json) VALUES (?, ?)').run(command.attemptId, encoded);
+    return { sequence: Number(result.lastInsertRowid), command: JSON.parse(encoded) as FlashcardRatingCommand };
+  }
+
+  pendingRatingCommands(): PendingRatingCommand[] {
+    const rows = this.db.prepare('SELECT sequence, command_json FROM rating_commands WHERE committed_revision IS NULL ORDER BY sequence')
+      .all() as Array<{ sequence: number; command_json: string }>;
+    return rows.map(row => ({ sequence: row.sequence, command: JSON.parse(row.command_json) as FlashcardRatingCommand }));
+  }
+
+  /** Compact completed payloads while retaining durable, small retry receipts. */
+  completeRatingCommands(throughSequence: number, revision: number): void {
+    if (!Number.isSafeInteger(throughSequence) || throughSequence < 1 || !Number.isSafeInteger(revision) || revision < 0) {
+      throw new Error('Invalid rating commit receipt');
+    }
+    this.db.prepare('UPDATE rating_commands SET command_json = NULL, committed_revision = ? WHERE sequence <= ? AND committed_revision IS NULL')
+      .run(revision, throughSequence);
   }
 
   /** Persisted schema generation (0/undefined = fresh or pre-versioned DB). */

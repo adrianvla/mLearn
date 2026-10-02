@@ -158,6 +158,139 @@ describe('flashcardStorage', () => {
     ],
   });
 
+  it('recovers a durably admitted rating after restart, then acknowledges retries without repeating counters', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('crash-recovery');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const command = ratingCommand(card, 1, 1);
+    const writes = vi.spyOn(fs.promises, 'writeFile').mockRejectedValueOnce(new Error('disk full'));
+    await expect(storage.commitFlashcardRating(command)).rejects.toThrow('disk full');
+    // Restart the ownership boundary with real persisted SQLite and file data.
+    vi.resetModules();
+    const restarted = await import('./flashcardStorage');
+    const recovered = await restarted.loadFlashcards();
+    expect(recovered.flashcards[card.id].reviews).toBe(1);
+    expect(recovered.meta.perLanguage.ja.reviewsToday).toBe(1);
+    const revision = recovered.rev;
+    const acknowledgement = await restarted.commitFlashcardRating(command);
+    expect(acknowledgement.rev).toBe(revision);
+    expect((await restarted.loadFlashcards()).flashcards[card.id].reviews).toBe(1);
+    const journal = await import('./knowledgeEvents');
+    expect(journal.getKnowledgeEvents(['ja:rating-key'])['ja:rating-key']).toHaveLength(1);
+    writes.mockRestore();
+  });
+
+  it('does not replay counters when the library committed before the receipt acknowledgement failed', async () => {
+    const storage = await import('./flashcardStorage');
+    const journal = await import('./knowledgeEvents');
+    const card = makeFlashcard('after-rename');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const command = ratingCommand(card, 1, 1);
+    vi.spyOn(journal, 'completeRatingCommands').mockImplementationOnce(() => { throw new Error('receipt interrupted'); });
+    await expect(storage.commitFlashcardRating(command)).rejects.toThrow('receipt interrupted');
+    expect(JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf8')).flashcards[card.id].reviews).toBe(1);
+    vi.resetModules();
+    const restarted = await import('./flashcardStorage');
+    const restored = await restarted.loadFlashcards();
+    expect(restored.flashcards[card.id].reviews).toBe(1);
+    expect(restored.meta.perLanguage.ja.reviewsToday).toBe(1);
+    await restarted.commitFlashcardRating(command);
+    expect((await restarted.loadFlashcards()).flashcards[card.id].reviews).toBe(1);
+  });
+
+  it('refuses a changed captured card before durable admission or journal append', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('changed-prompt');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: { ...card, content: { ...card.content, front: 'edited prompt' } } } }));
+    await expect(storage.commitFlashcardRating({ ...ratingCommand(card, 1, 1), guardCardIds: [card.id] })).rejects.toThrow(/changed before admission/);
+    const journal = await import('./knowledgeEvents');
+    expect(journal.pendingRatingCommands()).toEqual([]);
+    expect(journal.getKnowledgeEvents(['ja:rating-key'])).toEqual({});
+    expect((await loadFlashcards()).flashcards[card.id].content.front).toBe('edited prompt');
+  });
+
+  it('composes independent-window counters and returns the actual authority when an old receipt is retried', async () => {
+    const storage = await import('./flashcardStorage');
+    const first = makeFlashcard('immediate-first');
+    const second = makeFlashcard('immediate-second');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [first.id]: first, [second.id]: second } }));
+    const firstCommand = { ...ratingCommand(first, 1, 1), guardCardIds: [first.id] };
+    await storage.commitFlashcardRating(firstCommand);
+    await storage.commitFlashcardRating({ ...ratingCommand(second, 1, 1), guardCardIds: [second.id] });
+    const retry = await storage.commitFlashcardRating(firstCommand);
+    expect((await loadFlashcards()).meta.perLanguage.ja.reviewsToday).toBe(2);
+    expect(retry.patch.entries.find(entry => entry.path.join('.') === 'meta.perLanguage.ja.reviewsToday')?.after).toBe(2);
+    expect((await loadFlashcards()).flashcards[first.id].reviews).toBe(1);
+  });
+
+  it.each(['warm', 'cold'])('keeps the main-owned receipt through unrelated %s snapshots', async temperature => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('frontier');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    await storage.commitFlashcardRating(ratingCommand(card, 1, 1));
+    const authority = structuredClone(await loadFlashcards());
+    const sequence = authority.meta.ratingCommitSequence;
+    const ledgerId = authority.meta.ratingCommitLedgerId;
+    delete authority.meta.ratingCommitSequence;
+    delete authority.meta.ratingCommitLedgerId;
+    if (temperature === 'cold') invalidateFlashcardsCache();
+    await saveFlashcards(authority);
+    const saved = await loadFlashcards();
+    expect(saved.meta.ratingCommitSequence).toBe(sequence);
+    expect(saved.meta.ratingCommitLedgerId).toBe(ledgerId);
+  });
+
+  it('does not use an imported frontier as proof that this authority committed a new response', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('foreign-ledger');
+    const imported = makeStore({ version: 3, flashcards: { [card.id]: card } });
+    imported.meta.ratingCommitSequence = 100000;
+    imported.meta.ratingCommitLedgerId = 'different-authority';
+    writeFlashcardsFile(tempDir.tmpDir, imported);
+    await storage.commitFlashcardRating(ratingCommand(card, 1, 1));
+    const saved = await loadFlashcards();
+    expect(saved.flashcards[card.id].reviews).toBe(1);
+    expect(saved.meta.ratingCommitLedgerId).not.toBe('different-authority');
+    expect(saved.meta.ratingCommitSequence).toBe(1);
+  });
+
+  it('settles an admitted response before an unrelated removal, so restart cannot resurrect the card', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('remove-after-failure');
+    const before = makeStore({ version: 3, flashcards: { [card.id]: card } });
+    await saveFlashcards(before);
+    const peer = structuredClone(before);
+    delete peer.flashcards[card.id];
+    const command = { ...ratingCommand(card, 1, 1), guardCardIds: [card.id] };
+    vi.spyOn(fs.promises, 'writeFile').mockRejectedValueOnce(new Error('disk full'));
+    await expect(storage.commitFlashcardRating(command)).rejects.toThrow('disk full');
+    await expect(saveFlashcards(peer)).rejects.toThrow(/revision/);
+    const settled = structuredClone(await loadFlashcards());
+    expect(settled.flashcards[card.id].reviews).toBe(1);
+    delete settled.flashcards[card.id];
+    await saveFlashcards(settled);
+    vi.resetModules();
+    const restarted = await import('./flashcardStorage');
+    expect((await restarted.loadFlashcards()).flashcards[card.id]).toBeUndefined();
+    const journal = await import('./knowledgeEvents');
+    expect(journal.pendingRatingCommands()).toEqual([]);
+  });
+
+  it('settles an admitted media reference before deciding whether that media is unused', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('media-after-failure');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const command = ratingCommand(card, 1, 1);
+    const entry = command.patch.entries[0];
+    entry.after = { ...entry.after as Flashcard, content: { ...card.content, back: 'flashcard-image://retained.png' } };
+    vi.spyOn(fs.promises, 'writeFile').mockRejectedValueOnce(new Error('disk full'));
+    await expect(storage.commitFlashcardRating(command)).rejects.toThrow('disk full');
+    const release = vi.fn();
+    await expect(storage.releaseUnusedFlashcardMedia('image', 'retained', release)).resolves.toBe(false);
+    expect(release).not.toHaveBeenCalled();
+    expect((await loadFlashcards()).flashcards[card.id].reviews).toBe(1);
+  });
+
   it('persists rapid ratings as one latest-state write and one committed patch', async () => {
     const storage = await import('./flashcardStorage');
     const first = makeFlashcard('batch-first');
@@ -191,10 +324,11 @@ describe('flashcardStorage', () => {
     const rejected = expect(failed).rejects.toThrow('disk full');
     await expect(storage.flushFlashcardRatings()).rejects.toThrow('disk full');
     await rejected;
-    expect((await loadFlashcards()).flashcards[card.id].reviews).toBe(0);
+    const recovered = await loadFlashcards();
+    expect(recovered.flashcards[card.id].reviews).toBe(1);
     const retry = storage.enqueueFlashcardRating(command);
     await storage.flushFlashcardRatings();
-    expect(await retry).toBe(2);
+    expect(await retry).toBe(recovered.rev);
     const journal = await import('./knowledgeEvents');
     expect(journal.getKnowledgeEvents(['ja:rating-key'])['ja:rating-key']).toHaveLength(1);
     writes.mockRestore();
