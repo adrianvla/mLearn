@@ -1834,7 +1834,18 @@
         "TrajectoryDescription": "Zustände stammen aus erfassten Belegen und eigenen Angaben. Linien halten den Zustand zwischen Beobachtungen; Lücken markieren komprimierte Zeiträume.",
         "TrajectorySparse": "Für einen Verlauf werden weitere Belege über mehrere Tage benötigt.",
         "RetentionDistant": "In nächster Zeit keine Wiederholung fällig",
-        "RetentionUnavailable": "Zeitplan nicht verfügbar"
+        "RetentionUnavailable": "Zeitplan nicht verfügbar",
+        "Record": {
+          "Tab": "Lernverlauf",
+          "Connections": "Verbindungen",
+          "NoChecks": "Diese Aspekte wurden noch nicht geprüft. Versuche beim nächsten Mal, das Wort abzurufen, bevor du nachschlägst.",
+          "Partial": "Ungeprüfte Aspekte bleiben unbewertet, auch wenn ein anderer Aspekt bekannt ist.",
+          "Unchecked": "Noch nicht geprüft ({count})",
+          "Correction": "Anpassen ändert deine Selbsteinschätzung. Es wird kein Abrufversuch aufgezeichnet.",
+          "Trajectory": "Entwicklung im Zeitverlauf",
+          "Support": "Unterstützung durch verwandtes Wissen",
+          "Return": "Zur Aktivität zurück"
+        }
       },
       "Aspect": {
         "Grammar": "Grammatik",

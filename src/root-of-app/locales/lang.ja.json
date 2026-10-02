@@ -1834,7 +1834,18 @@
         "TrajectoryDescription": "状態は記録された観測と明示的な自己申告に基づきます。線は観測間の状態を保持し、途切れは圧縮された期間を示します。",
         "TrajectorySparse": "推移の表示には複数日にわたる記録が必要です。",
         "RetentionDistant": "当面は復習の予定なし",
-        "RetentionUnavailable": "予定を取得できません"
+        "RetentionUnavailable": "予定を取得できません",
+        "Record": {
+          "Tab": "学習記録",
+          "Connections": "関連情報",
+          "NoChecks": "これらの側面はまだ評価されていません。次に出会ったら、参考情報を開く前に単語を思い出してみましょう。",
+          "Partial": "ある側面を習得していても、未確認の側面は未評価のままです。",
+          "Unchecked": "まだ確認していない側面（{count}）",
+          "Correction": "調整は自己評価を変更します。思い出すテストの結果は記録しません。",
+          "Trajectory": "時間による変化",
+          "Support": "関連する知識からの支援",
+          "Return": "活動に戻る"
+        }
       },
       "Aspect": {
         "Grammar": "文法",

@@ -1834,7 +1834,18 @@
         "TrajectoryDescription": "Les états proviennent des observations et des déclarations explicites. Les lignes maintiennent l’état entre observations ; les interruptions indiquent des périodes compressées.",
         "TrajectorySparse": "Des observations sur plusieurs jours sont nécessaires pour afficher une trajectoire.",
         "RetentionDistant": "Aucune révision prévue prochainement",
-        "RetentionUnavailable": "Planification indisponible"
+        "RetentionUnavailable": "Planification indisponible",
+        "Record": {
+          "Tab": "Suivi d’apprentissage",
+          "Connections": "Liens",
+          "NoChecks": "Ces aspects n’ont pas été évalués. À la prochaine rencontre, essayez de rappeler le mot avant de consulter une référence.",
+          "Partial": "Les aspects non vérifiés restent non évalués, même si un autre aspect est acquis.",
+          "Unchecked": "Pas encore vérifiés ({count})",
+          "Correction": "Ajuster modifie votre autoévaluation. Cela n’enregistre pas de test de rappel.",
+          "Trajectory": "Évolution dans le temps",
+          "Support": "Appui des connaissances liées",
+          "Return": "Revenir à l’activité"
+        }
       },
       "Aspect": {
         "Grammar": "Grammaire",

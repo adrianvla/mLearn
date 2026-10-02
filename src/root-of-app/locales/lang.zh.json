@@ -1834,7 +1834,18 @@
         "TrajectoryDescription": "状态来自记录的观察和明确的自我声明。线条保持观察之间的状态；间断表示压缩的历史时段。",
         "TrajectorySparse": "需要跨越多天的更多记录才能显示变化轨迹。",
         "RetentionDistant": "近期无需复习",
-        "RetentionUnavailable": "计划不可用"
+        "RetentionUnavailable": "计划不可用",
+        "Record": {
+          "Tab": "学习记录",
+          "Connections": "关联信息",
+          "NoChecks": "这些方面尚未评估。下次遇到这个词时，先尝试回忆，再查看参考信息。",
+          "Partial": "即使某个方面已掌握，未检查的方面仍然未评估。",
+          "Unchecked": "尚未检查（{count}）",
+          "Correction": "调整会更改自我评估，不会记录回忆测试。",
+          "Trajectory": "随时间变化",
+          "Support": "相关知识的支持",
+          "Return": "返回活动"
+        }
       },
       "Aspect": {
         "Grammar": "语法",

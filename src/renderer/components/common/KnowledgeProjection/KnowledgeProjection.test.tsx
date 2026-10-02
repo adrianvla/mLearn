@@ -127,6 +127,7 @@ async function renderDrawer(overrides: Partial<{
   onAccessClaim: (capability: string, claim: string | null) => void;
   onSelectEntity: (entityId: string) => void;
   onGraph: (entityId: string) => void;
+  onClose: () => void;
 }> = {}) {
   const { KnowledgeProjectionDrawer } = await import('./KnowledgeProjection');
   const host = document.createElement('div');
@@ -144,7 +145,7 @@ async function renderDrawer(overrides: Partial<{
     <KnowledgeProjectionDrawer
       model={model}
       open={true}
-      onClose={() => undefined}
+      onClose={overrides.onClose ?? (() => undefined)}
       onGraph={overrides.onGraph}
       onSelectEntity={overrides.onSelectEntity}
       surface="猫"
@@ -182,12 +183,16 @@ describe('KnowledgeProjectionDrawer overview', () => {
     document.body.innerHTML = '';
   });
 
-  it('loads a trajectory only on Graph and keeps it distinct from the event timeline', async () => {
+  it('keeps history together and loads its chart only when requested', async () => {
     historyMock.read.mockClear();
     const { host, dispose } = await renderDrawer();
     expect(historyMock.read).not.toHaveBeenCalled();
-    const graphTab = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Projection.Tabs.Graph') as HTMLButtonElement;
-    graphTab.click();
+    const historyTab = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Projection.Tabs.History') as HTMLButtonElement;
+    historyTab.click();
+    expect(historyMock.read).not.toHaveBeenCalled();
+    const chart = host.querySelector<HTMLDetailsElement>('.knowledge-record__chart')!;
+    chart.open = true;
+    chart.dispatchEvent(new Event('toggle'));
     expect(historyMock.read).toHaveBeenCalledTimes(1);
     expect(host.querySelector('.knowledge-ease__svg')).not.toBeNull();
     expect(Array.from(host.querySelectorAll('.knowledge-ease__band-label')).map((label) => label.firstChild?.textContent)).toEqual(['mlearn.WordHover.Status.Known', 'mlearn.WordHover.Status.Learning', 'mlearn.WordHover.Status.Unknown']);
@@ -198,7 +203,7 @@ describe('KnowledgeProjectionDrawer overview', () => {
     selector.dispatchEvent(new Event('change', { bubbles: true }));
     expect(host.querySelector('.knowledge-ease__svg')).toBeNull();
     expect(host.querySelector('.knowledge-trajectory__svg')).not.toBeNull();
-    expect(host.querySelector('.knowledge-history')).toBeNull();
+    expect(host.querySelector('.knowledge-history')).not.toBeNull();
     dispose();
   });
 
@@ -224,8 +229,38 @@ describe('KnowledgeProjectionDrawer overview', () => {
     expect(host.querySelector('.knowledge-drawer__surface')?.textContent).toBe('猫');
     expect(host.querySelector('.knowledge-drawer__overall-status')?.textContent).toBe('mlearn.WordHover.Status.Known');
     expect(host.querySelector('.knowledge-drawer__overall-basis')?.textContent).toBe('mlearn.Knowledge.Basis.Claim');
-    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Tabs.Overview');
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Record.Tab');
     expect(lookupWordMock).toHaveBeenCalledWith({ surface: '猫' });
+    dispose();
+  });
+
+  it('offers three learner destinations and an explicit return, without an empty prediction route', async () => {
+    const close = vi.fn();
+    const { host, dispose } = await renderDrawer({ onClose: close });
+    expect(Array.from(host.querySelectorAll('[role="tab"]')).map(button => button.textContent)).toEqual([
+      'mlearn.Knowledge.Projection.Record.Tab', 'mlearn.Knowledge.Projection.Tabs.History', 'mlearn.Knowledge.Projection.Record.Connections',
+    ]);
+    expect(host.querySelector('.knowledge-record__support')).toBeNull();
+    (host.querySelector('.knowledge-record__return button') as HTMLButtonElement).click();
+    expect(close).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('opens the same history chart for an existing graph deep link', async () => {
+    historyMock.read.mockClear();
+    const { host, dispose } = await renderDrawer({ initialTab: 'graph' });
+    expect(host.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('mlearn.Knowledge.Projection.Tabs.History');
+    expect(host.querySelector<HTMLDetailsElement>('.knowledge-record__chart')?.open).toBe(true);
+    expect(historyMock.read).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('makes correction consequences explicit and exposes unchecked aspects while adjusting', async () => {
+    const { host, dispose } = await renderDrawer({ onWordClaim: vi.fn() });
+    expect(host.querySelector<HTMLDetailsElement>('.knowledge-record__unchecked')?.open).toBe(false);
+    (host.querySelector('.knowledge-card__done') as HTMLButtonElement).click();
+    expect(host.querySelector('.knowledge-record__correction-note')?.textContent).toBe('mlearn.Knowledge.Projection.Record.Correction');
+    expect(host.querySelector<HTMLDetailsElement>('.knowledge-record__unchecked')?.open).toBe(true);
     dispose();
   });
 
@@ -252,6 +287,8 @@ describe('KnowledgeProjectionDrawer overview', () => {
     expect(host.querySelector('.knowledge-drawer__overall-status')?.textContent).toBe('mlearn.WordHover.Status.Known');
     expect(host.querySelector('.knowledge-drawer__overall-scope')?.textContent).toBe('mlearn.Knowledge.Projection.WordFamiliarityScope');
     expect(host.querySelectorAll('.knowledge-card--unmeasured')).toHaveLength(2);
+    expect(host.querySelector<HTMLDetailsElement>('.knowledge-record__unchecked')?.open).toBe(false);
+    expect(host.querySelector('.knowledge-record__guidance')?.textContent).toBe('mlearn.Knowledge.Projection.Record.NoChecks');
     expect(host.querySelectorAll('.knowledge-card--status-known')).toHaveLength(0);
     dispose();
   });

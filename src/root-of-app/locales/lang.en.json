@@ -1834,7 +1834,18 @@
         "TrajectoryDescription": "Point states come from recorded evidence and explicit claims. Lines hold state between observations; gaps mark compressed history.",
         "TrajectorySparse": "More evidence across multiple days is needed to show a trajectory.",
         "RetentionDistant": "No review due soon",
-        "RetentionUnavailable": "Schedule unavailable"
+        "RetentionUnavailable": "Schedule unavailable",
+        "Record": {
+          "Tab": "Learning record",
+          "Connections": "Connections",
+          "NoChecks": "These aspects have not been assessed. On your next encounter, try recalling the word before opening a reference.",
+          "Partial": "Unchecked aspects remain unassessed even when another aspect is known.",
+          "Unchecked": "Not yet checked ({count})",
+          "Correction": "Adjust changes your self-assessment. It does not record a recall test.",
+          "Trajectory": "Change over time",
+          "Support": "Support from related knowledge",
+          "Return": "Return to activity"
+        }
       },
       "Aspect": {
         "Grammar": "Grammar",

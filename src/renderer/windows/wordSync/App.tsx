@@ -1959,7 +1959,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             const record = controller?.current();
             const presentation = presentationCount();
             if (!controller || !record || record.pending || navigationPending()) return;
-            // Diagnostic prompts are armed immediately; that is not an answer reveal.
+            // Record help supplied by inspection before opening it for an unrevealed prompt.
             if (assessmentMode() || !record.revealed) {
               if (currentProjection.loading() || testedAccesses().length === 0) return;
               setObservedScaffolds({ presentation, scaffolds: mergeScaffolds(promptScaffolds(), providedAccessScaffolds(testedAccesses())) });
