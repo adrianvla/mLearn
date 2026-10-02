@@ -2090,6 +2090,8 @@ export interface PerLanguageMeta {
 export interface ReviewPresentation {
   id: string;
   cardId: string;
+  /** Original immutable choice for an unanswered encounter, independent of ability. */
+  decision?: import('./learningDecision').LearningDecision;
   /** Open-ended assistance flags from the original physical encounter. */
   scaffolds?: AttemptScaffolds;
 }

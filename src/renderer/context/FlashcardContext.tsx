@@ -11,11 +11,11 @@ import { createContext, useContext, ParentComponent, onMount, onCleanup, createS
 import { pushUndo } from '../learning/undoHistory';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
-import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PerLanguageMeta } from '../../shared/types';
+import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewPresentation, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PerLanguageMeta } from '../../shared/types';
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
-import { applyLearningDecision } from '../../shared/learningDecision';
+import { applyLearningDecision, isLearningDecision } from '../../shared/learningDecision';
 import { clonePendingRetraction, readPendingRetraction, type PendingRetraction, type RetractionTarget, type RetractionReplayDescriptor } from '../../shared/retractionRecovery';
 import { isStaleFlashcardRevision } from '../../shared/flashcardWriteRevision';
 import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
@@ -341,6 +341,8 @@ interface FlashcardContextValue {
 
   // Settings
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
+  /** Admit a review cursor without replacing a newer window's position. */
+  saveReviewPresentation: (language: string, presentation: ReviewPresentation, expectedId: string | null) => Promise<void>;
 
   // Undo support
   pushUndoState: (options: { type: string; cardId: string }) => void;
@@ -2762,6 +2764,32 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     saveFlashcards();
   };
 
+  const saveReviewPresentation = async (language: string, presentation: ReviewPresentation, expectedId: string | null): Promise<void> => {
+    const frozen = JSON.parse(JSON.stringify(presentation)) as ReviewPresentation;
+    if (!isLearningDecision(frozen.decision) || frozen.cardId !== frozen.decision.selected.key || frozen.id !== frozen.decision.id) {
+      throw new Error('Invalid saved review choice');
+    }
+    const cue = frozen.decision.selected.presentation;
+    const matchesCard = (target: FlashcardStore) => {
+      const card = target.flashcards[frozen.cardId];
+      return !!card && !card.suspended && !card.buried && cue?.cardId === card.id
+        && cue.surface === card.content.front && cue.language === (card.language || language)
+        && (cue.contentVersion === undefined || cue.contentVersion === SRS.hashWordSync(JSON.stringify(card.content)));
+    };
+    // Durable technical audit precedes the resumable cursor. Neither is evidence.
+    await getBridge().knowledgeEvents.recordLearningDecision(frozen.decision);
+    const existing = store.meta.reviewPresentations?.[language];
+    if (existing?.id === frozen.id && JSON.stringify(existing) === JSON.stringify(frozen) && matchesCard(store)) return;
+    const validate = (target: FlashcardStore) => matchesCard(target)
+      && (target.meta.reviewPresentations?.[language]?.id ?? null) === expectedId;
+    if (!await saveFlashcardsImmediate((target, intent) => {
+      (target.meta.reviewPresentations ??= {})[language] = frozen;
+      intent.meta = { reviewPresentations: { [language]: frozen } };
+    }, undefined, undefined, { removedCardIds: [], validate, recomputeOnRebase: true })) {
+      throw new Error('The review position could not be saved');
+    }
+  };
+
   // Track word appearance for auto-creation
   const trackWordAppearance = async (word: string, reading?: string) => {
     const storageWord = getPrimaryWordFormForStorage(word);
@@ -4374,7 +4402,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           schedulerResult = { ...schedulerResult, ...envelope.schedulerOutcome };
           envelope.command ??= JSON.parse(JSON.stringify({
             attemptId, decisionId: options?.decision?.id, events: eventsByKey, patch: patchRecorder.build(commandBase.rev ?? 0),
-            ...(options?.decision ? { presentation: { cardId: scheduler!.cardId, language, surface: word } } : {}),
+            ...(options?.decision ? { presentation: { cardId: scheduler!.cardId, language, surface: word,
+              ...(options.decision.selected.presentation?.contentVersion !== undefined
+                ? { contentVersion: SRS.hashWordSync(JSON.stringify(card!.content)) } : {}) } } : {}),
             guardCardIds: scheduler ? [scheduler.cardId] : [],
             counterDeltas: ratingCounterDeltas(patchRecorder.build(commandBase.rev ?? 0)),
           })) as FlashcardRatingCommand;
@@ -5877,6 +5907,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     findUnpopulatedFlashcardForWord,
     populationStats,
     updateMeta,
+    saveReviewPresentation,
     pushUndoState,
     undoLastAction,
     canUndo,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Flashcard, LanguageData } from '../../../shared/types';
-import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision } from './flashcardReviewDecision';
+import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision, restoreFlashcardReviewDecision } from './flashcardReviewDecision';
 import { isLearningDecision } from '../../../shared/learningDecision';
 import { selectNextEncounter } from '../../learning/engine';
 
@@ -21,9 +21,21 @@ describe('review policy encounter', () => {
     expect(selected.provenance.detail.candidateCount).toBe(20);
     expect(selected.provenance.baseline?.key).toBe(selected.provenance.selected.key);
     expect(selected.provenance.selected.presentation).toEqual({ cardId: selected.decision.candidate.key,
-      language: 'future', surface: '  odd form  ' });
+      language: 'future', surface: '  odd form  ', contentVersion: expect.any(String) });
     entries[0].task!.requested.push('later mutation');
     expect(selected.provenance.selected.task.requested).not.toContain('later mutation');
+  });
+
+  it('resumes the original immutable decision without drawing or using a changed cue/task', () => {
+    const entry = flashcardReviewPolicyEntry(card, 'future');
+    const original = selectFlashcardReviewDecision({ id: 'original-choice', at: 20, entries: [entry], rng: () => 0.8 })!;
+    const presentation = { id: 'original-choice', cardId: card.id, decision: original.provenance };
+    const resumed = restoreFlashcardReviewDecision(presentation, card, entry);
+    expect(resumed?.provenance).toEqual(original.provenance);
+    expect(restoreFlashcardReviewDecision(presentation, { ...card, content: { ...card.content, front: 'changed' } }, entry)).toBeNull();
+    expect(restoreFlashcardReviewDecision(presentation, { ...card, content: { ...card.content, back: 'new answer' } }, entry)).toBeNull();
+    expect(restoreFlashcardReviewDecision(presentation, card, { ...entry, task: { ...entry.task!, requested: ['future::new-task'] } })).toBeNull();
+    expect(restoreFlashcardReviewDecision({ ...presentation, cardId: 'another-card' }, card, entry)).toBeNull();
   });
 
   it.each(['new', 'review'] as const)('addresses the exact authored cue and opaque package task for %s cards', state => {

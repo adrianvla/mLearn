@@ -11,6 +11,8 @@ export interface FlashcardLike {
   word?: string;
   language: string;
   targets: LearnableTarget[];
+  /** Producer-owned actual input identity, preserved without language-specific interpretation. */
+  presentation?: Record<string, unknown>;
   /** Task-owned retrieval accesses; scheduler state does not imply a capability. */
   task?: EncounterTask;
   dueDate: number;

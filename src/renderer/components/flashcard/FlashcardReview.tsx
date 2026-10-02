@@ -6,7 +6,6 @@
 import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
-import { getBridge } from '../../../shared/bridges';
 import type { LearningDecision } from '../../../shared/learningDecision';
 import type { PolicyDecision } from '../../learning/types';
 import { policyContextFromSettings } from '../../learning/policyContext';
@@ -22,7 +21,7 @@ import { useFlashcardTts } from '../../hooks/useFlashcardTts';
 import { isElectron } from '../../../shared/platform';
 import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
-import type { CapabilityKey, Flashcard, FlashcardContent } from '../../../shared/types';
+import type { CapabilityKey, Flashcard, FlashcardContent, ReviewPresentation } from '../../../shared/types';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getProvidedAccessesForCue, getTestedAccesses } from '../../../shared/languageFeatures';
@@ -40,12 +39,12 @@ import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteStat
 import './FlashcardReview.css';
 import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../../windows/flashcards/bulkDestructiveConfirm';
 import { getLogger } from '../../../shared/utils/logger';
-import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision } from './flashcardReviewDecision';
+import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision, restoreFlashcardReviewDecision } from './flashcardReviewDecision';
 import { createReviewAssistanceStore, type ReviewAssistance } from '../../learning/reviewAssistance';
 
 const log = getLogger("renderer.components.flashcardReview");
 
-type ReviewEncounter = { card: Flashcard; decision: PolicyDecision | null; provenance: LearningDecision };
+type ReviewEncounter = { card: Flashcard; decision: PolicyDecision | null; provenance: LearningDecision; cursor?: ReviewPresentation };
 
 interface ReviewRatingWrite {
   encounter: ReviewEncounter;
@@ -86,6 +85,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     updateFlashcardContent,
     updateFlashcard,
     submitRating,
+    saveReviewPresentation,
     ratingPersistenceState,
     retryRatingPersistence,
     queue,
@@ -158,7 +158,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   // TTS integration
   const { settings, updateSetting } = useSettings();
-  const { langData, currentLangData } = useLanguage();
+  const { langData, currentLangData, isLoading: languageLoading } = useLanguage();
   const { playTts, isGenerating: ttsGenerating, stop: stopTts, metadata: ttsMetadata, playingField: ttsPlayingField } = useFlashcardTts();
   // A confirmed command belongs to this study scope. A late old-scope
   // acknowledgment must not hide or advance the successor encounter.
@@ -178,9 +178,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() !== null) return;
     const scope = assistanceScope(card);
     const encounter = referenceEncounter;
+    const choiceId = currentEncounter()!.provenance.id;
     const language = languageForCard(card);
     const sameEncounter = () => !disposed && referenceEncounter === encounter
-      && !!currentCard() && assistanceScope(currentCard()!) === scope && ratingWrite() === null
+      && currentEncounter()?.provenance.id === choiceId && !!currentCard() && assistanceScope(currentCard()!) === scope && ratingWrite() === null
       && removalWrite() === null && !isRetractionWriteBlocking(retractionWrite());
     // Resource lookup may finish after reveal. Only audio admitted while the
     // question is still shown supplies a retrieval cue. Once admitted, its
@@ -199,7 +200,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             const capabilities = getTestedAccesses({ languageData: languageDataForCard(card), surface: card.content.front,
               hasReadingData: cardHasReadingData(card), hasProsodyData: cardHasProsodyData(card), taskType: 'srs-review' });
             const supplied = getProvidedAccessesForCue(languageDataForCard(card), capabilities, `${field}-audio`);
-            const record = await assistanceStore.provide(scope, { audio: true, ...providedAccessScaffolds(supplied) }, sameEncounter);
+            const record = await assistanceStore.provide(scope, { audio: true, ...providedAccessScaffolds(supplied) }, sameEncounter, choiceId);
             if (!record || !sameEncounter()) return false;
             setReferenceAssistance(record);
             setAssistanceWrite(null);
@@ -225,6 +226,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     if (removal) return removal.encounter;
     const held = ratingWrite();
     if (held) return held.encounter;
+    if (languageLoading()) return null;
     const fallback = getCurrentCard();
     if (!fallback || isWordIgnoredSync(fallback.content.front, languageForCard(fallback))) return null;
     const language = languageForCard(fallback);
@@ -250,16 +252,24 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // same decision until an explicit review action advances the epoch.
     const availableIds = new Set(reviewQueueEntries.map((entry) => entry.id));
     const restored = store.meta?.reviewPresentations?.[language];
+    const cursor = restored ? JSON.parse(JSON.stringify(restored)) as ReviewPresentation : undefined;
     return decisionPin.pin(JSON.stringify([language, restored?.id ?? null]), () => {
       if (restored && availableIds.has(restored.cardId)) {
+        const card = store.flashcards[restored.cardId];
+        const entry = flashcardReviewPolicyEntry(card, language, languageDataForCard(card));
+        const resumed = restoreFlashcardReviewDecision(restored, card, entry);
+        if (resumed) return { card: JSON.parse(JSON.stringify(card)) as Flashcard,
+          decision: null, cursor, ...resumed };
+      }
+      if (restored && !restored.decision && availableIds.has(restored.cardId)) {
         // Undo names the actual restored card. No fresh graph decision or
         // random draw may silently replace that acknowledged return position.
         const card = store.flashcards[restored.cardId];
         const entry = flashcardReviewPolicyEntry(card, language, languageDataForCard(card));
-        return { card: JSON.parse(JSON.stringify(card)) as Flashcard, decision: null,
+        return { card: JSON.parse(JSON.stringify(card)) as Flashcard, decision: null, cursor,
           provenance: { id: crypto.randomUUID(), at: nowMs, policyVersion: 'restored-review-position-v1',
             selected: { key: card.id, action: 'RESTORE', task: entry.task!,
-              presentation: { cardId: card.id, language, surface: card.content.front },
+              presentation: { cardId: card.id, language, surface: card.content.front, contentVersion: entry.presentation?.contentVersion },
               targets: entry.targets.map(target => ({ kind: 'surface', id: target.entityId, capability: target.capability })) },
             baseline: null, detail: { scope: 'acknowledged-undo-position',
               reason: 'Return to the saved Undo position without making a fresh recommendation.' } } };
@@ -272,12 +282,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       });
       if (!selected) return null;
       const card = store.flashcards[selected.decision.candidate.key] ?? fallback;
-      return { card: JSON.parse(JSON.stringify(card)) as Flashcard, ...selected };
+      return { card: JSON.parse(JSON.stringify(card)) as Flashcard, cursor, ...selected };
     }, (encounter) => {
       if (!encounter || !availableIds.has(encounter.card.id)) return false;
       const actual = store.flashcards[encounter.card.id] ?? fallback;
       const task = reviewQueueEntries.find(entry => entry.id === encounter.card.id)?.task;
-      return actual.content.front === encounter.card.content.front
+      return JSON.stringify(actual.content) === JSON.stringify(encounter.card.content)
         && languageForCard(actual) === languageForCard(encounter.card)
         && JSON.stringify(task) === JSON.stringify(encounter.provenance.selected.task);
     });
@@ -289,7 +299,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const id = encounter.provenance.id;
     setChoiceWrite({ id, phase: 'pending' });
     try {
-      await getBridge().knowledgeEvents.recordLearningDecision(encounter.provenance);
+      await saveReviewPresentation(languageForCard(encounter.card), {
+        id, cardId: encounter.card.id,
+        ...(encounter.cursor?.cardId === encounter.card.id && encounter.cursor.scaffolds
+          ? { scaffolds: encounter.cursor.scaffolds } : {}),
+        decision: encounter.provenance,
+      }, encounter.cursor?.id ?? null);
       if (!disposed && currentEncounter()?.provenance.id === id) setChoiceWrite({ id, phase: null });
     } catch (error) {
       if (!disposed && currentEncounter()?.provenance.id === id) {
@@ -304,7 +319,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     else setChoiceWrite(null);
   }));
 
-  const currentDecision = () => currentEncounter()?.decision ?? null;
+  const currentPolicyInspection = () => {
+    const encounter = currentEncounter();
+    if (encounter?.decision?.trace) return { policyTrace: encounter.decision.trace, policyBrief: encounter.decision.encounter.why };
+    // Own producer version only: unknown package detail remains preserved, not interpreted.
+    const trace = encounter?.provenance.detail.trace as PolicyDecision['trace'];
+    if (trace && trace.version === encounter?.provenance.policyVersion && trace.selectedKey === encounter.provenance.selected.key
+      && Array.isArray(trace.ranking) && typeof encounter.provenance.detail.brief === 'string') {
+      return { policyTrace: trace, policyBrief: encounter.provenance.detail.brief };
+    }
+    return undefined;
+  };
   const currentCard = createMemo(() => {
     const removal = removalWrite();
     if (removal) return removal.card;
@@ -442,14 +467,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const card = currentCard();
     if (!encounter || !card || !ratingArmed() || observations.length === 0) return;
     let assistance: ReviewAssistance | null;
-    try { assistance = assistanceStore.read(assistanceScope(card)); }
+    try { assistance = assistanceStore.read(assistanceScope(card), encounter.provenance.id); }
     catch (error) {
       log.warn('Failed to read review assistance:', error);
       setAssistanceWrite('failed');
       retryReference = () => refreshReferenceAssistance();
       return;
     }
-    const scaffolds = { ...restoredAssistance(), ...assistance?.scaffolds };
+    const scaffolds = { ...restoredAssistance(), ...referenceAssistance()?.scaffolds, ...assistance?.scaffolds };
     const timing = stopTiming();
     // A mixed profile schedules on its weakest evidence — the same reduction
     // word sync applies, read from the one ordering (missed dominates
@@ -485,7 +510,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // study surfaces. The review queue is studyable work plus this session's
  // already-answered cards, so completion is expressed against that total.
   const presentation = createMemo(() => studySessionState({
-    ready: true,
+    ready: !languageLoading(),
     index: cardsAnswered(),
     total: cardsAnswered() + remainingWork(),
     revealed: showAnswer(),
@@ -502,9 +527,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const card = currentCard();
     try {
       const scope = card ? assistanceScope(card) : null;
-      const record = scope ? assistanceStore.read(scope) : null;
+      const record = scope ? assistanceStore.read(scope, currentEncounter()?.provenance.id) : null;
+      // Reopening after answer exposure carries the answer, never a fresh recall.
+      const revealed = record?.revealed === true;
+      const resumed = revealed && record && card ? { ...record, scaffolds: { ...record.scaffolds,
+        ...providedAccessScaffolds(getTestedAccesses({ languageData: languageDataForCard(card), surface: card.content.front,
+          hasReadingData: cardHasReadingData(card), hasProsodyData: cardHasProsodyData(card), taskType: 'srs-review' })) } } : record;
       batch(() => {
-        setReferenceAssistance(record);
+        setShowAnswer(revealed);
+        setReferenceAssistance(resumed);
         setAssistanceWrite(null);
         setRestoredAssistanceScope(scope);
       });
@@ -521,9 +552,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     if (!card || ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() === 'pending') return;
     if (showAnswer()) { open(); return; }
     const encounter = referenceEncounter;
+    const choiceId = currentEncounter()!.provenance.id;
     const scope = assistanceScope(card);
     const sameEncounter = () => !disposed && referenceEncounter === encounter
-      && !!currentCard() && assistanceScope(currentCard()!) === scope && ratingWrite() === null;
+      && currentEncounter()?.provenance.id === choiceId && !!currentCard() && assistanceScope(currentCard()!) === scope && ratingWrite() === null;
     const save = () => {
       if (!sameEncounter()) return;
       setAssistanceWrite('pending');
@@ -532,7 +564,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           hasReadingData: cardHasReadingData(card), hasProsodyData: cardHasProsodyData(card), taskType: 'srs-review' });
         // Front clips can expose sound, subtitles and translation. Treat the
         // whole clip as reference content; do not guess which answer it hides.
-        return assistanceStore.provide(scope, { ...providedAccessScaffolds(capabilities), ...(media ? { media: true } : {}) }, sameEncounter);
+        return assistanceStore.provide(scope, { ...providedAccessScaffolds(capabilities), ...(media ? { media: true } : {}) }, sameEncounter, choiceId);
       }).then(record => {
         if (!record || !sameEncounter()) return;
         setReferenceAssistance(record);
@@ -549,7 +581,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     save();
   }
 
-  createEffect(on(() => currentCard() ? assistanceScope(currentCard()!) : null, () => {
+  createEffect(on(() => currentCard() ? JSON.stringify([assistanceScope(currentCard()!), currentEncounter()?.provenance.id]) : null, () => {
     referenceEncounter += 1;
     refreshReferenceAssistance();
   }));
@@ -608,9 +640,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   // The session is over when the queue has drained: the contract already
   // reports that as `complete`, so completion is not tracked twice.
-  createEffect(() => {
-    if (presentation().phase === 'complete') props.onComplete?.();
-  });
+  createEffect(on(() => presentation().phase, phase => {
+    if (phase === 'complete') props.onComplete?.();
+  }));
 
   // A new displayed card starts face-down (R20 repair): the reveal belongs
   // to one encounter, so an action that moves the displayed card must not
@@ -619,7 +651,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   createEffect(on(
     () => currentCardId(),
     () => {
-      setShowAnswer(false);
       resetReviewScroll();
     }
   ));
@@ -734,9 +765,32 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleFlip = () => {
-    if (removalWrite()) return;
-    setShowAnswer(true);
-    resetReviewScroll();
+    const card = currentCard();
+    if (!card || removalWrite() || ratingWrite() || assistanceWrite() !== null || showAnswer()) return;
+    const encounter = currentEncounter();
+    const scope = assistanceScope(card);
+    const isCurrent = () => !disposed && currentEncounter() === encounter && !!currentCard()
+      && assistanceScope(currentCard()!) === scope && !ratingWrite() && !removalWrite();
+    const save = () => {
+      if (!isCurrent()) return;
+      setAssistanceWrite('pending');
+      void assistanceStore.reveal(scope, encounter!.provenance.id, isCurrent).then(record => {
+        if (!record || !isCurrent()) return;
+        batch(() => {
+          setReferenceAssistance({ ...record, scaffolds: { ...referenceAssistance()?.scaffolds, ...record.scaffolds } });
+          setAssistanceWrite(null);
+          setShowAnswer(true);
+        });
+        retryReference = undefined;
+        resetReviewScroll();
+      }).catch(error => {
+        if (!isCurrent()) return;
+        log.warn('Failed to save answer exposure before revealing:', error);
+        setAssistanceWrite('failed');
+        retryReference = save;
+      });
+    };
+    save();
   };
 
   const handleRegenerateExample = async (cardId: string) => {
@@ -942,11 +996,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   // into the existing Inspector drawer — the learner audits the
                   // selection (brief reason + emitted trace) where the
                   // knowledge lives. No recomputation anywhere.
-                  const decision = currentDecision();
+                  const policy = currentPolicyInspection();
                   withReferenceContent(() => openKnowledgeInspector(surfaceKnowledgeInspection(
                       language,
                       surface,
-                      decision?.trace !== undefined ? { policyTrace: decision.trace, policyBrief: decision.encounter.why } : undefined,
+                      policy,
                   )));
                   }}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>
                   <Button variant="ghost" size="xs" onClick={() => { setShowCardActions(false); withReferenceContent(handleOpenEditModal); }} title={t('mlearn.Flashcards.Modals.EditCard.EditButton')} icon={<EditIcon size={14} />}>

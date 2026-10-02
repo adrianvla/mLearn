@@ -16,8 +16,33 @@ describe('durable review assistance', () => {
     const { storage, store } = fixture();
     await store.provide('one', { 'provided-access:future::unexpected': true });
     const resumed = createReviewAssistanceStore(storage, null);
-    expect(resumed.read('one')?.scaffolds).toEqual({ 'provided-access:future::unexpected': true });
+    expect(resumed.read('one', 'original-choice')?.scaffolds).toEqual({ 'provided-access:future::unexpected': true });
     expect(resumed.read('another-language-or-card')).toBeNull();
+  });
+
+  it('retains answer exposure across reopening and subsequent cues until its own acknowledgment', async () => {
+    const { storage, store } = fixture();
+    const exposed = await store.reveal('one', 'original-choice');
+    const resumed = createReviewAssistanceStore(storage, null);
+    expect(resumed.read('one', 'original-choice')).toMatchObject({ revealed: true, scaffolds: {} });
+    await resumed.provide('one', { 'provided-access:future::opaque': true }, undefined, 'original-choice');
+    expect(resumed.read('one', 'original-choice')).toMatchObject({ revealed: true, scaffolds: { 'provided-access:future::opaque': true } });
+    await resumed.acknowledge('one', exposed);
+    expect(resumed.read('one', 'original-choice')).not.toBeNull();
+    await resumed.acknowledge('one', resumed.read('one', 'original-choice'));
+    expect(resumed.read('one', 'original-choice')).toBeNull();
+  });
+
+  it('retains both choice exposures when an older window reveals after a newer one', async () => {
+    const { store, storage } = fixture();
+    const peer = createReviewAssistanceStore(storage, null);
+    await peer.reveal('one', 'new-choice');
+    await store.reveal('one', 'old-choice', () => true);
+    expect(peer.read('one', 'new-choice')?.revealed).toBe(true);
+    expect(peer.read('one', 'old-choice')?.revealed).toBe(true);
+    await store.acknowledge('one', store.read('one', 'old-choice'));
+    expect(peer.read('one', 'new-choice')?.revealed).toBe(true);
+    expect(peer.read('one', 'old-choice')?.revealed).toBeUndefined();
   });
 
   it('merges concurrent exposure and refuses to clear newer exposure with an older rating acknowledgment', async () => {

@@ -2,8 +2,9 @@ import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
 import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
+import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewPresentation, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
 import { DEFAULT_SETTINGS, type FlashcardAudioPreset } from '../../shared/types';
+import { selectFlashcardReviewDecision, flashcardReviewPolicyEntry } from '../components/flashcard/flashcardReviewDecision';
 import { selectNextEncounter } from '../learning/engine';
 import type { AttemptQuality } from '../../shared/constants';
 import type { CapabilityKind } from '../../shared/graph/types';
@@ -83,6 +84,7 @@ const mockBridge = {
     kvSetBatch: vi.fn().mockResolvedValue(undefined),
   },
   knowledgeEvents: {
+    recordLearningDecision: vi.fn().mockResolvedValue(undefined),
     queryKnowledgeEvents: knowledgeJournal.queryKnowledgeEvents,
     queryKnowledgeItemEvents: knowledgeJournal.queryKnowledgeItemEvents,
     getGrammarProjections: knowledgeJournal.getGrammarProjections,
@@ -550,6 +552,7 @@ type FlashcardCtx = {
     options?: { onProgress?: (done: number, total: number) => void; preserveExistingStatus?: boolean },
   ) => Promise<{ created: number; promoted: number; skipped: number }>;
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
+  saveReviewPresentation: (language: string, presentation: ReviewPresentation, expectedId: string | null) => Promise<void>;
   pushUndoState: (options: { type: string; cardId: string }) => void;
   undoLastAction: () => Promise<string | null>;
   canUndo: () => boolean;
@@ -815,6 +818,43 @@ describe('FlashcardProvider', () => {
   function seedAccepted(): void {
     seed(makeEmptyStore({ rev: revision }));
   }
+
+  it('saves an active immutable review choice, resumes it after hydration, and refuses a superseded cursor', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'persisted-choice', reviews: 0 });
+    seed(makeEmptyStore({ rev: revision, flashcards: { [card.id]: card } }));
+    const decision = selectFlashcardReviewDecision({ id: 'retained-choice', at: 20,
+      entries: [flashcardReviewPolicyEntry(card, 'ja')], rng: () => 0.7 })!.provenance;
+    const presentation = { id: decision.id, cardId: card.id, decision };
+    await ctx.saveReviewPresentation('ja', presentation, null);
+    expect(committed!.meta.reviewPresentations?.ja).toEqual(presentation);
+    expect(ctx.store.meta.reviewPresentations?.ja).toEqual(presentation);
+    const saved = structuredClone(committed!);
+    dispose();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const reopened = await mountProvider();
+    seed(saved);
+    expect(reopened.ctx.store.meta.reviewPresentations?.ja?.decision).toEqual(decision);
+    await expect(reopened.ctx.saveReviewPresentation('ja', { ...presentation, id: 'wrong-cursor' }, null)).rejects.toThrow();
+    expect(committed!.meta.reviewPresentations?.ja).toEqual(presentation);
+    expect(mockAppendEvents).not.toHaveBeenCalled();
+    reopened.dispose();
+  });
+
+  it('does not replace a peer review choice when the library revision changes during admission', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'raced-choice' });
+    seed(makeEmptyStore({ rev: revision, flashcards: { [card.id]: card } }));
+    const decision = selectFlashcardReviewDecision({ id: 'local-choice', at: 20,
+      entries: [flashcardReviewPolicyEntry(card, 'ja')], rng: () => 0.7 })!.provenance;
+    committed!.meta.reviewPresentations = { ja: { id: 'peer-choice', cardId: card.id } };
+    committed!.rev = ++revision;
+    answerProbesFromAuthority();
+    await expect(ctx.saveReviewPresentation('ja', { id: decision.id, cardId: card.id, decision }, null)).rejects.toThrow();
+    expect(committed!.meta.reviewPresentations?.ja?.id).toBe('peer-choice');
+    expect(ctx.store.meta.reviewPresentations?.ja?.id).toBe('peer-choice');
+    dispose();
+  });
 
   it('routes a package-defined retraction through its registered replay handler', async () => {
     const { ctx, dispose } = await mountProvider();
