@@ -142,20 +142,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   onCleanup(() => stopTiming());
 
-  // Timing belongs to the encounter, including a genuine same-card requeue.
-  // Held writes keep their stopped timer until the acknowledged next owner.
-  createEffect(on(
-    () => choiceReady() ? currentEncounter() : null,
-    (encounter) => {
-      if (ratingWrite()) return;
-      stopTiming();
-      if (encounter) {
-        encounterTimer = createEncounterTimer();
-        encounterTimer.start();
-      }
-    }
-  ));
-
   // TTS integration
   const { settings, updateSetting } = useSettings();
   const { langData, currentLangData, isLoading: languageLoading } = useLanguage();
@@ -237,26 +223,41 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // candidate. Queued-new cards carry their state so the source scores them
     // as exploration (novelty), never as fabricated overdue repair.
     const nowMs = Date.now();
-    const reviewQueueEntries = [...queue().newQueue, ...queue().scheduledQueue]
+    // Identity of the eligible workload. Building the scheduler's entries for
+    // every queued card is O(queue) work with two hash derivations per card, so
+    // it is resolved LAZILY: an encounter that resumes a durable cursor, or one
+    // whose pin is still valid, needs only the entries for the cards it
+    // actually consults. Selecting a fresh card still sees the whole pool -
+    // the policy has to arbitrate the real workload - but it does it once per
+    // selection instead of on every reactive re-run.
+    const eligibleCards = [...queue().newQueue, ...queue().scheduledQueue]
       .map((id) => store.flashcards[id])
       .filter((card): card is Flashcard => !!card && !card.suspended && !card.buried
         && (card.language || settings.language) === language
-        && !isWordIgnoredSync(card.content.front, language))
-      .map(card => flashcardReviewPolicyEntry(card, languageForCard(card), languageDataForCard(card)));
-    if (!reviewQueueEntries.some(entry => entry.id === fallback.id)) {
-      reviewQueueEntries.push(flashcardReviewPolicyEntry(fallback, language, languageDataForCard(fallback)));
-    }
+        && !isWordIgnoredSync(card.content.front, language));
+    // The scheduler fallback is always eligible, even when the queue has not
+    // caught up with it yet - it is the card the surface would present.
+    if (!eligibleCards.some(card => card.id === fallback.id)) eligibleCards.push(fallback);
+    const availableIds = new Set(eligibleCards.map(card => card.id));
+    const entryCache = new Map<string, ReturnType<typeof flashcardReviewPolicyEntry>>();
+    const entryFor = (card: Flashcard) => {
+      const cached = entryCache.get(card.id);
+      if (cached) return cached;
+      const entry = flashcardReviewPolicyEntry(card, languageForCard(card), languageDataForCard(card));
+      entryCache.set(card.id, entry);
+      return entry;
+    };
+    const reviewQueueEntries = (): ReturnType<typeof flashcardReviewPolicyEntry>[] => eligibleCards.map(entryFor);
     // Pinned for the active encounter (R20 repair): this memo re-runs on
     // every unrelated queue/store/settings update, and the unseeded weighted
     // draw would silently replace the displayed card. The pin re-serves the
     // same decision until an explicit review action advances the epoch.
-    const availableIds = new Set(reviewQueueEntries.map((entry) => entry.id));
     const restored = store.meta?.reviewPresentations?.[language];
     const cursor = restored ? JSON.parse(JSON.stringify(restored)) as ReviewPresentation : undefined;
     return decisionPin.pin(JSON.stringify([language, restored?.id ?? null]), () => {
       if (restored && availableIds.has(restored.cardId)) {
         const card = store.flashcards[restored.cardId];
-        const entry = flashcardReviewPolicyEntry(card, language, languageDataForCard(card));
+        const entry = entryFor(card);
         const resumed = restoreFlashcardReviewDecision(restored, card, entry);
         if (resumed) return { card: JSON.parse(JSON.stringify(card)) as Flashcard,
           decision: null, cursor, ...resumed };
@@ -265,7 +266,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         // Undo names the actual restored card. No fresh graph decision or
         // random draw may silently replace that acknowledged return position.
         const card = store.flashcards[restored.cardId];
-        const entry = flashcardReviewPolicyEntry(card, language, languageDataForCard(card));
+        const entry = entryFor(card);
         return { card: JSON.parse(JSON.stringify(card)) as Flashcard, decision: null, cursor,
           provenance: { id: crypto.randomUUID(), at: nowMs, policyVersion: 'restored-review-position-v1',
             selected: { key: card.id, action: 'RESTORE', task: entry.task!,
@@ -278,7 +279,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         id: crypto.randomUUID(), at: nowMs,
         // The goal applies only to the queue's own learning language (R07).
         context: policyContextFromSettings(settings, language),
-        entries: reviewQueueEntries,
+        entries: reviewQueueEntries(),
       });
       if (!selected) return null;
       const card = store.flashcards[selected.decision.candidate.key] ?? fallback;
@@ -286,18 +287,42 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }, (encounter) => {
       if (!encounter || !availableIds.has(encounter.card.id)) return false;
       const actual = store.flashcards[encounter.card.id] ?? fallback;
-      const task = reviewQueueEntries.find(entry => entry.id === encounter.card.id)?.task;
+      const task = (store.flashcards[encounter.card.id] ? entryFor(store.flashcards[encounter.card.id]) : undefined)?.task;
       return JSON.stringify(actual.content) === JSON.stringify(encounter.card.content)
         && languageForCard(actual) === languageForCard(encounter.card)
         && JSON.stringify(task) === JSON.stringify(encounter.provenance.selected.task);
     });
   });
 
+  /**
+   * Which encounters are still awaiting their durable choice cursor.
+   *
+   * `null` = admitted. A PENDING write is not withheld from presentation: the
+   * cursor exists so a restart resumes the same position, which is a
+   * crash-resume concern, not a permission to show. Gating visibility on this
+   * acknowledgement put a whole acknowledged store write (hundreds of ms on a
+   * real library) between the rating and the next usable card - and the write
+   * it waited for saved the card being rated, not the card being shown. A
+   * FAILED write still withholds the card: with no durable cursor the choice
+   * is unauditable, so the surface reports that rather than displaying
+   * provenance nothing will restore.
+   *
+   * Admission is keyed by encounter id rather than held in one slot, so a
+   * cursor write that settles after the learner has moved on cannot clear or
+   * fail the encounter now on screen.
+   */
+  const [choiceAdmission, setChoiceAdmission] = createSignal<ReadonlyMap<string, StudySessionWriteStatus>>(new Map());
   const [choiceWrite, setChoiceWrite] = createSignal<{ id: string; phase: StudySessionWriteStatus | null } | null>(null);
-  const choiceReady = () => !!currentEncounter() && choiceWrite()?.id === currentEncounter()!.provenance.id && choiceWrite()?.phase === null;
+  const choiceReady = (encounter: ReviewEncounter | null): boolean =>
+    !!encounter && choiceAdmission().get(encounter.provenance.id) !== 'failed';
+
   const saveChoice = async (encounter: ReviewEncounter): Promise<void> => {
     const id = encounter.provenance.id;
-    setChoiceWrite({ id, phase: 'pending' });
+    const record = (phase: StudySessionWriteStatus): void => {
+      setChoiceAdmission((previous) => new Map(previous).set(id, phase));
+      if (!disposed && currentEncounter()?.provenance.id === id) setChoiceWrite({ id, phase });
+    };
+    record('pending');
     try {
       await saveReviewPresentation(languageForCard(encounter.card), {
         id, cardId: encounter.card.id,
@@ -305,12 +330,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           ? { scaffolds: encounter.cursor.scaffolds } : {}),
         decision: encounter.provenance,
       }, encounter.cursor?.id ?? null);
-      if (!disposed && currentEncounter()?.provenance.id === id) setChoiceWrite({ id, phase: null });
+      record(null);
     } catch (error) {
       if (!disposed && currentEncounter()?.provenance.id === id) {
         log.warn('Failed to save the review choice before presentation:', error);
-        setChoiceWrite({ id, phase: 'failed' });
       }
+      // The failure travels with the encounter, not with whichever encounter
+      // happens to be current when the write settles.
+      record('failed');
     }
   };
   createEffect(on(() => currentEncounter()?.provenance.id, () => {
@@ -318,6 +345,19 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     if (encounter) void saveChoice(encounter);
     else setChoiceWrite(null);
   }));
+  // One cursor write per encounter, dropped when it settles. A long session
+  // must not accumulate an entry per card it has rated through.
+  createEffect(() => {
+    const admission = choiceAdmission();
+    if (admission.size <= 8) return;
+    const settled = [...admission].filter(([, phase]) => phase === null).map(([id]) => id);
+    if (settled.length === 0) return;
+    setChoiceAdmission((previous) => {
+      const next = new Map(previous);
+      for (const id of settled) next.delete(id);
+      return next;
+    });
+  });
 
   const currentPolicyInspection = () => {
     const encounter = currentEncounter();
@@ -336,11 +376,26 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const held = ratingWrite();
     if (held) return held.card;
     const encounter = currentEncounter();
-    if (!choiceReady()) return null;
+    const encounterReady = choiceReady(encounter);
+    if (!encounterReady) return null;
     return encounter ? store.flashcards[encounter.card.id] ?? encounter.card : null;
   });
 
   const currentCardId = createMemo(() => currentCard()?.id);
+
+  // Timing belongs to the encounter, including a genuine same-card requeue.
+  // Held writes keep their stopped timer until the acknowledged next owner.
+  createEffect(on(
+    () => { const encounter = currentEncounter(); return choiceReady(encounter) ? encounter : null; },
+    (encounter) => {
+      if (ratingWrite()) return;
+      stopTiming();
+      if (encounter) {
+        encounterTimer = createEncounterTimer();
+        encounterTimer.start();
+      }
+    }
+  ));
 
   const restoredAssistance = createMemo(() => {
     const card = currentCard();
@@ -415,8 +470,22 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         ...(write.timing ? { timing: write.timing } : {}),
         taskType: 'srs-review',
         origin: write.origin,
-        // Keep this physical response visible until journal and scheduler saves acknowledge.
-        persistence: 'immediate',
+        // The learner-facing transition is an optimistic local transaction.
+        //
+        // What decides the durability requirement is whether this response
+        // CONSUMED A CUE - not whether an assistance record exists at all.
+        // Revealing the answer records `revealed` with no scaffolds, and that
+        // is not a retrieval cue: the learner supplied it. Treating that
+        // record as assisted made EVERY rating take the acknowledged path,
+        // which is precisely the latency this restores.
+        //
+        // A response that did consume a cue (audio, media, a supplied reading
+        // or the answer itself) must stay visible until the journal and
+        // scheduler writes acknowledge, or a closed window would record the
+        // response as assisted while its assistance was never durable.
+        persistence: Object.values(write.scaffolds ?? {}).some(Boolean)
+          || Object.values(write.assistance?.record.scaffolds ?? {}).some(Boolean)
+          ? 'immediate' : 'background',
         ...(write.scaffolds ? { scaffolds: write.scaffolds } : {}),
         scheduler: {
           cardId: write.card.id,
@@ -660,7 +729,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   let automaticAudioEncounter: ReturnType<typeof currentEncounter> = null;
   createEffect(() => {
     const encounter = currentEncounter();
-    const ready = choiceReady() && ratingWrite() === null && removalWrite() === null && !isRetractionWriteBlocking(retractionWrite()) && assistanceWrite() === null;
+    const ready = choiceReady(encounter) && ratingWrite() === null && removalWrite() === null && !isRetractionWriteBlocking(retractionWrite()) && assistanceWrite() === null;
     if (!encounter || !ready || restoredAssistanceScope() !== assistanceScope(encounter.card) || showAnswer() || !settings.flashcardAutoTts || settings.flashcardMuteAudio
       || automaticAudioEncounter === encounter) return;
     automaticAudioEncounter = encounter;
@@ -1022,14 +1091,16 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         <Show
             when={presentation().phase !== 'complete' && currentCard()}
             fallback={
-              <Show when={presentation().phase === 'complete'} fallback={
+              <>
+              <Show when={presentation().phase !== 'complete' && !choiceReady(currentEncounter())}>
                 <WriteStatusBanner status={choiceWrite()?.phase ?? 'pending'}
                   savingLabelKey="mlearn.Flashcards.Review.PreparingQuestion"
                   failedLabelKey="mlearn.Flashcards.Review.QuestionSaveFailed"
                   canRetry={choiceWrite()?.phase === 'failed'}
                   onRetry={() => { const encounter = currentEncounter(); if (encounter) void saveChoice(encounter); }}
                   class="flashcard-rating-write" failedClass="flashcard-rating-write--failed" />
-              }>
+              </Show>
+              <Show when={presentation().phase === 'complete'}>
               <Panel
                   variant="default"
                   rounded="xl"
@@ -1056,6 +1127,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 </div>
               </Panel>
               </Show>
+              </>
             }
         >
           {/* Card state indicator */}

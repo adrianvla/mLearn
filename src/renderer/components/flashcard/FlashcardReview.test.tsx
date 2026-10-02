@@ -489,26 +489,41 @@ describe('FlashcardReview', () => {
     } finally { write.mockRestore(); dispose(); }
   });
 
-  it('waits for the immutable choice acknowledgement before displaying or rating its question', async () => {
+  it('presents the question while its choice cursor is still being written, and withholds it when that write fails', async () => {
     let acknowledge!: () => void;
     decisionBridge.record.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledge = resolve; }));
     const dispose = render(() => <FlashcardReview />, container);
     try {
       await flushEffects();
-      expect(container.querySelector('.flashcard-front')).toBeNull();
-      expect(container.textContent).toContain('mlearn.Flashcards.Review.PreparingQuestion');
-      expect(container.textContent).not.toContain('mlearn.Flashcards.Review.CompleteDescription');
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
-      expect(mockSubmitRating).not.toHaveBeenCalled();
-      expect(mockPlayedTts).not.toHaveBeenCalled();
+      // The durable cursor exists for crash resume, not as permission to show:
+      // a pending acknowledgement must not stand between the learner and the
+      // card it already selected.
+      expect(container.querySelector('.flashcard-front')).not.toBeNull();
+      expect(container.textContent).not.toContain('mlearn.Flashcards.Review.QuestionSaveFailed');
       const recorded = decisionBridge.record.mock.calls[0][0];
       acknowledge();
       await flushEffects();
-      expect(container.querySelector('.flashcard-front')).not.toBeNull();
       await clickShowAnswer(container);
       container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
       await flushEffects();
+      // The question still rates against the exact provenance it was recorded
+      // with, whether or not its cursor had landed by then.
       expect(mockSubmitRating.mock.calls.at(-1)?.[2]).toMatchObject({ decision: recorded });
+    } finally { dispose(); }
+  });
+
+  it('refuses to present or rate a question whose choice cursor could not be written', async () => {
+    decisionBridge.record.mockRejectedValueOnce(new Error('storage unavailable'));
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      // A cursor that will never land cannot be resumed, so its provenance is
+      // unauditable and the question is withheld and reported.
+      expect(container.querySelector('.flashcard-front')).toBeNull();
+      expect(container.textContent).toContain('mlearn.Flashcards.Review.QuestionSaveFailed');
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+      expect(mockSubmitRating).not.toHaveBeenCalled();
+      expect(mockPlayedTts).not.toHaveBeenCalled();
     } finally { dispose(); }
   });
 
@@ -989,7 +1004,7 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
-  it('persists every tested capability as one acknowledged whole-word attempt', async () => {
+  it('persists every tested capability as one whole-word attempt', async () => {
     const dispose = render(() => <FlashcardReview />, container);
     await flushEffects();
     expect(container.querySelector('.rating-matrix')).toBeNull();
@@ -1005,7 +1020,9 @@ describe('FlashcardReview failure attribution', () => {
       { capability: 'surface-reading', quality: 'missed' },
     ], expect.objectContaining({
       taskType: 'srs-review',
-      persistence: 'immediate',
+      // An unassisted response consumed no cue, so the write is handed to the
+      // main process's background queue instead of blocking the transition.
+      persistence: 'background',
       scheduler: { cardId: 'card-1', rating: 'again', timeSpentMs: expect.any(Number), tested: ['sense-recognition', 'surface-reading'] },
     }));
     dispose();
@@ -1436,6 +1453,9 @@ describe('FlashcardReview failure attribution', () => {
     ], expect.objectContaining({
       taskType: 'srs-review',
       scaffolds: { audio: true },
+      // A response that consumed an audio cue is recorded AS assisted, so its
+      // assistance has to be durable before the response leaves the screen.
+      persistence: 'immediate',
       scheduler: expect.objectContaining({ cardId: 'card-1', rating: 'again', tested: ['sense-recognition', 'surface-reading'] }),
     }));
     dispose();
@@ -1737,5 +1757,143 @@ describe('FlashcardReview Remove asks before it destroys the card', () => {
     await flushEffects();
 
     expect(mockRemoveFlashcard).not.toHaveBeenCalled();
+  });
+});
+
+
+// ── Rating interaction latency (perf guard) ───────────────────────────────
+// The learner-facing rating transition is an optimistic local transaction: a
+// durable rating or cursor write may take hundreds of milliseconds on a real
+// library, and none of that belongs between the keypress and the next card.
+// These run against a realistically large persisted queue - unit fixtures with
+// one or two cards cannot see the O(queue) work this guards.
+describe('FlashcardReview rating latency', () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    localStorage.clear();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    vi.clearAllMocks();
+    mockLanguageLoading = () => false;
+    mockProjection = () => defaultProjection;
+    mockRatingPersistenceState = () => 'idle';
+    mockTtsAvailable = true;
+    mockIgnoredWords = () => new Set();
+    mockSettings = {
+      ...DEFAULT_SETTINGS,
+      language: 'ja',
+      flashcardAutoTts: false,
+      flashcardFlipAnimation: false,
+      use_anki: false,
+      flashcardStealthMode: false,
+      flashcardMuteAudio: false,
+    };
+    mockLangMap = { ja: jaLanguageData };
+    mockLanguageData = jaLanguageData;
+    mockSaveReviewPresentation.mockImplementation(async (_language, presentation, _expectedId) => {
+      await decisionBridge.record(presentation.decision);
+    });
+  });
+
+  afterEach(() => {
+    mockReviewCards = {};
+    mockReviewPresentations = () => ({});
+    mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [] });
+    container.remove();
+  });
+
+  /** Large enough to expose per-card O(queue) work; small enough for CI. */
+  const LARGE_QUEUE = 1500;
+
+  function largeQueueCards(): Record<string, Flashcard> {
+    const now = Date.now();
+    const cards: Record<string, Flashcard> = {};
+    for (let i = 0; i < LARGE_QUEUE; i++) {
+      cards[`big-${i}`] = makeCard({
+        id: `big-${i}`,
+        content: { type: 'word', front: `単語${i}`, reading: `たんご${i}`, back: `meaning ${i}` },
+        state: 'review', reviews: i % 9, dueDate: now - (i % 300) * 60_000,
+      });
+    }
+    return cards;
+  }
+
+  function useLargeQueue(): void {
+    const cards = largeQueueCards();
+    mockReviewCards = cards;
+    const [queue] = createSignal<ReviewQueue>({
+      newQueue: Object.keys(cards).slice(0, LARGE_QUEUE / 2),
+      scheduledQueue: Object.keys(cards).slice(LARGE_QUEUE / 2),
+    });
+    mockReviewQueue = queue;
+    mockQueueTotal = () => LARGE_QUEUE;
+    setMockQueueTotal(LARGE_QUEUE);
+    const [card] = createSignal<Flashcard | null>(cards['big-0']!);
+    mockCard = card;
+    setMockCard(cards['big-0']!);
+  }
+
+  /**
+   * How long until a DIFFERENT card is interactive after the rating keypress.
+   * This is the number a learner feels; persistence cost is deliberately
+   * excluded from the surface (it runs behind the transition) but must not be
+   * waited on to render the next card.
+   */
+  async function rateAndAwaitNextCard(): Promise<number> {
+    const before = container.querySelector('.flashcard-word')?.textContent ?? '';
+    const started = performance.now();
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+    const deadline = Date.now() + 4000;
+    while (Date.now() < deadline) {
+      await flushEffects();
+      const shown = container.querySelector('.flashcard-word')?.textContent ?? '';
+      if (shown && shown !== before && container.querySelector('.flashcard-show-answer-btn')) break;
+    }
+    return performance.now() - started;
+  }
+
+  it('advances to the next usable card without waiting for a slow durable write', async () => {
+    useLargeQueue();
+    // A cursor write that takes far longer than a frame, as an acknowledged
+    // whole-store write does on a real library.
+    mockSaveReviewPresentation.mockImplementation(async () => {
+      await new Promise<void>(resolve => { setTimeout(resolve, 120); });
+    });
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      await clickShowAnswer(container);
+      const elapsed = await rateAndAwaitNextCard();
+      const shown = container.querySelector('.flashcard-word')?.textContent;
+      expect(shown, 'a different card should be interactive').toBeTruthy();
+      expect(shown).not.toBe(container.textContent ?? shown);
+      // Generous bound: the point is that it is bounded by frame work, not by
+      // the 120ms write. Before the fix this waited on the acknowledgement.
+      expect(elapsed, `next card took ${elapsed.toFixed(1)}ms`).toBeLessThan(100);
+    } finally { dispose(); }
+  });
+
+  it('does not re-derive the whole scheduler pool twice for one selection', async () => {
+    useLargeQueue();
+    const derived: string[] = [];
+    const actual = flashcardReviewPolicyEntry;
+    const spy = vi.spyOn(
+      await import('./flashcardReviewDecision'),
+      'flashcardReviewPolicyEntry',
+    ).mockImplementation((card, language, languageData) => {
+      derived.push(card.id);
+      return actual(card, language, languageData);
+    });
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      await clickShowAnswer(container);
+      derived.length = 0;
+      await rateAndAwaitNextCard();
+      // One selection needs the pool once. A second full pass means an
+      // unrelated reactive update rebuilt the whole workload again.
+      expect(derived.length).toBeLessThanOrEqual(LARGE_QUEUE + 1);
+    } finally { spy.mockRestore(); dispose(); }
   });
 });
