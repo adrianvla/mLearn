@@ -3089,13 +3089,19 @@ export interface VoiceModelStatus {
   device?: 'cuda' | 'mps' | 'cpu';
 }
 
-export interface VoiceSTTResult {
+/** A microphone stream can be replaced inside one logical call. */
+export interface VoiceSessionRequestIdentity {
+  sessionId: string;
+  requestId: string;
+}
+
+export interface VoiceSTTResult extends Partial<VoiceSessionRequestIdentity> {
   text: string;
   isFinal: boolean;
   isPartial: boolean;
 }
 
-export interface VoiceVadEvent {
+export interface VoiceVadEvent extends Partial<VoiceSessionRequestIdentity> {
   type: 'speech-start' | 'speech-end';
   reason?: string;
   speechProb?: number;
@@ -3107,9 +3113,7 @@ export interface VoiceVadEvent {
 }
 
 /** Stable delivery ownership; unrelated windows and phrases cannot share events. */
-export interface VoiceTtsRequestIdentity {
-  sessionId: string;
-  requestId: string;
+export interface VoiceTtsRequestIdentity extends VoiceSessionRequestIdentity {
   utteranceId?: string;
   actorId?: string;
 }
@@ -3137,18 +3141,18 @@ export interface VoiceTtsStatus extends Partial<VoiceTtsRequestIdentity> {
   error?: string;
 }
 
-export interface VoiceSessionReady {
+export interface VoiceSessionReady extends Partial<VoiceSessionRequestIdentity> {
   ready: true;
 }
 
-export interface VoiceSessionStatus {
+export interface VoiceSessionStatus extends Partial<VoiceSessionRequestIdentity> {
   stage: 'starting' | 'backend' | 'websocket' | 'vad' | 'stt' | 'tts' | 'ready';
   message: string;
   progress: number;
   modelName?: string;
 }
 
-export interface VoiceSessionError {
+export interface VoiceSessionError extends Partial<VoiceSessionRequestIdentity> {
   error: string;
 }
 

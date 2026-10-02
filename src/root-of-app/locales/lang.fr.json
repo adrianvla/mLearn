@@ -1,4 +1,7 @@
 {
+  "mlearn.ConversationAgent.Voice.PreparingMicrophone": "Préparation du microphone…",
+  "mlearn.ConversationAgent.Voice.CallsUnavailable": "Les appels vocaux avec l’IA nécessitent l’application de bureau. Vous pouvez poursuivre cette conversation par écrit ici.",
+  "mlearn.ConversationAgent.Voice.CaptureFailed": "Le microphone n’a pas pu démarrer. Vérifiez votre périphérique audio et réessayez l’appel.",
   "mlearn.ConversationAgent.Voice.VisualActivity": "Exercice visuel — répondez à l’écran.",
   "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "La réponse n’a pas été prononcée, car les notes de conversation n’ont pas pu être enregistrées.",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "Aucune lecture enregistrée.",

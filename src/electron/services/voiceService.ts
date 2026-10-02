@@ -22,7 +22,7 @@ import type {
   VoiceSample,
   VoiceTtsAudio,
   VoiceTtsRequestIdentity,
-  VoiceTtsStopScope,
+  VoiceTtsStopScope, VoiceSessionRequestIdentity,
 } from '../../shared/types';
 import {
   getResourcePath,
@@ -40,6 +40,7 @@ import { getLogger } from '../../shared/utils/logger';
 const log = getLogger('electron.voiceService');
 
 function normalizeVadEventType(event: unknown): VoiceVadEvent['type'] {
+  if (!['speech_start', 'speech_end', 'speech-start', 'speech-end'].includes(String(event)) || typeof event !== 'string') throw new Error('Invalid voice stream VAD event');
   if (event === 'speech_start') return 'speech-start';
   if (event === 'speech_end') return 'speech-end';
   return event === 'speech-end' ? 'speech-end' : 'speech-start';
@@ -470,6 +471,26 @@ const MAX_QUEUED_AUDIO_CHUNKS = 256;
 let pendingAudioChunks: Float32Array[] = [];
 let pendingTokenCleanup: (() => void) | null = null;
 let sessionGeneration = 0;
+interface VoiceSessionOwner {
+  sender: Electron.WebContents;
+  identity?: VoiceSessionRequestIdentity;
+  removeDestroyedListener?: () => void;
+}
+let activeVoiceRequest: VoiceSessionOwner | null = null;
+
+function ownsVoiceSession(owner: VoiceSessionOwner): boolean {
+  return activeVoiceRequest === owner && !owner.sender.isDestroyed();
+}
+
+function ownsVoiceCommand(sender: Electron.WebContents, scope?: VoiceSessionRequestIdentity): boolean {
+  const owner = activeVoiceRequest;
+  return !!owner && ownsVoiceSession(owner) && owner.sender === sender
+    && (scope ? owner.identity?.sessionId === scope.sessionId && owner.identity?.requestId === scope.requestId : !owner.identity);
+}
+
+function sendSessionEvent(owner: VoiceSessionOwner, channel: string, payload: object): void {
+  if (ownsVoiceSession(owner)) owner.sender.send(channel, { ...payload, ...owner.identity });
+}
 
 // ============================================================================
 // TTS Abort
@@ -586,7 +607,7 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatusPaylo
     downloading: false,
     progress: 0,
     sttModelName: '',
-    ttsModelName: 'Kokoro-82M',
+    ttsModelName: '',
   };
 
   try {
@@ -601,6 +622,7 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatusPaylo
       ((ttsRes.downloading as boolean) ?? false);
     status.progress =
       (((sttRes.progress as number) ?? 0) + ((ttsRes.progress as number) ?? 0)) / 2;
+    status.ttsModelName = typeof ttsRes.modelName === 'string' ? ttsRes.modelName : '';
     const backendSttModel = typeof sttRes.modelName === 'string' ? sttRes.modelName : '';
     status.sttModelName = backendSttModel || DEFAULT_STT_MODEL_NAME;
     const backendSttEngine = typeof sttRes.engine === 'string' ? sttRes.engine : '';
@@ -661,26 +683,44 @@ function startSession(
   silenceThreshold: number,
   sender: Electron.WebContents,
   ttsProvider?: string,
+  request?: VoiceSessionRequestIdentity,
 ): void {
+  if (sender.isDestroyed()) return;
+  let identity: VoiceSessionRequestIdentity | undefined;
+  try {
+    const normalized = normalizeTtsRequest(request);
+    if (normalized) identity = { sessionId: normalized.sessionId, requestId: normalized.requestId };
+  } catch (error) { log.warn('[VoiceService] Invalid microphone request', error); return; }
   log.info('[VoiceService] Starting voice session', { language, mode, silenceThreshold, ttsProvider });
+  const previous = activeVoiceRequest;
+  if (identity && previous?.sender === sender && previous.identity?.sessionId === identity.sessionId
+    && previous.identity.requestId === identity.requestId) return;
   stopSession();
+  if (previous && !previous.sender.isDestroyed()) previous.sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR,
+    { error: 'This call ended because another voice session started.', ...previous.identity });
+  const owner: VoiceSessionOwner = { sender, identity };
+  activeVoiceRequest = owner;
+  activeSender = sender;
+  const onDestroyed = () => { if (activeVoiceRequest === owner) stopSession(); };
+  sender.once('destroyed', onDestroyed);
+  owner.removeDestroyedListener = () => sender.removeListener('destroyed', onDestroyed);
 
   const token = getQuitToken();
   if (!token) {
-    sendSessionStatus(sender, {
+    sendSessionStatus(owner, {
       stage: 'backend',
       message: 'Waiting for local Python backend…',
       progress: 0.01,
     });
-    waitForQuitTokenAndStart(language, mode, silenceThreshold, sender, ttsProvider);
+    waitForQuitTokenAndStart(language, mode, silenceThreshold, owner, ttsProvider);
     return;
   }
 
-  doStartSession(language, mode, silenceThreshold, sender, token, ttsProvider);
+  doStartSession(language, mode, silenceThreshold, owner, token, ttsProvider);
 }
 
 function sendSessionStatus(
-  sender: Electron.WebContents,
+  owner: VoiceSessionOwner,
   status: {
     stage: 'starting' | 'backend' | 'websocket' | 'vad' | 'stt' | 'tts' | 'ready';
     message: string;
@@ -688,27 +728,26 @@ function sendSessionStatus(
     modelName?: string;
   },
 ): void {
-  if (sender.isDestroyed()) return;
+  if (!ownsVoiceSession(owner)) return;
   log.info('[VoiceService] Voice session status', status);
-  sender.send(IPC_CHANNELS.VOICE_SESSION_STATUS, status);
+  sendSessionEvent(owner, IPC_CHANNELS.VOICE_SESSION_STATUS, status);
 }
 
 function waitForQuitTokenAndStart(
   language: string,
   mode: VoiceMode,
   silenceThreshold: number,
-  sender: Electron.WebContents,
+  owner: VoiceSessionOwner,
   ttsProvider?: string,
 ): void {
   pendingTokenCleanup?.();
   const generation = sessionGeneration;
   pendingTokenCleanup = onQuitTokenAvailable((token) => {
-    if (generation !== sessionGeneration) return;
+    if (generation !== sessionGeneration || !ownsVoiceSession(owner)) return;
     sessionGeneration += 1;
     pendingTokenCleanup?.();
     pendingTokenCleanup = null;
-    if (sender.isDestroyed()) return;
-    doStartSession(language, mode, silenceThreshold, sender, token, ttsProvider);
+    doStartSession(language, mode, silenceThreshold, owner, token, ttsProvider);
   });
 }
 
@@ -716,15 +755,17 @@ function doStartSession(
   language: string,
   mode: VoiceMode,
   silenceThreshold: number,
-  sender: Electron.WebContents,
+  owner: VoiceSessionOwner,
   token: string,
   ttsProvider?: string,
 ): void {
+  if (!ownsVoiceSession(owner)) return;
+  const sender = owner.sender;
   const ttsProviderQuery = ttsProvider ? `&tts_provider=${encodeURIComponent(ttsProvider)}` : '';
   const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}${ttsProviderQuery}`;
 
   try {
-    sendSessionStatus(sender, {
+    sendSessionStatus(owner, {
       stage: 'websocket',
       message: 'Opening local voice stream…',
       progress: 0.02,
@@ -733,26 +774,21 @@ function doStartSession(
     activeWs = ws;
     activeSession = true;
     activeSender = sender;
-    const ownsSession = () => activeWs === ws && activeSender === sender;
+    const ownsSession = () => ownsVoiceSession(owner) && activeWs === ws && activeSender === sender;
     const failSession = (error: string, closeSocket = true) => {
       if (!ownsSession()) return;
       // Detach before notifying or closing: neither a late callback nor an
       // intentional teardown may clear or send events to the next session.
-      activeWs = null;
-      activeSession = false;
-      activeSender = null;
-      pendingAudioChunks = [];
-      if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, { error });
-      if (closeSocket) {
-        try { ws.close(); } catch (closeError) { log.warn('[VoiceService] Failed to close voice stream:', closeError); }
-      }
+      if (!closeSocket) activeWs = null;
+      stopSession();
+      if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, { error, ...owner.identity });
     };
 
     ws.on('open', () => {
       if (!ownsSession() || sender.isDestroyed()) return;
       log.info('[VoiceService] WebSocket connected to Python backend');
       if (activeSender && !activeSender.isDestroyed()) {
-        sendSessionStatus(activeSender, {
+        sendSessionStatus(owner, {
           stage: 'websocket',
           message: 'Connected to local voice stream…',
           progress: 0.03,
@@ -772,13 +808,17 @@ function doStartSession(
       if (!ownsSession() || !activeSender || activeSender.isDestroyed()) return;
       try {
         const msg = JSON.parse(rawData.toString());
+        if (!msg || typeof msg !== 'object' || Array.isArray(msg) || typeof msg.type !== 'string') throw new Error('Invalid voice stream event');
         switch (msg.type) {
           case 'ready':
             log.info('[VoiceService] Voice session ready');
-            activeSender.send(IPC_CHANNELS.VOICE_SESSION_READY, { ready: true });
+            sendSessionEvent(owner, IPC_CHANNELS.VOICE_SESSION_READY, { ready: true });
             break;
           case 'loading':
-            sendSessionStatus(activeSender, {
+            if (!['starting', 'backend', 'websocket', 'vad', 'stt', 'tts', 'ready'].includes(msg.stage)
+              || typeof msg.message !== 'string' || !Number.isFinite(msg.progress) || msg.progress < 0 || msg.progress > 1
+              || (msg.modelName !== undefined && typeof msg.modelName !== 'string')) throw new Error('Invalid voice stream loading event');
+            sendSessionStatus(owner, {
               stage: msg.stage,
               message: msg.message,
               progress: msg.progress,
@@ -796,16 +836,19 @@ function doStartSession(
               speechSeconds: optionalNumber(msg.speechSeconds),
               chunkSeconds: optionalNumber(msg.chunkSeconds),
             };
-            activeSender.send(IPC_CHANNELS.VOICE_VAD_EVENT, vadEvent);
+            sendSessionEvent(owner, IPC_CHANNELS.VOICE_VAD_EVENT, vadEvent);
             break;
           }
           case 'stt': {
+            if (typeof msg.text !== 'string' || typeof msg.isFinal !== 'boolean'
+              || (msg.isPartial !== undefined && (typeof msg.isPartial !== 'boolean' || msg.isPartial === msg.isFinal)))
+              throw new Error('Invalid voice stream transcript');
             const sttResult: VoiceSTTResult = {
               text: msg.text,
               isFinal: msg.isFinal,
               isPartial: msg.isPartial ?? !msg.isFinal,
             };
-            activeSender.send(IPC_CHANNELS.VOICE_STT_RESULT, sttResult);
+            sendSessionEvent(owner, IPC_CHANNELS.VOICE_STT_RESULT, sttResult);
             break;
           }
           case 'ping':
@@ -818,6 +861,7 @@ function doStartSession(
         }
       } catch (e) {
         log.error('[VoiceService] Failed to parse WS message:', e);
+        failSession('Invalid voice stream event received from the backend');
       }
     });
 
@@ -834,13 +878,19 @@ function doStartSession(
     });
   } catch (err) {
     log.error('[VoiceService] Failed to connect:', err);
-    sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
+    if (!ownsVoiceSession(owner)) return;
+    stopSession();
+    if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
       error: err instanceof Error ? err.message : String(err),
+      ...owner.identity,
     });
   }
 }
 
 function stopSession(): void {
+  const owner = activeVoiceRequest;
+  activeVoiceRequest = null;
+  owner?.removeDestroyedListener?.();
   sessionGeneration += 1;
   activeSession = false;
   activeSender = null;
@@ -1423,40 +1473,40 @@ export function setupVoiceIPC(): void {
   // Start voice session
   ipcMain.on(
     IPC_CHANNELS.VOICE_START_SESSION,
-    (event, language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) => {
-      startSession(language, mode, silenceThreshold ?? DEFAULT_VOICE_SILENCE_THRESHOLD, event.sender, ttsProvider);
+    (event, language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string, request?: VoiceSessionRequestIdentity) => {
+      startSession(language, mode, silenceThreshold ?? DEFAULT_VOICE_SILENCE_THRESHOLD, event.sender, ttsProvider, request);
     },
   );
 
   // Stop voice session
-  ipcMain.on(IPC_CHANNELS.VOICE_STOP_SESSION, () => {
-    stopSession();
+  ipcMain.on(IPC_CHANNELS.VOICE_STOP_SESSION, (event, scope?: VoiceSessionRequestIdentity) => {
+    if (ownsVoiceCommand(event.sender, scope)) stopSession();
   });
 
   // Receive audio chunk from renderer
-  ipcMain.on(IPC_CHANNELS.VOICE_AUDIO_CHUNK, (_event, samples: Float32Array) => {
-    if (activeSession) {
+  ipcMain.on(IPC_CHANNELS.VOICE_AUDIO_CHUNK, (event, samples: Float32Array, scope?: VoiceSessionRequestIdentity) => {
+    if (activeSession && ownsVoiceCommand(event.sender, scope)) {
       sendAudioChunk(new Float32Array(samples));
     }
   });
 
   // Flush buffered speech (PTT release)
-  ipcMain.on(IPC_CHANNELS.VOICE_FLUSH, () => {
-    if (activeSession) {
+  ipcMain.on(IPC_CHANNELS.VOICE_FLUSH, (event, scope?: VoiceSessionRequestIdentity) => {
+    if (activeSession && ownsVoiceCommand(event.sender, scope)) {
       sendFlush();
     }
   });
 
   // Update silence threshold at runtime
-  ipcMain.on(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, (_event, threshold: number) => {
-    if (activeSession) {
+  ipcMain.on(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, (event, threshold: number, scope?: VoiceSessionRequestIdentity) => {
+    if (activeSession && ownsVoiceCommand(event.sender, scope)) {
       sendSilenceThresholdUpdate(threshold);
     }
   });
 
   // Notify backend when local TTS playback is active so VAD can adapt.
-  ipcMain.on(IPC_CHANNELS.VOICE_TTS_STATE, (_event, active: boolean) => {
-    if (activeSession) {
+  ipcMain.on(IPC_CHANNELS.VOICE_TTS_STATE, (event, active: boolean, scope?: VoiceSessionRequestIdentity) => {
+    if (activeSession && ownsVoiceCommand(event.sender, scope)) {
       sendTtsState(active);
     }
   });

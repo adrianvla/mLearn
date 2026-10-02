@@ -1,4 +1,7 @@
 {
+  "mlearn.ConversationAgent.Voice.PreparingMicrophone": "Mikrofon wird vorbereitet…",
+  "mlearn.ConversationAgent.Voice.CallsUnavailable": "KI-Sprachanrufe erfordern die Desktop-App. Du kannst diese Unterhaltung hier per Text fortsetzen.",
+  "mlearn.ConversationAgent.Voice.CaptureFailed": "Das Mikrofon konnte nicht gestartet werden. Prüfe dein Audiogerät und versuche den Anruf erneut.",
   "mlearn.ConversationAgent.Voice.VisualActivity": "Visuelle Übung — antworte auf dem Bildschirm.",
   "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Die Antwort wurde nicht gesprochen, weil Gesprächsnotizen nicht gespeichert werden konnten.",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "Keine Wiedergabe aufgezeichnet.",

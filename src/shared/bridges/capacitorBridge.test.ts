@@ -1412,6 +1412,23 @@ describe('Voice Bridge', () => {
     expect(status.statusMessage).toContain('not available');
   });
 
+  it('declares absent AI call transport and fails owned requests explicitly', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge'); const { voice } = createCapacitorBridge();
+    const error = vi.fn(); const tts = vi.fn(); const progress = vi.fn();
+    const unsubscribe = voice.onVoiceSessionError(error); const unsubscribeTts = voice.onVoiceTtsStatus(tts);
+    const unsubscribeProgress = voice.onVoiceModelProgress(progress);
+    const identity = { sessionId: 'call', requestId: 'mic' };
+    expect(voice.supportsCalls).toBe(false);
+    voice.voiceStartSession('test-language', 'vad', 0.8, 'system', identity);
+    expect(error).toHaveBeenCalledExactlyOnceWith({ ...identity, error: expect.stringContaining('desktop') });
+    voice.voiceTtsGenerate('Hello', 'test-language', 1, undefined, 'system', undefined, identity);
+    expect(tts).toHaveBeenCalledExactlyOnceWith({ ...identity, generating: false, playing: false, error: expect.stringContaining('desktop') });
+    voice.voiceDownloadModels('test-language');
+    expect(progress).toHaveBeenCalledWith(expect.objectContaining({ downloading: false, error: expect.any(String) }));
+    expect((await voice.voiceCheckModels('test-language')).statusMessage).not.toContain('Web Speech');
+    unsubscribe(); unsubscribeTts(); unsubscribeProgress();
+  });
+
   it('voiceSampleList returns empty array', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();

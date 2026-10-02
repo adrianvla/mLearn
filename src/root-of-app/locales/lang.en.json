@@ -1,4 +1,7 @@
 {
+  "mlearn.ConversationAgent.Voice.PreparingMicrophone": "Preparing microphone…",
+  "mlearn.ConversationAgent.Voice.CallsUnavailable": "AI voice calls require the desktop app. You can continue this conversation by text here.",
+  "mlearn.ConversationAgent.Voice.CaptureFailed": "The microphone could not start. Check your audio device and try the call again.",
   "mlearn.ConversationAgent.Voice.VisualActivity": "Visual activity — answer on screen.",
   "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "The reply was not spoken because conversation notes could not be saved.",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "No playback recorded.",

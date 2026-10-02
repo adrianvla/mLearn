@@ -1,4 +1,7 @@
 {
+  "mlearn.ConversationAgent.Voice.PreparingMicrophone": "Подготовка микрофона…",
+  "mlearn.ConversationAgent.Voice.CallsUnavailable": "Для голосовых звонков с ИИ нужно настольное приложение. Здесь можно продолжить разговор текстом.",
+  "mlearn.ConversationAgent.Voice.CaptureFailed": "Не удалось запустить микрофон. Проверьте аудиоустройство и попробуйте позвонить снова.",
   "mlearn.ConversationAgent.Voice.VisualActivity": "Визуальное упражнение — ответьте на экране.",
   "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Ответ не был озвучен, потому что не удалось сохранить заметки беседы.",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "Воспроизведение не зафиксировано.",

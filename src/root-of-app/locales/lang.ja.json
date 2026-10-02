@@ -1,4 +1,7 @@
 {
+  "mlearn.ConversationAgent.Voice.PreparingMicrophone": "マイクを準備しています…",
+  "mlearn.ConversationAgent.Voice.CallsUnavailable": "AIとの音声通話にはデスクトップアプリが必要です。ここではテキストで会話を続けられます。",
+  "mlearn.ConversationAgent.Voice.CaptureFailed": "マイクを起動できませんでした。オーディオ機器を確認して、もう一度通話を開始してください。",
   "mlearn.ConversationAgent.Voice.VisualActivity": "画面で回答する練習です。",
   "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "会話のメモを保存できなかったため、返答は読み上げられませんでした。",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "再生記録はありません。",

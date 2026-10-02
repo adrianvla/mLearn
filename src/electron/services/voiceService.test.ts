@@ -457,6 +457,14 @@ describe('VOICE_MODEL_STATUS handler', () => {
     expect(result.vadDownloaded).toBe(true);
   });
 
+  it('reports the backend-selected TTS model instead of an unrelated hardcoded provider', async () => {
+    mod.setupVoiceIPC();
+    mockStatusEndpoint({ downloaded: true, modelName: 'configured-stt' },
+      { downloaded: true, modelName: 'Qwen3-TTS-installed', engine: 'qwen3' });
+    const result = await handleHandlers.get('voice-model-status')?.({}, 'test-language');
+    expect(result).toMatchObject({ sttModelName: 'configured-stt', ttsModelName: 'Qwen3-TTS-installed' });
+  });
+
   it('checks TTS model status for the requested language', async () => {
     mod.setupVoiceIPC();
     httpGetFn.mockImplementation(
@@ -684,6 +692,54 @@ describe('VOICE_TTS_GENERATE — realtime TTS status cpuWarning relay', () => {
 });
 
 describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
+  it('tags microphone readiness, progress, VAD, STT and failure with the exact stream request', () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const request = { sessionId: 'call', requestId: 'microphone-a' };
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5, 'qwen3', request);
+    const socket = lastCreatedWebSocket!;
+    socket._emit('message', JSON.stringify({ type: 'ready' }));
+    socket._emit('message', JSON.stringify({ type: 'vad', event: 'speech_start' }));
+    socket._emit('message', JSON.stringify({ type: 'stt', text: 'Current learner speech', isFinal: true }));
+    socket._emit('error', new Error('Stream failed'));
+    for (const channel of ['voice-session-status', 'voice-session-ready', 'voice-vad-event', 'voice-stt-result', 'voice-session-error']) {
+      expect(event.sender.send).toHaveBeenCalledWith(channel, expect.objectContaining(request));
+    }
+  });
+
+  it('rejects foreign, obsolete and uncorrelated microphone commands without touching the current stream', () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent(), outsider = createFakeEvent();
+    const request = { sessionId: 'call', requestId: 'current-stream' };
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5, undefined, request);
+    const socket = lastCreatedWebSocket!;
+    for (const [sender, scope] of [[outsider, request], [event, { ...request, requestId: 'old-stream' }], [event, undefined]] as const) {
+      onHandlers.get('voice-audio-chunk')?.(sender, new Float32Array([0.2]), scope);
+      onHandlers.get('voice-flush')?.(sender, scope);
+      onHandlers.get('voice-update-silence-threshold')?.(sender, 2.0, scope);
+      onHandlers.get('voice-tts-state')?.(sender, true, scope);
+      onHandlers.get('voice-stop-session')?.(sender, scope);
+    }
+    expect(socket.send).not.toHaveBeenCalled(); expect(socket.close).not.toHaveBeenCalled();
+    onHandlers.get('voice-audio-chunk')?.(event, new Float32Array([0.2]), request);
+    onHandlers.get('voice-flush')?.(event, request);
+    expect(socket.send).toHaveBeenCalledTimes(2);
+    onHandlers.get('voice-stop-session')?.(event, request);
+    expect(socket.close).toHaveBeenCalledOnce();
+  });
+
+  it.each(['waiting', 'connected'])('retires a %s microphone owner when its window is destroyed', (phase) => {
+    if (phase === 'waiting') mockQuitToken = null;
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const request = { sessionId: 'call', requestId: 'microphone' };
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5, undefined, request);
+    const socket = lastCreatedWebSocket, tokenCallback = mockQuitTokenAvailableCallback;
+    event.sender.destroy();
+    if (socket) expect(socket.close).toHaveBeenCalledOnce();
+    tokenCallback?.('late-token');
+    expect(lastCreatedWebSocket).toBe(socket);
+  });
   it('creates a WebSocket when startSession is called', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
@@ -732,6 +788,34 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     });
   });
 
+  it('does not replace a repeated owned start request', () => {
+    mod.setupVoiceIPC(); const event = createFakeEvent(); const identity = { sessionId: 'call', requestId: 'microphone' };
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5, 'system', identity);
+    const socket = lastCreatedWebSocket!; event.sender.send.mockClear();
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5, 'system', { ...identity });
+    expect(lastCreatedWebSocket).toBe(socket); expect(socket.close).not.toHaveBeenCalled();
+    expect(event.sender.send).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'not-json', 'null', '[]',
+    JSON.stringify({ type: 'stt', text: 12, isFinal: true }),
+    JSON.stringify({ type: 'stt', text: 'hi', isFinal: 'true' }),
+    JSON.stringify({ type: 'stt', text: 'hi', isFinal: true, isPartial: true }),
+    JSON.stringify({ type: 'vad', event: 'not-speech' }),
+    JSON.stringify({ type: 'loading', stage: 'stt', message: 'Loading', progress: 2 }),
+  ])('ends its owned stream on malformed backend events (%s)', (packet) => {
+    mod.setupVoiceIPC(); const event = createFakeEvent(); const identity = { sessionId: 'call', requestId: 'microphone' };
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5, 'system', identity);
+    const socket = lastCreatedWebSocket!; event.sender.send.mockClear();
+    socket._emit('message', packet);
+    socket._emit('message', JSON.stringify({ type: 'stt', text: 'late', isFinal: true }));
+    expect(socket.close).toHaveBeenCalledTimes(1);
+    expect(event.sender.send).toHaveBeenCalledExactlyOnceWith('voice-session-error', {
+      ...identity, error: expect.stringContaining('Invalid voice stream'),
+    });
+  });
+
   it('keeps waiting without sending a session error while Python has not emitted a quit token', () => {
     mockQuitToken = null;
     mod.setupVoiceIPC();
@@ -765,6 +849,10 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
       onHandlers.get('voice-stop-session')?.(oldEvent);
     }
 
+    if (action === 'replace') {
+      expect(oldEvent.sender.send).toHaveBeenCalledWith('voice-session-error', expect.objectContaining({ error: expect.stringContaining('another voice session') }));
+      oldEvent.sender.send.mockClear();
+    }
     // A callback already queued by the backend can run after unsubscription.
     delayedCallback('late-token');
     expect(lastCreatedWebSocket).toBe(replacement);
@@ -935,7 +1023,7 @@ describe('VOICE_AUDIO_CHUNK handler', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
-    onHandlers.get('voice-audio-chunk')?.({}, new Float32Array([0.1, 0.2, 0.3]));
+    onHandlers.get('voice-audio-chunk')?.(event, new Float32Array([0.1, 0.2, 0.3]));
     expect(lastCreatedWebSocket?.send).toHaveBeenCalled();
   });
 
@@ -944,7 +1032,7 @@ describe('VOICE_AUDIO_CHUNK handler', () => {
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
     if (lastCreatedWebSocket) lastCreatedWebSocket.readyState = MockWebSocket.CLOSED;
-    onHandlers.get('voice-audio-chunk')?.({}, new Float32Array([0.5]));
+    onHandlers.get('voice-audio-chunk')?.(event, new Float32Array([0.5]));
     expect(lastCreatedWebSocket?.send).not.toHaveBeenCalled();
   });
 });
@@ -954,7 +1042,7 @@ describe('VOICE_FLUSH handler', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
-    onHandlers.get('voice-flush')?.({});
+    onHandlers.get('voice-flush')?.(event);
     expect(lastCreatedWebSocket?.send).toHaveBeenCalledWith(JSON.stringify({ type: 'flush' }));
   });
 
@@ -969,7 +1057,7 @@ describe('VOICE_UPDATE_SILENCE_THRESHOLD handler', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5);
-    onHandlers.get('voice-update-silence-threshold')?.({}, 2.5);
+    onHandlers.get('voice-update-silence-threshold')?.(event, 2.5);
     expect(lastCreatedWebSocket?.send).toHaveBeenCalledWith(
       JSON.stringify({ type: 'silence_threshold', value: 2.5 }),
     );

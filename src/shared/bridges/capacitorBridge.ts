@@ -1580,10 +1580,13 @@ const speechBridge: SpeechBridge = {
 };
 
 // ============================================================================
-// Voice Bridge (limited on mobile — Web Speech API fallbacks)
+// Voice Bridge — integrated AI call transport is unavailable on mobile
 // ============================================================================
 
+const unavailableVoiceCall = 'AI voice calls are not available here. Continue by text or use the desktop app.';
+
 const voiceBridge: VoiceBridge = {
+  supportsCalls: false,
   async voiceCheckModels(): Promise<VoiceModelStatus> {
     return {
       sttDownloaded: false,
@@ -1591,26 +1594,33 @@ const voiceBridge: VoiceBridge = {
       vadDownloaded: false,
       downloading: false,
       progress: 0,
-      statusMessage: 'Voice models not available on mobile — using Web Speech API',
+      statusMessage: unavailableVoiceCall,
     };
   },
-  voiceDownloadModels: noop,
-  onVoiceModelProgress: noopCleanup,
-  voiceStartSession: noop,
+  voiceDownloadModels() {
+    emitter.emit('voice-model-progress', { sttDownloaded: false, ttsDownloaded: false, vadDownloaded: false,
+      downloading: false, progress: 0, error: unavailableVoiceCall, statusMessage: unavailableVoiceCall });
+  },
+  onVoiceModelProgress: callback => emitter.on('voice-model-progress', callback as Listener),
+  voiceStartSession(_language, _mode, _threshold, _provider, request) {
+    emitter.emit('voice-session-error', { error: unavailableVoiceCall, ...request });
+  },
   voiceStopSession: noop,
   voiceSendAudioChunk: noop,
   voiceFlush: noop,
   voiceUpdateSilenceThreshold: noop,
   onVoiceSttResult: noopCleanup,
   onVoiceVadEvent: noopCleanup,
-  voiceTtsGenerate: noop,
+  voiceTtsGenerate(_text, _language, _speed, _sample, _provider, _token, request) {
+    emitter.emit('voice-tts-status', { generating: false, playing: false, error: unavailableVoiceCall, ...request });
+  },
   voiceTtsStop: noop,
   voiceSendTtsState: noop,
   onVoiceTtsAudio: noopCleanup,
-  onVoiceTtsStatus: noopCleanup,
+  onVoiceTtsStatus: callback => emitter.on('voice-tts-status', callback as Listener),
   onVoiceSessionReady: noopCleanup,
   onVoiceSessionStatus: noopCleanup,
-  onVoiceSessionError: noopCleanup,
+  onVoiceSessionError: callback => emitter.on('voice-session-error', callback as Listener),
   async voiceSampleList(): Promise<VoiceSample[]> { return []; },
   async voiceSampleUpload(): Promise<VoiceSample> { throw new Error('Not supported on mobile'); },
   async voiceSampleDelete(): Promise<boolean> { return false; },

@@ -30,7 +30,7 @@ import type {
   VoiceTtsAudio,
   VoiceTtsStatus,
   VoiceTtsRequestIdentity,
-  VoiceTtsStopScope,
+  VoiceTtsStopScope, VoiceSessionRequestIdentity,
   VoiceMode,
   VoiceSessionReady,
   VoiceSessionStatus,
@@ -279,19 +279,21 @@ export interface SpeechBridge {
 }
 
 export interface VoiceBridge {
+  /** Integrated AI microphone/STT/TTS call transport available on this platform. */
+  supportsCalls: boolean;
   voiceCheckModels: (language: string) => Promise<VoiceModelStatus>;
   voiceDownloadModels: (language: string) => void;
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) => () => void;
-  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) => void;
-  voiceStopSession: () => void;
-  voiceSendAudioChunk: (samples: Float32Array) => void;
-  voiceFlush: () => void;
-  voiceUpdateSilenceThreshold: (threshold: number) => void;
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string, request?: VoiceSessionRequestIdentity) => void;
+  voiceStopSession: (scope?: VoiceSessionRequestIdentity) => void;
+  voiceSendAudioChunk: (samples: Float32Array, scope?: VoiceSessionRequestIdentity) => void;
+  voiceFlush: (scope?: VoiceSessionRequestIdentity) => void;
+  voiceUpdateSilenceThreshold: (threshold: number, scope?: VoiceSessionRequestIdentity) => void;
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) => () => void;
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
   voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string, request?: VoiceTtsRequestIdentity) => void;
   voiceTtsStop: (scope?: VoiceTtsStopScope) => void;
-  voiceSendTtsState: (active: boolean) => void;
+  voiceSendTtsState: (active: boolean, scope?: VoiceSessionRequestIdentity) => void;
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
   onVoiceSessionReady: (callback: (data: VoiceSessionReady) => void) => () => void;

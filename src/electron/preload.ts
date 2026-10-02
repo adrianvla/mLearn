@@ -8,7 +8,7 @@ import type { EffectiveThresholds } from '../shared/knowledge/effectiveKnowledge
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, FlashcardWriteAuthorization, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceTtsStopScope, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
+import type { Settings, FlashcardStore, FlashcardWriteAuthorization, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceTtsStopScope, VoiceSessionRequestIdentity, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../shared/knowledgeEvents';
@@ -525,16 +525,16 @@ const mLearnIPC = {
     ipcRenderer.send(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, language),
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD_PROGRESS, (_event, status) => callback(status)),
-  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_START_SESSION, language, mode, silenceThreshold, ttsProvider),
-  voiceStopSession: () =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_STOP_SESSION),
-  voiceSendAudioChunk: (samples: Float32Array) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_AUDIO_CHUNK, samples),
-  voiceFlush: () =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_FLUSH),
-  voiceUpdateSilenceThreshold: (threshold: number) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, threshold),
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string, request?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_START_SESSION, language, mode, silenceThreshold, ttsProvider, request),
+  voiceStopSession: (scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_STOP_SESSION, scope),
+  voiceSendAudioChunk: (samples: Float32Array, scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_AUDIO_CHUNK, samples, scope),
+  voiceFlush: (scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_FLUSH, scope),
+  voiceUpdateSilenceThreshold: (threshold: number, scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, threshold, scope),
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_STT_RESULT, (_event, result) => callback(result)),
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) =>
@@ -543,8 +543,8 @@ const mLearnIPC = {
     ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed, voiceSampleId, provider, cloudAuthToken, request),
   voiceTtsStop: (scope?: VoiceTtsStopScope) =>
     ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STOP, scope),
-  voiceTtsState: (active: boolean) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STATE, active),
+  voiceTtsState: (active: boolean, scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STATE, active, scope),
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_TTS_AUDIO, (_event, audio) => callback(audio)),
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) =>

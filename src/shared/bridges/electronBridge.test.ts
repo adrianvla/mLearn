@@ -112,6 +112,7 @@ function createMockIPC() {
     onVoiceModelProgress: vi.fn(),
     voiceStartSession: vi.fn(),
     voiceStopSession: vi.fn(),
+    voiceTtsState: vi.fn(),
     voiceSendAudioChunk: vi.fn(),
     voiceFlush: vi.fn(),
     voiceUpdateSilenceThreshold: vi.fn(),
@@ -975,10 +976,25 @@ describe('voiceBridge', () => {
     expect(mockIPC.onVoiceModelProgress).toHaveBeenCalledWith(cb);
   });
 
+  it('forwards a microphone identity on every session command', () => {
+    const { voice } = createElectronBridge(); const request = { sessionId: 'call', requestId: 'microphone' };
+    const samples = new Float32Array([0.1]);
+    expect(voice.supportsCalls).toBe(true);
+    voice.voiceStartSession('test-language', 'vad', 0.8, 'system', request);
+    voice.voiceSendAudioChunk(samples, request); voice.voiceFlush(request);
+    voice.voiceUpdateSilenceThreshold(1, request); voice.voiceSendTtsState(true, request); voice.voiceStopSession(request);
+    expect(mockIPC.voiceStartSession).toHaveBeenCalledWith('test-language', 'vad', 0.8, 'system', request);
+    expect(mockIPC.voiceSendAudioChunk).toHaveBeenCalledWith(samples, request);
+    expect(mockIPC.voiceFlush).toHaveBeenCalledWith(request);
+    expect(mockIPC.voiceUpdateSilenceThreshold).toHaveBeenCalledWith(1, request);
+    expect(mockIPC.voiceTtsState).toHaveBeenCalledWith(true, request);
+    expect(mockIPC.voiceStopSession).toHaveBeenCalledWith(request);
+  });
+
   it('voiceStartSession passes language, mode, threshold, and provider to ipc.voiceStartSession', () => {
     const bridge = createElectronBridge();
     bridge.voice.voiceStartSession('en', 'vad', 0.5, 'qwen3');
-    expect(mockIPC.voiceStartSession).toHaveBeenCalledWith('en', 'vad', 0.5, 'qwen3');
+    expect(mockIPC.voiceStartSession).toHaveBeenCalledWith('en', 'vad', 0.5, 'qwen3', undefined);
   });
 
   it('voiceStopSession delegates to ipc.voiceStopSession', () => {
@@ -991,7 +1007,7 @@ describe('voiceBridge', () => {
     const bridge = createElectronBridge();
     const samples = new Float32Array([0.1, 0.2]);
     bridge.voice.voiceSendAudioChunk(samples);
-    expect(mockIPC.voiceSendAudioChunk).toHaveBeenCalledWith(samples);
+    expect(mockIPC.voiceSendAudioChunk).toHaveBeenCalledWith(samples, undefined);
   });
 
   it('voiceFlush delegates to ipc.voiceFlush', () => {
@@ -1003,7 +1019,7 @@ describe('voiceBridge', () => {
   it('voiceUpdateSilenceThreshold passes threshold to ipc.voiceUpdateSilenceThreshold', () => {
     const bridge = createElectronBridge();
     bridge.voice.voiceUpdateSilenceThreshold(0.3);
-    expect(mockIPC.voiceUpdateSilenceThreshold).toHaveBeenCalledWith(0.3);
+    expect(mockIPC.voiceUpdateSilenceThreshold).toHaveBeenCalledWith(0.3, undefined);
   });
 
   it('onVoiceSttResult passes callback to ipc.onVoiceSttResult', () => {

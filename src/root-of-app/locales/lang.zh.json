@@ -1,4 +1,7 @@
 {
+  "mlearn.ConversationAgent.Voice.PreparingMicrophone": "正在准备麦克风…",
+  "mlearn.ConversationAgent.Voice.CallsUnavailable": "AI语音通话需要桌面应用。你可以在这里继续文字对话。",
+  "mlearn.ConversationAgent.Voice.CaptureFailed": "无法启动麦克风。请检查音频设备，然后重新发起通话。",
   "mlearn.ConversationAgent.Voice.VisualActivity": "视觉练习：请在屏幕上作答。",
   "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "无法保存对话笔记，因此未播放回复。",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "未记录播放。",
