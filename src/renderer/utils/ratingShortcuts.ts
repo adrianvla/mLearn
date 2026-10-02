@@ -4,7 +4,7 @@ const studyOverlaySelector = '[role="dialog"], [aria-modal="true"], [role="menu"
 const editableControlSelector = 'input, textarea, select, [role="textbox"], [contenteditable="true"]';
 
 export function isRatingKeyIgnored(e: KeyboardEvent): boolean {
-  if (e.repeat) return true;
+  if (e.defaultPrevented || e.repeat) return true;
   if (typeof document !== 'undefined' && document.querySelector(studyOverlaySelector)) return true;
   const target = e.target;
   if (!(target instanceof HTMLElement)) return false;

@@ -190,8 +190,9 @@ vi.mock('../common', async (importOriginal) => {
     onClick?: (e: MouseEvent) => void;
     title?: string;
     disabled?: boolean;
+    ref?: (element: HTMLButtonElement) => void;
   }) => (
-    <button type="button" class={props.class} classList={props.classList} onClick={props.onClick} title={props.title} disabled={props.disabled}>
+    <button ref={props.ref} type="button" class={props.class} classList={props.classList} onClick={props.onClick} title={props.title} disabled={props.disabled}>
       {props.children}
     </button>
   );
@@ -904,6 +905,38 @@ describe('FlashcardReview failure attribution', () => {
     expect(mockBuryCard).not.toHaveBeenCalled();
     expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
     dispose();
+  });
+
+  it('closing card actions with Escape preserves the expanded rating draft and pending chord', async () => {
+    setMockKnowledgeMeasured(['sense-recognition', 'surface-reading']);
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      clickShowAnswer(container);
+      container.querySelector<HTMLButtonElement>('.rating-matrix__adjust')!.click();
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '2' }));
+      expect(container.querySelector('.rating-matrix__cell--selected')).not.toBeNull();
+      expect(container.querySelector('.rating-matrix__col--pending')).not.toBeNull();
+      const actions = container.querySelector<HTMLButtonElement>('.flashcard-actions-trigger')!;
+      actions.click();
+      const child = document.body.querySelector<HTMLButtonElement>('.popover-panel button')!;
+      child.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(document.body.querySelector('.popover-panel')).toBeNull();
+      expect(document.activeElement).toBe(actions);
+      expect(container.querySelector('.rating-matrix__unfold')).not.toBeNull();
+      expect(container.querySelector('.rating-matrix__cell--selected')).not.toBeNull();
+      expect(container.querySelector('.rating-matrix__col--pending')).not.toBeNull();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(container.querySelector('.rating-matrix__col--pending')).toBeNull();
+      expect(container.querySelector('.rating-matrix__unfold')).not.toBeNull();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(container.querySelector('.rating-matrix__unfold')).toBeNull();
+      container.querySelector<HTMLButtonElement>('.rating-matrix__adjust')!.click();
+      expect(container.querySelector('.rating-matrix__cell--selected')).not.toBeNull();
+      await flushEffects();
+      expect(mockSubmitRating).not.toHaveBeenCalled();
+    } finally { dispose(); }
   });
   it('a mixed drafted profile schedules on its weakest evidence under one attempt', async () => {
     const dispose = render(() => <FlashcardReview />, container);
