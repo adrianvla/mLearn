@@ -2,7 +2,7 @@ import { SRS_EASE } from '../../shared/constants';
 import { grammarEntityId } from '../../shared/graph/load';
 import type { LearnableTarget } from '../../shared/graph/types';
 import type { FlashcardState, MediaStats } from '../../shared/types';
-import type { Candidate } from './types';
+import type { Candidate, EncounterTask } from './types';
 import { GRAMMAR_RECOGNIZE_TASK } from './types';
 import { independentSupportContributors, type SupportContributor } from '../../shared/prediction/supportContributors';
 
@@ -11,6 +11,8 @@ export interface FlashcardLike {
   word?: string;
   language: string;
   targets: LearnableTarget[];
+  /** Task-owned retrieval accesses; scheduler state does not imply a capability. */
+  task?: EncounterTask;
   dueDate: number;
   interval: number;
   /** Derived retention pressure when the scheduler has already replayed evidence. */
@@ -144,6 +146,7 @@ export function retentionDueCandidates(cards: readonly FlashcardLike[], nowMs: n
           word: card.word,
           language: card.language,
           targets: card.targets,
+          ...(card.task ? { task: card.task } : {}),
           origin: 'new-card' as const,
           scores: { novelty: 1 },
           // Source inputs verbatim for the trace (R20): the never-reviewed
@@ -158,6 +161,7 @@ export function retentionDueCandidates(cards: readonly FlashcardLike[], nowMs: n
         word: card.word,
         language: card.language,
         targets: card.targets,
+        ...(card.task ? { task: card.task } : {}),
         origin: 'retention' as const,
         scores: {
           'retention-need': card.pressure ?? clamp((nowMs - card.dueDate) / Math.max(1, card.interval)),

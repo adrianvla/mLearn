@@ -915,6 +915,28 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
   });
 
+  it.each(['prompt', 'language'])('refuses a first review admission when another window changes its %s', async changed => {
+    const { ctx, dispose } = await mountProvider();
+    try {
+      const card = makeCard({ id: 'changed-before-admission', language: 'ja2',
+        content: { type: 'word', front: 'captured prompt', back: 'answer' }, state: 'review', reviews: 3 });
+      const original = makeEmptyStore({ rev: revision, flashcards: { [card.id]: card } });
+      seed(original);
+      mockAppendEvents.mockClear();
+      mockBridge.flashcards.saveFlashcards.mockClear();
+      const pending = ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: card.language, attemptId: `first-admission-${changed}`, persistence: 'immediate',
+        scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      const replacement = { ...card, ...(changed === 'language' ? { language: 'future' }
+        : { content: { ...card.content, front: 'replacement prompt' } }) };
+      seed({ ...original, rev: (original.rev ?? 0) + 1, flashcards: { [card.id]: replacement } });
+      await expect(pending).rejects.toThrow(/captured prompt|captured language/);
+      expect(mockAppendEvents).not.toHaveBeenCalled();
+      expect(mockBridge.flashcards.saveFlashcards).not.toHaveBeenCalled();
+    } finally { dispose(); }
+  });
+
   it('advances repeated background ratings before persistence acknowledges and preserves unmapped-card provenance', async () => {
     const acknowledgements: Array<(revision: number) => void> = [];
     mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(() => new Promise<number>(resolve => acknowledgements.push(resolve)));

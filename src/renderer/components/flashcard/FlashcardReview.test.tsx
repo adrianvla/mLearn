@@ -499,6 +499,12 @@ describe('FlashcardReview', () => {
     expect(inspection.policyBrief).toBeTypeOf('string');
     expect(inspection.policyTrace?.version).toBeTypeOf('string');
     expect(inspection.policyTrace?.selectedKey).toBeTypeOf('string');
+    const trace = inspection.policyTrace!;
+    expect(trace.ranking[0].task?.requested).toEqual(expect.arrayContaining(['sense-recognition', 'surface-reading']));
+    expect(trace.ranking[0].targets).toEqual(expect.arrayContaining([
+      { entityId: surfaceEntityId('ja', hashWordSync('犬')), capability: 'sense-recognition' },
+      { entityId: surfaceEntityId('ja', hashWordSync('犬')), capability: 'surface-reading' },
+    ]));
     expect(mockSubmitRating).not.toHaveBeenCalled();
     dispose();
   });
@@ -780,6 +786,7 @@ describe('FlashcardReview failure attribution', () => {
       { capability: 'surface-reading', quality: 'missed' },
     ], expect.objectContaining({
       taskType: 'srs-review',
+      persistence: 'immediate',
       scheduler: { cardId: 'card-1', rating: 'again', timeSpentMs: expect.any(Number), tested: ['sense-recognition', 'surface-reading'] },
     }));
     dispose();
@@ -1136,6 +1143,7 @@ describe('FlashcardReview failure attribution', () => {
     expect(mockPlayedTts).toHaveBeenCalledTimes(1);
     expect(container.querySelector('.flashcard-front')!.textContent).toBe(first.content.front);
     expect(container.textContent).toContain('mlearn.Flashcards.Review.SavingRating');
+    expect(mockSubmitRating).toHaveBeenCalledWith(first.content.front, expect.any(Array), expect.objectContaining({ persistence: 'immediate' }));
     acknowledge();
     await flushEffects();
     expect(container.querySelector('.flashcard-front')!.textContent).toBe(second.content.front);

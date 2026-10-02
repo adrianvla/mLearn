@@ -39,6 +39,7 @@ import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteStat
 import './FlashcardReview.css';
 import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../../windows/flashcards/bulkDestructiveConfirm';
 import { getLogger } from '../../../shared/utils/logger';
+import { flashcardReviewPolicyEntry } from './flashcardReviewDecision';
 import { createReviewAssistanceStore, type ReviewAssistance } from '../../learning/reviewAssistance';
 
 const log = getLogger("renderer.components.flashcardReview");
@@ -238,39 +239,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       .filter((card): card is Flashcard => !!card && !card.suspended && !card.buried
         && (card.language || settings.language) === language
         && !isWordIgnoredSync(card.content.front, language))
-      .map((card) => ({
-        id: card.id,
-        word: card.content.front,
-        language: languageForCard(card),
-        targets: [{ entityId: `${language}:surface:${card.content.front}`, capability: 'surface-recognition' as const }],
-        dueDate: card.dueDate,
-        interval: card.interval,
-        suspended: card.suspended,
-        buried: card.buried,
-        state: card.state,
-        // Queue membership IS the scheduler's same-day admission.
-        scheduledForToday: true,
-        // Scheduler-replayed journal state feeding the momentum producer (R08).
-        lastReviewed: card.lastReviewed,
-        ease: card.ease,
-        reviews: card.reviews,
-      }));
-    if (!reviewQueueEntries.some((entry) => entry.id === fallback.id)) {
-      reviewQueueEntries.push({
-        id: fallback.id,
-        word: fallback.content.front,
-        language,
-        targets: [{ entityId: `${language}:surface:${fallback.content.front}`, capability: 'surface-recognition' }],
-        dueDate: fallback.dueDate,
-        interval: fallback.interval,
-        suspended: fallback.suspended,
-        buried: fallback.buried,
-        state: fallback.state,
-        scheduledForToday: true,
-        lastReviewed: fallback.lastReviewed,
-        ease: fallback.ease,
-        reviews: fallback.reviews,
-      });
+      .map(card => flashcardReviewPolicyEntry(card, languageForCard(card), languageDataForCard(card)));
+    if (!reviewQueueEntries.some(entry => entry.id === fallback.id)) {
+      reviewQueueEntries.push(flashcardReviewPolicyEntry(fallback, language, languageDataForCard(fallback)));
     }
     // Pinned for the active encounter (R20 repair): this memo re-runs on
     // every unrelated queue/store/settings update, and the unseeded weighted
@@ -382,7 +353,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         ...(write.timing ? { timing: write.timing } : {}),
         taskType: 'srs-review',
         origin: write.origin,
-        persistence: write.assistance || Object.values(write.scaffolds ?? {}).some(Boolean) ? 'immediate' : 'background',
+        // Keep this physical response visible until journal and scheduler saves acknowledge.
+        persistence: 'immediate',
         ...(write.scaffolds ? { scaffolds: write.scaffolds } : {}),
         scheduler: {
           cardId: write.card.id,

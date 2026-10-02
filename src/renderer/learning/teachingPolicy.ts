@@ -355,7 +355,7 @@ const TRACE_LIMITS = [
 const MEDIA_LIMIT =
   'media-relevance is recurrence of unmeasured tokens in the learner\'s selected media (coverage), not demonstrated comprehension.';
 
-function rankRow(candidate: Candidate, effective: Partial<Record<ScoreDimension, number>>): PolicyRankRow {
+function rankRow(candidate: Candidate, effective: Partial<Record<ScoreDimension, number>>, task: EncounterTask): PolicyRankRow {
   const contributions = Object.entries(candidate.scores)
     .filter((entry): entry is [ScoreDimension, number] => entry[1] !== undefined)
     .map(([dimension, score]) => {
@@ -366,6 +366,8 @@ function rankRow(candidate: Candidate, effective: Partial<Record<ScoreDimension,
   return {
     key: candidate.key,
     origin: candidate.origin,
+    targets: JSON.parse(JSON.stringify(candidate.targets)) as Candidate['targets'],
+    task: JSON.parse(JSON.stringify(candidate.task ?? task)) as EncounterTask,
     // Source inputs verbatim: the explanation names the counts/status the
     // scores were derived from, not just the arithmetic (R20).
     ...(candidate.meta ? { meta: { ...candidate.meta } } : {}),
@@ -385,7 +387,7 @@ function buildTrace(
   const sorted = [...context.scored].sort((left, right) => right.total - left.total);
   const ranking = [chosen, ...sorted.filter((row) => row.candidate.key !== chosen.candidate.key)]
     .slice(0, Math.min(POLICY_RANKING_CAP, context.scored.length))
-    .map((row) => rankRow(row.candidate, context.effective));
+    .map((row) => rankRow(row.candidate, context.effective, config.task));
 
   const limits: string[] = [...TRACE_LIMITS];
   if (context.scored.some(({ candidate }) => candidate.origin === 'media')) limits.push(MEDIA_LIMIT);
@@ -427,6 +429,7 @@ function buildTrace(
         drawsOmitted: context.drawsOmitted,
       },
       task: config.task.taskTemplateId,
+      taskSnapshot: JSON.parse(JSON.stringify(config.task)) as EncounterTask,
       candidateCount: context.scored.length,
       goal: config.context?.goal ?? null,
       intensity: config.context?.intensity ?? null,
@@ -523,7 +526,7 @@ export function replayFromTrace(
     cooldowns: new Map(trace.inputs.cooldowns.map((entry) => [entry.key, entry.lastProbeAtMs])),
     recentPicks: trace.inputs.recentPicks,
     minRepeatDistance: trace.inputs.minRepeatDistance,
-    task: task ?? {
+    task: task ?? trace.inputs.taskSnapshot ?? {
       taskTemplateId: trace.inputs.task,
       inputModality: 'replay',
       responseModality: 'none',

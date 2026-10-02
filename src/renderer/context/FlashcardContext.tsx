@@ -4193,6 +4193,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       let scheduler = options?.scheduler;
       const card = scheduler ? store.flashcards[scheduler.cardId] : undefined;
       if (scheduler && !card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
+      if (!admitted && card) {
+        // Initialization can yield to a peer edit. Bind the first admission
+        // to the captured question, just as retries remain bound below.
+        if (word !== card.content.front) throw new Error('The card no longer presents the captured prompt');
+        if (card.language && options?.language && options.language !== card.language) {
+          throw new Error('The card no longer belongs to the captured language');
+        }
+      }
       if (admitted && card) {
         if (card.language && card.language !== admitted.options.language) {
           throw new Error('The card no longer belongs to the admitted language');

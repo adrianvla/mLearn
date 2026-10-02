@@ -100,6 +100,9 @@ export interface PolicyWeightRule {
 export interface PolicyRankRow {
   key: string;
   origin: Candidate['origin'];
+  /** Exact task/access snapshot; absent on older score-only traces. */
+  targets?: LearnableTarget[];
+  task?: EncounterTask;
   /**
    * The candidate's declared metadata (recurrence counts, canonical status,
    * category pressure, predictions) — the source inputs behind the scores,
@@ -139,6 +142,8 @@ export interface PolicyTrace {
     minRepeatDistance: number;
     recentPickCount: number;
     task: string;
+    /** Preset fallback for replay; individual candidates may declare different tasks. */
+    taskSnapshot?: EncounterTask;
     candidateCount: number;
     goal: PolicyGoal | null;
     intensity: SessionIntensity | null;
