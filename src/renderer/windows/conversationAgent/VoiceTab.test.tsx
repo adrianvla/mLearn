@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal } from 'solid-js';
 import type { VoiceTtsAudio, VoiceTtsRequestIdentity } from '../../../shared/types';
+import type { VoiceDeliveryPayload } from '../../../shared/world';
 import { loadAudioWorkletModule, type VoiceSpeechMessage } from './VoiceTab';
 
 const cleanup = () => undefined;
@@ -278,7 +279,11 @@ describe('VoiceTab CPU warning banner', () => {
     const { VoiceTab } = await import('./VoiceTab');
     const [speech, setSpeech] = createSignal<VoiceSpeechMessage[]>([]);
     let sessionId = '';
+    let acknowledge!: () => void;
+    const onDelivery = vi.fn((delivery: VoiceDeliveryPayload) => delivery.state === 'playing'
+      ? Promise.resolve() : new Promise<void>(resolve => { acknowledge = resolve; }));
     const dispose = render(() => <VoiceTab autoStartCall messages={[]} speechMessages={speech()} isStreaming
+      onDelivery={onDelivery}
       defaultVoiceSampleId="sample-a" onSendMessage={vi.fn()} onAbort={vi.fn()} isConnected language="test-language" onRequestGreeting={vi.fn()}
       onCallStateChange={(active, _reason, _error, id) => { if (active) sessionId = id!; }} />, container);
     await vi.waitFor(() => expect(sessionReadyHandler).toBeDefined()); sessionReadyHandler!();
@@ -300,6 +305,11 @@ describe('VoiceTab CPU warning banner', () => {
     ]);
     sources[0].onended!(); await Promise.resolve(); expect(mockTtsGenerate).toHaveBeenCalledTimes(2);
     sources[1].onended!();
+    await vi.waitFor(() => expect(onDelivery).toHaveBeenCalledTimes(2));
+    expect(onDelivery.mock.calls[1][0]).toMatchObject({ messageEventId: 'message-a', actorId: 'actor-a', voiceSessionId: sessionId,
+      state: 'completed', confirmedText: 'A first. A second.', spokenText: 'A first. A second.', basis: 'playback-complete' });
+    expect(mockTtsGenerate).toHaveBeenCalledTimes(2);
+    acknowledge();
     await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(3));
     expect(mockTtsGenerate.mock.calls[2][0]).toBe('B reply.');
     expect(mockTtsGenerate.mock.calls[2][3]).toBe('sample-b');
@@ -333,8 +343,114 @@ describe('VoiceTab CPU warning banner', () => {
     dispose();
   });
 
+  it.each([false, true])('attributes stopped playback to the audible actor and leaves queued actors unplayed (started: %s)', async (started) => {
+    let currentTime = 0;
+    const sources: Array<{ onended: (() => void) | null }> = [];
+    vi.stubGlobal('AudioContext', class {
+      get currentTime() { return currentTime; }
+      destination = {}; close = vi.fn();
+      createBuffer = () => ({ duration: 1, getChannelData: () => new Float32Array(1) });
+      createBufferSource = () => {
+        const source = { onended: null, start: vi.fn(), stop: vi.fn(), connect: vi.fn() };
+        sources.push(source); return source;
+      };
+    });
+    const { VoiceTab } = await import('./VoiceTab');
+    const [speech, setSpeech] = createSignal<VoiceSpeechMessage[]>([]);
+    const onDelivery = vi.fn<(delivery: VoiceDeliveryPayload) => Promise<void>>().mockResolvedValue(undefined);
+    let sessionId = '';
+    const dispose = render(() => <VoiceTab autoStartCall messages={[]} speechMessages={speech()} isStreaming={false}
+      onDelivery={onDelivery} onSendMessage={vi.fn()} onAbort={vi.fn()} isConnected language="test-language" onRequestGreeting={vi.fn()}
+      onCallStateChange={(active, _reason, _error, id) => { if (active) sessionId = id!; }} />, container);
+    await vi.waitFor(() => expect(sessionReadyHandler).toBeDefined()); sessionReadyHandler!();
+    setSpeech([{ eventId: 'a', actorId: 'actor-a', voiceSessionId: sessionId, content: 'First. Second.' },
+      { eventId: 'b', actorId: 'actor-b', voiceSessionId: sessionId, content: 'Queued B.' }]);
+    await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(1));
+    const first = mockTtsGenerate.mock.calls[0][6];
+    ttsAudioHandler!({ ...first, samples: [1], sampleRate: 16000 }); ttsStatusHandler!({ ...first, generating: false });
+    await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(2));
+    const second = mockTtsGenerate.mock.calls[1][6];
+    ttsAudioHandler!({ ...second, samples: [1], sampleRate: 16000 }); ttsStatusHandler!({ ...second, generating: false });
+    if (started) { sources[0].onended!(); currentTime = 1.52; }
+    container.querySelector<HTMLButtonElement>('button[aria-label="End call"], button[title="End call"]')!.click();
+    expect(onDelivery.mock.calls.map(([delivery]) => delivery).filter(delivery => delivery.state !== 'playing')).toEqual([
+      expect.objectContaining({ messageEventId: 'a', actorId: 'actor-a', state: 'stopped',
+        confirmedText: started ? 'First.' : '', spokenText: started ? 'First. Sec' : '', basis: started ? 'playback-estimate' : 'unavailable' }),
+      expect.objectContaining({ messageEventId: 'b', actorId: 'actor-b', state: 'stopped', confirmedText: '', spokenText: '', basis: 'unavailable' }),
+    ]);
+    expect(sources.every(source => source.onended === null)).toBe(true);
+    dispose(); vi.unstubAllGlobals();
+  });
+
+  it.each(['no-audio', 'write-failed'])('stops the actor batch honestly when %s occurs', async (failure) => {
+    testSettings.ttsProvider = failure === 'write-failed' ? 'system' : 'kokoro';
+    const { VoiceTab } = await import('./VoiceTab');
+    const [speech, setSpeech] = createSignal<VoiceSpeechMessage[]>([]);
+    const onDelivery = vi.fn<(delivery: VoiceDeliveryPayload) => Promise<void>>();
+    if (failure === 'write-failed') onDelivery.mockRejectedValue(new Error('Disk unavailable'));
+    else onDelivery.mockResolvedValue(undefined);
+    const onAbort = vi.fn();
+    let sessionId = '';
+    const dispose = render(() => <VoiceTab autoStartCall messages={[]} speechMessages={speech()} isStreaming={false}
+      onDelivery={onDelivery} onSendMessage={vi.fn()} onAbort={onAbort} isConnected language="test-language" onRequestGreeting={vi.fn()}
+      onCallStateChange={(active, _reason, _error, id) => { if (active) sessionId = id!; }} />, container);
+    await vi.waitFor(() => expect(sessionReadyHandler).toBeDefined()); sessionReadyHandler!();
+    setSpeech([{ eventId: 'a', actorId: 'actor-a', voiceSessionId: sessionId, content: 'A reply.' },
+      { eventId: 'b', actorId: 'actor-b', voiceSessionId: sessionId, content: 'B reply.' }]);
+    await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(1));
+    const request = mockTtsGenerate.mock.calls[0][6];
+    if (failure === 'write-failed') ttsStatusHandler!({ ...request, generating: true, playing: true });
+    ttsStatusHandler!({ ...request, generating: false });
+    await vi.waitFor(() => expect(onAbort).toHaveBeenCalledOnce());
+    expect(mockTtsGenerate).toHaveBeenCalledTimes(1);
+    const { showToast } = await import('../../components/common/Feedback/Toast');
+    expect(showToast).toHaveBeenCalledWith(expect.objectContaining({ message: failure === 'write-failed'
+      ? 'mlearn.ConversationAgent.Voice.DeliveryRecordFailed' : 'mlearn.ConversationAgent.Voice.NoAudio' }));
+    dispose();
+  });
+
+  it('checkpoints a fully played phrase when generation finishes after its last audio source', async () => {
+    const sources: Array<{ onended: (() => void) | null }> = [];
+    vi.stubGlobal('AudioContext', class {
+      currentTime = 0; destination = {}; close = vi.fn();
+      createBuffer = () => ({ duration: 1, getChannelData: () => new Float32Array(1) });
+      createBufferSource = () => {
+        const source = { onended: null, start: vi.fn(), stop: vi.fn(), connect: vi.fn() };
+        sources.push(source); return source;
+      };
+    });
+    mockRequestAccess.mockResolvedValueOnce(true).mockImplementationOnce(() => new Promise(() => undefined));
+    const { VoiceTab } = await import('./VoiceTab');
+    const [speech, setSpeech] = createSignal<VoiceSpeechMessage[]>([]);
+    const onDelivery = vi.fn<(delivery: VoiceDeliveryPayload) => Promise<void>>().mockResolvedValue(undefined);
+    let sessionId = '';
+    const dispose = render(() => <VoiceTab autoStartCall messages={[]} speechMessages={speech()} isStreaming={false}
+      onDelivery={onDelivery} onSendMessage={vi.fn()} onAbort={vi.fn()} isConnected language="test-language" onRequestGreeting={vi.fn()}
+      onCallStateChange={(active, _reason, _error, id) => { if (active) sessionId = id!; }} />, container);
+    await vi.waitFor(() => expect(sessionReadyHandler).toBeDefined()); sessionReadyHandler!();
+    setSpeech([{ eventId: 'a', actorId: 'actor-a', voiceSessionId: sessionId, content: 'First. Second.' }]);
+    await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(1));
+    const request = mockTtsGenerate.mock.calls[0][6];
+    ttsAudioHandler!({ ...request, samples: [1], sampleRate: 16000 }); sources[0].onended!();
+    expect(onDelivery.mock.calls.map(([delivery]) => delivery.confirmedText)).toEqual(['']);
+    ttsStatusHandler!({ ...request, generating: false });
+    expect(onDelivery.mock.calls[1][0]).toMatchObject({ messageEventId: 'a', state: 'playing',
+      confirmedText: 'First.', spokenText: 'First.', basis: 'playback-complete' });
+    expect(mockTtsGenerate).toHaveBeenCalledTimes(1);
+    dispose(); vi.unstubAllGlobals();
+  });
+
   it.each([true, false])('uses per-actor clone availability and system fallback (first actor sample: %s)', async (firstHasSample) => {
     testSettings.ttsProvider = 'qwen3';
+    const sources: Array<{ onended: (() => void) | null }> = [];
+    vi.stubGlobal('AudioContext', class {
+      currentTime = 0; destination = {}; close = vi.fn();
+      createBuffer = () => ({ duration: 1, getChannelData: () => new Float32Array(1) });
+      createBufferSource = () => {
+        const source = { onended: null, start: vi.fn(), stop: vi.fn(), connect: vi.fn() };
+        sources.push(source); return source;
+      };
+    });
     const { VoiceTab } = await import('./VoiceTab');
     const [speech, setSpeech] = createSignal<VoiceSpeechMessage[]>([]);
     let sessionId = '';
@@ -351,14 +467,16 @@ describe('VoiceTab CPU warning banner', () => {
     const first = mockTtsGenerate.mock.calls[0];
     expect([first[3], first[4], first[6].actorId]).toEqual([firstHasSample ? 'sample-a' : undefined, firstHasSample ? 'qwen3' : 'system', 'actor-a']);
     ttsStatusHandler!({ ...first[6], generating: true, playing: true });
+    if (firstHasSample) ttsAudioHandler!({ ...first[6], samples: [1], sampleRate: 16000 });
     ttsStatusHandler!({ ...first[6], generating: false });
+    if (firstHasSample) sources[0].onended!();
     await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(2));
     const second = mockTtsGenerate.mock.calls[1];
     expect([second[3], second[4], second[6].actorId]).toEqual([firstHasSample ? undefined : 'sample-b', firstHasSample ? 'system' : 'qwen3', 'actor-b']);
     ttsStatusHandler!({ ...second[6], generating: false });
     setSpeech(previous => previous.map(message => ({ ...message })));
     await Promise.resolve(); expect(mockTtsGenerate).toHaveBeenCalledTimes(2);
-    dispose();
+    dispose(); vi.unstubAllGlobals();
   });
 
   it('rejects a retired phrase completion and audio while its successor owns generation', async () => {

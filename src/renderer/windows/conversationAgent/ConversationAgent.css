@@ -464,6 +464,13 @@ textarea.ca-chat-textarea,
   box-shadow: var(--shadow-lg);
 }
 
+.ca-memory-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .ca-incoming-call {
   position: fixed;
   z-index: 125;

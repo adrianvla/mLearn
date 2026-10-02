@@ -1,4 +1,17 @@
 {
+  "mlearn.ConversationAgent.Voice.VisualActivity": "Visual activity — answer on screen.",
+  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Some conversation notes could not be saved. Retry while this window is open.",
+  "mlearn.ConversationAgent.Voice.Delivery.pending": "No playback recorded.",
+  "mlearn.ConversationAgent.Voice.Delivery.playing": "Partial playback recorded.",
+  "mlearn.ConversationAgent.Voice.Delivery.completed": "Playback completed.",
+  "mlearn.ConversationAgent.Voice.Delivery.interrupted": "Playback interrupted.",
+  "mlearn.ConversationAgent.Voice.Delivery.stopped": "Playback stopped.",
+  "mlearn.ConversationAgent.Voice.Delivery.failed": "Speech failed.",
+  "mlearn.ConversationAgent.Voice.Delivery.Estimated": "Partial phrase estimated.",
+  "mlearn.ConversationAgent.Voice.Delivery.Generated": "Generated response",
+  "mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription": "Generated text; this is not a playback transcript.",
+  "mlearn.ConversationAgent.Voice.NoAudio": "Speech finished without playable audio. The response was not recorded as delivered.",
+  "mlearn.ConversationAgent.Voice.DeliveryRecordFailed": "Could not save the playback record. Speech stopped; delivery remains unconfirmed.",
   "mlearn": {
     "GraphInspector": {
       "Title": "Graph inspector",

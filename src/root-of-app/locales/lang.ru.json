@@ -1,4 +1,17 @@
 {
+  "mlearn.ConversationAgent.Voice.VisualActivity": "Визуальное упражнение — ответьте на экране.",
+  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Некоторые заметки беседы не удалось сохранить. Повторите попытку, пока это окно открыто.",
+  "mlearn.ConversationAgent.Voice.Delivery.pending": "Воспроизведение не зафиксировано.",
+  "mlearn.ConversationAgent.Voice.Delivery.playing": "Зафиксировано частичное воспроизведение.",
+  "mlearn.ConversationAgent.Voice.Delivery.completed": "Воспроизведение завершено.",
+  "mlearn.ConversationAgent.Voice.Delivery.interrupted": "Воспроизведение прервано.",
+  "mlearn.ConversationAgent.Voice.Delivery.stopped": "Воспроизведение остановлено.",
+  "mlearn.ConversationAgent.Voice.Delivery.failed": "Ошибка синтеза речи.",
+  "mlearn.ConversationAgent.Voice.Delivery.Estimated": "Часть фразы оценена приблизительно.",
+  "mlearn.ConversationAgent.Voice.Delivery.Generated": "Сгенерированный ответ",
+  "mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription": "Сгенерированный текст; это не запись воспроизведённой речи.",
+  "mlearn.ConversationAgent.Voice.NoAudio": "Синтез завершился без доступного аудио. Ответ не отмечен как воспроизведённый.",
+  "mlearn.ConversationAgent.Voice.DeliveryRecordFailed": "Не удалось сохранить запись воспроизведения. Речь остановлена; воспроизведение остаётся неподтверждённым.",
   "mlearn": {
     "GraphInspector": {
       "Title": "Инспектор графа",

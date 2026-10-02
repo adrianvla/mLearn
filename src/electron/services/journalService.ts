@@ -25,6 +25,7 @@ import { getLogger } from '../../shared/utils/logger';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { HARNESS_ACTOR, USER_ACTOR } from '../../shared/world';
 import { WORLD_CONTINUITY_ID } from '../../shared/world';
+import { validVoiceDelivery, voiceDeliveries } from '../../shared/voiceDelivery';
 import { tombstonedIds } from '../../shared/memoryProjection';
 import { requireLivingWorld } from '../../shared/livingWorld';
 import { loadWorld } from './worldStore';
@@ -116,24 +117,26 @@ async function loadStreamHead(key: string, filePath: string): Promise<StreamStat
   return state;
 }
 
-async function readStream(roomId: string, scope: EventScope): Promise<JournalEvent[]> {
-  return enqueueWrite(async () => {
-    const filePath = streamFilePath(roomId, scope);
-    await loadStreamHead(streamKey(roomId, scope), filePath);
-    try {
-      const raw = await fs.promises.readFile(filePath, 'utf-8');
-      const events: JournalEvent[] = [];
-      for (const line of raw.split('\n')) {
-        if (line.length === 0) continue;
-        events.push(JSON.parse(line) as JournalEvent);
-      }
-      return events;
-    } catch (error) {
-      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') return [];
-      log.error(`[journal] Failed to read stream ${filePath}:`, error);
-      throw error;
+async function readStreamUnlocked(roomId: string, scope: EventScope): Promise<JournalEvent[]> {
+  const filePath = streamFilePath(roomId, scope);
+  await loadStreamHead(streamKey(roomId, scope), filePath);
+  try {
+    const raw = await fs.promises.readFile(filePath, 'utf-8');
+    const events: JournalEvent[] = [];
+    for (const line of raw.split('\n')) {
+      if (line.length === 0) continue;
+      events.push(JSON.parse(line) as JournalEvent);
     }
-  });
+    return events;
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') return [];
+    log.error(`[journal] Failed to read stream ${filePath}:`, error);
+    throw error;
+  }
+}
+
+async function readStream(roomId: string, scope: EventScope): Promise<JournalEvent[]> {
+  return enqueueWrite(() => readStreamUnlocked(roomId, scope));
 }
 
 async function appendEventUnlocked(roomId: string, draft: JournalEventDraft): Promise<JournalEvent> {
@@ -176,6 +179,21 @@ export async function appendEvent(roomId: string, draft: JournalEventDraft): Pro
       const threadId = draft.scope.threadId;
       const thread = world.threads.find(candidate => candidate.id === threadId);
       if (!thread || thread.roomId !== roomId) throw new Error('[journal] thread context no longer exists');
+    }
+    if (draft.type === 'delivery.voice') {
+      const stream = await readStreamUnlocked(roomId, draft.scope);
+      const payload = draft.payload as { messageEventId?: unknown } | null;
+      const message = stream.find(event => event.id === payload?.messageEventId);
+      const candidate: JournalEvent = { ...draft, id: 'pending-delivery-validation', seq: (stream.at(-1)?.seq ?? 0) + 1, createdAt: Date.now() };
+      if (!message || !validVoiceDelivery(message, candidate)) throw new Error('[journal] invalid voice delivery identity or payload');
+      const previous = voiceDeliveries(stream).get(message.id);
+      if (previous?.payload.state !== 'playing' && previous) {
+        if (JSON.stringify(previous.payload) === JSON.stringify(draft.payload)) return previous;
+        throw new Error('[journal] terminal voice delivery cannot be rewritten');
+      }
+      if (voiceDeliveries([...stream, candidate]).get(message.id) !== candidate) {
+        throw new Error('[journal] voice delivery cannot regress');
+      }
     }
     return appendEventUnlocked(roomId, draft);
   });

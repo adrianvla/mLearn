@@ -109,6 +109,24 @@ describe('journalService', () => {
     expect(projection[0].type).toBe('membership');
   });
 
+  it('validates and persists exact-message voice delivery and rejects sibling or audience rewrites', async () => {
+    const speech = await mod.appendEvent(roomId, seaDraft({ type: 'message.character', actorId: 'character-a',
+      witnesses: ['user', 'character-a'], payload: { text: 'First. Second.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } }));
+    const draft = seaDraft({ type: 'delivery.voice', actorId: 'harness', witnesses: speech.witnesses,
+      payload: { messageEventId: speech.id, actorId: speech.actorId, voiceSessionId: 'call', state: 'interrupted',
+        spokenText: 'First. Sec', confirmedText: 'First.', basis: 'playback-estimate' } });
+    await expect(mod.appendEvent(roomId, { ...draft, payload: { ...(draft.payload as object), actorId: 'character-b' } })).rejects.toThrow('delivery');
+    await expect(mod.appendEvent(roomId, { ...draft, witnesses: [...speech.witnesses, 'outsider'] })).rejects.toThrow('delivery');
+    const saved = await mod.appendEvent(roomId, draft);
+    expect((await mod.readSeaProjection(roomId)).map(event => event.id)).toEqual([speech.id, saved.id]);
+    expect(await mod.appendEvent(roomId, draft)).toEqual(saved);
+    await expect(mod.appendEvent(roomId, { ...draft, payload: { ...(draft.payload as object), state: 'completed',
+      spokenText: 'First. Second.', confirmedText: 'First. Second.', basis: 'playback-complete' } })).rejects.toThrow('delivery');
+    vi.resetModules();
+    mod = await import('./journalService');
+    expect((await mod.readSeaProjection(roomId))[1].payload).toEqual(draft.payload);
+  });
+
   it('readThread returns only the requested thread stream', async () => {
     seedThread('ta');
     seedThread('tb');

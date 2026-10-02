@@ -44,7 +44,7 @@
 
 import { createHash, randomUUID } from 'crypto';
 import { livingWorldEnabled, requireLivingWorld } from '../../shared/livingWorld';
-import { inferenceEvents } from '../../shared/inferenceBoundary';
+import { inferenceEvents, inferenceSequence } from '../../shared/inferenceBoundary';
 import { loadSettings } from './settings';
 import type { InferencePolicy } from '../../shared/inferencePolicy';
 import { HARNESS_ACTOR, USER_ACTOR, WORLD_CONTINUITY_ID } from '../../shared/world';
@@ -617,7 +617,8 @@ export async function maintenanceSourcesValid(record: ReflectionRunRecord): Prom
   if (!contextIsLive(world, context)) return false;
   const stream = await readContextStream(context);
   const invalid = tombstonedIds(stream);
-  const sources = record.sourceEventIds.map(id => stream.find(event => event.id === id));
+  const projected = inferenceEvents(stream);
+  const sources = record.sourceEventIds.map(id => projected.find(event => event.id === id));
   if (sources.some(event => !event || invalid.has(event.id))) return false;
   if (record.sourceHash && maintenanceSourceHash(sources as JournalEvent[]) !== record.sourceHash) return false;
   if (record.castHash && maintenanceSourceHashValue(castForContext(world, context)) !== record.castHash) return false;
@@ -666,7 +667,8 @@ export function maintenanceMarkers(stream: JournalEvent[], kind: 'reflection' | 
 export function maintenanceWindow(stream: JournalEvent[], lastWindowEnd: number): JournalEvent[] {
   const tombstoned = tombstonedIds(stream);
   return inferenceEvents(stream)
-    .filter(event => SOURCE_TYPES.has(event.type) && !tombstoned.has(event.id) && event.provenance?.reflectionId === undefined && event.seq > lastWindowEnd);
+    .filter(event => SOURCE_TYPES.has(event.type) && !tombstoned.has(event.id) && event.provenance?.reflectionId === undefined && inferenceSequence(event) > lastWindowEnd)
+    .sort((a, b) => inferenceSequence(a) - inferenceSequence(b));
 }
 
 interface StagedRun {
@@ -698,8 +700,8 @@ export async function stageMaintenanceRun(
       contextId: context.roomId,
       scopeKind: context.scopeKind,
       ...(context.threadId !== undefined ? { threadId: context.threadId } : {}),
-      windowStart: window[0].seq,
-      windowEnd: window.at(-1)!.seq,
+      windowStart: inferenceSequence(window[0]),
+      windowEnd: inferenceSequence(window.at(-1)!),
       sourceEventIds: window.map(event => event.id),
       sourceHash: maintenanceSourceHash(window),
       castHash: maintenanceSourceHashValue(castForContext(world, context)),
@@ -822,7 +824,7 @@ async function runReflectionPass(context: ReflectionContext, deps: DreamerDepend
   const window = retry ? maintenanceRetryWindow(retry, stream) : maintenanceWindow(stream, lastWindowEnd).slice(0, REFLECTION_WINDOW_EVENTS);
   if (window === null) return false;
   if (window.length === 0) return false;
-  const windowEnd = window.at(-1)!.seq;
+  const windowEnd = inferenceSequence(window.at(-1)!);
   if (!retry && maintenanceMarkers(stream, 'reflection').some((marker) => marker.windowEnd >= windowEnd)) return false;
 
   const staged = await stageMaintenanceRun(context, 'reflection', window, retry?.reflectionId);
@@ -833,7 +835,7 @@ async function runReflectionPass(context: ReflectionContext, deps: DreamerDepend
   // Owner views derive absence intervals from the FULL stream, then intersect
   // the bounded window: a participant removed before the window never sees it.
   const ownerViews = new Map(cast.owners.map(owner => {
-    const view = visibleEventsFor(owner.id, stream, owner.capabilities).filter(event => windowIds.has(event.id));
+    const view = visibleEventsFor(owner.id, inferenceEvents(stream), owner.capabilities).filter(event => windowIds.has(event.id));
     return [owner.id, view] as const;
   }));
 

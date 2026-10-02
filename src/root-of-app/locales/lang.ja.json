@@ -1,4 +1,17 @@
 {
+  "mlearn.ConversationAgent.Voice.VisualActivity": "画面で回答する練習です。",
+  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "一部の会話メモを保存できませんでした。このウィンドウを開いたまま再試行してください。",
+  "mlearn.ConversationAgent.Voice.Delivery.pending": "再生記録はありません。",
+  "mlearn.ConversationAgent.Voice.Delivery.playing": "部分的な再生が記録されています。",
+  "mlearn.ConversationAgent.Voice.Delivery.completed": "再生が完了しました。",
+  "mlearn.ConversationAgent.Voice.Delivery.interrupted": "再生が中断されました。",
+  "mlearn.ConversationAgent.Voice.Delivery.stopped": "再生が停止されました。",
+  "mlearn.ConversationAgent.Voice.Delivery.failed": "音声合成に失敗しました。",
+  "mlearn.ConversationAgent.Voice.Delivery.Estimated": "文の一部は推定です。",
+  "mlearn.ConversationAgent.Voice.Delivery.Generated": "生成された応答",
+  "mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription": "生成されたテキストです。再生内容の記録ではありません。",
+  "mlearn.ConversationAgent.Voice.NoAudio": "再生可能な音声がないまま合成が終了しました。応答は再生済みとして記録されていません。",
+  "mlearn.ConversationAgent.Voice.DeliveryRecordFailed": "再生記録を保存できませんでした。音声は停止され、再生は未確認のままです。",
   "mlearn": {
     "GraphInspector": {
       "Title": "グラフインスペクター",

@@ -1141,6 +1141,7 @@ function streamLocalTTS(
       sampleCount?: number;
       byteLength?: number;
     } | null = null;
+    const deliveredAudioOffsets = new Map<number, number>();
 
     const rawDataToBuffer = (rawData: WebSocket.RawData): Buffer | null => {
       if (Buffer.isBuffer(rawData)) return rawData;
@@ -1151,6 +1152,15 @@ function streamLocalTTS(
 
     const emitTtsAudio = (samples: Float32Array, meta: typeof pendingAudioMeta) => {
       if (!meta || signal.aborted) return;
+      if (samples.length === 0 || !samples.every(Number.isFinite)
+        || (meta.sampleCount !== undefined && meta.sampleCount !== samples.length)
+        || (meta.byteLength !== undefined && meta.byteLength !== samples.byteLength)) {
+        throw new Error('Invalid speech audio samples or count');
+      }
+      const sentence = meta.sentenceIndex ?? 0;
+      const offset = deliveredAudioOffsets.get(sentence) ?? 0;
+      if (meta.sampleOffset !== undefined && meta.sampleOffset !== offset) throw new Error('Missing or repeated speech audio samples');
+      deliveredAudioOffsets.set(sentence, offset + samples.length);
       const audio: VoiceTtsAudio = {
         samples,
         sampleRate: meta.sampleRate,
@@ -1194,13 +1204,13 @@ function streamLocalTTS(
           const binaryFrame = rawDataToBuffer(rawData);
           if (binaryFrame) {
             if (typeof pendingAudioMeta.byteLength === 'number' && binaryFrame.byteLength !== pendingAudioMeta.byteLength) {
-              log.warn(`[VoiceService] TTS binary frame length mismatch: expected ${pendingAudioMeta.byteLength}, got ${binaryFrame.byteLength}`);
+              throw new Error('Truncated speech audio frame');
             }
-            const samples = new Float32Array(
-              binaryFrame.buffer,
-              binaryFrame.byteOffset,
-              Math.floor(binaryFrame.byteLength / Float32Array.BYTES_PER_ELEMENT),
-            );
+            if (binaryFrame.byteLength === 0 || binaryFrame.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
+              throw new Error('Invalid speech audio frame length');
+            }
+            const samples = new Float32Array(binaryFrame.byteLength / Float32Array.BYTES_PER_ELEMENT);
+            for (let index = 0; index < samples.length; index++) samples[index] = binaryFrame.readFloatLE(index * Float32Array.BYTES_PER_ELEMENT);
             log.info('[VoiceService] Local TTS audio chunk received', {
               sampleRate: pendingAudioMeta.sampleRate,
               samples: samples.length,
@@ -1215,8 +1225,17 @@ function streamLocalTTS(
         const msg = JSON.parse(rawData.toString());
         switch (msg.type) {
           case 'audio': {
+            if (pendingAudioMeta || !Number.isSafeInteger(msg.sampleRate) || msg.sampleRate <= 0
+              || (msg.sampleCount !== undefined && (!Number.isSafeInteger(msg.sampleCount) || msg.sampleCount <= 0))
+              || (msg.byteLength !== undefined && (!Number.isSafeInteger(msg.byteLength) || msg.byteLength <= 0))
+              || (msg.sampleOffset !== undefined && (!Number.isSafeInteger(msg.sampleOffset) || msg.sampleOffset < 0))
+              || (msg.sentenceIndex !== undefined && (!Number.isSafeInteger(msg.sentenceIndex) || msg.sentenceIndex < 0))
+              || (msg.channels !== undefined && msg.channels !== 1)
+              || (msg.encoding !== undefined && msg.encoding !== 'f32le')) {
+              throw new Error('Invalid speech audio metadata');
+            }
             pendingAudioMeta = {
-              sampleRate: Number(msg.sampleRate) || 24000,
+              sampleRate: msg.sampleRate,
               sentenceIndex: typeof msg.sentenceIndex === 'number' ? msg.sentenceIndex : undefined,
               sentenceText: typeof msg.sentenceText === 'string' ? msg.sentenceText : undefined,
               totalSentences: typeof msg.totalSentences === 'number' ? msg.totalSentences : undefined,
@@ -1225,6 +1244,9 @@ function streamLocalTTS(
               byteLength: typeof msg.byteLength === 'number' ? msg.byteLength : undefined,
             };
             if (Array.isArray(msg.samples)) {
+              if (!msg.samples.every((sample: unknown) => typeof sample === 'number' && Number.isFinite(sample))) {
+                throw new Error('Invalid speech audio sample values');
+              }
               const samples = Float32Array.from(msg.samples);
               emitTtsAudio(samples, pendingAudioMeta);
               pendingAudioMeta = null;
@@ -1241,6 +1263,7 @@ function streamLocalTTS(
             });
             break;
           case 'done':
+            if (pendingAudioMeta) throw new Error('Incomplete speech audio frame');
             streamCompleted = true;
             log.info('[VoiceService] Local TTS stream done');
             ws.close();
@@ -1257,7 +1280,11 @@ function streamLocalTTS(
             break;
         }
       } catch (e) {
-        log.error('[VoiceService] Failed to parse TTS stream message:', e);
+        log.error('[VoiceService] Invalid TTS stream message:', e);
+        const error = e instanceof Error ? e : new Error('Invalid speech audio stream');
+        sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false, error: error.message });
+        reject(error);
+        ws.close();
       }
     });
 

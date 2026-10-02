@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { ChatBubble } from './ChatBubble';
 import type { ConversationMessage, LanguageData, Token } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 
@@ -98,18 +99,32 @@ describe('ChatBubble hover triggers', () => {
   });
 
   it('preserves authored whitespace and untokenized text in ordinary user messages', async () => {
-    const { ChatBubble } = await import('./ChatBubble');
     const dispose = render(() => <ChatBubble message={{ role: 'user', timestamp: 0,
       content: 'hola  mundo\n! ', tokens: [{ word: 'hola', actual_word: 'hola', type: 'noun' }, { word: 'mundo', actual_word: 'mundo', type: 'noun' }] }} />, container);
     expect(container.querySelector('.chat-bubble-content')?.textContent).toBe('hola  mundo\n! ');
     dispose();
   }, 15000);
 
+  it('distinguishes estimated playback from preserved generation and keeps visual activities available', async () => {
+    const dispose = render(() => <ChatBubble message={{ role: 'assistant', timestamp: 0,
+      content: 'Played phrase. Sec', generatedContent: 'Played phrase. Second phrase.',
+      voiceDelivery: { state: 'interrupted', basis: 'playback-estimate' },
+      widgets: [{ type: 'quiz', data: { question: 'Visual question', correctAnswer: 'A' } }] }} />, container);
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Voice.Delivery.interrupted');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Voice.Delivery.Estimated');
+    const details = container.querySelector('details')!;
+    expect(details.open).toBe(false);
+    expect(details.querySelector('summary')?.textContent).toBe('mlearn.ConversationAgent.Voice.Delivery.Generated');
+    expect(details.textContent).toContain('Played phrase. Second phrase.');
+    expect(container.querySelector('.chat-widget')?.textContent).toContain('Visual question');
+    expect(container.querySelector('.chat-widget')?.textContent).toContain('mlearn.ConversationAgent.Voice.VisualActivity');
+    dispose();
+  });
+
   async function renderChatBubble(triggerMode: WordHoverTriggerMode, callbacks?: {
     onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
     onTokenLeave?: () => void;
   }) {
-    const { ChatBubble } = await import('./ChatBubble');
     const token: Token = {
       word: 'hola',
       actual_word: 'hola',
@@ -143,7 +158,6 @@ describe('ChatBubble hover triggers', () => {
   }
 
   it('shows the journal speaker for a participant message without hover', async () => {
-    const { ChatBubble } = await import('./ChatBubble');
     const message = { role: 'assistant' as const, content: 'Hello', timestamp: 0, displayName: 'Kai' };
     const dispose = render(() => <ChatBubble message={message} />, container);
     expect(container.querySelector('.chat-bubble-speaker')?.textContent).toBe('Kai');
@@ -204,7 +218,6 @@ describe('ChatBubble hover triggers', () => {
   });
 
   it('renders an urgent user safety notice with help text', async () => {
-    const { ChatBubble } = await import('./ChatBubble');
     const message: ConversationMessage = {
       role: 'user',
       content: 'I want to hurt myself',
@@ -228,7 +241,6 @@ describe('ChatBubble hover triggers', () => {
   });
 
   it('renders tokenized user text with the current language token separator', async () => {
-    const { ChatBubble } = await import('./ChatBubble');
     mockLanguageData = {
       name: 'Latin Language',
       settings: { fixed: {} },
@@ -259,7 +271,6 @@ describe('ChatBubble hover triggers', () => {
   });
 
   it('renders the unspoken interruption point when an assistant message is interrupted', async () => {
-    const { ChatBubble } = await import('./ChatBubble');
     const message: ConversationMessage = {
       role: 'assistant',
       content: 'Spoken prefix',
@@ -280,7 +291,6 @@ describe('ChatBubble hover triggers', () => {
   });
 
   it('renders an assistant safety notice without the user help text', async () => {
-    const { ChatBubble } = await import('./ChatBubble');
     const message: ConversationMessage = {
       role: 'assistant',
       content: 'I need to respond carefully here.',

@@ -224,7 +224,22 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
           </Show>
 
           {/* Interrupted indicator */}
-          <Show when={props.message.interrupted}>
+          <Show when={props.message.voiceDelivery}>
+            {(delivery) => <div class="chat-voice-delivery">
+              <span>{t(`mlearn.ConversationAgent.Voice.Delivery.${delivery().state}`)}</span>
+              <Show when={delivery().basis === 'playback-estimate'}>
+                <span>{t('mlearn.ConversationAgent.Voice.Delivery.Estimated')}</span>
+              </Show>
+              <Show when={props.message.generatedContent && props.message.generatedContent !== props.message.content}>
+                <details>
+                  <summary>{t('mlearn.ConversationAgent.Voice.Delivery.Generated')}</summary>
+                  <p>{t('mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription')}</p>
+                  <div class="selectable">{props.message.generatedContent}</div>
+                </details>
+              </Show>
+            </div>}
+          </Show>
+          <Show when={props.message.interrupted && !props.message.voiceDelivery}>
             <span class="chat-bubble-interrupted">
               <ScissorsIcon size={12} /> {t('mlearn.ConversationAgent.Voice.Interrupted')}
               <Show when={props.message.interruptedAt}>
@@ -250,6 +265,9 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
 
       <Show when={messageWidgets().length > 0}>
         <div class="chat-widget">
+          <Show when={props.message.voiceDelivery}>
+            <p class="chat-voice-delivery">{t('mlearn.ConversationAgent.Voice.VisualActivity')}</p>
+          </Show>
           <For each={messageWidgets()}>
             {(widget, widgetIndex) => (
               <Show when={widget.type === 'quiz'}>

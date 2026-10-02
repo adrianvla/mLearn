@@ -1,3 +1,4 @@
+import { inferenceSequence } from '../../shared/inferenceBoundary';
 import { applicationTaskMessage } from '../../shared/llmTask';
 import { HARNESS_ACTOR, USER_ACTOR, WORLD_CONTINUITY_ID } from '../../shared/world';
 import { requireLivingWorld, livingWorldEnabled, LIVING_WORLD_DISABLED_ERROR } from '../../shared/livingWorld';
@@ -571,7 +572,7 @@ async function evolveScenarioPass(context: ReflectionContext, deps: EvolutionDep
     .filter(event => entity.cast.length > 0 && memberViews.every(view => view.has(event.id)) && event.witnesses.includes(USER_ACTOR))
     .slice(0, EVOLUTION_LIMITS.windowEvents);
   if (shared.length === 0) return false;
-  const windowEnd = shared.at(-1)!.seq;
+  const windowEnd = inferenceSequence(shared.at(-1)!);
   if (!retry && maintenanceMarkers(stream, 'scenario').some(marker => marker.windowEnd >= windowEnd)) return false;
 
   if (deps.signal?.aborted) throw new Error('Scenario evolution cancelled');

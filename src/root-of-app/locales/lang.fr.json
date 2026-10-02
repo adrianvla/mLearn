@@ -1,4 +1,17 @@
 {
+  "mlearn.ConversationAgent.Voice.VisualActivity": "Exercice visuel — répondez à l’écran.",
+  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Certaines notes de conversation n’ont pas pu être enregistrées. Réessayez tant que cette fenêtre est ouverte.",
+  "mlearn.ConversationAgent.Voice.Delivery.pending": "Aucune lecture enregistrée.",
+  "mlearn.ConversationAgent.Voice.Delivery.playing": "Lecture partielle enregistrée.",
+  "mlearn.ConversationAgent.Voice.Delivery.completed": "Lecture terminée.",
+  "mlearn.ConversationAgent.Voice.Delivery.interrupted": "Lecture interrompue.",
+  "mlearn.ConversationAgent.Voice.Delivery.stopped": "Lecture arrêtée.",
+  "mlearn.ConversationAgent.Voice.Delivery.failed": "Échec de la synthèse vocale.",
+  "mlearn.ConversationAgent.Voice.Delivery.Estimated": "Fragment de phrase estimé.",
+  "mlearn.ConversationAgent.Voice.Delivery.Generated": "Réponse générée",
+  "mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription": "Texte généré ; ceci n’est pas une transcription de la lecture.",
+  "mlearn.ConversationAgent.Voice.NoAudio": "La synthèse s’est terminée sans audio lisible. La réponse n’a pas été enregistrée comme diffusée.",
+  "mlearn.ConversationAgent.Voice.DeliveryRecordFailed": "Impossible d’enregistrer la lecture. La synthèse a été arrêtée ; la diffusion reste non confirmée.",
   "mlearn": {
     "GraphInspector": {
       "Title": "Inspecteur de graphe",

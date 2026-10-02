@@ -63,7 +63,7 @@ import { compileContext, visibleThreadEventsFor, type CompiledContext, type Lear
 import { renderCompiledContext } from './roomMessages';
 import { currentFeedbackAgreement, renderFeedbackAgreement } from '../../services/feedbackAgreement';
 import { createVoicePrefetch } from './voicePrefetch';
-import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type ThreadMediaRef, type WorldSnapshot } from '../../../shared/world';
+import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type ThreadMediaRef, type WorldSnapshot, type VoiceDeliveryPayload, type JournalEventDraft, type JournalEvent } from '../../../shared/world';
 import { getLearningLanguageLevelForLanguage, getTokenizerCacheNamespace, shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
 import { getLogger } from '../../../shared/utils/logger';
@@ -274,7 +274,12 @@ export const ConversationContent: Component = () => {
   const journal = createJournalThreadStore();
   const [liveOverlay, setLiveOverlay] = createSignal<ConversationOverlay | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
-  const interruptedSpokenText = new Map<string, { text: string; interruptedAt: string }>();
+  const pendingVoiceMemoryWrites = new Map<string, JournalEventDraft[]>();
+  const admittedVoiceSources = new Map<string, JournalEvent>();
+  let deliveryWriteQueue: Promise<void> = Promise.resolve();
+  let voiceMemoryWriteQueue: Promise<void> = Promise.resolve();
+  const readyVoiceMemoryIds = new Set<string>();
+  const [failedVoiceMemoryIds, setFailedVoiceMemoryIds] = createSignal<ReadonlySet<string>>(new Set());
   const [activeVoiceSessionId, setActiveVoiceSessionId] = createSignal<string | null>(null);
   const [admittedVoiceEventIds, setAdmittedVoiceEventIds] = createSignal<ReadonlySet<string>>(new Set());
   const supersededEvents = new Set<string>();
@@ -485,8 +490,22 @@ export const ConversationContent: Component = () => {
     .filter((message) => !supersededEvents.has((message as EventMessage).eventId))
     .map((message) => {
       const eventId = (message as EventMessage).eventId;
-      const interrupted = interruptedSpokenText.get(eventId);
-      return { ...message, ...messageOverrides().get(eventId), ...(interrupted ? { content: interrupted.text, interrupted: true, interruptedAt: interrupted.interruptedAt } : {}) };
+      const override = messageOverrides().get(eventId);
+      if (!message.voiceDelivery) return { ...message, ...override };
+      const originalWidgets = message.widgets ?? (message.widget ? [message.widget] : []);
+      const preparedWidgets = override?.widgets ?? (override?.widget ? [override.widget] : []);
+      const preparations = messagePreparations(message as EventMessage);
+      const prepared = override ? messagePreparations({ ...message, ...override } as EventMessage) : [];
+      const widgets = originalWidgets.map((widget, index) => {
+        const candidate = preparedWidgets[index];
+        const text = preparations.find(item => item.widgetIndex === index)?.text;
+        return candidate?.type === widget.type && text && prepared.some(item => item.widgetIndex === index && item.text === text)
+          ? { ...widget, data: { ...widget.data, tokens: candidate.data.tokens } } : widget;
+      });
+      return { ...message, ...override, content: message.content, generatedContent: message.generatedContent,
+        voiceDelivery: message.voiceDelivery, interrupted: message.interrupted,
+        tokens: override?.content === message.content ? override.tokens : undefined,
+        widgets: widgets.length ? widgets : undefined, widget: widgets.at(-1) };
     }));
   const messages = createMemo(() => [...displayMessages(), ...streamingMessages(liveOverlay())]);
   const speechMessages = createMemo<VoiceSpeechMessage[]>(() => displayMessages().flatMap(message => {
@@ -494,7 +513,7 @@ export const ConversationContent: Component = () => {
     if (!admittedVoiceEventIds().has(eventMessage.eventId) || eventMessage.modality !== 'voice' || !eventMessage.voiceSessionId || !eventMessage.actorId
       || message.role !== 'assistant' || message.interrupted || message.isError) return [];
     return [{ eventId: eventMessage.eventId, actorId: eventMessage.actorId, voiceSessionId: eventMessage.voiceSessionId,
-      content: message.content, voiceSampleId: rosterParticipants().find(person => person.id === eventMessage.actorId)?.voiceSampleId }];
+      content: message.generatedContent ?? message.content, voiceSampleId: rosterParticipants().find(person => person.id === eventMessage.actorId)?.voiceSampleId }];
   }));
   const [streamingMessageIndex, setStreamingMessageIndex] = createSignal<number | null>(null);
   const updateMessageOverride = (eventId: string, update: (message: ConversationMessage) => ConversationMessage) => {
@@ -863,6 +882,14 @@ export const ConversationContent: Component = () => {
       return;
     }
     const mySession = ++selectionSession;
+    batch(() => {
+      setIsVoiceCallActive(false);
+      setActiveVoiceSessionId(null);
+      setAdmittedVoiceEventIds(new Set<string>());
+      setVoiceAftermath(null);
+      setVoiceOverlayRequested(false);
+      setVoiceContactParticipantId(null);
+    });
     if (activeTurn) activeTurn.cancelled = true;
     activeTurn = null;
     setDraftReadyKey(null);
@@ -1510,30 +1537,34 @@ export const ConversationContent: Component = () => {
         appendEvent: async (draft, shape) => {
           if (!ownsTurn()) throw new Error('Conversation response cancelled');
           const scopedDraft = draft.type === 'message.character' && modality === 'voice'
-            ? { ...draft, payload: { ...(draft.payload as MessagePayload), voiceSessionId } } : draft;
+            ? { ...draft, payload: { ...(draft.payload as MessagePayload), voiceSessionId, voiceDelivery: 'tracked' as const } } : draft;
           const event = await journal.append(scopedDraft.type === 'message.character' && pendingResponse.widgets && (!shape || shape.index === shape.count - 1)
             ? { ...scopedDraft, payload: { ...(scopedDraft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
             : scopedDraft);
           if (!ownsTurn()) throw new Error('Conversation response cancelled');
-          if (draft.type === 'message.character' && modality === 'voice') {
-            setAdmittedVoiceEventIds(previous => new Set([...previous, event.id]));
-          }
           if (draft.type === 'message.character') setLiveOverlay(null);
           if (draft.type === 'message.character') {
             const writes = approvedMemoryWrites.get(draft.actorId) ?? [];
             approvedMemoryWrites.delete(draft.actorId); pendingMemoryWrites.delete(draft.actorId);
             for (const content of writes) {
               const sourceEventId = memorySourceEventId && !restrictedUserEventIds.has(memorySourceEventId) ? memorySourceEventId : null;
-              void journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
+              const sourceEventIds = [...(sourceEventId ? [sourceEventId] : []), ...(modality === 'voice' ? [event.id] : [])];
+              const memoryDraft: JournalEventDraft = { roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
                 type: 'memory.belief', actorId: HARNESS_ACTOR, witnesses: [USER_ACTOR, draft.actorId],
                 payload: { ownerId: draft.actorId, kind: 'belief', text: content,
-                  ...(sourceEventId ? { sourceEventIds: [sourceEventId] } : {}) } }).catch(error => log.error('Conversation memory write failed', error));
+                  ...(sourceEventIds.length ? { sourceEventIds } : {}) } };
+              if (modality === 'voice') pendingVoiceMemoryWrites.set(event.id, [...(pendingVoiceMemoryWrites.get(event.id) ?? []), memoryDraft]);
+              else void journal.append(memoryDraft).catch(error => log.error('Conversation memory write failed', error));
             }
+          }
+          if (draft.type === 'message.character' && modality === 'voice') {
+            admittedVoiceSources.set(event.id, event);
+            setAdmittedVoiceEventIds(previous => new Set([...previous, event.id]));
           }
           if (draft.type === 'message.character' && contextOnly && modality === 'text' && settings.autoSpeak && settings.speechEnabled) {
             speakAssistantText((draft.payload as MessagePayload).text);
           }
-          if (draft.type === 'message.character' && pendingResponse.tokens?.length && (!shape || shape.count === 1)) {
+          if (draft.type === 'message.character' && modality !== 'voice' && pendingResponse.tokens?.length && (!shape || shape.count === 1)) {
             updateMessageOverride(event.id, (message) => ({ ...message, tokens: pendingResponse.tokens }));
           }
           return event;
@@ -1542,7 +1573,7 @@ export const ConversationContent: Component = () => {
       if (!ownsTurn()) return;
       setLiveOverlay(null);
       if (userEvent && (settings.agentMistakeChecker || settings.agentSafetyChecker)) runCheckerOnMessage(text, userEvent.id);
-      if (userEvent) {
+      if (userEvent && modality !== 'voice') {
         // Automatic scoped reflection (MEM-02): the completed encounter
         // triggers main-owned consolidation of this context; the snapshot
         // refresh makes evolved scenario state reach the next turn.
@@ -1564,6 +1595,57 @@ export const ConversationContent: Component = () => {
         turnHeuristicSocial = null;
       }
     }
+  };
+
+  const saveDeliveredVoiceMemories = (eventId: string): Promise<void> => {
+    const write = voiceMemoryWriteQueue.then(async () => {
+      if (!readyVoiceMemoryIds.has(eventId)) return;
+      const drafts = pendingVoiceMemoryWrites.get(eventId) ?? [];
+      while (drafts.length) {
+        const draft = drafts[0];
+        await getBridge().journal.appendEvent(draft.roomId, draft);
+        drafts.shift(); // Retire each note only after its own durable ACK.
+      }
+      pendingVoiceMemoryWrites.delete(eventId);
+      readyVoiceMemoryIds.delete(eventId);
+      setFailedVoiceMemoryIds(previous => new Set([...previous].filter(id => id !== eventId)));
+    }).catch(error => {
+      log.error('Conversation voice memory write failed', error);
+      setFailedVoiceMemoryIds(previous => new Set([...previous, eventId]));
+    });
+    voiceMemoryWriteQueue = write;
+    return write;
+  };
+
+  const persistVoiceDelivery = (delivery: VoiceDeliveryPayload): Promise<void> => {
+    const source = admittedVoiceSources.get(delivery.messageEventId);
+    if (!source || source.actorId !== delivery.actorId || (source.payload as MessagePayload).voiceSessionId !== delivery.voiceSessionId) {
+      return Promise.reject(new Error('Voice delivery source is unavailable'));
+    }
+    const session = selectionSession;
+    const draft: JournalEventDraft = { roomId: source.roomId, scope: source.scope, type: 'delivery.voice',
+      actorId: HARNESS_ACTOR, witnesses: [...source.witnesses], payload: delivery };
+    const write = deliveryWriteQueue.then(async () => {
+      if (session === selectionSession) await journal.append(draft);
+      else await getBridge().journal.appendEvent(source.roomId, draft);
+    });
+    deliveryWriteQueue = write.catch(() => undefined);
+    // Delivery is already committed. Notes/reflection are separate operations with their own recovery.
+    void write.then(() => {
+      if (delivery.state !== 'playing') admittedVoiceSources.delete(source.id);
+      if (delivery.state === 'completed') {
+        readyVoiceMemoryIds.add(source.id);
+        void saveDeliveredVoiceMemories(source.id);
+      } else if (delivery.state !== 'playing') pendingVoiceMemoryWrites.delete(source.id);
+      if (delivery.state !== 'playing') {
+        const triggerContext = source.scope.kind === 'thread'
+          ? { roomId: source.scope.threadId, threadId: source.scope.threadId } : { roomId: source.roomId };
+        void getBridge().world.triggerReflection(triggerContext)
+          .then(() => getBridge().world.getWorldState())
+          .then(snapshot => { if (session === selectionSession) setWorld(snapshot); }).catch(() => undefined);
+      }
+    }).catch(() => undefined);
+    return write;
   };
 
   const sendTextMessage = (text: string): Promise<void> => runConversationTurn(text);
@@ -2228,6 +2310,14 @@ export const ConversationContent: Component = () => {
           </div>
         </div>
 
+      <Show when={failedVoiceMemoryIds().size > 0}>
+        <div class="ca-contact-error ca-memory-error" role="alert">
+          <span>{t('mlearn.ConversationAgent.Voice.MemoryRecordFailed')}</span>
+          <Button onClick={() => { for (const id of failedVoiceMemoryIds()) void saveDeliveredVoiceMemories(id); }}>
+            {t('mlearn.Global.TryAgain')}
+          </Button>
+        </div>
+      </Show>
       <Show when={contactIngressError()} keyed>
         {(message) => <div class="ca-contact-error" role="status">{message}</div>}
       </Show>
@@ -2298,13 +2388,7 @@ export const ConversationContent: Component = () => {
                   setVoiceContactParticipantId(null);
                 }
               }}
-              onInterrupted={(spokenText, interruptedAt) => {
-                // Update LLM conversation history to reflect what was actually heard
-                agent.markInterrupted(spokenText, interruptedAt);
-
-                const latest = [...displayMessages()].reverse().find((message) => message.role === 'assistant') as (ConversationMessage & { eventId?: string }) | undefined;
-                if (latest?.eventId) interruptedSpokenText.set(latest.eventId, { text: spokenText, interruptedAt });
-              }}
+              onDelivery={persistVoiceDelivery}
               onTokenHover={handleTokenHover}
               onTokenLeave={handleTokenLeave}
               triggerMode={currentTriggerMode()}

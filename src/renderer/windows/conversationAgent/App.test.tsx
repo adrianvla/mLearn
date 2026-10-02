@@ -10,12 +10,13 @@ import { Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { LLMModelStatus, LLMStreamChunk } from '../../../shared/types';
-import type { JournalEvent, JournalEventDraft, WorldSnapshot } from '../../../shared/world';
+import type { JournalEvent, JournalEventDraft, WorldSnapshot, VoiceDeliveryPayload } from '../../../shared/world';
 import type { TurnReviewRequest, TurnReviewResult } from '../../../shared/conversationReview';
 
 const mockForceHideHover = vi.hoisted(() => vi.fn());
 const mockCloudToken = vi.hoisted(() => vi.fn(async () => 'fresh-token'));
 let desktopRuntime = false;
+let voiceDeliveryCallback: ((delivery: VoiceDeliveryPayload) => Promise<void>) | undefined;
 
 vi.mock('../../../shared/platform', async (original) => ({
   ...await original<typeof import('../../../shared/platform')>(),
@@ -333,8 +334,9 @@ vi.mock('../../components/subtitle/ExplainerPopup', () => ({
 }));
 
 vi.mock('./VoiceTab', () => ({
-  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string; speechMessages?: Array<{ content: string; eventId: string; actorId: string; voiceSessionId: string }>; onSendMessage?: (text: string) => Promise<void>; onAbort?: () => void; onStatusChange?: (status: string) => void; onCallStateChange?: (active: boolean, reason?: 'failed' | 'completed', error?: string, sessionId?: string) => void }) => {
+  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string; onDelivery?: (delivery: VoiceDeliveryPayload) => Promise<void>; speechMessages?: Array<{ content: string; eventId: string; actorId: string; voiceSessionId: string }>; onSendMessage?: (text: string) => Promise<void>; onAbort?: () => void; onStatusChange?: (status: string) => void; onCallStateChange?: (active: boolean, reason?: 'failed' | 'completed', error?: string, sessionId?: string) => void }) => {
     voiceTabMounts++;
+    voiceDeliveryCallback = props.onDelivery;
     return (
     <div
       data-testid="voice-tab"
@@ -347,6 +349,11 @@ vi.mock('./VoiceTab', () => ({
       <button onClick={() => void props.onSendMessage?.('A spoken question')}>Send voice transcript</button>
       <button onClick={() => props.onAbort?.()}>Abort call response</button>
       <button onClick={() => { props.onCallStateChange?.(true); props.onCallStateChange?.(false, 'completed'); }}>Complete call</button>
+      <button onClick={() => {
+        const message = props.speechMessages?.[0];
+        if (message) void props.onDelivery?.({ messageEventId: message.eventId, actorId: message.actorId, voiceSessionId: message.voiceSessionId,
+          state: 'completed', spokenText: message.content, confirmedText: message.content, basis: 'playback-complete' });
+      }}>Confirm voice playback</button>
       <div data-testid="admitted-speech">{JSON.stringify(props.speechMessages)}</div>
     </div>
     );
@@ -536,7 +543,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
     openRoomCallback({ roomId: 'room-a', contactId: 'contact-call', callId: 'call-1' });
     await vi.waitFor(() => expect(container.textContent).toContain('mlearn.ConversationAgent.IncomingCall.Title'));
-    expect(container.querySelector('[data-testid="voice-tab"]')).toBeNull();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')).toBeNull());
 
     const accept = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.IncomingCall.Accept')!;
     accept.click();
@@ -587,6 +594,44 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
     await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalledWith('こんにちは'));
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(1));
+  });
+
+  it.each(['pending', 'partial'])('prepares visible quiz and confirmed-text annotations for %s tracked voice history', async (state) => {
+    const source = appendJournalEvent({ roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' },
+      type: 'message.character', actorId: 'agent-a', witnesses: ['user', 'agent-a'],
+      payload: { text: 'Played phrase. Unheard tail.', modality: 'voice', voiceDelivery: 'tracked', voiceSessionId: 'old-call',
+        widgets: [{ type: 'quiz', data: { type: 'mcq', question: 'Visible question', options: ['Yes', 'No'], correctAnswer: 'Yes' } }] } });
+    if (state === 'partial') appendJournalEvent({ roomId: source.roomId, scope: source.scope, type: 'delivery.voice',
+      actorId: 'harness', witnesses: source.witnesses, payload: { messageEventId: source.id, actorId: source.actorId,
+        voiceSessionId: 'old-call', state: 'stopped', spokenText: 'Played phrase.', confirmedText: 'Played phrase.', basis: 'playback-complete' } });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+
+    await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalledWith('Visible question'));
+    await vi.waitFor(() => expect(container.querySelector('.quiz-question .chat-token')?.textContent).toContain('Visible question'));
+    expect(mockBackend.tokenize).not.toHaveBeenCalledWith('Played phrase. Unheard tail.');
+    if (state === 'partial') {
+      await vi.waitFor(() => expect(container.querySelector('.chat-bubble .chat-token')?.textContent).toContain('Played phrase.'));
+    }
+  });
+
+  it('prepares only the current delivered prefix in a live voice transcript', async () => {
+    testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click(); button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Played phrase. Unheard tail.', done: true });
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="admitted-speech"]')?.textContent).toContain('Unheard tail.'));
+    expect(container.querySelectorAll('.chat-bubble.assistant .chat-token')).toHaveLength(0);
+    const source = journalEvents.find(event => event.type === 'message.character')!;
+    await voiceDeliveryCallback!({ messageEventId: source.id, actorId: source.actorId, voiceSessionId: 'synthetic-call-session',
+      state: 'stopped', spokenText: 'Played phrase.', confirmedText: 'Played phrase.', basis: 'playback-complete' });
+    await vi.waitFor(() => expect(container.querySelector('.chat-bubble.assistant .chat-token')?.textContent).toContain('Played phrase.'));
+    expect(container.querySelector('.chat-bubble.assistant .chat-token')?.textContent).not.toContain('Unheard tail.');
   });
 
   it('re-tokenizes restored bubbles when returning to a thread (A→B→A)', async () => {
@@ -1130,6 +1175,125 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'memory.belief')).toBe(true));
     expect(journalEvents.every(event => event.scope.kind === 'thread')).toBe(true);
     expect(journalEvents.find(event => event.type === 'memory.belief')?.payload).toMatchObject({ ownerId: 'agent-a', text: 'Enjoys coffee' });
+  });
+
+  it('holds voice memory and reflection until exact-message playback is durably recorded', async () => {
+    testSettings.agentMemoryEnabled = true;
+    testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click(); button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Noted.', done: true, toolCalls: [{ id: 'voice-memory', name: 'save_memory', arguments: { content: 'Enjoys coffee' } }] });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
+    expect(journalEvents.filter(event => event.type === 'memory.belief' || event.type === 'delivery.voice')).toEqual([]);
+    expect(mockBridge.world.triggerReflection).not.toHaveBeenCalled();
+    button('Confirm voice playback').click();
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'memory.belief')).toBe(true));
+    expect(journalEvents.findIndex(event => event.type === 'delivery.voice')).toBeLessThan(journalEvents.findIndex(event => event.type === 'memory.belief'));
+    const speech = journalEvents.find(event => event.type === 'message.character')!;
+    expect(journalEvents.find(event => event.type === 'delivery.voice')?.payload).toMatchObject({ messageEventId: speech.id, actorId: 'agent-a', voiceSessionId: 'synthetic-call-session', state: 'completed' });
+    expect(journalEvents.find(event => event.type === 'memory.belief')?.payload).toMatchObject({ sourceEventIds: expect.arrayContaining([speech.id]) });
+    await vi.waitFor(() => expect(mockBridge.world.triggerReflection).toHaveBeenCalled());
+  });
+
+  it('ends the call when selecting another chat while late playback remains bound to its original source', async () => {
+    testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
+    currentWorld.rooms.push({ id: 'room-b', title: 'Other chat', participantIds: ['agent-a'], createdAt: 2 });
+    currentWorld.threads.push({ id: 'thread-b', roomId: 'room-b', state: 'active', createdAt: 2 });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click(); button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Old call reply.', done: true });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
+    const source = journalEvents.find(event => event.type === 'message.character')!;
+    const oldDelivery = voiceDeliveryCallback!;
+    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')).toBeNull());
+    await oldDelivery({ messageEventId: source.id, actorId: 'agent-a', voiceSessionId: 'synthetic-call-session',
+      state: 'stopped', spokenText: '', confirmedText: '', basis: 'unavailable' });
+    const record = journalEvents.find(event => event.type === 'delivery.voice')!;
+    expect(record.roomId).toBe(source.roomId);
+    expect(record.scope).toEqual(source.scope);
+    const textarea = container.querySelector<HTMLTextAreaElement>('textarea.ca-chat-textarea')!;
+    await vi.waitFor(() => expect(textarea.disabled).toBe(false));
+    textarea.value = 'New chat text'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    const send = container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Send"]')!;
+    await vi.waitFor(() => expect(send.disabled).toBe(false)); send.click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(2));
+    emitChunk({ content: 'New text reply.', done: true });
+    await vi.waitFor(() => expect(journalEvents.filter(event => event.type === 'message.character')).toHaveLength(2));
+    expect(journalEvents.filter(event => event.type === 'message.character')[1]).toMatchObject({ roomId: 'room-b', payload: { text: 'New text reply.' } });
+    expect((journalEvents.filter(event => event.type === 'message.character')[1].payload as { voiceSessionId?: string }).voiceSessionId).toBeUndefined();
+  });
+
+  it('keeps successful playback separate from failed note saving and retries only unsaved notes', async () => {
+    testSettings.agentMemoryEnabled = true;
+    testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
+    let rejectMemory = true;
+    mockBridge.journal.appendEvent.mockImplementation(async (_roomId, draft) => {
+      if (draft.type === 'memory.belief' && rejectMemory) throw new Error('Notes disk unavailable');
+      return appendJournalEvent(draft);
+    });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click(); button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Noted.', done: true, toolCalls: [{ id: 'voice-memory', name: 'save_memory', arguments: { content: 'Enjoys coffee' } }] });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
+    button('Confirm voice playback').click();
+    await vi.waitFor(() => expect(container.textContent).toContain('mlearn.ConversationAgent.Voice.MemoryRecordFailed'));
+    expect(journalEvents.filter(event => event.type === 'delivery.voice')).toHaveLength(1);
+    expect(journalEvents.filter(event => event.type === 'memory.belief')).toHaveLength(0);
+    expect(chatText(container)).toContain('Noted.');
+    rejectMemory = false;
+    const retry = container.querySelector<HTMLButtonElement>('.ca-memory-error button')!;
+    retry.click();
+    await vi.waitFor(() => expect(journalEvents.filter(event => event.type === 'memory.belief')).toHaveLength(1));
+    await vi.waitFor(() => expect(container.querySelector('.ca-memory-error')).toBeNull());
+    expect(journalEvents.filter(event => event.type === 'delivery.voice')).toHaveLength(1);
+  });
+
+  it('retains captured voice notes when navigation occurs before the completed delivery ACK', async () => {
+    testSettings.agentMemoryEnabled = true;
+    testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
+    currentWorld.rooms.push({ id: 'room-b', title: 'Other chat', participantIds: ['agent-a'], createdAt: 2 });
+    currentWorld.threads.push({ id: 'thread-b', roomId: 'room-b', state: 'active', createdAt: 2 });
+    const deliveryAck = deferred<void>();
+    mockBridge.journal.appendEvent.mockImplementation(async (_roomId, draft) => {
+      if (draft.type === 'delivery.voice') await deliveryAck.promise;
+      return appendJournalEvent(draft);
+    });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click(); button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Noted.', done: true, toolCalls: [{ id: 'voice-memory', name: 'save_memory', arguments: { content: 'Enjoys coffee' } }] });
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
+    const source = journalEvents.find(event => event.type === 'message.character')!;
+    button('Confirm voice playback').click();
+    await vi.waitFor(() => expect(mockBridge.journal.appendEvent.mock.calls.some(([, draft]) => draft.type === 'delivery.voice')).toBe(true));
+    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
+    deliveryAck.resolve();
+    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'memory.belief')).toBe(true));
+    const memory = journalEvents.find(event => event.type === 'memory.belief')!;
+    expect(memory.roomId).toBe(source.roomId); expect(memory.scope).toEqual(source.scope);
+    expect(chatText(container)).not.toContain('Noted.');
   });
 
   it('opens and speaks in a saved standalone sandbox using its pinned person', async () => {

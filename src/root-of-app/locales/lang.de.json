@@ -1,4 +1,17 @@
 {
+  "mlearn.ConversationAgent.Voice.VisualActivity": "Visuelle Übung — antworte auf dem Bildschirm.",
+  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Einige Gesprächsnotizen konnten nicht gespeichert werden. Versuche es erneut, solange dieses Fenster geöffnet ist.",
+  "mlearn.ConversationAgent.Voice.Delivery.pending": "Keine Wiedergabe aufgezeichnet.",
+  "mlearn.ConversationAgent.Voice.Delivery.playing": "Teilweise Wiedergabe aufgezeichnet.",
+  "mlearn.ConversationAgent.Voice.Delivery.completed": "Wiedergabe abgeschlossen.",
+  "mlearn.ConversationAgent.Voice.Delivery.interrupted": "Wiedergabe unterbrochen.",
+  "mlearn.ConversationAgent.Voice.Delivery.stopped": "Wiedergabe gestoppt.",
+  "mlearn.ConversationAgent.Voice.Delivery.failed": "Sprachausgabe fehlgeschlagen.",
+  "mlearn.ConversationAgent.Voice.Delivery.Estimated": "Teil des Satzes geschätzt.",
+  "mlearn.ConversationAgent.Voice.Delivery.Generated": "Generierte Antwort",
+  "mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription": "Generierter Text; dies ist kein Wiedergabeprotokoll.",
+  "mlearn.ConversationAgent.Voice.NoAudio": "Die Sprachausgabe endete ohne abspielbares Audio. Die Antwort wurde nicht als wiedergegeben erfasst.",
+  "mlearn.ConversationAgent.Voice.DeliveryRecordFailed": "Das Wiedergabeprotokoll konnte nicht gespeichert werden. Die Sprachausgabe wurde gestoppt; die Wiedergabe bleibt unbestätigt.",
   "mlearn": {
     "GraphInspector": {
       "Title": "Graphinspektor",

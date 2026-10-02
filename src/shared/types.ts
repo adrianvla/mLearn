@@ -2770,6 +2770,12 @@ export type ConversationRole = 'system' | 'user' | 'assistant' | 'tool';
 export interface ConversationMessage {
   role: ConversationRole;
   content: string;
+  /** Preserved reviewed generation, distinct from the voice playback transcript. */
+  generatedContent?: string;
+  voiceDelivery?: {
+    state: 'pending' | import('./world').VoiceDeliveryPayload['state'];
+    basis?: import('./world').VoiceDeliveryPayload['basis'];
+  };
   /** Tool call results or tool invocations */
   toolCalls?: ToolCall[];
   toolCallId?: string;

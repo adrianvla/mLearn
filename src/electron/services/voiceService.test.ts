@@ -1551,6 +1551,29 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
     expect(event.sender.send).toHaveBeenCalledExactlyOnceWith('voice-tts-status', expect.objectContaining({ ...request, generating: false, error: expect.stringContaining('disconnected') }));
   });
 
+  it.each(['truncated-binary', 'sample-count', 'empty', 'invalid-samples', 'invalid-rate', 'unfinished-frame', 'json-byte-length', 'sample-offset'])('fails owned malformed PCM instead of claiming a completed phrase (%s)', async (failure) => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    const request = { sessionId: 'audio-call', requestId: 'audio-phrase' };
+    onHandlers.get('voice-tts-generate')?.(event, 'A phrase', 'en', 1, undefined, 'qwen3', undefined, request);
+    await flushMicrotasks();
+    const socket = lastCreatedWebSocket!;
+    event.sender.send.mockClear();
+    if (failure === 'truncated-binary' || failure === 'sample-count' || failure === 'unfinished-frame') {
+      socket._emit('message', JSON.stringify({ type: 'audio', sampleRate: 24000, sampleCount: 4,
+        byteLength: failure === 'sample-count' ? 4 : 16 }));
+      if (failure !== 'unfinished-frame') socket._emit('message', Buffer.from(new Float32Array([0.5]).buffer), true);
+    } else socket._emit('message', JSON.stringify({ type: 'audio', sampleRate: failure === 'invalid-rate' ? 0 : 24000,
+      ...(failure === 'json-byte-length' ? { byteLength: 16 } : {}), ...(failure === 'sample-offset' ? { sampleOffset: 1 } : {}),
+      samples: failure === 'empty' ? [] : failure === 'invalid-samples' ? [null] : [0.5] }));
+    socket._emit('message', JSON.stringify({ type: 'done' })); socket._emit('close');
+    await flushMicrotasks();
+    expect(event.sender.send.mock.calls.filter(([channel]) => channel === 'voice-tts-audio')).toEqual([]);
+    const statuses = event.sender.send.mock.calls.filter(([channel]) => channel === 'voice-tts-status');
+    expect(statuses).toEqual([['voice-tts-status', expect.objectContaining({ ...request, generating: false, error: expect.stringContaining('audio') })]]);
+  });
+
   it('sends one terminal result and cannot revive a completed request with late stream events', async () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();

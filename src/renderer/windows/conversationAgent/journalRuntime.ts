@@ -11,6 +11,7 @@ import type {
 } from '../../../shared/types';
 import { sanitizeJournalMessageText } from '../../../shared/modelContent';
 import { inferenceEvents } from '../../../shared/inferenceBoundary';
+import { isTrackedVoiceMessage, voiceDeliveries } from '../../../shared/voiceDelivery';
 
 type JournalDisplayMessage = ConversationMessage & {
   eventId: string;
@@ -102,6 +103,7 @@ export function eventsToDisplayMessages(
   const participantsById = new Map(participants.map((participant) => [participant.id, participant]));
   const messagesByEventId = new Map<string, ConversationMessage>();
   const messages: ConversationMessage[] = [];
+  const deliveries = voiceDeliveries(events);
 
   for (const event of events) {
     if (event.type === 'message.user' || event.type === 'message.character') {
@@ -121,6 +123,14 @@ export function eventsToDisplayMessages(
       if (payload.voiceSessionId) message.voiceSessionId = payload.voiceSessionId;
       if (payload.widget) message.widget = payload.widget;
       if (payload.widgets) message.widgets = payload.widgets;
+      if (isTrackedVoiceMessage(event)) {
+        const delivery = deliveries.get(event.id)?.payload;
+        message.generatedContent = message.content;
+        message.content = delivery?.spokenText ?? '';
+        message.voiceDelivery = { state: delivery?.state ?? 'pending', basis: delivery?.basis };
+        message.interrupted = delivery?.state === 'interrupted';
+        // Visual activities remain usable; the inference boundary excludes them from audio delivery.
+      }
       messagesByEventId.set(event.id, message);
       messages.push(message);
       continue;

@@ -17,6 +17,7 @@ export type EventScope = { kind: 'sea' } | { kind: 'thread'; threadId: string };
 export type EventType =
   | 'message.user'
   | 'message.character'
+  | 'delivery.voice'
   | 'memory.belief'
   | 'disclosure'
   | 'resolution'
@@ -44,6 +45,8 @@ export const WORLD_CONTINUITY_ID = 'world-continuity';
 export interface JournalEvent {
   id: string; // evt_<unique>
   seq: number; // per-stream monotonic (Sea stream and each Thread stream sequence independently)
+  /** Derived projection availability; never replaces the original visibility/order sequence. */
+  inferenceAvailabilitySeq?: number;
   roomId: string;
   scope: EventScope;
   type: EventType;
@@ -86,7 +89,22 @@ export interface MessagePayload {
   modality?: 'text' | 'voice';
   /** Identifies the call that admitted this voice message, excluding history replay. */
   voiceSessionId?: string;
+  /** New call speech must be projected from delivery records, never generated text. */
+  voiceDelivery?: 'tracked';
   replyToEventId?: string;
+}
+
+/** Local playback observation, not proof of listening or language mastery. */
+export interface VoiceDeliveryPayload {
+  messageEventId: string;
+  actorId: string;
+  voiceSessionId: string;
+  state: 'playing' | 'completed' | 'interrupted' | 'stopped' | 'failed';
+  /** Display-only prefix; may include an explicitly estimated partial phrase. */
+  spokenText: string;
+  /** Only whole phrases whose local playback completed; eligible for inference. */
+  confirmedText: string;
+  basis: 'playback-complete' | 'playback-estimate' | 'system-complete' | 'unavailable';
 }
 
 /** 'memory.belief' — carries every MemoryEntry kind despite the event-type name. */

@@ -33,6 +33,33 @@ function event(overrides: Partial<JournalEvent> & Pick<JournalEvent, 'id' | 'typ
 }
 
 describe('journalRuntime', () => {
+  it('restores exact-actor voice delivery after serialization, preserving generated text separately', () => {
+    const speech = event({ id: 'speech-a', type: 'message.character', actorId: 'a', payload: {
+      text: 'First phrase. Second phrase.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked',
+    } });
+    const queued = event({ id: 'speech-b', type: 'message.character', actorId: 'b', payload: {
+      text: 'Not played.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked',
+    } });
+    const delivered = event({ id: 'delivery-a', seq: 3, type: 'delivery.voice', actorId: 'harness', payload: {
+      messageEventId: speech.id, actorId: 'a', voiceSessionId: 'call', state: 'interrupted',
+      spokenText: 'First phrase. Sec', confirmedText: 'First phrase.', basis: 'playback-estimate',
+    } });
+    const restored = JSON.parse(JSON.stringify([speech, queued, delivered]));
+    const display = eventsToDisplayMessages(restored, participants, 'You');
+    expect(display).toHaveLength(2);
+    expect(display[0]).toMatchObject({ content: 'First phrase. Sec', generatedContent: 'First phrase. Second phrase.',
+      voiceDelivery: { state: 'interrupted', basis: 'playback-estimate' }, interrupted: true });
+    expect(display[1]).toMatchObject({ content: '', generatedContent: 'Not played.', voiceDelivery: { state: 'pending' } });
+    expect(buildLLMHistory(restored, 'b', participants)).toEqual([{ role: 'user', content: 'Alice: First phrase.' }]);
+  });
+
+  it('keeps reviewed visual activities usable without including them in speech inference', () => {
+    const quiz = { type: 'quiz', data: { question: 'Visual question', correctAnswer: 'A' } };
+    const speech = event({ id: 'visual', type: 'message.character', actorId: 'a', payload: { text: 'A reply.', widgets: [quiz],
+      modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } });
+    expect(eventsToDisplayMessages([speech], participants, 'You')[0].widgets).toEqual([quiz]);
+    expect(buildLLMHistory([speech], 'a', participants)).toEqual([]);
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mockJournal.subscribeRoom.mockResolvedValue({ events: [], headSeq: 0, unsubscribe });
