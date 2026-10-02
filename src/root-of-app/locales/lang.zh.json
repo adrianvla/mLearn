@@ -2342,8 +2342,8 @@
           "Tactile": "质感"
         },
         "SimplifyHomeScreen": {
-          "Description": "以不含交互式预览的简单按钮网格显示主屏幕。",
-          "Label": "简化主屏幕"
+          "Description": "在主页上将学习计划和每周活动显示为简洁链接。",
+          "Label": "简洁主页摘要"
         }
       },
       "BlurEffect": {

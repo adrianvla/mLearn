@@ -582,6 +582,10 @@ export interface Settings {
   proactiveCallOptOutParticipantIds: string[];
 
   // Conversation agent settings
+  /** Accepted version of the local AI notice; changed notices must be accepted again. */
+  agentLocalNoticeAcceptedVersion?: number;
+  /** Accepted version of the remote AI notice, including its age certification. */
+  agentRemoteNoticeAcceptedVersion?: number;
   /** Whether the agent memory feature is enabled */
   agentMemoryEnabled: boolean;
   /** Whether memories are shared across all agents or compartmentalized */
@@ -804,6 +808,8 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardVoiceSampleId: '',
   flashcardStealthMode: false,
   flashcardMuteAudio: false,
+  agentLocalNoticeAcceptedVersion: 0,
+  agentRemoteNoticeAcceptedVersion: 0,
   agentMemoryEnabled: true,
   agentMemoryShared: true,
   agentMistakeChecker: true,

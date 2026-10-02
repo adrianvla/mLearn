@@ -2342,8 +2342,8 @@
           "Tactile": "Tactile"
         },
         "SimplifyHomeScreen": {
-          "Description": "Show the home screen as a plain button grid without interactive previews.",
-          "Label": "Simplify home screen"
+          "Description": "Show Learning Plan and weekly activity as compact links on Home.",
+          "Label": "Compact Home summary"
         }
       },
       "BlurEffect": {

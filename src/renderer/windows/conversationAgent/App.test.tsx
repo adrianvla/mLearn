@@ -14,6 +14,7 @@ import type { JournalEvent, JournalEventDraft, WorldSnapshot, VoiceDeliveryPaylo
 import type { TurnReviewRequest, TurnReviewResult } from '../../../shared/conversationReview';
 import { inferenceEvents } from '../../../shared/inferenceBoundary';
 
+const mockUpdateSettings = vi.hoisted(() => vi.fn());
 const mockForceHideHover = vi.hoisted(() => vi.fn());
 const mockCloudToken = vi.hoisted(() => vi.fn(async () => 'fresh-token'));
 let desktopRuntime = false;
@@ -165,7 +166,7 @@ vi.mock('../../context', () => ({
   useSettings: () => ({
     settings: testSettings,
     isLoading: () => settingsLoading,
-    updateSettings: vi.fn(),
+    updateSettings: mockUpdateSettings,
     openCloudReLoginModal: vi.fn(),
   }),
   useLocalization: () => ({
@@ -433,6 +434,40 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose?.();
     dispose = undefined;
     container.remove();
+  });
+
+  it('remembers the accepted remote notice across conversation windows', async () => {
+    testSettings.llmProvider = 'cloud';
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const accept = container.querySelector<HTMLButtonElement>('.avm-overlay button');
+    expect(accept).not.toBeNull();
+    accept!.click();
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ agentRemoteNoticeAcceptedVersion: 1 });
+    expect(container.querySelector('.avm-overlay')).toBeNull();
+    dispose();
+    testSettings.agentRemoteNoticeAcceptedVersion = 1;
+    dispose = render(() => <ConversationContent />, container);
+    expect(container.querySelector('.avm-overlay')).toBeNull();
+  });
+
+  it('requires the remote certification even when the local notice was accepted', async () => {
+    testSettings.llmProvider = 'cloud';
+    testSettings.agentLocalNoticeAcceptedVersion = 1;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    expect(container.querySelector('.avm-overlay')).not.toBeNull();
+  });
+
+  it('shows changed remote terms again and waits for saved settings before showing them', async () => {
+    testSettings.llmProvider = 'cloud';
+    testSettings.agentRemoteNoticeAcceptedVersion = 2;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    expect(container.querySelector('.avm-overlay')).not.toBeNull();
+    dispose(); settingsLoading = true;
+    dispose = render(() => <ConversationContent />, container);
+    expect(container.querySelector('.avm-overlay')).toBeNull();
   });
 
   it('waits for saved settings before checking the built-in model', async () => {

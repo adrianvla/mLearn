@@ -34,7 +34,7 @@ import { IntegrationModal } from './IntegrationModal';
 import { VoiceTab, type VoiceSpeechMessage } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 
-import { AgeVerificationModal } from './AgeVerificationModal';
+import { AgeVerificationModal, CONVERSATION_NOTICE_VERSION } from './AgeVerificationModal';
 import { CommandPalette } from './CommandPalette';
 import type { SlashCommand } from './CommandPalette';
 import { getConversationDisplayLanguageName, getConversationPromptLanguageName } from './languageNames';
@@ -238,6 +238,18 @@ export const ConversationContent: Component = () => {
 
   const [showSplash, setShowSplash] = createSignal(true);
   const [showDisclaimer, setShowDisclaimer] = createSignal(true);
+  createEffect(() => {
+    if (isLoading()) return;
+    setShowSplash((settings.agentRemoteNoticeAcceptedVersion ?? DEFAULT_SETTINGS.agentRemoteNoticeAcceptedVersion) !== CONVERSATION_NOTICE_VERSION);
+    setShowDisclaimer((settings.agentLocalNoticeAcceptedVersion ?? DEFAULT_SETTINGS.agentLocalNoticeAcceptedVersion) !== CONVERSATION_NOTICE_VERSION);
+  });
+  const acceptConversationNotice = (scope: 'local' | 'remote'): void => {
+    updateSettings(scope === 'remote'
+      ? { agentRemoteNoticeAcceptedVersion: CONVERSATION_NOTICE_VERSION }
+      : { agentLocalNoticeAcceptedVersion: CONVERSATION_NOTICE_VERSION });
+    if (scope === 'remote') setShowSplash(false);
+    else setShowDisclaimer(false);
+  };
 
   // Voice mode state
   const [isVoiceCallActive, setIsVoiceCallActive] = createSignal(false);
@@ -2046,11 +2058,11 @@ export const ConversationContent: Component = () => {
           </Show>
         </div>}
       </For>
-      <Show when={showSplash() && isRemoteLLMProvider(settings.llmProvider)}>
-        <AgeVerificationModal onAccept={() => setShowSplash(false)} />
+      <Show when={!isLoading() && showSplash() && isRemoteLLMProvider(settings.llmProvider)}>
+        <AgeVerificationModal onAccept={() => acceptConversationNotice('remote')} />
       </Show>
       <Modal
-        isOpen={showDisclaimer() && !isRemoteLLMProvider(settings.llmProvider)}
+        isOpen={!isLoading() && showDisclaimer() && !isRemoteLLMProvider(settings.llmProvider)}
         onClose={() => setShowDisclaimer(false)}
         title={t('mlearn.ConversationAgent.Title')}
         closeOnOverlay={false}
@@ -2058,7 +2070,7 @@ export const ConversationContent: Component = () => {
         showCloseButton={false}
         size="md"
         footer={
-          <Button variant="primary" size="lg" onClick={() => setShowDisclaimer(false)}>
+          <Button variant="primary" size="lg" onClick={() => acceptConversationNotice('local')}>
             {t('mlearn.ConversationAgent.AgeVerification.ContinueButton')}
           </Button>
         }

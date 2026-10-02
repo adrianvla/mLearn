@@ -2342,8 +2342,8 @@
           "Tactile": "Tactile"
         },
         "SimplifyHomeScreen": {
-          "Description": "Afficher l'écran d'accueil sous forme de grille de boutons simples, sans aperçus interactifs.",
-          "Label": "Simplifier l'écran d'accueil"
+          "Description": "Affichez le plan d’apprentissage et l’activité hebdomadaire sous forme de liens compacts sur l’accueil.",
+          "Label": "Résumé compact sur l’accueil"
         }
       },
       "BlurEffect": {

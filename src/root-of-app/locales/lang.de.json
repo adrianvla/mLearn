@@ -2342,8 +2342,8 @@
           "Tactile": "Taktil"
         },
         "SimplifyHomeScreen": {
-          "Description": "Startseite als einfaches Schaltflächenraster ohne interaktive Vorschauen anzeigen.",
-          "Label": "Startseite vereinfachen"
+          "Description": "Zeige Lernplan und Wochenaktivität auf der Startseite als kompakte Links.",
+          "Label": "Kompakte Übersicht auf der Startseite"
         }
       },
       "BlurEffect": {
