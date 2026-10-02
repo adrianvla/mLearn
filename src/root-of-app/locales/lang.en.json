@@ -1697,6 +1697,8 @@
         "Retry": "Retry"
       },
       "Projection": {
+        "WordFamiliarity": "Word familiarity",
+        "WordFamiliarityScope": "Familiarity with this word does not establish every skill or specific use. Each aspect below is assessed separately.",
         "EaseOverall": "Overall word ease",
         "EaseDescription": "Ease derived from recorded outcomes. The right axis shows evidence thresholds; explicit claims can override status.",
         "EaseCurrent": "Current ease · {value}",

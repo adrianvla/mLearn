@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { loadLinguisticGraph } from '../graph/load';
 import { predictTargetAccessibility } from './supportPredictor';
 import { attestedCompoundAnalysis } from '../graph/morphology/attested';
+import { buildKnowledgeProjection } from '../knowledge/projectionBuilder';
 
 const graph = (type = 'derived-from', confidence = 1) => loadLinguisticGraph({
   schemaVersion: 1, language: 'x-test', generatedAt: '', sourceVersions: {},
@@ -11,6 +12,80 @@ const graph = (type = 'derived-from', confidence = 1) => loadLinguisticGraph({
 const input = { graph: graph(), direct: null, target: { entityId: 'target', capability: 'surface-reading' }, classify: () => 'unknown' as const };
 
 describe('learner-grounded support scores', () => {
+  it.each([false, true])('preserves dependency allocation and full rule semantics when witness routes share a physical response (colliding ids: %s)', collidingRuleIds => {
+    const capability = 'future::next';
+    const g = loadLinguisticGraph({ schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: {},
+      entities: [{ id: 'target', kind: 'future::discourse', learnableCapabilities: [capability] },
+        ...['aaa-alias', 'bbb-observed', 'ccc-independent'].map(id => ({ id, kind: 'surface', label: id })),
+        ...['entry1', 'entry2'].map(id => ({ id, kind: 'dictionary-entry' }))],
+      relations: [...['aaa-alias', 'bbb-observed'].map(from => ({ from, to: 'entry1', type: 'realizes' })),
+        { from: 'ccc-independent', to: 'entry2', type: 'realizes' },
+        ...['aaa-alias', 'ccc-independent'].map(from => ({ from, to: 'target', type: 'future::group1' })),
+        { from: 'bbb-observed', to: 'target', type: 'future::group2' }] });
+    const languageData = { name: 'Future', learning: { capabilities: { [capability]: { supportRules: [
+      { id: collidingRuleIds ? 'shared-rule-id' : 'rule1', relation: 'future::group1', sourceCapability: 'sense-recognition', weight: 0.1, dependencyGroup: 'group1' },
+      { id: collidingRuleIds ? 'shared-rule-id' : 'rule2', relation: 'future::group2', sourceCapability: 'sense-recognition', weight: 0.1, dependencyGroup: collidingRuleIds ? 'group1' : 'group2' },
+    ] } } } };
+    // One real response resolves through both forms of entry1. Another
+    // independent response occupies the first rule's declared dependency group.
+    const events = ['bbb-observed', 'ccc-independent'].map((id, index) => ({
+      t: index + 1, kind: 'rating' as const, source: 'manual' as const, quality: 'fluent' as const,
+      easeAfter: 3, attemptId: `physical${index + 1}`,
+      targetRef: { kind: 'surface', id, capability: 'sense-recognition' },
+    }));
+    const projected = buildKnowledgeProjection(g, 'target', events, undefined, 10, undefined, { languageData });
+    const prediction = projected.targets.find(target => target.targetRef.id === 'target')?.states
+      .find(state => state.capability === capability)?.prediction;
+    const withoutWitness = predictTargetAccessibility({ graph: g, direct: null, target: { entityId: 'target', capability },
+      classify: () => 'unknown', languageData, sourceKnowledge: source => ({ basis: 'evidence',
+        observationIds: [source.entityId === 'ccc-independent' ? 'physical2' : 'physical1'] }) });
+    expect(prediction?.contributors).toHaveLength(1);
+    expect(prediction?.contributors?.[0]).toMatchObject({ source: { entityId: 'aaa-alias' },
+      rule: { id: collidingRuleIds ? 'shared-rule-id' : 'rule1', dependencyGroup: 'group1' }, credit: 0.1, observationIds: ['physical1'],
+      witness: { targetRef: events[0].targetRef } });
+    expect(prediction?.value).toBeCloseTo(withoutWitness.supportScore);
+    expect(prediction?.contributors?.map(contributor => contributor.credit))
+      .toEqual(withoutWitness.contributors.map(contributor => contributor.credit));
+  });
+
+  it.each([false, true])('prefers the actual witness among equal-credit opaque sources independent of insertion order (%s)', reverse => {
+    const target = { entityId: 'target', capability: 'future::unknown-access' };
+    const sourceCapability = 'future::unknown-context';
+    const entities = [{ id: 'aaa-alias', kind: 'future::discourse', label: 'Semantic alias' },
+      { id: 'zzz-observed', kind: 'future::discourse', label: 'Observed context' }, { id: target.entityId, kind: 'future::discourse' }];
+    const relations = ['aaa-alias', 'zzz-observed'].map(from => ({ from, to: target.entityId, type: 'future::context-link' }));
+    const witness = { attemptId: 'one-physical-response', targetRef: { kind: 'future::discourse', id: 'zzz-observed',
+      capability: sourceCapability, to: 'future::listener', opaque: { unregistered: [1, 'new'] } } };
+    const g = loadLinguisticGraph({ schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: {},
+      entities: reverse ? entities.reverse() : entities, relations: reverse ? relations.reverse() : relations });
+    const languageData = { name: 'Future', learning: { capabilities: { [target.capability]: { supportRules: [{
+      relation: 'future::context-link', sourceCapability, weight: 0.4, dependencyGroup: 'one-observation',
+    }] } } } };
+    const result = predictTargetAccessibility({ ...input, graph: g, target, languageData,
+      sourceKnowledge: () => ({ basis: 'evidence', observationIds: [witness.attemptId], witness }) });
+    expect(result.contributors).toHaveLength(1);
+    expect(result.contributors[0]).toMatchObject({ source: { entityId: 'zzz-observed', capability: sourceCapability },
+      sourceLabel: 'Observed context', witness, credit: 0.4 });
+    expect(JSON.parse(JSON.stringify(result))).toEqual(result);
+    witness.targetRef.opaque.unregistered.push('later-mutation');
+    expect(result.contributors[0].witness?.targetRef).toMatchObject({ opaque: { unregistered: [1, 'new'] } });
+
+    const claim = predictTargetAccessibility({ ...input, graph: g, target, languageData,
+      sourceKnowledge: () => ({ basis: 'claim', witness }) });
+    expect(claim.contributors[0].source.entityId).toBe('aaa-alias');
+    expect(claim.contributors[0].witness).toBeUndefined();
+    expect(claim.contributors[0].observationIds).toEqual([]);
+    const archive = predictTargetAccessibility({ ...input, graph: g, target, languageData,
+      sourceKnowledge: () => ({ basis: 'evidence' }) });
+    expect(archive.contributors[0].source.entityId).toBe('aaa-alias');
+    expect(archive.contributors[0].witness).toBeUndefined();
+    expect(archive.contributors[0].observationIds).toEqual([]);
+    const unmatched = predictTargetAccessibility({ ...input, graph: g, target, languageData,
+      sourceKnowledge: () => ({ basis: 'evidence', observationIds: ['other-response'], witness }) });
+    expect(unmatched.contributors[0].source.entityId).toBe('aaa-alias');
+    expect(unmatched.contributors[0].witness).toBeUndefined();
+  });
+
   it('does not turn a relation category into package authorization', () => {
     expect(predictTargetAccessibility({ ...input, sourceKnowledge: () => 'evidence' }).supportPath).toEqual([]);
   });

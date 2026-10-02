@@ -596,12 +596,16 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         </div>
         <Show when={model().projection?.status === 'ready'} fallback={model().projection === undefined ? <KnowledgeSkeleton variant="pill" /> : <span>{t('mlearn.Knowledge.Unavailable')}</span>}>
         <div class={`knowledge-drawer__overall knowledge-state--${overallTone()}`}>
+          <span class="knowledge-drawer__overall-label">{t('mlearn.Knowledge.Projection.WordFamiliarity')}</span>
           <span class="knowledge-drawer__overall-status">{t(overallLabelKey())}</span>
           <Show when={!overallUntracked()}><span class="knowledge-drawer__overall-basis">{t(BASIS_LABEL_KEYS[overall().basis])}</span></Show>
         </div>
         </Show>
         <Show when={model().excluded}>
           <span class="knowledge-drawer__excluded">{t('mlearn.Knowledge.Projection.Excluded')}</span>
+        </Show>
+        <Show when={model().projection?.status === 'ready'}>
+          <p class="knowledge-drawer__overall-scope">{t('mlearn.Knowledge.Projection.WordFamiliarityScope')}</p>
         </Show>
       </header>
 

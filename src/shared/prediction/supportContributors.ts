@@ -1,6 +1,7 @@
 import { relationsOf, type LingualGraph } from '../graph/load';
 import type { GraphRelation, LearnableTarget } from '../graph/types';
 import type { LanguageCapabilityDeclaration, LanguageData } from '../types';
+import type { KnowledgeEvent } from '../knowledgeEvents';
 
 type SupportRule = NonNullable<LanguageCapabilityDeclaration['supportRules']>[number];
 export interface SupportSource {
@@ -16,6 +17,8 @@ export interface SourceKnowledge {
   basis: 'evidence' | 'claim';
   /** Stable physical attempt ids, when retained; absent archives grant no invented ids. */
   observationIds?: readonly string[];
+  /** The actual retained response behind this replay state, not an inferred endpoint. */
+  witness?: { attemptId: string; targetRef?: KnowledgeEvent['targetRef']; presentedSurface?: string };
 }
 
 export interface SupportContributor {
@@ -25,8 +28,11 @@ export interface SupportContributor {
   target: LearnableTarget;
   basis: SourceKnowledge['basis'];
   observationIds: string[];
+  witness?: SourceKnowledge['witness'];
   package: { language: string; sourceVersions: Record<string, string>; metadataVersion?: string };
   rule: { id: string; version?: string; weight: number; dependencyGroup?: string; transferContext?: string };
+  /** Complete package declaration: an explicit rule id alone does not prove equivalence. */
+  ruleDefinition?: SupportRule;
   assertions: GraphRelation[];
   assertionConfidence: number;
   calibration: number;
@@ -107,6 +113,12 @@ export function independentSupportContributors(contributors: readonly SupportCon
     const left = signature(a); const right = signature(b);
     return left < right ? -1 : left > right ? 1 : 0;
   };
+  const matchesWitness = (item: SupportContributor) => item.basis === 'evidence' && item.witness !== undefined
+    && item.observationIds.includes(item.witness.attemptId)
+    && item.witness.targetRef?.id === item.source.entityId
+    && item.witness.targetRef.capability === item.source.capability;
+  // Allocate credit before choosing its display representative. Witness priority
+  // here would change which dependency groups remain available to other events.
   const ordered = [...contributors].sort((a, b) => b.credit - a.credit || compare(a, b));
   for (const item of ordered) {
     const sourceKey = JSON.stringify([item.source.entityId, item.source.capability]);
@@ -118,5 +130,23 @@ export function independentSupportContributors(contributors: readonly SupportCon
     item.observationIds.forEach(id => observations.add(id));
     accepted.push(item);
   }
-  return accepted.sort(compare);
+  const allocationSignature = (item: SupportContributor) => JSON.stringify([
+    item.target, item.basis, [...item.observationIds].sort(), item.package,
+    item.rule, item.ruleDefinition, item.assertionConfidence, item.calibration, item.credit,
+  ]);
+  const sourceKey = (item: SupportContributor) => JSON.stringify([item.source.entityId, item.source.capability]);
+  // Equivalent declared routes can explain one retained response through several
+  // semantic endpoints. Prefer its actual observed access only after allocation,
+  // without creating a duplicate source or substituting different rule semantics.
+  const represented = [...accepted];
+  for (const [index, item] of accepted.entries()) {
+    if (matchesWitness(item) || !item.ruleDefinition) continue;
+    const alternatives = ordered.filter(candidate => matchesWitness(candidate)
+      && candidate.ruleDefinition !== undefined
+      && allocationSignature(candidate) === allocationSignature(item)
+      && !represented.some((other, otherIndex) => otherIndex !== index && sourceKey(other) === sourceKey(candidate)));
+    const representative = alternatives.sort(compare)[0];
+    if (representative) represented[index] = representative;
+  }
+  return represented.sort(compare);
 }

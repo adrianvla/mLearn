@@ -1697,6 +1697,8 @@
         "Retry": "再試行"
       },
       "Projection": {
+        "WordFamiliarity": "単語へのなじみ",
+        "WordFamiliarityScope": "この単語になじみがあっても、すべての技能や個々の用法を習得したとは限りません。以下の各項目は個別に評価されます。",
         "EaseOverall": "単語全体の易しさ",
         "EaseDescription": "記録された結果から導かれる易しさです。右軸は観測に基づく状態の閾値を示します。明示的な自己申告は状態を上書きできます。",
         "EaseCurrent": "現在の易しさ · {value}",

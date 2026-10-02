@@ -1697,6 +1697,8 @@
         "Retry": "Erneut versuchen"
       },
       "Projection": {
+        "WordFamiliarity": "Vertrautheit mit dem Wort",
+        "WordFamiliarityScope": "Vertrautheit mit diesem Wort belegt nicht jede Fähigkeit oder einzelne Verwendung. Jeder Aspekt unten wird separat bewertet.",
         "EaseOverall": "Gesamt-Ease des Wortes",
         "EaseDescription": "Ease aus erfassten Ergebnissen. Rechts stehen die Belegschwellen; eigene Angaben können den Status überschreiben.",
         "EaseCurrent": "Aktueller Ease-Wert · {value}",

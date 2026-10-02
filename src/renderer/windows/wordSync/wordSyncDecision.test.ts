@@ -3,6 +3,7 @@ import japaneseMetadata from '../../../../scripts/language-data/language-overrid
 import type { LanguageData } from '../../../shared/types';
 import { loadLinguisticGraph } from '../../../shared/graph/load';
 import { predictTargetAccessibility } from '../../../shared/prediction/supportPredictor';
+import { buildKnowledgeProjection } from '../../../shared/knowledge/projectionBuilder';
 import type { KnowledgeProjection } from '../../../shared/graph/ipc';
 import { selectWordSyncDecision, wordSyncDecisionWindow } from './wordSyncDecision';
 
@@ -43,6 +44,42 @@ describe('bounded operational Word Sync decisions', () => {
     expect(unsupported?.decision.selected.targets.every(target => target.kind === 'surface')).toBe(true);
     expect(selectWordSyncDecision({ id: 'choice-3', at: 42, items: [{ ...first,
       possible: ['surface-reading'], scaffolds: { reading: true } }] })).toBeNull();
+  });
+
+  it.each([['f', 'a'], ['a', 'f']])('attributes shared-entry support to its observed form regardless of source hash order (%s/%s)', (sourceHash, targetHash) => {
+    const sourceId = `future:surface:${sourceHash.repeat(64)}`;
+    const targetId = `future:surface:${targetHash.repeat(64)}`;
+    const g = loadLinguisticGraph({ schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: { dictionary: 'real-entry-v1' },
+      entities: [{ id: sourceId, kind: 'surface', label: 'Observed form' }, { id: targetId, kind: 'surface', label: 'Selected form' },
+        { id: 'future:entry:shared', kind: 'dictionary-entry' }, { id: 'future:sense:unresolved', kind: 'sense' }],
+      relations: [{ from: sourceId, to: 'future:entry:shared', type: 'realizes' },
+        { from: targetId, to: 'future:entry:shared', type: 'realizes' },
+        { from: 'future:entry:shared', to: 'future:sense:unresolved', type: 'has-sense' }] });
+    const languageData: LanguageData = { name: 'Future package', learning: { capabilities: { 'surface-recognition': { supportRules: [{
+      id: 'future:spelling-check', relation: 'realizes', direction: 'out', sourcePath: [{ relation: 'realizes', direction: 'in' }],
+      sourceCapability: 'sense-recognition', weight: 0.1, dependencyGroup: 'future:shared-observation',
+    }] } } } };
+    const event = { t: 1, kind: 'rating' as const, source: 'manual' as const, quality: 'fluent' as const, easeAfter: 2,
+      attemptId: 'observed-attempt', presentedSurface: 'Observed form',
+      targetRef: { kind: 'surface', id: sourceId, capability: 'sense-recognition' } };
+    const projection = buildKnowledgeProjection(g, targetId, [event], undefined, 10, undefined, { languageData });
+    const predicted = projection.targets.find(t => t.targetRef.id === targetId)?.states.find(s => s.capability === 'surface-recognition')?.prediction;
+    expect(predicted?.contributors).toHaveLength(1);
+    expect(predicted?.contributors?.[0]).toMatchObject({ source: { entityId: sourceId, capability: 'sense-recognition' },
+      sourceLabel: 'Observed form', observationIds: ['observed-attempt'], credit: 0.1,
+      witness: { attemptId: event.attemptId, targetRef: event.targetRef, presentedSurface: event.presentedSurface } });
+    const choice = selectWordSyncDecision({ id: 'after-observation', at: 11, items: [
+      { ...second, key: 'baseline-unrelated', possible: ['surface-recognition'] },
+      { ...first, key: targetId, surfaceId: targetId, possible: ['surface-recognition'], projection },
+    ] });
+    expect(choice?.decision.selected.key).toBe(targetId);
+    expect(choice?.decision.baseline?.key).toBe('baseline-unrelated');
+    expect(choice?.decision.detail.sourceLabels).toEqual(['Observed form']);
+    expect(JSON.parse(JSON.stringify(choice))).toEqual(choice);
+    expect(projection.targets.find(t => t.targetRef.kind === 'sense')?.states[0].classification).toBe('unmeasured');
+    const undone = buildKnowledgeProjection(g, targetId, [event, { t: 2, kind: 'retraction', source: 'manual', retracts: event.attemptId }],
+      undefined, 10, undefined, { languageData });
+    expect(undone.targets.flatMap(t => t.states).every(s => !s.prediction?.contributors?.length)).toBe(true);
   });
 
   it('uses the shipped spelling-check rule as weak priority without manufacturing spelling knowledge', () => {

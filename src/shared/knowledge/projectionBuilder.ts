@@ -187,7 +187,13 @@ export function buildKnowledgeProjection(
           const observationIds = state.basis === 'evidence' && witness
             && (witness.kind === 'rating' || witness.kind === 'review')
             && witness.attemptId && !/^\d+$/.test(witness.attemptId) ? [witness.attemptId] : [];
-          const knowledge = { basis: state.basis, observationIds };
+          const knowledge: SourceKnowledge = { basis: state.basis, observationIds,
+            ...(observationIds.length && witness ? { witness: {
+              attemptId: observationIds[0],
+              ...(witness.targetRef ? { targetRef: { ...witness.targetRef } } : {}),
+              ...(witness.presentedSurface !== undefined ? { presentedSurface: witness.presentedSurface } : {}),
+            } } : {}),
+          };
           sourceStates.set(cacheKey, knowledge);
           return knowledge;
         },

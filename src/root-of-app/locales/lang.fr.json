@@ -1697,6 +1697,8 @@
         "Retry": "Réessayer"
       },
       "Projection": {
+        "WordFamiliarity": "Familiarité avec le mot",
+        "WordFamiliarityScope": "La familiarité avec ce mot ne prouve pas la maîtrise de chaque compétence ou usage précis. Chaque aspect ci-dessous est évalué séparément.",
         "EaseOverall": "Facilité globale du mot",
         "EaseDescription": "Facilité dérivée des résultats enregistrés. À droite figurent les seuils des observations ; les déclarations peuvent modifier le statut.",
         "EaseCurrent": "Facilité actuelle · {value}",

@@ -27,9 +27,11 @@
 }
 .knowledge-drawer__reading { color: var(--text-secondary); font-size: var(--font-size-md); }
 
-.knowledge-drawer__overall { display: inline-flex; align-items: baseline; gap: 0.4rem; margin-left: auto; }
+.knowledge-drawer__overall { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 0.4rem; margin-left: auto; }
+.knowledge-drawer__overall-label { color: var(--text-secondary); font-size: var(--font-size-sm); }
 .knowledge-drawer__overall-status { font-weight: var(--font-weight-semibold); font-size: var(--font-size-md); }
 .knowledge-drawer__overall-basis { color: var(--text-secondary); font-size: var(--font-size-sm); }
+.knowledge-drawer__overall-scope { flex-basis: 100%; margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
 
 /* Basis tone: one quiet accent for the whole surface. */
 .knowledge-state--evidence .knowledge-drawer__overall-status,

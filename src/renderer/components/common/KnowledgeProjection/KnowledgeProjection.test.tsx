@@ -238,6 +238,24 @@ describe('KnowledgeProjectionDrawer overview', () => {
     dispose();
   });
 
+  it('explains word familiarity without promoting unmeasured individual capabilities', async () => {
+    const projection: KnowledgeProjection = {
+      ...inspectorProjection,
+      lexical: { ...inspectorProjection.lexical!, overall: { classification: 'known', basis: 'evidence' } },
+      targets: inspectorProjection.targets.map(target => ({ ...target, states: target.states.map(state => ({
+        ...state, classification: 'unmeasured', basis: 'unmeasured', evidence: [], evidenceSourceCounts: {},
+        prediction: undefined, retention: undefined,
+      })) })),
+    };
+    const { host, dispose } = await renderDrawer({ projection });
+    expect(host.querySelector('.knowledge-drawer__overall-label')?.textContent).toBe('mlearn.Knowledge.Projection.WordFamiliarity');
+    expect(host.querySelector('.knowledge-drawer__overall-status')?.textContent).toBe('mlearn.WordHover.Status.Known');
+    expect(host.querySelector('.knowledge-drawer__overall-scope')?.textContent).toBe('mlearn.Knowledge.Projection.WordFamiliarityScope');
+    expect(host.querySelectorAll('.knowledge-card--unmeasured')).toHaveLength(2);
+    expect(host.querySelectorAll('.knowledge-card--status-known')).toHaveLength(0);
+    dispose();
+  });
+
   it('presents capabilities as compact rows with friendly labels and why lines', async () => {
     const { host, dispose } = await renderDrawer();
     const cards = host.querySelectorAll('.knowledge-card');

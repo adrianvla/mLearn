@@ -1697,6 +1697,8 @@
         "Retry": "重试"
       },
       "Projection": {
+        "WordFamiliarity": "词语熟悉度",
+        "WordFamiliarityScope": "熟悉这个词并不代表掌握了每项技能或具体用法。下方各方面会分别评估。",
         "EaseOverall": "单词整体难易度",
         "EaseDescription": "难易度由记录的结果得出。右轴显示观察证据对应的状态阈值；明确的自我声明可覆盖状态。",
         "EaseCurrent": "当前难易度 · {value}",
