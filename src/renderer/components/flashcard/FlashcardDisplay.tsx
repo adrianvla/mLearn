@@ -286,7 +286,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
           <Show when={content().example && content().example !== '-'}>
             <div class="flashcard-example-row">
-              <SafeHtml tag="div" class="flashcard-example" html={content().example} />
+              <SafeHtml tag="div" class="flashcard-example" html={content().example} storedWordPresentation />
               <Show when={props.onPlayTts && !content().skipExampleTts}>
                 <Button buttonType="icon"
                   icon="volume"
@@ -388,7 +388,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           <Show when={content().example && content().example !== '-'}>
             <div class="flashcard-example-group">
               <div class="flashcard-example-row">
-              <SafeHtml tag="div" class="flashcard-example" html={content().example} />
+              <SafeHtml tag="div" class="flashcard-example" html={content().example} storedWordPresentation />
                 <Show when={props.onPlayTts && !content().skipExampleTts}>
                   <Button buttonType="icon"
                     icon="volume"
