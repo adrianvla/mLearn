@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
-import { isLearningDecision, learningDecisionMatchesOutcome, type LearningTargetAddress } from '../../shared/learningDecision';
+import { isLearningDecision, learningDecisionMatchesOutcome, type LearningDecision, type LearningDecisionRecord, type LearningTargetAddress } from '../../shared/learningDecision';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { DatabaseSync } from 'node:sqlite';
 import { createGrammarRecognitionFold, grammarPatternFromEvidenceKey } from '../../shared/grammar/evidence';
@@ -283,6 +283,15 @@ export class KnowledgeHistoryStore {
         command_json TEXT,
         committed_revision INTEGER
       );
+      CREATE TABLE IF NOT EXISTS learning_decisions (
+        id TEXT PRIMARY KEY,
+        decision_json TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS learning_decision_attempts (
+        attempt_id TEXT PRIMARY KEY,
+        decision_id TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS learning_decision_attempts_choice ON learning_decision_attempts(decision_id);
       CREATE TABLE IF NOT EXISTS rows (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         seq INTEGER NOT NULL,
@@ -355,10 +364,58 @@ export class KnowledgeHistoryStore {
       if (!existing.command_json) throw new Error('The pending rating command is unreadable');
       return { sequence: existing.sequence, command: JSON.parse(existing.command_json) as FlashcardRatingCommand };
     }
+    if (command.decisionId !== undefined) {
+      const record = this.getLearningDecisionRecord(command.decisionId);
+      if (!record) throw new Error('The learning decision must be saved before presentation');
+      if (!command.guardCardIds?.includes(record.decision.selected.key)) throw new Error('The response does not address its captured choice');
+      if (record.decision.selected.presentation !== undefined
+        && JSON.stringify(command.presentation) !== JSON.stringify(record.decision.selected.presentation)) {
+        throw new Error('The response does not address its captured presentation');
+      }
+      for (const rows of Object.values(command.events)) for (const event of rows) {
+        if (event.schedulerCardId !== undefined && event.schedulerCardId !== record.decision.selected.key) {
+          throw new Error('The response does not address its captured choice');
+        }
+        if (event.targetRef?.capability !== undefined && !learningDecisionMatchesOutcome(record.decision, event.targetRef as LearningTargetAddress)) {
+          throw new Error('The measured response does not address its captured task');
+        }
+        if (event.decisionRef !== undefined && event.decisionRef.id !== command.decisionId) throw new Error('The response names another learning decision');
+      }
+    }
     validateAdmission?.();
     const encoded = JSON.stringify(command);
-    const result = this.db.prepare('INSERT INTO rating_commands (attempt_id, command_json) VALUES (?, ?)').run(command.attemptId, encoded);
-    return { sequence: Number(result.lastInsertRowid), command: JSON.parse(encoded) as FlashcardRatingCommand };
+    let sequence = 0;
+    this.db.exec('BEGIN');
+    try {
+      const result = this.db.prepare('INSERT INTO rating_commands (attempt_id, command_json) VALUES (?, ?)').run(command.attemptId, encoded);
+      sequence = Number(result.lastInsertRowid);
+      if (command.decisionId !== undefined) this.db.prepare('INSERT INTO learning_decision_attempts (attempt_id, decision_id) VALUES (?, ?)')
+        .run(command.attemptId, command.decisionId);
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    return { sequence, command: JSON.parse(encoded) as FlashcardRatingCommand };
+  }
+
+  recordLearningDecision(decision: LearningDecision): void {
+    if (!isLearningDecision(decision)) throw new Error('Malformed learning decision');
+    const encoded = JSON.stringify(decision);
+    const existing = this.db.prepare('SELECT decision_json FROM learning_decisions WHERE id = ?').get(decision.id) as { decision_json: string } | undefined;
+    if (existing) {
+      if (existing.decision_json !== encoded) throw new Error('A learning decision is immutable');
+      return;
+    }
+    this.db.prepare('INSERT INTO learning_decisions (id, decision_json) VALUES (?, ?)').run(decision.id, encoded);
+  }
+
+  getLearningDecisionRecord(id: string): LearningDecisionRecord | null {
+    const row = this.db.prepare('SELECT decision_json FROM learning_decisions WHERE id = ?').get(id) as { decision_json: string } | undefined;
+    if (!row) return null;
+    const decision: unknown = JSON.parse(row.decision_json);
+    if (!isLearningDecision(decision)) throw new Error('The saved learning decision is unreadable');
+    const attempts = this.db.prepare(`SELECT a.attempt_id AS attemptId, r.committed_revision AS committedRevision
+      FROM learning_decision_attempts a JOIN rating_commands r ON r.attempt_id = a.attempt_id
+      WHERE a.decision_id = ? ORDER BY r.sequence`).all(id) as LearningDecisionRecord['attempts'];
+    return { decision, attempts };
   }
 
   pendingRatingCommands(): PendingRatingCommand[] {

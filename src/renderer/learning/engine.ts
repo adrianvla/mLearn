@@ -152,6 +152,35 @@ export function selectNextEncounter(inputs: EncounterInputs): PolicyDecision | n
   }, inputs.rng);
 }
 
+/** Full source pool and per-candidate entropy stay fixed; only declared support changes. */
+export function selectCounterfactualEncounter(inputs: EncounterInputs): {
+  selected: PolicyDecision | null; baseline: PolicyDecision | null;
+} {
+  const candidates = sourceCandidates(inputs);
+  if (new Set(candidates.map(candidate => candidate.key)).size !== candidates.length) {
+    throw new Error('Counterfactual policy pool has ambiguous candidate identities');
+  }
+  const config = { ...PRESETS[inputs.preset], ...inputs.config,
+    context: inputs.context ?? inputs.config?.context, nowMs: inputs.nowMs,
+    cooldowns: inputs.cooldowns ?? new Map(), recentPicks: inputs.recentPicks ?? [],
+  };
+  const draws = new Map<string, number>();
+  const entropy = inputs.rng ?? Math.random;
+  const drawForCandidate = (key: string): number => {
+    const saved = draws.get(key);
+    if (saved !== undefined) return saved;
+    const value = entropy();
+    draws.set(key, value);
+    return value;
+  };
+  const selected = selectNext(candidates, config, entropy, drawForCandidate);
+  const baseline = selectNext(candidates.map(candidate => ({ ...candidate,
+    scores: { ...candidate.scores, 'declared-support': 0 },
+    meta: { ...candidate.meta, structuralCreditDisabled: true },
+  })), config, entropy, drawForCandidate);
+  return { selected, baseline };
+}
+
 /**
  * Policy-RANKED walk (R21): repeatedly selectNext over the same pool with
  * hysteresis excluding already-picked candidates (the GrammarCoverage pass

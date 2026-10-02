@@ -1293,7 +1293,9 @@
         "SaveFailed": "This rating could not be saved. The card is still here; try again.",
         "PendingRatingsSaveFailed": "Recent ratings could not be saved. Try again.",
         "SavingUndo": "Saving undo…",
-        "UndoSaveFailed": "This undo could not be saved. The card remains rated; try again."
+        "UndoSaveFailed": "This undo could not be saved. The card remains rated; try again.",
+        "PreparingQuestion": "Preparing your next question…",
+        "QuestionSaveFailed": "This question could not be saved. Try again before continuing."
       },
       "State": {
         "Learning": "Learning",

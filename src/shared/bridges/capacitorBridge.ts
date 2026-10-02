@@ -1,4 +1,5 @@
 import { scopeSiblingEvent } from '../knowledge/siblingHistory';
+import { isLearningDecision, type LearningDecision } from '../learningDecision';
 import { buildKnowledgeProjection } from '../knowledge/projectionBuilder';
 import { loadLinguisticGraph, surfaceEntityId } from '../graph/load';
 import { effectiveThresholds } from '../knowledge/effectiveKnowledge';
@@ -139,7 +140,14 @@ async function storageGet(key: string, requireAuthority = false): Promise<string
   return localStorage.getItem(key);
 }
 
-async function storageSet(key: string, value: string): Promise<void> {
+async function storageSet(key: string, value: string, requireAuthority = false): Promise<void> {
+  if (requireAuthority) {
+    const mod = await getPreferencesModule();
+    if (!mod && isCapacitor()) throw new Error('Durable storage is unavailable');
+    if (mod) await mod.Preferences.set({ key, value });
+    localStorage.setItem(key, value);
+    return;
+  }
   // Always write to localStorage as a fast sync cache
   localStorage.setItem(key, value);
   try {
@@ -1791,7 +1799,39 @@ function notifyKnowledgeEventsChanged(keys: string[]): void {
   }
 }
 
+const learningDecisionWrites = new Map<string, Promise<void>>();
+
+async function serializeLearningDecision(id: string, operation: () => Promise<void>): Promise<void> {
+  const previous = learningDecisionWrites.get(id) ?? Promise.resolve();
+  const task = previous.catch(() => {}).then(async () => {
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      await navigator.locks.request(`mlearn-learning-decision:${id}`, async () => { await operation(); });
+    } else await operation();
+  });
+  learningDecisionWrites.set(id, task);
+  try { await task; } finally {
+    if (learningDecisionWrites.get(id) === task) learningDecisionWrites.delete(id);
+  }
+}
+
 const knowledgeEventsBridge: KnowledgeEventsBridge = {
+  async recordLearningDecision(decision: LearningDecision) {
+    if (!isLearningDecision(decision)) throw new Error('Malformed learning decision');
+    const key = `learning-decision:${decision.id}`;
+    const encoded = JSON.stringify(decision);
+    await serializeLearningDecision(decision.id, async () => {
+      const existing = await storageGet(key, true);
+      if (existing !== null && existing !== encoded) throw new Error('A learning decision is immutable');
+      if (existing === null) await storageSet(key, encoded, true);
+    });
+  },
+  async getLearningDecisionRecord(id: string) {
+    const encoded = await storageGet(`learning-decision:${id}`, true);
+    if (encoded === null) return null;
+    const decision: unknown = JSON.parse(encoded);
+    if (!isLearningDecision(decision)) throw new Error('The saved learning decision is unreadable');
+    return { decision, attempts: [] };
+  },
   async appendKnowledgeEvents(eventsByKey: KnowledgeEventLog) {
     const incomingByLanguage = new Map<string, KnowledgeEventLog>();
     let appended = 0;

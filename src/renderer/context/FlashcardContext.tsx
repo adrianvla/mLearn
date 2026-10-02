@@ -4373,7 +4373,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           // an ACK. Retry must keep the admitted Undo, never the rated pre-image.
           schedulerResult = { ...schedulerResult, ...envelope.schedulerOutcome };
           envelope.command ??= JSON.parse(JSON.stringify({
-            attemptId, events: eventsByKey, patch: patchRecorder.build(commandBase.rev ?? 0),
+            attemptId, decisionId: options?.decision?.id, events: eventsByKey, patch: patchRecorder.build(commandBase.rev ?? 0),
+            ...(options?.decision ? { presentation: { cardId: scheduler!.cardId, language, surface: word } } : {}),
             guardCardIds: scheduler ? [scheduler.cardId] : [],
             counterDeltas: ratingCounterDeltas(patchRecorder.build(commandBase.rev ?? 0)),
           })) as FlashcardRatingCommand;

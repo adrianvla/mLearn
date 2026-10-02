@@ -14,6 +14,9 @@ import { getNextCard, hashWordSync } from '../../services/srsAlgorithm';
 import type { KnowledgeProjection } from '../../../shared/graph/ipc';
 
 const toastMocks = vi.hoisted(() => ({ showToast: vi.fn(() => 0) }));
+const decisionBridge = vi.hoisted(() => ({ record: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ knowledgeEvents: { recordLearningDecision: decisionBridge.record } }) }));
+afterEach(() => { decisionBridge.record.mockReset().mockResolvedValue(undefined); });
 
 let mockCard: Accessor<Flashcard | null> = () => null;
 let setMockCard: (card: Flashcard | null) => void = () => {};
@@ -354,10 +357,74 @@ describe('FlashcardReview', () => {
     container.remove();
   });
 
+  it('waits for the immutable choice acknowledgement before displaying or rating its question', async () => {
+    let acknowledge!: () => void;
+    decisionBridge.record.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledge = resolve; }));
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      expect(container.querySelector('.flashcard-front')).toBeNull();
+      expect(container.textContent).toContain('mlearn.Flashcards.Review.PreparingQuestion');
+      expect(container.textContent).not.toContain('mlearn.Flashcards.Review.CompleteDescription');
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+      expect(mockSubmitRating).not.toHaveBeenCalled();
+      expect(mockPlayedTts).not.toHaveBeenCalled();
+      const recorded = decisionBridge.record.mock.calls[0][0];
+      acknowledge();
+      await flushEffects();
+      expect(container.querySelector('.flashcard-front')).not.toBeNull();
+      clickShowAnswer(container);
+      container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+      await flushEffects();
+      expect(mockSubmitRating.mock.calls.at(-1)?.[2]).toMatchObject({ decision: recorded });
+    } finally { dispose(); }
+  });
+
+  it('keeps a refused choice hidden and retries the same pinned choice', async () => {
+    decisionBridge.record.mockRejectedValueOnce(new Error('storage unavailable'));
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      expect(container.querySelector('.flashcard-front')).toBeNull();
+      expect(container.textContent).toContain('mlearn.Flashcards.Review.QuestionSaveFailed');
+      const recorded = decisionBridge.record.mock.calls[0][0];
+      const retry = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+        .find(button => button.textContent === 'mlearn.Global.TryAgain');
+      expect(retry).toBeDefined();
+      retry!.click();
+      await flushEffects();
+      expect(decisionBridge.record.mock.calls[1][0]).toEqual(recorded);
+      expect(container.querySelector('.flashcard-front')).not.toBeNull();
+      expect(mockSubmitRating).not.toHaveBeenCalled();
+    } finally { dispose(); }
+  });
+
+  it('admits a fresh choice when a peer changes the same card prompt before the older choice acknowledges', async () => {
+    let acknowledgeOld!: () => void;
+    decisionBridge.record.mockImplementationOnce(() => new Promise<void>(resolve => { acknowledgeOld = resolve; }));
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      const first = decisionBridge.record.mock.calls[0][0];
+      const card = mockCard()!;
+      setMockCard({ ...card, content: { ...card.content, front: 'replacement prompt' } });
+      await flushEffects();
+      const replacement = decisionBridge.record.mock.calls[1][0];
+      expect(replacement.id).not.toBe(first.id);
+      expect(replacement.selected.presentation.surface).toBe('replacement prompt');
+      expect(container.querySelector('.flashcard-front')?.textContent).toContain('replacement prompt');
+      acknowledgeOld();
+      await flushEffects();
+      expect(container.querySelector('.flashcard-front')?.textContent).toContain('replacement prompt');
+      expect(decisionBridge.record).toHaveBeenCalledTimes(2);
+    } finally { dispose(); }
+  });
+
   it.each(['pointer', 'keyboard'] as const)('keeps %s reveal and rating outside the card scroll owner and resets both positions for the next encounter', async revealMethod => {
     setMockCard(makeCard({ content: { type: 'word', front: 'Long prompt', back: 'Answer',
       example: 'Long example '.repeat(100), imageUrl: 'flashcard-image://unavailable.png' } }));
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     try {
       await flushEffects();
       const content = container.querySelector<HTMLElement>('.flashcard-review-content');
@@ -395,6 +462,7 @@ describe('FlashcardReview', () => {
     setMockCard(first);
     const random = vi.spyOn(Math, 'random').mockReturnValueOnce(0.9).mockReturnValueOnce(0.1);
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     try {
       clickShowAnswer(container);
       const prompt = container.querySelector('.flashcard-front')!.textContent;
@@ -433,6 +501,7 @@ describe('FlashcardReview', () => {
       .mockReturnValueOnce(0.5) // Scheduler fallback: review.
       .mockReturnValueOnce(0.1).mockReturnValueOnce(0.9); // Policy: review.
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     try {
       expect(container.querySelector('.flashcard-front')!.textContent).toBe(review.content.front);
       clickShowAnswer(container);
@@ -461,6 +530,7 @@ describe('FlashcardReview', () => {
       setMockCard(first);
       vi.spyOn(Math, 'random').mockReturnValueOnce(0.9).mockReturnValueOnce(0.1).mockReturnValue(0.5);
       const dispose = render(() => <FlashcardReview />, container);
+      await flushEffects();
       try {
         clickShowAnswer(container);
         if (change === 'deleted') delete mockReviewCards[first.id];
@@ -480,8 +550,9 @@ describe('FlashcardReview', () => {
     },
   );
 
-  it('opens the shared inspector on the reviewed card identity without recording an outcome', () => {
+  it('opens the shared inspector on the reviewed card identity without recording an outcome', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     const actions = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Flashcards.Review.CardActions');
     expect(actions).toBeDefined();
@@ -511,6 +582,7 @@ describe('FlashcardReview', () => {
 
   it('persists consulted answers before opening and carries the supplied accesses into review after restart', async () => {
     let dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const actions = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!;
     actions.click();
     Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
@@ -520,6 +592,7 @@ describe('FlashcardReview', () => {
     closeKnowledgeInspector();
     dispose();
     dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     await flushEffects();
@@ -532,6 +605,7 @@ describe('FlashcardReview', () => {
 
   it('refuses to open reference content when its assistance record cannot be saved', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const failure = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
     Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
@@ -545,6 +619,7 @@ describe('FlashcardReview', () => {
   it('retries a legacy card in the language captured by its original assisted encounter', async () => {
     setMockCard(makeCard({ language: undefined }));
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
     Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
     await flushEffects();
@@ -563,6 +638,7 @@ describe('FlashcardReview', () => {
 
   it('keeps reference exposure through a pending durable rating and clears it only on acknowledgment', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
     Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
     await flushEffects();
@@ -592,6 +668,7 @@ describe('FlashcardReview', () => {
       await callback();
     });
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
     Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
     setMockCard(makeCard({ id: 'another', content: { type: 'word', front: 'another-surface', back: 'different' } }));
@@ -608,6 +685,7 @@ describe('FlashcardReview', () => {
     const backFace = () => container.querySelector<HTMLElement>('.flashcard-back');
     const backHidden = () => backFace()?.classList.contains('flashcard-face--hidden');
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     // Both faces are always mounted; the unrevealed back carries `--hidden`.
     expect(backHidden()).toBe(true);
     clickShowAnswer(container);
@@ -624,6 +702,7 @@ describe('FlashcardReview', () => {
 
   it('starts a different card at the top of the review scroll region', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-content')!;
     scrollRegion.scrollTop = 240;
 
@@ -688,6 +767,7 @@ describe('FlashcardReview failure attribution', () => {
     mockLangMap = { ja: mockLanguageData };
     setMockCard(makeCard({ content: { type: 'word', front: 'おかげさま', back: "(someone's) assistance, help, aid" } }));
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     const rate = container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!;
     expect(rate.disabled).toBe(false);
@@ -706,6 +786,7 @@ describe('FlashcardReview failure attribution', () => {
       targetRef: { kind: 'surface', id: 'mapped' }, applicableCapabilities: ['surface-recognition'], states: [],
     }] });
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
     await flushEffects();
@@ -717,6 +798,7 @@ describe('FlashcardReview failure attribution', () => {
     const [projection, setProjection] = createSignal<KnowledgeProjection>();
     mockProjection = projection;
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     expect(container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.disabled).toBe(true);
     expect(container.querySelector('[role="status"]')?.textContent).toContain('mlearn.Knowledge.Loading');
@@ -741,6 +823,7 @@ describe('FlashcardReview failure attribution', () => {
   it('keeps rating computations owned when click and keyboard handlers read the armed state', async () => {
     const warn = vi.spyOn(console, 'warn');
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
     await flushEffects();
@@ -755,6 +838,7 @@ describe('FlashcardReview failure attribution', () => {
     const [state, setState] = createSignal<'idle' | 'pending' | 'failed'>('pending');
     mockRatingPersistenceState = state;
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     expect(container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.disabled).toBe(false);
     setState('failed');
@@ -773,6 +857,7 @@ describe('FlashcardReview failure attribution', () => {
 
   it('persists every tested capability as one acknowledged whole-word attempt', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     expect(container.querySelector('.rating-matrix')).toBeNull();
     clickShowAnswer(container);
     // Canonical collapsed digit: the whole tested word rates at once —
@@ -792,8 +877,9 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
-  it('keeps selection details in Inspect without a generic inline Why panel', () => {
+  it('keeps selection details in Inspect without a generic inline Why panel', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     expect(container.querySelector('[data-testid="policy-why"]')).toBeNull();
     clickShowAnswer(container);
     expect(container.querySelector('[data-testid="policy-why"]')).toBeNull();
@@ -802,6 +888,7 @@ describe('FlashcardReview failure attribution', () => {
 
   it('resets scroll when the same learning card is queued again after rating', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-content')!;
     clickShowAnswer(container);
     scrollRegion.scrollTop = 240;
@@ -818,6 +905,7 @@ describe('FlashcardReview failure attribution', () => {
     let now = 10_000;
     vi.spyOn(Date, 'now').mockImplementation(() => now);
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     try {
       now += 500;
       clickShowAnswer(container);
@@ -832,8 +920,9 @@ describe('FlashcardReview failure attribution', () => {
     } finally { dispose(); }
   });
 
-  it('Space reveals without submitting; the compact bar mounts armed on reveal', () => {
+  it('Space reveals without submitting; the compact bar mounts armed on reveal', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const compactActions = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality'));
     // No rating surface exists before the reveal.
     expect(container.querySelector('.rating-matrix')).toBeNull();
@@ -848,6 +937,7 @@ describe('FlashcardReview failure attribution', () => {
   it('reports completion once the queue drains, and resumes a studyable face when work returns', async () => {
     const onComplete = vi.fn();
     const dispose = render(() => <FlashcardReview onComplete={onComplete} />, container);
+    await flushEffects();
     expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
     expect(onComplete).not.toHaveBeenCalled();
 
@@ -873,6 +963,7 @@ describe('FlashcardReview failure attribution', () => {
     setMockKnowledgeLoading(true);
     setMockKnowledgeMeasured([]);
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     await flushEffects();
     const quality = () => Array.from(container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality'));
@@ -898,8 +989,9 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
-  it('keeps study shortcuts out of the card actions popover', () => {
+  it('keeps study shortcuts out of the card actions popover', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const actions = container.querySelector<HTMLButtonElement>('.flashcard-actions-trigger')!;
     actions.click();
     const bury = Array.from(document.body.querySelectorAll<HTMLButtonElement>('button'))
@@ -917,6 +1009,7 @@ describe('FlashcardReview failure attribution', () => {
   it('closing card actions with Escape preserves the expanded rating draft and pending chord', async () => {
     setMockKnowledgeMeasured(['sense-recognition', 'surface-reading']);
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     try {
       clickShowAnswer(container);
       container.querySelector<HTMLButtonElement>('.rating-matrix__adjust')!.click();
@@ -947,6 +1040,7 @@ describe('FlashcardReview failure attribution', () => {
   });
   it('a mixed drafted profile schedules on its weakest evidence under one attempt', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     container.querySelector<HTMLButtonElement>('.rating-matrix__adjust')!.click();
     // sense fluent, reading missed — the weaker LATER row must dominate
@@ -970,6 +1064,7 @@ describe('FlashcardReview failure attribution', () => {
   it.each(['word', 'example'] as const)('retains pre-answer %s audio through restart without replaying it', async field => {
     setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', example: '犬の例' } }));
     let dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const key = `mlearn-review-assistance:${encodeURIComponent(JSON.stringify(['ja', 'card-1']))}`;
     const play = container.querySelector<HTMLButtonElement>(`.flashcard-front button[title="mlearn.Flashcards.Card.${field === 'word' ? 'PlayWord' : 'PlayExample'}"]`)!;
     expect(play).not.toBeNull();
@@ -979,6 +1074,7 @@ describe('FlashcardReview failure attribution', () => {
     expect(JSON.parse(localStorage.getItem(key)!).scaffolds).toMatchObject({ audio: true });
     dispose();
     dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     await flushEffects();
@@ -999,6 +1095,7 @@ describe('FlashcardReview failure attribution', () => {
       applicableCapabilities: [...ALL_CAPABILITIES, 'future:contour'], states: [] }] });
     setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', example: '犬の例' } }));
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     container.querySelector<HTMLButtonElement>('.flashcard-front button[title="mlearn.Flashcards.Card.PlayExample"]')!.click();
     await flushEffects();
     expect(container.textContent).toContain('AssistanceRecorded');
@@ -1014,6 +1111,7 @@ describe('FlashcardReview failure attribution', () => {
 
   it('does not retroactively supply recall when audio is requested after reveal', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     container.querySelector<HTMLButtonElement>('.flashcard-back button[title="mlearn.Flashcards.Card.PlayWord"]')!.click();
     await flushEffects();
@@ -1027,6 +1125,7 @@ describe('FlashcardReview failure attribution', () => {
 
   it('refuses pre-answer audio on storage failure and retries the original cue', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const failure = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
     container.querySelector<HTMLButtonElement>('.flashcard-front button[title="mlearn.Flashcards.Card.PlayWord"]')!.click();
     await flushEffects();
@@ -1048,6 +1147,7 @@ describe('FlashcardReview failure attribution', () => {
   it('admits front video as durable reference assistance before making playback available', async () => {
     setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', videoUrl: 'local-media://clip.mp4' } }));
     let dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     expect(container.querySelector('.flashcard-front video')).toBeNull();
     const play = container.querySelector<HTMLButtonElement>('.flashcard-front .flashcard-media-admission')!;
     expect(play).not.toBeNull();
@@ -1057,6 +1157,7 @@ describe('FlashcardReview failure attribution', () => {
     expect(container.querySelector('.flashcard-front video')).not.toBeNull();
     dispose();
     dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     await flushEffects();
@@ -1070,6 +1171,7 @@ describe('FlashcardReview failure attribution', () => {
   it('requires new video admission when an assisted rating returns to the same due card', async () => {
     setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', videoUrl: 'local-media://clip.mp4' } }));
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     container.querySelector<HTMLButtonElement>('.flashcard-front .flashcard-media-admission')!.click();
     await flushEffects();
     expect(container.querySelector('.flashcard-front video')).not.toBeNull();
@@ -1086,6 +1188,7 @@ describe('FlashcardReview failure attribution', () => {
   it('keeps front video unavailable when reference admission is refused', async () => {
     setMockCard(makeCard({ content: { type: 'word', front: '犬', back: 'dog', videoUrl: 'local-media://clip.mp4' } }));
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const failure = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
     container.querySelector<HTMLButtonElement>('.flashcard-front .flashcard-media-admission')!.click();
     await flushEffects();
@@ -1104,6 +1207,7 @@ describe('FlashcardReview failure attribution', () => {
     } } } as unknown as LanguageData;
     mockLangMap = { ja: mockLanguageData };
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     container.querySelector<HTMLButtonElement>('.flashcard-front button[title="mlearn.Flashcards.Card.PlayWord"]')!.click();
     await flushEffects();
     expect(mockPlayedTts).not.toHaveBeenCalled();
@@ -1136,6 +1240,7 @@ describe('FlashcardReview failure attribution', () => {
     }));
     const dispose = render(() => <FlashcardReview />, container);
     await flushEffects();
+    await flushEffects();
     expect(mockPlayedTts).toHaveBeenCalledTimes(1);
     clickShowAnswer(container);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
@@ -1161,6 +1266,7 @@ describe('FlashcardReview failure attribution', () => {
       await callback();
     });
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     container.querySelector<HTMLButtonElement>('.flashcard-front button[title="mlearn.Flashcards.Card.PlayWord"]')!.click();
     setMockCard(makeCard({ id: 'departed', content: { type: 'word', front: 'other', back: 'different' } }));
     await flushEffects();
@@ -1175,6 +1281,7 @@ describe('FlashcardReview failure attribution', () => {
   it('audio supplied before reveal still offers Reading and records the scaffold with the attempt', async () => {
     mockSettings.flashcardAutoTts = true;
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     await flushEffects();
     clickShowAnswer(container);
     // A revealed cue changes the evidence condition, not the rating surface:
@@ -1199,6 +1306,7 @@ describe('FlashcardReview failure attribution', () => {
     mockTtsAvailable = false;
     mockSettings.flashcardAutoTts = true;
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '1' }));
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
@@ -1215,6 +1323,7 @@ describe('FlashcardReview failure attribution', () => {
       throw new Error('journal unavailable');
     });
     const dispose = render(() => <FlashcardReview onComplete={onComplete} />, container);
+    await flushEffects();
     clickShowAnswer(container);
     container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
     await flushEffects();
@@ -1250,6 +1359,7 @@ describe('FlashcardReview failure attribution', () => {
       return 'answer';
     });
     let dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     try {
       expect(container.querySelector('.flashcard-front')!.textContent).toBe('next');
       Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.Undo')!.click();
@@ -1257,6 +1367,7 @@ describe('FlashcardReview failure attribution', () => {
       expect(container.querySelector('.flashcard-front')!.textContent).toBe('犬');
       dispose();
       dispose = render(() => <FlashcardReview />, container);
+      await flushEffects();
       expect(container.querySelector('.flashcard-front')!.textContent).toBe('犬');
       expect(container.textContent).toContain('AssistanceRecorded');
       clickShowAnswer(container);
@@ -1272,6 +1383,7 @@ describe('FlashcardReview failure attribution', () => {
     mockCanUndo.mockReturnValue(true);
     mockUndoLastAction.mockRejectedValueOnce(new Error('disk full')).mockResolvedValueOnce('answer');
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const undo = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Flashcards.Review.Undo');
     expect(undo).toBeDefined();
     undo!.click();
@@ -1288,8 +1400,9 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
-  it('renders card actions in the shared anchored popover', () => {
+  it('renders card actions in the shared anchored popover', async () => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     const trigger = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Flashcards.Review.CardActions');
     expect(trigger).toBeDefined();
     trigger!.click();
@@ -1356,6 +1469,7 @@ describe('FlashcardReview Remove asks before it destroys the card', () => {
 
   const openRemove = async (withDraft = false) => {
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     if (withDraft) {
       clickShowAnswer(container);
       container.querySelector<HTMLButtonElement>('.rating-matrix__adjust')!.click();

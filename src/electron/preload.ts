@@ -14,6 +14,7 @@ import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../shared/knowledgeEvents';
 import type { StorePatch } from '../shared/utils/storePatch';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from '../shared/flashcardRating';
+import type { LearningDecision, LearningDecisionRecord } from '../shared/learningDecision';
 import type { GrammarProjectionMap, KnowledgeEventCursor, KnowledgeEventPage } from '../shared/knowledge/historyQueries';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../shared/graph/ipc';
 import type { GraphRelationType } from '../shared/graph/types';
@@ -133,6 +134,8 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback()),
 
   // ========== Knowledge Events ==========
+  recordLearningDecision: (decision: LearningDecision): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.LEARNING_DECISION_RECORD, decision),
+  getLearningDecisionRecord: (id: string): Promise<LearningDecisionRecord | null> => ipcRenderer.invoke(IPC_CHANNELS.LEARNING_DECISION_GET, id),
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, eventsByKey),
   queryKnowledgeEvents: (keys: string[]): Promise<KnowledgeEventLog> => readKnowledgeEventPages(keys),

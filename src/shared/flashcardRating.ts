@@ -4,6 +4,10 @@ import { applyStorePatchInPlace, copyStoreWithPatch, getStorePath, setStorePath,
 /** One stable attempt, including the scheduler and its observation provenance. */
 export interface FlashcardRatingCommand {
   attemptId: string;
+  /** A durable pre-presentation choice, including wholly assisted responses. */
+  decisionId?: string;
+  /** Actual input captured by the response producer, compared opaquely at admission. */
+  presentation?: Record<string, unknown>;
   patch: StorePatch;
   events: KnowledgeEventLog;
   /** First admission must still address these captured card pre-images. */

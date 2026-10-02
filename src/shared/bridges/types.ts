@@ -1,6 +1,7 @@
 import type { FlashcardAudioPreset } from '../types';
 import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from '../flashcardRating';
+import type { LearningDecision, LearningDecisionRecord } from '../learningDecision';
 /**
  * PlatformBridge Interface
  *
@@ -318,6 +319,8 @@ export interface MediaStatsBridge {
 }
 
 export interface KnowledgeEventsBridge {
+  recordLearningDecision: (decision: LearningDecision) => Promise<void>;
+  getLearningDecisionRecord: (id: string) => Promise<LearningDecisionRecord | null>;
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
   queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeItemEvents: (keys: string[]) => Promise<KnowledgeEventLog>;

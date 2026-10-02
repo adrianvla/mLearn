@@ -6,7 +6,8 @@
 import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { FlashcardDisplay } from './FlashcardDisplay';
-import { selectNextEncounter } from '../../learning/engine';
+import { getBridge } from '../../../shared/bridges';
+import type { LearningDecision } from '../../../shared/learningDecision';
 import type { PolicyDecision } from '../../learning/types';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { useDecisionPin } from '../../hooks/useDecisionPin';
@@ -39,12 +40,12 @@ import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteStat
 import './FlashcardReview.css';
 import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../../windows/flashcards/bulkDestructiveConfirm';
 import { getLogger } from '../../../shared/utils/logger';
-import { flashcardReviewPolicyEntry } from './flashcardReviewDecision';
+import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision } from './flashcardReviewDecision';
 import { createReviewAssistanceStore, type ReviewAssistance } from '../../learning/reviewAssistance';
 
 const log = getLogger("renderer.components.flashcardReview");
 
-type ReviewEncounter = { card: Flashcard; decision: PolicyDecision | null };
+type ReviewEncounter = { card: Flashcard; decision: PolicyDecision | null; provenance: LearningDecision };
 
 interface ReviewRatingWrite {
   encounter: ReviewEncounter;
@@ -94,7 +95,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // reactive updates re-run the selection memo, and the pin re-serves the
   // SAME decision instead of re-drawing with a fresh unseeded rng draw.
   // Explicit review actions below call advance() to re-select.
-  const decisionPin = useDecisionPin<ReviewEncounter>();
+  const decisionPin = useDecisionPin<ReviewEncounter | null>();
 
   const [showAnswer, setShowAnswer] = createSignal(false);
   const [showCardActions, setShowCardActions] = createSignal(false);
@@ -144,7 +145,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Timing belongs to the encounter, including a genuine same-card requeue.
   // Held writes keep their stopped timer until the acknowledged next owner.
   createEffect(on(
-    () => currentEncounter(),
+    () => choiceReady() ? currentEncounter() : null,
     (encounter) => {
       if (ratingWrite()) return;
       stopTiming();
@@ -253,21 +254,55 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       if (restored && availableIds.has(restored.cardId)) {
         // Undo names the actual restored card. No fresh graph decision or
         // random draw may silently replace that acknowledged return position.
-        return { card: store.flashcards[restored.cardId], decision: null };
+        const card = store.flashcards[restored.cardId];
+        const entry = flashcardReviewPolicyEntry(card, language, languageDataForCard(card));
+        return { card: JSON.parse(JSON.stringify(card)) as Flashcard, decision: null,
+          provenance: { id: crypto.randomUUID(), at: nowMs, policyVersion: 'restored-review-position-v1',
+            selected: { key: card.id, action: 'RESTORE', task: entry.task!,
+              presentation: { cardId: card.id, language, surface: card.content.front },
+              targets: entry.targets.map(target => ({ kind: 'surface', id: target.entityId, capability: target.capability })) },
+            baseline: null, detail: { scope: 'acknowledged-undo-position',
+              reason: 'Return to the saved Undo position without making a fresh recommendation.' } } };
       }
-      const decision = selectNextEncounter({
-        preset: 'RETENTION',
-        nowMs,
+      const selected = selectFlashcardReviewDecision({
+        id: crypto.randomUUID(), at: nowMs,
         // The goal applies only to the queue's own learning language (R07).
         context: policyContextFromSettings(settings, language),
-        reviewQueueEntries,
+        entries: reviewQueueEntries,
       });
-      const card = decision?.action === 'DEFER'
-        ? fallback
-        : store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
-      return { card, decision };
-    }, (encounter) => availableIds.has(encounter.card.id));
+      if (!selected) return null;
+      const card = store.flashcards[selected.decision.candidate.key] ?? fallback;
+      return { card: JSON.parse(JSON.stringify(card)) as Flashcard, ...selected };
+    }, (encounter) => {
+      if (!encounter || !availableIds.has(encounter.card.id)) return false;
+      const actual = store.flashcards[encounter.card.id] ?? fallback;
+      const task = reviewQueueEntries.find(entry => entry.id === encounter.card.id)?.task;
+      return actual.content.front === encounter.card.content.front
+        && languageForCard(actual) === languageForCard(encounter.card)
+        && JSON.stringify(task) === JSON.stringify(encounter.provenance.selected.task);
+    });
   });
+
+  const [choiceWrite, setChoiceWrite] = createSignal<{ id: string; phase: StudySessionWriteStatus | null } | null>(null);
+  const choiceReady = () => !!currentEncounter() && choiceWrite()?.id === currentEncounter()!.provenance.id && choiceWrite()?.phase === null;
+  const saveChoice = async (encounter: ReviewEncounter): Promise<void> => {
+    const id = encounter.provenance.id;
+    setChoiceWrite({ id, phase: 'pending' });
+    try {
+      await getBridge().knowledgeEvents.recordLearningDecision(encounter.provenance);
+      if (!disposed && currentEncounter()?.provenance.id === id) setChoiceWrite({ id, phase: null });
+    } catch (error) {
+      if (!disposed && currentEncounter()?.provenance.id === id) {
+        log.warn('Failed to save the review choice before presentation:', error);
+        setChoiceWrite({ id, phase: 'failed' });
+      }
+    }
+  };
+  createEffect(on(() => currentEncounter()?.provenance.id, () => {
+    const encounter = currentEncounter();
+    if (encounter) void saveChoice(encounter);
+    else setChoiceWrite(null);
+  }));
 
   const currentDecision = () => currentEncounter()?.decision ?? null;
   const currentCard = createMemo(() => {
@@ -276,6 +311,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const held = ratingWrite();
     if (held) return held.card;
     const encounter = currentEncounter();
+    if (!choiceReady()) return null;
     return encounter ? store.flashcards[encounter.card.id] ?? encounter.card : null;
   });
 
@@ -350,6 +386,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       const result = await submitRating(write.card.content.front, write.observations, {
         language: write.language,
         attemptId: write.attemptId,
+        decision: write.encounter.provenance,
         ...(write.timing ? { timing: write.timing } : {}),
         taskType: 'srs-review',
         origin: write.origin,
@@ -592,7 +629,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   let automaticAudioEncounter: ReturnType<typeof currentEncounter> = null;
   createEffect(() => {
     const encounter = currentEncounter();
-    const ready = ratingWrite() === null && removalWrite() === null && !isRetractionWriteBlocking(retractionWrite()) && assistanceWrite() === null;
+    const ready = choiceReady() && ratingWrite() === null && removalWrite() === null && !isRetractionWriteBlocking(retractionWrite()) && assistanceWrite() === null;
     if (!encounter || !ready || restoredAssistanceScope() !== assistanceScope(encounter.card) || showAnswer() || !settings.flashcardAutoTts || settings.flashcardMuteAudio
       || automaticAudioEncounter === encounter) return;
     automaticAudioEncounter = encounter;
@@ -931,6 +968,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         <Show
             when={presentation().phase !== 'complete' && currentCard()}
             fallback={
+              <Show when={presentation().phase === 'complete'} fallback={
+                <WriteStatusBanner status={choiceWrite()?.phase ?? 'pending'}
+                  savingLabelKey="mlearn.Flashcards.Review.PreparingQuestion"
+                  failedLabelKey="mlearn.Flashcards.Review.QuestionSaveFailed"
+                  canRetry={choiceWrite()?.phase === 'failed'}
+                  onRetry={() => { const encounter = currentEncounter(); if (encounter) void saveChoice(encounter); }}
+                  class="flashcard-rating-write" failedClass="flashcard-rating-write--failed" />
+              }>
               <Panel
                   variant="default"
                   rounded="xl"
@@ -956,6 +1001,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   </Show>
                 </div>
               </Panel>
+              </Show>
             }
         >
           {/* Card state indicator */}

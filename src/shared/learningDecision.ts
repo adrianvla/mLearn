@@ -21,6 +21,8 @@ export interface LearningChoiceSnapshot {
   action: string;
   targets: LearningTargetAddress[];
   task: LearningTaskSnapshot;
+  /** Producer-owned description of the actual input; contents stay opaque. */
+  presentation?: Record<string, unknown>;
 }
 
 /** Persisted before presentation and joined to acknowledged physical outcomes. */
@@ -35,6 +37,12 @@ export interface LearningDecision {
   detail: Record<string, unknown>;
 }
 
+/** Technical choice-to-response audit, independent of ability projections. */
+export interface LearningDecisionRecord {
+  decision: LearningDecision;
+  attempts: Array<{ attemptId: string; committedRevision: number | null }>;
+}
+
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const identifier = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 const identifiers = (value: unknown): value is string[] => Array.isArray(value) && value.every(identifier);
@@ -42,7 +50,8 @@ const identifiers = (value: unknown): value is string[] => Array.isArray(value) 
 /** Validate the technical envelope; package identifiers and structured detail stay opaque. */
 export function isLearningDecision(value: unknown): value is LearningDecision {
   const choice = (input: unknown): input is LearningChoiceSnapshot => {
-    if (!record(input) || !identifier(input.key) || !identifier(input.action) || !Array.isArray(input.targets) || !record(input.task)) return false;
+    if (!record(input) || !identifier(input.key) || !identifier(input.action) || !Array.isArray(input.targets) || !record(input.task)
+      || (input.presentation !== undefined && !record(input.presentation))) return false;
     const task = input.task;
     if (!identifier(task.taskTemplateId) || !identifier(task.inputModality) || !identifier(task.responseModality)
       || !identifiers(task.supplied) || !identifiers(task.requested) || typeof task.fluencyRequired !== 'boolean'

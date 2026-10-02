@@ -4,6 +4,7 @@ import {
   PRESETS,
   selectEncounterBatch,
   selectNextEncounter,
+  selectCounterfactualEncounter,
   selectRankedEncounters,
   type EncounterInputs,
 } from './engine';
@@ -11,6 +12,28 @@ import {
 const target = { entityId: 'de:surface:hallo', capability: 'surface-recognition' as const };
 
 describe('selectNextEncounter', () => {
+  it('compares the full pool beyond the trace cap using the same per-candidate draws under changed weights', () => {
+    let draws = 0;
+    const pool = Array.from({ length: 12 }, (_, index) => ({
+      key: `candidate-${index}`, language: 'future', word: `cue-${index}`, targets: [target],
+      scores: { novelty: index === 0 ? 0 : 1, 'declared-support': index === 0 ? 20 : 0 },
+    }));
+    const result = selectCounterfactualEncounter({ preset: 'CALIBRATION', nowMs: 100,
+      config: { deferFloor: 0.5 }, wordSyncPoolItems: pool,
+      rng: () => { draws += 1; return draws / 20; },
+    });
+    expect(result.selected?.trace?.inputs.candidateCount).toBe(12);
+    expect(result.baseline?.trace?.inputs.candidateCount).toBe(12);
+    expect(result.selected?.candidate.key).toBe('candidate-0');
+    expect(result.baseline?.candidate.key).toBe('candidate-11');
+    const original = new Map(result.selected!.trace!.inputs.rng.draws.map(draw => [draw.key, draw.draw]));
+    for (const draw of result.baseline!.trace!.inputs.rng.draws) {
+      if (original.has(draw.key)) expect(draw.draw).toBe(original.get(draw.key));
+    }
+    expect(draws).toBe(12);
+    expect(pool[0].scores['declared-support']).toBe(20);
+  });
+
   it('composes each preset with its source adapter', () => {
     const retention = selectNextEncounter({
       preset: 'RETENTION',

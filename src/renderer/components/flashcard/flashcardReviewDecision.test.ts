@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Flashcard, LanguageData } from '../../../shared/types';
-import { flashcardReviewPolicyEntry } from './flashcardReviewDecision';
+import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision } from './flashcardReviewDecision';
+import { isLearningDecision } from '../../../shared/learningDecision';
 import { selectNextEncounter } from '../../learning/engine';
 
 const card: Flashcard = {
@@ -10,6 +11,21 @@ const card: Flashcard = {
 };
 
 describe('review policy encounter', () => {
+  it('freezes full-workload choices and exact input before presentation without making up structural improvement', () => {
+    const entries = Array.from({ length: 20 }, (_, index) => flashcardReviewPolicyEntry({ ...card, id: `card-${index}` }, 'future'));
+    let draws = 0;
+    const selected = selectFlashcardReviewDecision({ id: 'pre-presentation', at: 20, entries,
+      rng: () => { draws += 1; return draws / 25; } })!;
+    expect(draws).toBe(20);
+    expect(isLearningDecision(selected.provenance)).toBe(true);
+    expect(selected.provenance.detail.candidateCount).toBe(20);
+    expect(selected.provenance.baseline?.key).toBe(selected.provenance.selected.key);
+    expect(selected.provenance.selected.presentation).toEqual({ cardId: selected.decision.candidate.key,
+      language: 'future', surface: '  odd form  ' });
+    entries[0].task!.requested.push('later mutation');
+    expect(selected.provenance.selected.task.requested).not.toContain('later mutation');
+  });
+
   it.each(['new', 'review'] as const)('addresses the exact authored cue and opaque package task for %s cards', state => {
     const languageData: LanguageData = { name: 'Future', learning: { capabilities: {
       'future::relationship': { label: 'An unfamiliar task', testableIn: ['srs-review'] },

@@ -10,6 +10,8 @@ function createMockIPC() {
     getFlashcards: vi.fn(),
     saveFlashcards: vi.fn(),
     commitFlashcardRating: vi.fn(),
+    recordLearningDecision: vi.fn(),
+    getLearningDecisionRecord: vi.fn(),
     onFlashcards: vi.fn(),
     onFlashcardLoadError: vi.fn(),
     onNewDayFlashcards: vi.fn(),
@@ -191,6 +193,16 @@ afterEach(() => {
 import { createElectronBridge } from './electronBridge';
 
 describe('createElectronBridge', () => {
+  it('waits for immutable choice persistence and exposes its separate technical audit', async () => {
+    const bridge = createElectronBridge();
+    const decision = { id: 'choice' } as never;
+    mockIPC.recordLearningDecision.mockResolvedValueOnce(undefined);
+    mockIPC.getLearningDecisionRecord.mockResolvedValueOnce({ decision, attempts: [] });
+    await bridge.knowledgeEvents.recordLearningDecision(decision);
+    expect(mockIPC.recordLearningDecision).toHaveBeenCalledWith(decision);
+    await expect(bridge.knowledgeEvents.getLearningDecisionRecord('choice')).resolves.toEqual({ decision, attempts: [] });
+  });
+
   it('returns an object with all 20 sub-bridge keys', () => {
     const bridge = createElectronBridge();
     expect(bridge).toHaveProperty('settings');

@@ -1293,7 +1293,9 @@
         "SaveFailed": "Impossible d’enregistrer cette évaluation. La carte est toujours là ; réessayez.",
         "PendingRatingsSaveFailed": "Les dernières évaluations n’ont pas pu être enregistrées. Réessayez.",
         "SavingUndo": "Enregistrement de l’annulation…",
-        "UndoSaveFailed": "Impossible d’enregistrer cette annulation. La carte reste évaluée ; réessayez."
+        "UndoSaveFailed": "Impossible d’enregistrer cette annulation. La carte reste évaluée ; réessayez.",
+        "PreparingQuestion": "Préparation de la prochaine question…",
+        "QuestionSaveFailed": "Cette question n’a pas pu être enregistrée. Réessayez avant de continuer."
       },
       "State": {
         "Learning": "En apprentissage",

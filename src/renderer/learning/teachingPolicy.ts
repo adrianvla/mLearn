@@ -153,6 +153,7 @@ export function selectNext(
   candidates: readonly Candidate[],
   config: TeachingPolicyConfig,
   rng: Rng = Math.random,
+  drawForCandidate?: (key: string) => number,
 ): PolicyDecision | null {
   if (candidates.length === 0) return null;
 
@@ -234,7 +235,7 @@ export function selectNext(
 
   const { selected, draws, drawsOmitted } = config.selection === 'ranked'
     ? { selected: eligible.reduce((current, item) => item.total > current.total ? item : current), draws: [], drawsOmitted: 0 }
-    : weightedPick(eligible, rng);
+    : weightedPick(eligible, rng, drawForCandidate);
   const action: PolicyAction = selected.candidate.origin === 'retention'
     ? 'MAINTAIN'
     : requiresProbe(selected.candidate)
@@ -305,17 +306,20 @@ export interface RngDraw { key: string; draw: number; weightedKey: number }
 function weightedPick(
   candidates: readonly ScoredCandidate[],
   rng: Rng,
+  drawForCandidate?: (key: string) => number,
 ): { selected: ScoredCandidate; draws: RngDraw[]; drawsOmitted: number } {
-  const first = weightedKey(candidates[0].total, rng);
+  const draw = (candidate: ScoredCandidate) => weightedKey(candidate.total,
+    drawForCandidate ? () => drawForCandidate(candidate.candidate.key) : rng);
+  const first = draw(candidates[0]);
   let selected = candidates[0];
   let selectedKey = first.weightedKey;
   const draws: RngDraw[] = [{ key: selected.candidate.key, draw: first.draw, weightedKey: first.weightedKey }];
   let drawsOmitted = 0;
 
   for (let index = 1; index < candidates.length; index += 1) {
-    const { weightedKey: key, draw } = weightedKey(candidates[index].total, rng);
+    const { weightedKey: key, draw: rawDraw } = draw(candidates[index]);
     if (draws.length < POLICY_TRACE_DETAIL_CAP) {
-      draws.push({ key: candidates[index].candidate.key, draw, weightedKey: key });
+      draws.push({ key: candidates[index].candidate.key, draw: rawDraw, weightedKey: key });
     } else {
       drawsOmitted += 1;
     }

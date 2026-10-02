@@ -8,11 +8,51 @@ import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEv
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import { grammarEvidenceKey, replayGrammarRecognition } from '../../shared/grammar/evidence';
 import type { KnowledgeEventCursor } from '../../shared/knowledge/historyQueries';
+import type { LearningDecision } from '../../shared/learningDecision';
 import { COMPACTION_KEY_BUDGET, KnowledgeHistoryStore, isKnowledgeEvent } from './knowledgeHistoryStore';
 
 const DAY = 24 * 60 * 60 * 1000;
 
 describe('durable rating command ownership', () => {
+  it('pins an immutable decision before presentation and joins an assisted command without adding ability evidence', () => {
+    const file = path.join(dir, 'decision-audit.sqlite3');
+    const decision: LearningDecision = { id: 'choice-before-cue', at: 20, policyVersion: 'future-policy',
+      selected: { key: 'card', action: 'practice', targets: [{ kind: 'future-entity', id: 'opaque', capability: 'future::capability' }],
+        presentation: { futureInput: ['unknown', { arbitraryDimension: 4 }] },
+        task: { taskTemplateId: 'future-task', inputModality: 'opaque', responseModality: 'opaque', supplied: [],
+          requested: ['future::capability'], fluencyRequired: false, ratingMode: 'profile' } },
+      baseline: null, detail: { unknown: { conditional: ['a', { b: 2 }] } } };
+    const first = KnowledgeHistoryStore.open(file);
+    first.recordLearningDecision(decision);
+    first.recordLearningDecision(structuredClone(decision));
+    expect(() => first.recordLearningDecision({ ...decision, at: 30 })).toThrow(/immutable/);
+    first.reserveRatingCommand({ attemptId: 'assisted-response', decisionId: decision.id,
+      presentation: decision.selected.presentation,
+      guardCardIds: ['card'], events: {}, patch: { baseRev: 0, entries: [] } });
+    expect(() => first.reserveRatingCommand({ attemptId: 'different-task', decisionId: decision.id,
+      presentation: decision.selected.presentation,
+      guardCardIds: ['card'], events: { 'future:cue': [{ t: 20, kind: 'rating', source: 'manual', attemptId: 'different-task',
+        targetRef: { kind: 'future-entity', id: 'other', capability: 'future::capability' }, quality: 'fluent' }] },
+      patch: { baseRev: 0, entries: [] } })).toThrow(/captured task/);
+    expect(() => first.reserveRatingCommand({ attemptId: 'wholly-supplied-wrong-cue', decisionId: decision.id,
+      presentation: { futureInput: ['other cue'] }, guardCardIds: ['card'],
+      events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/captured presentation/);
+    expect(() => first.reserveRatingCommand({ attemptId: 'different-prompt', decisionId: decision.id,
+      guardCardIds: ['other-card'], events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/captured choice/);
+    expect(first.sequenceCounter).toBe(0);
+    first.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    expect(restarted.getLearningDecisionRecord(decision.id)).toEqual({ decision,
+      attempts: [{ attemptId: 'assisted-response', committedRevision: null }] });
+    restarted.completeRatingCommands(1, 4);
+    expect(restarted.getLearningDecisionRecord(decision.id)?.attempts).toEqual([{ attemptId: 'assisted-response', committedRevision: 4 }]);
+    expect(restarted.sequenceCounter).toBe(0);
+    expect(() => restarted.reserveRatingCommand({ attemptId: 'unpresented-response', decisionId: 'missing',
+      events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/before presentation/);
+    expect(restarted.pendingRatingCommands()).toEqual([]);
+    restarted.close();
+  });
+
   it('retains the exact command across restart without making it learning evidence', () => {
     const file = path.join(dir, 'rating-command.sqlite3');
     const first = KnowledgeHistoryStore.open(file);

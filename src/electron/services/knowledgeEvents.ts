@@ -266,6 +266,16 @@ export function queryLanguageKeys(language: string, prefix?: string): string[] {
 export function setupKnowledgeEventsIPC(): void {
   void loadKnowledgeEvents();
 
+  ipcMain.handle(IPC_CHANNELS.LEARNING_DECISION_RECORD, async (_event, decision: import('../../shared/learningDecision').LearningDecision) => {
+    await whenKnowledgeEventsReady();
+    ensureStore().recordLearningDecision(decision);
+  });
+  ipcMain.handle(IPC_CHANNELS.LEARNING_DECISION_GET, async (_event, id: string) => {
+    await whenKnowledgeEventsReady();
+    if (typeof id !== 'string' || !id) throw new Error('Invalid learning decision identity');
+    return ensureStore().getLearningDecisionRecord(id);
+  });
+
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, async (_event, eventsByKey: KnowledgeEventLog) => {
     // TEMP DIAGNOSTIC: opt-in via the mlearn.ratingTrace file flag, since the
     // main process has no localStorage. `touch <userData>/ratingTrace.flag`.

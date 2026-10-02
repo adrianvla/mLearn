@@ -289,6 +289,8 @@ const mediaStatsBridge: MediaStatsBridge = {
 };
 
 const knowledgeEventsBridge: KnowledgeEventsBridge = {
+  recordLearningDecision: (decision) => getIPC().recordLearningDecision(decision),
+  getLearningDecisionRecord: (id) => getIPC().getLearningDecisionRecord(id),
   appendKnowledgeEvents: (eventsByKey) => getIPC().appendKnowledgeEvents(eventsByKey),
   queryKnowledgeEvents: (keys) => getIPC().queryKnowledgeEvents(keys),
   queryKnowledgeItemEvents: (keys) => getIPC().queryKnowledgeItemEvents(keys),

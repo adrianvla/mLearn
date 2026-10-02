@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { LearningDecision } from '../learningDecision';
 
 // ============================================================================
 // Module-level mocks (hoisted — must be at top level)
@@ -144,6 +145,33 @@ describe('EventEmitter (internal)', () => {
 // ============================================================================
 // Storage helpers
 // ============================================================================
+
+describe('durable learning choices', () => {
+  const decision: LearningDecision = { id: 'choice', at: 1, policyVersion: 'policy',
+    selected: { key: 'question', action: 'practice', targets: [],
+      presentation: { futureInput: { arbitrary: [1, 2] } },
+      task: { taskTemplateId: 'opaque', inputModality: 'opaque', responseModality: 'opaque',
+        supplied: [], requested: [], fluencyRequired: false, ratingMode: 'profile' } },
+    baseline: null, detail: { unknown: { value: 3 } } };
+  beforeEach(() => { vi.resetModules(); localStorage.clear(); });
+
+  it('serializes conflicting immutable choice admissions instead of acknowledging both writers', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const results = await Promise.allSettled([bridge.knowledgeEvents.recordLearningDecision(decision),
+      bridge.knowledgeEvents.recordLearningDecision({ ...decision, at: 99 })]);
+    expect(results.map(result => result.status)).toEqual(['fulfilled', 'rejected']);
+    await expect(bridge.knowledgeEvents.getLearningDecisionRecord(decision.id)).resolves.toEqual({ decision, attempts: [] });
+  });
+
+  it('does not acknowledge a native choice write refusal through the local cache', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    vi.mocked(Preferences.set).mockRejectedValueOnce(new Error('native write refused'));
+    await expect(createCapacitorBridge().knowledgeEvents.recordLearningDecision(decision)).rejects.toThrow('native write refused');
+    expect(localStorage.getItem(`learning-decision:${decision.id}`)).toBeNull();
+  });
+});
 
 describe('storageGet / storageSet (via kvStore bridge)', () => {
   beforeEach(() => {

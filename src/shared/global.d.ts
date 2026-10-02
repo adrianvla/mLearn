@@ -1,6 +1,7 @@
 import type { FlashcardAudioPreset } from './types';
 import type { EffectiveThresholds } from './knowledge/effectiveKnowledge';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from './flashcardRating';
+import type { LearningDecision, LearningDecisionRecord } from './learningDecision';
 /**
  * Global Type Declarations
  * Extends Window interface with mLearn IPC API
@@ -47,6 +48,8 @@ export interface MLearnIPC {
   onReviewFlashcardRequest: (callback: () => void) => () => void;
 
   // Knowledge events
+  recordLearningDecision: (decision: LearningDecision) => Promise<void>;
+  getLearningDecisionRecord: (id: string) => Promise<LearningDecisionRecord | null>;
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
   queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeItemEvents: (keys: string[]) => Promise<KnowledgeEventLog>;

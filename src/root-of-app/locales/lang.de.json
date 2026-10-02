@@ -1293,7 +1293,9 @@
         "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Die Karte ist noch da; versuche es erneut.",
         "PendingRatingsSaveFailed": "Die letzten Bewertungen konnten nicht gespeichert werden. Versuche es erneut.",
         "SavingUndo": "Rückgängigmachung wird gespeichert…",
-        "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Die Karte bleibt bewertet; versuche es erneut."
+        "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Die Karte bleibt bewertet; versuche es erneut.",
+        "PreparingQuestion": "Deine nächste Frage wird vorbereitet…",
+        "QuestionSaveFailed": "Diese Frage konnte nicht gespeichert werden. Versuche es erneut, bevor du fortfährst."
       },
       "State": {
         "Learning": "Lernen",
