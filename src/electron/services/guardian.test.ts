@@ -252,6 +252,95 @@ describe('Guardian direct integrity boundary', () => {
     await expect(new Guardian(temp.tmpDir).preflight()).rejects.toThrow('cannot read this learner data schema');
   });
 
+  /**
+   * The real incident: an older release meets newer data, refuses to start, and
+   * LATCHES that refusal into the ledger. The latch is consulted before the
+   * schema is re-inspected, so the newer release is then locked out of a
+   * profile it can read perfectly. These cover the resume path that unblocks
+   * it WITHOUT discarding the learner's progress.
+   */
+  it('lets a newer release resume a schema block an older release latched', async () => {
+    writeProfile(['a']);
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    // A build that cannot read this data latches its refusal, exactly as the
+    // older release did against the migrated profile.
+    fs.writeFileSync(file('guardian/ledger.json'), JSON.stringify({
+      schema: 1, generation: 7, state: 'blocked',
+      reason: 'Current app cannot read this learner data schema; install a compatible release',
+      metrics: { ...guardian.status.metrics, knowledgeSchema: 99 },
+    }));
+    expect(guardian.canResumeSchemaBlock()).toBe(true);
+    guardian.resumeAfterSchemaBlock();
+    expect(guardian.status.state).toBe('ready');
+    expect(guardian.status.reason).toBeUndefined();
+    // The baseline is re-derived from the live data, not inherited from the
+    // latched ledger, so startup is not blocked again on the next launch.
+    await expect(new Guardian(temp.tmpDir).preflight()).resolves.toBeUndefined();
+  });
+
+  it('keeps learner progress made after the latched block', async () => {
+    writeProfile(['a']);
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    const before = JSON.parse(fs.readFileSync(file('flashcards.json'), 'utf8'));
+    fs.writeFileSync(file('guardian/ledger.json'), JSON.stringify({
+      schema: 1, generation: 7, state: 'blocked',
+      reason: 'Current app cannot read this learner data schema; install a compatible release',
+      metrics: { ...guardian.status.metrics, knowledgeSchema: 99 },
+    }));
+    // Progress the learner made while the block was latched. A restore would
+    // discard this; resuming must keep it.
+    before.flashcards.b = card('b');
+    fs.writeFileSync(file('flashcards.json'), JSON.stringify(before));
+    guardian.resumeAfterSchemaBlock();
+    const after = JSON.parse(fs.readFileSync(file('flashcards.json'), 'utf8'));
+    expect(Object.keys(after.flashcards).sort()).toEqual(['a', 'b']);
+  });
+
+  it('never resumes a block that is not a schema block', async () => {
+    writeProfile(['a']);
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    fs.writeFileSync(file('guardian/ledger.json'), JSON.stringify({
+      schema: 1, generation: 7, state: 'blocked',
+      reason: 'Unexplained learner data loss: cards: 3 missing',
+      metrics: { ...guardian.status.metrics, cards: ['a', 'b', 'c'] },
+    }));
+    expect(guardian.canResumeSchemaBlock()).toBe(false);
+    expect(() => guardian.resumeAfterSchemaBlock()).toThrow(/still needs recovery/);
+  });
+
+  it('refuses to resume when this build still cannot read the data', async () => {
+    writeProfile(['a']);
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    fs.writeFileSync(file('guardian/ledger.json'), JSON.stringify({
+      schema: 1, generation: 7, state: 'blocked',
+      reason: 'Current app cannot read this learner data schema; install a compatible release',
+      metrics: { ...guardian.status.metrics },
+    }));
+    // The latched reason is kept only while it is TRUE: data this build cannot
+    // read must keep demanding a compatible release instead of being cleared.
+    const db = new DatabaseSync(file('knowledge-history.sqlite3'));
+    db.exec("UPDATE meta SET value = '99' WHERE key = 'schemaVersion'");
+    db.close();
+    expect(() => guardian.resumeAfterSchemaBlock()).toThrow(/still cannot read/);
+  });
+
+  it('refuses to resume corrupt data rather than clearing the block', async () => {
+    writeProfile(['a']);
+    const guardian = new Guardian(temp.tmpDir);
+    await guardian.preflight();
+    fs.writeFileSync(file('guardian/ledger.json'), JSON.stringify({
+      schema: 1, generation: 7, state: 'blocked',
+      reason: 'Current app cannot read this learner data schema; install a compatible release',
+      metrics: { ...guardian.status.metrics },
+    }));
+    fs.writeFileSync(file('flashcards.json'), '{ not json');
+    expect(() => guardian.resumeAfterSchemaBlock()).toThrow(/could not be validated/);
+  });
+
   it('protects legacy conversation evidence before its copy-only migration', async () => {
     writeProfile(['a']);
     fs.writeFileSync(file('kv-store.json'), JSON.stringify({

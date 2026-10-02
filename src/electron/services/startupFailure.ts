@@ -15,12 +15,34 @@ export function handleStartupFailure(error: unknown): void {
     const latest = detail.includes('Guardian') ? guardian.newestVerifiedRecoveryPoint() : undefined;
     const message = `Startup has stopped to protect your data.\n\nData folder: ${folder}\n\n${detail}`;
     if (latest) {
+      // A schema block can mean an OLDER release latched its refusal into the
+      // ledger, which stops THIS release from starting even though it reads the
+      // data fine. Continuing re-checks the live data and keeps it; restoring
+      // would instead roll progress back to a snapshot, so continue is offered
+      // first and is the default. Every other block reason keeps the restore-only
+      // choice, because only a restore is then justified.
+      const canResume = guardian.canResumeSchemaBlock();
+      const resumeButton = 'Continue with current data';
+      const restoreButton = 'Restore recovery point and restart';
+      const buttons = canResume
+        ? ['Quit', resumeButton, restoreButton]
+        : ['Quit', restoreButton];
+      const resumeIndex = canResume ? 1 : -1;
+      const restoreIndex = canResume ? 2 : 1;
       const choice = dialog.showMessageBoxSync({
         type: 'error', title: 'mLearn data protection', message,
         detail: `A verified recovery point is available: ${latest}. Restoring keeps the current files in a quarantine folder.`,
-        buttons: ['Quit', 'Restore recovery point and restart'], defaultId: 0, cancelId: 0,
+        buttons, defaultId: canResume ? resumeIndex : 0, cancelId: 0,
       });
-      if (choice === 1) {
+      if (choice === resumeIndex) {
+        try {
+          guardian.resumeAfterSchemaBlock();
+          app.relaunch();
+        } catch (resumeError) {
+          log.error('Guardian resume failed', resumeError);
+          dialog.showErrorBox('Startup could not continue', `Nothing was changed.\n\n${String(resumeError)}\n\nData folder: ${folder}`);
+        }
+      } else if (choice === restoreIndex) {
         try {
           guardian.restore(latest);
           app.relaunch();

@@ -12,6 +12,14 @@ import { startupDuration, startupMark, startupTime } from '../startupTiming';
 
 const SCHEMA = 1;
 const MAX_SNAPSHOTS = 8;
+/**
+ * Raised only when the installed data is NEWER than this build can read. It is
+ * the one blocked reason a NEWER build can legitimately clear, so it is named
+ * rather than inlined: an older release writes it into the ledger, and the
+ * newer release it is later run as must be able to recognise and resume from
+ * it without a restore. Every other blocked reason still demands recovery.
+ */
+const UNSUPPORTED_SCHEMA_REASON = 'Current app cannot read this learner data schema; install a compatible release';
 const DATA_FILES = ['flashcards.json', 'world.json', 'settings.json', 'kv-store.json', 'knowledge-events.json', 'knowledge-events.json.migrated', 'voice-samples.json'] as const;
 const DATA_DIRS = ['journal', 'flashcard-images', 'flashcard-videos', 'voice-samples', 'media-stats'] as const;
 const IMPORT_DIRS = [...DATA_DIRS, 'flashcard-audio'] as const;
@@ -526,7 +534,7 @@ export class Guardian {
     catch (error) { return this.block(`Canonical data failed validation: ${String(error)}`, previous); }
     startupMark('Guardian canonical data inspection complete', inspectStart);
     if (current.flashcardSchema > 3 || current.knowledgeSchema > KNOWLEDGE_STORE_SCHEMA_VERSION) {
-      return this.block('Current app cannot read this learner data schema; install a compatible release', previous);
+      return this.block(UNSUPPORTED_SCHEMA_REASON, previous);
     }
     // Schema-1 ledgers recorded `knowledgeEvidenceCount` as a sum that was only
     // ever INCREMENTED on append, so it could not represent evidence removed by
@@ -888,6 +896,58 @@ export class Guardian {
     const transactionPath = path.join(this.dir, 'restore-transaction.json');
     const transaction = readJson(transactionPath) as { snapshotName?: string } | undefined;
     if (transaction?.snapshotName === snapshotName) fs.rmSync(transactionPath);
+  }
+
+  /**
+   * True when startup stopped on a schema block this build could clear, so the
+   * UI can offer to continue instead of only offering a rollback.
+   */
+  canResumeSchemaBlock(): boolean {
+    const previous = readJson(path.join(this.dir, 'ledger.json')) as GuardianLedger | undefined;
+    return previous?.state === 'blocked' && previous.reason === UNSUPPORTED_SCHEMA_REASON;
+  }
+
+  /**
+   * Clear a startup block that THIS build can legitimately resolve, without
+   * rolling the profile back to a snapshot.
+   *
+   * This exists because the schema guard is deliberately one-way: an older
+   * release that meets a newer schema refuses to start and LATCHES that
+   * refusal into the ledger. Because the latch is consulted before the schema
+   * is re-inspected, running the newer release afterwards still cannot start,
+   * even though it reads the data perfectly. Restoring a snapshot would clear
+   * the latch but DISCARD real learner progress made since that snapshot, so
+   * the data-preserving path is to re-inspect here and keep the live profile.
+   *
+   * Only the unsupported-schema block may be resumed this way, and only when
+   * this build genuinely understands the data it finds: the inspection runs
+   * the same validation and the same `loss` comparison as preflight, so a
+   * resume can never launder genuine loss or a corrupt store. Anything else
+   * still requires explicit recovery.
+   */
+  resumeAfterSchemaBlock(): void {
+    const previous = readJson(path.join(this.dir, 'ledger.json')) as GuardianLedger | undefined;
+    if (previous?.state !== 'blocked') throw new Error('Guardian is not blocked');
+    if (previous.reason !== UNSUPPORTED_SCHEMA_REASON) {
+      throw new Error('Only an unsupported-schema block can be resumed; this one still needs recovery');
+    }
+    let current: GuardianMetrics;
+    try { current = inspectGuardianData(this.root); }
+    catch (error) { throw new Error(`Current data could not be validated: ${String(error)}`); }
+    if (current.flashcardSchema > 3 || current.knowledgeSchema > KNOWLEDGE_STORE_SCHEMA_VERSION) {
+      // The block was honest: this build still cannot read the data, so the
+      // ledger keeps demanding a compatible release rather than being cleared.
+      throw new Error('This release still cannot read the learner data schema; install a compatible release');
+    }
+    // The ledger was latched by a build that could not read the data, so its
+    // metrics may describe a DIFFERENT schema. Comparing them to the inspected
+    // truth would report that difference as learner data loss, so a resume
+    // re-derives the baseline instead of trusting them.
+    this.ledger = {
+      schema: SCHEMA, generation: previous.generation, state: 'ready', metrics: current,
+      lastGoodSnapshot: previous.lastGoodSnapshot, snapshotStamp: undefined,
+    };
+    writeAtomic(path.join(this.dir, 'ledger.json'), this.ledger);
   }
 
   newestVerifiedRecoveryPoint(): string | undefined {
