@@ -615,11 +615,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   };
 
   const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
-  const [isStatusModalOpen, setIsStatusModalOpen] = createSignal(false);
 
   // Track whether any internal modal is open (prevents hide during modal interaction)
   const isInternalModalOpen = createMemo(() =>
-    showDuplicateWarning() || isStatusModalOpen()
+    showDuplicateWarning()
   );
 
   // When an internal modal opens, cancel any pending hide from the parent
@@ -791,8 +790,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                 word={actualWord()}
                 language={settings.language}
                 suppressKnowledgePopover
-                cycleClaims
-                onModalOpenChange={setIsStatusModalOpen}
+                onInspect={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, actualWord()))}
               />
               <ResourcePill
                 word={actualWord()}
