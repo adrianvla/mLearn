@@ -27,6 +27,27 @@ describe('wordSyncPoolStatus', () => {
 
 
 describe('projected residual probes', () => {
+  it('pins a plain word prompt to surface familiarity rather than an exact homograph sense', async () => {
+    const { wordSyncProbe } = await import('./wordSyncPool');
+    const projection = { status: 'ready' as const, surfaceId: 'future:surface:canonical', targets: [
+      { targetRef: { kind: 'sense', id: 'future::isolated-sense' }, applicableCapabilities: ['sense-recognition'],
+        states: [{ capability: 'sense-recognition', classification: 'unmeasured' as const, basis: 'unmeasured' as const, evidence: [], evidenceSourceCounts: {} }] },
+    ] };
+    expect(wordSyncProbe(projection, ['sense-recognition'], 'future:surface:canonical').targets)
+      .toEqual([{ entityId: 'future:surface:canonical', capability: 'sense-recognition' }]);
+    expect(wordSyncProbe({ ...projection, surfaceId: undefined }, ['sense-recognition']).targets).toEqual([]);
+  });
+  it('uses journal classifications and task-declared residual accesses when optional structure is absent', async () => {
+    const { wordSyncProbe } = await import('./wordSyncPool');
+    const { projectionFixture } = await import('../../../../test/projectionFixture');
+    const projection = { ...projectionFixture('known', 'claim'), graphStatus: 'not-installed' as const, surfaceKnown: false,
+      surfaceId: 'future:surface:exact', targets: [{ targetRef: { kind: 'surface' as const, id: 'future:surface:exact' }, applicableCapabilities: [],
+        states: [{ capability: 'sense-recognition', classification: 'known' as const, basis: 'claim' as const, evidence: [], evidenceSourceCounts: {} }] }] };
+    const probe = wordSyncProbe(projection, ['sense-recognition', 'surface-reading'], projection.surfaceId);
+    expect(probe.targets).toEqual([{ entityId: projection.surfaceId, capability: 'surface-reading' }]);
+    expect(probe.status).toBe(String(WORD_STATUS.KNOWN));
+    expect(probe.focused).toBe(true);
+  });
   it('keeps a measured weak aspect eligible regardless of the word summary and rating recency', async () => {
     const { wordSyncProbe } = await import('./wordSyncPool');
     const { projectionFixture } = await import('../../../../test/projectionFixture');

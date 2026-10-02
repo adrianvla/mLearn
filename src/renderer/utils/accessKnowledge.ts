@@ -70,6 +70,7 @@ export function getAccessStatusSync(
   for (const match of matches) {
     const record = deps.wordKnowledge[match.lk]?.access?.[capability];
     if (!record) continue;
+    if (record.hasEvidence === false && record.claim === undefined) continue;
     const result: AccessStatusResult = {
       status: record.claim ?? record.status,
       ease: record.ease,
@@ -163,5 +164,6 @@ export function applyAccessWrite(
     source: input.source,
     lastStatusChange: input.now,
     updatedAt: input.now,
+    hasEvidence: true,
   };
 }

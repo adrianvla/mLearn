@@ -24,6 +24,7 @@ interface ReaderUnknownWordsSidebarProps {
   onWordHover?: (entry: ReaderUnknownWordEntry) => void;
   onWordLeave?: () => void;
   onClose?: () => void;
+  onPracticeWords?: (entries: ReaderUnknownWordEntry[]) => void;
 }
 
 export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps> = (props) => {
@@ -64,6 +65,7 @@ export const ReaderUnknownWordsSidebar: Component<ReaderUnknownWordsSidebarProps
           hideEmptyCount={Boolean(props.blockedMessage?.() || props.isProcessing?.())}
           class="reader-unknown-words-sidebar"
           onClose={props.onClose}
+          onPracticeWords={props.onPracticeWords ? entries => props.onPracticeWords!(entries as ReaderUnknownWordEntry[]) : undefined}
           onAddAllClick={(addable, dictAddable) => {
             addAll.open(addable, dictAddable);
           }}

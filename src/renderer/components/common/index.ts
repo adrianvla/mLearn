@@ -464,3 +464,5 @@ export { PolicyTraceDetails } from './PolicyTrace/PolicyTraceDetails';
 export { Avatar, type AvatarProps } from './Avatar/Avatar';
 export { ListRow, type ListRowProps } from './ListRow/ListRow';
 export { Disclosure, type DisclosureProps } from './Disclosure/Disclosure';
+
+export { StudyEncounter, type StudyEncounterProps } from './StudyEncounter/StudyEncounter';

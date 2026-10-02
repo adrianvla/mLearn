@@ -1,3 +1,4 @@
+import { isStudyExcluded } from '../../shared/studyExclusion';
 import { createComputed, createMemo, createSignal, mapArray, onCleanup, type Accessor } from 'solid-js';
 import type { FlashcardStore, PassiveWordKnowledge } from '../../shared/types';
 import type { EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
@@ -77,6 +78,6 @@ export function buildTrackedWordSet(store: FlashcardStore, language: string): Se
   for (const lk of Object.keys(store.wordCandidates)) if (lk.startsWith(prefix)) tracked.add(lk);
   // Orphan legacy markers have neither a recoverable word nor canonical evidence.
   // The existing migration adds recoverable claims to wordKnowledge above.
-  for (const lk of Object.keys(store.ignoredWords)) if (lk.startsWith(prefix)) tracked.add(lk);
+  for (const [lk, entry] of Object.entries(store.ignoredWords)) if (lk.startsWith(prefix) && isStudyExcluded(entry)) tracked.add(lk);
   return tracked;
 }

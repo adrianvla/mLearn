@@ -32,6 +32,15 @@ function entry(overrides: Partial<PassiveWordKnowledge> = {}): PassiveWordKnowle
 }
 
 describe('getComprehensiveWordStatusWithSource (Tier-2 semantics)', () => {
+  it('a written-access claim does not fabricate evidence for the lexical summary', () => {
+    const deps = makeDeps({ wordKnowledge: { 'ru:hash:слово': entry({
+      ease: 0, timesSeen: 0, hasActiveEvidence: false,
+      access: { 'surface-recognition': { status: 'unknown', ease: 0, source: 'Manual',
+        lastStatusChange: 1, updatedAt: 1, hasEvidence: false, claim: 'known', claimAt: 1 } },
+    }) } });
+    expect(getComprehensiveWordStatusWithSource('слово', deps)).toMatchObject({ status: 'unknown', basis: 'unmeasured' });
+  });
+
   it('an explicit claim overrides evidence classification while evidence stays intact', () => {
     // 人権 invariant: evidence says Known, user claims Learning → effective
     // Learning, basis claim, evidence still Known.
@@ -161,6 +170,16 @@ describe('getComprehensiveWordStatusWithSource (Tier-2 semantics)', () => {
 });
 
 describe('exclusion vs knowledge (Tier-2 semantics)', () => {
+  it('withdrawal preserves a real claim while removing the exclusion flag', () => {
+    const result = getComprehensiveWordStatusWithSource('слово', makeDeps({
+      ignoredWords: { 'ru:hash:слово': { word: 'слово', language: 'ru', ignoredAt: 1, updatedAt: 2, excluded: false } },
+      wordKnowledge: { 'ru:hash:слово': entry({ claim: 'learning', claimAt: 1 }) },
+    }));
+    expect(result.status).toBe('learning');
+    expect(result.basis).toBe('claim');
+    expect(result.excluded).not.toBe(true);
+  });
+
   it('ignored words resolve honestly: status stays truthful + excluded flag, never known-by-ignore', () => {
     const deps = makeDeps({
       ignoredWords: { 'ru:hash:слово': { word: 'слово', language: 'ru', ignoredAt: 1 } },

@@ -27,6 +27,8 @@ export interface WorldState {
   contacts?: ContactRecord[];
   storyTracks?: StoryTrack[];
   storyAdvances?: StoryAdvanceRecord[];
+  /** Main-owned scoped erasure work; source ids only, never private content. */
+  pendingThreadErasures?: { roomId: string; threadId: string; sourceEventIds?: string[] }[];
 }
 
 function worldFilePath(): string {
@@ -55,9 +57,17 @@ export async function loadWorld(): Promise<WorldState> {
       throw new Error(`[worldStore] world.json ${key} must be an array`);
     }
   }
-  for (const key of ['scenarioCreations', 'integrations', 'reflectionRuns', 'autonomyJobs', 'contacts', 'storyTracks', 'storyAdvances'] as const) {
+  for (const key of ['scenarioCreations', 'integrations', 'reflectionRuns', 'autonomyJobs', 'contacts', 'storyTracks', 'storyAdvances', 'pendingThreadErasures'] as const) {
     if (Object.prototype.hasOwnProperty.call(state, key) && !Array.isArray(state[key])) {
       throw new Error(`[worldStore] world.json ${key} must be an array when present`);
+    }
+  }
+  for (const intent of state.pendingThreadErasures ?? []) {
+    if (!intent || typeof intent.roomId !== 'string' || !intent.roomId || typeof intent.threadId !== 'string' || !intent.threadId
+      || (intent.sourceEventIds !== undefined && (!Array.isArray(intent.sourceEventIds)
+        || intent.sourceEventIds.some(id => typeof id !== 'string' || !id)
+        || new Set(intent.sourceEventIds).size !== intent.sourceEventIds.length))) {
+      throw new Error('[worldStore] malformed pending thread erasure; history preserved');
     }
   }
   // Retain fields owned by packages or newer app versions during round trips.

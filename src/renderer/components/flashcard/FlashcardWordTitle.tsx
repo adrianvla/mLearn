@@ -29,6 +29,8 @@ export interface FlashcardWordTitleProps {
   content: FlashcardContent;
   /** Language code saved on the flashcard/suggestion. Used instead of the active language when available. */
   language?: string;
+  /** Revealed task answer; ordinary titles respect optional reading preferences. */
+  readingAnswer?: boolean;
 }
 
 export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) => {
@@ -142,6 +144,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
         languageData={languageData()}
         class="flashcard-word-title__reading fc-reading-annotation"
         forceShowReadingAnnotation={shouldForceStoredReading()}
+        annotationVisibility={props.readingAnswer ? 'answer' : 'preference'}
         coloredProsody={coloredProsodyCtx}
         prosodyOverlay={prosodyOverlayData()}
       />

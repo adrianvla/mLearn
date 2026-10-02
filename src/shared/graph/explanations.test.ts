@@ -1,9 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { assembleTargetExplanation } from './explanations';
+import { archiveBucketKey, rebuildBucketFromRecords, type KeyArchive } from '../knowledge/historyArchive';
 
 const policy = { learningSteps: [1, 10], relearnSteps: [10], graduatingInterval: 1, easyInterval: 4, reviewIntervalModifier: 100, maxInterval: 365 };
 
 describe('assembleTargetExplanation', () => {
+  it('does not assign a retained witness to an archive that wins a timestamp and key-local sequence tie', () => {
+    const old = { t: 100, kind: 'rating' as const, source: 'manual' as const, quality: 'fluent' as const,
+      easeAfter: 2.6, attemptId: 'archived-original', targetRef: { kind: 'surface', id: 'future:surface:a', capability: 'spoken-recognition' } };
+    const key = archiveBucketKey(old);
+    const archive: KeyArchive = { v: 2, measurableVersion: 3, frontierT: 100, frontierSeq: 1, acquisitionCutoff: -Infinity,
+      buckets: { [key]: rebuildBucketFromRecords(key, [{ event: old, seq: 1 }], 1000) },
+      archivedEventCount: 1, ankiReviewIds: [], weekPoints: [] };
+    const retained = { ...old, quality: 'missed' as const, easeAfter: 0.7, attemptId: 'different-retained',
+      targetRef: { ...old.targetRef, id: 'future:surface:b' } };
+    const result = assembleTargetExplanation('spoken-recognition', [{ event: retained, seq: 1 }], policy, 1000,
+      undefined, () => true, [archive]);
+    expect(result.projection?.ease).toBe(2.6);
+    expect(result.knowledgeWitness).toBeUndefined();
+    const newer = assembleTargetExplanation('spoken-recognition', [{ event: { ...retained, t: 101 }, seq: 1 }], policy, 1000,
+      undefined, () => true, [archive]);
+    expect(newer.projection?.ease).toBe(0.7);
+    expect(newer.knowledgeWitness?.attemptId).toBe('different-retained');
+  });
   it('excludes retracted attempts from evidence and retention', () => {
     const explanation = assembleTargetExplanation('surface-reading', [
       { t: 1, kind: 'rating', source: 'srs', aspect: 'reading', attemptId: 'undo', rating: 'easy', easeAfter: 3 },

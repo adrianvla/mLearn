@@ -1,4 +1,5 @@
 import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
+import type { SupportContributor } from '../prediction/supportContributors';
 import type { CompoundAnalysis } from './morphology/compounds';
 import type { CapabilityKey, GraphDomain, GraphEntityKind, GraphRelationType, RelationCategory } from './types';
 
@@ -20,6 +21,8 @@ export interface GraphNode {
   displayLabel?: string;
   /** Package-declared learner accesses attached to this entity. */
   learnableCapabilities?: CapabilityKey[];
+  /** Opaque structured package data, preserved without a core linguistic registry. */
+  features?: Record<string, unknown>;
 }
 
 export interface GraphRelatedNode extends GraphNode {
@@ -111,6 +114,8 @@ export interface KnowledgeProjectionEvidence {
 }
 
 export interface KnowledgeProjectionState {
+  /** Reasons support was unavailable; never a measurement or zero-probability claim. */
+  supportLimits?: string[];
   capability: CapabilityKey;
   classification: KnowledgeProjectionClassification;
   basis: KnowledgeProjectionBasis;
@@ -119,7 +124,7 @@ export interface KnowledgeProjectionState {
   evidence: KnowledgeProjectionEvidence[];
   evidenceSourceCounts: Record<string, number>;
   retention?: { pressure: number; dueAt: number };
-  prediction?: { value: number; reasons: string[] };
+  prediction?: { value: number; reasons: string[]; model?: string; interpretation?: 'heuristic-support'; contributors?: SupportContributor[] };
 }
 
 export interface KnowledgeProjectionTarget {
@@ -152,6 +157,8 @@ export interface KnowledgeLexicalSummary {
 /** Single-surface on-demand inspector payload; intentionally not batched for v1. */
 export interface KnowledgeProjection {
   status: GraphAvailability;
+  /** Structural availability is separate from authoritative journal projection readiness. */
+  graphStatus?: GraphAvailability;
   surfaceId?: string;
   targets: KnowledgeProjectionTarget[];
   /** The surface text this projection was queried with; lets consumers reject stale async results. */

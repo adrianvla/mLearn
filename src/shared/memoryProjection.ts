@@ -19,6 +19,7 @@
 
 import type { JournalEvent, LoopResolutionStatus, MemoryEntry } from './world';
 import { visibleEventsFor } from './contextCompiler';
+import { releasedVoiceMemoryEvents } from './voiceDelivery';
 
 export interface RelationshipEntry {
   fromId: string;
@@ -208,6 +209,7 @@ function memoryEntryFromEvent(e: JournalEvent): MemoryEntry | null {
  * memory events are excluded.
  */
 export function deriveRoomProjection(events: JournalEvent[]): RoomMemoryProjection {
+  events = releasedVoiceMemoryEvents(events);
   const tombstoned = tombstonedIds(events);
   const loopStates = openLoopStates(events);
   const projection: RoomMemoryProjection = {
@@ -267,7 +269,7 @@ export function projectionForCaller(
   callerId: string,
   cutoff?: number,
 ): RoomMemoryProjection {
-  const visible = visibleEventsFor(callerId, events);
+  const visible = visibleEventsFor(callerId, releasedVoiceMemoryEvents(events));
   const bounded = cutoff === undefined ? visible : visible.filter((e) => Boolean(e.provenance?.integrationId) || e.seq >= cutoff);
   return deriveRoomProjection(bounded);
 }

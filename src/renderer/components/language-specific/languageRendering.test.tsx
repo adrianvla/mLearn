@@ -12,6 +12,7 @@ let mockActiveLanguageData: LanguageData | null = null;
 let mockLanguageMap: Record<string, LanguageData> = {};
 const mockGetCachedTranslation = vi.fn();
 let getMockCacheVersion = () => 0;
+let showReadingAnnotations = true;
 const mockGetCanonicalFormForLanguage = vi.fn((language: string, word: string) => `${language}:${word}:canonical`);
 const mockGetWordVariantsForLanguage = vi.fn((language: string, word: string) => [`${language}:${word}:variant`]);
 
@@ -21,6 +22,7 @@ vi.mock('../../context', () => ({
       language: 'de',
       dictionaryTargetLanguages: { ja: 'fr' },
       showProsody: true,
+      showReadingAnnotations,
     },
   }),
   useLanguage: () => ({
@@ -79,12 +81,34 @@ describe('language-specific rendering metadata resolution', () => {
       }),
     };
     mockGetCachedTranslation.mockReset();
+    showReadingAnnotations = true;
     mockGetCanonicalFormForLanguage.mockClear();
     mockGetWordVariantsForLanguage.mockClear();
   });
 
   afterEach(() => {
     container.remove();
+  });
+
+  it.each(['ruby', 'inline', 'replace'] as const)('honors disabled optional readings in %s presentation even when applicability is forced', (display) => {
+    showReadingAnnotations = false;
+    const languageData = makeLanguageData({ textProcessing: {
+      readingAnnotation: { type: 'script-reading', display, annotationScripts: ['Han'] },
+    } });
+    const dispose = render(() => <WordWithReading word="家" reading="jiā" languageData={languageData} forceShowReadingAnnotation />, container);
+    expect(container.textContent).toBe('家');
+    expect(container.querySelector('ruby, rt, .ruby-text-inline__reading')).toBeNull();
+    dispose();
+  });
+
+  it('can explicitly reveal an exercise reading answer while optional readings stay disabled', () => {
+    showReadingAnnotations = false;
+    const languageData = makeLanguageData({ textProcessing: {
+      readingAnnotation: { type: 'script-reading', display: 'ruby', annotationScripts: ['Han'] },
+    } });
+    const dispose = render(() => <WordWithReading word="家" reading="jiā" languageData={languageData} annotationVisibility="answer" />, container);
+    expect(container.querySelector('rt')?.textContent).toBe('jiā');
+    dispose();
   });
 
   it('uses the supplied language code metadata for cache-driven pitch lookup', async () => {

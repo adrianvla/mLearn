@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { LearningDecision } from '../learningDecision';
 
 // ============================================================================
 // Module-level mocks (hoisted — must be at top level)
@@ -144,6 +145,33 @@ describe('EventEmitter (internal)', () => {
 // ============================================================================
 // Storage helpers
 // ============================================================================
+
+describe('durable learning choices', () => {
+  const decision: LearningDecision = { id: 'choice', at: 1, policyVersion: 'policy',
+    selected: { key: 'question', action: 'practice', targets: [],
+      presentation: { futureInput: { arbitrary: [1, 2] } },
+      task: { taskTemplateId: 'opaque', inputModality: 'opaque', responseModality: 'opaque',
+        supplied: [], requested: [], fluencyRequired: false, ratingMode: 'profile' } },
+    baseline: null, detail: { unknown: { value: 3 } } };
+  beforeEach(() => { vi.resetModules(); localStorage.clear(); });
+
+  it('serializes conflicting immutable choice admissions instead of acknowledging both writers', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const results = await Promise.allSettled([bridge.knowledgeEvents.recordLearningDecision(decision),
+      bridge.knowledgeEvents.recordLearningDecision({ ...decision, at: 99 })]);
+    expect(results.map(result => result.status)).toEqual(['fulfilled', 'rejected']);
+    await expect(bridge.knowledgeEvents.getLearningDecisionRecord(decision.id)).resolves.toEqual({ decision, attempts: [] });
+  });
+
+  it('does not acknowledge a native choice write refusal through the local cache', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    vi.mocked(Preferences.set).mockRejectedValueOnce(new Error('native write refused'));
+    await expect(createCapacitorBridge().knowledgeEvents.recordLearningDecision(decision)).rejects.toThrow('native write refused');
+    expect(localStorage.getItem(`learning-decision:${decision.id}`)).toBeNull();
+  });
+});
 
 describe('storageGet / storageSet (via kvStore bridge)', () => {
   beforeEach(() => {
@@ -303,6 +331,38 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     localStorage.clear();
   });
 
+  it('round-trips the authoritative revision, pending Undo and arbitrary unknown root data', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const store = { ...makeStore(), rev: 0,
+      pendingRetraction: { attemptId: 'mobile-own-undo', surface: 'future-package', word: 'cue', language: 'future', attemptIds: ['response'], restore: { opaque: [3] } },
+      futurePackageState: { discourse: ['unknown', { contextual: true }] } };
+    const rev = await bridge.flashcards.saveFlashcards(store as never);
+    const loaded = vi.fn(); bridge.flashcards.onFlashcards(loaded); bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+    expect(loaded.mock.calls[0][0].rev).toBe(rev);
+    expect(loaded.mock.calls[0][0].pendingRetraction).toEqual(store.pendingRetraction);
+    expect(loaded.mock.calls[0][0].futurePackageState).toEqual(store.futurePackageState);
+  });
+
+  it('refuses a native library write failure rather than acknowledging the WebView-only copy', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    vi.mocked(Preferences.set).mockRejectedValueOnce(new Error('native library disk full'));
+    await expect(bridge.flashcards.saveFlashcards(makeStore() as never)).rejects.toThrow('native library disk full');
+  });
+
+  it('accepts opaque namespaced index keys without interpreting a language code as hexadecimal', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const store = makeStore({ wordToCardMap: { 'unknown-package:opaque-entity': ['card'] } });
+    await bridge.flashcards.saveFlashcards(store as never);
+    const loaded = vi.fn(); bridge.flashcards.onFlashcards(loaded); bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+    expect(loaded.mock.calls[0][0].wordToCardMap).toEqual(store.wordToCardMap);
+  });
+
   it('getShardIndex returns value in range [0, 15]', async () => {
     // Test via saveFlashcards (which calls splitIntoShards/saveShardedFlashcards)
     const { createCapacitorBridge } = await import('./capacitorBridge');
@@ -347,8 +407,8 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     expect(metaRaw).not.toBeNull();
     const meta = JSON.parse(metaRaw!);
     expect(meta.shardCount).toBe(16);
-    expect(meta.storeVersion).toBe(4);
-    expect(meta.flashcards).toEqual({ 'card1': { id: 'card1' } });
+    expect(meta.store.version).toBe(4);
+    expect(meta.store.flashcards).toEqual({ 'card1': { id: 'card1' } });
   });
 
   it('loadShardedFlashcards reassembles store from shards', async () => {
@@ -370,6 +430,44 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     expect(loaded).toBeDefined();
     expect(loaded.flashcards).toEqual({ 'card1': { id: 'card1' } });
     expect(loaded.wordToCardMap['0aabcdef']).toEqual(['card1']);
+  });
+
+  it('refuses a failed durable library read even when the WebView cache is absent', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const loaded = vi.fn();
+    const failed = vi.fn();
+    bridge.flashcards.onFlashcards(loaded);
+    bridge.flashcards.onFlashcardLoadError(failed);
+    vi.mocked(Preferences.get).mockRejectedValueOnce(new Error('storage unavailable'));
+    bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(failed).toHaveBeenCalledWith('storage unavailable'));
+    expect(loaded).not.toHaveBeenCalled();
+    vi.mocked(Preferences.get).mockRejectedValueOnce(new Error('storage unavailable'));
+    await expect(bridge.kvStore.kvGet('mlearn-flashcards')).rejects.toThrow('storage unavailable');
+    bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+  });
+
+  it('reports a corrupt saved library without emitting an empty replacement and can retry', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    localStorage.setItem('flashcards_meta', '{ broken');
+    const loaded = vi.fn();
+    const failed = vi.fn();
+    bridge.flashcards.onFlashcards(loaded);
+    const cleanup = bridge.flashcards.onFlashcardLoadError(failed);
+    bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(failed).toHaveBeenCalledOnce());
+    expect(loaded).not.toHaveBeenCalled();
+    expect(localStorage.getItem('flashcards_meta')).toBe('{ broken');
+    cleanup();
+    await expect(bridge.flashcards.saveFlashcards(makeStore() as never)).rejects.toThrow();
+    localStorage.removeItem('flashcards_meta');
+    bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+    expect(failed).toHaveBeenCalledOnce();
   });
 
   it('loadShardedFlashcards returns empty store when no data', async () => {
@@ -415,8 +513,8 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     await new Promise(r => setTimeout(r, 20));
     const callsAfterSecond = vi.mocked(Preferences.set).mock.calls.length;
 
-    // Only meta should be re-written (shards unchanged)
-    expect(callsAfterSecond - callsAfterFirst).toBeLessThanOrEqual(1);
+    // Only the candidate intent and root are re-written (shards unchanged)
+    expect(callsAfterSecond - callsAfterFirst).toBe(2);
   });
 });
 
@@ -1412,6 +1510,23 @@ describe('Voice Bridge', () => {
     expect(status.statusMessage).toContain('not available');
   });
 
+  it('declares absent AI call transport and fails owned requests explicitly', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge'); const { voice } = createCapacitorBridge();
+    const error = vi.fn(); const tts = vi.fn(); const progress = vi.fn();
+    const unsubscribe = voice.onVoiceSessionError(error); const unsubscribeTts = voice.onVoiceTtsStatus(tts);
+    const unsubscribeProgress = voice.onVoiceModelProgress(progress);
+    const identity = { sessionId: 'call', requestId: 'mic' };
+    expect(voice.supportsCalls).toBe(false);
+    voice.voiceStartSession('test-language', 'vad', 0.8, 'system', identity);
+    expect(error).toHaveBeenCalledExactlyOnceWith({ ...identity, error: expect.stringContaining('desktop') });
+    voice.voiceTtsGenerate('Hello', 'test-language', 1, undefined, 'system', undefined, identity);
+    expect(tts).toHaveBeenCalledExactlyOnceWith({ ...identity, generating: false, playing: false, error: expect.stringContaining('desktop') });
+    voice.voiceDownloadModels('test-language');
+    expect(progress).toHaveBeenCalledWith(expect.objectContaining({ downloading: false, error: expect.any(String) }));
+    expect((await voice.voiceCheckModels('test-language')).statusMessage).not.toContain('Web Speech');
+    unsubscribe(); unsubscribeTts(); unsubscribeProgress();
+  });
+
   it('voiceSampleList returns empty array', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
@@ -1680,6 +1795,29 @@ describe('Data Bridge', () => {
     revokeUrlSpy.mockRestore();
   });
 
+  it.each([false, true])('imports a backup onto the current revision and validates it before settings (malformed=%s)', async malformed => {
+    const { createCapacitorBridge } = await import('./capacitorBridge'); const bridge = createCapacitorBridge();
+    const current = makeStore({ flashcards: { current: { id: 'current' } } });
+    await bridge.flashcards.saveFlashcards(current as never); await bridge.flashcards.saveFlashcards(current as never);
+    localStorage.setItem('settings', JSON.stringify({ language: 'old' }));
+    const input = document.createElement('input');
+    const original = document.createElement.bind(document);
+    const spy = vi.spyOn(document, 'createElement').mockImplementation((tag, options) => tag === 'input' ? input : original(tag, options));
+    const result = bridge.data.dataImport();
+    const imported = malformed ? { flashcards: null } : { ...makeStore({ flashcards: { imported: { id: 'imported' } } }), rev: 17 };
+    Object.defineProperty(input, 'files', { value: [{ text: async () => JSON.stringify({ settings: { language: 'new' }, flashcards: imported }) }] });
+    input.dispatchEvent(new Event('change'));
+    const outcome = await result; spy.mockRestore();
+    expect(outcome.success).toBe(!malformed);
+    expect(JSON.parse(localStorage.getItem('settings')!).language).toBe(malformed ? 'old' : 'new');
+    if (!malformed) {
+      const loaded = vi.fn(); bridge.flashcards.onFlashcards(loaded); bridge.flashcards.getFlashcards();
+      await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+      expect(loaded.mock.calls[0][0].rev).toBe(3);
+      expect(loaded.mock.calls[0][0].flashcards).toEqual({ imported: { id: 'imported' } });
+    }
+  });
+
   it('dataImport creates a file input element', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
@@ -1828,6 +1966,69 @@ describe('Backend URL helpers', () => {
   });
 });
 
+describe('canonical projections without mobile graph distribution', () => {
+  it('preserves arbitrary authored surface evidence with zero structural credit and bounds the evidence scan', async () => {
+    vi.resetModules();
+    localStorage.clear();
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const { hashWordSync } = await import('../utils/wordHash');
+    const bridge = createCapacitorBridge();
+    const hash = hashWordSync('authored');
+    const key = `future:${hash}`;
+    const id = `future:surface:${hash}`;
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ [key]: [{ t: 1, kind: 'claim', source: 'manual',
+      targetRef: { kind: 'surface', id, capability: 'future::unknown-access' }, toStatus: 'known' }] });
+    const result = await bridge.graph.getKnowledgeProjection('future', 'authored');
+    expect(result).toMatchObject({ status: 'ready', graphStatus: 'unavailable', surfaceKnown: false, surfaceId: id,
+      targets: [{ targetRef: { kind: 'surface', id }, states: [{ capability: 'future::unknown-access', classification: 'known', basis: 'claim' }] }] });
+    expect(result.targets.flatMap(target => target.states).every(state => state.prediction === undefined)).toBe(true);
+    expect(await bridge.graph.getEvidenceLinkedSurfaces('future', ['authored', 'unseen'], [key])).toEqual(['authored']);
+    expect(await bridge.graph.getGraphMeta('future')).toMatchObject({ status: 'unavailable', ready: false });
+  });
+});
+
+describe('concurrent mobile projection history reads', () => {
+  it('shares a read snapshot across a bounded batch and reloads after a journal write', async () => {
+    vi.resetModules(); localStorage.clear();
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const { Preferences } = await import('@capacitor/preferences');
+    const { hashWordSync } = await import('../utils/wordHash');
+    const bridge = createCapacitorBridge();
+    const key = `future:${hashWordSync('authored')}`;
+    const id = `future:surface:${hashWordSync('authored')}`;
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ [key]: [{ t: 1, kind: 'claim', source: 'manual',
+      targetRef: { kind: 'surface', id, capability: 'future::unknown-access' }, toStatus: 'known' }] });
+    vi.mocked(Preferences.get).mockClear();
+    const results = await Promise.all(Array.from({ length: 8 }, () => bridge.graph.getKnowledgeProjection('future', 'authored')));
+    expect(vi.mocked(Preferences.get).mock.calls.filter(([arg]) => arg.key === 'mlearn-knowledge-events:future')).toHaveLength(1);
+    expect(results.every(result => result.targets[0].states[0].classification === 'known')).toBe(true);
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ [key]: [{ t: 2, kind: 'claim', source: 'manual',
+      targetRef: { kind: 'surface', id, capability: 'future::unknown-access' }, toStatus: 'unknown' }] });
+    expect((await bridge.graph.getKnowledgeProjection('future', 'authored')).targets[0].states[0].classification).toBe('unknown');
+    expect(results[0].targets[0].states[0].classification).toBe('known');
+  });
+});
+
+describe('graphless alias projection boundaries', () => {
+  it('recovers exact alias observations from a family container without borrowing its unaddressed history', async () => {
+    vi.resetModules(); localStorage.clear();
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const { hashWordSync } = await import('../utils/wordHash');
+    const bridge = createCapacitorBridge();
+    const key = `future:${hashWordSync('family')}`;
+    const id = `future:surface:${hashWordSync('alias')}`;
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ [key]: [
+      { t: 1, kind: 'claim', source: 'manual', aspect: 'reading', toStatus: 'known' },
+      { t: 2, kind: 'claim', source: 'manual', targetRef: { kind: 'surface', id, capability: 'sense-recognition' }, toStatus: 'known' },
+    ] });
+    const projection = await bridge.graph.getKnowledgeProjection('future', 'alias');
+    expect(projection.targets[0].states).toMatchObject([{ capability: 'sense-recognition', classification: 'known', basis: 'claim' }]);
+    expect(projection.targets[0].states.some(state => state.capability === 'surface-reading')).toBe(false);
+    expect(await bridge.graph.getEvidenceLinkedSurfaces('future', ['alias', 'unseen'], [key])).toEqual(['alias']);
+    expect(projection.targets[0].states[0].retention).toBeUndefined();
+  });
+});
+
 describe('knowledgeEvents bridge (Capacitor journal)', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -1835,6 +2036,107 @@ describe('knowledgeEvents bridge (Capacitor journal)', () => {
   });
 
   const event = (t: number) => ({ t, kind: 'rating', source: 'srs', aspect: 'meaning', rating: 'good' }) as never;
+
+  it('refuses native journal writes without publishing an observation or a change notification', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    const changed = vi.fn(); const off = bridge.knowledgeEvents.onKnowledgeEventsChanged(changed);
+    vi.mocked(Preferences.set).mockRejectedValueOnce(new Error('native journal full'));
+    const incoming = { 'future:write': [{ t: 1, kind: 'rating', source: 'srs', attemptId: 'failed-native',
+      targetRef: { kind: 'opaque', id: 'entity', capability: 'unknown:access' } }] } as never;
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents(incoming)).rejects.toThrow('native journal full');
+    expect(changed).not.toHaveBeenCalled();
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['future:write'])).toEqual({});
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents(incoming)).resolves.toBe(true);
+    expect(changed).toHaveBeenCalledOnce(); off();
+  });
+
+  it('retains the native journal acknowledgement when only the WebView mirror fails, including cold reads', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const get = vi.mocked(Preferences.get).getMockImplementation()!;
+    const set = vi.mocked(Preferences.set).getMockImplementation()!;
+    const native = new Map<string, string>();
+    vi.mocked(Preferences.get).mockImplementation(async ({ key }) => ({ value: native.get(key) ?? null }));
+    vi.mocked(Preferences.set).mockImplementation(async ({ key, value }) => { native.set(key, value); });
+    const mirror = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('WebView quota exceeded'); });
+    try {
+      const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+      const row = { t: 1, kind: 'claim', source: 'manual', eventId: 'native-only', toStatus: 'known', packageData: { unknown: [2] } } as const;
+      expect(await bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:native-only': [row] })).toBe(true);
+      mirror.mockRestore(); localStorage.clear(); vi.resetModules();
+      const restarted = (await import('./capacitorBridge')).createCapacitorBridge();
+      expect(await restarted.knowledgeEvents.queryKnowledgeEvents(['future:native-only'])).toEqual({ 'future:native-only': [row] });
+      await restarted.knowledgeEvents.appendKnowledgeEvents({ 'future:native-only': [row] });
+      expect(await restarted.knowledgeEvents.queryKnowledgeEvents(['future:native-only'])).toEqual({ 'future:native-only': [row] });
+    } finally { mirror.mockRestore(); vi.mocked(Preferences.get).mockImplementation(get); vi.mocked(Preferences.set).mockImplementation(set); }
+  });
+
+  it('refuses a native journal read failure instead of using a stale WebView copy', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:read': [event(1)] });
+    const before = localStorage.getItem('mlearn-knowledge-events:future');
+    vi.mocked(Preferences.get).mockRejectedValueOnce(new Error('native journal unavailable'));
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:read': [event(2)] })).rejects.toThrow('native journal unavailable');
+    expect(localStorage.getItem('mlearn-knowledge-events:future')).toBe(before);
+    vi.mocked(Preferences.get).mockRejectedValueOnce(new Error('native journal unavailable'));
+    await expect(bridge.knowledgeEvents.queryKnowledgeEvents(['future:read'])).rejects.toThrow('native journal unavailable');
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['future:read'])).toEqual({ 'future:read': [event(1)] });
+  });
+
+  it.each(['{broken', 'null', '[]', '{"future:bad":[{}]}', '{"version":2,"events":{}}',
+    '{"version":1,"events":{"future:bad":null},"observationIdentities":{}}',
+    '{"version":1,"events":{},"observationIdentities":{"future:bad":[null]}}'])('preserves an unreadable journal instead of starting empty: %s', async raw => {
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    localStorage.setItem('mlearn-knowledge-events:future', raw);
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:bad': [event(1)] })).rejects.toThrow();
+    expect(localStorage.getItem('mlearn-knowledge-events:future')).toBe(raw);
+    await expect(bridge.knowledgeEvents.queryKnowledgeEvents(['future:bad'])).rejects.toThrow();
+  });
+
+  it.each([
+    { eventId: { unknown: 1 } }, { attemptId: { unknown: 1 } }, { retracts: { unknown: 1 } },
+    { ankiReviewId: { unknown: 1 } }, { schedulerCardId: { unknown: 1 } },
+    { targetRef: { kind: 'opaque', id: 'entity', capability: { unknown: 1 } } },
+    { targetRef: { kind: 'opaque', id: { unknown: 1 } } },
+    { decisionRef: { id: { unknown: 1 } } }, { itemRef: { id: 'opaque', version: { unknown: 1 } } },
+  ])('rejects malformed technical identity/address data before admission and on authority read: %j', async fields => {
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    const row = { t: 1, kind: 'rating', source: 'manual', ...fields };
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:malformed-id': [row] } as never)).rejects.toThrow();
+    expect(localStorage.getItem('mlearn-knowledge-events:future')).toBeNull();
+    const raw = JSON.stringify({ version: 1, events: { 'future:malformed-id': [row] }, observationIdentities: {} });
+    localStorage.setItem('mlearn-knowledge-events:future', raw);
+    await expect(bridge.knowledgeEvents.queryKnowledgeEvents(['future:malformed-id'])).rejects.toThrow();
+    expect(localStorage.getItem('mlearn-knowledge-events:future')).toBe(raw);
+  });
+
+  it('preserves numeric historical attempts and arbitrary unfamiliar technical strings', async () => {
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    const row = { t: 1, kind: 'future-unknown-event', source: 'future-unknown-source', attemptId: 7,
+      targetRef: { kind: 'opaque-unknown', id: 'entity', capability: 'unknown:category', futureAddress: { context: [2] } },
+      packageData: { unknown: [3, { condition: true }] } };
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:numeric-history': [row, row] } as never);
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['future:numeric-history'])).toEqual({ 'future:numeric-history': [row, row] });
+  });
+
+  it('captures caller-owned observation metadata before asynchronous native reads', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    let release!: () => void; let reached!: () => void;
+    const ready = new Promise<void>(resolve => { reached = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const original = vi.mocked(Preferences.get).getMockImplementation()!;
+    vi.mocked(Preferences.get).mockImplementationOnce(async input => { reached(); await gate; return original(input); });
+    const observation = { t: 1, kind: 'claim', source: 'manual', eventId: 'captured-mobile',
+      toStatus: 'known', targetRef: { kind: 'opaque', id: 'entity', capability: 'unknown:access' },
+      packageData: { context: ['original'] } } as const;
+    const expected = structuredClone(observation);
+    const append = bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:captured': [observation] });
+    await ready; (observation.packageData.context as string[])[0] = 'mutated after submission'; release();
+    await append;
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['future:captured'])).toEqual({ 'future:captured': [expected] });
+  });
 
   it('appends events, persists them, and round-trips through get/query', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
@@ -1855,6 +2157,35 @@ describe('knowledgeEvents bridge (Capacitor journal)', () => {
     expect(await bridge.knowledgeEvents.getKnowledgeEvents('ja:abc')).toEqual({
       'ja:abc': [event(1), event(2), event(3)],
     });
+  });
+
+  it('deduplicates concurrent retries and retains distinct accesses across restart', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const reading = { t: Date.now(), kind: 'rating', source: 'srs', aspect: 'reading', quality: 'fluent', attemptId: 'mobile-response' } as const;
+    const meaning = { ...reading, aspect: 'meaning' } as const;
+    await Promise.all([
+      bridge.knowledgeEvents.appendKnowledgeEvents({ 'xx:retry': [reading] }),
+      bridge.knowledgeEvents.appendKnowledgeEvents({ 'xx:retry': [reading, meaning, meaning] }),
+    ]);
+    expect((await bridge.knowledgeEvents.queryKnowledgeEvents(['xx:retry']))['xx:retry']).toEqual([reading, meaning]);
+    vi.resetModules();
+    const restarted = (await import('./capacitorBridge')).createCapacitorBridge();
+    await restarted.knowledgeEvents.appendKnowledgeEvents({ 'xx:retry': [reading, meaning] });
+    expect((await restarted.knowledgeEvents.queryKnowledgeEvents(['xx:retry']))['xx:retry']).toEqual([reading, meaning]);
+  });
+
+  it('keeps identities when old rollups consolidate and accepts existing plain shards', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const old = { t: Date.now() - 100 * 86400000, kind: 'rollup', source: 'reader', timesSeenDelta: 1, eventId: 'mobile-old-1' } as const;
+    const later = { ...old, t: old.t + 1, eventId: 'mobile-old-2' };
+    localStorage.setItem('mlearn-knowledge-events:xx', JSON.stringify({ 'xx:legacy': [old] }));
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'xx:legacy': [old, later] });
+    const before = await bridge.knowledgeEvents.queryKnowledgeEvents(['xx:legacy']);
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'xx:legacy': [old, later] });
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['xx:legacy'])).toEqual(before);
+    expect(before['xx:legacy']?.reduce((n, row) => n + (row.timesSeenDelta ?? 0), 0)).toBe(2);
   });
 
   it('routes shards by key prefix and isolates languages', async () => {
@@ -1898,27 +2229,30 @@ describe('knowledgeEvents bridge (Capacitor journal)', () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
     const day = 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    const base = now - 95 * day; // well past the 90-day retention window
-    const oldRollup = (t: number) => ({ t, kind: 'rollup', source: 'srs', aspect: 'meaning', timesSeenDelta: 1 }) as never;
-    await bridge.knowledgeEvents.appendKnowledgeEvents({
-      'ja:hist': [
-        event(now - 10 * day),
-        oldRollup(base),
-        oldRollup(base + 2 * 60 * 60 * 1000), // same ISO week as base → collapses into it
-        oldRollup(base + 8 * day),            // guaranteed different ISO week → retained
-        { t: base, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known' } as never,
-      ],
-    });
-    const stored = await bridge.knowledgeEvents.getKnowledgeEvents('ja:hist');
-    const events = stored['ja:hist']!;
-    const rollups = events.filter((e) => e.kind === 'rollup');
-    // Two stale rollups in one ISO week collapse to the later one; the third week is kept.
-    expect(rollups).toHaveLength(2);
-    // Claims survive regardless of age — retention never touches epistemic events.
-    expect(events.filter((e) => e.kind === 'claim')).toHaveLength(1);
-    // The anchor event is always retained.
-    expect(events[0].kind).toBe('rating');
+    const now = Date.UTC(2026, 9, 1, 12);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      const base = now - 95 * day; // well past the 90-day retention window
+      const oldRollup = (t: number) => ({ t, kind: 'rollup', source: 'srs', aspect: 'meaning', timesSeenDelta: 1 }) as never;
+      await bridge.knowledgeEvents.appendKnowledgeEvents({
+        'ja:hist': [
+          event(now - 10 * day),
+          oldRollup(base),
+          oldRollup(base + 2 * 60 * 60 * 1000), // same ISO week as base → collapses into it
+          oldRollup(base + 8 * day),            // guaranteed different ISO week → retained
+          { t: base, kind: 'claim', source: 'manual', aspect: 'meaning', toStatus: 'known' } as never,
+        ],
+      });
+      const stored = await bridge.knowledgeEvents.getKnowledgeEvents('ja:hist');
+      const events = stored['ja:hist']!;
+      const rollups = events.filter((e) => e.kind === 'rollup');
+      // Two stale rollups in one ISO week collapse to the later one; the third week is kept.
+      expect(rollups).toHaveLength(2);
+      // Claims survive regardless of age — retention never touches epistemic events.
+      expect(events.filter((e) => e.kind === 'claim')).toHaveLength(1);
+      // The anchor event is always retained.
+      expect(events[0].kind).toBe('rating');
+    } finally { clock.mockRestore(); }
   });
 
   it('keeps unconsolidated history intact when nothing is stale', async () => {

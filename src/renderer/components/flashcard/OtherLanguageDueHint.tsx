@@ -8,7 +8,7 @@ import './OtherLanguageDueHint.css';
 
 export function OtherLanguageDueHint() {
   const { t } = useLocalization();
-  const { store, refreshQueue } = useFlashcards();
+  const { getStudyableCards, refreshQueue } = useFlashcards();
   const { settings, updateSetting } = useSettings();
   const { langData } = useLanguage();
 
@@ -16,7 +16,7 @@ export function OtherLanguageDueHint() {
     const lang = settings.language;
     const hour = settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!;
     const dueCounts = new Map<string, number>();
-    for (const card of getDueCards(store.flashcards, hour)) {
+    for (const card of getDueCards(getStudyableCards(), hour)) {
       if (!card.language || card.language === lang) continue;
       dueCounts.set(card.language, (dueCounts.get(card.language) ?? 0) + 1);
     }

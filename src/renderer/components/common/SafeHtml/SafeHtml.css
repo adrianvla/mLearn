@@ -1,0 +1,12 @@
+/* Generated snapshots contain copied inline colors, without the package
+ * identifiers needed to resolve them against today's annotation preferences.
+ * Keep their text and markup intact and give them a readable theme foreground. */
+.safe-html--stored-words .subtitle_word {
+  color: var(--text-primary) !important;
+}
+
+.safe-html--stored-words .subtitle_word.defined {
+  font-weight: var(--font-weight-semibold);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}

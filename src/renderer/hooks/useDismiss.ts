@@ -12,6 +12,10 @@
  */
 import { createEffect, onCleanup, type Accessor } from 'solid-js';
 
+// Activation order belongs to this renderer window. Non-dismissible surfaces
+// still reserve Escape while busy, and cleanup restores the previous owner.
+const escapeOwners: symbol[] = [];
+
 export interface DismissOptions {
   /** Dismissal is only wired up while this is true. */
   active: Accessor<boolean>;
@@ -42,13 +46,30 @@ export function useDismiss(options: DismissOptions): void {
 
   createEffect(() => {
     if (!active()) return;
-    const closeOnOutsidePointer = options.closeOnOutsidePointer ?? false;
+    const owner = Symbol('dismiss');
+    escapeOwners.push(owner);
 
     const handleKeydown = (event: KeyboardEvent) => {
-      if ((options.closeOnEscape ?? true) && event.key === 'Escape') onDismiss('escape');
+      if (event.defaultPrevented || event.key !== 'Escape' || escapeOwners.at(-1) !== owner) return;
+      // Consume before onDismiss can unmount the panel or restore focus; that
+      // same key must not reach the next surface or an underlying study action.
+      event.preventDefault();
+      event.stopPropagation();
+      if (options.closeOnEscape ?? true) onDismiss('escape');
     };
+
+    document.addEventListener('keydown', handleKeydown);
+    onCleanup(() => {
+      document.removeEventListener('keydown', handleKeydown);
+      const index = escapeOwners.indexOf(owner);
+      if (index !== -1) escapeOwners.splice(index, 1);
+    });
+  });
+
+  // Pointer-policy changes must not reorder Escape ownership while open.
+  createEffect(() => {
+    if (!active() || !(options.closeOnOutsidePointer ?? false)) return;
     const handlePointerDown = (event: PointerEvent) => {
-      if (!closeOnOutsidePointer) return;
       const target = event.target as Node | null;
       if (!target) return;
       const keepInside = (inside?.() ?? []).some((node) => node?.contains(target));
@@ -56,10 +77,8 @@ export function useDismiss(options: DismissOptions): void {
       onDismiss('outside-pointer');
     };
 
-    document.addEventListener('keydown', handleKeydown);
-    if (closeOnOutsidePointer) document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('pointerdown', handlePointerDown);
     onCleanup(() => {
-      document.removeEventListener('keydown', handleKeydown);
       document.removeEventListener('pointerdown', handlePointerDown);
     });
   });

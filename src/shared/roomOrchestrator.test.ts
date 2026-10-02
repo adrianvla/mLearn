@@ -316,6 +316,46 @@ describe('runRoomTurn', () => {
     expect(readded.event!.witnesses).toEqual(['p_a', 'p_b', USER_ACTOR]);
   });
 
+  it('keeps a direct address focused while allowing multiple named people to answer', async () => {
+    const people = [participant('p_a', 'Anna'), participant('p_b', 'Bella'), participant('p_c', 'Cleo')];
+    const run = (text: string) => runRoomTurn({ room: room('r1', people.map(p => p.id)), participants: people, seaEvents: [],
+      threadEvents: [messageEvent('u', 1, USER_ACTOR, text, [...people.map(p => p.id), USER_ACTOR])],
+      runAgentTurn: async id => ({ text: `${id} answered.` }), appendEvent: makeAppender().appendEvent });
+    expect((await run('Bella, your opinion?')).speakerIds).toEqual(['p_b']);
+    expect((await run('Anna, Bella: your opinions?')).speakerIds).toEqual(['p_a', 'p_b']);
+  });
+
+  it('keeps name mentions as group context and resolves overlapping names only on explicit address', async () => {
+    const run = (people: Participant[], text: string) => runRoomTurn({ room: room('r1', people.map(p => p.id)), participants: people, seaEvents: [],
+      threadEvents: [messageEvent('u', 1, USER_ACTOR, text, [...people.map(p => p.id), USER_ACTOR])],
+      runAgentTurn: async id => ({ text: `${id} replied.` }), appendEvent: makeAppender().appendEvent });
+    expect((await run([participant('p_a', 'Anna'), participant('p_b', 'Bella')], "Both of you, what do you think of Anna's suggestion?")).speakerIds).toEqual(['p_a', 'p_b']);
+    expect((await run([participant('p_a', 'Ann'), participant('p_b', 'Anna')], 'Anna, your opinion?')).speakerIds).toEqual(['p_b']);
+    expect((await run([participant('p_a', 'Same'), participant('p_b', 'Same')], 'Same: your opinion?')).speakerIds).toEqual(['p_a', 'p_b']);
+  });
+
+  it('compiles the next group response after the earlier reply and respects deliberate silence', async () => {
+    const a = participant('p_a', 'Anna'), b = participant('p_b', 'Bella'), observer = participant('p_o', 'Observer', { speaking_propensity: 0.05 });
+    const seen: string[][] = [];
+    const result = await runRoomTurn({ room: room('r1', ['p_a', 'p_b', 'p_o']), participants: [a, b, observer], seaEvents: [],
+      threadEvents: [messageEvent('u', 1, USER_ACTOR, 'Tell me your opinions.', ['p_a', 'p_b', 'p_o', USER_ACTOR])],
+      runAgentTurn: async (id, context) => { seen.push(context.recentThreadEvents.map(event => event.text ?? '')); return { text: `${id} answered.` }; },
+      appendEvent: makeAppender().appendEvent });
+    expect(result.speakerIds).toEqual(['p_a', 'p_b']);
+    expect(seen[1]).toContain('p_a answered.');
+  });
+
+  it('gives less recent group speakers priority within the shared exchange budget', async () => {
+    const people = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo'].map((name, index) => participant(`p_${'abcde'[index]}`, name));
+    const result = await runRoomTurn({ room: room('r1', people.map(p => p.id)), participants: people, seaEvents: [],
+      threadEvents: [messageEvent('old-c', 1, 'p_c', 'Earlier answer.', [...people.map(p => p.id), USER_ACTOR]),
+        messageEvent('old-b', 2, 'p_b', 'Recent answer.', [...people.map(p => p.id), USER_ACTOR]),
+        messageEvent('u', 3, USER_ACTOR, 'Tell me your opinions.', [...people.map(p => p.id), USER_ACTOR])],
+      maxCharacterExchanges: 2, runAgentTurn: async id => ({ text: `${id} answered.` }), appendEvent: makeAppender().appendEvent });
+    expect(result.speakerIds).toEqual(['p_a', 'p_d', 'p_e']);
+    expect(result.stoppedReason).toBe('exchange-limit');
+  });
+
   it('stops at the exchange cap with exchange-limit even when every message addresses the next speaker', async () => {
     const a = participant('p_a', 'Anna');
     const b = participant('p_b', 'Bella');
@@ -373,7 +413,7 @@ describe('runRoomTurn', () => {
     expect(result.events.length).toBe(2);
   });
 
-  it('stops with no-eligible-speaker when the first response does not address anyone', async () => {
+  it('lets both group members answer without requiring an invented name handoff', async () => {
     const a = participant('p_a', 'Anna');
     const b = participant('p_b', 'Bella');
     const r = room('r1', ['p_a', 'p_b']);
@@ -386,8 +426,8 @@ describe('runRoomTurn', () => {
       runAgentTurn: async () => ({ text: 'Just chatting.' }),
       appendEvent: makeAppender().appendEvent,
     });
-    expect(result.speakerIds).toEqual(['p_a']);
-    expect(result.events.length).toBe(1);
+    expect(result.speakerIds).toEqual(['p_a', 'p_b']);
+    expect(result.events.length).toBe(2);
     expect(result.stoppedReason).toBe('no-eligible-speaker');
   });
 });

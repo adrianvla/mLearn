@@ -1,20 +1,5 @@
 // @vitest-environment happy-dom
 
-/**
- * The Suggested list's "Ignore" button is a grey icon that reads as a mute. It
- * sits beside "Add card" for the very same word. It is not a mute: ignoring a
- * word deletes the flashcards built from it, along with their sentences,
- * images and audio, and nothing in the app can put them back.
- *
- * Observed in the running app, before this was fixed: pressing "Ignore" on a
- * word that owned a real flashcard removed that card and reported success,
- * 451 -> 450, with no dialog and nothing to undo. Reached from Browse, the same
- * word had an explicit Delete behind a prompt.
- *
- * These tests drive the real component: they assert the dialog is in the way
- * and that declining it really keeps the card.
- */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { type Component } from 'solid-js';
@@ -164,6 +149,7 @@ vi.mock('@shared/languageFeatures', () => ({
 }));
 vi.mock('./FlashcardsSuggested.css', () => ({}));
 
+import { showToast } from '../../components/common/Feedback/Toast';
 import { FlashcardsSuggested } from './FlashcardsSuggested';
 
 const flush = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
@@ -176,22 +162,6 @@ const clickIgnore = (container: HTMLElement) => {
   button.click();
 };
 
-/**
- * Only buttons inside a dialog, and only ones this test's component opened.
- *
- * Two traps here, both real. The rows carry their own "Delete" button with the
- * same label as the confirmation, so a bare label match mistakes a row action
- * for the prompt. And the modal renders through a Portal onto `document.body`,
- * outside the container a test cleans up, so a dialog left open by an earlier
- * case is still around for the next one. Scoping to the rows this component
- * rendered and dismissing between cases avoids both.
- */
-const dialogButton = (_container: HTMLElement, label: string): HTMLButtonElement | undefined =>
-  Array.from(document.querySelectorAll('[role=dialog]'))
-    .map((d) => Array.from(d.querySelectorAll('button'))
-      .find((b) => (b.textContent ?? '').trim() === label))
-    .find(Boolean) as HTMLButtonElement | undefined;
-
 describe('ignoring a suggested word that owns a flashcard', () => {
   let container: HTMLDivElement;
 
@@ -202,74 +172,38 @@ describe('ignoring a suggested word that owns a flashcard', () => {
     for (const d of Array.from(document.querySelectorAll('[role=dialog]'))) d.remove();
     container = document.createElement('div');
     document.body.appendChild(container);
-    flashcards.ignoreWordForLanguage.mockClear();
+    flashcards.ignoreWordForLanguage.mockReset();
+    flashcards.ignoreWordForLanguage.mockResolvedValue(undefined);
+    vi.mocked(showToast).mockClear();
     flashcards.removeSuggestedFlashcard.mockClear();
   });
 
   afterEach(() => container.remove());
 
-  it('asks before the card is destroyed', async () => {
-    flashcards.wordsWithCards.clear();
+  it('saves a study preference without implying that authored cards are deleted', async () => {
     flashcards.wordsWithCards.add('alpha');
     render(() => <FlashcardsSuggested />, container);
-    await flush();
-
-    clickIgnore(container);
-    await flush();
-
-    expect(
-      flashcards.ignoreWordForLanguage,
-      'the card was removed without asking',
-    ).not.toHaveBeenCalled();
-    expect(
-      dialogButton(container, 'mlearn.Global.Delete'),
-      'no confirmation was put in front of the ignore',
-    ).toBeTruthy();
-  });
-
-  it('ignores the word once confirmed', async () => {
-    flashcards.wordsWithCards.clear();
-    flashcards.wordsWithCards.add('alpha');
-    render(() => <FlashcardsSuggested />, container);
-    await flush();
-
-    clickIgnore(container);
-    await flush();
-    dialogButton(container, 'mlearn.Global.Delete')!.click();
-    await flush();
-
-    expect(flashcards.ignoreWordForLanguage).toHaveBeenCalledOnce();
-    expect(flashcards.ignoreWordForLanguage.mock.calls[0][0]).toBe('alpha');
-    // The suggestion itself is retired along with the word, as before.
+    await flush(); clickIgnore(container); await flush();
+    expect(document.querySelector('[role=dialog]')).toBeNull();
+    expect(flashcards.ignoreWordForLanguage).toHaveBeenCalledWith('alpha', '', 'ja');
     expect(flashcards.removeSuggestedFlashcard).toHaveBeenCalledWith('a');
   });
-
-  it('cancelling keeps the word and its card', async () => {
-    flashcards.wordsWithCards.clear();
-    flashcards.wordsWithCards.add('alpha');
+  it('keeps the suggestion while its preference save is pending', async () => {
+    let accept!: () => void;
+    flashcards.ignoreWordForLanguage.mockImplementationOnce(() => new Promise<void>(resolve => { accept = resolve; }));
     render(() => <FlashcardsSuggested />, container);
-    await flush();
-
-    clickIgnore(container);
-    await flush();
-    dialogButton(container, 'mlearn.Global.Cancel')!.click();
-    await flush();
-
-    expect(flashcards.ignoreWordForLanguage).not.toHaveBeenCalled();
+    await flush(); clickIgnore(container); await flush();
     expect(flashcards.removeSuggestedFlashcard).not.toHaveBeenCalled();
+    accept(); await flush();
+    expect(flashcards.removeSuggestedFlashcard).toHaveBeenCalledWith('a');
   });
-
-  it('stays one-click for a word that owns no cards', async () => {
-    // Most words in this list have no card, and the prompt only earns its
-    // friction when there is something to lose.
-    flashcards.wordsWithCards.clear();
+  it('keeps the suggestion and explains a refused preference save', async () => {
+    flashcards.ignoreWordForLanguage.mockRejectedValueOnce(new Error('disk full'));
     render(() => <FlashcardsSuggested />, container);
-    await flush();
-
-    clickIgnore(container);
-    await flush();
-
-    expect(flashcards.ignoreWordForLanguage).toHaveBeenCalledOnce();
-    expect(dialogButton(container, 'mlearn.Global.Delete')).toBeUndefined();
+    await flush(); clickIgnore(container); await flush();
+    expect(flashcards.removeSuggestedFlashcard).not.toHaveBeenCalled();
+    expect(showToast).toHaveBeenCalledWith({ message: 'mlearn.Knowledge.StudyPreferenceSaveFailed', variant: 'error' });
+    clickIgnore(container); await flush();
+    expect(flashcards.removeSuggestedFlashcard).toHaveBeenCalledWith('a');
   });
 });

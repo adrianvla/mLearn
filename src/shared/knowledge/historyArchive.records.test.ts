@@ -67,6 +67,8 @@ describe('attempt compaction classifier', () => {
     // Question-item provenance (G03) stays exact forever: item invalidation
     // must discover every attempt through an item at any archive age.
     expect(isAggregatableEvent(attempt({ t: old, itemRef: { id: 'de-weil-fieber-1', version: 'v1' } }), NOW)).toBe(false);
+    expect(isAggregatableEvent(attempt({ t: old, decisionRef: { id: 'decision-1' } }), NOW)).toBe(false);
+    expect(isAggregatableEvent(attempt({ t: old, transferContext: 'future::unfamiliar-context' }), NOW)).toBe(false);
     // Recency and acquisition windows still gate.
     expect(isAggregatableEvent(attempt({ t: NOW - 10 * DAY }), NOW)).toBe(false);
   });
@@ -111,6 +113,17 @@ describe('record codec round-trips', () => {
     const merged = decodeBucketRecords(first).concat([{ event: attempt({ t: 1_000 }), seq: 11 }]);
     const decoded = decodeBucketRecords(encodeBucketRecords(merged));
     expect(decoded.map(({ event }) => event.t).sort((a, b) => a - b)).toEqual([1_000, 5_000]);
+  });
+});
+
+describe('retracted decision audit', () => {
+  it('retains exact policy provenance beside its tombstone without reviving its learning effect', () => {
+    const event = attempt({ t: NOW - 400 * DAY, attemptId: 'decision-audit-attempt', decisionRef: { id: 'decision-audit' } });
+    const tombstone: KnowledgeEvent = { t: NOW - DAY, kind: 'retraction', source: 'manual', retracts: event.attemptId };
+    const compact = compactKeyEvents([{ event, seq: 1 }, { event: tombstone, seq: 2 }], NOW);
+    expect(compact.kept).toEqual([{ event, seq: 1 }, { event: tombstone, seq: 2 }]);
+    expect(replayKeyProjection(compact.kept.map(row => row.event))).toBeNull();
+    expect(compact.records.attemptRecords).toEqual([]);
   });
 });
 

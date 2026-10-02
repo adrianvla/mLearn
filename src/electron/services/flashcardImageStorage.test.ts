@@ -86,6 +86,7 @@ describe('flashcardImageStorage', () => {
 
   beforeEach(async () => {
     tempDir = createTempDir('mlearn-image-test-');
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), JSON.stringify({ flashcards: {}, suggestedFlashcards: {} }));
     mockIpcHandlers.clear();
     vi.resetModules();
 
@@ -671,6 +672,16 @@ describe('flashcardImageStorage', () => {
       const result = await handler!({}, 'flashcard-image://missing.png');
 
       expect(result).toBeNull();
+    });
+
+    it('retains an image referenced by a newer authoritative suggestion', async () => {
+      saveFlashcardImage('shared', makePngDataUrl());
+      fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), JSON.stringify({
+        flashcards: {}, suggestedFlashcards: { future: { id: 'other', imageUrl: 'flashcard-image://shared.webp' } },
+      }));
+      setupFlashcardImageIPC();
+      await mockIpcHandlers.get('flashcard-image-delete')!({}, 'shared');
+      expect(fs.existsSync(path.join(tempDir.tmpDir, 'flashcard-images', 'shared.png'))).toBe(true);
     });
 
     it('FLASHCARD_IMAGE_DELETE handler deletes image and returns true', async () => {

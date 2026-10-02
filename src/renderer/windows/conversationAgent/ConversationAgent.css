@@ -46,12 +46,6 @@
   line-height: var(--line-height-normal);
 }
 
-.ca-call-header-state {
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
 .has-call-surface > .ca-chat-panel { display: none; }
 .ca-provider-details { padding: var(--spacing-2); border-bottom: 1px solid var(--border-color); }
 
@@ -543,3 +537,6 @@ textarea.ca-chat-textarea,
 }
 
 .ca-overflow-item > .btn-content { width: 100%; justify-content: flex-start; }
+
+.ca-header-conversation { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-1); }
+.ca-header-context { color: var(--text-secondary); font-size: var(--font-size-xs); padding-inline: var(--spacing-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

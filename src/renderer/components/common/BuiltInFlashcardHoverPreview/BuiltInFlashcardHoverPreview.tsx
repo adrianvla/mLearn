@@ -50,7 +50,7 @@ export const BuiltInFlashcardHoverPreview: Component<BuiltInFlashcardHoverPrevie
               <Show when={card().content.example && card().content.example !== '-'}>
                 <div class="built-in-flashcard-hover-preview__field">
                   <span class="built-in-flashcard-hover-preview__label">{t('mlearn.FlashcardChoice.Example')}</span>
-                  <SafeHtml tag="span" class="built-in-flashcard-hover-preview__value" html={truncate(card().content.example!, 200)} />
+                  <SafeHtml tag="span" class="built-in-flashcard-hover-preview__value" html={truncate(card().content.example!, 200)} storedWordPresentation />
                 </div>
               </Show>
             </div>

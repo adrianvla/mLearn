@@ -46,10 +46,14 @@ export function firstCapitalizedWordSequence(text: string): string {
 export const NewConversationModal: Component<NewConversationModalProps> = (props) => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
-  const mode = () => props.mode ?? 'scenario';
-  const saved = mode() !== 'scenario' || props.initialIntent ? undefined : props.world?.scenarioCreations?.findLast(item => item.status === 'ready' || item.status === 'generating');
+  const entryMode = props.mode ?? 'scenario';
+  const saved = props.initialIntent || props.initialParticipantId ? undefined : props.world?.scenarioCreations?.findLast(item =>
+    (item.status === 'ready' || item.status === 'generating')
+    && (entryMode === 'practice' ? item.request.interactionMode === 'practice' : item.request.interactionMode !== 'practice'));
   const [intent, setIntent] = createSignal(props.initialIntent ?? saved?.request.intent ?? '');
-  const [scope, setScope] = createSignal<'sandbox' | 'persistent'>(mode() === 'message' || saved?.request.scope === 'persistent' ? 'persistent' : 'sandbox');
+  const [purpose, setPurpose] = createSignal<'conversation' | 'practice'>((saved?.request.interactionMode ?? entryMode) === 'practice' ? 'practice' : 'conversation');
+  const mode = () => purpose() === 'practice' ? 'practice' : intent().trim() ? 'scenario' : 'message';
+  const [scope, setScope] = createSignal<'sandbox' | 'persistent'>(saved ? saved.request.scope === 'persistent' ? 'persistent' : 'sandbox' : entryMode === 'message' ? 'persistent' : 'sandbox');
   const [selectedIds, setSelectedIds] = createSignal<ReadonlySet<string>>(new Set(props.initialParticipantId ? [props.initialParticipantId] : saved?.request.participantIds ?? []));
   const [preview, setPreview] = createSignal<ScenarioCreation | null>(saved?.status === 'ready' ? saved : null);
   const [candidates, setCandidates] = createSignal<Participant[]>([]);
@@ -59,7 +63,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
   // reads and what they are offered come from the one failure owner, so this
   // modal cannot report a provider failure differently from any other surface.
   const failure = createMemo(() => (error() ? classifyProviderFailure(error(), settings.llmProvider) : null));
-  let creationKey: string | undefined = saved ? JSON.stringify({ ids: saved.request.participantIds, intent: saved.request.intent?.trim() ?? '' }) : undefined;
+  let creationKey: string | undefined = saved ? JSON.stringify({ ids: saved.request.participantIds, intent: saved.request.intent?.trim() ?? '', scope: scope(), mode: mode() }) : undefined;
   let creationOperationId: string | undefined = saved?.operationId;
   let generation = 0;
   let stopConsentWait: (() => void) | undefined;
@@ -205,14 +209,18 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
     <ModalForm
       isOpen={!addingContact()}
       onClose={() => { void close(); }}
-      title={t(mode() === 'message' ? 'mlearn.ConversationAgent.Contacts.NewMessage' : mode() === 'practice' ? 'mlearn.ConversationAgent.Contacts.NewPractice' : 'mlearn.ConversationAgent.Contacts.NewScenario')}
-      size="sm"
+      title={t('mlearn.ConversationAgent.NewConversation.Title')}
+      size="md"
       showCloseButton={true}
       closeOnOverlay={!busy()}
       closeOnEscape={!busy()}
       onSubmit={handleStart}
       footer={
         <div class="new-conversation-actions">
+          <p class="new-conversation-summary" aria-live="polite">
+            {t(purpose() === 'practice' ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · {t(scope() === 'persistent' ? 'mlearn.ConversationAgent.NewConversation.ScopePersistent' : 'mlearn.ConversationAgent.NewConversation.ScopeTemporary')}
+            <Show when={selectedIds().size > 0}> · {t('mlearn.ConversationAgent.NewConversation.SelectedPeople', { count: String(selectedIds().size) })}</Show>
+          </p>
           <Button variant="ghost" onClick={() => { void close(); }}>{t('mlearn.ConversationAgent.NewConversation.Cancel')}</Button>
           <Show when={preview()}>
             <Button variant="ghost" disabled={busy()} onClick={() => { void changeScenario().catch(err => setError(String(err))); }}>{t('mlearn.ConversationAgent.NewConversation.ChangeScenario')}</Button>
@@ -234,12 +242,29 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
           <p class="new-conversation-media-context">{t('mlearn.ConversationAgent.NewConversation.MediaContext', { media: props.mediaName! })}</p>
         </Show>
         <Show when={!preview()}>
+          <fieldset class="new-conversation-purpose">
+            <legend class="new-conversation-scope-label">{t('mlearn.ConversationAgent.NewConversation.Purpose')}</legend>
+            <div class="new-conversation-scope-options" role="radiogroup" aria-label={t('mlearn.ConversationAgent.NewConversation.Purpose')}>
+              <RadioChoice name="conversation-purpose" size="sm" label={t('mlearn.ConversationAgent.NewConversation.Conversation')} checked={purpose() === 'conversation'} onChange={() => setPurpose('conversation')} disabled={busy()} />
+              <RadioChoice name="conversation-purpose" size="sm" label={t('mlearn.ConversationAgent.NewConversation.CoachedPractice')} checked={purpose() === 'practice'} onChange={() => setPurpose('practice')} disabled={busy()} />
+            </div>
+            <HintText>{t(purpose() === 'practice' ? 'mlearn.ConversationAgent.NewConversation.PracticeHint' : 'mlearn.ConversationAgent.NewConversation.ConversationHint')}</HintText>
+          </fieldset>
+          <fieldset class="new-conversation-scope">
+            <legend class="new-conversation-scope-label">{t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}</legend>
+            <div class="new-conversation-scope-options" role="radiogroup" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}>
+              <RadioChoice name="conversation-scope" size="sm" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')} checked={scope() === 'sandbox'} onChange={() => changeScope('sandbox')} disabled={busy()} />
+              <RadioChoice name="conversation-scope" size="sm" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopePersistent')} checked={scope() === 'persistent'} onChange={() => changeScope('persistent')} disabled={busy()} />
+            </div>
+            <HintText>{t(scope() === 'persistent' ? 'mlearn.ConversationAgent.NewConversation.PersistentHint' : 'mlearn.ConversationAgent.NewConversation.TemporaryHint')}</HintText>
+          </fieldset>
           <div class="new-conversation-people">
-            <Input type="search" value={query()} onInput={event => setQuery(event.currentTarget.value)}
-              leftIcon={<SearchIcon size={16} />} placeholder={t('mlearn.ConversationAgent.Contacts.Search')}
-              aria-label={t('mlearn.ConversationAgent.Contacts.Search')} disabled={busy()} />
-            <ListRow class="new-conversation-add" headline={t('mlearn.ConversationAgent.Contacts.Add')}
-              leading={<PlusIcon size={20} />} onClick={() => setAddingContact(true)} disabled={busy()} />
+            <div class="new-conversation-people-tools">
+              <Input type="search" value={query()} onInput={event => setQuery(event.currentTarget.value)}
+                leftIcon={<SearchIcon size={16} />} placeholder={t('mlearn.ConversationAgent.Contacts.Search')}
+                aria-label={t('mlearn.ConversationAgent.Contacts.Search')} disabled={busy()} />
+              <Button variant="ghost" size="sm" icon={<PlusIcon size={16} />} onClick={() => setAddingContact(true)} disabled={busy()}>{t('mlearn.ConversationAgent.Contacts.Add')}</Button>
+            </div>
             <div class="new-conversation-people-list" aria-label={t('mlearn.ConversationAgent.NewConversation.PeopleLabel')}>
               <For each={visibleContacts()}>{person => <ListRow
                 class="new-conversation-person" leading={<Avatar name={person.displayName} src={person.profilePhoto} size="sm" />}
@@ -251,37 +276,19 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
               <Show when={visibleContacts().length === 0}><HintText>{t('mlearn.ConversationAgent.Contacts.EmptyContacts')}</HintText></Show>
             </div>
           </div>
-          <Show when={mode() === 'scenario'}><fieldset class="new-conversation-scope">
-            <legend class="new-conversation-scope-label">{t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}</legend>
-            <div class="new-conversation-scope-options" role="radiogroup" aria-label={t('mlearn.ConversationAgent.NewConversation.ScopeLabel')}>
-              <RadioChoice name="conversation-scope" size="sm" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopeTemporary')} checked={scope() === 'sandbox'} onChange={() => changeScope('sandbox')} disabled={busy()} />
-              <RadioChoice name="conversation-scope" size="sm" class="new-conversation-scope-option" label={t('mlearn.ConversationAgent.NewConversation.ScopePersistent')} checked={scope() === 'persistent'} onChange={() => changeScope('persistent')} disabled={busy()} />
-            </div>
-            <Show when={scope() === 'persistent' && !settings.livingWorldEnabled}>
-              <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
-              <Button variant="primary" disabled={busy()} onClick={() => { void enableLivingWorldAndStart(); }}>
-                {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
-              </Button>
-            </Show>
-          </fieldset></Show>
-          <Show when={mode() === 'message' && !settings.livingWorldEnabled}>
+          <Disclosure title={t(purpose() === 'practice' ? 'mlearn.ConversationAgent.Contacts.OptionalGoal' : 'mlearn.ConversationAgent.NewConversation.OptionalSituation')} open={Boolean(props.initialIntent || saved?.request.intent || contacts().length === 0)}>
+            <FormField label={t(purpose() === 'practice' ? 'mlearn.ConversationAgent.NewConversation.PreparedGoalLabel' : 'mlearn.ConversationAgent.NewConversation.Scene')}>
+              <Textarea value={intent()} onInput={event => setIntent(event.currentTarget.value)}
+                placeholder={t('mlearn.ConversationAgent.NewConversation.SetupPlaceholder')} rows={2} disabled={busy()} />
+              <HintText>{t('mlearn.ConversationAgent.NewConversation.SetupHint')}</HintText>
+            </FormField>
+          </Disclosure>
+          <Show when={scope() === 'persistent' && !settings.livingWorldEnabled}>
             <HintText>{t('mlearn.ConversationAgent.LivingWorld.ConsentHint')}</HintText>
-            <Button variant="primary" disabled={busy() || selectedIds().size === 0} onClick={() => { void enableLivingWorldAndStart(); }}>
+            <Button variant="primary" disabled={busy() || (selectedIds().size === 0 && !intent().trim())} onClick={() => { void enableLivingWorldAndStart(); }}>
               {t('mlearn.ConversationAgent.LivingWorld.EnableAndContinue')}
             </Button>
           </Show>
-          <Show when={mode() !== 'message'}><Disclosure title={t(mode() === 'scenario' ? 'mlearn.ConversationAgent.NewConversation.Scene' : 'mlearn.ConversationAgent.Contacts.OptionalGoal')} open={Boolean(props.initialIntent || saved?.request.intent)}>
-          <FormField label={t(mode() === 'scenario' ? 'mlearn.ConversationAgent.NewConversation.Scene' : props.initialIntent || saved?.request.intent
-            ? 'mlearn.ConversationAgent.NewConversation.PreparedGoalLabel'
-            : 'mlearn.ConversationAgent.NewConversation.IntentLabel')}>
-            <Textarea
-              value={intent()}
-              onInput={(event) => setIntent(event.currentTarget.value)}
-              placeholder={t('mlearn.ConversationAgent.NewConversation.Placeholder')}
-              rows={3}
-            />
-          </FormField>
-          </Disclosure></Show>
           <Show when={candidates().length > 0}>
             <div class="new-conversation-disambiguation">
               <span>{t('mlearn.ConversationAgent.NewConversation.DidYouMean')}</span>

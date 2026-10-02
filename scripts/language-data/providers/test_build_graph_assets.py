@@ -49,6 +49,27 @@ def _payload(value: dict[str, Any]) -> bytes:
 
 
 class BuildGraphAssetsTest(unittest.TestCase):
+    def test_numbered_senses_preserve_typed_glosses_without_promoting_literal_notes(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir))
+            typed = lambda kind, text: {"data": {"content": "info-gloss", "gloss-type": kind},
+                "content": [{"tag": "span", "content": kind}, {"tag": "span", "content": text}]}
+            content = [{"data": {"code": "n"}, "content": "noun"},
+                {"data": {"sense-number": "1"}, "content": [{"data": {"content": "glossary"}, "content": "magazine"}]},
+                {"data": {"sense-number": "2"}, "content": typed("fig", "powder keg")},
+                {"data": {"sense-number": "3"}, "content": typed("lit", "to bare one shoulder")},
+                {"data": {"sense-number": "4"}, "content": typed("source-defined", "another source meaning")}]
+            senses = builder.jitendex_sense_groups(content)
+            self.assertEqual([sense["sourceSenseNumber"] for sense in senses], ["1", "2", "3", "4"])
+            self.assertEqual([sense["glosses"] for sense in senses], [["magazine"], ["powder keg"], ["to bare one shoulder"], ["another source meaning"]])
+            self.assertTrue(all(sense["posCodes"] == ["n"] for sense in senses))
+            # A sole unnumbered typed definition is one source meaning, while
+            # a supplemental literal note does not invent a second sense.
+            self.assertEqual(builder.jitendex_sense_groups(typed("lit", "literal definition"))[0]["glosses"], ["literal definition"])
+            self.assertEqual(builder.jitendex_sense_groups([
+                {"data": {"content": "glossary"}, "content": "ordinary definition"}, typed("lit", "literal note")
+            ])[0]["glosses"], ["ordinary definition"])
+
     def test_grammar_meanings_localized_variants_survive_packaging(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "root-of-app"
@@ -168,8 +189,8 @@ class BuildGraphAssetsTest(unittest.TestCase):
                              [("ja:prosody:p1", "kanjium-pitch"), ("ja:prosody:p2", "kanjium-pitch")])
 
             senses = [relation for relation in relations if relation["type"] == "has-sense"]
-            self.assertEqual([relation["to"] for relation in senses], ["ja:sense:1001:1"])
-            self.assertEqual(entities["ja:sense:1001:1"]["label"], "red")
+            self.assertEqual(len(senses), 1)
+            self.assertEqual(entities[senses[0]["to"]]["label"], "red")
             self.assertEqual({relation["to"] for relation in relations if relation["type"] == "has-pos"}, {"ja:pos:v5u", "ja:pos:vi"})
     def test_ja_marks_name_domain_entries_and_keeps_shared_surfaces_common(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -197,11 +218,11 @@ class BuildGraphAssetsTest(unittest.TestCase):
 
             self.assertEqual(entities["ja:entry:200001"]["domain"], "names")
             self.assertEqual(entities[builder.surface_id("ja", "ナポレオン")]["domain"], "names")
-            self.assertEqual(entities["ja:sense:200001:1"]["domain"], "names")
+            self.assertEqual(next(entity for entity in entities.values() if entity["kind"] == "sense" and entity["features"]["ja::jitendex-sense"]["dictionarySequence"] == 200001)["domain"], "names")
 
             self.assertEqual(entities["ja:entry:200002"]["domain"], "names")
             self.assertNotIn("domain", entities["ja:entry:200003"])
-            self.assertNotIn("domain", entities["ja:sense:200003:1"])
+            self.assertNotIn("domain", next(entity for entity in entities.values() if entity["kind"] == "sense" and entity["features"]["ja::jitendex-sense"]["dictionarySequence"] == 200003))
             self.assertNotIn("domain", entities[builder.surface_id("ja", "レア")])
 
             self.assertNotIn("domain", entities["ja:entry:200004"])
@@ -224,7 +245,150 @@ class BuildGraphAssetsTest(unittest.TestCase):
 
             self.assertEqual(entities["ja:entry:200005"]["domain"], "names")
             self.assertEqual(entities[builder.surface_id("ja", "孔子")]["domain"], "names")
-            self.assertEqual(entities["ja:sense:200005:1"]["domain"], "names")
+            self.assertEqual(next(entity for entity in entities.values() if entity["kind"] == "sense" and entity["features"]["ja::jitendex-sense"]["dictionarySequence"] == 200005)["domain"], "names")
+
+
+    def test_ja_preserves_real_sense_groups_without_gloss_truncation_or_legacy_id_reuse(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "dictionaries" / "jitendex-yomitan"
+            source.mkdir(parents=True)
+            def sense(number, *glosses):
+                return {"tag": "li", "data": {"sense-number": str(number)}, "content": [
+                    {"tag": "ul", "data": {"content": "glossary"}, "content": [
+                        {"tag": "li", "content": gloss} for gloss in glosses]},
+                    {"data": {"content": "extra-info"}, "content": "not a definition"}]}
+            content = [{"type": "structured-content", "content": [{"tag": "ul", "content": [
+                {"tag": "li", "content": [{"data": {"code": "v1"}, "content": "1-dan"},
+                    {"tag": "ol", "content": [sense(1, "to exist", "to be"), sense(2, "to stay")]}]},
+                {"tag": "li", "content": [{"data": {"code": "aux-v"}, "content": "auxiliary"}, {"data": {"code": "uk"}, "content": "kana"},
+                    {"tag": "ol", "content": [sense(3, "to be ...-ing", "to have been ...-ing"), sense(4, "fourth"), sense(5, "fifth")]}]}
+            ]}]}]
+            (source / "term_bank_1.json").write_text(json.dumps([
+                ["term", "reading-a", "", "", 0, content, 101],
+                ["term", "reading-b", "", "", 0, content, 101],
+            ]))
+            builder = _load_builder(root)
+            builder.build_ja()
+            graph = json.loads((root / "languages" / "ja.graph.json").read_text())
+            senses = [entity for entity in graph["entities"] if entity["kind"] == "sense"]
+            self.assertEqual(len(senses), 5)
+            self.assertEqual([entity["label"] for entity in senses], ["to exist; to be", "to stay", "to be ...-ing; to have been ...-ing", "fourth", "fifth"])
+            self.assertFalse(any(entity["id"] in {f"ja:sense:101:{n}" for n in range(1, 6)} for entity in senses))
+            auxiliary = senses[2]
+            self.assertEqual(auxiliary["features"]["ja::jitendex-sense"]["sourceSenseNumber"], "3")
+            self.assertEqual(auxiliary["features"]["ja::jitendex-sense"]["posCodes"], ["aux-v"])
+            self.assertEqual(auxiliary["features"]["ja::jitendex-sense"]["badgeCodes"], ["aux-v", "uk"])
+            sense_data = auxiliary["features"]["ja::jitendex-sense"]
+            self.assertEqual(builder.jitendex_sense_id(101, sense_data), builder.jitendex_sense_id(101, {**sense_data, "badgeCodes": ["aux-v"]}))
+            self.assertFalse(any(edge["type"] == "has-pos" and edge["to"] == "ja:pos:uk" for edge in graph["relations"]))
+            self.assertEqual(len([edge for edge in graph["relations"] if edge["type"] == "has-sense"]), 5)
+            source_data = json.loads((source / "term_bank_1.json").read_text())
+            source_data.reverse()
+            (source / "term_bank_1.json").write_text(json.dumps(source_data))
+            builder.build_ja()
+            rebuilt = json.loads((root / "languages" / "ja.graph.json").read_text())
+            self.assertEqual({entity["id"] for entity in rebuilt["entities"] if entity["kind"] == "sense"}, {entity["id"] for entity in senses})
+
+    def test_ja_keeps_explanatory_only_senses_and_sense_local_badges(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir))
+            sense = {"data": {"sense-number": "2"}, "content": [
+                {"tag": "span", "data": {"code": "arch"}, "content": "archaic"},
+                {"data": {"content": "extra-info"}, "content": [
+                    {"data": {"content": "info-gloss", "gloss-type": "expl"}, "content": [
+                        {"tag": "div", "content": "Explanation"}, {"tag": "div", "content": ["an ", {"tag": "i", "content": "explanatory"}, " definition"]}]},
+                    {"data": {"content": "sense-note"}, "content": "not a definition"},
+                    {"data": {"content": "xref"}, "content": {"data": {"content": "glossary"}, "content": "other entry"}},
+                ]},
+            ]}
+            content = [{"data": {"code": "n"}, "content": "noun"}, {"tag": "ol", "content": sense}]
+            groups = builder.jitendex_sense_groups(content)
+            self.assertEqual(len(groups), 1)
+            self.assertEqual(groups[0]["glosses"], ["an explanatory definition"])
+            self.assertEqual(groups[0]["posCodes"], ["n"])
+            self.assertEqual(groups[0]["badgeCodes"], ["arch", "n"])
+            unnumbered = {"content": [item for item in sense["content"]]}
+            self.assertEqual(builder.jitendex_sense_groups(unnumbered)[0]["glosses"], ["an explanatory definition"])
+            # An inner usage badge cannot erase the inherited POS group.
+            nested = [{"data": {"code": "n"}, "content": "noun"}, {"content": [
+                {"data": {"code": "uk"}, "content": "kana"}, sense]}]
+            self.assertEqual(builder.jitendex_sense_groups(nested)[0]["posCodes"], ["n"])
+
+    def test_ja_unnumbered_source_definition_keeps_name_and_explanation_together(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir))
+            definition = [{"data": {"code": "n"}, "content": "noun"}, {"content": [
+                {"data": {"content": "glossary"}, "content": {"tag": "li", "content": "dish name"}},
+                {"data": {"content": "extra-info"}, "content": {"data": {"content": "info-gloss", "gloss-type": "expl"},
+                    "content": [{"content": "Explanation"}, {"content": "a dish definition"}]}},
+            ]}]
+            groups = builder.jitendex_sense_groups(definition)
+            self.assertEqual(len(groups), 1)
+            self.assertEqual(groups[0]["glosses"], ["dish name", "a dish definition"])
+            self.assertEqual(groups[0]["posCodes"], ["n"])
+            self.assertEqual(len(builder.jitendex_sense_groups([
+                {"content": definition}, {"content": [{"data": {"code": "v1"}, "content": "verb"},
+                    {"data": {"content": "glossary"}, "content": {"tag": "li", "content": "a verb"}}]},
+            ])), 2)
+
+    def test_ja_can_rebuild_from_lossless_compiled_dictionary_and_rejects_missing_source(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            builder = _load_builder(root)
+            with self.assertRaises(FileNotFoundError):
+                builder.build_ja()
+            self.assertFalse((root / "languages" / "ja.graph.json").exists())
+            dictionary = root / "dictionaries" / "ja" / "en"
+            dictionary.mkdir(parents=True)
+            row = ["term", "reading", "", "", 0, [{"data": {"sense-number": "1"}, "content": [
+                {"data": {"content": "glossary"}, "content": [{"tag": "li", "content": "first"}, {"tag": "li", "content": "synonym"}]}]}], 77]
+            with sqlite3.connect(dictionary / "dictionary.db") as connection:
+                connection.execute("CREATE TABLE meta (key TEXT, value TEXT)")
+                connection.executemany("INSERT INTO meta VALUES (?,?)", [("source", "jitendex-yomitan"), ("version", "test-v1")])
+                connection.execute("CREATE TABLE entries (headword TEXT, reading TEXT, data BLOB)")
+                connection.execute("INSERT INTO entries VALUES (?,?,?)", ("term", "reading", _payload(row)))
+                connection.execute("CREATE TABLE pitch (headword TEXT, reading TEXT, data BLOB)")
+                connection.execute("INSERT INTO pitch VALUES (?,?,?)", ("term", "reading", _payload(["term", "pitch", {"reading": "reading", "pitches": [{"position": 1}]}])))
+            builder.build_ja()
+            graph = json.loads((root / "languages" / "ja.graph.json").read_text())
+            self.assertEqual(graph["sourceVersions"]["dictionary"], "jitendex-test-v1")
+            self.assertEqual([entity["label"] for entity in graph["entities"] if entity["kind"] == "sense"], ["first; synonym"])
+            self.assertIn("ja:prosody:p1", {entity["id"] for entity in graph["entities"]})
+            original = (root / "languages" / "ja.graph.json").read_bytes()
+            with sqlite3.connect(dictionary / "dictionary.db") as connection:
+                connection.execute("UPDATE entries SET headword='mismatched-index'")
+            with self.assertRaises(ValueError):
+                builder.build_ja()
+            self.assertEqual((root / "languages" / "ja.graph.json").read_bytes(), original)
+            with sqlite3.connect(dictionary / "dictionary.db") as connection:
+                lossy = [*row[:5], ["flattened lossy meaning"], *row[6:]]
+                connection.execute("UPDATE entries SET headword='term',data=?", (_payload(lossy),))
+            with self.assertRaises(ValueError):
+                builder.build_ja()
+            self.assertEqual((root / "languages" / "ja.graph.json").read_bytes(), original)
+
+    def test_ja_declared_source_pos_inventory_and_raw_revision_survive(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            builder = _load_builder(Path(temp_dir))
+            builder.JITENDEX_DIR.mkdir(parents=True)
+            (builder.JITENDEX_DIR / "term_bank_1.json").write_text("[]")
+            (builder.JITENDEX_DIR / "index.json").write_text(json.dumps({"revision": "synthetic-new-dictionary"}))
+            (builder.JITENDEX_DIR / "index_.json").write_text(json.dumps({"revision": "synthetic-new-pitch"}))
+            self.assertEqual(builder.jitendex_version(), "jitendex-synthetic-new-dictionary")
+            self.assertEqual(builder.jitendex_pitch_version(), "synthetic-new-pitch")
+            with self.assertRaises(ValueError):
+                builder.build_ja()
+            self.assertFalse((builder.ROOT / "languages" / "ja.graph.json").exists())
+            (builder.JITENDEX_DIR / "term_bank_1.json").write_text(json.dumps([["word", "reading", "", "", 0, ["lossy meaning"], 1]]))
+            with self.assertRaises(ValueError):
+                list(builder.jitendex_source_rows())
+            for code in ["prt", "num", "adj-pn"]:
+                groups = builder.jitendex_sense_groups([
+                    {"data": {"code": code}, "content": "source POS"},
+                    {"data": {"content": "glossary"}, "content": {"tag": "li", "content": "meaning"}},
+                ])
+                self.assertEqual(groups[0]["posCodes"], [code])
 
 
     def test_ru_graph_retains_gender_stressed_reading_and_inflected_forms(self):

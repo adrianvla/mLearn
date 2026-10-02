@@ -36,6 +36,7 @@ export function shouldHideAssistantBubble(
   if (message.content.trim()) {
     return false;
   }
+  if (message.voiceDelivery) return false;
 
   const hasWidgets = (message.widgets && message.widgets.length > 0) || !!message.widget;
   const isCurrentlyStreaming = isStreamingAssistantBubble(message, index, isStreaming, streamingMessageIndex);

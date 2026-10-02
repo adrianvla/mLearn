@@ -282,6 +282,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   const {
     store,
     getAllCards,
+    getStudyableCards,
     updateMeta,
   } = useFlashcards();
   const { settings } = useSettings();
@@ -298,7 +299,7 @@ export const FlashcardStats: Component<FlashcardStatsProps> = (props) => {
   // ---- Computed Data ----
 
   const cards = createMemo(() => getAllCards());
-  const dueCounts = createMemo(() => computeDueCounts(cards(), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!));
+  const dueCounts = createMemo(() => computeDueCounts(Object.values(getStudyableCards()), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!));
 
   const stateDistribution = createMemo(() => computeStateDistribution(cards()));
   const easeDistribution = createMemo(() => computeEaseDistribution(cards(), {

@@ -3,6 +3,9 @@ import { useLocalization } from '../../context';
 import { Button, Panel } from '../../components/common';
 import './AgeVerificationModal.css';
 
+/** Bump when the notice or certification terms change, not for presentation edits. */
+export const CONVERSATION_NOTICE_VERSION = 1;
+
 interface AgeVerificationModalProps {
   onAccept: () => void;
 }

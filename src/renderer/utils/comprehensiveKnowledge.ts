@@ -1,3 +1,4 @@
+import { isStudyExcluded } from '../../shared/studyExclusion';
 import { LEXICAL_IDENTITY_CAPABILITIES } from '../../shared/graph/access';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, type KnowledgeSource, type WordStatus, type WordKnowledgeSource } from '../../shared/constants';
 import type { IgnoredWordEntry, PassiveWordKnowledge } from '../../shared/types';
@@ -125,7 +126,7 @@ function resolveWordMatches(
   let bestClaim: ClaimCandidate | null = null;
 
   for (const match of matches) {
-    if (deps.ignoredWords[match.lk]) excluded = true;
+    if (isStudyExcluded(deps.ignoredWords[match.lk])) excluded = true;
     const entry = deps.wordKnowledge[match.lk];
     const effective = effectiveStateFromEntry(entry, thresholds);
 
@@ -182,7 +183,7 @@ function resolveWordMatches(
       // construction. Strongest evidence wins; a weaker word-level read
       // never hides a stronger lexical access. A claim's UNDERLYING evidence
       // (record.status) still participates.
-      if (!bestEvidence || STATUS_RANK[record.status] > STATUS_RANK[bestEvidence.effective.evidenceStatus]) {
+      if (record.hasEvidence !== false && (!bestEvidence || STATUS_RANK[record.status] > STATUS_RANK[bestEvidence.effective.evidenceStatus])) {
         bestEvidence = {
           effective: {
             status: record.status,

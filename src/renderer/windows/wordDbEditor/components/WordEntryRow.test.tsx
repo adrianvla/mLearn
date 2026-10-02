@@ -12,9 +12,6 @@ const getNeighborhoodMock = vi.fn();
 const getEventsMock = vi.fn();
 const getKnowledgeRowsMock = vi.fn();
 const openGraphInspectorMock = vi.fn();
-let lastVizProps: { neighborhood?: { center: { label?: string } }; centerState?: string; onSelect?: (id: string) => void } | null = null;
-const hashA = 'a'.repeat(64);
-const hashB = 'b'.repeat(64);
 // Mirrors the mocked hashWordSync below; the row derives graph entity ids from it directly.
 const hashFor = (word: string): string => `hash:${word.length}`;
 const getCardByWordSyncMock = vi.fn((): Flashcard | null => null);
@@ -117,10 +114,6 @@ vi.mock('../../../components/common', () => ({
       </span>
     </span>
   ),
-  GraphNeighborhoodViz: (props: { neighborhood?: { center: { label?: string } }; centerState?: string; onSelect?: (id: string) => void }) => {
-    lastVizProps = props;
-    return <div data-testid="graph-viz-stub" onClick={() => props.onSelect?.(`ja:surface:${hashB}`)} />;
-  },
   KnowledgeProjectionDrawer: (props: { open?: boolean; initialTab?: string; surface?: string }) => {
     void props;
     return null;
@@ -179,12 +172,12 @@ vi.mock('../../../components/language-specific/ProsodyOverlay', () => ({
 }));
 
 vi.mock('../../../components/common/Smart', () => ({
-  WordStatusPill: (props: { word: string; onStatusChange?: (status: 'unknown' | 'learning' | 'known') => void }) => (
+  WordStatusPill: (props: { word: string; onInspect?: () => void; onStatusChange?: (status: 'unknown' | 'learning' | 'known') => void }) => (
     <button
       type="button"
       data-testid="word-status-pill"
       data-word={props.word}
-      onClick={() => props.onStatusChange?.('known')}
+      onClick={() => props.onInspect ? props.onInspect() : props.onStatusChange?.('known')}
     >
       pill
     </button>
@@ -228,7 +221,6 @@ describe('WordEntryRow', () => {
     getKnowledgeRowsMock.mockReset();
     getKnowledgeRowsMock.mockResolvedValue({});
     openGraphInspectorMock.mockReset();
-    lastVizProps = null;
     getCardByWordSyncMock.mockReset();
     isWordIgnoredSyncMock.mockReturnValue(false);
     openKnowledgeInspectorMock.mockReset();
@@ -1410,7 +1402,8 @@ describe('WordEntryRow', () => {
     const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
     expect(segments.length).toBeGreaterThan(0);
     expect(segments[0].dataset.prosodyValue).toBe('tone-1');
-    expect(segments[0].style.color).toBe('#ff00ff');
+    expect(segments[0].style.color).toBe('var(--language-word-ink)');
+    expect(segments[0].style.getPropertyValue('--language-word-ink')).toContain('#ff00ff 40%');
 
     dispose();
   });
@@ -1466,7 +1459,7 @@ describe('WordEntryRow', () => {
     dispose();
   });
 
-  it('renders the Knowledge pill as the primary knowledge control before integrations, owning the claim itself', async () => {
+  it('uses the Knowledge pill to open the same learning record as the word before integrations', async () => {
     const { WordEntryRow } = await import('./WordEntryRow');
 
     const dispose = render(() => (
@@ -1488,11 +1481,12 @@ describe('WordEntryRow', () => {
     expect(pill).not.toBeNull();
     expect(pill!.dataset.word).toBe('赤い');
 
-    // The row owns no status callback. WordStatusPill is the single claim
-    // owner and writes the claim itself, so the row cannot silently drop one.
-    // (A callback here used to be a log.info no-op that discarded the claim.)
     pill!.click();
-    expect(pill!.dataset.word).toBe('赤い');
+    expect(openKnowledgeInspectorMock).toHaveBeenCalledWith({ language: 'ja', surface: '赤い',
+      target: { kind: 'surface', id: `ja:surface:${hashFor('赤い')}` } });
+    container.querySelector<HTMLButtonElement>('.word-db-word-action')!.click();
+    expect(openKnowledgeInspectorMock).toHaveBeenCalledTimes(2);
+    expect(openKnowledgeInspectorMock.mock.calls[0]).toEqual(openKnowledgeInspectorMock.mock.calls[1]);
 
     dispose();
   });
@@ -1522,7 +1516,7 @@ describe('WordEntryRow', () => {
     dispose();
   });
 
-  it('opens the inspector drawer via the row Inspect affordance on the Overview tab', async () => {
+  it('opens the shared learning record from the displayed dictionary word', async () => {
     mockGetKnowledgeProjection.mockResolvedValue({
       status: 'ready',
       surfaceId: 'ja:surface:x',
@@ -1545,158 +1539,32 @@ describe('WordEntryRow', () => {
 
     await flushAsync();
     await flushAsync();
-    const inspectBtn = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.Knowledge.Popup.Inspect');
+    const inspectBtn = container.querySelector<HTMLButtonElement>('.word-db-word-action');
     expect(inspectBtn).not.toBeUndefined();
     inspectBtn!.click();
     expect(openKnowledgeInspectorMock).toHaveBeenCalledWith({ language: 'ja', surface: '猫', target: { kind: 'surface', id: `ja:surface:${hashFor('猫')}` } });
     dispose();
   });
-  it('recenters linguistic relations without computing another learner state', async () => {
-    mockGetKnowledgeProjection.mockResolvedValue({ status: 'ready', surfaceId: `ja:surface:${hashA}`, targets: [] });
-    getNeighborhoodMock.mockImplementation((query: { entityId: string }) => Promise.resolve(
-      query.entityId === `ja:surface:${hashFor('殖える')}`
-        ? {
-            center: { id: `ja:surface:${hashA}`, kind: 'surface', label: '殖える' },
-            centerDenseId: 1,
-            relationCount: 1,
-            relations: [{ id: `ja:surface:${hashB}`, kind: 'surface', label: '増える', relationType: 'semantically-related' }],
-          }
-        : {
-            center: { id: `ja:surface:${hashB}`, kind: 'surface', label: '増える' },
-            centerDenseId: 2,
-            relationCount: 0,
-            relations: [],
-          },
-    ));
-    // Dynamic import is the harness convention in this file: the vi.mock registrations above must run before the module loads.
+  it('keeps reference and card controls behind the page management choice, without a competing graph preview', async () => {
     const { WordEntryRow } = await import('./WordEntryRow');
-    const dispose = render(() => (
-      <WordEntryRow
-        entry={makeEntry('殖える')}
-        levelNames={{ 0: 'JLPT N5' }}
-
-        onAddFlashcard={() => undefined}
-        onRemoveFlashcard={() => undefined}
-      />
-    ), container);
-
+    const [managing, setManaging] = createSignal(false);
+    const edit = vi.fn();
+    const dispose = render(() => <WordEntryRow entry={makeEntry('猫')} levelNames={{}}
+      showManagement={managing()} onEdit={edit} onAddFlashcard={() => undefined} onRemoveFlashcard={() => undefined} />, container);
     await flushAsync();
-    await flushAsync();
-    // The neighborhood renders in a Modal portal on document.body — the row
-    // itself stays clean.
-    expect(document.body.querySelector('[data-testid="graph-viz-stub"]')).toBeNull();
-
-    const toggle = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.Toggle');
-    expect(toggle).not.toBeUndefined();
-    toggle!.click();
-    await flushAsync();
-    await flushAsync();
-
-    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashFor('殖える')}`, depth: 1 }));
-    expect(document.body.querySelector('[data-testid="graph-viz-stub"]')).not.toBeNull();
-    expect(lastVizProps?.neighborhood?.center.label).toBe('殖える');
-    expect(lastVizProps?.centerState).toBeUndefined();
-    expect(getKnowledgeRowsMock).not.toHaveBeenCalled();
-
-    // Open in the full inspector window for the currently selected entity.
-    const openInWindow = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.OpenInWindow');
-    expect(openInWindow).not.toBeUndefined();
-    openInWindow!.click();
-    expect(openGraphInspectorMock).toHaveBeenCalledWith({ entityId: `ja:surface:${hashFor('殖える')}` });
-
-    // Recenter on the neighbor while retaining its graph identity.
-    document.body.querySelector<HTMLElement>('[data-testid="graph-viz-stub"]')!.click();
-    await flushAsync();
-    await flushAsync();
-    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashB}`, depth: 1 }));
-    expect(lastVizProps?.neighborhood?.center.label).toBe('増える');
-    expect(lastVizProps?.centerState).toBeUndefined();
-    expect(getKnowledgeRowsMock).not.toHaveBeenCalled();
-    // Recentering must not re-open the inspector; the only call is the
-    // entry's own OpenInWindow click.
-    expect(openGraphInspectorMock).toHaveBeenCalledTimes(1);
-    expect(openGraphInspectorMock).toHaveBeenLastCalledWith({ entityId: `ja:surface:${hashFor('殖える')}` });
-
-    dispose();
-  });
-
-  it('resolves the graph note to NotInGraph — never a permanent Loading — when the word has no neighborhood', async () => {
-    getNeighborhoodMock.mockResolvedValue(null);
-
-    const { WordEntryRow } = await import('./WordEntryRow');
-    const dispose = render(() => (
-      <WordEntryRow
-        entry={makeEntry('殖える')}
-        levelNames={{ 0: 'JLPT N5' }}
-
-        onAddFlashcard={() => undefined}
-        onRemoveFlashcard={() => undefined}
-      />
-    ), container);
-
-    await flushAsync();
-    await flushAsync();
-    const toggle = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.Toggle');
-    expect(toggle).not.toBeUndefined();
-    toggle!.click();
-    await flushAsync();
-    await flushAsync();
-    await flushAsync();
-
-    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashFor('殖える')}`, depth: 1 }));
-    // Resolved absence is an explicit empty state, not the pending placeholder.
-    expect(document.body.textContent).toContain('mlearn.GraphInspector.Neighborhood.NotInGraph');
-    expect(document.body.textContent).not.toContain('mlearn.GraphInspector.Neighborhood.Loading');
-    expect(document.body.querySelector('[data-testid="skeleton-rows"]')).toBeNull();
-
-    dispose();
-  });
-
-  it('reports a failed graph-neighborhood read through the one knowledge-failure owner, and retries through it', async () => {
-    // The same graph-neighborhood read fails identically in the graph
-    // inspector window and inline here. It used to be reported two ways — a
-    // hand-rolled alert/button pair here that said "Retry" while the inspector
-    // said "Try again" — so a fix to "this knowledge read failed" had to be
-    // made twice. Both go through the declared owner now.
-    getNeighborhoodMock.mockRejectedValue(new Error('graph unavailable'));
-
-    const { WordEntryRow } = await import('./WordEntryRow');
-    const dispose = render(() => (
-      <WordEntryRow
-        entry={makeEntry('殖える')}
-        levelNames={{ 0: 'JLPT N5' }}
-
-        onAddFlashcard={() => undefined}
-        onRemoveFlashcard={() => undefined}
-      />
-    ), container);
-
-    await flushAsync();
-    const toggle = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.GraphInspector.Neighborhood.Toggle');
-    expect(toggle).not.toBeUndefined();
-    toggle!.click();
-    await flushAsync();
-    await flushAsync();
-    await flushAsync();
-
-    const owner = document.body.querySelector('.knowledge-load-error');
-    expect(owner).not.toBeNull();
-    expect(owner!.getAttribute('role')).toBe('alert');
-    expect(owner!.textContent).toContain('mlearn.GraphInspector.Explore.LoadFailed');
-    // The owner's own retry wording, not a second hand-rolled label.
-    expect(owner!.textContent).toContain('mlearn.Knowledge.Retry');
-    expect(owner!.textContent).not.toContain('mlearn.GraphInspector.Explore.Retry');
-
-    // The retry the owner renders must re-drive the same read.
-    getNeighborhoodMock.mockClear();
-    getNeighborhoodMock.mockResolvedValue({ center: { id: `ja:surface:${hashFor('殖える')}`, label: '殖える' }, relations: [] });
-    (owner!.querySelector('button') as HTMLButtonElement).click();
-    await flushAsync();
-    await flushAsync();
-
-    expect(getNeighborhoodMock).toHaveBeenCalledWith(expect.objectContaining({ entityId: `ja:surface:${hashFor('殖える')}`, depth: 1 }));
-    expect(document.body.querySelector('.knowledge-load-error')).toBeNull();
-
+    expect(container.querySelector('.col.integrations')).toBeNull();
+    expect(container.textContent).not.toContain('mlearn.Global.Edit');
+    expect(container.textContent).not.toContain('mlearn.GraphInspector.Neighborhood.Toggle');
+    expect(getNeighborhoodMock).not.toHaveBeenCalled();
+    expect(container.querySelector('.word-db-word-action')).not.toBeNull();
+    setManaging(true);
+    expect(container.querySelector('.col.integrations')).not.toBeNull();
+    const editButton = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.Edit')!;
+    editButton.click();
+    expect(edit).toHaveBeenCalledOnce();
+    setManaging(false);
+    expect(container.querySelector('.col.integrations')).toBeNull();
+    expect(openKnowledgeInspectorMock).not.toHaveBeenCalled();
     dispose();
   });
 });

@@ -75,6 +75,17 @@ function correction(seq: number, ownerId: string, targetId: string, witnesses: s
 }
 
 describe('context compiler', () => {
+  it('honors a separate cast join boundary even for an all-witness capability', () => {
+    const person = participant({ capabilities: { witnessScope: 'all' } });
+    const events = [message(1, 'message.user', 'Before joining', ['user'], 'user'),
+      { ...membership(2, person.id, 'added', ['user', person.id]), scope: THREAD },
+      message(3, 'message.user', 'After joining', ['user', person.id], 'user')];
+    const context = compileContext({ participant: person, participants: [person], threadEvents: events,
+      thread: { id: 'thread_1', state: 'active', createdAt: 1, sandbox: { operationId: 'op', requestHash: 'hash',
+        baselineHeads: {}, bindings: [{ baseline: person }], participantIds: [person.id] } } });
+    expect(context.recentThreadEvents.map(event => event.text)).not.toContain('Before joining');
+    expect(context.recentThreadEvents.map(event => event.text)).toContain('After joining');
+  });
   it('does not import Sea memories into a practice-only contact, even with a matching historical ID', () => {
     const person = participant({ kind: 'temporary' });
     const sea = [belief(1, person.id, 'fact', 'World secret', [person.id])];

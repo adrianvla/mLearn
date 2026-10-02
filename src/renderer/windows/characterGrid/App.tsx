@@ -1,3 +1,4 @@
+import { isStudyExcluded } from '../../../shared/studyExclusion';
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { projectionStateForCapability } from '../../components/common/WordStatusPillKnowledge/knowledgeSummary';
@@ -199,6 +200,7 @@ export const CharacterGridContent: Component = () => {
       }
 
       for (const entry of Object.values(flashcardCtx.store.ignoredWords)) {
+        if (!isStudyExcluded(entry)) continue;
         if (entry && entry.language === lang) {
           wordSet.add(entry.word);
         }

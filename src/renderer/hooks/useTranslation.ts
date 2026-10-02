@@ -4,7 +4,7 @@
  */
 
 import { createSignal, createResource } from 'solid-js';
-import type { TranslationResponse, TranslationEntry, DictionaryEntry, Token, LanguageData } from '../../shared/types';
+import type { TranslationResponse, TranslationEntry, DictionaryEntry, Token, LanguageData, WordLookupContext } from '../../shared/types';
 import { getBackend } from '../../shared/backends';
 import { getBridge } from '../../shared/bridges';
 import { createRoughTokenizerTokens, getTokenizerCacheNamespace, tokenizerAllowsFallback } from '../../shared/languageFeatures';
@@ -21,6 +21,7 @@ import {
   setCachedTokensBatchByLanguageDB,
 } from '../services/offlineCache';
 import { getLogger } from '../../shared/utils/logger';
+import { hashWordSync } from '../services/srsAlgorithm';
 import type { BackendAdapter } from '../../shared/backends/types';
 
 const log = getLogger("renderer.hooks.useTranslation");
@@ -29,6 +30,23 @@ const TRANSLATION_WARM_CONCURRENCY = 10;
 import { perfCount } from '../utils/perfCounters';
 const translationCache = new Map<string, TranslationResponse>();
 const [cacheVersion, setCacheVersion] = createSignal(0);
+let selectionChannel: BroadcastChannel | undefined;
+function ensureSelectionChannel(): void {
+  if (selectionChannel || typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return;
+  selectionChannel = new BroadcastChannel('mlearn-dictionary-selections');
+  selectionChannel.onmessage = event => {
+    const message = event.data as { cacheKey?: unknown; selectionKey?: unknown };
+    if (typeof message?.cacheKey !== 'string' || typeof message.selectionKey !== 'string' || !/^ml_lookup_selection::[a-f0-9]{64}$/.test(message.selectionKey)) return;
+    void readLookupSelection(message.selectionKey).then(selection => {
+      if (!selection?.response || selection.cacheKey !== message.cacheKey) return;
+      setTranslationCache(message.cacheKey as string, selection.response);
+      setCacheVersion(value => value + 1);
+    }).catch(error => log.warn('Could not refresh dictionary selection:', error));
+  };
+  window.addEventListener('beforeunload', () => selectionChannel?.close(), { once: true });
+}
+const hotModule = (import.meta as ImportMeta & { hot?: { dispose: (callback: () => void) => void } }).hot;
+hotModule?.dispose(() => { selectionChannel?.close(); selectionChannel = undefined; });
 const [warmInFlightCount, setWarmInFlightCount] = createSignal(0);
 
 export { cacheVersion };
@@ -100,6 +118,34 @@ function buildVersionedLanguageCacheId(
 function buildTranslationCacheKey(word: string, language?: string, dictionaryTargetLanguage?: string): string {
   return `${buildLookupScope(language, dictionaryTargetLanguage)}::${word}`;
 }
+
+function contextualLookupWord(word: string, context: WordLookupContext): string {
+  const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
+    : value !== null && typeof value === 'object' ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)])) : value;
+  return `${word}::context:${JSON.stringify(canonical(context))}`;
+}
+
+function lookupSelectionKey(word: string, context: WordLookupContext, language?: string, dictionaryTargetLanguage?: string): string {
+  return `ml_lookup_selection::${hashWordSync(buildTranslationCacheKey(contextualLookupWord(word, context), language, dictionaryTargetLanguage))}`;
+}
+
+interface LookupSelection { selectionId: string; packageCacheId?: string; cacheKey?: string; response?: TranslationResponse; raw: string }
+async function readLookupSelection(key: string): Promise<LookupSelection | null> {
+  const raw = await getBridge().kvStore.kvGet(key);
+  if (!raw) return null;
+  try {
+    const stored = JSON.parse(raw) as Partial<LookupSelection>;
+    if (typeof stored.selectionId === 'string') {
+      return { selectionId: stored.selectionId, raw,
+        ...(typeof stored.packageCacheId === 'string' ? { packageCacheId: stored.packageCacheId } : {}),
+        ...(typeof stored.cacheKey === 'string' ? { cacheKey: stored.cacheKey } : {}),
+        ...(Array.isArray(stored.response?.data) && stored.response?.resolution?.selectedId === stored.selectionId ? { response: stored.response } : {}) };
+    }
+  } catch { /* Prior correction records contained only the opaque ID. */ }
+  return { selectionId: raw, raw };
+}
+
+export { tokenLookupContext } from '../utils/wordForms';
 
 function buildDictionaryCacheKey(
   word: string,
@@ -186,6 +232,12 @@ export function getCachedTranslation(
   const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(lookupOptions.dictionaryTargetLanguage);
   const cacheLanguage = buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage);
   const originalCacheKey = buildTranslationCacheKey(word, cacheLanguage, dictionaryTargetLanguage);
+  if (lookupOptions.context) {
+    ensureSelectionChannel();
+    const override = overridesCache?.[buildTranslationCacheKey(word, language, dictionaryTargetLanguage)];
+    if (override) return override;
+    return translationCache.get(buildTranslationCacheKey(contextualLookupWord(word, lookupOptions.context), cacheLanguage, dictionaryTargetLanguage)) ?? null;
+  }
 
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
@@ -243,6 +295,7 @@ function writeOverrides(map: Record<string, TranslationResponse>): void {
 }
 
 export interface WordLookupCandidateOptions {
+  context?: WordLookupContext;
   getCanonicalForm?: (word: string) => string;
   getWordVariants?: (word: string) => string[];
   getReadingVariants?: (reading: string) => string[];
@@ -334,6 +387,33 @@ export async function fetchTranslation(
   const cacheLanguage = buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage);
   const originalCacheKey = buildTranslationCacheKey(word, cacheLanguage, dictionaryTargetLanguage);
   const overrides = await readOverrides();
+  if (lookupOptions.context) {
+    const override = overrides[buildTranslationCacheKey(word, language, dictionaryTargetLanguage)];
+    if (override) return override;
+    const scopedWord = contextualLookupWord(word, lookupOptions.context);
+    const key = buildTranslationCacheKey(scopedWord, cacheLanguage, dictionaryTargetLanguage);
+    const selectionKey = lookupSelectionKey(word, lookupOptions.context, language, dictionaryTargetLanguage);
+    const selection = await readLookupSelection(selectionKey);
+    const selectionId = selection?.selectionId;
+    if (selection?.response && selection.packageCacheId === cacheLanguage) {
+      setTranslationCache(key, selection.response); setCacheVersion(value => value + 1); return selection.response;
+    }
+    const agreesWithSelection = (cached: TranslationResponse) => !selectionId || cached.resolution?.selectedId === selectionId
+      || (cached.resolution?.selectionUnavailable === true && cached.resolution.requestedSelectionId === selectionId);
+    if (translationCache.has(key) && agreesWithSelection(translationCache.get(key)!)) return translationCache.get(key)!;
+    const cached = await getCachedTranslationScopedDB(scopedWord, cacheLanguage, dictionaryTargetLanguage);
+    if (cached && agreesWithSelection(cached)) { setTranslationCache(key, cached); setCacheVersion(value => value + 1); return cached; }
+    const result = await getBackend().translate(word, language, { context: { ...lookupOptions.context, ...(selectionId ? { selectionId } : {}) },
+      ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
+    if ((await readLookupSelection(selectionKey))?.raw !== selection?.raw) {
+      return fetchTranslation(word, language, lookupOptions);
+    }
+    if (result.resolution?.selectionUnavailable && selectionId) result.resolution.requestedSelectionId = selectionId;
+    setTranslationCache(key, result);
+    setCacheVersion(value => value + 1);
+    await setCachedTranslationScopedDB(scopedWord, result, cacheLanguage, dictionaryTargetLanguage);
+    return result;
+  }
 
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
@@ -389,6 +469,30 @@ export async function fetchTranslation(
   return { data: [] };
 }
 
+/** A correction is scoped to this encountered form and context, never every homograph. */
+export async function selectTranslationCandidate(word: string, selectionId: string, language: string,
+  options: WordLookupCandidateOptions): Promise<TranslationResponse> {
+  const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
+  const context = options.context ?? {};
+  const result = await getBackend().translate(word, language, { context: { ...context, selectionId },
+    ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
+  if (result.resolution?.selectedId !== selectionId || result.resolution.selectionUnavailable) throw new Error('Dictionary selection unavailable');
+  const selectionKey = lookupSelectionKey(word, context, language, dictionaryTargetLanguage);
+  const cacheLanguage = buildVersionedLanguageCacheId(language, resolveLanguageData(options.languageData), dictionaryTargetLanguage);
+  const scopedWord = contextualLookupWord(word, context);
+  const cacheKey = buildTranslationCacheKey(scopedWord, cacheLanguage, dictionaryTargetLanguage);
+  const record = JSON.stringify({ version: 1, selectionId, packageCacheId: cacheLanguage, cacheKey, response: result });
+  await getBridge().kvStore.kvSet(selectionKey, record);
+  if (await getBridge().kvStore.kvGet(selectionKey) !== record) throw new Error('Dictionary selection was not acknowledged');
+  await setCachedTranslationScopedDB(scopedWord, result, cacheLanguage, dictionaryTargetLanguage);
+  if (await getBridge().kvStore.kvGet(selectionKey) !== record) return fetchTranslation(word, language, { ...options, context });
+  setTranslationCache(cacheKey, result);
+  setCacheVersion(value => value + 1);
+  ensureSelectionChannel();
+  selectionChannel?.postMessage({ cacheKey, selectionKey });
+  return result;
+}
+
 export interface UseTranslationOptions {
   immediate?: boolean;
   language?: string | (() => string);
@@ -418,8 +522,8 @@ export function useTranslation(options: UseTranslationOptions = {}) {
     return translation() ?? null;
   };
 
-  const translateWord = async (word: string): Promise<TranslationResponse> => {
-    return fetchTranslation(word, resolveLanguage(options.language), options);
+  const translateWord = async (word: string, context?: WordLookupContext): Promise<TranslationResponse> => {
+    return fetchTranslation(word, resolveLanguage(options.language), { ...options, ...(context ? { context } : {}) });
   };
 
   const setOverride = async (word: string, value: TranslationResponse | null) => {

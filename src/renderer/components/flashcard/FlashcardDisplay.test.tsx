@@ -74,6 +74,9 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../common', () => ({
+  Button: (props: { children?: JSX.Element; class?: string; onClick?: (event: MouseEvent) => void }) => (
+    <button type="button" class={props.class} onClick={props.onClick}>{props.children}</button>
+  ),
   Panel: (props: { children?: JSX.Element; class?: string; classList?: Record<string, boolean> }) => (
     <section class={props.class} classList={props.classList}>{props.children}</section>
   ),
@@ -152,6 +155,26 @@ describe('FlashcardDisplay', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('rejects delayed media permission from an earlier encounter of the same card', async () => {
+    const [owner, setOwner] = createSignal<object>({});
+    const card = makeCard();
+    card.content.videoUrl = 'https://example.com/clip.mp4';
+    let admit!: () => void;
+    const dispose = render(() => <FlashcardDisplay flashcard={card} promptMediaOwner={owner()}
+      onOpenPromptMedia={(_id, open) => { admit = open; }} />, container);
+    try {
+      container.querySelector<HTMLButtonElement>('.flashcard-media-admission')!.click();
+      setOwner({});
+      admit();
+      await Promise.resolve();
+      expect(container.querySelector('.flashcard-front video')).toBeNull();
+      container.querySelector<HTMLButtonElement>('.flashcard-media-admission')!.click();
+      admit();
+      await Promise.resolve();
+      expect(container.querySelector('.flashcard-front video')).not.toBeNull();
+    } finally { dispose(); }
   });
 
   it('pauses the hidden front video on reveal and the back video on return or unmount', async () => {

@@ -118,7 +118,8 @@ export class HttpBackend implements BackendAdapter {
   }
 
   async translate(word: string, language?: string, options?: TranslateRequestOptions): Promise<TranslationResponse> {
-    const body: Record<string, string> = { word };
+    const body: Record<string, unknown> = { word };
+    if (options?.context) body.context = options.context;
     if (language) body.language = language;
     if (options?.dictionaryTargetLanguage) {
       body.dictionaryTargetLanguage = options.dictionaryTargetLanguage;

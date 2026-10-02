@@ -12,6 +12,7 @@ import type { CapabilityKey } from './graph/types';
 export type { CapabilityKey, CapabilityKind } from './graph/types';
 import type { HistoricalBackgroundRecord } from './learningBackground';
 import type { PendingRetraction } from './retractionRecovery';
+import type { AttemptScaffolds } from './knowledgeEvents';
 export type { HistoricalBackgroundRecord, HistoricalBackgroundKind } from './learningBackground';
 
 // Re-export WindowType
@@ -190,6 +191,8 @@ export interface Settings {
   showReadingAnnotations?: boolean;
   readingAnnotationMoreContrast?: boolean;
   readingAnnotationSizePercent?: number;
+  /** Global word-popup size relative to the reader's default presentation. */
+  wordHoverSizePercent?: number;
   hideReadingForKnownWords?: boolean;
   /** Preferred persisted toggle for prosody/accent display. Prefer prosodyVisible() when reading it. */
   showProsody: boolean;
@@ -579,6 +582,10 @@ export interface Settings {
   proactiveCallOptOutParticipantIds: string[];
 
   // Conversation agent settings
+  /** Accepted version of the local AI notice; changed notices must be accepted again. */
+  agentLocalNoticeAcceptedVersion?: number;
+  /** Accepted version of the remote AI notice, including its age certification. */
+  agentRemoteNoticeAcceptedVersion?: number;
   /** Whether the agent memory feature is enabled */
   agentMemoryEnabled: boolean;
   /** Whether memories are shared across all agents or compartmentalized */
@@ -654,6 +661,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showReadingAnnotations: true,
   readingAnnotationMoreContrast: false,
   readingAnnotationSizePercent: 100,
+  wordHoverSizePercent: 100,
   enable_flashcard_creation: true,
   automaticFlashcardCreation: false,
   flashcard_deck: null,
@@ -800,6 +808,8 @@ export const DEFAULT_SETTINGS: Settings = {
   flashcardVoiceSampleId: '',
   flashcardStealthMode: false,
   flashcardMuteAudio: false,
+  agentLocalNoticeAcceptedVersion: 0,
+  agentRemoteNoticeAcceptedVersion: 0,
   agentMemoryEnabled: true,
   agentMemoryShared: true,
   agentMistakeChecker: true,
@@ -1299,10 +1309,30 @@ export interface LanguageCapabilityDeclaration {
   label?: string;
   /** Generic task identifiers that may measure this access. */
   testableIn?: string[];
+  /** Presentation cue identifiers that supply this access instead of testing independent recall. */
+  providedBy?: string[];
   /** Where evidence is anchored for graph-relative routing. */
   scope?: 'surface' | 'entity' | 'family';
   /** Whether evidence can transfer across authoritative identity variants. */
   shareAcrossIdentity?: boolean;
+  /** Read-only support rules; relation and access semantics belong to the package. */
+  supportRules?: Array<{
+    /** Stable package-owned rule identity/version for explanations and evaluation. */
+    id?: string;
+    version?: string;
+    relation: string;
+    /** Traverse from the target toward its source; omitted means incoming. */
+    direction?: 'in' | 'out';
+    /** Additional asserted hops, at most three. No linguistic semantics are inferred. */
+    sourcePath?: Array<{ relation: string; direction: 'in' | 'out' }>;
+    sourceCapability: string;
+    /** Relative support weight, 0..1; never a calibrated probability. */
+    weight: number;
+    /** Contributions in this package-owned group describe one dependency. */
+    dependencyGroup?: string;
+    /** Only observed transfers in this explicitly declared context may adjust this rule. */
+    transferContext?: string;
+  }>;
 }
 
 /** Package-owned learner access declarations. Unknown ids and values survive round trips. */
@@ -1455,6 +1485,8 @@ export interface LanguageTokenizerRuntimeConfig {
   innerTokenCharacters?: string[];
   /** Normalize readings emitted by the tokenizer before sending them to the renderer. */
   outputReadingNormalizer?: LanguageReadingNormalizer;
+  /** Adapter input sources, in package-selected order; only attested dictionary forms replace the default. */
+  lemmaSources?: string[];
   /** Token POS labels to suppress from tokenizer output. */
   ignoredPos?: string[];
   /** Suffix-based lemma fallback rules used when a tokenizer cannot recover a dictionary form. */
@@ -1507,6 +1539,8 @@ export interface LanguageDictionaryRuntimeConfig {
      * when the configured tokenizer is trusted to provide lemmas.
      */
     seedForms?: Array<'surface' | 'tokenizer-lemma' | (string & {})>;
+    /** Package-owned hint keys and dictionary payload paths used to narrow valid candidates. */
+    contextMatch?: Array<{ hint: string; entryPath?: Array<string | number>; field?: string; normalizer?: LanguageReadingNormalizer }>;
     /** Ordered text normalizers to apply when direct lookup misses. */
     normalizers?: LanguageTextNormalizerStep[];
     /** Whether normalizers run as one cumulative pipeline or branch across variants. Defaults to "pipeline". */
@@ -1847,6 +1881,22 @@ export interface TranslationResponse {
    * without pretending to be Japanese pitch data.
    */
   data: [TranslationEntry?, TranslationEntry?, unknown?];
+  /** Adapter-owned alternatives. IDs are opaque; an ordering choice is not a confidence estimate. */
+  resolution?: {
+    selectedId: string;
+    basis: string;
+    selectionUnavailable?: boolean;
+    requestedSelectionId?: string;
+    candidates: Array<{ id: string; label: string; data: TranslationResponse['data']; metadata?: unknown }>;
+  };
+}
+
+/** Context is passed intact to the installed resolver; core does not interpret package-owned hints. */
+export interface WordLookupContext {
+  surface?: string;
+  text?: string;
+  hints?: Record<string, unknown>;
+  selectionId?: string;
 }
 
 // ============================================================================
@@ -1969,6 +2019,10 @@ export interface Flashcard {
   suspended?: boolean;
   /** Flag for buried cards (temporarily hidden until next day) */
   buried?: boolean;
+  /** Technical mutation owners for undoable scheduler actions; never learner evidence. */
+  scheduleActionOwners?: Record<string, string>;
+  /** Per-action technical frontier prevents a retired owner from being reused. */
+  scheduleActionGenerations?: Record<string, number>;
   /** Language this card belongs to (e.g. 'ja', 'de') — set at creation */
   language?: string;
   /** Rebuildable scheduler output. Legacy scheduling fields above mirror this cache for sync/export compatibility. */
@@ -2042,10 +2096,24 @@ export interface PerLanguageMeta {
   newCardsDate: string;
 }
 
-/**
- * Flashcard store meta information
- */
+/** A restored review encounter, persisted with its scheduler restoration. */
+export interface ReviewPresentation {
+  id: string;
+  cardId: string;
+  /** Original immutable choice for an unanswered encounter, independent of ability. */
+  decision?: import('./learningDecision').LearningDecision;
+  /** Open-ended assistance flags from the original physical encounter. */
+  scaffolds?: AttemptScaffolds;
+}
+
+/** Flashcard store scheduling and presentation metadata. */
 export interface FlashcardMeta {
+  /** Main-owned commit frontier; scheduler retry receipts, never evidence of ability. */
+  ratingCommitSequence?: number;
+  /** Namespaces the frontier to the authority that issued command sequences. */
+  ratingCommitLedgerId?: string;
+  /** Language-scoped return position; consumed by the next acknowledged review. */
+  reviewPresentations?: Record<string, ReviewPresentation>;
   /** Materialized learner cache schema; evidence remains in the journal. */
   capabilityProjectionVersion?: number;
   /** Per-language daily counters */
@@ -2307,6 +2375,8 @@ export interface AccessKnowledge {
   source: WordKnowledgeSource;
   lastStatusChange: number;
   updatedAt: number;
+  /** Explicit evidence presence; false distinguishes a claim-only cache. Legacy records omit it. */
+  hasEvidence?: boolean;
   /** Active explicit claim on this access; overrides evidence classification until cleared. */
   claim?: WordStatus;
   claimAt?: number;
@@ -2323,6 +2393,10 @@ export interface IgnoredWordEntry {
   language?: string;
   /** Timestamp when the word was ignored */
   ignoredAt: number;
+  /** Study preference; absent on legacy entries means excluded. False retains a withdrawal for sync. */
+  excluded?: boolean;
+  /** Timestamp of the latest preference change, including withdrawal. Legacy entries use ignoredAt. */
+  updatedAt?: number;
 }
 
 /** Grammar knowledge entry tracked in FlashcardStore */
@@ -2738,6 +2812,12 @@ export type ConversationRole = 'system' | 'user' | 'assistant' | 'tool';
 export interface ConversationMessage {
   role: ConversationRole;
   content: string;
+  /** Preserved reviewed generation, distinct from the voice playback transcript. */
+  generatedContent?: string;
+  voiceDelivery?: {
+    state: 'pending' | import('./world').VoiceDeliveryPayload['state'];
+    basis?: import('./world').VoiceDeliveryPayload['basis'];
+  };
   /** Tool call results or tool invocations */
   toolCalls?: ToolCall[];
   toolCallId?: string;
@@ -3051,13 +3131,19 @@ export interface VoiceModelStatus {
   device?: 'cuda' | 'mps' | 'cpu';
 }
 
-export interface VoiceSTTResult {
+/** A microphone stream can be replaced inside one logical call. */
+export interface VoiceSessionRequestIdentity {
+  sessionId: string;
+  requestId: string;
+}
+
+export interface VoiceSTTResult extends Partial<VoiceSessionRequestIdentity> {
   text: string;
   isFinal: boolean;
   isPartial: boolean;
 }
 
-export interface VoiceVadEvent {
+export interface VoiceVadEvent extends Partial<VoiceSessionRequestIdentity> {
   type: 'speech-start' | 'speech-end';
   reason?: string;
   speechProb?: number;
@@ -3068,7 +3154,18 @@ export interface VoiceVadEvent {
   chunkSeconds?: number;
 }
 
-export interface VoiceTtsAudio {
+/** Stable delivery ownership; unrelated windows and phrases cannot share events. */
+export interface VoiceTtsRequestIdentity extends VoiceSessionRequestIdentity {
+  utteranceId?: string;
+  actorId?: string;
+}
+
+export interface VoiceTtsStopScope {
+  sessionId: string;
+  requestId?: string;
+}
+
+export interface VoiceTtsAudio extends Partial<VoiceTtsRequestIdentity> {
   samples: Float32Array;
   sampleRate: number;
   sentenceIndex?: number;
@@ -3078,7 +3175,7 @@ export interface VoiceTtsAudio {
   sampleCount?: number;
 }
 
-export interface VoiceTtsStatus {
+export interface VoiceTtsStatus extends Partial<VoiceTtsRequestIdentity> {
   generating: boolean;
   playing: boolean;
   modelLoading?: boolean;
@@ -3086,18 +3183,18 @@ export interface VoiceTtsStatus {
   error?: string;
 }
 
-export interface VoiceSessionReady {
+export interface VoiceSessionReady extends Partial<VoiceSessionRequestIdentity> {
   ready: true;
 }
 
-export interface VoiceSessionStatus {
+export interface VoiceSessionStatus extends Partial<VoiceSessionRequestIdentity> {
   stage: 'starting' | 'backend' | 'websocket' | 'vad' | 'stt' | 'tts' | 'ready';
   message: string;
   progress: number;
   modelName?: string;
 }
 
-export interface VoiceSessionError {
+export interface VoiceSessionError extends Partial<VoiceSessionRequestIdentity> {
   error: string;
 }
 

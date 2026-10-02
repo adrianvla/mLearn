@@ -135,19 +135,25 @@ describe('learner overlay: claims, evidence, and predictions stay separate', () 
   it('B2: the predictor calibrates on observed transfer without writing knowledge', () => {
     const target = { entityId: 'ja:surface:abc', capability: 'surface-reading' as const };
     const graph = makeGraph();
-
-    const neutral = predictTargetAccessibility({ graph, direct: null, target, classify: () => 'unknown' });
+    const languageData = { name: 'Test package', learning: { capabilities: {
+      'surface-reading': { supportRules: [{ relation: 'derived-from', sourceCapability: 'surface-reading',
+        weight: 0.5, transferContext: 'test-package::derived-reading' }] },
+    } } };
+    const sourceKnowledge = () => 'evidence' as const;
+    const request = { graph, direct: null, target, classify: () => 'unknown' as const, languageData, sourceKnowledge };
+    const neutral = predictTargetAccessibility(request);
     const skilled = predictTargetAccessibility({
-      graph, direct: null, target, classify: () => 'unknown',
-      inferenceSuccess: { attempts: 5, successes: 5 },
+      ...request,
+      transferHistory: { 'test-package::derived-reading': { attempts: 5, successes: 5 } },
     });
     const struggling = predictTargetAccessibility({
-      graph, direct: null, target, classify: () => 'unknown',
-      inferenceSuccess: { attempts: 5, successes: 0 },
+      ...request,
+      transferHistory: { 'test-package::derived-reading': { attempts: 5, successes: 0 } },
     });
 
-    expect(skilled.pSuccess).toBeGreaterThan(neutral.pSuccess);
-    expect(struggling.pSuccess).toBeLessThan(neutral.pSuccess);
+    expect(skilled.supportScore).toBeGreaterThan(neutral.supportScore);
+    expect(struggling.supportScore).toBeLessThan(neutral.supportScore);
+    expect(predictTargetAccessibility({ ...request, inferenceSuccess: { attempts: 5, successes: 5 } })).toEqual(neutral);
     // Predictions are always expectations.
     expect(neutral.kind).toBe('prediction');
   });

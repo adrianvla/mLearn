@@ -1,365 +1,121 @@
 // @vitest-environment happy-dom
-
-import { createSignal, type Component, type JSX } from 'solid-js';
+import { createSignal, type JSX } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Flashcard, ReviewQueue } from '../../../../shared/types';
+import type { RecentItem } from '../../../services/thumbnailService';
 
-const tutorLaunch = vi.hoisted(() => ({ ready: false, mobile: false, openWindow: vi.fn(), navigate: vi.fn() }));
-
-const localization = vi.hoisted(() => ({
-  translate: (key: string) => key,
+const fixture = vi.hoisted(() => ({
+  openWindow: vi.fn(), navigate: vi.fn(), retry: vi.fn(), notify: vi.fn(), configure: vi.fn(),
+  recent: [] as RecentItem[], source: false, llm: false, mobile: false,
+  progress: { tracked: 0, known: 0, total: 0 },
+  settings: { language: 'test-language', uiLanguage: 'en', simplifyHomeScreen: false },
 }));
-
 const [knowledgeReady, setKnowledgeReady] = createSignal(true);
-const [languageFlag, setLanguageFlag] = createSignal<string | undefined>();
-const [reviewQueue, setReviewQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [] });
-const levelPreviewState = vi.hoisted(() => ({
-  // Holds the live Solid props proxy: assertions read current values.
-  last: null as null | { pending?: boolean; progress: { knownPct: number; assessedPct: number } | null },
-}));
-const flashcardFixture = vi.hoisted(() => ({
-  store: { flashcards: {} as Record<string, { id: string }>, dailyStats: {} },
-  currentCard: null as null | { id: string; content: { front: string }; language?: string },
-  submitRating: vi.fn(),
-}));
-
-const flashcardPreviewState = vi.hoisted(() => ({
-  // Holds the live Solid props proxy: assertions read current values.
-  last: null as null | { ratingWrite?: string | null; onRetryRating?: () => void },
-}));
-const settingsState = vi.hoisted(() => ({
-  settings: {
-    language: 'ja',
-    uiLanguage: 'en',
-    known_ease_threshold: 3500,
-    srsLearningThreshold: 1500,
-    simplifyHomeScreen: false,
-  },
-}));
-
-vi.mock('@solidjs/router', () => ({ useNavigate: () => tutorLaunch.navigate }));
-
+const [projectionReady, setProjectionReady] = createSignal(true);
+const [projectionFailed, setProjectionFailed] = createSignal(false);
+const [due, setDue] = createSignal(0);
+vi.mock('@solidjs/router', () => ({ useNavigate: () => fixture.navigate }));
 vi.mock('../../../context', () => ({
-  useSettings: () => ({
-    settings: settingsState.settings,
-  }),
-  useLocalization: () => ({ t: (key: string) => localization.translate(key) }),
-  useLanguage: () => ({
-    currentLangData: () => languageFlag() ? { name: 'Japanese', flagEmoji: languageFlag() } : null,
-    supportedLanguages: () => [],
-    langData: {},
-    isLoading: () => false,
-    refreshLanguageData: vi.fn(),
-    getCanonicalFormForLanguage: (_language: string, word: string) => word,
-  }),
-  useFlashcards: () => ({
-    store: flashcardFixture.store,
-    isKnowledgeReady: () => knowledgeReady(),
-    isLoading: () => false,
-    queue: () => reviewQueue(),
-    queueCounts: () => ({ total: 0 }),
-    getCurrentCard: () => flashcardFixture.currentCard,
-    getPreviewDueDates: () => null,
-    dueDateToString: (_dueDate: number) => '',
-    submitRating: flashcardFixture.submitRating,
-  }),
+  useSettings: () => ({ settings: fixture.settings }),
+  useLocalization: () => ({ t: (key: string, params?: Record<string, string>) => `${key}${params ? JSON.stringify(params) : ''}` }),
+  useLanguage: () => ({ currentLangData: () => fixture.source ? { name: 'Test language' } : null, isLoading: () => false }),
+  useFlashcards: () => ({ store: { wordKnowledge: {}, dailyStats: {} }, isLoading: () => false, isKnowledgeReady: knowledgeReady, queueCounts: () => ({ total: due() }) }),
 }));
-
-vi.mock('../../../../shared/bridges', () => ({
-  getBridge: () => ({ window: { openWindow: tutorLaunch.openWindow } }),
+vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ window: { openWindow: fixture.openWindow } }) }));
+vi.mock('../../../../shared/platform', () => ({ isMobile: () => fixture.mobile }));
+vi.mock('../../../services/thumbnailService', () => ({ getRecentItems: async () => fixture.recent }));
+vi.mock('../../../services/llmProvider', () => ({ isLLMReady: () => fixture.llm }));
+vi.mock('../../../services/capabilityUnavailable', () => ({ notifyCapabilityUnavailable: fixture.notify, openCapabilitySettings: fixture.configure }));
+vi.mock('../../../hooks/useEvidenceLinkedProjections', () => ({ useEvidenceLinkedProjections: () => ({ ready: projectionReady, failed: projectionFailed, retry: fixture.retry, resolveState: () => ({ status: 'unknown', basis: 'unmeasured' }) }) }));
+vi.mock('../../../utils/wordLevelStats', () => ({
+  getLevelStudyFrequency: () => fixture.source ? { item: 'level' } : null,
+  getLevelStudyLevelNames: () => ['level'], computeLevelStats: () => [{}], summarizeLevelProgress: () => fixture.progress,
 }));
-
-vi.mock('../../../../shared/platform', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../../../../shared/platform')>(),
-  isMobile: () => tutorLaunch.mobile,
-}));
-vi.mock('../../../services/thumbnailService', () => ({ getRecentItems: async () => [] }));
-vi.mock('../../../services/llmProvider', () => ({ isLLMReady: () => tutorLaunch.ready }));
-vi.mock('../../../services/wordLookupService', () => ({ openWordLookup: vi.fn() }));
+vi.mock('../../../../shared/languageFeatures', () => ({ getLearningLanguageLevelForLanguage: () => null, isFrequencyLevelAtOrEasierThanTarget: () => true }));
 vi.mock('../../../components/utils/WindowDragRegion', () => ({ WindowDragRegion: () => null }));
-vi.mock('../../../components/AITutorSetup', () => ({ AITutorSetupModal: () => null }));
-vi.mock('@renderer/components/common/Misc/AppLogo', () => ({ default: () => <span /> }));
-
+vi.mock('./components', async () => ({ WelcomeContinueRow: (await import('./components/WelcomeContinueRow')).WelcomeContinueRow }));
+vi.mock('@renderer/components/common/Misc/AppLogo', () => ({ default: () => null }));
 vi.mock('../../../components/common', () => {
-  const Icon: Component = () => <span />;
+  const Icon = () => null;
   return {
-    Button: (props: { children?: JSX.Element; onClick?: () => void }) => (
-      <button type="button" onClick={props.onClick}>{props.children}</button>
-    ),
-    Tooltip: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
-    VideoIcon: Icon,
-    BookIcon: Icon,
-    SettingsIcon: Icon,
-    BotIcon: Icon,
-    BarChartIcon: Icon,
-    TargetIcon: Icon,
-    SearchIcon: Icon,
-    LanguageVariantGate: () => null,
+    Button: (props: { children?: JSX.Element; onClick?: () => void; variant?: string }) => <button data-variant={props.variant} onClick={props.onClick}>{props.children}</button>,
+    Panel: (props: { children?: JSX.Element; class?: string }) => <div class={props.class}>{props.children}</div>,
+    SkeletonRows: () => <span data-testid="loading" />,
+    VideoIcon: Icon, BookIcon: Icon, BotIcon: Icon, TargetIcon: Icon, SearchIcon: Icon, BarChartIcon: Icon, LanguageVariantGate: Icon,
   };
 });
-
-vi.mock('../../../components/common/Card/ActionCard', () => ({
-  ActionCard: (props: { title: string; description: string; disabled?: boolean; onClick?: () => void }) => (
-    <button type="button" disabled={props.disabled} onClick={props.onClick}>
-      <h3>{props.title}</h3>
-      <p>{props.description}</p>
-    </button>
-  ),
-}));
-
-vi.mock('./components', () => {
-  const Preview: Component = () => <div />;
-  return {
-    WelcomeFeatureCard: (props: { title: string; description: string; preview?: JSX.Element; onClick?: () => void }) => (
-      <article onClick={props.onClick}>
-        <h3>{props.title}</h3>
-        <p>{props.description}</p>
-        {props.preview}
-      </article>
-    ),
-    WelcomeVideoPreview: Preview,
-    WelcomeReaderPreview: Preview,
-    WelcomeFlashcardPreview: (props: {
-      card?: Flashcard | null;
-      loading?: boolean;
-      emptyLabel: string;
-      onRate?: (quality: 'fluent') => void;
-      ratingWrite?: string | null;
-      onRetryRating?: () => void;
-    }) => {
-      flashcardPreviewState.last = props;
-      return (
-        <div data-testid="flashcard-preview" data-loading={String(props.loading)} data-empty-label={props.emptyLabel}>
-          <span data-testid="welcome-card">{props.card?.content.front}</span>
-          <button type="button" data-testid="welcome-rate" onClick={() => props.onRate?.('fluent')}>Rate</button>
-          {props.ratingWrite === 'failed' && (
-            <div role="alert" data-testid="welcome-write-failed">
-              <button type="button" onClick={() => props.onRetryRating?.()}>Retry</button>
-            </div>
-          )}
-        </div>
-      );
-    },
-    WelcomeSettingsPreview: Preview,
-    WelcomeStatsPreview: Preview,
-    WelcomeLookupPreview: Preview,
-    WelcomeLevelPreview: (props: { pending?: boolean; progress: { knownPct: number; assessedPct: number } | null }) => {
-      levelPreviewState.last = props;
-      return <div data-testid="level-preview" data-pending={String(props.pending ?? false)} />;
-    },
-    WelcomeTutorPreview: Preview,
-    WelcomeContinueRow: Preview,
-  };
-});
-
 import { WelcomeRoute } from './WelcomeRoute';
 
-describe('WelcomeRoute localization', () => {
+describe('Home next activity', () => {
   let container: HTMLDivElement;
-
+  let dispose: () => void;
+  const mount = async () => { dispose = render(() => <WelcomeRoute />, container); await Promise.resolve(); await Promise.resolve(); };
+  const click = (key: string) => {
+    const button = Array.from(container.querySelectorAll('button')).find(item => item.textContent?.startsWith(key));
+    expect(button, key).toBeDefined(); button!.click();
+  };
   beforeEach(() => {
-    tutorLaunch.ready = false; tutorLaunch.mobile = false; tutorLaunch.openWindow.mockClear(); tutorLaunch.navigate.mockClear();
-    container = document.createElement('div');
-    document.body.appendChild(container);
+    vi.clearAllMocks(); setKnowledgeReady(true); setProjectionReady(true); setProjectionFailed(false); setDue(0);
+    fixture.recent = []; fixture.source = false; fixture.progress = { tracked: 0, known: 0, total: 0 };
+    fixture.llm = false; fixture.mobile = false; fixture.settings.simplifyHomeScreen = false;
+    container = document.createElement('div'); document.body.append(container);
+  });
+  afterEach(() => { dispose?.(); container.remove(); sessionStorage.clear(); });
+  it('opens the existing review destination without mounting a second rating controller', async () => {
+    setDue(214); await mount();
+    expect(container.querySelector('.welcome-next')?.textContent).toContain('"count":"214"');
+    expect(container.querySelectorAll('[data-variant="primary"]')).toHaveLength(1);
+    expect(container.querySelector('input')).toBeNull();
+    click('mlearn.Home.Today.ReviewAction');
+    expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'flashcards' });
+    expect(container.querySelector('[data-testid="flashcard-preview"]')).toBeNull();
+  });
+  it.each([
+    [{ tracked: 10, known: 4, total: 20 }, 'PracticeAction', 'reinforce'],
+    [{ tracked: 10, known: 10, total: 20 }, 'AssessmentAction', 'assessment'],
+  ])('hands its learning-record recommendation directly to shared study: %s', async (progress, action, activity) => {
+    fixture.source = true; fixture.progress = progress; await mount(); click(`mlearn.Home.Today.${action}`);
+    expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'level-study', context: { activity } });
+  });
+  it('does not recommend from partially loaded learner knowledge', async () => {
+    setKnowledgeReady(false); setDue(12); await mount();
+    expect(container.querySelector('.welcome-next h2')).toBeNull();
     setKnowledgeReady(true);
-    setLanguageFlag(undefined);
-    levelPreviewState.last = null;
-    flashcardFixture.store.flashcards = {};
-    flashcardFixture.currentCard = null;
-    setReviewQueue({ newQueue: [], scheduledQueue: [] });
-    flashcardFixture.submitRating.mockReset();
-    flashcardPreviewState.last = null;
-    localization.translate = (key) => key;
+    expect(container.querySelector('.welcome-next h2')?.textContent).toContain('mlearn.Home.Today.ReviewTitle');
   });
-
-  afterEach(() => {
-    container.remove();
+  it('offers retry instead of a recommendation when the required projection fails', async () => {
+    fixture.source = true; setProjectionReady(false); setProjectionFailed(true); await mount();
+    expect(container.querySelector('.welcome-next h2')).toBeNull(); click('mlearn.Knowledge.Retry'); expect(fixture.retry).toHaveBeenCalledOnce();
   });
-
-  it.each([false, true])('opens saved conversations directly from home (mobile=%s)', mobile => {
-    tutorLaunch.ready = true; tutorLaunch.mobile = mobile;
-    const dispose = render(() => <WelcomeRoute />, container);
-    const card = Array.from(container.querySelectorAll('article, button')).find(node => node.textContent?.includes('mlearn.Home.Cards.AITutor.Title')) as HTMLElement;
-    card.click();
-    if (mobile) expect(tutorLaunch.navigate).toHaveBeenCalledWith('/conversation-agent');
-    else expect(tutorLaunch.openWindow).toHaveBeenCalledWith({ type: 'conversation-agent' });
-    dispose();
+  it('supports a package without a level curriculum without waiting forever or forcing assessment', async () => {
+    setProjectionReady(false); await mount();
+    expect(container.textContent).toContain('mlearn.Home.Today.PlanUnmeasured');
+    click('mlearn.Home.Today.ReadAction'); expect(fixture.navigate).toHaveBeenCalledWith('/reader');
+    expect(container.textContent).not.toContain('mlearn.Home.Today.AssessmentAction');
   });
-
-  it('updates route-owned labels when the localization function changes after mount', async () => {
-    const [prefix, setPrefix] = createSignal('before');
-    localization.translate = (key) => `${prefix()}:${key}`;
-    const dispose = render(() => <WelcomeRoute />, container);
-    expect(container.textContent).toContain('before:mlearn.Home.UI.LearningLanguage');
-    expect(container.textContent).toContain('before:mlearn.Home.Cards.Video.Title');
-
-    setPrefix('after');
-    await Promise.resolve();
-
-    expect(container.textContent).toContain('after:mlearn.Home.Cards.Video.Title');
-    expect(container.textContent).toContain('after:mlearn.Home.UI.LearningLanguage');
-    expect(container.textContent).not.toContain('before:mlearn.Home.Cards.Video.Title');
-
-    dispose();
+  it('continues the most recent video with its linked subtitles', async () => {
+    fixture.recent = [{ type: 'video', name: 'Film', path: '/film.mp4', subtitlePath: '/film.srt', lastWatched: Date.now(), progress: 40 }];
+    await mount(); click('mlearn.Home.Today.ContinueAction');
+    expect(sessionStorage.getItem('mlearn_open_video')).toBe('/film.mp4');
+    expect(sessionStorage.getItem('mlearn_open_video_subtitles')).toBe('/film.srt');
+    expect(fixture.navigate).toHaveBeenCalledWith('/video');
   });
-
-  it('shows the package-declared language flag in the home header', () => {
-    setLanguageFlag('\u{1F1EF}\u{1F1F5}');
-    const dispose = render(() => <WelcomeRoute />, container);
-    expect(container.querySelector('.welcome-language-flag')?.textContent).toBe('\u{1F1EF}\u{1F1F5}');
-    dispose();
+  it('clears stale video context when a material row opens a book', async () => {
+    sessionStorage.setItem('mlearn_open_video_subtitles', '/stale.srt');
+    fixture.recent = [{ type: 'book', name: 'Book', path: '/book.epub', lastWatched: Date.now(), progress: 10 }];
+    await mount(); container.querySelector<HTMLButtonElement>('.welcome-continue-main')!.click();
+    expect(sessionStorage.getItem('mlearn_open_book')).toBe('/book.epub');
+    expect(sessionStorage.getItem('mlearn_open_video_subtitles')).toBeNull();
+    expect(fixture.navigate).toHaveBeenCalledWith('/reader');
   });
-
-  it('labels an empty due queue as caught up when the learner already has cards', () => {
-    flashcardFixture.store.flashcards = { existing: { id: 'existing' } };
-    const dispose = render(() => <WelcomeRoute />, container);
-    expect(container.querySelector('[data-testid="flashcard-preview"]')?.getAttribute('data-empty-label')).toBe('mlearn.Flashcards.EmptyState.NoCardsDueTitle');
-    dispose();
+  it('explains unavailable conversation setup before opening settings', async () => {
+    await mount(); click('mlearn.Home.Cards.AITutor.Title');
+    expect(fixture.notify).toHaveBeenCalledWith('llm', 'notConfigured', expect.any(Function));
+    expect(fixture.configure).toHaveBeenCalledWith('llm'); expect(fixture.openWindow).not.toHaveBeenCalled();
   });
-
-  it('renders plain action buttons instead of feature cards when simplifyHomeScreen is enabled', async () => {
-    settingsState.settings.simplifyHomeScreen = true;
-    const dispose = render(() => <WelcomeRoute />, container);
-
-    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('button'));
-    expect(buttons.some((b) => b.textContent?.includes('mlearn.Home.Cards.Video.Title'))).toBe(true);
-    expect(buttons.some((b) => b.textContent?.includes('mlearn.Home.Cards.Reader.Title'))).toBe(true);
-    expect(buttons.some((b) => b.textContent?.includes('mlearn.Home.Cards.AITutor.Title'))).toBe(true);
-
-    const articles = container.querySelectorAll('article');
-    expect(articles.length).toBe(0);
-
-    settingsState.settings.simplifyHomeScreen = false;
-    dispose();
-  });
-
-  it('shows the Level Study dial as pending — never 0% — until the learner projection settles', async () => {
-    settingsState.settings.simplifyHomeScreen = false;
-    setKnowledgeReady(false);
-    const dispose = render(() => <WelcomeRoute />, container);
-    await Promise.resolve();
-
-    // Store loaded (isLoading false) but projection migration in flight:
-    // the dial must be pending, with no coverage value to render.
-    expect(levelPreviewState.last).not.toBeNull();
-    expect(levelPreviewState.last!.pending).toBe(true);
-    expect(container.querySelector('[data-testid="flashcard-preview"]')?.getAttribute('data-loading')).toBe('true');
-    expect(levelPreviewState.last!.progress).toBeNull();
-
-    // Projection settles: the dial leaves pending; with no language data in
-    // this harness, null stays the genuine no-data state.
-    setKnowledgeReady(true);
-    await Promise.resolve();
-    expect(levelPreviewState.last!.pending).toBe(false);
-    expect(container.querySelector('[data-testid="flashcard-preview"]')?.getAttribute('data-loading')).toBe('false');
-    expect(levelPreviewState.last!.progress).toBeNull();
-
-    dispose();
-  });
-
-  it('keeps the welcome card in place and retries the same acknowledged rating command', async () => {
-    flashcardFixture.currentCard = { id: 'card-1', content: { front: '犬' }, language: 'ja' };
-    flashcardFixture.submitRating
-      .mockRejectedValueOnce(new Error('disk unavailable'))
-      .mockResolvedValueOnce({ attemptId: 'attempt-1', completed: true });
-    const dispose = render(() => <WelcomeRoute />, container);
-    container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(flashcardFixture.submitRating).toHaveBeenCalledOnce();
-    // The failure is owned by the study session contract and reported by the
-    // card's own preview, not by a detached button in the page gutter.
-    expect(flashcardPreviewState.last?.ratingWrite).toBe('failed');
-    const retry = container.querySelector<HTMLButtonElement>('[data-testid="welcome-write-failed"] button');
-    expect(retry).not.toBeNull();
-    retry!.click();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(flashcardFixture.submitRating).toHaveBeenCalledTimes(2);
-    expect(flashcardFixture.submitRating.mock.calls[1]).toEqual(flashcardFixture.submitRating.mock.calls[0]);
-    expect(flashcardFixture.submitRating.mock.calls[0][2]).toMatchObject({
-      taskType: 'welcome-review',
-      scheduler: { cardId: 'card-1', rating: 'good', tested: ['sense-recognition'] },
-    });
-    // A landed retry returns the write to its resting state, so the preview
-    // stops advertising a failure.
-    expect(flashcardPreviewState.last?.ratingWrite ?? null).toBe(null);
-    dispose();
-  });
-
-  it('drives the rating write through the study session vocabulary', async () => {
-    let releaseRating: (() => void) | undefined;
-    flashcardFixture.currentCard = { id: 'card-1', content: { front: '犬' }, language: 'ja' };
-    flashcardFixture.submitRating.mockImplementation(
-      () => new Promise((resolve) => { releaseRating = () => resolve({ attemptId: 'attempt-1', completed: true }); }),
-    );
-    const dispose = render(() => <WelcomeRoute />, container);
-    container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(flashcardPreviewState.last?.ratingWrite).toBe('pending');
-
-    // A second rating cannot be filed while the first is still in flight.
-    container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
-    await Promise.resolve();
-    expect(flashcardFixture.submitRating).toHaveBeenCalledOnce();
-
-    releaseRating?.();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(flashcardPreviewState.last?.ratingWrite ?? null).toBe(null);
-    dispose();
-  });
-
-  it('never renders the untranslated rating-save keys the route used to invent', async () => {
-    flashcardFixture.currentCard = { id: 'card-1', content: { front: '犬' }, language: 'ja' };
-    flashcardFixture.submitRating.mockRejectedValue(new Error('disk unavailable'));
-    const dispose = render(() => <WelcomeRoute />, container);
-    container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(container.textContent).not.toContain('mlearn.Flashcards.SavingRating');
-    expect(container.textContent).not.toContain('mlearn.Flashcards.SaveFailed');
-    dispose();
-  });
-
-  it('preserves the welcome encounter and rating target across a background queue refresh', async () => {
-    const card = (id: string): Flashcard => ({
-      id, language: 'ja', content: { type: 'word', front: id, back: id },
-      state: 'review', dueDate: Date.now() - 1000, interval: 1, ease: 2.5,
-      reviews: 1, lapses: 0, learningStep: 0, createdAt: Date.now(), lastReviewed: 0, lastUpdated: Date.now(),
-    });
-    const first = card('first');
-    const second = card('second');
-    flashcardFixture.store.flashcards = { first, second };
-    flashcardFixture.currentCard = first;
-    flashcardFixture.submitRating.mockResolvedValue({ attemptId: 'attempt-1', completed: true });
-    setReviewQueue({ newQueue: [], scheduledQueue: ['first', 'second'] });
-    const random = vi.spyOn(Math, 'random').mockReturnValueOnce(0.9).mockReturnValueOnce(0.1);
-    const dispose = render(() => <WelcomeRoute />, container);
-    try {
-      expect(container.querySelector('[data-testid="welcome-card"]')!.textContent).toBe('first');
-      random.mockReturnValueOnce(0.1).mockReturnValueOnce(0.9);
-      flashcardFixture.currentCard = second;
-      setReviewQueue({ newQueue: [], scheduledQueue: ['first', 'second'] });
-      await Promise.resolve();
-      expect(container.querySelector('[data-testid="welcome-card"]')!.textContent).toBe('first');
-      expect(random).toHaveBeenCalledTimes(2);
-      container.querySelector<HTMLButtonElement>('[data-testid="welcome-rate"]')!.click();
-      await Promise.resolve();
-      await Promise.resolve();
-      expect(flashcardFixture.submitRating).toHaveBeenCalledWith('first', expect.any(Array),
-        expect.objectContaining({ scheduler: expect.objectContaining({ cardId: 'first' }) }));
-      expect(container.querySelector('[data-testid="welcome-card"]')!.textContent).toBe('second');
-    } finally {
-      dispose();
-    }
+  it('keeps the same journey in compact Home instead of substituting a feature catalogue', async () => {
+    fixture.settings.simplifyHomeScreen = true; setDue(12); await mount(); click('mlearn.Home.Today.ReviewAction');
+    expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'flashcards' });
+    click('mlearn.Home.Today.ViewPlan'); expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'plan' } });
   });
 });
-
-vi.mock('../../../hooks/useEvidenceLinkedProjections', () => ({ useEvidenceLinkedProjections: () => ({ ready: () => true, failed: () => false, retry: vi.fn(), resolveState: () => ({ status: 'unknown', basis: 'unmeasured' }) }) }));

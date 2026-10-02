@@ -53,6 +53,7 @@ const settingsBridge: SettingsBridge = {
 };
 
 const flashcardBridge: FlashcardBridge = {
+  commitFlashcardRating: command => getIPC().commitFlashcardRating(command),
   enqueueFlashcardRating: command => getIPC().enqueueFlashcardRating(command),
   flushFlashcardRatings: () => getIPC().flushFlashcardRatings(),
   onFlashcardRatingsCommitted: callback => getIPC().onFlashcardRatingsCommitted(callback),
@@ -64,6 +65,7 @@ const flashcardBridge: FlashcardBridge = {
     ? getIPC().saveFlashcardPatch(patch)
     : getIPC().saveFlashcardPatch(patch, removedCardIds, resetReviewProgress, authorization),
   onFlashcards: (cb) => getIPC().onFlashcards(cb),
+  onFlashcardLoadError: (cb) => getIPC().onFlashcardLoadError(cb),
   onNewDayFlashcards: (cb) => getIPC().onNewDayFlashcards(cb),
   onFlashcardConnectOpen: (cb) => getIPC().onFlashcardConnectOpen(cb),
   onReviewFlashcardRequest: (cb) => getIPC().onReviewFlashcardRequest(cb),
@@ -251,19 +253,20 @@ const speechBridge: SpeechBridge = {
 };
 
 const voiceBridge: VoiceBridge = {
+  supportsCalls: true,
   voiceCheckModels: (lang) => getIPC().voiceCheckModels(lang),
   voiceDownloadModels: (lang) => getIPC().voiceDownloadModels(lang),
   onVoiceModelProgress: (cb) => getIPC().onVoiceModelProgress(cb),
-  voiceStartSession: (lang, mode, threshold, provider) => getIPC().voiceStartSession(lang, mode, threshold, provider),
-  voiceStopSession: () => getIPC().voiceStopSession(),
-  voiceSendAudioChunk: (samples) => getIPC().voiceSendAudioChunk(samples),
-  voiceFlush: () => getIPC().voiceFlush(),
-  voiceUpdateSilenceThreshold: (t) => getIPC().voiceUpdateSilenceThreshold(t),
+  voiceStartSession: (lang, mode, threshold, provider, request) => getIPC().voiceStartSession(lang, mode, threshold, provider, request),
+  voiceStopSession: (scope) => getIPC().voiceStopSession(scope),
+  voiceSendAudioChunk: (samples, scope) => getIPC().voiceSendAudioChunk(samples, scope),
+  voiceFlush: (scope) => getIPC().voiceFlush(scope),
+  voiceUpdateSilenceThreshold: (t, scope) => getIPC().voiceUpdateSilenceThreshold(t, scope),
   onVoiceSttResult: (cb) => getIPC().onVoiceSttResult(cb),
   onVoiceVadEvent: (cb) => getIPC().onVoiceVadEvent(cb),
-  voiceTtsGenerate: (text, lang, speed, sampleId, provider, cloudAuthToken) => getIPC().voiceTtsGenerate(text, lang, speed, sampleId, provider, cloudAuthToken),
-  voiceTtsStop: () => getIPC().voiceTtsStop(),
-  voiceSendTtsState: (active) => getIPC().voiceTtsState(active),
+  voiceTtsGenerate: (text, lang, speed, sampleId, provider, cloudAuthToken, request) => getIPC().voiceTtsGenerate(text, lang, speed, sampleId, provider, cloudAuthToken, request),
+  voiceTtsStop: (scope) => getIPC().voiceTtsStop(scope),
+  voiceSendTtsState: (active, scope) => getIPC().voiceTtsState(active, scope),
   onVoiceTtsAudio: (cb) => getIPC().onVoiceTtsAudio(cb),
   onVoiceTtsStatus: (cb) => getIPC().onVoiceTtsStatus(cb),
   onVoiceSessionReady: (cb) => getIPC().onVoiceSessionReady(cb),
@@ -286,6 +289,9 @@ const mediaStatsBridge: MediaStatsBridge = {
 };
 
 const knowledgeEventsBridge: KnowledgeEventsBridge = {
+  recordLearningDecision: (decision) => getIPC().recordLearningDecision(decision),
+  getLearningDecisionRecord: (id) => getIPC().getLearningDecisionRecord(id),
+  getRatingUndoHistory: (surface) => getIPC().getRatingUndoHistory(surface),
   appendKnowledgeEvents: (eventsByKey) => getIPC().appendKnowledgeEvents(eventsByKey),
   queryKnowledgeEvents: (keys) => getIPC().queryKnowledgeEvents(keys),
   queryKnowledgeItemEvents: (keys) => getIPC().queryKnowledgeItemEvents(keys),

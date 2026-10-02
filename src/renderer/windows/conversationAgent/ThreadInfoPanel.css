@@ -86,8 +86,17 @@
 
 .ca-thread-participant-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-2);
+}
+
+.ca-thread-participant-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-left: auto;
 }
 
 .ca-thread-participant-avatar {
@@ -198,6 +207,8 @@
 }
 
 .ca-thread-actions { display: flex; flex-direction: column; gap: var(--spacing-2); }
+.ca-thread-scope-hint { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); line-height: var(--line-height-normal); }
+.ca-thread-people-picker, .ca-thread-people-confirm { display: flex; flex-direction: column; gap: var(--spacing-2); padding: var(--spacing-3); border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
 .ca-thread-delete-confirm { display: flex; align-items: center; gap: var(--spacing-2); flex-wrap: wrap; }
 .ca-thread-integration-hint { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
 .ca-story-branch { display: flex; flex-direction: column; gap: var(--spacing-2); padding-top: var(--spacing-2); }

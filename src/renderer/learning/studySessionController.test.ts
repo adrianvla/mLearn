@@ -29,6 +29,38 @@ function harness(skipAttempts = false) {
 }
 
 describe('shared study session controller', () => {
+  it('pins a competing question before presentation without recording an encounter or losing its decision on restart', async () => {
+    const h = harness();
+    const first = h.make();
+    await first.start('package-v1', [{ id: 'one' }, { id: 'two' }, { id: 'three' }], 0, {});
+    const anchor = first.current()!;
+    const meta = { decision: { id: 'choice-1', selected: 'three', baseline: 'one' } };
+    expect(await first.selectQuestion(anchor, 2, meta)).toBe(true);
+    expect(first.current()).toMatchObject({ index: 2, visited: [], rated: 0, revealed: false, meta });
+    expect(h.write).not.toHaveBeenCalled();
+    const restored = h.make();
+    expect(restored.current()).toEqual(first.current());
+    expect(await restored.selectQuestion(restored.current()!, 1, {})).toBe(false);
+    expect(await first.selectQuestion(anchor, 1, {})).toBe(false);
+    await restored.reveal(restored.current()!);
+    expect(await restored.selectQuestion(restored.current()!, 0, {})).toBe(false);
+    first.dispose(); restored.dispose();
+  });
+
+  it('refuses an invalid or already visited question and keeps the durable cursor when selection cannot persist', async () => {
+    const h = harness();
+    const first = h.make();
+    await first.start('package-v1', [{ id: 'one' }, { id: 'two' }, { id: 'three' }], 0, {});
+    await first.skip(first.current()!);
+    const anchor = first.current()!;
+    expect(await first.selectQuestion(anchor, 0, {})).toBe(false);
+    expect(await first.selectQuestion(anchor, 3, {})).toBe(false);
+    expect(await first.selectQuestion(anchor, 1.5, {})).toBe(false);
+    h.storage.setItem = () => { throw new Error('storage full'); };
+    expect(await first.selectQuestion(anchor, 2, { decision: 'not-persisted' })).toBe(false);
+    expect(first.current()).toEqual(anchor);
+    first.dispose();
+  });
   it('rechecks a dynamic exclusion under the lock and advances as a skip without evidence', async () => {
     const h = harness(true);
     const session = h.make();

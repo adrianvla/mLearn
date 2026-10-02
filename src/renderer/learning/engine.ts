@@ -60,10 +60,9 @@ export const PRESETS: Record<'RETENTION' | 'CALIBRATION' | 'CURRICULUM' | 'MEDIA
     task: RETENTION_TASK,
   },
   CALIBRATION: {
-    // Probes score information-gain/uncertainty; weak targets score
-    // curriculum-relevance; bridges complete the graph cheaply — their
-    // predicted accessibility discounts attention-cost.
-    weights: { 'information-gain': 1, uncertainty: 1, novelty: 1, 'curriculum-relevance': 1, 'attention-cost': -0.5 },
+    // Residual uncertainty and package-authorized support are relative
+    // selection preferences, without probability or estimated-effort claims.
+    weights: { 'information-gain': 1, uncertainty: 1, novelty: 1, 'declared-support': 1, 'curriculum-relevance': 1, 'attention-cost': -0.5 },
     deferFloor: 0,
     attentionBudgetRemaining: 1,
     probeBudgetRemaining: 1,
@@ -151,6 +150,35 @@ export function selectNextEncounter(inputs: EncounterInputs): PolicyDecision | n
     cooldowns: inputs.cooldowns ?? new Map(),
     recentPicks: inputs.recentPicks ?? [],
   }, inputs.rng);
+}
+
+/** Full source pool and per-candidate entropy stay fixed; only declared support changes. */
+export function selectCounterfactualEncounter(inputs: EncounterInputs): {
+  selected: PolicyDecision | null; baseline: PolicyDecision | null;
+} {
+  const candidates = sourceCandidates(inputs);
+  if (new Set(candidates.map(candidate => candidate.key)).size !== candidates.length) {
+    throw new Error('Counterfactual policy pool has ambiguous candidate identities');
+  }
+  const config = { ...PRESETS[inputs.preset], ...inputs.config,
+    context: inputs.context ?? inputs.config?.context, nowMs: inputs.nowMs,
+    cooldowns: inputs.cooldowns ?? new Map(), recentPicks: inputs.recentPicks ?? [],
+  };
+  const draws = new Map<string, number>();
+  const entropy = inputs.rng ?? Math.random;
+  const drawForCandidate = (key: string): number => {
+    const saved = draws.get(key);
+    if (saved !== undefined) return saved;
+    const value = entropy();
+    draws.set(key, value);
+    return value;
+  };
+  const selected = selectNext(candidates, config, entropy, drawForCandidate);
+  const baseline = selectNext(candidates.map(candidate => ({ ...candidate,
+    scores: { ...candidate.scores, 'declared-support': 0 },
+    meta: { ...candidate.meta, structuralCreditDisabled: true },
+  })), config, entropy, drawForCandidate);
+  return { selected, baseline };
 }
 
 /**

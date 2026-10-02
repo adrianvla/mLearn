@@ -15,7 +15,7 @@ import type {
 export type Rng = () => number;
 
 /** Version of the selection math captured in every trace (R20 replay pin). */
-export const POLICY_TRACE_VERSION = 'teaching-policy@3';
+export const POLICY_TRACE_VERSION = 'teaching-policy@4';
 
 /** Deadline window (days) inside which goal weighting ramps up (R07 heuristic, bounded). */
 export const DEADLINE_WINDOW_DAYS = 42;
@@ -39,6 +39,8 @@ export const POLICY_TRACE_DETAIL_CAP = 16;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface TeachingPolicyConfig {
+  /** Ranked choice keeps source ordering on ties; weighted remains the default. */
+  selection?: 'weighted' | 'ranked';
   weights: Partial<Record<ScoreDimension, number>>;
   deferFloor: number;
   attentionBudgetRemaining: number;
@@ -151,6 +153,7 @@ export function selectNext(
   candidates: readonly Candidate[],
   config: TeachingPolicyConfig,
   rng: Rng = Math.random,
+  drawForCandidate?: (key: string) => number,
 ): PolicyDecision | null {
   if (candidates.length === 0) return null;
 
@@ -230,7 +233,9 @@ export function selectNext(
     if (reason) addExclusion({ key: candidate.key, reason });
   }
 
-  const { selected, draws, drawsOmitted } = weightedPick(eligible, rng);
+  const { selected, draws, drawsOmitted } = config.selection === 'ranked'
+    ? { selected: eligible.reduce((current, item) => item.total > current.total ? item : current), draws: [], drawsOmitted: 0 }
+    : weightedPick(eligible, rng, drawForCandidate);
   const action: PolicyAction = selected.candidate.origin === 'retention'
     ? 'MAINTAIN'
     : requiresProbe(selected.candidate)
@@ -241,6 +246,8 @@ export function selectNext(
   // explainable without post-hoc narrative.
   const why = eligible.length === 1
     ? `sole eligible candidate, score ${selected.total}`
+    : config.selection === 'ranked'
+      ? `highest relative score among ${eligible.length} eligible: "${selected.candidate.key}" at ${selected.total}; source order breaks ties`
     : `weighted pick over ${eligible.length} eligible (seed ${config.seed ?? 'unseeded'}): "${selected.candidate.key}" won with score ${selected.total}; deterministic top was "${best.candidate.key}" at ${best.total}`;
   return decision(
     selected,
@@ -251,21 +258,11 @@ export function selectNext(
   );
 }
 
-/**
- * A bridge the graph already predicts as highly accessible only deserves a
- * cheap calibration probe — measuring it teaches nothing; full teaching is
- * reserved for bridges with genuine acquisition cost.
- */
-const BRIDGE_PROBE_THRESHOLD = 0.7;
-
-function bridgeDeservesOnlyProbe(candidate: Candidate): boolean {
-  const predicted = candidate.meta?.pSuccess;
-  return typeof predicted === 'number' && predicted >= BRIDGE_PROBE_THRESHOLD;
-}
-
 /** Origins that consume the probe budget and honor probe cooldown. */
 function requiresProbe(candidate: Candidate): boolean {
-  return candidate.origin === 'probe' || (candidate.origin === 'bridge' && bridgeDeservesOnlyProbe(candidate));
+  // A missing-access measurement remains a probe irrespective of support.
+  // The outcome, not an uncalibrated score, establishes whether it is known.
+  return candidate.origin === 'probe' || candidate.origin === 'bridge';
 }
 
 function probeIsAllowed(candidate: Candidate, config: TeachingPolicyConfig): boolean {
@@ -309,17 +306,20 @@ export interface RngDraw { key: string; draw: number; weightedKey: number }
 function weightedPick(
   candidates: readonly ScoredCandidate[],
   rng: Rng,
+  drawForCandidate?: (key: string) => number,
 ): { selected: ScoredCandidate; draws: RngDraw[]; drawsOmitted: number } {
-  const first = weightedKey(candidates[0].total, rng);
+  const draw = (candidate: ScoredCandidate) => weightedKey(candidate.total,
+    drawForCandidate ? () => drawForCandidate(candidate.candidate.key) : rng);
+  const first = draw(candidates[0]);
   let selected = candidates[0];
   let selectedKey = first.weightedKey;
   const draws: RngDraw[] = [{ key: selected.candidate.key, draw: first.draw, weightedKey: first.weightedKey }];
   let drawsOmitted = 0;
 
   for (let index = 1; index < candidates.length; index += 1) {
-    const { weightedKey: key, draw } = weightedKey(candidates[index].total, rng);
+    const { weightedKey: key, draw: rawDraw } = draw(candidates[index]);
     if (draws.length < POLICY_TRACE_DETAIL_CAP) {
-      draws.push({ key: candidates[index].candidate.key, draw, weightedKey: key });
+      draws.push({ key: candidates[index].candidate.key, draw: rawDraw, weightedKey: key });
     } else {
       drawsOmitted += 1;
     }
@@ -353,12 +353,13 @@ interface DecisionContext {
 const TRACE_LIMITS = [
   'Scores are explainable heuristic weights, not calibrated recall probabilities.',
   'Momentum is recent-consolidation padding: selection-only, never evidence and never a threshold.',
+  'Declared support is package-authorized relative credit, not measured effort or information gain.',
 ] as const;
 
 const MEDIA_LIMIT =
   'media-relevance is recurrence of unmeasured tokens in the learner\'s selected media (coverage), not demonstrated comprehension.';
 
-function rankRow(candidate: Candidate, effective: Partial<Record<ScoreDimension, number>>): PolicyRankRow {
+function rankRow(candidate: Candidate, effective: Partial<Record<ScoreDimension, number>>, task: EncounterTask): PolicyRankRow {
   const contributions = Object.entries(candidate.scores)
     .filter((entry): entry is [ScoreDimension, number] => entry[1] !== undefined)
     .map(([dimension, score]) => {
@@ -369,6 +370,8 @@ function rankRow(candidate: Candidate, effective: Partial<Record<ScoreDimension,
   return {
     key: candidate.key,
     origin: candidate.origin,
+    targets: JSON.parse(JSON.stringify(candidate.targets)) as Candidate['targets'],
+    task: JSON.parse(JSON.stringify(candidate.task ?? task)) as EncounterTask,
     // Source inputs verbatim: the explanation names the counts/status the
     // scores were derived from, not just the arithmetic (R20).
     ...(candidate.meta ? { meta: { ...candidate.meta } } : {}),
@@ -388,7 +391,7 @@ function buildTrace(
   const sorted = [...context.scored].sort((left, right) => right.total - left.total);
   const ranking = [chosen, ...sorted.filter((row) => row.candidate.key !== chosen.candidate.key)]
     .slice(0, Math.min(POLICY_RANKING_CAP, context.scored.length))
-    .map((row) => rankRow(row.candidate, context.effective));
+    .map((row) => rankRow(row.candidate, context.effective, config.task));
 
   const limits: string[] = [...TRACE_LIMITS];
   if (context.scored.some(({ candidate }) => candidate.origin === 'media')) limits.push(MEDIA_LIMIT);
@@ -400,6 +403,7 @@ function buildTrace(
   return {
     version: POLICY_TRACE_VERSION,
     inputs: {
+      ...(config.selection ? { selection: config.selection } : {}),
       nowMs: config.nowMs,
       attentionBudgetRemaining: config.attentionBudgetRemaining,
       probeBudgetRemaining: config.probeBudgetRemaining,
@@ -429,6 +433,7 @@ function buildTrace(
         drawsOmitted: context.drawsOmitted,
       },
       task: config.task.taskTemplateId,
+      taskSnapshot: JSON.parse(JSON.stringify(config.task)) as EncounterTask,
       candidateCount: context.scored.length,
       goal: config.context?.goal ?? null,
       intensity: config.context?.intensity ?? null,
@@ -504,7 +509,8 @@ export function replayFromTrace(
   // Integrity: a weighted pick draws once per eligible candidate, so a
   // successful pick must carry its draw record; a DEFER never drew. A pick
   // trace with no draws is corrupt and cannot be replayed.
-  if (trace.action !== null && trace.action !== 'DEFER' && trace.inputs.rng.draws.length === 0) return null;
+  if (trace.inputs.selection !== 'ranked' && trace.action !== null && trace.action !== 'DEFER' && trace.inputs.rng.draws.length === 0) return null;
+  if (trace.inputs.selection === 'ranked' && trace.inputs.rng.draws.length !== 0) return null;
   const goal = trace.inputs.goal;
   const intensity = trace.inputs.intensity;
   const context: PolicyContext | undefined = goal || intensity
@@ -514,6 +520,7 @@ export function replayFromTrace(
       }
     : undefined;
   return selectNext(candidates, {
+    ...(trace.inputs.selection ? { selection: trace.inputs.selection } : {}),
     weights: { ...trace.weights.base },
     deferFloor: trace.inputs.deferFloor,
     attentionBudgetRemaining: trace.inputs.attentionBudgetRemaining,
@@ -523,7 +530,7 @@ export function replayFromTrace(
     cooldowns: new Map(trace.inputs.cooldowns.map((entry) => [entry.key, entry.lastProbeAtMs])),
     recentPicks: trace.inputs.recentPicks,
     minRepeatDistance: trace.inputs.minRepeatDistance,
-    task: task ?? {
+    task: task ?? trace.inputs.taskSnapshot ?? {
       taskTemplateId: trace.inputs.task,
       inputModality: 'replay',
       responseModality: 'none',

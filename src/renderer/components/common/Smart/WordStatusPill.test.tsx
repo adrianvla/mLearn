@@ -158,6 +158,19 @@ describe('WordStatusPill', () => {
     });
   });
 
+  it.each(['unknown', 'known'] as const)('opens the requested learning record for %s without writing a claim or opening an override funnel', async (status) => {
+    comprehensiveResultMock = { status, basis: 'evidence', evidenceStatus: status, source: 'Manual', timesSeen: 3 };
+    const inspect = vi.fn();
+    const dispose = render(() => <WordStatusPill word="Haus" language="de" onInspect={inspect} suppressKnowledgePopover />, container);
+    await vi.waitFor(() => expect(container.querySelector('button')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('button')!.click();
+    expect(inspect).toHaveBeenCalledOnce();
+    expect(setWordClaimMock).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="anki-warning"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tooltip"]')).toBeNull();
+    dispose();
+  });
+
   afterEach(() => {
     container.remove();
   });

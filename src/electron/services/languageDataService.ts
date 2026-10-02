@@ -17,6 +17,7 @@ import { satisfiesMinimumAppVersion } from '../../shared/semanticVersion';
 import { diffCompactGraphAssets } from '../../shared/graph/diff';
 import type { CompactAssetJSON } from '../../shared/graph/compact';
 import { invalidateFlashcardsCache } from './flashcardStorage';
+import { advanceLanguagePackageRevision } from './languagePackageRevision';
 
 const log = getLogger('electron.languageData');
 const inFlightInstalls = new Map<string, Promise<void>>();
@@ -284,6 +285,7 @@ function syncInstalledDictionaryPackMetadata(
   const temporaryPath = `${metadataPath}.installing`;
   fs.writeFileSync(temporaryPath, `${JSON.stringify(updatedMetadata, null, 2)}\n`, 'utf-8');
   fs.renameSync(temporaryPath, metadataPath);
+  advanceLanguagePackageRevision(getLanguageDataRoot(), language);
 }
 
 function installReceiptVersionMatches(installKey: string, expectedVersion?: string): boolean {
@@ -679,6 +681,9 @@ async function installBundle(
       const tmpInstalledPath = `${installedPath}.installing`;
       fs.copyFileSync(extractedPath, tmpInstalledPath);
       fs.renameSync(tmpInstalledPath, installedPath);
+      // Also retire cached authority if a later file fails: any replaced
+      // asset means the previous in-memory package generation is stale.
+      advanceLanguagePackageRevision(dataRoot, language);
     }
     // A newly installed package can unblock deferred flashcard-store
     // migrations (e.g. normalization rebuilds that need package-declared

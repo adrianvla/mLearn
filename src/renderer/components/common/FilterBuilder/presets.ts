@@ -47,9 +47,17 @@ export function buildWordSyncPreset(
   levelNames: Record<string, string>,
   targetLevel: number | null | undefined,
   languageData?: LanguageData | null,
+  intent: 'discover' | 'reinforce' = 'discover',
 ): FilterToken[] {
   const levels = targetLevel == null ? [] : getFrequencyLevelsAtOrEasierThanTarget(levelNames, targetLevel, languageData);
-  return [statusUntrackedToken(), ...(levels.length ? buildLevelRangeClause(levels) : [])];
+  const status: FilterToken[] = intent === 'reinforce' ? [
+    { instanceId: uniqueId(), kind: 'paren', dir: 'open' },
+    statusUnknownToken(),
+    { instanceId: uniqueId(), kind: 'operator', op: 'OR' },
+    statusLearningToken(),
+    { instanceId: uniqueId(), kind: 'paren', dir: 'close' },
+  ] : [statusUntrackedToken()];
+  return [...status, ...(levels.length ? buildLevelRangeClause(levels) : [])];
 }
 
 export function buildBulkAddDefaultPreset(

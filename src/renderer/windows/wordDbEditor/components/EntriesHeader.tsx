@@ -2,7 +2,7 @@
  * Entries Header Component for Word Database Editor
  */
 
-import { Component, Accessor } from 'solid-js';
+import { Component, Accessor, Show } from 'solid-js';
 import { useLocalization } from '../../../context';
 import { SortAscIcon, SortDescIcon } from '../../../components/common';
 import './EntriesHeader.css';
@@ -11,6 +11,7 @@ export interface EntriesHeaderProps {
   sortKey: Accessor<string>;
   sortDir: Accessor<1 | -1>;
   onSort: (key: string) => void;
+  showIntegrations?: boolean;
 }
 
 export const EntriesHeader: Component<EntriesHeaderProps> = (props) => {
@@ -35,7 +36,7 @@ export const EntriesHeader: Component<EntriesHeaderProps> = (props) => {
       <button type="button" class="col knowledge" onClick={() => props.onSort('status')}>
         {t('mlearn.WordDbEditor.Columns.Knowledge')}{getSortIndicator('status')}
       </button>
-      <div class="col integrations">{t('mlearn.WordDbEditor.Columns.Integrations')}</div>
+      <Show when={props.showIntegrations !== false}><div class="col integrations">{t('mlearn.WordDbEditor.Columns.Integrations')}</div></Show>
     </div>
   );
 };

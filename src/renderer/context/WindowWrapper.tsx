@@ -7,7 +7,7 @@ import { ParentComponent, Component, JSX, Show, createSignal, createEffect, crea
 import { SettingsProvider, useSettings } from './SettingsContext';
 import './WindowWrapper.css';
 import { LanguageProvider } from './LanguageContext';
-import { FlashcardProvider } from './FlashcardContext';
+import { FlashcardProvider, useFlashcards } from './FlashcardContext';
 import { FlashcardCreationChoiceModal } from '../components/flashcard';
 import { ServerProvider, useServer } from './ServerContext';
 import { InstallProgressProvider, useInstallProgress } from './InstallProgressContext';
@@ -351,6 +351,32 @@ const BuiltinModelStatusListener: Component = () => {
   return null;
 };
 
+/** Keep every window's recovery action consistent while preserving the view underneath. */
+export const LibraryLoadGuard: Component<{ recoveryAccess?: boolean }> = (props) => {
+  const flashcards = useFlashcards();
+  const { t } = useLocalization();
+  const openProtection = () => getBridge().window.openWindow({ type: 'settings', context: { section: 'general' } });
+  return <Show when={props.recoveryAccess} fallback={
+    <Modal isOpen={!!flashcards.libraryLoadError()} onClose={() => {}}
+      title={t('mlearn.LibraryRecovery.Title')} size="sm" showCloseButton={false}
+      closeOnEscape={false} closeOnOverlay={false}
+      footer={<>
+        <Show when={isElectron()}><Button variant="secondary" onClick={openProtection}>{t('mlearn.LibraryRecovery.OpenProtection')}</Button></Show>
+        <Button variant="primary" onClick={flashcards.retryLibraryLoad}>{t('mlearn.Global.TryAgain')}</Button>
+      </>}>
+      <p role="alert">{t('mlearn.LibraryRecovery.Description')}</p>
+    </Modal>
+  }>
+    <Show when={flashcards.libraryLoadError()}>
+      <aside class="library-recovery-notice" role="alert">
+        <strong>{t('mlearn.LibraryRecovery.Title')}</strong>
+        <p>{t('mlearn.LibraryRecovery.Description')}</p>
+        <Button onClick={flashcards.retryLibraryLoad}>{t('mlearn.Global.TryAgain')}</Button>
+      </aside>
+    </Show>
+  </Show>;
+};
+
 /**
  * WindowWrapper wraps all window entry points with necessary providers
  * This ensures consistent context availability across all windows
@@ -360,7 +386,7 @@ const BuiltinModelStatusListener: Component = () => {
  */
 const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 
-export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean; showWindowLoadingScreen?: boolean }> = (props) => {
+export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean; showWindowLoadingScreen?: boolean; libraryRecoveryAccess?: boolean }> = (props) => {
   const needsDragRegion = (props.showDragRegion !== false) && !props.showTitleBar && isElectron();
   const needsTitleBar = props.showTitleBar && isElectron();
   const windowControlsInsets = getWindowControlsInsets({
@@ -395,6 +421,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
             <LanguageProviderBridge>
             <MigrationHandler>
                 <FlashcardProvider>
+                  <LibraryLoadGuard recoveryAccess={props.libraryRecoveryAccess} />
                   <Show when={needsTitleBar} fallback={
                     <>
                       <Show when={needsDragRegion}>

@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "LibraryRecovery": {
+      "OpenProtection": "数据保护与恢复设置",
+      "Title": "无法打开你的资料库",
+      "Description": "无法读取已保存的资料库。为保护数据，修改已暂停。请检查存储位置是否可用，然后重试。"
+    },
     "GraphInspector": {
       "Title": "图谱检查器",
       "Unavailable": "当前语言图谱尚未安装。",
@@ -297,7 +302,14 @@
           "Title": "代理记忆"
         },
         "Boundary": {
-          "Title": "对话边界审核", "Provider": "审核方式", "Description": "回复会在保存前审核。本地分类器可增加私密的第一道检查；最终产品判断仍由所选模型完成。", "Actor": "模型审核", "Local": "本地 CPU 防护＋模型审核", "LocalDescription": "Qwen3Guard-Gen 0.6B，约 484 MB，在 CPU 上运行。", "Install": "安装本地防护模型", "Installed": "本地防护模型已安装"
+          "Title": "对话边界审核",
+          "Provider": "审核方式",
+          "Description": "回复会在保存前审核。本地分类器可增加私密的第一道检查；最终产品判断仍由所选模型完成。",
+          "Actor": "模型审核",
+          "Local": "本地 CPU 防护＋模型审核",
+          "LocalDescription": "Qwen3Guard-Gen 0.6B，约 484 MB，在 CPU 上运行。",
+          "Install": "安装本地防护模型",
+          "Installed": "本地防护模型已安装"
         },
         "Checker": {
           "Title": "校对代理",
@@ -593,7 +605,10 @@
         "ReadyHint": "发送消息，或让 AI 开始对话。",
         "StartConversation": "让 AI 开始",
         "Title": "开始对话",
-        "NewConversation": "新对话"
+        "NewConversation": "新对话",
+        "ReadyTitle": "可以开始交谈",
+        "SavedTitle": "会话已保存",
+        "SavedUnavailableHint": "AI服务不可用。开始交谈前，请打开AI设置以连接服务。"
       },
       "ExperimentalBanner": "实验性功能 — AI 回复可能包含错误。请验证重要的语言点。",
       "Disclaimer": "这是 AI，可能会犯错。请仔细核对回复内容。",
@@ -694,12 +709,17 @@
       "TriggerKeyHover": "{key} + 悬停",
       "TriggerLongHover": "长按悬停",
       "Voice": {
+        "AiGroupCall": "AI群组通话",
+        "AiCall": "AI通话",
+        "PeopleInCall": "本次通话的参与者",
+        "ReturnToChat": "返回聊天",
+        "EndAndReturn": "结束通话并返回聊天",
         "BackendAuthError": "语音后端连接失败。请重试。",
         "Aftermath": {
           "Duration": "时长",
-          "Messages": "消息数",
+          "Messages": "你的发言次数",
           "Mistakes": "记录的错误",
-          "NoMistakes": "未记录错误。做得好！",
+          "NoMistakes": "本次通话未记录纠正。",
           "Title": "会话总结"
         },
         "CloudTts": "云端",
@@ -722,6 +742,8 @@
         "Listening": "正在聆听…",
         "LoadingTtsModel": "正在加载语音合成模型…",
         "MicPermission": "语音通话需要麦克风访问权限。",
+        "SynthesisDeclined": "由于未允许本地语音合成，语音播放已停止。通话仍保持开启。",
+        "ContactVoices": "每位联系人使用自己的声音样本。没有样本的联系人使用系统声音。",
         "Microphone": "麦克风",
         "DefaultMicrophone": "默认麦克风",
         "MicrophoneNumber": "麦克风 {index}",
@@ -747,7 +769,25 @@
         "VoiceSample": "流式语音克隆",
         "LightweightVoice": "轻量语音",
         "SystemVoice": "系统语音",
-        "CpuWarning": "语音正在 CPU 上运行，实时语音可能会出现延迟。语音质量不受影响。"
+        "CpuWarning": "语音正在 CPU 上运行，实时语音可能会出现延迟。语音质量不受影响。",
+        "PreparingMicrophone": "正在准备麦克风…",
+        "CallsUnavailable": "AI语音通话需要桌面应用。你可以在这里继续文字对话。",
+        "CaptureFailed": "无法启动麦克风。请检查音频设备，然后重新发起通话。",
+        "VisualActivity": "视觉练习：请在屏幕上作答。",
+        "MemoryRecordFailed": "无法保存对话笔记，因此未播放回复。",
+        "Delivery": {
+          "pending": "此回复没有已说出内容的记录。",
+          "playing": "此回复的一部分已说出。",
+          "completed": "已在通话中说出。",
+          "interrupted": "语音被打断。",
+          "stopped": "语音已停止。",
+          "failed": "此回复的语音播放失败。",
+          "Estimated": "最后说出的短语为估计内容。",
+          "Generated": "完整回复",
+          "GeneratedDescription": "这是为语音准备的完整回复。只有上方的转录内容被记录为已说出。"
+        },
+        "NoAudio": "合成结束时没有可播放的音频。回复未被记录为已播放。",
+        "DeliveryRecordFailed": "无法保存播放记录。语音已停止，播放仍未确认。"
       },
       "Memory": {
         "ClearAll": "清除所有记忆",
@@ -764,14 +804,14 @@
         "TemporaryPractice": "临时练习",
         "Title": "对话",
         "NewConversation": "新对话",
-        "UntitledThread": "未命名话题",
+        "UntitledThread": "未命名对话",
         "Started": "开始于 {date}",
         "NoMatches": "没有匹配的对话"
       },
       "LivingWorld": {
         "ConsentTitle": "启用 Living World？",
-        "ConsentHint": "Living World 未开启。此对话将存在于你的持久世界中，记忆、关系与变化都会保存在那里。启用 Living World 以继续，或保持在临时练习中。",
-        "EnableAndContinue": "启用 Living World 并继续",
+        "ConsentHint": "共享历史已关闭。启用共享记忆，让此会话更新联系人和关系，或选择独立历史。",
+        "EnableAndContinue": "启用共享记忆并继续",
         "NotNow": "暂不"
       },
       "NewConversation": {
@@ -781,7 +821,7 @@
         "GeneratedNotice": "这是生成的虚构情境，并非经过考据的原作设定。开始前请先检查。",
         "PrivatePreview": "私有初始状态——仅供你在此审核，不会分享给所有人。",
         "Scene": "情境",
-        "TemporaryHint": "此对话单独保存。这里的记忆和编辑不会改变你的世界。",
+        "TemporaryHint": "单独保存。这里的消息和记忆不会改变共享关系。",
         "Title": "新对话",
         "Hint": "选择对话对象，并可选择设定一个目标。",
         "Placeholder": "你想聊什么或练习什么？",
@@ -796,10 +836,19 @@
         "IntentLabel": "目标（可选）",
         "PreparedGoalLabel": "练习重点",
         "ToggleParticipant": "将 {name} 加入对话",
-        "ScopeLabel": "保存在哪里？",
-        "ScopeTemporary": "临时",
-        "ScopePersistent": "在我的世界中",
-        "PersistentHint": "这里的消息、记忆和关系将成为你永久世界的一部分。"
+        "ScopeLabel": "会话历史",
+        "ScopeTemporary": "独立历史",
+        "ScopePersistent": "共享历史",
+        "PersistentHint": "这里的消息、记忆和关系会成为共享延续的一部分。",
+        "Purpose": "会话方式",
+        "Conversation": "交谈",
+        "CoachedPractice": "辅导练习",
+        "ConversationHint": "参与者保持自己的角色。不会要求语言辅导。",
+        "PracticeHint": "请求语言反馈和针对性练习。",
+        "SetupPlaceholder": "描述场景或练习目标，或选择下方的联系人。",
+        "SetupHint": "选择联系人、描述场景，或两者兼有。所有选中的人都可以参与。",
+        "OptionalSituation": "场景（可选）",
+        "SelectedPeople": "已选参与者：{count}"
       },
       "Integration": {
         "ScenarioNeedsRoom": "请选择一个房间以接纳此情境。",
@@ -811,9 +860,9 @@
         "Pending": "整合尚未完成。准备的更改在世界中不可见。请重试以完成。",
         "Interrupted": "此整合需要检查。结果如下所述。",
         "Retry": "重试整合",
-        "Title": "整合到我的世界",
-        "PanelHint": "此会话线程是临时练习。请先检查哪些内容应成为你持久世界的一部分，再进行接纳。",
-        "Open": "检查整合",
+        "Title": "添加到共享历史",
+        "PanelHint": "选择此独立对话中要共享的记忆和关系。在应用前查看更改。",
+        "Open": "查看要共享的内容",
         "BoundaryHint": "此线程是临时的。只有下方选中的内容才会成为你世界的一部分。",
         "DestinationLabel": "目标",
         "DestinationHint": "所选记忆保留其见证者。将人物加入世界不会使其加入房间。",
@@ -858,23 +907,38 @@
         "Decline": "拒接"
       },
       "Details": {
-        "PracticeVersion": "练习版本",
-        "RoomLabel": "房间",
-        "ThreadLabel": "话题",
-        "UntitledThread": "未命名话题",
+        "DeleteConversationConfirm": "删除此对话及其消息？此操作无法撤销。",
+        "DeleteConversation": "删除对话",
+        "RosterChanged": "对话的参与者已改变。请至少保留一人，并在移出某人前检查当前参与者。",
+        "AddPerson": "添加参与者",
+        "AddNamedPerson": "将{name}添加到此对话",
+        "RemovePerson": "移出",
+        "RemoveNamedPerson": "将{name}移出此对话",
+        "RemovePersonHint": "移出{name}？联系人和之前的消息仍会保存，但此参与者将不再接收这里的新消息。",
+        "EditHere": "仅在此编辑",
+        "EditContact": "编辑联系人",
+        "SharedHistoryHint": "此对话会更新共享历史。每个参与者只记得自己见证的内容。",
+        "SeparatePeopleHint": "更改仅适用于此对话。新添加的参与者从现在开始加入。",
+        "SharedPeopleHint": "新参与者从现在开始加入。编辑联系人会影响所有对话。",
+        "PeopleBusyHint": "请先结束当前回复或通话，再更改参与者。",
+        "NoPeopleToAdd": "没有匹配的可用联系人。请先在“联系人”中添加。",
+        "PracticeVersion": "独立版本",
+        "RoomLabel": "对话",
+        "ThreadLabel": "对话",
+        "UntitledThread": "未命名对话",
         "ParticipantsLabel": "参与者",
         "NameLabel": "名称",
         "PersonaLabel": "人设",
         "Edit": "编辑",
         "Save": "保存",
         "Cancel": "取消",
-        "DeleteThread": "删除话题",
-        "DeleteThreadConfirm": "删除话题？",
+        "DeleteThread": "删除会话片段",
+        "DeleteThreadConfirm": "删除此已保存的会话片段？",
         "ConfirmDelete": "确认删除",
         "ContextLabel": "上下文",
         "Rename": "重命名",
         "MediaAnalysis": "媒体分析",
-        "DangerZone": "危险操作",
+        "DangerZone": "删除已保存的历史",
         "Kind": {
           "Persistent": "永久",
           "Temporary": "临时"
@@ -927,9 +991,47 @@
       },
       "Story": {
         "SupportResponse": "听到你正经历这些，我很难过。你不必独自面对。如果你眼下有危险，请立即联系当地急救服务或你信任的人。",
-        "Branch": "练习故事", "BranchMode": "使用来源背景", "Follow": "跟随新来源更新", "Pinned": "保留此版本", "Independent": "独立故事", "AlternatePremises": "替代前提（每行一项）",
+        "Branch": "练习故事",
+        "BranchMode": "使用来源背景",
+        "Follow": "跟随新来源更新",
+        "Pinned": "保留此版本",
+        "Independent": "独立故事",
+        "AlternatePremises": "替代前提（每行一项）",
         "SaveBeforeUse": "更改进度或研究更新前，请先保存这些更改。",
-        "Title": "故事进度", "Track": "作品版本", "NewTrack": "新版本", "Work": "作品", "Edition": "版本或时间线", "Unit": "单元名称", "Total": "总单元数", "SourceWiki": "来源维基网址", "AutoAdvance": "自动应用新研究的背景", "Progress": "已完成单元", "UnitNumber": "单元编号", "Through": "完成至此", "Complete": "完成单元", "Remove": "移除单元", "Sources": "来源页面", "SourceUrl": "来源页面网址", "From": "起始单元", "To": "结束单元", "AddSource": "添加来源", "SourceHint": "仅添加已核实的页面。只有完成整个范围后才会使用该页面。", "UpdatePeople": "更新联系人背景", "ReviewUpdate": "研究更新", "Ready": "应用前请检查这些有来源的变更。", "ApplyUpdate": "应用到联系人", "ValidUnit": "请输入有效的单元编号。", "ValidSource": "请输入来源网址和有效单元范围。", "ResearchIdentity": "根据来源研究人物", "NoTrack": "未声明故事进度", "Research": "研究", "ScopedContext": "当前进度的故事背景", "SourceQuotes": "来源引文", "Unknowns": "不确定或缺失", "UseDraft": "使用此草稿", "ResearchAccepted": "已选择草稿"
+        "Title": "故事进度",
+        "Track": "作品版本",
+        "NewTrack": "新版本",
+        "Work": "作品",
+        "Edition": "版本或时间线",
+        "Unit": "单元名称",
+        "Total": "总单元数",
+        "SourceWiki": "来源维基网址",
+        "AutoAdvance": "自动应用新研究的背景",
+        "Progress": "已完成单元",
+        "UnitNumber": "单元编号",
+        "Through": "完成至此",
+        "Complete": "完成单元",
+        "Remove": "移除单元",
+        "Sources": "来源页面",
+        "SourceUrl": "来源页面网址",
+        "From": "起始单元",
+        "To": "结束单元",
+        "AddSource": "添加来源",
+        "SourceHint": "仅添加已核实的页面。只有完成整个范围后才会使用该页面。",
+        "UpdatePeople": "更新联系人背景",
+        "ReviewUpdate": "研究更新",
+        "Ready": "应用前请检查这些有来源的变更。",
+        "ApplyUpdate": "应用到联系人",
+        "ValidUnit": "请输入有效的单元编号。",
+        "ValidSource": "请输入来源网址和有效单元范围。",
+        "ResearchIdentity": "根据来源研究人物",
+        "NoTrack": "未声明故事进度",
+        "Research": "研究",
+        "ScopedContext": "当前进度的故事背景",
+        "SourceQuotes": "来源引文",
+        "Unknowns": "不确定或缺失",
+        "UseDraft": "使用此草稿",
+        "ResearchAccepted": "已选择草稿"
       },
       "Contacts": {
         "Archive": "归档联系人",
@@ -941,6 +1043,9 @@
         "NewPractice": "新练习",
         "NewScenario": "新建情境",
         "EmptyPractice": "还没有练习对话。",
+        "AllConversations": "所有对话",
+        "FilterConversations": "筛选对话",
+        "NoFilteredConversations": "还没有这种类型的对话。",
         "Chats": "聊天",
         "Tab": "联系人",
         "Add": "添加联系人",
@@ -1172,7 +1277,12 @@
         "LLMToastTitle": "正在生成缺失的例句翻译…",
         "LLMDone": "为 {count} 张闪卡生成了翻译",
         "LLMDoneWithErrors": "为 {count} 张闪卡生成了翻译，{failed} 个失败",
-        "RepairButton": "修复", "ContentDescription": "{count} 张卡片还没有释义。要用词典补全吗？", "ContentToastTitle": "正在补全卡片内容…", "ContentDone": "已补全 {count} 张卡片", "ContentDoneWithErrors": "已补全 {count} 张卡片，{failed} 张失败", "ContentFailed": "无法补全卡片内容",
+        "RepairButton": "修复",
+        "ContentDescription": "{count} 张卡片还没有释义。要用词典补全吗？",
+        "ContentToastTitle": "正在补全卡片内容…",
+        "ContentDone": "已补全 {count} 张卡片",
+        "ContentDoneWithErrors": "已补全 {count} 张卡片，{failed} 张失败",
+        "ContentFailed": "无法补全卡片内容",
         "Title": "闪卡数据缺失",
         "ToastTitle": "正在修复闪卡…"
       },
@@ -1210,11 +1320,18 @@
           "WrongOrthography": "没认出写法",
           "Marked": "已将{aspect}标记为未知"
         },
+        "PlayVideoWithAssistance": "播放视频作为辅助",
+        "AssistanceRecorded": "已记录此题的辅助信息。已提供的方面不会计为独立回忆。",
+        "SavingRemoval": "正在删除卡片…",
+        "RemovalSaveFailed": "无法删除卡片。卡片可能已更改。请重试或取消。",
         "SavingRating": "正在保存评分…",
         "SaveFailed": "评分未能保存。卡片仍在这里，请重试。",
         "PendingRatingsSaveFailed": "无法保存最近的评分。请重试。",
+        "PendingRatingChanged": "保存回答前，卡片或学习状态已发生变化。请重新复习当前卡片。",
         "SavingUndo": "正在保存撤销操作…",
-        "UndoSaveFailed": "无法保存撤销操作。卡片仍保持已评分状态，请重试。"
+        "UndoSaveFailed": "无法保存撤销操作。卡片仍保持已评分状态，请重试。",
+        "PreparingQuestion": "正在准备下一道题…",
+        "QuestionSaveFailed": "无法保存这道题。请重试后再继续。"
       },
       "State": {
         "Learning": "学习中",
@@ -1473,6 +1590,36 @@
         "ContinueLearning": "继续学习",
         "LearningLanguage": "正在学习{language}",
         "TitleDescription": "选择下方选项开始学习"
+      },
+      "Today": {
+        "Title": "今天",
+        "Description": "选择下一项活动，或返回正在学习的材料。",
+        "Activities": "学习活动",
+        "Read": "阅读",
+        "Watch": "观看",
+        "Practice": "练习",
+        "Next": "推荐下一步",
+        "ReviewTitle": "记住已学内容",
+        "ReviewReason": "复习队列中有{count}张到期卡片。先回忆它们，再学习新内容。",
+        "ReviewAction": "开始复习",
+        "PracticeTitle": "巩固回忆",
+        "PracticeReason": "学习记录中有{count}个尚未掌握的词。根据学习计划练习回忆。",
+        "PracticeAction": "练习回忆",
+        "AssessmentTitle": "补充学习记录",
+        "AssessmentReason": "目标范围中有{count}个词尚未评估。简短的回忆检查有助于计划选择合适的练习。",
+        "AssessmentAction": "检查当前水平",
+        "ContinueTitle": "返回学习材料",
+        "ContinueReason": "从上次的位置继续{material}。遇到语言问题时可以查看详情。",
+        "ContinueAction": "继续学习",
+        "ReadTitle": "从想读的内容开始",
+        "ReadReason": "打开想理解的材料。阅读时可以查看和练习词语。",
+        "ReadAction": "打开文本",
+        "NoMaterial": "打开文本或视频开始学习。最近的材料会显示在这里。",
+        "PlanSummary": "已掌握 {known} · 学习中 {needsPractice} · 未评估 {unassessed}",
+        "PlanUnmeasured": "阅读和练习会不断丰富学习记录。",
+        "ViewPlan": "查看学习计划",
+        "ThisWeek": "本周",
+        "WeekSummary": "复习{reviews}次 · 新卡片{newCards}张"
       }
     },
     "Installer": {
@@ -1583,6 +1730,7 @@
       "Loading": "正在加载插件界面..."
     },
     "Knowledge": {
+      "StudyPreferenceSaveFailed": "无法保存学习偏好。未作任何更改，请重试。",
       "Capability": {
         "sense-recognition": "意思",
         "surface-recognition": "识别此书写形式",
@@ -1612,6 +1760,7 @@
         "Title": "知识覆盖"
       },
       "Popup": {
+        "SelfAssessment": "自我评估：这是你的声明，并非已观察到的练习结果。",
         "Overall": "总体",
         "Basis": "依据",
         "Rate": "评价",
@@ -1621,6 +1770,8 @@
         "Retry": "重试"
       },
       "Projection": {
+        "WordFamiliarity": "词语熟悉度",
+        "WordFamiliarityScope": "熟悉这个词并不代表掌握了每项技能或具体用法。下方各方面会分别评估。",
         "EaseOverall": "单词整体难易度",
         "EaseDescription": "难易度由记录的结果得出。右轴显示观察证据对应的状态阈值；明确的自我声明可覆盖状态。",
         "EaseCurrent": "当前难易度 · {value}",
@@ -1694,7 +1845,13 @@
         },
         "FullGraph": "打开完整图谱",
         "Prediction": {
-          "None": "无预测。"
+          "None": "尚无足够的可靠依据来估计未测量的能力。直接练习可以确认它。",
+          "SupportLimited": "结构性支持较少",
+          "SupportModerate": "结构性支持适中",
+          "SupportStrong": "结构性支持较强",
+          "Context": "依据当前记录的知识和已安装的语言关系。可用此信号选择一次练习。",
+          "Limits": "这是启发式支持估计，并非成功概率或已测得的进步。尚未评估任务情境或记忆保持时长。",
+          "UnavailableSupport": "已安装的语言包无法可靠估计这项能力。可以通过实际练习来确认。"
         },
         "Adjust": "调整",
         "RetentionTitle": "复习",
@@ -1712,7 +1869,18 @@
         "TrajectoryDescription": "状态来自记录的观察和明确的自我声明。线条保持观察之间的状态；间断表示压缩的历史时段。",
         "TrajectorySparse": "需要跨越多天的更多记录才能显示变化轨迹。",
         "RetentionDistant": "近期无需复习",
-        "RetentionUnavailable": "计划不可用"
+        "RetentionUnavailable": "计划不可用",
+        "Record": {
+          "Tab": "学习记录",
+          "Connections": "关联信息",
+          "NoChecks": "这些方面尚未评估。下次遇到这个词时，先尝试回忆，再查看参考信息。",
+          "Partial": "即使某个方面已掌握，未检查的方面仍然未评估。",
+          "Unchecked": "尚未检查（{count}）",
+          "Correction": "调整会更改自我评估，不会记录回忆测试。",
+          "Trajectory": "随时间变化",
+          "Support": "相关知识的支持",
+          "Return": "返回活动"
+        }
       },
       "Aspect": {
         "Grammar": "语法",
@@ -1911,7 +2079,7 @@
         "EmptyPools": "当前没有可供抽样的未测单词。",
         "DateRequired": "考试或学校成绩需要填写取得日期。",
         "DateUnknown": "日期未知",
-        "LiveProgress": "已记录回答：{count}。评估会根据你的回答进行调整。你可以返回学习计划，稍后继续。"
+        "LiveProgress": "已回答 {count} 题 · 后续词语根据回答调整"
       },
       "Mock": {
         "Title": "学习检查",
@@ -2147,7 +2315,7 @@
         "SinglePage": "单页",
         "SpreadLeftToRight": "页面 左→右",
         "SpreadRightToLeft": "页面 右→左",
-        "ToggleUnknownWordsSidebar": "切换未知单词侧边栏",
+        "ToggleUnknownWordsSidebar": "切换词汇侧栏",
         "ToggleContents": "切换目录",
         "PreviousPage": "上一页",
         "NextPage": "下一页",
@@ -2201,8 +2369,8 @@
           "Tactile": "质感"
         },
         "SimplifyHomeScreen": {
-          "Description": "以不含交互式预览的简单按钮网格显示主屏幕。",
-          "Label": "简化主屏幕"
+          "Description": "在主页上将学习计划和每周活动显示为简洁链接。",
+          "Label": "简洁主页摘要"
         }
       },
       "BlurEffect": {
@@ -2337,7 +2505,7 @@
           "Description": "选择韵律证据很强时韵律颜色的混合目标。",
           "Label": "混合到",
           "PartOfSpeech": "词性颜色",
-          "White": "白色"
+          "Text": "正常文本颜色"
         },
         "Palette": {
           "Description": "自定义此语言包提供的韵律颜色。",
@@ -2656,9 +2824,16 @@
           },
           "Title": "单词悬停行为",
           "TriggerMode": {
-            "Description": "阅读器中如何触发单词翻译弹出窗口",
+            "Description": "在阅读、字幕和对话中打开单词弹窗的方式",
             "Label": "悬停触发模式"
           }
+        }
+      },
+      "WordInteractions": {
+        "Title": "单词交互",
+        "Size": {
+          "Label": "单词弹窗大小",
+          "Description": "阅读、字幕和对话共用。100%为阅读器的标准大小。"
         }
       },
       "SRS": {
@@ -3404,7 +3579,8 @@
       },
       "Loading": "正在加载词汇…",
       "LoadingMore": "正在加载更多…",
-      "SearchHintDetailed": "搜索单词并查看学习进度。",
+      "Manage": "管理卡片和参考信息",
+      "SearchHintDetailed": "选择单词或其状态，查看你掌握了什么以及依据。使用“管理卡片和参考信息”进行编辑或保存。",
       "SearchPlaceholder": "搜索单词…",
       "Searching": "正在搜索…",
       "Trackers": {
@@ -3445,6 +3621,12 @@
         "Ambiguous": "多种解析"
       },
       "NoTranslation": "未找到翻译",
+      "ResolutionProvider": "由已安装的语言包选择。若不合适，请检查其他候选。",
+      "DictionaryAlternatives": "词典候选（{count}）",
+      "ResolutionOrder": "按词典顺序选择。其他读音或含义也可能适用。",
+      "ResolutionHint": "根据分词提示选择。若不合适，请检查其他候选。",
+      "ResolutionLearner": "你为当前词形和语境选择的候选。",
+      "ResolutionSaveFailed": "无法保存此选择。请重试。",
       "Status": {
         "Known": "已掌握",
         "Learning": "学习中",
@@ -3494,7 +3676,16 @@
         "Word": "单词"
       },
       "UnknownWords": "未知单词",
-      "WordCount": "{count} 个单词"
+      "WordCount": "{count} 个单词",
+      "Vocabulary": "词汇",
+      "InspectWord": "查看{word}",
+      "SaveOrExclude": "保存或排除",
+      "FilterAndSave": "筛选和保存",
+      "InspectionHint": "查看词语的掌握情况及依据。可保存以供复习，或从学习中排除。",
+      "SaveAllForReview": "全部保存以供复习",
+      "ExcludeFromStudy": "从学习中排除",
+      "EncounteredAs": "原文形式：{surface}",
+      "RecallWords": "回忆{count}个词"
     },
     "WordSync": {
       "ProjectionUnavailable": "无法加载知识数据。请重试。",
@@ -3544,7 +3735,21 @@
       "QueueDetails": "为什么选择这些词？",
       "QueueExplanation": "队列依据当前筛选条件和已记录的知识生成。已忽略的词会被排除。词汇必须至少有一项可在此检查且尚未被评估为已知的技能。最近显示过的词不会因此被排除。",
       "QueueExclusions": "已排除 — 已忽略：{ignored}；不符合筛选条件：{filtered}；没有合适题目或不再符合条件：{unavailable}。",
-      "InvalidFilter": "筛选条件不完整或无效。请编辑后继续。"
+      "InvalidFilter": "筛选条件不完整或无效。请编辑后继续。",
+      "SelectionSaveFailed": "无法保存下一题。请重试以继续已保存的练习。",
+      "PoolChoiceReason": "从本级别的 {count} 个适用词中选出。你的回答只会更新此题实际测试的方面。",
+      "GraphChoiceReason": "与相关知识的联系使本级别中这个词优先于 {word}。请检查哪些方面能够回忆起来。",
+      "AssistanceSaveFailed": "无法保存本题已显示的提示。请先重试，再记录回答。",
+      "SavingAssistance": "正在保存本题的提示…",
+      "ReferenceConsulted": "回答前查看了参考信息。本次回答不能证明独立回忆能力。",
+      "NavigationSaving": "正在保存当前位置…",
+      "NavigationSaveFailed": "无法保存当前位置。同一道题仍然打开。请重试以继续。",
+      "ContinueAfterReference": "继续",
+      "TestedAccesses": "检查内容：{aspects}",
+      "GraphChoiceSourceReason": "与 {source} 的联系使本级别中这个词优先于 {word}。请检查哪些方面能够回忆起来。",
+      "MaterialEmptyTitle": "没有剩余题目",
+      "MaterialEmptyDescription": "未记录任何回答。所选词语没有剩余的回忆题目，请返回阅读。",
+      "MaterialPoolChoiceReason": "从所选词语中{count}个可检查的词中选择。本次重点检查仍需练习的方面。"
     },
     "Menu": {
       "About": "关于 mLearn",
@@ -3888,16 +4093,31 @@
       }
     },
     "LearningPlan": {
-      "Description": "设定课程、目标和节奏，再选择练习。目标不代表当前能力。",
+      "Description": "按照选定的学习范围练习回忆。需要确定起点时，可以检查当前水平。",
       "Activities": "选择活动",
       "Assess": "评估当前水平",
       "AssessDescription": "已经学过这门语言？检查你能认出的内容，选择合适的起点。",
-      "WordSyncDescription": "复习遇到的单词，决定接下来练习什么。",
+      "WordSyncDescription": "回忆目标范围内的词语。显示答案后，记录自己能回忆的内容。",
       "CharactersDescription": "探索书写系统，练习单个字符。",
       "Progress": "课程进度",
       "Back": "返回学习计划",
       "SettingsHint": "课程、目标、学习节奏均在学习计划中管理。",
-      "Open": "打开学习计划"
+      "Open": "打开学习计划",
+      "Edit": "修改计划",
+      "BackToMaterial": "返回阅读",
+      "MaterialPractice": "来自 {title} · 已选择 {count} 个词"
+    },
+    "StudyEncounter": {
+      "Task": "回忆并核对",
+      "Retrieve": "显示答案前，请先尝试回答。",
+      "Compare": "与答案比较，然后记录你的回忆情况。",
+      "Reveal": "显示答案",
+      "Consequence": "忘记：未能回忆。困难：思考后答出。流畅：无帮助直接回忆。回答会更新学习记录并决定下一题。",
+      "Check": "检查",
+      "PlacementIntro": "此自适应检查使用与练习相同的流程，抽查没有直接学习记录的词语，并为学习计划建议起点。未抽查的词语保持未评估。",
+      "Resume": "继续练习",
+      "RetrieveWord": "查看答案前，请先回忆读音和含义。",
+      "RetrieveAspects": "本次回忆检查的重点：{aspects}。显示答案以进行对比。"
     }
   }
 }

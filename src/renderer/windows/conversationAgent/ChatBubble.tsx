@@ -81,7 +81,7 @@ function joinChatTokenText(tokens: readonly Token[], separator: string): string 
 const ChatAnalysisContext = createContext<() => boolean>(() => true);
 
 interface ChatBubbleProps {
-  /** Explicit practice may expose analysis immediately. */
+  /** Coached practice shows corrections; token analysis remains an explicit choice. */
   studyMode?: boolean;
   showSpeaker?: boolean;
   showAvatar?: boolean;
@@ -104,7 +104,7 @@ interface ChatBubbleProps {
 export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   const { t, locale } = useLocalization();
   const [inspecting, setInspecting] = createSignal(false);
-  const annotations = () => props.studyMode === true || inspecting();
+  const annotations = () => inspecting();
 
 
   const formatTime = (ts: number): string => formatClockTime(ts, locale());
@@ -117,7 +117,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   const isError = () => props.message.isError === true;
 
   const hasCorrections = () =>
-    annotations() && props.message.role === 'user' && props.message.corrections && props.message.corrections.length > 0;
+    (props.studyMode === true || inspecting()) && props.message.role === 'user' && props.message.corrections && props.message.corrections.length > 0;
 
   const hasTokens = () =>
     props.message.tokens && props.message.tokens.length > 0;
@@ -223,8 +223,25 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
             </Show>
           </Show>
 
-          {/* Interrupted indicator */}
-          <Show when={props.message.interrupted}>
+          {/* Completed speech reads as conversation. Exceptions stay visible;
+              playback details use the same message analysis as other evidence. */}
+          <Show when={props.message.voiceDelivery && (props.message.voiceDelivery.state !== 'completed'
+            || props.message.voiceDelivery.basis === 'playback-estimate' || inspecting())}>
+            <div class="chat-voice-delivery">
+              <span>{t(`mlearn.ConversationAgent.Voice.Delivery.${props.message.voiceDelivery!.state}`)}</span>
+              <Show when={props.message.voiceDelivery?.basis === 'playback-estimate'}>
+                <span>{t('mlearn.ConversationAgent.Voice.Delivery.Estimated')}</span>
+              </Show>
+              <Show when={props.message.generatedContent && props.message.generatedContent !== props.message.content}>
+                <details>
+                  <summary>{t('mlearn.ConversationAgent.Voice.Delivery.Generated')}</summary>
+                  <p>{t('mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription')}</p>
+                  <div class="selectable">{props.message.generatedContent}</div>
+                </details>
+              </Show>
+            </div>
+          </Show>
+          <Show when={props.message.interrupted && !props.message.voiceDelivery}>
             <span class="chat-bubble-interrupted">
               <ScissorsIcon size={12} /> {t('mlearn.ConversationAgent.Voice.Interrupted')}
               <Show when={props.message.interruptedAt}>
@@ -250,6 +267,9 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
 
       <Show when={messageWidgets().length > 0}>
         <div class="chat-widget">
+          <Show when={props.message.voiceDelivery}>
+            <p class="chat-voice-delivery">{t('mlearn.ConversationAgent.Voice.VisualActivity')}</p>
+          </Show>
           <For each={messageWidgets()}>
             {(widget, widgetIndex) => (
               <Show when={widget.type === 'quiz'}>
@@ -273,7 +293,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
           class={`chat-bubble-footer${props.showTimestamp === false ? ' grouped-footer' : ''}`}
         >
           <Show when={props.showTimestamp !== false}><span>{formatTime(props.message.timestamp)}</span></Show>
-          <Show when={!props.studyMode && !isError() && (hasTokens() || props.message.corrections?.length)}>
+          <Show when={!isError() && (hasTokens() || props.message.corrections?.length || props.message.voiceDelivery)}>
             <button type="button" class="chat-bubble-inspect" aria-pressed={inspecting()}
               onClick={() => setInspecting(value => !value)}>
               {t(inspecting() ? 'mlearn.ConversationAgent.MessageAnalysis.Close' : 'mlearn.ConversationAgent.MessageAnalysis.Open')}

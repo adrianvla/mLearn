@@ -17,6 +17,7 @@ export type EventScope = { kind: 'sea' } | { kind: 'thread'; threadId: string };
 export type EventType =
   | 'message.user'
   | 'message.character'
+  | 'delivery.voice'
   | 'memory.belief'
   | 'disclosure'
   | 'resolution'
@@ -44,6 +45,8 @@ export const WORLD_CONTINUITY_ID = 'world-continuity';
 export interface JournalEvent {
   id: string; // evt_<unique>
   seq: number; // per-stream monotonic (Sea stream and each Thread stream sequence independently)
+  /** Derived projection availability; never replaces the original visibility/order sequence. */
+  inferenceAvailabilitySeq?: number;
   roomId: string;
   scope: EventScope;
   type: EventType;
@@ -62,11 +65,13 @@ export interface JournalEvent {
     /** Main-owned V10 contact operation. Prepared rows remain hidden until
      * the contact record certifies their exact event ids. */
     contactId?: string;
+    /** Reviewed private note held until this exact voice message has completed playback. */
+    voiceMemoryMessageId?: string;
   };
 }
 
 /** What callers supply; the journal assigns id/seq/createdAt. */
-export type JournalEventDraft = Omit<JournalEvent, 'id' | 'seq' | 'createdAt'>;
+export type JournalEventDraft = Omit<JournalEvent, 'id' | 'seq' | 'createdAt' | 'inferenceAvailabilitySeq'>;
 
 // ---------------------------------------------------------------------------
 // Event payload contracts (consumer-side; JournalEvent.payload stays unknown)
@@ -84,7 +89,24 @@ export interface MessagePayload {
   widget?: unknown;
   widgets?: unknown[];
   modality?: 'text' | 'voice';
+  /** Identifies the call that admitted this voice message, excluding history replay. */
+  voiceSessionId?: string;
+  /** New call speech must be projected from delivery records, never generated text. */
+  voiceDelivery?: 'tracked';
   replyToEventId?: string;
+}
+
+/** Local playback observation, not proof of listening or language mastery. */
+export interface VoiceDeliveryPayload {
+  messageEventId: string;
+  actorId: string;
+  voiceSessionId: string;
+  state: 'playing' | 'completed' | 'interrupted' | 'stopped' | 'failed';
+  /** Display-only prefix; may include an explicitly estimated partial phrase. */
+  spokenText: string;
+  /** Only whole phrases whose local playback completed; eligible for inference. */
+  confirmedText: string;
+  basis: 'playback-complete' | 'playback-estimate' | 'system-complete' | 'unavailable';
 }
 
 /** 'memory.belief' — carries every MemoryEntry kind despite the event-type name. */
@@ -334,6 +356,8 @@ export interface Thread {
     operationId: string;
     requestHash: string;
     bindings: { originId?: string; baseline: Participant; localOverride?: Participant }[];
+    /** Current cast; omitted older conversations retain every bound person. Departed bindings keep history and local edits. */
+    participantIds?: string[];
     /** Pin lived history without duplicating private journal payloads. */
     baselineHeads: Record<string, number>;
   };
@@ -373,7 +397,7 @@ export function threadContextId(thread: Thread): string {
 
 export function threadParticipants(thread: Thread, participants: Participant[]): Participant[] {
   return thread.sandbox
-    ? thread.sandbox.bindings.map(binding => {
+    ? thread.sandbox.bindings.filter(binding => !thread.sandbox!.participantIds || thread.sandbox!.participantIds.includes(binding.baseline.id)).map(binding => {
       const frozen = binding.localOverride ?? binding.baseline;
       const branch = thread.storyBranch;
       if (!branch || !binding.originId) return frozen;

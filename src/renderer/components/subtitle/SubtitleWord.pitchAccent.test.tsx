@@ -150,6 +150,17 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     container.remove();
   });
 
+  it('uses the selected interpretation for the inline reading rather than a stale tokenizer hint', () => {
+    const token: Token = { word: '人', actual_word: '人', type: 'noun', reading: 'stale' };
+    const context = { surface: token.word, hints: { arbitrary: ['opaque'] } };
+    mockGetCachedTranslation.mockImplementation((_word, _language, options) => options.context === context
+      ? { data: [{ word: token.word, reading: 'corrected' }], resolution: { selectedId: 'chosen', basis: 'learner-selection', candidates: [] } }
+      : null);
+    const dispose = render(() => <SubtitleWord token={token} lookupContext={context} index={0} />, container);
+    expect(container.querySelector('rt')?.textContent).toBe('corrected');
+    dispose();
+  });
+
   it('marks ruby pitch overlays so accent lines stay within the reading annotation', () => {
     const token: Token = {
       word: '何時',
@@ -191,20 +202,22 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
     inspect.click();
     word = container.querySelector('.chat-token') as HTMLElement;
     expect(word.querySelector('rt')?.textContent).toBe('いつ');
-    expect(word.style.color).toBe('#ff0000');
+    expect(word.style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ff0000 40%, var(--language-word-foreground))');
     expect(inspect.getAttribute('aria-pressed')).toBe('true');
     inspect.click();
     expect(container.querySelector('rt')).toBeNull();
     dispose();
   });
 
-  it.each(['user', 'assistant'] as const)('renders %s chat through the shared annotated word without stars', role => {
+  it.each(['user', 'assistant'] as const)('expands %s coached chat through the shared annotated word without stars', role => {
     mockSettings.colour_codes = { '名詞': '#ff0000' };
     const token: Token = { word: '何時', surface: '何時', actual_word: '何時', reading: 'いつ', type: '名詞', partOfSpeech: '名詞' };
     const dispose = render(() => <ChatBubble studyMode message={{ role, content: '何時', tokens: [token], timestamp: 0 }} />, container);
+    expect(container.querySelector('rt')).toBeNull();
+    (container.querySelector('.chat-bubble-inspect') as HTMLButtonElement).click();
     const word = container.querySelector('.chat-token.subtitle-word') as HTMLElement;
     expect(word).not.toBeNull();
-    expect(word.style.color).toBe('#ff0000');
+    expect(word.style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ff0000 40%, var(--language-word-foreground))');
     expect(word.querySelector('rt')?.textContent).toBe('いつ');
     expect(word.querySelector('rt .pitch-accent')).not.toBeNull();
     expect(word.querySelector('.frequency')).toBeNull();
@@ -223,7 +236,7 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
 
     expect(container.querySelector('ruby rt')?.textContent).toBe('いつ');
     expect(container.querySelector('rt .pitch-accent')).not.toBeNull();
-    expect((container.querySelector('.subtitle-word') as HTMLElement).style.color).toBe('#ff0000');
+    expect((container.querySelector('.subtitle-word') as HTMLElement).style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ff0000 40%, var(--language-word-foreground))');
     expect(container.querySelector('.frequency')).toBeNull();
 
     dispose();
@@ -439,8 +452,8 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
       'tone-1', 'tone-2', 'tone-3', 'tone-4', 'neutral',
       'tone-1', 'tone-2', 'tone-3', 'tone-4', 'neutral',
     ]);
-    expect(container.querySelector<HTMLElement>('.colored-prosody__segment')?.style.color)
-      .not.toBe(container.querySelector<HTMLElement>('.subtitle-word')?.style.color);
+    expect(container.querySelector<HTMLElement>('.colored-prosody__segment')?.style.getPropertyValue('--language-word-ink'))
+      .not.toBe(container.querySelector<HTMLElement>('.subtitle-word')?.style.getPropertyValue('--language-word-ink'));
     dispose();
   });
 

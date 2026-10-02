@@ -38,14 +38,15 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
   // sync and grammar coverage.
   const [ratingWrite, setRatingWrite] = createSignal<StudyWriteState | null>(null);
   type RatingCommand = {
+    word: string;
     observations: readonly { capability: ProfileObservation['capability']; quality: ProfileObservation['quality']; method?: ProfileObservation['method'] }[];
-    options: { language: string; attemptId: AttemptId };
+    options: { language: string; attemptId: AttemptId; selfAssessment: true };
   };
   let failedCommand: RatingCommand | undefined;
   const runRating = async (command: RatingCommand) => {
     setRatingWrite('pending');
     try {
-      await submitRating(props.word, command.observations, command.options);
+      await submitRating(command.word, command.observations, command.options);
       failedCommand = undefined;
       setRatingWrite(null);
       setShowRate(false);
@@ -57,12 +58,13 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
   const submit = (observations: readonly ProfileObservation[], options?: RateOptions) => {
     if (observations.length === 0 || ratingWrite() !== null) return;
     const command: RatingCommand = {
+      word: props.word,
       observations: observations.map(({ capability, quality, method }) => ({
         capability,
         quality,
         ...(method ?? options?.method ? { method: method ?? options?.method } : {}),
       })),
-      options: { language: language(), attemptId: nextAttemptId() },
+      options: { language: language(), attemptId: nextAttemptId(), selfAssessment: true },
     };
     void runRating(command);
   };
@@ -83,6 +85,7 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
     <KnowledgeCapabilitySummary word={props.word} language={language()} projection={knowledge.projection()} />
     <Show when={props.statusSourceLabel}><small class="word-status-knowledge__source">{props.statusSourceLabel}</small></Show>
     <Show when={showRate()}>
+      <small class="word-status-knowledge__source">{t('mlearn.Knowledge.Popup.SelfAssessment')}</small>
       <RatingMatrix
         capabilities={knowledge.capabilities()}
         keyboardMode={settings.ratingKeyboardMode}

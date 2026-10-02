@@ -1,6 +1,5 @@
-import { getBridge } from '../../shared/bridges';
 import { getLogger } from '../../shared/utils/logger';
-import { captureElementAndSave, type CanvasCaptureOptions } from './canvasCapture';
+import { captureElementToDataUrl, type CanvasCaptureOptions } from './canvasCapture';
 
 const log = getLogger('renderer.services.flashcardImageCapture');
 
@@ -99,52 +98,45 @@ function waitForSourceReady(
 }
 
 /**
- * Save a data URL via the flashcard image bridge.
- */
-async function saveDataUrl(cardId: string, dataUrl: string | null): Promise<string | null> {
-  if (!dataUrl) return null;
-  try {
-    return await getBridge().flashcards.saveFlashcardImage(cardId, dataUrl);
-  } catch (e) {
-    log.error('Failed to save flashcard image:', e);
-    return null;
-  }
-}
-
-/**
- * Capture a video or image element and persist it as a flashcard image.
- * If the source is not ready, waits up to ~500ms for readiness events and retries once.
- * @returns flashcard-image:// URL, or null when capture or save fails.
+ * Capture a video or image element as a prepared image.
+ *
+ * This deliberately does NOT persist. A captured frame is an observation, and
+ * an observation has no owner until a flashcard or suggestion adopts it. The
+ * owner (`addFlashcard` / `captureSuggestedFlashcard`) saves the returned data
+ * URL under its own id, so media can never outlive or precede its owner.
+ *
+ * If the source is not ready, waits up to ~500ms for readiness events and
+ * retries once.
+ *
+ * @returns image data URL, or null when capture fails.
  */
 export async function captureFlashcardImage(
   source: HTMLVideoElement | HTMLImageElement,
-  cardId: string,
   options?: FlashcardImageCaptureOptions,
 ): Promise<string | null> {
   const timeoutMs = options?.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS;
 
   if (!isSourceReady(source)) {
     const becameReady = await waitForSourceReady(source, timeoutMs);
-    if (!becameReady) return await captureFallbackImage(source, cardId, options);
+    if (!becameReady) return await captureFallbackImage(source, options);
   }
 
-  const primary = await captureElementAndSave(source, cardId, options);
+  const primary = captureElementToDataUrl(source, options);
   if (primary) return primary;
 
-  return await captureFallbackImage(source, cardId, options);
+  return await captureFallbackImage(source, options);
 }
 
 /**
- * Find the current <video> element and capture a frame for a flashcard.
- * @returns flashcard-image:// URL, or null when no ready video is found.
+ * Find the current <video> element and capture a frame as a prepared image.
+ * @returns image data URL, or null when no ready video is found.
  */
 export async function captureVideoFrameForFlashcard(
-  cardId: string,
   options?: FlashcardImageCaptureOptions,
 ): Promise<string | null> {
   const video = document.querySelector('video');
   if (!video) return null;
-  return await captureFlashcardImage(video, cardId, options);
+  return await captureFlashcardImage(video, options);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -153,7 +145,6 @@ function clamp(value: number, min: number, max: number): number {
 
 async function captureAnchorCropImage(
   pageImage: HTMLImageElement,
-  cardId: string,
   anchorRect: DOMRect,
   cropPadding: number,
 ): Promise<string | null> {
@@ -205,8 +196,7 @@ async function captureAnchorCropImage(
       canvas.height,
     );
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-    return await saveDataUrl(cardId, dataUrl);
+    return canvas.toDataURL('image/jpeg', 0.5);
   } catch (e) {
     log.error('Failed to capture anchor crop image:', e);
     return null;
@@ -214,34 +204,30 @@ async function captureAnchorCropImage(
 }
 
 /**
- * Capture a reader page image element for a flashcard.
- * If the full-page capture fails and an anchorRect is provided, falls back to an
- * anchor-based crop similar to captureOcrScreenshot (without the highlight box).
- * @returns flashcard-image:// URL, or null when capture or save fails.
+ * Capture the reader image that belongs to ONE word occurrence.
+ *
+ * The artifact belongs to the occurrence, not the page. A page-scope image
+ * cannot answer "where was this word?" and is not a useful flashcard image, so
+ * it is never produced. When the occurrence cannot be located we return null
+ * and let the caller record the suggestion without media: an absent image is
+ * honest, a whole page pretending to be a word picture is not.
+ *
+ * @returns image data URL cropped to the occurrence, or null when the target
+ * cannot be reliably located.
  */
-export async function captureReaderImageForFlashcard(
+export async function captureReaderImageForOccurrence(
   pageImage: HTMLImageElement,
-  cardId: string,
+  anchorRect: DOMRect | undefined,
   options?: FlashcardImageCaptureOptions,
 ): Promise<string | null> {
-  const captured = await captureFlashcardImage(pageImage, cardId, options);
-  if (captured) return captured;
+  if (!anchorRect || anchorRect.width <= 0 || anchorRect.height <= 0) return null;
+  if (!pageImage.naturalWidth || !pageImage.naturalHeight) return null;
 
-  if (options?.anchorRect && options.anchorRect.width > 0 && options.anchorRect.height > 0) {
-    return await captureAnchorCropImage(
-      pageImage,
-      cardId,
-      options.anchorRect,
-      options.cropPadding ?? 200,
-    );
-  }
-
-  return null;
+  return await captureAnchorCropImage(pageImage, anchorRect, options?.cropPadding ?? 200);
 }
 
 async function captureCenterCropImage(
   source: HTMLImageElement,
-  cardId: string,
   options?: FlashcardImageCaptureOptions,
 ): Promise<string | null> {
   try {
@@ -263,8 +249,7 @@ async function captureCenterCropImage(
 
     ctx.drawImage(source, sx, sy, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', options?.quality ?? 0.5);
-    return await saveDataUrl(cardId, dataUrl);
+    return canvas.toDataURL('image/jpeg', options?.quality ?? 0.5);
   } catch (e) {
     log.error('Failed to capture center crop image:', e);
     return null;
@@ -279,11 +264,10 @@ async function captureCenterCropImage(
  */
 export async function captureFallbackImage(
   source: HTMLVideoElement | HTMLImageElement,
-  cardId: string,
   options?: FlashcardImageCaptureOptions,
 ): Promise<string | null> {
   if (isImageElement(source)) {
-    return await captureCenterCropImage(source, cardId, options);
+    return await captureCenterCropImage(source, options);
   }
 
   return null;

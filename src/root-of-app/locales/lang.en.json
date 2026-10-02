@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "LibraryRecovery": {
+      "OpenProtection": "Data protection settings",
+      "Title": "Your library could not be opened",
+      "Description": "Your saved library could not be read. Changes are paused to protect it. Check that its storage is available, then try again."
+    },
     "GraphInspector": {
       "Title": "Graph inspector",
       "Unavailable": "The active language graph is not installed.",
@@ -297,7 +302,14 @@
           "Title": "Agent Memory"
         },
         "Boundary": {
-          "Title": "Conversation boundary", "Provider": "Review method", "Description": "Replies are reviewed before being saved. A local classifier can add a private first pass; product judgment still uses the selected actor model.", "Actor": "Actor review", "Local": "Local CPU guard + actor review", "LocalDescription": "Qwen3Guard-Gen 0.6B, about 484 MB. Runs on your CPU.", "Install": "Install local guard", "Installed": "Local guard installed"
+          "Title": "Conversation boundary",
+          "Provider": "Review method",
+          "Description": "Replies are reviewed before being saved. A local classifier can add a private first pass; product judgment still uses the selected actor model.",
+          "Actor": "Actor review",
+          "Local": "Local CPU guard + actor review",
+          "LocalDescription": "Qwen3Guard-Gen 0.6B, about 484 MB. Runs on your CPU.",
+          "Install": "Install local guard",
+          "Installed": "Local guard installed"
         },
         "Checker": {
           "Title": "Checker Agent",
@@ -593,7 +605,10 @@
         "ReadyHint": "Send a message, or let AI start.",
         "StartConversation": "Let AI start",
         "Title": "Start a conversation",
-        "NewConversation": "New conversation"
+        "NewConversation": "New conversation",
+        "ReadyTitle": "Ready to talk",
+        "SavedTitle": "Conversation saved",
+        "SavedUnavailableHint": "The AI service is unavailable. Open AI settings to connect before chatting."
       },
       "ExperimentalBanner": "Experimental — AI responses may contain errors. Verify important language points.",
       "Disclaimer": "This is AI and can make mistakes. Please double-check responses.",
@@ -694,12 +709,17 @@
       "TriggerKeyHover": "{key} + Hover",
       "TriggerLongHover": "Long hover",
       "Voice": {
+        "AiGroupCall": "AI group call",
+        "AiCall": "AI call",
+        "PeopleInCall": "People in this call",
+        "ReturnToChat": "Return to chat",
+        "EndAndReturn": "End call and return to chat",
         "BackendAuthError": "Voice backend connection failed. Please try again.",
         "Aftermath": {
           "Duration": "Duration",
-          "Messages": "Messages",
+          "Messages": "Your spoken turns",
           "Mistakes": "Mistakes noted",
-          "NoMistakes": "No mistakes were noted. Great job!",
+          "NoMistakes": "No corrections were recorded during this call.",
           "Title": "Session Summary"
         },
         "CloudTts": "Cloud",
@@ -722,6 +742,8 @@
         "Listening": "Listening…",
         "LoadingTtsModel": "Loading speech model…",
         "MicPermission": "Microphone access is required for voice calls.",
+        "SynthesisDeclined": "Speech stopped because local synthesis was declined. The call remains open.",
+        "ContactVoices": "Each contact uses their own voice sample. Contacts without a sample use the system voice.",
         "Microphone": "Microphone",
         "DefaultMicrophone": "Default microphone",
         "MicrophoneNumber": "Microphone {index}",
@@ -747,7 +769,25 @@
         "VoiceSample": "Streaming voice clone",
         "LightweightVoice": "Lightweight voice",
         "SystemVoice": "System voice",
-        "CpuWarning": "Realtime voice may lag because speech is running on the CPU. Voice quality is unaffected."
+        "CpuWarning": "Realtime voice may lag because speech is running on the CPU. Voice quality is unaffected.",
+        "PreparingMicrophone": "Preparing microphone…",
+        "CallsUnavailable": "AI voice calls require the desktop app. You can continue this conversation by text here.",
+        "CaptureFailed": "The microphone could not start. Check your audio device and try the call again.",
+        "VisualActivity": "Visual activity — answer on screen.",
+        "MemoryRecordFailed": "The reply was not spoken because conversation notes could not be saved.",
+        "Delivery": {
+          "pending": "No speech is recorded for this reply.",
+          "playing": "Part of this reply was spoken.",
+          "completed": "Spoken in the call.",
+          "interrupted": "Speech interrupted.",
+          "stopped": "Speech stopped.",
+          "failed": "Speech failed for this reply.",
+          "Estimated": "The last spoken phrase is estimated.",
+          "Generated": "Full reply",
+          "GeneratedDescription": "This is the full reply prepared for speech. Only the transcript above was recorded as spoken."
+        },
+        "NoAudio": "Speech finished without playable audio. The response was not recorded as delivered.",
+        "DeliveryRecordFailed": "Could not save the playback record. Speech stopped; delivery remains unconfirmed."
       },
       "Memory": {
         "ClearAll": "Clear all memories",
@@ -764,14 +804,14 @@
         "TemporaryPractice": "Temporary practice",
         "Title": "Conversations",
         "NewConversation": "New conversation",
-        "UntitledThread": "Untitled thread",
+        "UntitledThread": "Untitled conversation",
         "Started": "Started {date}",
         "NoMatches": "No matching conversations"
       },
       "LivingWorld": {
         "ConsentTitle": "Enable Living World?",
-        "ConsentHint": "Living World is off. This conversation would live in your persistent world, where memories, relationships and changes are kept. Enable Living World to continue, or stay in temporary practice.",
-        "EnableAndContinue": "Enable Living World and continue",
+        "ConsentHint": "Shared history is off. Enable shared memory to let this conversation update your contacts and relationships, or choose Separate history.",
+        "EnableAndContinue": "Enable shared memory and continue",
         "NotNow": "Not now"
       },
       "NewConversation": {
@@ -781,7 +821,7 @@
         "GeneratedNotice": "This is a generated fictional situation, not researched canon. Review it before starting.",
         "PrivatePreview": "Private starting state — shown here for your review, not shared with everyone.",
         "Scene": "Situation",
-        "TemporaryHint": "This conversation is saved separately. Memories and edits here do not change your world.",
+        "TemporaryHint": "Saved separately. Messages and memories here do not change your shared relationships.",
         "Title": "New conversation",
         "Hint": "Pick who the conversation is with, and optionally set a goal for it.",
         "Placeholder": "What do you want to talk about or practice?",
@@ -796,10 +836,19 @@
         "IntentLabel": "Goal (optional)",
         "PreparedGoalLabel": "Practice focus",
         "ToggleParticipant": "Include {name} in the conversation",
-        "ScopeLabel": "Where should this live?",
-        "ScopeTemporary": "Temporary",
-        "ScopePersistent": "In my world",
-        "PersistentHint": "Messages, memories and relationships here become part of your persistent world."
+        "ScopeLabel": "Conversation history",
+        "ScopeTemporary": "Separate history",
+        "ScopePersistent": "Shared history",
+        "PersistentHint": "Messages, memories and relationships here become part of your shared continuity.",
+        "Purpose": "Conversation style",
+        "Conversation": "Conversation",
+        "CoachedPractice": "Coached practice",
+        "ConversationHint": "Participants stay in character. No language coaching is requested.",
+        "PracticeHint": "Ask for language feedback and focused exercises.",
+        "SetupPlaceholder": "Describe a situation or practice focus, or choose contacts below.",
+        "SetupHint": "Choose contacts, describe a situation, or both. Everyone selected can participate.",
+        "OptionalSituation": "Situation (optional)",
+        "SelectedPeople": "Selected people: {count}"
       },
       "Integration": {
         "ScenarioNeedsRoom": "Choose a Room to adopt this situation.",
@@ -811,9 +860,9 @@
         "Pending": "Integration is pending. Its prepared changes are not visible in the world. Retry to finish.",
         "Interrupted": "Integration needs review. The result is described below.",
         "Retry": "Retry integration",
-        "Title": "Integrate into my world",
-        "PanelHint": "This Thread is temporary practice. Review what should become part of your persistent world before admitting it.",
-        "Open": "Review integration",
+        "Title": "Add to shared history",
+        "PanelHint": "Choose which memories and relationships from this separate conversation to share. Review the changes before applying them.",
+        "Open": "Review what to share",
         "BoundaryHint": "This Thread is temporary. Only the selected items below will become part of your world.",
         "DestinationLabel": "Destination",
         "DestinationHint": "Selected memories keep their witnesses. Adopting a person does not add Room membership.",
@@ -858,23 +907,38 @@
         "Decline": "Decline"
       },
       "Details": {
-        "PracticeVersion": "Practice version",
-        "RoomLabel": "Room",
-        "ThreadLabel": "Thread",
-        "UntitledThread": "Untitled thread",
+        "DeleteConversationConfirm": "Delete this conversation and its messages? This cannot be undone.",
+        "DeleteConversation": "Delete conversation",
+        "RosterChanged": "The conversation changed. Keep at least one person and review who is present before removing someone.",
+        "AddPerson": "Add person",
+        "AddNamedPerson": "Add {name} to this conversation",
+        "RemovePerson": "Remove",
+        "RemoveNamedPerson": "Remove {name} from this conversation",
+        "RemovePersonHint": "Remove {name}? Their contact and earlier messages stay saved; they will stop receiving new messages here.",
+        "EditHere": "Edit here",
+        "EditContact": "Edit contact",
+        "SharedHistoryHint": "This conversation contributes to shared history. Each person remembers only what they witnessed.",
+        "SeparatePeopleHint": "Changes here stay in this conversation. People you add join from here onward.",
+        "SharedPeopleHint": "New people join from here onward. Editing a contact changes it everywhere.",
+        "PeopleBusyHint": "Finish the current response or call before changing people.",
+        "NoPeopleToAdd": "No available contacts match. Add a contact from Contacts first.",
+        "PracticeVersion": "Separate version",
+        "RoomLabel": "Conversation",
+        "ThreadLabel": "Conversation",
+        "UntitledThread": "Untitled conversation",
         "ParticipantsLabel": "Participants",
         "NameLabel": "Name",
         "PersonaLabel": "Persona",
         "Edit": "Edit",
         "Save": "Save",
         "Cancel": "Cancel",
-        "DeleteThread": "Delete thread",
-        "DeleteThreadConfirm": "Delete thread?",
+        "DeleteThread": "Delete session",
+        "DeleteThreadConfirm": "Delete this saved session?",
         "ConfirmDelete": "Confirm delete",
         "ContextLabel": "Context",
         "Rename": "Rename",
         "MediaAnalysis": "Media analysis",
-        "DangerZone": "Danger zone",
+        "DangerZone": "Delete saved history",
         "Kind": {
           "Persistent": "Persistent",
           "Temporary": "Temporary"
@@ -927,9 +991,47 @@
       },
       "Story": {
         "SupportResponse": "I'm sorry you're going through this. You don't have to face it alone. If you may be in immediate danger, please contact local emergency services or someone you trust now.",
-        "Branch": "Practice story", "BranchMode": "Use source background", "Follow": "Follow new source updates", "Pinned": "Keep this version", "Independent": "Separate story", "AlternatePremises": "Alternate premises (one per line)",
+        "Branch": "Practice story",
+        "BranchMode": "Use source background",
+        "Follow": "Follow new source updates",
+        "Pinned": "Keep this version",
+        "Independent": "Separate story",
+        "AlternatePremises": "Alternate premises (one per line)",
         "SaveBeforeUse": "Save these changes before changing progress or researching an update.",
-        "Title": "Story progress", "Track": "Story edition", "NewTrack": "New story edition", "Work": "Work", "Edition": "Edition or continuity", "Unit": "Unit name", "Total": "Total units", "SourceWiki": "Source wiki URL", "AutoAdvance": "Automatically apply newly researched background", "Progress": "Completed units", "UnitNumber": "Unit number", "Through": "Complete through", "Complete": "Complete unit", "Remove": "Remove unit", "Sources": "Source pages", "SourceUrl": "Source page URL", "From": "From unit", "To": "To unit", "AddSource": "Add mapped source", "SourceHint": "Map only pages you have checked. A page is used only when its whole range is completed.", "UpdatePeople": "Update contact background", "ReviewUpdate": "Research update", "Ready": "Review these sourced changes before applying them.", "ApplyUpdate": "Apply to contacts", "ValidUnit": "Enter a valid unit number.", "ValidSource": "Enter a source URL and valid unit range.", "ResearchIdentity": "Research identity from a source", "NoTrack": "No declared story progress", "Research": "Research", "ScopedContext": "Story context at your progress", "SourceQuotes": "Source quotes", "Unknowns": "Uncertain or missing", "UseDraft": "Use this draft", "ResearchAccepted": "Draft selected"
+        "Title": "Story progress",
+        "Track": "Story edition",
+        "NewTrack": "New story edition",
+        "Work": "Work",
+        "Edition": "Edition or continuity",
+        "Unit": "Unit name",
+        "Total": "Total units",
+        "SourceWiki": "Source wiki URL",
+        "AutoAdvance": "Automatically apply newly researched background",
+        "Progress": "Completed units",
+        "UnitNumber": "Unit number",
+        "Through": "Complete through",
+        "Complete": "Complete unit",
+        "Remove": "Remove unit",
+        "Sources": "Source pages",
+        "SourceUrl": "Source page URL",
+        "From": "From unit",
+        "To": "To unit",
+        "AddSource": "Add mapped source",
+        "SourceHint": "Map only pages you have checked. A page is used only when its whole range is completed.",
+        "UpdatePeople": "Update contact background",
+        "ReviewUpdate": "Research update",
+        "Ready": "Review these sourced changes before applying them.",
+        "ApplyUpdate": "Apply to contacts",
+        "ValidUnit": "Enter a valid unit number.",
+        "ValidSource": "Enter a source URL and valid unit range.",
+        "ResearchIdentity": "Research identity from a source",
+        "NoTrack": "No declared story progress",
+        "Research": "Research",
+        "ScopedContext": "Story context at your progress",
+        "SourceQuotes": "Source quotes",
+        "Unknowns": "Uncertain or missing",
+        "UseDraft": "Use this draft",
+        "ResearchAccepted": "Draft selected"
       },
       "Contacts": {
         "Archive": "Archive contact",
@@ -941,6 +1043,9 @@
         "NewPractice": "New practice",
         "NewScenario": "New scenario",
         "EmptyPractice": "No practice chats yet.",
+        "AllConversations": "All conversations",
+        "FilterConversations": "Filter conversations",
+        "NoFilteredConversations": "No conversations with this style yet.",
         "Chats": "Chats",
         "Tab": "Contacts",
         "Add": "Add contact",
@@ -1172,7 +1277,12 @@
         "LLMToastTitle": "Generating missing example translations…",
         "LLMDone": "Generated translations for {count} flashcard(s)",
         "LLMDoneWithErrors": "Generated translations for {count} flashcard(s), {failed} failed",
-        "RepairButton": "Repair", "ContentDescription": "{count} flashcard(s) have no meaning yet. Repair fills them in from the dictionary?", "ContentToastTitle": "Filling in missing flashcard content…", "ContentDone": "Filled in {count} flashcard(s)", "ContentDoneWithErrors": "Filled in {count} flashcard(s), {failed} could not be filled", "ContentFailed": "Could not fill in flashcard content",
+        "RepairButton": "Repair",
+        "ContentDescription": "{count} flashcard(s) have no meaning yet. Repair fills them in from the dictionary?",
+        "ContentToastTitle": "Filling in missing flashcard content…",
+        "ContentDone": "Filled in {count} flashcard(s)",
+        "ContentDoneWithErrors": "Filled in {count} flashcard(s), {failed} could not be filled",
+        "ContentFailed": "Could not fill in flashcard content",
         "Title": "Missing flashcard data",
         "ToastTitle": "Repairing flashcards…"
       },
@@ -1210,11 +1320,18 @@
           "WrongOrthography": "Unrecognized form",
           "Marked": "Marked {aspect} as unknown"
         },
+        "PlayVideoWithAssistance": "Play video with assistance",
+        "AssistanceRecorded": "Prompt assistance is recorded. Supplied aspects will not count as independent recall.",
+        "SavingRemoval": "Removing card…",
+        "RemovalSaveFailed": "The card could not be removed. It may have changed; try again or cancel.",
         "SavingRating": "Saving rating…",
         "SaveFailed": "This rating could not be saved. The card is still here; try again.",
         "PendingRatingsSaveFailed": "Recent ratings could not be saved. Try again.",
+        "PendingRatingChanged": "Your card or study state changed before this response could be saved. Review the current card again.",
         "SavingUndo": "Saving undo…",
-        "UndoSaveFailed": "This undo could not be saved. The card remains rated; try again."
+        "UndoSaveFailed": "This undo could not be saved. The card remains rated; try again.",
+        "PreparingQuestion": "Preparing your next question…",
+        "QuestionSaveFailed": "This question could not be saved. Try again before continuing."
       },
       "State": {
         "Learning": "Learning",
@@ -1473,6 +1590,36 @@
         "ContinueLearning": "Continue Learning",
         "LearningLanguage": "Learning {language}",
         "TitleDescription": "Select an option below to begin"
+      },
+      "Today": {
+        "Title": "Today",
+        "Description": "Choose your next activity, or return to your material.",
+        "Activities": "Learning activities",
+        "Read": "Read",
+        "Watch": "Watch",
+        "Practice": "Practise",
+        "Next": "Recommended next",
+        "ReviewTitle": "Keep what you have learned",
+        "ReviewReason": "{count} cards are due in your review queue. Recall them before adding more.",
+        "ReviewAction": "Start review",
+        "PracticeTitle": "Strengthen your recall",
+        "PracticeReason": "Your learning record contains {count} words that are not yet secure. Practise recall using your Learning Plan.",
+        "PracticeAction": "Practise recall",
+        "AssessmentTitle": "Fill in your learning record",
+        "AssessmentReason": "{count} words in your target curriculum have no assessment yet. A short recall check helps your plan choose suitable practice.",
+        "AssessmentAction": "Check my level",
+        "ContinueTitle": "Return to your material",
+        "ContinueReason": "Continue {material} where you left off. Inspect language as you encounter it.",
+        "ContinueAction": "Continue learning",
+        "ReadTitle": "Start with something to read",
+        "ReadReason": "Open material you want to understand. You can inspect words and practise them as you read.",
+        "ReadAction": "Open a text",
+        "NoMaterial": "Open a text or video to begin. Your recent material will appear here.",
+        "PlanSummary": "{known} known · {needsPractice} developing · {unassessed} unassessed",
+        "PlanUnmeasured": "Your learning record will grow as you read and practise.",
+        "ViewPlan": "View Learning Plan",
+        "ThisWeek": "This week",
+        "WeekSummary": "{reviews} reviews · {newCards} new cards"
       }
     },
     "Installer": {
@@ -1583,6 +1730,7 @@
       "Loading": "Loading plugin UI..."
     },
     "Knowledge": {
+      "StudyPreferenceSaveFailed": "Could not save your study preference. Nothing changed; try again.",
       "Capability": {
         "sense-recognition": "Meaning",
         "surface-recognition": "Recognize this spelling",
@@ -1612,6 +1760,7 @@
         "Title": "Knowledge override"
       },
       "Popup": {
+        "SelfAssessment": "Self-assessment: your claim, without an observed exercise.",
         "Overall": "Overall",
         "Basis": "Basis",
         "Rate": "Rate",
@@ -1621,6 +1770,8 @@
         "Retry": "Retry"
       },
       "Projection": {
+        "WordFamiliarity": "Word familiarity",
+        "WordFamiliarityScope": "Familiarity with this word does not establish every skill or specific use. Each aspect below is assessed separately.",
         "EaseOverall": "Overall word ease",
         "EaseDescription": "Ease derived from recorded outcomes. The right axis shows evidence thresholds; explicit claims can override status.",
         "EaseCurrent": "Current ease · {value}",
@@ -1694,7 +1845,13 @@
         },
         "FullGraph": "Open full graph",
         "Prediction": {
-          "None": "No prediction."
+          "None": "There is not enough verified support to estimate an unmeasured access yet. Direct practice can establish it.",
+          "SupportLimited": "Limited structural support",
+          "SupportModerate": "Moderate structural support",
+          "SupportStrong": "Strong structural support",
+          "Context": "Based on your current recorded knowledge and installed language relations. Use this signal to choose a practice attempt.",
+          "Limits": "This is a heuristic support estimate, not a success probability or measured progress. No task context or retention horizon has been evaluated.",
+          "UnavailableSupport": "The installed package cannot provide a reliable support estimate for this access. Direct practice can establish it."
         },
         "Adjust": "Adjust",
         "RetentionTitle": "SRS retention",
@@ -1712,7 +1869,18 @@
         "TrajectoryDescription": "Point states come from recorded evidence and explicit claims. Lines hold state between observations; gaps mark compressed history.",
         "TrajectorySparse": "More evidence across multiple days is needed to show a trajectory.",
         "RetentionDistant": "No review due soon",
-        "RetentionUnavailable": "Schedule unavailable"
+        "RetentionUnavailable": "Schedule unavailable",
+        "Record": {
+          "Tab": "Learning record",
+          "Connections": "Connections",
+          "NoChecks": "These aspects have not been assessed. On your next encounter, try recalling the word before opening a reference.",
+          "Partial": "Unchecked aspects remain unassessed even when another aspect is known.",
+          "Unchecked": "Not yet checked ({count})",
+          "Correction": "Adjust changes your self-assessment. It does not record a recall test.",
+          "Trajectory": "Change over time",
+          "Support": "Support from related knowledge",
+          "Return": "Return to activity"
+        }
       },
       "Aspect": {
         "Grammar": "Grammar",
@@ -1911,7 +2079,7 @@
         "EmptyPools": "No unmeasured words are available to sample right now.",
         "DateRequired": "An exam or school result needs the date it was achieved.",
         "DateUnknown": "date unknown",
-        "LiveProgress": "Responses recorded: {count}. The assessment adapts as you answer. You can return to your plan and resume later."
+        "LiveProgress": "{count} responses · Next words adapt to your answers"
       },
       "Mock": {
         "Title": "Practice checkpoints",
@@ -2147,7 +2315,7 @@
         "SinglePage": "Single Page",
         "SpreadLeftToRight": "Pages L→R",
         "SpreadRightToLeft": "Pages R→L",
-        "ToggleUnknownWordsSidebar": "Toggle unknown words sidebar",
+        "ToggleUnknownWordsSidebar": "Toggle vocabulary sidebar",
         "ToggleContents": "Toggle contents",
         "PreviousPage": "Previous page",
         "NextPage": "Next page",
@@ -2201,8 +2369,8 @@
           "Tactile": "Tactile"
         },
         "SimplifyHomeScreen": {
-          "Description": "Show the home screen as a plain button grid without interactive previews.",
-          "Label": "Simplify home screen"
+          "Description": "Show Learning Plan and weekly activity as compact links on Home.",
+          "Label": "Compact Home summary"
         }
       },
       "BlurEffect": {
@@ -2337,7 +2505,7 @@
           "Description": "Choose the color that prosody colors fade toward when prosody evidence is strong.",
           "Label": "Fade toward",
           "PartOfSpeech": "Part-of-speech color",
-          "White": "White"
+          "Text": "Normal text"
         },
         "Palette": {
           "Description": "Customize the package-defined colors for this language.",
@@ -2656,9 +2824,16 @@
           },
           "Title": "Word Hover Behavior",
           "TriggerMode": {
-            "Description": "How word translation popup is triggered in the reader",
+            "Description": "How word popups open across reading, subtitles, and conversations",
             "Label": "Hover Trigger Mode"
           }
+        }
+      },
+      "WordInteractions": {
+        "Title": "Word interactions",
+        "Size": {
+          "Label": "Word popup size",
+          "Description": "Shared across reading, subtitles, and conversations. 100% uses the reader’s standard size."
         }
       },
       "SRS": {
@@ -3404,7 +3579,8 @@
       },
       "Loading": "Loading vocabulary…",
       "LoadingMore": "Loading more...",
-      "SearchHintDetailed": "Search words and inspect your learning progress.",
+      "Manage": "Manage cards and references",
+      "SearchHintDetailed": "Select a word or its status to see what you know and why. Use Manage cards and references to edit or save it.",
       "SearchPlaceholder": "Search word...",
       "Searching": "Searching...",
       "Trackers": {
@@ -3445,6 +3621,12 @@
         "Ambiguous": "Multiple readings"
       },
       "NoTranslation": "No translation found",
+      "ResolutionProvider": "Selected by the installed language package. Check alternatives if it does not fit.",
+      "DictionaryAlternatives": "Dictionary alternatives ({count})",
+      "ResolutionOrder": "Selected by dictionary order. Other readings or meanings may fit.",
+      "ResolutionHint": "Selected using a tokenizer hint. Check alternatives if it does not fit.",
+      "ResolutionLearner": "Your selection for this encountered form and context.",
+      "ResolutionSaveFailed": "Could not save this selection. Try again.",
       "Status": {
         "Known": "Known",
         "Learning": "Learning",
@@ -3494,7 +3676,16 @@
         "Word": "Word"
       },
       "UnknownWords": "Unknown Words",
-      "WordCount": "{count} words"
+      "WordCount": "{count} words",
+      "Vocabulary": "Vocabulary",
+      "InspectWord": "Inspect {word}",
+      "SaveOrExclude": "Save or exclude",
+      "FilterAndSave": "Filter and save",
+      "InspectionHint": "Inspect a word to see what is known and why. Save it for review or exclude it from study.",
+      "SaveAllForReview": "Save all for review",
+      "ExcludeFromStudy": "Exclude from study",
+      "EncounteredAs": "Encountered as {surface}",
+      "RecallWords": "Recall {count} words"
     },
     "WordSync": {
       "ProjectionUnavailable": "Knowledge data could not be loaded. Try again.",
@@ -3544,7 +3735,21 @@
       "QueueDetails": "Why these words?",
       "QueueExplanation": "The queue uses your current filters and recorded knowledge. Ignored words are excluded. A word needs at least one skill this activity can check that is not already assessed as known. Recent-word history does not exclude words.",
       "QueueExclusions": "Excluded — ignored: {ignored}; outside filters: {filtered}; no suitable prompt or no longer eligible: {unavailable}.",
-      "InvalidFilter": "The filter is incomplete or invalid. Edit it to continue."
+      "InvalidFilter": "The filter is incomplete or invalid. Edit it to continue.",
+      "SelectionSaveFailed": "The next question could not be saved. Retry to continue from the saved session.",
+      "PoolChoiceReason": "Selected from {count} eligible words at this level. Your answer updates only the aspects this prompt tests.",
+      "GraphChoiceReason": "Connections to related knowledge placed this word ahead of {word} at this level. Check which aspects you can retrieve.",
+      "AssistanceSaveFailed": "Prompt assistance could not be saved. Retry before recording an answer.",
+      "SavingAssistance": "Saving prompt assistance…",
+      "ReferenceConsulted": "Reference consulted before answering. This encounter cannot establish independent recall.",
+      "NavigationSaving": "Saving your place…",
+      "NavigationSaveFailed": "Your place could not be saved. The same question is still open. Retry to continue.",
+      "ContinueAfterReference": "Continue",
+      "TestedAccesses": "Checking: {aspects}",
+      "GraphChoiceSourceReason": "Connections to {source} placed this word ahead of {word} at this level. Check which aspects you can retrieve.",
+      "MaterialEmptyTitle": "No prompts remaining",
+      "MaterialEmptyDescription": "No answers were recorded. This selection has no remaining recall prompts; return to reading to continue.",
+      "MaterialPoolChoiceReason": "Selected from {count} eligible words in this selection. This check focuses on aspects that still need practice."
     },
     "Menu": {
       "About": "About mLearn",
@@ -3888,16 +4093,31 @@
       }
     },
     "LearningPlan": {
-      "Description": "Set your curriculum, target and pace, then choose an activity. Your target does not measure your ability.",
+      "Description": "Practise recall with your chosen curriculum. Check your level when you want to find a starting point.",
       "Activities": "Choose an activity",
       "Assess": "Assess my current level",
       "AssessDescription": "Already studied this language? Check what you recognise and choose a suitable starting point.",
-      "WordSyncDescription": "Review words you encounter and decide what to practise next.",
+      "WordSyncDescription": "Recall words in your target curriculum. Reveal the answer, then record what you could recall.",
       "CharactersDescription": "Explore the writing system and practise individual characters.",
       "Progress": "Curriculum progress",
       "Back": "Back to Learning Plan",
       "SettingsHint": "Your curriculum, target, study pace and goals are managed in Learning Plan.",
-      "Open": "Open Learning Plan"
+      "Open": "Open Learning Plan",
+      "Edit": "Change plan",
+      "BackToMaterial": "Back to reading",
+      "MaterialPractice": "From {title} · {count} selected words"
+    },
+    "StudyEncounter": {
+      "Task": "Recall & check",
+      "Retrieve": "Try answering the prompt before revealing the answer.",
+      "Compare": "Compare with your answer, then record how you recalled it.",
+      "Reveal": "Reveal answer",
+      "Consequence": "Missed: could not recall. Struggled: worked it out. Fluent: recalled without help. Your response updates your learning record and chooses the next item.",
+      "Check": "Check this",
+      "PlacementIntro": "A short adaptive check uses the same recall and answer flow as practice. It samples words without direct evidence, then suggests a starting point for your Learning Plan. Unsampled words stay unassessed.",
+      "Resume": "Resume practice",
+      "RetrieveWord": "Try to recall the reading and meaning before revealing the answer.",
+      "RetrieveAspects": "Focus this recall check on: {aspects}. Reveal the answer to compare."
     }
   }
 }

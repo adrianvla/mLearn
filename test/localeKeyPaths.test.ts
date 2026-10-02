@@ -126,7 +126,7 @@ describe('every statically declared renderer locale key resolves', () => {
     const missing: string[] = [];
     for (const [key, sites] of referenced) {
       for (const code of LOCALES) {
-        if (!localeLeaves(code).has(key)) {
+        if (!localeLeaves(code).has(key) || !hasKeyPath(localeObject(code), key)) {
           missing.push(`${key} missing from ${code} (used at ${sites[0]})`);
         }
       }

@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createSignal } from 'solid-js';
 
 vi.mock('../Icons/Icon', () => ({
   default: () => <span class="mock-icon" />,
@@ -40,6 +41,26 @@ describe('Button', () => {
     expect(container.querySelector('.btn-svg-icon')).toBeNull();
 
     dispose();
+  });
+
+  it('keeps caller-selected classes across disabled and loading transitions', async () => {
+    const { Button } = await import('./Button');
+    const [disabled, setDisabled] = createSignal(false);
+    const [loading, setLoading] = createSignal(false);
+    const [selected, setSelected] = createSignal(true);
+    const dispose = render(() => <Button disabled={disabled()} loading={loading()}
+      classList={{ 'chosen-state': selected() }} aria-pressed={selected()} label="Choose" />, container);
+    try {
+      const button = container.querySelector('button')!;
+      expect(button.classList.contains('chosen-state')).toBe(true);
+      setDisabled(true);
+      expect(button.disabled).toBe(true);
+      expect(button.classList.contains('chosen-state')).toBe(true);
+      setDisabled(false); setLoading(true);
+      expect(button.classList.contains('chosen-state')).toBe(true);
+      setSelected(false); setLoading(false);
+      expect(button.classList.contains('chosen-state')).toBe(false);
+    } finally { dispose(); }
   });
 
   it('marks pill icons as fixed-size flex items', async () => {

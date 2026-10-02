@@ -17,6 +17,11 @@ describe('main window startup readiness', () => {
     expect(startupRendererState(ready)).toBe('ready');
   });
 
+  it('reveals library recovery without pretending the library or tools are ready', () => {
+    expect(startupRendererState({ ...ready, libraryLoading: true, knowledgeReady: false,
+      serverStatus: 'loading', libraryLoadError: true })).toBe('library-error');
+  });
+
   it('reveals the main window when its actionable error UI is ready', () => {
     expect(startupRendererState({ ...ready, serverStatus: 'error' })).toBe('ready');
   });

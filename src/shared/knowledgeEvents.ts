@@ -1,5 +1,6 @@
 import type { AttemptQuality, KnowledgeAspect, KnowledgeSource, WordStatus } from './constants';
 import { ASPECT_CAPABILITY, type CapabilityKey } from './graph/types';
+import type { LearningDecision } from './learningDecision';
 
 export type { KnowledgeAspect, WordStatus };
 export type KnowledgeEventKind = 'status' | 'review' | 'rating' | 'rollup' | 'claim' | 'retraction';
@@ -82,6 +83,11 @@ export const SCAFFOLD_INVALIDATES: Readonly<Record<string, readonly CapabilityKe
   audio: ['surface-reading'],
 };
 
+/** A generic exposure addresses supplied accesses, including package-owned IDs. */
+export function providedAccessScaffolds(capabilities: readonly CapabilityKey[]): AttemptScaffolds {
+  return Object.fromEntries(capabilities.map(capability => [`provided-access:${capability}`, true]));
+}
+
 /**
  * Whether an attempt under these scaffold conditions can produce evidence for
  * `capability`. `scaffolds === undefined` (writer did not know) keeps the
@@ -89,6 +95,7 @@ export const SCAFFOLD_INVALIDATES: Readonly<Record<string, readonly CapabilityKe
  */
 export function isAccessMeasurable(capability: CapabilityKey, scaffolds?: AttemptScaffolds): boolean {
   if (!scaffolds) return true;
+  if (scaffolds[`provided-access:${capability}`] === true) return false;
   for (const [scaffoldId, invalidates] of Object.entries(SCAFFOLD_INVALIDATES)) {
     if (scaffolds[scaffoldId] && invalidates.includes(capability)) return false;
   }
@@ -146,6 +153,14 @@ export function nextAttemptId(): AttemptId {
 }
 
 export interface KnowledgeEvent {
+  /** Immutable observation identity when supplied by an event producer. */
+  eventId?: string;
+  /** Opaque package-declared transfer context pinned by the actual encounter. */
+  transferContext?: string;
+  /** Every measured access joins the exact pre-presentation policy choice. */
+  decisionRef?: { id: string };
+  /** Full bounded decision is stored once per physical attempt, on its first measured row. */
+  decision?: LearningDecision;
   t: number;
   kind: KnowledgeEventKind;
   source: EvidenceSource;

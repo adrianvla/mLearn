@@ -28,7 +28,7 @@ vi.mock('./windowManager', () => ({
 }));
 
 const mockConsolidateRoom = vi.fn();
-vi.mock('./dreamerRuntime', () => ({ consolidateRoom: mockConsolidateRoom }));
+vi.mock('./dreamerRuntime', () => ({ consolidateRoom: mockConsolidateRoom, cancelMaintenanceContext: vi.fn() }));
 
 const mockLoadSettings = vi.fn();
 
@@ -69,6 +69,7 @@ describe('worldIpc', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     tempDir.cleanup();
   });
 
@@ -197,6 +198,51 @@ describe('worldIpc', () => {
     expect(state.rooms[0].participantIds).toEqual(['p1']);
   });
 
+  it('retries private thread erasure after outbox removal fails, including after restart', async () => {
+    seedWorld([room('r1', ['p1'])], [thread('t1', 'r1')]);
+    const source = await journal.appendEvent('r1', { roomId: 'r1', scope: { kind: 'thread', threadId: 't1' },
+      type: 'message.user', actorId: 'user', witnesses: ['user', 'p1'], payload: { text: 'Private disposable content' } });
+    const outbox = path.join(tempDir.tmpDir, 'journal', 'r1', 'threads', 't1.ndjson.voice-outbox.json');
+    fs.writeFileSync(outbox, JSON.stringify({ version: 1, drafts: [] }));
+    const unlink = vi.spyOn(fs.promises, 'unlink').mockRejectedValueOnce(new Error('Outbox removal unavailable'));
+    await expect(mod.deleteThread('r1', 't1')).rejects.toThrow('Outbox removal unavailable');
+    unlink.mockRestore();
+    expect(JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'world.json'), 'utf-8')).threads).toEqual([]);
+    vi.resetModules(); mod = await import('./worldIpc'); journal = await import('./journalService');
+    await expect(mod.deleteThread('wrong-room', 't1')).rejects.toThrow('context');
+    await mod.deleteThread('r1', 't1');
+    expect((await mod.getWorldState()).threads).toEqual([]);
+    expect(fs.readdirSync(path.dirname(outbox))).toEqual([]);
+    const erased = (await journal.readSeaProjection('r1')).filter(event => event.type === 'deletion');
+    expect(erased).toHaveLength(1);
+    expect(erased[0].payload).toMatchObject({ sourceEventIds: [source.id] });
+  });
+
+  it('finishes pending erasure on restart after content unlink succeeds but its marker append fails', async () => {
+    seedWorld([room('r1', ['p1'])], [thread('t1', 'r1')]);
+    const source = await journal.appendEvent('r1', { roomId: 'r1', scope: { kind: 'thread', threadId: 't1' },
+      type: 'message.user', actorId: 'user', witnesses: ['user', 'p1'], payload: { text: 'Private disposable content' } });
+    const append = vi.spyOn(fs.promises, 'appendFile').mockRejectedValueOnce(new Error('Erasure marker unavailable'));
+    await expect(mod.deleteThread('r1', 't1')).rejects.toThrow('Erasure marker unavailable');
+    append.mockRestore();
+    vi.resetModules(); mod = await import('./worldIpc'); journal = await import('./journalService');
+    expect((await mod.getWorldState()).threads).toEqual([]);
+    const erased = (await journal.readSeaProjection('r1')).filter(event => event.type === 'deletion');
+    expect(erased).toHaveLength(1);
+    expect(erased[0].payload).toMatchObject({ sourceEventIds: [source.id] });
+  });
+
+  it('preserves an active thread when an inconsistent recovery intent targets it', async () => {
+    seedWorld([room('r1', ['p1'])], [thread('t1', 'r1')]);
+    const source = await journal.appendEvent('r1', { roomId: 'r1', scope: { kind: 'thread', threadId: 't1' },
+      type: 'message.user', actorId: 'user', witnesses: ['user', 'p1'], payload: { text: 'Existing private content' } });
+    const file = path.join(tempDir.tmpDir, 'world.json');
+    const state = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    fs.writeFileSync(file, JSON.stringify({ ...state, pendingThreadErasures: [{ roomId: 'r1', threadId: 't1', sourceEventIds: [source.id] }] }));
+    await expect(mod.getWorldState()).rejects.toThrow('active thread');
+    expect((await journal.readThread('r1', 't1')).map(event => event.id)).toEqual([source.id]);
+  });
+
   it('returns contact lifecycle state without exposing prepared publication drafts', async () => {
     const filePath = path.join(tempDir.tmpDir, 'world.json');
     const person = participant('p1', 'Pat');
@@ -235,7 +281,7 @@ describe('worldIpc', () => {
   });
 
   it('membership add appends a membership event and persists the updated room', async () => {
-    seedWorld([room('r1', ['p1'])]);
+    seedWorld([room('r1', ['p1'])], [], [participant('p1', 'Member'), participant('p2', 'New member')]);
     const result = await mod.applyMembership('r1', 'p2', 'add');
 
     expect(result.event).not.toBeNull();
@@ -256,7 +302,7 @@ describe('worldIpc', () => {
   });
 
   it('membership add when already present is a no-op (event null, room untouched)', async () => {
-    seedWorld([room('r1', ['p1'])]);
+    seedWorld([room('r1', ['p1'])], [], [participant('p1', 'Member')]);
     const result = await mod.applyMembership('r1', 'p1', 'add');
 
     expect(result.event).toBeNull();
@@ -264,6 +310,74 @@ describe('worldIpc', () => {
 
     const { events } = await journal.subscribeRoom('r1', 10);
     expect(events).toHaveLength(0);
+  });
+
+  it('changes a separate conversation cast without shared-memory consent or retroactive message access', async () => {
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+    const first = participant('p1', 'Sam');
+    const other = { ...participant('p2', 'Rin'), kind: 'temporary' as const };
+    seedWorld([], [], [first, other]);
+    const separate = await mod.createSandbox({ operationId: 'separate-cast', participantIds: [first.id] });
+    await journal.appendEvent(separate.id, { roomId: separate.id, scope: { kind: 'thread', threadId: separate.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user', first.id], payload: { text: 'Before joining' } });
+    const added = await mod.applyMembership(separate.id, other.id, 'add');
+    expect(added.room.participantIds).toEqual([first.id, other.id]);
+    expect(added.event?.scope).toEqual({ kind: 'thread', threadId: separate.id });
+    const unchanged = await mod.applyMembership(separate.id, other.id, 'add');
+    expect(unchanged.event).toBeNull();
+    await journal.appendEvent(separate.id, { roomId: separate.id, scope: { kind: 'thread', threadId: separate.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user', first.id, other.id], payload: { text: 'After joining' } });
+    const snapshot = await mod.getWorldState();
+    const updated = snapshot.threads[0];
+    expect(snapshot.rooms).toHaveLength(0);
+    expect(updated.sandbox?.bindings[1]).toEqual({ baseline: other });
+    const context = compileContext({ thread: updated, participant: other, participants: [first, other],
+      seaEvents: [], threadEvents: await journal.readThread(separate.id, separate.id) });
+    expect(context.recentThreadEvents.map(item => item.text)).toContain('After joining');
+    expect(context.recentThreadEvents.map(item => item.text)).not.toContain('Before joining');
+    const removed = await mod.applyMembership(separate.id, other.id, 'remove');
+    expect(removed.room.participantIds).toEqual([first.id]);
+    expect((await mod.getWorldState()).threads[0].sandbox?.bindings).toHaveLength(2);
+    expect((await journal.readThread(separate.id, separate.id)).filter(event => event.type === 'message.user')).toHaveLength(2);
+  });
+
+  it('rejoins the same separate person with local edits intact and excludes messages while absent', async () => {
+    const first = participant('p1', 'Sam'); const other = participant('p2', 'Rin');
+    seedWorld([], [], [first, other]);
+    const separate = await mod.createSandbox({ operationId: 'rejoin-cast', participantIds: [first.id, other.id] });
+    await mod.updateParticipant({ ...other, displayName: 'Local Rin' }, separate.id);
+    await mod.applyMembership(separate.id, other.id, 'remove');
+    await journal.appendEvent(separate.id, { roomId: separate.id, scope: { kind: 'thread', threadId: separate.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user', first.id, other.id], payload: { text: 'While absent' } });
+    await mod.applyMembership(separate.id, other.id, 'add');
+    const updated = (await mod.getWorldState()).threads[0];
+    expect(updated.sandbox?.bindings[1].localOverride?.displayName).toBe('Local Rin');
+    const context = compileContext({ thread: updated, participant: other, participants: [first, other],
+      seaEvents: [], threadEvents: await journal.readThread(separate.id, separate.id) });
+    expect(context.recentThreadEvents.map(item => item.text)).not.toContain('While absent');
+    expect((await mod.getWorldState()).participants[1].displayName).toBe('Rin');
+  });
+
+  it('returns a conversation-only person without creating a shared contact', async () => {
+    const first = participant('p1', 'Sam'); const local = { ...participant('local', 'Local Rin'), kind: 'temporary' as const };
+    const separate: Thread = { id: 'separate', state: 'active', createdAt: 1, sandbox: {
+      operationId: 'local-cast', requestHash: 'hash', baselineHeads: {}, bindings: [{ baseline: first }, { baseline: local }],
+    } };
+    seedWorld([], [separate], [first]);
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+    await mod.applyMembership(separate.id, local.id, 'remove');
+    const joined = await mod.applyMembership(separate.id, local.id, 'add');
+    expect(joined.room.participantIds).toEqual([first.id, local.id]);
+    expect((await mod.getWorldState()).participants).toEqual([first]);
+    expect((await mod.getWorldState()).threads[0].sandbox?.bindings).toHaveLength(2);
+  });
+
+  it('updates a roster-based shared conversation title while retaining authored names', async () => {
+    const people = [participant('p1', 'Sam'), participant('p2', 'Rin')];
+    seedWorld([{ ...room('r1', ['p1']), title: 'Sam' }], [], people);
+    expect((await mod.applyMembership('r1', 'p2', 'add')).room.title).toBe('Sam, Rin');
+    seedWorld([{ ...room('r1', ['p1']), title: 'Our garden', titleUserSet: true }], [], people);
+    expect((await mod.applyMembership('r1', 'p2', 'add')).room.title).toBe('Our garden');
   });
 
   it('membership remove removes the participant and preserves witnesses including the departing person', async () => {
@@ -277,6 +391,16 @@ describe('worldIpc', () => {
 
     const state = await mod.getWorldState();
     expect(state.rooms[0].participantIds).toEqual(['p1']);
+  });
+
+  it.each(['missing', 'temporary', 'archived'] as const)('rejects an unavailable %s membership addition without changing roster or history', async state => {
+    const candidate = state === 'missing' ? [] : [{ ...participant('p2', 'Other'),
+      ...(state === 'temporary' ? { kind: 'temporary' as const } : { archivedAt: 1 }),
+    }];
+    seedWorld([room('r1', ['p1'])], [], [participant('p1', 'Member'), ...candidate]);
+    await expect(mod.applyMembership('r1', 'p2', 'add')).rejects.toThrow(/persistent person is unavailable/);
+    expect((await mod.getWorldState()).rooms[0].participantIds).toEqual(['p1']);
+    expect((await journal.subscribeRoom('r1', 10)).events).toHaveLength(0);
   });
 
   it('membership on a missing room throws', async () => {

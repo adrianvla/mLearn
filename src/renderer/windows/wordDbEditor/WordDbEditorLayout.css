@@ -38,8 +38,13 @@ body.reduce-transparency .word-db-editor{
 .word-db-editor .entries-header,
 .word-db-editor .entry {
   display: grid;
-  grid-template-columns: minmax(7rem, 1.2fr) minmax(0, 2fr) 5rem minmax(14rem, 1.6fr) minmax(11rem, 1.5fr);
+  grid-template-columns: minmax(7rem, 1.2fr) minmax(0, 2fr) 5rem minmax(8rem, 1fr);
   gap: var(--spacing-3);
+}
+
+.word-db-editor.managing-words .entries-header,
+.word-db-editor.managing-words .entry {
+  grid-template-columns: minmax(7rem, 1.2fr) minmax(0, 2fr) 5rem minmax(8rem, 1fr) minmax(11rem, 1.5fr);
 }
 
 .word-db-editor .col {
@@ -79,7 +84,12 @@ body.reduce-transparency .word-db-editor{
 @container (max-width: 849px) {
   .word-db-editor .entries-header,
   .word-db-editor .entry {
-    grid-template-columns: minmax(6rem, 1fr) minmax(0, 1fr) minmax(12rem, 1.5fr) minmax(9rem, 1.2fr);
+    grid-template-columns: minmax(6rem, 1fr) minmax(0, 1.5fr) minmax(8rem, 1fr);
+  }
+
+  .word-db-editor.managing-words .entries-header,
+  .word-db-editor.managing-words .entry {
+    grid-template-columns: minmax(6rem, 1fr) minmax(0, 1fr) minmax(8rem, 1fr) minmax(9rem, 1.2fr);
   }
 
   .word-db-editor .col.level {
@@ -89,7 +99,9 @@ body.reduce-transparency .word-db-editor{
 
 @container (max-width: 639px) {
   .word-db-editor .entries-header,
-  .word-db-editor .entry {
+  .word-db-editor .entry,
+  .word-db-editor.managing-words .entries-header,
+  .word-db-editor.managing-words .entry {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     row-gap: var(--spacing-3);
   }

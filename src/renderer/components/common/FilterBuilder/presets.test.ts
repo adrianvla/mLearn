@@ -317,6 +317,16 @@ describe('word sync pool status semantics', () => {
     expect(evaluateAst(presetAst, untrackedRecord, resolvers)).toBe(true);
   });
 
+  it('reinforcement selects developing words within the target, excluding new and known words', () => {
+    const ast = parseTokens(buildWordSyncPreset(allLevelNames, 2, undefined, 'reinforce'));
+    expect(evaluateAst(ast, learningRecord, resolvers)).toBe(true);
+    expect(evaluateAst(ast, { status: String(WORD_STATUS.UNKNOWN), level: 3 }, resolvers)).toBe(true);
+    expect(evaluateAst(ast, untrackedRecord, resolvers)).toBe(false);
+    expect(evaluateAst(ast, { status: String(WORD_STATUS.KNOWN), level: 3 }, resolvers)).toBe(false);
+    expect(evaluateAst(ast, { status: String(WORD_STATUS.LEARNING), level: 1 }, resolvers)).toBe(false);
+    expect(validateTokens(buildWordSyncPreset(allLevelNames, 2, undefined, 'reinforce'))).toEqual({ ok: true });
+  });
+
   it('standalone Unknown operand matches neither Learning nor Untracked records', () => {
     const unknownAst = parseTokens([makeOperandToken({
       field: 'status',

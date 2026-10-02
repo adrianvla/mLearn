@@ -25,7 +25,7 @@ nav.room-sidebar button, nav.room-sidebar input {
     gap:var(--spacing-1);
 }
 .room-sidebar-list .list-row { border-radius: var(--radius-md); }
-.room-sidebar-scope { font-size: var(--font-size-xs); color: var(--text-tertiary); }
+.room-sidebar-scope { display: block; white-space: normal; font-size: var(--font-size-xs); color: var(--text-tertiary); }
 .room-sidebar-empty { padding: var(--spacing-4); text-align: center; color: var(--text-secondary); font-size: var(--font-size-sm); line-height: var(--line-height-relaxed); }
 .room-sidebar-sessions { padding: var(--spacing-2); }
 .room-sidebar-notice { padding-inline: var(--spacing-3); font-size: var(--font-size-xs); color: var(--text-secondary); }
@@ -47,3 +47,6 @@ nav.room-sidebar button, nav.room-sidebar input {
   color: var(--text-tertiary);
 }
 .room-sidebar-list .list-row__copy { gap: var(--spacing-1); }
+
+.room-sidebar-filter { padding: var(--spacing-1) var(--spacing-2); }
+.room-sidebar-filter select { width: 100%; font-size: var(--font-size-sm); }

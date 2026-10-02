@@ -1,3 +1,4 @@
+import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
 import fs from 'fs';
 import path from 'path';
 import { BrowserWindow, ipcMain } from 'electron';
@@ -58,6 +59,13 @@ export function whenKnowledgeEventsReady(): Promise<void> {
   return readyPromise;
 }
 
+/** Internal persistence ownership; these records are not learner evidence. */
+export const reserveRatingCommand = (command: FlashcardRatingCommand, validateAdmission?: () => void) => ensureStore().reserveRatingCommand(command, validateAdmission);
+export const ratingLedgerId = (): string => ensureStore().ratingLedgerId;
+export const pendingRatingCommands = () => ensureStore().pendingRatingCommands();
+export const isRatingCommandCommitted = (attemptId: string): boolean => ensureStore().isRatingCommandCommitted(attemptId);
+export const completeRatingCommands = (throughSequence: number, revision: number): void => ensureStore().completeRatingCommands(throughSequence, revision);
+
 /**
  * Open the store and, on first run, migrate the legacy JSON journal.
  * Migration is verified per key (projection equivalence); on success the
@@ -113,24 +121,21 @@ function openAndMigrate(now = Date.now()): void {
 function ensureSchemaCurrent(active: KnowledgeHistoryStore, now: number): void {
   if (active.schemaVersion >= KNOWLEDGE_STORE_SCHEMA_VERSION) return;
   const backupPath = `${getLegacyPath()}.migrated`;
-  if (fs.existsSync(backupPath)) {
-    try {
-      const backup = JSON.parse(fs.readFileSync(backupPath, 'utf-8')) as KnowledgeEventLog;
+  try {
+    const backup = fs.existsSync(backupPath)
+      ? JSON.parse(fs.readFileSync(backupPath, 'utf-8')) as KnowledgeEventLog : undefined;
+    if (active.schemaVersion < 2 && backup) {
       const result = active.reclassifyFromBackup(backup, now);
-      if (result.skipped > 0) {
-        log.warn(`[knowledgeEvents] v2 reclassification deferred ${result.skipped} keys lacking import boundaries`);
-      }
+      if (result.skipped > 0) log.warn(`[knowledgeEvents] attempt reclassification deferred ${result.skipped} keys lacking import boundaries`);
       if (!result.verified) {
-        log.error('[knowledgeEvents] v2 reclassification failed projection verification; left on v1 semantics for retry');
+        log.error('[knowledgeEvents] attempt reclassification failed verification; retrying next boot');
         return;
       }
-      log.info(`[knowledgeEvents] reclassified history for attempt compaction: ${result.keys} keys`);
-    } catch (error) {
-      log.error('[knowledgeEvents] v2 reclassification failed; retrying next boot:', error);
-      return;
     }
-  } else {
-    active.markSchemaVersion(KNOWLEDGE_STORE_SCHEMA_VERSION);
+    // Existing generation-2 history needs identity seeding, never reclassification.
+    active.backfillObservationIdentities(backup);
+  } catch (error) {
+    log.error('[knowledgeEvents] history upgrade failed; retrying next boot:', error);
   }
 }
 
@@ -226,6 +231,14 @@ export function getKnowledgeStates(keys: readonly string[]): Record<string, KeyK
   return result;
 }
 
+export function getAddressedKnowledgeKeys(language: string, ids: readonly string[]): string[] {
+  return ensureStore().queryAddressedKeys(language, ids);
+}
+
+export function getAddressedKnowledgeIds(keys: readonly string[]): string[] {
+  return ensureStore().queryAddressedIds(keys);
+}
+
 export function getKnowledgeArchives(keys: readonly string[]): KnowledgeArchiveEnvelope[] {
   const active = ensureStore();
   return keys.map((key) => ({ key, archive: active.getArchive(key) }));
@@ -253,6 +266,20 @@ export function queryLanguageKeys(language: string, prefix?: string): string[] {
 
 export function setupKnowledgeEventsIPC(): void {
   void loadKnowledgeEvents();
+
+  ipcMain.handle(IPC_CHANNELS.LEARNING_DECISION_RECORD, async (_event, decision: import('../../shared/learningDecision').LearningDecision) => {
+    await whenKnowledgeEventsReady();
+    ensureStore().recordLearningDecision(decision);
+  });
+  ipcMain.handle(IPC_CHANNELS.LEARNING_DECISION_GET, async (_event, id: string) => {
+    await whenKnowledgeEventsReady();
+    if (typeof id !== 'string' || !id) throw new Error('Invalid learning decision identity');
+    return ensureStore().getLearningDecisionRecord(id);
+  });
+  ipcMain.handle(IPC_CHANNELS.RATING_UNDO_HISTORY, async (_event, surface: string) => {
+    await whenKnowledgeEventsReady();
+    return ensureStore().getRatingUndoHistory(surface);
+  });
 
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, async (_event, eventsByKey: KnowledgeEventLog) => {
     // TEMP DIAGNOSTIC: opt-in via the mlearn.ratingTrace file flag, since the

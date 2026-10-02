@@ -27,9 +27,11 @@
 }
 .knowledge-drawer__reading { color: var(--text-secondary); font-size: var(--font-size-md); }
 
-.knowledge-drawer__overall { display: inline-flex; align-items: baseline; gap: 0.4rem; margin-left: auto; }
+.knowledge-drawer__overall { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 0.4rem; margin-left: auto; }
+.knowledge-drawer__overall-label { color: var(--text-secondary); font-size: var(--font-size-sm); }
 .knowledge-drawer__overall-status { font-weight: var(--font-weight-semibold); font-size: var(--font-size-md); }
 .knowledge-drawer__overall-basis { color: var(--text-secondary); font-size: var(--font-size-sm); }
+.knowledge-drawer__overall-scope { flex-basis: 100%; margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
 
 /* Basis tone: one quiet accent for the whole surface. */
 .knowledge-state--evidence .knowledge-drawer__overall-status,
@@ -298,3 +300,11 @@
 
 .knowledge-ease__threshold { stroke: var(--text-tertiary); stroke-width: 1; stroke-dasharray: 3 4; }
 .knowledge-ease__band-label { font-weight: var(--font-weight-medium); }
+
+.knowledge-record__guidance { margin: var(--spacing-2) 0; font-size: var(--font-size-sm); color: var(--text-secondary); line-height: var(--line-height-normal); }
+.knowledge-record__unchecked, .knowledge-record__chart, .knowledge-record__support { border-top: 1px solid var(--border-color); padding-block: var(--spacing-3); }
+.knowledge-record__unchecked > summary, .knowledge-record__chart > summary, .knowledge-record__support > summary { cursor: pointer; color: var(--text-primary); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
+.knowledge-record__aspect-names { display: block; color: var(--text-secondary); font-weight: var(--font-weight-normal); font-size: var(--font-size-sm); line-height: var(--line-height-normal); margin-top: var(--spacing-2); }
+.knowledge-record__correction-note { margin: var(--spacing-2) 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
+.knowledge-record__return { display: flex; justify-content: flex-end; padding-top: var(--spacing-3); border-top: 1px solid var(--border-color); }
+.knowledge-record__chart[open] > summary, .knowledge-record__support[open] > summary { margin-bottom: var(--spacing-3); }

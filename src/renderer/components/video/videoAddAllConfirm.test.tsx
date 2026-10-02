@@ -66,7 +66,10 @@ vi.mock('../../services/ankiWordsCache', () => ({
 }));
 vi.mock('../../hooks/useDictionaryTargetLanguage', () => ({ useDictionaryTargetLanguage: () => ({}) }));
 vi.mock('../language-specific', () => ({ WordWithReading: (p: Record<string, unknown>) => <span>{p?.word as never}</span> }));
-vi.mock('../subtitle/wordHoverHelpers', () => ({ extractReadingFromEntries: () => undefined, resolveProsodyForHover: () => undefined }));
+vi.mock('../subtitle/wordHoverHelpers', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../subtitle/wordHoverHelpers')>(),
+  resolveProsodyForHover: () => undefined,
+}));
 vi.mock('../common/Smart', () => ({ ResourcePill: () => <span /> }));
 
 // Leaf presentational primitives. The Modal is kept real-ish via a simple
@@ -128,7 +131,7 @@ const words = (): VideoWordEntry[] => [word('alpha', 0), word('beta', 1), word('
 
 const addAllButton = (container: HTMLElement) => {
   const button = Array.from(container.querySelectorAll('button'))
-    .find((b) => (b.textContent ?? '').trim() === 'mlearn.Sidebar.AddAll');
+    .find((b) => (b.textContent ?? '').trim() === 'mlearn.Sidebar.SaveAllForReview');
   if (!button) throw new Error('Add All button not found');
   return button;
 };

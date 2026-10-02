@@ -52,7 +52,7 @@ export const StatsTab: Component = () => {
 
   const pct = (n: number, total: number) => total > 0 ? ((n / total) * 100).toFixed(1) : '0';
 
-  const openLevelStudy = () => getBridge().window.openWindow({ type: 'level-study' });
+  const openLevelStudy = () => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'plan' } });
   const openWordDbEditor = () => getBridge().window.openWindow({ type: 'word-db-editor' });
   const openAiAnalytics = () => getBridge().window.openWindow({ type: 'conversation-agent', context: { initialTab: 'stats' } });
 

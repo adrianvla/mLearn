@@ -23,6 +23,7 @@ import { buildWordHoverFlashcardContent, wordStatusToNumeric } from '../../compo
 import { useTokenizer, getCachedTranslation, fetchTranslation } from '../../hooks/useTranslation';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { getLogger } from '../../../shared/utils/logger';
+import { showToast } from '../../components/common/Feedback/Toast';
 import { reportCaptureFailure } from '../../services/wordCaptureFailure';
 import { getLearningLanguageLevelForLanguage } from '../../../shared/languageFeatures';
 import { sortByStudyScope } from './studyOrder';
@@ -51,6 +52,7 @@ export const WordDbEditorContent: Component = () => {
   onCleanup(() => { loadGeneration++; });
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
   const [browseMode, setBrowseMode] = createSignal<WordDbBrowseMode>('all');
+  const [showManagement, setShowManagement] = createSignal(false);
   const [sortKey, setSortKey] = createSignal<string>('study');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
   const wordCollator = createMemo(() => {
@@ -85,6 +87,14 @@ export const WordDbEditorContent: Component = () => {
   const ankiEnabled = createMemo(() => settings.use_anki);
 
   const [pendingCardAdds, setPendingCardAdds] = createSignal<ReadonlySet<string>>(new Set());
+  const pendingCardRemovals = new Map<string, symbol>();
+  let removalDisposed = false;
+  let removalGeneration = 0;
+  onCleanup(() => { removalDisposed = true; removalGeneration++; });
+  createEffect(on(() => settings.language, () => {
+    removalGeneration++;
+    pendingCardRemovals.clear();
+  }, { defer: true }));
   const [editDialogOpen, setEditDialogOpen] = createSignal(false);
   const [editingEntry, setEditingEntry] = createSignal<WordEntry | null>(null);
 
@@ -484,11 +494,18 @@ export const WordDbEditorContent: Component = () => {
 
   // Remove flashcard for word
   const handleRemoveFlashcard = async (entry: WordEntry) => {
+    const language = settings.language;
+    const scope = JSON.stringify([language, entry.word]);
+    if (pendingCardRemovals.has(scope)) return;
+    const owner = Symbol('card-removal');
+    const generation = removalGeneration;
+    pendingCardRemovals.set(scope, owner);
+    const stillOwned = () => !removalDisposed && generation === removalGeneration && settings.language === language;
     try {
       // Find flashcard by word (async now)
-      const card = await getCardByWord(entry.word, settings.language);
+      const card = await getCardByWord(entry.word, language);
 
-      if (!card) return;
+      if (!card || !stillOwned()) return;
 
       // Same irreversible act, same prompt: the danger button here used to
       // destroy the card outright while the equivalent control in Browse and
@@ -499,15 +516,21 @@ export const WordDbEditorContent: Component = () => {
           titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
           messageKey: 'mlearn.Flashcards.Modals.DeleteCard.Confirm',
         }, t));
-        if (!confirmed) return;
+        if (!confirmed || !stillOwned()) return;
       }
 
-      await removeFlashcard(card.id, true);
+      const removed = await removeFlashcard(card.id, true);
+      if (!stillOwned()) return;
+      if (!removed) {
+        showToast({ message: t('mlearn.Flashcards.Review.RemovalSaveFailed'), variant: 'error' });
+        return;
+      }
 
       log.info(`%cRemoved flashcard for word "${entry.word}"`, 'color: orange;');
     } catch (e) {
       log.error('Failed to remove flashcard:', e);
-    }
+      if (stillOwned()) showToast({ message: t('mlearn.Flashcards.Review.RemovalSaveFailed'), variant: 'error' });
+    } finally { if (pendingCardRemovals.get(scope) === owner) pendingCardRemovals.delete(scope); }
   };
 
   const handleUnignore = async (entry: WordEntry) => {
@@ -515,6 +538,7 @@ export const WordDbEditorContent: Component = () => {
       await unignoreWordForLanguage(entry.word, settings.language);
     } catch (e) {
       log.error('Failed to unignore word:', e);
+      showToast({ message: t('mlearn.Knowledge.StudyPreferenceSaveFailed'), variant: 'error' });
     }
   };
 
@@ -679,7 +703,7 @@ export const WordDbEditorContent: Component = () => {
   });
 
   return (
-      <div class="word-db-editor">
+      <div class="word-db-editor" classList={{ 'managing-words': showManagement() }}>
         <Show when={loadFailed() || dictionaryUnavailable()}>
           <div role="alert" class="word-db-load-error">
             <p>{t(loadFailed() ? 'mlearn.WordDbEditor.LoadError' : 'mlearn.WordDbEditor.DictionaryUnavailable')}</p>
@@ -714,6 +738,8 @@ export const WordDbEditorContent: Component = () => {
                 filterEvaluation={filterValidation()}
                 studyOrderSelected={sortKey() === 'study'}
                 onStudyOrder={() => { setSortKey('study'); setSortDir(1); }}
+                showManagement={showManagement()}
+                onToggleManagement={() => setShowManagement(value => !value)}
             />
 
             {/* Table Header */}
@@ -721,6 +747,7 @@ export const WordDbEditorContent: Component = () => {
                 sortKey={sortKey}
                 sortDir={sortDir}
                 onSort={handleSort}
+                showIntegrations={showManagement()}
             />
           </CollapsibleStickyHeader>
 
@@ -756,6 +783,7 @@ export const WordDbEditorContent: Component = () => {
                       >
                         <WordEntryRow
                             entry={entry}
+                            showManagement={showManagement()}
                             levelNames={levelNames()}
                             onAddFlashcard={handleAddFlashcard}
                             isAddingFlashcard={pendingCardAdds().has(entry.word)}

@@ -205,8 +205,8 @@ export function setupFlashcardImageIPC(): void {
   });
 
   // Delete a flashcard image
-  ipcMain.handle(IPC_CHANNELS.FLASHCARD_IMAGE_DELETE, (_event, cardId: string) => {
-    deleteFlashcardImage(cardId);
-    return true;
+  ipcMain.handle(IPC_CHANNELS.FLASHCARD_IMAGE_DELETE, async (_event, cardId: string) => {
+    const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+    return releaseUnusedFlashcardMedia('image', cardId, () => deleteFlashcardImage(cardId));
   });
 }

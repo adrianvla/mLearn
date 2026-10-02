@@ -20,7 +20,7 @@ import {
   processOcrBoxesForLanguage,
   type FilterDebugZone,
 } from '../../utils/ocrUtils';
-import { getTokenLookupWord } from '../../utils/wordForms';
+import { getTokenLookupWord, tokenLookupContext } from '../../utils/wordForms';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { OcrWord } from './OcrWord';
 import { ReadingAnnotationHider } from './ReadingAnnotationHider';
@@ -583,6 +583,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                               fallback={(
                                 <OcrWord
                                   token={createUntokenizedOcrToken(segment.text)}
+                                  lookupContext={tokenLookupContext(createUntokenizedOcrToken(segment.text), contextMap().get(index()))}
                                   onWordEnter={(token, event) => handleWordEnter(token, index(), event, true)}
                                   onWordLeave={props.onWordLeave}
                                   trackPassiveHover={false}
@@ -608,6 +609,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                                   {(token) => (
                                     <OcrWord
                                       token={token}
+                                      lookupContext={tokenLookupContext(token, contextMap().get(index()))}
                                       onWordEnter={(t, e) => handleWordEnter(t, index(), e)}
                                       onWordLeave={props.onWordLeave}
                                     />

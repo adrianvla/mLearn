@@ -128,6 +128,29 @@ function payloadOf(event: JournalEvent): Record<string, unknown> {
 }
 
 describe('Dreamer service', () => {
+  it('reflects only delivered voice phrases and makes a late delivery eligible beyond an earlier maintenance window', async () => {
+    seedRoomWorld('voice-delivery');
+    const speech = await journal.appendEvent('voice-delivery', { roomId: 'voice-delivery', scope: { kind: 'sea' },
+      type: 'message.character', actorId: 'owner', witnesses: ['user', 'owner'],
+      payload: { text: 'Played phrase. Secret unheard tail.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } });
+    const later = await seedSea('voice-delivery', 'Later user message');
+    expect(dreamer.maintenanceWindow(await journal.readSeaProjection('voice-delivery'), 0).map(event => event.id)).toEqual([later.id]);
+    const delivered = await journal.appendEvent('voice-delivery', { roomId: 'voice-delivery', scope: { kind: 'sea' },
+      type: 'delivery.voice', actorId: 'harness', witnesses: speech.witnesses,
+      payload: { messageEventId: speech.id, actorId: 'owner', voiceSessionId: 'call', state: 'interrupted',
+        spokenText: 'Played phrase. Sec', confirmedText: 'Played phrase.', basis: 'playback-estimate' } });
+    const window = dreamer.maintenanceWindow(await journal.readSeaProjection('voice-delivery'), later.seq);
+    expect(window).toHaveLength(1);
+    expect(window[0]).toMatchObject({ id: speech.id, seq: speech.seq, inferenceAvailabilitySeq: delivered.seq, payload: { text: 'Played phrase.' } });
+    const llmFn = vi.fn(async (prompt: string) => {
+      expect(prompt).not.toContain('Secret unheard tail');
+      expect(parsePrompt(prompt).events.find(event => event.id === speech.id)?.text).toBe('Played phrase.');
+      return validOutput([speech.id]);
+    });
+    await dreamer.runReflection({ roomId: 'voice-delivery', scopeKind: 'sea' }, { policy: policy('local', true), llmFn });
+    expect(llmFn).toHaveBeenCalledOnce();
+    expect(derivedRows(await journal.readSeaProjection('voice-delivery'))).toHaveLength(1);
+  });
   // NOTE: every `await import(...)` below is a deliberate post-`vi.resetModules()`
   // re-import — static imports would bind the pre-reset module instance and read
   // stale module state (journal heads, world caches) across tests.

@@ -1,9 +1,17 @@
+import { createMobileLibraryStore, MOBILE_LIBRARY_KEYS } from './mobileLibraryStore';
+import { staleFlashcardRevisionMessage } from '../flashcardWriteRevision';
+import { scopeSiblingEvent } from '../knowledge/siblingHistory';
+import { isLearningDecision, type LearningDecision } from '../learningDecision';
+import { buildKnowledgeProjection } from '../knowledge/projectionBuilder';
+import { loadLinguisticGraph, surfaceEntityId } from '../graph/load';
+import { effectiveThresholds } from '../knowledge/effectiveKnowledge';
+import { hashWordSync } from '../utils/wordHash';
 import type { FlashcardAudioPreset } from '../types';
 import { createCloudLLMRequest, OpenAICompatibleLLMAdapter } from '../backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../backends';
 import { usesManagedLlm } from '../llmTask';
 import { getNodeServerAuthToken, getNodeServerUrl } from '../nodeServerCredentials';
-import { projectCapabilities } from '../knowledge/capabilityProjection';
+import { projectCapabilities, projectClaimMarkers } from '../knowledge/capabilityProjection';
 /**
  * Capacitor Bridge Implementation
  *
@@ -57,6 +65,7 @@ import type {
   VoiceModelStatus,
   VoiceSample,
 } from '../types';
+import { knowledgeEventIdentity } from '../knowledge/eventIdentity';
 import { applyKnowledgeEventRetention, consolidateKnowledgeEvents, eventCapability, readActiveEvidence, type KnowledgeEvent, type KnowledgeEventLog } from '../knowledgeEvents';
 import { emptyTransitions, applyTransitions } from '../knowledge/historyArchive';
 import type { KeyHistorySummary, KeyKnowledgeState } from '../knowledge/historyQueries';
@@ -117,21 +126,32 @@ function getPreferencesModule(): Promise<typeof import('@capacitor/preferences')
   return prefsModulePromise;
 }
 
-async function storageGet(key: string): Promise<string | null> {
+async function storageGet(key: string, requireAuthority = false): Promise<string | null> {
   try {
     const mod = await getPreferencesModule();
     if (mod) {
       const result = await mod.Preferences.get({ key });
       return result.value;
     }
+    if (requireAuthority && isCapacitor()) throw new Error('The library storage provider is unavailable');
   } catch (e) {
+    if (requireAuthority) throw e;
     log.error("error", e);
     log.info('[CapacitorBridge] Preferences.get failed, falling back to localStorage:', e);
   }
   return localStorage.getItem(key);
 }
 
-async function storageSet(key: string, value: string): Promise<void> {
+async function storageSet(key: string, value: string, requireAuthority = false): Promise<void> {
+  if (requireAuthority) {
+    const mod = await getPreferencesModule();
+    if (!mod && isCapacitor()) throw new Error('Durable storage is unavailable');
+    if (mod) {
+      await mod.Preferences.set({ key, value });
+      try { localStorage.setItem(key, value); } catch (error) { log.error('Failed to mirror durable storage:', error); }
+    } else localStorage.setItem(key, value);
+    return;
+  }
   // Always write to localStorage as a fast sync cache
   localStorage.setItem(key, value);
   try {
@@ -443,151 +463,40 @@ const settingsBridge: SettingsBridge = {
 // Flashcard sharded storage helpers
 // ============================================================================
 
-const FLASHCARD_SHARD_COUNT = 16;
-const FLASHCARD_META_KEY = 'flashcards_meta';
-const FLASHCARD_CARDS_SHARD_PREFIX = 'flashcards_cards_shard_';
-const FLASHCARD_STATS_SHARD_PREFIX = 'flashcards_stats_shard_';
-/**
- * @deprecated Pre-sharding Capacitor flashcard storage key. New writes must use
- * the sharded `FLASHCARD_META_KEY`/`FLASHCARD_*_SHARD_PREFIX` stores.
- */
-const FLASHCARD_LEGACY_KEY = 'flashcards';
+const mobileLibrary = createMobileLibraryStore({
+  get: key => storageGet(key, true),
+  set: (key, value) => storageSet(key, value, true),
+  async remove(key) {
+    const mod = await getPreferencesModule();
+    if (!mod && isCapacitor()) throw new Error('Durable storage is unavailable');
+    if (mod) {
+      await mod.Preferences.remove({ key });
+      try { localStorage.removeItem(key); } catch (error) { log.error('Failed to mirror durable storage:', error); }
+    } else localStorage.removeItem(key);
+  },
+}, typeof navigator !== 'undefined' ? navigator.locks : undefined);
 
-function getShardIndex(hexKey: string): number {
-  return parseInt(hexKey.substring(0, 2), 16) % FLASHCARD_SHARD_COUNT;
-}
+const loadShardedFlashcards = () => mobileLibrary.load();
+const saveShardedFlashcards = (store: FlashcardStore) => mobileLibrary.save(store);
 
-function splitIntoShards<T>(map: Record<string, T>): Record<string, T>[] {
-  const shards: Record<string, T>[] = Array.from({ length: FLASHCARD_SHARD_COUNT }, () => ({}));
-  for (const [key, value] of Object.entries(map)) {
-    shards[getShardIndex(key)][key] = value;
-  }
-  return shards;
-}
-
-interface FlashcardShardMeta {
-  version: number;
-  shardCount: number;
-  lastUpdated: string;
-  flashcards: FlashcardStore['flashcards'];
-  wordCandidates: FlashcardStore['wordCandidates'];
-  knownUntracked: FlashcardStore['knownUntracked'];
-  ignoredWords: FlashcardStore['ignoredWords'];
-  wordKnowledge: FlashcardStore['wordKnowledge'];
-  grammarKnowledge: FlashcardStore['grammarKnowledge'];
-  suggestedFlashcards: FlashcardStore['suggestedFlashcards'];
-  dailyStats: FlashcardStore['dailyStats'];
-  storeMeta: FlashcardStore['meta'];
-  storeVersion: FlashcardStore['version'];
-}
-
-async function loadShardedFlashcards(): Promise<FlashcardStore> {
-  const metaRaw = await storageGet(FLASHCARD_META_KEY);
-
-  if (!metaRaw) {
-    const legacyRaw = await storageGet(FLASHCARD_LEGACY_KEY);
-    if (legacyRaw) {
-      const legacy = JSON.parse(legacyRaw) as FlashcardStore;
-      await saveShardedFlashcards(legacy);
-      try {
-        const mod = await getPreferencesModule();
-        if (mod) await mod.Preferences.remove({ key: FLASHCARD_LEGACY_KEY });
-        localStorage.removeItem(FLASHCARD_LEGACY_KEY);
-      } catch (e) {
-        log.error("error", e);
-      }
-      return legacy;
+let projectionRetentionRequest: Promise<FlashcardStore['meta'] | undefined> | undefined;
+function loadProjectionRetentionPolicy(): Promise<FlashcardStore['meta'] | undefined> {
+  if (projectionRetentionRequest) return projectionRetentionRequest;
+  const request = (async () => {
+    const raw = await storageGet(MOBILE_LIBRARY_KEYS.meta, true);
+    if (raw) {
+      const root = JSON.parse(raw);
+      return root.version === 2 ? root.store.meta : root.storeMeta;
     }
-    return { flashcards: {}, wordCandidates: {} } as FlashcardStore;
-  }
-
-  const meta = JSON.parse(metaRaw) as FlashcardShardMeta;
-
-  const allShardRaws = await Promise.all(
-    Array.from({ length: FLASHCARD_SHARD_COUNT * 2 }, (_, idx) => {
-      const i = idx % FLASHCARD_SHARD_COUNT;
-      const prefix = idx < FLASHCARD_SHARD_COUNT ? FLASHCARD_CARDS_SHARD_PREFIX : FLASHCARD_STATS_SHARD_PREFIX;
-      return storageGet(`${prefix}${i}`);
-    })
-  );
-
-  const wordToCardMap: FlashcardStore['wordToCardMap'] = {};
-  const wordStatsMap: FlashcardStore['wordStatsMap'] = {};
-
-  for (let i = 0; i < FLASHCARD_SHARD_COUNT; i++) {
-    const cardRaw = allShardRaws[i];
-    const statsRaw = allShardRaws[FLASHCARD_SHARD_COUNT + i];
-    if (cardRaw) Object.assign(wordToCardMap, JSON.parse(cardRaw) as FlashcardStore['wordToCardMap']);
-    if (statsRaw) Object.assign(wordStatsMap, JSON.parse(statsRaw) as FlashcardStore['wordStatsMap']);
-  }
-
-  return {
-    flashcards: meta.flashcards ?? {},
-    wordCandidates: meta.wordCandidates ?? {},
-    wordToCardMap,
-    wordStatsMap,
-    knownUntracked: meta.knownUntracked ?? {},
-    ignoredWords: meta.ignoredWords ?? {},
-    wordKnowledge: meta.wordKnowledge ?? {},
-    grammarKnowledge: meta.grammarKnowledge ?? {},
-    suggestedFlashcards: meta.suggestedFlashcards ?? {},
-    dailyStats: meta.dailyStats ?? {},
-    meta: meta.storeMeta ?? ({} as FlashcardStore['meta']),
-    version: meta.storeVersion ?? 0,
-  };
-}
-
-let cachedCardShards: Record<string, string[]>[] | null = null;
-let cachedStatsShards: Record<string, FlashcardStore['wordStatsMap'][string]>[] | null = null;
-
-async function saveShardedFlashcards(store: FlashcardStore): Promise<void> {
-  const newCardShards = splitIntoShards(store.wordToCardMap);
-  const newStatsShards = splitIntoShards(store.wordStatsMap);
-
-  const changedCardShards = new Set<number>();
-  const changedStatsShards = new Set<number>();
-
-  for (let i = 0; i < FLASHCARD_SHARD_COUNT; i++) {
-    const newCardJson = JSON.stringify(newCardShards[i]);
-    const newStatsJson = JSON.stringify(newStatsShards[i]);
-
-    if (!cachedCardShards || JSON.stringify(cachedCardShards[i]) !== newCardJson) {
-      changedCardShards.add(i);
+    for (const key of MOBILE_LIBRARY_KEYS.legacy) {
+      const legacy = await storageGet(key, true);
+      if (legacy) return (JSON.parse(legacy) as FlashcardStore).meta;
     }
-    if (!cachedStatsShards || JSON.stringify(cachedStatsShards[i]) !== newStatsJson) {
-      changedStatsShards.add(i);
-    }
-  }
-
-  cachedCardShards = newCardShards;
-  cachedStatsShards = newStatsShards;
-
-  const shardMeta: FlashcardShardMeta = {
-    version: 1,
-    shardCount: FLASHCARD_SHARD_COUNT,
-    lastUpdated: new Date().toISOString(),
-    flashcards: store.flashcards,
-    wordCandidates: store.wordCandidates,
-    knownUntracked: store.knownUntracked,
-    ignoredWords: store.ignoredWords,
-    wordKnowledge: store.wordKnowledge,
-    grammarKnowledge: store.grammarKnowledge,
-    suggestedFlashcards: store.suggestedFlashcards,
-    dailyStats: store.dailyStats,
-    storeMeta: store.meta,
-    storeVersion: store.version,
-  };
-
-  const writes: Promise<void>[] = [storageSet(FLASHCARD_META_KEY, JSON.stringify(shardMeta))];
-
-  for (const i of changedCardShards) {
-    writes.push(storageSet(`${FLASHCARD_CARDS_SHARD_PREFIX}${i}`, JSON.stringify(newCardShards[i])));
-  }
-  for (const i of changedStatsShards) {
-    writes.push(storageSet(`${FLASHCARD_STATS_SHARD_PREFIX}${i}`, JSON.stringify(newStatsShards[i])));
-  }
-
-  await Promise.all(writes);
+    return undefined;
+  })();
+  projectionRetentionRequest = request;
+  void request.finally(() => { if (projectionRetentionRequest === request) projectionRetentionRequest = undefined; }).catch(() => undefined);
+  return request;
 }
 
 // ============================================================================
@@ -595,6 +504,10 @@ async function saveShardedFlashcards(store: FlashcardStore): Promise<void> {
 // ============================================================================
 
 const flashcardBridge: FlashcardBridge = {
+  async commitFlashcardRating(command) {
+    const rev = await this.enqueueFlashcardRating(command);
+    return { patch: command.patch, rev, attemptIds: [command.attemptId] };
+  },
   async enqueueFlashcardRating(command) {
     if (!await knowledgeEventsBridge.appendKnowledgeEvents(command.events)) throw new Error('Rating journal append refused');
     return this.saveFlashcardPatch(command.patch);
@@ -606,35 +519,35 @@ const flashcardBridge: FlashcardBridge = {
       .then(async data => {
         const migrated = await extractBase64ImagesToFiles(data);
         if (migrated) {
-          saveShardedFlashcards(data)
-            .catch(e => log.error('[CapacitorBridge] Failed to save migrated flashcards:', e));
+          await saveShardedFlashcards(data);
         }
         emitter.emit('flashcards', data);
       })
       .catch(e => {
-        log.error('[CapacitorBridge] Failed to load flashcards, using empty store:', e);
-        emitter.emit('flashcards', { flashcards: {}, wordCandidates: {} });
+        log.error('[CapacitorBridge] Failed to load flashcards:', e);
+        emitter.emit('flashcards-load-error', e instanceof Error ? e.message : String(e));
       });
   },
 
   async saveFlashcards(flashcards: FlashcardStore): Promise<number> {
-    const revision = (flashcards.rev ?? 0) + 1;
-    flashcards.rev = revision;
-    await saveShardedFlashcards(flashcards);
-    return revision;
+    return saveShardedFlashcards(flashcards);
   },
 
   async saveFlashcardPatch(patch: StorePatch): Promise<number> {
-    // Mobile keeps no authoritative in-memory copy, so the patch is applied to
-    // a freshly loaded store. saveShardedFlashcards then writes only the shards
-    // that actually changed, so the patch still avoids rewriting everything.
-    const store = await loadShardedFlashcards();
-    applyStorePatch(store as unknown as Record<string, unknown>, patch);
-    return this.saveFlashcards(store);
+    const committed = await mobileLibrary.update(store => {
+      if (patch.baseRev !== (store.rev ?? 0)) throw new Error(staleFlashcardRevisionMessage(store.rev ?? 0, patch.baseRev));
+      applyStorePatch(store as unknown as Record<string, unknown>, patch);
+      return store;
+    });
+    return committed.rev!;
   },
 
   onFlashcards(callback) {
     return emitter.on('flashcards', callback as Listener);
+  },
+
+  onFlashcardLoadError(callback) {
+    return emitter.on('flashcards-load-error', callback as Listener);
   },
 
   onNewDayFlashcards(callback) {
@@ -1579,10 +1492,13 @@ const speechBridge: SpeechBridge = {
 };
 
 // ============================================================================
-// Voice Bridge (limited on mobile — Web Speech API fallbacks)
+// Voice Bridge — integrated AI call transport is unavailable on mobile
 // ============================================================================
 
+const unavailableVoiceCall = 'AI voice calls are not available here. Continue by text or use the desktop app.';
+
 const voiceBridge: VoiceBridge = {
+  supportsCalls: false,
   async voiceCheckModels(): Promise<VoiceModelStatus> {
     return {
       sttDownloaded: false,
@@ -1590,26 +1506,33 @@ const voiceBridge: VoiceBridge = {
       vadDownloaded: false,
       downloading: false,
       progress: 0,
-      statusMessage: 'Voice models not available on mobile — using Web Speech API',
+      statusMessage: unavailableVoiceCall,
     };
   },
-  voiceDownloadModels: noop,
-  onVoiceModelProgress: noopCleanup,
-  voiceStartSession: noop,
+  voiceDownloadModels() {
+    emitter.emit('voice-model-progress', { sttDownloaded: false, ttsDownloaded: false, vadDownloaded: false,
+      downloading: false, progress: 0, error: unavailableVoiceCall, statusMessage: unavailableVoiceCall });
+  },
+  onVoiceModelProgress: callback => emitter.on('voice-model-progress', callback as Listener),
+  voiceStartSession(_language, _mode, _threshold, _provider, request) {
+    emitter.emit('voice-session-error', { error: unavailableVoiceCall, ...request });
+  },
   voiceStopSession: noop,
   voiceSendAudioChunk: noop,
   voiceFlush: noop,
   voiceUpdateSilenceThreshold: noop,
   onVoiceSttResult: noopCleanup,
   onVoiceVadEvent: noopCleanup,
-  voiceTtsGenerate: noop,
+  voiceTtsGenerate(_text, _language, _speed, _sample, _provider, _token, request) {
+    emitter.emit('voice-tts-status', { generating: false, playing: false, error: unavailableVoiceCall, ...request });
+  },
   voiceTtsStop: noop,
   voiceSendTtsState: noop,
   onVoiceTtsAudio: noopCleanup,
-  onVoiceTtsStatus: noopCleanup,
+  onVoiceTtsStatus: callback => emitter.on('voice-tts-status', callback as Listener),
   onVoiceSessionReady: noopCleanup,
   onVoiceSessionStatus: noopCleanup,
-  onVoiceSessionError: noopCleanup,
+  onVoiceSessionError: callback => emitter.on('voice-session-error', callback as Listener),
   async voiceSampleList(): Promise<VoiceSample[]> { return []; },
   async voiceSampleUpload(): Promise<VoiceSample> { throw new Error('Not supported on mobile'); },
   async voiceSampleDelete(): Promise<boolean> { return false; },
@@ -1674,15 +1597,75 @@ function languageOfEventKey(key: string): string {
   const separator = key.indexOf(':');
   return separator === -1 ? key : key.slice(0, separator);
 }
-async function loadKnowledgeEventsForLanguage(language: string): Promise<KnowledgeEventLog> {
-  const raw = await storageGet(knowledgeEventsStorageKey(language));
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as KnowledgeEventLog;
-  } catch (e) {
-    log.error('[CapacitorBridge] Failed to parse knowledge events shard, starting empty:', language, e);
-    return {};
+interface KnowledgeEventsShard {
+  version: 1;
+  events: KnowledgeEventLog;
+  observationIdentities: Record<string, string[]>;
+}
+
+function journalRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function journalIdentifier(value: unknown): boolean { return typeof value === 'string' && value.length > 0; }
+function historicalAttempt(value: unknown): boolean {
+  return journalIdentifier(value) || (typeof value === 'number' && Number.isFinite(value));
+}
+function validJournalRow(row: unknown): boolean {
+  if (!journalRecord(row) || typeof row.t !== 'number' || !Number.isFinite(row.t)
+    || !journalIdentifier(row.kind) || (row.source !== undefined && typeof row.source !== 'string')) return false;
+  if (['eventId', 'schedulerCardId'].some(key => row[key] !== undefined && !journalIdentifier(row[key]))
+    || ['attemptId', 'retracts'].some(key => row[key] !== undefined && !historicalAttempt(row[key]))
+    || (row.ankiReviewId !== undefined && (typeof row.ankiReviewId !== 'number' || !Number.isFinite(row.ankiReviewId)))) return false;
+  if (row.targetRef !== undefined && (!journalRecord(row.targetRef) || !journalIdentifier(row.targetRef.kind)
+    || !journalIdentifier(row.targetRef.id) || ['capability', 'to'].some(key =>
+      (row.targetRef as Record<string, unknown>)[key] !== undefined && !journalIdentifier((row.targetRef as Record<string, unknown>)[key])))) return false;
+  if (row.decisionRef !== undefined && (!journalRecord(row.decisionRef) || !journalIdentifier(row.decisionRef.id))) return false;
+  if (row.itemRef !== undefined && (!journalRecord(row.itemRef) || !journalIdentifier(row.itemRef.id)
+    || !journalIdentifier(row.itemRef.version) || (row.itemRef.seed !== undefined
+      && (typeof row.itemRef.seed !== 'number' || !Number.isFinite(row.itemRef.seed))))) return false;
+  return true;
+}
+function checkedEventLog(value: unknown): KnowledgeEventLog {
+  if (!journalRecord(value) || Object.values(value).some(rows => !Array.isArray(rows) || rows.some(row => !validJournalRow(row)))) {
+    throw new Error('The saved observation journal is unreadable');
   }
+  return value as KnowledgeEventLog;
+}
+async function loadKnowledgeEventsShard(language: string): Promise<KnowledgeEventsShard> {
+  const empty: KnowledgeEventsShard = { version: 1, events: {}, observationIdentities: {} };
+  const raw = await storageGet(knowledgeEventsStorageKey(language), true);
+  if (raw === null) return empty;
+  const parsed: unknown = JSON.parse(raw);
+  if (!journalRecord(parsed)) throw new Error('The saved observation journal is unreadable');
+  if (Object.prototype.hasOwnProperty.call(parsed, 'version')) {
+    if (parsed.version !== 1 || !journalRecord(parsed.observationIdentities)
+      || Object.values(parsed.observationIdentities).some(ids => !Array.isArray(ids) || ids.some(id => typeof id !== 'string'))) {
+      throw new Error('The saved observation journal is unreadable');
+    }
+    checkedEventLog(parsed.events);
+    // Validate the technical envelope while preserving unknown package data.
+    return parsed as unknown as KnowledgeEventsShard;
+  }
+  return { ...empty, events: checkedEventLog(parsed) };
+}
+
+// Concurrent projection reads share one parsed, immutable snapshot. Mutation
+// transactions always load their own shard, never this read snapshot.
+const knowledgeEventReads = new Map<string, Promise<KnowledgeEventLog>>();
+function freezeKnowledgeSnapshot<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeKnowledgeSnapshot(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+function loadKnowledgeEventsForLanguage(language: string): Promise<KnowledgeEventLog> {
+  const pending = knowledgeEventReads.get(language);
+  if (pending) return pending;
+  const read = loadKnowledgeEventsShard(language).then(shard => freezeKnowledgeSnapshot(shard.events));
+  knowledgeEventReads.set(language, read);
+  void read.finally(() => { if (knowledgeEventReads.get(language) === read) knowledgeEventReads.delete(language); }).catch(() => {});
+  return read;
 }
 
 /**
@@ -1692,12 +1675,22 @@ async function loadKnowledgeEventsForLanguage(language: string): Promise<Knowled
  */
 async function updateKnowledgeEventsForLanguage(
   language: string,
-  update: (eventLog: KnowledgeEventLog) => KnowledgeEventLog,
+  update: (eventLog: KnowledgeEventLog, identities: Record<string, string[]>) => KnowledgeEventLog,
 ): Promise<void> {
   const previous = knowledgeEventWriteQueues.get(language) ?? Promise.resolve();
+  const operation = async () => {
+    knowledgeEventReads.delete(language);
+    try {
+      const shard = await loadKnowledgeEventsShard(language);
+      shard.events = update(shard.events, shard.observationIdentities);
+      // Events and retry protection share one persisted value and write boundary.
+      await storageSet(knowledgeEventsStorageKey(language), JSON.stringify(shard), true);
+    } finally { knowledgeEventReads.delete(language); }
+  };
   const task = previous.then(async () => {
-    const updated = update(await loadKnowledgeEventsForLanguage(language));
-    await storageSet(knowledgeEventsStorageKey(language), JSON.stringify(updated));
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      await navigator.locks.request(`mlearn-observation-journal:${language}`, async () => { await operation(); });
+    } else await operation();
   });
   knowledgeEventWriteQueues.set(language, task.catch(() => {}));
   await task;
@@ -1713,11 +1706,48 @@ function notifyKnowledgeEventsChanged(keys: string[]): void {
   }
 }
 
+const learningDecisionWrites = new Map<string, Promise<void>>();
+
+async function serializeLearningDecision(id: string, operation: () => Promise<void>): Promise<void> {
+  const previous = learningDecisionWrites.get(id) ?? Promise.resolve();
+  const task = previous.catch(() => {}).then(async () => {
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      await navigator.locks.request(`mlearn-learning-decision:${id}`, async () => { await operation(); });
+    } else await operation();
+  });
+  learningDecisionWrites.set(id, task);
+  try { await task; } finally {
+    if (learningDecisionWrites.get(id) === task) learningDecisionWrites.delete(id);
+  }
+}
+
 const knowledgeEventsBridge: KnowledgeEventsBridge = {
+  // This history is owned by atomic rating receipts, which this bridge does
+  // not yet produce. Do not manufacture a rollback from hydrated card state.
+  async getRatingUndoHistory() { return []; },
+  async recordLearningDecision(decision: LearningDecision) {
+    if (!isLearningDecision(decision)) throw new Error('Malformed learning decision');
+    const key = `learning-decision:${decision.id}`;
+    const encoded = JSON.stringify(decision);
+    await serializeLearningDecision(decision.id, async () => {
+      const existing = await storageGet(key, true);
+      if (existing !== null && existing !== encoded) throw new Error('A learning decision is immutable');
+      if (existing === null) await storageSet(key, encoded, true);
+    });
+  },
+  async getLearningDecisionRecord(id: string) {
+    const encoded = await storageGet(`learning-decision:${id}`, true);
+    if (encoded === null) return null;
+    const decision: unknown = JSON.parse(encoded);
+    if (!isLearningDecision(decision)) throw new Error('The saved learning decision is unreadable');
+    return { decision, attempts: [] };
+  },
   async appendKnowledgeEvents(eventsByKey: KnowledgeEventLog) {
+    // Capture the physical observation before the first asynchronous read.
+    const captured = checkedEventLog(JSON.parse(JSON.stringify(eventsByKey)));
     const incomingByLanguage = new Map<string, KnowledgeEventLog>();
     let appended = 0;
-    for (const [key, events] of Object.entries(eventsByKey)) {
+    for (const [key, events] of Object.entries(captured)) {
       if (!Array.isArray(events) || events.length === 0) continue;
       const language = languageOfEventKey(key);
       const shard = incomingByLanguage.get(language) ?? {};
@@ -1727,16 +1757,32 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
     }
     if (appended === 0) return false;
     for (const [language, shard] of incomingByLanguage) {
-      await updateKnowledgeEventsForLanguage(language, (existing) => {
+      await updateKnowledgeEventsForLanguage(language, (existing, identities) => {
         for (const [key, events] of Object.entries(shard)) {
-          existing[key] = [...(existing[key] ?? []), ...events];
+          const prior = existing[key] ?? [];
+          const seen = new Set(identities[key] ?? []);
+          // Seed plain historical shards without removing their occurrences.
+          prior.forEach(event => {
+            const identity = knowledgeEventIdentity(event);
+            if (identity !== undefined) seen.add(identity);
+          });
+          const retracted = new Set(prior.flatMap(event => event.retracts === undefined ? [] : [String(event.retracts)]));
+          const fresh = events.filter(event => {
+            const identity = knowledgeEventIdentity(event);
+            if (identity === undefined) return true;
+            if (seen.has(identity)) return false;
+            seen.add(identity);
+            return event.attemptId === undefined || !retracted.has(String(event.attemptId));
+          });
+          existing[key] = [...prior, ...fresh];
+          identities[key] = [...seen];
         }
         // Identical policy to the desktop journal: consolidate stale rollups
         // and retain within the rollup budget — never drop claims/retractions.
         return applyKnowledgeEventRetention(consolidateKnowledgeEvents(existing));
       });
     }
-    notifyKnowledgeEventsChanged(Object.keys(eventsByKey).filter((key) => eventsByKey[key]?.length));
+    notifyKnowledgeEventsChanged(Object.keys(captured).filter((key) => captured[key]?.length));
     return true;
   },
 
@@ -1812,7 +1858,8 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
         const active = readActiveEvidence(events);
         result[key] = {
           projection: active.length > 0 ? replayKeyProjection(active) : null,
-          capabilities: projectCapabilities(events.map((event, seq) => ({ event, seq }))),
+          capabilities: projectCapabilities(events.map((event, seq) => ({ event, seq })), undefined, true),
+          claimMarkers: projectClaimMarkers(events.map((event, seq) => ({ event, seq })), true),
           hasArchive: false,
           archivedEventCount: 0,
         };
@@ -2107,11 +2154,14 @@ const dataBridge: DataBridge = {
             return;
           }
 
+          if (data.flashcards !== undefined) {
+            // A user-selected backup is an explicit replacement, composed under
+            // the current library owner rather than the backup's old revision.
+            // Validate/commit it before changing unrelated imported settings.
+            await mobileLibrary.update(() => data.flashcards as FlashcardStore);
+          }
           if (data.settings && typeof data.settings === 'object') {
             await storageSet('settings', JSON.stringify(data.settings));
-          }
-          if (data.flashcards && typeof data.flashcards === 'object') {
-            await saveShardedFlashcards(data.flashcards as FlashcardStore);
           }
           if (data.mediaStats && typeof data.mediaStats === 'object') {
             await storageSet('mediaStats', JSON.stringify(data.mediaStats));
@@ -2134,7 +2184,7 @@ const dataBridge: DataBridge = {
 // ============================================================================
 
 const kvStoreBridge: KVStoreBridge = {
-  kvGet: (key) => storageGet(key),
+  kvGet: (key) => storageGet(key, key === 'mlearn-flashcards'),
   kvSet: (key, value) => storageSet(key, value),
   kvRemove: async (key) => {
     localStorage.removeItem(key);
@@ -2278,11 +2328,29 @@ const graphBridge: GraphBridge = {
   async getGraphNeighborhood() {
     return null;
   },
-  async getEvidenceLinkedSurfaces(_language, surfaces) {
-    return surfaces;
+  async getEvidenceLinkedSurfaces(language, surfaces, evidenceKeys) {
+    const keys = new Set(evidenceKeys);
+    const shard = await loadKnowledgeEventsForLanguage(language);
+    const addresses = new Set(evidenceKeys.flatMap(key => (shard[key] ?? []).flatMap(event => event.targetRef?.id ? [event.targetRef.id] : [])));
+    return [...new Set(surfaces)].filter(surface => keys.has(`${language}:${hashWordSync(surface)}`) || addresses.has(surfaceEntityId(language, hashWordSync(surface))));
   },
-  async getKnowledgeProjection() {
-    return { status: 'unavailable', targets: [] };
+  async getKnowledgeProjection(language, surface, requestedThresholds) {
+    try {
+      const key = `${language}:${hashWordSync(surface)}`;
+      const id = surfaceEntityId(language, hashWordSync(surface));
+      const [shard, policy, rawSettings] = await Promise.all([
+        loadKnowledgeEventsForLanguage(language), loadProjectionRetentionPolicy(), storageGet('settings'),
+      ]);
+      const keys = new Set([key, ...Object.keys(shard).filter(storageKey => (shard[storageKey] ?? []).some(event => event.targetRef?.id === id))]);
+      const rows = [...keys].flatMap(storageKey => (shard[storageKey] ?? []).map((event, seq) => ({ event: scopeSiblingEvent(event, storageKey, key), seq })));
+      const settings = rawSettings ? { ...DEFAULT_SETTINGS, ...JSON.parse(rawSettings) } : DEFAULT_SETTINGS;
+      const graph = loadLinguisticGraph({ schemaVersion: 1, language, generatedAt: '', sourceVersions: {}, entities: [], relations: [] });
+      const projection = buildKnowledgeProjection(graph, id, rows, policy,
+        undefined, undefined, { thresholds: requestedThresholds ?? effectiveThresholds(settings) });
+      return { ...projection, graphStatus: 'unavailable', surfaceKnown: false, querySurface: surface };
+    } catch {
+      return { status: 'error', graphStatus: 'unavailable', targets: [] };
+    }
   },
 };
 

@@ -91,6 +91,7 @@ describe('flashcardTtsStorage', () => {
 
   beforeEach(async () => {
     tempDir = createTempDir('mlearn-tts-test-');
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), JSON.stringify({ flashcards: {}, suggestedFlashcards: {} }));
     mockIpcHandlers.clear();
 
     vi.resetModules();
@@ -328,6 +329,19 @@ describe('flashcardTtsStorage', () => {
       setupFlashcardTtsIPC();
     });
 
+    it('retains audio and metadata for a recreated authoritative card owner', async () => {
+      const audioDir = path.join(tempDir.tmpDir, 'flashcard-audio');
+      fs.mkdirSync(audioDir, { recursive: true });
+      fs.writeFileSync(path.join(audioDir, 'shared-word.ogg'), 'audio');
+      fs.writeFileSync(path.join(audioDir, 'shared-word.meta.json'), 'metadata');
+      fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), JSON.stringify({
+        flashcards: { shared: { id: 'shared', content: { front: 'new owner' } } }, suggestedFlashcards: {},
+      }));
+      await mockIpcHandlers.get('flashcard-tts-delete')!({}, 'shared');
+      expect(fs.existsSync(path.join(audioDir, 'shared-word.ogg'))).toBe(true);
+      expect(fs.existsSync(path.join(audioDir, 'shared-word.meta.json'))).toBe(true);
+    });
+
     it('removes audio + meta files for both word and example fields', async () => {
       const audioDir = path.join(tempDir.tmpDir, 'flashcard-audio');
       fs.mkdirSync(audioDir, { recursive: true });
@@ -347,14 +361,25 @@ describe('flashcardTtsStorage', () => {
       }
     });
 
+    it('reports an unlink refusal instead of acknowledging successful cleanup', async () => {
+      const audioDir = path.join(tempDir.tmpDir, 'flashcard-audio');
+      fs.mkdirSync(audioDir, { recursive: true });
+      fs.writeFileSync(path.join(audioDir, 'blocked-word.ogg'), 'audio');
+      const unlink = vi.spyOn(fs, 'unlinkSync').mockImplementationOnce(() => { throw new Error('disk locked'); });
+      try {
+        await expect(mockIpcHandlers.get('flashcard-tts-delete')!({}, 'blocked')).rejects.toThrow('disk locked');
+        expect(fs.existsSync(path.join(audioDir, 'blocked-word.ogg'))).toBe(true);
+      } finally { unlink.mockRestore(); }
+    });
+
     it('is a no-op when no files exist for the card', async () => {
       const handler = mockIpcHandlers.get('flashcard-tts-delete');
-      expect(() => handler!({}, 'card-missing')).not.toThrow();
+      await expect(handler!({}, 'card-missing')).resolves.toBe(true);
     });
 
     it('is a no-op when audio directory does not exist', async () => {
       const handler = mockIpcHandlers.get('flashcard-tts-delete');
-      expect(() => handler!({}, 'card-no-dir')).not.toThrow();
+      await expect(handler!({}, 'card-no-dir')).resolves.toBe(true);
     });
 
     it('only removes files for the requested cardId', async () => {

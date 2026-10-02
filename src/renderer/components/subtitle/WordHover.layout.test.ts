@@ -20,7 +20,7 @@ describe('WordHover compact action-strip layout', () => {
     const metaRule = ruleFor('.word-hover-meta');
     const metaPillRule = ruleFor('.subtitle_hover .word-hover-meta .label-pill');
 
-    expect(panelRule).toMatch(/width:\s*min\(600px, calc\(100vw - var\(--spacing-4\)\)\)/);
+    expect(panelRule).toMatch(/width:\s*min\(calc\(600px \* var\(--word-hover-scale\)\), var\(--word-hover-available-width\)\)/);
     expect(contentRule).not.toMatch(/max-width/);
     expect(toolbarRule).toMatch(/justify-content:\s*flex-end/);
     expect(pillsRule).toMatch(/flex-wrap:\s*nowrap/);

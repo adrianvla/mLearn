@@ -312,3 +312,8 @@
   /*corner-shape:squircle;*/
   -electron-corner-smoothing: 60%;
 }
+
+/* Bind at the theme-bearing element, so changing its palette updates word ink. */
+body {
+  --language-word-foreground: var(--text-primary);
+}

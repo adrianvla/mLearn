@@ -196,7 +196,7 @@ export const SettingsContent: Component = () => {
 
 export const SettingsWindow: Component = () => {
   return (
-    <WindowWrapper showDragRegion={false} showActiveGroupSwitch>
+    <WindowWrapper showDragRegion={false} showActiveGroupSwitch libraryRecoveryAccess>
       <SettingsContent />
     </WindowWrapper>
   );

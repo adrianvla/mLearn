@@ -95,6 +95,8 @@ export interface CompactAssetJSON {
 }
 
 export interface CompactLingualGraph {
+  /** Authored package provenance retained for read-only projection explanations. */
+  readonly assetMetadata?: { generatedAt: string; sourceVersions: Readonly<Record<string, string>> };
   readonly stringTable: readonly string[];
   /** Entity kind ids; values >= COMPACT_ENTITY_KINDS.length index extensionEntityKindStrings. */
   readonly entityKindIds: Uint16Array;
@@ -418,6 +420,7 @@ export function decodeCompact(compact: CompactAssetJSON): RuntimeCompactGraph {
   }
   return {
     stringTable,
+    assetMetadata: { generatedAt: compact.generatedAt, sourceVersions: { ...compact.sourceVersions } },
     entityKindIds,
     entityDomainIds,
     entityLabelStringIds,

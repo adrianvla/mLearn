@@ -7,7 +7,8 @@ import { RatingMatrix } from './RatingMatrix';
 import type { WordStatus } from '../../../../shared/constants';
 import type { CapabilityKey } from '../../../../shared/graph/types';
 
-const mockT = (key: string): string => key;
+const mockT = (key: string, params?: Record<string, string>): string =>
+  key === 'mlearn.WordSync.TestedAccesses' ? `${key}: ${params?.aspects ?? ''}` : key;
 
 vi.mock('../../../context', () => ({
   useLocalization: () => ({ t: mockT }),
@@ -154,6 +155,20 @@ describe('RatingMatrix (canonical rating control)', () => {
     expect(container.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
   });
 
+  it('preserves a draft when the reset getter keeps its identity across source updates', () => {
+    const [owner, setOwner] = createSignal({ id: 'same-question', revision: 1 });
+    renderMatrix('mnemonic', CAPABILITIES, true, () => owner().id);
+    adjust(); key('3'); key('m');
+    expect(container.querySelector('[aria-pressed="true"]')).not.toBeNull();
+    setOwner({ id: 'same-question', revision: 2 });
+    expect(container.querySelector('.rating-matrix__unfold')).not.toBeNull();
+    expect(container.querySelector('[aria-pressed="true"]')).not.toBeNull();
+    setOwner({ id: 'next-question', revision: 3 });
+    expect(container.querySelector('.rating-matrix__unfold')).toBeNull();
+    expect(container.querySelector('[aria-pressed="true"]')).toBeNull();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('collapsed digits rate the whole word exactly once; strays are absorbed', () => {
     renderMatrix();
     key('1');
@@ -199,6 +214,15 @@ describe('RatingMatrix (canonical rating control)', () => {
     expect(button.getAttribute('aria-expanded')).toBe('true');
     const labels = rows().map((row) => row.querySelector('.rating-matrix__label')?.textContent);
     expect(labels).toEqual(['mlearn.Rating.Matrix.AllRow', 'mlearn.Knowledge.Capability.sense-recognition', 'trainer::tone']);
+  });
+
+  it('names the tested accesses while collapsed, including an unfamiliar package capability', () => {
+    renderMatrix('mnemonic', ['sense-recognition', 'future::unheard-of-access']);
+    const summary = container.querySelector('.rating-matrix__tested');
+    expect(summary).not.toBeNull();
+    expect(summary?.textContent).toContain('mlearn.Knowledge.Capability.sense-recognition');
+    expect(summary?.textContent).toContain('future::unheard-of-access');
+    expect(rows()).toHaveLength(0);
   });
 
   it('expanded mnemonic digits arm the pending column; the same digit again is the All row', () => {

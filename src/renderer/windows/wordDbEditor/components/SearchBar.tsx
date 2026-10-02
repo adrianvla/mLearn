@@ -25,6 +25,8 @@ export interface SearchBarProps {
   filterEvaluation: ValidationResult;
   studyOrderSelected: boolean;
   onStudyOrder: () => void;
+  showManagement?: boolean;
+  onToggleManagement?: () => void;
 }
 
 export const SearchBar: Component<SearchBarProps> = (props) => {
@@ -33,6 +35,7 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
   
   return (
     <div class="search-bar">
+      <h1 class="word-db-page-title">{t('mlearn.WordDbEditor.Title')}</h1>
       <Input
         class="search-input"
         placeholder={t('mlearn.WordDbEditor.SearchPlaceholder')}
@@ -69,6 +72,11 @@ export const SearchBar: Component<SearchBarProps> = (props) => {
         {t('mlearn.WordDbEditor.AdvancedFilters')}
         <span class="search-bar-advanced-chevron">{showAdvanced() ? '\u25BE' : '\u25B8'}</span>
       </button>
+
+      <Show when={props.onToggleManagement}>
+        <Button variant={props.showManagement ? 'primary' : 'ghost'} aria-pressed={props.showManagement}
+          onClick={props.onToggleManagement}>{t('mlearn.WordDbEditor.Manage')}</Button>
+      </Show>
 
       <Show when={showAdvanced()}>
         <div class="search-bar-advanced-content">

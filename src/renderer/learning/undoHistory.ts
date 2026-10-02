@@ -9,9 +9,10 @@
  */
 
 import type { StudySessionWriteStatus } from './studySession';
+import { MAX_RETRACTION_HISTORY as MAX_UNDO_STACK_SIZE } from '../../shared/retractionRecovery';
 
 /** How many undoable actions a study surface remembers. */
-export const MAX_UNDO_STACK_SIZE = 50;
+export { MAX_RETRACTION_HISTORY as MAX_UNDO_STACK_SIZE } from '../../shared/retractionRecovery';
 
 /**
  * Appends an entry, dropping the oldest once the window is full.

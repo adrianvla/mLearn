@@ -9,7 +9,12 @@ function createMockIPC() {
     onSettingsSaved: vi.fn(),
     getFlashcards: vi.fn(),
     saveFlashcards: vi.fn(),
+    commitFlashcardRating: vi.fn(),
+    recordLearningDecision: vi.fn(),
+    getLearningDecisionRecord: vi.fn(),
+    getRatingUndoHistory: vi.fn(),
     onFlashcards: vi.fn(),
+    onFlashcardLoadError: vi.fn(),
     onNewDayFlashcards: vi.fn(),
     onFlashcardConnectOpen: vi.fn(),
     onReviewFlashcardRequest: vi.fn(),
@@ -112,6 +117,7 @@ function createMockIPC() {
     onVoiceModelProgress: vi.fn(),
     voiceStartSession: vi.fn(),
     voiceStopSession: vi.fn(),
+    voiceTtsState: vi.fn(),
     voiceSendAudioChunk: vi.fn(),
     voiceFlush: vi.fn(),
     voiceUpdateSilenceThreshold: vi.fn(),
@@ -188,6 +194,19 @@ afterEach(() => {
 import { createElectronBridge } from './electronBridge';
 
 describe('createElectronBridge', () => {
+  it('waits for immutable choice persistence and exposes its separate technical audit', async () => {
+    const bridge = createElectronBridge();
+    const decision = { id: 'choice' } as never;
+    mockIPC.recordLearningDecision.mockResolvedValueOnce(undefined);
+    mockIPC.getLearningDecisionRecord.mockResolvedValueOnce({ decision, attempts: [] });
+    await bridge.knowledgeEvents.recordLearningDecision(decision);
+    expect(mockIPC.recordLearningDecision).toHaveBeenCalledWith(decision);
+    await expect(bridge.knowledgeEvents.getLearningDecisionRecord('choice')).resolves.toEqual({ decision, attempts: [] });
+    mockIPC.getRatingUndoHistory.mockResolvedValueOnce([]);
+    await expect(bridge.knowledgeEvents.getRatingUndoHistory('future-surface')).resolves.toEqual([]);
+    expect(mockIPC.getRatingUndoHistory).toHaveBeenCalledWith('future-surface');
+  });
+
   it('returns an object with all 20 sub-bridge keys', () => {
     const bridge = createElectronBridge();
     expect(bridge).toHaveProperty('settings');
@@ -273,6 +292,15 @@ describe('settingsBridge', () => {
 });
 
 describe('flashcardBridge', () => {
+  it('returns the main-owned review acknowledgement with its authoritative patch', async () => {
+    const bridge = createElectronBridge();
+    const command = { attemptId: 'one-encounter', patch: { baseRev: 8, entries: [] }, events: {} };
+    const acknowledgement = { patch: command.patch, rev: 9, attemptIds: [command.attemptId] };
+    mockIPC.commitFlashcardRating.mockResolvedValueOnce(acknowledgement);
+    await expect(bridge.flashcards.commitFlashcardRating(command)).resolves.toBe(acknowledgement);
+    expect(mockIPC.commitFlashcardRating).toHaveBeenCalledWith(command);
+  });
+
   it('getFlashcards delegates to ipc.getFlashcards', () => {
     const bridge = createElectronBridge();
     bridge.flashcards.getFlashcards();
@@ -297,6 +325,15 @@ describe('flashcardBridge', () => {
 
     expect(mockIPC.saveFlashcards).toHaveBeenCalledWith(store, [], false, authorization);
     expect(result).toBe(acknowledgement);
+  });
+
+  it('forwards library-load failures and their listener cleanup', () => {
+    const bridge = createElectronBridge();
+    const callback = vi.fn();
+    const cleanup = vi.fn();
+    mockIPC.onFlashcardLoadError.mockReturnValue(cleanup);
+    expect(bridge.flashcards.onFlashcardLoadError(callback)).toBe(cleanup);
+    expect(mockIPC.onFlashcardLoadError).toHaveBeenCalledWith(callback);
   });
 
   it('onFlashcards passes callback to ipc.onFlashcards', () => {
@@ -975,10 +1012,25 @@ describe('voiceBridge', () => {
     expect(mockIPC.onVoiceModelProgress).toHaveBeenCalledWith(cb);
   });
 
+  it('forwards a microphone identity on every session command', () => {
+    const { voice } = createElectronBridge(); const request = { sessionId: 'call', requestId: 'microphone' };
+    const samples = new Float32Array([0.1]);
+    expect(voice.supportsCalls).toBe(true);
+    voice.voiceStartSession('test-language', 'vad', 0.8, 'system', request);
+    voice.voiceSendAudioChunk(samples, request); voice.voiceFlush(request);
+    voice.voiceUpdateSilenceThreshold(1, request); voice.voiceSendTtsState(true, request); voice.voiceStopSession(request);
+    expect(mockIPC.voiceStartSession).toHaveBeenCalledWith('test-language', 'vad', 0.8, 'system', request);
+    expect(mockIPC.voiceSendAudioChunk).toHaveBeenCalledWith(samples, request);
+    expect(mockIPC.voiceFlush).toHaveBeenCalledWith(request);
+    expect(mockIPC.voiceUpdateSilenceThreshold).toHaveBeenCalledWith(1, request);
+    expect(mockIPC.voiceTtsState).toHaveBeenCalledWith(true, request);
+    expect(mockIPC.voiceStopSession).toHaveBeenCalledWith(request);
+  });
+
   it('voiceStartSession passes language, mode, threshold, and provider to ipc.voiceStartSession', () => {
     const bridge = createElectronBridge();
     bridge.voice.voiceStartSession('en', 'vad', 0.5, 'qwen3');
-    expect(mockIPC.voiceStartSession).toHaveBeenCalledWith('en', 'vad', 0.5, 'qwen3');
+    expect(mockIPC.voiceStartSession).toHaveBeenCalledWith('en', 'vad', 0.5, 'qwen3', undefined);
   });
 
   it('voiceStopSession delegates to ipc.voiceStopSession', () => {
@@ -991,7 +1043,7 @@ describe('voiceBridge', () => {
     const bridge = createElectronBridge();
     const samples = new Float32Array([0.1, 0.2]);
     bridge.voice.voiceSendAudioChunk(samples);
-    expect(mockIPC.voiceSendAudioChunk).toHaveBeenCalledWith(samples);
+    expect(mockIPC.voiceSendAudioChunk).toHaveBeenCalledWith(samples, undefined);
   });
 
   it('voiceFlush delegates to ipc.voiceFlush', () => {
@@ -1003,7 +1055,7 @@ describe('voiceBridge', () => {
   it('voiceUpdateSilenceThreshold passes threshold to ipc.voiceUpdateSilenceThreshold', () => {
     const bridge = createElectronBridge();
     bridge.voice.voiceUpdateSilenceThreshold(0.3);
-    expect(mockIPC.voiceUpdateSilenceThreshold).toHaveBeenCalledWith(0.3);
+    expect(mockIPC.voiceUpdateSilenceThreshold).toHaveBeenCalledWith(0.3, undefined);
   });
 
   it('onVoiceSttResult passes callback to ipc.onVoiceSttResult', () => {
@@ -1022,8 +1074,9 @@ describe('voiceBridge', () => {
 
   it('voiceTtsGenerate passes all args to ipc.voiceTtsGenerate', () => {
     const bridge = createElectronBridge();
-    bridge.voice.voiceTtsGenerate('hello', 'en', 1.0, 'sample-id', 'kokoro', 'cloud-token');
-    expect(mockIPC.voiceTtsGenerate).toHaveBeenCalledWith('hello', 'en', 1.0, 'sample-id', 'kokoro', 'cloud-token');
+    const request = { sessionId: 'call-a', requestId: 'phrase-a', actorId: 'actor-a', utteranceId: 'message-a' };
+    bridge.voice.voiceTtsGenerate('hello', 'en', 1.0, 'sample-id', 'kokoro', 'cloud-token', request);
+    expect(mockIPC.voiceTtsGenerate).toHaveBeenCalledWith('hello', 'en', 1.0, 'sample-id', 'kokoro', 'cloud-token', request);
   });
 
   it('voiceTtsStop delegates to ipc.voiceTtsStop', () => {

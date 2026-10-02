@@ -114,6 +114,12 @@ body.reduce-transparency .unknown-words-item {
 }
 
 .unknown-words-item-word {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
@@ -121,6 +127,16 @@ body.reduce-transparency .unknown-words-item {
   min-width: 0;
   flex-shrink: 0;
 }
+
+.unknown-words-item-word:hover { text-decoration: underline; }
+.unknown-words-item-word:focus-visible { outline: 2px solid var(--color-primary); outline-offset: var(--spacing-1); }
+.unknown-words-sidebar-guidance { margin: 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
+.unknown-words-sidebar-tools { width: 100%; }
+.unknown-words-sidebar-tools > summary,
+.unknown-words-item-management > summary { cursor: pointer; color: var(--text-secondary); font-size: var(--font-size-xs); }
+.unknown-words-sidebar-tools[open] > * + * { margin-top: var(--spacing-2); }
+.unknown-words-item-management { margin-top: var(--spacing-2); }
+.unknown-words-item-context { display: block; margin-top: var(--spacing-1); color: var(--text-secondary); font-size: var(--font-size-xs); }
 
 .unknown-words-item-meaning {
   font-size: var(--font-size-sm);

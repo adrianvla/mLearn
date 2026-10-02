@@ -160,6 +160,10 @@
                 "required": true,
                 "fallback": "none",
                 "outputReadingNormalizer": "kana-to-hiragana",
+                "lemmaSources": [
+                    "dictionary-form",
+                    "normalized-form"
+                ],
                 "ignoredPos": [
                     "空白"
                 ],
@@ -257,9 +261,55 @@
                         "common",
                         "score-desc",
                         "short-reading"
+                    ],
+                    "contextMatch": [
+                        {
+                            "hint": "reading",
+                            "field": "reading",
+                            "normalizer": "kana-to-hiragana"
+                        }
                     ]
                 }
             }
         }
+    },
+    "learning": {
+        "capabilities": {
+            "surface-recognition": {
+                "scope": "surface",
+                "supportRules": [
+                    {
+                        "id": "ja:lexical-familiarity-spelling",
+                        "version": "1",
+                        "relation": "realizes",
+                        "direction": "out",
+                        "sourcePath": [
+                            {
+                                "relation": "realizes",
+                                "direction": "in"
+                            }
+                        ],
+                        "sourceCapability": "sense-recognition",
+                        "weight": 0.1,
+                        "dependencyGroup": "ja:lexical-familiarity-spelling"
+                    }
+                ]
+            },
+            "surface-reading": {
+                "providedBy": [
+                    "word-audio",
+                    "example-audio"
+                ]
+            },
+            "prosodic-pattern": {
+                "providedBy": [
+                    "word-audio",
+                    "example-audio"
+                ]
+            }
+        }
+    },
+    "languageData": {
+        "version": "ja-package-2026.10.02-assisted-audio-r1"
     }
 }

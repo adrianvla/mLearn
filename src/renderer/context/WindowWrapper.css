@@ -87,3 +87,14 @@
   color: var(--color-error);
   word-break: break-word;
 }
+
+/* Recovery controls remain reachable in Settings while library writes are refused. */
+.library-recovery-notice {
+  padding: 16px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.library-recovery-notice p {
+  margin-block: 8px;
+}

@@ -4,6 +4,12 @@ import { describe, expect, it } from 'vitest';
 import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from './ratingShortcuts';
 
 describe('isRatingKeyIgnored', () => {
+  it('respects a key already consumed by another interaction owner', () => {
+    const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    event.preventDefault();
+    expect(isRatingKeyIgnored(event)).toBe(true);
+  });
+
   it('ignores held-down OS auto-repeat keydowns but not fresh presses', () => {
     expect(isRatingKeyIgnored(new KeyboardEvent('keydown', { key: '1', repeat: true }))).toBe(true);
     expect(isRatingKeyIgnored(new KeyboardEvent('keydown', { key: '1', repeat: false }))).toBe(false);

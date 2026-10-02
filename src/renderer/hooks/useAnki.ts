@@ -9,12 +9,64 @@ import { createSignal } from 'solid-js';
 import { useSettings } from '../context/SettingsContext';
 import { PROXY_SERVER_PORT } from '../../shared/constants';
 import { getBackend } from '../../shared/backends';
+import { getBridge } from '../../shared/bridges';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useAnki");
 
 const ANKI_CONNECT_VERSION = 6;
+
+/**
+ * AnkiConnect's `storeMediaFile` resolves a media object in one fixed order:
+ * `data` (base64), then `path`, then `url`. Only `url` goes through
+ * `util.download`, which is an ordinary HTTP client — it has no handler for
+ * `data:` URLs and no knowledge of Electron's `flashcard-image://` scheme, so
+ * a note built from those URLs gets an error string written into the media
+ * field instead of a picture.
+ *
+ * A capture that has not been persisted yet carries its bytes inline as a
+ * data URL. That is exactly the shape AnkiConnect wants in `data`, so the
+ * translation is lossless and needs no extra write to the media folder.
+ */
+function dataUrlToBase64(dataUrl: string): string | null {
+  const match = dataUrl.match(/^data:[^;,]*;base64,([\s\S]+)$/);
+  return match ? match[1] : null;
+}
+
+/** Read an app-local file and re-encode it as a base64 data URL. */
+async function fileUrlToDataUrl(fileUrl: string): Promise<string | null> {
+  try {
+    const response = await fetch(fileUrl);
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reduce a card's stored image reference to bytes AnkiConnect can store.
+ *
+ * Returns null when the reference cannot be turned into bytes here, because
+ * passing the raw string through as a `url` is worse than sending no picture:
+ * AnkiConnect would replace the field content with its download error text.
+ */
+async function ankiPictureBase64(imageUrl: string): Promise<string | null> {
+  const inline = dataUrlToBase64(imageUrl);
+  if (inline) return inline;
+  if (!imageUrl.startsWith('flashcard-image://')) return null;
+  const fileUrl = await getBridge().flashcards.resolveFlashcardImage(imageUrl);
+  if (!fileUrl) return null;
+  const dataUrl = await fileUrlToDataUrl(fileUrl);
+  return dataUrl ? dataUrlToBase64(dataUrl) : null;
+}
 
 const getAnkiDeckName = (
   flashcardDeck: string | null | undefined,
@@ -190,11 +242,14 @@ export function useAnki() {
     }
 
     if (params.imageUrl) {
-      note.picture = [{
-        url: params.imageUrl,
-        filename: `${params.word}.png`,
-        fields: ['Picture'],
-      }];
+      const base64 = await ankiPictureBase64(params.imageUrl);
+      if (base64) {
+        note.picture = [{
+          data: base64,
+          filename: `${params.word}.png`,
+          fields: ['Picture'],
+        }];
+      }
     }
 
     try {

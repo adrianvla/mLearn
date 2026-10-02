@@ -134,7 +134,7 @@ export interface RunRoomTurnInput {
   /** A trusted ingress (for example an accepted incoming call) may pin the
    * first response to the already-authoritative contacting participant. */
   initialSpeakerId?: string;
-  maxCharacterExchanges?: number; // default 3 — max character→character turns AFTER the first response
+  maxCharacterExchanges?: number; // default 3 — total further group responses/interjections after the first
   compileContextFn?: typeof compileContext; // default: the real one
   userActorId?: string; // default USER_ACTOR
 }
@@ -146,9 +146,9 @@ export interface RoomTurnResult {
 }
 
 /**
- * Deterministic turn engine: one first response from the roster, then bounded
- * character→character interjections (each must directly address the next
- * speaker by name). Termination is guaranteed by the exchange cap.
+ * Deterministic turn engine: directly addressed people respond; an unaddressed
+ * group message gives eligible people a response opportunity. Responses and
+ * named interjections share one bounded exchange budget.
  */
 export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResult> {
   if (input.thread?.sandbox) {
@@ -179,10 +179,13 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
   for (const p of roster) {
     contexts.set(p.id, compileContextFn({ room, thread: input.thread, participant: p, participants, seaEvents, threadEvents }));
   }
+  const userText = input.contextTurn?.text ?? lastMessageText(threadEvents);
+  const namedPeople = directlyAddressedPeople(roster, userText);
+  const responseRoster = namedPeople.length ? namedPeople : roster;
   const firstSpeakerId = input.initialSpeakerId && roster.some(person => person.id === input.initialSpeakerId)
     ? input.initialSpeakerId
-    : selectSpeaker(roster, {
-        lastEventText: input.contextTurn?.text ?? lastMessageText(threadEvents),
+    : selectSpeaker(responseRoster, {
+        lastEventText: userText,
         lastSpeakerId: userActorId,
       });
   if (firstSpeakerId === null) {
@@ -222,11 +225,30 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
 
   await runAndAppend(firstSpeakerId, contexts.get(firstSpeakerId)!);
 
-  // Bounded interjection loop: continue only while the last character message
-  // directly addresses the next speaker by name (the same rule selectSpeaker
-  // uses). The cap guarantees termination for adversarial inputs.
-  const cap = maxCharacterExchanges ?? 3;
+  // Preserve the existing overall cap, including group replies. Within it,
+  // prioritize people who have not spoken recently; quiet observers remain quiet
+  // unless the learner names them. Accepted person-specific calls stay focused.
+  const cap = Math.max(0, maxCharacterExchanges ?? 3);
   let exchanges = 0;
+  const lastResponseIndex = (id: string): number => {
+    for (let index = currentThreadEvents.length - 1; index >= 0; index--) {
+      const event = currentThreadEvents[index];
+      if (event.type === 'message.character' && event.actorId === id) return index;
+    }
+    return -1;
+  };
+  const pendingPeople = input.initialSpeakerId ? [] : responseRoster
+    .filter(person => person.id !== firstSpeakerId && selectSpeaker([person], { lastEventText: userText }) !== null)
+    .sort((a, b) => lastResponseIndex(a.id) - lastResponseIndex(b.id) || a.id.localeCompare(b.id));
+  for (const person of pendingPeople) {
+    if (exchanges >= cap) break;
+    const context = compileContextFn({ room, thread: input.thread, participant: person, participants,
+      seaEvents: currentSeaEvents, threadEvents: currentThreadEvents });
+    await runAndAppend(person.id, context);
+    exchanges++;
+  }
+
+  // Named character interjections use whatever remains of the same budget.
   let stoppedReason: RoomTurnResult['stoppedReason'] = 'no-eligible-speaker';
   while (exchanges < cap) {
     const last = events[events.length - 1];
@@ -259,6 +281,30 @@ export async function runRoomTurn(input: RunRoomTurnInput): Promise<RoomTurnResu
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** A leading name followed by an address delimiter is an explicit audience.
+ * A name elsewhere is merely a mention and must not exclude the rest of a group. */
+function directlyAddressedPeople(roster: Participant[], text: string | undefined): Participant[] {
+  let remaining = text?.trimStart().toLowerCase() ?? '';
+  const addressed: Participant[] = [];
+  while (remaining) {
+    const matches = roster.filter(person => {
+      const name = person.displayName.trim().toLowerCase();
+      if (!name || !remaining.startsWith(name)) return false;
+      const after = remaining.slice(name.length).trimStart();
+      return after.startsWith(',') || after.startsWith(':');
+    }).sort((a, b) => b.displayName.trim().length - a.displayName.trim().length);
+    if (!matches.length) break;
+    // Identical names do not resolve an identity unambiguously.
+    if (matches[1]?.displayName.trim().length === matches[0].displayName.trim().length) return [];
+    const person = matches[0];
+    if (!addressed.some(item => item.id === person.id)) addressed.push(person);
+    remaining = remaining.slice(person.displayName.trim().length).trimStart();
+    if (remaining.startsWith(':')) break;
+    remaining = remaining.slice(1).trimStart();
+  }
+  return addressed;
+}
 
 function unique(ids: string[]): string[] {
   return [...new Set(ids)];

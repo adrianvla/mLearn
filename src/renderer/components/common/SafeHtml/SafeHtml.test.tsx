@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'solid-js/web';
+import { createSignal } from 'solid-js';
 import { SafeHtml } from './SafeHtml';
 
 describe('SafeHtml', () => {
@@ -45,5 +46,23 @@ describe('SafeHtml', () => {
     expect(el).not.toBeNull();
     expect(el?.innerHTML).toBe('');
     dispose();
+  });
+
+  it('opts stored generated word markup into current-theme presentation without rewriting its content', () => {
+    const [storedWordPresentation, setStoredWordPresentation] = createSignal(true);
+    const html = '<span class="subtitle_word defined" style="color: #ebccfd" data-package-feature="opaque">sample</span>';
+    const dispose = render(() => <SafeHtml tag="div" class="example" html={html}
+      storedWordPresentation={storedWordPresentation()} />, container);
+    try {
+      const root = container.querySelector('.example')!;
+      expect(root.classList.contains('safe-html--stored-words')).toBe(true);
+      const token = root.querySelector<HTMLElement>('.subtitle_word.defined')!;
+      expect(token.textContent).toBe('sample');
+      expect(token.style.color).toBe('#ebccfd');
+      expect(token.dataset.packageFeature).toBe('opaque');
+      setStoredWordPresentation(false);
+      expect(root.classList.contains('safe-html--stored-words')).toBe(false);
+      expect(root.querySelector('.subtitle_word')?.textContent).toBe('sample');
+    } finally { dispose(); }
   });
 });

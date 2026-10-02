@@ -4,7 +4,7 @@
  * plays back TTS audio via Web Audio API with sentence-level interruption tracking.
  */
 
-import { Component, Show, batch, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
+import { Component, Show, createSignal, createEffect, on, onCleanup, Index, onMount } from 'solid-js';
 import { useSettings, useLocalization, useLowPowerGate } from '../../context';
 import { formatLogTimestamp } from '../../utils/timeFormatting';
 import { getBridge } from '../../../shared/bridges';
@@ -12,10 +12,14 @@ import { Button, ProgressBar, RangeInput, EmptyState, AlertBanner, Spinner, Sele
 import type { SelectOption } from '../../components/common';
 import { showToast } from '../../components/common/Feedback/Toast';
 import { ChatBubble } from './ChatBubble';
-import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceVadEvent, Token, VoiceSessionStatus, VoiceCallTTSProvider } from '../../../shared/types';
+import type { ConversationMessage, VoiceModelStatus, VoiceSTTResult, VoiceTtsAudio, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceMode, VoiceVadEvent, Token, VoiceSessionStatus, VoiceSessionRequestIdentity, VoiceCallTTSProvider } from '../../../shared/types';
+import type { VoiceDeliveryPayload } from '../../../shared/world';
+import { VoicePlaybackDelivery } from './voicePlaybackDelivery';
+import { matchesVoiceTtsRequest } from '../../../shared/utils/voiceTtsOwnership';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
+import { CallParticipants, type CallParticipant } from './CallParticipants';
 import { getLogger } from '../../../shared/utils/logger';
 import { scheduleAudioChunk } from './ttsScheduling';
 import {
@@ -138,9 +142,14 @@ function providerFromVoiceTtsChoice(choice: VoiceTtsChoice): LocalVoiceTtsProvid
 }
 
 export interface VoiceTabProps {
+  participants?: readonly CallParticipant[];
+  contextLabel?: string;
+  onDismiss?: () => void;
   /** Start a call immediately after the tab mounts. */
   autoStartCall?: boolean;
-  messages: ConversationMessage[];
+  messages: Array<ConversationMessage & { eventId?: string; actorId?: string }>;
+  /** Final journal responses, distinct from the live chat candidate. */
+  speechMessages?: readonly VoiceSpeechMessage[];
   isStreaming: boolean;
   onSendMessage: (text: string) => void;
   /** Fired on every non-final STT partial while listening (feeds speculative prefetch). */
@@ -151,10 +160,10 @@ export interface VoiceTabProps {
   onIdleSilence?: (reason: 'no-transcript' | 'waiting' | 'scheduled', scheduledPrompt?: string) => void;
   scheduledNudge?: ScheduledVoiceNudge | null;
   onAbort: () => void;
-  /** Called when user interrupts TTS — provides the text spoken so far and remaining text */
-  onInterrupted?: (spokenText: string, interruptedAt: string) => void;
+  /** Persist exact-message playback observations before the next actor speaks. */
+  onDelivery?: (delivery: VoiceDeliveryPayload) => Promise<void> | void;
   /** Called when voice call starts or stops */
-  onCallStateChange?: (active: boolean, reason?: 'completed' | 'failed' | 'cleanup', error?: string) => void;
+  onCallStateChange?: (active: boolean, reason?: 'completed' | 'failed' | 'cleanup', error?: string, sessionId?: string) => void;
   /** Present the existing call state in the window header without owning it. */
   onStatusChange?: (status: string) => void;
   onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
@@ -165,10 +174,20 @@ export interface VoiceTabProps {
   language: string;
   /** Default voice sample from the agent config */
   defaultVoiceSampleId?: string;
+  /** Profiles present in the group, without assigning one participant's voice to everyone. */
+  voiceSampleIds?: readonly string[];
   /** Active agent display name */
   agentName?: string;
   /** Active agent profile photo as a data URI */
   profilePhoto?: string;
+}
+
+export interface VoiceSpeechMessage {
+  eventId: string;
+  actorId: string;
+  voiceSessionId: string;
+  content: string;
+  voiceSampleId?: string;
 }
 
 // ============================================================================
@@ -182,17 +201,21 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   // State
   const [isCallActive, setIsCallActive] = createSignal(false);
+  const supportsCalls = getBridge().voice.supportsCalls !== false;
   const [modelStatus, setModelStatus] = createSignal<VoiceModelStatus | null>(null);
   const [isChecking, setIsChecking] = createSignal(true);
   const [isDownloading, setIsDownloading] = createSignal(false);
   const [downloadProgress, setDownloadProgress] = createSignal(0);
   const [isInitializing, setIsInitializing] = createSignal(false);
   const [initError, setInitError] = createSignal('');
+  const [hasAudibleSpeech, setHasAudibleSpeech] = createSignal(false);
+  const [activeSpeakerId, setActiveSpeakerId] = createSignal<string | null>(null);
   const [callState, setCallState] = createSignal<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [partialTranscript, setPartialTranscript] = createSignal('');
   const [pttActive, setPttActive] = createSignal(false);
   const [audioLevel, setAudioLevel] = createSignal(0);
   const [micError, setMicError] = createSignal('');
+  const [captureReady, setCaptureReady] = createSignal(false);
   const [ttsModelLoading, setTtsModelLoading] = createSignal(false);
   const [ttsDownloadProgress, setTtsDownloadProgress] = createSignal(0);
   const [sessionStatus, setSessionStatus] = createSignal<VoiceSessionStatus | null>(null);
@@ -221,9 +244,20 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   // Refs
   let messagesRef: HTMLDivElement | undefined;
-  let mediaStream: MediaStream | null = null;
-  let audioContext: AudioContext | null = null;
-  let workletNode: AudioWorkletNode | null = null;
+  type MicrophoneCapture = {
+    request: VoiceSessionRequestIdentity;
+    stream?: MediaStream;
+    context?: AudioContext;
+    worklet?: AudioWorkletNode;
+    analyser?: AnalyserNode;
+  };
+  let microphoneRequest: VoiceSessionRequestIdentity | null = null;
+  let activeCapture: MicrophoneCapture | null = null;
+  let greetingRequested = false;
+  const ownsMicrophoneRequest = (event: Partial<VoiceSessionRequestIdentity>) => (
+    isCallActive() && microphoneRequest !== null
+    && event.sessionId === microphoneRequest.sessionId && event.requestId === microphoneRequest.requestId
+  );
   let analyserNode: AnalyserNode | null = null;
   let animFrameId: number | null = null;
   let ttsTimelineCanvas: HTMLCanvasElement | undefined;
@@ -236,7 +270,6 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let ttsPlaying = false;
   let ttsGenerationActive = false;
   const voiceTtsTurn = createVoiceTtsTurnState();
-  let ttsCurrentSentenceIdx = 0;
   let ttsAudioContext: AudioContext | null = null; // separate context for TTS playback
   let ttsNextStartTime: number | null = null;
   let ttsPlaybackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -248,16 +281,20 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   // TTS generation guard — prevents stale audio from playing after cancellation
   let ttsAborted = false;
-  // Sentence timing for estimating interruption position within a sentence
-  let ttsCurrentSentenceStartTime = 0;
-  let ttsCurrentSentenceDuration = 0;
+  let callSessionId = crypto.randomUUID();
+  let activeTtsRequest: VoiceTtsRequestIdentity | null = null;
+  let activeSpeech: VoiceSpeechMessage | null = null;
+  let pendingSpeech: VoiceSpeechMessage[] = [];
+  let seenSpeechEventIds = new Set<string>();
+  let speechTurnIndex = 0;
+  let playbackDelivery: VoicePlaybackDelivery | null = null;
+  let settlingSpeech: VoiceSpeechMessage | null = null;
+  let systemPhrase = false;
+  let systemPlaybackStarted = false;
   // True VAD speech-end wall time — the start of the turn-latency budget
   let lastSpeechEndTs: number | null = null;
-  let ttsTimingPhraseIndex = -1;
   let ttsTurnStartTime = 0;
   let ttsScheduledDuration = 0;
-  let currentTtsText = '';
-  let ttsHadError = false;
   // Barge-in detection: consecutive mic-loud frames during TTS playback
   let bargeInFrames = 0;
   const BARGE_IN_THRESHOLD = 0.28;
@@ -290,7 +327,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const setTtsPlaybackActive = (active: boolean) => {
     if (ttsPlaying === active) return;
     ttsPlaying = active;
-    getBridge().voice.voiceSendTtsState(active);
+    if (microphoneRequest) getBridge().voice.voiceSendTtsState(active, microphoneRequest);
   };
 
   const formatVadNumber = (value: number | undefined, digits = 2): string => (
@@ -709,6 +746,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // STT results
     cleanups.push(bridge.voice.onVoiceSttResult((result: VoiceSTTResult) => {
+      if (!ownsMicrophoneRequest(result) || isInitializing()) return;
       clearNoTranscriptRecovery();
       clearIdleSilenceTimer();
       clearScheduledNudgeTimer();
@@ -725,6 +763,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     // VAD events — backend receives TTS state and can adapt thresholds;
     // barge-in is still detected locally via mic level as the fast path.
     cleanups.push(bridge.voice.onVoiceVadEvent((event) => {
+      if (!ownsMicrophoneRequest(event) || isInitializing()) return;
       setVadDebug(event);
       if (event.type === 'speech-start') {
         clearNoTranscriptRecovery();
@@ -746,7 +785,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // TTS audio — schedule streamed chunks for gapless playback
     cleanups.push(bridge.voice.onVoiceTtsAudio((audio: VoiceTtsAudio) => {
-      if (ttsAborted) return; // ignore audio from a cancelled generation
+      if (ttsAborted || !matchesVoiceTtsRequest(audio, activeTtsRequest)) return;
       log.info('[VoiceTab] TTS audio received', {
         samples: audio.samples.length,
         sampleRate: audio.sampleRate,
@@ -759,50 +798,66 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // TTS status
     cleanups.push(bridge.voice.onVoiceTtsStatus((status) => {
+      if (!matchesVoiceTtsRequest(status, activeTtsRequest)) return;
       log.info('[VoiceTab] TTS status', status);
       applyVoiceDeviceStatus(status);
       if (status.error) {
-        ttsHadError = true;
         addDebugEvent('TTS error', status.error, 'error');
+        stopTTSPlayback(true, 'failed');
+        setTtsModelLoading(false);
+        setTtsDownloadProgress(0);
+        setCallState('listening');
+        showToast({ message: status.error, variant: 'error' });
+        props.onAbort();
+        return;
       }
       setTtsModelLoading(status.modelLoading ?? false);
       if (status.downloadProgress !== undefined) {
         setTtsDownloadProgress(status.downloadProgress);
       }
       if (status.generating) {
-        ttsHadError = false;
         ttsGenerationActive = true;
         addDebugEvent('TTS', status.playing ? 'Playback started' : 'Generating audio', 'active');
         if (status.playing) {
+          if (systemPhrase) { systemPlaybackStarted = true; setHasAudibleSpeech(true); }
           setTtsPlaybackActive(true);
           setCallState('speaking');
         } else {
-          setCallState('processing');
+          setCallState(hasAudibleSpeech() ? 'speaking' : 'processing');
         }
-      } else {
+      } else if (status.generating === false) {
+        playbackDelivery?.finishGeneration(voiceTtsTurn.activePhraseIndex, systemPhrase && systemPlaybackStarted);
+        if (systemPhrase && ttsSources.length === 0) setHasAudibleSpeech(false);
+        if (activeSpeech && playbackDelivery?.snapshot(ttsAudioContext?.currentTime ?? 0).confirmedText
+          && voiceTtsTurn.pendingPhrases.length > 0) {
+          try { void Promise.resolve(props.onDelivery?.(deliveryFor(activeSpeech, 'playing'))).catch(reportDeliveryFailure); }
+          catch (error) { reportDeliveryFailure(error); }
+        }
+        activeTtsRequest = null;
         ttsGenerationActive = false;
         finishVoiceTtsPhraseRequest(voiceTtsTurn);
         setTtsModelLoading(false);
         setTtsDownloadProgress(0);
-        if (ttsHadError) {
-          ttsHadError = false;
-        } else {
-          addDebugEvent('TTS', 'Generation finished', 'info');
-        }
+        addDebugEvent('TTS', 'Generation finished', 'info');
         requestNextVoiceTtsPhrase();
         finishTtsIfPlaybackDrained();
       }
     }));
 
     // Voice session ready
-    cleanups.push(bridge.voice.onVoiceSessionReady(() => {
+    cleanups.push(bridge.voice.onVoiceSessionReady((data) => {
+      if (!ownsMicrophoneRequest(data) || !data.ready) return;
       setIsInitializing(false);
       setSessionStatus(null);
       setInitError('');
+      if (microphoneRequest) getBridge().voice.voiceSendTtsState(ttsPlaying, microphoneRequest);
       addDebugEvent('Session', 'Voice backend ready', 'active');
+      requestNextVoiceTtsPhrase();
+      finishTtsIfPlaybackDrained();
     }));
 
     cleanups.push(bridge.voice.onVoiceSessionStatus((status) => {
+      if (!ownsMicrophoneRequest(status)) return;
       log.info('[VoiceTab] Voice session status', status);
       setSessionStatus(status);
       addDebugEvent('Load', `${status.stage}: ${status.message}`, 'info');
@@ -810,30 +865,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
     // Voice session error
     cleanups.push(bridge.voice.onVoiceSessionError((data) => {
-      keyboardPttHeld = false;
-      setPttActive(false);
-      batch(() => {
-        setIsCallActive(false);
-        setIsInitializing(false);
-      });
-      setCallState('idle');
-      setSessionStatus(null);
-      clearNoTranscriptRecovery();
-      clearIdleSilenceTimer();
-      clearScheduledNudgeTimer();
-      stopTTSPlayback();
-      stopAudioCapture();
-      getBridge().voice.voiceStopSession();
-
+      if (!ownsMicrophoneRequest(data)) return;
       const err = data.error.toLowerCase();
-      if (err.includes('403') || err.includes('4003') || err.includes('unauthorized')) {
-        setInitError(t('mlearn.ConversationAgent.Voice.BackendAuthError'));
-      } else {
-        setInitError(data.error);
-      }
+      const explanation = err.includes('403') || err.includes('4003') || err.includes('unauthorized')
+        ? t('mlearn.ConversationAgent.Voice.BackendAuthError') : data.error;
+      stopCall('failed', explanation);
       addDebugEvent('Error', data.error, 'error');
-      // The parent may unmount this overlay on failure; preserve its explanation there.
-      props.onCallStateChange?.(false, 'failed', initError());
     }));
 
     onCleanup(() => {
@@ -909,26 +946,24 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // Stream TTS for assistant phrases as the LLM response arrives
   // ============================================================================
 
-  function resetVoiceTtsTurn(initialText: string, messageIndex: number): void {
-    stopTTSPlayback();
+  function resetVoiceTtsTurn(messageIndex: number): void {
+    stopTTSPlayback(false);
     clearScheduledNudgeTimer();
     resetVoiceTtsTurnState(voiceTtsTurn, messageIndex);
-    currentTtsText = initialText;
     ttsAborted = false;
     ttsQueue = [];
     ttsQueueIndex = 0;
-    ttsCurrentSentenceIdx = 0;
     bargeInFrames = 0;
     resetTtsTimeline();
   }
 
   function requestNextVoiceTtsPhrase(): void {
-    if (ttsAborted || !isCallActive()) return;
+    if (ttsAborted || !isCallActive() || isInitializing() || !activeSpeech) return;
     const next = takeNextVoiceTtsPhrase(voiceTtsTurn);
     if (!next) return;
 
-    const provider = activeTtsProvider();
-    const sampleId = activeVoiceSampleId();
+    const sampleId = ttsChoice() === 'voice-clone' ? activeSpeech.voiceSampleId : undefined;
+    const provider = ttsChoice() === 'voice-clone' && !sampleId ? 'system' : activeTtsProvider();
     log.info('[VoiceTab] Requesting TTS phrase', {
       provider,
       language: props.language,
@@ -938,42 +973,68 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     addDebugEvent('LLM -> TTS', `${next.phrase.length} chars queued for streamed TTS`, 'active');
 
     ttsGenerationActive = true;
+    const message = activeSpeech;
+    const request: VoiceTtsRequestIdentity = {
+      sessionId: callSessionId,
+      requestId: crypto.randomUUID(),
+      utteranceId: message.eventId,
+      actorId: message.actorId,
+    };
+    activeTtsRequest = request;
+    systemPhrase = provider === 'system';
+    systemPlaybackStarted = false;
 
     void (async () => {
       try {
         const allowed = await requestAccess('tts');
+        if (activeTtsRequest !== request) return;
         if (!allowed || ttsAborted || !isCallActive()) {
-          finishVoiceTtsPhraseRequest(voiceTtsTurn);
-          ttsGenerationActive = false;
+          stopTTSPlayback(true, 'failed');
+          setCallState('listening');
+          if (!allowed) {
+            showToast({ message: t('mlearn.ConversationAgent.Voice.SynthesisDeclined'), variant: 'info' });
+            props.onAbort();
+          }
           return;
         }
-        getBridge().voice.voiceTtsGenerate(next.phrase, props.language, ttsSpeed(), sampleId, provider);
+        getBridge().voice.voiceTtsGenerate(next.phrase, props.language, ttsSpeed(), sampleId, provider, undefined, request);
       } catch (error) {
+        if (activeTtsRequest !== request) return;
+        activeTtsRequest = null;
         log.error('[VoiceTab] Failed to request streamed TTS phrase:', error);
         finishVoiceTtsPhraseRequest(voiceTtsTurn);
         ttsGenerationActive = false;
+        stopTTSPlayback(true, 'failed');
+        setCallState('listening');
+        props.onAbort();
+        showToast({ message: error instanceof Error ? error.message : String(error), variant: 'error' });
       }
     })();
   }
 
+  function startNextSpeech(): void {
+    if (activeSpeech || !isCallActive() || isInitializing()) return;
+    const next = pendingSpeech.shift();
+    if (!next) return;
+    resetVoiceTtsTurn(speechTurnIndex++);
+    activeSpeech = next;
+    setActiveSpeakerId(next.actorId);
+    setCallState('processing');
+    const phrases = enqueueVoiceTtsPhrasesForMessage(voiceTtsTurn, voiceTtsTurn.messageIndex, next.content, false);
+    playbackDelivery = new VoicePlaybackDelivery(voiceTtsTurn.sentenceTexts);
+    appendTtsTimelinePhrases(phrases, 0);
+    requestNextVoiceTtsPhrase();
+    if (phrases.length === 0) finishTtsIfPlaybackDrained();
+  }
+
   createEffect(() => {
-    if (!isCallActive()) return;
-    const msgs = props.messages;
-    if (msgs.length === 0) return;
-    const lastIndex = msgs.length - 1;
-    const last = msgs[msgs.length - 1];
-    if (last.role !== 'assistant' || !last.content || last.interrupted) return;
-
-    if (voiceTtsTurn.messageIndex !== lastIndex) {
-      resetVoiceTtsTurn(last.content, lastIndex);
+    if (!isCallActive() || isInitializing()) return;
+    for (const message of props.speechMessages ?? []) {
+      if (message.voiceSessionId !== callSessionId || seenSpeechEventIds.has(message.eventId)) continue;
+      seenSpeechEventIds.add(message.eventId);
+      if (message.content.trim()) pendingSpeech.push({ ...message });
     }
-
-    currentTtsText = last.content;
-    const queued = enqueueVoiceTtsPhrasesForMessage(voiceTtsTurn, lastIndex, last.content, props.isStreaming);
-    if (queued.length > 0) {
-      appendTtsTimelinePhrases(queued, voiceTtsTurn.sentenceTexts.length - queued.length);
-      requestNextVoiceTtsPhrase();
-    }
+    startNextSpeech();
   });
 
   // ============================================================================
@@ -992,104 +1053,90 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     };
   };
 
-  const startAudioCapture = async () => {
-    // Clean up any existing capture to prevent duplicate pipelines
-    stopAudioCapture();
+  const releaseCapture = (capture: MicrophoneCapture) => {
+    if (capture.worklet) {
+      capture.worklet.port.onmessage = null;
+      capture.worklet.port.close();
+      capture.worklet.disconnect();
+      capture.worklet = undefined;
+    }
+    capture.analyser?.disconnect();
+    capture.analyser = undefined;
+    if (capture.context) {
+      void Promise.resolve(capture.context.close()).catch(error => log.error('Microphone context close failed:', error));
+      capture.context = undefined;
+    }
+    capture.stream?.getTracks().forEach(track => track.stop());
+    capture.stream = undefined;
+  };
 
+  const startAudioCapture = async () => {
+    stopAudioCapture();
+    if (!microphoneRequest || isInitializing()) return;
+    const capture: MicrophoneCapture = { request: microphoneRequest };
+    activeCapture = capture;
+    const ownsCapture = () => activeCapture === capture && ownsMicrophoneRequest(capture.request) && !isInitializing();
     try {
       try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: getMicrophoneAudioConstraints(),
-        });
+        capture.stream = await navigator.mediaDevices.getUserMedia({ audio: getMicrophoneAudioConstraints() });
       } catch (error) {
+        if (!ownsCapture()) return;
         if (!selectedMicrophoneId()) throw error;
         log.error('[VoiceTab] Selected microphone failed, falling back to default:', error);
         setSelectedMicrophoneId('');
         await refreshMicrophones();
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: getMicrophoneAudioConstraints(),
-        });
+        if (!ownsCapture()) return;
+        capture.stream = await navigator.mediaDevices.getUserMedia({ audio: getMicrophoneAudioConstraints() });
       }
-
-      if (!isCallActive()) {
-        stopAudioCapture();
-        return;
-      }
-
+      if (!ownsCapture()) { releaseCapture(capture); return; }
       await refreshMicrophones();
-
-      audioContext = new AudioContext({ sampleRate: 16000 });
-
-      // Load the AudioWorklet module (with Electron production fallback)
-      await loadAudioWorkletModule(audioContext);
-
-      const source = audioContext.createMediaStreamSource(mediaStream);
-
-      // Analyser for visualizer + barge-in
-      analyserNode = audioContext.createAnalyser();
-      analyserNode.fftSize = 256;
-
-      // AudioWorklet node for raw PCM capture (replaces ScriptProcessor)
-      workletNode = new AudioWorkletNode(audioContext, 'audio-processor', {
-        processorOptions: {
-          bufferSize: 4096,        // matches old ScriptProcessor buffer
-          outputSampleRate: 16000, // target rate for backend
-        },
+      if (!ownsCapture()) { releaseCapture(capture); return; }
+      const context = new AudioContext({ sampleRate: 16000 });
+      capture.context = context;
+      await loadAudioWorkletModule(context);
+      if (!ownsCapture()) { releaseCapture(capture); return; }
+      const source = context.createMediaStreamSource(capture.stream!);
+      const analyser = context.createAnalyser();
+      capture.analyser = analyser;
+      analyser.fftSize = 256;
+      const worklet = new AudioWorkletNode(context, 'audio-processor', {
+        processorOptions: { bufferSize: 4096, outputSampleRate: 16000 },
       });
-
-      // Receive PCM chunks from worklet
-      workletNode.port.onmessage = (event) => {
-        const msg = event.data;
-        if (msg.type !== 'audio') return;
-        if (!isCallActive()) return;
+      capture.worklet = worklet;
+      worklet.port.onmessage = (event) => {
+        if (!ownsCapture() || event.data.type !== 'audio') return;
         if (currentVoiceMode === 'push-to-talk' && !pttActive()) return;
-
-        const samples = new Float32Array(msg.samples);
-        getBridge().voice.voiceSendAudioChunk(samples);
+        getBridge().voice.voiceSendAudioChunk(new Float32Array(event.data.samples), capture.request);
       };
-
-      // Audio graph: source → analyser → worklet (analyser passes through to worklet)
-      source.connect(analyserNode);
-      analyserNode.connect(workletNode);
-      // No need to connect workletNode to destination — we don't want mic monitoring
-
-      // Start visualizer loop
-      updateVisualizer();
+      source.connect(analyser);
+      analyser.connect(worklet);
+      analyserNode = analyser;
+      updateVisualizer(capture);
       setMicError('');
+      setCallState(ttsPlaying ? 'speaking' : ttsGenerationActive || activeSpeech || props.isStreaming ? 'processing' : 'listening');
+      setCaptureReady(true);
     } catch (err) {
+      if (!ownsCapture()) { releaseCapture(capture); return; }
       stopAudioCapture();
       log.error('Microphone access error:', err);
-      setMicError(t('mlearn.ConversationAgent.Voice.MicPermission'));
+      const key = err instanceof DOMException && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')
+        ? 'mlearn.ConversationAgent.Voice.MicPermission' : 'mlearn.ConversationAgent.Voice.CaptureFailed';
+      stopCall('failed', t(key));
     }
   };
 
   const stopAudioCapture = () => {
-    if (animFrameId !== null) {
-      cancelAnimationFrame(animFrameId);
-      animFrameId = null;
-    }
-    if (workletNode) {
-      workletNode.port.postMessage({ type: 'flush' });
-      workletNode.port.close();
-      workletNode.disconnect();
-      workletNode = null;
-    }
-    if (analyserNode) {
-      analyserNode.disconnect();
-      analyserNode = null;
-    }
-    if (audioContext) {
-      audioContext.close();
-      audioContext = null;
-    }
-    if (mediaStream) {
-      mediaStream.getTracks().forEach(track => track.stop());
-      mediaStream = null;
-    }
+    setCaptureReady(false);
+    const capture = activeCapture;
+    activeCapture = null;
+    if (animFrameId !== null) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+    if (capture) releaseCapture(capture);
+    analyserNode = null;
     setAudioLevel(0);
   };
 
-  const updateVisualizer = () => {
+  const updateVisualizer = (capture: MicrophoneCapture) => {
+    if (activeCapture !== capture || !ownsMicrophoneRequest(capture.request)) return;
     if (!analyserNode || !isCallActive()) {
       animFrameId = null;
       return;
@@ -1125,26 +1172,62 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
 
     drawTtsTimeline();
-    animFrameId = requestAnimationFrame(updateVisualizer);
+    animFrameId = requestAnimationFrame(() => updateVisualizer(capture));
   };
 
   // ============================================================================
   // TTS Playback — Gapless Stream Scheduler
   // ============================================================================
 
+  const deliveryFor = (message: VoiceSpeechMessage, state: VoiceDeliveryPayload['state']): VoiceDeliveryPayload => {
+    const observation = message === activeSpeech ? playbackDelivery?.snapshot(ttsAudioContext?.currentTime ?? 0) : null;
+    return { messageEventId: message.eventId, actorId: message.actorId, voiceSessionId: message.voiceSessionId, state,
+      spokenText: observation?.spokenText ?? '', confirmedText: observation?.confirmedText ?? '', basis: observation?.basis ?? 'unavailable' };
+  };
+
+  const reportDeliveryFailure = (error: unknown) => {
+    log.error('[VoiceTab] Delivery journal write failed', error);
+    showToast({ message: t('mlearn.ConversationAgent.Voice.DeliveryRecordFailed'), variant: 'error' });
+  };
+
   const finishTtsIfPlaybackDrained = () => {
-    if (ttsGenerationActive || voiceTtsTurn.requestActive || voiceTtsTurn.pendingPhrases.length > 0 || ttsSources.length > 0) return;
+    if (ttsGenerationActive || voiceTtsTurn.requestActive || voiceTtsTurn.pendingPhrases.length > 0 || ttsSources.length > 0 || settlingSpeech) return;
     setTtsPlaybackActive(false);
     bargeInFrames = 0;
     ttsNextStartTime = null;
-    if (ttsPlaybackTimer) {
-      clearTimeout(ttsPlaybackTimer);
-      ttsPlaybackTimer = null;
-    }
-    if (isCallActive()) {
-      setCallState('listening');
-      scheduleIdleSilenceNudge('waiting');
-    }
+    if (ttsPlaybackTimer) { clearTimeout(ttsPlaybackTimer); ttsPlaybackTimer = null; }
+    const message = activeSpeech;
+    if (!message || !isCallActive()) return;
+    const complete = playbackDelivery?.snapshot(ttsAudioContext?.currentTime ?? 0).complete ?? false;
+    const delivery = deliveryFor(message, complete ? 'completed' : 'failed');
+    settlingSpeech = message;
+    void (async () => {
+      try {
+        await props.onDelivery?.(delivery);
+        if (activeSpeech !== message || !isCallActive()) return;
+        activeSpeech = null;
+        setActiveSpeakerId(null);
+        playbackDelivery = null;
+        settlingSpeech = null;
+        if (!complete) {
+          stopTTSPlayback();
+          showToast({ message: t('mlearn.ConversationAgent.Voice.NoAudio'), variant: 'error' });
+          props.onAbort();
+        } else {
+          startNextSpeech();
+          if (activeSpeech) return;
+        }
+        setCallState('listening');
+        scheduleIdleSilenceNudge('waiting');
+      } catch (error) {
+        if (activeSpeech === message) {
+          stopTTSPlayback(true, 'failed', false);
+          setCallState('listening');
+          props.onAbort();
+        }
+        reportDeliveryFailure(error);
+      } finally { if (settlingSpeech === message) settlingSpeech = null; }
+    })();
   };
 
   const scheduleTtsAudio = (audio: VoiceTtsAudio) => {
@@ -1172,15 +1255,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
 
     const phraseIndex = voiceTtsTurn.activePhraseIndex >= 0
-      ? voiceTtsTurn.activePhraseIndex
-      : (audio.sentenceIndex ?? Math.max(0, ttsTimelinePhrases.length - 1, ttsCurrentSentenceIdx));
-    if (phraseIndex !== ttsTimingPhraseIndex) {
-      ttsTimingPhraseIndex = phraseIndex;
-      ttsCurrentSentenceIdx = phraseIndex;
-      ttsCurrentSentenceStartTime = Date.now() + Math.max(0, scheduled.startAt - ttsAudioContext.currentTime) * 1000;
-      ttsCurrentSentenceDuration = 0;
-    }
-    ttsCurrentSentenceDuration += buffer.duration;
+      ? voiceTtsTurn.activePhraseIndex : (audio.sentenceIndex ?? Math.max(0, voiceTtsTurn.nextPhraseIndex - 1));
+    const markEnded = playbackDelivery?.schedule(phraseIndex, scheduled.startAt, buffer.duration);
     appendTtsTimelineChunk(
       phraseIndex,
       audio.sampleCount ?? audio.samples.length,
@@ -1193,10 +1269,22 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     source.buffer = buffer;
     source.connect(ttsAudioContext.destination);
     ttsSources.push(source);
+    setHasAudibleSpeech(true);
 
     source.onended = () => {
+      if (!ttsSources.includes(source)) return;
+      source.onended = null;
       ttsSources = ttsSources.filter((s) => s !== source);
+      if (ttsSources.length === 0 && !(systemPhrase && systemPlaybackStarted && ttsGenerationActive)) {
+        setHasAudibleSpeech(false);
+        if (activeSpeech) setCallState('processing');
+      }
+      markEnded?.();
       ttsQueueIndex++;
+      if (activeSpeech && (ttsSources.length > 0 || ttsGenerationActive || voiceTtsTurn.requestActive || voiceTtsTurn.pendingPhrases.length > 0)) {
+        try { void Promise.resolve(props.onDelivery?.(deliveryFor(activeSpeech, 'playing'))).catch(reportDeliveryFailure); }
+        catch (error) { reportDeliveryFailure(error); }
+      }
       finishTtsIfPlaybackDrained();
     };
 
@@ -1209,82 +1297,51 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     ttsPlaybackTimer = setTimeout(finishTtsIfPlaybackDrained, msUntilEnd);
   };
 
-  /** Handle TTS interruption — compute spoken vs interrupted text */
+  /** Capture the current actor before retiring audio; queued actors have no playback. */
   const handleTTSInterruption = () => {
-    if (voiceTtsTurn.sentenceTexts.length === 0) {
-      stopTTSPlayback();
-      return;
-    }
-
-    // Sentences fully played = indices 0..ttsCurrentSentenceIdx-1
-    const spokenParts: string[] = [];
-    for (let i = 0; i < ttsCurrentSentenceIdx; i++) {
-      if (voiceTtsTurn.sentenceTexts[i]) spokenParts.push(voiceTtsTurn.sentenceTexts[i]);
-    }
-
-    // Estimate how much of the current sentence was actually played
-    const currentText = voiceTtsTurn.sentenceTexts[ttsCurrentSentenceIdx] || '';
-    if (currentText) {
-      if (ttsCurrentSentenceDuration > 0 && ttsCurrentSentenceStartTime > 0) {
-        const elapsedMs = Date.now() - ttsCurrentSentenceStartTime;
-        const ratio = Math.min(1, Math.max(0, (elapsedMs / 1000) / ttsCurrentSentenceDuration));
-        const charIdx = Math.max(1, Math.ceil(currentText.length * ratio));
-        spokenParts.push(currentText.substring(0, charIdx));
-      } else {
-        spokenParts.push(currentText);
-      }
-    }
-
-    const spokenText = spokenParts.join(' ');
-
-    // Remaining unspoken text: rest of current sentence + all subsequent sentences
-    const remainingParts: string[] = [];
-    if (currentText && ttsCurrentSentenceDuration > 0 && ttsCurrentSentenceStartTime > 0) {
-      const elapsedMs = Date.now() - ttsCurrentSentenceStartTime;
-      const ratio = Math.min(1, Math.max(0, (elapsedMs / 1000) / ttsCurrentSentenceDuration));
-      const charIdx = Math.max(1, Math.ceil(currentText.length * ratio));
-      const rest = currentText.substring(charIdx).trim();
-      if (rest) remainingParts.push(rest);
-    }
-    for (let i = ttsCurrentSentenceIdx + 1; i < voiceTtsTurn.sentenceTexts.length; i++) {
-      if (voiceTtsTurn.sentenceTexts[i]) remainingParts.push(voiceTtsTurn.sentenceTexts[i]);
-    }
-    const interruptedAt = remainingParts.join(' ');
-
+    const delivery = activeSpeech ? deliveryFor(activeSpeech, 'interrupted') : null;
     markTtsTimelineInterrupted();
-    stopTTSPlayback();
-
-    if (props.onInterrupted) {
-      log.info('[VoiceTab] TTS interrupted', { spokenText, interruptedAt });
-      setLastInterruption(spokenText || currentTtsText);
-      addDebugEvent('Interrupted', `${spokenText.length} chars spoken before abort`, 'warn');
-      props.onInterrupted(spokenText || '', interruptedAt || currentTtsText);
-    }
+    setLastInterruption(delivery?.spokenText ?? '');
+    addDebugEvent('Interrupted', `${delivery?.confirmedText.length ?? 0} chars in completed phrases`, 'warn');
+    stopTTSPlayback(true, 'interrupted');
   };
 
-  const stopTTSPlayback = () => {
+  const stopTTSPlayback = (clearSpeech = true, state: VoiceDeliveryPayload['state'] = 'stopped', report = true) => {
+    const request = activeTtsRequest;
+    activeTtsRequest = null;
+    if (clearSpeech) {
+      const observations = [
+        ...(activeSpeech && settlingSpeech !== activeSpeech ? [deliveryFor(activeSpeech, state)] : []),
+        ...pendingSpeech.map(message => deliveryFor(message, 'stopped')),
+      ];
+      activeSpeech = null;
+      setActiveSpeakerId(null);
+      pendingSpeech = [];
+      playbackDelivery = null;
+      settlingSpeech = null;
+      if (report) for (const observation of observations) {
+        try { void Promise.resolve(props.onDelivery?.(observation)).catch(reportDeliveryFailure); }
+        catch (error) { reportDeliveryFailure(error); }
+      }
+    }
     for (const source of ttsSources) {
+      source.onended = null;
       try { source.stop(); } catch (e) {
         log.error("error", e);
       }
     }
     ttsSources = [];
+    setHasAudibleSpeech(false);
     setTtsPlaybackActive(false);
     ttsGenerationActive = false;
     abortVoiceTtsTurn(voiceTtsTurn);
     ttsAborted = true; // reject any in-flight audio from this generation
     ttsQueue = [];
     ttsQueueIndex = 0;
-    ttsCurrentSentenceIdx = 0;
-    ttsTimingPhraseIndex = -1;
     ttsNextStartTime = null;
-    ttsCurrentSentenceStartTime = 0;
-    ttsCurrentSentenceDuration = 0;
     ttsTurnStartTime = 0;
     ttsScheduledDuration = 0;
-    currentTtsText = '';
     bargeInFrames = 0;
-    ttsHadError = false;
     if (ttsPlaybackTimer) {
       clearTimeout(ttsPlaybackTimer);
       ttsPlaybackTimer = null;
@@ -1293,7 +1350,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       ttsAudioContext.close();
       ttsAudioContext = null;
     }
-    getBridge().voice.voiceTtsStop();
+    getBridge().voice.voiceTtsStop(request ?? { sessionId: callSessionId });
   };
 
   // ============================================================================
@@ -1301,6 +1358,20 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // ============================================================================
 
   const startCall = async () => {
+    if (!supportsCalls) {
+      const explanation = t('mlearn.ConversationAgent.Voice.CallsUnavailable');
+      setInitError(explanation);
+      props.onCallStateChange?.(false, 'failed', explanation);
+      return;
+    }
+    callSessionId = crypto.randomUUID();
+    microphoneRequest = { sessionId: callSessionId, requestId: crypto.randomUUID() };
+    greetingRequested = false;
+    seenSpeechEventIds = new Set((props.speechMessages ?? []).map(message => message.eventId));
+    activeSpeech = null;
+    setActiveSpeakerId(null);
+    pendingSpeech = [];
+    speechTurnIndex = 0;
     log.info('[VoiceTab] Starting voice call', {
       language: props.language,
       mode: voiceMode(),
@@ -1313,7 +1384,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     setIsInitializing(true);
     setInitError('');
     setIsCallActive(true);
-    props.onCallStateChange?.(true);
+    props.onCallStateChange?.(true, undefined, undefined, callSessionId);
     setCallState('idle');
     setPartialTranscript('');
     setTtsChunkCount(0);
@@ -1337,6 +1408,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       voiceMode(),
       settings.voiceSilenceThreshold ?? DEFAULT_SETTINGS.voiceSilenceThreshold,
       activeTtsProvider(),
+      microphoneRequest,
     );
   };
 
@@ -1355,7 +1427,6 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         if (isCallActive() && !isInitializing() && !initError()) {
           if (!audioCaptureStarted) {
             audioCaptureStarted = true;
-            setCallState('listening');
             startAudioCapture();
           }
         } else {
@@ -1368,20 +1439,23 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // Request a greeting when the call starts and there are no messages yet.
   createEffect(() => {
     if (isCallActive() && !isInitializing() && !initError()) {
-      if (props.messages.length === 0 && !props.isStreaming) {
+      if (captureReady() && !greetingRequested && props.messages.length === 0 && !props.isStreaming) {
+        greetingRequested = true;
         props.onRequestGreeting();
       }
     }
   });
 
-  const stopCall = (reason: 'completed' | 'cleanup' = 'completed') => {
+  const stopCall = (reason: 'completed' | 'cleanup' | 'failed' = 'completed', failure?: string) => {
     if (!isCallActive() && !isInitializing()) return;
 
+    const request = microphoneRequest;
+    microphoneRequest = null;
     keyboardPttHeld = false;
     setPttActive(false);
     setIsCallActive(false);
-    if (reason === 'completed' && props.isStreaming) props.onAbort();
-    props.onCallStateChange?.(false, reason);
+    if (reason === 'failed' || (reason === 'completed' && props.isStreaming)) props.onAbort();
+    stopTTSPlayback(true, reason === 'failed' ? 'failed' : 'stopped');
     setIsInitializing(false);
     setSessionStatus(null);
     setCallState('idle');
@@ -1390,9 +1464,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     clearIdleSilenceTimer();
     clearScheduledNudgeTimer();
 
-    stopTTSPlayback();
     stopAudioCapture();
-    getBridge().voice.voiceStopSession();
+    if (request) getBridge().voice.voiceStopSession(request);
+    if (failure) setInitError(failure);
+    if (failure) props.onCallStateChange?.(false, reason, failure);
+    else props.onCallStateChange?.(false, reason);
   };
 
   // ============================================================================
@@ -1416,26 +1492,35 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   createEffect(
     on(
       () => settings.voiceMode,
-      async (mode, prevMode) => {
-        if (mode !== prevMode && isCallActive() && !isInitializing()) {
+      (mode, prevMode) => {
+        if (mode !== prevMode && isCallActive()) {
+          const previous = microphoneRequest;
+          microphoneRequest = { sessionId: callSessionId, requestId: crypto.randomUUID() };
+          setIsInitializing(true);
+          keyboardPttHeld = false;
+          setPttActive(false);
+          setPartialTranscript('');
+          clearNoTranscriptRecovery();
+          clearIdleSilenceTimer();
           stopAudioCapture();
-          getBridge().voice.voiceStopSession();
+          if (previous) getBridge().voice.voiceStopSession(previous);
           getBridge().voice.voiceStartSession(
             props.language,
-            mode as VoiceMode,
+            mode ?? DEFAULT_SETTINGS.voiceMode,
             settings.voiceSilenceThreshold ?? DEFAULT_SETTINGS.voiceSilenceThreshold,
             activeTtsProvider(),
+            microphoneRequest,
           );
-          await startAudioCapture();
         }
       },
+      { defer: true },
     ),
   );
 
   const setSilenceThreshold = (threshold: number) => {
     updateSettings({ ...settings, voiceSilenceThreshold: threshold });
     // Update the server-side threshold in real-time
-    getBridge().voice.voiceUpdateSilenceThreshold(threshold);
+    if (microphoneRequest) getBridge().voice.voiceUpdateSilenceThreshold(threshold, microphoneRequest);
   };
 
   const ttsChoiceOptions = (): SelectOption[] => [
@@ -1448,15 +1533,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const activeTtsLabel = () => (
     ttsChoiceOptions().find(option => option.value === ttsChoice())?.label ?? activeTtsProvider()
   );
-  const activeVoiceSampleId = (): string | undefined => (
-    ttsChoice() === 'voice-clone' ? props.defaultVoiceSampleId || undefined : undefined
-  );
 
   const agentVoiceSampleExists = async (): Promise<boolean> => {
-    const voiceSampleId = props.defaultVoiceSampleId;
-    if (!voiceSampleId) return false;
+    const ids = [...new Set([...(props.voiceSampleIds ?? []), ...(props.defaultVoiceSampleId ? [props.defaultVoiceSampleId] : [])])];
     try {
-      return Boolean(await getBridge().voice.voiceSampleGetPath(voiceSampleId));
+      for (const id of ids) {
+        if (await getBridge().voice.voiceSampleGetPath(id)) return true;
+      }
+      return false;
     } catch (error) {
       log.error('[VoiceTab] Failed to validate agent voice sample:', error);
       return false;
@@ -1491,12 +1575,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   createEffect(
     on(
-      () => [props.defaultVoiceSampleId, settings.ttsProvider] as const,
-      ([voiceSampleId, savedProvider]) => {
+      () => settings.ttsProvider,
+      (savedProvider) => {
         const savedChoice = voiceTtsChoiceFromProvider(savedProvider ?? DEFAULT_SETTINGS.ttsProvider);
-        if (!voiceSampleId && savedChoice === 'voice-clone') {
-          setTtsChoice('system');
-        } else if (ttsChoice() !== savedChoice) {
+        if (ttsChoice() !== savedChoice) {
           setTtsChoice(savedChoice);
         }
       },
@@ -1525,7 +1607,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     if (pttActive()) {
       setPttActive(false);
       // Flush the server-side speech buffer so it immediately runs STT
-      getBridge().voice.voiceFlush();
+      if (microphoneRequest) getBridge().voice.voiceFlush(microphoneRequest);
     }
   };
 
@@ -1572,6 +1654,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   };
 
   const statusText = () => {
+    if (isCallActive() && !isInitializing() && !captureReady()) return t('mlearn.ConversationAgent.Voice.PreparingMicrophone');
     const state = callState();
     switch (state) {
       case 'listening': return t('mlearn.ConversationAgent.Voice.Listening');
@@ -1589,9 +1672,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const agentName = () => props.agentName?.trim() ?? '';
   const hasProfilePhoto = () => Boolean(props.profilePhoto);
-  const isAgentSpeaking = () => callState() === 'speaking';
+  const isAgentSpeaking = hasAudibleSpeech;
   const callViewState = () => {
-    if (isInitializing() || ttsModelLoading()) return 'loading';
+    if (isInitializing() || (isCallActive() && !captureReady()) || ttsModelLoading()) return 'loading';
     if (!isCallActive()) return 'idle';
     return callState();
   };
@@ -1629,6 +1712,16 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   return (
     <div class="voice-tab">
+      <div class="voice-call-context">
+        <div>
+          <strong>{t((props.participants?.length ?? 0) > 1
+            ? 'mlearn.ConversationAgent.Voice.AiGroupCall' : 'mlearn.ConversationAgent.Voice.AiCall')}</strong>
+          <Show when={props.contextLabel}><span>{props.contextLabel}</span></Show>
+        </div>
+        <Show when={props.onDismiss}><Button variant="ghost" onClick={() => {
+          stopCall('cleanup'); props.onDismiss?.();
+        }}>{t(isCallActive() ? 'mlearn.ConversationAgent.Voice.EndAndReturn' : 'mlearn.ConversationAgent.Voice.ReturnToChat')}</Button></Show>
+      </div>
       {/* Mic error banner */}
       <Show when={micError()}>
         <AlertBanner
@@ -1651,6 +1744,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         />
       </Show>
 
+      <Show when={!supportsCalls && !initError()}>
+        <AlertBanner variant="info" message={t('mlearn.ConversationAgent.Voice.CallsUnavailable')} size="sm" />
+      </Show>
+
       {/* Checking model status */}
       <Show when={isChecking()}>
         <div class="voice-download-section">
@@ -1665,7 +1762,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       </Show>
 
       {/* Model download required */}
-      <Show when={!isChecking() && !modelsReady() && !isDownloading()}>
+      <Show when={supportsCalls && !isChecking() && !modelsReady() && !isDownloading()}>
         <div class="voice-download-section">
           <Show when={modelStatus()?.error}>
             <AlertBanner
@@ -1703,8 +1800,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       </Show>
 
       {/* Main voice UI (models ready) */}
-      <Show when={!isChecking() && modelsReady() && !isDownloading()}>
+      <Show when={supportsCalls && !isChecking() && modelsReady() && !isDownloading()}>
         <div class="voice-call-area">
+          <Show when={ttsChoice() === 'voice-clone'}>
+            <p class="voice-download-hint">{t('mlearn.ConversationAgent.Voice.ContactVoices')}</p>
+          </Show>
           {/* CPU compute warning — status-driven, never blocks session controls */}
           <Show when={cpuVoiceWarning()}>
             <AlertBanner
@@ -1727,6 +1827,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 </button>
 
                 <div class="voice-call-stage">
+                  <Show when={props.participants?.length} fallback={<>
                   <div
                     class={`voice-call-avatar-shell ${hasProfilePhoto() ? 'has-photo' : 'no-photo'} ${isAgentSpeaking() ? 'speaking' : ''} ${isInitializing() || ttsModelLoading() ? 'loading' : ''}`}
                     aria-hidden={!agentName()}
@@ -1747,6 +1848,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
                   <Show when={agentName()}>
                     <div class="voice-call-agent-name">{agentName()}</div>
+                  </Show>
+                  </>}>
+                    <CallParticipants participants={props.participants!}
+                      speakingActorId={isAgentSpeaking() ? activeSpeakerId() : null}
+                      usingVoiceSamples={ttsChoice() === 'voice-clone'} voiceLabel={ttsChoice() === 'voice-clone' ? t('mlearn.ConversationAgent.Voice.SystemVoice') : activeTtsLabel()} />
                   </Show>
 
                   <Show when={!isInitializing() && !ttsModelLoading()}>
@@ -1858,6 +1964,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
           >
           {/* Call UI */}
           <div class="voice-call-ui">
+            <Show when={props.participants?.length}>
+              <CallParticipants participants={props.participants!}
+                speakingActorId={isAgentSpeaking() ? activeSpeakerId() : null}
+                usingVoiceSamples={ttsChoice() === 'voice-clone'} voiceLabel={ttsChoice() === 'voice-clone' ? t('mlearn.ConversationAgent.Voice.SystemVoice') : activeTtsLabel()} />
+            </Show>
             <button
               type="button"
               class="voice-call-view-button"

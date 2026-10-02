@@ -290,3 +290,13 @@
     justify-content: center;
   }
 }
+
+/* Activity chrome remains secondary to the single recall task. */
+.word-sync { justify-content: flex-start; }
+.word-sync-header { width: min(100%, 36rem); justify-content: space-between; }
+.word-sync-header button { height: auto; }
+.word-sync--assessment .word-sync-header { min-height: var(--spacing-6); }
+.word-sync--assessment .word-sync-counter { line-height: var(--line-height-normal); }
+.word-sync--material { justify-content: flex-start; gap: var(--spacing-4); }
+.word-sync-material-context { width: min(100%, 36rem); margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); line-height: var(--line-height-normal); }
+.word-sync-material-context { order: 0; }

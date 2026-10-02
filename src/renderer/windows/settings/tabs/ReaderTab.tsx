@@ -4,8 +4,8 @@
 
 import { Component, Show, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../../context';
-import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeNumberInput, BookIcon, Select, formatKeybindDisplay } from '../../../components/common';
-import type { WordHoverTriggerMode } from '../../../../shared/constants';
+import { SettingRow, SettingGroup, ToggleSwitch, TabContent, KeybindInput, RangeNumberInput, BookIcon, Select } from '../../../components/common';
+import { WordHoverActivationSettings } from '../WordHoverActivationSettings';
 import { DEFAULT_SETTINGS, type ReaderTextFontStyle } from '../../../../shared/types';
 import {
   ocrReadingAnnotationFilteringEnabled,
@@ -269,36 +269,8 @@ export const ReaderTab: Component = () => {
         </Show>
       </SettingGroup>
       
-      <SettingGroup title={t('mlearn.Settings.Reader.WordHoverBehavior.Title')}>
-        <SettingRow
-          label={t('mlearn.Settings.Reader.WordHoverBehavior.TriggerMode.Label')}
-          description={t('mlearn.Settings.Reader.WordHoverBehavior.TriggerMode.Description')}
-          settingKey="readerWordHoverTrigger"
-        >
-          <Select
-            value={settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger!}
-            onChange={(e) => updateSettings({ readerWordHoverTrigger: e.currentTarget.value as WordHoverTriggerMode })}
-            options={[
-              { value: 'hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.Hover') },
-              { value: 'long-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.LongHover') },
-              { value: 'key-hover', label: t('mlearn.Settings.Reader.WordHoverBehavior.Modes.KeyHover', { key: formatKeybindDisplay(settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!, t) }) },
-            ]}
-          />
-        </SettingRow>
-        
-        <Show when={settings.readerWordHoverTrigger === 'key-hover' || isSettingManaged('readerWordHoverKey')}>
-          <SettingRow
-            label={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Label')}
-            description={t('mlearn.Settings.Reader.WordHoverBehavior.HoverKey.Description')}
-            settingKey="readerWordHoverKey"
-          >
-            <KeybindInput
-              value={settings.readerWordHoverKey ?? DEFAULT_SETTINGS.readerWordHoverKey!}
-              onChange={(key) => updateSettings({ readerWordHoverKey: key })}
-              allowModifierOnly={true}
-            />
-          </SettingRow>
-        </Show>
+      <SettingGroup title={t('mlearn.Settings.WordInteractions.Title')}>
+        <WordHoverActivationSettings />
       </SettingGroup>
       
       <Show when={getLanguageFeatures().supportsReadings || isSettingManaged('readerReadingAnnotationHider')}>

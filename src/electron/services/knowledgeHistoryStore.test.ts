@@ -8,9 +8,220 @@ import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEv
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import { grammarEvidenceKey, replayGrammarRecognition } from '../../shared/grammar/evidence';
 import type { KnowledgeEventCursor } from '../../shared/knowledge/historyQueries';
+import type { LearningDecision } from '../../shared/learningDecision';
 import { COMPACTION_KEY_BUDGET, KnowledgeHistoryStore, isKnowledgeEvent } from './knowledgeHistoryStore';
 
 const DAY = 24 * 60 * 60 * 1000;
+
+describe('durable rating command ownership', () => {
+  it('retains opaque Undo only for completed commands across restart and consumes it with its exact tombstone', () => {
+    const file = path.join(dir, 'completed-undo.sqlite3');
+    const undo = { attemptId: 'undo-owned', surface: 'future-surface', word: 'cue', language: 'xx',
+      attemptIds: ['undo-owned'], target: { keys: ['xx:cue'], replay: { kind: 'future', opaque: { unknown: [4] } } },
+      restore: { unknownCategory: { structured: ['future', 3] } } };
+    const first = KnowledgeHistoryStore.open(file);
+    first.reserveRatingCommand({ attemptId: undo.attemptId, undo, events: {}, patch: { baseRev: 0, entries: [] } });
+    expect(first.getRatingUndoHistory('future-surface')).toEqual([]);
+    first.completeRatingCommands(1, 1);
+    first.close();
+    const reopened = KnowledgeHistoryStore.open(file);
+    expect(reopened.getRatingUndoHistory('future-surface')).toEqual([undo]);
+    expect(reopened.getRatingUndoHistory('other-surface')).toEqual([]);
+    reopened.appendEvents({ 'xx:wrong-key': [{ t: 1, kind: 'retraction', source: 'manual', retracts: undo.attemptId }] });
+    expect(reopened.getRatingUndoHistory('future-surface')).toEqual([undo]);
+    reopened.appendEvents({ 'xx:cue': [{ t: 2, kind: 'retraction', source: 'manual', retracts: undo.attemptId }] });
+    expect(reopened.getRatingUndoHistory('future-surface')).toEqual([]);
+    reopened.close();
+  });
+
+  it('bounds completed Undo history and rejects a rollback that belongs to another response', () => {
+    const s = store();
+    const undo = { attemptId: 'wrong', surface: 'future', word: '', language: 'xx', attemptIds: ['wrong'], restore: {} };
+    expect(() => s.reserveRatingCommand({ attemptId: 'actual', undo, events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/Undo/);
+    for (let i = 0; i < 55; i++) {
+      const attemptId = `response-${i}`;
+      s.reserveRatingCommand({ attemptId, undo: { ...undo, attemptId, attemptIds: [attemptId] }, events: {}, patch: { baseRev: 0, entries: [] } });
+    }
+    s.completeRatingCommands(55, 2);
+    const records = s.getRatingUndoHistory('future');
+    expect(records).toHaveLength(50);
+    expect(records[0].attemptId).toBe('response-54');
+    expect(records.at(-1)?.attemptId).toBe('response-5');
+    s.close();
+  });
+  it('pins an immutable decision before presentation and joins an assisted command without adding ability evidence', () => {
+    const file = path.join(dir, 'decision-audit.sqlite3');
+    const decision: LearningDecision = { id: 'choice-before-cue', at: 20, policyVersion: 'future-policy',
+      selected: { key: 'card', action: 'practice', targets: [{ kind: 'future-entity', id: 'opaque', capability: 'future::capability' }],
+        presentation: { futureInput: ['unknown', { arbitraryDimension: 4 }] },
+        task: { taskTemplateId: 'future-task', inputModality: 'opaque', responseModality: 'opaque', supplied: [],
+          requested: ['future::capability'], fluencyRequired: false, ratingMode: 'profile' } },
+      baseline: null, detail: { unknown: { conditional: ['a', { b: 2 }] } } };
+    const first = KnowledgeHistoryStore.open(file);
+    first.recordLearningDecision(decision);
+    first.recordLearningDecision(structuredClone(decision));
+    expect(() => first.recordLearningDecision({ ...decision, at: 30 })).toThrow(/immutable/);
+    first.reserveRatingCommand({ attemptId: 'assisted-response', decisionId: decision.id,
+      presentation: decision.selected.presentation,
+      guardCardIds: ['card'], events: {}, patch: { baseRev: 0, entries: [] } });
+    expect(() => first.reserveRatingCommand({ attemptId: 'different-task', decisionId: decision.id,
+      presentation: decision.selected.presentation,
+      guardCardIds: ['card'], events: { 'future:cue': [{ t: 20, kind: 'rating', source: 'manual', attemptId: 'different-task',
+        targetRef: { kind: 'future-entity', id: 'other', capability: 'future::capability' }, quality: 'fluent' }] },
+      patch: { baseRev: 0, entries: [] } })).toThrow(/captured task/);
+    expect(() => first.reserveRatingCommand({ attemptId: 'wholly-supplied-wrong-cue', decisionId: decision.id,
+      presentation: { futureInput: ['other cue'] }, guardCardIds: ['card'],
+      events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/captured presentation/);
+    expect(() => first.reserveRatingCommand({ attemptId: 'different-prompt', decisionId: decision.id,
+      guardCardIds: ['other-card'], events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/captured choice/);
+    expect(first.sequenceCounter).toBe(0);
+    first.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    expect(restarted.getLearningDecisionRecord(decision.id)).toEqual({ decision,
+      attempts: [{ attemptId: 'assisted-response', committedRevision: null }] });
+    restarted.completeRatingCommands(1, 4);
+    expect(restarted.getLearningDecisionRecord(decision.id)?.attempts).toEqual([{ attemptId: 'assisted-response', committedRevision: 4 }]);
+    expect(restarted.sequenceCounter).toBe(0);
+    expect(() => restarted.reserveRatingCommand({ attemptId: 'unpresented-response', decisionId: 'missing',
+      events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/before presentation/);
+    expect(restarted.pendingRatingCommands()).toEqual([]);
+    restarted.close();
+  });
+
+  it('retains the exact command across restart without making it learning evidence', () => {
+    const file = path.join(dir, 'rating-command.sqlite3');
+    const first = KnowledgeHistoryStore.open(file);
+    const command = { attemptId: 'physical-response', events: {}, patch: { baseRev: 4, entries: [
+      { path: ['meta', 'future-owned-value'], before: undefined, after: { arbitrary: ['unknown', { value: 3 }] } },
+    ] } };
+    const accepted = first.reserveRatingCommand(command);
+    expect(accepted.sequence).toBe(1);
+    expect(first.sequenceCounter).toBe(0);
+    first.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    expect(restarted.pendingRatingCommands()).toEqual([accepted]);
+    // Retries use the admitted payload, not a reconstructed response.
+    expect(restarted.reserveRatingCommand({ ...command, events: { replacement: [] } })).toEqual(accepted);
+    restarted.completeRatingCommands(1, 6);
+    expect(restarted.pendingRatingCommands()).toEqual([]);
+    restarted.close();
+    const finished = KnowledgeHistoryStore.open(file);
+    expect(finished.reserveRatingCommand(command)).toMatchObject({ sequence: 1, revision: 6 });
+    expect(finished.sequenceCounter).toBe(0);
+    finished.close();
+  });
+});
+
+describe('canonical observation idempotency', () => {
+  it('deduplicates retries while accepting distinct accesses of one attempt', () => {
+    const s = store();
+    const key = 'xx:retry';
+    const reading: KnowledgeEvent = { t: 1, kind: 'rating', source: 'manual', attemptId: 'response-1', aspect: 'reading', quality: 'fluent' };
+    const meaning: KnowledgeEvent = { ...reading, aspect: 'meaning' };
+    s.appendEvents({ [key]: [reading] });
+    s.appendEvents({ [key]: [reading, meaning, meaning] });
+    expect(s.getExactEvents([key])[key]).toEqual([reading, meaning]);
+    s.close();
+  });
+
+  it('keeps retry protection across compaction, restart, and another store connection', () => {
+    const file = path.join(dir, 'retry.sqlite3');
+    const s = KnowledgeHistoryStore.open(file);
+    const event: KnowledgeEvent = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', attemptId: 'durable-response', quality: 'fluent', easeAfter: 2.6 };
+    const older = { ...event, t: 30 * DAY, attemptId: 'archived-response' };
+    s.appendEvents({ 'xx:retry': [event, older] });
+    s.compact(365 * DAY);
+    const before = s.getKnowledgeState('xx:retry');
+    const beforeSequence = s.sequenceCounter;
+    expect(before.hasArchive).toBe(true);
+    s.close();
+    const first = KnowledgeHistoryStore.open(file);
+    const second = KnowledgeHistoryStore.open(file);
+    first.appendEvents({ 'xx:retry': [event, older] });
+    second.appendEvents({ 'xx:retry': [event, older] });
+    expect(second.getKnowledgeState('xx:retry')).toEqual(before);
+    expect(second.sequenceCounter).toBe(beforeSequence);
+    first.close(); second.close();
+  });
+
+  it('recognizes archived addressed attempts from a pre-identity-cache store', () => {
+    const file = path.join(dir, 'old-cache.sqlite3');
+    const s = KnowledgeHistoryStore.open(file);
+    const event: KnowledgeEvent = { t: 1, kind: 'rating', source: 'srs', targetRef: { kind: 'sense', id: 'opaque-sense', capability: 'sense-recognition' }, attemptId: 'old-durable-response', quality: 'fluent', easeAfter: 2.6 };
+    s.appendEvents({ 'xx:old': [event, { ...event, t: 30 * DAY, attemptId: 'old-second-response' }] });
+    s.compact(365 * DAY);
+    const before = s.sequenceCounter;
+    s.close();
+    const db = new DatabaseSync(file);
+    db.exec('DELETE FROM observation_identities');
+    db.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    restarted.appendEvents({ 'xx:old': [event] });
+    expect(restarted.sequenceCounter).toBe(before);
+    restarted.close();
+  });
+
+  it('seeds old archived Anki observations from the verified backup without rewriting history', () => {
+    const file = path.join(dir, 'old-anki-cache.sqlite3');
+    const s = KnowledgeHistoryStore.open(file);
+    const events: KnowledgeEvent[] = [1, 30, 60].map((day, index) => ({ t: day * DAY, kind: 'review', source: 'anki', aspect: 'meaning', ankiReviewId: index + 10, easeAfter: 2.6, rating: 'good' }));
+    const backup = { 'xx:old': events };
+    expect(s.importLegacyLog(backup, 365 * DAY).verified).toBe(true);
+    const before = s.getKnowledgeState('xx:old');
+    const sequence = s.sequenceCounter;
+    s.close();
+    const db = new DatabaseSync(file);
+    db.exec("DELETE FROM observation_identities; UPDATE meta SET value = '2' WHERE key = 'schemaVersion'");
+    db.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    restarted.backfillObservationIdentities(backup);
+    restarted.appendEvents({ 'xx:old': [events[1]] });
+    expect(restarted.sequenceCounter).toBe(sequence);
+    expect(restarted.getKnowledgeState('xx:old')).toEqual(before);
+    expect(restarted.schemaVersion).toBe(3);
+    restarted.close();
+  });
+
+  it('clears observation identities when a failed migration resets the store', () => {
+    const s = store();
+    const event: KnowledgeEvent = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', eventId: 'reset-observation' };
+    s.appendEvents({ 'xx:reset': [event] });
+    s.resetForReimport();
+    s.appendEvents({ 'xx:reset': [event] });
+    expect(s.getExactEvents(['xx:reset'])['xx:reset']).toEqual([event]);
+    s.close();
+  });
+
+  it('protects imported event ids through compaction without dropping historical occurrences', () => {
+    const s = store();
+    const event: KnowledgeEvent = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', eventId: 'imported-observation', quality: 'fluent', easeAfter: 2.6 };
+    s.importLegacyLog({ 'xx:import': [event, { ...event, t: 30 * DAY }] });
+    const seq = s.sequenceCounter;
+    s.appendEvents({ 'xx:import': [event] });
+    expect(s.sequenceCounter).toBe(seq);
+    s.compact(365 * DAY);
+    s.appendEvents({ 'xx:import': [event] });
+    expect(s.sequenceCounter).toBe(seq);
+    s.close();
+  });
+
+  it('retains distinct directed targets within one Anki review', () => {
+    const s = store();
+    const first: KnowledgeEvent = { t: 1, kind: 'rating', source: 'anki', ankiReviewId: 123, targetRef: { kind: 'sense', id: 'sense-a', capability: 'sense-recognition' } };
+    const second: KnowledgeEvent = { ...first, targetRef: { ...first.targetRef!, id: 'sense-b' } };
+    s.appendEvents({ 'xx:anki': [first, second, first, second] });
+    expect(s.getExactEvents(['xx:anki'])['xx:anki']).toEqual([first, second]);
+    s.close();
+  });
+
+  it('does not deduplicate ambiguous historical numeric session ids', () => {
+    const s = store();
+    const event = { t: 1, kind: 'rating', source: 'srs', aspect: 'meaning', attemptId: '1', quality: 'fluent' } as const;
+    s.appendEvents({ 'xx:legacy': [event, { ...event, t: 2 }] });
+    expect(s.getExactEvents(['xx:legacy'])['xx:legacy']).toHaveLength(2);
+    s.close();
+  });
+});
 
 let dir: string;
 
@@ -127,6 +338,59 @@ function ankiStatus(t: number, toStatus: KnowledgeEvent['toStatus']): KnowledgeE
 }
 
 describe('KnowledgeHistoryStore', () => {
+  it('finds exact target addresses under a different storage key through compaction and restart', () => {
+    const file = path.join(dir, 'addressed-family.sqlite3');
+    const store = KnowledgeHistoryStore.open(file);
+    const key = 'future:canonical-family';
+    const id = 'future:surface:exact-alias';
+    store.appendEvents({ [key]: [
+      { t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', quality: 'fluent', easeAfter: 2.5, attemptId: 'acquisition-anchor' },
+      { t: 20 * DAY, kind: 'rating', source: 'manual', attemptId: 'old-alias', quality: 'fluent', easeAfter: 2.5,
+        targetRef: { kind: 'surface', id, capability: 'sense-recognition' } },
+    ] });
+    expect(store.queryAddressedKeys('future', [id])).toEqual([key]);
+    expect(store.queryAddressedIds([key])).toEqual([id]);
+    expect(store.queryAddressedKeys('other', [id])).toEqual([]);
+    store.compact(800 * DAY);
+    expect(store.getExactEvents([key])[key].every(event => event.targetRef?.id !== id)).toBe(true);
+    store.close();
+    const resumed = KnowledgeHistoryStore.open(file);
+    expect(resumed.queryAddressedKeys('future', [id])).toEqual([key]);
+    expect(resumed.queryAddressedIds([key])).toEqual([id]);
+    resumed.close();
+    // An existing journal created before the derived address index is rebuilt
+    // from archived evidence, without altering its authored rows.
+    const oldDatabase = new DatabaseSync(file);
+    oldDatabase.exec("DELETE FROM archived_addresses; DELETE FROM meta WHERE key = 'archived-address-index-v1'");
+    oldDatabase.close();
+    const upgraded = KnowledgeHistoryStore.open(file);
+    expect(upgraded.queryAddressedKeys('future', [id])).toEqual([key]);
+    upgraded.resetForReimport();
+    expect(upgraded.queryAddressedKeys('future', [id])).toEqual([]);
+    expect(upgraded.queryAddressedIds([key])).toEqual([]);
+    upgraded.close();
+  });
+
+  it('retains durable claim withdrawals through restart without claiming an exact entity for the whole word', () => {
+    const file = path.join(dir, 'claim-markers.sqlite3');
+    const first = KnowledgeHistoryStore.open(file);
+    const key = 'xx:word';
+    first.appendEvents({ [key]: [
+      { t: 1, kind: 'claim', source: 'manual', aspect: 'reading', toStatus: 'known' },
+      { t: 1, kind: 'claim', source: 'manual', aspect: 'reading' },
+      { t: 2, kind: 'claim', source: 'manual', toStatus: 'known', targetRef: { kind: 'x::relation', id: 'x:exact', capability: 'x::novel' } },
+    ] });
+    const state = first.getKnowledgeState(key);
+    expect(state.claimMarkers?.['surface-reading']).toMatchObject({ t: 1 });
+    expect(state.claimMarkers?.['surface-reading']).not.toHaveProperty('status');
+    expect(state.capabilities?.['x::novel']).toBeUndefined();
+    expect(first.getExactEvents([key])[key]).toHaveLength(3);
+    first.close();
+    const restarted = KnowledgeHistoryStore.open(file);
+    expect(restarted.getKnowledgeState(key)).toEqual(state);
+    restarted.close();
+  });
+
   it('accepts a finite delivered-item seed and rejects malformed seed provenance', () => {
     const event = attemptEvent({
       t: 1,
@@ -623,7 +887,7 @@ describe('KnowledgeHistoryStore', () => {
 
     const first = s.reclassifyFromBackup(JSON.parse(JSON.stringify(backup)), now);
     expect(first.verified).toBe(true);
-    expect(s.schemaVersion).toBe(2);
+    expect(s.schemaVersion).toBe(3);
     // The old attempt compacted with a contribution record.
     expect(s.hasAttemptRecords('ja:v1', ['attempt-v1'])).toEqual([true]);
     expect(s.getKnowledgeState('ja:v1').projection).toEqual(replayKeyProjection(backup['ja:v1']));

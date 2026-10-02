@@ -40,9 +40,13 @@ describe('prediction firewall', () => {
       direct: null,
       target: { entityId: surfaceEntityId('ja', 'a'), capability: 'surface-reading' },
       classify: () => 'unknown',
+      sourceKnowledge: () => 'evidence',
+      languageData: { name: 'Test', learning: { capabilities: { 'surface-reading': { supportRules: [{
+        relation: 'orthographic-variant-of', sourceCapability: 'surface-reading', weight: 0.6,
+      }] } } } },
     });
     expect(prediction.kind).toBe('prediction');
-    expect(prediction.pSuccess).toBeGreaterThan(0);
+    expect(prediction.supportScore).toBeGreaterThan(0);
     expect(prediction.supportPath).toHaveLength(1);
     // The store is untouched by construction — predictor output is a value,
     // never a writer. Structural proof: this module imports no writer.
@@ -62,7 +66,7 @@ describe('prediction firewall', () => {
     }
   });
 
-  it('uses generated compounds only as read-only support for unseen targets', () => {
+  it('keeps generated decomposition available without inventing support for unseen targets', () => {
     const deGraph = loadLinguisticGraph({
       ...fixture,
       language: 'de',
@@ -78,8 +82,8 @@ describe('prediction firewall', () => {
       classify: () => 'unknown',
       compound: { analysis: decompose('Papashandschuhe', ['Papa', 'Hand', 'Schuh']), isKnownPart: (lemma) => lemma === 'Papa' || lemma === 'Hand' || lemma === 'Schuh' },
     });
-    expect(prediction.pSuccess).toBeGreaterThan(0.05);
-    expect(prediction.supportPath).toHaveLength(3);
+    expect(prediction.supportScore).toBe(0);
+    expect(prediction.supportPath).toHaveLength(0);
     expect(prediction.kind).toBe('prediction');
   });
 
@@ -106,8 +110,8 @@ describe('prediction firewall', () => {
     // Control: identical graph without the compound hint. The blocked credit
     // must leave the prediction at the no-support baseline.
     const baseline = predictTargetAccessibility({ ...input, compound: undefined });
-    expect(ambiguous.pSuccess).toBe(baseline.pSuccess);
-    expect(ambiguous.pSuccess).toBeLessThan(0.1);
+    expect(ambiguous.supportScore).toBe(baseline.supportScore);
+    expect(ambiguous.supportScore).toBeLessThan(0.1);
     expect(ambiguous.supportPath.some((hop) => hop.via === 'generated-compound')).toBe(false);
   });
 });

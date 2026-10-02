@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "LibraryRecovery": {
+      "OpenProtection": "Einstellungen zum Datenschutz und zur Wiederherstellung",
+      "Title": "Deine Bibliothek konnte nicht geöffnet werden",
+      "Description": "Deine gespeicherte Bibliothek konnte nicht gelesen werden. Änderungen sind zu ihrem Schutz pausiert. Prüfe, ob der Speicher verfügbar ist, und versuche es erneut."
+    },
     "GraphInspector": {
       "Title": "Graphinspektor",
       "Unavailable": "Der Sprachgraph ist nicht installiert.",
@@ -297,7 +302,14 @@
           "Title": "Agenten-Gedächtnis"
         },
         "Boundary": {
-          "Title": "Gesprächsgrenze", "Provider": "Prüfverfahren", "Description": "Antworten werden vor dem Speichern geprüft. Ein lokaler Klassifikator kann eine private Vorprüfung ergänzen; die Produktentscheidung trifft weiterhin das gewählte Akteursmodell.", "Actor": "Prüfung durch Akteursmodell", "Local": "Lokaler CPU-Wächter + Akteursprüfung", "LocalDescription": "Qwen3Guard-Gen 0,6B, etwa 484 MB. Läuft auf der CPU.", "Install": "Lokalen Wächter installieren", "Installed": "Lokaler Wächter installiert"
+          "Title": "Gesprächsgrenze",
+          "Provider": "Prüfverfahren",
+          "Description": "Antworten werden vor dem Speichern geprüft. Ein lokaler Klassifikator kann eine private Vorprüfung ergänzen; die Produktentscheidung trifft weiterhin das gewählte Akteursmodell.",
+          "Actor": "Prüfung durch Akteursmodell",
+          "Local": "Lokaler CPU-Wächter + Akteursprüfung",
+          "LocalDescription": "Qwen3Guard-Gen 0,6B, etwa 484 MB. Läuft auf der CPU.",
+          "Install": "Lokalen Wächter installieren",
+          "Installed": "Lokaler Wächter installiert"
         },
         "Checker": {
           "Title": "Korrektur-Agent",
@@ -593,7 +605,10 @@
         "ReadyHint": "Schreiben Sie eine Nachricht oder lassen Sie die KI beginnen.",
         "StartConversation": "KI beginnen lassen",
         "Title": "Gespräch beginnen",
-        "NewConversation": "Neue Unterhaltung"
+        "NewConversation": "Neue Unterhaltung",
+        "ReadyTitle": "Bereit zum Gespräch",
+        "SavedTitle": "Gespräch gespeichert",
+        "SavedUnavailableHint": "Der KI-Dienst ist nicht verfügbar. Öffne die KI-Einstellungen, um vor dem Gespräch eine Verbindung herzustellen."
       },
       "ExperimentalBanner": "Experimentelle Funktion — KI-Antworten können Fehler enthalten. Überprüfen Sie wichtige sprachliche Punkte.",
       "Disclaimer": "Dies ist KI und kann Fehler machen. Bitte Antworten überprüfen.",
@@ -694,12 +709,17 @@
       "TriggerKeyHover": "{key} + Hover",
       "TriggerLongHover": "Langes Hover",
       "Voice": {
+        "AiGroupCall": "KI-Gruppenanruf",
+        "AiCall": "KI-Anruf",
+        "PeopleInCall": "Personen in diesem Anruf",
+        "ReturnToChat": "Zurück zum Chat",
+        "EndAndReturn": "Anruf beenden und zum Chat zurückkehren",
         "BackendAuthError": "Sprachbackend-Verbindung fehlgeschlagen. Bitte versuche es erneut.",
         "Aftermath": {
           "Duration": "Dauer",
-          "Messages": "Nachrichten",
+          "Messages": "Deine gesprochenen Beiträge",
           "Mistakes": "Gemeldete Fehler",
-          "NoMistakes": "Keine Fehler gemeldet. Gute Arbeit!",
+          "NoMistakes": "Während dieses Anrufs wurden keine Korrekturen aufgezeichnet.",
           "Title": "Sitzungszusammenfassung"
         },
         "CloudTts": "Cloud",
@@ -722,6 +742,8 @@
         "Listening": "Höre zu…",
         "LoadingTtsModel": "Sprachsynthesemodell wird geladen…",
         "MicPermission": "Sprachanrufe erfordern Mikrofonzugriff.",
+        "SynthesisDeclined": "Die Sprachausgabe wurde gestoppt, weil die lokale Synthese abgelehnt wurde. Der Anruf bleibt offen.",
+        "ContactVoices": "Jeder Kontakt nutzt seine eigene Stimmprobe. Kontakte ohne Stimmprobe nutzen die Systemstimme.",
         "Microphone": "Mikrofon",
         "DefaultMicrophone": "Standardmikrofon",
         "MicrophoneNumber": "Mikrofon {index}",
@@ -747,7 +769,25 @@
         "VoiceSample": "Streaming-Stimmklon",
         "LightweightVoice": "Leichte Stimme",
         "SystemVoice": "Systemstimme",
-        "CpuWarning": "Echtzeit-Sprache kann verzögert sein, da die Sprachverarbeitung auf der CPU läuft. Die Sprachqualität ist nicht betroffen."
+        "CpuWarning": "Echtzeit-Sprache kann verzögert sein, da die Sprachverarbeitung auf der CPU läuft. Die Sprachqualität ist nicht betroffen.",
+        "PreparingMicrophone": "Mikrofon wird vorbereitet…",
+        "CallsUnavailable": "KI-Sprachanrufe erfordern die Desktop-App. Du kannst diese Unterhaltung hier per Text fortsetzen.",
+        "CaptureFailed": "Das Mikrofon konnte nicht gestartet werden. Prüfe dein Audiogerät und versuche den Anruf erneut.",
+        "VisualActivity": "Visuelle Übung — antworte auf dem Bildschirm.",
+        "MemoryRecordFailed": "Die Antwort wurde nicht gesprochen, weil Gesprächsnotizen nicht gespeichert werden konnten.",
+        "Delivery": {
+          "pending": "Für diese Antwort ist keine Sprachausgabe aufgezeichnet.",
+          "playing": "Ein Teil dieser Antwort wurde gesprochen.",
+          "completed": "Im Anruf gesprochen.",
+          "interrupted": "Sprachausgabe unterbrochen.",
+          "stopped": "Sprachausgabe beendet.",
+          "failed": "Die Sprachausgabe dieser Antwort ist fehlgeschlagen.",
+          "Estimated": "Der letzte gesprochene Satzteil ist geschätzt.",
+          "Generated": "Vollständige Antwort",
+          "GeneratedDescription": "Dies ist die vollständige, für die Sprachausgabe vorbereitete Antwort. Nur der Text oben wurde als gesprochen aufgezeichnet."
+        },
+        "NoAudio": "Die Sprachausgabe endete ohne abspielbares Audio. Die Antwort wurde nicht als wiedergegeben erfasst.",
+        "DeliveryRecordFailed": "Das Wiedergabeprotokoll konnte nicht gespeichert werden. Die Sprachausgabe wurde gestoppt; die Wiedergabe bleibt unbestätigt."
       },
       "Memory": {
         "ClearAll": "Alle Erinnerungen löschen",
@@ -764,14 +804,14 @@
         "TemporaryPractice": "Temporäres Üben",
         "Title": "Unterhaltungen",
         "NewConversation": "Neue Unterhaltung",
-        "UntitledThread": "Unbenannter Thread",
+        "UntitledThread": "Unbenanntes Gespräch",
         "Started": "Begonnen: {date}",
         "NoMatches": "Keine passenden Unterhaltungen"
       },
       "LivingWorld": {
         "ConsentTitle": "Living World aktivieren?",
-        "ConsentHint": "Living World ist aus. Dieses Gespräch würde in deiner persistenten Welt leben, in der Erinnerungen, Beziehungen und Veränderungen dauerhaft gespeichert werden. Aktiviere Living World, um fortzufahren, oder bleib bei der temporären Übung.",
-        "EnableAndContinue": "Living World aktivieren und fortfahren",
+        "ConsentHint": "Der gemeinsame Verlauf ist deaktiviert. Aktiviere das gemeinsame Gedächtnis, damit dieses Gespräch deine Kontakte und Beziehungen aktualisieren kann, oder wähle Separater Verlauf.",
+        "EnableAndContinue": "Gemeinsames Gedächtnis aktivieren und fortfahren",
         "NotNow": "Nicht jetzt"
       },
       "NewConversation": {
@@ -781,7 +821,7 @@
         "GeneratedNotice": "Dies ist eine generierte fiktive Situation, kein recherchierter Kanon. Prüfe sie, bevor du beginnst.",
         "PrivatePreview": "Privater Ausgangszustand — nur zur Prüfung hier angezeigt, nicht mit allen geteilt.",
         "Scene": "Situation",
-        "TemporaryHint": "Diese Unterhaltung wird separat gespeichert. Erinnerungen und Änderungen hier verändern deine Welt nicht.",
+        "TemporaryHint": "Separat gespeichert. Nachrichten und Erinnerungen hier ändern deine gemeinsamen Beziehungen nicht.",
         "Title": "Neue Unterhaltung",
         "Hint": "Wähle, mit wem du conversieren möchtest, und lege optional ein Ziel fest.",
         "Placeholder": "Worüber möchtest du sprechen oder üben?",
@@ -796,10 +836,19 @@
         "IntentLabel": "Ziel (optional)",
         "PreparedGoalLabel": "Übungsschwerpunkt",
         "ToggleParticipant": "{name} in die Unterhaltung aufnehmen",
-        "ScopeLabel": "Wo soll dies bestehen?",
-        "ScopeTemporary": "Vorübergehend",
-        "ScopePersistent": "In meiner Welt",
-        "PersistentHint": "Nachrichten, Erinnerungen und Beziehungen hier werden Teil deiner dauerhaften Welt."
+        "ScopeLabel": "Gesprächsverlauf",
+        "ScopeTemporary": "Separater Verlauf",
+        "ScopePersistent": "Gemeinsamer Verlauf",
+        "PersistentHint": "Nachrichten, Erinnerungen und Beziehungen hier werden Teil deiner gemeinsamen Kontinuität.",
+        "Purpose": "Gesprächsart",
+        "Conversation": "Gespräch",
+        "CoachedPractice": "Üben mit Anleitung",
+        "ConversationHint": "Die Teilnehmenden bleiben in ihrer Rolle. Sprachunterricht wird nicht angefordert.",
+        "PracticeHint": "Bitte um sprachliches Feedback und gezielte Übungen.",
+        "SetupPlaceholder": "Beschreibe eine Situation oder ein Übungsziel oder wähle unten Kontakte aus.",
+        "SetupHint": "Wähle Kontakte, beschreibe eine Situation oder beides. Alle ausgewählten Personen können teilnehmen.",
+        "OptionalSituation": "Situation (optional)",
+        "SelectedPeople": "Ausgewählte Personen: {count}"
       },
       "Integration": {
         "ScenarioNeedsRoom": "Wähle einen Raum, um diese Situation zu übernehmen.",
@@ -811,9 +860,9 @@
         "Pending": "Die Integration ist ausstehend. Vorbereitete Änderungen sind in der Welt nicht sichtbar. Versuche es erneut.",
         "Interrupted": "Die Integration muss überprüft werden. Das Ergebnis steht unten.",
         "Retry": "Integration erneut versuchen",
-        "Title": "In meine Welt integrieren",
-        "PanelHint": "Dieser Thread ist temporäre Übung. Prüfe, was Teil deiner dauerhaften Welt werden soll, bevor du es übernimmst.",
-        "Open": "Integration prüfen",
+        "Title": "Zum gemeinsamen Verlauf hinzufügen",
+        "PanelHint": "Wähle Erinnerungen und Beziehungen aus diesem separaten Gespräch zum Teilen aus. Prüfe die Änderungen vor dem Anwenden.",
+        "Open": "Freigabe prüfen",
         "BoundaryHint": "Dieser Thread ist temporär. Nur die unten ausgewählten Punkte werden Teil deiner Welt.",
         "DestinationLabel": "Ziel",
         "DestinationHint": "Ausgewählte Erinnerungen behalten ihre Zeugen. Eine Person zu übernehmen fügt sie keinem Raum hinzu.",
@@ -858,23 +907,38 @@
         "Decline": "Ablehnen"
       },
       "Details": {
-        "PracticeVersion": "Übungsversion",
-        "RoomLabel": "Raum",
-        "ThreadLabel": "Thread",
-        "UntitledThread": "Unbenannter Thread",
+        "DeleteConversationConfirm": "Dieses Gespräch und seine Nachrichten löschen? Dies kann nicht rückgängig gemacht werden.",
+        "DeleteConversation": "Gespräch löschen",
+        "RosterChanged": "Das Gespräch hat sich geändert. Behalte mindestens eine Person und prüfe vor dem Entfernen, wer dabei ist.",
+        "AddPerson": "Person hinzufügen",
+        "AddNamedPerson": "{name} zu diesem Gespräch hinzufügen",
+        "RemovePerson": "Entfernen",
+        "RemoveNamedPerson": "{name} aus diesem Gespräch entfernen",
+        "RemovePersonHint": "{name} entfernen? Kontakt und frühere Nachrichten bleiben gespeichert; neue Nachrichten hier werden nicht mehr empfangen.",
+        "EditHere": "Hier bearbeiten",
+        "EditContact": "Kontakt bearbeiten",
+        "SharedHistoryHint": "Dieses Gespräch trägt zum gemeinsamen Verlauf bei. Jede Person erinnert sich nur an das, was sie miterlebt hat.",
+        "SeparatePeopleHint": "Änderungen bleiben in diesem Gespräch. Neue Personen nehmen ab jetzt teil.",
+        "SharedPeopleHint": "Neue Personen nehmen ab jetzt teil. Kontaktänderungen gelten überall.",
+        "PeopleBusyHint": "Beende die aktuelle Antwort oder den Anruf, bevor du Personen änderst.",
+        "NoPeopleToAdd": "Keine verfügbaren Kontakte gefunden. Füge zuerst unter Kontakte einen Kontakt hinzu.",
+        "PracticeVersion": "Separate Version",
+        "RoomLabel": "Gespräch",
+        "ThreadLabel": "Gespräch",
+        "UntitledThread": "Unbenanntes Gespräch",
         "ParticipantsLabel": "Teilnehmer",
         "NameLabel": "Name",
         "PersonaLabel": "Persona",
         "Edit": "Bearbeiten",
         "Save": "Speichern",
         "Cancel": "Abbrechen",
-        "DeleteThread": "Thread löschen",
-        "DeleteThreadConfirm": "Thread löschen?",
+        "DeleteThread": "Sitzung löschen",
+        "DeleteThreadConfirm": "Diese gespeicherte Sitzung löschen?",
         "ConfirmDelete": "Löschen bestätigen",
         "ContextLabel": "Kontext",
         "Rename": "Umbenennen",
         "MediaAnalysis": "Medienanalyse",
-        "DangerZone": "Gefahrenzone",
+        "DangerZone": "Gespeicherten Verlauf löschen",
         "Kind": {
           "Persistent": "Dauerhaft",
           "Temporary": "Temporär"
@@ -927,9 +991,47 @@
       },
       "Story": {
         "SupportResponse": "Es tut mir leid, dass du das durchmachst. Du musst damit nicht allein sein. Wenn du akut in Gefahr bist, wende dich jetzt an den örtlichen Notruf oder eine Person deines Vertrauens.",
-        "Branch": "Übungsgeschichte", "BranchMode": "Quellenhintergrund verwenden", "Follow": "Neue Quellen übernehmen", "Pinned": "Diese Version behalten", "Independent": "Eigene Geschichte", "AlternatePremises": "Alternative Annahmen (eine pro Zeile)",
+        "Branch": "Übungsgeschichte",
+        "BranchMode": "Quellenhintergrund verwenden",
+        "Follow": "Neue Quellen übernehmen",
+        "Pinned": "Diese Version behalten",
+        "Independent": "Eigene Geschichte",
+        "AlternatePremises": "Alternative Annahmen (eine pro Zeile)",
         "SaveBeforeUse": "Speichere die Änderungen, bevor du den Fortschritt änderst oder ein Update recherchierst.",
-        "Title": "Lesefortschritt", "Track": "Fassung", "NewTrack": "Neue Fassung", "Work": "Werk", "Edition": "Fassung oder Kontinuität", "Unit": "Einheit", "Total": "Einheiten gesamt", "SourceWiki": "Quellen-Wiki-URL", "AutoAdvance": "Neu recherchierten Hintergrund automatisch übernehmen", "Progress": "Abgeschlossene Einheiten", "UnitNumber": "Einheitennummer", "Through": "Bis hier abschließen", "Complete": "Einheit abschließen", "Remove": "Einheit entfernen", "Sources": "Quellenseiten", "SourceUrl": "URL der Quellenseite", "From": "Von Einheit", "To": "Bis Einheit", "AddSource": "Quelle zuordnen", "SourceHint": "Nur geprüfte Seiten zuordnen. Eine Seite wird erst verwendet, wenn ihr gesamter Bereich abgeschlossen ist.", "UpdatePeople": "Hintergrund der Kontakte aktualisieren", "ReviewUpdate": "Aktualisierung recherchieren", "Ready": "Prüfe diese belegten Änderungen, bevor du sie übernimmst.", "ApplyUpdate": "Auf Kontakte anwenden", "ValidUnit": "Gib eine gültige Einheitennummer ein.", "ValidSource": "Gib eine Quellen-URL und einen gültigen Bereich ein.", "ResearchIdentity": "Identität anhand einer Quelle recherchieren", "NoTrack": "Kein Lesefortschritt angegeben", "Research": "Recherchieren", "ScopedContext": "Geschichte bis zu deinem Stand", "SourceQuotes": "Quellenzitate", "Unknowns": "Unklar oder fehlend", "UseDraft": "Diesen Entwurf verwenden", "ResearchAccepted": "Entwurf ausgewählt"
+        "Title": "Lesefortschritt",
+        "Track": "Fassung",
+        "NewTrack": "Neue Fassung",
+        "Work": "Werk",
+        "Edition": "Fassung oder Kontinuität",
+        "Unit": "Einheit",
+        "Total": "Einheiten gesamt",
+        "SourceWiki": "Quellen-Wiki-URL",
+        "AutoAdvance": "Neu recherchierten Hintergrund automatisch übernehmen",
+        "Progress": "Abgeschlossene Einheiten",
+        "UnitNumber": "Einheitennummer",
+        "Through": "Bis hier abschließen",
+        "Complete": "Einheit abschließen",
+        "Remove": "Einheit entfernen",
+        "Sources": "Quellenseiten",
+        "SourceUrl": "URL der Quellenseite",
+        "From": "Von Einheit",
+        "To": "Bis Einheit",
+        "AddSource": "Quelle zuordnen",
+        "SourceHint": "Nur geprüfte Seiten zuordnen. Eine Seite wird erst verwendet, wenn ihr gesamter Bereich abgeschlossen ist.",
+        "UpdatePeople": "Hintergrund der Kontakte aktualisieren",
+        "ReviewUpdate": "Aktualisierung recherchieren",
+        "Ready": "Prüfe diese belegten Änderungen, bevor du sie übernimmst.",
+        "ApplyUpdate": "Auf Kontakte anwenden",
+        "ValidUnit": "Gib eine gültige Einheitennummer ein.",
+        "ValidSource": "Gib eine Quellen-URL und einen gültigen Bereich ein.",
+        "ResearchIdentity": "Identität anhand einer Quelle recherchieren",
+        "NoTrack": "Kein Lesefortschritt angegeben",
+        "Research": "Recherchieren",
+        "ScopedContext": "Geschichte bis zu deinem Stand",
+        "SourceQuotes": "Quellenzitate",
+        "Unknowns": "Unklar oder fehlend",
+        "UseDraft": "Diesen Entwurf verwenden",
+        "ResearchAccepted": "Entwurf ausgewählt"
       },
       "Contacts": {
         "Archive": "Kontakt archivieren",
@@ -941,6 +1043,9 @@
         "NewPractice": "Neue Übung",
         "NewScenario": "Neues Szenario",
         "EmptyPractice": "Noch keine Übungschats.",
+        "AllConversations": "Alle Gespräche",
+        "FilterConversations": "Gespräche filtern",
+        "NoFilteredConversations": "Noch keine Gespräche in diesem Stil.",
         "Chats": "Chats",
         "Tab": "Kontakte",
         "Add": "Kontakt hinzufügen",
@@ -1172,7 +1277,12 @@
         "LLMToastTitle": "Fehlende Beispielübersetzungen werden generiert…",
         "LLMDone": "Übersetzungen für {count} Lernkarte(n) generiert",
         "LLMDoneWithErrors": "Übersetzungen für {count} Lernkarte(n) generiert, {failed} fehlgeschlagen",
-        "RepairButton": "Reparieren", "ContentDescription": "{count} Karteikarte(n) haben noch keine Bedeutung. Möchtest du sie aus dem Wörterbuch ergänzen?", "ContentToastTitle": "Fehlende Karteninhalte werden ergänzt…", "ContentDone": "{count} Karteikarte(n) ergänzt", "ContentDoneWithErrors": "{count} Karteikarte(n) ergänzt, {failed} konnten nicht ergänzt werden", "ContentFailed": "Karteninhalte konnten nicht ergänzt werden",
+        "RepairButton": "Reparieren",
+        "ContentDescription": "{count} Karteikarte(n) haben noch keine Bedeutung. Möchtest du sie aus dem Wörterbuch ergänzen?",
+        "ContentToastTitle": "Fehlende Karteninhalte werden ergänzt…",
+        "ContentDone": "{count} Karteikarte(n) ergänzt",
+        "ContentDoneWithErrors": "{count} Karteikarte(n) ergänzt, {failed} konnten nicht ergänzt werden",
+        "ContentFailed": "Karteninhalte konnten nicht ergänzt werden",
         "Title": "Fehlende Lernkartendaten",
         "ToastTitle": "Lernkarten werden repariert…"
       },
@@ -1210,11 +1320,18 @@
           "WrongOrthography": "Form nicht erkannt",
           "Marked": "{aspect} als unbekannt markiert"
         },
+        "PlayVideoWithAssistance": "Video mit Hilfestellung abspielen",
+        "AssistanceRecorded": "Hilfen für diese Aufgabe sind gespeichert. Vorgegebene Aspekte zählen nicht als selbstständige Erinnerung.",
+        "SavingRemoval": "Karte wird entfernt…",
+        "RemovalSaveFailed": "Die Karte konnte nicht entfernt werden. Sie wurde möglicherweise geändert. Erneut versuchen oder abbrechen.",
         "SavingRating": "Bewertung wird gespeichert…",
         "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Die Karte ist noch da; versuche es erneut.",
         "PendingRatingsSaveFailed": "Die letzten Bewertungen konnten nicht gespeichert werden. Versuche es erneut.",
+        "PendingRatingChanged": "Deine Karte oder dein Lernstand wurde geändert, bevor diese Antwort gespeichert werden konnte. Wiederhole die aktuelle Karte erneut.",
         "SavingUndo": "Rückgängigmachung wird gespeichert…",
-        "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Die Karte bleibt bewertet; versuche es erneut."
+        "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Die Karte bleibt bewertet; versuche es erneut.",
+        "PreparingQuestion": "Deine nächste Frage wird vorbereitet…",
+        "QuestionSaveFailed": "Diese Frage konnte nicht gespeichert werden. Versuche es erneut, bevor du fortfährst."
       },
       "State": {
         "Learning": "Lernen",
@@ -1473,6 +1590,36 @@
         "ContinueLearning": "Weiterlernen",
         "LearningLanguage": "{language} lernen",
         "TitleDescription": "Wähle eine Option unten aus, um zu beginnen"
+      },
+      "Today": {
+        "Title": "Heute",
+        "Description": "Wähle deine nächste Aktivität oder kehre zu deinem Material zurück.",
+        "Activities": "Lernaktivitäten",
+        "Read": "Lesen",
+        "Watch": "Ansehen",
+        "Practice": "Üben",
+        "Next": "Als Nächstes empfohlen",
+        "ReviewTitle": "Gelerntes behalten",
+        "ReviewReason": "{count} Karten stehen zur Wiederholung an. Rufe sie ab, bevor du Neues hinzufügst.",
+        "ReviewAction": "Wiederholung starten",
+        "PracticeTitle": "Abruf festigen",
+        "PracticeReason": "Dein Lernverlauf enthält {count} noch unsichere Wörter. Übe den Abruf mit deinem Lernplan.",
+        "PracticeAction": "Abruf üben",
+        "AssessmentTitle": "Lernstand ergänzen",
+        "AssessmentReason": "{count} Wörter deines Zielbereichs wurden noch nicht geprüft. Ein kurzer Abrufcheck hilft dem Lernplan, passende Übungen zu wählen.",
+        "AssessmentAction": "Lernstand prüfen",
+        "ContinueTitle": "Zum Material zurückkehren",
+        "ContinueReason": "Setze {material} an der letzten Stelle fort. Untersuche Sprache beim Lesen oder Ansehen.",
+        "ContinueAction": "Weiterlernen",
+        "ReadTitle": "Mit einem Text beginnen",
+        "ReadReason": "Öffne Material, das du verstehen möchtest. Beim Lesen kannst du Wörter untersuchen und üben.",
+        "ReadAction": "Text öffnen",
+        "NoMaterial": "Öffne einen Text oder ein Video. Dein zuletzt genutztes Material erscheint hier.",
+        "PlanSummary": "{known} bekannt · {needsPractice} im Aufbau · {unassessed} ungeprüft",
+        "PlanUnmeasured": "Dein Lernverlauf wächst beim Lesen und Üben.",
+        "ViewPlan": "Lernplan ansehen",
+        "ThisWeek": "Diese Woche",
+        "WeekSummary": "{reviews} Wiederholungen · {newCards} neue Karten"
       }
     },
     "Installer": {
@@ -1583,6 +1730,7 @@
       "Loading": "Plugin-Oberfläche wird geladen..."
     },
     "Knowledge": {
+      "StudyPreferenceSaveFailed": "Deine Lerneinstellung konnte nicht gespeichert werden. Es wurde nichts geändert; versuche es erneut.",
       "Capability": {
         "sense-recognition": "Bedeutung",
         "surface-recognition": "Diese Schreibweise erkennen",
@@ -1612,6 +1760,7 @@
         "Title": "Wissensüberschreibung"
       },
       "Popup": {
+        "SelfAssessment": "Selbsteinschätzung: deine Angabe ohne beobachtete Übung.",
         "Overall": "Gesamt",
         "Basis": "Grundlage",
         "Rate": "Bewerten",
@@ -1621,6 +1770,8 @@
         "Retry": "Erneut versuchen"
       },
       "Projection": {
+        "WordFamiliarity": "Vertrautheit mit dem Wort",
+        "WordFamiliarityScope": "Vertrautheit mit diesem Wort belegt nicht jede Fähigkeit oder einzelne Verwendung. Jeder Aspekt unten wird separat bewertet.",
         "EaseOverall": "Gesamt-Ease des Wortes",
         "EaseDescription": "Ease aus erfassten Ergebnissen. Rechts stehen die Belegschwellen; eigene Angaben können den Status überschreiben.",
         "EaseCurrent": "Aktueller Ease-Wert · {value}",
@@ -1694,7 +1845,13 @@
         },
         "FullGraph": "Vollständigen Graphen öffnen",
         "Prediction": {
-          "None": "Keine Vorhersage."
+          "None": "Für eine Einschätzung eines noch ungeprüften Zugangs fehlt verifizierte Unterstützung. Direkte Übung kann ihn belegen.",
+          "SupportLimited": "Geringe strukturelle Unterstützung",
+          "SupportModerate": "Mittlere strukturelle Unterstützung",
+          "SupportStrong": "Starke strukturelle Unterstützung",
+          "Context": "Basiert auf deinem erfassten Wissen und den installierten Sprachbeziehungen. Nutze dieses Signal zur Auswahl einer Übung.",
+          "Limits": "Dies ist eine heuristische Einschätzung, keine Erfolgswahrscheinlichkeit und kein gemessener Fortschritt. Aufgabenkontext und Behaltenszeitraum wurden nicht bewertet.",
+          "UnavailableSupport": "Das installierte Sprachpaket kann diese Fähigkeit nicht verlässlich einschätzen. Direkte Übung kann sie nachweisen."
         },
         "Adjust": "Anpassen",
         "RetentionTitle": "Wiederholungen",
@@ -1712,7 +1869,18 @@
         "TrajectoryDescription": "Zustände stammen aus erfassten Belegen und eigenen Angaben. Linien halten den Zustand zwischen Beobachtungen; Lücken markieren komprimierte Zeiträume.",
         "TrajectorySparse": "Für einen Verlauf werden weitere Belege über mehrere Tage benötigt.",
         "RetentionDistant": "In nächster Zeit keine Wiederholung fällig",
-        "RetentionUnavailable": "Zeitplan nicht verfügbar"
+        "RetentionUnavailable": "Zeitplan nicht verfügbar",
+        "Record": {
+          "Tab": "Lernverlauf",
+          "Connections": "Verbindungen",
+          "NoChecks": "Diese Aspekte wurden noch nicht geprüft. Versuche beim nächsten Mal, das Wort abzurufen, bevor du nachschlägst.",
+          "Partial": "Ungeprüfte Aspekte bleiben unbewertet, auch wenn ein anderer Aspekt bekannt ist.",
+          "Unchecked": "Noch nicht geprüft ({count})",
+          "Correction": "Anpassen ändert deine Selbsteinschätzung. Es wird kein Abrufversuch aufgezeichnet.",
+          "Trajectory": "Entwicklung im Zeitverlauf",
+          "Support": "Unterstützung durch verwandtes Wissen",
+          "Return": "Zur Aktivität zurück"
+        }
       },
       "Aspect": {
         "Grammar": "Grammatik",
@@ -1911,7 +2079,7 @@
         "EmptyPools": "Derzeit sind keine unerfassten Wörter für eine Stichprobe verfügbar.",
         "DateRequired": "Ein Prüfungs- oder Schulergebnis braucht das Datum des Erreichens.",
         "DateUnknown": "Datum unbekannt",
-        "LiveProgress": "Erfasste Antworten: {count}. Die Einschätzung passt sich deinen Antworten an. Du kannst zum Lernplan zurückkehren und später fortfahren."
+        "LiveProgress": "{count} Antworten · Die nächsten Wörter passen sich deinen Antworten an"
       },
       "Mock": {
         "Title": "Lernstand prüfen",
@@ -2147,7 +2315,7 @@
         "SinglePage": "Einzelseite",
         "SpreadLeftToRight": "Seiten L→R",
         "SpreadRightToLeft": "Seiten R→L",
-        "ToggleUnknownWordsSidebar": "Seitenleiste für unbekannte Wörter umschalten",
+        "ToggleUnknownWordsSidebar": "Wortschatz-Seitenleiste umschalten",
         "ToggleContents": "Inhalt ein-/ausblenden",
         "PreviousPage": "Vorherige Seite",
         "NextPage": "Nächste Seite",
@@ -2201,8 +2369,8 @@
           "Tactile": "Taktil"
         },
         "SimplifyHomeScreen": {
-          "Description": "Startseite als einfaches Schaltflächenraster ohne interaktive Vorschauen anzeigen.",
-          "Label": "Startseite vereinfachen"
+          "Description": "Zeige Lernplan und Wochenaktivität auf der Startseite als kompakte Links.",
+          "Label": "Kompakte Übersicht auf der Startseite"
         }
       },
       "BlurEffect": {
@@ -2337,7 +2505,7 @@
           "Description": "Wähle die Farbe, zu der Prosodiefarben bei starker Prosodie-Evidenz übergehen.",
           "Label": "Überblenden zu",
           "PartOfSpeech": "Wortartfarbe",
-          "White": "Weiß"
+          "Text": "Normaler Text"
         },
         "Palette": {
           "Description": "Passe die vom Sprachpaket definierten Farben für diese Sprache an.",
@@ -2603,9 +2771,16 @@
           },
           "Title": "Tooltip-Verhalten",
           "TriggerMode": {
-            "Description": "Wie das Übersetzungs-Tooltip im Reader ausgelöst wird",
+            "Description": "Wie Wort-Popups beim Lesen, in Untertiteln und Gesprächen geöffnet werden",
             "Label": "Auslösemodus"
           }
+        }
+      },
+      "WordInteractions": {
+        "Title": "Wortinteraktionen",
+        "Size": {
+          "Label": "Größe der Wort-Popups",
+          "Description": "Gilt beim Lesen, für Untertitel und Gespräche. 100% entspricht der Standardgröße im Reader."
         }
       },
       "SRS": {
@@ -3404,7 +3579,8 @@
       },
       "Loading": "Wortschatz wird geladen…",
       "LoadingMore": "Weitere laden...",
-      "SearchHintDetailed": "Suche Wörter und sieh dir deinen Lernstand an.",
+      "Manage": "Karten und Referenzen verwalten",
+      "SearchHintDetailed": "Wähle ein Wort oder seinen Status, um zu sehen, was du weißt und warum. Unter Karten und Referenzen verwalten kannst du es bearbeiten oder speichern.",
       "SearchPlaceholder": "Wörter suchen...",
       "Searching": "Suche...",
       "Trackers": {
@@ -3445,6 +3621,12 @@
         "Ambiguous": "Mehrere Lesarten"
       },
       "NoTranslation": "Keine Übersetzung gefunden",
+      "ResolutionProvider": "Vom installierten Sprachpaket gewählt. Prüfe bei Bedarf die Alternativen.",
+      "DictionaryAlternatives": "Wörterbuchalternativen ({count})",
+      "ResolutionOrder": "Nach Wörterbuchreihenfolge gewählt. Andere Lesungen oder Bedeutungen können passen.",
+      "ResolutionHint": "Mit einem Tokenizer-Hinweis gewählt. Prüfe bei Bedarf die Alternativen.",
+      "ResolutionLearner": "Deine Auswahl für diese Form und diesen Kontext.",
+      "ResolutionSaveFailed": "Die Auswahl konnte nicht gespeichert werden. Versuche es erneut.",
       "Status": {
         "Known": "Bekannt",
         "Learning": "Lernend",
@@ -3494,7 +3676,16 @@
         "Word": "Wort"
       },
       "UnknownWords": "Unbekannte Wörter",
-      "WordCount": "{count} Wörter"
+      "WordCount": "{count} Wörter",
+      "Vocabulary": "Wortschatz",
+      "InspectWord": "{word} ansehen",
+      "SaveOrExclude": "Speichern oder ausschließen",
+      "FilterAndSave": "Filtern und speichern",
+      "InspectionHint": "Sieh dir ein Wort an, um zu erfahren, was du kennst und warum. Speichere es zum Wiederholen oder schließe es vom Lernen aus.",
+      "SaveAllForReview": "Alle zum Wiederholen speichern",
+      "ExcludeFromStudy": "Vom Lernen ausschließen",
+      "EncounteredAs": "Im Text: {surface}",
+      "RecallWords": "{count} Wörter abrufen"
     },
     "WordSync": {
       "ProjectionUnavailable": "Wissensdaten konnten nicht geladen werden. Versuche es erneut.",
@@ -3544,7 +3735,21 @@
       "QueueDetails": "Warum diese Wörter?",
       "QueueExplanation": "Die Auswahl verwendet deine aktuellen Filter und gespeicherten Kenntnisse. Ignorierte Wörter sind ausgeschlossen. Ein Wort muss mindestens eine hier prüfbare Fähigkeit haben, die noch nicht als bekannt bewertet wurde. Zuletzt gezeigte Wörter werden nicht ausgeschlossen.",
       "QueueExclusions": "Ausgeschlossen — ignoriert: {ignored}; außerhalb der Filter: {filtered}; keine geeignete Aufgabe oder nicht mehr passend: {unavailable}.",
-      "InvalidFilter": "Der Filter ist unvollständig oder ungültig. Bearbeite ihn, um fortzufahren."
+      "InvalidFilter": "Der Filter ist unvollständig oder ungültig. Bearbeite ihn, um fortzufahren.",
+      "SelectionSaveFailed": "Die nächste Frage konnte nicht gespeichert werden. Versuche es erneut, um mit der gespeicherten Sitzung fortzufahren.",
+      "PoolChoiceReason": "Aus {count} geeigneten Wörtern dieser Stufe ausgewählt. Deine Antwort aktualisiert nur die hier geprüften Aspekte.",
+      "GraphChoiceReason": "Verbindungen zu verwandtem Wissen gaben diesem Wort auf dieser Stufe Vorrang vor {word}. Prüfe, welche Aspekte du abrufen kannst.",
+      "AssistanceSaveFailed": "Die Hilfen für diese Frage konnten nicht gespeichert werden. Versuche es erneut, bevor du eine Antwort erfasst.",
+      "SavingAssistance": "Hilfen für diese Frage werden gespeichert…",
+      "ReferenceConsulted": "Vor der Antwort wurde eine Referenz angesehen. Diese Begegnung belegt keinen selbstständigen Abruf.",
+      "NavigationSaving": "Dein Fortschritt wird gespeichert…",
+      "NavigationSaveFailed": "Deine Position konnte nicht gespeichert werden. Dieselbe Frage bleibt geöffnet. Versuche es erneut, um fortzufahren.",
+      "ContinueAfterReference": "Weiter",
+      "TestedAccesses": "Geprüft: {aspects}",
+      "GraphChoiceSourceReason": "Verbindungen zu {source} gaben diesem Wort auf dieser Stufe Vorrang vor {word}. Prüfe, welche Aspekte du abrufen kannst.",
+      "MaterialEmptyTitle": "Keine Aufgaben mehr",
+      "MaterialEmptyDescription": "Es wurden keine Antworten erfasst. Für diese Auswahl gibt es keine weiteren Abrufaufgaben. Kehre zum Lesen zurück.",
+      "MaterialPoolChoiceReason": "Aus {count} geeigneten Wörtern dieser Auswahl gewählt. Geprüft werden Aspekte, die noch Übung brauchen."
     },
     "Menu": {
       "About": "Über mLearn",
@@ -3888,16 +4093,31 @@
       }
     },
     "LearningPlan": {
-      "Description": "Lege Lehrplan, Ziel und Tempo fest und wähle eine Aktivität. Dein Ziel misst nicht deine Fähigkeiten.",
+      "Description": "Übe den Abruf mit deinem gewählten Lernbereich. Prüfe deinen Lernstand, wenn du einen Einstiegspunkt suchst.",
       "Activities": "Aktivität wählen",
       "Assess": "Meinen Lernstand einschätzen",
       "AssessDescription": "Du hast diese Sprache schon gelernt? Prüfe, was du erkennst, und finde einen passenden Einstieg.",
-      "WordSyncDescription": "Wiederhole Wörter, denen du begegnest, und entscheide, was du als Nächstes übst.",
+      "WordSyncDescription": "Rufe Wörter deines Zielbereichs ab. Zeige die Antwort und halte fest, was du erinnern konntest.",
       "CharactersDescription": "Erkunde das Schriftsystem und übe einzelne Zeichen.",
       "Progress": "Fortschritt im Lehrplan",
       "Back": "Zurück zum Lernplan",
       "SettingsHint": "Lehrplan, Lernziel, Lerntempo und Ziele verwaltest du im Lernplan.",
-      "Open": "Lernplan öffnen"
+      "Open": "Lernplan öffnen",
+      "Edit": "Plan ändern",
+      "BackToMaterial": "Zurück zum Lesen",
+      "MaterialPractice": "Aus {title} · {count} ausgewählte Wörter"
+    },
+    "StudyEncounter": {
+      "Task": "Erinnern & prüfen",
+      "Retrieve": "Versuche die Aufgabe zu beantworten, bevor du die Antwort aufdeckst.",
+      "Compare": "Vergleiche mit deiner Antwort und bewerte deinen Abruf.",
+      "Reveal": "Antwort aufdecken",
+      "Consequence": "Nicht gewusst: kein Abruf. Schwierig: hergeleitet. Sicher: ohne Hilfe erinnert. Deine Antwort aktualisiert deinen Lernstand und bestimmt die nächste Aufgabe.",
+      "Check": "Überprüfen",
+      "PlacementIntro": "Diese adaptive Prüfung nutzt denselben Ablauf wie die Übung. Wörter ohne direkte Lernbelege werden geprüft; daraus entsteht ein Vorschlag für deinen Lernplan. Andere Wörter bleiben ungeprüft.",
+      "Resume": "Übung fortsetzen",
+      "RetrieveWord": "Erinnere dich an Lesung und Bedeutung, bevor du die Antwort aufdeckst.",
+      "RetrieveAspects": "Prüfe bei dieser Abrufaufgabe: {aspects}. Decke die Antwort zum Vergleich auf."
     }
   }
 }

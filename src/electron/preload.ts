@@ -8,12 +8,13 @@ import type { EffectiveThresholds } from '../shared/knowledge/effectiveKnowledge
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, FlashcardWriteAuthorization, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
+import type { Settings, FlashcardStore, FlashcardWriteAuthorization, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceTtsStopScope, VoiceSessionRequestIdentity, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../shared/knowledgeEvents';
 import type { StorePatch } from '../shared/utils/storePatch';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from '../shared/flashcardRating';
+import type { LearningDecision, LearningDecisionRecord } from '../shared/learningDecision';
 import type { GrammarProjectionMap, KnowledgeEventCursor, KnowledgeEventPage } from '../shared/knowledge/historyQueries';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../shared/graph/ipc';
 import type { GraphRelationType } from '../shared/graph/types';
@@ -110,6 +111,7 @@ const mLearnIPC = {
   changeUILanguage: (langCode: string) => ipcRenderer.send(IPC_CHANNELS.CHANGE_UI_LANGUAGE, langCode),
 
   // ========== Flashcards ==========
+  commitFlashcardRating: (command: FlashcardRatingCommand): Promise<FlashcardRatingCommit> => ipcRenderer.invoke(IPC_CHANNELS.COMMIT_FLASHCARD_RATING, command),
   enqueueFlashcardRating: (command: FlashcardRatingCommand): Promise<number> =>
     ipcRenderer.invoke(IPC_CHANNELS.ENQUEUE_FLASHCARD_RATING, command),
   flushFlashcardRatings: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.FLUSH_FLASHCARD_RATINGS),
@@ -122,6 +124,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.SAVE_FLASHCARD_PATCH, patch, removedCardIds, resetReviewProgress, authorization),
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) =>
     ipcOn(IPC_CHANNELS.FLASHCARDS_LOADED, (_event, flashcards) => callback(flashcards)),
+  onFlashcardLoadError: (callback: (message: string) => void) =>
+    ipcOn(IPC_CHANNELS.FLASHCARDS_LOAD_ERROR, (_event, message) => callback(message)),
   onNewDayFlashcards: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.FORCE_NEWDAY_FLASHCARDS, () => callback()),
   onFlashcardConnectOpen: (callback: () => void) =>
@@ -130,6 +134,9 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback()),
 
   // ========== Knowledge Events ==========
+  recordLearningDecision: (decision: LearningDecision): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.LEARNING_DECISION_RECORD, decision),
+  getLearningDecisionRecord: (id: string): Promise<LearningDecisionRecord | null> => ipcRenderer.invoke(IPC_CHANNELS.LEARNING_DECISION_GET, id),
+  getRatingUndoHistory: (surface: string): Promise<import('../shared/retractionRecovery').PendingRetraction[]> => ipcRenderer.invoke(IPC_CHANNELS.RATING_UNDO_HISTORY, surface),
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, eventsByKey),
   queryKnowledgeEvents: (keys: string[]): Promise<KnowledgeEventLog> => readKnowledgeEventPages(keys),
@@ -254,7 +261,7 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.READER_CTX_MENU_COMMAND, (_event, command) => callback(command)),
   openWindow: (payload: OpenWindowPayload) => ipcRenderer.send(IPC_CHANNELS.OPEN_WINDOW, payload),
   closeWindow: () => ipcRenderer.send(IPC_CHANNELS.CLOSE_WINDOW),
-  reportStartupState: (state: 'language' | 'library' | 'backend' | 'ready') => ipcRenderer.send(IPC_CHANNELS.STARTUP_RENDERER_READY, state),
+  reportStartupState: (state: 'language' | 'library' | 'library-error' | 'backend' | 'ready') => ipcRenderer.send(IPC_CHANNELS.STARTUP_RENDERER_READY, state),
   minimizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MINIMIZE_WINDOW),
   maximizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MAXIMIZE_WINDOW),
   restoreWindow: () => ipcRenderer.send(IPC_CHANNELS.RESTORE_WINDOW),
@@ -525,26 +532,26 @@ const mLearnIPC = {
     ipcRenderer.send(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, language),
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD_PROGRESS, (_event, status) => callback(status)),
-  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_START_SESSION, language, mode, silenceThreshold, ttsProvider),
-  voiceStopSession: () =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_STOP_SESSION),
-  voiceSendAudioChunk: (samples: Float32Array) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_AUDIO_CHUNK, samples),
-  voiceFlush: () =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_FLUSH),
-  voiceUpdateSilenceThreshold: (threshold: number) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, threshold),
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string, request?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_START_SESSION, language, mode, silenceThreshold, ttsProvider, request),
+  voiceStopSession: (scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_STOP_SESSION, scope),
+  voiceSendAudioChunk: (samples: Float32Array, scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_AUDIO_CHUNK, samples, scope),
+  voiceFlush: (scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_FLUSH, scope),
+  voiceUpdateSilenceThreshold: (threshold: number, scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, threshold, scope),
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_STT_RESULT, (_event, result) => callback(result)),
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_VAD_EVENT, (_event, vadEvent) => callback(vadEvent)),
-  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed, voiceSampleId, provider, cloudAuthToken),
-  voiceTtsStop: () =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STOP),
-  voiceTtsState: (active: boolean) =>
-    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STATE, active),
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string, request?: VoiceTtsRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_GENERATE, text, language, speed, voiceSampleId, provider, cloudAuthToken, request),
+  voiceTtsStop: (scope?: VoiceTtsStopScope) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STOP, scope),
+  voiceTtsState: (active: boolean, scope?: VoiceSessionRequestIdentity) =>
+    ipcRenderer.send(IPC_CHANNELS.VOICE_TTS_STATE, active, scope),
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) =>
     ipcOn(IPC_CHANNELS.VOICE_TTS_AUDIO, (_event, audio) => callback(audio)),
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) =>

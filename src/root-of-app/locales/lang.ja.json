@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "LibraryRecovery": {
+      "OpenProtection": "データ保護と復元の設定",
+      "Title": "ライブラリを開けませんでした",
+      "Description": "保存されたライブラリを読み込めませんでした。データを保護するため、変更を一時停止しています。保存先にアクセスできることを確認して、もう一度お試しください。"
+    },
     "GraphInspector": {
       "Title": "グラフインスペクター",
       "Unavailable": "使用中の言語グラフはインストールされていません。",
@@ -297,7 +302,14 @@
           "Title": "エージェントの記憶"
         },
         "Boundary": {
-          "Title": "会話の境界確認", "Provider": "確認方法", "Description": "返信は保存前に確認されます。ローカル分類器で非公開の一次確認を追加できます。最終的な判断は選択したモデルが行います。", "Actor": "モデルによる確認", "Local": "ローカルCPUガード＋モデル確認", "LocalDescription": "Qwen3Guard-Gen 0.6B、約484 MB。CPUで動作します。", "Install": "ローカルガードをインストール", "Installed": "ローカルガードをインストール済み"
+          "Title": "会話の境界確認",
+          "Provider": "確認方法",
+          "Description": "返信は保存前に確認されます。ローカル分類器で非公開の一次確認を追加できます。最終的な判断は選択したモデルが行います。",
+          "Actor": "モデルによる確認",
+          "Local": "ローカルCPUガード＋モデル確認",
+          "LocalDescription": "Qwen3Guard-Gen 0.6B、約484 MB。CPUで動作します。",
+          "Install": "ローカルガードをインストール",
+          "Installed": "ローカルガードをインストール済み"
         },
         "Checker": {
           "Title": "校正エージェント",
@@ -593,7 +605,10 @@
         "ReadyHint": "メッセージを送るか、AIに会話を始めてもらいましょう。",
         "StartConversation": "AIに始めてもらう",
         "Title": "会話を始める",
-        "NewConversation": "新しい会話"
+        "NewConversation": "新しい会話",
+        "ReadyTitle": "会話の準備ができました",
+        "SavedTitle": "会話を保存しました",
+        "SavedUnavailableHint": "AIサービスを利用できません。会話を始める前にAI設定を開いて接続してください。"
       },
       "ExperimentalBanner": "実験的機能 — AIの回答にはエラーが含まれる場合があります。重要な言語ポイントは確認してください。",
       "Disclaimer": "AIは間違えることがあります。回答を再確認してください。",
@@ -694,12 +709,17 @@
       "TriggerKeyHover": "{key} + ホバー",
       "TriggerLongHover": "長押しホバー",
       "Voice": {
+        "AiGroupCall": "AIグループ通話",
+        "AiCall": "AI通話",
+        "PeopleInCall": "この通話の参加者",
+        "ReturnToChat": "チャットに戻る",
+        "EndAndReturn": "通話を終了してチャットに戻る",
         "BackendAuthError": "音声バックエンドへの接続に失敗しました。もう一度お試しください。",
         "Aftermath": {
           "Duration": "所要時間",
-          "Messages": "メッセージ数",
+          "Messages": "自分の発話数",
           "Mistakes": "指摘されたミス",
-          "NoMistakes": "ミスは指摘されませんでした。お疲れ様でした！",
+          "NoMistakes": "この通話では修正が記録されていません。",
           "Title": "セッションサマリー"
         },
         "CloudTts": "Cloud",
@@ -722,6 +742,8 @@
         "Listening": "聞いています…",
         "LoadingTtsModel": "音声合成モデルを読み込み中…",
         "MicPermission": "音声通話にはマイクへのアクセスが必要です。",
+        "SynthesisDeclined": "ローカル音声合成が許可されなかったため、読み上げを停止しました。通話は継続しています。",
+        "ContactVoices": "各連絡先の音声サンプルを使用します。サンプルがない連絡先にはシステム音声を使用します。",
         "Microphone": "マイク",
         "DefaultMicrophone": "デフォルトのマイク",
         "MicrophoneNumber": "マイク {index}",
@@ -747,7 +769,25 @@
         "VoiceSample": "ストリーミング音声クローン",
         "LightweightVoice": "軽量ボイス",
         "SystemVoice": "システムボイス",
-        "CpuWarning": "音声処理が CPU で実行されているため、リアルタイム音声が遅れる場合があります。音声品質には影響しません。"
+        "CpuWarning": "音声処理が CPU で実行されているため、リアルタイム音声が遅れる場合があります。音声品質には影響しません。",
+        "PreparingMicrophone": "マイクを準備しています…",
+        "CallsUnavailable": "AIとの音声通話にはデスクトップアプリが必要です。ここではテキストで会話を続けられます。",
+        "CaptureFailed": "マイクを起動できませんでした。オーディオ機器を確認して、もう一度通話を開始してください。",
+        "VisualActivity": "画面で回答する練習です。",
+        "MemoryRecordFailed": "会話のメモを保存できなかったため、返答は読み上げられませんでした。",
+        "Delivery": {
+          "pending": "この返答の音声記録はありません。",
+          "playing": "この返答の一部が話されました。",
+          "completed": "通話で話した内容です。",
+          "interrupted": "音声が中断されました。",
+          "stopped": "音声が停止しました。",
+          "failed": "この返答の音声出力に失敗しました。",
+          "Estimated": "最後に話したフレーズは推定です。",
+          "Generated": "返答全文",
+          "GeneratedDescription": "音声用に用意した返答の全文です。実際に話した内容として記録されたのは、上の書き起こしのみです。"
+        },
+        "NoAudio": "再生可能な音声がないまま合成が終了しました。応答は再生済みとして記録されていません。",
+        "DeliveryRecordFailed": "再生記録を保存できませんでした。音声は停止され、再生は未確認のままです。"
       },
       "Memory": {
         "ClearAll": "すべての記憶を消去",
@@ -764,14 +804,14 @@
         "TemporaryPractice": "一時的な練習",
         "Title": "会話",
         "NewConversation": "新しい会話",
-        "UntitledThread": "無題のスレッド",
+        "UntitledThread": "無題の会話",
         "Started": "開始: {date}",
         "NoMatches": "一致する会話はありません"
       },
       "LivingWorld": {
         "ConsentTitle": "Living Worldを有効にしますか？",
-        "ConsentHint": "Living Worldが無効です。この会話は永続的な世界に保存され、思い出や関係、変化がそこに残ります。続けるにはLiving Worldを有効にするか、一時的な練習のままでいてください。",
-        "EnableAndContinue": "Living Worldを有効にして続ける",
+        "ConsentHint": "共有の履歴は無効です。連絡先や関係にこの会話を反映するには共有の記憶を有効にするか、個別の履歴を選んでください。",
+        "EnableAndContinue": "共有の記憶を有効にして続ける",
         "NotNow": "今はしない"
       },
       "NewConversation": {
@@ -781,7 +821,7 @@
         "GeneratedNotice": "これは生成された架空の状況で、原作設定を調査したものではありません。開始する前に確認してください。",
         "PrivatePreview": "非公開の初期状態 — 確認用の表示で、全員に共有される情報ではありません。",
         "Scene": "状況",
-        "TemporaryHint": "この会話は別に保存されます。ここでの記憶や編集はあなたの世界を変更しません。",
+        "TemporaryHint": "個別に保存します。ここでのメッセージや記憶は、共有している関係に影響しません。",
         "Title": "新しい会話",
         "Hint": "会話の相手を選び、必要なら目標を設定します。",
         "Placeholder": "何について話したり練習したりしたいですか？",
@@ -796,10 +836,19 @@
         "IntentLabel": "目標（任意）",
         "PreparedGoalLabel": "練習のテーマ",
         "ToggleParticipant": "{name} を会話に加える",
-        "ScopeLabel": "どこに保存しますか？",
-        "ScopeTemporary": "一時的",
-        "ScopePersistent": "自分の世界",
-        "PersistentHint": "ここでの会話、記憶、関係は永続的な世界の一部になります。"
+        "ScopeLabel": "会話の履歴",
+        "ScopeTemporary": "個別の履歴",
+        "ScopePersistent": "共有の履歴",
+        "PersistentHint": "ここでのメッセージ、記憶、関係は共有する継続性の一部になります。",
+        "Purpose": "会話のスタイル",
+        "Conversation": "会話",
+        "CoachedPractice": "学習サポート付きの練習",
+        "ConversationHint": "参加者は役柄に沿って話します。言語学習の指導は求めません。",
+        "PracticeHint": "言語のフィードバックや目的に合った練習を求めます。",
+        "SetupPlaceholder": "状況や練習の目的を説明するか、下の連絡先を選んでください。",
+        "SetupHint": "連絡先の選択、状況の説明、または両方ができます。選択した全員が参加できます。",
+        "OptionalSituation": "状況（任意）",
+        "SelectedPeople": "選択した参加者：{count}"
       },
       "Integration": {
         "ScenarioNeedsRoom": "この状況を引き継ぐにはルームを選択してください。",
@@ -811,9 +860,9 @@
         "Pending": "統合は保留中です。準備された変更はまだ世界に反映されていません。再試行してください。",
         "Interrupted": "統合の確認が必要です。結果は以下をご覧ください。",
         "Retry": "統合を再試行",
-        "Title": "自分の世界に統合",
-        "PanelHint": "このスレッドは一時的な練習です。受け入れる前に、永続的な世界の一部にする内容を確認してください。",
-        "Open": "統合を確認",
+        "Title": "共有履歴に追加",
+        "PanelHint": "この独立した会話の記憶や関係から、共有するものを選びます。適用する前に変更内容を確認してください。",
+        "Open": "共有内容を確認",
         "BoundaryHint": "このスレッドは一時的なものです。以下で選択した項目だけがあなたの世界の一部になります。",
         "DestinationLabel": "統合先",
         "DestinationHint": "選択した記憶の目撃者は保持されます。人物の統合だけではルームに参加しません。",
@@ -858,23 +907,38 @@
         "Decline": "拒否"
       },
       "Details": {
-        "PracticeVersion": "この練習での設定",
-        "RoomLabel": "ルーム",
-        "ThreadLabel": "スレッド",
-        "UntitledThread": "無題のスレッド",
+        "DeleteConversationConfirm": "この会話とメッセージを削除しますか？元に戻せません。",
+        "DeleteConversation": "会話を削除",
+        "RosterChanged": "会話の参加者が変わりました。少なくとも1人は残し、外す前に現在の参加者を確認してください。",
+        "AddPerson": "参加者を追加",
+        "AddNamedPerson": "{name}をこの会話に追加",
+        "RemovePerson": "外す",
+        "RemoveNamedPerson": "{name}をこの会話から外す",
+        "RemovePersonHint": "{name}を外しますか？連絡先と過去のメッセージは保存されますが、今後この会話の新しいメッセージは届かなくなります。",
+        "EditHere": "ここで編集",
+        "EditContact": "連絡先を編集",
+        "SharedHistoryHint": "この会話は共有履歴に反映されます。各参加者は自分が見聞きしたことだけを覚えます。",
+        "SeparatePeopleHint": "変更はこの会話だけに適用されます。追加した参加者はここから参加します。",
+        "SharedPeopleHint": "新しい参加者はここから参加します。連絡先の編集はすべての会話に適用されます。",
+        "PeopleBusyHint": "参加者を変更する前に、現在の返答または通話を終了してください。",
+        "NoPeopleToAdd": "該当する利用可能な連絡先がありません。先に「連絡先」で追加してください。",
+        "PracticeVersion": "この会話専用",
+        "RoomLabel": "会話",
+        "ThreadLabel": "会話",
+        "UntitledThread": "無題の会話",
         "ParticipantsLabel": "参加者",
         "NameLabel": "名前",
         "PersonaLabel": "ペルソナ",
         "Edit": "編集",
         "Save": "保存",
         "Cancel": "キャンセル",
-        "DeleteThread": "スレッドを削除",
-        "DeleteThreadConfirm": "スレッドを削除しますか？",
+        "DeleteThread": "セッションを削除",
+        "DeleteThreadConfirm": "この保存済みセッションを削除しますか？",
         "ConfirmDelete": "削除を確定",
         "ContextLabel": "コンテキスト",
         "Rename": "名前を変更",
         "MediaAnalysis": "メディア分析",
-        "DangerZone": "危険な操作",
+        "DangerZone": "保存した履歴を削除",
         "Kind": {
           "Persistent": "永続",
           "Temporary": "一時"
@@ -927,9 +991,47 @@
       },
       "Story": {
         "SupportResponse": "つらい状況にいるのですね。一人で抱えなくて大丈夫です。差し迫った危険がある場合は、今すぐ地域の緊急窓口か信頼できる人に連絡してください。",
-        "Branch": "練習用の物語", "BranchMode": "出典の背景を使う", "Follow": "新しい出典に追随", "Pinned": "この版を保持", "Independent": "別の物語", "AlternatePremises": "別の前提（1行に1件）",
+        "Branch": "練習用の物語",
+        "BranchMode": "出典の背景を使う",
+        "Follow": "新しい出典に追随",
+        "Pinned": "この版を保持",
+        "Independent": "別の物語",
+        "AlternatePremises": "別の前提（1行に1件）",
         "SaveBeforeUse": "進捗の変更や更新の調査を行う前に、この変更を保存してください。",
-        "Title": "物語の進捗", "Track": "作品の版", "NewTrack": "新しい版", "Work": "作品", "Edition": "版・世界線", "Unit": "単位名", "Total": "総単位数", "SourceWiki": "出典WikiのURL", "AutoAdvance": "新たに調べた背景を自動で反映", "Progress": "完了した単位", "UnitNumber": "単位番号", "Through": "ここまで完了", "Complete": "単位を完了", "Remove": "単位を外す", "Sources": "出典ページ", "SourceUrl": "出典ページのURL", "From": "開始単位", "To": "終了単位", "AddSource": "出典を追加", "SourceHint": "確認済みのページだけを登録してください。範囲全体を完了した場合のみ使用されます。", "UpdatePeople": "連絡先の背景を更新", "ReviewUpdate": "更新内容を調査", "Ready": "出典に基づく変更を確認してから適用してください。", "ApplyUpdate": "連絡先に適用", "ValidUnit": "有効な単位番号を入力してください。", "ValidSource": "出典URLと有効な単位範囲を入力してください。", "ResearchIdentity": "出典から人物を調査", "NoTrack": "進捗の指定なし", "Research": "調査", "ScopedContext": "現在の進捗までの背景", "SourceQuotes": "出典の引用", "Unknowns": "不明・未確認", "UseDraft": "この下書きを使用", "ResearchAccepted": "下書きを選択済み"
+        "Title": "物語の進捗",
+        "Track": "作品の版",
+        "NewTrack": "新しい版",
+        "Work": "作品",
+        "Edition": "版・世界線",
+        "Unit": "単位名",
+        "Total": "総単位数",
+        "SourceWiki": "出典WikiのURL",
+        "AutoAdvance": "新たに調べた背景を自動で反映",
+        "Progress": "完了した単位",
+        "UnitNumber": "単位番号",
+        "Through": "ここまで完了",
+        "Complete": "単位を完了",
+        "Remove": "単位を外す",
+        "Sources": "出典ページ",
+        "SourceUrl": "出典ページのURL",
+        "From": "開始単位",
+        "To": "終了単位",
+        "AddSource": "出典を追加",
+        "SourceHint": "確認済みのページだけを登録してください。範囲全体を完了した場合のみ使用されます。",
+        "UpdatePeople": "連絡先の背景を更新",
+        "ReviewUpdate": "更新内容を調査",
+        "Ready": "出典に基づく変更を確認してから適用してください。",
+        "ApplyUpdate": "連絡先に適用",
+        "ValidUnit": "有効な単位番号を入力してください。",
+        "ValidSource": "出典URLと有効な単位範囲を入力してください。",
+        "ResearchIdentity": "出典から人物を調査",
+        "NoTrack": "進捗の指定なし",
+        "Research": "調査",
+        "ScopedContext": "現在の進捗までの背景",
+        "SourceQuotes": "出典の引用",
+        "Unknowns": "不明・未確認",
+        "UseDraft": "この下書きを使用",
+        "ResearchAccepted": "下書きを選択済み"
       },
       "Contacts": {
         "Archive": "連絡先をアーカイブ",
@@ -941,6 +1043,9 @@
         "NewPractice": "新しい練習",
         "NewScenario": "新しいシナリオ",
         "EmptyPractice": "練習チャットはまだありません。",
+        "AllConversations": "すべての会話",
+        "FilterConversations": "会話を絞り込む",
+        "NoFilteredConversations": "この形式の会話はまだありません。",
         "Chats": "チャット",
         "Tab": "連絡先",
         "Add": "連絡先を追加",
@@ -1172,7 +1277,12 @@
         "LLMToastTitle": "不足している例文翻訳を生成中…",
         "LLMDone": "{count}枚のカードの翻訳を生成しました",
         "LLMDoneWithErrors": "{count}枚のカードの翻訳を生成、{failed}件失敗",
-        "RepairButton": "修復", "ContentDescription": "{count}枚のカードにまだ意味がありません。辞書から補完しますか？", "ContentToastTitle": "カードの不足内容を作成中…", "ContentDone": "{count}枚のカードに内容を補完しました", "ContentDoneWithErrors": "{count}枚のカードに内容を補完しました（{failed}枚は失敗）", "ContentFailed": "カードの内容を補完できませんでした",
+        "RepairButton": "修復",
+        "ContentDescription": "{count}枚のカードにまだ意味がありません。辞書から補完しますか？",
+        "ContentToastTitle": "カードの不足内容を作成中…",
+        "ContentDone": "{count}枚のカードに内容を補完しました",
+        "ContentDoneWithErrors": "{count}枚のカードに内容を補完しました（{failed}枚は失敗）",
+        "ContentFailed": "カードの内容を補完できませんでした",
         "Title": "フラッシュカードデータの不足",
         "ToastTitle": "フラッシュカードを修復中…"
       },
@@ -1210,11 +1320,18 @@
           "WrongOrthography": "表記を認識できなかった",
           "Marked": "{aspect}を未知にしました"
         },
+        "PlayVideoWithAssistance": "ヒントとして動画を再生",
+        "AssistanceRecorded": "この問題のヒントを記録しました。提示された項目は自力で思い出した証拠にはなりません。",
+        "SavingRemoval": "カードを削除しています…",
+        "RemovalSaveFailed": "カードを削除できませんでした。変更された可能性があります。再試行するか、キャンセルしてください。",
         "SavingRating": "評価を保存しています…",
         "SaveFailed": "評価を保存できませんでした。カードは残っています。もう一度お試しください。",
         "PendingRatingsSaveFailed": "最近の評価を保存できませんでした。もう一度お試しください。",
+        "PendingRatingChanged": "回答を保存する前にカードまたは学習状態が変更されました。現在のカードをもう一度復習してください。",
         "SavingUndo": "取り消しを保存しています…",
-        "UndoSaveFailed": "取り消しを保存できませんでした。カードは評価済みのままです。もう一度お試しください。"
+        "UndoSaveFailed": "取り消しを保存できませんでした。カードは評価済みのままです。もう一度お試しください。",
+        "PreparingQuestion": "次の問題を準備しています…",
+        "QuestionSaveFailed": "この問題を保存できませんでした。続ける前にもう一度お試しください。"
       },
       "State": {
         "Learning": "学習中",
@@ -1473,6 +1590,36 @@
         "ContinueLearning": "学習を続ける",
         "LearningLanguage": "{language}を学習中",
         "TitleDescription": "下の項目を選択して始めましょう"
+      },
+      "Today": {
+        "Title": "今日",
+        "Description": "次の活動を選ぶか、学習中の教材に戻りましょう。",
+        "Activities": "学習活動",
+        "Read": "読む",
+        "Watch": "見る",
+        "Practice": "練習",
+        "Next": "おすすめの次の活動",
+        "ReviewTitle": "学んだことを覚えておく",
+        "ReviewReason": "復習の時期を迎えたカードが{count}枚あります。新しい内容を増やす前に思い出しましょう。",
+        "ReviewAction": "復習を始める",
+        "PracticeTitle": "思い出す力を鍛える",
+        "PracticeReason": "学習記録にはまだ定着していない単語が{count}語あります。学習プランに沿って思い出す練習をしましょう。",
+        "PracticeAction": "思い出す練習",
+        "AssessmentTitle": "学習記録を補う",
+        "AssessmentReason": "目標範囲の{count}語が未評価です。短い確認で、プランが適切な練習を選びやすくなります。",
+        "AssessmentAction": "今のレベルを確認",
+        "ContinueTitle": "教材に戻る",
+        "ContinueReason": "{material}を前回の続きから再開します。出会った言葉を調べながら進めましょう。",
+        "ContinueAction": "学習を続ける",
+        "ReadTitle": "読みたいものから始める",
+        "ReadReason": "理解したい教材を開きましょう。読みながら単語を調べ、練習できます。",
+        "ReadAction": "文章を開く",
+        "NoMaterial": "文章や動画を開いて始めましょう。最近の教材がここに表示されます。",
+        "PlanSummary": "習得済み {known} · 学習中 {needsPractice} · 未評価 {unassessed}",
+        "PlanUnmeasured": "読むことや練習を通じて学習記録が育ちます。",
+        "ViewPlan": "学習プランを見る",
+        "ThisWeek": "今週",
+        "WeekSummary": "復習 {reviews}回 · 新しいカード {newCards}枚"
       }
     },
     "Installer": {
@@ -1583,6 +1730,7 @@
       "Loading": "プラグインUIを読み込み中..."
     },
     "Knowledge": {
+      "StudyPreferenceSaveFailed": "学習の設定を保存できませんでした。変更は適用されていません。もう一度お試しください。",
       "Capability": {
         "sense-recognition": "意味",
         "surface-recognition": "この表記を認識",
@@ -1612,6 +1760,7 @@
         "Title": "知識の上書き"
       },
       "Popup": {
+        "SelfAssessment": "自己評価：課題の結果ではなく、自分で申告した知識です。",
         "Overall": "全体",
         "Basis": "根拠",
         "Rate": "評価",
@@ -1621,6 +1770,8 @@
         "Retry": "再試行"
       },
       "Projection": {
+        "WordFamiliarity": "単語へのなじみ",
+        "WordFamiliarityScope": "この単語になじみがあっても、すべての技能や個々の用法を習得したとは限りません。以下の各項目は個別に評価されます。",
         "EaseOverall": "単語全体の易しさ",
         "EaseDescription": "記録された結果から導かれる易しさです。右軸は観測に基づく状態の閾値を示します。明示的な自己申告は状態を上書きできます。",
         "EaseCurrent": "現在の易しさ · {value}",
@@ -1694,7 +1845,13 @@
         },
         "FullGraph": "完全なグラフを開く",
         "Prediction": {
-          "None": "予測はありません。"
+          "None": "未測定の能力を推定するための確かな根拠がまだありません。直接練習して確認できます。",
+          "SupportLimited": "構造的な手がかりは少ない",
+          "SupportModerate": "構造的な手がかりは中程度",
+          "SupportStrong": "構造的な手がかりは多い",
+          "Context": "現在記録されている知識と、インストール済みの言語関係に基づきます。練習を選ぶ目安として使えます。",
+          "Limits": "これは手がかりの推定であり、成功確率や測定済みの進歩ではありません。課題の文脈や保持期間は評価していません。",
+          "UnavailableSupport": "インストール済みの言語パッケージでは、この能力を信頼できる形で推定できません。実際の練習で確認できます。"
         },
         "Adjust": "調整",
         "RetentionTitle": "復習",
@@ -1712,7 +1869,18 @@
         "TrajectoryDescription": "状態は記録された観測と明示的な自己申告に基づきます。線は観測間の状態を保持し、途切れは圧縮された期間を示します。",
         "TrajectorySparse": "推移の表示には複数日にわたる記録が必要です。",
         "RetentionDistant": "当面は復習の予定なし",
-        "RetentionUnavailable": "予定を取得できません"
+        "RetentionUnavailable": "予定を取得できません",
+        "Record": {
+          "Tab": "学習記録",
+          "Connections": "関連情報",
+          "NoChecks": "これらの側面はまだ評価されていません。次に出会ったら、参考情報を開く前に単語を思い出してみましょう。",
+          "Partial": "ある側面を習得していても、未確認の側面は未評価のままです。",
+          "Unchecked": "まだ確認していない側面（{count}）",
+          "Correction": "調整は自己評価を変更します。思い出すテストの結果は記録しません。",
+          "Trajectory": "時間による変化",
+          "Support": "関連する知識からの支援",
+          "Return": "活動に戻る"
+        }
       },
       "Aspect": {
         "Grammar": "文法",
@@ -1911,7 +2079,7 @@
         "EmptyPools": "現在、サンプルできる未測定の単語がありません。",
         "DateRequired": "試験・学校の結果には達成日が必要です。",
         "DateUnknown": "日付不明",
-        "LiveProgress": "回答数：{count}。回答に応じて評価内容が調整されます。学習プランに戻り、後で再開できます。"
+        "LiveProgress": "回答数：{count} · 回答に合わせて次の単語を選びます"
       },
       "Mock": {
         "Title": "学習チェック",
@@ -2147,7 +2315,7 @@
         "SinglePage": "単一ページ",
         "SpreadLeftToRight": "ページ 左→右",
         "SpreadRightToLeft": "ページ 右→左",
-        "ToggleUnknownWordsSidebar": "未習得単語サイドバーを切り替え",
+        "ToggleUnknownWordsSidebar": "語彙サイドバーを切り替え",
         "ToggleContents": "目次の表示切替",
         "PreviousPage": "前のページ",
         "NextPage": "次のページ",
@@ -2201,8 +2369,8 @@
           "Tactile": "タクタイル"
         },
         "SimplifyHomeScreen": {
-          "Description": "ホーム画面をインタラクティブなプレビューなしのシンプルなボタングリッドで表示します。",
-          "Label": "ホーム画面をシンプルにする"
+          "Description": "ホームの学習計画と週間の活動をコンパクトなリンクで表示します。",
+          "Label": "ホームの概要をコンパクトに表示"
         }
       },
       "BlurEffect": {
@@ -2337,7 +2505,7 @@
           "Description": "韻律エビデンスが強いときに韻律カラーを近づける色を選びます。",
           "Label": "混合先",
           "PartOfSpeech": "品詞カラー",
-          "White": "白"
+          "Text": "通常の文字色"
         },
         "Palette": {
           "Description": "この言語パッケージで定義された色を変更します。",
@@ -2603,9 +2771,16 @@
           },
           "Title": "単語ホバー動作",
           "TriggerMode": {
-            "Description": "リーダーで単語翻訳ポップアップがトリガーされる方法",
+            "Description": "読書、字幕、会話で単語ポップアップを開く方法",
             "Label": "ホバートリガーモード"
           }
+        }
+      },
+      "WordInteractions": {
+        "Title": "単語の操作",
+        "Size": {
+          "Label": "単語ポップアップのサイズ",
+          "Description": "読書、字幕、会話で共通です。100%はリーダーの標準サイズです。"
         }
       },
       "SRS": {
@@ -3404,7 +3579,8 @@
       },
       "Loading": "語彙を読み込み中…",
       "LoadingMore": "さらに読み込み中...",
-      "SearchHintDetailed": "単語を検索して学習状況を確認できます。",
+      "Manage": "カードと参照情報を管理",
+      "SearchHintDetailed": "単語やその状態を選ぶと、何を知っているかとその根拠を確認できます。「カードと参照情報を管理」で編集や保存ができます。",
       "SearchPlaceholder": "単語を検索...",
       "Searching": "検索中...",
       "Trackers": {
@@ -3445,6 +3621,12 @@
         "Ambiguous": "複数の解釈"
       },
       "NoTranslation": "翻訳が見つかりません",
+      "ResolutionProvider": "インストール済み言語パッケージの選択です。文脈に合わなければ候補を確認してください。",
+      "DictionaryAlternatives": "辞書の候補（{count}）",
+      "ResolutionOrder": "辞書の順序で選択しています。別の読みや意味が合う場合があります。",
+      "ResolutionHint": "分かち書きの情報で選択しています。文脈に合わなければ候補を確認してください。",
+      "ResolutionLearner": "この表記と文脈についての選択です。",
+      "ResolutionSaveFailed": "選択を保存できませんでした。もう一度お試しください。",
       "Status": {
         "Known": "既知",
         "Learning": "学習中",
@@ -3494,7 +3676,16 @@
         "Word": "単語"
       },
       "UnknownWords": "未知の単語",
-      "WordCount": "{count} 語"
+      "WordCount": "{count} 語",
+      "Vocabulary": "語彙",
+      "InspectWord": "{word}を詳しく見る",
+      "SaveOrExclude": "保存・学習から除外",
+      "FilterAndSave": "絞り込み・保存",
+      "InspectionHint": "語を選ぶと、習得状況とその根拠を確認できます。復習用に保存するか、学習から除外できます。",
+      "SaveAllForReview": "すべて復習用に保存",
+      "ExcludeFromStudy": "学習から除外",
+      "EncounteredAs": "本文中の形：{surface}",
+      "RecallWords": "{count}語を思い出して確認"
     },
     "WordSync": {
       "ProjectionUnavailable": "学習データを読み込めませんでした。もう一度お試しください。",
@@ -3544,7 +3735,21 @@
       "QueueDetails": "この単語が選ばれる理由",
       "QueueExplanation": "現在のフィルターと記録済みの知識に基づいて選ばれます。無視した単語は除外されます。この学習で確認可能で、まだ既知と評価されていない技能が少なくとも一つ必要です。最近表示された履歴による除外はありません。",
       "QueueExclusions": "除外 — 無視：{ignored}、フィルター対象外：{filtered}、適切な問題なし・対象外に変更：{unavailable}。",
-      "InvalidFilter": "フィルターが未完成または無効です。編集して続けてください。"
+      "InvalidFilter": "フィルターが未完成または無効です。編集して続けてください。",
+      "SelectionSaveFailed": "次の問題を保存できませんでした。保存済みのセッションから続けるには再試行してください。",
+      "PoolChoiceReason": "このレベルの対象語 {count} 個から選びました。回答で更新されるのは、この問題で確認する側面だけです。",
+      "GraphChoiceReason": "関連する知識とのつながりにより、このレベルでは {word} よりこの語を優先しました。どの側面を思い出せるか確認しましょう。",
+      "AssistanceSaveFailed": "この問題で表示したヒントを保存できませんでした。回答を記録する前に再試行してください。",
+      "SavingAssistance": "この問題のヒントを保存中…",
+      "ReferenceConsulted": "回答前に参考情報を確認しました。この回答は自力で思い出せた証拠にはなりません。",
+      "NavigationSaving": "現在の位置を保存中…",
+      "NavigationSaveFailed": "現在の位置を保存できませんでした。同じ問題が開いたままです。再試行して続けてください。",
+      "ContinueAfterReference": "続ける",
+      "TestedAccesses": "確認する側面：{aspects}",
+      "GraphChoiceSourceReason": "{source} とのつながりにより、このレベルでは {word} よりこの語を優先しました。どの側面を思い出せるか確認しましょう。",
+      "MaterialEmptyTitle": "残りの問題はありません",
+      "MaterialEmptyDescription": "回答は記録されていません。この選択には残りの確認問題がありません。読書に戻って続けてください。",
+      "MaterialPoolChoiceReason": "この選択の確認可能な{count}語から選びました。練習が必要な項目を確認します。"
     },
     "Menu": {
       "About": "mLearnについて",
@@ -3888,16 +4093,31 @@
       }
     },
     "LearningPlan": {
-      "Description": "カリキュラム、目標、ペースを決めて練習を選びます。目標は現在の能力を示すものではありません。",
+      "Description": "選んだ学習範囲で思い出す練習をしましょう。開始点を見つけたいときはレベルを確認できます。",
       "Activities": "学習方法を選ぶ",
       "Assess": "現在のレベルを確認",
       "AssessDescription": "この言語を学んだことがありますか？どのくらい認識できるか確認して、適切な開始点を選びましょう。",
-      "WordSyncDescription": "出会った単語を振り返り、次に練習する内容を選びます。",
+      "WordSyncDescription": "目標範囲の単語を思い出しましょう。答えを表示してから、思い出せた内容を記録します。",
       "CharactersDescription": "文字体系を探索し、個々の文字を練習します。",
       "Progress": "カリキュラムの進捗",
       "Back": "学習プランに戻る",
       "SettingsHint": "カリキュラム、目標、学習ペースは学習プランで管理します。",
-      "Open": "学習プランを開く"
+      "Open": "学習プランを開く",
+      "Edit": "プランを変更",
+      "BackToMaterial": "読書に戻る",
+      "MaterialPractice": "{title}から · 選択した単語 {count} 語"
+    },
+    "StudyEncounter": {
+      "Task": "思い出して確認",
+      "Retrieve": "答えを見る前に、自分で答えてみてください。",
+      "Compare": "答えと比較して、どのように思い出せたか記録してください。",
+      "Reveal": "答えを見る",
+      "Consequence": "忘れた：思い出せなかった。苦戦：考えて答えた。流暢：助けなしで思い出せた。回答が学習記録を更新し、次の課題を決めます。",
+      "Check": "確認する",
+      "PlacementIntro": "練習と同じ手順で、学習の記録がない単語を確認します。回答に応じて出題を調整し、学習計画の開始地点を提案します。出題されなかった単語は未評価のままです。",
+      "Resume": "練習を再開",
+      "RetrieveWord": "答えを見る前に、読み方と意味を思い出してください。",
+      "RetrieveAspects": "今回の確認項目：{aspects}。答えを表示して比べましょう。"
     }
   }
 }

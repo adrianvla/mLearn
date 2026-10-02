@@ -27,7 +27,7 @@ export const VoiceAftermath: Component<VoiceAftermathProps> = (props) => {
           variant="ghost"
           size="sm"
           onClick={props.onDismiss}
-          aria-label={t('mlearn.ConversationAgent.Voice.Aftermath.Title')}
+          aria-label={t('mlearn.ConversationAgent.Voice.ReturnToChat')}
         />
       </div>
 
@@ -69,6 +69,9 @@ export const VoiceAftermath: Component<VoiceAftermathProps> = (props) => {
           </ul>
         </div>
       </Show>
+      <Button class="voice-aftermath-return" variant="primary" onClick={props.onDismiss}>
+        {t('mlearn.ConversationAgent.Voice.ReturnToChat')}
+      </Button>
     </div>
   );
 };

@@ -10,13 +10,62 @@ const pointerDown = (target: Node) =>
 function mount(active: () => boolean, onDismiss: () => void, options: Partial<Parameters<typeof useDismiss>[0]> = {}) {
   let dispose!: () => void;
   createRoot((d) => {
-    useDismiss({ active, onDismiss, ...options });
+    useDismiss(Object.defineProperties({ active, onDismiss }, Object.getOwnPropertyDescriptors(options)));
     dispose = d;
   });
   return dispose;
 }
 
 describe('useDismiss', () => {
+  it('dismisses only the most recently opened surface per Escape, including synchronous close', () => {
+    const outerDismiss = vi.fn();
+    const innerDismiss = vi.fn();
+    const [outer, setOuter] = createSignal(true);
+    const [inner, setInner] = createSignal(true);
+    const disposeOuter = mount(outer, () => { outerDismiss(); setOuter(false); });
+    const disposeInner = mount(inner, () => { innerDismiss(); setInner(false); });
+    try {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(innerDismiss).toHaveBeenCalledOnce();
+      expect(outerDismiss).not.toHaveBeenCalled();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(outerDismiss).toHaveBeenCalledOnce();
+      setInner(true);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(innerDismiss).toHaveBeenCalledTimes(2);
+    } finally { disposeInner(); disposeOuter(); }
+  });
+
+  it('lets a busy top surface reserve Escape without closing its parent or changing activation order', () => {
+    const outerDismiss = vi.fn();
+    const innerDismiss = vi.fn();
+    const [enabled, setEnabled] = createSignal(false);
+    const disposeOuter = mount(() => true, outerDismiss);
+    const disposeInner = mount(() => true, innerDismiss, { get closeOnEscape() { return enabled(); } });
+    try {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      document.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(innerDismiss).not.toHaveBeenCalled();
+      expect(outerDismiss).not.toHaveBeenCalled();
+      setEnabled(true);
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      expect(innerDismiss).toHaveBeenCalledOnce();
+      expect(outerDismiss).not.toHaveBeenCalled();
+    } finally { disposeInner(); disposeOuter(); }
+  });
+
+  it('does not dismiss for an Escape already consumed by another control', () => {
+    const onDismiss = vi.fn();
+    const dispose = mount(() => true, onDismiss);
+    try {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+      event.preventDefault();
+      document.dispatchEvent(event);
+      expect(onDismiss).not.toHaveBeenCalled();
+    } finally { dispose(); }
+  });
+
   it('calls onDismiss when Escape is pressed while active', () => {
     const onDismiss = vi.fn();
     const dispose = mount(() => true, onDismiss);

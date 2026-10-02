@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
 
 const journal = vi.hoisted(() => {
   const rows = new Map<string, Array<Record<string, unknown>>>();
@@ -8,7 +9,15 @@ const journal = vi.hoisted(() => {
   ));
   const append = vi.fn(async (eventsByKey: KnowledgeEventLog) => {
     for (const [key, events] of Object.entries(eventsByKey)) {
-      rows.set(key, [...(rows.get(key) ?? []), ...events]);
+      const existing = rows.get(key) ?? [];
+      const identities = new Set(existing.map(event => knowledgeEventIdentity(event as never)).filter(Boolean));
+      const added = events.filter(event => {
+        const identity = knowledgeEventIdentity(event);
+        if (identity && identities.has(identity)) return false;
+        if (identity) identities.add(identity);
+        return true;
+      });
+      rows.set(key, [...existing, ...added]);
     }
     return true;
   });
@@ -41,7 +50,8 @@ describe('knowledge event idempotent append', () => {
     await expect(appendEventsIdempotentAcknowledged(retractions)).resolves.toBe(true);
     await expect(appendEventsIdempotentAcknowledged(retractions)).resolves.toBe(true);
 
-    expect(journal.append).toHaveBeenCalledTimes(1);
+    expect(journal.rows.get('ja:hash')).toHaveLength(1);
+    expect(journal.append).toHaveBeenCalledTimes(2);
   });
 
   it('deduplicates a retried attempt but accepts identical evidence under a new action id', async () => {
@@ -60,7 +70,16 @@ describe('knowledge event idempotent append', () => {
     const events = journal.rows.get('ja:hash') ?? [];
     expect(events.filter((event) => event.kind === 'rating').map((event) => event.attemptId)).toEqual(['action-1', 'action-2']);
     expect(events.filter((event) => event.kind === 'retraction')).toHaveLength(1);
-    expect(journal.append).toHaveBeenCalledTimes(3);
+    expect(journal.append).toHaveBeenCalledTimes(4);
+  });
+
+  it('accepts another access of a partially acknowledged attempt', async () => {
+    const { appendEventsIdempotentAcknowledged } = await import('./knowledgeEvents');
+    const event = { t: 1, kind: 'rating' as const, source: 'manual' as const, attemptId: 'response-1' };
+    await appendEventsIdempotentAcknowledged({ 'ja:hash': [{ ...event, aspect: 'meaning' }] });
+    await appendEventsIdempotentAcknowledged({ 'ja:hash': [{ ...event, aspect: 'reading' }] });
+    expect(journal.rows.get('ja:hash')?.map(row => row.aspect)).toEqual(['meaning', 'reading']);
+    expect(journal.query).not.toHaveBeenCalled();
   });
 
   it('does not publish cache invalidation for a refused append, then invalidates on retry success', async () => {

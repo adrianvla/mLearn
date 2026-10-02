@@ -43,6 +43,7 @@ function stripRetractedRows(rows: readonly JournalRow[]): JournalRow[] {
 import { effectiveStateFromEntry, effectiveThresholds, type EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 import { deriveRetentionSchedule, type RetentionPolicy } from '../srs/retentionScheduler';
 import type { CapabilityKey } from './types';
+import type { SupportContributor } from '../prediction/supportContributors';
 
 /**
  * Effective state of one learnable target. Claim states are distinct from
@@ -74,7 +75,9 @@ export interface TargetExplanation {
   evidence: KnowledgeEvent[];
   projection: ReturnType<typeof projectKeyFold>;
   retention: ReturnType<typeof deriveRetentionSchedule> | null;
-  prediction?: { value: number; because: string[] };
+  /** Exact retained event establishing the current replay strength, not all history. */
+  knowledgeWitness?: KnowledgeEvent;
+  prediction?: { value: number; because: string[]; model?: string; interpretation?: 'heuristic-support'; contributors?: SupportContributor[] };
 }
 
 /**
@@ -88,7 +91,7 @@ export interface TargetExplanation {
 export function assembleTargetExplanation(
   capability: CapabilityKey,
   rawRows: readonly (KnowledgeEvent | JournalRow)[],
-  policy: RetentionPolicy,
+  policy: RetentionPolicy | undefined,
   now = Date.now(),
   prediction?: TargetExplanation['prediction'],
   /**
@@ -113,7 +116,7 @@ export function assembleTargetExplanation(
   const evidenceRows = active
     .filter(({ event }) => eventIsMeasurable(event) && matcher(event))
     .sort((a, b) => a.event.t - b.event.t || a.seq - b.seq);
-  const evidence = evidenceRows.map(({ event }) => event);
+  const evidence = evidenceRows.filter(({ event }) => event.kind !== 'claim').map(({ event }) => event);
   const mergedArchive = mergeArchives(archives ?? []);
   // Archived prefix: measurable bucket folds selected by the same matcher.
   const archiveFold = mergedArchive ? foldArchiveBucketsMeasurable(mergedArchive, matcher) : emptyKeyFold();
@@ -122,7 +125,7 @@ export function assembleTargetExplanation(
     applyEventToFold(exactFold, event, seq);
   }
   const fold = mergedArchive ? mergeKeyFolds(archiveFold, exactFold) : exactFold;
-  const projection: ReplayProjection | null = evidenceRows.length > 0 || mergedArchive ? projectKeyFold(fold) : null;
+  const projection: ReplayProjection | null = evidenceRows.length > 0 || archiveFold.hasEvidence || archiveFold.claim !== undefined ? projectKeyFold(fold) : null;
   // Retention over the frontier sequence: exact rows + residue columns in one
   // (t, seq) order — true journal seq on both sides, no ordering ambiguity.
   const retention = computeRetention(mergedArchive, evidenceRows, policy, now, matcher);
@@ -133,5 +136,12 @@ export function assembleTargetExplanation(
     : effective.basis === 'unmeasured'
       ? (!projection && prediction ? 'predicted' : 'unmeasured')
       : effective.status === 'known' ? 'evidence-backed-known' : effective.status;
-  return { state, evidence, projection, retention, ...(prediction ? { prediction } : {}) };
+  // Sequences are journal-key local. A retained sibling row can share the
+  // archived winner's t/seq; mergeKeyFolds keeps the archive on a tie. Pin the
+  // actual winning side before looking for an exact retained event.
+  const exactWins = exactFold.ease !== undefined && (archiveFold.ease === undefined
+    || exactFold.easeT > archiveFold.easeT || (exactFold.easeT === archiveFold.easeT && exactFold.easeSeq > archiveFold.easeSeq));
+  const witness = exactWins ? evidenceRows.find(row => row.event.t === exactFold.easeT && row.seq === exactFold.easeSeq)?.event : undefined;
+  return { state, evidence, projection, retention,
+    ...(witness ? { knowledgeWitness: witness } : {}), ...(prediction ? { prediction } : {}) };
 }

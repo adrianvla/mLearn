@@ -1,6 +1,7 @@
 import type { FlashcardAudioPreset } from '../types';
 import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from '../flashcardRating';
+import type { LearningDecision, LearningDecisionRecord } from '../learningDecision';
 /**
  * PlatformBridge Interface
  *
@@ -29,6 +30,8 @@ import type {
   VoiceVadEvent,
   VoiceTtsAudio,
   VoiceTtsStatus,
+  VoiceTtsRequestIdentity,
+  VoiceTtsStopScope, VoiceSessionRequestIdentity,
   VoiceMode,
   VoiceSessionReady,
   VoiceSessionStatus,
@@ -71,6 +74,7 @@ export interface SettingsBridge {
 }
 
 export interface FlashcardBridge {
+  commitFlashcardRating: (command: FlashcardRatingCommand) => Promise<FlashcardRatingCommit>;
   enqueueFlashcardRating: (command: FlashcardRatingCommand) => Promise<number>;
   flushFlashcardRatings: () => Promise<void>;
   onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) => () => void;
@@ -83,6 +87,7 @@ export interface FlashcardBridge {
    */
   saveFlashcardPatch: (patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
+  onFlashcardLoadError: (callback: (message: string) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;
@@ -170,7 +175,7 @@ export interface WindowBridge {
   openExternalUrl: (url: string) => Promise<boolean>;
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
-  reportStartupState: (state: 'language' | 'library' | 'backend' | 'ready') => void;
+  reportStartupState: (state: 'language' | 'library' | 'library-error' | 'backend' | 'ready') => void;
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   restoreWindow: () => void;
@@ -277,19 +282,21 @@ export interface SpeechBridge {
 }
 
 export interface VoiceBridge {
+  /** Integrated AI microphone/STT/TTS call transport available on this platform. */
+  supportsCalls: boolean;
   voiceCheckModels: (language: string) => Promise<VoiceModelStatus>;
   voiceDownloadModels: (language: string) => void;
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) => () => void;
-  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) => void;
-  voiceStopSession: () => void;
-  voiceSendAudioChunk: (samples: Float32Array) => void;
-  voiceFlush: () => void;
-  voiceUpdateSilenceThreshold: (threshold: number) => void;
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string, request?: VoiceSessionRequestIdentity) => void;
+  voiceStopSession: (scope?: VoiceSessionRequestIdentity) => void;
+  voiceSendAudioChunk: (samples: Float32Array, scope?: VoiceSessionRequestIdentity) => void;
+  voiceFlush: (scope?: VoiceSessionRequestIdentity) => void;
+  voiceUpdateSilenceThreshold: (threshold: number, scope?: VoiceSessionRequestIdentity) => void;
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) => () => void;
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
-  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string) => void;
-  voiceTtsStop: () => void;
-  voiceSendTtsState: (active: boolean) => void;
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string, request?: VoiceTtsRequestIdentity) => void;
+  voiceTtsStop: (scope?: VoiceTtsStopScope) => void;
+  voiceSendTtsState: (active: boolean, scope?: VoiceSessionRequestIdentity) => void;
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
   onVoiceSessionReady: (callback: (data: VoiceSessionReady) => void) => () => void;
@@ -312,6 +319,9 @@ export interface MediaStatsBridge {
 }
 
 export interface KnowledgeEventsBridge {
+  recordLearningDecision: (decision: LearningDecision) => Promise<void>;
+  getLearningDecisionRecord: (id: string) => Promise<LearningDecisionRecord | null>;
+  getRatingUndoHistory: (surface: string) => Promise<import('../retractionRecovery').PendingRetraction[]>;
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
   queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeItemEvents: (keys: string[]) => Promise<KnowledgeEventLog>;

@@ -448,6 +448,7 @@ async function createAppWindows(startup = false): Promise<void> {
     if (!pythonLookupComplete) return;
     if (rendererState === 'language') reportStartupPhase('preparation', 0.35, 'Loading language data');
     else if (rendererState === 'library') reportStartupPhase('preparation', 0.65, 'Loading library');
+    else if (rendererState === 'library-error') reportStartupPhase('preparation', 0.95, 'Opening library recovery');
     else if (rendererState === 'backend') reportStartupPhase('preparation', 0.8, 'Waiting for Python tools');
     else if (rendererState === 'ready') reportStartupPhase('preparation', 0.95, 'Launching mLearn');
     else reportStartupPhase('preparation', 0, 'Loading settings');

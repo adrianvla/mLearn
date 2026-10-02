@@ -161,6 +161,17 @@ describe('OcrWord', () => {
       dispose();
     });
 
+    it('uses a corrected interpretation for the inline reading and passes its encounter context', () => {
+      const context = { surface: rubyToken.word, text: 'synthetic encounter', hints: { arbitrary: { value: 7 } } };
+      mockGetCachedTranslation.mockImplementation((_word, _language, options) => options.context === context
+        ? { data: [{ word: rubyToken.word, reading: 'corrected' }], resolution: { selectedId: 'chosen', basis: 'learner-selection', candidates: [] } }
+        : null);
+      const dispose = render(() => <OcrWord token={rubyToken} lookupContext={context} withReadingAnnotation />, container);
+      expect(container.querySelector('rt')?.textContent).toBe('corrected');
+      dispose();
+      mockGetCachedTranslation.mockReset();
+    });
+
     it('renders ruby with the reading when enabled and the metadata supports it', () => {
       const dispose = render(() => (
         <OcrWord token={rubyToken} withReadingAnnotation />
@@ -319,7 +330,7 @@ describe('OcrWord', () => {
       const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
       expect(segments).toHaveLength(2);
       expect(segments[0]?.dataset.prosodyValue).toBe('tone-1');
-      expect(segments[0]?.style.color).toBe('#ff00ff');
+      expect(segments[0]?.style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ff00ff 40%, var(--language-word-foreground))');
       expect(segments[1]?.dataset.prosodyValue).toBe('neutral');
       expect(container.querySelector('.ocr-word')?.textContent).toBe('妈妈');
       dispose();
@@ -384,7 +395,7 @@ describe('OcrWord', () => {
       const segment = container.querySelector<HTMLElement>('.colored-prosody__segment');
       expect(segment).not.toBeNull();
       expect(segment?.dataset.prosodyValue).toBe('atamadaka');
-      expect(segment?.style.color).toBe('#ffa500');
+      expect(segment?.style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ffa500 40%, var(--language-word-foreground))');
       dispose();
     });
   });

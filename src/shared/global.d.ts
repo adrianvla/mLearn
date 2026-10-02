@@ -1,12 +1,13 @@
 import type { FlashcardAudioPreset } from './types';
 import type { EffectiveThresholds } from './knowledge/effectiveKnowledge';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from './flashcardRating';
+import type { LearningDecision, LearningDecisionRecord } from './learningDecision';
 /**
  * Global Type Declarations
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, FlashcardWriteAuthorization, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from './types';
+import type { Settings, FlashcardStore, FlashcardWriteAuthorization, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceTtsStopScope, VoiceSessionRequestIdentity, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from './types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 import type { AppUpdateState } from './appUpdate';
@@ -17,6 +18,7 @@ import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQ
 import type { GraphRelationType } from './graph/types';
 
 export interface MLearnIPC {
+  commitFlashcardRating: (command: FlashcardRatingCommand) => Promise<FlashcardRatingCommit>;
   enqueueFlashcardRating: (command: FlashcardRatingCommand) => Promise<number>;
   flushFlashcardRatings: () => Promise<void>;
   onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) => () => void;
@@ -40,11 +42,15 @@ export interface MLearnIPC {
   saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
   saveFlashcardPatch: (patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
+  onFlashcardLoadError: (callback: (message: string) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;
 
   // Knowledge events
+  recordLearningDecision: (decision: LearningDecision) => Promise<void>;
+  getLearningDecisionRecord: (id: string) => Promise<LearningDecisionRecord | null>;
+  getRatingUndoHistory: (surface: string) => Promise<import('./retractionRecovery').PendingRetraction[]>;
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
   queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeItemEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
@@ -302,16 +308,16 @@ sendLogRecord: (record: unknown) => void;
   voiceCheckModels: (language: string) => Promise<VoiceModelStatus>;
   voiceDownloadModels: (language: string) => void;
   onVoiceModelProgress: (callback: (status: VoiceModelStatus) => void) => () => void;
-  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) => void;
-  voiceStopSession: () => void;
-  voiceSendAudioChunk: (samples: Float32Array) => void;
-  voiceFlush: () => void;
-  voiceUpdateSilenceThreshold: (threshold: number) => void;
+  voiceStartSession: (language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string, request?: VoiceSessionRequestIdentity) => void;
+  voiceStopSession: (scope?: VoiceSessionRequestIdentity) => void;
+  voiceSendAudioChunk: (samples: Float32Array, scope?: VoiceSessionRequestIdentity) => void;
+  voiceFlush: (scope?: VoiceSessionRequestIdentity) => void;
+  voiceUpdateSilenceThreshold: (threshold: number, scope?: VoiceSessionRequestIdentity) => void;
   onVoiceSttResult: (callback: (result: VoiceSTTResult) => void) => () => void;
   onVoiceVadEvent: (callback: (event: VoiceVadEvent) => void) => () => void;
-  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string) => void;
-  voiceTtsStop: () => void;
-  voiceTtsState: (active: boolean) => void;
+  voiceTtsGenerate: (text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, cloudAuthToken?: string, request?: VoiceTtsRequestIdentity) => void;
+  voiceTtsStop: (scope?: VoiceTtsStopScope) => void;
+  voiceTtsState: (active: boolean, scope?: VoiceSessionRequestIdentity) => void;
   onVoiceTtsAudio: (callback: (audio: VoiceTtsAudio) => void) => () => void;
   onVoiceTtsStatus: (callback: (status: VoiceTtsStatus) => void) => () => void;
   onVoiceSessionReady: (callback: (data: VoiceSessionReady) => void) => () => void;
@@ -402,7 +408,7 @@ sendLogRecord: (record: unknown) => void;
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
-  reportStartupState: (state: 'language' | 'library' | 'backend' | 'ready') => void;
+  reportStartupState: (state: 'language' | 'library' | 'library-error' | 'backend' | 'ready') => void;
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   restoreWindow: () => void;

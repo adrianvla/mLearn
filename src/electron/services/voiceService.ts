@@ -21,6 +21,8 @@ import type {
   VoiceMode,
   VoiceSample,
   VoiceTtsAudio,
+  VoiceTtsRequestIdentity,
+  VoiceTtsStopScope, VoiceSessionRequestIdentity,
 } from '../../shared/types';
 import {
   getResourcePath,
@@ -38,6 +40,7 @@ import { getLogger } from '../../shared/utils/logger';
 const log = getLogger('electron.voiceService');
 
 function normalizeVadEventType(event: unknown): VoiceVadEvent['type'] {
+  if (!['speech_start', 'speech_end', 'speech-start', 'speech-end'].includes(String(event)) || typeof event !== 'string') throw new Error('Invalid voice stream VAD event');
   if (event === 'speech_start') return 'speech-start';
   if (event === 'speech_end') return 'speech-end';
   return event === 'speech-end' ? 'speech-end' : 'speech-start';
@@ -110,12 +113,29 @@ function getVoiceSampleTranscriptPath(sample: VoiceSample): string {
 
 export async function ensureVoiceSampleTranscript(
   sample: VoiceSample,
-  samples: VoiceSample[],
+  _samples: VoiceSample[],
   language: string,
   force = false,
+  signal?: AbortSignal,
 ): Promise<{ text: string; language: string }> {
+  const commitTranscript = (transcript: string, detectedLanguage?: string): void => {
+    if (signal?.aborted) throw new Error('Voice sample transcription cancelled');
+    const latest = loadSamplesManifest();
+    const current = latest.find(item => item.id === sample.id);
+    if (!current || current.filename !== sample.filename || current.createdAt !== sample.createdAt
+      || current.transcript !== sample.transcript || current.language !== sample.language) {
+      throw new Error('Voice sample changed during transcription');
+    }
+    fs.writeFileSync(getVoiceSampleTranscriptPath(current), transcript, 'utf-8');
+    current.transcript = transcript;
+    if (detectedLanguage) current.language = detectedLanguage;
+    saveSamplesManifest(latest);
+    sample.transcript = current.transcript;
+    sample.language = current.language;
+  };
+  if (signal?.aborted) throw new Error('Voice sample transcription cancelled');
   if (!force && typeof sample.transcript === 'string' && sample.transcript.trim()) {
-    fs.writeFileSync(getVoiceSampleTranscriptPath(sample), sample.transcript.trim(), 'utf-8');
+    commitTranscript(sample.transcript.trim());
     return { text: sample.transcript.trim(), language: sample.language || language };
   }
 
@@ -123,8 +143,7 @@ export async function ensureVoiceSampleTranscript(
   if (!force && fs.existsSync(txtPath)) {
     const transcript = fs.readFileSync(txtPath, 'utf-8').trim();
     if (transcript) {
-      sample.transcript = transcript;
-      saveSamplesManifest(samples);
+      commitTranscript(transcript);
       return { text: transcript, language: sample.language || language };
     }
   }
@@ -146,12 +165,7 @@ export async function ensureVoiceSampleTranscript(
     throw new Error('Transcription returned empty text');
   }
 
-  fs.writeFileSync(txtPath, transcript, 'utf-8');
-  sample.transcript = transcript;
-  if (result.language) {
-    sample.language = result.language;
-  }
-  saveSamplesManifest(samples);
+  commitTranscript(transcript, result.language);
   return { text: transcript, language: result.language || language };
 }
 
@@ -456,6 +470,27 @@ let activeSender: Electron.WebContents | null = null;
 const MAX_QUEUED_AUDIO_CHUNKS = 256;
 let pendingAudioChunks: Float32Array[] = [];
 let pendingTokenCleanup: (() => void) | null = null;
+let sessionGeneration = 0;
+interface VoiceSessionOwner {
+  sender: Electron.WebContents;
+  identity?: VoiceSessionRequestIdentity;
+  removeDestroyedListener?: () => void;
+}
+let activeVoiceRequest: VoiceSessionOwner | null = null;
+
+function ownsVoiceSession(owner: VoiceSessionOwner): boolean {
+  return activeVoiceRequest === owner && !owner.sender.isDestroyed();
+}
+
+function ownsVoiceCommand(sender: Electron.WebContents, scope?: VoiceSessionRequestIdentity): boolean {
+  const owner = activeVoiceRequest;
+  return !!owner && ownsVoiceSession(owner) && owner.sender === sender
+    && (scope ? owner.identity?.sessionId === scope.sessionId && owner.identity?.requestId === scope.requestId : !owner.identity);
+}
+
+function sendSessionEvent(owner: VoiceSessionOwner, channel: string, payload: object): void {
+  if (ownsVoiceSession(owner)) owner.sender.send(channel, { ...payload, ...owner.identity });
+}
 
 // ============================================================================
 // TTS Abort
@@ -464,6 +499,42 @@ let pendingTokenCleanup: (() => void) | null = null;
 let ttsAbortController: AbortController | null = null;
 let activeTtsWs: WebSocket | null = null;
 let activeSystemTtsProcess: ChildProcess | null = null;
+
+interface TtsRequestOwner {
+  sender: Electron.WebContents;
+  identity?: VoiceTtsRequestIdentity;
+  controller: AbortController;
+  completed?: boolean;
+  removeDestroyedListener?: () => void;
+}
+
+let activeTtsRequest: TtsRequestOwner | null = null;
+
+function ownsTtsRequest(owner: TtsRequestOwner): boolean {
+  return activeTtsRequest === owner && !owner.completed && !owner.controller.signal.aborted && !owner.sender.isDestroyed();
+}
+
+function sendOwnedTts(owner: TtsRequestOwner, channel: string, payload: object): void {
+  if (!ownsTtsRequest(owner)) return;
+  if (channel === IPC_CHANNELS.VOICE_TTS_STATUS && 'generating' in payload && payload.generating === false) {
+    owner.completed = true;
+    log.info('[VoiceService] TTS request finished', { ...owner.identity, failed: 'error' in payload });
+  }
+  owner.sender.send(channel, { ...payload, ...owner.identity });
+}
+
+function normalizeTtsRequest(value: unknown): VoiceTtsRequestIdentity | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid TTS request identity');
+  const request = value as Record<string, unknown>;
+  const validId = (id: unknown): id is string => typeof id === 'string' && id.length > 0 && id.length <= 256;
+  if (!validId(request.sessionId) || !validId(request.requestId)
+    || (request.utteranceId !== undefined && !validId(request.utteranceId))
+    || (request.actorId !== undefined && !validId(request.actorId))) throw new Error('Invalid TTS request identity');
+  return { sessionId: request.sessionId, requestId: request.requestId,
+    ...(request.utteranceId !== undefined ? { utteranceId: request.utteranceId } : {}),
+    ...(request.actorId !== undefined ? { actorId: request.actorId } : {}) };
+}
 
 function getLanguageTtsRuntime(language: string) {
   return loadLangData()[language]?.runtime?.tts ?? {};
@@ -536,7 +607,7 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatusPaylo
     downloading: false,
     progress: 0,
     sttModelName: '',
-    ttsModelName: 'Kokoro-82M',
+    ttsModelName: '',
   };
 
   try {
@@ -551,6 +622,7 @@ async function checkModelStatus(language: string): Promise<VoiceModelStatusPaylo
       ((ttsRes.downloading as boolean) ?? false);
     status.progress =
       (((sttRes.progress as number) ?? 0) + ((ttsRes.progress as number) ?? 0)) / 2;
+    status.ttsModelName = typeof ttsRes.modelName === 'string' ? ttsRes.modelName : '';
     const backendSttModel = typeof sttRes.modelName === 'string' ? sttRes.modelName : '';
     status.sttModelName = backendSttModel || DEFAULT_STT_MODEL_NAME;
     const backendSttEngine = typeof sttRes.engine === 'string' ? sttRes.engine : '';
@@ -611,28 +683,44 @@ function startSession(
   silenceThreshold: number,
   sender: Electron.WebContents,
   ttsProvider?: string,
+  request?: VoiceSessionRequestIdentity,
 ): void {
+  if (sender.isDestroyed()) return;
+  let identity: VoiceSessionRequestIdentity | undefined;
+  try {
+    const normalized = normalizeTtsRequest(request);
+    if (normalized) identity = { sessionId: normalized.sessionId, requestId: normalized.requestId };
+  } catch (error) { log.warn('[VoiceService] Invalid microphone request', error); return; }
   log.info('[VoiceService] Starting voice session', { language, mode, silenceThreshold, ttsProvider });
-  if (activeWs) {
-    stopSession();
-  }
+  const previous = activeVoiceRequest;
+  if (identity && previous?.sender === sender && previous.identity?.sessionId === identity.sessionId
+    && previous.identity.requestId === identity.requestId) return;
+  stopSession();
+  if (previous && !previous.sender.isDestroyed()) previous.sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR,
+    { error: 'This call ended because another voice session started.', ...previous.identity });
+  const owner: VoiceSessionOwner = { sender, identity };
+  activeVoiceRequest = owner;
+  activeSender = sender;
+  const onDestroyed = () => { if (activeVoiceRequest === owner) stopSession(); };
+  sender.once('destroyed', onDestroyed);
+  owner.removeDestroyedListener = () => sender.removeListener('destroyed', onDestroyed);
 
   const token = getQuitToken();
   if (!token) {
-    sendSessionStatus(sender, {
+    sendSessionStatus(owner, {
       stage: 'backend',
       message: 'Waiting for local Python backend…',
       progress: 0.01,
     });
-    waitForQuitTokenAndStart(language, mode, silenceThreshold, sender, ttsProvider);
+    waitForQuitTokenAndStart(language, mode, silenceThreshold, owner, ttsProvider);
     return;
   }
 
-  doStartSession(language, mode, silenceThreshold, sender, token, ttsProvider);
+  doStartSession(language, mode, silenceThreshold, owner, token, ttsProvider);
 }
 
 function sendSessionStatus(
-  sender: Electron.WebContents,
+  owner: VoiceSessionOwner,
   status: {
     stage: 'starting' | 'backend' | 'websocket' | 'vad' | 'stt' | 'tts' | 'ready';
     message: string;
@@ -640,23 +728,26 @@ function sendSessionStatus(
     modelName?: string;
   },
 ): void {
-  if (sender.isDestroyed()) return;
+  if (!ownsVoiceSession(owner)) return;
   log.info('[VoiceService] Voice session status', status);
-  sender.send(IPC_CHANNELS.VOICE_SESSION_STATUS, status);
+  sendSessionEvent(owner, IPC_CHANNELS.VOICE_SESSION_STATUS, status);
 }
 
 function waitForQuitTokenAndStart(
   language: string,
   mode: VoiceMode,
   silenceThreshold: number,
-  sender: Electron.WebContents,
+  owner: VoiceSessionOwner,
   ttsProvider?: string,
 ): void {
   pendingTokenCleanup?.();
+  const generation = sessionGeneration;
   pendingTokenCleanup = onQuitTokenAvailable((token) => {
+    if (generation !== sessionGeneration || !ownsVoiceSession(owner)) return;
+    sessionGeneration += 1;
+    pendingTokenCleanup?.();
     pendingTokenCleanup = null;
-    if (sender.isDestroyed()) return;
-    doStartSession(language, mode, silenceThreshold, sender, token, ttsProvider);
+    doStartSession(language, mode, silenceThreshold, owner, token, ttsProvider);
   });
 }
 
@@ -664,15 +755,17 @@ function doStartSession(
   language: string,
   mode: VoiceMode,
   silenceThreshold: number,
-  sender: Electron.WebContents,
+  owner: VoiceSessionOwner,
   token: string,
   ttsProvider?: string,
 ): void {
+  if (!ownsVoiceSession(owner)) return;
+  const sender = owner.sender;
   const ttsProviderQuery = ttsProvider ? `&tts_provider=${encodeURIComponent(ttsProvider)}` : '';
   const wsUrl = `${API_ENDPOINTS.voiceStream}?language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}${ttsProviderQuery}`;
 
   try {
-    sendSessionStatus(sender, {
+    sendSessionStatus(owner, {
       stage: 'websocket',
       message: 'Opening local voice stream…',
       progress: 0.02,
@@ -681,11 +774,21 @@ function doStartSession(
     activeWs = ws;
     activeSession = true;
     activeSender = sender;
+    const ownsSession = () => ownsVoiceSession(owner) && activeWs === ws && activeSender === sender;
+    const failSession = (error: string, closeSocket = true) => {
+      if (!ownsSession()) return;
+      // Detach before notifying or closing: neither a late callback nor an
+      // intentional teardown may clear or send events to the next session.
+      if (!closeSocket) activeWs = null;
+      stopSession();
+      if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, { error, ...owner.identity });
+    };
 
     ws.on('open', () => {
+      if (!ownsSession() || sender.isDestroyed()) return;
       log.info('[VoiceService] WebSocket connected to Python backend');
       if (activeSender && !activeSender.isDestroyed()) {
-        sendSessionStatus(activeSender, {
+        sendSessionStatus(owner, {
           stage: 'websocket',
           message: 'Connected to local voice stream…',
           progress: 0.03,
@@ -702,16 +805,20 @@ function doStartSession(
     });
 
     ws.on('message', (rawData: WebSocket.RawData) => {
-      if (!activeSender || activeSender.isDestroyed()) return;
+      if (!ownsSession() || !activeSender || activeSender.isDestroyed()) return;
       try {
         const msg = JSON.parse(rawData.toString());
+        if (!msg || typeof msg !== 'object' || Array.isArray(msg) || typeof msg.type !== 'string') throw new Error('Invalid voice stream event');
         switch (msg.type) {
           case 'ready':
             log.info('[VoiceService] Voice session ready');
-            activeSender.send(IPC_CHANNELS.VOICE_SESSION_READY, { ready: true });
+            sendSessionEvent(owner, IPC_CHANNELS.VOICE_SESSION_READY, { ready: true });
             break;
           case 'loading':
-            sendSessionStatus(activeSender, {
+            if (!['starting', 'backend', 'websocket', 'vad', 'stt', 'tts', 'ready'].includes(msg.stage)
+              || typeof msg.message !== 'string' || !Number.isFinite(msg.progress) || msg.progress < 0 || msg.progress > 1
+              || (msg.modelName !== undefined && typeof msg.modelName !== 'string')) throw new Error('Invalid voice stream loading event');
+            sendSessionStatus(owner, {
               stage: msg.stage,
               message: msg.message,
               progress: msg.progress,
@@ -729,16 +836,19 @@ function doStartSession(
               speechSeconds: optionalNumber(msg.speechSeconds),
               chunkSeconds: optionalNumber(msg.chunkSeconds),
             };
-            activeSender.send(IPC_CHANNELS.VOICE_VAD_EVENT, vadEvent);
+            sendSessionEvent(owner, IPC_CHANNELS.VOICE_VAD_EVENT, vadEvent);
             break;
           }
           case 'stt': {
+            if (typeof msg.text !== 'string' || typeof msg.isFinal !== 'boolean'
+              || (msg.isPartial !== undefined && (typeof msg.isPartial !== 'boolean' || msg.isPartial === msg.isFinal)))
+              throw new Error('Invalid voice stream transcript');
             const sttResult: VoiceSTTResult = {
               text: msg.text,
               isFinal: msg.isFinal,
               isPartial: msg.isPartial ?? !msg.isFinal,
             };
-            activeSender.send(IPC_CHANNELS.VOICE_STT_RESULT, sttResult);
+            sendSessionEvent(owner, IPC_CHANNELS.VOICE_STT_RESULT, sttResult);
             break;
           }
           case 'ping':
@@ -746,42 +856,42 @@ function doStartSession(
             break;
           case 'error':
             log.error('[VoiceService] Backend error:', msg.message);
-            activeSender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
-              error: msg.message,
-            });
+            failSession(typeof msg.message === 'string' ? msg.message : 'Voice stream reported an error');
             break;
         }
       } catch (e) {
         log.error('[VoiceService] Failed to parse WS message:', e);
+        failSession('Invalid voice stream event received from the backend');
       }
     });
 
     ws.on('error', (err) => {
+      if (!ownsSession()) return;
       log.error('[VoiceService] WebSocket error:', err);
-      if (activeSender) {
-        activeSender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
-          error: err.message || 'WebSocket connection error',
-        });
-      }
+      failSession(err.message || 'WebSocket connection error');
     });
 
     ws.on('close', () => {
+      if (!ownsSession()) return;
       log.info('[VoiceService] WebSocket closed');
-      if (activeWs === ws) {
-        activeWs = null;
-        activeSession = false;
-        activeSender = null;
-      }
+      failSession('Voice stream disconnected', false);
     });
   } catch (err) {
     log.error('[VoiceService] Failed to connect:', err);
-    sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
+    if (!ownsVoiceSession(owner)) return;
+    stopSession();
+    if (!sender.isDestroyed()) sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
       error: err instanceof Error ? err.message : String(err),
+      ...owner.identity,
     });
   }
 }
 
 function stopSession(): void {
+  const owner = activeVoiceRequest;
+  activeVoiceRequest = null;
+  owner?.removeDestroyedListener?.();
+  sessionGeneration += 1;
   activeSession = false;
   activeSender = null;
   pendingAudioChunks = [];
@@ -847,35 +957,46 @@ async function generateTTS(
   voiceSampleId: string | undefined,
   sender: Electron.WebContents,
   provider?: string,
+  request?: VoiceTtsRequestIdentity,
 ): Promise<void> {
+  const identity = normalizeTtsRequest(request);
+  if (sender.isDestroyed()) return;
+  if (activeTtsRequest) sendOwnedTts(activeTtsRequest, IPC_CHANNELS.VOICE_TTS_STATUS, {
+    generating: false, playing: false, error: 'Speech stopped because another speech request started.',
+  });
+  stopTTS();
+  const abortController = new AbortController();
+  const owner: TtsRequestOwner = { sender, identity, controller: abortController };
+  activeTtsRequest = owner;
+  ttsAbortController = abortController;
+  const onDestroyed = () => { if (activeTtsRequest === owner) stopTTS(); };
+  sender.once('destroyed', onDestroyed);
+  owner.removeDestroyedListener = () => sender.removeListener('destroyed', onDestroyed);
   // Sanitize consecutive dots to prevent TTS backend failures
   const sanitizedText = limitConsecutiveDots(stripBracketedTtsAnnotations(text));
   log.info('[VoiceService] TTS generate requested', {
+    ...identity,
     provider,
     language,
     chars: sanitizedText.length,
     hasVoiceSample: Boolean(voiceSampleId),
   });
   if (!sanitizedText) {
-    sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+    sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
     return;
   }
 
   if (provider === 'system') {
-    await generateSystemTTS(sanitizedText, language, sender);
+    await generateSystemTTS(sanitizedText, language, owner);
     return;
   }
 
   if (provider === 'cloud') {
-    sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
-    sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR, {
+    sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false,
       error: 'Cloud realtime TTS is temporarily disabled. Choose a local TTS provider.',
     });
     return;
   }
-
-  const abortController = new AbortController();
-  ttsAbortController = abortController;
 
   // Check if TTS model is loaded — if not, signal that model loading is in progress
   let modelLoading = false;
@@ -891,8 +1012,9 @@ async function generateTTS(
     log.error("error", e);
     // If status checks fail, proceed without the hints
   }
+  if (!ownsTtsRequest(owner)) return;
 
-  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+  sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, {
     generating: true,
     playing: false,
     modelLoading,
@@ -904,7 +1026,7 @@ async function generateTTS(
   let progressPollTimer: ReturnType<typeof setInterval> | null = null;
   if (modelLoading) {
     progressPollTimer = setInterval(async () => {
-      if (abortController.signal.aborted) {
+      if (!ownsTtsRequest(owner)) {
         if (progressPollTimer) { clearInterval(progressPollTimer); progressPollTimer = null; }
         return;
       }
@@ -914,7 +1036,7 @@ async function generateTTS(
           fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language })),
         ]);
         const hints = deriveDeviceHints(sttStatus, s);
-        sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+        sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, {
           generating: true,
           playing: false,
           modelLoading: !(s.loaded as boolean) || ((s.downloading as boolean) ?? false),
@@ -935,13 +1057,15 @@ async function generateTTS(
     if (voiceSampleId) {
       const samples = loadSamplesManifest();
       const sample = samples.find((s) => s.id === voiceSampleId);
-      if (sample) {
-        if (requestedProvider === 'qwen3') {
-          await ensureVoiceSampleTranscript(sample, samples, language);
-        }
-        voiceSamplePath = getVoiceSamplePath(sample);
+      if (!sample || !fs.existsSync(getVoiceSamplePath(sample))) {
+        throw new Error('The assigned voice sample is unavailable. Choose another voice sample.');
       }
+      if (requestedProvider === 'qwen3') {
+        await ensureVoiceSampleTranscript(sample, samples, language, false, abortController.signal);
+      }
+      voiceSamplePath = getVoiceSamplePath(sample);
     }
+    if (!ownsTtsRequest(owner)) throw new Error('TTS request cancelled');
 
     const body: Record<string, unknown> = {
       text: sanitizedText,
@@ -953,11 +1077,11 @@ async function generateTTS(
       body.voiceSamplePath = voiceSamplePath;
     }
 
-    await streamLocalTTS(body, sender, abortController.signal);
+    await streamLocalTTS(body, owner);
   } catch (err) {
     if (!abortController.signal.aborted) {
       log.error('[VoiceService] TTS generation error:', err);
-      sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+      sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, {
         generating: false,
         playing: false,
         error: err instanceof Error ? err.message : String(err),
@@ -969,19 +1093,19 @@ async function generateTTS(
   if (ttsAbortController === abortController) {
     ttsAbortController = null;
   }
-  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+  sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
 }
 
 function generateSystemTTS(
   text: string,
   language: string,
-  sender: Electron.WebContents,
+  owner: TtsRequestOwner,
 ): Promise<void> {
   stopSystemTTS();
 
-  const sanitized = text.replace(/\n/g, ' ').trim().substring(0, 500);
+  const sanitized = text.replace(/\n/g, ' ').trim();
   if (!sanitized) {
-    sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+    sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
     return Promise.resolve();
   }
 
@@ -1007,12 +1131,14 @@ function generateSystemTTS(
     ];
   }
 
-  sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: true });
+  sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: true, playing: true });
 
   return new Promise((resolve) => {
     const speakWith = (index: number): void => {
+      if (!ownsTtsRequest(owner)) { resolve(); return; }
       const command = commandChain[index];
       const child = execFile(command, args, (err) => {
+        if (!ownsTtsRequest(owner)) { resolve(); return; }
         if (activeSystemTtsProcess === child) {
           activeSystemTtsProcess = null;
         }
@@ -1025,7 +1151,7 @@ function generateSystemTTS(
         if (missing && commandChain.length > 1) {
           // Exhausted the system TTS probe chain (Linux) — surface the failure
           // instead of silently resolving.
-          sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+          sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, {
             generating: false,
             playing: false,
             error: 'System TTS unavailable: no espeak-ng or espeak binary found. Install espeak-ng to enable system text-to-speech.',
@@ -1033,7 +1159,9 @@ function generateSystemTTS(
           resolve();
           return;
         }
-        sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+        sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false,
+          ...(err ? { error: err.message || 'System speech failed' } : {}),
+        });
         resolve();
       });
       activeSystemTtsProcess = child;
@@ -1044,15 +1172,16 @@ function generateSystemTTS(
 
 function streamLocalTTS(
   body: Record<string, unknown>,
-  sender: Electron.WebContents,
-  signal: AbortSignal,
+  owner: TtsRequestOwner,
 ): Promise<void> {
+  const signal = owner.controller.signal;
   return new Promise((resolve, reject) => {
     const token = getQuitToken();
     const ws = new WebSocket(API_ENDPOINTS.voiceTtsStream, {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     activeTtsWs = ws;
+    let streamCompleted = false;
     let pendingAudioMeta: {
       sampleRate: number;
       sentenceIndex?: number;
@@ -1062,6 +1191,7 @@ function streamLocalTTS(
       sampleCount?: number;
       byteLength?: number;
     } | null = null;
+    const deliveredAudioOffsets = new Map<number, number>();
 
     const rawDataToBuffer = (rawData: WebSocket.RawData): Buffer | null => {
       if (Buffer.isBuffer(rawData)) return rawData;
@@ -1072,6 +1202,15 @@ function streamLocalTTS(
 
     const emitTtsAudio = (samples: Float32Array, meta: typeof pendingAudioMeta) => {
       if (!meta || signal.aborted) return;
+      if (samples.length === 0 || !samples.every(Number.isFinite)
+        || (meta.sampleCount !== undefined && meta.sampleCount !== samples.length)
+        || (meta.byteLength !== undefined && meta.byteLength !== samples.byteLength)) {
+        throw new Error('Invalid speech audio samples or count');
+      }
+      const sentence = meta.sentenceIndex ?? 0;
+      const offset = deliveredAudioOffsets.get(sentence) ?? 0;
+      if (meta.sampleOffset !== undefined && meta.sampleOffset !== offset) throw new Error('Missing or repeated speech audio samples');
+      deliveredAudioOffsets.set(sentence, offset + samples.length);
       const audio: VoiceTtsAudio = {
         samples,
         sampleRate: meta.sampleRate,
@@ -1081,7 +1220,7 @@ function streamLocalTTS(
         sampleOffset: meta.sampleOffset,
         sampleCount: meta.sampleCount ?? samples.length,
       };
-      sender.send(IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
+      sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_AUDIO, audio);
     };
 
     const abortStream = () => {
@@ -1095,7 +1234,7 @@ function streamLocalTTS(
     signal.addEventListener('abort', abortStream, { once: true });
 
     ws.on('open', () => {
-      if (signal.aborted) {
+      if (!ownsTtsRequest(owner)) {
         ws.close();
         return;
       }
@@ -1109,19 +1248,19 @@ function streamLocalTTS(
     });
 
     ws.on('message', (rawData: WebSocket.RawData, isBinary: boolean) => {
-      if (sender.isDestroyed() || signal.aborted) return;
+      if (!ownsTtsRequest(owner)) return;
       try {
         if (pendingAudioMeta && isBinary) {
           const binaryFrame = rawDataToBuffer(rawData);
           if (binaryFrame) {
             if (typeof pendingAudioMeta.byteLength === 'number' && binaryFrame.byteLength !== pendingAudioMeta.byteLength) {
-              log.warn(`[VoiceService] TTS binary frame length mismatch: expected ${pendingAudioMeta.byteLength}, got ${binaryFrame.byteLength}`);
+              throw new Error('Truncated speech audio frame');
             }
-            const samples = new Float32Array(
-              binaryFrame.buffer,
-              binaryFrame.byteOffset,
-              Math.floor(binaryFrame.byteLength / Float32Array.BYTES_PER_ELEMENT),
-            );
+            if (binaryFrame.byteLength === 0 || binaryFrame.byteLength % Float32Array.BYTES_PER_ELEMENT !== 0) {
+              throw new Error('Invalid speech audio frame length');
+            }
+            const samples = new Float32Array(binaryFrame.byteLength / Float32Array.BYTES_PER_ELEMENT);
+            for (let index = 0; index < samples.length; index++) samples[index] = binaryFrame.readFloatLE(index * Float32Array.BYTES_PER_ELEMENT);
             log.info('[VoiceService] Local TTS audio chunk received', {
               sampleRate: pendingAudioMeta.sampleRate,
               samples: samples.length,
@@ -1136,8 +1275,17 @@ function streamLocalTTS(
         const msg = JSON.parse(rawData.toString());
         switch (msg.type) {
           case 'audio': {
+            if (pendingAudioMeta || !Number.isSafeInteger(msg.sampleRate) || msg.sampleRate <= 0
+              || (msg.sampleCount !== undefined && (!Number.isSafeInteger(msg.sampleCount) || msg.sampleCount <= 0))
+              || (msg.byteLength !== undefined && (!Number.isSafeInteger(msg.byteLength) || msg.byteLength <= 0))
+              || (msg.sampleOffset !== undefined && (!Number.isSafeInteger(msg.sampleOffset) || msg.sampleOffset < 0))
+              || (msg.sentenceIndex !== undefined && (!Number.isSafeInteger(msg.sentenceIndex) || msg.sentenceIndex < 0))
+              || (msg.channels !== undefined && msg.channels !== 1)
+              || (msg.encoding !== undefined && msg.encoding !== 'f32le')) {
+              throw new Error('Invalid speech audio metadata');
+            }
             pendingAudioMeta = {
-              sampleRate: Number(msg.sampleRate) || 24000,
+              sampleRate: msg.sampleRate,
               sentenceIndex: typeof msg.sentenceIndex === 'number' ? msg.sentenceIndex : undefined,
               sentenceText: typeof msg.sentenceText === 'string' ? msg.sentenceText : undefined,
               totalSentences: typeof msg.totalSentences === 'number' ? msg.totalSentences : undefined,
@@ -1146,6 +1294,9 @@ function streamLocalTTS(
               byteLength: typeof msg.byteLength === 'number' ? msg.byteLength : undefined,
             };
             if (Array.isArray(msg.samples)) {
+              if (!msg.samples.every((sample: unknown) => typeof sample === 'number' && Number.isFinite(sample))) {
+                throw new Error('Invalid speech audio sample values');
+              }
               const samples = Float32Array.from(msg.samples);
               emitTtsAudio(samples, pendingAudioMeta);
               pendingAudioMeta = null;
@@ -1154,7 +1305,7 @@ function streamLocalTTS(
           }
           case 'status':
             log.info('[VoiceService] Local TTS status', msg);
-            sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+            sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, {
               generating: msg.generating !== false,
               playing: false,
               modelLoading: msg.modelLoading,
@@ -1162,12 +1313,14 @@ function streamLocalTTS(
             });
             break;
           case 'done':
+            if (pendingAudioMeta) throw new Error('Incomplete speech audio frame');
+            streamCompleted = true;
             log.info('[VoiceService] Local TTS stream done');
             ws.close();
             break;
           case 'error':
             log.error('[VoiceService] Local TTS stream error:', msg.message);
-            sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, {
+            sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, {
               generating: false,
               playing: false,
               error: String(msg.message || 'TTS stream error'),
@@ -1177,7 +1330,11 @@ function streamLocalTTS(
             break;
         }
       } catch (e) {
-        log.error('[VoiceService] Failed to parse TTS stream message:', e);
+        log.error('[VoiceService] Invalid TTS stream message:', e);
+        const error = e instanceof Error ? e : new Error('Invalid speech audio stream');
+        sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false, error: error.message });
+        reject(error);
+        ws.close();
       }
     });
 
@@ -1191,12 +1348,16 @@ function streamLocalTTS(
       if (activeTtsWs === ws) {
         activeTtsWs = null;
       }
-      resolve();
+      if (streamCompleted || signal.aborted || owner.completed) resolve();
+      else reject(new Error('Speech stream disconnected before generation completed'));
     });
   });
 }
 
 function stopTTS(): void {
+  const owner = activeTtsRequest;
+  activeTtsRequest = null;
+  owner?.removeDestroyedListener?.();
   stopSystemTTS();
   if (ttsAbortController) {
     ttsAbortController.abort();
@@ -1312,40 +1473,40 @@ export function setupVoiceIPC(): void {
   // Start voice session
   ipcMain.on(
     IPC_CHANNELS.VOICE_START_SESSION,
-    (event, language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string) => {
-      startSession(language, mode, silenceThreshold ?? DEFAULT_VOICE_SILENCE_THRESHOLD, event.sender, ttsProvider);
+    (event, language: string, mode: VoiceMode, silenceThreshold?: number, ttsProvider?: string, request?: VoiceSessionRequestIdentity) => {
+      startSession(language, mode, silenceThreshold ?? DEFAULT_VOICE_SILENCE_THRESHOLD, event.sender, ttsProvider, request);
     },
   );
 
   // Stop voice session
-  ipcMain.on(IPC_CHANNELS.VOICE_STOP_SESSION, () => {
-    stopSession();
+  ipcMain.on(IPC_CHANNELS.VOICE_STOP_SESSION, (event, scope?: VoiceSessionRequestIdentity) => {
+    if (ownsVoiceCommand(event.sender, scope)) stopSession();
   });
 
   // Receive audio chunk from renderer
-  ipcMain.on(IPC_CHANNELS.VOICE_AUDIO_CHUNK, (_event, samples: Float32Array) => {
-    if (activeSession) {
+  ipcMain.on(IPC_CHANNELS.VOICE_AUDIO_CHUNK, (event, samples: Float32Array, scope?: VoiceSessionRequestIdentity) => {
+    if (activeSession && ownsVoiceCommand(event.sender, scope)) {
       sendAudioChunk(new Float32Array(samples));
     }
   });
 
   // Flush buffered speech (PTT release)
-  ipcMain.on(IPC_CHANNELS.VOICE_FLUSH, () => {
-    if (activeSession) {
+  ipcMain.on(IPC_CHANNELS.VOICE_FLUSH, (event, scope?: VoiceSessionRequestIdentity) => {
+    if (activeSession && ownsVoiceCommand(event.sender, scope)) {
       sendFlush();
     }
   });
 
   // Update silence threshold at runtime
-  ipcMain.on(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, (_event, threshold: number) => {
-    if (activeSession) {
+  ipcMain.on(IPC_CHANNELS.VOICE_UPDATE_SILENCE_THRESHOLD, (event, threshold: number, scope?: VoiceSessionRequestIdentity) => {
+    if (activeSession && ownsVoiceCommand(event.sender, scope)) {
       sendSilenceThresholdUpdate(threshold);
     }
   });
 
   // Notify backend when local TTS playback is active so VAD can adapt.
-  ipcMain.on(IPC_CHANNELS.VOICE_TTS_STATE, (_event, active: boolean) => {
-    if (activeSession) {
+  ipcMain.on(IPC_CHANNELS.VOICE_TTS_STATE, (event, active: boolean, scope?: VoiceSessionRequestIdentity) => {
+    if (activeSession && ownsVoiceCommand(event.sender, scope)) {
       sendTtsState(active);
     }
   });
@@ -1353,17 +1514,23 @@ export function setupVoiceIPC(): void {
   // TTS generation request
   ipcMain.on(
     IPC_CHANNELS.VOICE_TTS_GENERATE,
-    (event, text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, _cloudAuthToken?: string) => {
-      generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender, provider).catch((err) => {
+    (event, text: string, language: string, speed?: number, voiceSampleId?: string, provider?: string, _cloudAuthToken?: string, request?: VoiceTtsRequestIdentity) => {
+      generateTTS(text, language, speed ?? 1.0, voiceSampleId, event.sender, provider, request).catch((err) => {
         log.error('[VoiceService] TTS error:', err);
       });
     },
   );
 
   // TTS stop
-  ipcMain.on(IPC_CHANNELS.VOICE_TTS_STOP, (event) => {
+  ipcMain.on(IPC_CHANNELS.VOICE_TTS_STOP, (event, scope?: VoiceTtsStopScope) => {
+    const owner = activeTtsRequest;
+    if (owner && (owner.sender !== event.sender || (scope && (owner.identity?.sessionId !== scope.sessionId
+      || (scope.requestId !== undefined && owner.identity?.requestId !== scope.requestId))))) return;
+    if (!owner && scope) return;
+    const identity = owner?.identity;
+    log.info('[VoiceService] TTS request stopped', { ...identity });
     stopTTS();
-    event.sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
+    if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false, ...identity });
   });
 
   // ========== Voice Sample Management ==========

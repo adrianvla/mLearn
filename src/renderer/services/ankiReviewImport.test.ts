@@ -213,7 +213,7 @@ describe('importAnkiReviewHistory', () => {
     return buildKnowledgeProjection(graph, surface, log?.[`test:${hashWordSync(word)}`] ?? [], policy, 10000);
   };
 
-  it('projects strong template-scoped reviews once and leaves no supported access to reprobe', async () => {
+  it('projects strong template-scoped reviews once without claiming unselected senses', async () => {
     const statuses = [{ word, cardId: 1 }, { word, cardId: 1 }, { word, cardId: 2 }];
     const fetchReviews = vi.fn(async () => ({ '1': [review({ id: 1000, factor: 2500 })], '2': [review({ id: 2000, cid: 2, factor: 2500 })] }));
     await importHistory('test', { statuses, fetchReviews, fetchCards: async () => [card, { ...card, cardId: 2 }] });
@@ -223,7 +223,7 @@ describe('importAnkiReviewHistory', () => {
       // Inspect and Word Sync consume this exact projection, not an Anki flag.
       expect(projectionStateForCapability(projection, capability)).toMatchObject({ classification: 'known', evidenceSourceCounts: { anki: 2 } });
     }
-    expect(unresolvedProjectionTargets(projection, testable)).toEqual([]);
+    expect(unresolvedProjectionTargets(projection, testable)).toEqual([{ entityId: 'sense', capability: 'sense-recognition' }]);
     expect(assembleWordKnowledgeModel({ projection }).overall).toMatchObject({ status: 'known', basis: 'evidence' });
     mocks.queryAnkiReviewIdSets.mockResolvedValue({ [`test:${hashWordSync(word)}`]: [1000, 2000] });
     mocks.appendEvents.mockClear();
@@ -239,7 +239,7 @@ describe('importAnkiReviewHistory', () => {
     });
     const projection = projectImported();
     expect(projectionStateForCapability(projection, 'sense-recognition')?.classification).toBe('known');
-    expect(unresolvedProjectionTargets(projection, testable).map(target => target.capability)).toEqual(['surface-recognition', 'surface-reading']);
+    expect(unresolvedProjectionTargets(projection, testable).map(target => target.capability)).toEqual(['surface-recognition', 'surface-reading', 'sense-recognition']);
   });
 
   it.each([1, 2])('a recent Anki button %s remains weak even with a high scheduling factor', async ease => {

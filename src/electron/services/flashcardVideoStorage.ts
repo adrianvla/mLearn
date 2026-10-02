@@ -108,8 +108,8 @@ export function setupFlashcardVideoIPC(): void {
     return saveFlashcardVideo(cardId, Buffer.from(data));
   });
 
-  ipcMain.handle(IPC_CHANNELS.FLASHCARD_VIDEO_DELETE, (_event, cardId: string) => {
-    deleteFlashcardVideo(cardId);
-    return true;
+  ipcMain.handle(IPC_CHANNELS.FLASHCARD_VIDEO_DELETE, async (_event, cardId: string) => {
+    const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+    return releaseUnusedFlashcardMedia('video', cardId, () => deleteFlashcardVideo(cardId));
   });
 }

@@ -40,7 +40,7 @@ const DATA_DIRECTORIES = [
   'media-stats',
   'voice-samples',
   'journal',
-  'flashcard-video',
+  'flashcard-videos',
 ] as const;
 const KNOWLEDGE_DB = 'knowledge-history.sqlite3';
 

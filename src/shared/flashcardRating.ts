@@ -1,11 +1,20 @@
 import type { KnowledgeEventLog } from './knowledgeEvents';
+import type { PendingRetraction } from './retractionRecovery';
 import { applyStorePatchInPlace, copyStoreWithPatch, getStorePath, setStorePath, type StorePatch } from './utils/storePatch';
 
 /** One stable attempt, including the scheduler and its observation provenance. */
 export interface FlashcardRatingCommand {
   attemptId: string;
+  /** A durable pre-presentation choice, including wholly assisted responses. */
+  decisionId?: string;
+  /** Actual input captured by the response producer, compared opaquely at admission. */
+  presentation?: Record<string, unknown>;
+  /** The original surface rollback, retained separately from compacted receipts. */
+  undo?: PendingRetraction;
   patch: StorePatch;
   events: KnowledgeEventLog;
+  /** First admission must still address these captured card pre-images. */
+  guardCardIds?: readonly string[];
   /** Additive counters must survive another window rating from the same revision. */
   counterDeltas?: readonly {
     path: readonly string[];
@@ -20,6 +29,28 @@ export interface FlashcardRatingCommit {
   patch: StorePatch;
   rev: number;
   attemptIds: readonly string[];
+}
+
+const ADMISSION_REFUSAL_MARKER = 'mlearn-rating-admission-refused:';
+
+/** Never-admitted responses can be released; admitted I/O failures must retry. */
+export class RatingAdmissionRefusal extends Error {
+  constructor(readonly attemptIds: readonly string[], reason = 'The captured review card changed before admission.') {
+    super(`${reason} ${ADMISSION_REFUSAL_MARKER}${JSON.stringify(attemptIds)}`);
+    this.name = 'RatingAdmissionRefusal';
+  }
+}
+
+/** Electron serializes errors to messages; keep the refusal identity across IPC. */
+export function refusedRatingAttemptIds(error: unknown): readonly string[] | null {
+  if (error instanceof RatingAdmissionRefusal) return error.attemptIds;
+  const message = error instanceof Error ? error.message : String(error);
+  const index = message.indexOf(ADMISSION_REFUSAL_MARKER);
+  if (index < 0) return null;
+  try {
+    const parsed: unknown = JSON.parse(message.slice(index + ADMISSION_REFUSAL_MARKER.length));
+    return Array.isArray(parsed) && parsed.length > 0 && parsed.every(value => typeof value === 'string' && value.length > 0) ? parsed : null;
+  } catch { return null; }
 }
 
 export function applyFlashcardRatingCommand<T extends object>(source: T, command: FlashcardRatingCommand, inPlace = false): T {
@@ -42,4 +73,28 @@ export function applyFlashcardRatingCommand<T extends object>(source: T, command
   return copyStoreWithPatch(result, { baseRev: command.patch.baseRev, entries: counters.map(({ path, value }) => ({
     path, before: getStorePath(result as Record<string, unknown>, path), after: value,
   })) });
+}
+
+/** Scheduling counters compose across windows independently of their scalar pre-images. */
+export function ratingCounterDeltas(patch: StorePatch): NonNullable<FlashcardRatingCommand['counterDeltas']> {
+  const counterDeltas: NonNullable<FlashcardRatingCommand['counterDeltas']>[number][] = [];
+  for (const entry of patch.entries) {
+    const fields = entry.path[0] === 'flashcards' ? ['reviews', 'lapses']
+      : entry.path[0] === 'meta' ? ['newCardsToday', 'reviewsToday']
+        : entry.path[0] === 'dailyStats' ? ['newCardsStudied', 'reviewCardsStudied', 'lapses', 'timeSpent', 'graduated'] : [];
+    for (const field of fields) {
+      const changedDate = entry.path[0] === 'meta' &&
+        (entry.before as Record<string, unknown> | undefined)?.newCardsDate !==
+        (entry.after as Record<string, unknown> | undefined)?.newCardsDate;
+      const before = changedDate ? 0 : (entry.before as Record<string, unknown> | undefined)?.[field] ?? 0;
+      const after = (entry.after as Record<string, unknown> | undefined)?.[field];
+      if (typeof before === 'number' && typeof after === 'number' && before !== after) {
+        counterDeltas.push({ path: [...entry.path, field], delta: after - before,
+          ...(entry.path[0] === 'meta' ? { scope: { path: [...entry.path, 'newCardsDate'],
+            value: (entry.after as Record<string, unknown>).newCardsDate } } : {}),
+        });
+      }
+    }
+  }
+  return counterDeltas;
 }

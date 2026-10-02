@@ -1,3 +1,4 @@
+import { tokenLookupContext } from '../../../hooks/useTranslation';
 import { hasSignedInCloudSession, withCloudAuth } from '../../../services/cloudSessionManager';
 import { classifyProviderFailure } from '../../../services/providerFailure';
 /**
@@ -15,7 +16,7 @@ import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { initWordLookupBridge } from '../../../services/wordLookupService';
 import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats, warmTranslationCache, isTranslationWarming } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
-import { parseKeybind, useConfirmDialog } from '../../../components/common';
+import { parseKeybind } from '../../../components/common';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 import { isLLMReady } from '../../../services/llmProvider';
 import { requireCapability } from '../../../services/capabilityUnavailable';
@@ -31,7 +32,7 @@ import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages, pdfToTextPages } from '../../../services/pdfService';
 import { epubToContentPages, isEpubFile, type EpubContent, type EpubReadingSpan } from '../../../services/epubService';
 import { captureBlobThumbnail, getRecentProgressPercent, saveToRecentItems } from '../../../services/thumbnailService';
-import { captureReaderImageForFlashcard } from '../../../services/flashcardImageCapture';
+import { captureReaderImageForOccurrence } from '../../../services/flashcardImageCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
@@ -50,7 +51,7 @@ import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wor
 import { addAllCapturedWords } from '../../../services/addAllCapturedWords';
 import { resolveCapturedWordEligibility } from '../../../services/wordCaptureEligibility';
 import { reportCaptureFailure } from '../../../services/wordCaptureFailure';
-import { ignoreWordWithConfirmation } from '../../flashcards/ignoreWordWithConfirmation';
+import { excludeWordFromStudy } from '../../flashcards/excludeWordFromStudy';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen } from '../../../services/settingRequirementWarnings';
@@ -353,6 +354,7 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
                     <>
                       <OcrWord
                         token={token}
+                        lookupContext={tokenLookupContext(token, bodyText())}
                         onWordEnter={(hoverToken, event) => {
                           const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
                           props.onWordHover(hoverToken, rect, bodyText());
@@ -565,7 +567,6 @@ export const ReaderRoute: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
-  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const langCtx = useLanguage();
   const { detectGrammarInText, supportsGrammar, isTokenTranslatable, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants, getLanguageFeatures } = langCtx;
   const ocrEnabled = () => settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled;
@@ -1504,7 +1505,11 @@ export const ReaderRoute: Component = () => {
     const bookId = currentBookId();
 
     void (async () => {
-      const capturedPages = new Map<string, string | null>();
+      // A suggestion's image belongs to ONE word occurrence, so there is no
+      // page-scoped cache here any more. Two words on the same page each get
+      // their own crop around their own OCR box. Sharing one page image made
+      // every suggested card show the same whole page, which identifies
+      // nothing about the word the card is for.
       // Current-content passive exposures per word (R21): recorded coverage
       // recurrence, used by BOTH the suggestion filter and capture so a
       // repeatedly-blocking off-list term survives the level gate (the same
@@ -1527,17 +1532,14 @@ export const ReaderRoute: Component = () => {
         const freq = langCtx.getFrequency(entry.word);
         if (!allowedWords.has(entry.word)) continue;
         capturedSuggestionWords.add(entry.word);
-        let image = capturedPages.get(entry.pageId);
-        if (image === undefined) {
-          const pageImage = imageRefs()[entry.pageId];
-          if (!pageImage) {
-            image = null;
-          } else {
-            const cardId = `reader-page-${entry.pageId}-${Date.now()}`;
-            image = await captureReaderImageForFlashcard(pageImage, cardId);
-          }
-          capturedPages.set(entry.pageId, image);
-        }
+        const pageImage = imageRefs()[entry.pageId];
+        const anchorRect = getAnchorRectForWord(entry) ?? undefined;
+        // No reliable occurrence geometry means no image. The suggestion is
+        // still recorded with its text and context; it simply carries no
+        // media rather than a misleading page picture.
+        const image = pageImage && anchorRect
+          ? await captureReaderImageForOccurrence(pageImage, anchorRect, { cropPadding: settings.ocr_crop_padding })
+          : null;
         void flashcardCtx.captureSuggestedFlashcard({
           word: entry.word,
           reading: freq?.reading,
@@ -1668,12 +1670,10 @@ export const ReaderRoute: Component = () => {
 
 
   const handleIgnoreSidebarWord = async (entry: ReaderUnknownWordEntry) => {
-    await ignoreWordWithConfirmation(
+    await excludeWordFromStudy(
       { word: entry.word, reading: entry.token.reading, language: settings.language },
       {
-        getCardCount: (word, language) => flashcardCtx.getCardsByWordSync(word, language).length,
         ignoreWordForLanguage: flashcardCtx.ignoreWordForLanguage,
-        showConfirm,
         t,
       },
     );
@@ -2865,7 +2865,7 @@ export const ReaderRoute: Component = () => {
 
     // Check if translation is already cached (from pre-warm)
     // This ensures the prosody pill shows immediately on first hover
-    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, wordLookupOptions);
+    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, { ...wordLookupOptions, context: tokenLookupContext(token, contextPhrase) });
 
     // Set cached data if available, otherwise clear
     setOcrTranslationData(cachedTranslation);
@@ -2884,7 +2884,7 @@ export const ReaderRoute: Component = () => {
     if (!cachedTranslation) {
       try {
         // Use dictionary form for translation lookup (handles conjugations like 屈して -> 屈する)
-        const translation = await translateWord(lookupWord);
+        const translation = await translateWord(lookupWord, tokenLookupContext(token, contextPhrase));
         if (requestId !== ocrHoverRequestId) return;
         setOcrTranslationData(translation);
       } catch (_e) {
@@ -3295,6 +3295,10 @@ export const ReaderRoute: Component = () => {
               onWordHover={setSidebarHoveredEntry}
               onWordLeave={() => setSidebarHoveredEntry(null)}
               onClose={() => setShowWordSidebar(false)}
+              onPracticeWords={entries => getBridge().window.openWindow({ type: 'level-study', context: {
+                activity: 'practice',
+                material: { language: settings.language, words: entries.map(entry => entry.word), label: bookTitle() },
+              } })}
           />
         </Show>
 
@@ -3339,6 +3343,7 @@ export const ReaderRoute: Component = () => {
               translationData={ocrTranslationData() || undefined}
               isOCR={true}
               headwordFontFamily={readerTextFontFamily()} /*this is tech debt but idc*/
+              lookupContext={tokenLookupContext(hoverData.token, ocrContextPhrase())}
               contextPhrase={ocrContextPhrase()}
               ocrImageElement={(() => {
                 // Find the correct page image based on anchor position
@@ -3396,7 +3401,6 @@ export const ReaderRoute: Component = () => {
             active={magnifierActive()}
         />
 
-        <ConfirmDialogElement />
-      </section>
+        </section>
   );
 };

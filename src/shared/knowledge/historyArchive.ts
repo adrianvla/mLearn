@@ -81,6 +81,9 @@ export function isAggregatableEvent(event: KnowledgeEvent, now: number): boolean
   if (event.kind === 'claim' || event.kind === 'retraction') return false;
   if (event.retracts !== undefined) return false;
   if (event.itemRef !== undefined || event.validationRef !== undefined) return false;
+  // Decision/outcome joins and opaque transfer contexts cannot be reconstructed
+  // from aggregate contribution codecs. Preserve their sparse audit rows.
+  if (event.decisionRef !== undefined || event.decision !== undefined || event.transferContext !== undefined) return false;
   if (event.attemptId === undefined && (event.source === 'manual' || event.source === 'grammar')) return false;
   return event.t < now - KNOWLEDGE_ARCHIVE_TAIL_MS;
 }
@@ -379,7 +382,7 @@ export function compactKeyEvents(
   const acquisitionCutoff = firstMeaningT !== undefined ? firstMeaningT + KNOWLEDGE_ACQUISITION_WINDOW_MS : Number.NEGATIVE_INFINITY;
 
   // Retracted attempts are dead rows: their tombstone (kept exact) is the
-  // audit; neither fold nor record may ever see them again.
+  // audit for ordinary rows; provenance rows stay exact but inactive. Neither fold nor record sees them again.
   const retractedIds = new Set<string>();
   for (const { event } of ordered) {
     if (event.retracts !== undefined) retractedIds.add(`${event.retracts}`);
@@ -410,7 +413,11 @@ export function compactKeyEvents(
   const records: CompactionRecords = { attemptRecords: [], bucketRecords: [] };
 
   for (const { event, seq } of ordered) {
-    if (event.attemptId !== undefined && retractedIds.has(`${event.attemptId}`)) continue;
+    if (event.attemptId !== undefined && retractedIds.has(`${event.attemptId}`)) {
+      // Outcome provenance remains inspectable after undo, but never enters a fold.
+      if (event.decisionRef !== undefined || event.decision !== undefined || event.transferContext !== undefined) kept.push({ event, seq });
+      continue;
+    }
     const bucketKey = archiveBucketKey(event);
     if (!isAggregatableEvent(event, now) || event.t <= acquisitionCutoff || (previousIncomplete && previous.buckets[bucketKey] !== undefined)) {
       kept.push({ event, seq });
@@ -721,10 +728,11 @@ export function retentionSequence(
 export function computeRetention(
   archive: KeyArchive | undefined,
   exactRows: ReadonlyArray<{ event: KnowledgeEvent; seq: number }>,
-  policy: RetentionPolicy,
+  policy: RetentionPolicy | undefined,
   now: number,
   matches: (event: KnowledgeEvent) => boolean,
 ): RetentionScheduleCache & { pressure: number } | null {
+  if (!policy) return null;
   const { preArchive, postArchive } = retentionSequence(archive, exactRows, matches);
   if (preArchive.length === 0 && postArchive.length === 0) return null;
   let firstEvidenceT = Number.POSITIVE_INFINITY;

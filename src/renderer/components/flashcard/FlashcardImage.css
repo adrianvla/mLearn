@@ -2,11 +2,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 8rem;
+  min-height: 0;
   padding: var(--spacing-2);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   text-align: center;
   background: var(--bg);
   border-radius: var(--radius-md);
+}
+
+/* Failed assets keep the message, without borrowing the loaded image frame. */
+.flashcard-image-unavailable.flashcard-screenshot {
+  min-height: 0;
+  border: none;
+  box-shadow: none;
 }

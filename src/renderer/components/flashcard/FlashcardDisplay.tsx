@@ -30,6 +30,10 @@ export interface FlashcardDisplayProps {
   showAnswer?: boolean;
   onFlip?: () => void;
   onPlayTts?: (cardId: string, text: string, field: 'word' | 'example') => void;
+  /** Opaque parent encounter identity; may change while the same card remains due. */
+  promptMediaOwner?: unknown;
+  /** Review owns durable assistance admission before front media is available. */
+  onOpenPromptMedia?: (cardId: string, open: () => void) => void;
   ttsPlayingField?: 'word' | 'example' | null;
   ttsGenerating?: boolean;
   ttsMetadata?: TtsMetadata | null;
@@ -56,6 +60,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const [shouldAnimate, setShouldAnimate] = createSignal(false);
   // Track enter animation between cards
   const [isEntering, setIsEntering] = createSignal(false);
+  const [frontMediaAllowed, setFrontMediaAllowed] = createSignal(false);
 
   const content = () => props.flashcard.content;
   const cardLanguage = () => props.flashcard.language || settings.language;
@@ -191,12 +196,14 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
     el.play().catch(() => { /* autoplay blocked */ });
   };
 
-  // Reset videos when a new card appears
+  // A supplied review can keep the same card due. Its next encounter still
+  // requires fresh media admission after the prior marker is acknowledged.
   createEffect(on(
-    () => props.flashcard.id,
+    () => props.promptMediaOwner ?? props.flashcard.id,
     () => {
       pauseVideo(frontVideoRef);
       pauseVideo(backVideoRef);
+      setFrontMediaAllowed(false);
     },
   ));
 
@@ -279,7 +286,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
 
           <Show when={content().example && content().example !== '-'}>
             <div class="flashcard-example-row">
-              <SafeHtml tag="div" class="flashcard-example" html={content().example} />
+              <SafeHtml tag="div" class="flashcard-example" html={content().example} storedWordPresentation />
               <Show when={props.onPlayTts && !content().skipExampleTts}>
                 <Button buttonType="icon"
                   icon="volume"
@@ -308,14 +315,25 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
               </Show>
             }>
               <div class="flashcard-screenshot-container flashcard-screenshot-front">
-                <video
-                  ref={frontVideoRef}
-                  src={displayVideoUrl()!}
-                  class="flashcard-screenshot"
-                  controls
-                  preload="auto"
-                  onClick={(e: MouseEvent) => e.stopPropagation()}
-                />
+                <Show when={!props.onOpenPromptMedia || frontMediaAllowed()} fallback={
+                  <Button class="flashcard-media-admission" onClick={(event: MouseEvent) => {
+                    event.stopPropagation();
+                    const id = props.flashcard.id;
+                    const owner = props.promptMediaOwner;
+                    props.onOpenPromptMedia?.(id, () => {
+                      if (props.flashcard.id === id && props.promptMediaOwner === owner) setFrontMediaAllowed(true);
+                    });
+                  }}>{t('mlearn.Flashcards.Review.PlayVideoWithAssistance')}</Button>
+                }>
+                  <video
+                    ref={frontVideoRef}
+                    src={displayVideoUrl()!}
+                    class="flashcard-screenshot"
+                    controls
+                    preload="auto"
+                    onClick={(e: MouseEvent) => e.stopPropagation()}
+                  />
+                </Show>
               </div>
             </Show>
           </Show>
@@ -350,7 +368,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
           <div class="flashcard-word-header">
-            <FlashcardWordTitle content={content()} language={props.flashcard.language}/>
+            <FlashcardWordTitle content={content()} language={props.flashcard.language} readingAnswer={isFlipped()}/>
             <Show when={props.onPlayTts}>
               <Button buttonType="icon"
                 icon="volume"
@@ -370,7 +388,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           <Show when={content().example && content().example !== '-'}>
             <div class="flashcard-example-group">
               <div class="flashcard-example-row">
-              <SafeHtml tag="div" class="flashcard-example" html={content().example} />
+              <SafeHtml tag="div" class="flashcard-example" html={content().example} storedWordPresentation />
                 <Show when={props.onPlayTts && !content().skipExampleTts}>
                   <Button buttonType="icon"
                     icon="volume"

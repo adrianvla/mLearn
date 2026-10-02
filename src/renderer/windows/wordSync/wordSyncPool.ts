@@ -21,7 +21,9 @@ export function wordSyncPoolStatus(resolvedStatus: 'unknown' | 'learning' | 'kno
  *  one unresolved target per possible capability, status Untracked, focused
  *  false. Without the entity id those surfaces stay non-admissible (the
  *  fallback is a total non-crashing status only, never an admission path).
- *  A ready projection WITH targets keeps the existing admission rule.
+ *  A plain word prompt measures unresolved surface familiarity. Graph sense
+ *  or component targets determine eligibility, but are never claimed as exact
+ *  outcomes unless a separate task actually isolates them.
  */
 export function wordSyncProbe(
   projection: KnowledgeProjection | undefined,
@@ -42,6 +44,8 @@ export function wordSyncProbe(
   // A surface prompt cannot isolate an unmeasured homograph sense from a known one.
   const testable = possible.filter(capability => !projection.targets.some(target => target.states.some(state => state.capability === capability && state.classification === 'known')));
   const targets = unresolvedProjectionTargets(projection, testable);
+  const promptSurfaceId = surfaceEntityId ?? projection.surfaceId
+    ?? projection.targets.find(target => target.targetRef.kind === 'surface')?.targetRef.id;
   const { status, basis } = projectedWordStatus(projection);
   // Graph-unmapped surface: a ready projection with NO targets is the
   // unmeasured shape (surfaceKnown false) — construct identity-backed
@@ -50,13 +54,17 @@ export function wordSyncProbe(
   // summary decides admission like any measured surface.
   const lexicalUnmeasured = projection.lexical?.overall?.basis === undefined
     || projection.lexical.overall.basis === 'unmeasured';
-  const effectiveTargets = targets.length > 0 || projection.targets.length > 0
+  const withoutStructure = projection.status === 'ready' && (projection.graphStatus === 'not-installed' || projection.graphStatus === 'unavailable');
+  const effectiveTargets = withoutStructure && promptSurfaceId !== undefined
+    ? testable.map(capability => ({ entityId: promptSurfaceId, capability }))
+    : targets.length > 0 || projection.targets.length > 0
     ? targets
     : (surfaceEntityId !== undefined && projection.surfaceKnown === false && lexicalUnmeasured && possible.length > 0
       ? possible.map(capability => ({ entityId: surfaceEntityId, capability }))
       : targets);
   return {
-    targets: effectiveTargets,
+    targets: promptSurfaceId === undefined ? [] : [...new Set(effectiveTargets.map(target => target.capability))]
+      .map(capability => ({ entityId: promptSurfaceId, capability })),
     status: wordSyncPoolStatus(status, basis),
     focused: testable.length < possible.length,
   };

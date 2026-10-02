@@ -15,6 +15,8 @@ const testSettings = {
   builtinModel: 'selected.gguf',
 };
 let settingsLoading = false;
+let libraryError: string | null = null;
+const retryLibraryLoad = vi.fn();
 
 const languageProviderMock = vi.fn((props: {
   language?: string;
@@ -50,6 +52,7 @@ vi.mock('./LanguageContext', () => ({
 
 vi.mock('./FlashcardContext', () => ({
   FlashcardProvider: (props: { children?: JSX.Element }) => <>{props.children}</>,
+  useFlashcards: () => ({ libraryLoadError: () => libraryError, retryLibraryLoad }),
 }));
 
 vi.mock('./ServerContext', () => ({
@@ -132,6 +135,8 @@ describe('WindowWrapper', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     settingsLoading = false;
+    libraryError = null;
+    retryLibraryLoad.mockClear();
     testSettings.llmProvider = 'cloud';
     languageProviderMock.mockClear();
     activeGroupGateMock.mockClear();
@@ -141,6 +146,33 @@ describe('WindowWrapper', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('shows a protected-library recovery dialog with one working retry action', async () => {
+    libraryError = 'unreadable';
+    const { LibraryLoadGuard } = await import('./WindowWrapper');
+    const dispose = render(() => <LibraryLoadGuard />, container);
+    try {
+      const alert = document.querySelector('[role="alert"]');
+      expect(alert?.textContent).toBe('mlearn.LibraryRecovery.Description');
+      const retry = Array.from(document.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.TryAgain');
+      expect(retry).toBeDefined();
+      retry!.click();
+      expect(retryLibraryLoad).toHaveBeenCalledOnce();
+      expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+      expect(document.querySelector('.modal-close')).toBeNull();
+    } finally { dispose(); }
+  });
+
+  it('keeps Settings recovery tools reachable with a library failure notice', async () => {
+    libraryError = 'unreadable';
+    const { LibraryLoadGuard } = await import('./WindowWrapper');
+    const dispose = render(() => <><LibraryLoadGuard recoveryAccess /><button>Existing recovery tools</button></>, container);
+    try {
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.LibraryRecovery.Description');
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      expect(container.textContent).toContain('Existing recovery tools');
+    } finally { dispose(); }
   });
 
   it('passes the selected learning language from settings into LanguageProvider', async () => {

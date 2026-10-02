@@ -170,6 +170,7 @@ export const Button: Component<ButtonProps> = (props) => {
     'active',
     'children',
     'class',
+    'classList',
     'disabled',
   ]);
 
@@ -210,7 +211,16 @@ export const Button: Component<ButtonProps> = (props) => {
     // Custom class
     if (local.class) classes.push(local.class as string);
     
-    return classes.join(' ');
+    // One class owner: state transitions must not overwrite an unchanged
+    // caller selection applied by a separate classList effect.
+    const composed = new Set(classes.join(' ').split(/\s+/).filter(Boolean));
+    for (const [names, enabled] of Object.entries(local.classList ?? {})) {
+      for (const name of names.split(/\s+/).filter(Boolean)) {
+        if (enabled) composed.add(name);
+        else composed.delete(name);
+      }
+    }
+    return [...composed].join(' ');
   };
 
   const badgeClass = () => {

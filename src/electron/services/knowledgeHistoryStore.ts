@@ -1,9 +1,14 @@
-import { projectCapabilities } from '../../shared/knowledge/capabilityProjection';
+import { randomUUID } from 'node:crypto';
+import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
+import { isPendingRetraction, MAX_RETRACTION_HISTORY, type PendingRetraction } from '../../shared/retractionRecovery';
+import { isLearningDecision, learningDecisionMatchesOutcome, type LearningDecision, type LearningDecisionRecord, type LearningTargetAddress } from '../../shared/learningDecision';
+import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { DatabaseSync } from 'node:sqlite';
 import { createGrammarRecognitionFold, grammarPatternFromEvidenceKey } from '../../shared/grammar/evidence';
 import type { GrammarProjectionMap, KnowledgeEventCursor, KnowledgeEventPage } from '../../shared/knowledge/historyQueries';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { eventCapability } from '../../shared/knowledgeEvents';
+import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
 import {
   applyEventToFold,
   emptyKeyFold,
@@ -50,6 +55,7 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const event = value as Partial<KnowledgeEvent>;
   if (typeof event.t !== 'number' || !Number.isFinite(event.t)) return false;
+  if (event.eventId !== undefined && (typeof event.eventId !== 'string' || event.eventId.length === 0)) return false;
   if (!VALID_KINDS.has(event.kind as string)) return false;
   if (!VALID_SOURCES.has(event.source as string)) return false;
   // Epistemic address: every non-retraction event carries EITHER a legacy
@@ -67,6 +73,14 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
     if (typeof event.targetRef.kind !== 'string' || typeof event.targetRef.id !== 'string') return false;
     if (event.targetRef.capability !== undefined && !isValidCapabilityId(event.targetRef.capability)) return false;
   }
+  if (event.decisionRef !== undefined) {
+    if (!event.decisionRef || typeof event.decisionRef !== 'object' || Array.isArray(event.decisionRef)
+      || typeof event.decisionRef.id !== 'string' || !event.decisionRef.id
+      || (event.kind !== 'rating' && event.kind !== 'review') || !event.targetRef) return false;
+  }
+  if (event.decision !== undefined && (!isLearningDecision(event.decision)
+    || event.decisionRef?.id !== event.decision.id || !event.targetRef
+    || !learningDecisionMatchesOutcome(event.decision, event.targetRef as LearningTargetAddress))) return false;
   if (event.taskType !== undefined && (typeof event.taskType !== 'string' || event.taskType.length === 0)) return false;
   if (event.itemRef !== undefined) {
     if (!event.itemRef || typeof event.itemRef !== 'object' || Array.isArray(event.itemRef)) return false;
@@ -90,8 +104,8 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
   return true;
 }
 
-/** 2 = per-row contribution records (bucket_recs + attempt_index) exist. */
-export const KNOWLEDGE_STORE_SCHEMA_VERSION = 2;
+/** 3 = durable observation identities, separate from multi-access attempt ids. */
+export const KNOWLEDGE_STORE_SCHEMA_VERSION = 3;
 export const KNOWLEDGE_STORE_FOLD_VERSION = 2;
 export const STORE_FILE_NAME = 'knowledge-history.sqlite3';
 /** Maximum keys compacted per pass — bounded incremental work. */
@@ -100,6 +114,8 @@ export const COMPACTION_KEY_BUDGET = 200;
 export interface KeyKnowledgeState {
   projection: ReplayProjection | null;
   capabilities?: Record<string, ReplayProjection>;
+  /** Durable withdrawals must remain distinguishable from never-authored claims. */
+  claimMarkers?: ReturnType<typeof import('../../shared/knowledge/capabilityProjection').projectClaimMarkers>;
   /** True when the key has an archive (aggregated old evidence exists). */
   hasArchive: boolean;
   /** Rows summarized by the archive. */
@@ -225,6 +241,13 @@ function mergeTransitions(a: TransitionsState, b: TransitionsState): Transitions
  * key's full fold, versioned and rebuildable from rows + archives. Appends
  * advance checkpoints incrementally; compaction rewrites a key atomically.
  */
+export interface PendingRatingCommand {
+  sequence: number;
+  command: FlashcardRatingCommand;
+}
+
+export type RatingCommandReservation = PendingRatingCommand | { sequence: number; revision: number };
+
 export class KnowledgeHistoryStore {
   private db: DatabaseSync;
   private seq: SeqCounter;
@@ -233,6 +256,16 @@ export class KnowledgeHistoryStore {
     this.db = db;
     this.migrateSchema();
     this.seq = new SeqCounter(this.db);
+    if (!this.db.prepare("SELECT 1 FROM meta WHERE key = 'archived-address-index-v1'").get()) {
+      this.db.exec('BEGIN');
+      try {
+        for (const row of this.db.prepare('SELECT key, lang, json FROM archives').all() as Array<{ key: string; lang: string; json: string }>) {
+          this.indexArchiveAddresses(row.key, row.lang, JSON.parse(row.json) as KeyArchive);
+        }
+        this.db.prepare("INSERT INTO meta (key, value) VALUES ('archived-address-index-v1', '1')").run();
+        this.db.exec('COMMIT');
+      } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    }
   }
 
   static open(dbPath: string): KnowledgeHistoryStore {
@@ -245,6 +278,29 @@ export class KnowledgeHistoryStore {
   private migrateSchema(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS rating_commands (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        attempt_id TEXT NOT NULL UNIQUE,
+        command_json TEXT,
+        committed_revision INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS learning_decisions (
+        id TEXT PRIMARY KEY,
+        decision_json TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS rating_undo (
+        attempt_id TEXT PRIMARY KEY,
+        surface TEXT NOT NULL,
+        undo_json TEXT NOT NULL,
+        keys_json TEXT NOT NULL,
+        retracted INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS rating_undo_surface ON rating_undo(surface, retracted);
+      CREATE TABLE IF NOT EXISTS learning_decision_attempts (
+        attempt_id TEXT PRIMARY KEY,
+        decision_id TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS learning_decision_attempts_choice ON learning_decision_attempts(decision_id);
       CREATE TABLE IF NOT EXISTS rows (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         seq INTEGER NOT NULL,
@@ -254,6 +310,20 @@ export class KnowledgeHistoryStore {
         json TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS rows_key_t ON rows(key, t, seq);
+      CREATE INDEX IF NOT EXISTS rows_attempt ON rows(key, json_extract(json, '$.attemptId'));
+      CREATE INDEX IF NOT EXISTS rows_event_id ON rows(key, json_extract(json, '$.eventId'));
+      CREATE INDEX IF NOT EXISTS rows_anki_review ON rows(key, json_extract(json, '$.ankiReviewId'));
+      CREATE INDEX IF NOT EXISTS rows_target_address ON rows(lang, json_extract(json, '$.targetRef.id'));
+      CREATE TABLE IF NOT EXISTS archived_addresses (
+        id TEXT NOT NULL, key TEXT NOT NULL, lang TEXT NOT NULL, PRIMARY KEY (id, key)
+      ) WITHOUT ROWID;
+      CREATE INDEX IF NOT EXISTS archived_addresses_key ON archived_addresses(key);
+      CREATE INDEX IF NOT EXISTS rows_retraction ON rows(key, json_extract(json, '$.retracts'));
+      CREATE TABLE IF NOT EXISTS observation_identities (
+        key TEXT NOT NULL,
+        identity TEXT NOT NULL,
+        PRIMARY KEY (key, identity)
+      ) WITHOUT ROWID;
       CREATE TABLE IF NOT EXISTS archives (
         key TEXT PRIMARY KEY,
         lang TEXT NOT NULL,
@@ -286,6 +356,121 @@ export class KnowledgeHistoryStore {
     const setMeta = this.db.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING');
     setMeta.run('schemaVersion', String(KNOWLEDGE_STORE_SCHEMA_VERSION));
     setMeta.run('foldVersion', String(KNOWLEDGE_STORE_FOLD_VERSION));
+    setMeta.run('ratingLedgerId', randomUUID());
+  }
+
+  get ratingLedgerId(): string {
+    return (this.db.prepare("SELECT value FROM meta WHERE key = 'ratingLedgerId'").get() as { value: string }).value;
+  }
+
+  isRatingCommandCommitted(attemptId: string): boolean {
+    return this.db.prepare('SELECT 1 FROM rating_commands WHERE attempt_id = ? AND committed_revision IS NOT NULL')
+      .get(attemptId) !== undefined;
+  }
+
+  /** Technical commands live beside the journal, never among ability observations. */
+  reserveRatingCommand(command: FlashcardRatingCommand, validateAdmission?: () => void): RatingCommandReservation {
+    if (typeof command.attemptId !== 'string' || !command.attemptId) throw new Error('Invalid rating attempt identity');
+    const existing = this.db.prepare('SELECT sequence, command_json, committed_revision FROM rating_commands WHERE attempt_id = ?')
+      .get(command.attemptId) as { sequence: number; command_json: string | null; committed_revision: number | null } | undefined;
+    if (existing) {
+      if (existing.committed_revision !== null) return { sequence: existing.sequence, revision: existing.committed_revision };
+      if (!existing.command_json) throw new Error('The pending rating command is unreadable');
+      return { sequence: existing.sequence, command: JSON.parse(existing.command_json) as FlashcardRatingCommand };
+    }
+    if (command.decisionId !== undefined) {
+      const record = this.getLearningDecisionRecord(command.decisionId);
+      if (!record) throw new Error('The learning decision must be saved before presentation');
+      if (!command.guardCardIds?.includes(record.decision.selected.key)) throw new Error('The response does not address its captured choice');
+      if (record.decision.selected.presentation !== undefined
+        && JSON.stringify(command.presentation) !== JSON.stringify(record.decision.selected.presentation)) {
+        throw new Error('The response does not address its captured presentation');
+      }
+      for (const rows of Object.values(command.events)) for (const event of rows) {
+        if (event.schedulerCardId !== undefined && event.schedulerCardId !== record.decision.selected.key) {
+          throw new Error('The response does not address its captured choice');
+        }
+        if (event.targetRef?.capability !== undefined && !learningDecisionMatchesOutcome(record.decision, event.targetRef as LearningTargetAddress)) {
+          throw new Error('The measured response does not address its captured task');
+        }
+        if (event.decisionRef !== undefined && event.decisionRef.id !== command.decisionId) throw new Error('The response names another learning decision');
+      }
+    }
+    if (command.undo !== undefined && (!isPendingRetraction(command.undo)
+      || command.undo.attemptId !== command.attemptId || command.undo.attemptIds.length !== 1
+      || command.undo.attemptIds[0] !== command.attemptId)) throw new Error('The rating Undo belongs to another response');
+    validateAdmission?.();
+    const encoded = JSON.stringify(command);
+    let sequence = 0;
+    this.db.exec('BEGIN');
+    try {
+      const result = this.db.prepare('INSERT INTO rating_commands (attempt_id, command_json) VALUES (?, ?)').run(command.attemptId, encoded);
+      sequence = Number(result.lastInsertRowid);
+      if (command.undo) this.db.prepare('INSERT INTO rating_undo (attempt_id, surface, undo_json, keys_json) VALUES (?, ?, ?, ?)')
+        .run(command.attemptId, command.undo.surface, JSON.stringify(command.undo),
+          JSON.stringify(command.undo.target?.keys ?? Object.keys(command.events)));
+      if (command.decisionId !== undefined) this.db.prepare('INSERT INTO learning_decision_attempts (attempt_id, decision_id) VALUES (?, ?)')
+        .run(command.attemptId, command.decisionId);
+      this.db.exec('COMMIT');
+    } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    return { sequence, command: JSON.parse(encoded) as FlashcardRatingCommand };
+  }
+
+  recordLearningDecision(decision: LearningDecision): void {
+    if (!isLearningDecision(decision)) throw new Error('Malformed learning decision');
+    const encoded = JSON.stringify(decision);
+    const existing = this.db.prepare('SELECT decision_json FROM learning_decisions WHERE id = ?').get(decision.id) as { decision_json: string } | undefined;
+    if (existing) {
+      if (existing.decision_json !== encoded) throw new Error('A learning decision is immutable');
+      return;
+    }
+    this.db.prepare('INSERT INTO learning_decisions (id, decision_json) VALUES (?, ?)').run(decision.id, encoded);
+  }
+
+  getLearningDecisionRecord(id: string): LearningDecisionRecord | null {
+    const row = this.db.prepare('SELECT decision_json FROM learning_decisions WHERE id = ?').get(id) as { decision_json: string } | undefined;
+    if (!row) return null;
+    const decision: unknown = JSON.parse(row.decision_json);
+    if (!isLearningDecision(decision)) throw new Error('The saved learning decision is unreadable');
+    const attempts = this.db.prepare(`SELECT a.attempt_id AS attemptId, r.committed_revision AS committedRevision
+      FROM learning_decision_attempts a JOIN rating_commands r ON r.attempt_id = a.attempt_id
+      WHERE a.decision_id = ? ORDER BY r.sequence`).all(id) as LearningDecisionRecord['attempts'];
+    return { decision, attempts };
+  }
+
+  pendingRatingCommands(): PendingRatingCommand[] {
+    const rows = this.db.prepare('SELECT sequence, command_json FROM rating_commands WHERE committed_revision IS NULL ORDER BY sequence')
+      .all() as Array<{ sequence: number; command_json: string }>;
+    return rows.map(row => ({ sequence: row.sequence, command: JSON.parse(row.command_json) as FlashcardRatingCommand }));
+  }
+
+  getRatingUndoHistory(surface: string): PendingRetraction[] {
+    if (typeof surface !== 'string' || !surface) throw new Error('Invalid Undo surface');
+    const rows = this.db.prepare(`SELECT u.undo_json FROM rating_undo u JOIN rating_commands r USING (attempt_id)
+      WHERE u.surface = ? AND u.retracted = 0 AND r.committed_revision IS NOT NULL
+      ORDER BY r.sequence DESC LIMIT ?`).all(surface, MAX_RETRACTION_HISTORY) as Array<{ undo_json: string }>;
+    return rows.map(row => {
+      const record: unknown = JSON.parse(row.undo_json);
+      if (!isPendingRetraction(record)) throw new Error('The saved rating Undo is unreadable');
+      return record;
+    });
+  }
+
+  /** Compact completed payloads while retaining durable, small retry receipts. */
+  completeRatingCommands(throughSequence: number, revision: number): void {
+    if (!Number.isSafeInteger(throughSequence) || throughSequence < 1 || !Number.isSafeInteger(revision) || revision < 0) {
+      throw new Error('Invalid rating commit receipt');
+    }
+    this.db.prepare('UPDATE rating_commands SET command_json = NULL, committed_revision = ? WHERE sequence <= ? AND committed_revision IS NULL')
+      .run(revision, throughSequence);
+    // Keep full card pre-images bounded; retry receipts remain small and durable.
+    this.db.exec(`DELETE FROM rating_undo WHERE retracted = 1;
+      DELETE FROM rating_undo WHERE attempt_id IN (
+        SELECT attempt_id FROM (
+          SELECT u.attempt_id, ROW_NUMBER() OVER (PARTITION BY u.surface ORDER BY r.sequence DESC) AS position
+          FROM rating_undo u JOIN rating_commands r USING (attempt_id) WHERE r.committed_revision IS NOT NULL
+        ) WHERE position > ${MAX_RETRACTION_HISTORY}
+      )`);
   }
 
   /** Persisted schema generation (0/undefined = fresh or pre-versioned DB). */
@@ -352,6 +537,8 @@ export class KnowledgeHistoryStore {
         const seqBase = this.seq.reserve(pending.length);
         pending.forEach((event, index) => {
           insert.run(seqBase + index + 1, key, lang, event.t, JSON.stringify(event));
+          const identity = knowledgeEventIdentity(event);
+          if (identity !== undefined) this.db.prepare('INSERT OR IGNORE INTO observation_identities (key, identity) VALUES (?, ?)').run(key, identity);
           totalEvents += 1;
         });
         const rows = rowsWithSeq(this.db, key);
@@ -387,14 +574,26 @@ export class KnowledgeHistoryStore {
    * must re-import every key against the empty store.
    */
   resetForReimport(): void {
-    this.db.exec("DELETE FROM rows; DELETE FROM archives; DELETE FROM checkpoints; DELETE FROM attempt_index; DELETE FROM bucket_recs; DELETE FROM meta WHERE key LIKE 'mig:%' OR key LIKE 'migseq:%' OR key LIKE 'v2mig:%' OR key = 'seqCounter';");
+    this.db.exec("DELETE FROM rows; DELETE FROM archives; DELETE FROM archived_addresses; DELETE FROM checkpoints; DELETE FROM attempt_index; DELETE FROM bucket_recs; DELETE FROM observation_identities; DELETE FROM meta WHERE key LIKE 'mig:%' OR key LIKE 'migseq:%' OR key LIKE 'v2mig:%' OR key = 'seqCounter';");
   }
 
   /** Transaction-body variant — callers own BEGIN/COMMIT. */
   private writeArchiveAndCheckpointLocked(key: string, compact: ReturnType<typeof compactKeyEvents>): void {
+    const remember = this.db.prepare('INSERT OR IGNORE INTO observation_identities (key, identity) VALUES (?, ?)');
+    for (const event of [
+      ...compact.records.bucketRecords.map(record => record.event),
+      ...compact.records.attemptRecords.flatMap(record => {
+        const decoded = decodeAttemptRecord(record.rec);
+        return decoded ? [{ ...bucketRepresentative(record.bucketKey), ...decoded.event, attemptId: record.attemptId }] : [];
+      }),
+    ]) {
+      const identity = knowledgeEventIdentity(event);
+      if (identity !== undefined) remember.run(key, identity);
+    }
     {
       const lang = this.languageOfKey(key);
       if (compact.archive) {
+        this.indexArchiveAddresses(key, lang, compact.archive);
         this.db
           .prepare(
             'INSERT INTO archives (key, lang, frontier_t, json) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET frontier_t = excluded.frontier_t, json = excluded.json',
@@ -569,21 +768,51 @@ export class KnowledgeHistoryStore {
    */
   appendEvents(eventsByKey: KnowledgeEventLog): void {
     const insert = this.db.prepare('INSERT INTO rows (seq, key, lang, t, json) VALUES (?, ?, ?, ?, ?)');
+    const exists = this.db.prepare('SELECT 1 FROM observation_identities WHERE key = ? AND identity = ?');
+    const remember = this.db.prepare('INSERT INTO observation_identities (key, identity) VALUES (?, ?)');
+    const exactAttempt = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json_extract(json, '$.attemptId') = ?");
+    const exactEventId = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json_extract(json, '$.eventId') = ?");
+    const exactAnkiId = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json_extract(json, '$.ankiReviewId') = ?");
+    const retracted = this.db.prepare("SELECT 1 FROM rows WHERE key = ? AND json_extract(json, '$.retracts') = ? LIMIT 1");
+    const archivedAttempt = this.db.prepare('SELECT rec, bucket, attempt_id FROM attempt_index WHERE key = ? AND attempt_id = ?');
     for (const [key, events] of Object.entries(eventsByKey)) {
       if (!events.length) continue;
       const lang = this.languageOfKey(key);
       this.db.exec('BEGIN');
       try {
         const valid = events.filter((event) => {
-          if (isKnowledgeEvent(event)) return true;
-          log.warn('[knowledgeHistoryStore] dropped malformed event on append', key);
-          return false;
+          if (!isKnowledgeEvent(event)) {
+            log.warn('[knowledgeHistoryStore] dropped malformed event on append', key);
+            return false;
+          }
+          const identity = knowledgeEventIdentity(event);
+          if (identity === undefined) return true;
+          if (exists.get(key, identity)) return false;
+          // Seed old exact/archive observations lazily. Historical logs are
+          // preserved; opening the profile never guesses away existing rows.
+          const previous = [
+            ...(event.eventId === undefined ? [] : exactEventId.all(key, event.eventId) as Array<{ json: string }>).map(row => JSON.parse(row.json) as KnowledgeEvent),
+            ...(event.ankiReviewId === undefined ? [] : exactAnkiId.all(key, event.ankiReviewId) as Array<{ json: string }>).map(row => JSON.parse(row.json) as KnowledgeEvent),
+            ...(event.attemptId === undefined ? [] : [
+            ...(exactAttempt.all(key, event.attemptId) as Array<{ json: string }>).map(row => JSON.parse(row.json) as KnowledgeEvent),
+            ...(archivedAttempt.all(key, String(event.attemptId)) as Array<{ rec: Uint8Array; bucket: string; attempt_id: string }>).flatMap(row => {
+              const record = decodeAttemptRecord(row.rec);
+              return record ? [{ ...bucketRepresentative(row.bucket), ...record.event, attemptId: row.attempt_id }] : [];
+            }),
+          ]),
+          ];
+          remember.run(key, identity);
+          if (event.attemptId !== undefined && retracted.get(key, event.attemptId)) return false;
+          return !previous.some(row => knowledgeEventIdentity(row) === identity);
         });
         const seqBase = this.seq.reserve(valid.length);
         const newSeqs: number[] = [];
         valid.forEach((event, index) => {
           const seq = seqBase + index + 1;
           insert.run(seq, key, lang, event.t, JSON.stringify(event));
+          if (event.retracts !== undefined) this.db.prepare(`UPDATE rating_undo SET retracted = 1
+            WHERE attempt_id = ? AND EXISTS (SELECT 1 FROM json_each(keys_json) WHERE value = ?)`)
+            .run(event.retracts, key);
           newSeqs.push(seq);
         });
         if (newSeqs.length === 0) {
@@ -622,6 +851,35 @@ export class KnowledgeHistoryStore {
         throw error;
       }
     }
+  }
+
+  private indexArchiveAddresses(key: string, language: string, archive: KeyArchive): void {
+    const insert = this.db.prepare('INSERT OR IGNORE INTO archived_addresses (id, key, lang) VALUES (?, ?, ?)');
+    for (const bucket of Object.keys(archive.buckets)) {
+      const id = bucketRepresentative(bucket)?.targetRef?.id;
+      if (id) insert.run(id, key, language);
+    }
+  }
+
+  /** Storage keys are containers; exact target addresses can live under another canonical family. */
+  queryAddressedKeys(language: string, ids: readonly string[]): string[] {
+    const keys = new Set<string>();
+    const exact = this.db.prepare("SELECT DISTINCT key FROM rows WHERE lang = ? AND json_extract(json, '$.targetRef.id') = ?");
+    const archived = this.db.prepare('SELECT key FROM archived_addresses WHERE lang = ? AND id = ?');
+    for (const id of new Set(ids)) {
+      for (const row of [...exact.all(language, id), ...archived.all(language, id)] as Array<{ key: string }>) keys.add(row.key);
+    }
+    return [...keys].sort();
+  }
+
+  queryAddressedIds(keys: readonly string[]): string[] {
+    const ids = new Set<string>();
+    const exact = this.db.prepare("SELECT DISTINCT json_extract(json, '$.targetRef.id') AS id FROM rows WHERE key = ? AND json_extract(json, '$.targetRef.id') IS NOT NULL");
+    const archived = this.db.prepare('SELECT id FROM archived_addresses WHERE key = ?');
+    for (const key of new Set(keys)) {
+      for (const row of [...exact.all(key), ...archived.all(key)] as Array<{ id: string }>) ids.add(row.id);
+    }
+    return [...ids].sort();
   }
 
   /** Exact rows (ledger + tail + acquisition residue) for the given keys. */
@@ -741,6 +999,7 @@ export class KnowledgeHistoryStore {
   getKnowledgeState(key: string): KeyKnowledgeState {
     const archive = this.readArchive(key);
     const checkpoint = this.checkpoint(key);
+    const exactRows = rowsWithSeq(this.db, key);
     let fold: FoldState | undefined;
     if (checkpoint) {
       const maxSeq = this.db.prepare('SELECT MAX(seq) AS maxSeq FROM rows WHERE key = ?').get(key) as { maxSeq: number | null };
@@ -749,7 +1008,7 @@ export class KnowledgeHistoryStore {
       }
     }
     if (!fold) {
-      fold = foldRowsAndArchive(rowsWithSeq(this.db, key), archive);
+      fold = foldRowsAndArchive(exactRows, archive);
     }
     let archivedEventCount = 0;
     let archiveFirstT: number | undefined;
@@ -763,7 +1022,8 @@ export class KnowledgeHistoryStore {
     }
     return {
       projection: projectKeyFold(fold),
-      capabilities: projectCapabilities(rowsWithSeq(this.db, key), archive),
+      capabilities: projectCapabilities(exactRows, archive, true),
+      claimMarkers: projectClaimMarkers(exactRows, true),
       ...(fold.statusMarkers ? { statusMarkers: fold.statusMarkers } : {}),
       hasArchive: archive !== undefined,
       archivedEventCount,
@@ -1026,6 +1286,7 @@ export class KnowledgeHistoryStore {
         ].sort((a, b) => a.event.t - b.event.t || a.origin - b.origin || a.seq - b.seq);
         this.db.prepare('DELETE FROM rows WHERE key = ?').run(key);
         this.db.prepare('DELETE FROM archives WHERE key = ?').run(key);
+        this.db.prepare('DELETE FROM archived_addresses WHERE key = ?').run(key);
         this.db.prepare('DELETE FROM checkpoints WHERE key = ?').run(key);
         this.db.prepare('DELETE FROM attempt_index WHERE key = ?').run(key);
         this.db.prepare('DELETE FROM bucket_recs WHERE key = ?').run(key);
@@ -1057,6 +1318,34 @@ export class KnowledgeHistoryStore {
     }
     if (verified) this.markSchemaVersion(KNOWLEDGE_STORE_SCHEMA_VERSION);
     return { keys: keys.size, verified, skipped };
+  }
+
+  /** Non-destructive generation-3 upgrade; only full, verified observations seed retry identities. */
+  backfillObservationIdentities(verifiedBackup?: KnowledgeEventLog): void {
+    const remember = this.db.prepare('INSERT OR IGNORE INTO observation_identities (key, identity) VALUES (?, ?)');
+    const seed = (key: string, event: KnowledgeEvent) => {
+      if (!isKnowledgeEvent(event)) return;
+      const identity = knowledgeEventIdentity(event);
+      if (identity !== undefined) remember.run(key, identity);
+    };
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const row of this.db.prepare('SELECT key, json FROM rows').iterate() as Iterable<{ key: string; json: string }>) {
+        seed(row.key, JSON.parse(row.json) as KnowledgeEvent);
+      }
+      for (const [key, events] of Object.entries(verifiedBackup ?? {})) {
+        const marker = this.db.prepare('SELECT value FROM meta WHERE key = ?').get(`mig:${key}`) as { value?: string } | undefined;
+        if (marker?.value !== String(events.length)) continue;
+        events.forEach(event => seed(key, event));
+      }
+      // Partial archive contribution records cannot prove fields they never
+      // stored. Keep them intact; lazy attempt matching uses surviving addresses.
+      this.markSchemaVersion(KNOWLEDGE_STORE_SCHEMA_VERSION);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   /** Byte + row accounting per table (benchmark/storage diagnostics). */

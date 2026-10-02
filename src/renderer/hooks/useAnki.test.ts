@@ -6,6 +6,28 @@ vi.stubGlobal('fetch', mockFetch);
 
 const mockGetAnkiWords = vi.fn();
 
+const mockResolveFlashcardImage = vi.fn();
+vi.mock('../../shared/bridges', () => ({
+  getBridge: () => ({
+    flashcards: {
+      resolveFlashcardImage: (...args: unknown[]) => mockResolveFlashcardImage(...args),
+    },
+  }),
+}));
+
+const mockBlob = { text: vi.fn() };
+class MockFileReader {
+  result: string | ArrayBuffer | null = null;
+  error: Error | null = null;
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  readAsDataURL(blob: { type: string; _bytes?: string }) {
+    this.result = `data:${blob.type};base64,${btoa(blob._bytes ?? '')}`;
+    this.onload?.();
+  }
+}
+vi.stubGlobal('FileReader', MockFileReader);
+
 vi.mock('../../shared/backends', () => ({
   getBackend: () => ({
     getAnkiWords: (...args: unknown[]) => mockGetAnkiWords(...args),
@@ -40,6 +62,8 @@ describe('useAnki', () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockGetAnkiWords.mockReset();
+    mockResolveFlashcardImage.mockReset();
+    mockBlob.text.mockReset();
   });
 
   it('starts with isConnected false', () => {
@@ -303,7 +327,10 @@ describe('useAnki', () => {
     });
   });
 
-  it('addNote attaches picture when imageUrl is provided', async () => {
+  it('addNote does not ask AnkiConnect to download a remote url it cannot read', async () => {
+    // AnkiConnect downloads `url` itself with a plain HTTP client. A remote URL
+    // would be fetched twice (here and in Anki) and a private-scheme URL would
+    // fail outright, so anything we cannot turn into bytes locally is omitted.
     mockFetch
       .mockResolvedValueOnce(makeOkResponse(1))
       .mockResolvedValueOnce(makeOkResponse(222));
@@ -317,9 +344,7 @@ describe('useAnki', () => {
         return body.action === 'addNote';
       });
       const body = JSON.parse(addNoteCall![1].body);
-      expect(body.params.note.picture).toBeDefined();
-      expect(body.params.note.picture[0].url).toBe('http://example.com/cat.png');
-      expect(body.params.note.picture[0].filename).toBe('cat.png');
+      expect(body.params.note.picture).toBeUndefined();
       dispose();
     });
   });
@@ -765,6 +790,107 @@ describe('useAnki', () => {
       const body = JSON.parse(addNoteCall![1].body);
       expect(body.params.note.options.allowDuplicate).toBe(false);
       expect(body.params.note.options.duplicateScope).toBe('deck');
+      dispose();
+    });
+  });
+
+  it('addNote sends a prepared data URL as base64 data, not as a url to fetch', async () => {
+    mockFetch
+      .mockResolvedValueOnce(makeOkResponse(1))
+      .mockResolvedValueOnce(makeOkResponse(999));
+
+    await createRoot(async (dispose) => {
+      const hook = useAnki();
+      await hook.addNote({
+        word: 'cat',
+        meaning: 'cat',
+        imageUrl: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+      });
+
+      const addNoteCall = mockFetch.mock.calls.find((c) => {
+        const body = JSON.parse(c[1].body);
+        return body.action === 'addNote';
+      });
+      const body = JSON.parse(addNoteCall![1].body);
+      expect(body.params.note.picture[0].data).toBe('/9j/4AAQSkZJRg==');
+      expect(body.params.note.picture[0].url).toBeUndefined();
+      expect(body.params.note.picture[0].filename).toBe('cat.png');
+      dispose();
+    });
+  });
+
+  it('addNote resolves a stored flashcard-image reference to bytes instead of a fetchable url', async () => {
+    mockResolveFlashcardImage.mockResolvedValue('file:///media/card-1.jpg');
+    mockBlob.text.mockResolvedValue('raw-bytes');
+    mockFetch
+      .mockResolvedValueOnce(makeOkResponse(1))
+      // The stored image has to be read back out of app-local storage before
+      // AnkiConnect can store it.
+      .mockResolvedValueOnce({ ok: true, blob: () => Promise.resolve({ type: 'image/jpeg', _bytes: 'raw-bytes' } as unknown as Blob) })
+      .mockResolvedValueOnce(makeOkResponse(1000));
+
+    await createRoot(async (dispose) => {
+      const hook = useAnki();
+      await hook.addNote({
+        word: 'cat',
+        meaning: 'cat',
+        imageUrl: 'flashcard-image://card-1.jpg',
+      });
+
+      expect(mockResolveFlashcardImage).toHaveBeenCalledWith('flashcard-image://card-1.jpg');
+      const addNoteCall = mockFetch.mock.calls.find((c) => {
+        if (typeof c[1]?.body !== 'string') return false;
+        const body = JSON.parse(c[1].body);
+        return body.action === 'addNote';
+      });
+      const body = JSON.parse(addNoteCall![1].body);
+      expect(body.params.note.picture[0].data).toBe('cmF3LWJ5dGVz');
+      expect(body.params.note.picture[0].url).toBeUndefined();
+      dispose();
+    });
+  });
+
+  it('addNote omits the picture rather than sending an unreadable reference when bytes cannot be read', async () => {
+    mockResolveFlashcardImage.mockResolvedValue(null);
+    mockFetch
+      .mockResolvedValueOnce(makeOkResponse(1))
+      .mockResolvedValueOnce(makeOkResponse(1002));
+
+    await createRoot(async (dispose) => {
+      const hook = useAnki();
+      await hook.addNote({
+        word: 'cat',
+        meaning: 'cat',
+        imageUrl: 'flashcard-image://missing.jpg',
+      });
+
+      const addNoteCall = mockFetch.mock.calls.find((c) => {
+        const body = JSON.parse(c[1].body);
+        return body.action === 'addNote';
+      });
+      const body = JSON.parse(addNoteCall![1].body);
+      // Prefer "no picture" over AnkiConnect writing its download error into
+      // the media field.
+      expect(body.params.note.picture).toBeUndefined();
+      dispose();
+    });
+  });
+
+  it('addNote omits picture entirely when there is no image', async () => {
+    mockFetch
+      .mockResolvedValueOnce(makeOkResponse(1))
+      .mockResolvedValueOnce(makeOkResponse(1001));
+
+    await createRoot(async (dispose) => {
+      const hook = useAnki();
+      await hook.addNote({ word: 'test', meaning: 'test' });
+
+      const addNoteCall = mockFetch.mock.calls.find((c) => {
+        const body = JSON.parse(c[1].body);
+        return body.action === 'addNote';
+      });
+      const body = JSON.parse(addNoteCall![1].body);
+      expect(body.params.note.picture).toBeUndefined();
       dispose();
     });
   });

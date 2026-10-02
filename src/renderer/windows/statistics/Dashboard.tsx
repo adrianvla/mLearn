@@ -56,7 +56,7 @@ function scanlineMerge(intervals: Array<{ start: number; end: number }>): number
 }
 
 export const Dashboard: Component = () => {
-  const { store, isLoading, isKnowledgeReady } = useFlashcards();
+  const { store, getStudyableCards, isLoading, isKnowledgeReady } = useFlashcards();
   const { settings } = useSettings();
   const { getWordFrequency, currentLangData, getFreqLevelNames, getLanguageFeatures, getCanonicalFormForLanguage, getWordVariantsForLanguage, isLoading: languageLoading } = useLanguage();
   const { t } = useLocalization();
@@ -149,7 +149,7 @@ export const Dashboard: Component = () => {
   });
 
   const dueForecast = createMemo(() =>
-    computeDueForecast(cards(), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!),
+    computeDueForecast(Object.values(getStudyableCards()), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!),
   );
 
   const retentionCard = createMemo(() => retentionDisplay(cardStats().retentionRate, cardStats().totalReviews));

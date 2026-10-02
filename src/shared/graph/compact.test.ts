@@ -22,6 +22,14 @@ const asset: LinguisticGraphAsset = {
   ],
 };
 
+it('retains graph provenance in the compact projection view', () => {
+  const encoded = encodeCompact(asset);
+  const decoded = decodeCompact(encoded);
+  const view = createCompactGraphView(decoded, asset.language);
+  expect(view.asset.sourceVersions).toEqual(asset.sourceVersions);
+  expect(view.asset.generatedAt).toEqual(asset.generatedAt);
+});
+
 describe('CompactLingualGraph', () => {
   it('round-trips kinds, CSR adjacency, and ids without duplicating surface hashes', () => {
     const plain = loadLinguisticGraph(asset);

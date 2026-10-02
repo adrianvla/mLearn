@@ -443,3 +443,14 @@
   bottom: var(--spacing-1);
   background: var(--bg-nt-primary);
 }
+
+.chat-voice-delivery {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.85em;
+}
+.chat-voice-delivery summary { cursor: pointer; }
+.chat-voice-delivery details > div { color: var(--text-primary); }

@@ -89,3 +89,21 @@ Set `languageData.minimumAppVersion` in a source language metadata file only whe
 Generated archives are written to `../mlearn-website/release/language-data/v1`. From `../mlearn-website`, `npm run upload:language-data` uploads only archives referenced by that directory's `manifest.json`, and `npm run deploy:language-data` packages here before uploading and deploying the frontend catalog.
 
 Set `LANGUAGE_ASSET_BASE_URL` if the public archive base URL changes. The default catalog URLs use `https://mlearn.kikan.net/language-data/v1/...`; the Pages redirect sends those downloads to `https://cdn.kikan.net/mlearn/language-data/v1/...`.
+
+### Jitendex sense grouping and history
+
+The graph builder groups definitions by Jitendex source `sense-number` containers. Synonyms and inline markup form one meaning; grammatical badges, notes, examples and cross-reference text do not become senses. No three-gloss truncation applies. Sense-level POS comes from source POS codes; other source badge codes remain package-owned metadata.
+
+Rebuilt source senses use `ja:sense:v2:<sequence>:<semantic-hash>` IDs. The old `ja:sense:<sequence>:<gloss-position>` IDs must not be mapped to these automatically: old IDs represented individual text fragments or grammar labels, so a positional mapping could attach historical observations to a different meaning. Preserve the prior graph and learner journal during adoption, retain unmapped historical addresses, and review identity diffs. The separate `repair-jitendex-graph.ts` tool can conservatively remove proven bad grammar-to-meaning links while retaining historical nodes; it does not assert a sense migration.
+
+`build-graph-assets.py --languages ja` accepts original Jitendex banks, or a lossless compiled `dictionaries/ja/en/dictionary.db` with source metadata and preserved raw term/pitch rows. Missing or lossy source input fails rather than producing an empty graph. Always build into a separate source/release directory and publish through the website catalog.
+
+### Japanese spelling-check priority
+
+The Japanese metadata override declares `ja:lexical-familiarity-spelling` version 1. Its two asserted `realizes` hops connect a presented spelling to other forms of the same dictionary entry. A known meaning access on that entry's forms contributes a weak relative weight of 0.1 toward prioritizing an unresolved spelling check. All routes share one dependency group; alternate forms do not add independent credit. Self-reported familiarity stays distinct from measured recall.
+
+This rule chooses a check; it does not establish written recognition, reading, pronunciation, or sense mastery. It is an uncalibrated package heuristic, with no claim of measured learning gains or success probability. Decisions retain the exact source evidence, rule/package versions, outcome, and a graph-disabled choice from the same pool for later evaluation. No transfer calibration context is declared until an appropriate evaluation is available.
+
+Language learning capability declarations may specify `providedBy`, an open list of presentation cue IDs. The review surface exposes `word-audio` and `example-audio`; packages declare which of their own capability IDs those cues supply. Unknown cue and capability IDs survive metadata serialization. This is assistance provenance, never inferred mastery. Playback admission is persisted before saved audio or system speech starts; an interrupted or failed playback after admission may conservatively retain the cue. Missing recordings create no cue.
+
+Review clips with unknown answer alignment are conservatively admitted as reference content before front-side controls become available. They supply all accesses tested by that encounter. Post-answer playback is verification. Each new encounter requires fresh media admission, including when an assisted review leaves the same card due. Existing `audio` scaffold compatibility also suppresses independent surface-reading evidence; package cue declarations extend it rather than silently redefining legacy history.

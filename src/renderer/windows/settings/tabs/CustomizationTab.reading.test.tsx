@@ -37,7 +37,7 @@ const translations: Record<string, string> = {
   'mlearn.Settings.ColoredProsody.EvidenceFade.Description': 'Fade strong prosody evidence',
   'mlearn.Settings.ColoredProsody.MixTarget.Label': 'Fade toward',
   'mlearn.Settings.ColoredProsody.MixTarget.Description': 'Mix target',
-  'mlearn.Settings.ColoredProsody.MixTarget.White': 'White',
+  'mlearn.Settings.ColoredProsody.MixTarget.Text': 'Normal text',
   'mlearn.Settings.ColoredProsody.MixTarget.PartOfSpeech': 'Part-of-speech color',
   'mlearn.Settings.ColoredProsody.Saturation.Label': 'Color saturation',
   'mlearn.Settings.ColoredProsody.Saturation.Description': 'Color intensity',
@@ -48,6 +48,7 @@ const translations: Record<string, string> = {
 vi.mock('../../../context', () => ({
   useSettings: () => ({
     settings,
+    isSettingManaged: () => false,
     updateSettings: (partial: Partial<Settings>) => {
       updateSettingsMock(partial);
       setSettings(reconcile({ ...settings, ...partial }));
@@ -94,6 +95,8 @@ vi.mock('../../../components/common', () => ({
     </section>
   ),
   TabContent: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
+  KeybindInput: () => <input />,
+  formatKeybindDisplay: (key: string) => key,
   ToggleSwitch: (props: { checked?: boolean; onChange?: (checked: boolean) => void }) => (
     <button type="button" data-checked={props.checked ? 'true' : 'false'} onClick={() => props.onChange?.(!props.checked)} />
   ),
@@ -140,6 +143,20 @@ describe('CustomizationTab reading appearance', () => {
     container.remove();
   });
 
+  it('offers a language-independent popup size that updates persisted shared preferences', async () => {
+    supportsReadings = false;
+    const { CustomizationTab } = await import('./CustomizationTab');
+    const dispose = render(() => <CustomizationTab />, container);
+    const slider = container.querySelector('.word-hover-size-control input') as HTMLInputElement;
+    expect(slider).not.toBeNull();
+    expect(slider.value).toBe('100');
+    slider.value = '75';
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(settings.wordHoverSizePercent).toBe(75);
+    expect(container.querySelector('.word-hover-size-value')?.textContent).toBe('75%');
+    dispose();
+  });
+
   it('shows capability-gated controls and updates one live preview', async () => {
     const { CustomizationTab } = await import('./CustomizationTab');
     const dispose = render(() => <CustomizationTab />, container);
@@ -160,7 +177,7 @@ describe('CustomizationTab reading appearance', () => {
     expect(updateSettingsMock).toHaveBeenCalledWith({ readingAnnotationMoreContrast: true });
     expect(preview.style.getPropertyValue('--reading-annotation-color')).toBe('var(--text-primary)');
 
-    const sizeSlider = container.querySelector('input[type="range"]') as HTMLInputElement;
+    const sizeSlider = container.querySelector('.reading-appearance-size-control input[type="range"]') as HTMLInputElement;
     sizeSlider.value = '130';
     sizeSlider.dispatchEvent(new Event('input', { bubbles: true }));
 
@@ -224,6 +241,10 @@ describe('CustomizationTab reading appearance', () => {
     expect(container.textContent).toContain('Colored Prosody');
     expect(container.textContent).toContain('Tone 1');
     expect(container.textContent).toContain('Neutral');
+    expect(container.querySelector('option[value="white"]')?.textContent).toBe('Normal text');
+    expect(container.textContent).not.toContain('White');
+    expect(container.querySelector<HTMLElement>('.prosody-colors__preview span')?.style.getPropertyValue('--language-word-ink'))
+      .toBe('color-mix(in srgb, #ff00ff 40%, var(--language-word-foreground))');
     expect(container.querySelectorAll('.pos-colors__card')).toHaveLength(2);
 
     const colorInput = container.querySelector<HTMLInputElement>('.color-input');

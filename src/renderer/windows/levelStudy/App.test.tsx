@@ -2,16 +2,25 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
+import { createSignal, type JSX } from 'solid-js';
 
+let settingsLoadingMock = () => false;
 let currentLangDataMock: Record<string, unknown> = {};
 const localizationMock = vi.fn((key: string) => key);
+const ingress = vi.hoisted(() => ({ context: {} as Record<string, unknown>, cleanup: vi.fn(), request: vi.fn(), close: vi.fn() }));
+vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
+  onWindowContext: (callback: (context: Record<string, unknown>) => void) => { callback(ingress.context); return ingress.cleanup; },
+  getWindowContext: ingress.request,
+  closeWindow: ingress.close,
+} }) }));
 
 vi.mock('../../context', () => ({
   WindowWrapper: (props: { children?: JSX.Element }) => <>{props.children}</>,
   useLanguage: () => ({
     currentLangData: () => currentLangDataMock,
+    getFreqLevelNames: () => ({ '2': 'Package target' }),
   }),
+  useSettings: () => ({ isLoading: () => settingsLoadingMock(), settings: { language: 'test', learningLanguageLevels: { test: 2 }, sessionIntensity: 'steady', frequencyProviderSelections: {} } }),
   useLocalization: () => ({
     t: localizationMock,
   }),
@@ -53,7 +62,7 @@ vi.mock('../../components/common', () => ({
 }));
 
 vi.mock('../wordSync/App', () => ({
-  WordSyncContent: (props: { mode?: string }) => <div data-testid="word-sync-content" data-mode={props.mode}>Word Sync Content</div>,
+  WordSyncContent: (props: { mode?: string; intent?: string; words?: readonly string[] }) => <div data-testid="word-sync-content" data-mode={props.mode} data-intent={props.intent} data-words={props.words ? JSON.stringify(props.words) : undefined}>Word Sync Content</div>,
 }));
 
 vi.mock('../characterGrid/App', () => ({
@@ -63,7 +72,7 @@ vi.mock('../characterGrid/App', () => ({
 vi.mock('./LearningPlanSettings', () => ({ LearningPlanSettings: () => <div>Plan controls</div> }));
 
 vi.mock('./LevelStudyTab', () => ({
-  LevelStudyTab: () => <div>Level Study Content</div>,
+  LevelStudyTab: (props: { onEditPlan?: () => void }) => <div>Level Study Content<button onClick={props.onEditPlan}>Edit from progress</button></div>,
 }));
 
 describe('LevelStudyContent', () => {
@@ -73,6 +82,7 @@ describe('LevelStudyContent', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     currentLangDataMock = {};
+    ingress.context = {};
     localizationMock.mockImplementation((key: string) => {
       switch (key) {
         case 'mlearn.LevelStudy.Title':
@@ -99,12 +109,61 @@ describe('LevelStudyContent', () => {
     const dispose = render(() => <LevelStudyContent />, container);
     expect(container.textContent).toContain('Plan controls');
     expect(container.textContent).not.toContain('Word Sync Content');
-    const practice = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Word Sync');
+    const practice = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Home.Today.PracticeAction');
     practice?.click();
     expect(container.textContent).toContain('Word Sync Content');
     const back = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('mlearn.LearningPlan.Back'));
     back?.click();
     expect(container.textContent).toContain('Plan controls');
+    dispose();
+  });
+
+  it.each([['practice', 'study'], ['assessment', 'assessment']])('continues the Home %s intention without another activity funnel', async (activity, mode) => {
+    ingress.context = { activity };
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent />, container);
+    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-mode')).toBe(mode);
+    expect(container.textContent).not.toContain('Plan controls');
+    expect(ingress.request).toHaveBeenCalledWith('level-study');
+    dispose();
+    expect(ingress.cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('waits for loaded language settings before accepting a material handoff', async () => {
+    const [loading, setLoading] = createSignal(true);
+    settingsLoadingMock = loading;
+    ingress.context = { activity: 'practice', material: { language: 'test', label: 'Chapter', words: ['alpha'] } };
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent />, container);
+    try {
+      expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
+      setLoading(false);
+      expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-words')).toBe('["alpha"]');
+    } finally {
+      dispose();
+      settingsLoadingMock = () => false;
+    }
+  });
+
+  it('starts material recall directly and returns to the reading window', async () => {
+    ingress.context = { activity: 'practice', material: { language: 'test', label: 'Chapter', words: ['alpha', 'beta'] } };
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent />, container);
+    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-words')).toBe('["alpha","beta"]');
+    expect(container.textContent).not.toContain('Plan controls');
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.LearningPlan.BackToMaterial')!.click();
+    expect(ingress.close).toHaveBeenCalled();
+    dispose();
+  });
+
+  it('feeds developing-word practice to the shared component and resets that context when choosing ordinary study', async () => {
+    ingress.context = { activity: 'reinforce' };
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent />, container);
+    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-intent')).toBe('reinforce');
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('mlearn.LearningPlan.Back'))!.click();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Home.Today.PracticeAction')!.click();
+    expect(container.querySelector('[data-testid="word-sync-content"]')?.hasAttribute('data-intent')).toBe(false);
     dispose();
   });
 
@@ -116,7 +175,7 @@ describe('LevelStudyContent', () => {
     const { LevelStudyContent } = await import('./App');
     const dispose = render(() => <LevelStudyContent />, container);
 
-    expect(container.textContent).toContain('Word Sync');
+    expect(container.textContent).toContain('mlearn.StudyEncounter.Task');
     expect(container.textContent).toContain('Character Grid');
     expect(container.textContent).toContain('Level Study');
 
@@ -148,10 +207,21 @@ describe('LevelStudyContent', () => {
     const { LevelStudyContent } = await import('./App');
     const dispose = render(() => <LevelStudyContent />, container);
 
-    expect(container.textContent).toContain('Word Sync');
+    expect(container.textContent).toContain('mlearn.StudyEncounter.Task');
     expect(container.textContent).not.toContain('Character Grid');
     expect(container.textContent).toContain('Level Study');
 
+    dispose();
+  });
+
+  it('keeps configuration collapsed and opens it when progress requests a plan edit', async () => {
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent />, container);
+    const configuration = container.querySelector<HTMLDetailsElement>('.learning-plan-configuration')!;
+    expect(configuration.open).toBe(false);
+    expect(configuration.querySelector('summary')?.textContent).toContain('Package target');
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Edit from progress')!.click();
+    expect(configuration.open).toBe(true);
     dispose();
   });
 });

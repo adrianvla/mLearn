@@ -104,6 +104,15 @@ export const FlashcardsContent: Component = () => {
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
+  const [deletionPending, setDeletionPending] = createSignal(false);
+  let deletionGeneration = 0;
+  onCleanup(() => { deletionGeneration++; });
+  createEffect(on(() => settings.language, () => {
+    deletionGeneration++;
+    setDeletionPending(false);
+    setShowDeleteConfirm(false);
+    setSelectedCard(null);
+  }, { defer: true }));
   const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const [showAddModal, setShowAddModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
@@ -495,35 +504,53 @@ export const FlashcardsContent: Component = () => {
    * dialog, while the row action next to it asked.
    */
   const handleBulkDelete = async () => {
+    if (deletionPending()) return;
     const ids = Array.from(selected());
     if (!requiresDestructiveConfirmation(ids.length)) return;
-    const confirmed = await showConfirm(buildDestructiveConfirmOptions({
-      count: ids.length,
-      titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
-      messageKey: 'mlearn.Flashcards.Modals.DeleteCard.ConfirmMany',
-    }, t));
-    if (!confirmed) return;
-
-    // The selection is narrowed, not cleared: a removal that did not land is
-    // still the learner's to retry and its row is still on screen, so sweeping
-    // it out of the selection would leave the bar reading as armed over rows
-    // it will not act on. The hook drops the ids the delete did claim on its
-    // own, because those rows are gone.
+    const generation = deletionGeneration;
+    setDeletionPending(true);
     let deleted = 0;
-    for (const id of ids) {
-      if (await removeFlashcard(id, false)) deleted += 1;
-    }
-
-    showToast({ message: t('mlearn.Flashcards.Browse.DeletedCount', { count: String(deleted) }), variant: 'success' });
+    let refused = false;
+    try {
+      const confirmed = await showConfirm(buildDestructiveConfirmOptions({
+        count: ids.length, titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
+        messageKey: 'mlearn.Flashcards.Modals.DeleteCard.ConfirmMany',
+      }, t));
+      if (!confirmed || generation !== deletionGeneration) return;
+      for (const id of ids) {
+        if (generation !== deletionGeneration) return;
+        if (await removeFlashcard(id, false)) deleted += 1;
+        else { refused = true; break; }
+      }
+    } catch (error) {
+      log.error('Failed to remove selected flashcards:', error);
+      refused = true;
+    } finally { if (generation === deletionGeneration) setDeletionPending(false); }
+    if (generation !== deletionGeneration) return;
+    if (deleted > 0) showToast({ message: t('mlearn.Flashcards.Browse.DeletedCount', { count: String(deleted) }), variant: 'success' });
+    if (refused) showToast({ message: t('mlearn.Flashcards.Review.RemovalSaveFailed'), variant: 'error' });
   };
 
   const handleDeleteCard = async () => {
     const cardId = selectedCard();
-    if (cardId) {
-      await removeFlashcard(cardId, false);
-      setShowDeleteConfirm(false);
-      setSelectedCard(null);
-    }
+    if (!cardId || deletionPending()) return;
+    const generation = deletionGeneration;
+    setDeletionPending(true);
+    try {
+      const removed = await removeFlashcard(cardId, false);
+      if (generation !== deletionGeneration) return;
+      if (!removed) {
+        showToast({ message: t('mlearn.Flashcards.Review.RemovalSaveFailed'), variant: 'error' });
+        return;
+      }
+      if (selectedCard() === cardId) {
+        setShowDeleteConfirm(false);
+        setSelectedCard(null);
+      }
+    } catch (error) {
+      log.error('Failed to remove flashcard:', error);
+      if (generation === deletionGeneration) showToast({ message: t('mlearn.Flashcards.Review.RemovalSaveFailed'), variant: 'error' });
+    } finally { if (generation === deletionGeneration) setDeletionPending(false); }
   };
 
   const openEditModal = (card: Flashcard) => {
@@ -897,7 +924,7 @@ export const FlashcardsContent: Component = () => {
                           <Button
                             size="sm"
                             variant="danger"
-                            disabled={selected().size === 0}
+                            disabled={selected().size === 0 || deletionPending()}
                             onClick={handleBulkDelete}
                             icon={<TrashIcon size={14} />}
                             iconPosition="left"
@@ -983,6 +1010,7 @@ export const FlashcardsContent: Component = () => {
                                 <Button
                                   variant="danger"
                                   size="xs"
+                                  disabled={deletionPending()}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setSelectedCard(card.id);
@@ -1176,17 +1204,20 @@ export const FlashcardsContent: Component = () => {
       {/* Delete confirmation modal */}
       <Modal
         isOpen={showDeleteConfirm()}
-        onClose={() => setShowDeleteConfirm(false)}
+        closeOnEscape={!deletionPending()}
+        closeOnOverlay={!deletionPending()}
+        showCloseButton={!deletionPending()}
+        onClose={() => { if (!deletionPending()) setShowDeleteConfirm(false); }}
         title={t('mlearn.Flashcards.Modals.DeleteCard.Title')}
         size="sm"
         footer={
           <>
-            <Button onClick={() => setShowDeleteConfirm(false)}>{t('mlearn.Global.Cancel')}</Button>
-            <Button variant="danger" onClick={handleDeleteCard}>{t('mlearn.Global.Delete')}</Button>
+            <Button disabled={deletionPending()} onClick={() => setShowDeleteConfirm(false)}>{t('mlearn.Global.Cancel')}</Button>
+            <Button variant="danger" disabled={deletionPending()} onClick={handleDeleteCard}>{t('mlearn.Global.Delete')}</Button>
           </>
         }
       >
-        <p>{t('mlearn.Flashcards.Modals.DeleteCard.Confirm')}</p>
+        <p>{t(deletionPending() ? 'mlearn.Flashcards.Review.SavingRemoval' : 'mlearn.Flashcards.Modals.DeleteCard.Confirm')}</p>
       </Modal>
 
       <FlashcardCreateModal isOpen={showAddModal()} onClose={() => setShowAddModal(false)} onAdd={addFlashcard} />

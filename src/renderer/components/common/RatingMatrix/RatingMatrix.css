@@ -12,6 +12,13 @@
 }
 
 /* Collapsed: [Missed][Struggled][Fluent][Easy][Adjust]. */
+.rating-matrix__tested {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
 .rating-matrix__bar {
   display: grid;
   grid-template-columns: repeat(4, minmax(4em, 1fr)) auto;

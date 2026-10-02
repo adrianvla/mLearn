@@ -238,3 +238,14 @@
   margin-top: var(--spacing-4);
   text-align: right;
 }
+.word-hover-size-control {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.word-hover-size-value {
+  min-width: 4ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

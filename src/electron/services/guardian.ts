@@ -1,3 +1,4 @@
+import { KNOWLEDGE_STORE_SCHEMA_VERSION } from './knowledgeHistoryStore';
 /** Independent, local integrity boundary for irreplaceable learner data. */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,7 +13,7 @@ import { startupDuration, startupMark, startupTime } from '../startupTiming';
 const SCHEMA = 1;
 const MAX_SNAPSHOTS = 8;
 const DATA_FILES = ['flashcards.json', 'world.json', 'settings.json', 'kv-store.json', 'knowledge-events.json', 'knowledge-events.json.migrated', 'voice-samples.json'] as const;
-const DATA_DIRS = ['journal', 'flashcard-images', 'flashcard-video', 'voice-samples', 'media-stats'] as const;
+const DATA_DIRS = ['journal', 'flashcard-images', 'flashcard-videos', 'voice-samples', 'media-stats'] as const;
 const IMPORT_DIRS = [...DATA_DIRS, 'flashcard-audio'] as const;
 const DB_FILE = 'knowledge-history.sqlite3';
 const RESTORE_ITEMS = [...DATA_FILES, ...IMPORT_DIRS, DB_FILE, `${DB_FILE}-wal`, `${DB_FILE}-shm`] as const;
@@ -524,7 +525,7 @@ export class Guardian {
     try { current = inspectGuardianData(this.root); }
     catch (error) { return this.block(`Canonical data failed validation: ${String(error)}`, previous); }
     startupMark('Guardian canonical data inspection complete', inspectStart);
-    if (current.flashcardSchema > 3 || current.knowledgeSchema > 2) {
+    if (current.flashcardSchema > 3 || current.knowledgeSchema > KNOWLEDGE_STORE_SCHEMA_VERSION) {
       return this.block('Current app cannot read this learner data schema; install a compatible release', previous);
     }
     // Schema-1 ledgers recorded `knowledgeEvidenceCount` as a sum that was only
@@ -969,7 +970,7 @@ export class Guardian {
     const manifest = readJson(path.join(source, 'manifest.json')) as SnapshotManifest | undefined;
     if (!manifest || manifest.schema !== SCHEMA) throw new Error('Unsupported recovery manifest');
     if (!Number.isSafeInteger(manifest.flashcardVersion) || manifest.flashcardVersion > 3
-      || !Number.isSafeInteger(manifest.knowledgeSchemaVersion) || manifest.knowledgeSchemaVersion > 2) {
+      || !Number.isSafeInteger(manifest.knowledgeSchemaVersion) || manifest.knowledgeSchemaVersion > KNOWLEDGE_STORE_SCHEMA_VERSION) {
       throw new Error('Recovery snapshot needs a newer mLearn data schema');
     }
     if (JSON.stringify(fileHashes(source)) !== JSON.stringify(manifest.hashes)) throw new Error('Recovery snapshot checksum mismatch');

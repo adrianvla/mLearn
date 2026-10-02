@@ -2,14 +2,15 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
+import { createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { Participant, Thread } from '../../../shared/world';
 
 const mockSettings = vi.hoisted(() => ({ devMode: false }));
 
 vi.mock('../../components/common', () => ({
-  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean }) => (
-    <button type="button" disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string }) => (
+    <button type="button" disabled={props.disabled} onClick={props.onClick} aria-label={props['aria-label']}>{props.children}</button>
   ),
   Avatar: (props: { name: string }) => <span aria-hidden="true">{props.name.slice(0, 1)}</span>,
   Disclosure: (props: { title: JSX.Element; children?: JSX.Element }) => <details><summary>{props.title}</summary>{props.children}</details>,
@@ -153,7 +154,7 @@ describe('ThreadInfoPanel', () => {
 
   it('opens a dedicated editor modal and saves participant fields through it', async () => {
     renderPanel();
-    buttonWithText('mlearn.ConversationAgent.Details.Edit').click();
+    buttonWithText('mlearn.ConversationAgent.Details.EditContact').click();
     const modal = container.querySelector('[data-testid="participant-editor-modal"]')!;
     expect(modal).not.toBeNull();
 
@@ -205,5 +206,73 @@ describe('ThreadInfoPanel', () => {
     renderPanel({ thread: { ...thread, sandbox: { operationId: 'op-1', requestHash: 'hash', bindings: [], baselineHeads: {} } }, onIntegrate });
     buttonWithText('mlearn.ConversationAgent.Integration.Open').click();
     await vi.waitFor(() => expect(onIntegrate).toHaveBeenCalledTimes(1));
+  });
+
+  it('adds a contact directly in details and keeps failure recoverable', async () => {
+    const other = { ...participant, id: 'other', displayName: 'Mina' };
+    const onChangeMembership = vi.fn().mockRejectedValueOnce(new Error('Unable to add now')).mockResolvedValue(undefined);
+    renderPanel({ availableParticipants: [participant, other, { ...other, id: 'archived', archivedAt: 1 },
+      { ...other, id: 'practice', kind: 'temporary' }], onChangeMembership });
+    buttonWithText('mlearn.ConversationAgent.Details.AddPerson').click();
+    expect(container.querySelectorAll('.ca-thread-people-picker button')).toHaveLength(1);
+    const add = container.querySelector('.ca-thread-people-picker button') as HTMLButtonElement;
+    add.click();
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toBe('Unable to add now'));
+    expect(container.querySelector('.ca-thread-people-picker')).not.toBeNull();
+    add.click();
+    await vi.waitFor(() => expect(container.querySelector('.ca-thread-people-picker')).toBeNull());
+    expect(onChangeMembership).toHaveBeenLastCalledWith(other.id, 'add');
+  });
+
+  it('offers reusable practice profiles only in separate conversations and explains local edits', () => {
+    renderPanel({ thread: { ...thread, sandbox: { operationId: 'op', requestHash: 'hash', baselineHeads: {}, bindings: [{ baseline: participant }] } },
+      availableParticipants: [{ ...participant, id: 'practice', kind: 'temporary' }], onChangeMembership: vi.fn() });
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Details.SeparatePeopleHint');
+    expect(buttonWithText('mlearn.ConversationAgent.Details.EditHere')).not.toBeUndefined();
+    buttonWithText('mlearn.ConversationAgent.Details.AddPerson').click();
+    expect(container.querySelectorAll('.ca-thread-people-picker button')).toHaveLength(1);
+  });
+
+  it('removes a person only after explaining the consequence and keeps the last participant', async () => {
+    const onChangeMembership = vi.fn(async () => {});
+    renderPanel({ participants: [participant, { ...participant, id: 'other', displayName: 'Mina' }], onChangeMembership });
+    (container.querySelector('.ca-thread-participant-card button[aria-label]') as HTMLButtonElement).click();
+    expect(onChangeMembership).not.toHaveBeenCalled();
+    expect(container.querySelector('.ca-thread-people-confirm')?.textContent).toContain('mlearn.ConversationAgent.Details.RemovePersonHint');
+    (container.querySelector('.ca-thread-people-confirm button:last-child') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(onChangeMembership).toHaveBeenCalledWith(participant.id, 'remove'));
+    dispose(); container.textContent = ''; renderPanel({ onChangeMembership });
+    expect((container.querySelector('.ca-thread-participant-card button[aria-label]') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('prevents roster edits during a response or call', () => {
+    renderPanel({ membershipDisabled: true, onChangeMembership: vi.fn() });
+    expect(buttonWithText('mlearn.ConversationAgent.Details.AddPerson').disabled).toBe(true);
+    expect(buttonWithText('mlearn.ConversationAgent.Details.EditContact').disabled).toBe(true);
+    expect(container.textContent).toContain('mlearn.ConversationAgent.Details.PeopleBusyHint');
+  });
+
+  it('keeps an open editor draft when a call starts before save', async () => {
+    const [busy, setBusy] = createSignal(false);
+    dispose = render(() => <ThreadInfoPanel thread={thread} context={null} participants={[participant]}
+      membershipDisabled={busy()} onRenameThread={onRenameThread} onUpdateParticipant={onUpdateParticipant} onDeleteThread={onDeleteThread} />, container);
+    buttonWithText('mlearn.ConversationAgent.Details.EditContact').click();
+    setBusy(true);
+    buttonWithText('mlearn.ConversationAgent.Details.Save').click();
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toBe('mlearn.ConversationAgent.Details.PeopleBusyHint'));
+    expect(onUpdateParticipant).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="participant-editor-modal"]')).not.toBeNull();
+  });
+
+  it('disables an open removal confirmation if the other person leaves first', () => {
+    const [people, setPeople] = createSignal([participant, { ...participant, id: 'other' }]);
+    const onChangeMembership = vi.fn();
+    dispose = render(() => <ThreadInfoPanel thread={thread} context={null} participants={people()}
+      onChangeMembership={onChangeMembership} onRenameThread={onRenameThread} onUpdateParticipant={onUpdateParticipant} onDeleteThread={onDeleteThread} />, container);
+    (container.querySelector('.ca-thread-participant-card button[aria-label]') as HTMLButtonElement).click();
+    setPeople([participant]);
+    const confirm = container.querySelector('.ca-thread-people-confirm button:last-child') as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true); confirm.click();
+    expect(onChangeMembership).not.toHaveBeenCalled();
   });
 });

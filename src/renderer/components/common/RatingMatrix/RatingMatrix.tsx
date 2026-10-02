@@ -15,7 +15,7 @@
  * - Untouched rows fabricate no evidence; only explicit drafts and explicit
  *   All/whole-word actions emit observations.
  */
-import { Component, For, Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { Component, For, Show, createEffect, createSignal, createMemo, on, onCleanup, onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import {
   ATTEMPT_QUALITIES,
@@ -51,6 +51,8 @@ export interface RatingMatrixProps {
   /** Tested capability rows, in display order — revealed cues included; scaffold
    * weighting stays in the evidence layer. Core kinds and package-declared keys alike. */
   capabilities: readonly CapabilityKey[];
+  /** Easy changes a review interval; omit it in activities without a scheduler. */
+  scheduling?: boolean;
   /** Saved statements displayed using the same quality selections as manual ratings. */
   claims?: Readonly<Partial<Record<CapabilityKey, WordStatus>>>;
   /** Package-resolved labels for opaque capability ids. */
@@ -61,7 +63,7 @@ export interface RatingMatrixProps {
   /** The control owns its rating keys only while armed. */
   armed: boolean;
   /** Resets drafts, collapse state and the submitted guard when it changes. */
-  resetKey?: string | number;
+  resetKey?: unknown;
   /** Focused probes show their exact tested rows immediately. */
   initiallyExpanded?: boolean;
   /** One logical attempt: the full observation set, in display order. */
@@ -107,6 +109,7 @@ const actionEvidence = (action: RatingAction): AccessDraft =>
   action === 'easy' ? { quality: 'fluent', easy: true } : { quality: action };
 
 export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
+  const ratingActions = () => props.scheduling === false ? ATTEMPT_QUALITIES : RATING_ACTIONS;
   const { t } = useLocalization();
   const [pendingQuality, setPendingQuality] = createSignal<RatingAction | null>(null);
   const [expanded, setExpanded] = createSignal(false);
@@ -138,7 +141,8 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     for (const key of Object.keys(drafts)) setDrafts(key as CapabilityKey, undefined);
   };
 
-  createEffect(on(() => props.resetKey, () => {
+  const resetIdentity = createMemo(() => props.resetKey);
+  createEffect(on(resetIdentity, () => {
     clearDrafts();
     setExpanded(props.initiallyExpanded === true);
     setSubmitted(false);
@@ -278,7 +282,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
       return;
     }
 
-    const action = RATING_ACTIONS.find((candidate) => ACTION_KEYS[candidate] === key);
+    const action = ratingActions().find((candidate) => ACTION_KEYS[candidate] === key);
     if (action) {
       e.preventDefault();
       if (!expanded()) {
@@ -323,7 +327,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     // The action and the row are read from the same table entry, so a key can
     // never resolve to a different action than the one its cell advertises.
     const spatialAction = spatialMatrixAction(key, rowIndex);
-    if (!spatialAction) return;
+    if (!spatialAction || !ratingActions().some(action => action === spatialAction)) return;
     if (rowIndex === 0) {
       fillAll(spatialAction, e.altKey);
       return;
@@ -342,11 +346,14 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
 
   return (
     <div class="rating-matrix" classList={{ 'rating-matrix--expanded': expanded() }}>
+      <Show when={!expanded() && props.capabilities.length > 0}>
+        <p class="rating-matrix__tested">{t('mlearn.WordSync.TestedAccesses', { aspects: props.capabilities.map(capabilityLabel).join(' · ') })}</p>
+      </Show>
       <div class="rating-matrix__bar" classList={{ 'rating-matrix__bar--head': expanded() }}>
         <Show when={expanded()}>
           <span class="rating-matrix__corner" aria-hidden="true" />
         </Show>
-        <For each={RATING_ACTIONS}>
+        <For each={ratingActions()}>
           {(action) => (
             <Show
               when={expanded()}
@@ -391,7 +398,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
         <div class="rating-matrix__unfold">
           <div class="rating-matrix__row rating-matrix__row--all">
             <span class="rating-matrix__label rating-matrix__label--all">{t('mlearn.Rating.Matrix.AllRow')}</span>
-            <For each={RATING_ACTIONS}>
+            <For each={ratingActions()}>
               {(action) => (
                 <Button
                   buttonType="default"
@@ -416,7 +423,7 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
                 <span class="rating-matrix__label">
                   {capabilityLabel(capability)}
                 </span>
-                <For each={RATING_ACTIONS}>
+                <For each={ratingActions()}>
                   {(action) => (
                     <Button
                       buttonType="default"

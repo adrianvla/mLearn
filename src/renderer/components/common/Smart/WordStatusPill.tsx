@@ -34,6 +34,8 @@ export interface WordStatusPillProps {
   suppressKnowledgePopover?: boolean;
   /** Compact dictionary interaction: cycle explicit claims, without recording attempts. */
   cycleClaims?: boolean;
+  /** Browsing a learning record must not silently change a knowledge claim. */
+  onInspect?: () => void;
 }
 
 export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
@@ -151,6 +153,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   const handleStatusChange = (event?: MouseEvent) => {
     event?.preventDefault();
     event?.stopPropagation();
+    if (props.onInspect) { props.onInspect(); return; }
     if (props.cycleClaims) {
       const next = WORD_STATUS_VALUES[(WORD_STATUS_VALUES.indexOf(effectiveStatus()) + 1) % WORD_STATUS_VALUES.length];
       openStatusChangeFlow(next);
@@ -195,6 +198,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     variant={statusVariant()}
     icon={statusIcon()}
     label={props.iconOnly ? '' : statusLabel()}
+    title={props.onInspect ? t('mlearn.Knowledge.Popup.Inspect') : undefined}
     onClick={handleStatusChange}
   />;
 

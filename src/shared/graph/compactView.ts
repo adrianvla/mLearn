@@ -143,13 +143,13 @@ export function createCompactGraphView(graph: RuntimeCompactGraph, language: str
     }
   }
 
-  // Nothing in app code reads `asset` off a runtime graph (only tests that
-  // build their own plain graphs from an asset); the stub satisfies the shape.
+  // Projection contributors need authored provenance, without materializing
+  // the full graph payload. Absent legacy metadata stays explicitly absent.
   const asset: LinguisticGraphAsset = {
     schemaVersion: GRAPH_SCHEMA_VERSION,
     language,
-    generatedAt: '',
-    sourceVersions: {},
+    generatedAt: graph.assetMetadata?.generatedAt ?? '',
+    sourceVersions: { ...graph.assetMetadata?.sourceVersions },
     entities: [],
     relations: [],
   };

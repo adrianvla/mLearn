@@ -31,10 +31,10 @@ import { useWordHover, useTranslation, useTokenizer, useDictionary, getCachedTra
 import { ChatBubble } from './ChatBubble';
 import { ThreadInfoPanel } from './ThreadInfoPanel';
 import { IntegrationModal } from './IntegrationModal';
-import { VoiceTab } from './VoiceTab';
+import { VoiceTab, type VoiceSpeechMessage } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 
-import { AgeVerificationModal } from './AgeVerificationModal';
+import { AgeVerificationModal, CONVERSATION_NOTICE_VERSION } from './AgeVerificationModal';
 import { CommandPalette } from './CommandPalette';
 import type { SlashCommand } from './CommandPalette';
 import { getConversationDisplayLanguageName, getConversationPromptLanguageName } from './languageNames';
@@ -43,7 +43,7 @@ import { ParticipantEditorModal } from './ParticipantEditorModal';
 import { ContactProfileModal } from './ContactProfileModal';
 import { useConversationPreviews } from './useConversationPreviews';
 import { createMessagePreparationQueue, messagePreparations } from './messagePreparation';
-import { warmTranslationCache } from '../../hooks/useTranslation';
+import { tokenLookupContext, warmTranslationCache } from '../../hooks/useTranslation';
 import { RuntimeInspector } from './RuntimeInspector';
 import { NewConversationModal } from './NewConversationModal';
 import { StoryProgressModal } from './StoryProgressModal';
@@ -63,9 +63,10 @@ import { compileContext, visibleThreadEventsFor, type CompiledContext, type Lear
 import { renderCompiledContext } from './roomMessages';
 import { currentFeedbackAgreement, renderFeedbackAgreement } from '../../services/feedbackAgreement';
 import { createVoicePrefetch } from './voicePrefetch';
-import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type ThreadMediaRef, type WorldSnapshot } from '../../../shared/world';
+import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type ThreadMediaRef, type WorldSnapshot, type VoiceDeliveryPayload, type JournalEventDraft, type JournalEvent } from '../../../shared/world';
 import { getLearningLanguageLevelForLanguage, getTokenizerCacheNamespace, shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
+import { openCapabilitySettings } from '../../services/capabilityUnavailable';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.conversationAgent.app");
@@ -237,6 +238,18 @@ export const ConversationContent: Component = () => {
 
   const [showSplash, setShowSplash] = createSignal(true);
   const [showDisclaimer, setShowDisclaimer] = createSignal(true);
+  createEffect(() => {
+    if (isLoading()) return;
+    setShowSplash((settings.agentRemoteNoticeAcceptedVersion ?? DEFAULT_SETTINGS.agentRemoteNoticeAcceptedVersion) !== CONVERSATION_NOTICE_VERSION);
+    setShowDisclaimer((settings.agentLocalNoticeAcceptedVersion ?? DEFAULT_SETTINGS.agentLocalNoticeAcceptedVersion) !== CONVERSATION_NOTICE_VERSION);
+  });
+  const acceptConversationNotice = (scope: 'local' | 'remote'): void => {
+    updateSettings(scope === 'remote'
+      ? { agentRemoteNoticeAcceptedVersion: CONVERSATION_NOTICE_VERSION }
+      : { agentLocalNoticeAcceptedVersion: CONVERSATION_NOTICE_VERSION });
+    if (scope === 'remote') setShowSplash(false);
+    else setShowDisclaimer(false);
+  };
 
   // Voice mode state
   const [isVoiceCallActive, setIsVoiceCallActive] = createSignal(false);
@@ -274,7 +287,10 @@ export const ConversationContent: Component = () => {
   const journal = createJournalThreadStore();
   const [liveOverlay, setLiveOverlay] = createSignal<ConversationOverlay | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
-  const interruptedSpokenText = new Map<string, { text: string; interruptedAt: string }>();
+  const admittedVoiceSources = new Map<string, JournalEvent>();
+  let deliveryWriteQueue: Promise<void> = Promise.resolve();
+  const [activeVoiceSessionId, setActiveVoiceSessionId] = createSignal<string | null>(null);
+  const [admittedVoiceEventIds, setAdmittedVoiceEventIds] = createSignal<ReadonlySet<string>>(new Set());
   const supersededEvents = new Set<string>();
   const participantAgents = new Map<string, AgentInstance>();
   const reviewOperations = new Set<string>();
@@ -283,8 +299,10 @@ export const ConversationContent: Component = () => {
   const approvedMemoryWrites = new Map<string, string[]>();
   let selectionSession = 0;
   let cancelConversationTurn: (() => void) | null = null;
+  let activeTurn: { modality: 'text' | 'voice'; cancelled: boolean; reviews: Set<string> } | null = null;
   onCleanup(() => {
     selectionSession++;
+    if (activeTurn) activeTurn.cancelled = true;
     cancelConversationTurn?.();
     cancelConversationTurn = null;
     for (const runtime of participantAgents.values()) runtime.abortStream();
@@ -292,7 +310,8 @@ export const ConversationContent: Component = () => {
     for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
   });
   const [sidebarVisible, setSidebarVisible] = createSignal(false);
-  const [sidebarView, setSidebarView] = createSignal<'chats' | 'contacts' | 'practice'>('chats');
+  const [sidebarView, setSidebarView] = createSignal<'chats' | 'contacts'>('chats');
+  const [conversationEntry, setConversationEntry] = createSignal(0);
   const [addingContact, setAddingContact] = createSignal(false);
   const [showStoryProgress, setShowStoryProgress] = createSignal(false);
   const [contactId, setContactId] = createSignal<string | null>(null);
@@ -347,8 +366,9 @@ export const ConversationContent: Component = () => {
   const [voiceContactParticipantId, setVoiceContactParticipantId] = createSignal<string | null>(null);
   const [incomingCall, setIncomingCall] = createSignal<{ contactId: string; callId: string; participantId?: string } | null>(null);
   const [contactIngressError, setContactIngressError] = createSignal<string | null>(null);
-  const [voiceHeaderStatus, setVoiceHeaderStatus] = createSignal('');
   const callSurfaceOpen = () => Boolean(voiceOverlayRequested() || isVoiceCallActive() || voiceAftermath());
+  const voiceParticipants = () => voiceContactParticipantId()
+    ? rosterParticipants().filter(person => person.id === voiceContactParticipantId()) : rosterParticipants();
   const callIdentity = () => (voiceContactParticipantId() ? activeVoiceParticipant()?.displayName : rosterParticipants().map(person => person.displayName).join(', '))
     || activeRoom()?.title || t('mlearn.ConversationAgent.Title');
   const [contactEventId, setContactEventId] = createSignal<string | null>(null);
@@ -453,6 +473,9 @@ export const ConversationContent: Component = () => {
     return room.participantIds.map((id) => byId.get(id)).filter((participant): participant is Participant => participant !== undefined);
   };
   const hasActiveRoomSelection = () => selection() !== null && activeRoom() !== null;
+  const conversationPeople = () => activeThread()?.sandbox
+    ? activeThread()!.sandbox!.bindings.map(binding => binding.localOverride ?? binding.baseline)
+    : world()?.participants ?? [];
   // Voice turns get the same journal-compiled world context as the text path,
   // prefetched speculatively from STT partials (latest-wins cache). The turn
   // text drives bounded turn-specific ranking/budgeting; scopeId keeps each
@@ -477,14 +500,39 @@ export const ConversationContent: Component = () => {
   let lastUserMessageEventId: string | null = null;
   let lastUserMessageEventRoomId: string | null = null;
   let lastVadSpeechEndTs: number | null = null;
-  const displayMessages = createMemo(() => eventsToDisplayMessages(journal.threadEvents(), rosterParticipants(), youLabel())
+  const displayMessages = createMemo(() => eventsToDisplayMessages(journal.threadEvents(), conversationPeople(), youLabel())
     .filter((message) => !supersededEvents.has((message as EventMessage).eventId))
     .map((message) => {
       const eventId = (message as EventMessage).eventId;
-      const interrupted = interruptedSpokenText.get(eventId);
-      return { ...message, ...messageOverrides().get(eventId), ...(interrupted ? { content: interrupted.text, interrupted: true, interruptedAt: interrupted.interruptedAt } : {}) };
+      const override = messageOverrides().get(eventId);
+      if (!message.voiceDelivery) return { ...message, ...override };
+      const originalWidgets = message.widgets ?? (message.widget ? [message.widget] : []);
+      const preparedWidgets = override?.widgets ?? (override?.widget ? [override.widget] : []);
+      const preparations = messagePreparations(message as EventMessage);
+      const prepared = override ? messagePreparations({ ...message, ...override } as EventMessage) : [];
+      const widgets = originalWidgets.map((widget, index) => {
+        const candidate = preparedWidgets[index];
+        const text = preparations.find(item => item.widgetIndex === index)?.text;
+        return candidate?.type === widget.type && text && prepared.some(item => item.widgetIndex === index && item.text === text)
+          ? { ...widget, data: { ...widget.data, tokens: candidate.data.tokens } } : widget;
+      });
+      return { ...message, ...override, content: message.content, generatedContent: message.generatedContent,
+        voiceDelivery: message.voiceDelivery, interrupted: message.interrupted,
+        tokens: override?.content === message.content ? override.tokens : undefined,
+        widgets: widgets.length ? widgets : undefined, widget: widgets.at(-1) };
     }));
   const messages = createMemo(() => [...displayMessages(), ...streamingMessages(liveOverlay())]);
+  const hasMultipleConversationSpeakers = createMemo(() => new Set([
+    ...rosterParticipants().map(person => person.id),
+    ...messages().filter(message => message.role === 'assistant').map(message => (message as EventMessage).actorId).filter(Boolean),
+  ]).size > 1);
+  const speechMessages = createMemo<VoiceSpeechMessage[]>(() => displayMessages().flatMap(message => {
+    const eventMessage = message as EventMessage & { modality?: 'voice'; voiceSessionId?: string };
+    if (!admittedVoiceEventIds().has(eventMessage.eventId) || eventMessage.modality !== 'voice' || !eventMessage.voiceSessionId || !eventMessage.actorId
+      || message.role !== 'assistant' || message.interrupted || message.isError) return [];
+    return [{ eventId: eventMessage.eventId, actorId: eventMessage.actorId, voiceSessionId: eventMessage.voiceSessionId,
+      content: message.generatedContent ?? message.content, voiceSampleId: rosterParticipants().find(person => person.id === eventMessage.actorId)?.voiceSampleId }];
+  }));
   const [streamingMessageIndex, setStreamingMessageIndex] = createSignal<number | null>(null);
   const updateMessageOverride = (eventId: string, update: (message: ConversationMessage) => ConversationMessage) => {
     const message = displayMessages().find((item) => (item as EventMessage).eventId === eventId);
@@ -611,6 +659,7 @@ export const ConversationContent: Component = () => {
     flashcardCtx,
     isVoiceMode: isVoiceCallActive,
     onVoiceMistake: (mistake: VoiceMistake) => {
+      if (runtimeSession !== selectionSession) return;
       if (!isValidVoiceMistake(mistake)) return;
       setVoiceMistakes((prev) => [...prev, mistake]);
       // Grammar evidence requires a real pattern: the note_mistake tool has no
@@ -619,7 +668,9 @@ export const ConversationContent: Component = () => {
         flashcardCtx.trackGrammarFailed(mistake.word);
       }
     },
-    onVoiceNudgeScheduled: scheduleVoiceNudge,
+    onVoiceNudgeScheduled: (nudge) => {
+      if (runtimeSession === selectionSession) scheduleVoiceNudge(nudge);
+    },
     onMemorySaved: (content: string) => {
       if (runtimeSession !== selectionSession) return;
       pendingMemoryWrites.set(participant.id, [...(pendingMemoryWrites.get(participant.id) ?? []), content]);
@@ -724,6 +775,8 @@ export const ConversationContent: Component = () => {
     const room = activeRoom();
     const threadId = selection()?.threadId;
     const session = selectionSession;
+    const sourceEvent = [...journal.threadEvents(), ...journal.seaEvents()].find(event => event.id === messageEventId);
+    const witnesses = [...(sourceEvent?.witnesses ?? [USER_ACTOR, ...(room?.participantIds ?? [])])];
     const initialPracticeIntent = activeThread()?.intent;
     const recentConversation = displayMessages().filter(message => !message.isError && (message.role === 'user' || message.role === 'assistant'))
       .slice(-12).map(message => ({ role: message.role as 'user' | 'assistant', content: message.content.slice(-4000) }));
@@ -746,7 +799,7 @@ export const ConversationContent: Component = () => {
       if (result.feedbackAgreement && room) {
         await getBridge().journal.appendEvent(room.id, { roomId: room.id,
           scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'feedback.agreement',
-          actorId: HARNESS_ACTOR, witnesses: [USER_ACTOR, ...room.participantIds],
+          actorId: HARNESS_ACTOR, witnesses,
           payload: { sourceEventId: messageEventId, ...result.feedbackAgreement } });
         if (session === selectionSession) await journal.refresh();
       }
@@ -762,7 +815,6 @@ export const ConversationContent: Component = () => {
       }
 
       if (!room) return;
-      const witnesses = [USER_ACTOR, ...room.participantIds];
       if (result.corrections.length) await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'correction', actorId: HARNESS_ACTOR, witnesses, payload: { messageEventId, corrections: result.corrections } });
       if (result.safety) {
         agent.lockSafety(); setIsSafetyLockedState(true);
@@ -849,6 +901,16 @@ export const ConversationContent: Component = () => {
       return;
     }
     const mySession = ++selectionSession;
+    batch(() => {
+      setIsVoiceCallActive(false);
+      setActiveVoiceSessionId(null);
+      setAdmittedVoiceEventIds(new Set<string>());
+      setVoiceAftermath(null);
+      setVoiceOverlayRequested(false);
+      setVoiceContactParticipantId(null);
+    });
+    if (activeTurn) activeTurn.cancelled = true;
+    activeTurn = null;
     setDraftReadyKey(null);
     cancelConversationTurn?.();
     cancelConversationTurn = null;
@@ -893,7 +955,8 @@ export const ConversationContent: Component = () => {
       setMessageOverrides(new Map());
       setAnnotationFailed(false);
       participantAgents.clear();
-      setSidebarView((selectedSandbox?.interactionMode ?? requestedThread?.interactionMode ?? snapshot.rooms.find(item => item.id === roomId)?.interactionMode) === 'practice' ? 'practice' : 'chats');
+      setSidebarView('chats');
+      setConversationEntry(value => value + 1);
       const key = selectionKey(roomId, threadId);
       pendingScrollKey = scrollBySelection.has(key) ? key : null;
       setSelection({ roomId, threadId });
@@ -970,9 +1033,22 @@ export const ConversationContent: Component = () => {
 
 
   const handleUpdateParticipant = async (participant: Participant): Promise<void> => {
+    if (isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen()) throw new Error(t('mlearn.ConversationAgent.Details.PeopleBusyHint'));
     await getBridge().world.updateParticipant(participant, activeThread()?.sandbox ? activeThread()!.id : undefined);
     participantAgents.delete(participant.id);
     setWorld(await getBridge().world.getWorldState());
+  };
+  const handleChangeMembership = async (participantId: string, kind: 'add' | 'remove'): Promise<void> => {
+    const room = activeRoom();
+    if (!room) return;
+    if (isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen()) throw new Error(t('mlearn.ConversationAgent.Details.PeopleBusyHint'));
+    if (kind === 'remove' && (rosterParticipants().length <= 1 || !rosterParticipants().some(person => person.id === participantId))) {
+      throw new Error(t('mlearn.ConversationAgent.Details.RosterChanged'));
+    }
+    await getBridge().world.applyMembership(room.id, participantId, kind);
+    participantAgents.get(participantId)?.abortStream(); participantAgents.delete(participantId);
+    setWorld(await getBridge().world.getWorldState());
+    if (selection()?.roomId === room.id) await journal.refresh();
   };
 
   const handleRenameThread = async (title: string): Promise<void> => {
@@ -1233,8 +1309,8 @@ export const ConversationContent: Component = () => {
     const requestId = ++hoverRequestId;
 
     // Show immediately with cached data if available
-    const cached = getCachedTranslation(lookupWord, settings.language, wordLookupOptions);
-    setTranslationData(cached ? { data: cached.data } : null);
+    const cached = getCachedTranslation(lookupWord, settings.language, { ...wordLookupOptions, context: tokenLookupContext(token) });
+    setTranslationData(cached ?? null);
     setDictionaryEntries([]);
     setIsLoadingDict(true);
 
@@ -1250,10 +1326,10 @@ export const ConversationContent: Component = () => {
     // Fetch translation
     if (!cached) {
       try {
-        const result = await translateWord(lookupWord);
+        const result = await translateWord(lookupWord, tokenLookupContext(token));
         if (requestId !== hoverRequestId) return;
         if (result) {
-          setTranslationData({ data: result.data });
+          setTranslationData(result);
         }
       } catch (e) {
         log.error("error", e);
@@ -1302,8 +1378,9 @@ export const ConversationContent: Component = () => {
     };
   };
 
-  const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void, keepStreaming = false): StreamCallbacks => {
+  const buildStreamCallbacks = (onDone?: (text: string, tokens: Token[] | undefined, widgets: ChatWidget[] | undefined, streamStats?: StreamStats) => void, keepStreaming = false, ownsTurn: () => boolean = () => true): StreamCallbacks => {
     const session = selectionSession;
+    const current = () => session === selectionSession && ownsTurn();
     let streamTokenizeId = 0;
     let streamTokenizeTimer: ReturnType<typeof setTimeout> | null = null;
     const finishAnnotation = (): void => {
@@ -1313,7 +1390,7 @@ export const ConversationContent: Component = () => {
     };
     return {
       onChunk: (accumulated) => {
-        if (session !== selectionSession) return;
+        if (!current()) return;
         setIsWaiting(false);
         const beats = conversationStreamMessages(stripPartialToolCall(accumulated));
         const visibleContent = beats.join('\n\n');
@@ -1324,14 +1401,14 @@ export const ConversationContent: Component = () => {
           streamTokenizeTimer = setTimeout(() => {
             const tokenizeId = ++streamTokenizeId;
             agent.tokenize(visibleContent).then((tokens) => {
-              if (session !== selectionSession || tokenizeId !== streamTokenizeId) return;
+              if (!current() || tokenizeId !== streamTokenizeId) return;
               if (tokens.length > 0) setLiveOverlay((overlay) => overlay ? { ...overlay, tokens: (overlay.beats?.length ?? 0) > 1 ? undefined : tokens } : overlay);
             }).catch(error => log.warn('Stream annotation unavailable', error));
           }, 300);
         }
       },
       onToolCall: (widget: ChatWidget) => {
-        if (session !== selectionSession) return;
+        if (!current()) return;
         setIsWaiting(false);
         setLiveOverlay((overlay) => {
           if (!overlay) return overlay;
@@ -1341,12 +1418,13 @@ export const ConversationContent: Component = () => {
       },
       onDone: (finalContent, tokens, widgets, streamStats) => {
         finishAnnotation();
+        if (!current()) return;
         onDone?.(finalContent, tokens, widgets, streamStats);
         if (!keepStreaming) clearAssistantStreamState();
       },
       onError: (error) => {
         finishAnnotation();
-        if (session !== selectionSession) return;
+        if (!current()) return;
         log.error('Conversation response failed', error);
         clearAssistantStreamState();
         setLiveOverlay(providerErrorOverlay(error));
@@ -1355,65 +1433,83 @@ export const ConversationContent: Component = () => {
   };
 
   const runConversationTurn = async (text: string, contextOnly = false, modality: 'text' | 'voice' = isVoiceCallActive() ? 'voice' : 'text'): Promise<void> => {
-    await initialSelection;
-    await contextIngress;
-    const room = activeRoom();
-    const threadId = selection()?.threadId;
-    if (!text || isStreaming() || isSafetyLockedState()) return;
-    if (!room) {
-      const snapshot = await getBridge().world.getWorldState();
-      const firstRoom = snapshot.rooms[0];
-      if (!firstRoom) return;
-      setWorld(snapshot);
-      // Consent boundary: a first send must not enter a persistent Room while
-      // Living World is off; it targets a disposable sandbox instead, if any.
-      const fallbackThread = settings.livingWorldEnabled ? undefined : snapshot.threads.find(thread => thread.sandbox);
-      if (!settings.livingWorldEnabled && !fallbackThread) return;
-      await selectRoom(fallbackThread ? fallbackThread.id : firstRoom.id);
-      return runConversationTurn(text, contextOnly, modality);
-    }
-    if (isRemoteLLMProvider(settings.llmProvider)) {
-      try {
-        if (settings.llmProvider === 'cloud') {
-          const accessToken = await ensureCloudAccessToken({ interactive: true });
-          if (!accessToken) throw new CloudSessionCancelledError();
-        }
-        if (isElectron()) await getBridge().settings.awaitSettingsSaved();
-      } catch (error) {
-        setLiveOverlay(providerErrorOverlay(error));
-        return;
-      }
-    }
-    cancelVoiceScheduledNudge();
-    turnHeuristicSocial = inferTurnAffect(text, turnSocialOpts(text));
-    // Speech end ≈ the final STT result that triggered this send; the LLM
-    // request dispatches when the agent turn below reaches processMessage.
-    const voiceTurnTiming = isVoiceCallActive() ? { speechEndTs: lastVadSpeechEndTs ?? Date.now(), requestDispatchTs: 0 } : null;
-    let prefetchLogged = false;
-    const witnesses = [USER_ACTOR, ...room.participantIds];
+    const voiceSessionId = modality === 'voice' ? activeVoiceSessionId() ?? undefined : undefined;
+    if (!text || activeTurn || isStreaming() || isSafetyLockedState()) return;
     const session = selectionSession;
-    const userEvent = contextOnly ? null : await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality: isVoiceCallActive() ? 'voice' : 'text' } satisfies MessagePayload });
-    if (session !== selectionSession) return;
-    lastUserMessageEventId = userEvent?.id ?? null;
-    lastUserMessageEventRoomId = room.id;
-    setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now() });
+    const turn = { modality, cancelled: false, reviews: new Set<string>() };
+    activeTurn = turn;
+    const ownsTurn = () => session === selectionSession && activeTurn === turn && !turn.cancelled;
+    let voiceNoteStagingFailed = false;
+    // Reserve before preflight: teardown must also cancel a call waiting for
+    // credentials, settings, or context, and a second send cannot race it.
     startAssistantStream(displayMessages().length);
-    let pendingResponse: { tokens?: Token[]; widgets?: ChatWidget[] } = {};
     try {
+      await initialSelection;
+      if (!ownsTurn()) return;
+      await contextIngress;
+      if (!ownsTurn()) return;
+      const room = activeRoom();
+      const threadId = selection()?.threadId;
+      if (!room) {
+        const snapshot = await getBridge().world.getWorldState();
+        if (!ownsTurn()) return;
+        const firstRoom = snapshot.rooms[0];
+        if (!firstRoom) return;
+        setWorld(snapshot);
+        // Consent boundary: a first send must not enter a persistent Room while
+        // Living World is off; it targets a disposable sandbox instead, if any.
+        const fallbackThread = settings.livingWorldEnabled ? undefined : snapshot.threads.find(thread => thread.sandbox);
+        if (!settings.livingWorldEnabled && !fallbackThread) return;
+        turn.cancelled = true;
+        activeTurn = null;
+        clearAssistantStreamState();
+        await selectRoom(fallbackThread ? fallbackThread.id : firstRoom.id);
+        return runConversationTurn(text, contextOnly, modality);
+      }
+      if (isRemoteLLMProvider(settings.llmProvider)) {
+        try {
+          if (settings.llmProvider === 'cloud') {
+            const accessToken = await ensureCloudAccessToken({ interactive: true });
+            if (!ownsTurn()) return;
+            if (!accessToken) throw new CloudSessionCancelledError();
+          }
+          if (isElectron()) await getBridge().settings.awaitSettingsSaved();
+          if (!ownsTurn()) return;
+        } catch (error) {
+          if (ownsTurn()) setLiveOverlay(providerErrorOverlay(error));
+          return;
+        }
+      }
+      cancelVoiceScheduledNudge();
+      turnHeuristicSocial = inferTurnAffect(text, turnSocialOpts(text));
+      // Speech end ≈ the final STT result that triggered this send; the LLM
+      // request dispatches when the agent turn below reaches processMessage.
+      const voiceTurnTiming = isVoiceCallActive() ? { speechEndTs: lastVadSpeechEndTs ?? Date.now(), requestDispatchTs: 0 } : null;
+      let prefetchLogged = false;
+      const witnesses = [USER_ACTOR, ...(modality === 'voice' ? voiceParticipants().map(person => person.id) : room.participantIds)];
+      const previousSourceEventId = lastUserMessageEventRoomId === room.id ? lastUserMessageEventId : null;
+      const userEvent = contextOnly ? null : await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality, ...(voiceSessionId ? { voiceSessionId } : {}) } satisfies MessagePayload });
+      if (!ownsTurn()) return;
+      const memorySourceEventId = userEvent?.id ?? previousSourceEventId;
+      lastUserMessageEventId = userEvent?.id ?? null;
+      lastUserMessageEventRoomId = room.id;
+      setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now() });
+      startAssistantStream(displayMessages().length);
+      let pendingResponse: { tokens?: Token[]; widgets?: ChatWidget[] } = {};
       await runRoomTurn({
         thread: activeThread() ?? undefined,
-        room,
+        room: modality === 'voice' ? { ...room, participantIds: voiceParticipants().map(person => person.id) } : room,
         ...(contextOnly ? { contextTurn: { text, threadId: threadId ?? undefined } } : {}),
         modality,
         initialSpeakerId: modality === 'voice' ? voiceContactParticipantId() ?? undefined : undefined,
-        participants: rosterParticipants(),
+        participants: modality === 'voice' ? voiceParticipants() : rosterParticipants(),
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
         compileContextFn: (input) => modality === 'voice' ? voiceContextPrefetch.resolveFinal(text, input.participant.id) : compileContext({ ...input, thread: activeThread() ?? undefined, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined), threadIntent: activeThread()?.intent, turn: { text } }),
         runAgentTurn: async (participantId, context) => {
           const participant = rosterParticipants().find((candidate) => candidate.id === participantId);
           if (!participant) return { text: '' };
-          if (session !== selectionSession) throw new Error('Conversation selection changed');
+          if (!ownsTurn()) throw new Error('Conversation response cancelled');
           setLiveOverlay({ role: 'assistant', content: '', timestamp: Date.now(), displayName: participant.displayName, actorId: participant.id });
           setStreamingMessageIndex(displayMessages().length);
           const runtimeAgent = getParticipantAgent(participant, context);
@@ -1432,7 +1528,7 @@ export const ConversationContent: Component = () => {
             runtimeAgent.processMessage(currentText, [], {
               ...buildStreamCallbacks((final, tokens, widgets, streamStats) => {
                 void (async () => {
-                  if (session !== selectionSession) throw new Error('Conversation selection changed');
+                  if (!ownsTurn()) throw new Error('Conversation response cancelled');
                   if (voiceTurnTiming && streamStats && !prefetchLogged) {
                     prefetchLogged = true;
                     const dispatchMs = voiceTurnTiming.requestDispatchTs - voiceTurnTiming.speechEndTs;
@@ -1442,6 +1538,7 @@ export const ConversationContent: Component = () => {
                     if (!isElectron()) { pendingResponse = { tokens, widgets }; approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []); resolve({ text: final }); return; }
                   const operationId = crypto.randomUUID();
                   reviewOperations.add(operationId);
+                  turn.reviews.add(operationId);
                   try {
                     const result = await getBridge().world.reviewConversationTurn({ operationId, roomId: room.id,
                       threadId: threadId ?? undefined, participantId: participant.id, sourceEventId: userEvent?.id,
@@ -1451,7 +1548,7 @@ export const ConversationContent: Component = () => {
                         .slice(-12).map(message => ({ role: message.role as 'user' | 'assistant', content: message.content.slice(-4000) })),
                       repairContext: renderCompiledContext(context, rosterParticipants(), youLabel()).slice(0, 30_000),
                       language: promptLangName() });
-                    if (session !== selectionSession) throw new Error('Conversation selection changed');
+                    if (!ownsTurn()) throw new Error('Conversation response cancelled');
                     if (result.status === 'unavailable') throw new Error(result.error);
                     if (result.restrictUserContext && userEvent) restrictedUserEventIds.add(userEvent.id);
                     if (result.status === 'support') { pendingResponse = {}; pendingMemoryWrites.delete(participant.id); resolve({ text: t('mlearn.ConversationAgent.Story.SupportResponse'), reviewEvent: result.reviewEvent }); return; }
@@ -1459,11 +1556,11 @@ export const ConversationContent: Component = () => {
                     if (result.status === 'approved' && !result.restrictUserContext) approvedMemoryWrites.set(participant.id, pendingMemoryWrites.get(participant.id) ?? []);
                     else pendingMemoryWrites.delete(participant.id);
                     resolve({ text: result.text, reviewEvent: result.reviewEvent });
-                  } finally { reviewOperations.delete(operationId); }
+                  } finally { reviewOperations.delete(operationId); turn.reviews.delete(operationId); }
                 })().catch(reject).finally(() => {
                   if (cancelConversationTurn === cancel) cancelConversationTurn = null;
                 });
-              }, true),
+              }, true, ownsTurn),
               onError: (error) => {
                 if (cancelConversationTurn === cancel) cancelConversationTurn = null;
                 reject(new Error(error));
@@ -1472,35 +1569,52 @@ export const ConversationContent: Component = () => {
           });
         },
         appendEvent: async (draft, shape) => {
-          if (session !== selectionSession) throw new Error('Conversation selection changed');
-          const event = await journal.append(draft.type === 'message.character' && pendingResponse.widgets && (!shape || shape.index === shape.count - 1)
-            ? { ...draft, payload: { ...(draft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
-            : draft);
+          if (!ownsTurn()) throw new Error('Conversation response cancelled');
+          const scopedDraft = draft.type === 'message.character' && modality === 'voice'
+            ? { ...draft, payload: { ...(draft.payload as MessagePayload), voiceSessionId, voiceDelivery: 'tracked' as const } } : draft;
+          const event = await journal.append(scopedDraft.type === 'message.character' && pendingResponse.widgets && (!shape || shape.index === shape.count - 1)
+            ? { ...scopedDraft, payload: { ...(scopedDraft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
+            : scopedDraft);
+          if (!ownsTurn()) throw new Error('Conversation response cancelled');
           if (draft.type === 'message.character') setLiveOverlay(null);
           if (draft.type === 'message.character') {
             const writes = approvedMemoryWrites.get(draft.actorId) ?? [];
             approvedMemoryWrites.delete(draft.actorId); pendingMemoryWrites.delete(draft.actorId);
             for (const content of writes) {
-              const sourceEventId = lastUserMessageEventRoomId === room.id && !restrictedUserEventIds.has(lastUserMessageEventId ?? '') ? lastUserMessageEventId : null;
-              void journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
+              const sourceEventId = memorySourceEventId && !restrictedUserEventIds.has(memorySourceEventId)
+                && journal.threadEvents().some(source => source.id === memorySourceEventId && source.witnesses.includes(draft.actorId))
+                ? memorySourceEventId : null;
+              const sourceEventIds = [...(sourceEventId ? [sourceEventId] : []), ...(modality === 'voice' ? [event.id] : [])];
+              const memoryDraft: JournalEventDraft = { roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
                 type: 'memory.belief', actorId: HARNESS_ACTOR, witnesses: [USER_ACTOR, draft.actorId],
                 payload: { ownerId: draft.actorId, kind: 'belief', text: content,
-                  ...(sourceEventId ? { sourceEventIds: [sourceEventId] } : {}) } }).catch(error => log.error('Conversation memory write failed', error));
+                  ...(sourceEventIds.length ? { sourceEventIds } : {}) } };
+              if (modality === 'voice') {
+                try {
+                  await getBridge().journal.appendEvent(memoryDraft.roomId, { ...memoryDraft, provenance: { voiceMemoryMessageId: event.id } });
+                } catch (error) { voiceNoteStagingFailed = true; throw error; }
+                if (!ownsTurn()) throw new Error('Conversation response cancelled');
+              }
+              else void journal.append(memoryDraft).catch(error => log.error('Conversation memory write failed', error));
             }
+          }
+          if (draft.type === 'message.character' && modality === 'voice') {
+            admittedVoiceSources.set(event.id, event);
+            setAdmittedVoiceEventIds(previous => new Set([...previous, event.id]));
           }
           if (draft.type === 'message.character' && contextOnly && modality === 'text' && settings.autoSpeak && settings.speechEnabled) {
             speakAssistantText((draft.payload as MessagePayload).text);
           }
-          if (draft.type === 'message.character' && pendingResponse.tokens?.length && (!shape || shape.count === 1)) {
+          if (draft.type === 'message.character' && modality !== 'voice' && pendingResponse.tokens?.length && (!shape || shape.count === 1)) {
             updateMessageOverride(event.id, (message) => ({ ...message, tokens: pendingResponse.tokens }));
           }
           return event;
         },
       });
-      if (session !== selectionSession) return;
+      if (!ownsTurn()) return;
       setLiveOverlay(null);
       if (userEvent && (settings.agentMistakeChecker || settings.agentSafetyChecker)) runCheckerOnMessage(text, userEvent.id);
-      if (userEvent) {
+      if (userEvent && modality !== 'voice') {
         // Automatic scoped reflection (MEM-02): the completed encounter
         // triggers main-owned consolidation of this context; the snapshot
         // refresh makes evolved scenario state reach the next turn.
@@ -1511,16 +1625,47 @@ export const ConversationContent: Component = () => {
           .catch(() => undefined);
       }
     } catch (error) {
-      log.error('Conversation turn failed', error);
-      if (session === selectionSession) {
-        setLiveOverlay(providerErrorOverlay(error));
+      if (ownsTurn()) {
+        log.error('Conversation turn failed', error);
+        setLiveOverlay(voiceNoteStagingFailed
+          ? { role: 'assistant', content: t('mlearn.ConversationAgent.Voice.MemoryRecordFailed'), timestamp: Date.now(), isError: true }
+          : providerErrorOverlay(error));
       }
     } finally {
-      if (session === selectionSession) {
+      if (activeTurn === turn) {
+        activeTurn = null;
         clearAssistantStreamState();
         turnHeuristicSocial = null;
       }
     }
+  };
+
+  const persistVoiceDelivery = (delivery: VoiceDeliveryPayload): Promise<void> => {
+    const source = admittedVoiceSources.get(delivery.messageEventId);
+    if (!source || source.actorId !== delivery.actorId || (source.payload as MessagePayload).voiceSessionId !== delivery.voiceSessionId) {
+      return Promise.reject(new Error('Voice delivery source is unavailable'));
+    }
+    const session = selectionSession;
+    const draft: JournalEventDraft = { roomId: source.roomId, scope: source.scope, type: 'delivery.voice',
+      actorId: HARNESS_ACTOR, witnesses: [...source.witnesses], payload: delivery };
+    const write = deliveryWriteQueue.then(async () => {
+      if (session === selectionSession) await journal.append(draft);
+      else await getBridge().journal.appendEvent(source.roomId, draft);
+    });
+    deliveryWriteQueue = write.catch(() => undefined);
+    // Delivery is committed; canonical reads release the already durable private notes.
+    void write.then(() => {
+      if (delivery.state !== 'playing') admittedVoiceSources.delete(source.id);
+      if (session === selectionSession) void journal.refresh().catch(error => log.error('Conversation voice notes refresh failed', error));
+      if (delivery.state !== 'playing') {
+        const triggerContext = source.scope.kind === 'thread'
+          ? { roomId: source.scope.threadId, threadId: source.scope.threadId } : { roomId: source.roomId };
+        void getBridge().world.triggerReflection(triggerContext)
+          .then(() => getBridge().world.getWorldState())
+          .then(snapshot => { if (session === selectionSession) setWorld(snapshot); }).catch(() => undefined);
+      }
+    }).catch(() => undefined);
+    return write;
   };
 
   const sendTextMessage = (text: string): Promise<void> => runConversationTurn(text);
@@ -1591,7 +1736,24 @@ export const ConversationContent: Component = () => {
   };
 
   const abortCallResponse = () => {
+    // Call teardown owns only turns begun in that call. A completed text
+    // response may still be awaiting review when the learner opens a call.
+    const turn = activeTurn;
+    if (!turn || turn.modality !== 'voice') return;
+    turn.cancelled = true;
+    activeTurn = null;
+    selectionSession++;
+    for (const operationId of turn.reviews) {
+      void getBridge().world.cancelConversationReview(operationId);
+      reviewOperations.delete(operationId);
+    }
+    turn.reviews.clear();
+    cancelConversationTurn?.();
+    cancelConversationTurn = null;
     for (const runtime of participantAgents.values()) runtime.abortStream();
+    participantAgents.clear();
+    pendingMemoryWrites.clear(); approvedMemoryWrites.clear();
+    turnHeuristicSocial = null;
     setLiveOverlay(null);
     clearAssistantStreamState();
   };
@@ -1600,6 +1762,8 @@ export const ConversationContent: Component = () => {
     // Invalidate callbacks before cancelling inference or review. A completed
     // provider response is still cancellable until it enters the journal.
     selectionSession++;
+    if (activeTurn) activeTurn.cancelled = true;
+    activeTurn = null;
     for (const runtime of participantAgents.values()) runtime.abortStream();
     participantAgents.clear();
     for (const operationId of reviewOperations) void getBridge().world.cancelConversationReview(operationId);
@@ -1828,16 +1992,20 @@ export const ConversationContent: Component = () => {
           aria-controls="conversation-sidebar" aria-expanded={sidebarVisible()}
         /></Show>
         <div class="ca-header-identity">
-          <Button variant="ghost" class="ca-header-contact" onClick={() => {
-            if (rosterParticipants().length === 1 && !activeThread()?.sandbox) setContactId(rosterParticipants()[0].id);
-            else openDetails();
-          }} disabled={!activeRoom()}>
-            <Show when={rosterParticipants().length === 1}><Avatar size="sm" name={rosterParticipants()[0].displayName} src={rosterParticipants()[0].profilePhoto} /></Show>
-            <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
-          </Button>
-          <Show when={callSurfaceOpen()}>
-            <span class="ca-call-header-state" role="status" aria-live="polite">{voiceAftermath() ? t('mlearn.ConversationAgent.Voice.Aftermath.Title') : voiceHeaderStatus() || t('mlearn.ConversationAgent.Voice.CheckingModels')}</span>
-          </Show>
+          <div class="ca-header-conversation">
+            <Button variant="ghost" class="ca-header-contact" onClick={() => {
+              if (rosterParticipants().length === 1 && !activeThread()?.sandbox) setContactId(rosterParticipants()[0].id);
+              else openDetails();
+            }} disabled={!activeRoom()}>
+              <Show when={rosterParticipants().length === 1}><Avatar size="sm" name={rosterParticipants()[0].displayName} src={rosterParticipants()[0].profilePhoto} /></Show>
+              <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
+            </Button>
+            <Show when={activeRoom()}>
+              <span class="ca-header-context">{t((activeThread()?.interactionMode ?? activeRoom()?.interactionMode) === 'practice'
+                ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · {t(activeThread()?.sandbox
+                ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}</span>
+            </Show>
+          </div>
           <Show when={!callSurfaceOpen() && (activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined))} keyed>
             {(media) => (
               <Button variant="ghost" class="ca-media-chip" onClick={openDetails}>
@@ -1870,9 +2038,7 @@ export const ConversationContent: Component = () => {
           >
             <div class="ca-provider-details"><ConnectionInfo details /></div>
             <p class="ca-ai-notice">{t('mlearn.ConversationAgent.Disclaimer')}</p>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewMessage')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('practice'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewPractice')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('scenario'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewScenario')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.NewConversation.Title')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
@@ -1913,11 +2079,11 @@ export const ConversationContent: Component = () => {
           </Show>
         </div>}
       </For>
-      <Show when={showSplash() && isRemoteLLMProvider(settings.llmProvider)}>
-        <AgeVerificationModal onAccept={() => setShowSplash(false)} />
+      <Show when={!isLoading() && showSplash() && isRemoteLLMProvider(settings.llmProvider)}>
+        <AgeVerificationModal onAccept={() => acceptConversationNotice('remote')} />
       </Show>
       <Modal
-        isOpen={showDisclaimer() && !isRemoteLLMProvider(settings.llmProvider)}
+        isOpen={!isLoading() && showDisclaimer() && !isRemoteLLMProvider(settings.llmProvider)}
         onClose={() => setShowDisclaimer(false)}
         title={t('mlearn.ConversationAgent.Title')}
         closeOnOverlay={false}
@@ -1925,7 +2091,7 @@ export const ConversationContent: Component = () => {
         showCloseButton={false}
         size="md"
         footer={
-          <Button variant="primary" size="lg" onClick={() => setShowDisclaimer(false)}>
+          <Button variant="primary" size="lg" onClick={() => acceptConversationNotice('local')}>
             {t('mlearn.ConversationAgent.AgeVerification.ContinueButton')}
           </Button>
         }
@@ -1959,7 +2125,7 @@ export const ConversationContent: Component = () => {
       <div class="ca-chat-panel">
           <ResponsiveSidebar id="conversation-sidebar" label={t('mlearn.ConversationAgent.History.ToggleSidebar')}
             title={t('mlearn.ConversationAgent.Sidebar.Title')} open={sidebarVisible()} onOpenChange={setSidebarVisible} class="ca-history-sidebar">
-            <RoomSidebar world={world()} loading={initializingConversations() && !world()} loadError={conversationLoadError() && !world()} view={sidebarView()} roomId={selection()?.roomId ?? null} threadId={selection()?.threadId ?? null}
+            <RoomSidebar world={world()} loading={initializingConversations() && !world()} loadError={conversationLoadError() && !world()} view={sidebarView()} selectionRevision={conversationEntry()} roomId={selection()?.roomId ?? null} threadId={selection()?.threadId ?? null}
               previews={conversationPreviews.previews()} previewsError={conversationPreviews.error()} previewLoading={conversationPreviews.isLoading}
               onSelectRoom={roomId => { void selectRoom(roomId).catch(error => setContactIngressError(String(error))); }}
               onSelectThread={threadId => { const thread = world()?.threads.find(item => item.id === threadId); if (thread) void selectRoom(threadContextId(thread), threadId).catch(error => setContactIngressError(String(error))); }}
@@ -2007,11 +2173,11 @@ export const ConversationContent: Component = () => {
                 fallback={
                   <EmptyState
                     icon={<ChatIcon size={24} />}
-                    title={t('mlearn.ConversationAgent.Empty.Title')}
-                    description={t(hasActiveRoomSelection() ? 'mlearn.ConversationAgent.Empty.ReadyHint' : 'mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
+                    title={t(hasActiveRoomSelection() ? isConnected() ? 'mlearn.ConversationAgent.Empty.ReadyTitle' : 'mlearn.ConversationAgent.Empty.SavedTitle' : 'mlearn.ConversationAgent.Empty.Title')}
+                    description={hasActiveRoomSelection() ? isConnected() ? t('mlearn.ConversationAgent.Empty.ReadyHint') : t('mlearn.ConversationAgent.Empty.SavedUnavailableHint') : t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
                     action={{
-                      label: hasActiveRoomSelection() ? t('mlearn.ConversationAgent.Empty.StartConversation') : t(sidebarView() === 'practice' ? 'mlearn.ConversationAgent.Contacts.NewPractice' : 'mlearn.ConversationAgent.Contacts.NewMessage'),
-                      onClick: hasActiveRoomSelection() ? handleStartConversation : () => openComposer(sidebarView() === 'practice' ? 'practice' : 'message'),
+                      label: hasActiveRoomSelection() ? t(isConnected() ? 'mlearn.ConversationAgent.Empty.StartConversation' : 'mlearn.ConversationAgent.Recovery.Settings') : t('mlearn.ConversationAgent.NewConversation.Title'),
+                      onClick: hasActiveRoomSelection() ? isConnected() ? handleStartConversation : () => openCapabilitySettings('llm') : () => openComposer('message'),
                       variant: 'primary',
                     }}
                     class="ca-empty"
@@ -2028,7 +2194,7 @@ export const ConversationContent: Component = () => {
                       >
                         <ChatBubble
                           message={msg()}
-                          showSpeaker={rosterParticipants().length > 1 && !sameMessageGroup(messages()[index - 1] as EventMessage, msg() as EventMessage)}
+                          showSpeaker={hasMultipleConversationSpeakers() && !sameMessageGroup(messages()[index - 1] as EventMessage, msg() as EventMessage)}
                           showAvatar={!sameMessageGroup(msg() as EventMessage, messages()[index + 1] as EventMessage)}
                           showTimestamp={!sameMessageGroup(msg() as EventMessage, messages()[index + 1] as EventMessage)}
                           isStreaming={msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null && isStreaming()}
@@ -2059,13 +2225,13 @@ export const ConversationContent: Component = () => {
             <Show when={hoverData()} keyed>
               {(data) => data.token ? (
                 <WordHover
-                  presentation="compact"
                   token={data.token}
                   word={data.word}
                   position={data.position}
                   anchorRect={data.anchorRect}
                   dictionaryEntries={dictionaryEntries()}
                   translationData={translationData() || undefined}
+                  lookupContext={tokenLookupContext(data.token)}
                   isLoading={isLoadingDict()}
                   visible={isVisible()}
                   contextPhrase={data.word}
@@ -2190,7 +2356,10 @@ export const ConversationContent: Component = () => {
         <div class="ca-voice-overlay">
           <Show when={voiceAftermath()} fallback={<VoiceTab
               autoStartCall={voiceOverlayRequested()}
+              participants={voiceParticipants()}
+              onDismiss={() => batch(() => { setVoiceOverlayRequested(false); setVoiceContactParticipantId(null); })}
               messages={messages()}
+              speechMessages={speechMessages()}
               isStreaming={isStreaming()}
               onSendMessage={sendTextMessage}
               onPartialTranscript={(text) => voiceContextPrefetch.onPartial(text, activeVoiceParticipant()?.id ?? '')}
@@ -2198,12 +2367,21 @@ export const ConversationContent: Component = () => {
               onIdleSilence={handleVoiceIdleSilence}
               scheduledNudge={voiceScheduledNudge()}
               onAbort={abortCallResponse}
-              onStatusChange={setVoiceHeaderStatus}
               onSpeechEnd={(ts) => { lastVadSpeechEndTs = ts; }}
               agentName={callIdentity()}
               profilePhoto={voiceContactParticipantId() || rosterParticipants().length === 1 ? activeVoiceParticipant()?.profilePhoto : undefined}
               defaultVoiceSampleId={activeVoiceParticipant()?.voiceSampleId}
-              onCallStateChange={(active, reason, error) => {
+              voiceSampleIds={rosterParticipants().flatMap(person => person.voiceSampleId ? [person.voiceSampleId] : [])}
+              onCallStateChange={(active, reason, error, sessionId) => {
+                const endedSessionId = activeVoiceSessionId();
+                const callMessages = displayMessages().filter(message => {
+                  const event = message as EventMessage & { voiceSessionId?: string; modality?: 'voice' };
+                  return message.role === 'user' && event.voiceSessionId === endedSessionId && event.modality === 'voice'
+                    && message.content.trim() && !message.isError;
+                });
+                setAdmittedVoiceEventIds(new Set<string>());
+                setActiveVoiceSessionId(active ? sessionId ?? crypto.randomUUID() : null);
+                if (!active) abortCallResponse();
                 if (reason === 'failed' && error) setContactIngressError(error);
                 setIsVoiceCallActive(active);
                 if (!active) cancelVoiceScheduledNudge();
@@ -2225,19 +2403,13 @@ export const ConversationContent: Component = () => {
                     setVoiceAftermath({
                       mistakes,
                       duration: Date.now() - voiceSessionStart(),
-                      messageCount: messages().filter(m => m.role !== 'system').length,
+                      messageCount: callMessages.length,
                     });
                   }
                   setVoiceContactParticipantId(null);
                 }
               }}
-              onInterrupted={(spokenText, interruptedAt) => {
-                // Update LLM conversation history to reflect what was actually heard
-                agent.markInterrupted(spokenText, interruptedAt);
-
-                const latest = [...displayMessages()].reverse().find((message) => message.role === 'assistant') as (ConversationMessage & { eventId?: string }) | undefined;
-                if (latest?.eventId) interruptedSpokenText.set(latest.eventId, { text: spokenText, interruptedAt });
-              }}
+              onDelivery={persistVoiceDelivery}
               onTokenHover={handleTokenHover}
               onTokenLeave={handleTokenLeave}
               triggerMode={currentTriggerMode()}
@@ -2271,10 +2443,16 @@ export const ConversationContent: Component = () => {
           updateSettings({ proactiveOptOutParticipantIds: muted ? [...new Set([...current, person().id])] : current.filter(id => id !== person().id) });
         }}
         onSave={async updated => {
+          if (rosterParticipants().some(person => person.id === updated.id) && (isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen())) {
+            throw new Error(t('mlearn.ConversationAgent.Details.PeopleBusyHint'));
+          }
           const saved = await getBridge().world.updateParticipant(updated);
           participantAgents.get(saved.id)?.abortStream(); participantAgents.delete(saved.id); publishContact(saved);
         }}
         onRemove={async removed => {
+          if (rosterParticipants().some(person => person.id === removed.id) && (isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen())) {
+            throw new Error(t('mlearn.ConversationAgent.Details.PeopleBusyHint'));
+          }
           participantAgents.get(removed.id)?.abortStream(); participantAgents.delete(removed.id);
           await getBridge().world.deleteParticipant(removed.id);
           setWorld(await getBridge().world.getWorldState()); setContactId(null);
@@ -2303,6 +2481,9 @@ export const ConversationContent: Component = () => {
             callMutedParticipantIds={settings.proactiveCallOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveCallOptOutParticipantIds}
             context={mediaContext()}
             participants={rosterParticipants()}
+            availableParticipants={[...new Map([...(world()?.participants ?? []), ...conversationPeople()].map(person => [person.id, person])).values()]}
+            membershipDisabled={isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen()}
+            onChangeMembership={handleChangeMembership}
             onRenameThread={handleRenameThread}
             onUpdateParticipant={handleUpdateParticipant}
             onDeleteThread={handleDeleteThread}

@@ -1,3 +1,4 @@
+import { reconcileFlashcardActionOwners } from '../../shared/flashcardActionUndo';
 /**
  * Flashcard Storage Service
  * Handles persistence and IPC for flashcard data
@@ -9,12 +10,14 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable, buildLexemeIndex, buildWordFrequencyMapFromLanguageData, getFrequencyForLexeme, resolveLanguageFrequencyPayload } from '../../shared/languageFeatures';
 import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
+import { mergeStudyExclusion } from '../../shared/studyExclusion';
 import { readPendingRetraction, readRetractionCompletionClaim } from '../../shared/retractionRecovery';
+import { validateReviewResponseUndo, type ReviewUndoProjection } from '../../shared/flashcardReviewUndo';
 import { staleFlashcardRevisionMessage } from '../../shared/flashcardWriteRevision';
 import type { FlashcardStore, FlashcardWriteAuthorization, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { copyStoreWithPatch, getStorePath, storePatchRecorder, type StorePatch } from '../../shared/utils/storePatch';
-import { applyFlashcardRatingCommand, type FlashcardRatingCommand } from '../../shared/flashcardRating';
+import { applyFlashcardRatingCommand, RatingAdmissionRefusal, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
 import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { RatingWriteQueue } from './ratingWriteQueue';
 import { calculateWordStats } from '../../shared/utils/wordStats';
@@ -33,45 +36,126 @@ export const flushFlashcardRatings = (): Promise<void> => ratingWrites.flush();
 
 function persistRatingCommands(commands: readonly FlashcardRatingCommand[]): Promise<number> {
   return enqueueWrite(async () => {
-    const journal = await import('./knowledgeEvents');
-    const { isKnowledgeEvent } = await import('./knowledgeHistoryStore');
-    await journal.whenKnowledgeEventsReady();
-    const events: KnowledgeEventLog = {};
-    for (const command of commands) for (const [key, rows] of Object.entries(command.events)) {
-      if (rows.some(row => !isKnowledgeEvent(row) || row.attemptId !== command.attemptId)) {
-        throw new Error('Invalid flashcard rating evidence');
-      }
-      (events[key] ??= []).push(...rows);
-    }
-    const existing = journal.getKnowledgeEvents(Object.keys(events));
-    const additions: KnowledgeEventLog = {};
-    for (const [key, rows] of Object.entries(events)) {
-      const recorded = new Set((existing[key] ?? []).map(row => row.attemptId));
-      additions[key] = rows.filter(row => !recorded.has(row.attemptId));
-    }
-    await journal.appendKnowledgeEvents(additions);
-
-    const filePath = getFlashcardsPath();
-    const current = cachedStorePath === filePath && cachedStore
-      ? cachedStore : await loadFlashcardsFromDisk(filePath, loaded => writeStore(loaded, [], false));
-    let candidate = current;
-    const paths = new Map<string, readonly string[]>();
-    for (const command of commands) {
-      const { patch } = command;
-      candidate = applyFlashcardRatingCommand(candidate, command);
-      for (const entry of patch.entries) paths.set(JSON.stringify(entry.path), entry.path);
-    }
-    const recorder = storePatchRecorder(current as unknown as Record<string, unknown>);
-    for (const path of paths.values()) recorder.set(path, getStorePath(candidate as unknown as Record<string, unknown>, path));
-    const patch = recorder.build(current.rev ?? 0);
-    const rev = await writeStore(candidate, [], false);
-    for (const window of BrowserWindow.getAllWindows()) {
-      try {
-        if (!window.isDestroyed()) window.webContents.send(IPC_CHANNELS.FLASHCARD_RATINGS_COMMITTED, { patch, rev, attemptIds: commands.map(command => command.attemptId) });
-      } catch (error) { log.warn('Failed to notify a window about saved ratings:', error); }
-    }
-    return rev;
+    await recoverAdmittedRatingsBeforeWrite();
+    return (await commitRatingCommands(commands)).rev;
   });
+}
+
+/** Immediate Review admission and both effects share the main write queue. */
+export function commitFlashcardRating(command: FlashcardRatingCommand): Promise<FlashcardRatingCommit> {
+  return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
+    return commitRatingCommands([command]);
+  });
+}
+
+/** Every mutation settles durable earlier responses before changing their authority. */
+async function recoverAdmittedRatingsBeforeWrite(): Promise<void> {
+  const journal = await import('./knowledgeEvents');
+  await journal.whenKnowledgeEventsReady();
+  if (journal.pendingRatingCommands().length > 0) await commitRatingCommands([]);
+}
+
+async function commitRatingCommands(commands: readonly FlashcardRatingCommand[], loaded?: FlashcardStore): Promise<FlashcardRatingCommit> {
+  const filePath = getFlashcardsPath();
+  const current = loaded ?? (cachedStorePath === filePath && cachedStore
+    ? cachedStore : await loadFlashcardsFromDisk(filePath, store => writeStore(store, [], false)));
+  const journal = await import('./knowledgeEvents');
+  const { isKnowledgeEvent } = await import('./knowledgeHistoryStore');
+  await journal.whenKnowledgeEventsReady();
+  const validate = (command: FlashcardRatingCommand): void => {
+    for (const rows of Object.values(command.events)) {
+      if (rows.some(row => !isKnowledgeEvent(row) || row.attemptId !== command.attemptId)) throw new Error('Invalid flashcard rating evidence');
+    }
+    // Validate counter declarations before durable admission or evidence append.
+    applyFlashcardRatingCommand(current, command);
+  };
+  // Preflight the complete ordered batch before reserving any new response.
+  // A stale response and its dependent successors have no durable effects;
+  // independent responses remain eligible for the next queue pass.
+  let preflight = current;
+  const refused: string[] = [];
+  if (current.pendingRetraction !== undefined) {
+    const unadmitted = commands.filter(command => !journal.isRatingCommandCommitted(command.attemptId));
+    if (unadmitted.length > 0) throw new RatingAdmissionRefusal(unadmitted.map(command => command.attemptId),
+      'Complete the pending Undo before submitting another review.');
+  }
+  for (const command of commands) {
+    if (journal.isRatingCommandCommitted(command.attemptId)) continue;
+    const captured = (command.guardCardIds ?? []).every(id => {
+      const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
+      return entry && JSON.stringify(preflight.flashcards[id]) === JSON.stringify(entry.before);
+    });
+    if (!captured) { refused.push(command.attemptId); continue; }
+    preflight = applyFlashcardRatingCommand(preflight, command);
+  }
+  if (refused.length > 0) throw new RatingAdmissionRefusal(refused);
+  let admission = current;
+  for (const command of commands) {
+    const reserved = journal.reserveRatingCommand(command, () => {
+      if (admission.pendingRetraction !== undefined) throw new Error('Complete the pending Undo before submitting another review');
+      validate(command);
+      for (const id of command.guardCardIds ?? []) {
+        const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
+        if (!entry || JSON.stringify(admission.flashcards[id]) !== JSON.stringify(entry.before)) throw new Error('The captured review card changed before admission');
+      }
+    });
+    // A queued second response may have been shown after the first optimistic
+    // response. Its proof belongs to that ordered state, not the batch origin.
+    if ('command' in reserved) admission = applyFlashcardRatingCommand(admission, reserved.command);
+  }
+  const pending = journal.pendingRatingCommands();
+  const ledgerId = journal.ratingLedgerId();
+  const committedThrough = current.meta.ratingCommitLedgerId === ledgerId ? current.meta.ratingCommitSequence ?? 0 : 0;
+  if (!Number.isSafeInteger(committedThrough) || committedThrough < 0) throw new Error('Invalid saved rating commit frontier');
+  const remaining = pending.filter(entry => entry.sequence > committedThrough);
+  const events: KnowledgeEventLog = {};
+  let candidate = current;
+  const paths = new Map<string, readonly string[]>();
+  for (const { command } of remaining) {
+    validate(command);
+    for (const id of command.guardCardIds ?? []) {
+      const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
+      if (!entry || JSON.stringify(candidate.flashcards[id]) !== JSON.stringify(entry.before)) throw new Error('The admitted review card changed before recovery');
+    }
+    candidate = applyFlashcardRatingCommand(candidate, command);
+    for (const [key, rows] of Object.entries(command.events)) (events[key] ??= []).push(...rows);
+    for (const entry of command.patch.entries) paths.set(JSON.stringify(entry.path), entry.path);
+  }
+  // Journal identities protect every access of an admitted response through compaction.
+  if (remaining.length > 0) await journal.appendKnowledgeEvents(events);
+  const recorder = storePatchRecorder(current as unknown as Record<string, unknown>);
+  for (const path of paths.values()) recorder.set(path, getStorePath(candidate as unknown as Record<string, unknown>, path));
+  const through = remaining.at(-1)?.sequence ?? committedThrough;
+  let rev = current.rev ?? 0;
+  if (remaining.length > 0) {
+    // Commit the effects and their receipt in the SAME atomic library rename.
+    candidate = copyStoreWithPatch(candidate, { baseRev: current.rev ?? 0, entries: [
+      { path: ['meta', 'ratingCommitSequence'], before: current.meta.ratingCommitSequence, after: through },
+      { path: ['meta', 'ratingCommitLedgerId'], before: current.meta.ratingCommitLedgerId, after: ledgerId },
+    ] });
+    recorder.set(['meta', 'ratingCommitLedgerId'], ledgerId);
+    recorder.set(['meta', 'ratingCommitSequence'], through);
+    rev = await writeStore(candidate, [], false, undefined, { ledgerId, sequence: through });
+  }
+  // A crash after the library rename lands here on restart, with no replay.
+  if (pending.length > 0 && through > 0) journal.completeRatingCommands(through, rev);
+  const patch = remaining.length > 0 ? recorder.build(current.rev ?? 0) : {
+    baseRev: current.rev ?? 0,
+    entries: commands.flatMap(command => command.patch.entries.map(entry => ({
+      ...entry, after: getStorePath(current as unknown as Record<string, unknown>, entry.path),
+    }))),
+  };
+  const result: FlashcardRatingCommit = {
+    patch, rev,
+    attemptIds: [...new Set([...commands.map(command => command.attemptId), ...pending.map(entry => entry.command.attemptId)])],
+  };
+  if (remaining.length > 0) for (const window of BrowserWindow.getAllWindows()) {
+    try {
+      if (!window.isDestroyed()) window.webContents.send(IPC_CHANNELS.FLASHCARD_RATINGS_COMMITTED, result);
+    } catch (error) { log.warn('Failed to notify a window about saved ratings:', error); }
+  }
+  return result;
 }
 
 const CURRENT_VERSION = 3;
@@ -263,9 +347,9 @@ function containsLegacyZhData(store: FlashcardStore): boolean {
     store.grammarKnowledge,
   ];
   return Object.values(store.flashcards).some(card => legacyZhSource('', card.language) !== undefined)
-    || maps.some(map => Object.keys(map).some(isLegacyZhKey))
-    || Boolean(store.meta.perLanguage['zh-Hans'] || store.meta.perLanguage['zh-Hant'])
-    || Object.values(store.dailyStats).some(stats => Boolean(stats['zh-Hans'] || stats['zh-Hant']));
+    || maps.some(map => Object.keys(map ?? {}).some(isLegacyZhKey))
+    || Boolean(store.meta?.perLanguage?.['zh-Hans'] || store.meta?.perLanguage?.['zh-Hant'])
+    || Object.values(store.dailyStats ?? {}).some(stats => Boolean(stats['zh-Hans'] || stats['zh-Hant']));
 }
 
 function loadZhMigrationPackage(): LanguageData | null {
@@ -409,7 +493,7 @@ function migrateV2ToV3(store: FlashcardStore, metadata: LanguageData, backupPath
 
   const wordKnowledge = migrateKeyed(store.wordKnowledge, 'wordKnowledge', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => mergeWordKnowledge(a, b));
   const wordCandidates = migrateKeyed(store.wordCandidates, 'wordCandidates', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => ({ ...((b.lastSeen > a.lastSeen) ? b : a), count: a.count + b.count, lastSeen: Math.max(a.lastSeen, b.lastSeen) }));
-  const ignoredWords = migrateKeyed(store.ignoredWords, 'ignoredWords', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => a.ignoredAt <= b.ignoredAt ? a : b);
+  const ignoredWords = migrateKeyed(store.ignoredWords, 'ignoredWords', entry => entry.word, entry => ({ ...entry, language: 'zh' }), mergeStudyExclusion);
   const suggestedFlashcards = migrateKeyed(store.suggestedFlashcards, 'suggestedFlashcards', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => {
     const richer = a.imageUrl && !b.imageUrl ? a : b.imageUrl && !a.imageUrl ? b : (a.lastSeen >= b.lastSeen ? a : b);
     return { ...richer, count: a.count + b.count, lastSeen: Math.max(a.lastSeen, b.lastSeen) };
@@ -483,7 +567,7 @@ function isValidFlashcardStore(value: unknown): value is FlashcardStore {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return (
-    'flashcards' in v && typeof v.flashcards === 'object' && v.flashcards !== null &&
+    'flashcards' in v && typeof v.flashcards === 'object' && v.flashcards !== null && !Array.isArray(v.flashcards) &&
     typeof v.version === 'number'
   );
 }
@@ -660,7 +744,6 @@ function rebuildKeyedRecordsForNormalization(store: FlashcardStore): FlashcardSt
   }
 
   const ignoredWords: Record<string, IgnoredWordEntry> = {};
-  const ignoredWinnerKeys = new Map<string, string>();
   for (const [legacyKey, entry] of Object.entries(store.ignoredWords || {})) {
     if (!entry) continue;
     const key = deriveRecordKey(deriverFor, langData, entry.language, entry.word, legacyKey);
@@ -668,20 +751,7 @@ function rebuildKeyedRecordsForNormalization(store: FlashcardStore): FlashcardSt
       ignoredWords[legacyKey] = entry;
       continue;
     }
-    const prevOldKey = ignoredWinnerKeys.get(key);
-    if (prevOldKey === undefined) {
-      ignoredWords[key] = entry;
-      ignoredWinnerKeys.set(key, legacyKey);
-    } else {
-      const prev = ignoredWords[key];
-      if (
-        (entry.ignoredAt || 0) > (prev.ignoredAt || 0)
-        || ((entry.ignoredAt || 0) === (prev.ignoredAt || 0) && legacyKey < prevOldKey)
-      ) {
-        ignoredWords[key] = entry;
-        ignoredWinnerKeys.set(key, legacyKey);
-      }
-    }
+    ignoredWords[key] = mergeStudyExclusion(ignoredWords[key], entry);
   }
 
   const wordCandidates: Record<string, WordCandidate> = {};
@@ -753,8 +823,7 @@ function finalizeStore(store: FlashcardStore): FlashcardStore {
 
 function checkFlashcards(fc_to_check: any): FlashcardStore {
   if (!isValidFlashcardStore(fc_to_check)) {
-    log.warn('[flashcardStorage] Loaded store has unexpected structure — using defaults');
-    return { ...DEFAULT_FLASHCARD_STORE };
+    throw new Error('The saved flashcard library has an invalid structure');
   }
 
   if (fc_to_check.version < CURRENT_VERSION && containsLegacyZhData(fc_to_check)) {
@@ -819,7 +888,13 @@ export async function loadFlashcards(): Promise<FlashcardStore> {
   const filePath = getFlashcardsPath();
   if (cachedStore && cachedStorePath === filePath) return cachedStore;
   if (inflightLoad) return inflightLoad;
-  const load = loadFlashcardsFromDisk(filePath, saveFlashcards).finally(() => {
+  const load = enqueueWrite(async () => {
+    const loaded = await loadFlashcardsFromDisk(filePath, store => writeStore(store, [], false));
+    const journal = await import('./knowledgeEvents');
+    await journal.whenKnowledgeEventsReady();
+    if (journal.pendingRatingCommands().length > 0) await commitRatingCommands([], loaded);
+    return cachedStore ?? loaded;
+  }).finally(() => {
     if (inflightLoad === load) inflightLoad = undefined;
   });
   inflightLoad = load;
@@ -841,7 +916,7 @@ async function loadFlashcardsFromDisk(
     try {
       await fs.promises.access(filePath);
     } catch (e) {
-      log.error("error", e);
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
       const empty = { ...DEFAULT_FLASHCARD_STORE };
       cachedStore = empty;
       cachedStorePath = filePath;
@@ -850,14 +925,6 @@ async function loadFlashcardsFromDisk(
     const data = await fs.promises.readFile(filePath, 'utf-8');
     const parsed: unknown = JSON.parse(data);
     const parsedJson = JSON.stringify(parsed);
-
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      log.warn('[flashcardStorage] Loaded JSON is not a plain object — using defaults');
-      const empty = { ...DEFAULT_FLASHCARD_STORE };
-      cachedStore = empty;
-      cachedStorePath = filePath;
-      return empty;
-    }
 
     const store = checkFlashcards(parsed);
     const storeJson = JSON.stringify(store);
@@ -874,14 +941,95 @@ async function loadFlashcardsFromDisk(
     cachedStorePath = filePath;
     return store;
   } catch (error) {
+    invalidateFlashcardsCache();
     log.error('Failed to load flashcards:', error);
+    throw error;
   }
-  return { ...DEFAULT_FLASHCARD_STORE };
+}
+
+/**
+ * Retire only media absent from the saved authority. Check and synchronous
+ * release share the store-write queue turn, so a queued peer save cannot race
+ * the check. Read disk strictly: an unavailable library is never proof that
+ * a resource is unreferenced.
+ */
+export async function releaseUnusedFlashcardMedia(
+  kind: 'image' | 'video' | 'tts', id: string, release: () => void,
+): Promise<boolean> {
+  if (!['image', 'video', 'tts'].includes(kind) || typeof id !== 'string'
+    || id.length === 0 || id === '.' || id === '..' || /[\\/\0]/.test(id)) {
+    throw new Error('Invalid flashcard media identity');
+  }
+  await flushFlashcardRatings();
+  return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
+    const authority: unknown = JSON.parse(await fs.promises.readFile(getFlashcardsPath(), 'utf-8'));
+    const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+    if (!record(authority) || !record(authority.flashcards)
+      || (authority.suggestedFlashcards !== undefined && !record(authority.suggestedFlashcards))) {
+      throw new Error('Cannot establish flashcard media ownership');
+    }
+    const cards = authority.flashcards;
+    const suggestions = authority.suggestedFlashcards ?? {};
+    if (Object.values(cards).some(value => !record(value) || !record(value.content))
+      || Object.values(suggestions).some(value => !record(value))) {
+      throw new Error('Cannot establish flashcard media ownership');
+    }
+    // A recreated card/capture owns its media namespace before URLs are
+    // populated. Keep both ordinary and extracted-suggestion image IDs.
+    if (Object.hasOwn(cards, id) || Object.values(cards).some(value => record(value) && value.id === id)
+      || Object.entries(suggestions).some(([key, value]) => record(value)
+        && (value.id === id || (kind === 'image' && `suggested-${value.id || key}` === id)))) return false;
+    const scheme = kind === 'tts' ? 'flashcard-audio' : `flashcard-${kind}`;
+    const names = new Set(kind === 'image' ? ['jpg', 'png', 'webp', 'gif'].map(ext => `${id}.${ext}`)
+      : kind === 'video' ? [`${id}.mp4`] : [`${id}-word.ogg`, `${id}-example.ogg`]);
+    const pattern = new RegExp(`${scheme}://([^"'<>?#]+)`, 'gi');
+    const referenced = (value: unknown): boolean => {
+      if (typeof value === 'string') {
+        // Stored HTML reaches the browser after character-reference parsing.
+        // Resolve numeric/basic protocol punctuation; retain opaque references
+        // conservatively rather than guessing a complete HTML entity catalog.
+        const punctuation: Record<string, string> = { colon: ':', sol: '/', period: '.', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', Tab: '\t', NewLine: '\n' };
+        const entityDecoded = value.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);?/gi, (raw, entity: string) => {
+          if (entity.startsWith('#')) {
+            const point = entity[1]?.toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
+            return Number.isSafeInteger(point) && point > 0 && point <= 0x10ffff
+              && (point < 0xd800 || point > 0xdfff) ? String.fromCodePoint(point) : raw;
+          }
+          return punctuation[entity] ?? raw;
+        });
+        const rendered = entityDecoded.replace(/[\t\n\r]/g, '');
+        // Character-reference parsing can introduce an attribute delimiter or
+        // filename character. Any remaining ambiguity retains the namespace.
+        if (/&(?:#[xX]?[0-9a-f]+|[a-z]+);?/i.test(value)
+          && rendered.toLowerCase().includes(`${scheme}://`)) return true;
+        for (const match of [...entityDecoded.matchAll(pattern), ...rendered.matchAll(pattern)]) {
+          if (match[1].includes('&')) return true;
+          let filename: string;
+          try { filename = decodeURIComponent(match[1]).split('?')[0].trim().replace(/\/$/, ''); }
+          catch { return true; } // An opaque malformed reference cannot authorize deletion.
+          if (names.has(filename) || [...names].some(name => filename.startsWith(name)
+            && /^\s/.test(filename.slice(name.length)))) return true;
+        }
+      } else if (Array.isArray(value)) return value.some(referenced);
+      else if (record(value)) return Object.values(value).some(referenced);
+      return false;
+    };
+    for (const value of [...Object.values(cards), ...Object.values(suggestions)]) {
+      if (!record(value)) throw new Error('Cannot establish flashcard media ownership');
+      if (referenced(value)) return false;
+    }
+    release();
+    return true;
+  });
 }
 
 export async function saveFlashcards(store: FlashcardStore, removedCardIds: readonly string[] = [], resetReviewProgress = false, authorization?: FlashcardWriteAuthorization): Promise<number> {
   await flushFlashcardRatings();
-  return enqueueWrite(() => writeStore(store, removedCardIds, resetReviewProgress, authorization));
+  return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
+    return writeStore(store, removedCardIds, resetReviewProgress, authorization);
+  });
 }
 
 /**
@@ -891,19 +1039,33 @@ export async function saveFlashcards(store: FlashcardStore, removedCardIds: read
  * this directly: re-entering the queue from within a queued write would await
  * the very write that is awaiting it, and the write would never settle.
  */
-async function writeStore(store: FlashcardStore, removedCardIds: readonly string[], resetReviewProgress: boolean, authorization?: FlashcardWriteAuthorization): Promise<number> {
+async function writeStore(store: FlashcardStore, removedCardIds: readonly string[], resetReviewProgress: boolean, authorization?: FlashcardWriteAuthorization, ratingReceipt?: { ledgerId: string; sequence: number }): Promise<number> {
     // TEMP DIAGNOSTIC: opt-in via the mlearn.ratingTrace file flag, since the
     // main process has no localStorage. `touch <userData>/ratingTrace.flag`.
     const traceOn = fs.existsSync(path.join(getUserDataPath(), 'ratingTrace.flag'));
     const t0 = Date.now();
     const filePath = getFlashcardsPath();
+    let persistedAuthority: FlashcardStore | undefined;
     let currentRevision = cachedStorePath === filePath ? cachedStore?.rev : undefined;
     if (currentRevision === undefined) {
       try {
-        const persisted = JSON.parse(await fs.promises.readFile(filePath, 'utf-8')) as { rev?: unknown };
+        const persisted: unknown = JSON.parse(await fs.promises.readFile(filePath, 'utf-8'));
+        if (!isValidFlashcardStore(persisted)) throw new Error('The saved flashcard library has an invalid structure');
+        persistedAuthority = persisted;
         currentRevision = typeof persisted.rev === 'number' && Number.isSafeInteger(persisted.rev) ? persisted.rev : 0;
-      } catch {
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         currentRevision = 0;
+      }
+    }
+    const ownedMeta = (cachedStorePath === filePath ? cachedStore : persistedAuthority)?.meta;
+    if (ratingReceipt) {
+      store.meta.ratingCommitSequence = ratingReceipt.sequence;
+      store.meta.ratingCommitLedgerId = ratingReceipt.ledgerId;
+    } else {
+      for (const field of ['ratingCommitSequence', 'ratingCommitLedgerId'] as const) {
+        if (ownedMeta?.[field] !== undefined) Object.assign(store.meta, { [field]: ownedMeta[field] });
+        else delete store.meta[field];
       }
     }
     const expectedRevision = store.rev ?? 0;
@@ -926,11 +1088,20 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
     // decision to finish still belongs to whoever recorded it.
     const authoritativeRetraction = cachedStorePath === filePath
       ? readPendingRetraction((cachedStore as FlashcardStore | undefined)?.pendingRetraction)
-      : null;
+      : readPendingRetraction(persistedAuthority?.pendingRetraction ?? (persistedAuthority as { pendingReviewUndo?: unknown } | undefined)?.pendingReviewUndo);
     const claim = readRetractionCompletionClaim(store as { pendingRetraction?: unknown; retractionCompleted?: unknown });
     const incomingRetraction = readPendingRetraction(store.pendingRetraction);
     if (authoritativeRetraction && incomingRetraction && authoritativeRetraction.attemptId !== incomingRetraction.attemptId) {
       throw new Error('Another pending Undo must be completed before it can be replaced');
+    }
+    // A decided Undo owns its scheduler pre-image until completion. Ordinary
+    // edits can continue, but a reset/deletion/new response cannot strand the
+    // journal half behind a projection that will never accept its rollback.
+    const protectedReview = authoritativeRetraction ?? incomingRetraction;
+    if (protectedReview?.surface === 'flashcard-review'
+      && (!authoritativeRetraction || claim?.attemptId !== authoritativeRetraction.attemptId)) {
+      const projection = protectedReview.restore as ReviewUndoProjection;
+      if (projection?.expectedCard) validateReviewResponseUndo(store, projection);
     }
     if (authoritativeRetraction && !readPendingRetraction(store.pendingRetraction)) {
       // Finishing an Undo is the one write that deliberately drops the record,
@@ -942,6 +1113,9 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
     }
     // The claim is a statement about this write, not part of the store.
     delete (store as { retractionCompleted?: unknown }).retractionCompleted;
+
+    const previousCards = (cachedStorePath === filePath ? cachedStore : persistedAuthority)?.flashcards;
+    for (const card of Object.values(store.flashcards)) reconcileFlashcardActionOwners(card, previousCards?.[card.id]);
 
     const guardian = guardianForWrites();
     guardian?.checkFlashcardWrite(store, removedCardIds, resetReviewProgress, authorization);
@@ -970,6 +1144,7 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
       cachedStorePath = filePath;
       return store.rev;
     } catch (error) {
+      invalidateFlashcardsCache();
       log.error('Failed to save flashcards:', error);
       throw error;
     }
@@ -994,6 +1169,7 @@ export async function saveFlashcardPatch(
 ): Promise<number> {
   await flushFlashcardRatings();
   return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
     const filePath = getFlashcardsPath();
     // Resolve the current snapshot AFTER earlier writes finish. Capturing it
     // before entering the queue loses edits or targets an obsolete revision.
@@ -1033,18 +1209,24 @@ export function setupFlashcardIPC(): void {
       log.error('Failed to save pending ratings before quit:', error);
     });
   });
+  ipcMain.handle(IPC_CHANNELS.COMMIT_FLASHCARD_RATING, (_event, command: FlashcardRatingCommand) => commitFlashcardRating(command));
   ipcMain.handle(IPC_CHANNELS.ENQUEUE_FLASHCARD_RATING, (_event, command: FlashcardRatingCommand) => enqueueFlashcardRating(command));
   ipcMain.handle(IPC_CHANNELS.FLUSH_FLASHCARD_RATINGS, () => flushFlashcardRatings());
   ipcMain.on(IPC_CHANNELS.GET_FLASHCARDS, async (event, knownRev?: number) => {
-    const flashcards = await loadFlashcards();
-    // Focus/visibility sync: an unchanged rev skips the multi-MB store ship.
-    // The renderer treats a null payload as "nothing to reconcile".
-    const unchanged = knownRev != null && knownRev === (flashcards.rev ?? 0);
-    event.reply(IPC_CHANNELS.FLASHCARDS_LOADED, unchanged ? null : flashcards);
+    try {
+      const flashcards = await loadFlashcards();
+      // Focus/visibility sync: an unchanged rev skips the multi-MB store ship.
+      // The renderer treats a null payload as "nothing to reconcile".
+      const unchanged = knownRev != null && knownRev === (flashcards.rev ?? 0);
+      event.reply(IPC_CHANNELS.FLASHCARDS_LOADED, unchanged ? null : flashcards);
 
-    if (migrationInfo.occurred) {
-      event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
-      migrationInfo = { occurred: false, backupPath: null, fromVersion: null };
+      if (migrationInfo.occurred) {
+        event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
+        migrationInfo = { occurred: false, backupPath: null, fromVersion: null };
+      }
+    } catch (error) {
+      log.error('Could not deliver the flashcard library:', error);
+      event.reply(IPC_CHANNELS.FLASHCARDS_LOAD_ERROR, error instanceof Error ? error.message : String(error));
     }
   });
 

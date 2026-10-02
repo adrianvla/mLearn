@@ -3196,3 +3196,89 @@ def test_generic_dictionary_pack_schema_override(tmp_path, monkeypatch):
     en_module.LOAD_MODULE(str(tmp_path), str(data_root))
     en_translation = en_module.LANGUAGE_TRANSLATE("字")
     assert "letter" in en_translation["data"][0]["definitions"]
+
+
+@pytest.mark.parametrize("surface, dictionary_form, normalized_form, expected", [
+    ("aux", "aux", "lexical-aux", "lexical-aux"),
+    ("do", "do", "normalized-do", "do"),
+    ("unknown", "unknown", "normalized-unknown", "unknown"),
+])
+def test_sudachi_package_declared_lemma_sources_use_attested_dictionary_forms(surface, dictionary_form, normalized_form, expected):
+    class Token:
+        def surface(self): return surface
+        def part_of_speech(self): return ["package::category"]
+        def dictionary_form(self): return dictionary_form
+        def normalized_form(self): return normalized_form
+        def reading_form(self): return surface
+
+    class Tokenizer:
+        def tokenize(self, text, mode): return [Token()]
+
+    module = GenericLanguageModule("zz")
+    module.metadata = {"runtime": {"nlp": {"tokenizer": {"type": "sudachi", "lemmaSources": ["dictionary-form", "normalized-form"]}}}}
+    module._sudachi_tokenizer = Tokenizer()
+    module._sudachi_mode = object()
+    module._entries_by_headword_cached = lambda word: [word] if word in {"lexical-aux", "do", "normalized-do"} else []
+    assert module.LANGUAGE_TOKENIZE(surface)[0]["actual_word"] == expected
+    assert module._lemma_sudachi(surface) == [expected]
+
+
+def test_sudachi_normalized_lemma_is_not_enabled_without_package_declaration():
+    class Token:
+        def surface(self): return "surface"
+        def part_of_speech(self): return ["package::category"]
+        def dictionary_form(self): return "surface"
+        def normalized_form(self): return "another"
+        def reading_form(self): return "surface"
+
+    class Tokenizer:
+        def tokenize(self, text, mode): return [Token()]
+
+    module = GenericLanguageModule("zz")
+    module.metadata = {"runtime": {"nlp": {"tokenizer": {"type": "sudachi"}}}}
+    module._sudachi_tokenizer = Tokenizer()
+    module._sudachi_mode = object()
+    module._entries_by_headword_cached = lambda word: [word] if word == "another" else []
+    assert module.LANGUAGE_TOKENIZE("surface")[0]["actual_word"] == "surface"
+
+
+def test_headword_resolution_retains_alternatives_and_declares_selection_basis():
+    module = GenericLanguageModule("zz")
+    module._dictionary_renderer = "raw-entry"
+    module._dictionary_config = {"lookup": {"contextMatch": [{"hint": "package::reading", "field": "reading"}]}}
+    first = ["X", "first", "", "", 100, [{"tag": "ul", "data": {"content": "glossary"}, "content": [{"tag": "li", "content": "first gloss"}]}], 1, ["common"]]
+    second = ["X", "second", "", "", 1, [{"tag": "ul", "data": {"content": "glossary"}, "content": [{"tag": "li", "content": "second gloss"}]}], 2, []]
+    module._lookup_seed_candidates = lambda word: [word]
+    module._lookup_candidates = lambda word: [word]
+    module._entries_by_headword_cached = lambda word: [first, second]
+    module._prosody_entry_cached = lambda word, reading: {}
+    module._prosody_entries_by_headword_cached = lambda word: []
+    baseline = module._translate_headword_reading("X")
+    assert baseline["data"][0]["reading"] == "first"
+    assert baseline["resolution"]["basis"] == "dictionary-order"
+    assert len(baseline["resolution"]["candidates"]) == 2
+    contextual = module._translate_headword_reading("X", {"hints": {"package::reading": "second", "unknown::structured": {"x": [1, 2]}}})
+    assert contextual["data"][0]["reading"] == "second"
+    assert contextual["resolution"]["basis"] == "token-hint"
+    assert len(contextual["resolution"]["candidates"]) == 2
+    selected = module._translate_headword_reading("X", {"selectionId": contextual["resolution"]["selectedId"]})
+    assert selected["data"][0]["reading"] == "second"
+    assert selected["resolution"]["basis"] == "learner-selection"
+    stale = module._translate_headword_reading("X", {"selectionId": "no-longer-present"})
+    assert stale["resolution"]["basis"] == "dictionary-order"
+    assert stale["resolution"]["selectionUnavailable"] is True
+    assert contextual["resolution"]["candidates"][0]["metadata"] == first
+    first.append({"unfamiliar": [1, {"value": "a"}]})
+    second.append({"unfamiliar": [2, {"value": "b"}]})
+    module._dictionary_config["lookup"]["contextMatch"] = [{"hint": "new::structured", "entryPath": [8]}]
+    arbitrary = module._translate_headword_reading("X", {"hints": {"new::structured": second[8]}})
+    assert arbitrary["data"][0]["reading"] == "second"
+    assert arbitrary["resolution"]["candidates"][1]["metadata"][8] == second[8]
+    first[8] = {"value": True}
+    second[8] = {"value": 1.0}
+    typed = module._translate_headword_reading("X", {"hints": {"new::structured": {"value": 1}}})
+    assert typed["data"][0]["reading"] == "second"
+
+    first[1] = ""
+    module._entries_by_headword_cached = lambda word: [first]
+    assert module._translate_headword_reading("X")["data"][0]["reading"] == "X"

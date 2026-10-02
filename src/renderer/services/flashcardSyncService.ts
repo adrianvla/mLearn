@@ -4,6 +4,7 @@ import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { createWordFormDeriver } from '../../shared/utils/wordForms';
 import { calculateWordStats } from '../../shared/utils/wordStats';
 import { deriveSyncKnowledgeJournal, sanitizeSyncedKnowledgeEntry } from '../../shared/sync/flashcardMerge';
+import { mergeStudyExclusion } from '../../shared/studyExclusion';
 import { appendEvents } from './knowledgeEvents';
 import { hashWord, hashWordSync } from './srsAlgorithm';
 import { getLogger } from '../../shared/utils/logger';
@@ -96,6 +97,10 @@ export async function mergeFlashcards(
   // (active-evidence / explicit-status markers); every applied entry is
   // collected so it lands in the journal before the merged store returns.
   const appliedKnowledge: Array<[string, PassiveWordKnowledge]> = [];
+  merged.ignoredWords ??= {};
+  for (const [key, preference] of Object.entries(remoteStore.ignoredWords ?? {})) {
+    merged.ignoredWords[key] = mergeStudyExclusion(merged.ignoredWords[key], preference);
+  }
   if (remoteStore.wordKnowledge) {
     for (const [lk, remoteEntry] of Object.entries(remoteStore.wordKnowledge)) {
       const localEntry = merged.wordKnowledge[lk];
