@@ -3,14 +3,13 @@
 .new-conversation-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--spacing-2); }
 .new-conversation-people { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
 .new-conversation-people-list {
-    max-height: 15rem; overflow-y: auto; min-width: 0;
+    max-height: 10rem; overflow-y: auto; min-width: 0;
     display:flex;
     flex-direction: column;
     gap:var(--spacing-1);
 }
 .new-conversation-people-list .list-row { border-radius: var(--radius-md); }
-.new-conversation-add .list-row-title { color: var(--color-primary); }
-.new-conversation-scope { border: 0; padding: 0; margin: 0; min-width: 0; }
+.new-conversation-purpose, .new-conversation-scope { border: 0; padding: 0; margin: 0; min-width: 0; }
 .new-conversation-scope-label { font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--spacing-2); }
 .new-conversation-scope-options { display: flex; gap: var(--spacing-2); }
 .new-conversation-scope-option { flex: 1; min-width: 0; }
@@ -18,3 +17,8 @@
 .new-conversation-preview { display: flex; flex-direction: column; gap: var(--spacing-3); min-width: 0; overflow-wrap: anywhere; }
 .new-conversation-preview p { margin: 0; color: var(--text-secondary); line-height: var(--line-height-relaxed); }
 .new-conversation-disambiguation { display: flex; flex-direction: column; gap: var(--spacing-2); }
+
+.new-conversation-purpose, .new-conversation-scope { display: flex; flex-direction: column; gap: var(--spacing-2); }
+
+.new-conversation-people-tools { display: flex; align-items: center; gap: var(--spacing-2); min-width: 0; }
+.new-conversation-people-tools > div { flex: 1; min-width: 0; }

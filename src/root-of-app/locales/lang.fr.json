@@ -802,8 +802,8 @@
       },
       "LivingWorld": {
         "ConsentTitle": "Activer Living World ?",
-        "ConsentHint": "Living World est désactivé. Cette conversation vivrait dans votre monde persistant, où souvenirs, relations et changements sont conservés. Activez Living World pour continuer, ou restez en entraînement temporaire.",
-        "EnableAndContinue": "Activer Living World et continuer",
+        "ConsentHint": "L’historique partagé est désactivé. Activez la mémoire partagée pour que cette conversation mette à jour vos contacts et relations, ou choisissez Historique séparé.",
+        "EnableAndContinue": "Activer la mémoire partagée et continuer",
         "NotNow": "Pas maintenant"
       },
       "NewConversation": {
@@ -813,7 +813,7 @@
         "GeneratedNotice": "Cette situation fictive a été générée et ne repose pas sur des recherches du canon. Vérifiez-la avant de commencer.",
         "PrivatePreview": "État initial privé — affiché ici pour vérification, pas partagé avec tout le monde.",
         "Scene": "Situation",
-        "TemporaryHint": "Cette conversation est enregistrée séparément. Les souvenirs et modifications ici ne changent pas votre monde.",
+        "TemporaryHint": "Enregistrée séparément. Les messages et souvenirs ici ne changent pas vos relations partagées.",
         "Title": "Nouvelle conversation",
         "Hint": "Choisissez avec qui converser et, si vous le souhaitez, fixez un objectif.",
         "Placeholder": "De quoi voulez-vous parler ou vous exercer ?",
@@ -828,10 +828,18 @@
         "IntentLabel": "Objectif (facultatif)",
         "PreparedGoalLabel": "Objectif de pratique",
         "ToggleParticipant": "Inclure {name} dans la conversation",
-        "ScopeLabel": "Où cela doit-il vivre ?",
-        "ScopeTemporary": "Temporaire",
-        "ScopePersistent": "Dans mon monde",
-        "PersistentHint": "Les messages, souvenirs et relations deviennent partie intégrante de votre monde persistent."
+        "ScopeLabel": "Historique de conversation",
+        "ScopeTemporary": "Historique séparé",
+        "ScopePersistent": "Historique partagé",
+        "PersistentHint": "Les messages, souvenirs et relations ici font partie de votre continuité partagée.",
+        "Purpose": "Type de conversation",
+        "Conversation": "Conversation",
+        "CoachedPractice": "Pratique accompagnée",
+        "ConversationHint": "Les participants restent dans leur rôle. Aucun accompagnement linguistique n’est demandé.",
+        "PracticeHint": "Demandez des retours linguistiques et des exercices ciblés.",
+        "SetupPlaceholder": "Décrivez une situation ou un objectif, ou choisissez des contacts ci-dessous.",
+        "SetupHint": "Choisissez des contacts, décrivez une situation, ou les deux. Chaque personne choisie peut participer.",
+        "OptionalSituation": "Situation (facultatif)"
       },
       "Integration": {
         "ScenarioNeedsRoom": "Choisissez un salon pour adopter cette situation.",

@@ -490,6 +490,20 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(container.querySelector('.new-conversation-form')).toBeNull();
   });
 
+  it('offers AI settings instead of an inert greeting when the selected chat has no usable service', async () => {
+    mockBridge.llm.llmCheckModel.mockResolvedValue({ ...readyModelStatus, ready: false });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    const recovery = Array.from(container.querySelectorAll<HTMLButtonElement>('.ca-messages button'))
+      .find(button => button.textContent === 'mlearn.ConversationAgent.Recovery.Settings');
+    expect(recovery).toBeDefined();
+    expect(chatText(container)).not.toContain('mlearn.ConversationAgent.Empty.StartConversation');
+    recovery!.click();
+    expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'settings', context: { section: 'ai' } });
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+  });
+
   it('returns to a saved practice conversation and selects its sidebar tab', async () => {
     testSettings.livingWorldEnabled = false;
     currentWorld = { rooms: [], participants: [], threads: [{ id: 'practice-a', interactionMode: 'practice', state: 'active', createdAt: 2,
@@ -501,6 +515,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(container.querySelector('.room-sidebar-title')?.textContent).toBe('mlearn.ConversationAgent.Contacts.Practice');
     expect(container.querySelectorAll('.room-sidebar-thread')).toHaveLength(1);
     expect(container.querySelector('.new-conversation-form')).toBeNull();
+    expect(container.querySelector('.ca-header-context')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.CoachedPractice');
+    expect(container.querySelector('.ca-header-context')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.ScopeTemporary');
   });
 
   it('boots rooms and renders journal messages for the selected room', async () => {
@@ -1483,7 +1499,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')).not.toBeNull());
     expect(container.querySelector('[role="tab"]')).toBeNull();
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
-    expect(container.textContent).toContain('mlearn.ConversationAgent.Contacts.NewMessage');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.Title');
     expect(container.textContent).toContain('mlearn.ConversationAgent.Menu.Details');
     expect(container.textContent).not.toContain('mlearn.ConversationAgent.Menu.WordHover');
   });
@@ -1502,10 +1518,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.Contacts.NewMessage"]')).not.toBeNull());
+    await vi.waitFor(() => expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]')).not.toBeNull());
     (Array.from(container.querySelectorAll('.room-sidebar button')).find(button => button.textContent === 'mlearn.ConversationAgent.Contacts.Practice') as HTMLButtonElement).click();
-    expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.Contacts.NewPractice"]')).not.toBeNull();
-    expect(Array.from(container.querySelectorAll('.ca-chat-content button')).some(button => button.textContent === 'mlearn.ConversationAgent.Contacts.NewPractice')).toBe(true);
+    expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]')).not.toBeNull();
+    expect(Array.from(container.querySelectorAll('.ca-chat-content button')).some(button => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')).toBe(true);
   });
 
   it('defers Living World consent until an existing contact DM is explicitly opened', async () => {
@@ -1528,14 +1544,14 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(mockBridge.world.createPersistentRoom).not.toHaveBeenCalled();
   });
 
-  it('exposes scenario creation separately from explicit practice', async () => {
+  it('offers one composer with explicit style and continuity choices', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
     await vi.waitFor(() => expect(container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')).not.toBeNull());
     (container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some(button => button.textContent === 'mlearn.ConversationAgent.Contacts.NewScenario')).toBe(true));
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Contacts.NewScenario')!.click();
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some(button => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')).toBe(true));
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')!.click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-scope')).not.toBeNull());
   });
 
@@ -1615,8 +1631,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.Contacts.NewMessage"]')).not.toBeNull());
-    (container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.Contacts.NewMessage"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]')).not.toBeNull());
+    (container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
   });
 
@@ -1628,7 +1644,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(container.querySelector('.new-conversation-form')).toBeNull();
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
     expect(container.querySelector('.new-conversation-form')).toBeNull();
-    expect(container.textContent).toContain('mlearn.ConversationAgent.Contacts.Add');
+    expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.Title');
   });
 
   it('opens NewConversationModal from the empty state when no room is selected', async () => {
@@ -1641,8 +1657,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent />, container);
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
 
-    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.Contacts.NewMessage')).toBe(true));
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Contacts.NewMessage')!.click();
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')).toBe(true));
+    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')!.click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
   });
 

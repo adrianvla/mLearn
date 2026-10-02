@@ -802,8 +802,8 @@
       },
       "LivingWorld": {
         "ConsentTitle": "Living World aktivieren?",
-        "ConsentHint": "Living World ist aus. Dieses Gespräch würde in deiner persistenten Welt leben, in der Erinnerungen, Beziehungen und Veränderungen dauerhaft gespeichert werden. Aktiviere Living World, um fortzufahren, oder bleib bei der temporären Übung.",
-        "EnableAndContinue": "Living World aktivieren und fortfahren",
+        "ConsentHint": "Der gemeinsame Verlauf ist deaktiviert. Aktiviere das gemeinsame Gedächtnis, damit dieses Gespräch deine Kontakte und Beziehungen aktualisieren kann, oder wähle Separater Verlauf.",
+        "EnableAndContinue": "Gemeinsames Gedächtnis aktivieren und fortfahren",
         "NotNow": "Nicht jetzt"
       },
       "NewConversation": {
@@ -813,7 +813,7 @@
         "GeneratedNotice": "Dies ist eine generierte fiktive Situation, kein recherchierter Kanon. Prüfe sie, bevor du beginnst.",
         "PrivatePreview": "Privater Ausgangszustand — nur zur Prüfung hier angezeigt, nicht mit allen geteilt.",
         "Scene": "Situation",
-        "TemporaryHint": "Diese Unterhaltung wird separat gespeichert. Erinnerungen und Änderungen hier verändern deine Welt nicht.",
+        "TemporaryHint": "Separat gespeichert. Nachrichten und Erinnerungen hier ändern deine gemeinsamen Beziehungen nicht.",
         "Title": "Neue Unterhaltung",
         "Hint": "Wähle, mit wem du conversieren möchtest, und lege optional ein Ziel fest.",
         "Placeholder": "Worüber möchtest du sprechen oder üben?",
@@ -828,10 +828,18 @@
         "IntentLabel": "Ziel (optional)",
         "PreparedGoalLabel": "Übungsschwerpunkt",
         "ToggleParticipant": "{name} in die Unterhaltung aufnehmen",
-        "ScopeLabel": "Wo soll dies bestehen?",
-        "ScopeTemporary": "Vorübergehend",
-        "ScopePersistent": "In meiner Welt",
-        "PersistentHint": "Nachrichten, Erinnerungen und Beziehungen hier werden Teil deiner dauerhaften Welt."
+        "ScopeLabel": "Gesprächsverlauf",
+        "ScopeTemporary": "Separater Verlauf",
+        "ScopePersistent": "Gemeinsamer Verlauf",
+        "PersistentHint": "Nachrichten, Erinnerungen und Beziehungen hier werden Teil deiner gemeinsamen Kontinuität.",
+        "Purpose": "Gesprächsart",
+        "Conversation": "Gespräch",
+        "CoachedPractice": "Üben mit Anleitung",
+        "ConversationHint": "Die Teilnehmenden bleiben in ihrer Rolle. Sprachunterricht wird nicht angefordert.",
+        "PracticeHint": "Bitte um sprachliches Feedback und gezielte Übungen.",
+        "SetupPlaceholder": "Beschreibe eine Situation oder ein Übungsziel oder wähle unten Kontakte aus.",
+        "SetupHint": "Wähle Kontakte, beschreibe eine Situation oder beides. Alle ausgewählten Personen können teilnehmen.",
+        "OptionalSituation": "Situation (optional)"
       },
       "Integration": {
         "ScenarioNeedsRoom": "Wähle einen Raum, um diese Situation zu übernehmen.",

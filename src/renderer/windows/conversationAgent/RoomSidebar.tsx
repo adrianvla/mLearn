@@ -102,7 +102,7 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
     <div class="room-sidebar-header">
       <h2 class="room-sidebar-title">{t(tab() === 'contacts' ? 'mlearn.ConversationAgent.Contacts.Tab' : tab() === 'practice' ? 'mlearn.ConversationAgent.Contacts.Practice' : 'mlearn.ConversationAgent.Contacts.Chats')}</h2>
       <Show when={tab() === 'contacts'} fallback={<Button buttonType="icon" size="sm" variant="ghost" icon={<PlusIcon size={20} />}
-        aria-label={t(tab() === 'practice' ? 'mlearn.ConversationAgent.Contacts.NewPractice' : 'mlearn.ConversationAgent.Contacts.NewMessage')}
+        aria-label={t('mlearn.ConversationAgent.NewConversation.Title')}
         disabled={props.loading || props.loadError}
         onClick={() => tab() === 'practice' ? props.onPractice() : props.onNewConversation()} />}>
         <Button size="sm" variant="ghost" icon={<PlusIcon size={16} />} onClick={props.onAddContact}>{t('mlearn.ConversationAgent.Contacts.Add')}</Button>
@@ -142,8 +142,8 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
           </Show>
           <Show when={chats().length === 0}><div class="room-sidebar-empty">
             <p>{t(query().trim() ? 'mlearn.ConversationAgent.Sidebar.NoMatches' : tab() === 'practice' ? 'mlearn.ConversationAgent.Contacts.EmptyPractice' : 'mlearn.ConversationAgent.Contacts.EmptyChats')}</p>
-            <Show when={!query().trim()}><Button variant="ghost" size="sm" onClick={() => tab() === 'practice' ? props.onPractice() : props.onAddContact()}>
-              {t(tab() === 'practice' ? 'mlearn.ConversationAgent.Contacts.NewPractice' : 'mlearn.ConversationAgent.Contacts.Add')}
+            <Show when={!query().trim()}><Button variant="ghost" size="sm" onClick={() => tab() === 'practice' ? props.onPractice() : props.onNewConversation()}>
+              {t('mlearn.ConversationAgent.NewConversation.Title')}
             </Button></Show>
           </div></Show>
         </>}>

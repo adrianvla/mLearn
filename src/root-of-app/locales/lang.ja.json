@@ -802,8 +802,8 @@
       },
       "LivingWorld": {
         "ConsentTitle": "Living Worldを有効にしますか？",
-        "ConsentHint": "Living Worldが無効です。この会話は永続的な世界に保存され、思い出や関係、変化がそこに残ります。続けるにはLiving Worldを有効にするか、一時的な練習のままでいてください。",
-        "EnableAndContinue": "Living Worldを有効にして続ける",
+        "ConsentHint": "共有の履歴は無効です。連絡先や関係にこの会話を反映するには共有の記憶を有効にするか、個別の履歴を選んでください。",
+        "EnableAndContinue": "共有の記憶を有効にして続ける",
         "NotNow": "今はしない"
       },
       "NewConversation": {
@@ -813,7 +813,7 @@
         "GeneratedNotice": "これは生成された架空の状況で、原作設定を調査したものではありません。開始する前に確認してください。",
         "PrivatePreview": "非公開の初期状態 — 確認用の表示で、全員に共有される情報ではありません。",
         "Scene": "状況",
-        "TemporaryHint": "この会話は別に保存されます。ここでの記憶や編集はあなたの世界を変更しません。",
+        "TemporaryHint": "個別に保存します。ここでのメッセージや記憶は、共有している関係に影響しません。",
         "Title": "新しい会話",
         "Hint": "会話の相手を選び、必要なら目標を設定します。",
         "Placeholder": "何について話したり練習したりしたいですか？",
@@ -828,10 +828,18 @@
         "IntentLabel": "目標（任意）",
         "PreparedGoalLabel": "練習のテーマ",
         "ToggleParticipant": "{name} を会話に加える",
-        "ScopeLabel": "どこに保存しますか？",
-        "ScopeTemporary": "一時的",
-        "ScopePersistent": "自分の世界",
-        "PersistentHint": "ここでの会話、記憶、関係は永続的な世界の一部になります。"
+        "ScopeLabel": "会話の履歴",
+        "ScopeTemporary": "個別の履歴",
+        "ScopePersistent": "共有の履歴",
+        "PersistentHint": "ここでのメッセージ、記憶、関係は共有する継続性の一部になります。",
+        "Purpose": "会話のスタイル",
+        "Conversation": "会話",
+        "CoachedPractice": "学習サポート付きの練習",
+        "ConversationHint": "参加者は役柄に沿って話します。言語学習の指導は求めません。",
+        "PracticeHint": "言語のフィードバックや目的に合った練習を求めます。",
+        "SetupPlaceholder": "状況や練習の目的を説明するか、下の連絡先を選んでください。",
+        "SetupHint": "連絡先の選択、状況の説明、または両方ができます。選択した全員が参加できます。",
+        "OptionalSituation": "状況（任意）"
       },
       "Integration": {
         "ScenarioNeedsRoom": "この状況を引き継ぐにはルームを選択してください。",

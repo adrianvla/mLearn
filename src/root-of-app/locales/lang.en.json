@@ -802,8 +802,8 @@
       },
       "LivingWorld": {
         "ConsentTitle": "Enable Living World?",
-        "ConsentHint": "Living World is off. This conversation would live in your persistent world, where memories, relationships and changes are kept. Enable Living World to continue, or stay in temporary practice.",
-        "EnableAndContinue": "Enable Living World and continue",
+        "ConsentHint": "Shared history is off. Enable shared memory to let this conversation update your contacts and relationships, or choose Separate history.",
+        "EnableAndContinue": "Enable shared memory and continue",
         "NotNow": "Not now"
       },
       "NewConversation": {
@@ -813,7 +813,7 @@
         "GeneratedNotice": "This is a generated fictional situation, not researched canon. Review it before starting.",
         "PrivatePreview": "Private starting state — shown here for your review, not shared with everyone.",
         "Scene": "Situation",
-        "TemporaryHint": "This conversation is saved separately. Memories and edits here do not change your world.",
+        "TemporaryHint": "Saved separately. Messages and memories here do not change your shared relationships.",
         "Title": "New conversation",
         "Hint": "Pick who the conversation is with, and optionally set a goal for it.",
         "Placeholder": "What do you want to talk about or practice?",
@@ -828,10 +828,18 @@
         "IntentLabel": "Goal (optional)",
         "PreparedGoalLabel": "Practice focus",
         "ToggleParticipant": "Include {name} in the conversation",
-        "ScopeLabel": "Where should this live?",
-        "ScopeTemporary": "Temporary",
-        "ScopePersistent": "In my world",
-        "PersistentHint": "Messages, memories and relationships here become part of your persistent world."
+        "ScopeLabel": "Conversation history",
+        "ScopeTemporary": "Separate history",
+        "ScopePersistent": "Shared history",
+        "PersistentHint": "Messages, memories and relationships here become part of your shared continuity.",
+        "Purpose": "Conversation style",
+        "Conversation": "Conversation",
+        "CoachedPractice": "Coached practice",
+        "ConversationHint": "Participants stay in character. No language coaching is requested.",
+        "PracticeHint": "Ask for language feedback and focused exercises.",
+        "SetupPlaceholder": "Describe a situation or practice focus, or choose contacts below.",
+        "SetupHint": "Choose contacts, describe a situation, or both. Everyone selected can participate.",
+        "OptionalSituation": "Situation (optional)"
       },
       "Integration": {
         "ScenarioNeedsRoom": "Choose a Room to adopt this situation.",

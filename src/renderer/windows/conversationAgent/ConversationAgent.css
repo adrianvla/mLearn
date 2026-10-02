@@ -543,3 +543,6 @@ textarea.ca-chat-textarea,
 }
 
 .ca-overflow-item > .btn-content { width: 100%; justify-content: flex-start; }
+
+.ca-header-conversation { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-1); }
+.ca-header-context { color: var(--text-secondary); font-size: var(--font-size-xs); padding-inline: var(--spacing-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

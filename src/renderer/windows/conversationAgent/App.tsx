@@ -66,6 +66,7 @@ import { createVoicePrefetch } from './voicePrefetch';
 import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type ThreadMediaRef, type WorldSnapshot, type VoiceDeliveryPayload, type JournalEventDraft, type JournalEvent } from '../../../shared/world';
 import { getLearningLanguageLevelForLanguage, getTokenizerCacheNamespace, shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
+import { openCapabilitySettings } from '../../services/capabilityUnavailable';
 import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.conversationAgent.app");
@@ -1955,13 +1956,20 @@ export const ConversationContent: Component = () => {
           aria-controls="conversation-sidebar" aria-expanded={sidebarVisible()}
         /></Show>
         <div class="ca-header-identity">
-          <Button variant="ghost" class="ca-header-contact" onClick={() => {
-            if (rosterParticipants().length === 1 && !activeThread()?.sandbox) setContactId(rosterParticipants()[0].id);
-            else openDetails();
-          }} disabled={!activeRoom()}>
-            <Show when={rosterParticipants().length === 1}><Avatar size="sm" name={rosterParticipants()[0].displayName} src={rosterParticipants()[0].profilePhoto} /></Show>
-            <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
-          </Button>
+          <div class="ca-header-conversation">
+            <Button variant="ghost" class="ca-header-contact" onClick={() => {
+              if (rosterParticipants().length === 1 && !activeThread()?.sandbox) setContactId(rosterParticipants()[0].id);
+              else openDetails();
+            }} disabled={!activeRoom()}>
+              <Show when={rosterParticipants().length === 1}><Avatar size="sm" name={rosterParticipants()[0].displayName} src={rosterParticipants()[0].profilePhoto} /></Show>
+              <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
+            </Button>
+            <Show when={!callSurfaceOpen() && activeRoom()}>
+              <span class="ca-header-context">{t((activeThread()?.interactionMode ?? activeRoom()?.interactionMode) === 'practice'
+                ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · {t(activeThread()?.sandbox
+                ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}</span>
+            </Show>
+          </div>
           <Show when={callSurfaceOpen()}>
             <span class="ca-call-header-state" role="status" aria-live="polite">{voiceAftermath() ? t('mlearn.ConversationAgent.Voice.Aftermath.Title') : voiceHeaderStatus() || t('mlearn.ConversationAgent.Voice.CheckingModels')}</span>
           </Show>
@@ -1997,9 +2005,7 @@ export const ConversationContent: Component = () => {
           >
             <div class="ca-provider-details"><ConnectionInfo details /></div>
             <p class="ca-ai-notice">{t('mlearn.ConversationAgent.Disclaimer')}</p>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewMessage')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('practice'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewPractice')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('scenario'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.NewScenario')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer(sidebarView() === 'practice' ? 'practice' : 'message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.NewConversation.Title')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
@@ -2135,10 +2141,10 @@ export const ConversationContent: Component = () => {
                   <EmptyState
                     icon={<ChatIcon size={24} />}
                     title={t('mlearn.ConversationAgent.Empty.Title')}
-                    description={t(hasActiveRoomSelection() ? 'mlearn.ConversationAgent.Empty.ReadyHint' : 'mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
+                    description={hasActiveRoomSelection() ? isConnected() ? t('mlearn.ConversationAgent.Empty.ReadyHint') : undefined : t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
                     action={{
-                      label: hasActiveRoomSelection() ? t('mlearn.ConversationAgent.Empty.StartConversation') : t(sidebarView() === 'practice' ? 'mlearn.ConversationAgent.Contacts.NewPractice' : 'mlearn.ConversationAgent.Contacts.NewMessage'),
-                      onClick: hasActiveRoomSelection() ? handleStartConversation : () => openComposer(sidebarView() === 'practice' ? 'practice' : 'message'),
+                      label: hasActiveRoomSelection() ? t(isConnected() ? 'mlearn.ConversationAgent.Empty.StartConversation' : 'mlearn.ConversationAgent.Recovery.Settings') : t('mlearn.ConversationAgent.NewConversation.Title'),
+                      onClick: hasActiveRoomSelection() ? isConnected() ? handleStartConversation : () => openCapabilitySettings('llm') : () => openComposer(sidebarView() === 'practice' ? 'practice' : 'message'),
                       variant: 'primary',
                     }}
                     class="ca-empty"

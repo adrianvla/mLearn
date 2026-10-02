@@ -802,8 +802,8 @@
       },
       "LivingWorld": {
         "ConsentTitle": "启用 Living World？",
-        "ConsentHint": "Living World 未开启。此对话将存在于你的持久世界中，记忆、关系与变化都会保存在那里。启用 Living World 以继续，或保持在临时练习中。",
-        "EnableAndContinue": "启用 Living World 并继续",
+        "ConsentHint": "共享历史已关闭。启用共享记忆，让此会话更新联系人和关系，或选择独立历史。",
+        "EnableAndContinue": "启用共享记忆并继续",
         "NotNow": "暂不"
       },
       "NewConversation": {
@@ -813,7 +813,7 @@
         "GeneratedNotice": "这是生成的虚构情境，并非经过考据的原作设定。开始前请先检查。",
         "PrivatePreview": "私有初始状态——仅供你在此审核，不会分享给所有人。",
         "Scene": "情境",
-        "TemporaryHint": "此对话单独保存。这里的记忆和编辑不会改变你的世界。",
+        "TemporaryHint": "单独保存。这里的消息和记忆不会改变共享关系。",
         "Title": "新对话",
         "Hint": "选择对话对象，并可选择设定一个目标。",
         "Placeholder": "你想聊什么或练习什么？",
@@ -828,10 +828,18 @@
         "IntentLabel": "目标（可选）",
         "PreparedGoalLabel": "练习重点",
         "ToggleParticipant": "将 {name} 加入对话",
-        "ScopeLabel": "保存在哪里？",
-        "ScopeTemporary": "临时",
-        "ScopePersistent": "在我的世界中",
-        "PersistentHint": "这里的消息、记忆和关系将成为你永久世界的一部分。"
+        "ScopeLabel": "会话历史",
+        "ScopeTemporary": "独立历史",
+        "ScopePersistent": "共享历史",
+        "PersistentHint": "这里的消息、记忆和关系会成为共享延续的一部分。",
+        "Purpose": "会话方式",
+        "Conversation": "交谈",
+        "CoachedPractice": "辅导练习",
+        "ConversationHint": "参与者保持自己的角色。不会要求语言辅导。",
+        "PracticeHint": "请求语言反馈和针对性练习。",
+        "SetupPlaceholder": "描述场景或练习目标，或选择下方的联系人。",
+        "SetupHint": "选择联系人、描述场景，或两者兼有。所有选中的人都可以参与。",
+        "OptionalSituation": "场景（可选）"
       },
       "Integration": {
         "ScenarioNeedsRoom": "请选择一个房间以接纳此情境。",
