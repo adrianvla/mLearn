@@ -12,7 +12,7 @@ import {
   useLanguage,
   useFlashcards,
 } from '../../context';
-import { Button, ConfirmDialog, EmptyState, FilterBuilder, Panel, PillLabel, Popover, RatingMatrix, ToggleSwitch, buildWordSyncFields, buildWordSyncPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ProfileObservation, type RateOptions, type ValidationError } from '../../components/common';
+import { Button, ConfirmDialog, EmptyState, FilterBuilder, Panel, PillLabel, Popover, StudyEncounter, ToggleSwitch, buildWordSyncFields, buildWordSyncPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ProfileObservation, type RateOptions, type ValidationError } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
 import { TellMlearn, type AppliedLearnerClaim } from '../../components/common/TellMlearn/TellMlearn';
 import type { LearnerClaimOp } from '../../services/learnerClaimsInterpreter';
@@ -148,6 +148,7 @@ interface WordSyncUndoEntry {
 
 export interface WordSyncContentProps {
   mode?: 'study' | 'assessment';
+  onAssessmentApplied?: () => void;
 }
 
 export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
@@ -294,7 +295,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const [translation, { refetch: refetchTranslation }] = createResource(
     () => currentWord()?.word,
     async (word) => {
-      if (!word || assessmentMode()) return null;
+      if (!word) return null;
       return fetchTranslation(word, settings.language, {
         getCanonicalForm: langCtx.getCanonicalForm,
         getWordVariants: langCtx.getWordVariants,
@@ -799,7 +800,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     let current = controller?.current();
     if (!controller || !current || current.queue[current.index]?.id !== write.word.word) return;
     const assessmentQuality = assessmentMode()
-      ? write.observations.find((observation) => observation.capability === 'surface-recognition')?.quality as DiagnosticQuality | undefined
+      ? worstAttemptQuality(write.observations.map((observation) => observation.quality)) as DiagnosticQuality
       : undefined;
     if (current.pending) {
       await controller.retry(current);
@@ -849,7 +850,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     // projection refuses (the encounter re-presents once it settles).
     const projection = currentProjection.projection();
     const unmeasured = projection === undefined && !currentProjection.loading();
-    if (!w || !revealed || navigationPending() || sessionWriteFailure() === 'assistance' || (!assessmentMode() && (!translationText() || translation.state !== 'ready')) || ratingWrite() !== null || (projection?.status !== 'ready' && !unmeasured) || observations.length === 0
+    if (!w || !revealed || navigationPending() || sessionWriteFailure() === 'assistance' || (!translationText() || translation.state !== 'ready') || ratingWrite() !== null || (projection?.status !== 'ready' && !unmeasured) || observations.length === 0
       || observations.some((observation) => !testedAccesses().some((capability) => capability === observation.capability))) return;
     // opts.easy is scheduler-only and Word Sync has no scheduler — the
     // recorded evidence (fluent) is identical either way, so it is ignored.
@@ -1472,18 +1473,16 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     }
     if (probe()?.presentation === presentation) return;
     if (assessmentMode()) {
-      if (!w || projectionLoading || (projection?.status === 'error')) return;
+      if (!w || loading || translation.state !== 'ready' || projectionLoading || projection?.status === 'error') return;
       stopWordTiming();
       wordTimer = createEncounterTimer();
       wordTimer.start();
-      setProbe({ presentation, capabilities: ['surface-recognition'], focused: false });
-      const controller = sessionController();
-      const record = controller?.current();
-      if (controller && record && !record.revealed && !record.pending) {
-        void controller.reveal(record).then((accepted) => {
-          if (accepted && currentWord()?.word === w.word) setShowAnswer(true);
-        });
-      }
+      // The placement sampler chooses words; the encounter tests the same
+      // package-declared accesses as ordinary study, after explicit recall.
+      setProbe({ presentation, capabilities: [...getTestedAccesses({
+        languageData: langCtx.currentLangData(), surface: w.word,
+        hasReadingData: !!displayedReading(), hasProsodyData: !!currentWordProsody(),
+      })], focused: false });
       return;
     }
     // Transient gate (F-N1): the single-surface hook resets its projection
@@ -1655,6 +1654,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         [settings.language]: level,
       },
     });
+    props.onAssessmentApplied?.();
   };
 
   const dismissAssessment = async () => {
@@ -1682,9 +1682,8 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   };
 
   return (
-    <div class="word-sync">
+    <div class="word-sync" classList={{ 'word-sync--assessment': assessmentMode() }}>
       <div class="word-sync-header">
-        <Show when={assessmentMode()}><span class="word-sync-mode-title">{t('mlearn.LearningPlan.Assess')}</span></Show>
         <Show when={sessionQueue() && (!assessmentMode() || !!sessionController()?.current())}><span class="word-sync-counter">
           <Show when={assessmentMode()} fallback={t('mlearn.WordSync.Progress', {
             rated: String(sessionPresentation().completed),
@@ -1694,6 +1693,8 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           </Show>
         </span></Show>
         <Show when={!assessmentMode()}>
+        <ToggleSwitch checked={additionalInfoInAnswer()} onChange={setAdditionalInfoInAnswer}
+          label={t('mlearn.WordSync.AdditionalInfoInAnswer')} size="sm" />
         <Button
           variant="default"
           size="sm"
@@ -1751,34 +1752,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           />
         </Popover>
         </Show>
-        <Show when={currentWord()}>
+        <Show when={currentWord() && !assessmentMode()}>
           <PillLabel level={currentWord()!.level} visualLevel={currentWordVisualLevel()}>
             {levelLabel()}
           </PillLabel>
-        </Show>
-        <Show when={currentWord()}>
-          {(word) => <Button variant="default" size="sm" class="word-sync-inspect"
-            disabled={navigationPending() || !!sessionController()?.current()?.pending || ((assessmentMode() || !sessionController()?.current()?.revealed)
-              && (currentProjection.loading() || testedAccesses().length === 0))} onClick={async () => {
-            const surface = word().word;
-            const controller = sessionController();
-            const record = controller?.current();
-            const presentation = presentationCount();
-            if (!controller || !record || record.pending || navigationPending()) return;
-            // Diagnostic prompts are armed immediately; that is not an answer reveal.
-            if (assessmentMode() || !record.revealed) {
-              if (currentProjection.loading() || testedAccesses().length === 0) return;
-              setObservedScaffolds({ presentation, scaffolds: mergeScaffolds(promptScaffolds(), providedAccessScaffolds(testedAccesses())) });
-              const saved = await savePromptAssistance();
-              if (!saved || sessionController() !== controller || saved.id !== record.id || saved.index !== record.index
-                || currentWord()?.word !== surface || presentationCount() !== presentation) return;
-            }
-            const decision = controller.current()?.meta.encounter?.decision;
-            openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface, decision ? {
-              policyTrace: decision.detail.trace as PolicyTrace,
-              policyBrief: currentDecisionReason(),
-            } : undefined));
-          }}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>}
         </Show>
         <Show when={currentWord() && !assessmentMode()}>
           <TellMlearn
@@ -1853,7 +1830,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           <Show when={assessmentPlan().length > 0} fallback={
             <EmptyState title={t('mlearn.LevelStudy.Placement.EmptyPools')} variant="minimal" />
           }>
-            <p>{t('mlearn.LevelStudy.Placement.Description')}</p>
+            <p>{t('mlearn.StudyEncounter.PlacementIntro')}</p>
             <Button variant="primary" size="md" onClick={() => retrySessionStart?.()}>
               {t('mlearn.LevelStudy.Placement.Start')}
             </Button>
@@ -1918,225 +1895,107 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           </Panel>
         )}
       </Show>
-      <Show when={assessmentMode() && !!sessionController()?.current() && !finished()}>
-        <Show when={currentWord()}>
-          {(word) => (
-            <Panel class="word-sync-assessment-panel" padding="md">
-            <section class="word-sync-assessment-card" aria-label={t('mlearn.LevelStudy.Placement.Title')}>
-              <p class="word-sync-assessment-card__prompt" data-word={word().word}>
-                {t('mlearn.LevelStudy.Placement.Prompt', { word: word().word })}
-              </p>
-              <WriteStatusBanner
-                status={sessionPresentation().write}
-                savingLabelKey="mlearn.WordSync.SavingRating"
-                failedLabelKey="mlearn.WordSync.SaveFailed"
-                canRetry={ratingWrite() !== null}
-                onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }}
-              />
-              <Show when={canUndo()}>
-                <Button
-                  buttonType="default"
-                  variant="ghost"
-                  size="xs"
-                  disabled={ratingWrite() !== null || undoBlocking()}
-                  onClick={() => { void undoLastWordSyncRating(); }}
-                  title={t('mlearn.WordSync.UndoTooltip')}
-                >
-                  {t('mlearn.WordSync.Undo')}
-                </Button>
-              </Show>
-              {/* Undo is reachable in assessment mode too (it shares the undo
-                  stack), so its write must be reported here as well. */}
-              <WriteStatusBanner
-                status={retractionWrite()}
-                savingLabelKey="mlearn.WordSync.SavingUndo"
-                failedLabelKey="mlearn.WordSync.UndoSaveFailed"
-                canRetry={canRetryRetraction(retractionWrite())}
-                onRetry={() => { void undoLastWordSyncRating(); }}
-              />
-              <Show when={!referenceSupplied()} fallback={
-                <Button variant="primary" disabled={!sessionPresentation().canRate || sessionWriteFailure() === 'assistance'
-                  || ratingWrite() !== null || undoBlocking() || navigationPending()} onClick={skipCurrentWord}>
-                  {t('mlearn.WordSync.ContinueAfterReference')}
-                </Button>
-              }>
-              <RatingMatrix
-                capabilities={testedAccesses()}
-                capabilityLabels={{}}
-                keyboardMode={settings.ratingKeyboardMode}
-                resetKey={`${word().word}:${presentationCount()}`}
-                armed={sessionPresentation().canRate && !!currentWord() && !finished()
-                  && ratingWrite() === null && !undoBlocking() && !navigationPending()
-                  && (currentProjection.projection()?.status === 'ready'
-                    || (currentProjection.projection() === undefined && !currentProjection.loading()))}
-                onSubmit={handleSubmitProfile}
-              />
-              </Show>
-              <Button variant="ghost" disabled={!sessionPresentation().canRate || ratingWrite() !== null || undoBlocking() || navigationPending()} onClick={skipCurrentWord}>
-                {t('mlearn.LevelStudy.Placement.Skip')}
-              </Button>
-            </section>
-            </Panel>
-          )}
-        </Show>
-      </Show>
-      <Show when={!assessmentMode()}>
-      <Show when={!finished()} fallback={
-        <Panel class="word-sync-finished" padding="lg">
-          <EmptyState
-            title={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedTitle' : 'mlearn.WordSync.EmptyTitle')}
-            description={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedDescription' : 'mlearn.WordSync.EmptyDescription', { count: String(ratedCount()) })}
-            variant="minimal"
-          />
-          <Show when={ratedCount() > 0} fallback={
-            <Button variant="primary" size="md" onClick={() => setFilterOpen(true)} class="word-sync-recheck-btn">
-              {t('mlearn.WordSync.ChangeFilters')}
-            </Button>
-          }>
-            <Button variant="secondary" size="md" onClick={() => setConfirmRecheckOpen(true)} class="word-sync-recheck-btn">
-              {t('mlearn.WordSync.StartOver')}
-            </Button>
-          </Show>
-        </Panel>
-      }>
+      <Show when={!finished() && !!sessionController()?.current()}>
         <Show when={testedAccesses().length > 0} fallback={
-          <Panel class="word-sync-card word-sync-card--pending" padding="none" role="status" aria-live="polite">
+          <Panel class="word-sync-card word-sync-card--pending" padding="none" role="status">
             <div class="word-sync-card__body word-sync-card__body--pending">{t('mlearn.Global.Loading')}</div>
           </Panel>
         }>
         <Show when={currentWord()}>
-          {(w) => (
-            <Panel class="word-sync-card" padding="none">
-            <div class="word-sync-card__body">
-              <div class="word-sync-word">
-                <Show
-                  when={pureWordMode()}
-                  fallback={
-                    <WordWithReading
-                      word={w().word}
-                      reading={displayedReading()}
-                      annotationVisibility={showAnswer() ? 'answer' : 'preference'}
-                      language={settings.language}
-                      languageData={langCtx.currentLangData()}
-                      coloredProsody={wordColoredProsodyCtx}
-                      prosodyOverlay={wordProsodyOverlay()}
-                    />
-                  }
-                >
-                  <span>{w().word}</span>
-                </Show>
+          {(word) => <StudyEncounter
+            class={assessmentMode() ? 'word-sync-assessment-card' : 'word-sync-card'}
+            instruction={t('mlearn.StudyEncounter.RetrieveWord')}
+            revealed={showAnswer()}
+            onReveal={reveal}
+            onSkip={skipCurrentWord}
+            skipDisabled={ratingWrite() !== null || undoBlocking() || navigationPending()}
+            revealDisabled={navigationPending() || translation.loading || testedAccesses().length === 0}
+            prompt={
+              <div class="word-sync-word" data-word={word().word}>
+                <Show when={pureWordMode() || (assessmentMode() && !showAnswer())} fallback={
+                  <WordWithReading word={word().word} reading={displayedReading()}
+                    annotationVisibility={showAnswer() ? 'answer' : 'preference'}
+                    language={settings.language} languageData={langCtx.currentLangData()}
+                    coloredProsody={wordColoredProsodyCtx} prosodyOverlay={wordProsodyOverlay()} />
+                }><span>{word().word}</span></Show>
               </div>
-              <Show when={showAnswer() && showTranslation() && translationText()}>
-                <div class="word-sync-translation">{translationText()}</div>
-              </Show>
-              <Show when={showAnswer() && translation.state === 'ready' && !translationText()}>
-                <div role="alert">
-                  <p>{t('mlearn.WordSync.AnswerUnavailable')}</p>
-                  {/* An unanswerable word cannot be rated, so retrying alone
-                      leaves the session parked on it. Skipping is the way out,
-                      the same escape the assessment surface offers. */}
-                  <div class="word-sync-unavailable-actions">
-                    <Button onClick={() => refetchTranslation()}>{t('mlearn.Global.TryAgain')}</Button>
-                    <Button variant="ghost" disabled={navigationPending()} onClick={skipCurrentWord}>{t('mlearn.WordSync.SkipWord')}</Button>
-                  </div>
+            }
+            answer={
+              <Show when={translationText()} fallback={
+                <div role="alert"><p>{t('mlearn.WordSync.AnswerUnavailable')}</p>
+                  <Button onClick={() => refetchTranslation()}>{t('mlearn.Global.TryAgain')}</Button>
                 </div>
-              </Show>
-              <div class="word-sync-answer-options">
-                <Button
-                  variant="default"
-                  size="md"
-                  onClick={() => {
-                    if (!showAnswer()) {
-                      reveal();
-                    } else {
-                      setShowTranslation((v) => !v);
-                    }
-                  }}
-                  class="word-sync-translation-toggle"
-                >
-                  {showTranslation()
-                    ? t('mlearn.WordSync.HideTranslation')
-                    : t('mlearn.WordSync.ShowTranslation')}
-                </Button>
-                <ToggleSwitch
-                  checked={additionalInfoInAnswer()}
-                  onChange={setAdditionalInfoInAnswer}
-                  label={t('mlearn.WordSync.AdditionalInfoInAnswer')}
-                  size="sm"
-                  class="word-sync-additional-info-toggle"
-                />
-              </div>
-            </div>
-            </Panel>
-          )}
+              }><Show when={assessmentMode() || showTranslation()}><div class="word-sync-translation">{translationText()}</div></Show></Show>
+            }
+            answerControls={<Show when={!assessmentMode()}><div class="word-sync-answer-options">
+              <Button variant="default" size="sm" onClick={() => setShowTranslation(v => !v)} class="word-sync-translation-toggle">
+                {t(showTranslation() ? 'mlearn.WordSync.HideTranslation' : 'mlearn.WordSync.ShowTranslation')}
+              </Button>
+            </div></Show>}
+            rating={{
+              capabilities: testedAccesses(),
+              capabilityLabels: Object.fromEntries(testedAccesses().map(capability => [capability, langCtx.currentLangData()?.learning?.capabilities?.[capability]?.label])
+                .filter((entry): entry is [string, string] => entry[1] !== undefined)),
+              initiallyExpanded: probe()?.focused,
+              claims: Object.fromEntries(testedAccesses().map(capability => [capability, projectedAccess(capability).claim])),
+              keyboardMode: settings.ratingKeyboardMode,
+              resetKey: `${word().word}:${presentationCount()}`,
+              armed: sessionPresentation().canRate && translation.state === 'ready' && !!translationText()
+                && !referenceSupplied() && ratingWrite() === null && !undoBlocking() && !navigationPending()
+                && (currentProjection.projection()?.status === 'ready'
+                  || (currentProjection.projection() === undefined && !currentProjection.loading())),
+              onSubmit: handleSubmitProfile,
+            }}
+          >
+        <Show when={currentWord()}>
+          <Button variant="default" size="sm" class="word-sync-inspect"
+            disabled={navigationPending() || !!sessionController()?.current()?.pending || ((assessmentMode() || !sessionController()?.current()?.revealed)
+              && (currentProjection.loading() || testedAccesses().length === 0))} onClick={async () => {
+            const surface = currentWord()!.word;
+            const controller = sessionController();
+            const record = controller?.current();
+            const presentation = presentationCount();
+            if (!controller || !record || record.pending || navigationPending()) return;
+            // Diagnostic prompts are armed immediately; that is not an answer reveal.
+            if (assessmentMode() || !record.revealed) {
+              if (currentProjection.loading() || testedAccesses().length === 0) return;
+              setObservedScaffolds({ presentation, scaffolds: mergeScaffolds(promptScaffolds(), providedAccessScaffolds(testedAccesses())) });
+              const saved = await savePromptAssistance();
+              if (!saved || sessionController() !== controller || saved.id !== record.id || saved.index !== record.index
+                || currentWord()?.word !== surface || presentationCount() !== presentation) return;
+            }
+            const decision = controller.current()?.meta.encounter?.decision;
+            openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface, decision ? {
+              policyTrace: decision.detail.trace as PolicyTrace,
+              policyBrief: currentDecisionReason(),
+            } : undefined));
+          }}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>
         </Show>
-        <div class="word-sync-actions">
-          {/* One rating model, one visible way to take it back. The review
-              surface has always shown this; Word Sync had the machinery and
-              only the keyboard, so the same action read as absent. */}
-          <Show when={canUndo()}>
-            <Button
-              buttonType="default"
-              variant="ghost"
-              size="xs"
-              class="word-sync-undo"
-              disabled={ratingWrite() !== null || undoBlocking()}
-              onClick={() => { void undoLastWordSyncRating(); }}
-              title={t('mlearn.WordSync.UndoTooltip')}
-            >
-              {t('mlearn.WordSync.Undo')}
-            </Button>
-          </Show>
-          <WriteStatusBanner
-            status={sessionPresentation().write}
-            savingLabelKey="mlearn.WordSync.SavingRating"
-            failedLabelKey="mlearn.WordSync.SaveFailed"
-            canRetry={ratingWrite() !== null}
-            onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }}
-            class="word-sync-rating-write"
-            failedClass="word-sync-rating-write--failed"
-          />
-          <WriteStatusBanner
-            status={retractionWrite()}
-            savingLabelKey="mlearn.WordSync.SavingUndo"
-            failedLabelKey="mlearn.WordSync.UndoSaveFailed"
-            canRetry={canRetryRetraction(retractionWrite())}
-            onRetry={() => { void undoLastWordSyncRating(); }}
-            class="word-sync-rating-write"
-            failedClass="word-sync-rating-write--failed"
-          />
-          <Show when={!referenceSupplied()} fallback={
-            <Button variant="primary" disabled={!sessionPresentation().canRate || sessionWriteFailure() === 'assistance'
-              || ratingWrite() !== null || undoBlocking() || navigationPending()} onClick={skipCurrentWord}>
-              {t('mlearn.WordSync.ContinueAfterReference')}
-            </Button>
-          }>
-          <RatingMatrix
-            capabilities={testedAccesses()}
-            capabilityLabels={Object.fromEntries(testedAccesses().map((capability) => {
-              const label = langCtx.currentLangData()?.learning?.capabilities?.[capability]?.label;
-              return [capability, label];
-            }).filter((entry): entry is [string, string] => entry[1] !== undefined))}
-            initiallyExpanded={probe()?.focused}
-            claims={Object.fromEntries(testedAccesses().map((capability) => [
-              capability,
-              currentWord() ? projectedAccess(capability).claim : undefined,
-            ]))}
-            keyboardMode={settings.ratingKeyboardMode}
-            resetKey={`${currentWord()?.word ?? ''}:${presentationCount()}`}
-            armed={sessionPresentation().canRate && translation.state === 'ready' && !!translationText() && !!currentWord() && !finished()
-              && ratingWrite() === null && !undoBlocking() && !navigationPending()
-              && (currentProjection.projection()?.status === 'ready'
-                || (currentProjection.projection() === undefined && !currentProjection.loading()))}
-            onSubmit={handleSubmitProfile}
-          />
-          </Show>
-        </div>
-
+            <WriteStatusBanner status={sessionPresentation().write} savingLabelKey="mlearn.WordSync.SavingRating"
+              failedLabelKey="mlearn.WordSync.SaveFailed" canRetry={ratingWrite() !== null}
+              onRetry={() => { const failed = ratingWrite(); if (failed) void commitProfileRating(failed); }} />
+            <WriteStatusBanner status={retractionWrite()} savingLabelKey="mlearn.WordSync.SavingUndo"
+              failedLabelKey="mlearn.WordSync.UndoSaveFailed" canRetry={canRetryRetraction(retractionWrite())}
+              onRetry={() => { void undoLastWordSyncRating(); }} />
+            <Show when={canUndo()}><Button class="word-sync-undo" variant="ghost" size="xs" disabled={ratingWrite() !== null || undoBlocking()}
+              onClick={() => { void undoLastWordSyncRating(); }} title={t('mlearn.WordSync.UndoTooltip')}>{t('mlearn.WordSync.Undo')}</Button></Show>
+            <Show when={referenceSupplied()}>
+              <Button variant="primary" disabled={sessionWriteFailure() === 'assistance' || ratingWrite() !== null || undoBlocking() || navigationPending()}
+                onClick={skipCurrentWord}>{t('mlearn.WordSync.ContinueAfterReference')}</Button>
+            </Show>
+          </StudyEncounter>}
         </Show>
-
-
       </Show>
+      </Show>
+      <Show when={!assessmentMode() && finished()}>
+        <Panel class="word-sync-finished" padding="lg">
+          <EmptyState title={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedTitle' : 'mlearn.WordSync.EmptyTitle')}
+            description={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedDescription' : 'mlearn.WordSync.EmptyDescription', { count: String(ratedCount()) })}
+            variant="minimal" />
+          <Show when={ratedCount() > 0} fallback={
+            <Button class="word-sync-recheck-btn" onClick={() => setFilterOpen(true)}>{t('mlearn.WordSync.ChangeFilters')}</Button>
+          }><Button class="word-sync-recheck-btn" onClick={() => setConfirmRecheckOpen(true)}>{t('mlearn.WordSync.StartOver')}</Button></Show>
+        </Panel>
       </Show>
 
       <ConfirmDialog

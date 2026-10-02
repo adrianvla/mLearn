@@ -58,7 +58,7 @@ export const LevelStudyContent: Component = () => {
           </div>
         </Show>
         <Show when={destination() === 'word-sync' || destination() === 'assessment'}>
-          <WordSyncContent mode={destination() === 'assessment' ? 'assessment' : 'study'} />
+          <WordSyncContent mode={destination() === 'assessment' ? 'assessment' : 'study'} onAssessmentApplied={() => setDestination('plan')} />
         </Show>
         <Show when={destination() === 'character-grid' && showCharacterGrid()}><CharacterGridContent /></Show>
       </div>

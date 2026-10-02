@@ -2003,7 +2003,7 @@
         "EmptyPools": "Aucun mot non mesuré n'est disponible pour l'échantillonnage pour le moment.",
         "DateRequired": "Un résultat d'examen ou scolaire nécessite la date d'obtention.",
         "DateUnknown": "date inconnue",
-        "LiveProgress": "Réponses enregistrées : {count}. L’évaluation s’adapte à vos réponses. Vous pouvez revenir au plan et reprendre plus tard."
+        "LiveProgress": "{count} réponses · Les mots suivants s’adaptent à vos réponses"
       },
       "Mock": {
         "Title": "Bilans de pratique",
@@ -4014,6 +4014,17 @@
       "Back": "Retour au plan d’apprentissage",
       "SettingsHint": "Votre programme, votre cible, votre rythme et vos objectifs se règlent dans le plan d’apprentissage.",
       "Open": "Ouvrir le plan d’apprentissage"
+    },
+    "StudyEncounter": {
+      "Task": "Se rappeler et vérifier",
+      "Retrieve": "Essayez de répondre avant de révéler la réponse.",
+      "Compare": "Comparez avec votre réponse, puis évaluez votre rappel.",
+      "Reveal": "Révéler la réponse",
+      "Consequence": "Oublié : aucun rappel. Difficile : réponse déduite. Fluide : rappel sans aide. Votre réponse actualise votre apprentissage et détermine la suite.",
+      "Check": "Vérifier",
+      "PlacementIntro": "Ce bilan adaptatif suit le même déroulement que la pratique. Il teste des mots sans preuve directe, puis propose un point de départ pour votre plan. Les autres mots restent non évalués.",
+      "Resume": "Reprendre la pratique",
+      "RetrieveWord": "Essayez de retrouver la lecture et le sens avant de révéler la réponse."
     }
   }
 }

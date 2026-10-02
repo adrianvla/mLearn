@@ -2003,7 +2003,7 @@
         "EmptyPools": "Derzeit sind keine unerfassten Wörter für eine Stichprobe verfügbar.",
         "DateRequired": "Ein Prüfungs- oder Schulergebnis braucht das Datum des Erreichens.",
         "DateUnknown": "Datum unbekannt",
-        "LiveProgress": "Erfasste Antworten: {count}. Die Einschätzung passt sich deinen Antworten an. Du kannst zum Lernplan zurückkehren und später fortfahren."
+        "LiveProgress": "{count} Antworten · Die nächsten Wörter passen sich deinen Antworten an"
       },
       "Mock": {
         "Title": "Lernstand prüfen",
@@ -4014,6 +4014,17 @@
       "Back": "Zurück zum Lernplan",
       "SettingsHint": "Lehrplan, Lernziel, Lerntempo und Ziele verwaltest du im Lernplan.",
       "Open": "Lernplan öffnen"
+    },
+    "StudyEncounter": {
+      "Task": "Erinnern & prüfen",
+      "Retrieve": "Versuche die Aufgabe zu beantworten, bevor du die Antwort aufdeckst.",
+      "Compare": "Vergleiche mit deiner Antwort und bewerte deinen Abruf.",
+      "Reveal": "Antwort aufdecken",
+      "Consequence": "Nicht gewusst: kein Abruf. Schwierig: hergeleitet. Sicher: ohne Hilfe erinnert. Deine Antwort aktualisiert deinen Lernstand und bestimmt die nächste Aufgabe.",
+      "Check": "Überprüfen",
+      "PlacementIntro": "Diese adaptive Prüfung nutzt denselben Ablauf wie die Übung. Wörter ohne direkte Lernbelege werden geprüft; daraus entsteht ein Vorschlag für deinen Lernplan. Andere Wörter bleiben ungeprüft.",
+      "Resume": "Übung fortsetzen",
+      "RetrieveWord": "Erinnere dich an Lesung und Bedeutung, bevor du die Antwort aufdeckst."
     }
   }
 }

@@ -290,6 +290,7 @@ vi.mock('../../components/common', async (importOriginal) => {
   Button: actual.Button,
   Panel: actual.Panel,
   RatingMatrix: actual.RatingMatrix,
+  StudyEncounter: actual.StudyEncounter,
   // Real banner: the save-failure assertions read its role/label contract.
   WriteStatusBanner: actual.WriteStatusBanner,
   KeyboardShortcut: actual.KeyboardShortcut,
@@ -429,6 +430,21 @@ describe('WordSyncContent', () => {
     closeKnowledgeInspector();
   }, 20000);
 
+  it('assessment asks for recall, reveals the dictionary answer, and resets the next encounter to its prompt', async () => {
+    mockWordSyncState.wordFrequency = Object.fromEntries(['alpha', 'beta', 'gamma'].map(word => [word, { reading: word, raw_level: 5, level: 'Level' }]));
+    await mountAssessment(); await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Placement.Start').click(); await settle(); await settle();
+    expect(container.querySelector('.study-encounter__reveal')).not.toBeNull();
+    expect(container.querySelector('.study-encounter__response')?.hasAttribute('hidden')).toBe(true);
+    expect(container.querySelector('.study-encounter__answer')).toBeNull();
+    press('3'); await settle(); expect(mockSubmitRating).not.toHaveBeenCalled();
+    await recallAndRate(); await settle(); await settle();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating.mock.calls[0][1]).toEqual(expect.arrayContaining([{ capability: 'sense-recognition', quality: 'fluent' }]));
+    expect(container.querySelector('.study-encounter__reveal')).not.toBeNull();
+    expect(container.querySelector('.study-encounter__answer')).toBeNull();
+  });
+
   it('runs assessment in the shared session, resumes its result, and leaves unsampled surfaces unmeasured', async () => {
     mockWordSyncState.wordFrequency = {
       'high-a': { reading: 'high-a', raw_level: 5, level: 'High' },
@@ -464,14 +480,14 @@ describe('WordSyncContent', () => {
 
     for (let sample = 0; sample < 5; sample += 1) {
       await settle();
-      press('3');
+      await recallAndRate();
       await settle(); await settle();
     }
     expect(container.querySelector('[data-testid="word-sync-assessment-summary"]')).not.toBeNull();
     expect(container.textContent).toContain('mlearn.LevelStudy.Placement.Placement');
     expect(mockSubmitRating).toHaveBeenCalledTimes(5);
     for (const [, observations, options] of mockSubmitRating.mock.calls) {
-      expect(observations).toEqual([{ capability: 'surface-recognition', quality: 'fluent' }]);
+      expect(observations).toEqual(expect.arrayContaining([{ capability: 'sense-recognition', quality: 'fluent' }]));
       expect(options).toEqual(expect.objectContaining({ origin: 'placement', taskType: 'placement' }));
     }
     const sampled = mockRatingObservation.mock.calls.map(([word]) => word);
@@ -505,7 +521,7 @@ describe('WordSyncContent', () => {
 
     expect(container.querySelector('[data-word="hard-a"], [data-word="hard-b"], [data-word="hard-c"], [data-word="hard-d"]')).not.toBeNull();
     for (let sample = 0; sample < 5; sample += 1) {
-      press('3');
+      await recallAndRate();
       await settle(); await settle();
     }
     expect(container.querySelector('[data-testid="word-sync-assessment-summary"]')?.textContent).toContain('mlearn.LevelStudy.Placement.MoveAhead');
@@ -557,7 +573,7 @@ describe('WordSyncContent', () => {
     await settle(); await settle();
 
     window.dispatchEvent(new Event('blur'));
-    press('3');
+    await recallAndRate();
     await settle(); await settle();
 
     expect(mockSubmitRating.mock.calls[0]?.[2]).toEqual(expect.objectContaining({
@@ -575,11 +591,11 @@ describe('WordSyncContent', () => {
     buttonByText('mlearn.LevelStudy.Placement.Start').click();
     await settle(); await settle();
     const before = JSON.parse(localStorage.getItem('mlearn-study-word-sync-assessment:ja')!);
-    expect(before.revealed).toBe(true);
+    expect(before.revealed).toBe(false);
     buttonByText('mlearn.Knowledge.Popup.Inspect').click();
     await settle();
     expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync-assessment:ja')!)).toMatchObject({
-      meta: { suppliedScaffolds: { 'provided-access:surface-recognition': true } },
+      meta: { suppliedScaffolds: expect.objectContaining({ 'provided-access:surface-recognition': true }) },
     });
     closeKnowledgeInspector();
     buttonByText('mlearn.WordSync.ContinueAfterReference').click();
@@ -589,7 +605,7 @@ describe('WordSyncContent', () => {
     expect(after.meta.assessment.draws).toEqual([{ key: before.queue[before.index].id, level: 5, outcome: 'skipped' }]);
     expect(mockSubmitRating).not.toHaveBeenCalled();
     expect(after.meta.suppliedScaffolds?.['provided-access:surface-recognition']).not.toBe(true);
-    press('3');
+    await recallAndRate();
     await settle(); await settle();
     expect(mockSubmitRating).toHaveBeenCalledOnce();
   });
@@ -634,6 +650,12 @@ describe('WordSyncContent', () => {
   // Digits record one selected observed outcome after reveal.
   const press = (key: string, init: KeyboardEventInit = {}) => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key, ...init }));
+  };
+
+  const recallAndRate = async () => {
+    container.querySelector<HTMLButtonElement>('.study-encounter__reveal')?.click();
+    await settle();
+    press('3');
   };
 
   // The mocked t() renders locale keys verbatim, so controls are located by
@@ -890,7 +912,7 @@ beforeEach(() => {
     await settle(); await settle();
     for (let sample = 0; sample < 5; sample += 1) {
       await settle();
-      press('3');
+      await recallAndRate();
       await settle(); await settle();
     }
     expect(container.querySelector('[data-testid="word-sync-assessment-summary"]')).not.toBeNull();
@@ -1249,13 +1271,13 @@ beforeEach(() => {
 
     press(' ');
     await settle();
-    expect(container.querySelector('.word-sync-translation-toggle')?.textContent).toBe('mlearn.WordSync.ShowTranslation');
+    expect(container.querySelector('.word-sync-translation-toggle, .study-encounter__reveal')?.textContent).toBe('mlearn.StudyEncounter.Reveal');
 
     toggle.click();
     await settle();
     press(' ');
     await settle();
-    expect(container.querySelector('.word-sync-translation-toggle')?.textContent).toBe('mlearn.WordSync.HideTranslation');
+    expect(container.querySelector('.word-sync-translation-toggle, .study-encounter__reveal')?.textContent).toBe('mlearn.WordSync.HideTranslation');
     dispose();
   });
 
@@ -1431,7 +1453,7 @@ beforeEach(() => {
     dispose();
   });
 
-  it('selected outcome Easy records fluent evidence and drops the scheduler preference', async () => {
+  it('non-scheduler practice offers Fluent rather than an Easy interval control', async () => {
     const { WordSyncContent } = await import('./App');
 
     const dispose = mountContent(WordSyncContent);
@@ -1441,7 +1463,8 @@ beforeEach(() => {
     press(' ');
     await settle();
     await settle();
-    press('4');
+    expect(container.textContent).not.toContain('mlearn.Rating.Matrix.Easy');
+    press('3');
     await settle();
     await settle();
 
@@ -2305,7 +2328,7 @@ beforeEach(() => {
     const { WordSyncContent } = await import('./App');
     mountContent(WordSyncContent);
     await settle(); await settle();
-    press(' '); await settle(); press('3'); await settle(); await settle();
+    press(' '); await settle(); await recallAndRate(); await settle(); await settle();
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
     pause = true;
     if (action === 'restart') {
@@ -2349,7 +2372,7 @@ beforeEach(() => {
     await settle(); await settle();
     buttonByText('mlearn.LevelStudy.Placement.Start').click();
     await settle(); await settle();
-    for (let i = 0; i < 5; i++) { press('3'); await settle(); await settle(); }
+    for (let i = 0; i < 5; i++) { await recallAndRate(); await settle(); await settle(); }
     expect(container.querySelector('[data-testid="word-sync-assessment-summary"]')).not.toBeNull();
     pause = true;
     buttonByText('mlearn.LevelStudy.Placement.Dismiss').click();
@@ -2372,7 +2395,7 @@ beforeEach(() => {
     await settle(); await settle();
     expect(localStorage.getItem('mlearn-study-word-sync-assessment:de')).toBe(replacement);
     expect(container.querySelector('.word-sync-assessment-card')).toBe(replacementPrompt);
-    for (let i = 0; i < 5; i++) { press('3'); await settle(); await settle(); }
+    for (let i = 0; i < 5; i++) { await recallAndRate(); await settle(); await settle(); }
     expect(container.querySelector('[data-testid="word-sync-assessment-summary"]')).not.toBeNull();
     expect(container.textContent).not.toContain('mlearn.WordSync.DismissFailed');
   });
@@ -2509,7 +2532,7 @@ beforeEach(() => {
     expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 2');
 
     const other = blocked === '紫い' ? '蓝い' : '紫い';
-    buttonByText('mlearn.WordSync.SkipWord').click();
+    buttonByText('mlearn.LevelStudy.Placement.Skip').click();
     await settle(); await settle();
 
     expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 1');
@@ -2570,7 +2593,7 @@ beforeEach(() => {
     expect(mockRatingObservation).not.toHaveBeenCalled();
 
     // A pointer user clicks the visible translation/reveal control.
-    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
+    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle, .study-encounter__reveal')!.click();
     await settle();
 
     // Same revealed-and-ratable state as the first Space: translation shown,
@@ -2621,7 +2644,7 @@ beforeEach(() => {
     await settle();
 
     // Manually toggle the translation on the first card (pointer reveal).
-    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
+    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle, .study-encounter__reveal')!.click();
     await settle();
     expect(container.textContent).toContain('definition');
 
@@ -2643,7 +2666,7 @@ beforeEach(() => {
     await settle();
 
     // Manually toggle the translation on, then reveal and submit → finished.
-    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
+    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle, .study-encounter__reveal')!.click();
     await settle();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     await settle();
@@ -2670,7 +2693,7 @@ beforeEach(() => {
     await settle();
 
     // Manually toggle the translation on, then reveal and submit → finished.
-    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle')!.click();
+    container.querySelector<HTMLButtonElement>('.word-sync-translation-toggle, .study-encounter__reveal')!.click();
     await settle();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     await settle();

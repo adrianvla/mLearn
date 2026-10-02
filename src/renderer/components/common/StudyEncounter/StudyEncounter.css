@@ -1,0 +1,52 @@
+.study-encounter {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 36rem);
+  gap: var(--spacing-4);
+  order: 2;
+  min-width: 0;
+}
+.study-encounter__instruction,
+.study-encounter__consequence {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+.study-encounter__card {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-6);
+  text-align: center;
+}
+.study-encounter__prompt {
+  font-size: var(--font-size-5xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.study-encounter__answer {
+  color: var(--text-secondary);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-normal);
+}
+.study-encounter__response {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+.study-encounter__secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--spacing-2);
+}
+
+.study-encounter__response[hidden] { display: none; }
+
+.study-encounter__secondary > [role="status"],
+.study-encounter__secondary > [role="alert"] { flex-basis: 100%; }

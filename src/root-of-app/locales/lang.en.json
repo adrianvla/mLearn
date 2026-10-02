@@ -2003,7 +2003,7 @@
         "EmptyPools": "No unmeasured words are available to sample right now.",
         "DateRequired": "An exam or school result needs the date it was achieved.",
         "DateUnknown": "date unknown",
-        "LiveProgress": "Responses recorded: {count}. The assessment adapts as you answer. You can return to your plan and resume later."
+        "LiveProgress": "{count} responses · Next words adapt to your answers"
       },
       "Mock": {
         "Title": "Practice checkpoints",
@@ -4014,6 +4014,17 @@
       "Back": "Back to Learning Plan",
       "SettingsHint": "Your curriculum, target, study pace and goals are managed in Learning Plan.",
       "Open": "Open Learning Plan"
+    },
+    "StudyEncounter": {
+      "Task": "Recall & check",
+      "Retrieve": "Try answering the prompt before revealing the answer.",
+      "Compare": "Compare with your answer, then record how you recalled it.",
+      "Reveal": "Reveal answer",
+      "Consequence": "Missed: could not recall. Struggled: worked it out. Fluent: recalled without help. Your response updates your learning record and chooses the next item.",
+      "Check": "Check this",
+      "PlacementIntro": "A short adaptive check uses the same recall and answer flow as practice. It samples words without direct evidence, then suggests a starting point for your Learning Plan. Unsampled words stay unassessed.",
+      "Resume": "Resume practice",
+      "RetrieveWord": "Try to recall the reading and meaning before revealing the answer."
     }
   }
 }

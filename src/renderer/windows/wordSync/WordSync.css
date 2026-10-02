@@ -290,3 +290,10 @@
     justify-content: center;
   }
 }
+
+/* Activity chrome remains secondary to the single recall task. */
+.word-sync { justify-content: flex-start; }
+.word-sync-header { width: min(100%, 36rem); justify-content: space-between; }
+.word-sync-header button { height: auto; }
+.word-sync--assessment .word-sync-header { min-height: var(--spacing-6); }
+.word-sync--assessment .word-sync-counter { line-height: var(--line-height-normal); }

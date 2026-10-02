@@ -445,3 +445,27 @@
   .learning-plan-page { padding: var(--spacing-4); }
   .learning-plan-activities { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* A curriculum practice becomes the page's task, while its plan stays mounted
+   for an immediate return with the same position and session. */
+.learning-plan-page:has(.grammar-coverage--studying) > :not(.level-study-tab),
+.learning-plan-page:has(.grammar-coverage--studying) .level-study-tab > :not(.grammar-coverage-panel) {
+  display: none;
+}
+.grammar-coverage--studying {
+  max-width: 36rem;
+  margin: 0 auto;
+  gap: var(--spacing-4);
+}
+.grammar-coverage--studying .grammar-coverage__header,
+.grammar-coverage--studying .grammar-coverage__level-row { display: none; }
+.grammar-coverage--studying .grammar-coverage__session { padding: 0; border: 0; }
+.grammar-coverage__encounter .grammar-coverage__session-prompt { font-size: inherit; }
+.grammar-coverage-panel:has(.grammar-coverage--studying) { background: transparent; border: 0; box-shadow: none; padding: 0; }
+
+.grammar-coverage__level--inactive { display: none; }
+
+body .learning-plan-page .grammar-coverage-panel:has(.grammar-coverage--studying) {
+  background: transparent; border: 0; box-shadow: none; padding: 0;
+}
+.grammar-coverage--studying .grammar-coverage__session { background: transparent; }

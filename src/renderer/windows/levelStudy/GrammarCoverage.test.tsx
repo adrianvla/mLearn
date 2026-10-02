@@ -236,7 +236,7 @@ async function startPass(container: HTMLElement, level: number) {
 }
 
 function revealCurrent(container: HTMLElement, level: number) {
-  const reveal = levelBlock(container, level).querySelector<HTMLButtonElement>('.grammar-coverage__reveal');
+  const reveal = levelBlock(container, level).querySelector<HTMLButtonElement>('.study-encounter__reveal');
   reveal?.click();
 }
 
@@ -283,7 +283,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await startPass(container, 2);
 
     const probeBtns = () => Array.from(
-      levelBlock(container, 2).querySelectorAll('.grammar-coverage__session-probe .rating-matrix__quality'),
+      levelBlock(container, 2).querySelectorAll('.study-encounter__response .rating-matrix__quality'),
     ) as HTMLButtonElement[];
     const seen = new Set<string>();
     for (let i = 0; i < 2; i += 1) {
@@ -323,7 +323,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const second = mount(onProbe);
     const sessionNode = levelBlock(second.container, 2).querySelector('.grammar-coverage__session');
     expect(second.container.querySelector('[data-testid="grammar-session-answer"]')).toBeTruthy();
-    (second.container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+    (second.container.querySelector('.study-encounter__response .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await beat();
     expect(onProbe).toHaveBeenCalledTimes(1);
     expect((onProbe.mock.calls[0] as unknown[])[4]).toMatchObject({ taskType: 'grammar-self-assess', attemptId: expect.any(String) });
@@ -344,7 +344,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const { container, dispose } = mount(onProbe);
     await startPass(container, 2);
     revealCurrent(container, 2);
-    (container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+    (container.querySelector('.study-encounter__response .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await tick();
     expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).pending?.attemptId).toBe(attemptIds[0]);
     expect(container.querySelector('[data-phase="save-failed"]')).toBeTruthy();
@@ -361,10 +361,10 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const first = mount(onProbe);
     await startPass(first.container, 2);
     revealCurrent(first.container, 2);
-    (first.container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+    (first.container.querySelector('.study-encounter__response .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await beat();
     const reserved = localStorage.getItem('mlearn-study-grammar:ja');
-    const skip = first.container.querySelector('.grammar-coverage__session-skip') as HTMLButtonElement;
+    const skip = first.container.querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLButtonElement;
     skip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await beat();
     expect(localStorage.getItem('mlearn-study-grammar:ja')).toBe(reserved);
@@ -384,13 +384,13 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const { container, dispose } = mount(onProbe);
     await startPass(container, 2);
 
-    const live = levelBlock(container, 2).querySelector('.grammar-coverage__session-probe') as HTMLElement;
+    const live = levelBlock(container, 2).querySelector('.study-encounter__response') as HTMLElement;
     expect(live.querySelector('.rating-matrix')).not.toBeNull();
     revealCurrent(container, 2);
     (live.querySelector('.rating-matrix__adjust') as HTMLButtonElement).click();
     expect(live.textContent).toContain('mlearn.Knowledge.Capability.grammar-recognition');
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '4', bubbles: true }));
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '4', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
     await tick();
 
     expect(onProbe).toHaveBeenCalledTimes(1);
@@ -404,7 +404,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const { container, dispose } = mount(onProbe);
     await startPass(container, 2);
     const prompt = levelBlock(container, 2).querySelector('[data-pattern]')?.getAttribute('data-pattern');
-    const fluent = () => levelBlock(container, 2).querySelector<HTMLButtonElement>('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)')!;
+    const fluent = () => levelBlock(container, 2).querySelector<HTMLButtonElement>('.study-encounter__response .rating-matrix__quality:nth-child(3)')!;
     revealCurrent(container, 2);
     const setItem = vi.spyOn(globalThis.localStorage, 'setItem').mockImplementation(() => {
       throw new DOMException('quota exceeded', 'QuotaExceededError');
@@ -436,7 +436,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     for (let index = 0; index < 2; index += 1) {
       const fluent = levelBlock(container, 2).querySelector(
-        '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+        '.study-encounter__response .rating-matrix__quality:nth-child(3)',
       ) as HTMLButtonElement;
       revealCurrent(container, 2);
       fluent.click();
@@ -472,7 +472,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     for (let index = 0; index < 2; index += 1) {
       const fluent = levelBlock(second.container, 2).querySelector(
-        '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+        '.study-encounter__response .rating-matrix__quality:nth-child(3)',
       ) as HTMLButtonElement;
       revealCurrent(second.container, 2);
       fluent.click();
@@ -492,7 +492,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await startPass(container, 2);
 
     const first = levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
-    (levelBlock(container, 2).querySelector('.grammar-coverage__session-skip') as HTMLElement).click();
+    (levelBlock(container, 2).querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLElement).click();
     await beat();
     expect(onProbe).not.toHaveBeenCalled();
 
@@ -511,7 +511,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await startPass(container, 2);
 
     const firstFluent = levelBlock(container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
     revealCurrent(container, 2);
     firstFluent.click();
@@ -528,7 +528,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(pattern).toBeDefined();
     expect(pattern).not.toBe(onProbe.mock.calls[0][0]);
     const nextFluent = levelBlock(container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
     expect(nextFluent.disabled).toBe(true);
     nextFluent.dispatchEvent(new MouseEvent('click', { detail: 2, bubbles: true }));
@@ -552,7 +552,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await startPass(container, 2);
 
     const fluent = levelBlock(container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
     revealCurrent(container, 2);
     fluent.click();
@@ -561,7 +561,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // The prompt advanced, so the controls were re-created: re-query before
     // simulating the held key against the live element.
     const second = levelBlock(container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
     revealCurrent(container, 2);
     // Holding Enter/Space auto-repeats keydown; the control must cancel the
@@ -588,7 +588,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const { container, dispose } = mount(onProbe);
     await startPass(container, 2);
     const fluent = () => levelBlock(container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
     revealCurrent(container, 2);
     (fluent()).click();
@@ -611,73 +611,51 @@ describe('GrammarCoverage policy-selected practice session', () => {
     container.remove();
   });
 
-  it('row probes are restored and declare visible-meaning provenance', async () => {
+  it('coverage rows launch the shared recall task instead of rating a visible answer', async () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe);
-    // Expand level 2; rows render probe buttons when no live pass is running.
-    const row = container.querySelector('.grammar-coverage__level-row[data-level="2"]') as HTMLElement;
-    row.click();
+    await expand(container, 2);
+    expect(container.querySelector('.grammar-coverage__probe-btn')).toBeNull();
+    const row = container.querySelector('[data-level="2"] .grammar-coverage__construction')!;
+    const pattern = row.querySelector('.grammar-coverage__pattern')!.textContent;
+    row.querySelector<HTMLButtonElement>('.grammar-coverage__check')!.click();
     await tick();
-    const rowProbes = Array.from(container.querySelectorAll('[data-level="2"] .grammar-coverage__construction .grammar-coverage__probe-btn'));
-    expect(rowProbes.length).toBe(6);
+    expect(promptedPattern(container, 2)).toBe(pattern);
+    expect(container.querySelector('.grammar-coverage--studying')).not.toBeNull();
+    expect(container.querySelector('.study-encounter')).not.toBeNull();
+    expect(container.querySelector('.study-encounter__response')?.hasAttribute('hidden')).toBe(true);
+    expect(container.querySelector('[data-testid="grammar-session-answer"]')).toBeNull();
     expect(onProbe).not.toHaveBeenCalled();
-    // A visible meaning (のに localized to en under default en UI) is declared.
-    (rowProbes[2] as HTMLElement).click(); // fluent
+    revealCurrent(container, 2);
+    await tick();
+    expect(container.querySelector('[data-testid="grammar-session-answer"]')).not.toBeNull();
+    expect(container.querySelectorAll('.rating-matrix__quality')).toHaveLength(3);
+    container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2].click();
     await tick();
     expect(onProbe).toHaveBeenCalledTimes(1);
-    expect(onProbe.mock.calls[0][3]).toEqual({ translation: true });
-    dispose();
-    container.remove();
+    expect(onProbe.mock.calls[0][0]).toBe(pattern);
+    dispose(); container.remove();
   });
 
-  it('keeps a failed review-row probe visible and retries the same attempt', async () => {
-    const onProbe = vi.fn()
-      .mockRejectedValueOnce(new Error('journal unavailable'))
-      .mockResolvedValue('committed');
+  it('returns to coverage without leaving a hidden rating controller active, then resumes the same prompt', async () => {
+    const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe);
-    await expand(container, 2);
-    const row = container.querySelector('[data-level="2"] .grammar-coverage__construction') as HTMLElement;
-    const buttons = row.querySelectorAll<HTMLButtonElement>('.grammar-coverage__probe-btn');
-    buttons[2].click();
-    await tick();
-
-    expect(row.querySelector('[role="alert"]')).not.toBeNull();
-    expect(Array.from(buttons).every((button) => button.disabled)).toBe(true);
-    const retry = row.querySelector<HTMLButtonElement>('[data-testid="grammar-row-retry"]');
-    expect(retry).not.toBeNull();
-    retry!.click();
-    await tick();
-
-    expect(onProbe).toHaveBeenCalledTimes(2);
-    expect(onProbe.mock.calls[0].slice(0, 4)).toEqual(onProbe.mock.calls[1].slice(0, 4));
-    expect(onProbe.mock.calls[0][4]?.attemptId).toBe(onProbe.mock.calls[1][4]?.attemptId);
-    expect(row.querySelector('[role="alert"]')).toBeNull();
-    expect(Array.from(buttons).every((button) => !button.disabled)).toBe(true);
-    dispose();
-    container.remove();
-  });
-
-  it('shows a pending review-row write and refuses a second rating until it settles', async () => {
-    let resolveWrite!: (value: string) => void;
-    const pending = new Promise<string>((resolve) => { resolveWrite = resolve; });
-    const onProbe = vi.fn(() => pending);
-    const { container, dispose } = mount(onProbe);
-    await expand(container, 2);
-    const row = container.querySelector('[data-level="2"] .grammar-coverage__construction') as HTMLElement;
-    const buttons = row.querySelectorAll<HTMLButtonElement>('.grammar-coverage__probe-btn');
-    buttons[2].click();
-    expect(row.getAttribute('aria-busy')).toBe('true');
-    expect(row.querySelector('[role="status"]')?.textContent).toContain('SavingAnswer');
-    buttons[1].click();
-    expect(onProbe).toHaveBeenCalledTimes(1);
-
-    resolveWrite('committed');
-    await tick();
-    expect(row.getAttribute('aria-busy')).toBe('false');
-    expect(row.querySelector('[role="status"]')).toBeNull();
-    expect(Array.from(buttons).every((button) => !button.disabled)).toBe(true);
-    dispose();
-    container.remove();
+    await startPass(container, 2);
+    const pattern = promptedPattern(container, 2);
+    revealCurrent(container, 2); await tick();
+    const back = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('mlearn.LearningPlan.Back'))!;
+    back.click(); await tick();
+    expect(container.querySelector('.study-encounter')).toBeNull();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await tick(); expect(onProbe).not.toHaveBeenCalled();
+    expect(container.querySelector('.grammar-coverage__meaning')).toBeNull();
+    await expand(container, 3);
+    const resume = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('mlearn.StudyEncounter.Resume'))!;
+    resume.click(); await tick();
+    expect(promptedPattern(container, 2)).toBe(pattern);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await tick(); expect(onProbe).toHaveBeenCalledTimes(1);
+    dispose(); container.remove();
   });
 
   it('keeps an open review list mounted when journal projections update its level counts', async () => {
@@ -724,7 +702,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // No meaning cue is rendered anywhere while the pass is live.
     expect(container.querySelectorAll('.grammar-coverage__meaning').length).toBe(0);
     expect(container.querySelector('[data-testid="grammar-session-answer"]')).toBeNull();
-    const fluent = container.querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLElement;
+    const fluent = container.querySelector('.study-encounter__response .rating-matrix__quality:nth-child(3)') as HTMLElement;
     revealCurrent(container, 2);
     expect(container.querySelector('[data-testid="grammar-session-answer"]')).toBeTruthy();
     fluent.click();
@@ -743,7 +721,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await expand(container, 3);
     const level3 = levelBlock(container, 3);
     expect(level3.querySelector('.grammar-coverage__session-prompt')).toBeNull();
-    expect(level3.querySelector('.grammar-coverage__session-probe')).toBeNull();
+    expect(level3.querySelector('.study-encounter__response')).toBeNull();
     const level3Practise = level3.querySelector('.grammar-coverage__session-btn') as HTMLButtonElement;
     expect(level3Practise).toBeTruthy();
     expect(level3Practise.disabled).toBe(true); // no silent replan while a pass is live
@@ -752,13 +730,13 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // Single-expansion collapsed level 2; reopening shows the pass intact.
     await expand(container, 2);
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')).toBeTruthy();
-    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-probe')).toBeTruthy();
+    expect(levelBlock(container, 2).querySelector('.study-encounter__response')).toBeTruthy();
 
     dispose();
     container.remove();
   });
 
-  it('the active task shows no meaning cues; coverage meanings return after the pass', async () => {
+  it('answers stay inside the shared task; coverage remains a list of progress after the pass', async () => {
     settingsUiLanguage = 'en';
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe);
@@ -767,7 +745,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(container.querySelectorAll('.grammar-coverage__construction').length).toBe(0);
 
     const fluent = () => levelBlock(container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
     revealCurrent(container, 2);
     (fluent()).click();
@@ -776,35 +754,33 @@ describe('GrammarCoverage policy-selected practice session', () => {
     (fluent()).click();
     await beat();
 
-    // Rows (with meanings) return once no pass is live.
+    // Coverage returns without supplying answers to a later recall task.
     expect(container.querySelectorAll('.grammar-coverage__construction').length).toBe(2);
-    expect(container.querySelectorAll('.grammar-coverage__meaning').length).toBe(2);
+    expect(container.querySelectorAll('.grammar-coverage__meaning').length).toBe(0);
     expect(onProbe).toHaveBeenCalledTimes(2);
 
     dispose();
     container.remove();
   });
 
-  it('localized meanings render per UI language; untranslated points show nothing under a non-English UI', async () => {
-    settingsUiLanguage = 'de';
-    const onProbe = vi.fn();
-    const { container, dispose } = mount(onProbe);
-    await expand(container, 2);
-    const meanings = Array.from(levelBlock(container, 2).querySelectorAll('.grammar-coverage__meaning'))
-      .map((node) => node.textContent);
-    expect(meanings).toEqual(['obwohl (trotzdem)']); // のには de variant; ば untranslated → withheld
-
-    settingsUiLanguage = 'en';
-    const { container: enContainer, dispose: disposeEn } = mount(onProbe);
-    await expand(enContainer, 2);
-    const enMeanings = Array.from(levelBlock(enContainer, 2).querySelectorAll('.grammar-coverage__meaning'))
-      .map((node) => node.textContent);
-    expect(enMeanings).toEqual(['even though', 'conditional "if"']);
-
-    dispose();
-    container.remove();
-    disposeEn();
-    enContainer.remove();
+  it('the revealed answer uses localized package meanings; unsupported translations stay unavailable', async () => {
+    for (const locale of ['de', 'en']) {
+      settingsUiLanguage = locale;
+      localStorage.removeItem('mlearn-study-grammar:ja');
+      const { container, dispose } = mount(vi.fn());
+      await startPass(container, 2);
+      const meanings: string[] = [];
+      for (let index = 0; index < 2; index++) {
+        revealCurrent(container, 2); await tick();
+        meanings.push(container.querySelector('[data-testid="grammar-session-answer"]')?.textContent ?? '');
+        levelBlock(container, 2).querySelector<HTMLButtonElement>('.grammar-coverage__session-skip, .study-encounter__skip')!.click();
+        await tick();
+      }
+      expect(meanings).toEqual(expect.arrayContaining(locale === 'de'
+        ? ['obwohl (trotzdem)', 'mlearn.LevelStudy.Grammar.AnswerUnavailable']
+        : ['even though', 'conditional "if"']));
+      dispose(); container.remove();
+    }
   });
 
   it('a stored pass survives a de→ja→de language round trip without being clobbered', async () => {
@@ -886,15 +862,14 @@ describe('GrammarCoverage policy-selected practice session', () => {
     };
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe, germanCanonical, germanSummary);
-    await expand(container, 2);
-    // Canonical German under an en UI: withheld (package declares German).
-    expect(levelBlock(container, 2).querySelector('.grammar-coverage__meaning')).toBeNull();
+    await startPass(container, 2);
+    revealCurrent(container, 2); await tick();
+    expect(container.querySelector('[data-testid="grammar-session-answer"]')?.textContent).toBe('mlearn.LevelStudy.Grammar.AnswerUnavailable');
 
     settingsUiLanguage = 'de';
     const { container: deContainer, dispose: disposeDe } = mount(onProbe, germanCanonical, germanSummary);
-    await expand(deContainer, 2);
-    // Under the package's declared meaning language the canonical text shows.
-    expect(levelBlock(deContainer, 2).querySelector('.grammar-coverage__meaning')?.textContent).toBe('kausaler Nebensatz');
+    await tick();
+    expect(deContainer.querySelector('[data-testid="grammar-session-answer"]')?.textContent).toBe('kausaler Nebensatz');
 
     dispose();
     container.remove();
@@ -920,7 +895,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const firstPresented = first.container.querySelector('[data-level="2"] [data-pattern]')?.getAttribute('data-pattern');
     expect(firstPresented).toBeTruthy();
     revealCurrent(first.container, 2);
-    (first.container.querySelector('[data-level="2"] .grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+    (first.container.querySelector('[data-level="2"] .study-encounter__response .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await beat();
     expect(onProbe).toHaveBeenCalledTimes(1);
     expect(globalThis.localStorage?.getItem('mlearn-study-grammar:ja')).toBeTruthy(); // in-progress pass persisted
@@ -934,10 +909,10 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const resumedPattern = second.container.querySelector('[data-level="2"] [data-pattern]')?.getAttribute('data-pattern');
     expect(resumedPattern).toBeTruthy();
     expect(resumedPattern).not.toBe(firstPresented);
-    expect(levelBlock(second.container, 2).querySelector('.grammar-coverage__session-btn:not(.grammar-coverage__reveal)')).toBeNull();
+    expect(levelBlock(second.container, 2).querySelector('.grammar-coverage__session-btn:not(.study-encounter__reveal)')).toBeNull();
 
     revealCurrent(second.container, 2);
-    (second.container.querySelector('[data-level="2"] .grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+    (second.container.querySelector('[data-level="2"] .study-encounter__response .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
     await beat();
     expect(onProbe).toHaveBeenCalledTimes(2);
     // Level 2 has exactly two constructions: after the resumed rating the pass
@@ -1041,7 +1016,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     revealCurrent(container, 2);
     const setItem = vi.spyOn(localStorage, 'setItem');
     (levelBlock(container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLElement).click();
     const persistedWrite = setItem.mock.calls.find(([key]) => key === 'mlearn-study-grammar:ja');
     expect(persistedWrite).toBeTruthy(); // persisted synchronously IN the handler
@@ -1055,7 +1030,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await beat();
     revealCurrent(container, 2);
     (levelBlock(container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLElement).click();
     await beat();
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-done')).toBeTruthy();
@@ -1157,7 +1132,7 @@ describe('GrammarCoverage durable Undo', () => {
 
   /** Rates the revealed prompt fluent and waits for the journal write to land. */
   const rateRevealed = async (onProbe: Mock, container: HTMLElement, level: number) => {
-    const buttons = levelBlock(container, level).querySelectorAll('.grammar-coverage__session-probe .rating-matrix__quality');
+    const buttons = levelBlock(container, level).querySelectorAll('.study-encounter__response .rating-matrix__quality');
     (buttons[2] as HTMLButtonElement).click(); // fluent
     await beat();
     // The pass only advances once the write for that attempt is accepted, so
@@ -1225,7 +1200,7 @@ describe('GrammarCoverage durable Undo', () => {
     // on a revealed prompt, so restoring the position without the reveal would
     // silently re-arm a rating the learner never made.
     expect(promptedPattern(container, 2)).toBe(rated);
-    expect(levelBlock(container, 2).querySelector('.grammar-coverage__reveal')).toBeNull();
+    expect(levelBlock(container, 2).querySelector('.study-encounter__reveal')).toBeNull();
     expect(levelBlock(container, 2).querySelector('[data-testid="grammar-session-answer"]')).toBeTruthy();
     // And the affordance withdraws: there is nothing left to take back.
     expect(undoButton(container, 2)).toBeNull();
@@ -1337,7 +1312,7 @@ describe('GrammarCoverage take-back window follows the shared retention policy',
   /** Rates the revealed prompt fluent and waits for the journal write. */
   const rateOnce = async (container: HTMLElement, level = 2) => {
     const fluent = levelBlock(container, level).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
     fluent.click();
     await beat();
@@ -1359,7 +1334,7 @@ describe('GrammarCoverage take-back window follows the shared retention policy',
       revealCurrent(container, 2);
       await tick();
       const fluent = levelBlock(container, 2).querySelector(
-        '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+        '.study-encounter__response .rating-matrix__quality:nth-child(3)',
       ) as HTMLButtonElement | null;
       if (!fluent || fluent.disabled) break;
       await rateOnce(container, 2);
@@ -1398,7 +1373,7 @@ describe('GrammarCoverage take-back window follows the shared retention policy',
     revealCurrent(container, 2);
     await tick();
     const stillOpen = levelBlock(container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement | null;
     if (stillOpen && !stillOpen.disabled) await rateOnce(container, 2);
     expect(container.querySelector('.grammar-coverage__session-done')).toBeTruthy();
@@ -1708,10 +1683,10 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     const { container, dispose } = mount(onProbe, contrastData, contrastSummary);
     await startContrast(container, 2);
     // Two item-backed constructions are queued: skipping walks them all without recording.
-    (levelBlock(container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement).click();
+    (levelBlock(container, 2).querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLButtonElement).click();
     await beat();
     expect(levelBlock(container, 2).querySelector('.grammar-contrast')).toBeTruthy();
-    (levelBlock(container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement).click();
+    (levelBlock(container, 2).querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLButtonElement).click();
     await tick();
     expect(onProbe).not.toHaveBeenCalled();
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-done')).toBeTruthy();
@@ -1810,10 +1785,10 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     const onProbe = vi.fn();
     const first = mount(onProbe, contrastData, contrastSummary);
     await expand(first.container, 2);
-    expect(first.container.querySelector('.grammar-coverage__session-probe')).toBeTruthy();
+    expect(first.container.querySelector('.study-encounter__response')).toBeTruthy();
     expect(first.container.querySelector('.grammar-contrast')).toBeNull();
     const fluent = () => levelBlock(first.container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement;
     revealCurrent(first.container, 2);
     fluent().click();
@@ -2003,7 +1978,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
       const pattern = block.getAttribute('data-pattern');
       const itemId = (levelBlock(primed.container, 2).querySelector('.grammar-contrast__context') as HTMLElement).getAttribute('data-item-id');
       if (pattern === 'のに') expect(itemId).toBe('ja-test-noni-2');
-      const skip = levelBlock(primed.container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement;
+      const skip = levelBlock(primed.container, 2).querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLButtonElement;
       skip.click();
       await beat();
     }
@@ -2020,7 +1995,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
       const pattern = block.getAttribute('data-pattern');
       const itemId = (levelBlock(even.container, 2).querySelector('.grammar-contrast__context') as HTMLElement).getAttribute('data-item-id');
       if (pattern === 'のに') expect(itemId).toBe('ja-test-noni-1');
-      const skip = levelBlock(even.container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement;
+      const skip = levelBlock(even.container, 2).querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLButtonElement;
       skip.click();
       await beat();
     }
@@ -2036,7 +2011,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     // Reach the construction with two deliverable items. With equal history
     // the package-order item is presented first.
     if (currentItem(first.container, 2).pattern !== 'のに') {
-      (levelBlock(first.container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement).click();
+      (levelBlock(first.container, 2).querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLButtonElement).click();
       await beat();
     }
     const presented = currentItem(first.container, 2);
@@ -2079,7 +2054,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     const first = mount(interrupted, contrastData, contrastSummary);
     await startContrast(first.container, 2);
     if (currentItem(first.container, 2).pattern !== 'のに') {
-      (levelBlock(first.container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement).click();
+      (levelBlock(first.container, 2).querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLButtonElement).click();
       await beat();
     }
     const presented = currentItem(first.container, 2);
@@ -2414,7 +2389,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     expect(currentItem(container, 2).itemId).toBe(presented.itemId);
     expect(levelBlock(container, 2).querySelector('.grammar-contrast__feedback')).toBeNull();
     expect(container.querySelector('[data-testid="grammar-storage-unavailable"]')).toBeTruthy();
-    const skip = levelBlock(container, 2).querySelector('.grammar-coverage__session-skip') as HTMLButtonElement;
+    const skip = levelBlock(container, 2).querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLButtonElement;
     skip.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await beat();
     expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(reserved);
@@ -2436,7 +2411,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     await startPass(first.container, 2);
     revealCurrent(first.container, 2);
     (levelBlock(first.container, 2).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement).click();
     await tick();
     const stored = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
@@ -2462,7 +2437,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     await startPass(first.container, 3);
     revealCurrent(first.container, 3);
     (levelBlock(first.container, 3).querySelector(
-      '.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)',
+      '.study-encounter__response .rating-matrix__quality:nth-child(3)',
     ) as HTMLButtonElement).click();
     await tick();
     const stored = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);

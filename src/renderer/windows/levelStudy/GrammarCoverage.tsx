@@ -1,6 +1,6 @@
 import { Component, For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import { Button, Panel, RatingMatrix, WriteStatusBanner } from '../../components/common';
+import { Button, Panel, StudyEncounter, WriteStatusBanner } from '../../components/common';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import {
@@ -26,10 +26,10 @@ import type { CurriculumComponentSummary } from '../../../shared/curriculum';
 import { grammarEvidenceKey } from '../../../shared/grammar/evidence';
 import { getLogger } from '../../../shared/utils/logger';
 import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQueries';
-import { nextAttemptId, type AttemptId, type AttemptScaffolds, type KnowledgeEvent, type KnowledgeEventLog } from '../../../shared/knowledgeEvents';
+import { type AttemptId, type AttemptScaffolds, type KnowledgeEvent, type KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import type { StudySessionLocks } from '../../learning/studySessionController';
 import { loadQuestionValidationRecords, questionValidationRecordKey, validateQuestionItemsWithLLM } from '../../learning/questionValidation';
-import { studySessionState, type StudySessionWriteStatus } from '../../learning/studySession';
+import { studySessionState } from '../../learning/studySession';
 import type { PendingRetraction, RetractionTarget } from '../../../shared/retractionRecovery';
 import type { RetractionCompletion, RetractionProjection } from '../../context/FlashcardContext';
 import { canRetryRetraction, isRetractionWriteBlocking, pushUndo, type RetractionWriteState } from '../../learning/undoHistory';
@@ -349,6 +349,7 @@ const questionItemCache = new QuestionBankCache();
  * pool and remain reachable through the regular Practise walk (G04).
  */
 export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
+  const [practicePaused, setPracticePaused] = createSignal(false);
   const log = getLogger('renderer.levelStudy.grammar');
   const { t } = useLocalization();
   const { settings } = useSettings();
@@ -467,37 +468,8 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
    *  by the next successful durable write. */
   const [storageWriteUnavailable, setStorageUnavailable] = createSignal(false);
   const storageUnavailable = () => storageWriteUnavailable() || sessionController()?.current()?.pending?.state === 'failed';
-  // Review rows use the same acknowledged journal writer as the live pass.
-  // A refused append must keep its attempt identity for an idempotent retry,
-  // rather than appearing to have recorded a rating or rejecting unhandled.
-  const [reviewProbe, setReviewProbe] = createSignal<{
-    language: string;
-    level: number;
-    pattern: string;
-    quality: AttemptQuality;
-    scaffolds?: AttemptScaffolds;
-    attemptId: AttemptId;
-    state: StudySessionWriteStatus;
-  } | null>(null);
-  const submitReviewProbe = async (
-    pattern: string,
-    quality: AttemptQuality,
-    level: number,
-    scaffolds?: AttemptScaffolds,
-    retry?: NonNullable<ReturnType<typeof reviewProbe>>,
-  ): Promise<void> => {
-    const active = reviewProbe();
-    if (active !== null && (active.state !== 'failed' || retry === undefined || active !== retry)) return;
-    const attempt = retry ?? { language: props.language, level, pattern, quality, scaffolds, attemptId: nextAttemptId(), state: 'pending' as const };
-    setReviewProbe({ ...attempt, state: 'pending' });
-    try {
-      await props.onProbe(pattern, quality, level, attempt.scaffolds, { attemptId: attempt.attemptId });
-      if (reviewProbe()?.attemptId === attempt.attemptId) setReviewProbe(null);
-    } catch {
-      if (reviewProbe()?.attemptId === attempt.attemptId) setReviewProbe({ ...attempt, state: 'failed' });
-    }
-  };
-
+  // Coverage rows now launch retrieval rather than rating a visible answer.
+  // Their former independent rating funnel has been consolidated here.
   // Package item bank (G03): assembled/deliverable items are cached off the
   // rating path; the rating path only reads resolved items from the cache.
   const [contrastAnswer, setContrastAnswer] = createSignal<{ correct: boolean; chosenIndex: number; gold: string } | null>(
@@ -533,7 +505,6 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   createEffect(on([() => props.language, () => props.languageData], ([language, data]) => {
     sessionController()?.dispose();
     setStorageUnavailable(false);
-    setReviewProbe(null);
     // The controller these entries point back into is being disposed, so its
     // ratings can no longer be taken back. The stack is one decision (see
     // undoHistory): a pass starts empty.
@@ -615,7 +586,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   /** A live (not finished) pass is running on this level. */
   const sessionActiveFor = (level: number): boolean => {
     const active = session();
-    return active !== null && active.level === level && active.index < active.queue.length;
+    return !practicePaused() && active !== null && active.level === level && active.index < active.queue.length;
   };
 
   /** True while any pass is live: other levels' Practise entries pause, so a
@@ -651,7 +622,8 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   onCleanup(() => clearTimeout(submissionLockTimer));
 
   /** Plans the pass: TeachingPolicy chooses, in order, each un-deferred construction of the level. */
-  const startSession = (level: number) => {
+  const startSession = (level: number, firstPattern?: string) => {
+    setPracticePaused(false);
     const items = (props.languageData.grammar ?? [])
       .filter((point) => point.level === level && typeof point.pattern === 'string')
       .map((point) => ({
@@ -691,6 +663,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       if (typeof pattern !== 'string') break;
       queue.push(pattern);
       recentPicks.push(decision.candidate.key);
+    }
+    if (firstPattern && queue.includes(firstPattern)) {
+      queue.splice(queue.indexOf(firstPattern), 1);
+      queue.unshift(firstPattern);
     }
     // A new pass starts a new take-back window. Without this the stack spans
     // every level and every pass in the window's lifetime, which is both an
@@ -1061,6 +1037,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
    *  TeachingPolicy chooses, in order, each deliverable construction (the
    *  SAME CURRICULUM pick as the self-assessment pass — no second scheduler). */
   const startContrastSession = (level: number) => {
+    setPracticePaused(false);
     const items = (props.languageData.grammar ?? [])
       .filter((point) => point.level === level && typeof point.pattern === 'string' && deliverableItemsFor(point.pattern).length > 0)
       .map((point) => ({
@@ -1281,9 +1258,21 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     if (controller && captured) finishAction(controller, captured, controller.skip(captured));
   };
 
+  const practicing = () => sessionLive() && !practicePaused();
+  let practiceSection: HTMLElement | undefined;
+  createEffect(on(practicing, active => {
+    if (active) practiceSection?.scrollIntoView?.({ block: 'start' });
+  }));
+
   return (
-    <Panel class="grammar-coverage-panel" padding="lg">
-    <section class="grammar-coverage" aria-label={t('mlearn.LevelStudy.Grammar.Title')}>
+    <Panel class="grammar-coverage-panel" padding={practicing() ? 'none' : 'lg'} border={!practicing()} shadow={!practicing()}>
+    <section ref={practiceSection} class="grammar-coverage" classList={{ 'grammar-coverage--studying': practicing() }} aria-label={t('mlearn.LevelStudy.Grammar.Title')}>
+      <Show when={practicing()}>
+        <Button variant="ghost" onClick={() => setPracticePaused(true)}>{t('mlearn.LearningPlan.Back')}</Button>
+      </Show>
+      <Show when={sessionLive() && practicePaused()}>
+        <Button variant="primary" onClick={() => { setExpandedLevel(session()?.level ?? null); setPracticePaused(false); }}>{t('mlearn.StudyEncounter.Resume')}</Button>
+      </Show>
       <div class="grammar-coverage__header">
         <h3 class="grammar-coverage__title">{t('mlearn.LevelStudy.Grammar.Title')}</h3>
         <span class="grammar-coverage__totals">
@@ -1305,7 +1294,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
             const knownPct = () => bucket().total > 0 ? (bucket().known / bucket().total) * 100 : 0;
             const open = () => expandedLevel() === level;
             return (
-              <div class="grammar-coverage__level" data-level={level}>
+              <div class="grammar-coverage__level" classList={{ 'grammar-coverage__level--inactive': practicing() && session()?.level !== level }} data-level={level}>
                 <button
                   type="button"
                   class="grammar-coverage__level-row"
@@ -1450,35 +1439,29 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                             {(keyed) => {
                               const presented = typeof keyed === 'function' ? (keyed as unknown as () => string)() : (keyed as unknown as string);
                               return (
-                                <>
-                                  <span class="grammar-coverage__session-prompt" data-pattern={presented}>
-                                    {t('mlearn.LevelStudy.Grammar.SessionPrompt', { pattern: presented })}
-                                  </span>
-                                  <Show when={session()?.revealed?.pattern === presented} fallback={
-                                    <button type="button" class="grammar-coverage__session-btn grammar-coverage__reveal" disabled={session()?.pending !== undefined || submissionsLocked()} onClick={() => revealSession(level, presented)}>
-                                      {t(constructionsByLevel().get(level)?.some((row) => row.pattern === presented && row.meaning !== undefined)
-                                        ? 'mlearn.LevelStudy.Grammar.RevealAnswer'
-                                        : 'mlearn.LevelStudy.Grammar.ContinueToRating')}
-                                    </button>
-                                  }>
-                                    <span class="grammar-coverage__answer" data-testid="grammar-session-answer">
-                                      {constructionsByLevel().get(level)?.find((row) => row.pattern === presented)?.meaning
-                                        ?? t('mlearn.LevelStudy.Grammar.AnswerUnavailable')}
-                                    </span>
-                                  </Show>
-                                  <span class="grammar-coverage__session-probe">
-                                    <Show when={`${props.language}:${level}:${session()?.index ?? 0}:${presented}:${ratingRetryKey()}`} keyed>
-                                    <RatingMatrix
-                                      capabilities={['grammar-recognition']}
-                                      keyboardMode={settings.ratingKeyboardMode}
-                                      armed={sessionPresentation().canRate && !submissionsLocked()}
-                                      resetKey={`${props.language}:${level}:${session()?.index ?? 0}:${presented}:${ratingRetryKey()}`}
-                                      onSubmit={(observations) => {
-                                        const observation = observations.find((entry) => entry.capability === 'grammar-recognition');
-                                        if (observation) rateSession(level, observation.quality, presented);
-                                      }}
-                                    />
-                                    </Show>
+                                <StudyEncounter
+                                  class="grammar-coverage__encounter"
+                                  prompt={<span class="grammar-coverage__session-prompt" data-pattern={presented}>{presented}</span>}
+                                  answer={<span class="grammar-coverage__answer" data-testid="grammar-session-answer">
+                                    {constructionsByLevel().get(level)?.find(row => row.pattern === presented)?.meaning
+                                      ?? t('mlearn.LevelStudy.Grammar.AnswerUnavailable')}
+                                  </span>}
+                                  revealed={session()?.revealed?.pattern === presented}
+                                  onReveal={() => revealSession(level, presented)}
+                                  onSkip={() => skipSession(level, presented)}
+                                  skipDisabled={session()?.pending !== undefined || submissionsLocked()}
+                                  revealDisabled={session()?.pending !== undefined || submissionsLocked()}
+                                  rating={{
+                                    capabilities: ['grammar-recognition'],
+                                    keyboardMode: settings.ratingKeyboardMode,
+                                    armed: sessionPresentation().canRate && !submissionsLocked(),
+                                    resetKey: `${props.language}:${level}:${session()?.index ?? 0}:${presented}:${ratingRetryKey()}`,
+                                    onSubmit: observations => {
+                                      const observation = observations.find(entry => entry.capability === 'grammar-recognition');
+                                      if (observation) rateSession(level, observation.quality, presented);
+                                    },
+                                  }}
+                                >
                                     {/* Taking a rating back is one operation on
                                         every study surface, so it reads the same
                                         here as it does on review and Word Sync:
@@ -1502,11 +1485,8 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                         {t('mlearn.LevelStudy.Grammar.Undo')}
                                       </button>
                                     </Show>
-                                    <button type="button" class="grammar-coverage__session-skip" disabled={session()?.pending !== undefined || submissionsLocked()} onClick={(click) => { if (click.detail > 1) return; skipSession(level, presented); }} onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}>
-                                      {t('mlearn.LevelStudy.Grammar.SessionSkip')}
-                                    </button>
-                                  </span>
-                                </>
+
+                                </StudyEncounter>
                               );
                             }}
                           </Show>
@@ -1650,48 +1630,18 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                   <ul class="grammar-coverage__constructions">
                     <For each={constructionsByLevel().get(level) ?? []}>
                       {(row) => (
-                        <li class="grammar-coverage__construction" aria-busy={reviewProbe()?.state === 'pending' && reviewProbe()?.language === props.language && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern}>
+                        <li class="grammar-coverage__construction">
                           <span class="grammar-coverage__pattern">{row.pattern}</span>
-                          <Show when={row.meaning}>
-                            <span class="grammar-coverage__meaning">{row.meaning}</span>
-                          </Show>
                           <span class={`grammar-coverage__state grammar-coverage__state--${row.state}`}>
                             {t(STATE_LABEL_KEY[row.state])}
                             <Show when={row.state === 'unmeasured' && row.exposures > 0}>
                               {' '}· {t('mlearn.LevelStudy.Grammar.SeenOnly', { count: row.exposures })}
                             </Show>
                           </span>
-                          {/* Preserved per-row self-assessment interaction. When the
-                              row shows a meaning, the probe records that cue as
-                              translation-scaffold provenance on the attempt. */}
-                          <span class="grammar-coverage__probe">
-                            <Button size="sm" variant="danger" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'missed', level, row.meaning !== undefined ? { translation: true } : undefined)}>
-                              {t('mlearn.Rating.Matrix.Missed')}
-                            </Button>
-                            <Button size="sm" variant="warning" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'struggled', level, row.meaning !== undefined ? { translation: true } : undefined)}>
-                              {t('mlearn.Rating.Matrix.Struggled')}
-                            </Button>
-                            <Button size="sm" variant="success" class="grammar-coverage__probe-btn" disabled={reviewProbe() !== null} onClick={() => void submitReviewProbe(row.pattern, 'fluent', level, row.meaning !== undefined ? { translation: true } : undefined)}>
-                              {t('mlearn.Rating.Matrix.Fluent')}
-                            </Button>
-                          </span>
-                          <WriteStatusBanner
-                            status={reviewProbe()?.state === 'pending' && reviewProbe()?.language === props.language
-                              && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern ? 'pending'
-                              : reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language
-                                && reviewProbe()?.level === level && reviewProbe()?.pattern === row.pattern ? 'failed'
-                                : null}
-                            savingLabelKey="mlearn.LevelStudy.Grammar.SavingAnswer"
-                            failedLabelKey="mlearn.LevelStudy.Grammar.StorageUnavailable"
-                            canRetry={reviewProbe()?.state === 'failed' && reviewProbe()?.language === props.language}
-                            onRetry={() => {
-                              const failed = reviewProbe();
-                              if (failed?.state === 'failed' && failed.language === props.language) void submitReviewProbe(failed.pattern, failed.quality, failed.level, failed.scaffolds, failed);
-                            }}
-                            class="grammar-coverage__review-error"
-                            retryTestId="grammar-row-retry"
-                            retryLabelKey="mlearn.Knowledge.Retry"
-                          />
+                          <Button size="sm" variant="default" class="grammar-coverage__check"
+                            disabled={sessionLive() || !locksAvailable()} onClick={() => startSession(level, row.pattern)}>
+                            {t('mlearn.StudyEncounter.Check')}
+                          </Button>
                         </li>
                       )}
                     </For>
