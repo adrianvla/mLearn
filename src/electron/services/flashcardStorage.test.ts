@@ -716,6 +716,81 @@ describe('flashcardStorage', () => {
     });
   });
 
+  it.each([false, true])('retires carried manual-action owners on Resume with warm=%s authority', async warm => {
+    const card = makeFlashcard('action-owner', { buried: true,
+      scheduleActionOwners: { buried: 'original-bury', 'future-action': 'opaque-owner' } });
+    const original = makeStore({ version: 3, rev: 7, flashcards: { [card.id]: card } });
+    writeFlashcardsFile(tempDir.tmpDir, original);
+    const incoming = structuredClone(warm ? await loadFlashcards() : original);
+    incoming.flashcards[card.id].buried = false;
+    incoming.flashcards[card.id].content.futureFeature = { contextual: ['arbitrary'] };
+    await saveFlashcards(incoming);
+    const saved = await loadFlashcards();
+    expect(saved.flashcards[card.id].scheduleActionOwners).toEqual({ 'future-action': 'opaque-owner' });
+    expect(saved.flashcards[card.id].content.futureFeature).toEqual({ contextual: ['arbitrary'] });
+    const replacement = structuredClone(saved);
+    replacement.flashcards[card.id].buried = true;
+    await saveFlashcards(replacement);
+    expect((await loadFlashcards()).flashcards[card.id].scheduleActionOwners?.buried).not.toBe('original-bury');
+  });
+
+  it.each([false, true])('preserves the manual-action owner through a legacy content-only save with warm=%s authority', async warm => {
+    const card = makeFlashcard('legacy-action-owner', { suspended: true, scheduleActionOwners: { suspended: 'owned-suspend' } });
+    const original = makeStore({ version: 3, rev: 7, flashcards: { [card.id]: card } });
+    writeFlashcardsFile(tempDir.tmpDir, original);
+    const incoming = structuredClone(warm ? await loadFlashcards() : original);
+    delete incoming.flashcards[card.id].scheduleActionOwners;
+    incoming.flashcards[card.id].content.back = 'legacy authored edit';
+    await saveFlashcards(incoming);
+    const saved = await loadFlashcards();
+    expect(saved.flashcards[card.id].scheduleActionOwners?.suspended).toBe('owned-suspend');
+    expect(saved.flashcards[card.id].content.back).toBe('legacy authored edit');
+  });
+
+  it.each([false, true])('refuses a retired exclusion owner carried by a legacy caller with cold=%s second write', async cold => {
+    const { setFlashcardExclusion, captureFlashcardActionUndo, flashcardActionUndoIsApplicable } = await import('../../shared/flashcardActionUndo');
+    const card = makeFlashcard('legacy-retired-owner');
+    const excluded = setFlashcardExclusion(card, 'buried', true);
+    const proof = captureFlashcardActionUndo(card, excluded, 'buried');
+    writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3, rev: 7, flashcards: { [card.id]: excluded } }));
+    const legacyCaller = structuredClone(await loadFlashcards());
+    legacyCaller.flashcards[card.id].buried = false;
+    const resumedRev = await saveFlashcards(structuredClone(legacyCaller));
+    // Main normalized only its IPC-equivalent copy. Caller receives rev, retaining its old owner.
+    legacyCaller.rev = resumedRev;
+    legacyCaller.flashcards[card.id].buried = true;
+    if (cold) invalidateFlashcardsCache();
+    await saveFlashcards(structuredClone(legacyCaller));
+    const actual = await loadFlashcards();
+    expect(actual.flashcards[card.id].buried).toBe(true);
+    expect(actual.flashcards[card.id].scheduleActionOwners?.buried).not.toBe(proof.expectedOwner);
+    expect(flashcardActionUndoIsApplicable(actual, proof)).toBe(false);
+  });
+
+  it('keeps mixed current-writer action proof identical across the actual save boundary', async () => {
+    const { setFlashcardExclusion } = await import('../../shared/flashcardActionUndo');
+    const card = setFlashcardExclusion(makeFlashcard('mixed-proof'), 'suspended', true);
+    writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3, rev: 7, flashcards: { [card.id]: card } }));
+    const current = structuredClone(await loadFlashcards());
+    current.flashcards[card.id] = setFlashcardExclusion(setFlashcardExclusion(current.flashcards[card.id], 'buried', true), 'suspended', false);
+    const expected = structuredClone(current.flashcards[card.id]);
+    await saveFlashcards(current);
+    expect((await loadFlashcards()).flashcards[card.id]).toEqual(expected);
+    await saveFlashcards(structuredClone(await loadFlashcards()));
+    expect((await loadFlashcards()).flashcards[card.id]).toEqual(expected);
+  });
+
+  it('keeps a shipped unowned daily unbury identical across the authoritative save', async () => {
+    const { setFlashcardExclusion } = await import('../../shared/flashcardActionUndo');
+    const card = makeFlashcard('legacy-daily-unbury', { buried: true });
+    writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3, rev: 7, flashcards: { [card.id]: card } }));
+    const current = structuredClone(await loadFlashcards());
+    current.flashcards[card.id] = setFlashcardExclusion(current.flashcards[card.id], 'buried', false);
+    const expected = structuredClone(current.flashcards[card.id]);
+    await saveFlashcards(current);
+    expect((await loadFlashcards()).flashcards[card.id]).toEqual(expected);
+  });
+
   it('preserves restored review position and unknown assistance flags through native store load and save', async () => {
     const data = makeStore({ version: 3 });
     data.meta.reviewPresentations = { 'future-package': { id: 'restored-attempt', cardId: 'restored-card',

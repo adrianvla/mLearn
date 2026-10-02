@@ -2013,6 +2013,10 @@ export interface Flashcard {
   suspended?: boolean;
   /** Flag for buried cards (temporarily hidden until next day) */
   buried?: boolean;
+  /** Technical mutation owners for undoable scheduler actions; never learner evidence. */
+  scheduleActionOwners?: Record<string, string>;
+  /** Per-action technical frontier prevents a retired owner from being reused. */
+  scheduleActionGenerations?: Record<string, number>;
   /** Language this card belongs to (e.g. 'ja', 'de') — set at creation */
   language?: string;
   /** Rebuildable scheduler output. Legacy scheduling fields above mirror this cache for sync/export compatibility. */

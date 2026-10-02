@@ -1,3 +1,4 @@
+import { reconcileFlashcardActionOwners } from '../../shared/flashcardActionUndo';
 /**
  * Flashcard Storage Service
  * Handles persistence and IPC for flashcard data
@@ -1112,6 +1113,9 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
     }
     // The claim is a statement about this write, not part of the store.
     delete (store as { retractionCompleted?: unknown }).retractionCompleted;
+
+    const previousCards = (cachedStorePath === filePath ? cachedStore : persistedAuthority)?.flashcards;
+    for (const card of Object.values(store.flashcards)) reconcileFlashcardActionOwners(card, previousCards?.[card.id]);
 
     const guardian = guardianForWrites();
     guardian?.checkFlashcardWrite(store, removedCardIds, resetReviewProgress, authorization);

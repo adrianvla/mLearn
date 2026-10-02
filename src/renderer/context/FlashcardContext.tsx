@@ -9,6 +9,7 @@ import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset'
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, batch } from 'solid-js';
 import { pushUndo } from '../learning/undoHistory';
+import { clearFlashcardActionOwner, setFlashcardExclusion, captureFlashcardActionUndo, flashcardActionUndoIsApplicable, restoreFlashcardAction, type FlashcardActionUndo } from '../../shared/flashcardActionUndo';
 import { restoreReviewResponse, validateReviewResponseUndo, type ReviewUndoProjection } from '../../shared/flashcardReviewUndo';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
@@ -199,6 +200,8 @@ interface UndoEntry {
   language?: string;
   cardId?: string;
   restoreCard?: Flashcard;
+  manualAction?: FlashcardActionUndo;
+  manualPresentation?: ReviewPresentation;
   reviewUndo?: PendingRetraction;
   durableReview?: boolean;
   reviewUndoAuthorization?: FlashcardWriteAuthorization;
@@ -1802,6 +1805,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         card.lastUpdated = now;
         card.suspended = false;
         card.buried = false;
+        clearFlashcardActionOwner(card, 'suspended');
+        clearFlashcardActionOwner(card, 'buried');
         // The scheduler cache is the authoritative schedule (answerCard reads
         // it in preference to these mirrored fields). Leaving it behind would
         // make the very next review resume the pre-reset interval, so the
@@ -1836,7 +1841,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   // Push undo state
-  const pushUndoState = (options: { type: string; cardId: string }) => {
+  const pushUndoState = (options: { type: string; cardId: string }, manualAction?: FlashcardActionUndo) => {
     const card = store.flashcards[options.cardId];
     if (!card) return;
     const language = card.language || settings.language;
@@ -1846,6 +1851,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     setUndoStack((prev) => {
       return pushUndo(prev, {
         type: options.type,
+        ...(manualAction ? { manualAction, ...(restored?.cardId === card.id
+          ? { manualPresentation: JSON.parse(JSON.stringify(restored)) as ReviewPresentation } : {}) } : {}),
         language,
         ...(scaffolds ? { scaffolds } : {}),
         cardId: options.cardId,
@@ -1862,9 +1869,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       await flushBackgroundRatings();
       const history = await refreshCompletedReviewUndos();
       const persisted = history.find(reviewUndoIsApplicable);
-      const entry = [...undoStack()].reverse().find(value => !value.reviewUndo
-        || value.reviewUndo.attemptId === persisted?.attemptId
-        || (!value.durableReview && reviewUndoIsApplicable(value.reviewUndo)));
+      const entry = [...undoStack()].reverse().find(value => value.reviewUndo
+        ? value.reviewUndo.attemptId === persisted?.attemptId
+          || (!value.durableReview && reviewUndoIsApplicable(value.reviewUndo))
+        : !value.manualAction || flashcardActionUndoIsApplicable(store, value.manualAction));
       const pendingUndo = readPendingRetraction(store.pendingRetraction)
         ?? (entry && !entry.reviewUndo ? undefined : persisted)
         ?? (entry?.durableReview ? undefined : entry?.reviewUndo);
@@ -1887,16 +1895,22 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       if (!await saveFlashcardsImmediate((target, intent) => {
         if (!restoreId || !restoreCard) return;
         const plain = JSON.parse(JSON.stringify(restoreCard)) as Flashcard;
-        target.flashcards[restoreId] = plain;
-        // The decision is this one card restored, not a rewritten store: the
-        // record to replay says so, so a refusal can put the card back on top
-        // of what another window committed instead of replacing it.
-        intent.flashcards = { [restoreId]: plain };
-        const presentation = { id: presentationId, cardId: restoreId,
+        if (entry?.manualAction) restoreFlashcardAction(target, entry.manualAction);
+        else target.flashcards[restoreId] = plain;
+        // Manual actions recompute their one owned flag on stale authority;
+        // legacy caller-supplied snapshots retain their existing contract.
+        intent.flashcards = { [restoreId]: target.flashcards[restoreId] };
+        const presentation = entry?.manualPresentation ?? { id: presentationId, cardId: restoreId,
           ...(entry?.scaffolds ? { scaffolds: { ...entry.scaffolds } } : {}) };
-        (target.meta.reviewPresentations ??= {})[restoreLanguage] = presentation;
-        intent.meta = { reviewPresentations: { [restoreLanguage]: presentation } };
-      }, entry?.reviewUndoAuthorization)) {
+        if (!entry?.manualAction || (!target.flashcards[restoreId].buried && !target.flashcards[restoreId].suspended
+          && !target.meta.reviewPresentations?.[restoreLanguage])) {
+          (target.meta.reviewPresentations ??= {})[restoreLanguage] = presentation;
+          intent.meta = { reviewPresentations: { [restoreLanguage]: presentation } };
+        }
+      }, entry?.reviewUndoAuthorization, undefined, entry?.manualAction ? {
+        removedCardIds: [], recomputeOnRebase: true,
+        validate: target => flashcardActionUndoIsApplicable(target, entry.manualAction!),
+      } : undefined)) {
         throw new Error('undo persistence was refused');
       }
       if (entry) setUndoStack((previous) => {
@@ -1914,7 +1928,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const canUndo = () => store.pendingRetraction !== undefined
     || undoHistoryLoadFailed()
     || completedReviewUndos().some(reviewUndoIsApplicable)
-    || undoStack().some(entry => !entry.durableReview && (!entry.reviewUndo || reviewUndoIsApplicable(entry.reviewUndo)));
+    || undoStack().some(entry => !entry.durableReview && (entry.reviewUndo
+      ? reviewUndoIsApplicable(entry.reviewUndo)
+      : !entry.manualAction || flashcardActionUndoIsApplicable(store, entry.manualAction)));
 
   // Add new flashcard - now supports multiple cards per word
   // When use_anki is enabled, shows a choice modal (SRS vs Anki) before creation
@@ -2332,6 +2348,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
     setStore(produce((s) => {
       Object.assign(s.flashcards[id], updates, { lastUpdated: Date.now() });
+      for (const field of ['buried', 'suspended'] as const) if (Object.hasOwn(updates, field)) {
+        // Explicit flag writers replace ownership even when applying true again.
+        if (updates[field]) s.flashcards[id] = setFlashcardExclusion(s.flashcards[id], field, true);
+        else clearFlashcardActionOwner(s.flashcards[id], field);
+      }
     }));
     saveFlashcards();
   };
@@ -2393,12 +2414,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   // Suspend card
   const suspendCard = (id: string) => {
-    if (!store.flashcards[id]) return;
-
-    pushUndoState({ type: 'suspend', cardId: id });
+    const card = store.flashcards[id];
+    if (!card || card.suspended) return;
+    const updated = SRS.suspendCard(card);
+    pushUndoState({ type: 'suspend', cardId: id }, captureFlashcardActionUndo(card, updated, 'suspended'));
 
     setStore(produce((s) => {
-      s.flashcards[id] = SRS.suspendCard(s.flashcards[id]);
+      s.flashcards[id] = updated;
     }));
 
     setQueue(SRS.removeFromQueue(queue(), id));
@@ -2410,8 +2432,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (!store.flashcards[id]) return;
 
     setStore(produce((s) => {
-      s.flashcards[id].suspended = false;
-      s.flashcards[id].lastUpdated = Date.now();
+      s.flashcards[id] = setFlashcardExclusion(s.flashcards[id], 'suspended', false);
     }));
 
     refreshQueue();
@@ -2420,14 +2441,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   // Bury card
   const buryCard = (id: string) => {
-    if (!store.flashcards[id]) return;
-
-    pushUndoState({ type: 'bury', cardId: id });
+    const card = store.flashcards[id];
+    if (!card || card.buried) return;
+    const updated = SRS.buryCard(card);
+    pushUndoState({ type: 'bury', cardId: id }, captureFlashcardActionUndo(card, updated, 'buried'));
 
     setStore(produce((s) => {
       const language = s.flashcards[id].language || settings.language;
       if (s.meta.reviewPresentations?.[language]?.cardId === id) delete s.meta.reviewPresentations[language];
-      s.flashcards[id] = SRS.buryCard(s.flashcards[id]);
+      s.flashcards[id] = updated;
     }));
 
     setQueue(SRS.removeFromQueue(queue(), id));

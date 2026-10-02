@@ -14,6 +14,7 @@ import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationV
 import type { RetentionRating } from '../../shared/srs/retentionScheduler';
 import { SRS_EASE } from '../../shared/constants';
 import { scheduleAfterAnswer } from '../../shared/srs/retentionScheduler';
+import { setFlashcardExclusion } from '../../shared/flashcardActionUndo';
 
 // SRS constants
 /** Canonical ease floor. The scheduler owns every other ease rule. */
@@ -536,22 +537,14 @@ export function getQueueCounts(queue: ReviewQueue, cards: Record<string, Flashca
  * Bury a card until the next day
  */
 export function buryCard(card: Flashcard): Flashcard {
-    return {
-        ...card,
-        buried: true,
-        lastUpdated: Date.now(),
-    };
+    return setFlashcardExclusion(card, 'buried', true);
 }
 
 /**
  * Suspend a card indefinitely
  */
 export function suspendCard(card: Flashcard): Flashcard {
-    return {
-        ...card,
-        suspended: true,
-        lastUpdated: Date.now(),
-    };
+    return setFlashcardExclusion(card, 'suspended', true);
 }
 
 /**
@@ -561,7 +554,7 @@ export function unburyCards(cards: Record<string, Flashcard>): Record<string, Fl
     const result: Record<string, Flashcard> = {};
     for (const [id, card] of Object.entries(cards)) {
         if (card.buried) {
-            result[id] = { ...card, buried: false, lastUpdated: Date.now() };
+            result[id] = setFlashcardExclusion(card, 'buried', false);
         } else {
             result[id] = card;
         }

@@ -3342,6 +3342,176 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it.each(['bury', 'suspend'] as const)('manual %s Undo preserves later authored content, scheduler changes and opaque metadata', async action => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: `manual-preserve-${action}`, state: 'review', reviews: 2 });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    if (action === 'bury') ctx.buryCard(card.id); else ctx.suspendCard(card.id);
+    ctx.updateFlashcard(card.id, { reviews: 7, interval: 987654, content: {
+      ...card.content, back: 'later authored answer', futureFeature: { arbitrary: ['new', { contextual: true }] },
+    } });
+    await expect(ctx.undoLastAction()).resolves.toBe(action);
+    expect(ctx.store.flashcards[card.id].reviews).toBe(7);
+    expect(ctx.store.flashcards[card.id].interval).toBe(987654);
+    expect(ctx.store.flashcards[card.id].content.back).toBe('later authored answer');
+    expect(ctx.store.flashcards[card.id].content.futureFeature).toEqual({ arbitrary: ['new', { contextual: true }] });
+    expect(ctx.store.flashcards[card.id][action === 'bury' ? 'buried' : 'suspended']).toBe(card[action === 'bury' ? 'buried' : 'suspended']);
+    expect(committed!.flashcards[card.id].content.back).toBe('later authored answer');
+    dispose();
+  });
+
+  it('manual Undo recomputes only its owned flag after a peer commit and preserves the peer review position', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'manual-rebase', state: 'review', reviews: 2 });
+    const peer = makeCard({ id: 'manual-peer-position' });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card, [peer.id]: peer } }));
+    ctx.buryCard(card.id);
+    await vi.waitFor(() => expect(committed!.flashcards[card.id].buried).toBe(true));
+    answerProbesFromAuthority();
+    committed!.flashcards[card.id].content.back = 'peer authored during Undo';
+    committed!.flashcards[card.id].reviews = 8;
+    committed!.flashcards[card.id].lastUpdated += 1;
+    committed!.meta.reviewPresentations = { ja: { id: 'peer-current-owner', cardId: peer.id } };
+    committed!.rev = ++revision;
+    await expect(ctx.undoLastAction()).resolves.toBe('bury');
+    expect(committed!.flashcards[card.id].reviews).toBe(8);
+    expect(ctx.store.flashcards[card.id].reviews).toBe(8);
+    expect(ctx.store.flashcards[card.id].content.back).toBe('peer authored during Undo');
+    expect(committed!.flashcards[card.id].content.back).toBe('peer authored during Undo');
+    expect(committed!.flashcards[card.id].buried).not.toBe(true);
+    expect(committed!.meta.reviewPresentations!.ja).toEqual({ id: 'peer-current-owner', cardId: peer.id });
+    dispose();
+  });
+
+  it('manual Undo does not resurrect a card deleted by a peer before its stale write can rebase', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'manual-deleted' });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    ctx.suspendCard(card.id);
+    await vi.waitFor(() => expect(committed!.flashcards[card.id].suspended).toBe(true));
+    answerProbesFromAuthority();
+    delete committed!.flashcards[card.id];
+    committed!.rev = ++revision;
+    await expect(ctx.undoLastAction()).rejects.toThrow('undo persistence was refused');
+    expect(committed!.flashcards[card.id]).toBeUndefined();
+    expect(ctx.store.flashcards[card.id]).toBeUndefined();
+    expect(ctx.canUndo()).toBe(false);
+    dispose();
+  });
+
+  it.each(['bury', 'suspend'] as const)('does not manufacture manual Undo for an already %s excluded card', async action => {
+    const { ctx, dispose } = await mountProvider();
+    const field = action === 'bury' ? 'buried' : 'suspended';
+    const card = makeCard({ id: `manual-noop-${action}`, [field]: true });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    if (action === 'bury') ctx.buryCard(card.id); else ctx.suspendCard(card.id);
+    expect(ctx.canUndo()).toBe(false);
+    await expect(ctx.undoLastAction()).resolves.toBeNull();
+    expect(ctx.store.flashcards[card.id][field]).toBe(true);
+    dispose();
+  });
+
+  it.each(['front', 'language', 'resumed'] as const)('does not offer manual Undo after the card is %s changed', async change => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: `manual-inapplicable-${change}` });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    ctx.suspendCard(card.id);
+    await vi.waitFor(() => expect(committed!.flashcards[card.id].suspended).toBe(true));
+    if (change === 'front') committed!.flashcards[card.id].content.front = 'different target';
+    else if (change === 'language') committed!.flashcards[card.id].language = 'unknown-future-language';
+    else committed!.flashcards[card.id].suspended = false;
+    committed!.rev = ++revision;
+    deliver(committed);
+    expect(ctx.canUndo()).toBe(false);
+    await expect(ctx.undoLastAction()).resolves.toBeNull();
+    expect(ctx.store.flashcards[card.id]).toEqual(committed!.flashcards[card.id]);
+    dispose();
+  });
+
+  it('manual Bury Undo returns to the exact original immutable choice so its answer exposure remains owned', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'manual-choice' });
+    seed(makeEmptyStore({ rev: revision, flashcards: { [card.id]: card } }));
+    const decision = selectFlashcardReviewDecision({ id: 'manual-original-choice', at: 20,
+      entries: [flashcardReviewPolicyEntry(card, 'ja')], rng: () => 0.7 })!.provenance;
+    const presentation = { id: decision.id, cardId: card.id, decision,
+      scaffolds: { 'provided-access:unknown-package-dimension': true } };
+    await ctx.saveReviewPresentation('ja', presentation, null);
+    ctx.buryCard(card.id);
+    expect(ctx.store.meta.reviewPresentations?.ja).toBeUndefined();
+    await ctx.undoLastAction();
+    expect(committed!.meta.reviewPresentations?.ja).toEqual(presentation);
+    expect(ctx.store.meta.reviewPresentations?.ja).toEqual(presentation);
+    expect(mockAppendEvents).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it.each([['bury', 'suspend'], ['suspend', 'bury']] as const)('compound %s then %s Undo retains the original immutable choice and supplied flags', async (first, second) => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: `manual-compound-${first}` });
+    seed(makeEmptyStore({ rev: revision, flashcards: { [card.id]: card } }));
+    const decision = selectFlashcardReviewDecision({ id: `compound-original-${first}`, at: 20,
+      entries: [flashcardReviewPolicyEntry(card, 'ja')], rng: () => 0.7 })!.provenance;
+    const presentation = { id: decision.id, cardId: card.id, decision,
+      scaffolds: { audio: true, 'provided-access:unknown-package-dimension': true } };
+    await ctx.saveReviewPresentation('ja', presentation, null);
+    const act = (action: string) => action === 'bury' ? ctx.buryCard(card.id) : ctx.suspendCard(card.id);
+    act(first); act(second);
+    await expect(ctx.undoLastAction()).resolves.toBe(second);
+    expect(ctx.store.meta.reviewPresentations?.ja).toBeUndefined();
+    await expect(ctx.undoLastAction()).resolves.toBe(first);
+    expect(committed!.meta.reviewPresentations?.ja).toEqual(presentation);
+    expect(ctx.store.meta.reviewPresentations?.ja).toEqual(presentation);
+    expect(ctx.store.flashcards[card.id].buried).not.toBe(true);
+    expect(ctx.store.flashcards[card.id].suspended).not.toBe(true);
+    dispose();
+  });
+
+  it('an older manual Undo cannot cancel a peer Resume/re-exclusion cycle', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'manual-replaced-owner' });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    ctx.suspendCard(card.id);
+    await vi.waitFor(() => expect(committed!.flashcards[card.id].suspended).toBe(true));
+    const originalOwner = committed!.flashcards[card.id].scheduleActionOwners!.suspended;
+    committed!.flashcards[card.id] = SRS.suspendCard({ ...committed!.flashcards[card.id], suspended: false });
+    expect(committed!.flashcards[card.id].scheduleActionOwners!.suspended).not.toBe(originalOwner);
+    committed!.rev = ++revision;
+    deliver(committed);
+    expect(ctx.canUndo()).toBe(false);
+    await expect(ctx.undoLastAction()).resolves.toBeNull();
+    expect(committed!.flashcards[card.id].suspended).toBe(true);
+    dispose();
+  });
+
+  it('mixed explicit exclusion writes retire the resumed owner on the replacement card before acknowledgement', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'manual-mixed-write', suspended: true,
+      scheduleActionOwners: { suspended: 'older-suspend', 'future-action': 'opaque-owner' } });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    ctx.updateFlashcard(card.id, { buried: true, suspended: false });
+    expect(ctx.store.flashcards[card.id].scheduleActionOwners?.suspended).toBeUndefined();
+    expect(ctx.store.flashcards[card.id].scheduleActionOwners?.buried).toBeTypeOf('string');
+    expect(ctx.store.flashcards[card.id].scheduleActionOwners?.['future-action']).toBe('opaque-owner');
+    await vi.waitFor(() => expect(committed!.flashcards[card.id].buried).toBe(true));
+    expect(ctx.store.flashcards[card.id]).toEqual(committed!.flashcards[card.id]);
+    dispose();
+  });
+
+  it('reactively removes manual Undo availability immediately when the learner resumes the card', async () => {
+    const { createRoot, createMemo } = await import('solid-js');
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'manual-reactive-resume' });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    ctx.suspendCard(card.id);
+    let disposeMemo!: () => void;
+    const available = createRoot(end => { disposeMemo = end; return createMemo(() => ctx.canUndo()); });
+    expect(available()).toBe(true);
+    ctx.unsuspendCard(card.id);
+    expect(available()).toBe(false);
+    disposeMemo(); dispose();
+  });
+
   it('undoLastAction is no-op when stack is empty', async () => {
     const { ctx, dispose } = await mountProvider();
     seedAccepted();
