@@ -1282,6 +1282,8 @@
         },
         "PlayVideoWithAssistance": "Lire la vidéo avec aide",
         "AssistanceRecorded": "L’aide pour cette tâche est enregistrée. Les aspects fournis ne comptent pas comme un rappel autonome.",
+        "SavingRemoval": "Suppression de la carte…",
+        "RemovalSaveFailed": "La carte n’a pas pu être supprimée. Elle a peut-être changé. Réessayez ou annulez.",
         "SavingRating": "Enregistrement de l’évaluation…",
         "SaveFailed": "Impossible d’enregistrer cette évaluation. La carte est toujours là ; réessayez.",
         "PendingRatingsSaveFailed": "Les dernières évaluations n’ont pas pu être enregistrées. Réessayez.",

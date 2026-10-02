@@ -111,6 +111,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [showTtsModal, setShowTtsModal] = createSignal(false);
   const [showEditModal, setShowEditModal] = createSignal(false);
   const [ratingWrite, setRatingWrite] = createSignal<ReviewRatingWrite | null>(null);
+  const [removalWrite, setRemovalWrite] = createSignal<{
+    encounter: ReviewEncounter; card: Flashcard; language: string; sessionLanguage: string; phase: StudySessionWriteStatus | null;
+  } | null>(null);
   // Undo is a durable write (it appends a retraction), reported through the
   // same owner Word Sync uses so the two surfaces cannot disagree about it.
   const [retractionWrite, setRetractionWrite] = createSignal<RetractionWriteState>(null);
@@ -155,6 +158,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const { settings, updateSetting } = useSettings();
   const { langData, currentLangData } = useLanguage();
   const { playTts, isGenerating: ttsGenerating, stop: stopTts, metadata: ttsMetadata, playingField: ttsPlayingField } = useFlashcardTts();
+  // A confirmed command belongs to this study scope. A late old-scope
+  // acknowledgment must not hide or advance the successor encounter.
+  createEffect(on(() => settings.language, () => {
+    if (removalWrite()) { setRemovalWrite(null); setShowAnswer(false); }
+  }, { defer: true }));
   const languageForCard = (card: Flashcard): string => card.language || settings.language;
   const assistanceScope = (card: Flashcard) => JSON.stringify([languageForCard(card), card.id]);
   const languageDataForCard = (card: Flashcard) => {
@@ -164,14 +172,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example', silentIfMissing = false) => {
     const card = currentCard();
-    if (!card || card.id !== cardId || ratingWrite() !== null
+    if (!card || card.id !== cardId || ratingWrite() !== null || removalWrite() !== null
       || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() !== null) return;
     const scope = assistanceScope(card);
     const encounter = referenceEncounter;
     const language = languageForCard(card);
     const sameEncounter = () => !disposed && referenceEncounter === encounter
       && !!currentCard() && assistanceScope(currentCard()!) === scope && ratingWrite() === null
-      && !isRetractionWriteBlocking(retractionWrite());
+      && removalWrite() === null && !isRetractionWriteBlocking(retractionWrite());
     // Resource lookup may finish after reveal. Only audio admitted while the
     // question is still shown supplies a retrieval cue. Once admitted, its
     // durable record survives cancellation or a restart conservatively.
@@ -211,6 +219,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   // Current card
   const currentEncounter = createMemo(() => {
+    const removal = removalWrite();
+    if (removal) return removal.encounter;
     const held = ratingWrite();
     if (held) return held.encounter;
     const fallback = getCurrentCard();
@@ -290,6 +300,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const currentDecision = () => currentEncounter()?.decision ?? null;
   const currentCard = createMemo(() => {
+    const removal = removalWrite();
+    if (removal) return removal.card;
     const held = ratingWrite();
     if (held) return held.card;
     const encounter = currentEncounter();
@@ -458,7 +470,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const counts = createMemo(() => queueCounts());
   // An unresolved final encounter is still work until its ACK, even if the
   // provider has already published an empty queue.
-  const remainingWork = createMemo(() => Math.max(counts().total, ratingWrite() ? 1 : 0));
+  const remainingWork = createMemo(() => Math.max(counts().total, ratingWrite() || removalWrite() ? 1 : 0));
 
   // Single owner for "what phase is the encounter in", shared with the other
   // study surfaces. The review queue is studyable work plus this session's
@@ -473,7 +485,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   /** A rating may only be committed from a revealed, idle encounter. */
   const canRate = createMemo(() =>
-    presentation().canRate && !isRetractionWriteBlocking(retractionWrite()));
+    presentation().canRate && removalWrite() === null && !isRetractionWriteBlocking(retractionWrite()));
   const ratingArmed = createMemo(() => canRate() && !!currentCard()
     && knowledge.projection()?.status === 'ready' && ratingPersistenceState() !== 'failed' && assistanceWrite() === null);
 
@@ -497,7 +509,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   function withReferenceContent(open: () => void, media = false): void {
     const card = currentCard();
-    if (!card || ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() === 'pending') return;
+    if (!card || ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() === 'pending') return;
     if (showAnswer()) { open(); return; }
     const encounter = referenceEncounter;
     const scope = assistanceScope(card);
@@ -556,7 +568,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       // Undo rewrites the journal a pending write is appending to, so it waits
       // for the write to land. Other shortcuts are unaffected by that write.
       if (isUndoShortcut(e)) {
-        if (isBlockedByPendingWrite('undo', ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite()))) { e.preventDefault(); return; }
+        if (isBlockedByPendingWrite('undo', ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite()))) { e.preventDefault(); return; }
         if (canUndo()) { e.preventDefault(); void handleUndo(); }
         return;
       }
@@ -608,7 +620,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   let automaticAudioEncounter: ReturnType<typeof currentEncounter> = null;
   createEffect(() => {
     const encounter = currentEncounter();
-    const ready = ratingWrite() === null && !isRetractionWriteBlocking(retractionWrite()) && assistanceWrite() === null;
+    const ready = ratingWrite() === null && removalWrite() === null && !isRetractionWriteBlocking(retractionWrite()) && assistanceWrite() === null;
     if (!encounter || !ready || restoredAssistanceScope() !== assistanceScope(encounter.card) || showAnswer() || !settings.flashcardAutoTts || settings.flashcardMuteAudio
       || automaticAudioEncounter === encounter) return;
     automaticAudioEncounter = encounter;
@@ -630,7 +642,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   ));
 
   const handleUndo = async () => {
-    if (ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
+    if (ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
     setRetractionWrite('pending');
     try {
       const actionType = await undoLastAction();
@@ -649,7 +661,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleBury = () => {
-    if (ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
+    if (ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
     const card = currentCard();
     if (!card) return;
     stopTiming();
@@ -662,46 +674,76 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     resetReviewScroll();
   };
 
+  const removalStillMatches = (write: NonNullable<ReturnType<typeof removalWrite>>) => {
+    const stored = store.flashcards[write.card.id];
+    return settings.language === write.sessionLanguage && !!stored && JSON.stringify(stored) === JSON.stringify(write.card)
+      && (stored.language || settings.language) === write.language;
+  };
+
+  const commitRemoval = async (write: NonNullable<ReturnType<typeof removalWrite>>) => {
+    const pending = { ...write, phase: 'pending' as const };
+    setRemovalWrite(pending);
+    let removed = false;
+    try {
+      removed = removalStillMatches(pending) && await removeFlashcard(pending.card.id, true);
+    } catch (error) {
+      log.warn('Failed to persist flashcard removal:', error);
+    }
+    if (disposed || removalWrite() !== pending || settings.language !== pending.sessionLanguage) return;
+    if (!removed) {
+      setRemovalWrite({ ...pending, phase: 'failed' });
+      return;
+    }
+    stopTiming();
+    batch(() => {
+      setShowAnswer(false);
+      decisionPin.advance();
+      setRemovalWrite(null);
+    });
+    resetReviewScroll();
+  };
+
   const handleRemove = async () => {
-    if (ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
+    if (ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() !== null) return;
+    const encounter = currentEncounter();
     const card = currentCard();
-    if (!card) return;
-    // Removal is the same irreversible act as the Delete on Browse, so it asks
-    // the same question in the same words. Observed in the running app: Remove
-    // here deleted the card outright (450 -> 449) while the Browse row action
-    // two windows over opened a dialog, so whether a card could be destroyed
-    // without warning depended on which surface the learner was in.
+    if (!encounter || !card) return;
+    // Hold the confirmed encounter across the dialog and durable command.
+    const write = { encounter, card: JSON.parse(JSON.stringify(card)) as Flashcard,
+      language: languageForCard(card), sessionLanguage: settings.language, phase: null };
+    setRemovalWrite(write);
     if (requiresDestructiveConfirmation(1)) {
       const confirmed = await showConfirm(buildDestructiveConfirmOptions({
         count: 1,
         titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
         messageKey: 'mlearn.Flashcards.Modals.DeleteCard.Confirm',
       }, t));
-      if (!confirmed) return;
+      if (disposed || removalWrite() !== write || settings.language !== write.sessionLanguage) return;
+      if (!confirmed) { setRemovalWrite(null); return; }
     }
-    stopTiming();
-    setShowAnswer(false);
-    await removeFlashcard(card.id, true);
-    // The removal changed the pool: re-select afresh (R20 pin repair).
-    decisionPin.advance();
-    resetReviewScroll();
+    await commitRemoval(write);
   };
 
   const handleFlip = () => {
+    if (removalWrite()) return;
     setShowAnswer(true);
     resetReviewScroll();
   };
 
   const handleRegenerateExample = async (cardId: string) => {
     const card = currentCard();
-    if (!card || card.id !== cardId || regeneratingExample()) return;
+    if (!card || card.id !== cardId || regeneratingExample() || removalWrite()) return;
+    const encounter = currentEncounter();
+    const sessionLanguage = settings.language;
+    const stillOwned = () => !disposed && !removalWrite() && currentEncounter() === encounter
+      && currentCard()?.id === cardId && settings.language === sessionLanguage;
 
     setRegeneratingExample(true);
     try {
       const language = languageForCard(card);
       const languageData = languageDataForCard(card);
       const result = await generateExampleSentenceWithLLM(card.content.front, card.content.back, language);
-      if (result.sentence) {
+      if (result.sentence && stillOwned()) {
         const exampleHtml = await colorizeTokenizedText({
           text: result.sentence,
           language,
@@ -710,6 +752,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           colourCodes: resolveFlashcardColourCodes(languageData, settings.colour_codes),
           targetWord: card.content.front,
         });
+        if (!stillOwned()) return;
         updateFlashcardContent(cardId, {
           example: exampleHtml,
           exampleMeaning: result.meaning || undefined,
@@ -840,7 +883,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               thumbIcon={<VolumeOffIcon size={12} />}
             />
             <Show when={canUndo()}>
-              <Button buttonType="default" variant="ghost" size="xs" disabled={ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())} onClick={() => { void handleUndo(); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
+              <Button buttonType="default" variant="ghost" size="xs" disabled={ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite())} onClick={() => { void handleUndo(); }} title={t('mlearn.Flashcards.Review.UndoTooltip')}>
                 {t('mlearn.Flashcards.Review.Undo')}
               </Button>
             </Show>
@@ -859,7 +902,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 variant="ghost"
                 size="xs"
                 class="flashcard-actions-trigger"
-                disabled={ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())}
+                disabled={ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite())}
                 aria-haspopup="dialog"
                 aria-expanded={showCardActions()}
                 onClick={() => setShowCardActions((open) => !open)}
@@ -874,10 +917,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 class="flashcard-actions-popover"
               >
                 <div class="flashcard-action-buttons">
-                  <Button variant="ghost" size="xs" disabled={ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())} onClick={() => { setShowCardActions(false); handleBury(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'b' })}>
+                  <Button variant="ghost" size="xs" disabled={ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite())} onClick={() => { setShowCardActions(false); handleBury(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'b' })}>
                     {t('mlearn.Flashcards.Review.Bury')}
                   </Button>
-                  <Button variant="danger" size="xs" disabled={ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite())} onClick={() => { setShowCardActions(false); handleRemove(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}>
+                  <Button variant="danger" size="xs" disabled={ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite())} onClick={() => { setShowCardActions(false); handleRemove(); }} title={t('mlearn.Flashcards.Review.PressKeyTooltip', { key: 'x' })}>
                     {t('mlearn.Flashcards.Review.Remove')}
                   </Button>
                   <Button variant="ghost" size="xs" icon={<EyeIcon size={14} />} onClick={() => {
@@ -968,7 +1011,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                     if (currentCard()?.id === cardId) withReferenceContent(open, true);
                   }}
                   ttsMetadata={ttsMetadata()}
-                  onRegenerateExample={handleRegenerateExample}
+                  onRegenerateExample={removalWrite() ? undefined : handleRegenerateExample}
                   regeneratingExample={regeneratingExample()}
               />
             )}
@@ -979,6 +1022,16 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
         {/* Buttons container */}
         <div class="flashcard-buttons-container" ref={reviewActionsContainer}>
+          <WriteStatusBanner status={removalWrite()?.phase ?? null}
+            savingLabelKey="mlearn.Flashcards.Review.SavingRemoval" failedLabelKey="mlearn.Flashcards.Review.RemovalSaveFailed"
+            canRetry={removalWrite()?.phase === 'failed' && removalStillMatches(removalWrite()!)}
+            retryTestId="review-removal-retry"
+            onRetry={() => { const failed = removalWrite(); if (failed?.phase === 'failed') void commitRemoval(failed); }} />
+          <Show when={removalWrite()?.phase === 'failed'}>
+            <Button size="sm" onClick={() => { setShowAnswer(false); setRemovalWrite(null); }}>
+              {t('mlearn.Global.Cancel')}
+            </Button>
+          </Show>
           <WriteStatusBanner status={assistanceWrite()}
             savingLabelKey="mlearn.WordSync.SavingAssistance" failedLabelKey="mlearn.WordSync.AssistanceSaveFailed"
             canRetry={assistanceWrite() === 'failed'} onRetry={() => retryReference?.()} />
@@ -1003,7 +1056,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                 }).filter((entry): entry is [string, string] => entry[1] !== undefined))}
                 keyboardMode={settings.ratingKeyboardMode}
                 armed={ratingArmed()}
-                resetKey={currentCard()?.id}
+                resetKey={currentEncounter() ?? undefined}
                 onSubmit={handleBulkRate}
               />
               <WriteStatusBanner

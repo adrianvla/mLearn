@@ -2294,6 +2294,193 @@ describe('FlashcardProvider', () => {
     } finally { dispose(); }
   });
 
+  it('keeps the card, queue and media until removal is acknowledged', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'removal-ack', content: { type: 'word', front: 'target', back: 'authored answer',
+      videoUrl: 'video://owned.mp4', imageUrl: 'flashcard-image://removal-ack.png' } });
+    const key = `ja:${SRS.hashWordSync('target')}`;
+    seed(makeEmptyStore({ flashcards: { [card.id]: card }, wordToCardMap: { [key]: [card.id] } }));
+    ctx.refreshQueue();
+    const beforeCard = JSON.parse(JSON.stringify(ctx.store.flashcards[card.id])) as Flashcard;
+    const beforeQueue = JSON.parse(JSON.stringify(ctx.queue()));
+    let acknowledge!: () => void;
+    mockBridge.flashcards.saveFlashcards.mockImplementationOnce((saved: FlashcardStore) => new Promise(resolve => {
+      acknowledge = () => { committed = structuredClone(saved); revision += 1; committed.rev = revision; resolve(revision); };
+    }));
+    let settled = false;
+    const removal = ctx.removeFlashcard(card.id, true).then(result => { settled = true; return result; });
+    try {
+      await vi.waitFor(() => expect(acknowledge).toBeTypeOf('function'));
+      expect(settled).toBe(false);
+      expect(ctx.store.flashcards[card.id]).toEqual(beforeCard);
+      expect(ctx.store.ignoredWords[key]).toBeUndefined();
+      expect(ctx.queue()).toEqual(beforeQueue);
+      expect(mockBridge.flashcards.deleteFlashcardVideo).not.toHaveBeenCalled();
+      expect(mockBridge.flashcards.deleteFlashcardImage).not.toHaveBeenCalled();
+      expect(mockBridge.flashcards.deleteFlashcardTts).not.toHaveBeenCalled();
+      acknowledge();
+      await expect(removal).resolves.toBe(true);
+      expect(ctx.store.flashcards[card.id]).toBeUndefined();
+      expect(ctx.store.ignoredWords[key]?.excluded).toBe(true);
+      expect(committed?.flashcards[card.id]).toBeUndefined();
+      expect(mockBridge.flashcards.saveFlashcards.mock.calls.at(-1)?.[1]).toEqual([card.id]);
+      expect(mockBridge.flashcards.deleteFlashcardVideo).toHaveBeenCalledWith(card.id);
+    } finally { if (acknowledge && !settled) acknowledge(); await removal; dispose(); }
+  });
+
+  it('a refused removal retains authored content and cannot leak into another save', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'removal-refused', content: { type: 'word', front: 'target', back: 'authored answer',
+      videoUrl: 'video://owned.mp4', imageUrl: 'flashcard-image://removal-refused.png' } });
+    const key = `ja:${SRS.hashWordSync('target')}`;
+    seed(makeEmptyStore({ flashcards: { [card.id]: card }, wordToCardMap: { [key]: [card.id] } }));
+    ctx.refreshQueue();
+    const beforeCard = JSON.parse(JSON.stringify(ctx.store.flashcards[card.id])) as Flashcard;
+    mockBridge.flashcards.saveFlashcards.mockRejectedValueOnce(new Error('disk full'));
+    try {
+      await expect(ctx.removeFlashcard(card.id, true)).resolves.toBe(false);
+      expect(ctx.store.flashcards[card.id]).toEqual(beforeCard);
+      expect(ctx.store.wordToCardMap[key]).toEqual([card.id]);
+      expect(ctx.store.ignoredWords[key]).toBeUndefined();
+      expect(mockBridge.flashcards.deleteFlashcardVideo).not.toHaveBeenCalled();
+      expect(mockBridge.flashcards.deleteFlashcardImage).not.toHaveBeenCalled();
+      expect(mockBridge.flashcards.deleteFlashcardTts).not.toHaveBeenCalled();
+      await ctx.ignoreWordForLanguage('different');
+      expect(committed?.flashcards[card.id]).toEqual(beforeCard);
+      expect(mockBridge.flashcards.saveFlashcards.mock.calls.at(-1)?.[1]).toEqual([]);
+      await expect(ctx.removeFlashcard(card.id, true)).resolves.toBe(true);
+      expect(committed?.flashcards[card.id]).toBeUndefined();
+    } finally { dispose(); }
+  });
+
+  it('recomputes removal against a peer-added sibling before deciding exclusion', async () => {
+    answerProbesFromAuthority();
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'removed-with-sibling', content: { type: 'word', front: 'target', back: 'first answer' } });
+    const sibling = makeCard({ id: 'peer-sibling', content: { type: 'word', front: 'target', back: 'peer authored answer' } });
+    const key = `ja:${SRS.hashWordSync('target')}`;
+    seed(makeEmptyStore({ rev: 4, flashcards: { [card.id]: card }, wordToCardMap: { [key]: [card.id] } }));
+    await mockBridge.flashcards.saveFlashcards(makeEmptyStore({ rev: 4,
+      flashcards: { [card.id]: card, [sibling.id]: sibling }, wordToCardMap: { [key]: [card.id, sibling.id] } }), [], false, undefined);
+    try {
+      await expect(ctx.removeFlashcard(card.id, true)).resolves.toBe(true);
+      expect(committed?.flashcards[sibling.id]).toMatchObject(sibling);
+      expect(committed?.wordToCardMap[key]).toEqual([sibling.id]);
+      expect(committed?.ignoredWords[key]).toBeUndefined();
+      expect(ctx.store.wordToCardMap[key]).toEqual([sibling.id]);
+      expect(mockAppendEvents).not.toHaveBeenCalled();
+    } finally { dispose(); }
+  });
+
+  it('refuses a removal when a peer changes the confirmed card', async () => {
+    answerProbesFromAuthority();
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'peer-edited-removal', content: { type: 'word', front: 'target', back: 'first answer' } });
+    const edited = { ...card, content: { ...card.content, back: 'new peer-authored explanation' } };
+    const key = `ja:${SRS.hashWordSync('target')}`;
+    seed(makeEmptyStore({ rev: 4, flashcards: { [card.id]: card }, wordToCardMap: { [key]: [card.id] } }));
+    await mockBridge.flashcards.saveFlashcards(makeEmptyStore({ rev: 4,
+      flashcards: { [card.id]: edited }, wordToCardMap: { [key]: [card.id] } }), [], false, undefined);
+    try {
+      await expect(ctx.removeFlashcard(card.id, true)).resolves.toBe(false);
+      expect(committed?.flashcards[card.id]).toEqual(edited);
+      expect(committed?.wordToCardMap[key]).toEqual([card.id]);
+      expect(committed?.ignoredWords[key]).toBeUndefined();
+      expect(mockBridge.flashcards.deleteFlashcardTts).not.toHaveBeenCalled();
+    } finally { dispose(); }
+  });
+
+  it.each(['same-url', 'same-storage-id'] as const)('retains %s media still referenced by another authored card after removal', async variant => {
+    const { ctx, dispose } = await mountProvider();
+    const imageUrl = 'flashcard-image://shared-image.png';
+    const otherImageUrl = variant === 'same-url' ? imageUrl : 'flashcard-image://shared-image.webp';
+    const card = makeCard({ id: 'shared-image-owner', content: { type: 'word', front: 'target', back: 'first', imageUrl } });
+    const sibling = makeCard({ id: 'shared-image-consumer', content: { type: 'word', front: 'target', back: 'second', imageUrl: otherImageUrl } });
+    const key = `ja:${SRS.hashWordSync('target')}`;
+    seed(makeEmptyStore({ flashcards: { [card.id]: card, [sibling.id]: sibling }, wordToCardMap: { [key]: [card.id, sibling.id] } }));
+    try {
+      await expect(ctx.removeFlashcard(card.id, true)).resolves.toBe(true);
+      expect(ctx.store.flashcards[sibling.id].content.imageUrl).toBe(otherImageUrl);
+      expect(mockBridge.flashcards.deleteFlashcardImage).not.toHaveBeenCalled();
+    } finally { dispose(); }
+  });
+
+  it.each(['sibling', 'removed-target'] as const)('an acknowledged removal preserves sibling edits without resurrecting its removed %s', async variant => {
+    answerProbesFromAuthority();
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'overlay-target', content: { type: 'word', front: 'target', back: 'first' } });
+    const sibling = makeCard({ id: 'overlay-sibling', content: { type: 'word', front: 'target', back: 'second' } });
+    const key = `ja:${SRS.hashWordSync('target')}`;
+    seed(makeEmptyStore({ rev: 4, flashcards: { [card.id]: card, [sibling.id]: sibling }, wordToCardMap: { [key]: [card.id, sibling.id] } }));
+    await mockBridge.flashcards.saveFlashcards(structuredClone(committed!), [], false, undefined);
+    const strictSave = mockBridge.flashcards.saveFlashcards.getMockImplementation()!;
+    let acknowledge!: () => void;
+    mockBridge.flashcards.saveFlashcards.mockImplementationOnce(strictSave).mockImplementationOnce((saved: FlashcardStore) => new Promise(resolve => {
+      let acked = false; acknowledge = () => { if (acked) return; acked = true; committed = structuredClone(saved); revision += 1; committed.rev = revision; resolve(revision); };
+    }));
+    const removal = ctx.removeFlashcard(card.id, true);
+    try {
+      await vi.waitFor(() => expect(acknowledge).toBeTypeOf('function'));
+      ctx.updateFlashcardContent(variant === 'sibling' ? sibling.id : card.id, { back: 'new local answer while rebase ACK waits' });
+      acknowledge(); await removal;
+      expect(committed?.flashcards[card.id]).toBeUndefined();
+      expect(ctx.store.flashcards[card.id]).toBeUndefined();
+      if (variant === 'sibling') expect(ctx.store.flashcards[sibling.id].content.back).toBe('new local answer while rebase ACK waits');
+    } finally { if (acknowledge) acknowledge(); await removal; dispose(); }
+  });
+
+  it('an older removal rebase acknowledgment preserves a newer peer authority', async () => {
+    answerProbesFromAuthority();
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'peer-ack-target', content: { type: 'word', front: 'target', back: 'first' } });
+    const key = `ja:${SRS.hashWordSync('target')}`;
+    seed(makeEmptyStore({ rev: 4, flashcards: { [card.id]: card }, wordToCardMap: { [key]: [card.id] } }));
+    await mockBridge.flashcards.saveFlashcards(structuredClone(committed!), [], false, undefined);
+    const strictSave = mockBridge.flashcards.saveFlashcards.getMockImplementation()!;
+    let acknowledge!: () => void;
+    mockBridge.flashcards.saveFlashcards.mockImplementationOnce(strictSave).mockImplementationOnce((saved: FlashcardStore) => new Promise(resolve => {
+      committed = structuredClone(saved); revision += 1; committed.rev = revision;
+      const accepted = revision; acknowledge = () => resolve(accepted);
+    }));
+    const removal = ctx.removeFlashcard(card.id, true);
+    try {
+      await vi.waitFor(() => expect(acknowledge).toBeTypeOf('function'));
+      const peer = makeCard({ id: 'new-peer-after-removal', content: { type: 'word', front: 'peer word', back: 'new authored peer answer' } });
+      const newer = structuredClone(committed!);
+      newer.flashcards[peer.id] = peer;
+      newer.wordToCardMap[`ja:${SRS.hashWordSync(peer.content.front)}`] = [peer.id];
+      await mockBridge.flashcards.saveFlashcards(newer, [], false, undefined);
+      deliver(committed!);
+      const newestRev = revision;
+      expect(ctx.store.flashcards[peer.id]).toMatchObject(peer);
+      acknowledge(); await expect(removal).resolves.toBe(true);
+      expect(committed?.flashcards[peer.id]).toEqual(peer);
+      expect(ctx.store.flashcards[peer.id]).toMatchObject(peer);
+      expect(ctx.store.rev).toBe(newestRev);
+    } finally { if (acknowledge) acknowledge(); await removal; dispose(); }
+  });
+
+  it('ordinary ACK removes indexes written by a local target rename while saving', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'normal-ack-rename', content: { type: 'word', front: 'old target', back: 'first' } });
+    const key = `ja:${SRS.hashWordSync(card.content.front)}`;
+    const renamedKey = `ja:${SRS.hashWordSync('new target')}`;
+    seed(makeEmptyStore({ flashcards: { [card.id]: card }, wordToCardMap: { [key]: [card.id] } }));
+    let acknowledge!: () => void;
+    mockBridge.flashcards.saveFlashcards.mockImplementationOnce((saved: FlashcardStore) => new Promise(resolve => {
+      let acked = false; acknowledge = () => { if (acked) return; acked = true; committed = structuredClone(saved); revision += 1; committed.rev = revision; resolve(revision); };
+    }));
+    const removal = ctx.removeFlashcard(card.id, true);
+    try {
+      await vi.waitFor(() => expect(acknowledge).toBeTypeOf('function'));
+      ctx.updateFlashcardContent(card.id, { front: 'new target' });
+      acknowledge(); await expect(removal).resolves.toBe(true);
+      expect(ctx.store.flashcards[card.id]).toBeUndefined();
+      expect(ctx.store.wordToCardMap[renamedKey]).toBeUndefined();
+      expect(ctx.store.wordStatsMap[renamedKey]).toBeUndefined();
+    } finally { if (acknowledge) acknowledge(); await removal; dispose(); }
+  });
+
   it('removeFlashcard returns false for nonexistent card', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());

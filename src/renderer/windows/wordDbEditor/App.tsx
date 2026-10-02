@@ -86,6 +86,14 @@ export const WordDbEditorContent: Component = () => {
   const ankiEnabled = createMemo(() => settings.use_anki);
 
   const [pendingCardAdds, setPendingCardAdds] = createSignal<ReadonlySet<string>>(new Set());
+  const pendingCardRemovals = new Map<string, symbol>();
+  let removalDisposed = false;
+  let removalGeneration = 0;
+  onCleanup(() => { removalDisposed = true; removalGeneration++; });
+  createEffect(on(() => settings.language, () => {
+    removalGeneration++;
+    pendingCardRemovals.clear();
+  }, { defer: true }));
   const [editDialogOpen, setEditDialogOpen] = createSignal(false);
   const [editingEntry, setEditingEntry] = createSignal<WordEntry | null>(null);
 
@@ -485,11 +493,18 @@ export const WordDbEditorContent: Component = () => {
 
   // Remove flashcard for word
   const handleRemoveFlashcard = async (entry: WordEntry) => {
+    const language = settings.language;
+    const scope = JSON.stringify([language, entry.word]);
+    if (pendingCardRemovals.has(scope)) return;
+    const owner = Symbol('card-removal');
+    const generation = removalGeneration;
+    pendingCardRemovals.set(scope, owner);
+    const stillOwned = () => !removalDisposed && generation === removalGeneration && settings.language === language;
     try {
       // Find flashcard by word (async now)
-      const card = await getCardByWord(entry.word, settings.language);
+      const card = await getCardByWord(entry.word, language);
 
-      if (!card) return;
+      if (!card || !stillOwned()) return;
 
       // Same irreversible act, same prompt: the danger button here used to
       // destroy the card outright while the equivalent control in Browse and
@@ -500,15 +515,21 @@ export const WordDbEditorContent: Component = () => {
           titleKey: 'mlearn.Flashcards.Modals.DeleteCard.Title',
           messageKey: 'mlearn.Flashcards.Modals.DeleteCard.Confirm',
         }, t));
-        if (!confirmed) return;
+        if (!confirmed || !stillOwned()) return;
       }
 
-      await removeFlashcard(card.id, true);
+      const removed = await removeFlashcard(card.id, true);
+      if (!stillOwned()) return;
+      if (!removed) {
+        showToast({ message: t('mlearn.Flashcards.Review.RemovalSaveFailed'), variant: 'error' });
+        return;
+      }
 
       log.info(`%cRemoved flashcard for word "${entry.word}"`, 'color: orange;');
     } catch (e) {
       log.error('Failed to remove flashcard:', e);
-    }
+      if (stillOwned()) showToast({ message: t('mlearn.Flashcards.Review.RemovalSaveFailed'), variant: 'error' });
+    } finally { if (pendingCardRemovals.get(scope) === owner) pendingCardRemovals.delete(scope); }
   };
 
   const handleUnignore = async (entry: WordEntry) => {

@@ -155,6 +155,20 @@ describe('RatingMatrix (canonical rating control)', () => {
     expect(container.querySelectorAll('[aria-pressed="true"]')).toHaveLength(0);
   });
 
+  it('preserves a draft when the reset getter keeps its identity across source updates', () => {
+    const [owner, setOwner] = createSignal({ id: 'same-question', revision: 1 });
+    renderMatrix('mnemonic', CAPABILITIES, true, () => owner().id);
+    adjust(); key('3'); key('m');
+    expect(container.querySelector('[aria-pressed="true"]')).not.toBeNull();
+    setOwner({ id: 'same-question', revision: 2 });
+    expect(container.querySelector('.rating-matrix__unfold')).not.toBeNull();
+    expect(container.querySelector('[aria-pressed="true"]')).not.toBeNull();
+    setOwner({ id: 'next-question', revision: 3 });
+    expect(container.querySelector('.rating-matrix__unfold')).toBeNull();
+    expect(container.querySelector('[aria-pressed="true"]')).toBeNull();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('collapsed digits rate the whole word exactly once; strays are absorbed', () => {
     renderMatrix();
     key('1');

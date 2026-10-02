@@ -15,7 +15,7 @@
  * - Untouched rows fabricate no evidence; only explicit drafts and explicit
  *   All/whole-word actions emit observations.
  */
-import { Component, For, Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { Component, For, Show, createEffect, createSignal, createMemo, on, onCleanup, onMount } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import {
   ATTEMPT_QUALITIES,
@@ -61,7 +61,7 @@ export interface RatingMatrixProps {
   /** The control owns its rating keys only while armed. */
   armed: boolean;
   /** Resets drafts, collapse state and the submitted guard when it changes. */
-  resetKey?: string | number;
+  resetKey?: unknown;
   /** Focused probes show their exact tested rows immediately. */
   initiallyExpanded?: boolean;
   /** One logical attempt: the full observation set, in display order. */
@@ -138,7 +138,8 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     for (const key of Object.keys(drafts)) setDrafts(key as CapabilityKey, undefined);
   };
 
-  createEffect(on(() => props.resetKey, () => {
+  const resetIdentity = createMemo(() => props.resetKey);
+  createEffect(on(resetIdentity, () => {
     clearDrafts();
     setExpanded(props.initiallyExpanded === true);
     setSubmitted(false);

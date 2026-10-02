@@ -1329,6 +1329,7 @@ describe('FlashcardReview Remove asks before it destroys the card', () => {
     mockCard = card;
     setMockCard = setCard;
     setMockCard(makeCard());
+    mockReviewCards = { [mockCard()!.id]: mockCard()! };
     const [queueTotal, setQueueTotal] = createSignal(1);
     mockQueueTotal = queueTotal;
     setMockQueueTotal = setQueueTotal;
@@ -1340,12 +1341,20 @@ describe('FlashcardReview Remove asks before it destroys the card', () => {
 
   afterEach(() => {
     closeKnowledgeInspector();
+    mockReviewCards = {};
     document.querySelectorAll('[role=dialog]').forEach((node) => node.remove());
     container.remove();
   });
 
-  const openRemove = async () => {
+  const openRemove = async (withDraft = false) => {
     const dispose = render(() => <FlashcardReview />, container);
+    if (withDraft) {
+      clickShowAnswer(container);
+      container.querySelector<HTMLButtonElement>('.rating-matrix__adjust')!.click();
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+      expect(container.querySelector('.rating-matrix__cell--selected')).not.toBeNull();
+    }
     const actions = Array.from(document.body.querySelectorAll('button'))
       .find((button) => button.textContent === 'mlearn.Flashcards.Review.CardActions');
     expect(actions, 'card actions control is missing').toBeDefined();
@@ -1387,6 +1396,74 @@ describe('FlashcardReview Remove asks before it destroys the card', () => {
 
     expect(mockRemoveFlashcard).toHaveBeenCalledTimes(1);
     expect(mockRemoveFlashcard.mock.calls[0]?.[0]).toBe(mockCard()?.id);
+  });
+
+  it('keeps a revealed card through pending and refused removal and retries only that card', async () => {
+    setMockCard(makeCard({ content: { type: 'word', front: 'target', back: 'answer', example: 'existing authored example' } }));
+    mockReviewCards = { [mockCard()!.id]: mockCard()! };
+    const dispose = await openRemove();
+    const first = mockCard()!;
+    let finish!: (result: boolean) => void;
+    mockRemoveFlashcard.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    try {
+      dialogButton('Cancel')!.click();
+      await flushEffects();
+      clickShowAnswer(container);
+      Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
+      Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.Remove')!.click();
+      await flushEffects();
+      dialogButton('Delete')!.click();
+      await flushEffects();
+      expect(mockRemoveFlashcard).toHaveBeenCalledTimes(1);
+      expect(container.querySelector('.flashcard-back')!.classList.contains('flashcard-face--hidden')).toBe(false);
+      expect(container.textContent).toContain('mlearn.Flashcards.Review.SavingRemoval');
+      expect(container.querySelector('.flashcard-regenerate-btn')).toBeNull();
+      container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+      expect(mockSubmitRating).not.toHaveBeenCalled();
+      finish(false);
+      await flushEffects();
+      expect(container.querySelector('.flashcard-front')!.textContent).toContain(first.content.front);
+      expect(container.querySelector('.flashcard-back')!.classList.contains('flashcard-face--hidden')).toBe(false);
+      expect(container.textContent).toContain('mlearn.Flashcards.Review.RemovalSaveFailed');
+      const retry = container.querySelector<HTMLButtonElement>('[data-testid=review-removal-retry]');
+      expect(retry).not.toBeNull();
+      mockRemoveFlashcard.mockResolvedValueOnce(true);
+      retry!.click();
+      await flushEffects();
+      expect(mockRemoveFlashcard.mock.calls.map(call => call[0])).toEqual([first.id, first.id]);
+    } finally { if (finish) finish(false); mockRemoveFlashcard.mockReset().mockResolvedValue(true); dispose(); }
+  });
+
+  it('retires a removal confirmation when the active study language changes', async () => {
+    const [language, setLanguage] = createSignal('ja');
+    Object.defineProperty(mockSettings, 'language', { configurable: true, get: language });
+    const dispose = await openRemove();
+    try {
+      const next = makeCard({ id: 'other-language', language: 'package-x', content: { type: 'word', front: 'other prompt', back: 'other answer' } });
+      mockReviewCards[next.id] = next;
+      setMockCard(next);
+      setLanguage('package-x');
+      await flushEffects();
+      dialogButton('Delete')!.click();
+      await flushEffects();
+      expect(mockRemoveFlashcard).not.toHaveBeenCalled();
+      expect(container.querySelector('.flashcard-front')!.textContent).toContain('other prompt');
+    } finally { dispose(); }
+  });
+
+  it('preserves an expanded partial rating draft through removal confirmation and cancellation', async () => {
+    const dispose = await openRemove(true);
+    try {
+      expect(container.querySelector('.rating-matrix__unfold')).not.toBeNull();
+      expect(container.querySelector('.rating-matrix__cell--selected')).not.toBeNull();
+      dialogButton('Cancel')!.click();
+      await flushEffects();
+      expect(container.querySelector('.rating-matrix__unfold')).not.toBeNull();
+      expect(container.querySelector('.rating-matrix__cell--selected')).not.toBeNull();
+      expect(container.querySelector('.flashcard-back')!.classList.contains('flashcard-face--hidden')).toBe(false);
+      expect(mockRemoveFlashcard).not.toHaveBeenCalled();
+      expect(mockSubmitRating).not.toHaveBeenCalled();
+    } finally { dispose(); }
   });
 
   it('cancelling leaves the card in place', async () => {

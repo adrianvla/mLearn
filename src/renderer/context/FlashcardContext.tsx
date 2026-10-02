@@ -1393,6 +1393,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     removals: string[],
     resetReviewProgress: boolean,
     authorization?: FlashcardWriteAuthorization,
+    recompute?: (target: FlashcardStore) => boolean,
   ): Promise<FlashcardStore | null> => {
     if (!isElectron()) return null;
     // Bounded: this window's whole write queue is serialised behind this
@@ -1416,7 +1417,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     // looked at. Merging it as "the next store" would replace every collection
     // it merely touched with a fragment of itself, so the replay walks the
     // intent's own branches against what the authority already holds.
-    mergeIntentOnto(rebased as unknown as Record<string, unknown>, intent);
+    if (recompute) {
+      if (!recompute(rebased)) return null;
+    } else mergeIntentOnto(rebased as unknown as Record<string, unknown>, intent);
     try {
       const revision = await getBridge().flashcards.saveFlashcards(rebased, removals, resetReviewProgress, authorization);
       // The main process owns the revision it accepted; mirror it so this
@@ -1464,6 +1467,25 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    */
   let lastPersistFailure: unknown = null;
 
+  // A local edit may add a new index while an accepted removal is in flight.
+  // Remove only references owned by that command, retaining unrelated edits.
+  const pruneAcknowledgedRemovals = (target: FlashcardStore, removedCardIds: readonly string[]): void => {
+    if (removedCardIds.length === 0) return;
+    const removed = new Set(removedCardIds);
+    for (const id of removed) delete target.flashcards[id];
+    for (const [key, ids] of Object.entries(target.wordToCardMap)) {
+      if (!ids.some(id => removed.has(id))) continue;
+      const remaining = ids.filter(id => !removed.has(id));
+      if (remaining.length) {
+        target.wordToCardMap[key] = remaining;
+        target.wordStatsMap[key] = calculateWordStats(remaining.map(id => target.flashcards[id]).filter(Boolean));
+      } else { delete target.wordToCardMap[key]; delete target.wordStatsMap[key]; }
+    }
+    for (const [language, presentation] of Object.entries(target.meta.reviewPresentations ?? {})) {
+      if (removed.has(presentation.cardId)) delete target.meta.reviewPresentations![language];
+    }
+  };
+
   const saveFlashcardsImmediate = async (
     transform?: (target: FlashcardStore, intent: Record<string, unknown>) => void,
     authorization?: FlashcardWriteAuthorization,
@@ -1472,6 +1494,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       base: RatingStore;
       guardCardIds?: readonly string[];
       patch: StorePatch;
+    },
+    command?: {
+      removedCardIds: readonly string[];
+      /** Refuse changes to the confirmed object, including on a stale-write retry. */
+      validate: (target: FlashcardStore) => boolean;
+      /** Recompute dependent indexes/preferences on the refreshed authority. */
+      recomputeOnRebase: boolean;
     },
   ): Promise<boolean> => {
     await flushBackgroundRatings();
@@ -1487,6 +1516,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const __wrows: RatingTraceMark[] = [];
       const __wmark = (label: string): void => { __wrows.push({ label, ms: performance.now() - __tw }); };
       const base = prebuilt?.base ?? cloneFlashcardStore(unwrap(store) as FlashcardStore);
+      if (command && !command.validate(base as FlashcardStore)) {
+        lastPersistFailure = new Error('The confirmed card changed before the command could be saved');
+        return false;
+      }
       let candidate: FlashcardStore;
       if (prebuilt?.patch) {
         for (const id of prebuilt.guardCardIds ?? []) {
@@ -1511,7 +1544,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           (authoritativeStore ?? base) as unknown as Record<string, unknown>,
           candidate as unknown as Record<string, unknown>);
       }
-      const removals = [...pendingCardRemovals];
+      const removals = [...new Set([...pendingCardRemovals, ...(command?.removedCardIds ?? [])])];
       const resetReviewProgress = pendingReviewReset;
       let committedRevision: number;
       try {
@@ -1545,17 +1578,31 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           // not the pre-refusal snapshot. Rebuilding from that snapshot would
           // drop the other window's committed state from the view while the
           // file held it, so the next probe would undo the render again.
-          const rebased = await rebaseOntoAuthority(intent, removals, resetReviewProgress, authorization);
+          const recompute = command?.recomputeOnRebase && transform ? (target: FlashcardStore) => {
+            if (!command.validate(target)) return false;
+            transform(target, {});
+            return true;
+          } : undefined;
+          const rebased = await rebaseOntoAuthority(intent, removals, resetReviewProgress, authorization, recompute);
           if (rebased) {
-            const localChanges: Record<string, unknown> = {};
-            recordStoreDelta(localChanges,
-              (authoritativeStore ?? rebased) as unknown as Record<string, unknown>,
-              cloneFlashcardStore(unwrap(store) as FlashcardStore) as unknown as Record<string, unknown>);
-            delete localChanges.rev;
-            const rendered = cloneFlashcardStore(rebased);
-            mergeIntentOnto(rendered as unknown as Record<string, unknown>, localChanges);
-            authoritativeStore = cloneFlashcardStore(rebased);
-            setStore(reconcile(rendered));
+            const publishAcknowledgment = (authoritativeStore?.rev ?? 0) <= (rebased.rev ?? 0);
+            if (publishAcknowledgment) {
+              const localChanges: Record<string, unknown> = {};
+              recordStoreDelta(localChanges,
+                (authoritativeStore ?? rebased) as unknown as Record<string, unknown>,
+                cloneFlashcardStore(unwrap(store) as FlashcardStore) as unknown as Record<string, unknown>);
+              delete localChanges.rev;
+              // An acknowledged deletion owns its old target. A newer local
+              // field edit cannot recreate a fragment of that deleted object.
+              const changedCards = localChanges.flashcards as Record<string, unknown> | undefined;
+              for (const id of command?.removedCardIds ?? []) if (changedCards) delete changedCards[id];
+              if (changedCards && Object.keys(changedCards).length === 0) delete localChanges.flashcards;
+              const rendered = cloneFlashcardStore(rebased);
+              mergeIntentOnto(rendered as unknown as Record<string, unknown>, localChanges);
+              pruneAcknowledgedRemovals(rendered, command?.removedCardIds ?? []);
+              authoritativeStore = cloneFlashcardStore(rebased);
+              setStore(reconcile(rendered));
+            }
             // Keep the committed baseline separate from newer local edits,
             // so the next queued write can persist those edits against it.
             storeSupersededByRebase = false;
@@ -1564,7 +1611,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             for (const id of removals) pendingCardRemovals.delete(id);
             if (resetReviewProgress) pendingReviewReset = false;
             try {
-              broadcastChannel?.postMessage({ type: 'update', store: rebased });
+              if (publishAcknowledgment) broadcastChannel?.postMessage({ type: 'update', store: rebased });
             } catch (broadcastError) {
               log.error('Failed to broadcast flashcard update:', broadcastError);
             }
@@ -1609,6 +1656,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           } else {
             applyStoreDelta(current as unknown as Record<string, unknown>, base as unknown as Record<string, unknown>, candidate as unknown as Record<string, unknown>);
           }
+          pruneAcknowledgedRemovals(current, command?.removedCardIds ?? []);
         })));
         __wmark('setStore');
       }
@@ -2132,81 +2180,64 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }));
   };
 
-  // Remove flashcard
-  const removeFlashcard = async (id: string, neverShowAgain: boolean = true): Promise<boolean> => {
-    const card = store.flashcards[id];
-    if (!card) return false;
-    pendingCardRemovals.add(id);
-
+  // Removal is a command: publish its result and release media only after ACK.
+  const removalCommands = new Map<string, Promise<boolean>>();
+  const removeFlashcard = (id: string, neverShowAgain: boolean = true): Promise<boolean> => {
+    const existing = removalCommands.get(id);
+    if (existing) return existing;
+    const current = store.flashcards[id];
+    if (!current) return Promise.resolve(false);
+    const card = JSON.parse(JSON.stringify(current)) as Flashcard;
     const word = card.content.front;
     const lang = card.language || settings.language;
-    const storageWord = getPrimaryWordFormForLanguage(word, lang);
-    const wordHash = await SRS.hashWord(storageWord);
-    const lk = langKey(lang, wordHash);
-
-    setStore(produce((s) => {
-      // Remove from flashcards
-      delete s.flashcards[id];
-      if (s.meta.reviewPresentations?.[lang]?.cardId === id) delete s.meta.reviewPresentations[lang];
-      
-      // Remove from wordToCardMap array
-      if (s.wordToCardMap[lk]) {
-        s.wordToCardMap[lk] = s.wordToCardMap[lk].filter(cid => cid !== id);
-        
-        // If no more cards for this word, clean up
-        if (s.wordToCardMap[lk].length === 0) {
-          delete s.wordToCardMap[lk];
-          delete s.wordStatsMap[lk];
-          
-          if (neverShowAgain) {
-            // Exclusion policy only — never an epistemic claim. The word's
-            // knowledge state stays exactly what its evidence says.
-            const previous = s.ignoredWords[lk];
-            s.ignoredWords[lk] = {
-              ...previous,
-              word,
-              ...(card.content.reading !== undefined ? { reading: card.content.reading } : {}),
-              language: lang,
-              ignoredAt: Date.now(),
-              excluded: true,
-              updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? previous?.ignoredAt ?? 0) + 1),
-            };
+    const lk = langKey(lang, SRS.hashWordSync(getPrimaryWordFormForLanguage(word, lang)));
+    const confirmed = JSON.stringify(card);
+    const removal = (async () => {
+      const persisted = await saveFlashcardsImmediate((target, intent) => {
+        const before = cloneFlashcardStore(target);
+        delete target.flashcards[id];
+        if (target.meta.reviewPresentations?.[lang]?.cardId === id) delete target.meta.reviewPresentations[lang];
+        const remaining = target.wordToCardMap[lk]?.filter(cardId => cardId !== id);
+        if (remaining) {
+          if (remaining.length === 0) {
+            delete target.wordToCardMap[lk];
+            delete target.wordStatsMap[lk];
+            if (neverShowAgain) {
+              const previous = target.ignoredWords[lk];
+              target.ignoredWords[lk] = { ...previous, word,
+                ...(card.content.reading !== undefined ? { reading: card.content.reading } : {}),
+                language: lang, ignoredAt: Date.now(), excluded: true,
+                updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? previous?.ignoredAt ?? 0) + 1) };
+            }
+          } else {
+            target.wordToCardMap[lk] = remaining;
+            target.wordStatsMap[lk] = calculateWordStats(remaining.map(cardId => target.flashcards[cardId]).filter(Boolean));
           }
-        } else {
-          // Recalculate stats for remaining cards
-          const cards = s.wordToCardMap[lk].map(cid => s.flashcards[cid]).filter(Boolean);
-          s.wordStatsMap[lk] = calculateWordStats(cards);
+        }
+        recordStoreDelta(intent, before as unknown as Record<string, unknown>, target as unknown as Record<string, unknown>);
+      }, undefined, undefined, { removedCardIds: [id],
+        validate: target => JSON.stringify(target.flashcards[id]) === confirmed, recomputeOnRebase: true });
+      if (!persisted) return false;
+      refreshQueue();
+      // A newer acknowledged authority can recreate this ID while the old
+      // response is in flight. Its resources belong to that newer owner.
+      if (store.flashcards[id]) return true;
+      if (card.content.videoUrl) {
+        getBridge().flashcards.deleteFlashcardVideo(id).catch((error: unknown) => log.warn('Failed to delete flashcard video:', error));
+      }
+      if (card.content.imageUrl) {
+        const imageId = extractCardIdFromImageUrl(card.content.imageUrl);
+        const imageStillUsed = Object.values(store.flashcards).some(other => other.content.imageUrl && extractCardIdFromImageUrl(other.content.imageUrl) === imageId)
+          || Object.values(store.suggestedFlashcards).some(other => other.imageUrl && extractCardIdFromImageUrl(other.imageUrl) === imageId);
+        if (imageId && !imageStillUsed) {
+          getBridge().flashcards.deleteFlashcardImage(imageId).catch((error: unknown) => log.warn('Failed to delete flashcard image:', error));
         }
       }
-    }));
-
-    // Remove from queue
-    setQueue(SRS.removeFromQueue(queue(), id));
-
-    // Clean up associated video file
-    if (card.content.videoUrl) {
-      getBridge().flashcards.deleteFlashcardVideo(id).catch((err: unknown) =>
-        log.warn('Failed to delete flashcard video:', err)
-      );
-    }
-
-    // Clean up associated image file
-    if (card.content.imageUrl) {
-      const imageId = extractCardIdFromImageUrl(card.content.imageUrl);
-      if (imageId) {
-        getBridge().flashcards.deleteFlashcardImage(imageId).catch((err: unknown) =>
-          log.warn('Failed to delete flashcard image:', err)
-        );
-      }
-    }
-
-    // Clean up associated TTS audio (word + example fields)
-    getBridge().flashcards.deleteFlashcardTts(id).catch((err: unknown) =>
-      log.warn('Failed to delete flashcard TTS:', err)
-    );
-
-    saveFlashcards();
-    return true;
+      getBridge().flashcards.deleteFlashcardTts(id).catch((error: unknown) => log.warn('Failed to delete flashcard TTS:', error));
+      return true;
+    })().finally(() => { if (removalCommands.get(id) === removal) removalCommands.delete(id); });
+    removalCommands.set(id, removal);
+    return removal;
   };
 
   // Update flashcard

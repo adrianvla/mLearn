@@ -1282,6 +1282,8 @@
         },
         "PlayVideoWithAssistance": "Video mit Hilfestellung abspielen",
         "AssistanceRecorded": "Hilfen für diese Aufgabe sind gespeichert. Vorgegebene Aspekte zählen nicht als selbstständige Erinnerung.",
+        "SavingRemoval": "Karte wird entfernt…",
+        "RemovalSaveFailed": "Die Karte konnte nicht entfernt werden. Sie wurde möglicherweise geändert. Erneut versuchen oder abbrechen.",
         "SavingRating": "Bewertung wird gespeichert…",
         "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Die Karte ist noch da; versuche es erneut.",
         "PendingRatingsSaveFailed": "Die letzten Bewertungen konnten nicht gespeichert werden. Versuche es erneut.",
