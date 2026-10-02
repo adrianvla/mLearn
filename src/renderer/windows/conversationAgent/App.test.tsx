@@ -333,7 +333,7 @@ vi.mock('../../components/subtitle/ExplainerPopup', () => ({
 }));
 
 vi.mock('./VoiceTab', () => ({
-  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string; onSendMessage?: (text: string) => Promise<void>; onAbort?: () => void; onStatusChange?: (status: string) => void; onCallStateChange?: (active: boolean, reason?: 'failed' | 'completed', error?: string) => void }) => {
+  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string; speechMessages?: Array<{ content: string; eventId: string; actorId: string; voiceSessionId: string }>; onSendMessage?: (text: string) => Promise<void>; onAbort?: () => void; onStatusChange?: (status: string) => void; onCallStateChange?: (active: boolean, reason?: 'failed' | 'completed', error?: string, sessionId?: string) => void }) => {
     voiceTabMounts++;
     return (
     <div
@@ -343,10 +343,11 @@ vi.mock('./VoiceTab', () => ({
       data-voice-sample={props.defaultVoiceSampleId}
     ><button onClick={() => props.onCallStateChange?.(false, 'failed', "No module named kokoro")}>Simulate voice failure</button>
       <button onClick={() => props.onStatusChange?.('Listening…')}>Simulate listening</button>
-      <button onClick={() => props.onCallStateChange?.(true)}>Start call session</button>
+      <button onClick={() => props.onCallStateChange?.(true, undefined, undefined, 'synthetic-call-session')}>Start call session</button>
       <button onClick={() => void props.onSendMessage?.('A spoken question')}>Send voice transcript</button>
       <button onClick={() => props.onAbort?.()}>Abort call response</button>
       <button onClick={() => { props.onCallStateChange?.(true); props.onCallStateChange?.(false, 'completed'); }}>Complete call</button>
+      <div data-testid="admitted-speech">{JSON.stringify(props.speechMessages)}</div>
     </div>
     );
   },
@@ -717,6 +718,29 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(mockBridge.world.triggerReflection).not.toHaveBeenCalled();
   });
 
+  it.each(['approved', 'replaced', 'support'] as const)('admits only the saved %s result to call speech after review', async (status) => {
+    desktopRuntime = true;
+    testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
+    const review = deferred<TurnReviewResult>();
+    mockBridge.world.reviewConversationTurn.mockImplementationOnce(() => review.promise);
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click(); button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Unreviewed candidate', done: true });
+    await vi.waitFor(() => expect(mockBridge.world.reviewConversationTurn).toHaveBeenCalledOnce());
+    const speech = () => JSON.parse(container.querySelector('[data-testid="admitted-speech"]')!.textContent || 'null');
+    expect(speech()).toEqual([]);
+    const admitted = status === 'support' ? 'mlearn.ConversationAgent.Story.SupportResponse' : 'Admitted reviewed reply';
+    review.resolve(status === 'support' ? { status, reason: 'self-harm', restrictUserContext: true, reviewId: 'voice-review' }
+      : { status, text: 'Admitted reviewed reply', reason: 'none', restrictUserContext: false, reviewId: 'voice-review' });
+    await vi.waitFor(() => expect(speech()).toEqual([expect.objectContaining({ content: admitted, eventId: expect.any(String), actorId: 'agent-a', voiceSessionId: 'synthetic-call-session' })]));
+    expect(JSON.stringify(speech())).not.toContain('Unreviewed candidate');
+  });
+
   it('keeps a successor voice overlay when a cancelled turn finishes its in-flight journal append', async () => {
     desktopRuntime = true;
     testSettings.agentMistakeChecker = false;
@@ -745,8 +769,12 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await new Promise<void>(resolve => queueMicrotask(resolve));
     await new Promise<void>(resolve => queueMicrotask(resolve));
     expect(chatText(container)).toContain('Successor is still speaking');
+    const admitted = () => JSON.parse(container.querySelector('[data-testid="admitted-speech"]')!.textContent || 'null');
+    expect(admitted()).toEqual([]);
     emitChunk({ done: true });
     await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character' && (event.payload as { text: string }).text === 'Successor is still speaking')).toBe(true));
+    await vi.waitFor(() => expect(admitted()).toEqual([expect.objectContaining({ content: 'Successor is still speaking' })]));
+    expect(JSON.stringify(admitted())).not.toContain('Earlier approved response');
   });
 
   it.each(['Complete call', 'Simulate voice failure'])('cancels a voice send waiting for settings on %s', async (action) => {

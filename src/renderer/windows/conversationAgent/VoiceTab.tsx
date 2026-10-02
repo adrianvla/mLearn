@@ -142,6 +142,8 @@ export interface VoiceTabProps {
   /** Start a call immediately after the tab mounts. */
   autoStartCall?: boolean;
   messages: Array<ConversationMessage & { eventId?: string; actorId?: string }>;
+  /** Final journal responses, distinct from the live chat candidate. */
+  speechMessages?: readonly VoiceSpeechMessage[];
   isStreaming: boolean;
   onSendMessage: (text: string) => void;
   /** Fired on every non-final STT partial while listening (feeds speculative prefetch). */
@@ -155,7 +157,7 @@ export interface VoiceTabProps {
   /** Called when user interrupts TTS — provides the text spoken so far and remaining text */
   onInterrupted?: (spokenText: string, interruptedAt: string) => void;
   /** Called when voice call starts or stops */
-  onCallStateChange?: (active: boolean, reason?: 'completed' | 'failed' | 'cleanup', error?: string) => void;
+  onCallStateChange?: (active: boolean, reason?: 'completed' | 'failed' | 'cleanup', error?: string, sessionId?: string) => void;
   /** Present the existing call state in the window header without owning it. */
   onStatusChange?: (status: string) => void;
   onTokenHover?: (token: Token, rect: DOMRect, el: HTMLElement) => void;
@@ -166,10 +168,20 @@ export interface VoiceTabProps {
   language: string;
   /** Default voice sample from the agent config */
   defaultVoiceSampleId?: string;
+  /** Profiles present in the group, without assigning one participant's voice to everyone. */
+  voiceSampleIds?: readonly string[];
   /** Active agent display name */
   agentName?: string;
   /** Active agent profile photo as a data URI */
   profilePhoto?: string;
+}
+
+export interface VoiceSpeechMessage {
+  eventId: string;
+  actorId: string;
+  voiceSessionId: string;
+  content: string;
+  voiceSampleId?: string;
 }
 
 // ============================================================================
@@ -251,6 +263,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   let ttsAborted = false;
   let callSessionId = crypto.randomUUID();
   let activeTtsRequest: VoiceTtsRequestIdentity | null = null;
+  let activeSpeech: VoiceSpeechMessage | null = null;
+  let pendingSpeech: VoiceSpeechMessage[] = [];
+  let seenSpeechEventIds = new Set<string>();
+  let speechTurnIndex = 0;
   // Sentence timing for estimating interruption position within a sentence
   let ttsCurrentSentenceStartTime = 0;
   let ttsCurrentSentenceDuration = 0;
@@ -771,6 +787,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         setTtsDownloadProgress(0);
         setCallState('listening');
         showToast({ message: status.error, variant: 'error' });
+        props.onAbort();
         return;
       }
       setTtsModelLoading(status.modelLoading ?? false);
@@ -914,7 +931,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   // ============================================================================
 
   function resetVoiceTtsTurn(initialText: string, messageIndex: number): void {
-    stopTTSPlayback();
+    stopTTSPlayback(false);
     clearScheduledNudgeTimer();
     resetVoiceTtsTurnState(voiceTtsTurn, messageIndex);
     currentTtsText = initialText;
@@ -927,12 +944,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   }
 
   function requestNextVoiceTtsPhrase(): void {
-    if (ttsAborted || !isCallActive()) return;
+    if (ttsAborted || !isCallActive() || isInitializing() || !activeSpeech) return;
     const next = takeNextVoiceTtsPhrase(voiceTtsTurn);
     if (!next) return;
 
-    const provider = activeTtsProvider();
-    const sampleId = activeVoiceSampleId();
+    const sampleId = ttsChoice() === 'voice-clone' ? activeSpeech.voiceSampleId : undefined;
+    const provider = ttsChoice() === 'voice-clone' && !sampleId ? 'system' : activeTtsProvider();
     log.info('[VoiceTab] Requesting TTS phrase', {
       provider,
       language: props.language,
@@ -942,12 +959,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     addDebugEvent('LLM -> TTS', `${next.phrase.length} chars queued for streamed TTS`, 'active');
 
     ttsGenerationActive = true;
-    const message = props.messages[voiceTtsTurn.messageIndex];
+    const message = activeSpeech;
     const request: VoiceTtsRequestIdentity = {
       sessionId: callSessionId,
       requestId: crypto.randomUUID(),
-      utteranceId: message?.eventId ?? `${callSessionId}:${voiceTtsTurn.messageIndex}`,
-      ...(message?.actorId ? { actorId: message.actorId } : {}),
+      utteranceId: message.eventId,
+      actorId: message.actorId,
     };
     activeTtsRequest = request;
 
@@ -956,9 +973,12 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         const allowed = await requestAccess('tts');
         if (activeTtsRequest !== request) return;
         if (!allowed || ttsAborted || !isCallActive()) {
-          activeTtsRequest = null;
-          finishVoiceTtsPhraseRequest(voiceTtsTurn);
-          ttsGenerationActive = false;
+          stopTTSPlayback();
+          setCallState('listening');
+          if (!allowed) {
+            showToast({ message: t('mlearn.ConversationAgent.Voice.SynthesisDeclined'), variant: 'info' });
+            props.onAbort();
+          }
           return;
         }
         getBridge().voice.voiceTtsGenerate(next.phrase, props.language, ttsSpeed(), sampleId, provider, undefined, request);
@@ -968,28 +988,35 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         log.error('[VoiceTab] Failed to request streamed TTS phrase:', error);
         finishVoiceTtsPhraseRequest(voiceTtsTurn);
         ttsGenerationActive = false;
+        stopTTSPlayback();
+        setCallState('listening');
+        props.onAbort();
+        showToast({ message: error instanceof Error ? error.message : String(error), variant: 'error' });
       }
     })();
   }
 
+  function startNextSpeech(): void {
+    if (activeSpeech || !isCallActive() || isInitializing()) return;
+    const next = pendingSpeech.shift();
+    if (!next) return;
+    resetVoiceTtsTurn(next.content, speechTurnIndex++);
+    activeSpeech = next;
+    setCallState('processing');
+    const phrases = enqueueVoiceTtsPhrasesForMessage(voiceTtsTurn, voiceTtsTurn.messageIndex, next.content, false);
+    appendTtsTimelinePhrases(phrases, 0);
+    requestNextVoiceTtsPhrase();
+    if (phrases.length === 0) finishTtsIfPlaybackDrained();
+  }
+
   createEffect(() => {
-    if (!isCallActive()) return;
-    const msgs = props.messages;
-    if (msgs.length === 0) return;
-    const lastIndex = msgs.length - 1;
-    const last = msgs[msgs.length - 1];
-    if (last.role !== 'assistant' || !last.content || last.interrupted) return;
-
-    if (voiceTtsTurn.messageIndex !== lastIndex) {
-      resetVoiceTtsTurn(last.content, lastIndex);
+    if (!isCallActive() || isInitializing()) return;
+    for (const message of props.speechMessages ?? []) {
+      if (message.voiceSessionId !== callSessionId || seenSpeechEventIds.has(message.eventId)) continue;
+      seenSpeechEventIds.add(message.eventId);
+      if (message.content.trim()) pendingSpeech.push({ ...message });
     }
-
-    currentTtsText = last.content;
-    const queued = enqueueVoiceTtsPhrasesForMessage(voiceTtsTurn, lastIndex, last.content, props.isStreaming);
-    if (queued.length > 0) {
-      appendTtsTimelinePhrases(queued, voiceTtsTurn.sentenceTexts.length - queued.length);
-      requestNextVoiceTtsPhrase();
-    }
+    startNextSpeech();
   });
 
   // ============================================================================
@@ -1158,6 +1185,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       ttsPlaybackTimer = null;
     }
     if (isCallActive()) {
+      activeSpeech = null;
+      startNextSpeech();
+      if (activeSpeech) return;
       setCallState('listening');
       scheduleIdleSilenceNudge('waiting');
     }
@@ -1279,9 +1309,13 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     }
   };
 
-  const stopTTSPlayback = () => {
+  const stopTTSPlayback = (clearSpeech = true) => {
     const request = activeTtsRequest;
     activeTtsRequest = null;
+    if (clearSpeech) {
+      activeSpeech = null;
+      pendingSpeech = [];
+    }
     for (const source of ttsSources) {
       source.onended = null;
       try { source.stop(); } catch (e) {
@@ -1321,6 +1355,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const startCall = async () => {
     callSessionId = crypto.randomUUID();
+    seenSpeechEventIds = new Set((props.speechMessages ?? []).map(message => message.eventId));
+    activeSpeech = null;
+    pendingSpeech = [];
+    speechTurnIndex = 0;
     log.info('[VoiceTab] Starting voice call', {
       language: props.language,
       mode: voiceMode(),
@@ -1333,7 +1371,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     setIsInitializing(true);
     setInitError('');
     setIsCallActive(true);
-    props.onCallStateChange?.(true);
+    props.onCallStateChange?.(true, undefined, undefined, callSessionId);
     setCallState('idle');
     setPartialTranscript('');
     setTtsChunkCount(0);
@@ -1468,15 +1506,14 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const activeTtsLabel = () => (
     ttsChoiceOptions().find(option => option.value === ttsChoice())?.label ?? activeTtsProvider()
   );
-  const activeVoiceSampleId = (): string | undefined => (
-    ttsChoice() === 'voice-clone' ? props.defaultVoiceSampleId || undefined : undefined
-  );
 
   const agentVoiceSampleExists = async (): Promise<boolean> => {
-    const voiceSampleId = props.defaultVoiceSampleId;
-    if (!voiceSampleId) return false;
+    const ids = [...new Set([...(props.voiceSampleIds ?? []), ...(props.defaultVoiceSampleId ? [props.defaultVoiceSampleId] : [])])];
     try {
-      return Boolean(await getBridge().voice.voiceSampleGetPath(voiceSampleId));
+      for (const id of ids) {
+        if (await getBridge().voice.voiceSampleGetPath(id)) return true;
+      }
+      return false;
     } catch (error) {
       log.error('[VoiceTab] Failed to validate agent voice sample:', error);
       return false;
@@ -1511,12 +1548,10 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   createEffect(
     on(
-      () => [props.defaultVoiceSampleId, settings.ttsProvider] as const,
-      ([voiceSampleId, savedProvider]) => {
+      () => settings.ttsProvider,
+      (savedProvider) => {
         const savedChoice = voiceTtsChoiceFromProvider(savedProvider ?? DEFAULT_SETTINGS.ttsProvider);
-        if (!voiceSampleId && savedChoice === 'voice-clone') {
-          setTtsChoice('system');
-        } else if (ttsChoice() !== savedChoice) {
+        if (ttsChoice() !== savedChoice) {
           setTtsChoice(savedChoice);
         }
       },
@@ -1725,6 +1760,9 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       {/* Main voice UI (models ready) */}
       <Show when={!isChecking() && modelsReady() && !isDownloading()}>
         <div class="voice-call-area">
+          <Show when={ttsChoice() === 'voice-clone'}>
+            <p class="voice-download-hint">{t('mlearn.ConversationAgent.Voice.ContactVoices')}</p>
+          </Show>
           {/* CPU compute warning — status-driven, never blocks session controls */}
           <Show when={cpuVoiceWarning()}>
             <AlertBanner

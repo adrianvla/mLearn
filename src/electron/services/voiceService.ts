@@ -1007,12 +1007,13 @@ async function generateTTS(
     if (voiceSampleId) {
       const samples = loadSamplesManifest();
       const sample = samples.find((s) => s.id === voiceSampleId);
-      if (sample) {
-        if (requestedProvider === 'qwen3') {
-          await ensureVoiceSampleTranscript(sample, samples, language, false, abortController.signal);
-        }
-        voiceSamplePath = getVoiceSamplePath(sample);
+      if (!sample || !fs.existsSync(getVoiceSamplePath(sample))) {
+        throw new Error('The assigned voice sample is unavailable. Choose another voice sample.');
       }
+      if (requestedProvider === 'qwen3') {
+        await ensureVoiceSampleTranscript(sample, samples, language, false, abortController.signal);
+      }
+      voiceSamplePath = getVoiceSamplePath(sample);
     }
     if (!ownsTtsRequest(owner)) throw new Error('TTS request cancelled');
 
@@ -1052,7 +1053,7 @@ function generateSystemTTS(
 ): Promise<void> {
   stopSystemTTS();
 
-  const sanitized = text.replace(/\n/g, ' ').trim().substring(0, 500);
+  const sanitized = text.replace(/\n/g, ' ').trim();
   if (!sanitized) {
     sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false });
     return Promise.resolve();

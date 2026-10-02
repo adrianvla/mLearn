@@ -722,6 +722,8 @@
         "Listening": "Écoute…",
         "LoadingTtsModel": "Chargement du modèle de synthèse vocale…",
         "MicPermission": "L'appel vocal nécessite l'accès au microphone.",
+        "SynthesisDeclined": "La parole s’est arrêtée car la synthèse locale a été refusée. L’appel reste ouvert.",
+        "ContactVoices": "Chaque contact utilise son propre échantillon vocal. Sans échantillon, il utilise la voix du système.",
         "Microphone": "Microphone",
         "DefaultMicrophone": "Microphone par défaut",
         "MicrophoneNumber": "Microphone {index}",

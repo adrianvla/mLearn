@@ -722,6 +722,8 @@
         "Listening": "Höre zu…",
         "LoadingTtsModel": "Sprachsynthesemodell wird geladen…",
         "MicPermission": "Sprachanrufe erfordern Mikrofonzugriff.",
+        "SynthesisDeclined": "Die Sprachausgabe wurde gestoppt, weil die lokale Synthese abgelehnt wurde. Der Anruf bleibt offen.",
+        "ContactVoices": "Jeder Kontakt nutzt seine eigene Stimmprobe. Kontakte ohne Stimmprobe nutzen die Systemstimme.",
         "Microphone": "Mikrofon",
         "DefaultMicrophone": "Standardmikrofon",
         "MicrophoneNumber": "Mikrofon {index}",

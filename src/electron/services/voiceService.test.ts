@@ -1502,6 +1502,27 @@ describe('VOICE_MODEL_DOWNLOAD handler', () => {
 });
 
 describe('VOICE_TTS_GENERATE handler — local TTS', () => {
+  it('does not report completion after silently truncating a system-voice phrase', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    execFileFn.mockReturnValue({ kill: vi.fn() });
+    const phrase = 'A'.repeat(500) + ' The entire approved ending must be spoken.';
+    onHandlers.get('voice-tts-generate')?.(event, phrase, 'en', 1, undefined, 'system');
+    expect((execFileFn.mock.calls[0][1] as string[]).join(' ')).toContain(phrase);
+  });
+
+  it('reports a missing assigned voice sample instead of silently using a different voice', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true }));
+    existsSyncFn.mockReturnValue(false);
+    const request = { sessionId: 'call-a', requestId: 'phrase-a', actorId: 'actor-a' };
+    onHandlers.get('voice-tts-generate')?.(event, 'A phrase', 'en', 1, 'missing-assigned-sample', 'qwen3', undefined, request);
+    await flushMicrotasks();
+    expect(lastCreatedWebSocket).toBeNull();
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', expect.objectContaining({ ...request, generating: false, error: expect.stringContaining('sample') }));
+  });
+
   it.each(['qwen3', 'system'])('cancels owned %s work when its renderer is destroyed', async (provider) => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();

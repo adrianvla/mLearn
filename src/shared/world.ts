@@ -84,6 +84,8 @@ export interface MessagePayload {
   widget?: unknown;
   widgets?: unknown[];
   modality?: 'text' | 'voice';
+  /** Identifies the call that admitted this voice message, excluding history replay. */
+  voiceSessionId?: string;
   replyToEventId?: string;
 }
 

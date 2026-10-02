@@ -722,6 +722,8 @@
         "Listening": "正在聆听…",
         "LoadingTtsModel": "正在加载语音合成模型…",
         "MicPermission": "语音通话需要麦克风访问权限。",
+        "SynthesisDeclined": "由于未允许本地语音合成，语音播放已停止。通话仍保持开启。",
+        "ContactVoices": "每位联系人使用自己的声音样本。没有样本的联系人使用系统声音。",
         "Microphone": "麦克风",
         "DefaultMicrophone": "默认麦克风",
         "MicrophoneNumber": "麦克风 {index}",

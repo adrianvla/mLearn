@@ -31,7 +31,7 @@ import { useWordHover, useTranslation, useTokenizer, useDictionary, getCachedTra
 import { ChatBubble } from './ChatBubble';
 import { ThreadInfoPanel } from './ThreadInfoPanel';
 import { IntegrationModal } from './IntegrationModal';
-import { VoiceTab } from './VoiceTab';
+import { VoiceTab, type VoiceSpeechMessage } from './VoiceTab';
 import { VoiceAftermath } from './VoiceAftermath';
 
 import { AgeVerificationModal } from './AgeVerificationModal';
@@ -275,6 +275,8 @@ export const ConversationContent: Component = () => {
   const [liveOverlay, setLiveOverlay] = createSignal<ConversationOverlay | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
   const interruptedSpokenText = new Map<string, { text: string; interruptedAt: string }>();
+  const [activeVoiceSessionId, setActiveVoiceSessionId] = createSignal<string | null>(null);
+  const [admittedVoiceEventIds, setAdmittedVoiceEventIds] = createSignal<ReadonlySet<string>>(new Set());
   const supersededEvents = new Set<string>();
   const participantAgents = new Map<string, AgentInstance>();
   const reviewOperations = new Set<string>();
@@ -487,6 +489,13 @@ export const ConversationContent: Component = () => {
       return { ...message, ...messageOverrides().get(eventId), ...(interrupted ? { content: interrupted.text, interrupted: true, interruptedAt: interrupted.interruptedAt } : {}) };
     }));
   const messages = createMemo(() => [...displayMessages(), ...streamingMessages(liveOverlay())]);
+  const speechMessages = createMemo<VoiceSpeechMessage[]>(() => displayMessages().flatMap(message => {
+    const eventMessage = message as EventMessage & { modality?: 'voice'; voiceSessionId?: string };
+    if (!admittedVoiceEventIds().has(eventMessage.eventId) || eventMessage.modality !== 'voice' || !eventMessage.voiceSessionId || !eventMessage.actorId
+      || message.role !== 'assistant' || message.interrupted || message.isError) return [];
+    return [{ eventId: eventMessage.eventId, actorId: eventMessage.actorId, voiceSessionId: eventMessage.voiceSessionId,
+      content: message.content, voiceSampleId: rosterParticipants().find(person => person.id === eventMessage.actorId)?.voiceSampleId }];
+  }));
   const [streamingMessageIndex, setStreamingMessageIndex] = createSignal<number | null>(null);
   const updateMessageOverride = (eventId: string, update: (message: ConversationMessage) => ConversationMessage) => {
     const message = displayMessages().find((item) => (item as EventMessage).eventId === eventId);
@@ -1364,6 +1373,7 @@ export const ConversationContent: Component = () => {
   };
 
   const runConversationTurn = async (text: string, contextOnly = false, modality: 'text' | 'voice' = isVoiceCallActive() ? 'voice' : 'text'): Promise<void> => {
+    const voiceSessionId = modality === 'voice' ? activeVoiceSessionId() ?? undefined : undefined;
     if (!text || activeTurn || isStreaming() || isSafetyLockedState()) return;
     const session = selectionSession;
     const turn = { modality, cancelled: false, reviews: new Set<string>() };
@@ -1499,10 +1509,15 @@ export const ConversationContent: Component = () => {
         },
         appendEvent: async (draft, shape) => {
           if (!ownsTurn()) throw new Error('Conversation response cancelled');
-          const event = await journal.append(draft.type === 'message.character' && pendingResponse.widgets && (!shape || shape.index === shape.count - 1)
-            ? { ...draft, payload: { ...(draft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
-            : draft);
+          const scopedDraft = draft.type === 'message.character' && modality === 'voice'
+            ? { ...draft, payload: { ...(draft.payload as MessagePayload), voiceSessionId } } : draft;
+          const event = await journal.append(scopedDraft.type === 'message.character' && pendingResponse.widgets && (!shape || shape.index === shape.count - 1)
+            ? { ...scopedDraft, payload: { ...(scopedDraft.payload as MessagePayload), widgets: pendingResponse.widgets, widget: pendingResponse.widgets[pendingResponse.widgets.length - 1] } }
+            : scopedDraft);
           if (!ownsTurn()) throw new Error('Conversation response cancelled');
+          if (draft.type === 'message.character' && modality === 'voice') {
+            setAdmittedVoiceEventIds(previous => new Set([...previous, event.id]));
+          }
           if (draft.type === 'message.character') setLiveOverlay(null);
           if (draft.type === 'message.character') {
             const writes = approvedMemoryWrites.get(draft.actorId) ?? [];
@@ -2238,6 +2253,7 @@ export const ConversationContent: Component = () => {
           <Show when={voiceAftermath()} fallback={<VoiceTab
               autoStartCall={voiceOverlayRequested()}
               messages={messages()}
+              speechMessages={speechMessages()}
               isStreaming={isStreaming()}
               onSendMessage={sendTextMessage}
               onPartialTranscript={(text) => voiceContextPrefetch.onPartial(text, activeVoiceParticipant()?.id ?? '')}
@@ -2250,7 +2266,10 @@ export const ConversationContent: Component = () => {
               agentName={callIdentity()}
               profilePhoto={voiceContactParticipantId() || rosterParticipants().length === 1 ? activeVoiceParticipant()?.profilePhoto : undefined}
               defaultVoiceSampleId={activeVoiceParticipant()?.voiceSampleId}
-              onCallStateChange={(active, reason, error) => {
+              voiceSampleIds={rosterParticipants().flatMap(person => person.voiceSampleId ? [person.voiceSampleId] : [])}
+              onCallStateChange={(active, reason, error, sessionId) => {
+                setAdmittedVoiceEventIds(new Set<string>());
+                setActiveVoiceSessionId(active ? sessionId ?? crypto.randomUUID() : null);
                 if (!active) abortCallResponse();
                 if (reason === 'failed' && error) setContactIngressError(error);
                 setIsVoiceCallActive(active);

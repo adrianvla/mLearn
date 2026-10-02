@@ -722,6 +722,8 @@
         "Listening": "Listening…",
         "LoadingTtsModel": "Loading speech model…",
         "MicPermission": "Microphone access is required for voice calls.",
+        "SynthesisDeclined": "Speech stopped because local synthesis was declined. The call remains open.",
+        "ContactVoices": "Each contact uses their own voice sample. Contacts without a sample use the system voice.",
         "Microphone": "Microphone",
         "DefaultMicrophone": "Default microphone",
         "MicrophoneNumber": "Microphone {index}",

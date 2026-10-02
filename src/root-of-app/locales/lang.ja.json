@@ -722,6 +722,8 @@
         "Listening": "聞いています…",
         "LoadingTtsModel": "音声合成モデルを読み込み中…",
         "MicPermission": "音声通話にはマイクへのアクセスが必要です。",
+        "SynthesisDeclined": "ローカル音声合成が許可されなかったため、読み上げを停止しました。通話は継続しています。",
+        "ContactVoices": "各連絡先の音声サンプルを使用します。サンプルがない連絡先にはシステム音声を使用します。",
         "Microphone": "マイク",
         "DefaultMicrophone": "デフォルトのマイク",
         "MicrophoneNumber": "マイク {index}",

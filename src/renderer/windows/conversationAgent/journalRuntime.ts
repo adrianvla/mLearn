@@ -17,6 +17,7 @@ type JournalDisplayMessage = ConversationMessage & {
   actorId: string;
   displayName: string;
   modality?: 'voice';
+  voiceSessionId?: string;
 };
 
 export interface JournalThreadSelection {
@@ -117,6 +118,7 @@ export function eventsToDisplayMessages(
         content: sanitizeJournalMessageText(event.type, payload.text),
       };
       if (payload.modality === 'voice') message.modality = 'voice';
+      if (payload.voiceSessionId) message.voiceSessionId = payload.voiceSessionId;
       if (payload.widget) message.widget = payload.widget;
       if (payload.widgets) message.widgets = payload.widgets;
       messagesByEventId.set(event.id, message);
@@ -167,13 +169,14 @@ export function buildLLMHistory(
   return projectHistoryForParticipant(inferenceEvents(events), participantId, participants);
 }
 
-function messagePayload(payload: unknown): { text: string; widget?: ChatWidget; widgets?: ChatWidget[]; modality?: 'voice' } | undefined {
+function messagePayload(payload: unknown): { text: string; widget?: ChatWidget; widgets?: ChatWidget[]; modality?: 'voice'; voiceSessionId?: string } | undefined {
   if (!isRecord(payload) || typeof payload.text !== 'string') return undefined;
   const widget = isChatWidget(payload.widget) ? payload.widget : undefined;
   const widgets = Array.isArray(payload.widgets) && payload.widgets.every(isChatWidget)
     ? payload.widgets
     : undefined;
-  return { text: payload.text, widget, widgets, modality: payload.modality === 'voice' ? 'voice' : undefined };
+  return { text: payload.text, widget, widgets, modality: payload.modality === 'voice' ? 'voice' : undefined,
+    voiceSessionId: typeof payload.voiceSessionId === 'string' && payload.voiceSessionId ? payload.voiceSessionId : undefined };
 }
 
 function correctionPayload(payload: unknown): { messageEventId: string; corrections: MistakeWidgetData[] } | undefined {
