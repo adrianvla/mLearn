@@ -2292,7 +2292,7 @@
         "SinglePage": "単一ページ",
         "SpreadLeftToRight": "ページ 左→右",
         "SpreadRightToLeft": "ページ 右→左",
-        "ToggleUnknownWordsSidebar": "未習得単語サイドバーを切り替え",
+        "ToggleUnknownWordsSidebar": "語彙サイドバーを切り替え",
         "ToggleContents": "目次の表示切替",
         "PreviousPage": "前のページ",
         "NextPage": "次のページ",
@@ -3652,7 +3652,15 @@
         "Word": "単語"
       },
       "UnknownWords": "未知の単語",
-      "WordCount": "{count} 語"
+      "WordCount": "{count} 語",
+      "Vocabulary": "語彙",
+      "InspectWord": "{word}を詳しく見る",
+      "SaveOrExclude": "保存・学習から除外",
+      "FilterAndSave": "絞り込み・保存",
+      "InspectionHint": "語を選ぶと、習得状況とその根拠を確認できます。復習用に保存するか、学習から除外できます。",
+      "SaveAllForReview": "すべて復習用に保存",
+      "ExcludeFromStudy": "学習から除外",
+      "EncounteredAs": "本文中の形：{surface}"
     },
     "WordSync": {
       "ProjectionUnavailable": "学習データを読み込めませんでした。もう一度お試しください。",

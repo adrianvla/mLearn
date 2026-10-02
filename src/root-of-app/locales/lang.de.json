@@ -2292,7 +2292,7 @@
         "SinglePage": "Einzelseite",
         "SpreadLeftToRight": "Seiten L→R",
         "SpreadRightToLeft": "Seiten R→L",
-        "ToggleUnknownWordsSidebar": "Seitenleiste für unbekannte Wörter umschalten",
+        "ToggleUnknownWordsSidebar": "Wortschatz-Seitenleiste umschalten",
         "ToggleContents": "Inhalt ein-/ausblenden",
         "PreviousPage": "Vorherige Seite",
         "NextPage": "Nächste Seite",
@@ -3652,7 +3652,15 @@
         "Word": "Wort"
       },
       "UnknownWords": "Unbekannte Wörter",
-      "WordCount": "{count} Wörter"
+      "WordCount": "{count} Wörter",
+      "Vocabulary": "Wortschatz",
+      "InspectWord": "{word} ansehen",
+      "SaveOrExclude": "Speichern oder ausschließen",
+      "FilterAndSave": "Filtern und speichern",
+      "InspectionHint": "Sieh dir ein Wort an, um zu erfahren, was du kennst und warum. Speichere es zum Wiederholen oder schließe es vom Lernen aus.",
+      "SaveAllForReview": "Alle zum Wiederholen speichern",
+      "ExcludeFromStudy": "Vom Lernen ausschließen",
+      "EncounteredAs": "Im Text: {surface}"
     },
     "WordSync": {
       "ProjectionUnavailable": "Wissensdaten konnten nicht geladen werden. Versuche es erneut.",

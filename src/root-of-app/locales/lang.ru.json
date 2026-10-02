@@ -2292,7 +2292,7 @@
         "SinglePage": "Одна страница",
         "SpreadLeftToRight": "Страницы слева направо",
         "SpreadRightToLeft": "Страницы справа налево",
-        "ToggleUnknownWordsSidebar": "Переключить боковую панель незнакомых слов",
+        "ToggleUnknownWordsSidebar": "Показать или скрыть панель словаря",
         "ToggleContents": "Показать содержание",
         "PreviousPage": "Предыдущая страница",
         "NextPage": "Следующая страница",
@@ -3652,7 +3652,15 @@
         "Word": "Слово"
       },
       "UnknownWords": "Незнакомые слова",
-      "WordCount": "{count} слов"
+      "WordCount": "{count} слов",
+      "Vocabulary": "Словарь",
+      "InspectWord": "Посмотреть {word}",
+      "SaveOrExclude": "Сохранить или исключить",
+      "FilterAndSave": "Фильтр и сохранение",
+      "InspectionHint": "Откройте слово, чтобы увидеть, что известно и почему. Сохраните его для повторения или исключите из обучения.",
+      "SaveAllForReview": "Сохранить всё для повторения",
+      "ExcludeFromStudy": "Исключить из обучения",
+      "EncounteredAs": "В тексте: {surface}"
     },
     "WordSync": {
       "ProjectionUnavailable": "Не удалось загрузить данные знаний. Повторите попытку.",

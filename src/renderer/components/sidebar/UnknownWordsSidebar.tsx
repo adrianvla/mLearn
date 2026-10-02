@@ -10,7 +10,7 @@ import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspe
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import { getCachedTranslation, useTranslation } from '../../hooks/useTranslation';
 import {
-  extractReadingFromEntries,
+  resolveWordHoverContent,
   resolveProsodyForHover,
 } from '../subtitle/wordHoverHelpers';
 import { normalizeDictionaryReading } from '../../utils/readingProsody';
@@ -83,6 +83,7 @@ const UnknownWordRow: Component<{
   const { getFrequency, getLevelName, getFreqLevelNames, getCanonicalForm, getWordVariants, currentLangData } = useLanguage();
   const { getComprehensiveWordStatusWithSourceSync, getAccessStatus, isKnowledgeReady } = useFlashcards();
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
+  const encounteredSurface = () => props.entry.token.surface ?? props.entry.token.word;
 
   const comprehensiveKnowledge = createMemo(() => (
     getComprehensiveWordStatusWithSourceSync(props.entry.word, settings.language)
@@ -129,8 +130,13 @@ const UnknownWordRow: Component<{
   const isInAnki = createMemo(() => !!ankiMatch());
 
   const dictionaryReading = createMemo(() => {
-    if (!props.translation?.data) return '';
-    return normalizeDictionaryReading(extractReadingFromEntries(props.translation.data), currentLangData());
+    return normalizeDictionaryReading(resolveWordHoverContent(
+      props.entry.token.reading,
+      props.translation ?? undefined,
+      undefined,
+      currentLangData(),
+      { word: props.entry.word, surface: encounteredSurface() },
+    ).reading, currentLangData());
   });
 
   const rowProsody = createMemo(() => {
@@ -192,18 +198,25 @@ const UnknownWordRow: Component<{
       onMouseLeave={props.onMouseLeave}
     >
       <div class="unknown-words-item-header">
-        <div class="unknown-words-item-word">
+        <button type="button" class="unknown-words-item-word"
+          aria-label={t('mlearn.Sidebar.InspectWord', { word: props.entry.word })}
+          onClick={() => {
+            openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, props.entry.word));
+          }}>
           <WordWithReading
             word={props.entry.word}
             reading={dictionaryReading()}
             coloredProsody={coloredProsodyCtx}
             prosodyOverlay={prosodyOverlayData()}
           />
-        </div>
+        </button>
         <Show when={shortMeaning()}>
           <span class="unknown-words-item-meaning">{shortMeaning()}</span>
         </Show>
       </div>
+      <Show when={encounteredSurface() !== props.entry.word}>
+        <small class="unknown-words-item-context">{t('mlearn.Sidebar.EncounteredAs', { surface: encounteredSurface() })}</small>
+      </Show>
       <div class="unknown-words-item-pills">
         <Show when={levelData()}>
           {(level) => (
@@ -223,29 +236,26 @@ const UnknownWordRow: Component<{
             </PillLabel>
           )}
         </Show>
-        <Button buttonType="pill"
-          variant="gray"
-          label={t('mlearn.Knowledge.Popup.Inspect')}
-          onClick={() => {
-            const surface = props.entry.token.surface ?? props.entry.token.word;
-            openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, surface));
-          }}
-        />
-        <Button buttonType="pill"
-          variant="gray"
-          label={t('mlearn.Sidebar.Ignore')}
-          onClick={() => props.onIgnoreWord(props.entry)}
-          disabled={props.isIgnored}
-        />
-        <ResourcePill
-          word={props.entry.word}
-          language={settings.language}
-          isAdding={props.isAdding}
-          isInAnki={isInAnki()}
-          ankiWord={ankiMatch()?.word ?? primaryWord()}
-          onAdd={() => props.onAddWord(props.entry)}
-        />
       </div>
+      <details class="unknown-words-item-management">
+        <summary>{t('mlearn.Sidebar.SaveOrExclude')}</summary>
+        <div class="unknown-words-item-pills">
+          <Button buttonType="pill"
+            variant="gray"
+            label={t('mlearn.Sidebar.ExcludeFromStudy')}
+            onClick={() => props.onIgnoreWord(props.entry)}
+            disabled={props.isIgnored}
+          />
+          <ResourcePill
+            word={props.entry.word}
+            language={settings.language}
+            isAdding={props.isAdding}
+            isInAnki={isInAnki()}
+            ankiWord={ankiMatch()?.word ?? primaryWord()}
+            onAdd={() => props.onAddWord(props.entry)}
+          />
+        </div>
+      </details>
     </article>
   );
 };
@@ -424,7 +434,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
         <div class="unknown-words-sidebar-header">
           <div class="unknown-words-sidebar-title-row">
             <div class="unknown-words-sidebar-title-col">
-              <h2 class="unknown-words-sidebar-title">{t('mlearn.Sidebar.UnknownWords')}</h2>
+              <h2 class="unknown-words-sidebar-title">{t('mlearn.Sidebar.Vocabulary')}</h2>
               <Show when={!props.hideEmptyCount || visibleWords().length > 0}>
                 <div class="unknown-words-sidebar-count">
                   {t('mlearn.Sidebar.WordCount', { count: visibleWords().length })}
@@ -432,12 +442,6 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
               </Show>
             </div>
             <div class="unknown-words-sidebar-title-actions">
-              <Select
-                class="unknown-words-sort-select"
-                value={sortKey()}
-                onChange={(e) => setSortKey(e.currentTarget.value)}
-                options={props.sortOptions()}
-              />
               <Show when={props.onClose}>
                 <Button buttonType="icon"
                   size="sm"
@@ -449,40 +453,50 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
               </Show>
             </div>
           </div>
-          <div class="unknown-words-sidebar-categories">
-            <Button buttonType="pill"
-              size="sm"
-              variant={category() === 'all' ? 'blue' : 'gray'}
-              label={t('mlearn.AITutorSetup.AllLevels')}
-              onClick={() => setCategory('all')}
-              aria-pressed={category() === 'all'}
+          <p class="unknown-words-sidebar-guidance">{t('mlearn.Sidebar.InspectionHint')}</p>
+          <details class="unknown-words-sidebar-tools">
+            <summary>{t('mlearn.Sidebar.FilterAndSave')}</summary>
+            <Select
+              class="unknown-words-sort-select"
+              value={sortKey()}
+              onChange={(e) => setSortKey(e.currentTarget.value)}
+              options={props.sortOptions()}
             />
-            <Button buttonType="pill"
-              size="sm"
-              variant={category() === 'dictionary' ? 'blue' : 'gray'}
-              label={t('mlearn.Sidebar.DictionaryOnly')}
-              onClick={() => setCategory('dictionary')}
-              aria-pressed={category() === 'dictionary'}
-            />
-            <Show when={props.failedWordSet}>
+            <div class="unknown-words-sidebar-categories">
               <Button buttonType="pill"
                 size="sm"
-                variant={category() === 'failed' ? 'blue' : 'gray'}
-                label={t('mlearn.ConversationAgent.Stats.HoveredWords')}
-                onClick={() => setCategory('failed')}
-                aria-pressed={category() === 'failed'}
+                variant={category() === 'all' ? 'blue' : 'gray'}
+                label={t('mlearn.AITutorSetup.AllLevels')}
+                onClick={() => setCategory('all')}
+                aria-pressed={category() === 'all'}
               />
-            </Show>
-          </div>
-          <div class="unknown-words-sidebar-actions">
-            <Button
-              size="sm"
-              variant="primary"
-              label={props.isAddingAll() ? t('mlearn.Sidebar.AddingAll') : t('mlearn.Sidebar.AddAll')}
-              onClick={() => props.onAddAllClick(visibleAddableEntries(), visibleDictionaryFoundAddable())}
-              disabled={props.isAddingAll() || visibleAddableEntries().length === 0}
-            />
-          </div>
+              <Button buttonType="pill"
+                size="sm"
+                variant={category() === 'dictionary' ? 'blue' : 'gray'}
+                label={t('mlearn.Sidebar.DictionaryOnly')}
+                onClick={() => setCategory('dictionary')}
+                aria-pressed={category() === 'dictionary'}
+              />
+              <Show when={props.failedWordSet}>
+                <Button buttonType="pill"
+                  size="sm"
+                  variant={category() === 'failed' ? 'blue' : 'gray'}
+                  label={t('mlearn.ConversationAgent.Stats.HoveredWords')}
+                  onClick={() => setCategory('failed')}
+                  aria-pressed={category() === 'failed'}
+                />
+              </Show>
+            </div>
+            <div class="unknown-words-sidebar-actions">
+              <Button
+                size="sm"
+                variant="ghost"
+                label={props.isAddingAll() ? t('mlearn.Sidebar.AddingAll') : t('mlearn.Sidebar.SaveAllForReview')}
+                onClick={() => props.onAddAllClick(visibleAddableEntries(), visibleDictionaryFoundAddable())}
+                disabled={props.isAddingAll() || visibleAddableEntries().length === 0}
+              />
+            </div>
+          </details>
         </div>
       </CollapsibleStickyHeader>
       <Show

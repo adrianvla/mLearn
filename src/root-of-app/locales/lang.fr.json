@@ -2292,7 +2292,7 @@
         "SinglePage": "Page simple",
         "SpreadLeftToRight": "Pages G→D",
         "SpreadRightToLeft": "Pages D→G",
-        "ToggleUnknownWordsSidebar": "Afficher ou masquer la barre des mots inconnus",
+        "ToggleUnknownWordsSidebar": "Afficher ou masquer le volet vocabulaire",
         "ToggleContents": "Afficher le contenu",
         "PreviousPage": "Page précédente",
         "NextPage": "Page suivante",
@@ -3652,7 +3652,15 @@
         "Word": "Mot"
       },
       "UnknownWords": "Mots inconnus",
-      "WordCount": "{count} mots"
+      "WordCount": "{count} mots",
+      "Vocabulary": "Vocabulaire",
+      "InspectWord": "Examiner {word}",
+      "SaveOrExclude": "Enregistrer ou exclure",
+      "FilterAndSave": "Filtrer et enregistrer",
+      "InspectionHint": "Examinez un mot pour voir ce qui est connu et pourquoi. Enregistrez-le pour réviser ou excluez-le de l’étude.",
+      "SaveAllForReview": "Tout enregistrer pour réviser",
+      "ExcludeFromStudy": "Exclure de l’étude",
+      "EncounteredAs": "Forme rencontrée : {surface}"
     },
     "WordSync": {
       "ProjectionUnavailable": "Les données de connaissances n’ont pas pu être chargées. Réessayez.",

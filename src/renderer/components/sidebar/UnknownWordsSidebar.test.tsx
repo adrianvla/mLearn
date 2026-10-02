@@ -109,13 +109,13 @@ vi.mock('../../context', () => ({
           return 'Hovered Words';
         case 'mlearn.ConversationAgent.Stats.NoHoveredWords':
           return 'No hovered words yet';
-        case 'mlearn.Sidebar.AddAll':
+        case 'mlearn.Sidebar.SaveAllForReview':
           return 'Add All';
         case 'mlearn.Sidebar.AddingAll':
           return 'Adding...';
         case 'mlearn.Sidebar.DictionaryOnly':
           return 'Dictionary only';
-        case 'mlearn.Sidebar.Ignore':
+        case 'mlearn.Sidebar.ExcludeFromStudy':
           return 'Ignore';
         case 'mlearn.Sidebar.SortBy.Word':
           return 'Word';
@@ -159,8 +159,8 @@ vi.mock('../../hooks/useTranslation', () => ({
   getCachedTranslation: (word: string) => translationByWord.get(word),
 }));
 
-vi.mock('../subtitle/wordHoverHelpers', () => ({
-  extractReadingFromEntries: (entries: Array<{ reading?: string }>) => entries.find((entry) => entry.reading)?.reading ?? '',
+vi.mock('../subtitle/wordHoverHelpers', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../subtitle/wordHoverHelpers')>(),
   resolveProsodyForHover: mockResolveProsodyForHover,
 }));
 
@@ -378,6 +378,27 @@ describe('UnknownWordsSidebar', () => {
     dispose();
   });
 
+  it('uses the hover reading resolution without borrowing an inflected reading for a lemma', async () => {
+    translationByWord.set('surface', { data: [{ reading: 'dictionary-sound', definitions: ['meaning'] }] } as TranslationResponse);
+    translationByWord.set('lemma', { data: [{ reading: 'lemma-sound', definitions: ['meaning'] }] } as TranslationResponse);
+    const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
+    const words = [
+      { key: 'surface', word: 'surface', token: { word: 'surface', actual_word: 'surface', reading: 'context-sound', type: 'word' }, contextPhrase: 'context' },
+      { key: 'lemma', word: 'lemma', token: { word: 'inflected', actual_word: 'lemma', reading: 'inflected-sound', type: 'word' }, contextPhrase: 'context' },
+    ];
+    const dispose = render(() => <UnknownWordsSidebar words={() => words} addingWordKeys={() => new Set<string>()}
+      isAddingAll={() => false} onAddWord={() => undefined} onIgnoreWord={() => undefined}
+      sortOptions={() => []} defaultSort="word" emptyMessage="Empty" onAddAllClick={() => undefined} />, container);
+    await Promise.resolve();
+    const rendered = container.querySelectorAll('.mock-word-with-reading');
+    expect(rendered[0]?.getAttribute('data-reading')).toBe('context-sound');
+    expect(rendered[1]?.getAttribute('data-reading')).toBe('lemma-sound');
+    expect(container.querySelector('.unknown-words-sidebar-tools')?.hasAttribute('open')).toBe(false);
+    expect(container.querySelector('.unknown-words-item-management')?.hasAttribute('open')).toBe(false);
+    expect(container.querySelector('.unknown-words-item-word')?.closest('details')).toBeNull();
+    dispose();
+  });
+
   it('renders generic package prosody pills for non-Japanese languages', async () => {
     mockShowProsody = true;
     mockLanguageFeatures = { prosodyRenderer: undefined, supportsProsody: true };
@@ -474,9 +495,10 @@ describe('UnknownWordsSidebar', () => {
     }
     expect(mockIsWordIgnoredSync).not.toHaveBeenCalled();
     expect(container.querySelector('.mock-status-pill')).toBeNull();
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')?.click();
+    expect(container.querySelector('.unknown-words-item-context')?.textContent).toBe('mlearn.Sidebar.EncounteredAs');
+    container.querySelector<HTMLButtonElement>('.unknown-words-item-word')?.click();
     expect(openKnowledgeInspectorMock).toHaveBeenCalledWith({
-      language: 'ja', surface: '赤かった', target: { kind: 'surface', id: `ja:surface:${hashWordSync('赤かった')}` },
+      language: 'ja', surface: '赤い', target: { kind: 'surface', id: `ja:surface:${hashWordSync('赤い')}` },
     });
     dispose();
   });

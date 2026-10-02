@@ -2292,7 +2292,7 @@
         "SinglePage": "单页",
         "SpreadLeftToRight": "页面 左→右",
         "SpreadRightToLeft": "页面 右→左",
-        "ToggleUnknownWordsSidebar": "切换未知单词侧边栏",
+        "ToggleUnknownWordsSidebar": "切换词汇侧栏",
         "ToggleContents": "切换目录",
         "PreviousPage": "上一页",
         "NextPage": "下一页",
@@ -3652,7 +3652,15 @@
         "Word": "单词"
       },
       "UnknownWords": "未知单词",
-      "WordCount": "{count} 个单词"
+      "WordCount": "{count} 个单词",
+      "Vocabulary": "词汇",
+      "InspectWord": "查看{word}",
+      "SaveOrExclude": "保存或排除",
+      "FilterAndSave": "筛选和保存",
+      "InspectionHint": "查看词语的掌握情况及依据。可保存以供复习，或从学习中排除。",
+      "SaveAllForReview": "全部保存以供复习",
+      "ExcludeFromStudy": "从学习中排除",
+      "EncounteredAs": "原文形式：{surface}"
     },
     "WordSync": {
       "ProjectionUnavailable": "无法加载知识数据。请重试。",

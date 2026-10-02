@@ -2292,7 +2292,7 @@
         "SinglePage": "Single Page",
         "SpreadLeftToRight": "Pages L→R",
         "SpreadRightToLeft": "Pages R→L",
-        "ToggleUnknownWordsSidebar": "Toggle unknown words sidebar",
+        "ToggleUnknownWordsSidebar": "Toggle vocabulary sidebar",
         "ToggleContents": "Toggle contents",
         "PreviousPage": "Previous page",
         "NextPage": "Next page",
@@ -3652,7 +3652,15 @@
         "Word": "Word"
       },
       "UnknownWords": "Unknown Words",
-      "WordCount": "{count} words"
+      "WordCount": "{count} words",
+      "Vocabulary": "Vocabulary",
+      "InspectWord": "Inspect {word}",
+      "SaveOrExclude": "Save or exclude",
+      "FilterAndSave": "Filter and save",
+      "InspectionHint": "Inspect a word to see what is known and why. Save it for review or exclude it from study.",
+      "SaveAllForReview": "Save all for review",
+      "ExcludeFromStudy": "Exclude from study",
+      "EncounteredAs": "Encountered as {surface}"
     },
     "WordSync": {
       "ProjectionUnavailable": "Knowledge data could not be loaded. Try again.",
