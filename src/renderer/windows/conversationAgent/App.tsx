@@ -471,6 +471,9 @@ export const ConversationContent: Component = () => {
     return room.participantIds.map((id) => byId.get(id)).filter((participant): participant is Participant => participant !== undefined);
   };
   const hasActiveRoomSelection = () => selection() !== null && activeRoom() !== null;
+  const conversationPeople = () => activeThread()?.sandbox
+    ? activeThread()!.sandbox!.bindings.map(binding => binding.localOverride ?? binding.baseline)
+    : world()?.participants ?? [];
   // Voice turns get the same journal-compiled world context as the text path,
   // prefetched speculatively from STT partials (latest-wins cache). The turn
   // text drives bounded turn-specific ranking/budgeting; scopeId keeps each
@@ -495,7 +498,7 @@ export const ConversationContent: Component = () => {
   let lastUserMessageEventId: string | null = null;
   let lastUserMessageEventRoomId: string | null = null;
   let lastVadSpeechEndTs: number | null = null;
-  const displayMessages = createMemo(() => eventsToDisplayMessages(journal.threadEvents(), rosterParticipants(), youLabel())
+  const displayMessages = createMemo(() => eventsToDisplayMessages(journal.threadEvents(), conversationPeople(), youLabel())
     .filter((message) => !supersededEvents.has((message as EventMessage).eventId))
     .map((message) => {
       const eventId = (message as EventMessage).eventId;
@@ -517,6 +520,10 @@ export const ConversationContent: Component = () => {
         widgets: widgets.length ? widgets : undefined, widget: widgets.at(-1) };
     }));
   const messages = createMemo(() => [...displayMessages(), ...streamingMessages(liveOverlay())]);
+  const hasMultipleConversationSpeakers = createMemo(() => new Set([
+    ...rosterParticipants().map(person => person.id),
+    ...messages().filter(message => message.role === 'assistant').map(message => (message as EventMessage).actorId).filter(Boolean),
+  ]).size > 1);
   const speechMessages = createMemo<VoiceSpeechMessage[]>(() => displayMessages().flatMap(message => {
     const eventMessage = message as EventMessage & { modality?: 'voice'; voiceSessionId?: string };
     if (!admittedVoiceEventIds().has(eventMessage.eventId) || eventMessage.modality !== 'voice' || !eventMessage.voiceSessionId || !eventMessage.actorId
@@ -1022,9 +1029,22 @@ export const ConversationContent: Component = () => {
 
 
   const handleUpdateParticipant = async (participant: Participant): Promise<void> => {
+    if (isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen()) throw new Error(t('mlearn.ConversationAgent.Details.PeopleBusyHint'));
     await getBridge().world.updateParticipant(participant, activeThread()?.sandbox ? activeThread()!.id : undefined);
     participantAgents.delete(participant.id);
     setWorld(await getBridge().world.getWorldState());
+  };
+  const handleChangeMembership = async (participantId: string, kind: 'add' | 'remove'): Promise<void> => {
+    const room = activeRoom();
+    if (!room) return;
+    if (isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen()) throw new Error(t('mlearn.ConversationAgent.Details.PeopleBusyHint'));
+    if (kind === 'remove' && (rosterParticipants().length <= 1 || !rosterParticipants().some(person => person.id === participantId))) {
+      throw new Error(t('mlearn.ConversationAgent.Details.RosterChanged'));
+    }
+    await getBridge().world.applyMembership(room.id, participantId, kind);
+    participantAgents.get(participantId)?.abortStream(); participantAgents.delete(participantId);
+    setWorld(await getBridge().world.getWorldState());
+    if (selection()?.roomId === room.id) await journal.refresh();
   };
 
   const handleRenameThread = async (title: string): Promise<void> => {
@@ -2173,7 +2193,7 @@ export const ConversationContent: Component = () => {
                       >
                         <ChatBubble
                           message={msg()}
-                          showSpeaker={rosterParticipants().length > 1 && !sameMessageGroup(messages()[index - 1] as EventMessage, msg() as EventMessage)}
+                          showSpeaker={hasMultipleConversationSpeakers() && !sameMessageGroup(messages()[index - 1] as EventMessage, msg() as EventMessage)}
                           showAvatar={!sameMessageGroup(msg() as EventMessage, messages()[index + 1] as EventMessage)}
                           showTimestamp={!sameMessageGroup(msg() as EventMessage, messages()[index + 1] as EventMessage)}
                           isStreaming={msg().role === 'assistant' && index === messages().length - 1 && liveOverlay() !== null && isStreaming()}
@@ -2415,10 +2435,16 @@ export const ConversationContent: Component = () => {
           updateSettings({ proactiveOptOutParticipantIds: muted ? [...new Set([...current, person().id])] : current.filter(id => id !== person().id) });
         }}
         onSave={async updated => {
+          if (rosterParticipants().some(person => person.id === updated.id) && (isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen())) {
+            throw new Error(t('mlearn.ConversationAgent.Details.PeopleBusyHint'));
+          }
           const saved = await getBridge().world.updateParticipant(updated);
           participantAgents.get(saved.id)?.abortStream(); participantAgents.delete(saved.id); publishContact(saved);
         }}
         onRemove={async removed => {
+          if (rosterParticipants().some(person => person.id === removed.id) && (isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen())) {
+            throw new Error(t('mlearn.ConversationAgent.Details.PeopleBusyHint'));
+          }
           participantAgents.get(removed.id)?.abortStream(); participantAgents.delete(removed.id);
           await getBridge().world.deleteParticipant(removed.id);
           setWorld(await getBridge().world.getWorldState()); setContactId(null);
@@ -2447,6 +2473,9 @@ export const ConversationContent: Component = () => {
             callMutedParticipantIds={settings.proactiveCallOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveCallOptOutParticipantIds}
             context={mediaContext()}
             participants={rosterParticipants()}
+            availableParticipants={[...new Map([...(world()?.participants ?? []), ...conversationPeople()].map(person => [person.id, person])).values()]}
+            membershipDisabled={isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen()}
+            onChangeMembership={handleChangeMembership}
             onRenameThread={handleRenameThread}
             onUpdateParticipant={handleUpdateParticipant}
             onDeleteThread={handleDeleteThread}

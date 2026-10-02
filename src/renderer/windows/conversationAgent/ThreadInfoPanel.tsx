@@ -21,6 +21,9 @@ interface ThreadInfoPanelProps {
   thread: Thread | null;
   context: ConversationAgentContext | null;
   participants: Participant[];
+  availableParticipants?: Participant[];
+  membershipDisabled?: boolean;
+  onChangeMembership?: (participantId: string, kind: 'add' | 'remove') => Promise<void>;
   /** Durable reflection/evolution runs for this context; visible in Details. */
   reflectionRuns?: ReflectionRunRecord[];
   autonomyJobs?: AutonomyJobRecord[];
@@ -59,6 +62,27 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
   const [adaptations, setAdaptations] = createSignal((props.thread?.storyBranch?.adaptations ?? []).join('\n'));
   const [storySaving, setStorySaving] = createSignal(false);
   const [storyError, setStoryError] = createSignal('');
+  const [addingPerson, setAddingPerson] = createSignal(false);
+  const [personQuery, setPersonQuery] = createSignal('');
+  const [removingPerson, setRemovingPerson] = createSignal<Participant | null>(null);
+  const [membershipBusy, setMembershipBusy] = createSignal(false);
+  const [membershipError, setMembershipError] = createSignal('');
+  const eligiblePeople = () => (props.availableParticipants ?? []).filter(person => !person.archivedAt
+    && !props.participants.some(current => current.id === person.id)
+    && (props.thread?.sandbox || person.kind === 'persistent')
+    && person.displayName.toLocaleLowerCase().includes(personQuery().trim().toLocaleLowerCase()));
+  const changeMembership = async (person: Participant, kind: 'add' | 'remove'): Promise<void> => {
+    if (!props.onChangeMembership || props.membershipDisabled || membershipBusy()) return;
+    if (kind === 'remove' && (props.participants.length <= 1 || !props.participants.some(current => current.id === person.id))) {
+      setMembershipError(t('mlearn.ConversationAgent.Details.RosterChanged')); return;
+    }
+    setMembershipBusy(true); setMembershipError('');
+    try {
+      await props.onChangeMembership(person.id, kind);
+      setAddingPerson(false); setPersonQuery(''); setRemovingPerson(null);
+    } catch (error) { setMembershipError(error instanceof Error ? error.message : String(error)); }
+    finally { setMembershipBusy(false); }
+  };
   const saveStoryBranch = async (): Promise<void> => {
     if (!props.thread || !props.onUpdateStoryBranch || storySaving()) return;
     setStorySaving(true); setStoryError('');
@@ -129,22 +153,20 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
   };
 
   const saveParticipant = async (participant: Participant): Promise<void> => {
+    if (props.membershipDisabled || membershipBusy()) throw new Error(t('mlearn.ConversationAgent.Details.PeopleBusyHint'));
     await props.onUpdateParticipant(participant);
     setEditingParticipant(null);
   };
 
   return (
     <div class="ca-thread-info">
-      <Show when={props.thread?.sandbox}>
-        <section class="ca-thread-section">{t('mlearn.ConversationAgent.NewConversation.TemporaryHint')}</section>
-      </Show>
       <section class="ca-thread-section">
         <span class="ca-thread-info-label">{t(props.thread ? 'mlearn.ConversationAgent.Details.ThreadLabel' : 'mlearn.ConversationAgent.Details.RoomLabel')}</span>
         <Show
           when={renaming()}
           fallback={
             <div class="ca-thread-title-row">
-              <span class="ca-thread-info-title">{props.thread ? props.thread.title || t('mlearn.ConversationAgent.Details.UntitledThread') : props.roomTitle}</span>
+              <span class="ca-thread-info-title">{props.thread?.title || props.roomTitle || props.participants.map(person => person.displayName).join(', ') || t('mlearn.ConversationAgent.Details.UntitledThread')}</span>
               <Show when={props.thread}>
                 <Button variant="ghost" size="sm" onClick={startRename}>{t('mlearn.ConversationAgent.Details.Rename')}</Button>
               </Show>
@@ -161,10 +183,38 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
             </div>
           </div>
         </Show>
+        <p class="ca-thread-scope-hint">{t(props.thread?.sandbox
+          ? 'mlearn.ConversationAgent.NewConversation.TemporaryHint' : 'mlearn.ConversationAgent.Details.SharedHistoryHint')}</p>
       </section>
 
       <section class="ca-thread-section">
-        <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ParticipantsLabel')}</span>
+        <div class="ca-thread-title-row">
+          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ParticipantsLabel')}</span>
+          <Show when={props.onChangeMembership}><Button variant="secondary" size="sm"
+            disabled={props.membershipDisabled || membershipBusy()}
+            onClick={() => { setAddingPerson(!addingPerson()); setMembershipError(''); }}>
+            {t(addingPerson() ? 'mlearn.ConversationAgent.Details.Cancel' : 'mlearn.ConversationAgent.Details.AddPerson')}
+          </Button></Show>
+        </div>
+        <Show when={props.onChangeMembership}>
+          <p class="ca-thread-scope-hint">{t(props.thread?.sandbox
+            ? 'mlearn.ConversationAgent.Details.SeparatePeopleHint' : 'mlearn.ConversationAgent.Details.SharedPeopleHint')}</p>
+          <Show when={props.membershipDisabled}><p class="ca-thread-scope-hint">{t('mlearn.ConversationAgent.Details.PeopleBusyHint')}</p></Show>
+          <Show when={membershipError()}><p role="alert" class="ca-thread-world-run-error">{membershipError()}</p></Show>
+          <Show when={addingPerson()}>
+            <div class="ca-thread-people-picker">
+              <FormField label={t('mlearn.ConversationAgent.Contacts.Search')}>
+                <Input value={personQuery()} onInput={event => setPersonQuery(event.currentTarget.value)} />
+              </FormField>
+              <For each={eligiblePeople()} fallback={<p class="ca-thread-scope-hint">{t('mlearn.ConversationAgent.Details.NoPeopleToAdd')}</p>}>
+                {person => <div class="ca-thread-title-row"><span>{person.displayName}</span><Button size="sm"
+                  disabled={props.membershipDisabled || membershipBusy()}
+                  aria-label={t('mlearn.ConversationAgent.Details.AddNamedPerson', { name: person.displayName })}
+                  onClick={() => { void changeMembership(person, 'add'); }}>{t('mlearn.ConversationAgent.Details.AddPerson')}</Button></div>}
+              </For>
+            </div>
+          </Show>
+        </Show>
         <div class="ca-thread-participant-list">
           <For each={props.participants}>
             {(participant) => (
@@ -175,7 +225,17 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
                     <span class="ca-thread-participant-name">{participant.displayName}</span>
                     <Tag class="ca-thread-participant-kind" headless size="sm">{kindLabel(participant)}</Tag>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setEditingParticipant(participant)}>{t('mlearn.ConversationAgent.Details.Edit')}</Button>
+                  <div class="ca-thread-participant-actions">
+                    <Button variant="ghost" size="sm" disabled={props.membershipDisabled || membershipBusy()}
+                      onClick={() => setEditingParticipant(participant)}>{t(props.thread?.sandbox
+                        ? 'mlearn.ConversationAgent.Details.EditHere' : 'mlearn.ConversationAgent.Details.EditContact')}</Button>
+                    <Show when={props.onChangeMembership}><Button variant="ghost" size="sm"
+                      disabled={props.membershipDisabled || membershipBusy() || props.participants.length <= 1}
+                      aria-label={t('mlearn.ConversationAgent.Details.RemoveNamedPerson', { name: participant.displayName })}
+                      onClick={() => { setRemovingPerson(participant); setMembershipError(''); }}>
+                      {t('mlearn.ConversationAgent.Details.RemovePerson')}
+                    </Button></Show>
+                  </div>
                 </div>
                 <Show when={settings.devMode && participant.personaText.trim()}>
                   <Disclosure title={t('mlearn.ConversationAgent.Contacts.About')}><p class="ca-thread-participant-persona">{participant.personaText}</p></Disclosure>
@@ -200,6 +260,14 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
             )}
           </For>
         </div>
+        <Show when={removingPerson()} keyed>{person => <div class="ca-thread-people-confirm">
+          <p>{t('mlearn.ConversationAgent.Details.RemovePersonHint', { name: person.displayName })}</p>
+          <div class="ca-thread-rename-actions">
+            <Button variant="ghost" size="sm" disabled={membershipBusy()} onClick={() => setRemovingPerson(null)}>{t('mlearn.ConversationAgent.Details.Cancel')}</Button>
+            <Button variant="danger" size="sm" disabled={props.membershipDisabled || membershipBusy() || props.participants.length <= 1 || !props.participants.some(current => current.id === person.id)}
+              onClick={() => { void changeMembership(person, 'remove'); }}>{t('mlearn.ConversationAgent.Details.RemovePerson')}</Button>
+          </div>
+        </div>}</Show>
       </section>
 
       <Show when={props.thread?.intent}>
@@ -342,26 +410,29 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
       </Show>
 
       <Show when={props.thread?.sandbox && props.onIntegrate}>
+        <Disclosure title={t('mlearn.ConversationAgent.Integration.Title')}>
         <section class="ca-thread-section ca-thread-actions">
-          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Integration.Title')}</span>
           <p class="ca-thread-integration-hint">{t('mlearn.ConversationAgent.Integration.PanelHint')}</p>
           <Button variant="primary" onClick={() => { void props.onIntegrate?.(); }}>{t('mlearn.ConversationAgent.Integration.Open')}</Button>
         </section>
+        </Disclosure>
       </Show>
       <Show when={props.thread}>
+        <Disclosure title={t('mlearn.ConversationAgent.Details.DangerZone')}>
         <section class="ca-thread-section ca-thread-actions">
-          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.DangerZone')}</span>
           <Show
             when={confirmingDelete()}
-            fallback={<Button variant="danger" onClick={() => setConfirmingDelete(true)}>{t('mlearn.ConversationAgent.Details.DeleteThread')}</Button>}
+            fallback={<Button variant="danger" onClick={() => setConfirmingDelete(true)}>{t(props.thread?.sandbox
+              ? 'mlearn.ConversationAgent.Details.DeleteConversation' : 'mlearn.ConversationAgent.Details.DeleteThread')}</Button>}
           >
             <div class="ca-thread-delete-confirm">
-              <span>{t('mlearn.ConversationAgent.Details.DeleteThreadConfirm')}</span>
+              <span>{t(props.thread?.sandbox ? 'mlearn.ConversationAgent.Details.DeleteConversationConfirm' : 'mlearn.ConversationAgent.Details.DeleteThreadConfirm')}</span>
               <Button variant="ghost" size="sm" onClick={() => setConfirmingDelete(false)}>{t('mlearn.ConversationAgent.Details.Cancel')}</Button>
               <Button variant="danger" size="sm" onClick={() => { void props.onDeleteThread(); }}>{t('mlearn.ConversationAgent.Details.ConfirmDelete')}</Button>
             </div>
           </Show>
         </section>
+        </Disclosure>
       </Show>
 
       <Show when={editingParticipant()} keyed>

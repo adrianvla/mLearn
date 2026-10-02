@@ -17,7 +17,7 @@ import { createHash, randomUUID } from 'crypto';
 import { isDeepStrictEqual } from 'util';
 import { IPC_CHANNELS, WINDOW_TYPES } from '../../shared/constants';
 import { applyMembershipChange } from '../../shared/roomOrchestrator';
-import { HARNESS_ACTOR, threadContextId } from '../../shared/world';
+import { HARNESS_ACTOR, sandboxContext, threadContextId } from '../../shared/world';
 import type {
   CreateCastInput,
   IntegrateThreadInput,
@@ -102,12 +102,33 @@ export async function applyMembership(
   participantId: string,
   kind: 'add' | 'remove',
 ): Promise<MembershipChangeResult> {
-  // Adding a member extends a persistent Room; leaving stays allowed so a
-  // Threads-only user can still shrink a pre-consent roster.
-  if (kind === 'add') requireLivingWorld(loadSettings());
   return withWorldMutation(async () => {
-    if (kind === 'add') requireLivingWorld(loadSettings());
     const state = await loadWorld();
+    const thread = state.threads.find(item => item.id === roomId && item.sandbox);
+    if (thread?.sandbox) {
+      if (thread.state !== 'active') throw new Error('[world] conversation is not active');
+      const context = sandboxContext(thread)!;
+      const result = applyMembershipChange(context, participantId, kind);
+      if (!result.event) return { room: context, event: null };
+      const binding = thread.sandbox.bindings.find(item => item.baseline.id === participantId);
+      const person = state.participants.find(item => item.id === participantId && !item.archivedAt);
+      if (kind === 'add' && !binding && !person) throw new Error('[world] selected person is unavailable');
+      const bindings = kind === 'add' && !binding ? [...thread.sandbox.bindings, {
+        ...(person!.kind === 'persistent' ? { originId: person!.id } : {}), baseline: structuredClone(person!),
+      }] : thread.sandbox.bindings;
+      const updated: Thread = { ...thread, sandbox: { ...thread.sandbox, bindings, participantIds: result.room.participantIds } };
+      if (bindings !== thread.sandbox.bindings) {
+        // The journal validates cast ownership. Bind the new version first,
+        // leaving the active roster unchanged until its join is recorded.
+        const bound: Thread = { ...thread, sandbox: { ...thread.sandbox, bindings, participantIds: context.participantIds } };
+        await saveWorld({ ...state, threads: state.threads.map(item => item.id === thread.id ? bound : item) });
+      }
+      const event = await appendEvent(roomId, { ...result.event, scope: { kind: 'thread', threadId: thread.id } });
+      await saveWorld({ ...state, threads: state.threads.map(item => item.id === thread.id ? updated : item) });
+      return { room: sandboxContext(updated)!, event };
+    }
+    // Shared additions need shared-memory consent; separate casts stay local.
+    if (kind === 'add') requireLivingWorld(loadSettings());
     const room = state.rooms.find((r) => r.id === roomId);
     if (!room) {
       throw new Error(`[world] room not found: ${roomId}`);
@@ -119,7 +140,9 @@ export async function applyMembership(
     if (result.event === null) {
       return { room: result.room, event: null };
     }
-    const updatedRoom = result.room;
+    const names = (ids: string[]): string => ids.map(id => state.participants.find(person => person.id === id)?.displayName ?? id).join(', ');
+    const updatedRoom = !room.titleUserSet && room.title === names(room.participantIds)
+      ? { ...result.room, title: names(result.room.participantIds) } : result.room;
     const event = await appendEvent(roomId, result.event);
     await saveWorld({ ...state, rooms: state.rooms.map((r) => (r.id === roomId ? updatedRoom : r)) });
     return { room: updatedRoom, event };

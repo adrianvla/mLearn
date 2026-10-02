@@ -312,6 +312,74 @@ describe('worldIpc', () => {
     expect(events).toHaveLength(0);
   });
 
+  it('changes a separate conversation cast without shared-memory consent or retroactive message access', async () => {
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+    const first = participant('p1', 'Sam');
+    const other = { ...participant('p2', 'Rin'), kind: 'temporary' as const };
+    seedWorld([], [], [first, other]);
+    const separate = await mod.createSandbox({ operationId: 'separate-cast', participantIds: [first.id] });
+    await journal.appendEvent(separate.id, { roomId: separate.id, scope: { kind: 'thread', threadId: separate.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user', first.id], payload: { text: 'Before joining' } });
+    const added = await mod.applyMembership(separate.id, other.id, 'add');
+    expect(added.room.participantIds).toEqual([first.id, other.id]);
+    expect(added.event?.scope).toEqual({ kind: 'thread', threadId: separate.id });
+    const unchanged = await mod.applyMembership(separate.id, other.id, 'add');
+    expect(unchanged.event).toBeNull();
+    await journal.appendEvent(separate.id, { roomId: separate.id, scope: { kind: 'thread', threadId: separate.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user', first.id, other.id], payload: { text: 'After joining' } });
+    const snapshot = await mod.getWorldState();
+    const updated = snapshot.threads[0];
+    expect(snapshot.rooms).toHaveLength(0);
+    expect(updated.sandbox?.bindings[1]).toEqual({ baseline: other });
+    const context = compileContext({ thread: updated, participant: other, participants: [first, other],
+      seaEvents: [], threadEvents: await journal.readThread(separate.id, separate.id) });
+    expect(context.recentThreadEvents.map(item => item.text)).toContain('After joining');
+    expect(context.recentThreadEvents.map(item => item.text)).not.toContain('Before joining');
+    const removed = await mod.applyMembership(separate.id, other.id, 'remove');
+    expect(removed.room.participantIds).toEqual([first.id]);
+    expect((await mod.getWorldState()).threads[0].sandbox?.bindings).toHaveLength(2);
+    expect((await journal.readThread(separate.id, separate.id)).filter(event => event.type === 'message.user')).toHaveLength(2);
+  });
+
+  it('rejoins the same separate person with local edits intact and excludes messages while absent', async () => {
+    const first = participant('p1', 'Sam'); const other = participant('p2', 'Rin');
+    seedWorld([], [], [first, other]);
+    const separate = await mod.createSandbox({ operationId: 'rejoin-cast', participantIds: [first.id, other.id] });
+    await mod.updateParticipant({ ...other, displayName: 'Local Rin' }, separate.id);
+    await mod.applyMembership(separate.id, other.id, 'remove');
+    await journal.appendEvent(separate.id, { roomId: separate.id, scope: { kind: 'thread', threadId: separate.id },
+      type: 'message.user', actorId: 'user', witnesses: ['user', first.id, other.id], payload: { text: 'While absent' } });
+    await mod.applyMembership(separate.id, other.id, 'add');
+    const updated = (await mod.getWorldState()).threads[0];
+    expect(updated.sandbox?.bindings[1].localOverride?.displayName).toBe('Local Rin');
+    const context = compileContext({ thread: updated, participant: other, participants: [first, other],
+      seaEvents: [], threadEvents: await journal.readThread(separate.id, separate.id) });
+    expect(context.recentThreadEvents.map(item => item.text)).not.toContain('While absent');
+    expect((await mod.getWorldState()).participants[1].displayName).toBe('Rin');
+  });
+
+  it('returns a conversation-only person without creating a shared contact', async () => {
+    const first = participant('p1', 'Sam'); const local = { ...participant('local', 'Local Rin'), kind: 'temporary' as const };
+    const separate: Thread = { id: 'separate', state: 'active', createdAt: 1, sandbox: {
+      operationId: 'local-cast', requestHash: 'hash', baselineHeads: {}, bindings: [{ baseline: first }, { baseline: local }],
+    } };
+    seedWorld([], [separate], [first]);
+    mockLoadSettings.mockReturnValue({ livingWorldEnabled: false });
+    await mod.applyMembership(separate.id, local.id, 'remove');
+    const joined = await mod.applyMembership(separate.id, local.id, 'add');
+    expect(joined.room.participantIds).toEqual([first.id, local.id]);
+    expect((await mod.getWorldState()).participants).toEqual([first]);
+    expect((await mod.getWorldState()).threads[0].sandbox?.bindings).toHaveLength(2);
+  });
+
+  it('updates a roster-based shared conversation title while retaining authored names', async () => {
+    const people = [participant('p1', 'Sam'), participant('p2', 'Rin')];
+    seedWorld([{ ...room('r1', ['p1']), title: 'Sam' }], [], people);
+    expect((await mod.applyMembership('r1', 'p2', 'add')).room.title).toBe('Sam, Rin');
+    seedWorld([{ ...room('r1', ['p1']), title: 'Our garden', titleUserSet: true }], [], people);
+    expect((await mod.applyMembership('r1', 'p2', 'add')).room.title).toBe('Our garden');
+  });
+
   it('membership remove removes the participant and preserves witnesses including the departing person', async () => {
     seedWorld([room('r1', ['p1', 'p2'])]);
     const result = await mod.applyMembership('r1', 'p2', 'remove');

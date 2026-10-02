@@ -249,11 +249,11 @@ export function compileContext(input: CompileContextInput): CompiledContext {
     : (input.threadEvents ?? []));
   const { capabilities } = participant;
 
-  // Membership events are sea-scoped (durable roster changes); the intervals
-  // they open apply to thread events too, so a removed participant sees
-  // nothing of the gap in either stream.
+  // Shared membership lives in Sea; separate cast changes live in their own
+  // thread. Both apply absence intervals before context is ranked or rendered.
   const visibleSea = visibleEventsFor(participant.id, seaEvents, capabilities);
-  const visibleThread = visibleThreadEventsFor(participant, threadEvents ?? [], sandbox ? [] : seaEvents);
+  const visibleThread = sandbox ? visibleEventsFor(participant.id, threadEvents, capabilities)
+    : visibleThreadEventsFor(participant, threadEvents, seaEvents);
 
   const context: CompiledContext = {
     persona: { id: participant.id, displayName: participant.displayName, text: participant.personaText, facets: participant.facets ?? {} },

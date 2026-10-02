@@ -107,6 +107,17 @@ const mockBridge = {
     cancelScenario: vi.fn(async () => {}),
     createPersistentRoom: vi.fn(async (input: { operationId: string; participantIds: string[] }) => ({ id: 'room-new', title: 'New room', participantIds: input.participantIds, createdByOperation: input.operationId, createdAt: Date.now() })),
     updateThread: vi.fn(async (thread: WorldSnapshot['threads'][number]) => thread),
+    applyMembership: vi.fn(async (contextId: string, participantId: string, _kind: 'add' | 'remove') => {
+      const separate = currentWorld.threads.find(thread => thread.id === contextId && thread.sandbox);
+      if (separate?.sandbox) {
+        const person = currentWorld.participants.find(item => item.id === participantId)!;
+        currentWorld = { ...currentWorld, threads: currentWorld.threads.map(thread => thread === separate ? {
+          ...thread, sandbox: { ...separate.sandbox!, bindings: [...separate.sandbox!.bindings, { baseline: person }],
+            participantIds: [...separate.sandbox!.bindings.map(binding => binding.baseline.id), participantId] },
+        } : thread) };
+      }
+      return { room: { id: contextId, title: '', participantIds: [], createdAt: 1 }, event: null };
+    }),
     clearRoomUnread: vi.fn(async () => {}),
     triggerReflection: vi.fn(async () => {}),
     respondToContact: vi.fn(async (contactId: string, response: 'accept' | 'decline') => ({
@@ -363,7 +374,11 @@ vi.mock('./VoiceTab', () => ({
 }));
 
 vi.mock('./ThreadInfoPanel', () => ({
-  ThreadInfoPanel: () => <div data-testid="thread-info-panel" />,
+  ThreadInfoPanel: (props: { participants: WorldSnapshot['participants']; membershipDisabled?: boolean;
+    onChangeMembership: (id: string, kind: 'add' | 'remove') => Promise<void> }) => <div data-testid="thread-info-panel">
+    <span data-testid="details-roster">{props.participants.map(person => person.displayName).join(', ')}</span>
+    <button data-testid="add-person" disabled={props.membershipDisabled} onClick={() => { void props.onChangeMembership('agent-b', 'add'); }}>Add person</button>
+  </div>,
 }));
 
 // ============================================================================
@@ -434,6 +449,40 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose?.();
     dispose = undefined;
     container.remove();
+  });
+
+  it('adds a person to the selected separate conversation and refreshes its roster without another composer', async () => {
+    const first = currentWorld.participants[0];
+    const other = { ...first, id: 'agent-b', displayName: 'Rin' };
+    currentWorld = { rooms: [], participants: [first, other], threads: [{ id: 'separate', state: 'active', createdAt: 1,
+      sandbox: { operationId: 'op', requestHash: 'hash', baselineHeads: {}, bindings: [{ baseline: first }] } }] };
+    mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'separate', threadId: 'separate' }));
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-header-contact')?.textContent).toContain('Tutor'));
+    (container.querySelector('.ca-header-contact') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="add-person"]')).not.toBeNull());
+    (container.querySelector('[data-testid="add-person"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.world.applyMembership).toHaveBeenCalledWith('separate', other.id, 'add'));
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="details-roster"]')?.textContent).toBe('Tutor, Rin'));
+    expect(mockBridge.world.createPersistentRoom).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="new-conversation-modal"]')).toBeNull();
+  });
+
+  it('keeps departed local speakers named in the transcript after the roster becomes one person', async () => {
+    const first = currentWorld.participants[0];
+    const departed = { ...first, id: 'departed', displayName: 'Local Rin', kind: 'temporary' as const };
+    currentWorld = { rooms: [], participants: [first], threads: [{ id: 'separate', state: 'active', createdAt: 1,
+      sandbox: { operationId: 'op', requestHash: 'hash', baselineHeads: {},
+        bindings: [{ baseline: first }, { baseline: departed }], participantIds: [first.id] } }] };
+    mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'separate', threadId: 'separate' }));
+    appendJournalEvent({ roomId: 'separate', scope: { kind: 'thread', threadId: 'separate' },
+      type: 'message.character', actorId: departed.id, witnesses: ['user', departed.id, first.id], payload: { text: 'My earlier message' } });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.chat-bubble-speaker')?.textContent).toBe('Local Rin'));
+    expect(chatText(container)).toContain('My earlier message');
+    expect(chatText(container)).not.toContain('departed');
   });
 
   it('remembers the accepted remote notice across conversation windows', async () => {

@@ -356,6 +356,8 @@ export interface Thread {
     operationId: string;
     requestHash: string;
     bindings: { originId?: string; baseline: Participant; localOverride?: Participant }[];
+    /** Current cast; omitted older conversations retain every bound person. Departed bindings keep history and local edits. */
+    participantIds?: string[];
     /** Pin lived history without duplicating private journal payloads. */
     baselineHeads: Record<string, number>;
   };
@@ -395,7 +397,7 @@ export function threadContextId(thread: Thread): string {
 
 export function threadParticipants(thread: Thread, participants: Participant[]): Participant[] {
   return thread.sandbox
-    ? thread.sandbox.bindings.map(binding => {
+    ? thread.sandbox.bindings.filter(binding => !thread.sandbox!.participantIds || thread.sandbox!.participantIds.includes(binding.baseline.id)).map(binding => {
       const frozen = binding.localOverride ?? binding.baseline;
       const branch = thread.storyBranch;
       if (!branch || !binding.originId) return frozen;

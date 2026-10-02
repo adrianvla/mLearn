@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createSignal, type Component } from 'solid-js';
-import { type Participant, type WorldSnapshot } from '../../../shared/world';
+import { threadParticipants, type Participant, type WorldSnapshot } from '../../../shared/world';
 import { Avatar, Badge, Button, Disclosure, Input, ListRow, PlusIcon, SearchIcon, SkeletonLine, SkeletonRows, TabContainer } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import { formatClockTime, formatDateShort } from '../../utils/timeFormatting';
@@ -67,7 +67,7 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
         unread: existing.unread + chat.unread, loading: existing.loading || chat.loading });
     }
     const temporary = world.threads.filter(thread => thread.sandbox && thread.state !== 'archived').map(thread => {
-      const profiles = thread.sandbox!.bindings.map(binding => binding.localOverride ?? binding.baseline);
+      const profiles = threadParticipants(thread, world.participants);
       const person = profiles.length === 1 ? profiles[0] : undefined;
       const title = thread.title || profiles.map(profile => profile.displayName).join(', ') || t('mlearn.ConversationAgent.Sidebar.UntitledThread');
       const preview = props.previews?.[`${thread.id}/${thread.id}`];

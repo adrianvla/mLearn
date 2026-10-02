@@ -67,6 +67,16 @@ describe('Contacts are independent from conversations', () => {
     expect(selectThread).not.toHaveBeenCalled();
   });
 
+  it('names a separate conversation from its current roster while retaining departed profiles for history', () => {
+    const people: Participant[] = ['Sam', 'Rin'].map(name => ({ id: name, displayName: name, kind: 'temporary', personaText: '', setupComplete: true }));
+    const el = mount(() => <RoomSidebar world={{ participants: [], rooms: [], threads: [{ id: 'separate', state: 'active', createdAt: 1,
+      sandbox: { operationId: 'op', requestHash: 'hash', baselineHeads: {}, bindings: people.map(baseline => ({ baseline })), participantIds: ['Sam'] } }] }}
+      roomId="separate" threadId="separate" onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
+      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+    expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Sam');
+    expect(el.querySelector('.room-sidebar-list')?.textContent).not.toContain('Rin');
+  });
+
   it('groups old and new direct rooms by contact identity while retaining both histories', () => {
     const selectRoom = vi.fn(); const selectThread = vi.fn();
     const person: Participant = { id: 'p1', displayName: 'Katsuki Bakugo', kind: 'persistent', personaText: '', setupComplete: true };
