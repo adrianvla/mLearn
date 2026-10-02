@@ -81,7 +81,7 @@ function joinChatTokenText(tokens: readonly Token[], separator: string): string 
 const ChatAnalysisContext = createContext<() => boolean>(() => true);
 
 interface ChatBubbleProps {
-  /** Explicit practice may expose analysis immediately. */
+  /** Coached practice shows corrections; token analysis remains an explicit choice. */
   studyMode?: boolean;
   showSpeaker?: boolean;
   showAvatar?: boolean;
@@ -104,7 +104,7 @@ interface ChatBubbleProps {
 export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   const { t, locale } = useLocalization();
   const [inspecting, setInspecting] = createSignal(false);
-  const annotations = () => props.studyMode === true || inspecting();
+  const annotations = () => inspecting();
 
 
   const formatTime = (ts: number): string => formatClockTime(ts, locale());
@@ -117,7 +117,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
   const isError = () => props.message.isError === true;
 
   const hasCorrections = () =>
-    annotations() && props.message.role === 'user' && props.message.corrections && props.message.corrections.length > 0;
+    (props.studyMode === true || inspecting()) && props.message.role === 'user' && props.message.corrections && props.message.corrections.length > 0;
 
   const hasTokens = () =>
     props.message.tokens && props.message.tokens.length > 0;
@@ -291,7 +291,7 @@ export const ChatBubble: Component<ChatBubbleProps> = (props) => {
           class={`chat-bubble-footer${props.showTimestamp === false ? ' grouped-footer' : ''}`}
         >
           <Show when={props.showTimestamp !== false}><span>{formatTime(props.message.timestamp)}</span></Show>
-          <Show when={!props.studyMode && !isError() && (hasTokens() || props.message.corrections?.length)}>
+          <Show when={!isError() && (hasTokens() || props.message.corrections?.length)}>
             <button type="button" class="chat-bubble-inspect" aria-pressed={inspecting()}
               onClick={() => setInspecting(value => !value)}>
               {t(inspecting() ? 'mlearn.ConversationAgent.MessageAnalysis.Close' : 'mlearn.ConversationAgent.MessageAnalysis.Open')}

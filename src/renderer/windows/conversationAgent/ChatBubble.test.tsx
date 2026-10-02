@@ -157,6 +157,22 @@ describe('ChatBubble hover triggers', () => {
     };
   }
 
+  it('keeps coached conversation readable with corrections visible and analysis available on demand', () => {
+    const dispose = render(() => <ChatBubble studyMode message={{ role: 'user', content: 'hola', timestamp: 0,
+      tokens: [{ word: 'hola', actual_word: 'hola', type: 'noun', partOfSpeech: 'noun' }],
+      corrections: [{ userMessageIndex: 0, errorSpan: 'hola', correction: 'Hola', errorType: 'typo' }] }} />, container);
+    expect(container.querySelector('.chat-bubble')?.classList.contains('quiet-text')).toBe(true);
+    expect(container.querySelector('.chat-correction-replacement')?.textContent).toBe('Hola');
+    const inspect = container.querySelector('.chat-bubble-inspect') as HTMLButtonElement;
+    expect(inspect).not.toBeNull(); inspect.click();
+    expect(container.querySelector('.chat-bubble')?.classList.contains('showing-analysis')).toBe(true);
+    expect(inspect.getAttribute('aria-pressed')).toBe('true');
+    inspect.click();
+    expect(container.querySelector('.chat-bubble')?.classList.contains('quiet-text')).toBe(true);
+    expect(container.querySelector('.chat-correction-replacement')?.textContent).toBe('Hola');
+    dispose();
+  });
+
   it('shows the journal speaker for a participant message without hover', async () => {
     const message = { role: 'assistant' as const, content: 'Hello', timestamp: 0, displayName: 'Kai' };
     const dispose = render(() => <ChatBubble message={message} />, container);
