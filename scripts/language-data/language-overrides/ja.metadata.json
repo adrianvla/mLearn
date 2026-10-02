@@ -294,10 +294,22 @@
                         "dependencyGroup": "ja:lexical-familiarity-spelling"
                     }
                 ]
+            },
+            "surface-reading": {
+                "providedBy": [
+                    "word-audio",
+                    "example-audio"
+                ]
+            },
+            "prosodic-pattern": {
+                "providedBy": [
+                    "word-audio",
+                    "example-audio"
+                ]
             }
         }
     },
     "languageData": {
-        "version": "ja-package-2026.10.02-supported-spelling-r1"
+        "version": "ja-package-2026.10.02-assisted-audio-r1"
     }
 }

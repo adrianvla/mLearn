@@ -32,6 +32,7 @@ let mockKnowledgeMeasured: Accessor<string[]> = () => ALL_CAPABILITIES;
 let setMockKnowledgeMeasured: (measured: string[]) => void = () => {};
 let setMockQueueTotal: (total: number) => void = () => {};
 let mockTtsAvailable = true;
+const mockPlayedTts = vi.fn();
 const mockSetAccessStatus = vi.fn();
 const mockBuryCard = vi.fn();
 const mockSubmitRating = vi.fn(async (..._callArgs: unknown[]) => ({ attemptId: 'attempt-1', completed: false }));
@@ -143,8 +144,11 @@ vi.mock('../../context', () => ({
 
 vi.mock('../../hooks/useFlashcardTts', () => ({
   useFlashcardTts: () => ({
-    playTts: vi.fn((_id: string, _text: string, _language: string, _field: string, options?: { onStarted?: () => void }) => {
-      if (mockTtsAvailable) options?.onStarted?.();
+    playTts: vi.fn(async (id: string, _text: string, language: string, field: string, options?: { onStarted?: () => void; beforePlay?: () => boolean | Promise<boolean> }) => {
+      if (!mockTtsAvailable) return;
+      if (options?.beforePlay && !await options.beforePlay()) return;
+      mockPlayedTts(id, language, field);
+      options?.onStarted?.();
     }),
     isGenerating: () => false,
     stop: vi.fn(),
@@ -310,6 +314,7 @@ describe('FlashcardReview', () => {
     mockProjection = () => defaultProjection;
     mockRatingPersistenceState = () => 'idle';
     mockTtsAvailable = true;
+    mockPlayedTts.mockClear();
     mockSettings = {
       ...DEFAULT_SETTINGS,
       language: 'ja',
@@ -624,6 +629,8 @@ describe('FlashcardReview failure attribution', () => {
   });
 
   afterEach(() => {
+    mockReviewCards = {};
+    mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [] });
     container.remove();
   });
 
@@ -863,9 +870,207 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
+  it.each(['word', 'example'] as const)('retains pre-answer %s audio through restart without replaying it', async field => {
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', example: '犬の例' } }));
+    let dispose = render(() => <FlashcardReview />, container);
+    const key = `mlearn-review-assistance:${encodeURIComponent(JSON.stringify(['ja', 'card-1']))}`;
+    const play = container.querySelector<HTMLButtonElement>(`.flashcard-front button[title="mlearn.Flashcards.Card.${field === 'word' ? 'PlayWord' : 'PlayExample'}"]`)!;
+    expect(play).not.toBeNull();
+    play.click();
+    await flushEffects();
+    expect(mockPlayedTts).toHaveBeenCalledWith('card-1', 'ja', field);
+    expect(JSON.parse(localStorage.getItem(key)!).scaffolds).toMatchObject({ audio: true });
+    dispose();
+    dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    expect(mockPlayedTts).toHaveBeenCalledTimes(1);
+    expect(mockSubmitRating).toHaveBeenCalledWith('犬', expect.any(Array), expect.objectContaining({
+      persistence: 'immediate', scaffolds: expect.objectContaining({ audio: true }),
+    }));
+    expect(localStorage.getItem(key)).toBeNull();
+    dispose();
+  });
+
+  it('carries arbitrary package-declared supplied aspects from audio into the attempt', async () => {
+    mockLanguageData = { ...mockLanguageData!, learning: { capabilities: {
+      'future:contour': { testableIn: ['srs-review'], providedBy: ['example-audio'] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    mockProjection = () => ({ ...defaultProjection, targets: [{ targetRef: { kind: 'surface', id: 'card-surface' },
+      applicableCapabilities: [...ALL_CAPABILITIES, 'future:contour'], states: [] }] });
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', example: '犬の例' } }));
+    const dispose = render(() => <FlashcardReview />, container);
+    container.querySelector<HTMLButtonElement>('.flashcard-front button[title="mlearn.Flashcards.Card.PlayExample"]')!.click();
+    await flushEffects();
+    expect(container.textContent).toContain('AssistanceRecorded');
+    expect(container.textContent).not.toContain('ReferenceConsulted');
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledWith('犬', expect.any(Array), expect.objectContaining({
+      scaffolds: { audio: true, 'provided-access:future:contour': true },
+    }));
+    dispose();
+  });
+
+  it('does not retroactively supply recall when audio is requested after reveal', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    container.querySelector<HTMLButtonElement>('.flashcard-back button[title="mlearn.Flashcards.Card.PlayWord"]')!.click();
+    await flushEffects();
+    expect(mockPlayedTts).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem(`mlearn-review-assistance:${encodeURIComponent(JSON.stringify(['ja', 'card-1']))}`)).toBeNull();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    expect(mockSubmitRating.mock.calls[0][2]).not.toHaveProperty('scaffolds');
+    dispose();
+  });
+
+  it('refuses pre-answer audio on storage failure and retries the original cue', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    const failure = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+    container.querySelector<HTMLButtonElement>('.flashcard-front button[title="mlearn.Flashcards.Card.PlayWord"]')!.click();
+    await flushEffects();
+    expect(mockPlayedTts).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('AssistanceSaveFailed');
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    failure.mockRestore();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.TryAgain')!.click();
+    await flushEffects();
+    expect(mockPlayedTts).toHaveBeenCalledWith('card-1', 'ja', 'word');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledWith('犬', expect.any(Array), expect.objectContaining({ scaffolds: { audio: true } }));
+    dispose();
+  });
+
+  it('admits front video as durable reference assistance before making playback available', async () => {
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', videoUrl: 'local-media://clip.mp4' } }));
+    let dispose = render(() => <FlashcardReview />, container);
+    expect(container.querySelector('.flashcard-front video')).toBeNull();
+    const play = container.querySelector<HTMLButtonElement>('.flashcard-front .flashcard-media-admission')!;
+    expect(play).not.toBeNull();
+    play.click();
+    expect(container.querySelector('.flashcard-front video')).toBeNull();
+    await flushEffects();
+    expect(container.querySelector('.flashcard-front video')).not.toBeNull();
+    dispose();
+    dispose = render(() => <FlashcardReview />, container);
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledWith('犬', expect.any(Array), expect.objectContaining({
+      persistence: 'immediate', scaffolds: expect.objectContaining({ media: true,
+        'provided-access:sense-recognition': true, 'provided-access:surface-reading': true }),
+    }));
+    dispose();
+  });
+
+  it('requires new video admission when an assisted rating returns to the same due card', async () => {
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', videoUrl: 'local-media://clip.mp4' } }));
+    const dispose = render(() => <FlashcardReview />, container);
+    container.querySelector<HTMLButtonElement>('.flashcard-front .flashcard-media-admission')!.click();
+    await flushEffects();
+    expect(container.querySelector('.flashcard-front video')).not.toBeNull();
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.flashcard-front video')).toBeNull();
+    expect(container.querySelector('.flashcard-front .flashcard-media-admission')).not.toBeNull();
+    expect(localStorage.getItem(`mlearn-review-assistance:${encodeURIComponent(JSON.stringify(['ja', 'card-1']))}`)).toBeNull();
+    dispose();
+  });
+
+  it('keeps front video unavailable when reference admission is refused', async () => {
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', back: 'dog', videoUrl: 'local-media://clip.mp4' } }));
+    const dispose = render(() => <FlashcardReview />, container);
+    const failure = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+    container.querySelector<HTMLButtonElement>('.flashcard-front .flashcard-media-admission')!.click();
+    await flushEffects();
+    expect(container.querySelector('.flashcard-front video')).toBeNull();
+    expect(container.textContent).toContain('AssistanceSaveFailed');
+    failure.mockRestore();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.TryAgain')!.click();
+    await flushEffects();
+    expect(container.querySelector('.flashcard-front video')).not.toBeNull();
+    dispose();
+  });
+
+  it('reports malformed cue metadata as a retryable admission failure', async () => {
+    mockLanguageData = { ...mockLanguageData!, learning: { capabilities: {
+      'surface-reading': { providedBy: {} },
+    } } } as unknown as LanguageData;
+    mockLangMap = { ja: mockLanguageData };
+    const dispose = render(() => <FlashcardReview />, container);
+    container.querySelector<HTMLButtonElement>('.flashcard-front button[title="mlearn.Flashcards.Card.PlayWord"]')!.click();
+    await flushEffects();
+    expect(mockPlayedTts).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('AssistanceSaveFailed');
+    expect(container.textContent).not.toContain('SavingAssistance');
+    mockLanguageData = { ...mockLanguageData, learning: { capabilities: {} } };
+    mockLangMap.ja = mockLanguageData;
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.TryAgain')!.click();
+    await flushEffects();
+    expect(mockPlayedTts).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it('plays exactly once for the next encounter after the previous rating acknowledgment', async () => {
+    mockSettings.flashcardAutoTts = true;
+    const first = makeCard();
+    const second = makeCard({ id: 'second', content: { type: 'word', front: 'other', back: 'different' } });
+    mockReviewCards = { [first.id]: first, [second.id]: second };
+    const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [first.id] });
+    mockReviewQueue = queue;
+    let acknowledge!: () => void;
+    mockSubmitRating.mockImplementationOnce(() => new Promise(resolve => {
+      setMockCard(second);
+      setQueue({ newQueue: [], scheduledQueue: [second.id] });
+      acknowledge = () => resolve({ attemptId: 'acknowledged', completed: true });
+    }));
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    expect(mockPlayedTts).toHaveBeenCalledTimes(1);
+    clickShowAnswer(container);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    await flushEffects();
+    expect(mockPlayedTts).toHaveBeenCalledTimes(1);
+    acknowledge();
+    await flushEffects();
+    expect(mockPlayedTts.mock.calls).toEqual([['card-1', 'ja', 'word'], ['second', 'ja', 'word']]);
+    const key = `mlearn-review-assistance:${encodeURIComponent(JSON.stringify(['ja', 'second']))}`;
+    expect(JSON.parse(localStorage.getItem(key)!).scaffolds.audio).toBe(true);
+    dispose();
+  });
+
+  it('does not play or persist a delayed audio cue for a departed card', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const lock = vi.spyOn(inProcessStudySessionLocks, 'request').mockImplementation(async (_name, callback) => {
+      await gate;
+      await callback();
+    });
+    const dispose = render(() => <FlashcardReview />, container);
+    container.querySelector<HTMLButtonElement>('.flashcard-front button[title="mlearn.Flashcards.Card.PlayWord"]')!.click();
+    setMockCard(makeCard({ id: 'departed', content: { type: 'word', front: 'other', back: 'different' } }));
+    await flushEffects();
+    release();
+    await flushEffects();
+    expect(mockPlayedTts).not.toHaveBeenCalled();
+    expect(localStorage.getItem(`mlearn-review-assistance:${encodeURIComponent(JSON.stringify(['ja', 'card-1']))}`)).toBeNull();
+    lock.mockRestore();
+    dispose();
+  });
+
   it('audio supplied before reveal still offers Reading and records the scaffold with the attempt', async () => {
     mockSettings.flashcardAutoTts = true;
     const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
     clickShowAnswer(container);
     // A revealed cue changes the evidence condition, not the rating surface:
     // the Reading row stays ratable and the audio scaffold travels with the

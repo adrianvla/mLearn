@@ -30,7 +30,9 @@ export interface TtsMetadata {
 export interface TtsPlaybackOptions {
   /** Automatic playback should not interrupt review when a recording is absent. */
   silentIfMissing?: boolean;
-  /** Called only after audio playback starts, for retrieval cue attribution. */
+  /** Admit any durable prompt cue before playback. False cancels this playback. */
+  beforePlay?: () => boolean | Promise<boolean>;
+  /** Called after saved audio starts, or system speech is requested. */
   onStarted?: () => void;
 }
 
@@ -143,6 +145,13 @@ export function useFlashcardTts() {
         if (myGenId !== generationId) return; // Stale
 
         if (existingUrl) {
+          // A failed cue write is a separate failure from an absent recording.
+          // Never play first and try to attribute the evidence afterward.
+          if (options?.beforePlay && !await options.beforePlay()) {
+            if (myGenId === generationId) setState({ isPlaying: false, isGenerating: false, playingField: null });
+            return;
+          }
+          if (myGenId !== generationId) return;
           try {
             // Load metadata in parallel with starting playback
             bridge.flashcards.getFlashcardTtsMeta(cardId, field).then(m => {
@@ -170,6 +179,11 @@ export function useFlashcardTts() {
 
       // Fallback: system TTS (works on all platforms)
       if (myGenId === generationId) {
+        if (options?.beforePlay && !await options.beforePlay()) {
+          if (myGenId === generationId) setState({ isPlaying: false, isGenerating: false, playingField: null });
+          return;
+        }
+        if (myGenId !== generationId) return;
         const ttsRuntime = languageData?.runtime?.tts;
         bridge.speech.ttsSpeak(cleanText, language, {
           speechSynthesisLang: ttsRuntime?.webSpeechLang,

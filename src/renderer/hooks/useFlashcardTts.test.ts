@@ -291,6 +291,69 @@ describe('useFlashcardTts', () => {
     dispose();
   });
 
+  it('waits for durable cue admission before constructing or playing saved audio', async () => {
+    mockGetFlashcardTts.mockResolvedValueOnce('flashcard-audio://card1-word.ogg');
+    let admit!: (allowed: boolean) => void;
+    const beforePlay = vi.fn(() => new Promise<boolean>(resolve => { admit = resolve; }));
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot(d => { hook = useFlashcardTts(); return d; });
+    const playback = hook.playTts('card1', 'target', 'ja', 'word', { beforePlay });
+    await flush();
+    expect(beforePlay).toHaveBeenCalledTimes(1);
+    expect(audioInstances).toHaveLength(0);
+    admit(true);
+    await flush();
+    expect(audioInstances).toHaveLength(1);
+    expect(audioInstances[0].play).toHaveBeenCalledTimes(1);
+    audioInstances[0].onended!();
+    await playback;
+    dispose();
+  });
+
+  it.each(['refused', 'failed', 'cancelled'] as const)('does not play when cue admission is %s', async condition => {
+    mockGetFlashcardTts.mockResolvedValueOnce('flashcard-audio://card1-word.ogg');
+    let admit!: (allowed: boolean) => void;
+    const beforePlay = condition === 'failed'
+      ? vi.fn(async () => { throw new Error('cue storage unavailable'); })
+      : vi.fn(() => new Promise<boolean>(resolve => { admit = resolve; }));
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot(d => { hook = useFlashcardTts(); return d; });
+    const playback = hook.playTts('card1', 'target', 'ja', 'word', { beforePlay });
+    await flush();
+    expect(beforePlay).toHaveBeenCalledTimes(1);
+    if (condition !== 'failed') {
+      if (condition === 'cancelled') hook.stop();
+      admit(condition === 'cancelled');
+    }
+    await playback;
+    expect(audioInstances).toHaveLength(0);
+    expect(hook.playingField()).toBeNull();
+    expect(mockShowToast).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('does not reserve a cue when no saved recording exists', async () => {
+    const beforePlay = vi.fn(async () => true);
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot(d => { hook = useFlashcardTts(); return d; });
+    await hook.playTts('card1', 'target', 'ja', 'word', { beforePlay, silentIfMissing: true });
+    expect(beforePlay).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('applies the same admission gate to system speech', async () => {
+    const platform = await import('../../shared/platform');
+    vi.mocked(platform.isElectron).mockReturnValue(false);
+    const beforePlay = vi.fn(async () => false);
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot(d => { hook = useFlashcardTts(); return d; });
+    await hook.playTts('card1', 'target', 'ja', 'example', { beforePlay });
+    expect(beforePlay).toHaveBeenCalledTimes(1);
+    expect(mockTtsSpeak).not.toHaveBeenCalled();
+    expect(hook.playingField()).toBeNull();
+    dispose();
+  });
+
   it('playTts shows warning toast when no saved audio on electron', async () => {
     mockGetFlashcardTts.mockResolvedValueOnce(null);
     let hook!: ReturnType<typeof useFlashcardTts>;

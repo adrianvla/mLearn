@@ -1302,6 +1302,8 @@ export interface LanguageCapabilityDeclaration {
   label?: string;
   /** Generic task identifiers that may measure this access. */
   testableIn?: string[];
+  /** Presentation cue identifiers that supply this access instead of testing independent recall. */
+  providedBy?: string[];
   /** Where evidence is anchored for graph-relative routing. */
   scope?: 'surface' | 'entity' | 'family';
   /** Whether evidence can transfer across authoritative identity variants. */

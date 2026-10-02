@@ -1280,6 +1280,8 @@
           "WrongOrthography": "Forme non reconnue",
           "Marked": "{aspect} marqué comme inconnu"
         },
+        "PlayVideoWithAssistance": "Lire la vidéo avec aide",
+        "AssistanceRecorded": "L’aide pour cette tâche est enregistrée. Les aspects fournis ne comptent pas comme un rappel autonome.",
         "SavingRating": "Enregistrement de l’évaluation…",
         "SaveFailed": "Impossible d’enregistrer cette évaluation. La carte est toujours là ; réessayez.",
         "PendingRatingsSaveFailed": "Les dernières évaluations n’ont pas pu être enregistrées. Réessayez.",

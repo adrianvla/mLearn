@@ -1280,6 +1280,8 @@
           "WrongOrthography": "没认出写法",
           "Marked": "已将{aspect}标记为未知"
         },
+        "PlayVideoWithAssistance": "播放视频作为辅助",
+        "AssistanceRecorded": "已记录此题的辅助信息。已提供的方面不会计为独立回忆。",
         "SavingRating": "正在保存评分…",
         "SaveFailed": "评分未能保存。卡片仍在这里，请重试。",
         "PendingRatingsSaveFailed": "无法保存最近的评分。请重试。",

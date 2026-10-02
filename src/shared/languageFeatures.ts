@@ -858,6 +858,22 @@ export function getTestedAccesses(input: TestedAccessesInput): readonly Capabili
   return accesses;
 }
 
+/** Cue IDs describe presentation mechanisms; access semantics remain package-owned. */
+export function getProvidedAccessesForCue(
+  languageData: LanguageData | null | undefined,
+  tested: readonly CapabilityKey[],
+  cueId: string,
+): readonly CapabilityKey[] {
+  return tested.filter(capability => {
+    const providedBy = languageData?.learning?.capabilities?.[capability]?.providedBy;
+    if (providedBy === undefined) return false;
+    if (!Array.isArray(providedBy) || providedBy.some(value => typeof value !== 'string')) {
+      throw new Error(`Invalid providedBy declaration for ${capability}`);
+    }
+    return providedBy.includes(cueId);
+  });
+}
+
 export function getReadingJoinSeparator(data?: LanguageData | null): string {
   const configured = data?.textProcessing?.readingAnnotation?.readingSeparator;
   if (typeof configured === 'string') return configured;

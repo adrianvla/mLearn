@@ -1280,6 +1280,8 @@
           "WrongOrthography": "表記を認識できなかった",
           "Marked": "{aspect}を未知にしました"
         },
+        "PlayVideoWithAssistance": "ヒントとして動画を再生",
+        "AssistanceRecorded": "この問題のヒントを記録しました。提示された項目は自力で思い出した証拠にはなりません。",
         "SavingRating": "評価を保存しています…",
         "SaveFailed": "評価を保存できませんでした。カードは残っています。もう一度お試しください。",
         "PendingRatingsSaveFailed": "最近の評価を保存できませんでした。もう一度お試しください。",

@@ -24,7 +24,7 @@ import { showToast } from '../common/Feedback/Toast';
 import type { CapabilityKey, Flashcard, FlashcardContent } from '../../../shared/types';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
-import { getTestedAccesses } from '../../../shared/languageFeatures';
+import { getProvidedAccessesForCue, getTestedAccesses } from '../../../shared/languageFeatures';
 import { qualityToSrsRating, worstAttemptQuality } from '../../../shared/constants';
 import { nextAttemptId, providedAccessScaffolds, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
@@ -94,11 +94,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [showAnswer, setShowAnswer] = createSignal(false);
   const [showCardActions, setShowCardActions] = createSignal(false);
   let cardActionsAnchor: HTMLButtonElement | undefined;
-  // Retrieval-time audio scaffold: whether the spoken form was available
-  // BEFORE the reveal (auto-play or manual word TTS). Recorded on the
-  // attempt's evidence so an audio-cued reading rating stays cued
-  // recognition instead of fabricating unassisted recall evidence.
-  const [wordAudioPreReveal, setWordAudioPreReveal] = createSignal(false);
   const assistanceStore = createReviewAssistanceStore(localStorage,
     typeof navigator !== 'undefined' && navigator.locks ? navigator.locks : null);
   const [referenceAssistance, setReferenceAssistance] = createSignal<ReviewAssistance | null>(null);
@@ -158,11 +153,51 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return langData[language] ?? (language === settings.language ? currentLangData() : null);
   };
 
-  const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example') => {
-    const card = store.flashcards[cardId] ?? currentCard();
-    playTts(cardId, text, card ? languageForCard(card) : settings.language, field, {
-      onStarted: () => { if (field === 'word' && currentCard()?.id === cardId && !showAnswer()) setWordAudioPreReveal(true); },
-    });
+  const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example', silentIfMissing = false) => {
+    const card = currentCard();
+    if (!card || card.id !== cardId || ratingWrite() !== null
+      || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() !== null) return;
+    const scope = assistanceScope(card);
+    const encounter = referenceEncounter;
+    const language = languageForCard(card);
+    const sameEncounter = () => !disposed && referenceEncounter === encounter
+      && !!currentCard() && assistanceScope(currentCard()!) === scope && ratingWrite() === null
+      && !isRetractionWriteBlocking(retractionWrite());
+    // Resource lookup may finish after reveal. Only audio admitted while the
+    // question is still shown supplies a retrieval cue. Once admitted, its
+    // durable record survives cancellation or a restart conservatively.
+    let cueAdmitted = false;
+    const play = () => {
+      if (!sameEncounter()) return;
+      void playTts(cardId, text, language, field, {
+        silentIfMissing,
+        beforePlay: async () => {
+          if (!sameEncounter()) return false;
+          if (showAnswer() && !cueAdmitted) return true;
+          cueAdmitted = true;
+          setAssistanceWrite('pending');
+          try {
+            const capabilities = getTestedAccesses({ languageData: languageDataForCard(card), surface: card.content.front,
+              hasReadingData: cardHasReadingData(card), hasProsodyData: cardHasProsodyData(card), taskType: 'srs-review' });
+            const supplied = getProvidedAccessesForCue(languageDataForCard(card), capabilities, `${field}-audio`);
+            const record = await assistanceStore.provide(scope, { audio: true, ...providedAccessScaffolds(supplied) }, sameEncounter);
+            if (!record || !sameEncounter()) return false;
+            setReferenceAssistance(record);
+            setAssistanceWrite(null);
+            retryReference = undefined;
+            return true;
+          } catch (error) {
+            if (sameEncounter()) {
+              log.warn('Failed to save review audio assistance:', error);
+              setAssistanceWrite('failed');
+              retryReference = play;
+            }
+            return false;
+          }
+        },
+      });
+    };
+    play();
   };
 
   // Current card
@@ -326,6 +361,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       }
       batch(() => {
         setShowAnswer(false);
+        // Publish one next encounter after ACK; readiness must not trigger
+        // auto-play for an intermediate selection before the pin advances.
+        decisionPin.advance();
+        referenceEncounter += 1;
+        refreshReferenceAssistance();
         setRatingWrite(null);
         if (result.completed) setCardsAnswered((previous) => previous + 1);
       });
@@ -334,12 +374,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         console.log(`%c[REVIEW] await submitRating=${(afterAwait - t0).toFixed(1)}ms  localApply=${(performance.now() - afterAwait).toFixed(1)}ms`,
           'color:#f80; font-weight:bold');
       }
-      setWordAudioPreReveal(false);
-      // The answer changed the pool: end the encounter so the next read
-      // re-selects instead of replaying the just-rated pick through the pin.
-      decisionPin.advance();
-      referenceEncounter += 1;
-      refreshReferenceAssistance();
       resetReviewScroll();
     } catch (error) {
       log.warn('Failed to save flashcard review rating:', error);
@@ -358,7 +392,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       retryReference = () => refreshReferenceAssistance();
       return;
     }
-    const scaffolds = { ...assistance?.scaffolds, ...(wordAudioPreReveal() ? { audio: true } : {}) };
+    const scaffolds = { ...assistance?.scaffolds };
     const timing = stopTiming();
     // A mixed profile schedules on its weakest evidence — the same reduction
     // word sync applies, read from the one ordering (missed dominates
@@ -414,7 +448,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }
   }
 
-  function withReferenceContent(open: () => void): void {
+  function withReferenceContent(open: () => void, media = false): void {
     const card = currentCard();
     if (!card || ratingWrite() !== null || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() === 'pending') return;
     if (showAnswer()) { open(); return; }
@@ -425,9 +459,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const save = () => {
       if (!sameEncounter()) return;
       setAssistanceWrite('pending');
-      const capabilities = getTestedAccesses({ languageData: languageDataForCard(card), surface: card.content.front,
-        hasReadingData: cardHasReadingData(card), hasProsodyData: cardHasProsodyData(card), taskType: 'srs-review' });
-      void assistanceStore.provide(scope, providedAccessScaffolds(capabilities), sameEncounter).then(record => {
+      void Promise.resolve().then(() => {
+        const capabilities = getTestedAccesses({ languageData: languageDataForCard(card), surface: card.content.front,
+          hasReadingData: cardHasReadingData(card), hasProsodyData: cardHasProsodyData(card), taskType: 'srs-review' });
+        // Front clips can expose sound, subtitles and translation. Treat the
+        // whole clip as reference content; do not guess which answer it hides.
+        return assistanceStore.provide(scope, { ...providedAccessScaffolds(capabilities), ...(media ? { media: true } : {}) }, sameEncounter);
+      }).then(record => {
         if (!record || !sameEncounter()) return;
         setReferenceAssistance(record);
         setAssistanceWrite(null);
@@ -506,14 +544,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     if (presentation().phase === 'complete') props.onComplete?.();
   });
 
-  // Per-card scaffold reset: the audio scaffold reflects THIS card's prompt.
-  createEffect(on(
-    () => currentCard()?.id,
-    () => {
-      setWordAudioPreReveal(false);
-    }
-  ));
-
   // A new displayed card starts face-down (R20 repair): the reveal belongs
   // to one encounter, so an action that moves the displayed card must not
   // leak a revealed answer onto the next one. `on` fires only when the id
@@ -526,20 +556,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }
   ));
 
-  // Auto-TTS: play word when a new card appears — the spoken form was
-  // available during retrieval, so it is a prompt scaffold.
-  createEffect(on(
-    () => currentCard()?.id,
-    (cardId) => {
-      if (!cardId || !settings.flashcardAutoTts || settings.flashcardMuteAudio) return;
-      const card = currentCard();
-      if (!card) return;
-      playTts(card.id, card.content.front, languageForCard(card), 'word', {
-        silentIfMissing: true,
-        onStarted: () => { if (currentCard()?.id === card.id && !showAnswer()) setWordAudioPreReveal(true); },
-      });
-    }
-  ));
+  // One automatic cue per pinned encounter. A provider may publish the next
+  // card before its previous rating ACK returns; wait for admission to reopen.
+  let automaticAudioEncounter: ReturnType<typeof currentEncounter> = null;
+  createEffect(() => {
+    const encounter = currentEncounter();
+    const ready = ratingWrite() === null && !isRetractionWriteBlocking(retractionWrite()) && assistanceWrite() === null;
+    if (!encounter || !ready || showAnswer() || !settings.flashcardAutoTts || settings.flashcardMuteAudio
+      || automaticAudioEncounter === encounter) return;
+    automaticAudioEncounter = encounter;
+    handlePlayTts(encounter.card.id, encounter.card.content.front, 'word', true);
+  });
 
   // Auto-TTS: play example when answer is revealed (waits for word TTS to finish)
   // Skip example TTS for cards with video — the video provides the audio
@@ -887,6 +914,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   onPlayTts={handlePlayTts}
                   ttsPlayingField={ttsPlayingField()}
                   ttsGenerating={ttsGenerating()}
+                  promptMediaOwner={currentEncounter()}
+                  onOpenPromptMedia={(cardId, open) => {
+                    if (currentCard()?.id === cardId) withReferenceContent(open, true);
+                  }}
                   ttsMetadata={ttsMetadata()}
                   onRegenerateExample={handleRegenerateExample}
                   regeneratingExample={regeneratingExample()}
@@ -901,7 +932,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             savingLabelKey="mlearn.WordSync.SavingAssistance" failedLabelKey="mlearn.WordSync.AssistanceSaveFailed"
             canRetry={assistanceWrite() === 'failed'} onRetry={() => retryReference?.()} />
           <Show when={referenceAssistance()}>
-            <p class="flashcard-rating-write" role="status">{t('mlearn.WordSync.ReferenceConsulted')}</p>
+            <p class="flashcard-rating-write" role="status">{t((referenceAssistance()?.scaffolds.audio || referenceAssistance()?.scaffolds.media) ? 'mlearn.Flashcards.Review.AssistanceRecorded' : 'mlearn.WordSync.ReferenceConsulted')}</p>
           </Show>
           {/* Show answer button */}
           <Show when={presentation().phase !== 'complete' && currentCard() && !showAnswer()}>

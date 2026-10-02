@@ -1280,6 +1280,8 @@
           "WrongOrthography": "Unrecognized form",
           "Marked": "Marked {aspect} as unknown"
         },
+        "PlayVideoWithAssistance": "Play video with assistance",
+        "AssistanceRecorded": "Prompt assistance is recorded. Supplied aspects will not count as independent recall.",
         "SavingRating": "Saving rating…",
         "SaveFailed": "This rating could not be saved. The card is still here; try again.",
         "PendingRatingsSaveFailed": "Recent ratings could not be saved. Try again.",

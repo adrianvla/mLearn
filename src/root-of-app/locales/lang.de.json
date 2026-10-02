@@ -1280,6 +1280,8 @@
           "WrongOrthography": "Form nicht erkannt",
           "Marked": "{aspect} als unbekannt markiert"
         },
+        "PlayVideoWithAssistance": "Video mit Hilfestellung abspielen",
+        "AssistanceRecorded": "Hilfen für diese Aufgabe sind gespeichert. Vorgegebene Aspekte zählen nicht als selbstständige Erinnerung.",
         "SavingRating": "Bewertung wird gespeichert…",
         "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Die Karte ist noch da; versuche es erneut.",
         "PendingRatingsSaveFailed": "Die letzten Bewertungen konnten nicht gespeichert werden. Versuche es erneut.",
