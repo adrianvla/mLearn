@@ -6,6 +6,7 @@ import type { KnowledgeLexicalSummary, KnowledgeProjection, KnowledgeProjectionB
 import { relationsOf, type LingualGraph } from '../../shared/graph/load';
 import { learnableTargetsFor } from '../../shared/graph/targets';
 import { predictTargetAccessibility, type PredictionInput } from '../../shared/prediction/supportPredictor';
+import type { SourceKnowledge } from '../../shared/prediction/supportContributors';
 import { attemptActiveLatencyMs, eventCapability, eventIsMeasurable, readActiveEvidence } from '../../shared/knowledgeEvents';
 import { evidenceStatusFromEase, effectiveThresholds, type EffectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { DEFAULT_ENABLED_DOMAINS, type CapabilityKey, type GraphDomain, type GraphEntity, type LearnableTarget } from '../../shared/graph/types';
@@ -143,43 +144,26 @@ export function buildKnowledgeProjection(
     .filter(domainEnabled);
   const targets = learnableTargetsFor(graph, entities);
   const groups = new Map<string, KnowledgeProjectionTarget>();
+  const sourceStates = new Map<string, SourceKnowledge | undefined>();
+  const transferHistory: NonNullable<PredictionInput['transferHistory']> = Object.fromEntries(
+    [...new Set(Object.values(options?.languageData?.learning?.capabilities ?? {})
+      .flatMap(declaration => Array.isArray(declaration.supportRules) ? declaration.supportRules.flatMap(rule =>
+        typeof rule?.transferContext === 'string' && rule.transferContext ? [rule.transferContext] : []) : []))]
+      .flatMap(context => {
+        const history = observedTransferHistory(events, context);
+        return history ? [[context, history]] : [];
+      }));
 
-  // Only identifiable, explicitly unassisted physical attempts inform this
-  // heuristic. Old bucket methodStats count rows, not independent attempts;
-  // they cannot calibrate transfer and remain available as history statistics.
-  const inferenceSuccess = observedTransferHistory(events);
-
-  // Entry-level lexical state feeding PREDICTION ONLY (acceptance A/B/C):
-  // a synchronized lexical object (sense/spoken known through any variant)
-  // makes a missing written bridge cheap. Never written as knowledge.
+  // Lexical summaries remain evidence/claim projections. They do not authorize
+  // another access: every prediction source must pass the package rule boundary.
   const senseState = entryCapabilityState(graph, rows, entryIds, 'sense-recognition', surfaceId, policy, now, options?.archives, thresholds, options?.languageData);
   const spokenState = entryCapabilityState(graph, rows, entryIds, 'spoken-recognition', surfaceId, policy, now, options?.archives, thresholds, options?.languageData);
-  const entrySupport = entryIds.length > 0
-    ? {
-        entryId: entryIds.length === 1 ? entryIds[0] : undefined,
-        senseKnown: senseState.classification === 'known',
-        spokenKnown: spokenState.classification === 'known',
-      }
-    : undefined;
-
-  // Character-component familiarity feeding PREDICTION ONLY (acceptance B):
-  // knowing 字 while 苗 is weak supports reading the whole, never measures it.
-  const characterIds = relationsOf(graph, surfaceId, { direction: 'out' })
-    .filter((relation) => relation.type === 'has-character')
-    .map((relation) => relation.to);
-  let charactersKnown = 0;
-  for (const characterId of characterIds) {
-    const explanation = targetExplanation(graph, rows, { entityId: characterId, capability: 'character-recognition' }, surfaceId, policy, now, undefined, options?.archives, thresholds, options?.languageData);
-    if (classificationOf(explanation.state).classification === 'known') charactersKnown += 1;
-  }
-  const characterSupport = characterIds.length > 0
-    ? { known: charactersKnown, total: characterIds.length }
-    : undefined;
 
   for (const target of targets) {
     const entity = graph.nodes.get(target.entityId)!;
     const preliminary = targetExplanation(graph, rows, target, surfaceId, policy, now, undefined, options?.archives, thresholds, options?.languageData);
     let explanation = preliminary;
+    let supportLimits: string[] = [];
     const direct = preliminary.projection;
     if (!direct) {
       const predicted = predictTargetAccessibility({
@@ -188,27 +172,40 @@ export function buildKnowledgeProjection(
         target,
         classify: (ease) => evidenceStatusFromEase(ease, thresholds),
         languageData: options?.languageData,
+        transferHistory,
         sourceKnowledge: (source) => {
-          const state = classificationOf(targetExplanation(graph, rows, source, source.entityId, policy, now,
-            undefined, options?.archives, thresholds, options?.languageData, source.entityId === surfaceId).state);
-          return state.classification === 'known' && (state.basis === 'evidence' || state.basis === 'claim') ? state.basis : undefined;
+          const cacheKey = JSON.stringify([source.entityId, source.capability]);
+          if (sourceStates.has(cacheKey)) return sourceStates.get(cacheKey);
+          const resolved = targetExplanation(graph, rows, source, source.entityId, policy, now,
+            undefined, options?.archives, thresholds, options?.languageData, source.entityId === surfaceId);
+          const state = classificationOf(resolved.state);
+          if (state.classification !== 'known' || (state.basis !== 'evidence' && state.basis !== 'claim')) {
+            sourceStates.set(cacheKey, undefined); return undefined;
+          }
+          // Claims and archived aggregates never acquire fabricated attempt ids.
+          const witness = resolved.knowledgeWitness;
+          const observationIds = state.basis === 'evidence' && witness
+            && (witness.kind === 'rating' || witness.kind === 'review')
+            && witness.attemptId && !/^\d+$/.test(witness.attemptId) ? [witness.attemptId] : [];
+          const knowledge = { basis: state.basis, observationIds };
+          sourceStates.set(cacheKey, knowledge);
+          return knowledge;
         },
-        compound: options?.compound,
-        ...(entrySupport ? { entry: entrySupport } : {}),
-        ...(characterSupport ? { characters: characterSupport } : {}),
-        ...(inferenceSuccess ? { inferenceSuccess } : {}),
       });
+      supportLimits = predicted.limits;
       if (predicted.supportPath.length) {
         explanation = targetExplanation(graph, rows, target, surfaceId, policy, now, {
           value: predicted.supportScore,
-          model: 'structural-support-v1',
+          model: 'package-support-v2',
           interpretation: 'heuristic-support',
+          contributors: predicted.contributors,
           because: predicted.supportPath.map((path) => `${path.from} → ${path.to} (${path.via})`),
         }, options?.archives, thresholds, options?.languageData);
       }
     }
     const state = projectionState(target.capability, explanation,
       mergeArchivesStats(options?.archives ?? [], (event) => eventAppliesToTarget(graph, event, target, surfaceId, options?.languageData)));
+    if (supportLimits.length) state.supportLimits = supportLimits;
     const group = groups.get(entity.id) ?? {
       targetRef: { kind: entity.kind, id: entity.id },
       applicableCapabilities: [],
@@ -320,7 +317,8 @@ function projectionState(capability: CapabilityKey, explanation: TargetExplanati
   const lastSuccess = Math.max(lastDirectSuccess(active) ?? 0, archivedStats.lastDirectT ?? 0) || undefined;
   return {
     ...(explanation.prediction ? { prediction: { value: explanation.prediction.value, reasons: explanation.prediction.because,
-      model: explanation.prediction.model, interpretation: explanation.prediction.interpretation } } : {}),
+      model: explanation.prediction.model, interpretation: explanation.prediction.interpretation,
+      ...(explanation.prediction.contributors ? { contributors: explanation.prediction.contributors } : {}) } } : {}),
     capability: capability,
     classification,
     basis,
@@ -347,9 +345,10 @@ function projectionState(capability: CapabilityKey, explanation: TargetExplanati
 }
 
 /** Count physical unassisted attempts, never duplicate accesses or uncertain legacy counters. */
-export function observedTransferHistory(events: readonly KnowledgeEvent[]): { attempts: number; successes: number } | undefined {
+export function observedTransferHistory(events: readonly KnowledgeEvent[], context?: string): { attempts: number; successes: number } | undefined {
   const attempts = new Map<string, boolean>();
   for (const event of readActiveEvidence(events)) {
+    if (context !== undefined && event.transferContext !== context) continue;
     if (event.kind !== 'rating' && event.kind !== 'review') continue;
     if (event.method !== 'inference' || !eventIsMeasurable(event) || !event.taskType
       || event.scaffolds === undefined || Object.values(event.scaffolds).some(Boolean)

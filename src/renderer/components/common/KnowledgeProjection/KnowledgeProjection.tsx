@@ -530,6 +530,8 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     target.states.filter(state => state.basis === 'prediction' && state.prediction !== undefined)
       .map(state => ({ target: target.targetRef, state })),
   ));
+  const unavailableSupportStates = createMemo(() => (model().projection?.targets ?? []).flatMap(target =>
+    target.states.filter(state => (state.supportLimits?.length ?? 0) > 0).map(state => ({ target: target.targetRef, state }))));
   const capabilityLabel = (capability: string) => langData?.[props.language ?? settings.language]?.learning?.capabilities?.[capability]?.label
     ?? (CAPABILITY_LABEL_KEYS[capability] ? t(CAPABILITY_LABEL_KEYS[capability]) : capability);
   const supportLabel = (value: number) => t(`mlearn.Knowledge.Projection.Prediction.${value < 0.35 ? 'SupportLimited' : value < 0.7 ? 'SupportModerate' : 'SupportStrong'}`);
@@ -795,6 +797,12 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
           <Show when={model().projection?.status === 'ready'} fallback={projectionFallback()}>
           <div class="knowledge-prediction">
             <p class="knowledge-prediction__caption">{t('mlearn.GraphInspector.PredictionFirewall')}</p>
+            <For each={unavailableSupportStates()}>{({ target, state }) => (
+              <section class="knowledge-prediction__card">
+                <h3>{capabilityLabel(state.capability)} · {targetLabel(target.id)}</h3>
+                <p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.Prediction.UnavailableSupport')}</p>
+              </section>
+            )}</For>
             <Show when={predictedStates().length > 0} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.Projection.Prediction.None')}</p>}>
               <For each={predictedStates()}>{({ target, state }) => (
                 <section class="knowledge-prediction__card">

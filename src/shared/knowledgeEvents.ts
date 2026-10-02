@@ -148,6 +148,8 @@ export function nextAttemptId(): AttemptId {
 export interface KnowledgeEvent {
   /** Immutable observation identity when supplied by an event producer. */
   eventId?: string;
+  /** Opaque package-declared transfer context pinned by the actual encounter. */
+  transferContext?: string;
   t: number;
   kind: KnowledgeEventKind;
   source: EvidenceSource;

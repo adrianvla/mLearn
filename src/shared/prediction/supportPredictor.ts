@@ -1,203 +1,81 @@
-import { relationsOf, type LingualGraph } from '../graph/load';
-import { relationCategory } from '../graph/types';
-import type { CompoundAnalysis, CompoundPart } from '../graph/morphology/compounds';
+import type { LingualGraph } from '../graph/load';
+import type { CompoundAnalysis } from '../graph/morphology/compounds';
 import type { LanguageData } from '../types';
 import type { LearnableTarget } from '../graph/types';
 import type { ReplayProjection } from '../utils/projectionReplay';
+import { boundedSupportWeight, independentSupportContributors, resolveSupportSources, type SourceKnowledge, type SupportContributor } from './supportContributors';
 
-/**
- * Conservative SUPPORT-based predictor (Tier-2 v0).
- *
- * Reads ONLY: the linguistic graph (structure) and the replayed projection
- * (evidence-derived state). Produces READ-ONLY predictions. This module must
- * never import from evidence writers (FlashcardContext, knowledgeEvents
- * append paths) — the firewall test in prediction.firewall.test.ts enforces
- * that structurally.
- */
+/** Read-only heuristic support. No prediction can write learner evidence. */
 export interface PredictionInput {
   graph: LingualGraph | null;
-  /** Active-evidence projection for the target's surface key, when available. */
   direct: ReplayProjection | null;
   target: LearnableTarget;
   classify(ease: number): 'known' | 'learning' | 'unknown';
-  /** Source access state, resolved from its own journal address; absence grants no support. */
-  sourceKnowledge?: (target: LearnableTarget) => 'evidence' | 'claim' | undefined;
+  sourceKnowledge?: (target: LearnableTarget) => SourceKnowledge | 'evidence' | 'claim' | undefined;
   languageData?: LanguageData | null;
-  /** Read-only productive compound support for an unseen target. Decomposition is
-   * capability-selected by the caller from the language package's declared strategy. */
+  /** Structural inspection compatibility. Decomposition alone authorizes no transfer. */
   compound?: { analysis: CompoundAnalysis; isKnownPart(lemma: string): boolean };
-  /**
-   * Learner calibration from OBSERVED compositional transfers (attempts with
-   * method:'inference'). A learner who repeatedly succeeds at inferring
-   * unseen words from known structure gets stronger predictions; failures
-   * discount. This is a LEARNER-MODEL property — never evidence that any
-   * specific unseen item is already known.
-   */
-  inferenceSuccess?: { attempts: number; successes: number };
-  /**
-   * Entry-level lexical state for the target's authoritative identity
-   * (graph-resolved across variant surfaces). SUPPORT ONLY: a synchronized
-   * lexical object makes a missing written bridge cheap to acquire — this
-   * never becomes direct evidence for the bridge itself.
-   */
+  /** Legacy unscoped hints remain readable but cannot authorize pedagogical support. */
   entry?: { entryId?: string; senseKnown: boolean; spokenKnown: boolean };
-  /**
-   * Character-component familiarity for the target surface (has-character
-   * neighbors). SUPPORT ONLY: known components assist reading/recognition
-   * inference, scaled by the learner's observed transfer calibration.
-   */
   characters?: { known: number; total: number };
+  inferenceSuccess?: { attempts: number; successes: number };
+  /** Active unassisted physical outcomes, scoped to package-declared transfer contexts. */
+  transferHistory?: Readonly<Record<string, { attempts: number; successes: number }>>;
 }
 
 export interface Prediction {
-  /** Heuristic structural support, never a calibrated probability of success. */
+  /** Heuristic support score, never a calibrated probability or measured progress. */
   supportScore: number;
   uncertainty: number;
   supportPath: Array<{ from: string; to: string; via: string }>;
-  /** Always true today: predictions are expectations, never evidence. */
+  contributors: SupportContributor[];
+  limits: string[];
   readonly kind: 'prediction';
 }
 
-const SUPPORT_WEIGHTS: Record<string, { transparency: number; predictability: number } | undefined> = {
-  'sense-recognition': { transparency: 0.6, predictability: 0 },
-  'surface-reading': { transparency: 0, predictability: 0.7 },
-};
-
-/**
- * Entry-route support weights per target capability: how much an already
- * synchronized lexical object (meaning and/or spoken form) predicts success
- * on a not-yet-measured access. The written bridge of a word you know by
- * sound and meaning is the textbook cheap-missing-bridge.
- */
-const ENTRY_SUPPORT: Record<string, { sense: number; spoken: number } | undefined> = {
-  'surface-recognition': { sense: 0.45, spoken: 0.35 },
-  'surface-reading': { sense: 0.05, spoken: 0.35 },
-};
-
-/**
- * Character-component support ceiling per target capability, scaled by the
- * known-character fraction and the learner's transfer calibration.
- */
-const CHARACTER_SUPPORT: Record<string, number | undefined> = {
-  'surface-reading': 0.5,
-  'surface-recognition': 0.2,
-  'sense-recognition': 0.15,
-};
-
 export function predictTargetAccessibility(input: PredictionInput): Prediction {
   const { graph, direct, target } = input;
-  if (!graph || (!graph.nodes.has(target.entityId) && !input.compound)) {
-    return { supportScore: 0, uncertainty: 1, supportPath: [], kind: 'prediction' };
+  if (!graph || !graph.nodes.has(target.entityId)) {
+    return { supportScore: 0, uncertainty: 1, supportPath: [], contributors: [], limits: [], kind: 'prediction' };
   }
-
-  // Direct evidence dominates: no inference needed.
   if (direct && input.classify(direct.ease) === 'known') {
-    return { supportScore: 1, uncertainty: 0.05, supportPath: [], kind: 'prediction' };
+    return { supportScore: 1, uncertainty: 0.05, supportPath: [], contributors: [], limits: [], kind: 'prediction' };
   }
-
-  let knownNeighbors = 0;
-  let supportTotal = 0;
-  const supportPath: Prediction['supportPath'] = [];
-  const sourceSupport = new Map<string, { credit: number; path: Prediction['supportPath'][number] }>();
-
-  // A structural edge cannot establish the learner's knowledge of its source.
-  // Package rules can opt unfamiliar relations/accesses into this mechanism.
-  for (const relation of relationsOf(graph, target.entityId, { direction: 'in' })) {
-    const declared = input.languageData?.learning?.capabilities?.[target.capability]?.supportRules
-      ?.filter(rule => rule.relation === relation.type);
-    const weights = SUPPORT_WEIGHTS[target.capability];
-    const builtin = relationCategory(relation.type) === 'support'
-      && !['contrasts-with', 'analyzes', 'analysis-member'].includes(relation.type) && weights
-      ? [{ sourceCapability: target.capability, weight: weights.transparency * boundedWeight(relation.transparency)
-        + weights.predictability * boundedWeight(relation.predictability) }] : [];
-    const rules = declared?.length ? declared : builtin;
-    for (const rule of rules) {
-      const basis = input.sourceKnowledge?.({ entityId: relation.from, capability: rule.sourceCapability });
-      if (!basis) continue;
-      const credit = boundedWeight(rule.weight) * (basis === 'claim' ? 0.5 : 1)
-        * (relation.confidence === undefined ? 1 : boundedWeight(relation.confidence));
-      if (credit <= 0) continue;
-      const key = JSON.stringify([relation.from, rule.sourceCapability]);
-      const previous = sourceSupport.get(key);
-      // Multiple providers, duplicated rules and alternative paths describe the
-      // same source access; they do not establish independent learner evidence.
-      if (!previous || credit > previous.credit || (credit === previous.credit && relation.type < previous.path.via)) {
-        sourceSupport.set(key, { credit, path: { from: relation.from, to: relation.to, via: relation.type } });
-      }
+  const possible: SupportContributor[] = [];
+  const limits: string[] = [];
+  for (const source of resolveSupportSources(graph, target, input.languageData, reason => limits.push(reason))) {
+    const known = input.sourceKnowledge?.(source.target);
+    if (!known) continue;
+    const state = typeof known === 'string' ? { basis: known } : known;
+    if (state.basis !== 'evidence' && state.basis !== 'claim') continue;
+    const context = source.rule.transferContext;
+    const history = context ? input.transferHistory?.[context] : undefined;
+    let calibration = 1;
+    if (history && Number.isInteger(history.attempts) && history.attempts >= 2
+      && Number.isInteger(history.successes) && history.successes >= 0 && history.successes <= history.attempts) {
+      calibration = Math.min(2, Math.max(0.25, 2 * (history.successes + 1) / (history.attempts + 2)));
     }
+    const credit = boundedSupportWeight(source.rule.weight) * source.confidence * (state.basis === 'claim' ? 0.5 : 1) * calibration;
+    if (credit <= 0) continue;
+    possible.push({ source: source.target, target: { ...target }, basis: state.basis,
+      observationIds: [...new Set(state.observationIds ?? [])].sort(),
+      package: { language: graph.asset.language, sourceVersions: { ...graph.asset.sourceVersions },
+        ...(input.languageData?.languageData?.version ? { metadataVersion: input.languageData.languageData.version } : {}) },
+      rule: { id: source.ruleId, weight: source.rule.weight,
+        ...(source.rule.version !== undefined ? { version: source.rule.version } : {}),
+        ...(source.rule.dependencyGroup !== undefined ? { dependencyGroup: source.rule.dependencyGroup } : {}),
+        ...(context !== undefined ? { transferContext: context } : {}) },
+      assertions: source.assertions.map(assertion => ({ ...assertion })), assertionConfidence: source.confidence, calibration, credit });
   }
-  const paths = new Set<string>();
-  for (const [, support] of [...sourceSupport].sort(([a], [b]) => a.localeCompare(b))) {
-    supportTotal += support.credit;
-    knownNeighbors += support.credit;
-    const key = JSON.stringify(support.path);
-    if (!paths.has(key)) { paths.add(key); supportPath.push(support.path); }
+  const contributors = independentSupportContributors(possible);
+  const supportTotal = contributors.reduce((total, contributor) => total + contributor.credit, 0);
+  const paths = new Map<string, Prediction['supportPath'][number]>();
+  for (const contributor of contributors) {
+    const path = { from: contributor.source.entityId, to: target.entityId, via: contributor.assertions.map(assertion => assertion.type).join(' → ') };
+    paths.set(JSON.stringify(path), path);
   }
-
-  // Laplace-smoothed observed transfer rate, expressed RELATIVE to the
-  // 0.5 no-history prior: a learner who has successfully inferred unseen
-  // words from known parts before is boosted, a learner who failed the same
-  // structure is discounted, and thin history stays ≈ neutral. Clamped to
-  // stay conservative.
-  let calibration = 1;
-  if (input.inferenceSuccess && input.inferenceSuccess.attempts >= 2) {
-    calibration = Math.min(2, Math.max(0.25, ((input.inferenceSuccess.successes + 1) / (input.inferenceSuccess.attempts + 2)) / 0.5));
-  }
-
-  // ENTRY route: the lexical object is already synchronized (sense/spoken
-  // access known through any authoritative variant). The target's missing
-  // written bridge is cheap graph completion, not a novel lexical object.
-  // Credit is support-side only — it never fabricates direct evidence.
-  const entryWeights = ENTRY_SUPPORT[target.capability];
-  if (input.entry && entryWeights) {
-    let entryCredit = 0;
-    if (input.entry.senseKnown) entryCredit += entryWeights.sense;
-    if (input.entry.spokenKnown) entryCredit += entryWeights.spoken;
-    if (entryCredit > 0) {
-      supportTotal += entryCredit;
-      knownNeighbors += entryCredit;
-      supportPath.push({ from: input.entry.entryId ?? 'shared-entry', to: target.entityId, via: 'realizes' });
-    }
-  }
-
-  // CHARACTER route: known graphemic components assist surface inference
-  // (component-assisted reading/recognition), scaled by the learner's
-  // observed transfer competence. Support-side only — never knowledge.
-  const characterWeight = CHARACTER_SUPPORT[target.capability];
-  if (input.characters && input.characters.total > 0 && input.characters.known > 0 && characterWeight !== undefined) {
-    const credit = characterWeight * (input.characters.known / input.characters.total) * calibration;
-    supportTotal += credit;
-    knownNeighbors += credit;
-    supportPath.push({ from: 'has-character', to: target.entityId, via: 'component-inference' });
-  }
-
-  const compound = input.compound?.analysis;
-  // Conservative: only a UNIQUE parse extends support — graph-attested
-  // structure (primary) or a strategy-derived productive split. An ambiguous
-  // compound receives no prediction credit from its preferred parse alone.
-  if (compound && !compound.ambiguous) {
-    const parts = leafLemmas(compound.parts);
-    const knownParts = parts.filter(input.compound!.isKnownPart);
-    const credit = compound.confidence * knownParts.length / Math.max(1, parts.length);
-    if (credit > 0) {
-      supportTotal += credit;
-      knownNeighbors += credit;
-      const via = compound.source === 'attested' ? 'attested-compound' : 'generated-compound';
-      for (const lemma of knownParts) supportPath.push({ from: lemma, to: target.entityId, via });
-    }
-  }
-
   const base = direct ? input.classify(direct.ease) === 'learning' ? 0.35 : 0.1 : 0.05;
-  const supportScore = Math.min(0.85, base + knownNeighbors / Math.max(1, supportTotal) * 0.5 * calibration);
-  const uncertainty = Math.max(0.15, 1 - supportTotal);
-
-  return { supportScore, uncertainty, supportPath, kind: 'prediction' };
-}
-
-function boundedWeight(value: number | undefined): number {
-  return value !== undefined && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
-}
-
-function leafLemmas(parts: readonly CompoundPart[]): string[] {
-  return parts.flatMap((part) => part.parts ? leafLemmas(part.parts) : [part.lemma]);
+  return { supportScore: Math.min(0.85, base + Math.min(1, supportTotal) * 0.5),
+    uncertainty: Math.max(0.15, 1 - supportTotal), supportPath: [...paths.values()], contributors,
+    limits: [...new Set(limits)].sort(), kind: 'prediction' };
 }

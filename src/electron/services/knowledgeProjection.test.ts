@@ -6,6 +6,10 @@ import { loadLinguisticGraph } from '../../shared/graph/load';
 import { attestedCompoundAnalysis } from '../../shared/graph/morphology/attested';
 import { buildKnowledgeProjection, claimClassification, observedTransferHistory } from './knowledgeProjection';
 
+const supportPackage: LanguageData = { name: 'Test package', learning: { capabilities: { 'sense-recognition': { supportRules: [
+  { relation: 'semantically-related', sourceCapability: 'sense-recognition', weight: 0.6 },
+] } } } };
+
 const policy = { learningSteps: [1, 10], relearnSteps: [10], graduatingInterval: 1, easyInterval: 4, reviewIntervalModifier: 100, maxInterval: 36500 };
 const surfaceId = `ja:surface:${'a'.repeat(64)}`;
 const senseId = 'ja:sense:cat';
@@ -195,10 +199,8 @@ describe('buildKnowledgeProjection', () => {
     const sense = result.targets.find((target) => target.targetRef.id === senseId)!.states[0];
     const surface = result.targets.find((target) => target.targetRef.id === surfaceId)!.states[0];
     const reading = result.targets.find((target) => target.targetRef.id === surfaceId)!.states.find((state) => state.capability === 'surface-reading')!;
-    // Meaning claim applies to meaning-scoped capabilities only — never as
-    // evidence. The written bridge is UNMEASURED evidence; graph-relative
-    // support may PREDICT it cheaply (basis: prediction, never claim/evidence).
-    expect(reading).toMatchObject({ classification: 'predicted', basis: 'prediction' });
+    // A meaning claim cannot authorize transfer to an undeclared written access.
+    expect(reading).toMatchObject({ classification: 'unmeasured', basis: 'unmeasured' });
   });
 
   it('falls back to evidence classification when the claim is cleared', () => {
@@ -316,7 +318,7 @@ describe('buildKnowledgeProjection', () => {
     const result = buildKnowledgeProjection(graph, surfaceId, [{
       t: 1, kind: 'rating', source: 'manual', quality: 'fluent', easeAfter: 2.6,
       targetRef: { kind: 'surface', id: 'ja:surface:support', capability: 'sense-recognition' },
-    }], policy, 10);
+    }], policy, 10, undefined, { languageData: supportPackage });
     const meaning = result.targets.find(target => target.targetRef.id === senseId)!.states[0];
     expect(meaning).toMatchObject({ classification: 'predicted', basis: 'prediction', evidence: [] });
     expect(meaning.prediction?.reasons).toEqual(['ja:surface:support → ja:sense:cat (semantically-related)']);
@@ -336,12 +338,64 @@ describe('buildKnowledgeProjection', () => {
       { ...event, attemptId: 'unknown-context', scaffolds: undefined }, { ...event, attemptId: '1' },
       { ...event, taskType: undefined }])).toBeUndefined();
     expect(observedTransferHistory([event, { t: 2, kind: 'retraction', source: 'srs', retracts: event.attemptId }])).toBeUndefined();
+    expect(observedTransferHistory([event], 'future::context')).toBeUndefined();
+    expect(observedTransferHistory([{ ...event, transferContext: 'future::context' }], 'future::context')).toEqual({ attempts: 1, successes: 1 });
+  });
+
+  it('does not promote ambiguous numeric legacy ids into cross-journal physical identity', () => {
+    const g = loadLinguisticGraph({ schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: {},
+      entities: [{ id: 'future:surface:target', kind: 'surface', learnableCapabilities: ['future::next'] },
+        { id: 'future:source:one', kind: 'future::entity' }, { id: 'future:source:two', kind: 'future::entity' }],
+      relations: ['one', 'two'].map(id => ({ from: `future:source:${id}`, to: 'future:surface:target', type: 'future::link' })) });
+    const result = buildKnowledgeProjection(g, 'future:surface:target', ['one', 'two'].map(id => ({
+      t: 1, kind: 'rating' as const, source: 'manual' as const, easeAfter: 3, quality: 'fluent' as const, attemptId: '1',
+      targetRef: { kind: 'future::entity', id: `future:source:${id}`, capability: 'future::prior' },
+    })), policy, 10, undefined, { languageData: { name: 'Future', learning: { capabilities: {
+      'future::next': { supportRules: [{ relation: 'future::link', sourceCapability: 'future::prior', weight: 0.3 }] },
+    } } } });
+    const state = result.targets[0].states.find(state => state.capability === 'future::next');
+    expect(state?.prediction?.contributors).toHaveLength(2);
+    expect(state?.prediction?.contributors?.every(source => source.observationIds.length === 0)).toBe(true);
+  });
+
+  it('does not mistake a shared past failure for the witness of later independently known accesses', () => {
+    const g = loadLinguisticGraph({ schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: {},
+      entities: [{ id: 'future:surface:target', kind: 'surface', learnableCapabilities: ['future::next'] },
+        ...['one', 'two'].map(id => ({ id: `future:source:${id}`, kind: 'future::entity' }))],
+      relations: ['one', 'two'].map(id => ({ from: `future:source:${id}`, to: 'future:surface:target', type: 'future::link' })) });
+    const successful = ['one', 'two'].map(id => ({ t: 2, kind: 'rating' as const, source: 'manual' as const,
+      quality: 'fluent' as const, easeAfter: 3, attemptId: `independent-${id}`,
+      targetRef: { kind: 'future::entity', id: `future:source:${id}`, capability: 'future::prior' } }));
+    const opts = { languageData: { name: 'Future', learning: { capabilities: {
+      'future::next': { supportRules: [{ relation: 'future::link', sourceCapability: 'future::prior', weight: 0.4 }] },
+    } } } };
+    const predicted = (events: typeof successful) => buildKnowledgeProjection(g, 'future:surface:target', events, policy, 10, undefined, opts)
+      .targets[0].states.find(state => state.capability === 'future::next')?.prediction;
+    const failures = successful.map(event => ({ ...event, t: 1, quality: 'missed' as const, easeAfter: 1, attemptId: 'shared-failure' }));
+    expect(predicted([...failures, ...successful] as typeof successful)).toEqual(predicted(successful));
+  });
+
+  it('adjusts one declared rule only from active unassisted outcomes in its pinned context', () => {
+    const source = { t: 1, kind: 'rating' as const, source: 'manual' as const, easeAfter: 3, quality: 'fluent' as const,
+      attemptId: 'support-witness', targetRef: { kind: 'surface', id: 'ja:surface:support', capability: 'sense-recognition' } };
+    const transfers = ['one', 'two'].map(attemptId => ({ t: 2, kind: 'rating' as const, source: 'srs' as const, easeAfter: 3,
+      quality: 'fluent' as const, method: 'inference' as const, taskType: 'future::practice', scaffolds: {}, attemptId,
+      transferContext: 'future::context', targetRef: { kind: 'surface', id: surfaceId, capability: 'surface-reading' } }));
+    const languageData: LanguageData = { name: 'Fixture', learning: { capabilities: { 'sense-recognition': { supportRules: [{
+      relation: 'semantically-related', sourceCapability: 'sense-recognition', weight: 0.4, transferContext: 'future::context',
+    }] } } } };
+    const project = (events: readonly import('../../shared/knowledgeEvents').KnowledgeEvent[]) => buildKnowledgeProjection(graph, surfaceId,
+      events, policy, 10, undefined, { languageData }).targets.find(target => target.targetRef.id === senseId)?.states[0].prediction;
+    expect(project([source, ...transfers])?.value).toBeCloseTo(0.35);
+    expect(project([source, ...transfers.map(event => ({ ...event, transferContext: 'unrelated' }))])?.value).toBeCloseTo(0.25);
+    expect(project([source, ...transfers, ...transfers.map(event => ({ t: 3, kind: 'retraction' as const, source: 'srs' as const,
+      retracts: event.attemptId }))])?.value).toBeCloseTo(0.25);
   });
 
   it('allows prediction when unrelated archived observations do not measure the target', () => {
     const empty = { version: 1, frontierT: 1, archivedEventCount: 0, buckets: {}, weekPoints: [] } as unknown as KeyArchive;
     const result = buildKnowledgeProjection(graph, surfaceId, [{ t: 1, kind: 'rating', source: 'manual', quality: 'fluent', easeAfter: 2.6,
-      targetRef: { kind: 'surface', id: 'ja:surface:support', capability: 'sense-recognition' } }], policy, 10, undefined, { archives: [empty] });
+      targetRef: { kind: 'surface', id: 'ja:surface:support', capability: 'sense-recognition' } }], policy, 10, undefined, { archives: [empty], languageData: supportPackage });
     expect(result.targets.find(target => target.targetRef.id === senseId)!.states[0]).toMatchObject({ classification: 'predicted', basis: 'prediction' });
   });
 
@@ -403,7 +457,7 @@ describe('buildKnowledgeProjection', () => {
     expect(targetIds).not.toContain('ja:dictionary-entry:rhea');
   });
 
-  it('attaches graph-attested compound support to predicted targets', () => {
+  it('keeps graph-attested decomposition from inventing sense support', () => {
     const compoundGraph = loadLinguisticGraph({
       schemaVersion: 1,
       language: 'de',
@@ -432,9 +486,9 @@ describe('buildKnowledgeProjection', () => {
     const senseState = result.targets
       .find((target) => target.targetRef.id === 'de:sense:unseen')
       ?.states.find((state) => state.capability === 'sense-recognition');
-    expect(senseState).toMatchObject({ classification: 'predicted', basis: 'prediction' });
-    expect(senseState?.prediction?.reasons.length).toBeGreaterThan(0);
-    // Without compound support the same unseen target stays unmeasured.
+    expect(senseState).toMatchObject({ classification: 'unmeasured', basis: 'unmeasured' });
+    expect(senseState?.prediction).toBeUndefined();
+    // The inspected decomposition and its absence leave the same evidence state.
     const bare = buildKnowledgeProjection(compoundGraph, 'de:surface:unseen', [], policy);
     const bareState = bare.targets
       .find((target) => target.targetRef.id === 'de:sense:unseen')

@@ -5,6 +5,7 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { encodeCompact } from '../../shared/graph/compact';
 import { buildKnowledgeProjection } from './knowledgeProjection';
+import { advanceLanguagePackageRevision } from './languagePackageRevision';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 vi.mock('electron', () => ({ ipcMain: { handle: vi.fn((channel, handler) => handlers.set(channel, handler)) } }));
@@ -65,6 +66,38 @@ describe('LinguisticGraphService', () => {
     await expect(service.getTargetsForSurfaces('ja', [{ surface: '猫' }, { surface: 'missing' }])).resolves.toHaveLength(2);
   });
 
+  it('replaces cached graph and package authorization together after installed assets change', async () => {
+    const file = path.join(directory, 'languages', 'ja.graph.json');
+    fs.writeFileSync(file, JSON.stringify(compact('ja', '猫', 'old meaning')));
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const settings = await import('./settings');
+    const service = new LinguisticGraphService(directory);
+    await service.getKnowledgeProjection('ja', '猫');
+    const reads = vi.mocked(settings.loadLangData).mock.calls.length;
+    fs.writeFileSync(file, JSON.stringify(compact('ja', '猫', 'new meaning')));
+    advanceLanguagePackageRevision(directory, 'ja');
+    await service.getKnowledgeProjection('ja', '猫');
+    expect(vi.mocked(settings.loadLangData).mock.calls.length).toBe(reads + 1);
+    expect((await service.lookupWord('ja', { surface: '猫' }))?.senses[0].label).toBe('new meaning');
+  });
+
+  it('cannot publish a retired graph load after a package revision changes during the read', async () => {
+    const file = path.join(directory, 'languages', 'ja.graph.json');
+    const old = JSON.stringify(compact('ja', '猫', 'retired meaning'));
+    fs.writeFileSync(file, JSON.stringify(compact('ja', '猫', 'current meaning')));
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const reads = vi.spyOn(fs.promises, 'readFile').mockImplementationOnce(async () => { await waiting; return old; });
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(directory);
+    const pending = service.getMeta('ja');
+    advanceLanguagePackageRevision(directory, 'ja');
+    release();
+    await expect(pending).resolves.toMatchObject({ ready: true });
+    expect((await service.lookupWord('ja', { surface: '猫' }))?.senses[0].label).toBe('current meaning');
+    expect(reads).toHaveBeenCalledTimes(2);
+  });
+
   it('preserves unknown structured package features across lookup and neighborhood IPC payloads', async () => {
     const surface = `future:surface:${crypto.createHash('sha256').update('opaque').digest('hex')}`;
     const features = { 'future::unheard-of': { values: ['new', { participant: 7 }], conditional: true } };
@@ -122,6 +155,10 @@ describe('LinguisticGraphService', () => {
         { from: 'xx:entry:target', to: sense, type: 'has-sense' },
         { from: id('source'), to: sense, type: 'semantically-related', transparency: 1 }],
     })));
+    const settings = await import('./settings');
+    vi.mocked(settings.loadLangData).mockReturnValueOnce({ xx: { name: 'Test package', learning: { capabilities: {
+      'sense-recognition': { supportRules: [{ relation: 'semantically-related', sourceCapability: 'sense-recognition', weight: 0.6 }] },
+    } } } });
     const journal = await import('./knowledgeEvents');
     vi.mocked(journal.getKnowledgeRows).mockImplementationOnce(keys => Object.fromEntries(keys.map(key => [key,
       key === `xx:${hash('source')}` ? [{ seq: 1, event: { t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 3 } }] : [],
@@ -133,6 +170,36 @@ describe('LinguisticGraphService', () => {
     expect(journal.getKnowledgeRows).toHaveBeenLastCalledWith(expect.arrayContaining([sense, `xx:${hash('source')}`]));
     expect(result.targets.find(target => target.targetRef.id === sense)?.states[0]).toMatchObject({ basis: 'prediction', evidence: [] });
     expect(result.lexical?.overall.basis).toBe('unmeasured');
+  });
+
+  it('loads exact journals through an outgoing package path for an unfamiliar source access', async () => {
+    const id = `future:surface:${crypto.createHash('sha256').update('target').digest('hex')}`;
+    const source = 'future:context:source';
+    fs.writeFileSync(path.join(directory, 'languages', 'future.graph.json'), JSON.stringify(encodeCompact({
+      schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: { provider: 'v4' },
+      entities: [{ id, kind: 'surface', learnableCapabilities: ['future::next'] },
+        { id: source, kind: 'future::context', features: { 'future::unknown': { participants: [4, 7] } } }],
+      relations: [{ from: id, to: source, type: 'future::context-link', confidence: 0.5 }],
+    })));
+    const settings = await import('./settings');
+    vi.mocked(settings.loadLangData).mockReturnValueOnce({ future: { name: 'Future', learning: { capabilities: {
+      'future::next': { supportRules: [{ id: 'future::context-rule', relation: 'future::context-link', direction: 'out',
+        sourceCapability: 'future::prior', weight: 0.4 }] },
+    } } } });
+    const journal = await import('./knowledgeEvents');
+    vi.mocked(journal.getKnowledgeRows).mockImplementationOnce(keys => Object.fromEntries(keys.map(key => [key,
+      key === source ? [{ seq: 1, event: { t: 1, kind: 'rating', source: 'manual', quality: 'fluent', easeAfter: 3,
+        attemptId: 'real-current-witness', targetRef: { kind: 'future::context', id: source, capability: 'future::prior' } } }] : [],
+    ])));
+    const real = await vi.importActual<typeof import('./knowledgeProjection')>('./knowledgeProjection');
+    vi.mocked(buildKnowledgeProjection).mockImplementationOnce(real.buildKnowledgeProjection);
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const result = await new LinguisticGraphService(directory).getKnowledgeProjection('future', 'target');
+    expect(journal.getKnowledgeRows).toHaveBeenLastCalledWith(expect.arrayContaining([source]));
+    const state = result.targets.find(target => target.targetRef.id === id)?.states.find(state => state.capability === 'future::next');
+    expect(state).toMatchObject({ basis: 'prediction', evidence: [], prediction: { model: 'package-support-v2', interpretation: 'heuristic-support',
+      contributors: [expect.objectContaining({ source: { entityId: source, capability: 'future::prior' },
+        observationIds: ['real-current-witness'], package: { language: 'future', sourceVersions: { provider: 'v4' } } })] } });
   });
 
   it.each(['raw', 'archived'])('shares %s legacy sibling meaning without inventing direct written recognition', async (mode) => {

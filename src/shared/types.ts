@@ -1308,10 +1308,21 @@ export interface LanguageCapabilityDeclaration {
   shareAcrossIdentity?: boolean;
   /** Read-only support rules; relation and access semantics belong to the package. */
   supportRules?: Array<{
+    /** Stable package-owned rule identity/version for explanations and evaluation. */
+    id?: string;
+    version?: string;
     relation: string;
+    /** Traverse from the target toward its source; omitted means incoming. */
+    direction?: 'in' | 'out';
+    /** Additional asserted hops, at most three. No linguistic semantics are inferred. */
+    sourcePath?: Array<{ relation: string; direction: 'in' | 'out' }>;
     sourceCapability: string;
     /** Relative support weight, 0..1; never a calibrated probability. */
     weight: number;
+    /** Contributions in this package-owned group describe one dependency. */
+    dependencyGroup?: string;
+    /** Only observed transfers in this explicitly declared context may adjust this rule. */
+    transferContext?: string;
   }>;
 }
 

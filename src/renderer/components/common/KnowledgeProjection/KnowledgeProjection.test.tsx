@@ -578,6 +578,20 @@ describe('KnowledgeProjectionDrawer history and prediction', () => {
     dispose();
   });
 
+  it('explains unavailable package support without rendering an estimate', async () => {
+    const projection: KnowledgeProjection = { ...inspectorProjection, targets: [{
+      targetRef: { kind: 'surface', id: 'ja:surface:hash' }, applicableCapabilities: ['surface-recognition'], states: [{
+        capability: 'surface-recognition', classification: 'unmeasured', basis: 'unmeasured', evidence: [], evidenceSourceCounts: {},
+        supportLimits: ['support-path-budget:fixture::broad'],
+      }],
+    }] };
+    const { host, dispose } = await renderDrawer({ initialTab: 'prediction', projection });
+    expect(host.textContent).toContain('mlearn.Knowledge.Projection.Prediction.UnavailableSupport');
+    expect(host.textContent).not.toContain('SupportModerate');
+    expect(host.textContent).not.toContain('fixture::broad');
+    dispose();
+  });
+
   it('maps narrative lines purely from payload fields', () => {
     expect(knowledgeWhyNarrative({ basis: 'claim', classification: 'known', evidence: [], evidenceSourceCounts: {} }).key).toBe('mlearn.Knowledge.Projection.Why.Claim');
     const evidence = knowledgeWhyNarrative({ basis: 'evidence', classification: 'known', evidence: [{ timestamp: 1, source: 'Anki' }], evidenceSourceCounts: { Anki: 3 } });

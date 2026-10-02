@@ -96,7 +96,7 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
     ]);
   });
 
-  it('feeds caller-decomposed analyses to prediction regardless of language identity', () => {
+  it('does not equate caller-decomposed structure with semantic transfer in an unknown language', () => {
     const graph = loadLinguisticGraph({
       schemaVersion: 1 as const,
       language: UNKNOWN_CODE,
@@ -115,7 +115,7 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
       compound: { analysis, isKnownPart: (lemma) => lemma === 'zor' },
     });
     expect(prediction.kind).toBe('prediction');
-    expect(prediction.supportPath.some((hop) => hop.via === 'generated-compound')).toBe(true);
+    expect(prediction.supportPath).toEqual([]);
   });
 
   it('runtime parses correspond 1:1 to the graph component-of vocabulary builders emit', () => {
@@ -183,16 +183,20 @@ describe('third-party catalog capability parity (x-test-agnostic)', () => {
     // Productive splitting stays unavailable — capability absence, not identity.
     const morphologyOnly: LanguageData = { name: 'Test-Agnostic' };
     expect(languageSupportsCompoundSplitting(morphologyOnly)).toBe(false);
-    // Prediction consumes the graph-attested analysis.
+    // The package explicitly declares what access the attested relation supports.
     const prediction = predictTargetAccessibility({
       graph,
       direct: null,
       target: { entityId: surface, capability: 'sense-recognition' },
       classify: () => 'unknown',
       compound: { analysis: analysis!, isKnownPart: () => true },
+      languageData: { name: 'Test-Agnostic', learning: { capabilities: { 'sense-recognition': { supportRules: [{
+        relation: 'component-of', sourceCapability: 'x-test::root-access', weight: 0.3,
+      }] } } } },
+      sourceKnowledge: () => 'evidence',
     });
     expect(prediction.supportPath).toHaveLength(2);
-    expect(prediction.supportPath.every((hop) => hop.via === 'attested-compound')).toBe(true);
+    expect(prediction.supportPath.every((hop) => hop.via === 'component-of')).toBe(true);
   });
 
   it('orders attested parts by code-unit, independent of host collation', () => {

@@ -3936,5 +3936,6 @@
       "SettingsHint": "Your curriculum, target, study pace and goals are managed in Learning Plan.",
       "Open": "Open Learning Plan"
     }
-  }
+  },
+  "mlearn.Knowledge.Projection.Prediction.UnavailableSupport": "The installed package cannot provide a reliable support estimate for this access. Direct practice can establish it."
 }

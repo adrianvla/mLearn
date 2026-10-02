@@ -41,6 +41,9 @@ describe('prediction firewall', () => {
       target: { entityId: surfaceEntityId('ja', 'a'), capability: 'surface-reading' },
       classify: () => 'unknown',
       sourceKnowledge: () => 'evidence',
+      languageData: { name: 'Test', learning: { capabilities: { 'surface-reading': { supportRules: [{
+        relation: 'orthographic-variant-of', sourceCapability: 'surface-reading', weight: 0.6,
+      }] } } } },
     });
     expect(prediction.kind).toBe('prediction');
     expect(prediction.supportScore).toBeGreaterThan(0);
@@ -63,7 +66,7 @@ describe('prediction firewall', () => {
     }
   });
 
-  it('uses generated compounds only as read-only support for unseen targets', () => {
+  it('keeps generated decomposition available without inventing support for unseen targets', () => {
     const deGraph = loadLinguisticGraph({
       ...fixture,
       language: 'de',
@@ -79,8 +82,8 @@ describe('prediction firewall', () => {
       classify: () => 'unknown',
       compound: { analysis: decompose('Papashandschuhe', ['Papa', 'Hand', 'Schuh']), isKnownPart: (lemma) => lemma === 'Papa' || lemma === 'Hand' || lemma === 'Schuh' },
     });
-    expect(prediction.supportScore).toBeGreaterThan(0.05);
-    expect(prediction.supportPath).toHaveLength(3);
+    expect(prediction.supportScore).toBe(0);
+    expect(prediction.supportPath).toHaveLength(0);
     expect(prediction.kind).toBe('prediction');
   });
 

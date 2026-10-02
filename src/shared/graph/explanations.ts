@@ -43,6 +43,7 @@ function stripRetractedRows(rows: readonly JournalRow[]): JournalRow[] {
 import { effectiveStateFromEntry, effectiveThresholds, type EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 import { deriveRetentionSchedule, type RetentionPolicy } from '../srs/retentionScheduler';
 import type { CapabilityKey } from './types';
+import type { SupportContributor } from '../prediction/supportContributors';
 
 /**
  * Effective state of one learnable target. Claim states are distinct from
@@ -74,7 +75,9 @@ export interface TargetExplanation {
   evidence: KnowledgeEvent[];
   projection: ReturnType<typeof projectKeyFold>;
   retention: ReturnType<typeof deriveRetentionSchedule> | null;
-  prediction?: { value: number; because: string[]; model?: string; interpretation?: 'heuristic-support' };
+  /** Exact retained event establishing the current replay strength, not all history. */
+  knowledgeWitness?: KnowledgeEvent;
+  prediction?: { value: number; because: string[]; model?: string; interpretation?: 'heuristic-support'; contributors?: SupportContributor[] };
 }
 
 /**
@@ -133,5 +136,12 @@ export function assembleTargetExplanation(
     : effective.basis === 'unmeasured'
       ? (!projection && prediction ? 'predicted' : 'unmeasured')
       : effective.status === 'known' ? 'evidence-backed-known' : effective.status;
-  return { state, evidence, projection, retention, ...(prediction ? { prediction } : {}) };
+  // Sequences are journal-key local. A retained sibling row can share the
+  // archived winner's t/seq; mergeKeyFolds keeps the archive on a tie. Pin the
+  // actual winning side before looking for an exact retained event.
+  const exactWins = exactFold.ease !== undefined && (archiveFold.ease === undefined
+    || exactFold.easeT > archiveFold.easeT || (exactFold.easeT === archiveFold.easeT && exactFold.easeSeq > archiveFold.easeSeq));
+  const witness = exactWins ? evidenceRows.find(row => row.event.t === exactFold.easeT && row.seq === exactFold.easeSeq)?.event : undefined;
+  return { state, evidence, projection, retention,
+    ...(witness ? { knowledgeWitness: witness } : {}), ...(prediction ? { prediction } : {}) };
 }

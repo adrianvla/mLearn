@@ -630,6 +630,8 @@ describe('languageDataService', () => {
   });
 
   it('downloads and extracts a verified language bundle archive', async () => {
+    const { languagePackageRevision } = await import('./languagePackageRevision');
+    const revision = languagePackageRevision(path.join(tempDir.tmpDir, 'language-data'), 'zz');
     const archiveSourceDir = path.join(tempDir.tmpDir, 'archive-source');
     const archivePath = path.join(tempDir.tmpDir, 'zz.tar.gz');
     const dictionaryBytes = 'bundle dictionary bytes';
@@ -685,6 +687,7 @@ describe('languageDataService', () => {
     );
     expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
     expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.freq.json'), 'utf-8')).toBe(frequencyBytes);
+    expect(languagePackageRevision(path.join(tempDir.tmpDir, 'language-data'), 'zz')).toBeGreaterThan(revision);
   });
 
   it('installs only assets scoped to the requested language components from a bundle', async () => {

@@ -3936,5 +3936,6 @@
       "SettingsHint": "Votre programme, votre cible, votre rythme et vos objectifs se règlent dans le plan d’apprentissage.",
       "Open": "Ouvrir le plan d’apprentissage"
     }
-  }
+  },
+  "mlearn.Knowledge.Projection.Prediction.UnavailableSupport": "Le paquet installé ne permet pas une estimation fiable de cette capacité. Une pratique directe peut l’évaluer."
 }

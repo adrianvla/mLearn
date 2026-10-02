@@ -4,7 +4,7 @@ import type { CompoundAnalysis, CompoundPart } from './compounds';
 /** Depth guard when resolving nested component-of trees (cycles, builder bugs). */
 const MAX_DEPTH = 8;
 
-function partsFromGraph(graph: LingualGraph, compoundId: string, depth: number): CompoundPart[] | null {
+function partsFromGraph(graph: LingualGraph, compoundId: string, depth: number): { parts: CompoundPart[]; confidence: number } | null {
   if (depth > MAX_DEPTH) return null;
   // component-of relations are a SET — the graph carries no part ordering.
   // Resolve nodes first, then order deterministically by CODE-UNIT comparison
@@ -18,16 +18,20 @@ function partsFromGraph(graph: LingualGraph, compoundId: string, depth: number):
     (a.node!.label! < b.node!.label! ? -1 : a.node!.label! > b.node!.label! ? 1 : 0) ||
     (a.relation.from < b.relation.from ? -1 : a.relation.from > b.relation.from ? 1 : 0));
   const parts: CompoundPart[] = [];
+  let confidence = 1;
   for (const { relation, node } of components) {
     const nested = partsFromGraph(graph, relation.from, depth + 1);
+    const asserted = relation.confidence === undefined ? 1
+      : Number.isFinite(relation.confidence) ? Math.max(0, Math.min(1, relation.confidence)) : 0;
+    confidence = Math.min(confidence, asserted, nested?.confidence ?? 1);
     parts.push({
       lemma: node!.label!,
       entryId: relation.from,
       attested: true,
-      ...(nested ? { parts: nested } : {}),
+      ...(nested ? { parts: nested.parts } : {}),
     });
   }
-  return parts;
+  return { parts, confidence };
 }
 
 /**
@@ -44,8 +48,9 @@ export function attestedCompoundAnalysis(graph: LingualGraph, surfaceId: string)
   if (graph.relationDirectionKnown === false) return null;
   const compound = graph.nodes.get(surfaceId);
   if (!compound || compound.kind !== 'surface' || !compound.label) return null;
-  const parts = partsFromGraph(graph, surfaceId, 1);
-  if (!parts) return null;
+  const structure = partsFromGraph(graph, surfaceId, 1);
+  if (!structure) return null;
+  const { parts, confidence } = structure;
   const leaves: CompoundPart[] = [];
   const walk = (list: readonly CompoundPart[]): void => {
     for (const part of list) {
@@ -58,8 +63,8 @@ export function attestedCompoundAnalysis(graph: LingualGraph, surfaceId: string)
     form: compound.label,
     lemma: compound.label,
     source: 'attested',
-    confidence: 1,
-    provenance: { source: 'attested', confidence: 1, lexiconBasis: leaves.map((leaf) => leaf.entryId ?? leaf.lemma) },
+    confidence,
+    provenance: { source: 'attested', confidence, lexiconBasis: leaves.map((leaf) => leaf.entryId ?? leaf.lemma) },
     parts,
     ambiguous: false,
     alternatives: [],

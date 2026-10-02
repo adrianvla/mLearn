@@ -3936,5 +3936,6 @@
       "SettingsHint": "Lehrplan, Lernziel, Lerntempo und Ziele verwaltest du im Lernplan.",
       "Open": "Lernplan öffnen"
     }
-  }
+  },
+  "mlearn.Knowledge.Projection.Prediction.UnavailableSupport": "Das installierte Sprachpaket kann diese Fähigkeit nicht verlässlich einschätzen. Direkte Übung kann sie nachweisen."
 }

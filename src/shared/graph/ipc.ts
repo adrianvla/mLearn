@@ -1,4 +1,5 @@
 import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
+import type { SupportContributor } from '../prediction/supportContributors';
 import type { CompoundAnalysis } from './morphology/compounds';
 import type { CapabilityKey, GraphDomain, GraphEntityKind, GraphRelationType, RelationCategory } from './types';
 
@@ -113,6 +114,8 @@ export interface KnowledgeProjectionEvidence {
 }
 
 export interface KnowledgeProjectionState {
+  /** Reasons support was unavailable; never a measurement or zero-probability claim. */
+  supportLimits?: string[];
   capability: CapabilityKey;
   classification: KnowledgeProjectionClassification;
   basis: KnowledgeProjectionBasis;
@@ -121,7 +124,7 @@ export interface KnowledgeProjectionState {
   evidence: KnowledgeProjectionEvidence[];
   evidenceSourceCounts: Record<string, number>;
   retention?: { pressure: number; dueAt: number };
-  prediction?: { value: number; reasons: string[]; model?: string; interpretation?: 'heuristic-support' };
+  prediction?: { value: number; reasons: string[]; model?: string; interpretation?: 'heuristic-support'; contributors?: SupportContributor[] };
 }
 
 export interface KnowledgeProjectionTarget {

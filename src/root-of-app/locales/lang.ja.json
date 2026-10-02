@@ -3936,5 +3936,6 @@
       "SettingsHint": "カリキュラム、目標、学習ペースは学習プランで管理します。",
       "Open": "学習プランを開く"
     }
-  }
+  },
+  "mlearn.Knowledge.Projection.Prediction.UnavailableSupport": "インストール済みの言語パッケージでは、この能力を信頼できる形で推定できません。実際の練習で確認できます。"
 }

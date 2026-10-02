@@ -3936,5 +3936,6 @@
       "SettingsHint": "课程、目标、学习节奏均在学习计划中管理。",
       "Open": "打开学习计划"
     }
-  }
+  },
+  "mlearn.Knowledge.Projection.Prediction.UnavailableSupport": "已安装的语言包无法可靠估计这项能力。可以通过实际练习来确认。"
 }
