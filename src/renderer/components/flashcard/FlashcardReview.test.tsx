@@ -353,6 +353,37 @@ describe('FlashcardReview', () => {
     container.remove();
   });
 
+  it.each(['pointer', 'keyboard'] as const)('keeps %s reveal and rating outside the card scroll owner and resets both positions for the next encounter', async revealMethod => {
+    setMockCard(makeCard({ content: { type: 'word', front: 'Long prompt', back: 'Answer',
+      example: 'Long example '.repeat(100), imageUrl: 'flashcard-image://unavailable.png' } }));
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      const content = container.querySelector<HTMLElement>('.flashcard-review-content');
+      const actions = container.querySelector<HTMLElement>('.flashcard-buttons-container')!;
+      const reveal = container.querySelector<HTMLButtonElement>('.flashcard-show-answer-btn')!;
+      expect(content).not.toBeNull();
+      expect(content!.contains(container.querySelector('.flashcard-container'))).toBe(true);
+      expect(content!.contains(reveal)).toBe(false);
+      expect(content!.contains(container.querySelector('.flashcard-review-header'))).toBe(false);
+      expect(actions.contains(reveal)).toBe(true);
+      content!.scrollTop = 240;
+      if (revealMethod === 'pointer') clickShowAnswer(container);
+      else document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+      expect(content!.scrollTop).toBe(0);
+      expect(actions.querySelector('.rating-matrix')).not.toBeNull();
+      expect(content!.contains(actions)).toBe(false);
+      content!.scrollTop = 240;
+      actions.scrollTop = 170;
+      setMockCard(makeCard({ id: 'next-layout-card', content: { type: 'word', front: 'Next prompt', back: 'Next answer' } }));
+      await flushEffects();
+      expect(content!.scrollTop).toBe(0);
+      expect(actions.scrollTop).toBe(0);
+      expect(actions.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
+      expect(container.querySelector('.flashcard-front')!.textContent).toContain('Next prompt');
+    } finally { dispose(); }
+  });
+
   it('keeps the revealed encounter and rating identity when a flush changes the scheduler fallback', async () => {
     const first = makeCard({ id: 'first', state: 'review', interval: 1, dueDate: Date.now() - 1000 });
     const second = makeCard({ id: 'second', state: 'review', interval: 1, dueDate: Date.now() - 1000,
@@ -366,7 +397,7 @@ describe('FlashcardReview', () => {
     try {
       clickShowAnswer(container);
       const prompt = container.querySelector('.flashcard-front')!.textContent;
-      const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-container')!;
+      const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-content')!;
       scrollRegion.scrollTop = 240;
       // The acknowledgment rebuilds the queue; the scheduler may return a
       // different fallback although the displayed card is still admitted.
@@ -586,7 +617,7 @@ describe('FlashcardReview', () => {
 
   it('starts a different card at the top of the review scroll region', async () => {
     const dispose = render(() => <FlashcardReview />, container);
-    const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-container')!;
+    const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-content')!;
     scrollRegion.scrollTop = 240;
 
     setMockCard(makeCard({ id: 'card-2', content: { type: 'word', front: '猫', reading: 'ねこ', back: 'cat' } }));
@@ -763,7 +794,7 @@ describe('FlashcardReview failure attribution', () => {
 
   it('resets scroll when the same learning card is queued again after rating', async () => {
     const dispose = render(() => <FlashcardReview />, container);
-    const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-container')!;
+    const scrollRegion = container.querySelector<HTMLElement>('.flashcard-review-content')!;
     clickShowAnswer(container);
     scrollRegion.scrollTop = 240;
 

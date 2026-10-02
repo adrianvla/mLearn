@@ -14,8 +14,26 @@
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Card content scrolls independently of reveal/rating and durable status. */
+.flashcard-review-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  flex: 1 1 0;
+  min-height: min(8rem, 35%);
+  width: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.flashcard-review-content > .flashcard-container,
+.flashcard-review-content > .flashcard-state-indicator,
+.flashcard-review-content > .flashcard-completion {
+  flex: 0 0 auto;
 }
 
 /* Session progress bar */
@@ -161,10 +179,14 @@
 .flashcard-buttons-container {
   display: flex;
   flex-direction: column;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   gap: var(--spacing-4);
   width: 100%;
   max-width: 700px;
+  max-height: 50%;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   align-self: center;
   padding: var(--spacing-3);
   box-sizing: border-box;
@@ -196,6 +218,7 @@
   gap: var(--spacing-2);
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
+  margin: 0;
 }
 
 .flashcard-rating-write--failed {
@@ -221,6 +244,7 @@
 /* Stats display */
 .flashcard-status {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-6);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
@@ -258,4 +282,41 @@
 
 .flashcard-stat-review {
   color: var(--color-success);
+}
+
+/* Leave room to read the prompt when the window is short. Expanded ratings
+ * can shrink and scroll; the card must never lose its entire viewport. */
+@media (max-height: 650px) {
+  .flashcard-review-container {
+    padding: var(--spacing-2);
+    gap: var(--spacing-2);
+  }
+
+  .flashcard-session-progress {
+    padding: 0;
+  }
+
+  .flashcard-review-header {
+    padding: var(--spacing-2);
+    gap: var(--spacing-2);
+  }
+
+  .flashcard-status {
+    gap: var(--spacing-2);
+  }
+
+  .flashcard-buttons-container {
+    padding: var(--spacing-2);
+    gap: var(--spacing-2);
+  }
+
+  .flashcard-review-content {
+    gap: var(--spacing-2);
+  }
+
+  .flashcard-review-content .flashcard-face:not(.flashcard-face--hidden) {
+    min-height: 0;
+    padding: var(--spacing-2);
+    justify-content: flex-start;
+  }
 }

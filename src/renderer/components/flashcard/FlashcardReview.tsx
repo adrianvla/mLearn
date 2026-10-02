@@ -117,8 +117,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
   let reviewScrollContainer: HTMLDivElement | undefined;
+  let reviewActionsContainer: HTMLDivElement | undefined;
   const resetReviewScroll = () => {
     if (reviewScrollContainer) reviewScrollContainer.scrollTop = 0;
+    if (reviewActionsContainer) reviewActionsContainer.scrollTop = 0;
   };
 
   // Active-engagement timing per card: blur/hidden pauses are excluded from
@@ -547,7 +549,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       if (isRevealKey(e)) {
         e.preventDefault();
         e.stopPropagation();
-        if (presentation().phase === 'question' && currentCard()) setShowAnswer(true);
+        if (presentation().phase === 'question' && currentCard()) handleFlip();
         return;
       }
 
@@ -687,6 +689,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const handleFlip = () => {
     setShowAnswer(true);
+    resetReviewScroll();
   };
 
   const handleRegenerateExample = async (cardId: string) => {
@@ -780,7 +783,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   return (
-      <div class="flashcard-review-container" style={props.style} ref={reviewScrollContainer}>
+      <div class="flashcard-review-container" style={props.style}>
         {/* Session progress bar */}
         <Show when={sessionTotal() > 0}>
           <div class="flashcard-session-progress">
@@ -908,6 +911,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           </div>
         </div>
 
+        <div class="flashcard-review-content" ref={reviewScrollContainer}>
         {/* Card or completion screen */}
         <Show
             when={presentation().phase !== 'complete' && currentCard()}
@@ -971,8 +975,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           </Show>
         </Show>
 
+        </div>
+
         {/* Buttons container */}
-        <div class="flashcard-buttons-container">
+        <div class="flashcard-buttons-container" ref={reviewActionsContainer}>
           <WriteStatusBanner status={assistanceWrite()}
             savingLabelKey="mlearn.WordSync.SavingAssistance" failedLabelKey="mlearn.WordSync.AssistanceSaveFailed"
             canRetry={assistanceWrite() === 'failed'} onRetry={() => retryReference?.()} />
