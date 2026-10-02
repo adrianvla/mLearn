@@ -1014,48 +1014,8 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
   };
 
-  // Load flashcards — just sends IPC request (listener is registered once in onMount)
-  const loadFlashcards = () => {
-    if (isElectron()) {
-      getBridge().flashcards.getFlashcards();
-    } else {
-      // Try KV store for tethered/mobile mode
-      getBridge().kvStore.kvGet('mlearn-flashcards').then((stored) => {
-        if (stored) {
-          try {
-            const parsed = JSON.parse(stored);
-            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !parsed.flashcards || typeof parsed.flashcards !== 'object' || Array.isArray(parsed.flashcards)) {
-              throw new Error('The saved flashcard library has an invalid structure');
-            }
-            setLibraryLoadError(null);
-            setIsKnowledgeReady(false);
-            const checked = ensureStoreFields(parsed);
-            authoritativeStore = cloneFlashcardStore(checked);
-            setStore(reconcile(checked));
-            void migrateLegacyGrammarKnowledge(checked.grammarKnowledge);
-            knowledgeInitialization = migrateLegacyEpistemicState().finally(() => {
-              setIsKnowledgeReady(true);
-              if (checked.pendingRetraction) void recoverPendingRetraction();
-            });
-            refreshQueue();
-          } catch (e) {
-            log.error('Failed to parse flashcards from KV store:', e);
-            handleLibraryLoadError(e instanceof Error ? e.message : String(e));
-            return;
-          }
-        } else {
-          setLibraryLoadError(null);
-          // A missing disposable cache does not imply an empty durable journal.
-          setIsKnowledgeReady(false);
-          knowledgeInitialization = repairCapabilityProjection().finally(() => setIsKnowledgeReady(true));
-        }
-        setIsLoading(false);
-      }).catch((e) => {
-        log.error('Failed to load flashcards from KV store:', e);
-        handleLibraryLoadError(e instanceof Error ? e.message : String(e));
-      });
-    }
-  };
+  // Every platform reads the same revisioned flashcard bridge authority.
+  const loadFlashcards = () => getBridge().flashcards.getFlashcards();
 
   function ensureStoreFields(partial: StoredFlashcardStore): FlashcardStore {
     // A decided-but-unfinished Undo must survive every path that rebuilds the
@@ -1136,6 +1096,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     }
 
     return {
+      ...partial,
       flashcards,
       wordCandidates: partial.wordCandidates || {},
       wordToCardMap,
@@ -1147,7 +1108,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       meta,
       dailyStats: (partial.dailyStats as Record<string, Record<string, DailyStudyStats>>) || {},
       suggestedFlashcards: partial.suggestedFlashcards || {},
-      ...(storedRetraction ? { pendingRetraction: storedRetraction } : {}),
+      pendingRetraction: storedRetraction ?? undefined,
       ...(partial.rev !== undefined ? { rev: partial.rev } : {}),
       version: CURRENT_VERSION,
   };
@@ -1471,7 +1432,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     authorization?: FlashcardWriteAuthorization,
     recompute?: (target: FlashcardStore) => boolean,
   ): Promise<FlashcardStore | null> => {
-    if (!isElectron()) return null;
     // Bounded: this window's whole write queue is serialised behind this
     // write, so an authority that never answers must not hold it open. The
     // window going away ends the wait too — a rebase is a repair for a live
@@ -1628,18 +1588,12 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const resetReviewProgress = pendingReviewReset;
       let committedRevision: number;
       try {
-        if (isElectron()) {
-          const __tipc = performance.now();
-          const revision = prebuilt?.patch
-            ? await getBridge().flashcards.saveFlashcardPatch(prebuilt.patch, removals, resetReviewProgress, authorization)
-            : await getBridge().flashcards.saveFlashcards(candidate, removals, resetReviewProgress, authorization);
-          __wmark(`ipc(${((performance.now() - __tipc)).toFixed(0)}ms)`);
-          committedRevision = typeof revision === 'number' ? revision : (candidate.rev ?? 0) + 1;
-        } else {
-          committedRevision = (candidate.rev ?? 0) + 1;
-          candidate.rev = committedRevision;
-          await getBridge().kvStore.kvSet('mlearn-flashcards', JSON.stringify(candidate));
-        }
+        const __tipc = performance.now();
+        const revision = prebuilt?.patch
+          ? await getBridge().flashcards.saveFlashcardPatch(prebuilt.patch, removals, resetReviewProgress, authorization)
+          : await getBridge().flashcards.saveFlashcards(candidate, removals, resetReviewProgress, authorization);
+        __wmark(`persist(${((performance.now() - __tipc)).toFixed(0)}ms)`);
+        committedRevision = typeof revision === 'number' ? revision : (candidate.rev ?? 0) + 1;
       } catch (error) {
         // A refusal here means another window committed first: the write
         // carried a revision the authority has already moved past, while the
@@ -5795,13 +5749,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
   // Handle window focus - reload flashcards to sync changes from other windows
   // Only sends the IPC request; the listener is registered once in onMount
   const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
-      if (isElectron()) {
-        // Rev probe: the main process skips the multi-MB store ship entirely
-        // when this window already holds the current revision.
-        getBridge().flashcards.getFlashcards(store.rev);
-      }
-    }
+    if (document.visibilityState === 'visible') getBridge().flashcards.getFlashcards(store.rev);
   };
 
   const unregisterAnkiReviewSync = registerAnkiReviewSync(async (language, statuses) => {
@@ -5837,14 +5785,13 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
       broadcastChannel.onmessage = handleBroadcast;
     }
 
-    // Register all IPC listeners ONCE and store their cleanup functions
+    const bridge = getBridge();
+    // Library callbacks are shared by native mobile and Electron, including
+    // load failures and authoritative refreshes after a stale write.
+    ipcCleanups.push(bridge.flashcards.onFlashcards(handleFlashcardsLoaded));
+    ipcCleanups.push(bridge.flashcards.onFlashcardLoadError(handleLibraryLoadError));
+    ipcCleanups.push(bridge.flashcards.onFlashcardRatingsCommitted(handleRatingCommit));
     if (isElectron()) {
-      const bridge = getBridge();
-      // Flashcards loaded listener (single registration — reused by loadFlashcards and visibility sync)
-      ipcCleanups.push(bridge.flashcards.onFlashcards(handleFlashcardsLoaded));
-      ipcCleanups.push(bridge.flashcards.onFlashcardLoadError(handleLibraryLoadError));
-      ipcCleanups.push(bridge.flashcards.onFlashcardRatingsCommitted(handleRatingCommit));
-
       // Migration listener
       ipcCleanups.push(bridge.migration.onFlashcardMigrationComplete((info) => handleMigrationComplete(info)));
 

@@ -1231,12 +1231,14 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('persists the next authoritative revision in mobile KV storage', async () => {
+  it('persists the next authoritative mobile revision through the flashcard authority', async () => {
     mockIsElectron.mockReturnValue(false);
     const card = makeCard({ id: 'mobile-revision', language: 'ja', content: { type: 'word', front: '学校', back: 'school' } });
     const initialStore = makeEmptyStore({ rev: 8, flashcards: { [card.id]: card } });
-    mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify(initialStore));
     const { ctx, dispose } = await mountProvider();
+    seed(initialStore);
+    installStrictSaveRevision();
+    answerProbesFromAuthority();
     await vi.waitFor(() => expect(ctx.store.rev).toBe(8));
 
     await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
@@ -1245,9 +1247,23 @@ describe('FlashcardProvider', () => {
       scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
     });
 
-    const persisted = JSON.parse(mockBridge.kvStore.kvSet.mock.calls.at(-1)?.[1] ?? 'null') as FlashcardStore;
-    expect(persisted.rev).toBe(9);
+    expect(committed?.rev).toBe(9);
+    expect(mockBridge.kvStore.kvSet).not.toHaveBeenCalledWith('mlearn-flashcards', expect.anything());
     expect(ctx.store.rev).toBe(9);
+    dispose();
+  });
+
+  it('keeps unknown language-owned root data through mobile hydration and an authored edit', async () => {
+    mockIsElectron.mockReturnValue(false);
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'mobile-opaque', language: 'ja', content: { type: 'word', front: '学校', back: 'school' } });
+    seed({ ...makeEmptyStore({ rev: 8, flashcards: { [card.id]: card } }),
+      opaquePackage: { 'unknown:concept': [{ arbitrary: [2, 3] }] } } as FlashcardStore);
+    installStrictSaveRevision(); answerProbesFromAuthority();
+    await ctx.updateFlashcard(card.id, { content: { ...card.content, back: 'edited' } });
+    await vi.waitFor(() => expect(committed?.flashcards[card.id].content.back).toBe('edited'));
+    expect(committed).toHaveProperty('opaquePackage', { 'unknown:concept': [{ arbitrary: [2, 3] }] });
+    expect(mockBridge.kvStore.kvSet).not.toHaveBeenCalledWith('mlearn-flashcards', expect.anything());
     dispose();
   });
 
@@ -1466,7 +1482,8 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
   });
 
-  it('rejects addFlashcard when the write is refused for a reason a rebase cannot fix', async () => {
+  it.each([true, false])('rejects addFlashcard when the write is refused for a reason a rebase cannot fix (Electron=%s)', async electron => {
+    mockIsElectron.mockReturnValue(electron);
     // The product question is "did my card get saved?", and every capture
     // surface answers it by catching whatever `addFlashcard` throws and routing
     // it to `reportCaptureFailure`. `addFlashcard` therefore has to reject when
@@ -1547,7 +1564,8 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('lands a refused write by replaying it onto what the other window committed', async () => {
+  it.each([true, false])('lands a refused write by replaying it onto what the other window committed (Electron=%s)', async electron => {
+    mockIsElectron.mockReturnValue(electron);
     // Every window holds the same provider over the same whole-snapshot store,
     // so two of them writing at once is ordinary rather than exceptional. The
     // loser's write used to be refused outright and dropped, taking the
@@ -2254,7 +2272,8 @@ describe('FlashcardProvider', () => {
   });
 
   // ─── Priority 1: IPC listener registration ───────────────────────
-  it('preserves an unavailable library, refuses responses, and reloads the repaired authority', async () => {
+  it.each([true, false])('preserves an unavailable library, refuses responses, and reloads the repaired authority (Electron=%s)', async electron => {
+    mockIsElectron.mockReturnValue(electron);
     const { ctx, dispose } = await mountProvider();
     try {
       const fail = mockBridge.flashcards.onFlashcardLoadError.mock.calls.at(-1)![0] as (message: string) => void;
@@ -3360,7 +3379,8 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
-  it('manual Undo recomputes only its owned flag after a peer commit and preserves the peer review position', async () => {
+  it.each([true, false])('manual Undo recomputes only its owned flag after a peer commit and preserves the peer review position (Electron=%s)', async electron => {
+    mockIsElectron.mockReturnValue(electron);
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'manual-rebase', state: 'review', reviews: 2 });
     const peer = makeCard({ id: 'manual-peer-position' });

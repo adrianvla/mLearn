@@ -331,6 +331,38 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     localStorage.clear();
   });
 
+  it('round-trips the authoritative revision, pending Undo and arbitrary unknown root data', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const store = { ...makeStore(), rev: 0,
+      pendingRetraction: { attemptId: 'mobile-own-undo', surface: 'future-package', word: 'cue', language: 'future', attemptIds: ['response'], restore: { opaque: [3] } },
+      futurePackageState: { discourse: ['unknown', { contextual: true }] } };
+    const rev = await bridge.flashcards.saveFlashcards(store as never);
+    const loaded = vi.fn(); bridge.flashcards.onFlashcards(loaded); bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+    expect(loaded.mock.calls[0][0].rev).toBe(rev);
+    expect(loaded.mock.calls[0][0].pendingRetraction).toEqual(store.pendingRetraction);
+    expect(loaded.mock.calls[0][0].futurePackageState).toEqual(store.futurePackageState);
+  });
+
+  it('refuses a native library write failure rather than acknowledging the WebView-only copy', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    vi.mocked(Preferences.set).mockRejectedValueOnce(new Error('native library disk full'));
+    await expect(bridge.flashcards.saveFlashcards(makeStore() as never)).rejects.toThrow('native library disk full');
+  });
+
+  it('accepts opaque namespaced index keys without interpreting a language code as hexadecimal', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const store = makeStore({ wordToCardMap: { 'unknown-package:opaque-entity': ['card'] } });
+    await bridge.flashcards.saveFlashcards(store as never);
+    const loaded = vi.fn(); bridge.flashcards.onFlashcards(loaded); bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+    expect(loaded.mock.calls[0][0].wordToCardMap).toEqual(store.wordToCardMap);
+  });
+
   it('getShardIndex returns value in range [0, 15]', async () => {
     // Test via saveFlashcards (which calls splitIntoShards/saveShardedFlashcards)
     const { createCapacitorBridge } = await import('./capacitorBridge');
@@ -375,8 +407,8 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     expect(metaRaw).not.toBeNull();
     const meta = JSON.parse(metaRaw!);
     expect(meta.shardCount).toBe(16);
-    expect(meta.storeVersion).toBe(4);
-    expect(meta.flashcards).toEqual({ 'card1': { id: 'card1' } });
+    expect(meta.store.version).toBe(4);
+    expect(meta.store.flashcards).toEqual({ 'card1': { id: 'card1' } });
   });
 
   it('loadShardedFlashcards reassembles store from shards', async () => {
@@ -431,7 +463,8 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     expect(loaded).not.toHaveBeenCalled();
     expect(localStorage.getItem('flashcards_meta')).toBe('{ broken');
     cleanup();
-    await bridge.flashcards.saveFlashcards(makeStore() as never);
+    await expect(bridge.flashcards.saveFlashcards(makeStore() as never)).rejects.toThrow();
+    localStorage.removeItem('flashcards_meta');
     bridge.flashcards.getFlashcards();
     await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
     expect(failed).toHaveBeenCalledOnce();
@@ -480,8 +513,8 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     await new Promise(r => setTimeout(r, 20));
     const callsAfterSecond = vi.mocked(Preferences.set).mock.calls.length;
 
-    // Only meta should be re-written (shards unchanged)
-    expect(callsAfterSecond - callsAfterFirst).toBeLessThanOrEqual(1);
+    // Only the candidate intent and root are re-written (shards unchanged)
+    expect(callsAfterSecond - callsAfterFirst).toBe(2);
   });
 });
 
@@ -1760,6 +1793,29 @@ describe('Data Bridge', () => {
     appendSpy.mockRestore();
     removeSpy.mockRestore();
     revokeUrlSpy.mockRestore();
+  });
+
+  it.each([false, true])('imports a backup onto the current revision and validates it before settings (malformed=%s)', async malformed => {
+    const { createCapacitorBridge } = await import('./capacitorBridge'); const bridge = createCapacitorBridge();
+    const current = makeStore({ flashcards: { current: { id: 'current' } } });
+    await bridge.flashcards.saveFlashcards(current as never); await bridge.flashcards.saveFlashcards(current as never);
+    localStorage.setItem('settings', JSON.stringify({ language: 'old' }));
+    const input = document.createElement('input');
+    const original = document.createElement.bind(document);
+    const spy = vi.spyOn(document, 'createElement').mockImplementation((tag, options) => tag === 'input' ? input : original(tag, options));
+    const result = bridge.data.dataImport();
+    const imported = malformed ? { flashcards: null } : { ...makeStore({ flashcards: { imported: { id: 'imported' } } }), rev: 17 };
+    Object.defineProperty(input, 'files', { value: [{ text: async () => JSON.stringify({ settings: { language: 'new' }, flashcards: imported }) }] });
+    input.dispatchEvent(new Event('change'));
+    const outcome = await result; spy.mockRestore();
+    expect(outcome.success).toBe(!malformed);
+    expect(JSON.parse(localStorage.getItem('settings')!).language).toBe(malformed ? 'old' : 'new');
+    if (!malformed) {
+      const loaded = vi.fn(); bridge.flashcards.onFlashcards(loaded); bridge.flashcards.getFlashcards();
+      await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+      expect(loaded.mock.calls[0][0].rev).toBe(3);
+      expect(loaded.mock.calls[0][0].flashcards).toEqual({ imported: { id: 'imported' } });
+    }
   });
 
   it('dataImport creates a file input element', async () => {

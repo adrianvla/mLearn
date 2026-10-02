@@ -1,3 +1,5 @@
+import { createMobileLibraryStore, MOBILE_LIBRARY_KEYS } from './mobileLibraryStore';
+import { staleFlashcardRevisionMessage } from '../flashcardWriteRevision';
 import { scopeSiblingEvent } from '../knowledge/siblingHistory';
 import { isLearningDecision, type LearningDecision } from '../learningDecision';
 import { buildKnowledgeProjection } from '../knowledge/projectionBuilder';
@@ -144,8 +146,10 @@ async function storageSet(key: string, value: string, requireAuthority = false):
   if (requireAuthority) {
     const mod = await getPreferencesModule();
     if (!mod && isCapacitor()) throw new Error('Durable storage is unavailable');
-    if (mod) await mod.Preferences.set({ key, value });
-    localStorage.setItem(key, value);
+    if (mod) {
+      await mod.Preferences.set({ key, value });
+      try { localStorage.setItem(key, value); } catch (error) { log.error('Failed to mirror durable storage:', error); }
+    } else localStorage.setItem(key, value);
     return;
   }
   // Always write to localStorage as a fast sync cache
@@ -459,171 +463,40 @@ const settingsBridge: SettingsBridge = {
 // Flashcard sharded storage helpers
 // ============================================================================
 
-const FLASHCARD_SHARD_COUNT = 16;
-const FLASHCARD_META_KEY = 'flashcards_meta';
-const FLASHCARD_CARDS_SHARD_PREFIX = 'flashcards_cards_shard_';
-const FLASHCARD_STATS_SHARD_PREFIX = 'flashcards_stats_shard_';
-/**
- * @deprecated Pre-sharding Capacitor flashcard storage key. New writes must use
- * the sharded `FLASHCARD_META_KEY`/`FLASHCARD_*_SHARD_PREFIX` stores.
- */
-const FLASHCARD_LEGACY_KEY = 'flashcards';
+const mobileLibrary = createMobileLibraryStore({
+  get: key => storageGet(key, true),
+  set: (key, value) => storageSet(key, value, true),
+  async remove(key) {
+    const mod = await getPreferencesModule();
+    if (!mod && isCapacitor()) throw new Error('Durable storage is unavailable');
+    if (mod) {
+      await mod.Preferences.remove({ key });
+      try { localStorage.removeItem(key); } catch (error) { log.error('Failed to mirror durable storage:', error); }
+    } else localStorage.removeItem(key);
+  },
+}, typeof navigator !== 'undefined' ? navigator.locks : undefined);
 
-function getShardIndex(hexKey: string): number {
-  return parseInt(hexKey.substring(0, 2), 16) % FLASHCARD_SHARD_COUNT;
-}
-
-function splitIntoShards<T>(map: Record<string, T>): Record<string, T>[] {
-  const shards: Record<string, T>[] = Array.from({ length: FLASHCARD_SHARD_COUNT }, () => ({}));
-  for (const [key, value] of Object.entries(map)) {
-    shards[getShardIndex(key)][key] = value;
-  }
-  return shards;
-}
-
-interface FlashcardShardMeta {
-  version: number;
-  shardCount: number;
-  lastUpdated: string;
-  flashcards: FlashcardStore['flashcards'];
-  wordCandidates: FlashcardStore['wordCandidates'];
-  knownUntracked: FlashcardStore['knownUntracked'];
-  ignoredWords: FlashcardStore['ignoredWords'];
-  wordKnowledge: FlashcardStore['wordKnowledge'];
-  grammarKnowledge: FlashcardStore['grammarKnowledge'];
-  suggestedFlashcards: FlashcardStore['suggestedFlashcards'];
-  dailyStats: FlashcardStore['dailyStats'];
-  storeMeta: FlashcardStore['meta'];
-  storeVersion: FlashcardStore['version'];
-}
+const loadShardedFlashcards = () => mobileLibrary.load();
+const saveShardedFlashcards = (store: FlashcardStore) => mobileLibrary.save(store);
 
 let projectionRetentionRequest: Promise<FlashcardStore['meta'] | undefined> | undefined;
 function loadProjectionRetentionPolicy(): Promise<FlashcardStore['meta'] | undefined> {
   if (projectionRetentionRequest) return projectionRetentionRequest;
   const request = (async () => {
-    const raw = await storageGet(FLASHCARD_META_KEY, true);
-    if (raw) return (JSON.parse(raw) as FlashcardShardMeta).storeMeta;
-    const legacy = await storageGet(FLASHCARD_LEGACY_KEY, true);
-    return legacy ? (JSON.parse(legacy) as FlashcardStore).meta : undefined;
+    const raw = await storageGet(MOBILE_LIBRARY_KEYS.meta, true);
+    if (raw) {
+      const root = JSON.parse(raw);
+      return root.version === 2 ? root.store.meta : root.storeMeta;
+    }
+    for (const key of MOBILE_LIBRARY_KEYS.legacy) {
+      const legacy = await storageGet(key, true);
+      if (legacy) return (JSON.parse(legacy) as FlashcardStore).meta;
+    }
+    return undefined;
   })();
   projectionRetentionRequest = request;
   void request.finally(() => { if (projectionRetentionRequest === request) projectionRetentionRequest = undefined; }).catch(() => undefined);
   return request;
-}
-
-async function loadShardedFlashcards(): Promise<FlashcardStore> {
-  const metaRaw = await storageGet(FLASHCARD_META_KEY, true);
-
-  if (!metaRaw) {
-    const legacyRaw = await storageGet(FLASHCARD_LEGACY_KEY, true);
-    if (legacyRaw) {
-      const legacy = JSON.parse(legacyRaw) as FlashcardStore;
-      if (!legacy || typeof legacy !== 'object' || Array.isArray(legacy) || !legacy.flashcards || typeof legacy.flashcards !== 'object' || Array.isArray(legacy.flashcards)) {
-        throw new Error('The saved flashcard library has an invalid structure');
-      }
-      await saveShardedFlashcards(legacy);
-      try {
-        const mod = await getPreferencesModule();
-        if (mod) await mod.Preferences.remove({ key: FLASHCARD_LEGACY_KEY });
-        localStorage.removeItem(FLASHCARD_LEGACY_KEY);
-      } catch (e) {
-        log.error("error", e);
-      }
-      return legacy;
-    }
-    return { flashcards: {}, wordCandidates: {} } as FlashcardStore;
-  }
-
-  const meta = JSON.parse(metaRaw) as FlashcardShardMeta;
-  if (!meta || typeof meta !== 'object' || Array.isArray(meta) || (meta.flashcards !== undefined && (!meta.flashcards || typeof meta.flashcards !== 'object' || Array.isArray(meta.flashcards)))) {
-    throw new Error('The saved flashcard library has an invalid structure');
-  }
-
-  const allShardRaws = await Promise.all(
-    Array.from({ length: FLASHCARD_SHARD_COUNT * 2 }, (_, idx) => {
-      const i = idx % FLASHCARD_SHARD_COUNT;
-      const prefix = idx < FLASHCARD_SHARD_COUNT ? FLASHCARD_CARDS_SHARD_PREFIX : FLASHCARD_STATS_SHARD_PREFIX;
-      return storageGet(`${prefix}${i}`, true);
-    })
-  );
-
-  const wordToCardMap: FlashcardStore['wordToCardMap'] = {};
-  const wordStatsMap: FlashcardStore['wordStatsMap'] = {};
-
-  for (let i = 0; i < FLASHCARD_SHARD_COUNT; i++) {
-    const cardRaw = allShardRaws[i];
-    const statsRaw = allShardRaws[FLASHCARD_SHARD_COUNT + i];
-    if (cardRaw) Object.assign(wordToCardMap, JSON.parse(cardRaw) as FlashcardStore['wordToCardMap']);
-    if (statsRaw) Object.assign(wordStatsMap, JSON.parse(statsRaw) as FlashcardStore['wordStatsMap']);
-  }
-
-  return {
-    flashcards: meta.flashcards ?? {},
-    wordCandidates: meta.wordCandidates ?? {},
-    wordToCardMap,
-    wordStatsMap,
-    knownUntracked: meta.knownUntracked ?? {},
-    ignoredWords: meta.ignoredWords ?? {},
-    wordKnowledge: meta.wordKnowledge ?? {},
-    grammarKnowledge: meta.grammarKnowledge ?? {},
-    suggestedFlashcards: meta.suggestedFlashcards ?? {},
-    dailyStats: meta.dailyStats ?? {},
-    meta: meta.storeMeta ?? ({} as FlashcardStore['meta']),
-    version: meta.storeVersion ?? 0,
-  };
-}
-
-let cachedCardShards: Record<string, string[]>[] | null = null;
-let cachedStatsShards: Record<string, FlashcardStore['wordStatsMap'][string]>[] | null = null;
-
-async function saveShardedFlashcards(store: FlashcardStore): Promise<void> {
-  const newCardShards = splitIntoShards(store.wordToCardMap);
-  const newStatsShards = splitIntoShards(store.wordStatsMap);
-
-  const changedCardShards = new Set<number>();
-  const changedStatsShards = new Set<number>();
-
-  for (let i = 0; i < FLASHCARD_SHARD_COUNT; i++) {
-    const newCardJson = JSON.stringify(newCardShards[i]);
-    const newStatsJson = JSON.stringify(newStatsShards[i]);
-
-    if (!cachedCardShards || JSON.stringify(cachedCardShards[i]) !== newCardJson) {
-      changedCardShards.add(i);
-    }
-    if (!cachedStatsShards || JSON.stringify(cachedStatsShards[i]) !== newStatsJson) {
-      changedStatsShards.add(i);
-    }
-  }
-
-  cachedCardShards = newCardShards;
-  cachedStatsShards = newStatsShards;
-
-  const shardMeta: FlashcardShardMeta = {
-    version: 1,
-    shardCount: FLASHCARD_SHARD_COUNT,
-    lastUpdated: new Date().toISOString(),
-    flashcards: store.flashcards,
-    wordCandidates: store.wordCandidates,
-    knownUntracked: store.knownUntracked,
-    ignoredWords: store.ignoredWords,
-    wordKnowledge: store.wordKnowledge,
-    grammarKnowledge: store.grammarKnowledge,
-    suggestedFlashcards: store.suggestedFlashcards,
-    dailyStats: store.dailyStats,
-    storeMeta: store.meta,
-    storeVersion: store.version,
-  };
-
-  const writes: Promise<void>[] = [storageSet(FLASHCARD_META_KEY, JSON.stringify(shardMeta))];
-
-  for (const i of changedCardShards) {
-    writes.push(storageSet(`${FLASHCARD_CARDS_SHARD_PREFIX}${i}`, JSON.stringify(newCardShards[i])));
-  }
-  for (const i of changedStatsShards) {
-    writes.push(storageSet(`${FLASHCARD_STATS_SHARD_PREFIX}${i}`, JSON.stringify(newStatsShards[i])));
-  }
-
-  await Promise.all(writes);
 }
 
 // ============================================================================
@@ -646,8 +519,7 @@ const flashcardBridge: FlashcardBridge = {
       .then(async data => {
         const migrated = await extractBase64ImagesToFiles(data);
         if (migrated) {
-          saveShardedFlashcards(data)
-            .catch(e => log.error('[CapacitorBridge] Failed to save migrated flashcards:', e));
+          await saveShardedFlashcards(data);
         }
         emitter.emit('flashcards', data);
       })
@@ -658,19 +530,16 @@ const flashcardBridge: FlashcardBridge = {
   },
 
   async saveFlashcards(flashcards: FlashcardStore): Promise<number> {
-    const revision = (flashcards.rev ?? 0) + 1;
-    flashcards.rev = revision;
-    await saveShardedFlashcards(flashcards);
-    return revision;
+    return saveShardedFlashcards(flashcards);
   },
 
   async saveFlashcardPatch(patch: StorePatch): Promise<number> {
-    // Mobile keeps no authoritative in-memory copy, so the patch is applied to
-    // a freshly loaded store. saveShardedFlashcards then writes only the shards
-    // that actually changed, so the patch still avoids rewriting everything.
-    const store = await loadShardedFlashcards();
-    applyStorePatch(store as unknown as Record<string, unknown>, patch);
-    return this.saveFlashcards(store);
+    const committed = await mobileLibrary.update(store => {
+      if (patch.baseRev !== (store.rev ?? 0)) throw new Error(staleFlashcardRevisionMessage(store.rev ?? 0, patch.baseRev));
+      applyStorePatch(store as unknown as Record<string, unknown>, patch);
+      return store;
+    });
+    return committed.rev!;
   },
 
   onFlashcards(callback) {
@@ -2245,11 +2114,14 @@ const dataBridge: DataBridge = {
             return;
           }
 
+          if (data.flashcards !== undefined) {
+            // A user-selected backup is an explicit replacement, composed under
+            // the current library owner rather than the backup's old revision.
+            // Validate/commit it before changing unrelated imported settings.
+            await mobileLibrary.update(() => data.flashcards as FlashcardStore);
+          }
           if (data.settings && typeof data.settings === 'object') {
             await storageSet('settings', JSON.stringify(data.settings));
-          }
-          if (data.flashcards && typeof data.flashcards === 'object') {
-            await saveShardedFlashcards(data.flashcards as FlashcardStore);
           }
           if (data.mediaStats && typeof data.mediaStats === 'object') {
             await storageSet('mediaStats', JSON.stringify(data.mediaStats));
