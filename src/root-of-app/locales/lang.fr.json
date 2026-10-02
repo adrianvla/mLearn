@@ -2500,7 +2500,7 @@
           "Description": "Choisissez la couleur vers laquelle les couleurs prosodiques s'atténuent lorsque les preuves de prosodie sont fortes.",
           "Label": "Atténuer vers",
           "PartOfSpeech": "Couleur grammaticale",
-          "White": "Blanc"
+          "Text": "Texte normal"
         },
         "Palette": {
           "Description": "Personnalisez les couleurs définies par le pack pour cette langue.",

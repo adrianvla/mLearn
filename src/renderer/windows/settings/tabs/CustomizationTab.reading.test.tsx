@@ -37,7 +37,7 @@ const translations: Record<string, string> = {
   'mlearn.Settings.ColoredProsody.EvidenceFade.Description': 'Fade strong prosody evidence',
   'mlearn.Settings.ColoredProsody.MixTarget.Label': 'Fade toward',
   'mlearn.Settings.ColoredProsody.MixTarget.Description': 'Mix target',
-  'mlearn.Settings.ColoredProsody.MixTarget.White': 'White',
+  'mlearn.Settings.ColoredProsody.MixTarget.Text': 'Normal text',
   'mlearn.Settings.ColoredProsody.MixTarget.PartOfSpeech': 'Part-of-speech color',
   'mlearn.Settings.ColoredProsody.Saturation.Label': 'Color saturation',
   'mlearn.Settings.ColoredProsody.Saturation.Description': 'Color intensity',
@@ -241,6 +241,10 @@ describe('CustomizationTab reading appearance', () => {
     expect(container.textContent).toContain('Colored Prosody');
     expect(container.textContent).toContain('Tone 1');
     expect(container.textContent).toContain('Neutral');
+    expect(container.querySelector('option[value="white"]')?.textContent).toBe('Normal text');
+    expect(container.textContent).not.toContain('White');
+    expect(container.querySelector<HTMLElement>('.prosody-colors__preview span')?.style.getPropertyValue('--language-word-ink'))
+      .toBe('color-mix(in srgb, #ff00ff 40%, var(--language-word-foreground))');
     expect(container.querySelectorAll('.pos-colors__card')).toHaveLength(2);
 
     const colorInput = container.querySelector<HTMLInputElement>('.color-input');

@@ -1,3 +1,4 @@
+import { readableWordColorStyle } from '../../../utils/wordColor';
 /**
  * Customization Settings Tab
  */
@@ -574,7 +575,7 @@ export const CustomizationTab: Component = () => {
                       coloredProsodyEaseMixTarget: event.currentTarget.value as ColoredProsodyMixTarget,
                     })}
                   >
-                    <option value="white">{t('mlearn.Settings.ColoredProsody.MixTarget.White')}</option>
+                    <option value="white">{t('mlearn.Settings.ColoredProsody.MixTarget.Text')}</option>
                     <option value="part-of-speech">{t('mlearn.Settings.ColoredProsody.MixTarget.PartOfSpeech')}</option>
                   </Select>
                 </SettingRow>
@@ -602,7 +603,7 @@ export const CustomizationTab: Component = () => {
               <div class="prosody-colors__preview" aria-label={t('mlearn.Settings.ColoredProsody.Preview')}>
                 <For each={Object.keys(config().colors)}>
                   {(paletteKey) => (
-                    <span style={{ color: coloredProsodyPalette()[paletteKey] }}>
+                    <span style={readableWordColorStyle(coloredProsodyPalette()[paletteKey])}>
                       {config().labels[paletteKey] ?? paletteKey}
                     </span>
                   )}

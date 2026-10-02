@@ -2500,7 +2500,7 @@
           "Description": "Wähle die Farbe, zu der Prosodiefarben bei starker Prosodie-Evidenz übergehen.",
           "Label": "Überblenden zu",
           "PartOfSpeech": "Wortartfarbe",
-          "White": "Weiß"
+          "Text": "Normaler Text"
         },
         "Palette": {
           "Description": "Passe die vom Sprachpaket definierten Farben für diese Sprache an.",

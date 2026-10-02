@@ -1,3 +1,4 @@
+import { readableWordColorStyle } from '../../utils/wordColor';
 import { getWrittenComprehensionStatus } from '../../utils/writtenComprehension';
 /**
  * Subtitle Word Component
@@ -247,7 +248,7 @@ export const SubtitleWord: Component<SubtitleWordProps> = (props) => {
       position: 'relative',
       display: annotationsEnabled() ? 'inline-block' : 'inline',
       ...(annotationsEnabled() && compactTokenLayout ? { 'margin-right': '0.1em' } : {}),
-      ...(color ? { color } : {}),
+      ...(color ? readableWordColorStyle(color) : {}),
     };
   };
 

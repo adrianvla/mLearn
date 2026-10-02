@@ -330,7 +330,7 @@ describe('OcrWord', () => {
       const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
       expect(segments).toHaveLength(2);
       expect(segments[0]?.dataset.prosodyValue).toBe('tone-1');
-      expect(segments[0]?.style.color).toBe('#ff00ff');
+      expect(segments[0]?.style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ff00ff 40%, var(--language-word-foreground))');
       expect(segments[1]?.dataset.prosodyValue).toBe('neutral');
       expect(container.querySelector('.ocr-word')?.textContent).toBe('妈妈');
       dispose();
@@ -395,7 +395,7 @@ describe('OcrWord', () => {
       const segment = container.querySelector<HTMLElement>('.colored-prosody__segment');
       expect(segment).not.toBeNull();
       expect(segment?.dataset.prosodyValue).toBe('atamadaka');
-      expect(segment?.style.color).toBe('#ffa500');
+      expect(segment?.style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ffa500 40%, var(--language-word-foreground))');
       dispose();
     });
   });

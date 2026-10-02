@@ -559,7 +559,7 @@ describe('UnknownWordsSidebar', () => {
     const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
     expect(segments.length).toBe(5);
     expect(segments[0].dataset.prosodyValue).toBe('tone-1');
-    expect(segments[0].style.color).toBe('#ff00ff');
+    expect(segments[0].style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ff00ff 40%, var(--language-word-foreground))');
 
     dispose();
   });

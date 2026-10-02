@@ -2500,7 +2500,7 @@
           "Description": "Choose the color that prosody colors fade toward when prosody evidence is strong.",
           "Label": "Fade toward",
           "PartOfSpeech": "Part-of-speech color",
-          "White": "White"
+          "Text": "Normal text"
         },
         "Palette": {
           "Description": "Customize the package-defined colors for this language.",

@@ -90,11 +90,11 @@ function makeCtx(overrides: Partial<WordRenderTextContext> = {}): WordRenderText
   };
 }
 
-function renderTextResult(ctx: WordRenderTextContext) {
+function renderTextResult(ctx: WordRenderTextContext, textOptions = options) {
   const renderText = createWordRenderText(ctx);
   const container = document.createElement('div');
   document.body.appendChild(container);
-  const dispose = render(() => renderText(word, options), container);
+  const dispose = render(() => renderText(textOptions.word, textOptions), container);
   return { container, dispose };
 }
 
@@ -110,7 +110,7 @@ describe('createWordRenderText', () => {
       'tone-4',
       'neutral',
     ]);
-    expect(segments[0].style.color).toBe('#ff00ff');
+    expect(segments[0].style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ff00ff 40%, var(--language-word-foreground))');
     dispose();
   });
 
@@ -170,11 +170,11 @@ describe('createWordRenderText', () => {
     const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
     expect(segments).toHaveLength(1);
     expect(segments[0].dataset.prosodyValue).toBe('atamadaka');
-    expect(segments[0].style.color).toBe('#ffa500');
+    expect(segments[0].style.getPropertyValue('--language-word-ink')).toBe('color-mix(in srgb, #ffa500 40%, var(--language-word-foreground))');
     dispose();
   });
 
-  it('fades the pitch overlay from prosody-target evidence', () => {
+  it('fades the shared word presentation toward theme text from prosody-target evidence', () => {
     const { container, dispose } = renderTextResult(makeCtx({
       languageData: () => pitchLanguage,
       prosodyPosition: () => 1,
@@ -182,9 +182,11 @@ describe('createWordRenderText', () => {
       settings: () => makeSettings({
         coloredProsodyEaseMixEnabled: true,
         coloredProsodyEaseMixTarget: 'white',
+        coloredProsodyStatusLimit: 'known',
       }),
-    }));
-    expect(container.querySelector<HTMLElement>('.colored-prosody__segment')?.style.color).not.toBe('#ffa500');
+    }), { ...options, word: '朝', reading: 'あさ', displayReading: 'あさ' });
+    expect(container.querySelector<HTMLElement>('.colored-prosody__segment')?.style.getPropertyValue('--language-word-ink'))
+      .toBe('color-mix(in srgb, color-mix(in srgb, #ffa500 18%, var(--language-word-foreground)) 40%, var(--language-word-foreground))');
     dispose();
   });
 

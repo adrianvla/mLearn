@@ -2500,7 +2500,7 @@
           "Description": "选择韵律证据很强时韵律颜色的混合目标。",
           "Label": "混合到",
           "PartOfSpeech": "词性颜色",
-          "White": "白色"
+          "Text": "正常文本颜色"
         },
         "Palette": {
           "Description": "自定义此语言包提供的韵律颜色。",

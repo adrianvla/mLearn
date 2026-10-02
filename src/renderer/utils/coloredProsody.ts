@@ -1,4 +1,5 @@
 import type { JSX } from 'solid-js';
+import { readableWordColorStyle } from './wordColor';
 import type { WordStatus } from '../../shared/constants';
 import { STATUS_RANK } from '../../shared/knowledge/effectiveKnowledge';
 import { statusToStrength } from '../../shared/utils/knowledgeStrength';
@@ -168,15 +169,6 @@ function applySaturation(color: RgbColor, saturationPercent: number): RgbColor {
   };
 }
 
-function mixColors(source: RgbColor, target: RgbColor, amount: number): RgbColor {
-  const mix = Math.max(0, Math.min(1, amount));
-  return {
-    red: source.red + (target.red - source.red) * mix,
-    green: source.green + (target.green - source.green) * mix,
-    blue: source.blue + (target.blue - source.blue) * mix,
-  };
-}
-
 export function resolveColoredProsodyStyle(
   color: string,
   settings: Settings,
@@ -184,18 +176,22 @@ export function resolveColoredProsodyStyle(
   partOfSpeechColor: string | undefined,
 ): JSX.CSSProperties {
   const parsed = parseHexColor(color);
-  if (!parsed) return { color };
-
-  const saturated = applySaturation(
-    parsed,
-    settings.coloredProsodySaturation ?? DEFAULT_SETTINGS.coloredProsodySaturation,
-  );
-  if (!(settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled)) {
-    return { color: toHexColor(saturated) };
+  const source = parsed
+    ? toHexColor(applySaturation(
+      parsed,
+      settings.coloredProsodySaturation ?? DEFAULT_SETTINGS.coloredProsodySaturation,
+    ))
+    : color;
+  const fade = Math.max(0, Math.min(1, fadeStrength)) * 82;
+  if (!(settings.coloredProsodyEaseMixEnabled ?? DEFAULT_SETTINGS.coloredProsodyEaseMixEnabled) || fade === 0) {
+    return readableWordColorStyle(source);
   }
 
   const targetSetting = settings.coloredProsodyEaseMixTarget ?? DEFAULT_SETTINGS.coloredProsodyEaseMixTarget;
-  const targetColor = targetSetting === 'part-of-speech' ? partOfSpeechColor : '#ffffff';
-  const target = parseHexColor(targetColor ?? '#ffffff') ?? parseHexColor('#ffffff')!;
-  return { color: toHexColor(mixColors(saturated, target, Math.max(0, Math.min(1, fadeStrength)) * 0.82)) };
+  // Keep the stored 'white' value compatible, but let mastered scaffolding
+  // return toward normal text. A fixed white target erases words in light themes.
+  const target = targetSetting === 'part-of-speech' && partOfSpeechColor
+    ? partOfSpeechColor
+    : 'var(--language-word-foreground)';
+  return readableWordColorStyle(`color-mix(in srgb, ${source} ${100 - fade}%, ${target})`);
 }
