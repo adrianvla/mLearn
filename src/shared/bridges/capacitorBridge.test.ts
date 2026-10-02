@@ -2037,6 +2037,107 @@ describe('knowledgeEvents bridge (Capacitor journal)', () => {
 
   const event = (t: number) => ({ t, kind: 'rating', source: 'srs', aspect: 'meaning', rating: 'good' }) as never;
 
+  it('refuses native journal writes without publishing an observation or a change notification', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    const changed = vi.fn(); const off = bridge.knowledgeEvents.onKnowledgeEventsChanged(changed);
+    vi.mocked(Preferences.set).mockRejectedValueOnce(new Error('native journal full'));
+    const incoming = { 'future:write': [{ t: 1, kind: 'rating', source: 'srs', attemptId: 'failed-native',
+      targetRef: { kind: 'opaque', id: 'entity', capability: 'unknown:access' } }] } as never;
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents(incoming)).rejects.toThrow('native journal full');
+    expect(changed).not.toHaveBeenCalled();
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['future:write'])).toEqual({});
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents(incoming)).resolves.toBe(true);
+    expect(changed).toHaveBeenCalledOnce(); off();
+  });
+
+  it('retains the native journal acknowledgement when only the WebView mirror fails, including cold reads', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const get = vi.mocked(Preferences.get).getMockImplementation()!;
+    const set = vi.mocked(Preferences.set).getMockImplementation()!;
+    const native = new Map<string, string>();
+    vi.mocked(Preferences.get).mockImplementation(async ({ key }) => ({ value: native.get(key) ?? null }));
+    vi.mocked(Preferences.set).mockImplementation(async ({ key, value }) => { native.set(key, value); });
+    const mirror = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('WebView quota exceeded'); });
+    try {
+      const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+      const row = { t: 1, kind: 'claim', source: 'manual', eventId: 'native-only', toStatus: 'known', packageData: { unknown: [2] } } as const;
+      expect(await bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:native-only': [row] })).toBe(true);
+      mirror.mockRestore(); localStorage.clear(); vi.resetModules();
+      const restarted = (await import('./capacitorBridge')).createCapacitorBridge();
+      expect(await restarted.knowledgeEvents.queryKnowledgeEvents(['future:native-only'])).toEqual({ 'future:native-only': [row] });
+      await restarted.knowledgeEvents.appendKnowledgeEvents({ 'future:native-only': [row] });
+      expect(await restarted.knowledgeEvents.queryKnowledgeEvents(['future:native-only'])).toEqual({ 'future:native-only': [row] });
+    } finally { mirror.mockRestore(); vi.mocked(Preferences.get).mockImplementation(get); vi.mocked(Preferences.set).mockImplementation(set); }
+  });
+
+  it('refuses a native journal read failure instead of using a stale WebView copy', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:read': [event(1)] });
+    const before = localStorage.getItem('mlearn-knowledge-events:future');
+    vi.mocked(Preferences.get).mockRejectedValueOnce(new Error('native journal unavailable'));
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:read': [event(2)] })).rejects.toThrow('native journal unavailable');
+    expect(localStorage.getItem('mlearn-knowledge-events:future')).toBe(before);
+    vi.mocked(Preferences.get).mockRejectedValueOnce(new Error('native journal unavailable'));
+    await expect(bridge.knowledgeEvents.queryKnowledgeEvents(['future:read'])).rejects.toThrow('native journal unavailable');
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['future:read'])).toEqual({ 'future:read': [event(1)] });
+  });
+
+  it.each(['{broken', 'null', '[]', '{"future:bad":[{}]}', '{"version":2,"events":{}}',
+    '{"version":1,"events":{"future:bad":null},"observationIdentities":{}}',
+    '{"version":1,"events":{},"observationIdentities":{"future:bad":[null]}}'])('preserves an unreadable journal instead of starting empty: %s', async raw => {
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    localStorage.setItem('mlearn-knowledge-events:future', raw);
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:bad': [event(1)] })).rejects.toThrow();
+    expect(localStorage.getItem('mlearn-knowledge-events:future')).toBe(raw);
+    await expect(bridge.knowledgeEvents.queryKnowledgeEvents(['future:bad'])).rejects.toThrow();
+  });
+
+  it.each([
+    { eventId: { unknown: 1 } }, { attemptId: { unknown: 1 } }, { retracts: { unknown: 1 } },
+    { ankiReviewId: { unknown: 1 } }, { schedulerCardId: { unknown: 1 } },
+    { targetRef: { kind: 'opaque', id: 'entity', capability: { unknown: 1 } } },
+    { targetRef: { kind: 'opaque', id: { unknown: 1 } } },
+    { decisionRef: { id: { unknown: 1 } } }, { itemRef: { id: 'opaque', version: { unknown: 1 } } },
+  ])('rejects malformed technical identity/address data before admission and on authority read: %j', async fields => {
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    const row = { t: 1, kind: 'rating', source: 'manual', ...fields };
+    await expect(bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:malformed-id': [row] } as never)).rejects.toThrow();
+    expect(localStorage.getItem('mlearn-knowledge-events:future')).toBeNull();
+    const raw = JSON.stringify({ version: 1, events: { 'future:malformed-id': [row] }, observationIdentities: {} });
+    localStorage.setItem('mlearn-knowledge-events:future', raw);
+    await expect(bridge.knowledgeEvents.queryKnowledgeEvents(['future:malformed-id'])).rejects.toThrow();
+    expect(localStorage.getItem('mlearn-knowledge-events:future')).toBe(raw);
+  });
+
+  it('preserves numeric historical attempts and arbitrary unfamiliar technical strings', async () => {
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    const row = { t: 1, kind: 'future-unknown-event', source: 'future-unknown-source', attemptId: 7,
+      targetRef: { kind: 'opaque-unknown', id: 'entity', capability: 'unknown:category', futureAddress: { context: [2] } },
+      packageData: { unknown: [3, { condition: true }] } };
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:numeric-history': [row, row] } as never);
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['future:numeric-history'])).toEqual({ 'future:numeric-history': [row, row] });
+  });
+
+  it('captures caller-owned observation metadata before asynchronous native reads', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const bridge = (await import('./capacitorBridge')).createCapacitorBridge();
+    let release!: () => void; let reached!: () => void;
+    const ready = new Promise<void>(resolve => { reached = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const original = vi.mocked(Preferences.get).getMockImplementation()!;
+    vi.mocked(Preferences.get).mockImplementationOnce(async input => { reached(); await gate; return original(input); });
+    const observation = { t: 1, kind: 'claim', source: 'manual', eventId: 'captured-mobile',
+      toStatus: 'known', targetRef: { kind: 'opaque', id: 'entity', capability: 'unknown:access' },
+      packageData: { context: ['original'] } } as const;
+    const expected = structuredClone(observation);
+    const append = bridge.knowledgeEvents.appendKnowledgeEvents({ 'future:captured': [observation] });
+    await ready; (observation.packageData.context as string[])[0] = 'mutated after submission'; release();
+    await append;
+    expect(await bridge.knowledgeEvents.queryKnowledgeEvents(['future:captured'])).toEqual({ 'future:captured': [expected] });
+  });
+
   it('appends events, persists them, and round-trips through get/query', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();

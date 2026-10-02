@@ -1603,17 +1603,50 @@ interface KnowledgeEventsShard {
   observationIdentities: Record<string, string[]>;
 }
 
+function journalRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+function journalIdentifier(value: unknown): boolean { return typeof value === 'string' && value.length > 0; }
+function historicalAttempt(value: unknown): boolean {
+  return journalIdentifier(value) || (typeof value === 'number' && Number.isFinite(value));
+}
+function validJournalRow(row: unknown): boolean {
+  if (!journalRecord(row) || typeof row.t !== 'number' || !Number.isFinite(row.t)
+    || !journalIdentifier(row.kind) || (row.source !== undefined && typeof row.source !== 'string')) return false;
+  if (['eventId', 'schedulerCardId'].some(key => row[key] !== undefined && !journalIdentifier(row[key]))
+    || ['attemptId', 'retracts'].some(key => row[key] !== undefined && !historicalAttempt(row[key]))
+    || (row.ankiReviewId !== undefined && (typeof row.ankiReviewId !== 'number' || !Number.isFinite(row.ankiReviewId)))) return false;
+  if (row.targetRef !== undefined && (!journalRecord(row.targetRef) || !journalIdentifier(row.targetRef.kind)
+    || !journalIdentifier(row.targetRef.id) || ['capability', 'to'].some(key =>
+      (row.targetRef as Record<string, unknown>)[key] !== undefined && !journalIdentifier((row.targetRef as Record<string, unknown>)[key])))) return false;
+  if (row.decisionRef !== undefined && (!journalRecord(row.decisionRef) || !journalIdentifier(row.decisionRef.id))) return false;
+  if (row.itemRef !== undefined && (!journalRecord(row.itemRef) || !journalIdentifier(row.itemRef.id)
+    || !journalIdentifier(row.itemRef.version) || (row.itemRef.seed !== undefined
+      && (typeof row.itemRef.seed !== 'number' || !Number.isFinite(row.itemRef.seed))))) return false;
+  return true;
+}
+function checkedEventLog(value: unknown): KnowledgeEventLog {
+  if (!journalRecord(value) || Object.values(value).some(rows => !Array.isArray(rows) || rows.some(row => !validJournalRow(row)))) {
+    throw new Error('The saved observation journal is unreadable');
+  }
+  return value as KnowledgeEventLog;
+}
 async function loadKnowledgeEventsShard(language: string): Promise<KnowledgeEventsShard> {
   const empty: KnowledgeEventsShard = { version: 1, events: {}, observationIdentities: {} };
-  const raw = await storageGet(knowledgeEventsStorageKey(language));
-  if (!raw) return empty;
-  try {
-    const parsed = JSON.parse(raw) as KnowledgeEventsShard | KnowledgeEventLog;
-    return parsed.version === 1 ? parsed as KnowledgeEventsShard : { ...empty, events: parsed as KnowledgeEventLog };
-  } catch (e) {
-    log.error('[CapacitorBridge] Failed to parse knowledge events shard, starting empty:', language, e);
-    return empty;
+  const raw = await storageGet(knowledgeEventsStorageKey(language), true);
+  if (raw === null) return empty;
+  const parsed: unknown = JSON.parse(raw);
+  if (!journalRecord(parsed)) throw new Error('The saved observation journal is unreadable');
+  if (Object.prototype.hasOwnProperty.call(parsed, 'version')) {
+    if (parsed.version !== 1 || !journalRecord(parsed.observationIdentities)
+      || Object.values(parsed.observationIdentities).some(ids => !Array.isArray(ids) || ids.some(id => typeof id !== 'string'))) {
+      throw new Error('The saved observation journal is unreadable');
+    }
+    checkedEventLog(parsed.events);
+    // Validate the technical envelope while preserving unknown package data.
+    return parsed as unknown as KnowledgeEventsShard;
   }
+  return { ...empty, events: checkedEventLog(parsed) };
 }
 
 // Concurrent projection reads share one parsed, immutable snapshot. Mutation
@@ -1645,14 +1678,19 @@ async function updateKnowledgeEventsForLanguage(
   update: (eventLog: KnowledgeEventLog, identities: Record<string, string[]>) => KnowledgeEventLog,
 ): Promise<void> {
   const previous = knowledgeEventWriteQueues.get(language) ?? Promise.resolve();
-  const task = previous.then(async () => {
+  const operation = async () => {
     knowledgeEventReads.delete(language);
     try {
       const shard = await loadKnowledgeEventsShard(language);
       shard.events = update(shard.events, shard.observationIdentities);
       // Events and retry protection share one persisted value and write boundary.
-      await storageSet(knowledgeEventsStorageKey(language), JSON.stringify(shard));
+      await storageSet(knowledgeEventsStorageKey(language), JSON.stringify(shard), true);
     } finally { knowledgeEventReads.delete(language); }
+  };
+  const task = previous.then(async () => {
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      await navigator.locks.request(`mlearn-observation-journal:${language}`, async () => { await operation(); });
+    } else await operation();
   });
   knowledgeEventWriteQueues.set(language, task.catch(() => {}));
   await task;
@@ -1705,9 +1743,11 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
     return { decision, attempts: [] };
   },
   async appendKnowledgeEvents(eventsByKey: KnowledgeEventLog) {
+    // Capture the physical observation before the first asynchronous read.
+    const captured = checkedEventLog(JSON.parse(JSON.stringify(eventsByKey)));
     const incomingByLanguage = new Map<string, KnowledgeEventLog>();
     let appended = 0;
-    for (const [key, events] of Object.entries(eventsByKey)) {
+    for (const [key, events] of Object.entries(captured)) {
       if (!Array.isArray(events) || events.length === 0) continue;
       const language = languageOfEventKey(key);
       const shard = incomingByLanguage.get(language) ?? {};
@@ -1742,7 +1782,7 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
         return applyKnowledgeEventRetention(consolidateKnowledgeEvents(existing));
       });
     }
-    notifyKnowledgeEventsChanged(Object.keys(eventsByKey).filter((key) => eventsByKey[key]?.length));
+    notifyKnowledgeEventsChanged(Object.keys(captured).filter((key) => captured[key]?.length));
     return true;
   },
 

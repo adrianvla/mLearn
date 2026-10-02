@@ -1253,6 +1253,26 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('keeps a mobile review unchanged and retryable when its native observation journal refuses', async () => {
+    mockIsElectron.mockReturnValue(false);
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'mobile-journal-refusal', language: 'ja', reviews: 3, state: 'review', dueDate: Date.now() - 1000 });
+    seed(makeEmptyStore({ rev: 8, flashcards: { [card.id]: card } }));
+    installStrictSaveRevision(); answerProbesFromAuthority();
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    mockBridge.flashcards.saveFlashcards.mockClear(); mockBridge.flashcards.saveFlashcardPatch.mockClear();
+    mockAppendEvents.mockRejectedValueOnce(new Error('native observation journal refused'));
+    const submit = () => ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], {
+      language: 'ja', attemptId: 'mobile-journal-retry' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+    });
+    await expect(submit()).rejects.toThrow('native observation journal refused');
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3); expect(ctx.store.rev).toBe(8); expect(ctx.canUndo()).toBe(false);
+    expect(mockBridge.flashcards.saveFlashcards).not.toHaveBeenCalled(); expect(mockBridge.flashcards.saveFlashcardPatch).not.toHaveBeenCalled();
+    await submit(); expect(ctx.store.flashcards[card.id].reviews).toBe(4); expect(ctx.store.rev).toBe(9); expect(ctx.canUndo()).toBe(true);
+    dispose();
+  });
+
   it('keeps unknown language-owned root data through mobile hydration and an authored edit', async () => {
     mockIsElectron.mockReturnValue(false);
     const { ctx, dispose } = await mountProvider();
@@ -8270,7 +8290,8 @@ describe('recordGrammarAttempt (curriculum grammar probe)', () => {
     mockSettings.language = 'ja';
   });
 
-  it('the acknowledged grammar writer rejects when the canonical journal append fails', async () => {
+  it.each([true, false])('the acknowledged grammar writer rejects when the canonical journal append fails (Electron=%s)', async electron => {
+    mockIsElectron.mockReturnValue(electron);
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
     mockAppendEvents.mockRejectedValueOnce(new Error('journal unavailable'));
