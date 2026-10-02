@@ -149,6 +149,9 @@ interface WordSyncUndoEntry {
 export interface WordSyncContentProps {
   mode?: 'study' | 'assessment';
   intent?: 'reinforce';
+  /** An explicit material selection uses the same encounter and decision policy. */
+  words?: readonly string[];
+  sourceLabel?: string;
   onAssessmentApplied?: () => void;
 }
 
@@ -156,7 +159,8 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
   const assessmentMode = () => props.mode === 'assessment';
-  const studyStorageKey = () => `mlearn-study-word-sync${props.intent === 'reinforce' ? '-reinforce' : ''}:${settings.language}`;
+  const suppliedWords = createMemo(() => props.words ? [...new Set(props.words.map(word => word.trim()).filter(Boolean))] : undefined);
+  const studyStorageKey = () => `mlearn-study-word-sync${suppliedWords() ? `-material-${hashWordSync(suppliedWords()!.join('\u0000'))}` : props.intent === 'reinforce' ? '-reinforce' : ''}:${settings.language}`;
   const langCtx = useLanguage();
   const {
     store,
@@ -257,7 +261,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   // Reveal-first gate: the prompt word is shown first; the first
   // Space/Enter reveals the answer, the second submits the profile rating.
   const [showAnswer, setShowAnswer] = createSignal(false);
-  const [additionalInfoInAnswer, setAdditionalInfoInAnswer] = createSignal(false);
+  const [additionalInfoInAnswer, setAdditionalInfoInAnswer] = createSignal(props.words !== undefined);
   // Single reveal transition shared by keyboard (first Space/Enter) and pointer
   // (the visible translation/reveal control): arms the rating control and shows
   // the translation together, so both input paths reach the same ratable state.
@@ -508,7 +512,9 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     return untrack(() => {
       const groups = new Map<number, PoolEntry[]>();
 
-      for (const [word, entry] of Object.entries(freq)) {
+      const candidates = suppliedWords() ?? Object.keys(freq);
+      for (const word of candidates) {
+        const entry = freq[word];
 
         const storageWord = langCtx.getCanonicalFormForLanguage(lang, word);
         const lk = `${lang}:${hashWordSync(storageWord)}`;
@@ -517,13 +523,14 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         // on-demand projection as Inspect; no materialized-status fallback.
         if (isStudyExcluded(store.ignoredWords[lk])) continue;
 
-        const lvl = entry.raw_level;
+        // Unranked material still has a queue bucket, without a fabricated package label.
+        const lvl = entry?.raw_level ?? 0;
         if (!groups.has(lvl)) groups.set(lvl, []);
         groups.get(lvl)!.push({
           word,
-          reading: entry.reading,
+          reading: entry?.reading ?? '',
           level: lvl,
-          levelName: getFrequencyLevelLabel(lvl, names, languageData),
+          levelName: entry ? getFrequencyLevelLabel(lvl, names, languageData) : '',
           storageKey: lk,
           weight: 1,
         });
@@ -544,6 +551,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   }
 
   function buildDefaultFilterPreset(): FilterToken[] {
+    if (suppliedWords()) return [];
     return buildWordSyncPreset(
       levelNames(),
       getLearningLanguageLevelForLanguage(settings, settings.language),
@@ -792,7 +800,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       ? Array.isArray(decision.detail.sourceLabels) && decision.detail.sourceLabels.length > 0
         ? t('mlearn.WordSync.GraphChoiceSourceReason', { source: decision.detail.sourceLabels.join(', '), word: String(decision.detail.baselineWord ?? '') })
         : t('mlearn.WordSync.GraphChoiceReason', { word: String(decision.detail.baselineWord ?? '') })
-      : t('mlearn.WordSync.PoolChoiceReason', { count: String(decision.detail.candidateCount) });
+      : t(suppliedWords() ? 'mlearn.WordSync.MaterialPoolChoiceReason' : 'mlearn.WordSync.PoolChoiceReason', { count: String(decision.detail.candidateCount) });
   });
 
   // One logical attempt and one reactive update: row writes must not repeatedly
@@ -1415,7 +1423,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     const controller = createWordController(identity, studyStorageKey(), entryByWord, false);
     setSessionController(controller);
     batch(() => {
-      setQueueSummary({ ignored: Math.max(0, Object.keys(langCtx.getWordFrequency()).length - [...result.pool.values()].reduce((sum, group) => sum + group.length, 0)), filtered: result.filtered, noPrompt: result.noPrompt });
+      setQueueSummary({ ignored: Math.max(0, (suppliedWords()?.length ?? Object.keys(langCtx.getWordFrequency()).length) - [...result.pool.values()].reduce((sum, group) => sum + group.length, 0)), filtered: result.filtered, noPrompt: result.noPrompt });
       setSessionQueue(queue);
       levelCursors = new Map();
       trace('session queue created', { count: [...queue.values()].reduce((n, group) => n + group.length, 0) });
@@ -1685,7 +1693,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   };
 
   return (
-    <div class="word-sync" classList={{ 'word-sync--assessment': assessmentMode() }}>
+    <div class="word-sync" classList={{ 'word-sync--assessment': assessmentMode(), 'word-sync--material': suppliedWords() !== undefined }}>
+      <Show when={suppliedWords() && props.sourceLabel}><p class="word-sync-material-context">
+        {t('mlearn.LearningPlan.MaterialPractice', { title: props.sourceLabel!, count: suppliedWords()!.length })}
+      </p></Show>
       <div class="word-sync-header">
         <Show when={sessionQueue() && (!assessmentMode() || !!sessionController()?.current())}><span class="word-sync-counter">
           <Show when={assessmentMode()} fallback={t('mlearn.WordSync.Progress', {
@@ -1695,7 +1706,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             {t('mlearn.LevelStudy.Placement.LiveProgress', { count: assessmentSampled() })}
           </Show>
         </span></Show>
-        <Show when={!assessmentMode()}>
+        <Show when={!assessmentMode() && !suppliedWords()}>
         <ToggleSwitch checked={additionalInfoInAnswer()} onChange={setAdditionalInfoInAnswer}
           label={t('mlearn.WordSync.AdditionalInfoInAnswer')} size="sm" />
         <Button
@@ -1755,12 +1766,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           />
         </Popover>
         </Show>
-        <Show when={currentWord() && !assessmentMode()}>
+        <Show when={currentWord() && levelLabel() && !assessmentMode() && !suppliedWords()}>
           <PillLabel level={currentWord()!.level} visualLevel={currentWordVisualLevel()}>
             {levelLabel()}
           </PillLabel>
         </Show>
-        <Show when={currentWord() && !assessmentMode()}>
+        <Show when={currentWord() && !assessmentMode() && !suppliedWords()}>
           <TellMlearn
               resetKey={`${settings.language}:${currentWord()?.word ?? ''}:${presentationCount()}`}
               label={t('mlearn.TellMlearn.Label')}
@@ -1907,7 +1918,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         <Show when={currentWord()}>
           {(word) => <StudyEncounter
             class={assessmentMode() ? 'word-sync-assessment-card' : 'word-sync-card'}
-            instruction={t('mlearn.StudyEncounter.RetrieveWord')}
+            instruction={suppliedWords() && probe()?.focused
+              ? t('mlearn.StudyEncounter.RetrieveAspects', { aspects: testedAccesses().map(capability => langCtx.currentLangData()?.learning?.capabilities?.[capability]?.label
+                ?? t(CAPABILITY_LABEL_KEYS[capability] ?? capability)).join(' · ') })
+              : t('mlearn.StudyEncounter.RetrieveWord')}
             revealed={showAnswer()}
             onReveal={reveal}
             onSkip={skipCurrentWord}
@@ -1992,11 +2006,11 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       </Show>
       <Show when={!assessmentMode() && finished()}>
         <Panel class="word-sync-finished" padding="lg">
-          <EmptyState title={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedTitle' : 'mlearn.WordSync.EmptyTitle')}
-            description={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedDescription' : 'mlearn.WordSync.EmptyDescription', { count: String(ratedCount()) })}
+          <EmptyState title={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedTitle' : suppliedWords() ? 'mlearn.WordSync.MaterialEmptyTitle' : 'mlearn.WordSync.EmptyTitle')}
+            description={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedDescription' : suppliedWords() ? 'mlearn.WordSync.MaterialEmptyDescription' : 'mlearn.WordSync.EmptyDescription', { count: String(ratedCount()) })}
             variant="minimal" />
           <Show when={ratedCount() > 0} fallback={
-            <Button class="word-sync-recheck-btn" onClick={() => setFilterOpen(true)}>{t('mlearn.WordSync.ChangeFilters')}</Button>
+            <Show when={!suppliedWords()}><Button class="word-sync-recheck-btn" onClick={() => setFilterOpen(true)}>{t('mlearn.WordSync.ChangeFilters')}</Button></Show>
           }><Button class="word-sync-recheck-btn" onClick={() => setConfirmRecheckOpen(true)}>{t('mlearn.WordSync.StartOver')}</Button></Show>
         </Panel>
       </Show>

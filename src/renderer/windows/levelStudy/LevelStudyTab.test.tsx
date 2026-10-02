@@ -467,7 +467,7 @@ describe('LevelStudyTab', () => {
     expect(container.querySelector('.level-study-coverage-progress')).not.toBeNull();
 
     (pill as HTMLElement).click();
-    expect(openWindowMock).toHaveBeenCalledWith({ type: 'level-study' });
+    expect(openWindowMock).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'plan' } });
 
     dispose();
   });
@@ -494,7 +494,7 @@ describe('LevelStudyTab', () => {
     expect(hint?.textContent).toBe('mlearn.LevelStudy.Coverage.SetLevelHint');
 
     (hint as HTMLElement).click();
-    expect(openWindowMock).toHaveBeenCalledWith({ type: 'level-study' });
+    expect(openWindowMock).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'plan' } });
 
     dispose();
   });

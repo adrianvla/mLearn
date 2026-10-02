@@ -268,7 +268,7 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
 
   const openBehaviourSettings = () => {
     if (props.onEditPlan) props.onEditPlan();
-    else getBridge().window.openWindow({ type: 'level-study' });
+    else getBridge().window.openWindow({ type: 'level-study', context: { activity: 'plan' } });
   };
 
   // ─── Checkpoints & mocks (R13/R14) ──────────────

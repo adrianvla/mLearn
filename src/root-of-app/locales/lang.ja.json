@@ -3660,7 +3660,8 @@
       "InspectionHint": "語を選ぶと、習得状況とその根拠を確認できます。復習用に保存するか、学習から除外できます。",
       "SaveAllForReview": "すべて復習用に保存",
       "ExcludeFromStudy": "学習から除外",
-      "EncounteredAs": "本文中の形：{surface}"
+      "EncounteredAs": "本文中の形：{surface}",
+      "RecallWords": "{count}語を思い出して確認"
     },
     "WordSync": {
       "ProjectionUnavailable": "学習データを読み込めませんでした。もう一度お試しください。",
@@ -3721,7 +3722,10 @@
       "NavigationSaveFailed": "現在の位置を保存できませんでした。同じ問題が開いたままです。再試行して続けてください。",
       "ContinueAfterReference": "続ける",
       "TestedAccesses": "確認する側面：{aspects}",
-      "GraphChoiceSourceReason": "{source} とのつながりにより、このレベルでは {word} よりこの語を優先しました。どの側面を思い出せるか確認しましょう。"
+      "GraphChoiceSourceReason": "{source} とのつながりにより、このレベルでは {word} よりこの語を優先しました。どの側面を思い出せるか確認しましょう。",
+      "MaterialEmptyTitle": "残りの問題はありません",
+      "MaterialEmptyDescription": "回答は記録されていません。この選択には残りの確認問題がありません。読書に戻って続けてください。",
+      "MaterialPoolChoiceReason": "この選択の確認可能な{count}語から選びました。練習が必要な項目を確認します。"
     },
     "Menu": {
       "About": "mLearnについて",
@@ -4075,7 +4079,9 @@
       "Back": "学習プランに戻る",
       "SettingsHint": "カリキュラム、目標、学習ペースは学習プランで管理します。",
       "Open": "学習プランを開く",
-      "Edit": "プランを変更"
+      "Edit": "プランを変更",
+      "BackToMaterial": "読書に戻る",
+      "MaterialPractice": "{title}から · 選択した単語 {count} 語"
     },
     "StudyEncounter": {
       "Task": "思い出して確認",
@@ -4086,7 +4092,8 @@
       "Check": "確認する",
       "PlacementIntro": "練習と同じ手順で、学習の記録がない単語を確認します。回答に応じて出題を調整し、学習計画の開始地点を提案します。出題されなかった単語は未評価のままです。",
       "Resume": "練習を再開",
-      "RetrieveWord": "答えを見る前に、読み方と意味を思い出してください。"
+      "RetrieveWord": "答えを見る前に、読み方と意味を思い出してください。",
+      "RetrieveAspects": "今回の確認項目：{aspects}。答えを表示して比べましょう。"
     }
   }
 }

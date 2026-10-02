@@ -36,7 +36,7 @@ export const BehaviourTab: Component = () => {
 
       <SettingGroup title={t('mlearn.LevelStudy.Title')}>
         <p>{t('mlearn.LearningPlan.SettingsHint')}</p>
-        <Button onClick={() => getBridge().window.openWindow({ type: 'level-study' })}>{t('mlearn.LearningPlan.Open')}</Button>
+        <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'plan' } })}>{t('mlearn.LearningPlan.Open')}</Button>
       </SettingGroup>
       <SettingGroup title={t('mlearn.Settings.Groups.WordKnowledge')}>
         <details>

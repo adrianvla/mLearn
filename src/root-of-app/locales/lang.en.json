@@ -3660,7 +3660,8 @@
       "InspectionHint": "Inspect a word to see what is known and why. Save it for review or exclude it from study.",
       "SaveAllForReview": "Save all for review",
       "ExcludeFromStudy": "Exclude from study",
-      "EncounteredAs": "Encountered as {surface}"
+      "EncounteredAs": "Encountered as {surface}",
+      "RecallWords": "Recall {count} words"
     },
     "WordSync": {
       "ProjectionUnavailable": "Knowledge data could not be loaded. Try again.",
@@ -3721,7 +3722,10 @@
       "NavigationSaveFailed": "Your place could not be saved. The same question is still open. Retry to continue.",
       "ContinueAfterReference": "Continue",
       "TestedAccesses": "Checking: {aspects}",
-      "GraphChoiceSourceReason": "Connections to {source} placed this word ahead of {word} at this level. Check which aspects you can retrieve."
+      "GraphChoiceSourceReason": "Connections to {source} placed this word ahead of {word} at this level. Check which aspects you can retrieve.",
+      "MaterialEmptyTitle": "No prompts remaining",
+      "MaterialEmptyDescription": "No answers were recorded. This selection has no remaining recall prompts; return to reading to continue.",
+      "MaterialPoolChoiceReason": "Selected from {count} eligible words in this selection. This check focuses on aspects that still need practice."
     },
     "Menu": {
       "About": "About mLearn",
@@ -4075,7 +4079,9 @@
       "Back": "Back to Learning Plan",
       "SettingsHint": "Your curriculum, target, study pace and goals are managed in Learning Plan.",
       "Open": "Open Learning Plan",
-      "Edit": "Change plan"
+      "Edit": "Change plan",
+      "BackToMaterial": "Back to reading",
+      "MaterialPractice": "From {title} · {count} selected words"
     },
     "StudyEncounter": {
       "Task": "Recall & check",
@@ -4086,7 +4092,8 @@
       "Check": "Check this",
       "PlacementIntro": "A short adaptive check uses the same recall and answer flow as practice. It samples words without direct evidence, then suggests a starting point for your Learning Plan. Unsampled words stay unassessed.",
       "Resume": "Resume practice",
-      "RetrieveWord": "Try to recall the reading and meaning before revealing the answer."
+      "RetrieveWord": "Try to recall the reading and meaning before revealing the answer.",
+      "RetrieveAspects": "Focus this recall check on: {aspects}. Reveal the answer to compare."
     }
   }
 }

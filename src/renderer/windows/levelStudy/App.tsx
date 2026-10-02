@@ -1,4 +1,4 @@
-import { Component, Show, createEffect, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
+import { Component, Show, batch, createEffect, createSignal, createMemo, on, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useLanguage, useLocalization, useSettings } from '../../context';
 import { Button, ArrowLeftIcon, Panel, TargetIcon } from '../../components/common';
 import { WordSyncContent } from '../wordSync/App';
@@ -8,6 +8,8 @@ import { LearningPlanSettings } from './LearningPlanSettings';
 import { getCharacterStudyScripts, getLearningLanguageLevelForLanguage, getFrequencyLevelLabel } from '../../../shared/languageFeatures';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
+import { hashWordSync } from '../../services/srsAlgorithm';
+import { materialPracticeContext, type MaterialPracticeContext } from './materialPracticeContext';
 import './LevelStudy.css';
 
 type PlanDestination = 'plan' | 'assessment' | 'word-sync' | 'character-grid';
@@ -15,7 +17,7 @@ type PlanDestination = 'plan' | 'assessment' | 'word-sync' | 'character-grid';
 export const LevelStudyContent: Component = () => {
   const { t } = useLocalization();
   const { currentLangData, getFreqLevelNames } = useLanguage();
-  const { settings } = useSettings();
+  const { settings, isLoading: settingsLoading } = useSettings();
   let planControls: HTMLDetailsElement | undefined;
   const editPlan = () => {
     setDestination('plan');
@@ -25,11 +27,15 @@ export const LevelStudyContent: Component = () => {
   };
   const [destination, setDestination] = createSignal<PlanDestination>('plan');
   const [studyIntent, setStudyIntent] = createSignal<'reinforce' | undefined>();
-  const openStudy = () => { setStudyIntent(undefined); setDestination('word-sync'); };
-  onMount(() => {
-    const bridge = getBridge();
-    const cleanup = bridge.window.onWindowContext(context => {
-      if (!context) return;
+  const [materialPractice, setMaterialPractice] = createSignal<MaterialPracticeContext>();
+  const openStudy = () => { batch(() => { setMaterialPractice(undefined); setStudyIntent(undefined); setDestination('word-sync'); }); };
+  const [incomingContext, setIncomingContext] = createSignal<Record<string, unknown> | null>(null);
+  createEffect(on(() => settingsLoading() ? null : incomingContext(), context => {
+    if (!context) return;
+    batch(() => {
+      const material = materialPracticeContext(context.material, settings.language);
+      setMaterialPractice(material);
+      if (context.material !== undefined && !material) { setDestination('plan'); return; }
       if (context.activity === 'practice' || context.activity === 'reinforce') {
         setStudyIntent(context.activity === 'reinforce' ? 'reinforce' : undefined);
         setDestination('word-sync');
@@ -37,6 +43,10 @@ export const LevelStudyContent: Component = () => {
       else if (context.activity === 'assessment') setDestination('assessment');
       else if (context.activity === 'plan') setDestination('plan');
     });
+  }));
+  onMount(() => {
+    const bridge = getBridge();
+    const cleanup = bridge.window.onWindowContext(setIncomingContext);
     if (cleanup) onCleanup(cleanup);
     bridge.window.getWindowContext('level-study');
   });
@@ -53,9 +63,13 @@ export const LevelStudyContent: Component = () => {
   };
   createEffect(() => {
     if (destination() === 'character-grid' && !showCharacterGrid()) setDestination('plan');
+    if (materialPractice() && materialPractice()!.language !== settings.language) {
+      batch(() => { setMaterialPractice(undefined); setDestination('plan'); });
+    }
   });
   const title = () => destination() === 'plan' ? t('mlearn.LevelStudy.Title')
     : destination() === 'assessment' ? t('mlearn.LearningPlan.Assess')
+    : materialPractice() && destination() === 'word-sync' ? t('mlearn.StudyEncounter.Task')
     : t(destination() === 'word-sync' ? 'mlearn.LevelStudy.Tabs.WordSync' : 'mlearn.LevelStudy.Tabs.CharacterGrid');
 
   return (
@@ -63,8 +77,8 @@ export const LevelStudyContent: Component = () => {
       <header class="level-study-header">
         <div class="level-study-header-title"><TargetIcon size={20} /><span>{title()}</span></div>
         <Show when={destination() !== 'plan'}>
-          <Button buttonType="nav" onClick={() => setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
-            {t('mlearn.LearningPlan.Back')}
+          <Button buttonType="nav" onClick={() => materialPractice() ? getBridge().window.closeWindow() : setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
+            {t(materialPractice() ? 'mlearn.LearningPlan.BackToMaterial' : 'mlearn.LearningPlan.Back')}
           </Button>
         </Show>
       </header>
@@ -93,8 +107,8 @@ export const LevelStudyContent: Component = () => {
           </div>
         </Show>
         <Show when={destination() === 'word-sync' || destination() === 'assessment'}>
-          <Show keyed when={destination() === 'assessment' ? 'assessment' : studyIntent() ?? 'study'}>{mode =>
-            <WordSyncContent mode={mode === 'assessment' ? 'assessment' : 'study'} intent={mode === 'reinforce' ? 'reinforce' : undefined} onAssessmentApplied={() => setDestination('plan')} />
+          <Show keyed when={destination() === 'assessment' ? 'assessment' : materialPractice() ? `material:${hashWordSync(materialPractice()!.words.join('\u0000'))}` : studyIntent() ?? 'study'}>{mode =>
+            <WordSyncContent mode={mode === 'assessment' ? 'assessment' : 'study'} intent={mode === 'reinforce' ? 'reinforce' : undefined} words={materialPractice()?.words} sourceLabel={materialPractice()?.label} onAssessmentApplied={() => setDestination('plan')} />
           }</Show>
         </Show>
         <Show when={destination() === 'character-grid' && showCharacterGrid()}><CharacterGridContent /></Show>

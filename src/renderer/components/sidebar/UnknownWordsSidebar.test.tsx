@@ -378,6 +378,22 @@ describe('UnknownWordsSidebar', () => {
     dispose();
   });
 
+  it('offers the current visible word selection directly to recall', async () => {
+    const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
+    const words = [{ key: 'one', word: 'one', token: { word: 'one', actual_word: 'one', type: 'word' }, contextPhrase: 'context' }];
+    const onPractice = vi.fn();
+    const dispose = render(() => <UnknownWordsSidebar words={() => words} addingWordKeys={() => new Set<string>()}
+      isAddingAll={() => false} onAddWord={() => undefined} onIgnoreWord={() => undefined}
+      sortOptions={() => []} defaultSort="word" emptyMessage="Empty" onAddAllClick={() => undefined}
+      onPracticeWords={onPractice} />, container);
+    await Promise.resolve();
+    const action = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Sidebar.RecallWords')!;
+    expect(action.closest('details')).toBeNull();
+    action.click();
+    expect(onPractice).toHaveBeenCalledWith(words);
+    dispose();
+  });
+
   it('uses the hover reading resolution without borrowing an inflected reading for a lemma', async () => {
     translationByWord.set('surface', { data: [{ reading: 'dictionary-sound', definitions: ['meaning'] }] } as TranslationResponse);
     translationByWord.set('lemma', { data: [{ reading: 'lemma-sound', definitions: ['meaning'] }] } as TranslationResponse);

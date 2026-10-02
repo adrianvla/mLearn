@@ -3294,6 +3294,10 @@ export const ReaderRoute: Component = () => {
               onWordHover={setSidebarHoveredEntry}
               onWordLeave={() => setSidebarHoveredEntry(null)}
               onClose={() => setShowWordSidebar(false)}
+              onPracticeWords={entries => getBridge().window.openWindow({ type: 'level-study', context: {
+                activity: 'practice',
+                material: { language: settings.language, words: entries.map(entry => entry.word), label: bookTitle() },
+              } })}
           />
         </Show>
 

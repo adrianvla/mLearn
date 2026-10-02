@@ -3660,7 +3660,8 @@
       "InspectionHint": "Sieh dir ein Wort an, um zu erfahren, was du kennst und warum. Speichere es zum Wiederholen oder schließe es vom Lernen aus.",
       "SaveAllForReview": "Alle zum Wiederholen speichern",
       "ExcludeFromStudy": "Vom Lernen ausschließen",
-      "EncounteredAs": "Im Text: {surface}"
+      "EncounteredAs": "Im Text: {surface}",
+      "RecallWords": "{count} Wörter abrufen"
     },
     "WordSync": {
       "ProjectionUnavailable": "Wissensdaten konnten nicht geladen werden. Versuche es erneut.",
@@ -3721,7 +3722,10 @@
       "NavigationSaveFailed": "Deine Position konnte nicht gespeichert werden. Dieselbe Frage bleibt geöffnet. Versuche es erneut, um fortzufahren.",
       "ContinueAfterReference": "Weiter",
       "TestedAccesses": "Geprüft: {aspects}",
-      "GraphChoiceSourceReason": "Verbindungen zu {source} gaben diesem Wort auf dieser Stufe Vorrang vor {word}. Prüfe, welche Aspekte du abrufen kannst."
+      "GraphChoiceSourceReason": "Verbindungen zu {source} gaben diesem Wort auf dieser Stufe Vorrang vor {word}. Prüfe, welche Aspekte du abrufen kannst.",
+      "MaterialEmptyTitle": "Keine Aufgaben mehr",
+      "MaterialEmptyDescription": "Es wurden keine Antworten erfasst. Für diese Auswahl gibt es keine weiteren Abrufaufgaben. Kehre zum Lesen zurück.",
+      "MaterialPoolChoiceReason": "Aus {count} geeigneten Wörtern dieser Auswahl gewählt. Geprüft werden Aspekte, die noch Übung brauchen."
     },
     "Menu": {
       "About": "Über mLearn",
@@ -4075,7 +4079,9 @@
       "Back": "Zurück zum Lernplan",
       "SettingsHint": "Lehrplan, Lernziel, Lerntempo und Ziele verwaltest du im Lernplan.",
       "Open": "Lernplan öffnen",
-      "Edit": "Plan ändern"
+      "Edit": "Plan ändern",
+      "BackToMaterial": "Zurück zum Lesen",
+      "MaterialPractice": "Aus {title} · {count} ausgewählte Wörter"
     },
     "StudyEncounter": {
       "Task": "Erinnern & prüfen",
@@ -4086,7 +4092,8 @@
       "Check": "Überprüfen",
       "PlacementIntro": "Diese adaptive Prüfung nutzt denselben Ablauf wie die Übung. Wörter ohne direkte Lernbelege werden geprüft; daraus entsteht ein Vorschlag für deinen Lernplan. Andere Wörter bleiben ungeprüft.",
       "Resume": "Übung fortsetzen",
-      "RetrieveWord": "Erinnere dich an Lesung und Bedeutung, bevor du die Antwort aufdeckst."
+      "RetrieveWord": "Erinnere dich an Lesung und Bedeutung, bevor du die Antwort aufdeckst.",
+      "RetrieveAspects": "Prüfe bei dieser Abrufaufgabe: {aspects}. Decke die Antwort zum Vergleich auf."
     }
   }
 }

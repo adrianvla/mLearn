@@ -845,6 +845,42 @@ beforeEach(() => {
     expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null').id).toBe(saved.id);
   });
 
+  it('uses supplied material words including unranked words without overwriting ordinary study', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle();
+    const ordinary = localStorage.getItem('mlearn-study-word-sync:ja');
+    expect(ordinary).not.toBeNull();
+    disposals.pop()!();
+    const dispose = render(() => <WordSyncContent words={['赤い', 'unranked-material', '赤い']} sourceLabel="Chapter" />, container);
+    disposals.push(dispose);
+    await settle();
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBe(ordinary);
+    const key = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)).find(key => key?.startsWith('mlearn-study-word-sync-material-'));
+    expect(key).toBeDefined();
+    const record = JSON.parse(localStorage.getItem(key!)!);
+    expect(record.queue.map((entry: { id: string }) => entry.id).sort()).toEqual(['unranked-material', '赤い'].sort());
+    expect(container.querySelector('.word-sync-filter-toggle')).toBeNull();
+    expect(container.textContent).not.toContain('mlearn.TellMlearn.Label');
+    expect(container.querySelector('.word-sync-material-context')).not.toBeNull();
+    expect(container.querySelector('.word-sync-word ruby')).toBeNull();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 2');
+    press(' '); await settle();
+    expect(container.querySelector('.word-sync-translation')?.textContent).toBeTruthy();
+  });
+
+  it('finishes a skipped material selection without a dead filter action', async () => {
+    const { WordSyncContent } = await import('./App');
+    const dispose = render(() => <WordSyncContent words={['赤い']} />, container);
+    disposals.push(dispose);
+    await settle();
+    buttonByText('mlearn.LevelStudy.Placement.Skip').click();
+    await settle();
+    expect(container.querySelector('.word-sync-finished')?.textContent).toContain('mlearn.WordSync.MaterialEmptyTitle');
+    expect(container.textContent).not.toContain('mlearn.WordSync.ChangeFilters');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
   it('feeds reinforcement into the shared study component without replacing ordinary study progress', async () => {
     const { WordSyncContent } = await import('./App');
     mountContent(WordSyncContent);

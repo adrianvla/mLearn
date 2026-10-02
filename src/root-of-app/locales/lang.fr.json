@@ -3660,7 +3660,8 @@
       "InspectionHint": "Examinez un mot pour voir ce qui est connu et pourquoi. Enregistrez-le pour réviser ou excluez-le de l’étude.",
       "SaveAllForReview": "Tout enregistrer pour réviser",
       "ExcludeFromStudy": "Exclure de l’étude",
-      "EncounteredAs": "Forme rencontrée : {surface}"
+      "EncounteredAs": "Forme rencontrée : {surface}",
+      "RecallWords": "Rappeler {count} mots"
     },
     "WordSync": {
       "ProjectionUnavailable": "Les données de connaissances n’ont pas pu être chargées. Réessayez.",
@@ -3721,7 +3722,10 @@
       "NavigationSaveFailed": "Votre position n’a pas pu être enregistrée. La même question reste ouverte. Réessayez pour continuer.",
       "ContinueAfterReference": "Continuer",
       "TestedAccesses": "Aspects vérifiés : {aspects}",
-      "GraphChoiceSourceReason": "Les liens avec {source} ont donné priorité à ce mot devant {word} à ce niveau. Vérifiez les aspects que vous pouvez retrouver."
+      "GraphChoiceSourceReason": "Les liens avec {source} ont donné priorité à ce mot devant {word} à ce niveau. Vérifiez les aspects que vous pouvez retrouver.",
+      "MaterialEmptyTitle": "Aucune question restante",
+      "MaterialEmptyDescription": "Aucune réponse enregistrée. Cette sélection ne contient plus de questions de rappel. Retournez à la lecture.",
+      "MaterialPoolChoiceReason": "Choisi parmi {count} mots admissibles de cette sélection. Ce rappel porte sur les aspects à pratiquer."
     },
     "Menu": {
       "About": "À propos de mLearn",
@@ -4075,7 +4079,9 @@
       "Back": "Retour au plan d’apprentissage",
       "SettingsHint": "Votre programme, votre cible, votre rythme et vos objectifs se règlent dans le plan d’apprentissage.",
       "Open": "Ouvrir le plan d’apprentissage",
-      "Edit": "Modifier le plan"
+      "Edit": "Modifier le plan",
+      "BackToMaterial": "Retour à la lecture",
+      "MaterialPractice": "Depuis {title} · {count} mots sélectionnés"
     },
     "StudyEncounter": {
       "Task": "Se rappeler et vérifier",
@@ -4086,7 +4092,8 @@
       "Check": "Vérifier",
       "PlacementIntro": "Ce bilan adaptatif suit le même déroulement que la pratique. Il teste des mots sans preuve directe, puis propose un point de départ pour votre plan. Les autres mots restent non évalués.",
       "Resume": "Reprendre la pratique",
-      "RetrieveWord": "Essayez de retrouver la lecture et le sens avant de révéler la réponse."
+      "RetrieveWord": "Essayez de retrouver la lecture et le sens avant de révéler la réponse.",
+      "RetrieveAspects": "Concentrez ce rappel sur : {aspects}. Révélez la réponse pour comparer."
     }
   }
 }

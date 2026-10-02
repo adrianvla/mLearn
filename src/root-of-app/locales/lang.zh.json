@@ -3660,7 +3660,8 @@
       "InspectionHint": "查看词语的掌握情况及依据。可保存以供复习，或从学习中排除。",
       "SaveAllForReview": "全部保存以供复习",
       "ExcludeFromStudy": "从学习中排除",
-      "EncounteredAs": "原文形式：{surface}"
+      "EncounteredAs": "原文形式：{surface}",
+      "RecallWords": "回忆{count}个词"
     },
     "WordSync": {
       "ProjectionUnavailable": "无法加载知识数据。请重试。",
@@ -3721,7 +3722,10 @@
       "NavigationSaveFailed": "无法保存当前位置。同一道题仍然打开。请重试以继续。",
       "ContinueAfterReference": "继续",
       "TestedAccesses": "检查内容：{aspects}",
-      "GraphChoiceSourceReason": "与 {source} 的联系使本级别中这个词优先于 {word}。请检查哪些方面能够回忆起来。"
+      "GraphChoiceSourceReason": "与 {source} 的联系使本级别中这个词优先于 {word}。请检查哪些方面能够回忆起来。",
+      "MaterialEmptyTitle": "没有剩余题目",
+      "MaterialEmptyDescription": "未记录任何回答。所选词语没有剩余的回忆题目，请返回阅读。",
+      "MaterialPoolChoiceReason": "从所选词语中{count}个可检查的词中选择。本次重点检查仍需练习的方面。"
     },
     "Menu": {
       "About": "关于 mLearn",
@@ -4075,7 +4079,9 @@
       "Back": "返回学习计划",
       "SettingsHint": "课程、目标、学习节奏均在学习计划中管理。",
       "Open": "打开学习计划",
-      "Edit": "修改计划"
+      "Edit": "修改计划",
+      "BackToMaterial": "返回阅读",
+      "MaterialPractice": "来自 {title} · 已选择 {count} 个词"
     },
     "StudyEncounter": {
       "Task": "回忆并核对",
@@ -4086,7 +4092,8 @@
       "Check": "检查",
       "PlacementIntro": "此自适应检查使用与练习相同的流程，抽查没有直接学习记录的词语，并为学习计划建议起点。未抽查的词语保持未评估。",
       "Resume": "继续练习",
-      "RetrieveWord": "查看答案前，请先回忆读音和含义。"
+      "RetrieveWord": "查看答案前，请先回忆读音和含义。",
+      "RetrieveAspects": "本次回忆检查的重点：{aspects}。显示答案以进行对比。"
     }
   }
 }

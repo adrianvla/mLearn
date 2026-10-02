@@ -61,6 +61,7 @@ export interface UnknownWordsSidebarProps {
   hideEmptyCount?: boolean;
   class?: string;
   onClose?: () => void;
+  onPracticeWords?: (entries: SidebarWordEntry[]) => void;
   onAddAllClick: (addableEntries: SidebarWordEntry[], dictionaryFoundAddable: SidebarWordEntry[]) => void;
   footer?: JSX.Element;
 }
@@ -454,6 +455,12 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
             </div>
           </div>
           <p class="unknown-words-sidebar-guidance">{t('mlearn.Sidebar.InspectionHint')}</p>
+          <Show when={props.onPracticeWords}>
+            <Button variant="primary" size="sm"
+              label={t('mlearn.Sidebar.RecallWords', { count: visibleWords().length })}
+              disabled={visibleWords().length === 0}
+              onClick={() => props.onPracticeWords?.(visibleWords())} />
+          </Show>
           <details class="unknown-words-sidebar-tools">
             <summary>{t('mlearn.Sidebar.FilterAndSave')}</summary>
             <Select
