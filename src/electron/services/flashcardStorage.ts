@@ -866,6 +866,82 @@ async function loadFlashcardsFromDisk(
   return { ...DEFAULT_FLASHCARD_STORE };
 }
 
+/**
+ * Retire only media absent from the saved authority. Check and synchronous
+ * release share the store-write queue turn, so a queued peer save cannot race
+ * the check. Read disk strictly: the normal loader's recovery default is not
+ * proof that a resource is unreferenced.
+ */
+export async function releaseUnusedFlashcardMedia(
+  kind: 'image' | 'video' | 'tts', id: string, release: () => void,
+): Promise<boolean> {
+  if (!['image', 'video', 'tts'].includes(kind) || typeof id !== 'string'
+    || id.length === 0 || id === '.' || id === '..' || /[\\/\0]/.test(id)) {
+    throw new Error('Invalid flashcard media identity');
+  }
+  await flushFlashcardRatings();
+  return enqueueWrite(async () => {
+    const authority: unknown = JSON.parse(await fs.promises.readFile(getFlashcardsPath(), 'utf-8'));
+    const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+    if (!record(authority) || !record(authority.flashcards)
+      || (authority.suggestedFlashcards !== undefined && !record(authority.suggestedFlashcards))) {
+      throw new Error('Cannot establish flashcard media ownership');
+    }
+    const cards = authority.flashcards;
+    const suggestions = authority.suggestedFlashcards ?? {};
+    if (Object.values(cards).some(value => !record(value) || !record(value.content))
+      || Object.values(suggestions).some(value => !record(value))) {
+      throw new Error('Cannot establish flashcard media ownership');
+    }
+    // A recreated card/capture owns its media namespace before URLs are
+    // populated. Keep both ordinary and extracted-suggestion image IDs.
+    if (Object.hasOwn(cards, id) || Object.values(cards).some(value => record(value) && value.id === id)
+      || Object.entries(suggestions).some(([key, value]) => record(value)
+        && (value.id === id || (kind === 'image' && `suggested-${value.id || key}` === id)))) return false;
+    const scheme = kind === 'tts' ? 'flashcard-audio' : `flashcard-${kind}`;
+    const names = new Set(kind === 'image' ? ['jpg', 'png', 'webp', 'gif'].map(ext => `${id}.${ext}`)
+      : kind === 'video' ? [`${id}.mp4`] : [`${id}-word.ogg`, `${id}-example.ogg`]);
+    const pattern = new RegExp(`${scheme}://([^"'<>?#]+)`, 'gi');
+    const referenced = (value: unknown): boolean => {
+      if (typeof value === 'string') {
+        // Stored HTML reaches the browser after character-reference parsing.
+        // Resolve numeric/basic protocol punctuation; retain opaque references
+        // conservatively rather than guessing a complete HTML entity catalog.
+        const punctuation: Record<string, string> = { colon: ':', sol: '/', period: '.', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', Tab: '\t', NewLine: '\n' };
+        const entityDecoded = value.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);?/gi, (raw, entity: string) => {
+          if (entity.startsWith('#')) {
+            const point = entity[1]?.toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
+            return Number.isSafeInteger(point) && point > 0 && point <= 0x10ffff
+              && (point < 0xd800 || point > 0xdfff) ? String.fromCodePoint(point) : raw;
+          }
+          return punctuation[entity] ?? raw;
+        });
+        const rendered = entityDecoded.replace(/[\t\n\r]/g, '');
+        // Character-reference parsing can introduce an attribute delimiter or
+        // filename character. Any remaining ambiguity retains the namespace.
+        if (/&(?:#[xX]?[0-9a-f]+|[a-z]+);?/i.test(value)
+          && rendered.toLowerCase().includes(`${scheme}://`)) return true;
+        for (const match of [...entityDecoded.matchAll(pattern), ...rendered.matchAll(pattern)]) {
+          if (match[1].includes('&')) return true;
+          let filename: string;
+          try { filename = decodeURIComponent(match[1]).split('?')[0].trim().replace(/\/$/, ''); }
+          catch { return true; } // An opaque malformed reference cannot authorize deletion.
+          if (names.has(filename) || [...names].some(name => filename.startsWith(name)
+            && /^\s/.test(filename.slice(name.length)))) return true;
+        }
+      } else if (Array.isArray(value)) return value.some(referenced);
+      else if (record(value)) return Object.values(value).some(referenced);
+      return false;
+    };
+    for (const value of [...Object.values(cards), ...Object.values(suggestions)]) {
+      if (!record(value)) throw new Error('Cannot establish flashcard media ownership');
+      if (referenced(value)) return false;
+    }
+    release();
+    return true;
+  });
+}
+
 export async function saveFlashcards(store: FlashcardStore, removedCardIds: readonly string[] = [], resetReviewProgress = false, authorization?: FlashcardWriteAuthorization): Promise<number> {
   await flushFlashcardRatings();
   return enqueueWrite(() => writeStore(store, removedCardIds, resetReviewProgress, authorization));

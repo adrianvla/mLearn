@@ -855,6 +855,140 @@ describe('flashcardStorage', () => {
 
   });
 
+  describe('authoritative media release', () => {
+    it('waits for a queued store write before deciding whether to release media', async () => {
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3 }));
+      const before = structuredClone(await loadFlashcards());
+      const peer = makeFlashcard('peer', { content: { type: 'word', front: 'peer', back: 'answer', imageUrl: 'flashcard-image://shared.png' } });
+      const next = { ...before, flashcards: { peer } };
+      const writeFile = fs.promises.writeFile.bind(fs.promises);
+      let unblock!: () => void;
+      const gate = new Promise<void>(resolve => { unblock = resolve; });
+      vi.spyOn(fs.promises, 'writeFile').mockImplementationOnce(async (...args) => { await gate; return writeFile(...args); });
+      const save = saveFlashcards(next);
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      const cleanup = releaseUnusedFlashcardMedia('image', 'shared', release);
+      try {
+        expect(release).not.toHaveBeenCalled();
+        unblock(); await save;
+        await expect(cleanup).resolves.toBe(false);
+        expect(release).not.toHaveBeenCalled();
+      } finally { unblock(); await save; }
+    });
+
+    it.each(['image', 'video', 'tts'] as const)('releases unreferenced %s only within the authority turn', async kind => {
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3 }));
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia(kind, 'absent', release)).resolves.toBe(true);
+      expect(release).toHaveBeenCalledOnce();
+    });
+
+    it.each(['missing', 'invalid-json', 'invalid-collection'] as const)('retains media when cold authority is %s', async variant => {
+      if (variant === 'invalid-json') fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), '{');
+      if (variant === 'invalid-collection') writeFlashcardsFile(tempDir.tmpDir, { flashcards: [], suggestedFlashcards: {} });
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia('image', 'shared', release)).rejects.toThrow();
+      expect(release).not.toHaveBeenCalled();
+    });
+
+    it.each(['missing', 'nonobject'] as const)('does not trust a warm %s loader fallback to release media', async variant => {
+      if (variant === 'nonobject') writeFlashcardsFile(tempDir.tmpDir, []);
+      await loadFlashcards();
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia('image', 'shared', release)).rejects.toThrow();
+      expect(release).not.toHaveBeenCalled();
+    });
+
+    it.each(['image', 'video', 'tts'] as const)('retains recreated %s namespaces before an explicit URL is populated', async kind => {
+      writeFlashcardsFile(tempDir.tmpDir, { flashcards: { shared: { id: 'shared', content: { front: 'new owner' } } },
+        suggestedFlashcards: { suggestion: { id: 'capture', word: 'new capture' } } });
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia(kind, 'shared', release)).resolves.toBe(false);
+      await expect(releaseUnusedFlashcardMedia(kind, 'capture', release)).resolves.toBe(false);
+      if (kind === 'image') await expect(releaseUnusedFlashcardMedia(kind, 'suggested-capture', release)).resolves.toBe(false);
+      expect(release).not.toHaveBeenCalled();
+    });
+
+    it.each(['flashcard-image://shared&#46;png', 'flashcard-image&colon;//shared.png',
+      '&#102;lashcard-image://shared.png', 'flashcard-image://shared&period;png',
+      'flashcard-image://shared&fjlig;.png'])('retains rendered or opaque entity references %s', async url => {
+      writeFlashcardsFile(tempDir.tmpDir, { flashcards: { peer: { content: { back: `<img src="${url}">` } } }, suggestedFlashcards: {} });
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia('image', url.includes('fjlig') ? 'sharedfj' : 'shared', release)).resolves.toBe(false);
+      expect(release).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['FLASHCARD-IMAGE://shared.png', 'shared'],
+      ['flashcard-image://shared asset.png', 'shared asset'],
+      ['flashcard-image://sh\tared.png', 'shared'],
+      ['flashcard-image://shared&Tab;.png', 'shared'],
+      ['flashcard-image://shared&#34;asset.png', 'shared"asset'],
+    ])('retains browser-normalized resource spelling %s', async (url, id) => {
+      writeFlashcardsFile(tempDir.tmpDir, { flashcards: { peer: { content: { back: `<img src="${url}">` } } }, suggestedFlashcards: {} });
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia('image', id, release)).resolves.toBe(false);
+      expect(release).not.toHaveBeenCalled();
+    });
+
+    it.each([' ', '\t'])('retains an unquoted HTML source with %j attribute separation', async separator => {
+      writeFlashcardsFile(tempDir.tmpDir, { flashcards: { peer: { content: {
+        back: `<img src=flashcard-image://shared.png${separator}alt=description>`,
+      } } }, suggestedFlashcards: {} });
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia('image', 'shared', release)).resolves.toBe(false);
+      expect(release).not.toHaveBeenCalled();
+    });
+
+    it('retains audio when an encoded query is removed by its serving protocol', async () => {
+      writeFlashcardsFile(tempDir.tmpDir, { flashcards: { peer: { content: {
+        unknown: '<audio src="flashcard-audio://shared-word.ogg%3Fcache=1"></audio>',
+      } } }, suggestedFlashcards: {} });
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia('tts', 'shared', release)).resolves.toBe(false);
+      expect(release).not.toHaveBeenCalled();
+    });
+
+    it.each([undefined, null, 123, '', '../original', 'a/b', 'a\\b', '.', '..', '/tmp/original', 'a\0b'])('rejects invalid media ID %j before release', async id => {
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3 }));
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia('image', id as string, release)).rejects.toThrow();
+      expect(release).not.toHaveBeenCalled();
+    });
+
+    it('refuses cleanup from an incomplete card envelope or unknown media operation', async () => {
+      writeFlashcardsFile(tempDir.tmpDir, { flashcards: { incomplete: { id: 'incomplete' } }, suggestedFlashcards: {} });
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia('image', 'shared', release)).rejects.toThrow();
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3 }));
+      await expect(releaseUnusedFlashcardMedia('other' as 'image', 'shared', release)).rejects.toThrow();
+      expect(release).not.toHaveBeenCalled();
+    });
+
+    it('preserves opaque package references and encoded legacy screenshots', async () => {
+      writeFlashcardsFile(tempDir.tmpDir, { flashcards: { peer: { id: 'peer', content: {
+        screenshotUrl: 'flashcard-image://shared%20asset.gif',
+        unknown: { arbitrary: ['<audio src="flashcard-audio://shared%20asset-example.ogg"></audio>'] },
+      } } }, suggestedFlashcards: {} });
+      const release = vi.fn();
+      const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+      await expect(releaseUnusedFlashcardMedia('image', 'shared asset', release)).resolves.toBe(false);
+      await expect(releaseUnusedFlashcardMedia('tts', 'shared asset', release)).resolves.toBe(false);
+      expect(release).not.toHaveBeenCalled();
+    });
+  });
+
   describe('mutation-owned store cache', () => {
     it('serves repeat loads from memory, updates on save, and re-reads after invalidation', async () => {
       writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3 }));

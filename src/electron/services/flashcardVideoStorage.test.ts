@@ -38,6 +38,7 @@ describe('flashcardVideoStorage', () => {
 
   beforeEach(async () => {
     tempDir = createTempDir('mlearn-video-test-');
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), JSON.stringify({ flashcards: {}, suggestedFlashcards: {} }));
     mockIpcHandlers.clear();
     vi.resetModules();
 
@@ -263,6 +264,17 @@ describe('flashcardVideoStorage', () => {
       const result = await handler!({}, 'card-empty', new ArrayBuffer(0));
 
       expect(result).toBeNull();
+    });
+
+    it('retains a video embedded in another authoritative card', async () => {
+      saveFlashcardVideo('shared', Buffer.from('video'));
+      fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), JSON.stringify({
+        flashcards: { peer: { id: 'peer', content: { back: '<video src="flashcard-video://shared.mp4?start=2"></video>' } } },
+        suggestedFlashcards: {},
+      }));
+      setupFlashcardVideoIPC();
+      await mockIpcHandlers.get('flashcard-video-delete')!({}, 'shared');
+      expect(fs.existsSync(path.join(tempDir.tmpDir, 'flashcard-videos', 'shared.mp4'))).toBe(true);
     });
 
     it('FLASHCARD_VIDEO_DELETE handler deletes video and returns true', async () => {

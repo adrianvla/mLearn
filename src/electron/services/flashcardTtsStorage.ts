@@ -498,6 +498,7 @@ export function deleteFlashcardTts(cardId: string): void {
         fs.unlinkSync(audio);
       } catch (e) {
         log.error("error", e);
+        throw e;
       }
     }
     if (fs.existsSync(meta)) {
@@ -505,6 +506,7 @@ export function deleteFlashcardTts(cardId: string): void {
         fs.unlinkSync(meta);
       } catch (e) {
         log.error("error", e);
+        throw e;
       }
     }
   }
@@ -536,7 +538,8 @@ export function setupFlashcardTtsIPC(): void {
     return getFlashcardTtsMeta(cardId, field);
   });
 
-  ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_DELETE, (_event, cardId: string) => {
-    deleteFlashcardTts(cardId);
+  ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_DELETE, async (_event, cardId: string) => {
+    const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
+    return releaseUnusedFlashcardMedia('tts', cardId, () => deleteFlashcardTts(cardId));
   });
 }
