@@ -3579,7 +3579,8 @@
       },
       "Loading": "正在加载词汇…",
       "LoadingMore": "正在加载更多…",
-      "SearchHintDetailed": "搜索单词并查看学习进度。",
+      "Manage": "管理卡片和参考信息",
+      "SearchHintDetailed": "选择单词或其状态，查看你掌握了什么以及依据。使用“管理卡片和参考信息”进行编辑或保存。",
       "SearchPlaceholder": "搜索单词…",
       "Searching": "正在搜索…",
       "Trackers": {

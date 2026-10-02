@@ -3579,7 +3579,8 @@
       },
       "Loading": "語彙を読み込み中…",
       "LoadingMore": "さらに読み込み中...",
-      "SearchHintDetailed": "単語を検索して学習状況を確認できます。",
+      "Manage": "カードと参照情報を管理",
+      "SearchHintDetailed": "単語やその状態を選ぶと、何を知っているかとその根拠を確認できます。「カードと参照情報を管理」で編集や保存ができます。",
       "SearchPlaceholder": "単語を検索...",
       "Searching": "検索中...",
       "Trackers": {

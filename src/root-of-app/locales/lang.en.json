@@ -3579,7 +3579,8 @@
       },
       "Loading": "Loading vocabulary…",
       "LoadingMore": "Loading more...",
-      "SearchHintDetailed": "Search words and inspect your learning progress.",
+      "Manage": "Manage cards and references",
+      "SearchHintDetailed": "Select a word or its status to see what you know and why. Use Manage cards and references to edit or save it.",
       "SearchPlaceholder": "Search word...",
       "Searching": "Searching...",
       "Trackers": {

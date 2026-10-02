@@ -3579,7 +3579,8 @@
       },
       "Loading": "Chargement du vocabulaire…",
       "LoadingMore": "Chargement...",
-      "SearchHintDetailed": "Recherchez des mots et consultez vos acquis.",
+      "Manage": "Gérer les cartes et références",
+      "SearchHintDetailed": "Sélectionnez un mot ou son statut pour voir ce que vous savez et pourquoi. Utilisez Gérer les cartes et références pour le modifier ou l’enregistrer.",
       "SearchPlaceholder": "Rechercher des mots...",
       "Searching": "Recherche...",
       "Trackers": {

@@ -1,4 +1,3 @@
-import { useGraphNeighborhood } from '../../../hooks/useGraphNeighborhood';
 /**
  * Word Entry Row Component
  * Single row in the word database editor
@@ -6,12 +5,11 @@ import { useGraphNeighborhood } from '../../../hooks/useGraphNeighborhood';
  */
 
 import { Component, Show, For, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { Button, GraphNeighborhoodViz, KnowledgeLoadError, Modal, PillLabel, AnkiHoverPreview, ReadinessGate, deriveReadiness, SkeletonRows } from '../../../components/common';
+import { Button, PillLabel, AnkiHoverPreview } from '../../../components/common';
 import { WordStatusPill } from '../../../components/common/Smart';
 import { ProsodyOverlay, WordWithReading } from '../../../components/language-specific';
 import type { AnkiCardFields, AnkiCardSchedulingInfo } from '../../../components/common';
 import { useLanguage, useLocalization, useSettings, useFlashcards } from '../../../context';
-import { useOptionalGraph } from '../../../context/GraphContext';
 import { cacheVersion, getCachedTranslation, getCachedReading, fetchTranslation, type WordLookupCandidateOptions } from '../../../hooks/useTranslation';
 import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { ankiCacheVersion, findAnkiWordMatchInCache } from '../../../services/ankiWordsCache';
@@ -37,8 +35,6 @@ import { getLogger } from '../../../../shared/utils/logger';
 import { getBackend } from '../../../../shared/backends';
 import { openKnowledgeInspector } from '../../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../../services/surfaceKnowledgeInspection';
-import { openGraphInspector } from '../../../services/openGraphInspector';
-import { hashWordSync } from '../../../services/srsAlgorithm';
 
 const log = getLogger("renderer.wordDbEditor.wordEntryRow");
 
@@ -141,6 +137,8 @@ export interface WordEntryRowProps {
   onExportToAnki?: (entry: WordEntry) => void;
   onAnkiPreview?: (entry: WordEntry) => void;
   ankiExportState?: AnkiExportState;
+  /** Reference and card controls are enabled by the page management action. */
+  showManagement?: boolean;
 }
 
 export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
@@ -148,7 +146,7 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   const { settings } = useSettings();
   const { currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
   const { getCardByWordSync, isWordIgnoredSync, getAccessStatus } = useFlashcards();
-  const graph = useOptionalGraph();
+  const inspect = () => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, props.entry.word));
   // Signals bumped after fetch to trigger re-reads of cache
   const [fetchVersion, setFetchVersion] = createSignal(0);
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
@@ -162,13 +160,6 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
   ));
   let rowRef: HTMLDivElement | undefined;
 
-  // Bounded local graph view, expanded on demand; node clicks recenter in place.
-  const [showGraph, setShowGraph] = createSignal(false);
-  const [graphEntityId, setGraphEntityId] = createSignal<string>();
-  const { neighborhood, pending: neighborhoodPending, failed: neighborhoodFailed, loadingMore, loadMore, retry: retryNeighborhood } = useGraphNeighborhood(graph, graphEntityId, showGraph);
-  createEffect(() => {
-    setGraphEntityId(`${settings.language}:surface:${hashWordSync(props.entry.word)}`);
-  });
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition: () => prosodyPositionForDisplayedReading(effectiveReading()),
@@ -378,6 +369,8 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
     <>
     <div class="entry" ref={rowRef}>
       <div class="col word">
+        <button type="button" class="word-db-word-action"
+          aria-label={t('mlearn.Sidebar.InspectWord', { word: props.entry.word })} onClick={inspect}>
         <WordWithReading
           word={props.entry.word}
           reading={effectiveReading()}
@@ -387,7 +380,8 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
           coloredProsody={coloredProsodyCtx}
           prosodyOverlay={prosodyOverlayData()}
         />
-        <Show when={props.onEdit}>
+        </button>
+        <Show when={props.onEdit && props.showManagement !== false}>
           <Button
             variant="ghost"
             size="sm"
@@ -448,13 +442,9 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
         <Show when={renderedLevel() === null}>-</Show>
       </div>
       <div class="col knowledge">
-        <WordStatusPill word={props.entry.word} />
-        <div class="knowledge-actions">
-          <Button variant="ghost" size="sm" onClick={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, props.entry.word))}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowGraph(!showGraph())}>{t('mlearn.GraphInspector.Neighborhood.Toggle')}</Button>
-        </div>
+        <WordStatusPill word={props.entry.word} onInspect={inspect} suppressKnowledgePopover />
       </div>
-      <div class="col integrations">
+      <Show when={props.showManagement !== false}><div class="col integrations">
         <Show when={isInAnki()}>
           <AnkiHoverPreview
             loading={ankiHoverLoading()}
@@ -543,48 +533,8 @@ export const WordEntryRow: Component<WordEntryRowProps> = (props) => {
                   : t('mlearn.WordDbEditor.Anki.ExportToAnki')}
           </Button>
         </Show>
-      </div>
+      </div></Show>
     </div>
-    {/* Portal-based modal: the neighborhood never expands inside the
-        virtualized table (the old inline section overlapped rows and broke
-        row heights). Lazy fetches stay gated on showGraph. */}
-    <Modal
-      isOpen={showGraph()}
-      onClose={() => setShowGraph(false)}
-      title={t('mlearn.GraphInspector.Neighborhood.Title')}
-      size="lg"
-      footer={
-        <Show when={graphEntityId()}>
-          {(id) => <Button variant="secondary" size="sm" onClick={() => openGraphInspector({ entityId: id() })}>{t('mlearn.GraphInspector.Neighborhood.OpenInWindow')}</Button>}
-        </Show>
-      }
-    >
-      <Show when={graph.meta().ready} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Unavailable')}</p>}>
-        <Show when={graphEntityId()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
-          {/* Pending ≠ not-in-graph: the skeleton holds only while the
-              lookup is in flight; absence resolves to the explicit note. */}
-          <ReadinessGate when={deriveReadiness({ pending: () => neighborhoodPending() && !neighborhood() })} instant fallback={<SkeletonRows rows={2} />}>
-          {/* The neighborhood read is the same knowledge read the graph
-              inspector presents, and it failed the same way, so it is
-              reported the same way — one owner for "this knowledge read
-              failed", not two hand-rolled alert/retry pairs that drifted
-              apart in wording and emphasis. */}
-          <Show when={neighborhoodFailed()}><KnowledgeLoadError message={t('mlearn.GraphInspector.Explore.LoadFailed')} onRetry={retryNeighborhood} /></Show>
-          <Show when={neighborhood()} fallback={<p class="entry__graph-note">{t('mlearn.GraphInspector.Neighborhood.NotInGraph')}</p>}>
-            {(value) => (
-              <GraphNeighborhoodViz
-                neighborhood={value()}
-                busy={neighborhoodPending()}
-                onLoadMore={loadMore}
-                loadingMore={loadingMore()}
-                onSelect={setGraphEntityId}
-              />
-            )}
-          </Show>
-          </ReadinessGate>
-        </Show>
-      </Show>
-    </Modal>
     </>
   );
 };

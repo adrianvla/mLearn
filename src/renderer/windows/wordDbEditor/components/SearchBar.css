@@ -19,7 +19,14 @@
 .word-db-editor .search-bar > div:has(.search-input) {
   flex: 1 1 16rem;
   min-width: 0;
+}
+
+.word-db-page-title {
+  flex-basis: 100%;
+  margin: 0;
   margin-inline-start: var(--window-controls-inline-start-inset);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .word-db-editor .search-input {

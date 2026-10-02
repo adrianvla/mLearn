@@ -52,6 +52,7 @@ export const WordDbEditorContent: Component = () => {
   onCleanup(() => { loadGeneration++; });
   const [filterTokens, setFilterTokens] = createSignal<FilterToken[]>(buildEmptyPreset());
   const [browseMode, setBrowseMode] = createSignal<WordDbBrowseMode>('all');
+  const [showManagement, setShowManagement] = createSignal(false);
   const [sortKey, setSortKey] = createSignal<string>('study');
   const [sortDir, setSortDir] = createSignal<1 | -1>(1);
   const wordCollator = createMemo(() => {
@@ -702,7 +703,7 @@ export const WordDbEditorContent: Component = () => {
   });
 
   return (
-      <div class="word-db-editor">
+      <div class="word-db-editor" classList={{ 'managing-words': showManagement() }}>
         <Show when={loadFailed() || dictionaryUnavailable()}>
           <div role="alert" class="word-db-load-error">
             <p>{t(loadFailed() ? 'mlearn.WordDbEditor.LoadError' : 'mlearn.WordDbEditor.DictionaryUnavailable')}</p>
@@ -737,6 +738,8 @@ export const WordDbEditorContent: Component = () => {
                 filterEvaluation={filterValidation()}
                 studyOrderSelected={sortKey() === 'study'}
                 onStudyOrder={() => { setSortKey('study'); setSortDir(1); }}
+                showManagement={showManagement()}
+                onToggleManagement={() => setShowManagement(value => !value)}
             />
 
             {/* Table Header */}
@@ -744,6 +747,7 @@ export const WordDbEditorContent: Component = () => {
                 sortKey={sortKey}
                 sortDir={sortDir}
                 onSort={handleSort}
+                showIntegrations={showManagement()}
             />
           </CollapsibleStickyHeader>
 
@@ -779,6 +783,7 @@ export const WordDbEditorContent: Component = () => {
                       >
                         <WordEntryRow
                             entry={entry}
+                            showManagement={showManagement()}
                             levelNames={levelNames()}
                             onAddFlashcard={handleAddFlashcard}
                             isAddingFlashcard={pendingCardAdds().has(entry.word)}

@@ -3579,7 +3579,8 @@
       },
       "Loading": "Wortschatz wird geladen…",
       "LoadingMore": "Weitere laden...",
-      "SearchHintDetailed": "Suche Wörter und sieh dir deinen Lernstand an.",
+      "Manage": "Karten und Referenzen verwalten",
+      "SearchHintDetailed": "Wähle ein Wort oder seinen Status, um zu sehen, was du weißt und warum. Unter Karten und Referenzen verwalten kannst du es bearbeiten oder speichern.",
       "SearchPlaceholder": "Wörter suchen...",
       "Searching": "Suche...",
       "Trackers": {

@@ -12,12 +12,6 @@
   background:var(--bg-nt-secondary);
 }
 
-/* Neighborhood note (the viz itself renders in a Modal). */
-.entry__graph-note {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
 .entry:hover {
   background: var(--border-color);
 }
@@ -53,6 +47,21 @@
   white-space: nowrap;
 }
 
+.word-db-word-action {
+  display: inline-flex;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+  app-region: no-drag;
+}
+.word-db-word-action:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+.word-db-word-action:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+
 /* Alternate readings pills */
 .word-db-editor .word-db-alt-readings {
   display: inline-flex;
@@ -80,13 +89,4 @@
 .word-db-editor .col.knowledge > *,
 .word-db-editor .col.integrations > * {
   max-width: 100%;
-}
-
-/* Keep learner state distinct from the two navigation actions. The actions
-   stay together when the editor narrows instead of wrapping one at a time. */
-.word-db-editor .col.knowledge .knowledge-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  white-space: nowrap;
 }

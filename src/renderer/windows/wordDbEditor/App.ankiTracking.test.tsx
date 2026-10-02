@@ -207,9 +207,9 @@ vi.mock('./components', async () => {
   const { WordEntryRow } = await import('./components/WordEntryRow');
   return {
     WordEntryRow,
-    SearchBar: (props: { setFilterTokens?: (tokens: FilterToken[]) => void }) => {
+    SearchBar: (props: { setFilterTokens?: (tokens: FilterToken[]) => void; onToggleManagement?: () => void; showManagement?: boolean }) => {
       mockSearchBarProps.current = props;
-      return <div />;
+      return <button aria-pressed={props.showManagement} onClick={props.onToggleManagement}>Manage vocabulary</button>;
     },
     EntriesHeader: () => <div />,
     EditTranslationDialog: () => <div />,
@@ -255,6 +255,8 @@ describe('WordDbEditorContent Anki tracking', () => {
     await flush();
     await flush();
 
+    expect(container.querySelector('.col.integrations')).toBeNull();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Manage vocabulary')!.click();
     expect(integrationCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
     expect(integrationCellTexts()['青い']).toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
 
@@ -289,6 +291,8 @@ describe('WordDbEditorContent Anki tracking', () => {
     await flush();
     await flush();
 
+    expect(container.querySelector('.col.integrations')).toBeNull();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Manage vocabulary')!.click();
     expect(integrationCellTexts()['赤い']).toContain('mlearn.WordDbEditor.Integrations.AddFlashcard');
 
     mockGetAnkiWordStatuses.mockResolvedValue([{ word: '赤い', queue: 2, type: 2 }]);
@@ -342,6 +346,8 @@ describe('WordDbEditorContent Remove asks before it destroys the card', () => {
     await flush();
     await flush();
 
+    expect(container.querySelector('.col.integrations')).toBeNull();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Manage vocabulary')!.click();
     const remove = Array.from(container.querySelectorAll('button'))
       .find((button) => button.textContent === 'mlearn.Global.Remove');
     expect(remove, 'the Remove control is missing').toBeDefined();
