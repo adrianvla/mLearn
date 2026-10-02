@@ -157,6 +157,8 @@ export interface KnowledgeLexicalSummary {
 /** Single-surface on-demand inspector payload; intentionally not batched for v1. */
 export interface KnowledgeProjection {
   status: GraphAvailability;
+  /** Structural availability is separate from authoritative journal projection readiness. */
+  graphStatus?: GraphAvailability;
   surfaceId?: string;
   targets: KnowledgeProjectionTarget[];
   /** The surface text this projection was queried with; lets consumers reject stale async results. */

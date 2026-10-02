@@ -1,15 +1,6 @@
 import type { LearnableTarget } from '../../shared/graph/types';
 
-export interface EncounterTask {
-  taskTemplateId: string;
-  inputModality: string;
-  responseModality: string;
-  supplied: string[];
-  requested: string[];
-  fluencyRequired: boolean;
-  /** Profile tasks submit all assessable capabilities as one attempt; dominant tasks assess one target. */
-  ratingMode: 'profile' | 'dominant';
-}
+export type EncounterTask = import('../../shared/learningDecision').LearningTaskSnapshot;
 
 /**
  * Grammar construction recognition: the construction's written form (as it
@@ -40,6 +31,8 @@ export type ScoreDimension =
   | 'information-gain'
   | 'uncertainty'
   | 'novelty'
+  /** Package-authorized relative support credit; never probability, mastery or measured effort. */
+  | 'declared-support'
   | 'attention-cost'
   /**
    * Recent-consolidation padding (R08): set by a source only when the caller
@@ -136,6 +129,8 @@ export interface PolicyTrace {
   /** Bumped when the selection math changes; replays must pin it. */
   version: string;
   inputs: {
+    /** Absent on earlier traces means weighted selection. */
+    selection?: 'weighted' | 'ranked';
     nowMs: number;
     attentionBudgetRemaining: number;
     probeBudgetRemaining: number;

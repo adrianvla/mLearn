@@ -1,20 +1,4 @@
 {
-  "mlearn.ConversationAgent.Voice.PreparingMicrophone": "マイクを準備しています…",
-  "mlearn.ConversationAgent.Voice.CallsUnavailable": "AIとの音声通話にはデスクトップアプリが必要です。ここではテキストで会話を続けられます。",
-  "mlearn.ConversationAgent.Voice.CaptureFailed": "マイクを起動できませんでした。オーディオ機器を確認して、もう一度通話を開始してください。",
-  "mlearn.ConversationAgent.Voice.VisualActivity": "画面で回答する練習です。",
-  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "会話のメモを保存できなかったため、返答は読み上げられませんでした。",
-  "mlearn.ConversationAgent.Voice.Delivery.pending": "再生記録はありません。",
-  "mlearn.ConversationAgent.Voice.Delivery.playing": "部分的な再生が記録されています。",
-  "mlearn.ConversationAgent.Voice.Delivery.completed": "再生が完了しました。",
-  "mlearn.ConversationAgent.Voice.Delivery.interrupted": "再生が中断されました。",
-  "mlearn.ConversationAgent.Voice.Delivery.stopped": "再生が停止されました。",
-  "mlearn.ConversationAgent.Voice.Delivery.failed": "音声合成に失敗しました。",
-  "mlearn.ConversationAgent.Voice.Delivery.Estimated": "文の一部は推定です。",
-  "mlearn.ConversationAgent.Voice.Delivery.Generated": "生成された応答",
-  "mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription": "生成されたテキストです。再生内容の記録ではありません。",
-  "mlearn.ConversationAgent.Voice.NoAudio": "再生可能な音声がないまま合成が終了しました。応答は再生済みとして記録されていません。",
-  "mlearn.ConversationAgent.Voice.DeliveryRecordFailed": "再生記録を保存できませんでした。音声は停止され、再生は未確認のままです。",
   "mlearn": {
     "GraphInspector": {
       "Title": "グラフインスペクター",
@@ -313,7 +297,14 @@
           "Title": "エージェントの記憶"
         },
         "Boundary": {
-          "Title": "会話の境界確認", "Provider": "確認方法", "Description": "返信は保存前に確認されます。ローカル分類器で非公開の一次確認を追加できます。最終的な判断は選択したモデルが行います。", "Actor": "モデルによる確認", "Local": "ローカルCPUガード＋モデル確認", "LocalDescription": "Qwen3Guard-Gen 0.6B、約484 MB。CPUで動作します。", "Install": "ローカルガードをインストール", "Installed": "ローカルガードをインストール済み"
+          "Title": "会話の境界確認",
+          "Provider": "確認方法",
+          "Description": "返信は保存前に確認されます。ローカル分類器で非公開の一次確認を追加できます。最終的な判断は選択したモデルが行います。",
+          "Actor": "モデルによる確認",
+          "Local": "ローカルCPUガード＋モデル確認",
+          "LocalDescription": "Qwen3Guard-Gen 0.6B、約484 MB。CPUで動作します。",
+          "Install": "ローカルガードをインストール",
+          "Installed": "ローカルガードをインストール済み"
         },
         "Checker": {
           "Title": "校正エージェント",
@@ -765,7 +756,25 @@
         "VoiceSample": "ストリーミング音声クローン",
         "LightweightVoice": "軽量ボイス",
         "SystemVoice": "システムボイス",
-        "CpuWarning": "音声処理が CPU で実行されているため、リアルタイム音声が遅れる場合があります。音声品質には影響しません。"
+        "CpuWarning": "音声処理が CPU で実行されているため、リアルタイム音声が遅れる場合があります。音声品質には影響しません。",
+        "PreparingMicrophone": "マイクを準備しています…",
+        "CallsUnavailable": "AIとの音声通話にはデスクトップアプリが必要です。ここではテキストで会話を続けられます。",
+        "CaptureFailed": "マイクを起動できませんでした。オーディオ機器を確認して、もう一度通話を開始してください。",
+        "VisualActivity": "画面で回答する練習です。",
+        "MemoryRecordFailed": "会話のメモを保存できなかったため、返答は読み上げられませんでした。",
+        "Delivery": {
+          "pending": "再生記録はありません。",
+          "playing": "部分的な再生が記録されています。",
+          "completed": "再生が完了しました。",
+          "interrupted": "再生が中断されました。",
+          "stopped": "再生が停止されました。",
+          "failed": "音声合成に失敗しました。",
+          "Estimated": "文の一部は推定です。",
+          "Generated": "生成された応答",
+          "GeneratedDescription": "生成されたテキストです。再生内容の記録ではありません。"
+        },
+        "NoAudio": "再生可能な音声がないまま合成が終了しました。応答は再生済みとして記録されていません。",
+        "DeliveryRecordFailed": "再生記録を保存できませんでした。音声は停止され、再生は未確認のままです。"
       },
       "Memory": {
         "ClearAll": "すべての記憶を消去",
@@ -945,9 +954,47 @@
       },
       "Story": {
         "SupportResponse": "つらい状況にいるのですね。一人で抱えなくて大丈夫です。差し迫った危険がある場合は、今すぐ地域の緊急窓口か信頼できる人に連絡してください。",
-        "Branch": "練習用の物語", "BranchMode": "出典の背景を使う", "Follow": "新しい出典に追随", "Pinned": "この版を保持", "Independent": "別の物語", "AlternatePremises": "別の前提（1行に1件）",
+        "Branch": "練習用の物語",
+        "BranchMode": "出典の背景を使う",
+        "Follow": "新しい出典に追随",
+        "Pinned": "この版を保持",
+        "Independent": "別の物語",
+        "AlternatePremises": "別の前提（1行に1件）",
         "SaveBeforeUse": "進捗の変更や更新の調査を行う前に、この変更を保存してください。",
-        "Title": "物語の進捗", "Track": "作品の版", "NewTrack": "新しい版", "Work": "作品", "Edition": "版・世界線", "Unit": "単位名", "Total": "総単位数", "SourceWiki": "出典WikiのURL", "AutoAdvance": "新たに調べた背景を自動で反映", "Progress": "完了した単位", "UnitNumber": "単位番号", "Through": "ここまで完了", "Complete": "単位を完了", "Remove": "単位を外す", "Sources": "出典ページ", "SourceUrl": "出典ページのURL", "From": "開始単位", "To": "終了単位", "AddSource": "出典を追加", "SourceHint": "確認済みのページだけを登録してください。範囲全体を完了した場合のみ使用されます。", "UpdatePeople": "連絡先の背景を更新", "ReviewUpdate": "更新内容を調査", "Ready": "出典に基づく変更を確認してから適用してください。", "ApplyUpdate": "連絡先に適用", "ValidUnit": "有効な単位番号を入力してください。", "ValidSource": "出典URLと有効な単位範囲を入力してください。", "ResearchIdentity": "出典から人物を調査", "NoTrack": "進捗の指定なし", "Research": "調査", "ScopedContext": "現在の進捗までの背景", "SourceQuotes": "出典の引用", "Unknowns": "不明・未確認", "UseDraft": "この下書きを使用", "ResearchAccepted": "下書きを選択済み"
+        "Title": "物語の進捗",
+        "Track": "作品の版",
+        "NewTrack": "新しい版",
+        "Work": "作品",
+        "Edition": "版・世界線",
+        "Unit": "単位名",
+        "Total": "総単位数",
+        "SourceWiki": "出典WikiのURL",
+        "AutoAdvance": "新たに調べた背景を自動で反映",
+        "Progress": "完了した単位",
+        "UnitNumber": "単位番号",
+        "Through": "ここまで完了",
+        "Complete": "単位を完了",
+        "Remove": "単位を外す",
+        "Sources": "出典ページ",
+        "SourceUrl": "出典ページのURL",
+        "From": "開始単位",
+        "To": "終了単位",
+        "AddSource": "出典を追加",
+        "SourceHint": "確認済みのページだけを登録してください。範囲全体を完了した場合のみ使用されます。",
+        "UpdatePeople": "連絡先の背景を更新",
+        "ReviewUpdate": "更新内容を調査",
+        "Ready": "出典に基づく変更を確認してから適用してください。",
+        "ApplyUpdate": "連絡先に適用",
+        "ValidUnit": "有効な単位番号を入力してください。",
+        "ValidSource": "出典URLと有効な単位範囲を入力してください。",
+        "ResearchIdentity": "出典から人物を調査",
+        "NoTrack": "進捗の指定なし",
+        "Research": "調査",
+        "ScopedContext": "現在の進捗までの背景",
+        "SourceQuotes": "出典の引用",
+        "Unknowns": "不明・未確認",
+        "UseDraft": "この下書きを使用",
+        "ResearchAccepted": "下書きを選択済み"
       },
       "Contacts": {
         "Archive": "連絡先をアーカイブ",
@@ -1190,7 +1237,12 @@
         "LLMToastTitle": "不足している例文翻訳を生成中…",
         "LLMDone": "{count}枚のカードの翻訳を生成しました",
         "LLMDoneWithErrors": "{count}枚のカードの翻訳を生成、{failed}件失敗",
-        "RepairButton": "修復", "ContentDescription": "{count}枚のカードにまだ意味がありません。辞書から補完しますか？", "ContentToastTitle": "カードの不足内容を作成中…", "ContentDone": "{count}枚のカードに内容を補完しました", "ContentDoneWithErrors": "{count}枚のカードに内容を補完しました（{failed}枚は失敗）", "ContentFailed": "カードの内容を補完できませんでした",
+        "RepairButton": "修復",
+        "ContentDescription": "{count}枚のカードにまだ意味がありません。辞書から補完しますか？",
+        "ContentToastTitle": "カードの不足内容を作成中…",
+        "ContentDone": "{count}枚のカードに内容を補完しました",
+        "ContentDoneWithErrors": "{count}枚のカードに内容を補完しました（{failed}枚は失敗）",
+        "ContentFailed": "カードの内容を補完できませんでした",
         "Title": "フラッシュカードデータの不足",
         "ToastTitle": "フラッシュカードを修復中…"
       },
@@ -1713,12 +1765,13 @@
         },
         "FullGraph": "完全なグラフを開く",
         "Prediction": {
-          "None": "予測はありません。",
+          "None": "未測定の能力を推定するための確かな根拠がまだありません。直接練習して確認できます。",
           "SupportLimited": "構造的な手がかりは少ない",
           "SupportModerate": "構造的な手がかりは中程度",
           "SupportStrong": "構造的な手がかりは多い",
           "Context": "現在記録されている知識と、インストール済みの言語関係に基づきます。練習を選ぶ目安として使えます。",
-          "Limits": "これは手がかりの推定であり、成功確率や測定済みの進歩ではありません。課題の文脈や保持期間は評価していません。"
+          "Limits": "これは手がかりの推定であり、成功確率や測定済みの進歩ではありません。課題の文脈や保持期間は評価していません。",
+          "UnavailableSupport": "インストール済みの言語パッケージでは、この能力を信頼できる形で推定できません。実際の練習で確認できます。"
         },
         "Adjust": "調整",
         "RetentionTitle": "復習",
@@ -3581,7 +3634,11 @@
       "QueueDetails": "この単語が選ばれる理由",
       "QueueExplanation": "現在のフィルターと記録済みの知識に基づいて選ばれます。無視した単語は除外されます。この学習で確認可能で、まだ既知と評価されていない技能が少なくとも一つ必要です。最近表示された履歴による除外はありません。",
       "QueueExclusions": "除外 — 無視：{ignored}、フィルター対象外：{filtered}、適切な問題なし・対象外に変更：{unavailable}。",
-      "InvalidFilter": "フィルターが未完成または無効です。編集して続けてください。"
+      "InvalidFilter": "フィルターが未完成または無効です。編集して続けてください。",
+      "SelectionSaveFailed": "次の問題を保存できませんでした。保存済みのセッションから続けるには再試行してください。",
+      "PoolChoiceReason": "このレベルの対象語 {count} 個から選びました。回答で更新されるのは、この問題で確認する側面だけです。",
+      "GraphChoiceReason": "関連する知識とのつながりにより、このレベルでは {word} よりこの語を優先しました。どの側面を思い出せるか確認しましょう。",
+      "AssistanceSaveFailed": "この問題で表示したヒントを保存できませんでした。回答を記録する前に再試行してください。"
     },
     "Menu": {
       "About": "mLearnについて",
@@ -3936,6 +3993,5 @@
       "SettingsHint": "カリキュラム、目標、学習ペースは学習プランで管理します。",
       "Open": "学習プランを開く"
     }
-  },
-  "mlearn.Knowledge.Projection.Prediction.UnavailableSupport": "インストール済みの言語パッケージでは、この能力を信頼できる形で推定できません。実際の練習で確認できます。"
+  }
 }

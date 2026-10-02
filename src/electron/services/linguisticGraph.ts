@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import { COMPACT_RELATION_TYPES, decodeCompact, type CompactAssetJSON, type RuntimeCompactGraph } from '../../shared/graph/compact';
+import { COMPACT_RELATION_TYPES, decodeCompact, encodeCompact, type CompactAssetJSON, type RuntimeCompactGraph } from '../../shared/graph/compact';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodCenterState, GraphNeighborhoodQuery, GraphNode, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup, KnowledgeProjection } from '../../shared/graph/ipc';
 import { relationCategory, type GraphRelationType } from '../../shared/graph/types';
 import type { LingualGraph } from '../../shared/graph/load';
@@ -224,7 +224,7 @@ export class LinguisticGraphService {
   }
 
   private async projectionFor(loaded: LoadedGraph, language: string, surfaceId: string, requestedThresholds?: EffectiveThresholds): Promise<KnowledgeProjection | undefined> {
-    const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives }, settingsModule] = await Promise.all([
+    const [{ loadFlashcards }, { getKnowledgeRows, getKnowledgeArchives, getAddressedKnowledgeKeys }, settingsModule] = await Promise.all([
       import('./flashcardStorage'),
       import('./knowledgeEvents'),
       import('./settings'),
@@ -243,6 +243,7 @@ export class LinguisticGraphService {
       ? this.projectionLanguageData(loaded, settingsModule.loadLangData)
       : undefined;
     const targetIds = projectionEntityIds(plain, surfaceId);
+    const addressIds = new Set([surfaceId, ...targetIds]);
     // Resolve the same package-authorized paths used by prediction. Source
     // journals and identity variants are only inputs, never copied mastery.
     for (const id of targetIds) keys.push(journalKeyOfSurfaceEntity(id));
@@ -252,12 +253,15 @@ export class LinguisticGraphService {
     }));
     for (const target of targets) {
       for (const source of resolveSupportSources(plain, target, languageData)) {
+        addressIds.add(source.target.entityId);
         keys.push(...siblingJournalKeys(plain, source.target.entityId));
         for (const entry of lexicalContextEntryIds(plain, source.target.entityId)) {
-          for (const variant of surfacesRealizingEntry(plain, entry)) keys.push(journalKeyOfSurfaceEntity(variant));
+          addressIds.add(entry);
+          for (const variant of surfacesRealizingEntry(plain, entry)) { addressIds.add(variant); keys.push(journalKeyOfSurfaceEntity(variant)); }
         }
       }
     }
+    keys.push(...getAddressedKnowledgeKeys(language, [...addressIds]));
     const distinctKeys = [...new Set(keys)];
     const rowLog = getKnowledgeRows(distinctKeys);
     const rows = distinctKeys.flatMap((key) => (rowLog[key] ?? []).map(row => ({ ...row, event: scopeSiblingEvent(row.event, key, keys[0]) })));
@@ -283,11 +287,20 @@ export class LinguisticGraphService {
    * hash alone loses valid variant evidence (and changes learner counts).
    */
   async getEvidenceLinkedSurfaces(language: string, surfaces: readonly string[], evidenceKeys: readonly string[]): Promise<string[]> {
+    const { getAddressedKnowledgeIds } = await import('./knowledgeEvents');
+    const revision = languagePackageRevision(this.dataRoot, language);
     const loaded = await this.ensure(language);
-    if (loaded && loaded.revision !== languagePackageRevision(this.dataRoot, language)) return this.getEvidenceLinkedSurfaces(language, surfaces, evidenceKeys);
-    if (!loaded) return [...new Set(surfaces)]; // preserve the not-installed projection failure
+    if (revision !== languagePackageRevision(this.dataRoot, language)) return this.getEvidenceLinkedSurfaces(language, surfaces, evidenceKeys);
+    const addressed = new Set(getAddressedKnowledgeIds(evidenceKeys));
+    // Without structure, only canonical keys and exact authored addresses can link.
+    if (!loaded) {
+      const keys = new Set(evidenceKeys);
+      return [...new Set(surfaces)].filter(surface => {
+        const hash = crypto.createHash('sha256').update(surface).digest('hex');
+        return keys.has(`${language}:${hash}`) || addressed.has(`${language}:surface:${hash}`);
+      });
+    }
     const graph = this.toLingualGraph(loaded);
-    const addressed = new Set<string>();
     const prefix = `${language}:`;
     for (const key of evidenceKeys) {
       if (!key.startsWith(prefix)) continue;
@@ -300,19 +313,27 @@ export class LinguisticGraphService {
         for (const siblingId of surfacesRealizingEntry(graph, entryId)) addressed.add(siblingId);
       }
     }
+    for (const id of [...addressed]) {
+      if (!graph.nodes.has(id)) continue;
+      for (const entry of realizedEntryIds(graph, id)) for (const sibling of surfacesRealizingEntry(graph, entry)) addressed.add(sibling);
+    }
     return [...new Set(surfaces)].filter((surface) =>
       addressed.has(`${language}:surface:${crypto.createHash('sha256').update(surface).digest('hex')}`));
   }
 
   async getKnowledgeProjection(language: string, surface: string, requestedThresholds?: EffectiveThresholds): Promise<KnowledgeProjection> {
     try {
-      const loaded = await this.ensure(language);
-      if (!loaded) return { status: 'not-installed', targets: [] };
+      const revision = languagePackageRevision(this.dataRoot, language);
+      const installed = await this.ensure(language);
+      // Missing optional structure does not erase canonical learner evidence.
+      // An empty graph grants no relations, applicability or support credit.
+      const loaded: LoadedGraph = installed ?? { language, revision, relationCount: 0,
+        graph: decodeCompact(encodeCompact({ schemaVersion: 1, language, generatedAt: '', sourceVersions: {}, entities: [], relations: [] })) };
       const hash = crypto.createHash('sha256').update(surface).digest('hex');
       const surfaceId = `${language}:surface:${hash}`;
       const projection = await this.projectionFor(loaded, language, surfaceId, requestedThresholds);
       if (!projection || loaded.revision !== languagePackageRevision(this.dataRoot, language)) return this.getKnowledgeProjection(language, surface, requestedThresholds);
-      return { ...projection, querySurface: surface };
+      return { ...projection, querySurface: surface, graphStatus: installed ? 'ready' : 'not-installed' };
     } catch {
       return { status: 'error', targets: [] };
     }

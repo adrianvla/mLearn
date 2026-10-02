@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MOMENTUM_WINDOW_MS,
   calibrationUnmeasuredCandidates,
+  candidateSupport,
   curriculumCandidates,
   curriculumGrammarCandidates,
   grammarEncounterCandidates,
@@ -119,11 +120,37 @@ describe('weakTargetCandidates', () => {
 });
 
 describe('probeCandidates', () => {
+  it('requires exact destination access and counts shared physical support only once across a candidate', async () => {
+    const { predictTargetAccessibility } = await import('../../shared/prediction/supportPredictor');
+    const { loadLinguisticGraph } = await import('../../shared/graph/load');
+    const graph = loadLinguisticGraph({ schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: {},
+      entities: ['prior', target.entityId].map(id => ({ id, kind: 'surface' })),
+      relations: [{ from: 'prior', to: target.entityId, type: 'future::route' }] });
+    const contributors = ['future::a', 'future::b'].flatMap(capability => predictTargetAccessibility({
+      graph, direct: null, target: { ...target, capability }, classify: () => 'unknown',
+      languageData: { name: 'Future', learning: { capabilities: { [capability]: { supportRules: [{
+        relation: 'future::route', sourceCapability: capability, weight: 0.4,
+      }] } } } }, sourceKnowledge: () => ({ basis: 'evidence', observationIds: ['one-physical-attempt'] }),
+    }).contributors);
+    expect(candidateSupport(contributors.map(contributor => contributor.target), contributors).credit).toBe(0.4);
+    expect(candidateSupport([{ ...target, entityId: 'different-cue' }], contributors).credit).toBe(0);
+    const [opaque] = probeCandidates([{ target: { entityId: 'opaque-id', capability: 'future::a' }, language: 'future', uncertainty: 0.8 }],
+      { nowMs: 0, cooldownMs: 0, uncertaintyFloor: 0, cooldowns: new Map() });
+    expect(opaque.language).toBe('future');
+  });
+  it('does not treat an uncalibrated support input as Bernoulli information gain', () => {
+    const legacyInputs = [{ target, language: 'de', pSuccess: 0.5, uncertainty: 0.8 }];
+    const [probe] = probeCandidates(legacyInputs, {
+      nowMs: 10_000, cooldownMs: 0, uncertaintyFloor: 0, cooldowns: new Map(),
+    });
+    expect(probe.scores['information-gain']).toBeUndefined();
+    expect(probe.meta?.pSuccess).toBeUndefined();
+  });
   it('filters by uncertainty and cooldown and maps information scores', () => {
     const candidates = probeCandidates([
-      { target, pSuccess: 0.5, uncertainty: 0.8 },
-      { target: { ...target, entityId: 'de:surface:niedrig' }, pSuccess: 0.5, uncertainty: 0.2 },
-      { target: { ...target, entityId: 'de:surface:kalt' }, pSuccess: 0.6, uncertainty: 0.9 },
+      { target, language: 'de', uncertainty: 0.8 },
+      { target: { ...target, entityId: 'de:surface:niedrig' }, language: 'de', uncertainty: 0.2 },
+      { target: { ...target, entityId: 'de:surface:kalt' }, language: 'de', uncertainty: 0.9 },
     ], {
       nowMs: 10_000,
       cooldownMs: 1_000,
@@ -137,8 +164,8 @@ describe('probeCandidates', () => {
       language: 'de',
       targets: [target],
       origin: 'probe',
-      scores: { 'information-gain': 1, uncertainty: 0.8 },
-      meta: { pSuccess: 0.5 },
+      scores: { uncertainty: 0.8, 'declared-support': 0 },
+      meta: { support: { interpretation: 'heuristic-support', credit: 0, contributors: [], contributorsOmitted: 0 } },
     });
   });
 });

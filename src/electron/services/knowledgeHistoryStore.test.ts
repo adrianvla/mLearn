@@ -238,6 +238,39 @@ function ankiStatus(t: number, toStatus: KnowledgeEvent['toStatus']): KnowledgeE
 }
 
 describe('KnowledgeHistoryStore', () => {
+  it('finds exact target addresses under a different storage key through compaction and restart', () => {
+    const file = path.join(dir, 'addressed-family.sqlite3');
+    const store = KnowledgeHistoryStore.open(file);
+    const key = 'future:canonical-family';
+    const id = 'future:surface:exact-alias';
+    store.appendEvents({ [key]: [
+      { t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', quality: 'fluent', easeAfter: 2.5, attemptId: 'acquisition-anchor' },
+      { t: 20 * DAY, kind: 'rating', source: 'manual', attemptId: 'old-alias', quality: 'fluent', easeAfter: 2.5,
+        targetRef: { kind: 'surface', id, capability: 'sense-recognition' } },
+    ] });
+    expect(store.queryAddressedKeys('future', [id])).toEqual([key]);
+    expect(store.queryAddressedIds([key])).toEqual([id]);
+    expect(store.queryAddressedKeys('other', [id])).toEqual([]);
+    store.compact(800 * DAY);
+    expect(store.getExactEvents([key])[key].every(event => event.targetRef?.id !== id)).toBe(true);
+    store.close();
+    const resumed = KnowledgeHistoryStore.open(file);
+    expect(resumed.queryAddressedKeys('future', [id])).toEqual([key]);
+    expect(resumed.queryAddressedIds([key])).toEqual([id]);
+    resumed.close();
+    // An existing journal created before the derived address index is rebuilt
+    // from archived evidence, without altering its authored rows.
+    const oldDatabase = new DatabaseSync(file);
+    oldDatabase.exec("DELETE FROM archived_addresses; DELETE FROM meta WHERE key = 'archived-address-index-v1'");
+    oldDatabase.close();
+    const upgraded = KnowledgeHistoryStore.open(file);
+    expect(upgraded.queryAddressedKeys('future', [id])).toEqual([key]);
+    upgraded.resetForReimport();
+    expect(upgraded.queryAddressedKeys('future', [id])).toEqual([]);
+    expect(upgraded.queryAddressedIds([key])).toEqual([]);
+    upgraded.close();
+  });
+
   it('retains durable claim withdrawals through restart without claiming an exact entity for the whole word', () => {
     const file = path.join(dir, 'claim-markers.sqlite3');
     const first = KnowledgeHistoryStore.open(file);

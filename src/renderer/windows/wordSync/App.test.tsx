@@ -3,7 +3,7 @@ vi.mock('../../context', async () => {
   WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
   useLocalization: () => ({ t: (key: string, params?: Record<string, string>) => params?.rated !== undefined ? `${params.rated} / ${params.total}` : key }),
   useSettings: () => ({
-    settings: new Proxy(mockWordSyncState.settings, { get: (target, key) => key === 'language' && mockWordSyncState.scopeLanguage ? mockWordSyncState.scopeLanguage() : Reflect.get(target, key) }),
+    settings: new Proxy(mockWordSyncState.settings, { get: (target, key) => key === 'language' && mockWordSyncState.scopeLanguage ? mockWordSyncState.scopeLanguage() : key === 'showReadingAnnotations' && mockWordSyncState.scopeReading ? mockWordSyncState.scopeReading() : Reflect.get(target, key) }),
     updateSettings: mockUpdateSettings,
   }),
   useLanguage: () => ({
@@ -167,13 +167,14 @@ const mockRecordPendingRetraction = vi.fn(async (record: MockUndoRecord) => { pe
 // refusal so a failed persistence is not reported as a refused retraction.
 const completeMockRecord = async (
   record: MockUndoRecord,
-  project?: (record: MockUndoRecord) => void,
+  build?: (record: MockUndoRecord) => Promise<(record: MockUndoRecord) => void>,
 ): Promise<'completed' | 'retraction-refused' | 'stale' | 'store-refused'> => {
   if (pendingRecord?.attemptId !== record.attemptId) return 'stale';
   // A record written before targets existed has none; it recovers under the
   // word-form routing it was originally recorded with, never by being dropped.
   const target = record.target ?? mockWordRetractionTarget(record.word, record.language);
   if (!await mockRetractAttempts(target, record.attemptIds)) return 'retraction-refused';
+  const project = build ? await build(record) : undefined;
   project?.(record);
   pendingRecord = null;
   return 'completed';
@@ -190,15 +191,14 @@ const mockRecoverPendingRetraction = vi.fn(async () => {
   if (!pending) return;
   const build = projectionBuilders.get(pending.surface);
   if (!build) return;
-  const project = await build(pending);
-  if (await completeMockRecord(pending, project) === 'completed') return;
-  pendingRecord = null;
+  await completeMockRecord(pending, build);
 });
 const mockRecomputeProjection = vi.fn(async () => {});
 const mockUpdateSettings = vi.fn();
 const mockFetchTranslation = vi.hoisted(() => vi.fn(async (_word?: string): Promise<{ data: Array<{ definitions: string[]; reading?: string }> }> => ({ data: [] })));
 const mockWordSyncState = vi.hoisted(() => ({
   scopeLanguage: null as null | (() => string),
+  scopeReading: null as null | (() => boolean),
   settings: {
     language: 'ja',
     uiLanguage: 'en',
@@ -677,6 +677,7 @@ beforeEach(() => {
     document.body.appendChild(container);
     mockGetComprehensiveWordStatusWithSourceSync.mockClear();
     mockWordSyncState.scopeLanguage = null;
+    mockWordSyncState.scopeReading = null;
     mockWordSyncState.settings.language = 'ja';
     mockWordSyncState.settings.learningLanguageLevels = {};
     mockWordSyncState.settings.use_anki = false;
@@ -728,9 +729,7 @@ beforeEach(() => {
       if (!pending) return;
       const build = projectionBuilders.get(pending.surface);
       if (!build) return;
-      const project = await build(pending);
-      if (await completeMockRecord(pending, project) === 'completed') return;
-      pendingRecord = null;
+      await completeMockRecord(pending, build);
     });
     mockRecomputeProjection.mockClear();
     mockUpdateSettings.mockClear();
@@ -2005,6 +2004,77 @@ beforeEach(() => {
     dispose();
   });
 
+  it('keeps a delivered hidden question through a journal refresh that now marks its accesses known', async () => {
+    const [loading, setLoading] = createSignal(false);
+    mockWordSyncState.encounterLoading = loading;
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    expect(container.textContent).toContain('赤い');
+    setLoading(true);
+    await settle();
+    mockWordSyncState.projection = { status: 'ready', targets: [{ targetRef: { kind: 'surface', id: 'test-surface' },
+      applicableCapabilities: mockWordSyncState.capabilities,
+      states: mockWordSyncState.capabilities.map(capability => ({ capability, classification: 'known', basis: 'evidence', evidence: [], evidenceSourceCounts: {} })),
+    }] };
+    setLoading(false);
+    await settle();
+    expect(container.textContent).toContain('赤い');
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+    press(' ');
+    await settle();
+    press('3');
+    await settle();
+    expect(mockSubmitRating).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('admits distinct surface variants sharing one canonical storage family', async () => {
+    mockWordSyncState.wordFrequency = { '赤い': { reading: 'あかい', raw_level: 5, level: 'N5' }, '青い': { reading: 'あおい', raw_level: 5, level: 'N5' } };
+    mockWordSyncState.getCanonicalFormForLanguage.mockImplementation(() => 'same-family');
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    expect(container.querySelector('.rating-matrix')).not.toBeNull();
+    press(' ');
+    await settle();
+    press('3');
+    await settle();
+    expect(mockSubmitRating).toHaveBeenCalledOnce();
+    expect(container.textContent).not.toContain('mlearn.WordSync.FinishedTitle');
+    dispose();
+  });
+
+  it('remembers a reading cue shown then hidden before response, including a resumed pinned question', async () => {
+    const [reading, setReading] = createSignal(false);
+    mockWordSyncState.scopeReading = reading;
+    mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
+    const features = await import('../../../shared/languageFeatures');
+    vi.mocked(features.wordNeedsReadingAnnotation).mockReturnValue(true);
+    try {
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle();
+    expect(lastControllerSession()).toMatchObject({ meta: { encounter: { decision: { selected: { task: { requested: expect.arrayContaining(['surface-reading']) } } } } } });
+    setReading(true);
+    await settle();
+    setReading(false);
+    await settle();
+    expect(lastControllerSession()).toMatchObject({ meta: { suppliedScaffolds: { reading: true } } });
+    dispose();
+    const disposeResumed = mountContent(WordSyncContent);
+    await settle();
+    press(' ');
+    await settle();
+    press('3');
+    await settle();
+    expect(mockSubmitRating).toHaveBeenCalledOnce();
+    expect(mockRatingObservation.mock.calls.every(call => call[1] !== 'surface-reading')).toBe(true);
+    expect(mockSubmitRating.mock.calls[0][2]).toMatchObject({ scaffolds: { reading: true } });
+    disposeResumed();
+    } finally { vi.mocked(features.wordNeedsReadingAnnotation).mockReturnValue(false); }
+  });
+
   it('shows only the residual Reading probe and writes only its aspect', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     mockWordSyncState.capabilities = ['sense-recognition', 'surface-reading', 'surface-recognition'];
@@ -3155,12 +3225,13 @@ beforeEach(() => {
 
 vi.mock('../../hooks/useKnowledgeProjections', async () => {
   const { useKnowledgeProjection } = await import('../../hooks/useKnowledgeProjection');
-  return { useKnowledgeProjections: (query: () => { language: string; surfaces: string[] } | undefined) => {
+  return { useKnowledgeProjections: (query: () => { language: string; surfaces: string[]; evidenceKeys?: readonly string[] } | undefined) => {
     const knowledge = useKnowledgeProjection(() => undefined);
+    const collectionScan = () => query()?.evidenceKeys !== undefined;
     return {
-      ready: () => mockWordSyncState.collectionReady(),
-      loading: () => !mockWordSyncState.collectionReady(),
-      failed: () => mockWordSyncState.collectionFailed(),
+      ready: () => !collectionScan() || mockWordSyncState.collectionReady(),
+      loading: () => collectionScan() && !mockWordSyncState.collectionReady(),
+      failed: () => collectionScan() && mockWordSyncState.collectionFailed(),
       retry: mockRetryKnowledgeProjection,
       projections: () => new Map((query()?.surfaces ?? []).filter(word => !absentProjectionWords.has(word)).map(word => [word, mockWordSyncState.projectionByWord.get(word) ?? knowledge.projection()])),
     };

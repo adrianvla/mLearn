@@ -14,6 +14,7 @@ import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type Flashca
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
+import { applyLearningDecision } from '../../shared/learningDecision';
 import { clonePendingRetraction, readPendingRetraction, type PendingRetraction, type RetractionTarget, type RetractionReplayDescriptor } from '../../shared/retractionRecovery';
 import { isStaleFlashcardRevision } from '../../shared/flashcardWriteRevision';
 import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
@@ -243,6 +244,8 @@ export type LevelStudyTargetStatus = 'new' | 'learning' | 'known' | 'mastered';
 
 // Context interface
 type AttemptOptions = {
+  /** Exact task/target choice persisted before the learner responded. */
+  decision?: import('../../shared/learningDecision').LearningDecision;
   language?: string;
   method?: 'recall' | 'inference';
   timing?: AttemptTiming;
@@ -4073,6 +4076,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     try {
       await knowledgeInitialization;
       if (options?.selfAssessment && options.scheduler) throw new Error('A self-assessment cannot advance a review schedule');
+      if (options?.selfAssessment && options.decision) throw new Error('A learner claim cannot be recorded as a task outcome');
       const scheduler = options?.scheduler;
       const card = scheduler ? store.flashcards[scheduler.cardId] : undefined;
       if (scheduler && !card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
@@ -4108,6 +4112,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       for (const entry of prepared) entry.applyMaterialized?.(candidate, patchRecorder);
 
       const eventsByKey: KnowledgeEventLog = {};
+      if (options?.decision) {
+        const measured = prepared.flatMap(entry => entry.event ? [entry.event] : []);
+        const attributed = applyLearningDecision(measured.map(entry => entry.value), options.decision);
+        measured.forEach((entry, index) => { entry.value = attributed[index]; });
+      }
       for (const entry of prepared) {
         if (!entry.event) continue;
         // An authored card can address an unmapped surface without claiming

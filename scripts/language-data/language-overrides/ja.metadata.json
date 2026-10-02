@@ -272,5 +272,32 @@
                 }
             }
         }
+    },
+    "learning": {
+        "capabilities": {
+            "surface-recognition": {
+                "scope": "surface",
+                "supportRules": [
+                    {
+                        "id": "ja:lexical-familiarity-spelling",
+                        "version": "1",
+                        "relation": "realizes",
+                        "direction": "out",
+                        "sourcePath": [
+                            {
+                                "relation": "realizes",
+                                "direction": "in"
+                            }
+                        ],
+                        "sourceCapability": "sense-recognition",
+                        "weight": 0.1,
+                        "dependencyGroup": "ja:lexical-familiarity-spelling"
+                    }
+                ]
+            }
+        }
+    },
+    "languageData": {
+        "version": "ja-package-2026.10.02-supported-spelling-r1"
     }
 }

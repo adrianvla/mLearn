@@ -4,6 +4,7 @@ import type { LearnableTarget } from '../../shared/graph/types';
 import type { FlashcardState, MediaStats } from '../../shared/types';
 import type { Candidate } from './types';
 import { GRAMMAR_RECOGNIZE_TASK } from './types';
+import { independentSupportContributors, type SupportContributor } from '../../shared/prediction/supportContributors';
 
 export interface FlashcardLike {
   id: string;
@@ -74,7 +75,9 @@ export interface WeakTargetEntry {
 
 export interface SupportedProbeTarget {
   target: LearnableTarget;
-  pSuccess: number;
+  /** Entity identifiers are opaque; language is an explicit source property. */
+  language: string;
+  supportContributors?: readonly SupportContributor[];
   uncertainty: number;
 }
 
@@ -89,8 +92,8 @@ export interface BridgeCandidateInput {
   language: string;
   /** The missing written accesses (surface-recognition / surface-reading targets). */
   missingBridges: readonly LearnableTarget[];
-  /** Graph-relative predicted accessibility of the bridge (entry + character support). */
-  pSuccess?: number;
+  /** Package-authorized relative support, never a calibrated success/effort estimate. */
+  supportContributors?: readonly SupportContributor[];
   /** The lexical object is synchronized (sense/spoken known through any authoritative variant). */
   synchronized: boolean;
 }
@@ -209,26 +212,36 @@ export function calibrationUnmeasuredCandidates(poolItems: readonly CalibrationP
 
 /**
  * Bridge source: synchronized lexical objects with missing written accesses.
- * Value ≈ useful graph completion ÷ teaching cost — information-gain is full
- * (the graph genuinely completes), novelty is zero (nothing linguistically
- * new), and attention-cost falls as the graph-relative prediction rises, so
- * cheap bridges outrank novel objects under a cost-aware policy.
+ * Measuring a missing access on a known lexical object can resolve a useful
+ * gap. Structural support is a separate relative preference; it cannot state
+ * how much effort acquisition requires or choose whether teaching is needed.
  */
 export function bridgeCandidates(items: readonly BridgeCandidateInput[]): Candidate[] {
-  return items.filter((item) => item.synchronized).map((item) => ({
+  return items.filter((item) => item.synchronized && item.missingBridges.length > 0).map((item) => {
+    const support = candidateSupport(item.missingBridges, item.supportContributors);
+    return {
     key: item.key,
     word: item.word,
     language: item.language,
     targets: [...item.missingBridges],
     origin: 'bridge' as const,
     scores: {
-      'information-gain': 1,
       novelty: 0,
       uncertainty: 1,
-      'attention-cost': item.pSuccess !== undefined ? clamp(1 - item.pSuccess) : 0.5,
+      'declared-support': support.credit,
     },
-    meta: { bridge: true, ...(item.pSuccess !== undefined ? { pSuccess: item.pSuccess } : {}) },
-  }));
+    meta: { bridge: true, support },
+  }; });
+}
+
+/** One independence boundary across all accesses of an actual candidate. */
+export function candidateSupport(targets: readonly LearnableTarget[], contributors: readonly SupportContributor[] = []) {
+  const accepted = independentSupportContributors(contributors.filter(contributor =>
+    Number.isFinite(contributor.credit) && contributor.credit > 0
+    && targets.some(target => target.entityId === contributor.target.entityId && target.capability === contributor.target.capability)));
+  return { interpretation: 'heuristic-support' as const,
+    credit: Math.min(1, accepted.reduce((total, contributor) => total + contributor.credit, 0)),
+    contributors: accepted.slice(0, 16), contributorsOmitted: Math.max(0, accepted.length - 16) };
 }
 
 export function curriculumCandidates(items: readonly LearnableWordSourceItem[]): Candidate[] {
@@ -511,23 +524,24 @@ export function probeCandidates(
   supportedTargets: readonly SupportedProbeTarget[],
   cooldownState: ProbeCooldownState,
 ): Candidate[] {
-  return supportedTargets.flatMap(({ target, pSuccess, uncertainty }) => {
+  return supportedTargets.flatMap(({ target, language, supportContributors, uncertainty }) => {
     const key = `${target.entityId}:${target.capability}`;
     const lastProbeAt = cooldownState.cooldowns.get(key);
     const cooldownPassed = lastProbeAt === undefined
       || cooldownState.nowMs - lastProbeAt >= cooldownState.cooldownMs;
-    if (uncertainty <= cooldownState.uncertaintyFloor || !cooldownPassed) return [];
+    if (!Number.isFinite(uncertainty) || uncertainty <= cooldownState.uncertaintyFloor || !cooldownPassed) return [];
+    const support = candidateSupport([target], supportContributors);
 
     return [{
       key,
-      language: target.entityId.split(':', 1)[0],
+      language,
       targets: [target],
       origin: 'probe',
       scores: {
-        'information-gain': binaryEntropy(clamp(pSuccess)),
-        uncertainty,
+        uncertainty: clamp(uncertainty),
+        'declared-support': support.credit,
       },
-      meta: { pSuccess },
+      meta: { support },
     }];
   });
 }
@@ -573,10 +587,4 @@ function wordCandidates(
         ...(item.sourceMediaHash !== undefined ? { sourceMediaHash: item.sourceMediaHash } : {}),
       },
     }));
-}
-
-function binaryEntropy(probability: number): number {
-  if (probability === 0 || probability === 1) return 0;
-  return -probability * Math.log2(probability)
-    - (1 - probability) * Math.log2(1 - probability);
 }

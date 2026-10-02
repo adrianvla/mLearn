@@ -26,6 +26,8 @@ export interface StudySessionRecord<Item extends StudyQueueItem, Payload, Answer
   visited: number[];
   rated: number;
   revealed: boolean;
+  /** One durable policy choice per question, including an unrevealed restart. */
+  questionSelected?: boolean;
   answered?: Answer;
   pending?: StudyPending<Payload, Answer>;
   meta: Meta;
@@ -75,6 +77,8 @@ export interface StudySessionController<I extends StudyQueueItem, P, A, M> {
   resume: () => RecordOf<I, P, A, M> | null;
   start: (identity: string, queue: I[], index: number, meta: M) => Promise<boolean>;
   reveal: (expected: RecordOf<I, P, A, M>) => Promise<boolean>;
+  /** Persist an unpresented policy choice without counting the anchor as encountered. */
+  selectQuestion: (expected: RecordOf<I, P, A, M>, index: number, meta: M) => Promise<boolean>;
   reserve: (expected: RecordOf<I, P, A, M>, payload: P, outcome: 'advance' | 'answer', answer?: A) => Promise<boolean>;
   retry: (expected: RecordOf<I, P, A, M>) => Promise<boolean>;
   skip: (expected: RecordOf<I, P, A, M>) => Promise<boolean>;
@@ -108,6 +112,7 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
       if (typeof record.id !== 'string' || typeof record.identity !== 'string'
         || !Array.isArray(record.queue) || !Array.isArray(record.visited)
         || !Number.isInteger(record.index) || !Number.isInteger(record.rated)
+        || (record.questionSelected !== undefined && typeof record.questionSelected !== 'boolean')
         || !options.validate(record)) return null;
       if (record.pending && (record.pending.index !== record.index
         || record.pending.itemId !== record.queue[record.index]?.id
@@ -168,6 +173,7 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
       meta: step.meta,
       rated: record.rated + (outcome === 'rated' ? 1 : 0),
       revealed: false,
+      questionSelected: undefined,
       answered: undefined,
       pending: undefined,
     };
@@ -217,6 +223,12 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
     reveal: (expected) => locked(expected, (record) => {
       if (!record || record.pending || record.answered !== undefined || record.index >= record.queue.length) return false;
       return publish({ ...record, revealed: true });
+    }),
+    selectQuestion: (expected, index, meta) => locked(expected, (record) => {
+      if (!record || record.pending || record.revealed || record.questionSelected || record.answered !== undefined
+        || !Number.isInteger(index) || index < 0 || index >= record.queue.length || record.visited.includes(index)) return false;
+      const selected = { ...record, index, meta, questionSelected: true };
+      return options.validate(selected) && publish(selected);
     }),
     reserve: (expected, payload, outcome, answer) => locked(expected, async (record) => {
       if (!record || (outcome === 'advance' && !record.revealed) || record.pending || record.answered !== undefined) return false;

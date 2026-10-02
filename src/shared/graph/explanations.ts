@@ -91,7 +91,7 @@ export interface TargetExplanation {
 export function assembleTargetExplanation(
   capability: CapabilityKey,
   rawRows: readonly (KnowledgeEvent | JournalRow)[],
-  policy: RetentionPolicy,
+  policy: RetentionPolicy | undefined,
   now = Date.now(),
   prediction?: TargetExplanation['prediction'],
   /**

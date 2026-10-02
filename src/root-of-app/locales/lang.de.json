@@ -1,20 +1,4 @@
 {
-  "mlearn.ConversationAgent.Voice.PreparingMicrophone": "Mikrofon wird vorbereitet…",
-  "mlearn.ConversationAgent.Voice.CallsUnavailable": "KI-Sprachanrufe erfordern die Desktop-App. Du kannst diese Unterhaltung hier per Text fortsetzen.",
-  "mlearn.ConversationAgent.Voice.CaptureFailed": "Das Mikrofon konnte nicht gestartet werden. Prüfe dein Audiogerät und versuche den Anruf erneut.",
-  "mlearn.ConversationAgent.Voice.VisualActivity": "Visuelle Übung — antworte auf dem Bildschirm.",
-  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Die Antwort wurde nicht gesprochen, weil Gesprächsnotizen nicht gespeichert werden konnten.",
-  "mlearn.ConversationAgent.Voice.Delivery.pending": "Keine Wiedergabe aufgezeichnet.",
-  "mlearn.ConversationAgent.Voice.Delivery.playing": "Teilweise Wiedergabe aufgezeichnet.",
-  "mlearn.ConversationAgent.Voice.Delivery.completed": "Wiedergabe abgeschlossen.",
-  "mlearn.ConversationAgent.Voice.Delivery.interrupted": "Wiedergabe unterbrochen.",
-  "mlearn.ConversationAgent.Voice.Delivery.stopped": "Wiedergabe gestoppt.",
-  "mlearn.ConversationAgent.Voice.Delivery.failed": "Sprachausgabe fehlgeschlagen.",
-  "mlearn.ConversationAgent.Voice.Delivery.Estimated": "Teil des Satzes geschätzt.",
-  "mlearn.ConversationAgent.Voice.Delivery.Generated": "Generierte Antwort",
-  "mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription": "Generierter Text; dies ist kein Wiedergabeprotokoll.",
-  "mlearn.ConversationAgent.Voice.NoAudio": "Die Sprachausgabe endete ohne abspielbares Audio. Die Antwort wurde nicht als wiedergegeben erfasst.",
-  "mlearn.ConversationAgent.Voice.DeliveryRecordFailed": "Das Wiedergabeprotokoll konnte nicht gespeichert werden. Die Sprachausgabe wurde gestoppt; die Wiedergabe bleibt unbestätigt.",
   "mlearn": {
     "GraphInspector": {
       "Title": "Graphinspektor",
@@ -313,7 +297,14 @@
           "Title": "Agenten-Gedächtnis"
         },
         "Boundary": {
-          "Title": "Gesprächsgrenze", "Provider": "Prüfverfahren", "Description": "Antworten werden vor dem Speichern geprüft. Ein lokaler Klassifikator kann eine private Vorprüfung ergänzen; die Produktentscheidung trifft weiterhin das gewählte Akteursmodell.", "Actor": "Prüfung durch Akteursmodell", "Local": "Lokaler CPU-Wächter + Akteursprüfung", "LocalDescription": "Qwen3Guard-Gen 0,6B, etwa 484 MB. Läuft auf der CPU.", "Install": "Lokalen Wächter installieren", "Installed": "Lokaler Wächter installiert"
+          "Title": "Gesprächsgrenze",
+          "Provider": "Prüfverfahren",
+          "Description": "Antworten werden vor dem Speichern geprüft. Ein lokaler Klassifikator kann eine private Vorprüfung ergänzen; die Produktentscheidung trifft weiterhin das gewählte Akteursmodell.",
+          "Actor": "Prüfung durch Akteursmodell",
+          "Local": "Lokaler CPU-Wächter + Akteursprüfung",
+          "LocalDescription": "Qwen3Guard-Gen 0,6B, etwa 484 MB. Läuft auf der CPU.",
+          "Install": "Lokalen Wächter installieren",
+          "Installed": "Lokaler Wächter installiert"
         },
         "Checker": {
           "Title": "Korrektur-Agent",
@@ -765,7 +756,25 @@
         "VoiceSample": "Streaming-Stimmklon",
         "LightweightVoice": "Leichte Stimme",
         "SystemVoice": "Systemstimme",
-        "CpuWarning": "Echtzeit-Sprache kann verzögert sein, da die Sprachverarbeitung auf der CPU läuft. Die Sprachqualität ist nicht betroffen."
+        "CpuWarning": "Echtzeit-Sprache kann verzögert sein, da die Sprachverarbeitung auf der CPU läuft. Die Sprachqualität ist nicht betroffen.",
+        "PreparingMicrophone": "Mikrofon wird vorbereitet…",
+        "CallsUnavailable": "KI-Sprachanrufe erfordern die Desktop-App. Du kannst diese Unterhaltung hier per Text fortsetzen.",
+        "CaptureFailed": "Das Mikrofon konnte nicht gestartet werden. Prüfe dein Audiogerät und versuche den Anruf erneut.",
+        "VisualActivity": "Visuelle Übung — antworte auf dem Bildschirm.",
+        "MemoryRecordFailed": "Die Antwort wurde nicht gesprochen, weil Gesprächsnotizen nicht gespeichert werden konnten.",
+        "Delivery": {
+          "pending": "Keine Wiedergabe aufgezeichnet.",
+          "playing": "Teilweise Wiedergabe aufgezeichnet.",
+          "completed": "Wiedergabe abgeschlossen.",
+          "interrupted": "Wiedergabe unterbrochen.",
+          "stopped": "Wiedergabe gestoppt.",
+          "failed": "Sprachausgabe fehlgeschlagen.",
+          "Estimated": "Teil des Satzes geschätzt.",
+          "Generated": "Generierte Antwort",
+          "GeneratedDescription": "Generierter Text; dies ist kein Wiedergabeprotokoll."
+        },
+        "NoAudio": "Die Sprachausgabe endete ohne abspielbares Audio. Die Antwort wurde nicht als wiedergegeben erfasst.",
+        "DeliveryRecordFailed": "Das Wiedergabeprotokoll konnte nicht gespeichert werden. Die Sprachausgabe wurde gestoppt; die Wiedergabe bleibt unbestätigt."
       },
       "Memory": {
         "ClearAll": "Alle Erinnerungen löschen",
@@ -945,9 +954,47 @@
       },
       "Story": {
         "SupportResponse": "Es tut mir leid, dass du das durchmachst. Du musst damit nicht allein sein. Wenn du akut in Gefahr bist, wende dich jetzt an den örtlichen Notruf oder eine Person deines Vertrauens.",
-        "Branch": "Übungsgeschichte", "BranchMode": "Quellenhintergrund verwenden", "Follow": "Neue Quellen übernehmen", "Pinned": "Diese Version behalten", "Independent": "Eigene Geschichte", "AlternatePremises": "Alternative Annahmen (eine pro Zeile)",
+        "Branch": "Übungsgeschichte",
+        "BranchMode": "Quellenhintergrund verwenden",
+        "Follow": "Neue Quellen übernehmen",
+        "Pinned": "Diese Version behalten",
+        "Independent": "Eigene Geschichte",
+        "AlternatePremises": "Alternative Annahmen (eine pro Zeile)",
         "SaveBeforeUse": "Speichere die Änderungen, bevor du den Fortschritt änderst oder ein Update recherchierst.",
-        "Title": "Lesefortschritt", "Track": "Fassung", "NewTrack": "Neue Fassung", "Work": "Werk", "Edition": "Fassung oder Kontinuität", "Unit": "Einheit", "Total": "Einheiten gesamt", "SourceWiki": "Quellen-Wiki-URL", "AutoAdvance": "Neu recherchierten Hintergrund automatisch übernehmen", "Progress": "Abgeschlossene Einheiten", "UnitNumber": "Einheitennummer", "Through": "Bis hier abschließen", "Complete": "Einheit abschließen", "Remove": "Einheit entfernen", "Sources": "Quellenseiten", "SourceUrl": "URL der Quellenseite", "From": "Von Einheit", "To": "Bis Einheit", "AddSource": "Quelle zuordnen", "SourceHint": "Nur geprüfte Seiten zuordnen. Eine Seite wird erst verwendet, wenn ihr gesamter Bereich abgeschlossen ist.", "UpdatePeople": "Hintergrund der Kontakte aktualisieren", "ReviewUpdate": "Aktualisierung recherchieren", "Ready": "Prüfe diese belegten Änderungen, bevor du sie übernimmst.", "ApplyUpdate": "Auf Kontakte anwenden", "ValidUnit": "Gib eine gültige Einheitennummer ein.", "ValidSource": "Gib eine Quellen-URL und einen gültigen Bereich ein.", "ResearchIdentity": "Identität anhand einer Quelle recherchieren", "NoTrack": "Kein Lesefortschritt angegeben", "Research": "Recherchieren", "ScopedContext": "Geschichte bis zu deinem Stand", "SourceQuotes": "Quellenzitate", "Unknowns": "Unklar oder fehlend", "UseDraft": "Diesen Entwurf verwenden", "ResearchAccepted": "Entwurf ausgewählt"
+        "Title": "Lesefortschritt",
+        "Track": "Fassung",
+        "NewTrack": "Neue Fassung",
+        "Work": "Werk",
+        "Edition": "Fassung oder Kontinuität",
+        "Unit": "Einheit",
+        "Total": "Einheiten gesamt",
+        "SourceWiki": "Quellen-Wiki-URL",
+        "AutoAdvance": "Neu recherchierten Hintergrund automatisch übernehmen",
+        "Progress": "Abgeschlossene Einheiten",
+        "UnitNumber": "Einheitennummer",
+        "Through": "Bis hier abschließen",
+        "Complete": "Einheit abschließen",
+        "Remove": "Einheit entfernen",
+        "Sources": "Quellenseiten",
+        "SourceUrl": "URL der Quellenseite",
+        "From": "Von Einheit",
+        "To": "Bis Einheit",
+        "AddSource": "Quelle zuordnen",
+        "SourceHint": "Nur geprüfte Seiten zuordnen. Eine Seite wird erst verwendet, wenn ihr gesamter Bereich abgeschlossen ist.",
+        "UpdatePeople": "Hintergrund der Kontakte aktualisieren",
+        "ReviewUpdate": "Aktualisierung recherchieren",
+        "Ready": "Prüfe diese belegten Änderungen, bevor du sie übernimmst.",
+        "ApplyUpdate": "Auf Kontakte anwenden",
+        "ValidUnit": "Gib eine gültige Einheitennummer ein.",
+        "ValidSource": "Gib eine Quellen-URL und einen gültigen Bereich ein.",
+        "ResearchIdentity": "Identität anhand einer Quelle recherchieren",
+        "NoTrack": "Kein Lesefortschritt angegeben",
+        "Research": "Recherchieren",
+        "ScopedContext": "Geschichte bis zu deinem Stand",
+        "SourceQuotes": "Quellenzitate",
+        "Unknowns": "Unklar oder fehlend",
+        "UseDraft": "Diesen Entwurf verwenden",
+        "ResearchAccepted": "Entwurf ausgewählt"
       },
       "Contacts": {
         "Archive": "Kontakt archivieren",
@@ -1190,7 +1237,12 @@
         "LLMToastTitle": "Fehlende Beispielübersetzungen werden generiert…",
         "LLMDone": "Übersetzungen für {count} Lernkarte(n) generiert",
         "LLMDoneWithErrors": "Übersetzungen für {count} Lernkarte(n) generiert, {failed} fehlgeschlagen",
-        "RepairButton": "Reparieren", "ContentDescription": "{count} Karteikarte(n) haben noch keine Bedeutung. Möchtest du sie aus dem Wörterbuch ergänzen?", "ContentToastTitle": "Fehlende Karteninhalte werden ergänzt…", "ContentDone": "{count} Karteikarte(n) ergänzt", "ContentDoneWithErrors": "{count} Karteikarte(n) ergänzt, {failed} konnten nicht ergänzt werden", "ContentFailed": "Karteninhalte konnten nicht ergänzt werden",
+        "RepairButton": "Reparieren",
+        "ContentDescription": "{count} Karteikarte(n) haben noch keine Bedeutung. Möchtest du sie aus dem Wörterbuch ergänzen?",
+        "ContentToastTitle": "Fehlende Karteninhalte werden ergänzt…",
+        "ContentDone": "{count} Karteikarte(n) ergänzt",
+        "ContentDoneWithErrors": "{count} Karteikarte(n) ergänzt, {failed} konnten nicht ergänzt werden",
+        "ContentFailed": "Karteninhalte konnten nicht ergänzt werden",
         "Title": "Fehlende Lernkartendaten",
         "ToastTitle": "Lernkarten werden repariert…"
       },
@@ -1713,12 +1765,13 @@
         },
         "FullGraph": "Vollständigen Graphen öffnen",
         "Prediction": {
-          "None": "Keine Vorhersage.",
+          "None": "Für eine Einschätzung eines noch ungeprüften Zugangs fehlt verifizierte Unterstützung. Direkte Übung kann ihn belegen.",
           "SupportLimited": "Geringe strukturelle Unterstützung",
           "SupportModerate": "Mittlere strukturelle Unterstützung",
           "SupportStrong": "Starke strukturelle Unterstützung",
           "Context": "Basiert auf deinem erfassten Wissen und den installierten Sprachbeziehungen. Nutze dieses Signal zur Auswahl einer Übung.",
-          "Limits": "Dies ist eine heuristische Einschätzung, keine Erfolgswahrscheinlichkeit und kein gemessener Fortschritt. Aufgabenkontext und Behaltenszeitraum wurden nicht bewertet."
+          "Limits": "Dies ist eine heuristische Einschätzung, keine Erfolgswahrscheinlichkeit und kein gemessener Fortschritt. Aufgabenkontext und Behaltenszeitraum wurden nicht bewertet.",
+          "UnavailableSupport": "Das installierte Sprachpaket kann diese Fähigkeit nicht verlässlich einschätzen. Direkte Übung kann sie nachweisen."
         },
         "Adjust": "Anpassen",
         "RetentionTitle": "Wiederholungen",
@@ -3581,7 +3634,11 @@
       "QueueDetails": "Warum diese Wörter?",
       "QueueExplanation": "Die Auswahl verwendet deine aktuellen Filter und gespeicherten Kenntnisse. Ignorierte Wörter sind ausgeschlossen. Ein Wort muss mindestens eine hier prüfbare Fähigkeit haben, die noch nicht als bekannt bewertet wurde. Zuletzt gezeigte Wörter werden nicht ausgeschlossen.",
       "QueueExclusions": "Ausgeschlossen — ignoriert: {ignored}; außerhalb der Filter: {filtered}; keine geeignete Aufgabe oder nicht mehr passend: {unavailable}.",
-      "InvalidFilter": "Der Filter ist unvollständig oder ungültig. Bearbeite ihn, um fortzufahren."
+      "InvalidFilter": "Der Filter ist unvollständig oder ungültig. Bearbeite ihn, um fortzufahren.",
+      "SelectionSaveFailed": "Die nächste Frage konnte nicht gespeichert werden. Versuche es erneut, um mit der gespeicherten Sitzung fortzufahren.",
+      "PoolChoiceReason": "Aus {count} geeigneten Wörtern dieser Stufe ausgewählt. Deine Antwort aktualisiert nur die hier geprüften Aspekte.",
+      "GraphChoiceReason": "Verbindungen zu verwandtem Wissen gaben diesem Wort auf dieser Stufe Vorrang vor {word}. Prüfe, welche Aspekte du abrufen kannst.",
+      "AssistanceSaveFailed": "Die Hilfen für diese Frage konnten nicht gespeichert werden. Versuche es erneut, bevor du eine Antwort erfasst."
     },
     "Menu": {
       "About": "Über mLearn",
@@ -3936,6 +3993,5 @@
       "SettingsHint": "Lehrplan, Lernziel, Lerntempo und Ziele verwaltest du im Lernplan.",
       "Open": "Lernplan öffnen"
     }
-  },
-  "mlearn.Knowledge.Projection.Prediction.UnavailableSupport": "Das installierte Sprachpaket kann diese Fähigkeit nicht verlässlich einschätzen. Direkte Übung kann sie nachweisen."
+  }
 }

@@ -223,6 +223,14 @@ export function getKnowledgeStates(keys: readonly string[]): Record<string, KeyK
   return result;
 }
 
+export function getAddressedKnowledgeKeys(language: string, ids: readonly string[]): string[] {
+  return ensureStore().queryAddressedKeys(language, ids);
+}
+
+export function getAddressedKnowledgeIds(keys: readonly string[]): string[] {
+  return ensureStore().queryAddressedIds(keys);
+}
+
 export function getKnowledgeArchives(keys: readonly string[]): KnowledgeArchiveEnvelope[] {
   const active = ensureStore();
   return keys.map((key) => ({ key, archive: active.getArchive(key) }));

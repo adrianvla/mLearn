@@ -15,7 +15,7 @@ import type {
 export type Rng = () => number;
 
 /** Version of the selection math captured in every trace (R20 replay pin). */
-export const POLICY_TRACE_VERSION = 'teaching-policy@3';
+export const POLICY_TRACE_VERSION = 'teaching-policy@4';
 
 /** Deadline window (days) inside which goal weighting ramps up (R07 heuristic, bounded). */
 export const DEADLINE_WINDOW_DAYS = 42;
@@ -39,6 +39,8 @@ export const POLICY_TRACE_DETAIL_CAP = 16;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface TeachingPolicyConfig {
+  /** Ranked choice keeps source ordering on ties; weighted remains the default. */
+  selection?: 'weighted' | 'ranked';
   weights: Partial<Record<ScoreDimension, number>>;
   deferFloor: number;
   attentionBudgetRemaining: number;
@@ -230,7 +232,9 @@ export function selectNext(
     if (reason) addExclusion({ key: candidate.key, reason });
   }
 
-  const { selected, draws, drawsOmitted } = weightedPick(eligible, rng);
+  const { selected, draws, drawsOmitted } = config.selection === 'ranked'
+    ? { selected: eligible.reduce((current, item) => item.total > current.total ? item : current), draws: [], drawsOmitted: 0 }
+    : weightedPick(eligible, rng);
   const action: PolicyAction = selected.candidate.origin === 'retention'
     ? 'MAINTAIN'
     : requiresProbe(selected.candidate)
@@ -241,6 +245,8 @@ export function selectNext(
   // explainable without post-hoc narrative.
   const why = eligible.length === 1
     ? `sole eligible candidate, score ${selected.total}`
+    : config.selection === 'ranked'
+      ? `highest relative score among ${eligible.length} eligible: "${selected.candidate.key}" at ${selected.total}; source order breaks ties`
     : `weighted pick over ${eligible.length} eligible (seed ${config.seed ?? 'unseeded'}): "${selected.candidate.key}" won with score ${selected.total}; deterministic top was "${best.candidate.key}" at ${best.total}`;
   return decision(
     selected,
@@ -251,21 +257,11 @@ export function selectNext(
   );
 }
 
-/**
- * A bridge the graph already predicts as highly accessible only deserves a
- * cheap calibration probe — measuring it teaches nothing; full teaching is
- * reserved for bridges with genuine acquisition cost.
- */
-const BRIDGE_PROBE_THRESHOLD = 0.7;
-
-function bridgeDeservesOnlyProbe(candidate: Candidate): boolean {
-  const predicted = candidate.meta?.pSuccess;
-  return typeof predicted === 'number' && predicted >= BRIDGE_PROBE_THRESHOLD;
-}
-
 /** Origins that consume the probe budget and honor probe cooldown. */
 function requiresProbe(candidate: Candidate): boolean {
-  return candidate.origin === 'probe' || (candidate.origin === 'bridge' && bridgeDeservesOnlyProbe(candidate));
+  // A missing-access measurement remains a probe irrespective of support.
+  // The outcome, not an uncalibrated score, establishes whether it is known.
+  return candidate.origin === 'probe' || candidate.origin === 'bridge';
 }
 
 function probeIsAllowed(candidate: Candidate, config: TeachingPolicyConfig): boolean {
@@ -353,6 +349,7 @@ interface DecisionContext {
 const TRACE_LIMITS = [
   'Scores are explainable heuristic weights, not calibrated recall probabilities.',
   'Momentum is recent-consolidation padding: selection-only, never evidence and never a threshold.',
+  'Declared support is package-authorized relative credit, not measured effort or information gain.',
 ] as const;
 
 const MEDIA_LIMIT =
@@ -400,6 +397,7 @@ function buildTrace(
   return {
     version: POLICY_TRACE_VERSION,
     inputs: {
+      ...(config.selection ? { selection: config.selection } : {}),
       nowMs: config.nowMs,
       attentionBudgetRemaining: config.attentionBudgetRemaining,
       probeBudgetRemaining: config.probeBudgetRemaining,
@@ -504,7 +502,8 @@ export function replayFromTrace(
   // Integrity: a weighted pick draws once per eligible candidate, so a
   // successful pick must carry its draw record; a DEFER never drew. A pick
   // trace with no draws is corrupt and cannot be replayed.
-  if (trace.action !== null && trace.action !== 'DEFER' && trace.inputs.rng.draws.length === 0) return null;
+  if (trace.inputs.selection !== 'ranked' && trace.action !== null && trace.action !== 'DEFER' && trace.inputs.rng.draws.length === 0) return null;
+  if (trace.inputs.selection === 'ranked' && trace.inputs.rng.draws.length !== 0) return null;
   const goal = trace.inputs.goal;
   const intensity = trace.inputs.intensity;
   const context: PolicyContext | undefined = goal || intensity
@@ -514,6 +513,7 @@ export function replayFromTrace(
       }
     : undefined;
   return selectNext(candidates, {
+    ...(trace.inputs.selection ? { selection: trace.inputs.selection } : {}),
     weights: { ...trace.weights.base },
     deferFloor: trace.inputs.deferFloor,
     attentionBudgetRemaining: trace.inputs.attentionBudgetRemaining,

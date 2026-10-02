@@ -1,3 +1,8 @@
+import { scopeSiblingEvent } from '../knowledge/siblingHistory';
+import { buildKnowledgeProjection } from '../knowledge/projectionBuilder';
+import { loadLinguisticGraph, surfaceEntityId } from '../graph/load';
+import { effectiveThresholds } from '../knowledge/effectiveKnowledge';
+import { hashWordSync } from '../utils/wordHash';
 import type { FlashcardAudioPreset } from '../types';
 import { createCloudLLMRequest, OpenAICompatibleLLMAdapter } from '../backends/cloudLLMAdapter';
 import { resolveCloudApiUrl } from '../backends';
@@ -480,6 +485,20 @@ interface FlashcardShardMeta {
   dailyStats: FlashcardStore['dailyStats'];
   storeMeta: FlashcardStore['meta'];
   storeVersion: FlashcardStore['version'];
+}
+
+let projectionRetentionRequest: Promise<FlashcardStore['meta'] | undefined> | undefined;
+function loadProjectionRetentionPolicy(): Promise<FlashcardStore['meta'] | undefined> {
+  if (projectionRetentionRequest) return projectionRetentionRequest;
+  const request = (async () => {
+    const raw = await storageGet(FLASHCARD_META_KEY);
+    if (raw) return (JSON.parse(raw) as FlashcardShardMeta).storeMeta;
+    const legacy = await storageGet(FLASHCARD_LEGACY_KEY);
+    return legacy ? (JSON.parse(legacy) as FlashcardStore).meta : undefined;
+  })();
+  projectionRetentionRequest = request;
+  void request.finally(() => { if (projectionRetentionRequest === request) projectionRetentionRequest = undefined; }).catch(() => undefined);
+  return request;
 }
 
 async function loadShardedFlashcards(): Promise<FlashcardStore> {
@@ -1704,8 +1723,23 @@ async function loadKnowledgeEventsShard(language: string): Promise<KnowledgeEven
   }
 }
 
-async function loadKnowledgeEventsForLanguage(language: string): Promise<KnowledgeEventLog> {
-  return (await loadKnowledgeEventsShard(language)).events;
+// Concurrent projection reads share one parsed, immutable snapshot. Mutation
+// transactions always load their own shard, never this read snapshot.
+const knowledgeEventReads = new Map<string, Promise<KnowledgeEventLog>>();
+function freezeKnowledgeSnapshot<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeKnowledgeSnapshot(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+function loadKnowledgeEventsForLanguage(language: string): Promise<KnowledgeEventLog> {
+  const pending = knowledgeEventReads.get(language);
+  if (pending) return pending;
+  const read = loadKnowledgeEventsShard(language).then(shard => freezeKnowledgeSnapshot(shard.events));
+  knowledgeEventReads.set(language, read);
+  void read.finally(() => { if (knowledgeEventReads.get(language) === read) knowledgeEventReads.delete(language); }).catch(() => {});
+  return read;
 }
 
 /**
@@ -1719,10 +1753,13 @@ async function updateKnowledgeEventsForLanguage(
 ): Promise<void> {
   const previous = knowledgeEventWriteQueues.get(language) ?? Promise.resolve();
   const task = previous.then(async () => {
-    const shard = await loadKnowledgeEventsShard(language);
-    shard.events = update(shard.events, shard.observationIdentities);
-    // Events and retry protection share one persisted value and write boundary.
-    await storageSet(knowledgeEventsStorageKey(language), JSON.stringify(shard));
+    knowledgeEventReads.delete(language);
+    try {
+      const shard = await loadKnowledgeEventsShard(language);
+      shard.events = update(shard.events, shard.observationIdentities);
+      // Events and retry protection share one persisted value and write boundary.
+      await storageSet(knowledgeEventsStorageKey(language), JSON.stringify(shard));
+    } finally { knowledgeEventReads.delete(language); }
   });
   knowledgeEventWriteQueues.set(language, task.catch(() => {}));
   await task;
@@ -2320,11 +2357,29 @@ const graphBridge: GraphBridge = {
   async getGraphNeighborhood() {
     return null;
   },
-  async getEvidenceLinkedSurfaces(_language, surfaces) {
-    return surfaces;
+  async getEvidenceLinkedSurfaces(language, surfaces, evidenceKeys) {
+    const keys = new Set(evidenceKeys);
+    const shard = await loadKnowledgeEventsForLanguage(language);
+    const addresses = new Set(evidenceKeys.flatMap(key => (shard[key] ?? []).flatMap(event => event.targetRef?.id ? [event.targetRef.id] : [])));
+    return [...new Set(surfaces)].filter(surface => keys.has(`${language}:${hashWordSync(surface)}`) || addresses.has(surfaceEntityId(language, hashWordSync(surface))));
   },
-  async getKnowledgeProjection() {
-    return { status: 'unavailable', targets: [] };
+  async getKnowledgeProjection(language, surface, requestedThresholds) {
+    try {
+      const key = `${language}:${hashWordSync(surface)}`;
+      const id = surfaceEntityId(language, hashWordSync(surface));
+      const [shard, policy, rawSettings] = await Promise.all([
+        loadKnowledgeEventsForLanguage(language), loadProjectionRetentionPolicy(), storageGet('settings'),
+      ]);
+      const keys = new Set([key, ...Object.keys(shard).filter(storageKey => (shard[storageKey] ?? []).some(event => event.targetRef?.id === id))]);
+      const rows = [...keys].flatMap(storageKey => (shard[storageKey] ?? []).map((event, seq) => ({ event: scopeSiblingEvent(event, storageKey, key), seq })));
+      const settings = rawSettings ? { ...DEFAULT_SETTINGS, ...JSON.parse(rawSettings) } : DEFAULT_SETTINGS;
+      const graph = loadLinguisticGraph({ schemaVersion: 1, language, generatedAt: '', sourceVersions: {}, entities: [], relations: [] });
+      const projection = buildKnowledgeProjection(graph, id, rows, policy,
+        undefined, undefined, { thresholds: requestedThresholds ?? effectiveThresholds(settings) });
+      return { ...projection, graphStatus: 'unavailable', surfaceKnown: false, querySurface: surface };
+    } catch {
+      return { status: 'error', graphStatus: 'unavailable', targets: [] };
+    }
   },
 };
 

@@ -719,9 +719,7 @@ function makeCard(overrides?: Partial<Flashcard>): Flashcard {
   };
 }
 
-// ── Tests ────────────────────────────────────────────────────────────
-describe('FlashcardProvider', () => {
-  beforeEach(() => {
+function resetProviderTestHarness() {
     vi.resetModules();
     vi.clearAllMocks();
     vi.restoreAllMocks();
@@ -767,7 +765,11 @@ describe('FlashcardProvider', () => {
     // Revision checking, as flashcardStorage does it. A test that needs a
     // different ordering (the stale-write regression) replaces this wholesale.
     installStrictSaveRevision();
-  });
+}
+
+// ── Tests ────────────────────────────────────────────────────────────
+describe('FlashcardProvider', () => {
+  beforeEach(resetProviderTestHarness);
 
   afterEach(async () => {
     // Tearing the provider down flushes whatever write is still on its
@@ -5949,6 +5951,11 @@ describe('FlashcardProvider', () => {
 });
 
 describe('acknowledged rating command semantics', () => {
+  beforeEach(resetProviderTestHarness);
+  afterEach(async () => {
+    await new Promise(resolve => setTimeout(resolve, SAVE_DEBOUNCE_MS_FOR_TESTS));
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
   it('acknowledges a profile batch before changing local knowledge and retries the same attempt', async () => {
     const SRS = await import('../services/srsAlgorithm');
     const key = `ja2:${await SRS.hashWord('学校')}`;
@@ -6373,6 +6380,31 @@ describe('acknowledged rating command semantics', () => {
     });
     dispose();
     mockSettings.language = 'ja';
+  });
+
+  it('journals the pinned decision on the first measured row after scaffold filtering and refuses a mismatched exact target', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const SRS = await import('../services/srsAlgorithm');
+    const id = `ja:surface:${SRS.hashWordSync('学校')}`;
+    const decision: import('../../shared/learningDecision').LearningDecision = { id: 'decision-audit-test', at: 1, policyVersion: 'policy-test',
+      selected: { key: 'school', action: 'PROBE', targets: ['surface-reading', 'sense-recognition'].map(capability => ({ kind: 'surface', id, capability })),
+        task: { taskTemplateId: 'word-sync', inputModality: 'written-form', responseModality: 'recall', supplied: ['written-form'],
+          requested: ['surface-reading', 'sense-recognition'], fluencyRequired: false, ratingMode: 'profile' } },
+      baseline: null, detail: { 'future::unknown': { values: [3] } } };
+    await ctx.submitRating('学校', [{ capability: 'surface-reading', quality: 'fluent' }, { capability: 'sense-recognition', quality: 'fluent' }],
+      { language: 'ja', attemptId: 'decision-audit-attempt', scaffolds: { reading: true }, decision });
+    const rows = mockAppendEvents.mock.calls.flatMap(([log]) => Object.values(log as Record<string, KnowledgeEvent[]>).flat())
+      .filter(row => row.attemptId === 'decision-audit-attempt');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ targetRef: { kind: 'surface', id, capability: 'sense-recognition' },
+      decisionRef: { id: decision.id }, decision });
+    const wrong = { ...decision, selected: { ...decision.selected, targets: [{ kind: 'sense', id: 'isolated-sense', capability: 'sense-recognition' }] } };
+    await expect(ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }],
+      { attemptId: 'refused-audit-attempt', decision: wrong })).rejects.toThrow('pinned learning task');
+    expect(mockAppendEvents.mock.calls.flatMap(([log]) => Object.values(log as Record<string, KnowledgeEvent[]>).flat())
+      .some(row => row.attemptId === 'refused-audit-attempt')).toBe(false);
+    dispose();
   });
 });
 
@@ -6858,10 +6890,10 @@ describe('claim override persistence (REQ15)', () => {
 });
 // ── REQ3/REQ52: attempt metadata completeness ─────────────────────────
 describe('attempt task metadata (REQ3/REQ52)', () => {
-  beforeEach(() => {
-    vi.resetModules();
-    vi.clearAllMocks();
-    setupMockImplementations();
+  beforeEach(resetProviderTestHarness);
+  afterEach(async () => {
+    await new Promise(resolve => setTimeout(resolve, SAVE_DEBOUNCE_MS_FOR_TESTS));
+    await new Promise(resolve => setTimeout(resolve, 0));
   });
   it('persists popup self-assessments as claims without replacing observations or scheduler state', async () => {
     mockSettings.language = 'ja2';

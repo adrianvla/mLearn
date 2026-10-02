@@ -1,5 +1,6 @@
 import type { AttemptQuality, KnowledgeAspect, KnowledgeSource, WordStatus } from './constants';
 import { ASPECT_CAPABILITY, type CapabilityKey } from './graph/types';
+import type { LearningDecision } from './learningDecision';
 
 export type { KnowledgeAspect, WordStatus };
 export type KnowledgeEventKind = 'status' | 'review' | 'rating' | 'rollup' | 'claim' | 'retraction';
@@ -150,6 +151,10 @@ export interface KnowledgeEvent {
   eventId?: string;
   /** Opaque package-declared transfer context pinned by the actual encounter. */
   transferContext?: string;
+  /** Every measured access joins the exact pre-presentation policy choice. */
+  decisionRef?: { id: string };
+  /** Full bounded decision is stored once per physical attempt, on its first measured row. */
+  decision?: LearningDecision;
   t: number;
   kind: KnowledgeEventKind;
   source: EvidenceSource;

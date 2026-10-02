@@ -1,3 +1,4 @@
+import { isLearningDecision, learningDecisionMatchesOutcome, type LearningTargetAddress } from '../../shared/learningDecision';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { DatabaseSync } from 'node:sqlite';
 import { createGrammarRecognitionFold, grammarPatternFromEvidenceKey } from '../../shared/grammar/evidence';
@@ -69,6 +70,14 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
     if (typeof event.targetRef.kind !== 'string' || typeof event.targetRef.id !== 'string') return false;
     if (event.targetRef.capability !== undefined && !isValidCapabilityId(event.targetRef.capability)) return false;
   }
+  if (event.decisionRef !== undefined) {
+    if (!event.decisionRef || typeof event.decisionRef !== 'object' || Array.isArray(event.decisionRef)
+      || typeof event.decisionRef.id !== 'string' || !event.decisionRef.id
+      || (event.kind !== 'rating' && event.kind !== 'review') || !event.targetRef) return false;
+  }
+  if (event.decision !== undefined && (!isLearningDecision(event.decision)
+    || event.decisionRef?.id !== event.decision.id || !event.targetRef
+    || !learningDecisionMatchesOutcome(event.decision, event.targetRef as LearningTargetAddress))) return false;
   if (event.taskType !== undefined && (typeof event.taskType !== 'string' || event.taskType.length === 0)) return false;
   if (event.itemRef !== undefined) {
     if (!event.itemRef || typeof event.itemRef !== 'object' || Array.isArray(event.itemRef)) return false;
@@ -237,6 +246,16 @@ export class KnowledgeHistoryStore {
     this.db = db;
     this.migrateSchema();
     this.seq = new SeqCounter(this.db);
+    if (!this.db.prepare("SELECT 1 FROM meta WHERE key = 'archived-address-index-v1'").get()) {
+      this.db.exec('BEGIN');
+      try {
+        for (const row of this.db.prepare('SELECT key, lang, json FROM archives').all() as Array<{ key: string; lang: string; json: string }>) {
+          this.indexArchiveAddresses(row.key, row.lang, JSON.parse(row.json) as KeyArchive);
+        }
+        this.db.prepare("INSERT INTO meta (key, value) VALUES ('archived-address-index-v1', '1')").run();
+        this.db.exec('COMMIT');
+      } catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    }
   }
 
   static open(dbPath: string): KnowledgeHistoryStore {
@@ -261,6 +280,11 @@ export class KnowledgeHistoryStore {
       CREATE INDEX IF NOT EXISTS rows_attempt ON rows(key, json_extract(json, '$.attemptId'));
       CREATE INDEX IF NOT EXISTS rows_event_id ON rows(key, json_extract(json, '$.eventId'));
       CREATE INDEX IF NOT EXISTS rows_anki_review ON rows(key, json_extract(json, '$.ankiReviewId'));
+      CREATE INDEX IF NOT EXISTS rows_target_address ON rows(lang, json_extract(json, '$.targetRef.id'));
+      CREATE TABLE IF NOT EXISTS archived_addresses (
+        id TEXT NOT NULL, key TEXT NOT NULL, lang TEXT NOT NULL, PRIMARY KEY (id, key)
+      ) WITHOUT ROWID;
+      CREATE INDEX IF NOT EXISTS archived_addresses_key ON archived_addresses(key);
       CREATE INDEX IF NOT EXISTS rows_retraction ON rows(key, json_extract(json, '$.retracts'));
       CREATE TABLE IF NOT EXISTS observation_identities (
         key TEXT NOT NULL,
@@ -402,7 +426,7 @@ export class KnowledgeHistoryStore {
    * must re-import every key against the empty store.
    */
   resetForReimport(): void {
-    this.db.exec("DELETE FROM rows; DELETE FROM archives; DELETE FROM checkpoints; DELETE FROM attempt_index; DELETE FROM bucket_recs; DELETE FROM observation_identities; DELETE FROM meta WHERE key LIKE 'mig:%' OR key LIKE 'migseq:%' OR key LIKE 'v2mig:%' OR key = 'seqCounter';");
+    this.db.exec("DELETE FROM rows; DELETE FROM archives; DELETE FROM archived_addresses; DELETE FROM checkpoints; DELETE FROM attempt_index; DELETE FROM bucket_recs; DELETE FROM observation_identities; DELETE FROM meta WHERE key LIKE 'mig:%' OR key LIKE 'migseq:%' OR key LIKE 'v2mig:%' OR key = 'seqCounter';");
   }
 
   /** Transaction-body variant — callers own BEGIN/COMMIT. */
@@ -421,6 +445,7 @@ export class KnowledgeHistoryStore {
     {
       const lang = this.languageOfKey(key);
       if (compact.archive) {
+        this.indexArchiveAddresses(key, lang, compact.archive);
         this.db
           .prepare(
             'INSERT INTO archives (key, lang, frontier_t, json) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET frontier_t = excluded.frontier_t, json = excluded.json',
@@ -675,6 +700,35 @@ export class KnowledgeHistoryStore {
         throw error;
       }
     }
+  }
+
+  private indexArchiveAddresses(key: string, language: string, archive: KeyArchive): void {
+    const insert = this.db.prepare('INSERT OR IGNORE INTO archived_addresses (id, key, lang) VALUES (?, ?, ?)');
+    for (const bucket of Object.keys(archive.buckets)) {
+      const id = bucketRepresentative(bucket)?.targetRef?.id;
+      if (id) insert.run(id, key, language);
+    }
+  }
+
+  /** Storage keys are containers; exact target addresses can live under another canonical family. */
+  queryAddressedKeys(language: string, ids: readonly string[]): string[] {
+    const keys = new Set<string>();
+    const exact = this.db.prepare("SELECT DISTINCT key FROM rows WHERE lang = ? AND json_extract(json, '$.targetRef.id') = ?");
+    const archived = this.db.prepare('SELECT key FROM archived_addresses WHERE lang = ? AND id = ?');
+    for (const id of new Set(ids)) {
+      for (const row of [...exact.all(language, id), ...archived.all(language, id)] as Array<{ key: string }>) keys.add(row.key);
+    }
+    return [...keys].sort();
+  }
+
+  queryAddressedIds(keys: readonly string[]): string[] {
+    const ids = new Set<string>();
+    const exact = this.db.prepare("SELECT DISTINCT json_extract(json, '$.targetRef.id') AS id FROM rows WHERE key = ? AND json_extract(json, '$.targetRef.id') IS NOT NULL");
+    const archived = this.db.prepare('SELECT id FROM archived_addresses WHERE key = ?');
+    for (const key of new Set(keys)) {
+      for (const row of [...exact.all(key), ...archived.all(key)] as Array<{ id: string }>) ids.add(row.id);
+    }
+    return [...ids].sort();
   }
 
   /** Exact rows (ledger + tail + acquisition residue) for the given keys. */
@@ -1081,6 +1135,7 @@ export class KnowledgeHistoryStore {
         ].sort((a, b) => a.event.t - b.event.t || a.origin - b.origin || a.seq - b.seq);
         this.db.prepare('DELETE FROM rows WHERE key = ?').run(key);
         this.db.prepare('DELETE FROM archives WHERE key = ?').run(key);
+        this.db.prepare('DELETE FROM archived_addresses WHERE key = ?').run(key);
         this.db.prepare('DELETE FROM checkpoints WHERE key = ?').run(key);
         this.db.prepare('DELETE FROM attempt_index WHERE key = ?').run(key);
         this.db.prepare('DELETE FROM bucket_recs WHERE key = ?').run(key);

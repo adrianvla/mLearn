@@ -229,6 +229,15 @@ describe('KnowledgeProjectionDrawer overview', () => {
     dispose();
   });
 
+  it('preserves supported pronunciation alternatives when inspection has no contextual reading', async () => {
+    lookupWordMock.mockResolvedValueOnce({ surfaceId: 'ja:surface:hash', entries: [], lexemes: [], senses: [],
+      pronunciations: [{ id: 'p1', kind: 'pronunciation', label: 'first' }, { id: 'p2', kind: 'pronunciation', label: 'second' },
+        { id: 'p3', kind: 'pronunciation', label: 'first' }] });
+    const { host, dispose } = await renderDrawer();
+    expect(host.querySelector('.knowledge-drawer__reading')?.textContent).toBe('first / second');
+    dispose();
+  });
+
   it('presents capabilities as compact rows with friendly labels and why lines', async () => {
     const { host, dispose } = await renderDrawer();
     const cards = host.querySelectorAll('.knowledge-card');

@@ -60,10 +60,9 @@ export const PRESETS: Record<'RETENTION' | 'CALIBRATION' | 'CURRICULUM' | 'MEDIA
     task: RETENTION_TASK,
   },
   CALIBRATION: {
-    // Probes score information-gain/uncertainty; weak targets score
-    // curriculum-relevance; bridges complete the graph cheaply — their
-    // predicted accessibility discounts attention-cost.
-    weights: { 'information-gain': 1, uncertainty: 1, novelty: 1, 'curriculum-relevance': 1, 'attention-cost': -0.5 },
+    // Residual uncertainty and package-authorized support are relative
+    // selection preferences, without probability or estimated-effort claims.
+    weights: { 'information-gain': 1, uncertainty: 1, novelty: 1, 'declared-support': 1, 'curriculum-relevance': 1, 'attention-cost': -0.5 },
     deferFloor: 0,
     attentionBudgetRemaining: 1,
     probeBudgetRemaining: 1,

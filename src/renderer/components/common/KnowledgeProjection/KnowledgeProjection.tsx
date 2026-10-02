@@ -393,7 +393,9 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     return cards;
   });
 
-  const reading = createMemo(() => lookup()?.pronunciations[0]?.label);
+  // Inspection has no sentence-level resolution: preserve every supported
+  // pronunciation rather than presenting the first dictionary alternative as definitive.
+  const reading = createMemo(() => [...new Set((lookup()?.pronunciations ?? []).flatMap(entity => entity.label ? [entity.label] : []))].join(' / '));
   const canAdjust = () => props.onWordClaim !== undefined || props.onAccessClaim !== undefined;
   const claimControlsFor = (card: CapabilityCard) => {
     if (card.isSense) {

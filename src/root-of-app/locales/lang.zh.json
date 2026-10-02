@@ -1,20 +1,4 @@
 {
-  "mlearn.ConversationAgent.Voice.PreparingMicrophone": "正在准备麦克风…",
-  "mlearn.ConversationAgent.Voice.CallsUnavailable": "AI语音通话需要桌面应用。你可以在这里继续文字对话。",
-  "mlearn.ConversationAgent.Voice.CaptureFailed": "无法启动麦克风。请检查音频设备，然后重新发起通话。",
-  "mlearn.ConversationAgent.Voice.VisualActivity": "视觉练习：请在屏幕上作答。",
-  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "无法保存对话笔记，因此未播放回复。",
-  "mlearn.ConversationAgent.Voice.Delivery.pending": "未记录播放。",
-  "mlearn.ConversationAgent.Voice.Delivery.playing": "已记录部分播放。",
-  "mlearn.ConversationAgent.Voice.Delivery.completed": "播放已完成。",
-  "mlearn.ConversationAgent.Voice.Delivery.interrupted": "播放被打断。",
-  "mlearn.ConversationAgent.Voice.Delivery.stopped": "播放已停止。",
-  "mlearn.ConversationAgent.Voice.Delivery.failed": "语音合成失败。",
-  "mlearn.ConversationAgent.Voice.Delivery.Estimated": "部分语句为估计值。",
-  "mlearn.ConversationAgent.Voice.Delivery.Generated": "生成的回复",
-  "mlearn.ConversationAgent.Voice.Delivery.GeneratedDescription": "这是生成的文本，并非播放记录。",
-  "mlearn.ConversationAgent.Voice.NoAudio": "合成结束时没有可播放的音频。回复未被记录为已播放。",
-  "mlearn.ConversationAgent.Voice.DeliveryRecordFailed": "无法保存播放记录。语音已停止，播放仍未确认。",
   "mlearn": {
     "GraphInspector": {
       "Title": "图谱检查器",
@@ -313,7 +297,14 @@
           "Title": "代理记忆"
         },
         "Boundary": {
-          "Title": "对话边界审核", "Provider": "审核方式", "Description": "回复会在保存前审核。本地分类器可增加私密的第一道检查；最终产品判断仍由所选模型完成。", "Actor": "模型审核", "Local": "本地 CPU 防护＋模型审核", "LocalDescription": "Qwen3Guard-Gen 0.6B，约 484 MB，在 CPU 上运行。", "Install": "安装本地防护模型", "Installed": "本地防护模型已安装"
+          "Title": "对话边界审核",
+          "Provider": "审核方式",
+          "Description": "回复会在保存前审核。本地分类器可增加私密的第一道检查；最终产品判断仍由所选模型完成。",
+          "Actor": "模型审核",
+          "Local": "本地 CPU 防护＋模型审核",
+          "LocalDescription": "Qwen3Guard-Gen 0.6B，约 484 MB，在 CPU 上运行。",
+          "Install": "安装本地防护模型",
+          "Installed": "本地防护模型已安装"
         },
         "Checker": {
           "Title": "校对代理",
@@ -765,7 +756,25 @@
         "VoiceSample": "流式语音克隆",
         "LightweightVoice": "轻量语音",
         "SystemVoice": "系统语音",
-        "CpuWarning": "语音正在 CPU 上运行，实时语音可能会出现延迟。语音质量不受影响。"
+        "CpuWarning": "语音正在 CPU 上运行，实时语音可能会出现延迟。语音质量不受影响。",
+        "PreparingMicrophone": "正在准备麦克风…",
+        "CallsUnavailable": "AI语音通话需要桌面应用。你可以在这里继续文字对话。",
+        "CaptureFailed": "无法启动麦克风。请检查音频设备，然后重新发起通话。",
+        "VisualActivity": "视觉练习：请在屏幕上作答。",
+        "MemoryRecordFailed": "无法保存对话笔记，因此未播放回复。",
+        "Delivery": {
+          "pending": "未记录播放。",
+          "playing": "已记录部分播放。",
+          "completed": "播放已完成。",
+          "interrupted": "播放被打断。",
+          "stopped": "播放已停止。",
+          "failed": "语音合成失败。",
+          "Estimated": "部分语句为估计值。",
+          "Generated": "生成的回复",
+          "GeneratedDescription": "这是生成的文本，并非播放记录。"
+        },
+        "NoAudio": "合成结束时没有可播放的音频。回复未被记录为已播放。",
+        "DeliveryRecordFailed": "无法保存播放记录。语音已停止，播放仍未确认。"
       },
       "Memory": {
         "ClearAll": "清除所有记忆",
@@ -945,9 +954,47 @@
       },
       "Story": {
         "SupportResponse": "听到你正经历这些，我很难过。你不必独自面对。如果你眼下有危险，请立即联系当地急救服务或你信任的人。",
-        "Branch": "练习故事", "BranchMode": "使用来源背景", "Follow": "跟随新来源更新", "Pinned": "保留此版本", "Independent": "独立故事", "AlternatePremises": "替代前提（每行一项）",
+        "Branch": "练习故事",
+        "BranchMode": "使用来源背景",
+        "Follow": "跟随新来源更新",
+        "Pinned": "保留此版本",
+        "Independent": "独立故事",
+        "AlternatePremises": "替代前提（每行一项）",
         "SaveBeforeUse": "更改进度或研究更新前，请先保存这些更改。",
-        "Title": "故事进度", "Track": "作品版本", "NewTrack": "新版本", "Work": "作品", "Edition": "版本或时间线", "Unit": "单元名称", "Total": "总单元数", "SourceWiki": "来源维基网址", "AutoAdvance": "自动应用新研究的背景", "Progress": "已完成单元", "UnitNumber": "单元编号", "Through": "完成至此", "Complete": "完成单元", "Remove": "移除单元", "Sources": "来源页面", "SourceUrl": "来源页面网址", "From": "起始单元", "To": "结束单元", "AddSource": "添加来源", "SourceHint": "仅添加已核实的页面。只有完成整个范围后才会使用该页面。", "UpdatePeople": "更新联系人背景", "ReviewUpdate": "研究更新", "Ready": "应用前请检查这些有来源的变更。", "ApplyUpdate": "应用到联系人", "ValidUnit": "请输入有效的单元编号。", "ValidSource": "请输入来源网址和有效单元范围。", "ResearchIdentity": "根据来源研究人物", "NoTrack": "未声明故事进度", "Research": "研究", "ScopedContext": "当前进度的故事背景", "SourceQuotes": "来源引文", "Unknowns": "不确定或缺失", "UseDraft": "使用此草稿", "ResearchAccepted": "已选择草稿"
+        "Title": "故事进度",
+        "Track": "作品版本",
+        "NewTrack": "新版本",
+        "Work": "作品",
+        "Edition": "版本或时间线",
+        "Unit": "单元名称",
+        "Total": "总单元数",
+        "SourceWiki": "来源维基网址",
+        "AutoAdvance": "自动应用新研究的背景",
+        "Progress": "已完成单元",
+        "UnitNumber": "单元编号",
+        "Through": "完成至此",
+        "Complete": "完成单元",
+        "Remove": "移除单元",
+        "Sources": "来源页面",
+        "SourceUrl": "来源页面网址",
+        "From": "起始单元",
+        "To": "结束单元",
+        "AddSource": "添加来源",
+        "SourceHint": "仅添加已核实的页面。只有完成整个范围后才会使用该页面。",
+        "UpdatePeople": "更新联系人背景",
+        "ReviewUpdate": "研究更新",
+        "Ready": "应用前请检查这些有来源的变更。",
+        "ApplyUpdate": "应用到联系人",
+        "ValidUnit": "请输入有效的单元编号。",
+        "ValidSource": "请输入来源网址和有效单元范围。",
+        "ResearchIdentity": "根据来源研究人物",
+        "NoTrack": "未声明故事进度",
+        "Research": "研究",
+        "ScopedContext": "当前进度的故事背景",
+        "SourceQuotes": "来源引文",
+        "Unknowns": "不确定或缺失",
+        "UseDraft": "使用此草稿",
+        "ResearchAccepted": "已选择草稿"
       },
       "Contacts": {
         "Archive": "归档联系人",
@@ -1190,7 +1237,12 @@
         "LLMToastTitle": "正在生成缺失的例句翻译…",
         "LLMDone": "为 {count} 张闪卡生成了翻译",
         "LLMDoneWithErrors": "为 {count} 张闪卡生成了翻译，{failed} 个失败",
-        "RepairButton": "修复", "ContentDescription": "{count} 张卡片还没有释义。要用词典补全吗？", "ContentToastTitle": "正在补全卡片内容…", "ContentDone": "已补全 {count} 张卡片", "ContentDoneWithErrors": "已补全 {count} 张卡片，{failed} 张失败", "ContentFailed": "无法补全卡片内容",
+        "RepairButton": "修复",
+        "ContentDescription": "{count} 张卡片还没有释义。要用词典补全吗？",
+        "ContentToastTitle": "正在补全卡片内容…",
+        "ContentDone": "已补全 {count} 张卡片",
+        "ContentDoneWithErrors": "已补全 {count} 张卡片，{failed} 张失败",
+        "ContentFailed": "无法补全卡片内容",
         "Title": "闪卡数据缺失",
         "ToastTitle": "正在修复闪卡…"
       },
@@ -1713,12 +1765,13 @@
         },
         "FullGraph": "打开完整图谱",
         "Prediction": {
-          "None": "无预测。",
+          "None": "尚无足够的可靠依据来估计未测量的能力。直接练习可以确认它。",
           "SupportLimited": "结构性支持较少",
           "SupportModerate": "结构性支持适中",
           "SupportStrong": "结构性支持较强",
           "Context": "依据当前记录的知识和已安装的语言关系。可用此信号选择一次练习。",
-          "Limits": "这是启发式支持估计，并非成功概率或已测得的进步。尚未评估任务情境或记忆保持时长。"
+          "Limits": "这是启发式支持估计，并非成功概率或已测得的进步。尚未评估任务情境或记忆保持时长。",
+          "UnavailableSupport": "已安装的语言包无法可靠估计这项能力。可以通过实际练习来确认。"
         },
         "Adjust": "调整",
         "RetentionTitle": "复习",
@@ -3581,7 +3634,11 @@
       "QueueDetails": "为什么选择这些词？",
       "QueueExplanation": "队列依据当前筛选条件和已记录的知识生成。已忽略的词会被排除。词汇必须至少有一项可在此检查且尚未被评估为已知的技能。最近显示过的词不会因此被排除。",
       "QueueExclusions": "已排除 — 已忽略：{ignored}；不符合筛选条件：{filtered}；没有合适题目或不再符合条件：{unavailable}。",
-      "InvalidFilter": "筛选条件不完整或无效。请编辑后继续。"
+      "InvalidFilter": "筛选条件不完整或无效。请编辑后继续。",
+      "SelectionSaveFailed": "无法保存下一题。请重试以继续已保存的练习。",
+      "PoolChoiceReason": "从本级别的 {count} 个适用词中选出。你的回答只会更新此题实际测试的方面。",
+      "GraphChoiceReason": "与相关知识的联系使本级别中这个词优先于 {word}。请检查哪些方面能够回忆起来。",
+      "AssistanceSaveFailed": "无法保存本题已显示的提示。请先重试，再记录回答。"
     },
     "Menu": {
       "About": "关于 mLearn",
@@ -3936,6 +3993,5 @@
       "SettingsHint": "课程、目标、学习节奏均在学习计划中管理。",
       "Open": "打开学习计划"
     }
-  },
-  "mlearn.Knowledge.Projection.Prediction.UnavailableSupport": "已安装的语言包无法可靠估计这项能力。可以通过实际练习来确认。"
+  }
 }

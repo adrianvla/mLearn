@@ -22,6 +22,8 @@ vi.mock('./knowledgeProjection', async importOriginal => ({
 vi.mock('./flashcardStorage', () => ({ loadFlashcards: vi.fn(async () => ({ meta: {} })) }));
 vi.mock('./knowledgeEvents', () => ({
   getKnowledgeRows: vi.fn((keys: readonly string[]) => Object.fromEntries(keys.map((key) => [key, []]))),
+  getAddressedKnowledgeKeys: vi.fn(() => []),
+  getAddressedKnowledgeIds: vi.fn(() => []),
   getKnowledgeStates: vi.fn(() => ({})),
   getKnowledgeArchives: vi.fn((keys: readonly string[]) => keys.map((key) => ({ key }))),
 }));
@@ -374,11 +376,50 @@ describe('LinguisticGraphService', () => {
   it('reports a missing graph explicitly and registers only bulk-safe graph IPC handlers', async () => {
     const { LinguisticGraphService, setupLinguisticGraphIPC } = await import('./linguisticGraph');
     await expect(new LinguisticGraphService(directory).getMeta('ja')).resolves.toEqual({ entityCount: 0, relationCount: 0, ready: false, status: 'not-installed' });
-    await expect(new LinguisticGraphService(directory).getKnowledgeProjection('ja', '猫')).resolves.toEqual({ status: 'not-installed', targets: [] });
+    await expect(new LinguisticGraphService(directory).getKnowledgeProjection('ja', '猫')).resolves.toMatchObject({ status: 'ready', graphStatus: 'not-installed', surfaceKnown: false, targets: [] });
     setupLinguisticGraphIPC();
     expect([...handlers.keys()]).toEqual(expect.arrayContaining([
       'graph-get-meta', 'graph-lookup-word', 'graph-get-related', 'graph-get-targets-for-surfaces', 'graph-get-neighborhood', 'knowledge-get-projection',
     ]));
+  });
+
+  it('projects canonical journal knowledge without an optional graph and bounds evidence-linked surfaces', async () => {
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const journal = await import('./knowledgeEvents');
+    const original = await vi.importActual<typeof import('./knowledgeProjection')>('./knowledgeProjection');
+    const hash = crypto.createHash('sha256').update('authored').digest('hex');
+    const id = `future:surface:${hash}`;
+    vi.mocked(journal.getKnowledgeRows).mockImplementationOnce(keys => Object.fromEntries(keys.map(key => [key, [{ seq: 1,
+      event: { t: 1, kind: 'claim', source: 'manual', targetRef: { kind: 'surface', id, capability: 'future::unknown-access' }, toStatus: 'known' },
+    }]])));
+    vi.mocked(buildKnowledgeProjection).mockImplementationOnce(original.buildKnowledgeProjection);
+    const service = new LinguisticGraphService(directory);
+    const result = await service.getKnowledgeProjection('future', 'authored');
+    expect(result).toMatchObject({ status: 'ready', graphStatus: 'not-installed', surfaceKnown: false, surfaceId: id,
+      targets: [{ targetRef: { kind: 'surface', id }, states: [{ capability: 'future::unknown-access', classification: 'known', basis: 'claim' }] }] });
+    expect(result.targets.flatMap(target => target.states).every(state => state.prediction === undefined)).toBe(true);
+    expect(await service.getEvidenceLinkedSurfaces('future', ['authored', 'unseen'], [`future:${hash}`])).toEqual(['authored']);
+  });
+
+  it('recovers exact alias addresses from canonical family containers without borrowing unrelated legacy rows', async () => {
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const journal = await import('./knowledgeEvents');
+    const original = await vi.importActual<typeof import('./knowledgeProjection')>('./knowledgeProjection');
+    const hash = crypto.createHash('sha256').update('alias').digest('hex');
+    const id = `future:surface:${hash}`;
+    const family = `future:${'a'.repeat(64)}`;
+    vi.mocked(journal.getAddressedKnowledgeKeys).mockReturnValueOnce([family]);
+    vi.mocked(journal.getKnowledgeRows).mockImplementationOnce(keys => Object.fromEntries(keys.map(key => [key, key !== family ? [] : [
+      { seq: 1, event: { t: 1, kind: 'claim', source: 'manual', aspect: 'reading', toStatus: 'known' } },
+      { seq: 2, event: { t: 2, kind: 'claim', source: 'manual', targetRef: { kind: 'surface', id, capability: 'sense-recognition' }, toStatus: 'known' } },
+    ]])));
+    vi.mocked(buildKnowledgeProjection).mockImplementationOnce(original.buildKnowledgeProjection);
+    const service = new LinguisticGraphService(directory);
+    const result = await service.getKnowledgeProjection('future', 'alias');
+    expect(result.targets[0].states).toMatchObject([{ capability: 'sense-recognition', classification: 'known', basis: 'claim' }]);
+    expect(result.targets[0].states.some(state => state.capability === 'surface-reading')).toBe(false);
+    vi.mocked(journal.getAddressedKnowledgeIds).mockReturnValueOnce([id]);
+    expect(await service.getEvidenceLinkedSurfaces('future', ['alias', 'unseen'], [family])).toEqual(['alias']);
   });
 
   it('uses persisted thresholds by default and the requesting renderer thresholds when supplied', async () => {

@@ -93,7 +93,7 @@ describe('selectNext', () => {
 
     expect(decision?.candidate.key).toBe('other');
   });
-it('treats a highly predicted bridge as a probe, a costly one as teaching', () => {
+it('measures missing bridge accesses independently of an uncalibrated success hint', () => {
     const bridge = (key: string, pSuccess: number): Candidate => ({
       key,
       language: 'ja',
@@ -103,7 +103,7 @@ it('treats a highly predicted bridge as a probe, a costly one as teaching', () =
       meta: { bridge: true, pSuccess },
     });
     expect(selectNext([bridge('cheap', 0.9)], config())?.action).toBe('PROBE');
-    expect(selectNext([bridge('costly', 0.3)], config())?.action).toBe('TEACH');
+    expect(selectNext([bridge('costly', 0.3)], config())?.action).toBe('PROBE');
   });
 
   it('a highly predicted bridge consumes probe budget and cooldown like a probe', () => {
@@ -154,6 +154,14 @@ it('treats a highly predicted bridge as a probe, a costly one as teaching', () =
 });
 
 describe('selectNext trace (R20)', () => {
+  it('can rank a frozen pool without random draws and replay its exact choice', () => {
+    const pool = [candidate('baseline', 1), candidate('supported', 2)];
+    const selected = selectNext(pool, config({ selection: 'ranked' }), () => { throw new Error('ranked selection must not draw'); });
+    expect(selected?.candidate.key).toBe('supported');
+    expect(selected?.trace?.inputs.selection).toBe('ranked');
+    expect(selected?.trace?.inputs.rng.draws).toEqual([]);
+    expect(replayFromTrace(selected!.trace!, pool)?.candidate.key).toBe('supported');
+  });
   const traceWeights = { 'retention-need': 1, 'curriculum-relevance': 1, novelty: 1 } as const;
 
   function scored(key: string, scores: Partial<Record<ScoreDimension, number>>, origin: Candidate['origin'] = 'curriculum'): Candidate {

@@ -1845,6 +1845,69 @@ describe('Backend URL helpers', () => {
   });
 });
 
+describe('canonical projections without mobile graph distribution', () => {
+  it('preserves arbitrary authored surface evidence with zero structural credit and bounds the evidence scan', async () => {
+    vi.resetModules();
+    localStorage.clear();
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const { hashWordSync } = await import('../utils/wordHash');
+    const bridge = createCapacitorBridge();
+    const hash = hashWordSync('authored');
+    const key = `future:${hash}`;
+    const id = `future:surface:${hash}`;
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ [key]: [{ t: 1, kind: 'claim', source: 'manual',
+      targetRef: { kind: 'surface', id, capability: 'future::unknown-access' }, toStatus: 'known' }] });
+    const result = await bridge.graph.getKnowledgeProjection('future', 'authored');
+    expect(result).toMatchObject({ status: 'ready', graphStatus: 'unavailable', surfaceKnown: false, surfaceId: id,
+      targets: [{ targetRef: { kind: 'surface', id }, states: [{ capability: 'future::unknown-access', classification: 'known', basis: 'claim' }] }] });
+    expect(result.targets.flatMap(target => target.states).every(state => state.prediction === undefined)).toBe(true);
+    expect(await bridge.graph.getEvidenceLinkedSurfaces('future', ['authored', 'unseen'], [key])).toEqual(['authored']);
+    expect(await bridge.graph.getGraphMeta('future')).toMatchObject({ status: 'unavailable', ready: false });
+  });
+});
+
+describe('concurrent mobile projection history reads', () => {
+  it('shares a read snapshot across a bounded batch and reloads after a journal write', async () => {
+    vi.resetModules(); localStorage.clear();
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const { Preferences } = await import('@capacitor/preferences');
+    const { hashWordSync } = await import('../utils/wordHash');
+    const bridge = createCapacitorBridge();
+    const key = `future:${hashWordSync('authored')}`;
+    const id = `future:surface:${hashWordSync('authored')}`;
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ [key]: [{ t: 1, kind: 'claim', source: 'manual',
+      targetRef: { kind: 'surface', id, capability: 'future::unknown-access' }, toStatus: 'known' }] });
+    vi.mocked(Preferences.get).mockClear();
+    const results = await Promise.all(Array.from({ length: 8 }, () => bridge.graph.getKnowledgeProjection('future', 'authored')));
+    expect(vi.mocked(Preferences.get).mock.calls.filter(([arg]) => arg.key === 'mlearn-knowledge-events:future')).toHaveLength(1);
+    expect(results.every(result => result.targets[0].states[0].classification === 'known')).toBe(true);
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ [key]: [{ t: 2, kind: 'claim', source: 'manual',
+      targetRef: { kind: 'surface', id, capability: 'future::unknown-access' }, toStatus: 'unknown' }] });
+    expect((await bridge.graph.getKnowledgeProjection('future', 'authored')).targets[0].states[0].classification).toBe('unknown');
+    expect(results[0].targets[0].states[0].classification).toBe('known');
+  });
+});
+
+describe('graphless alias projection boundaries', () => {
+  it('recovers exact alias observations from a family container without borrowing its unaddressed history', async () => {
+    vi.resetModules(); localStorage.clear();
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const { hashWordSync } = await import('../utils/wordHash');
+    const bridge = createCapacitorBridge();
+    const key = `future:${hashWordSync('family')}`;
+    const id = `future:surface:${hashWordSync('alias')}`;
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ [key]: [
+      { t: 1, kind: 'claim', source: 'manual', aspect: 'reading', toStatus: 'known' },
+      { t: 2, kind: 'claim', source: 'manual', targetRef: { kind: 'surface', id, capability: 'sense-recognition' }, toStatus: 'known' },
+    ] });
+    const projection = await bridge.graph.getKnowledgeProjection('future', 'alias');
+    expect(projection.targets[0].states).toMatchObject([{ capability: 'sense-recognition', classification: 'known', basis: 'claim' }]);
+    expect(projection.targets[0].states.some(state => state.capability === 'surface-reading')).toBe(false);
+    expect(await bridge.graph.getEvidenceLinkedSurfaces('future', ['alias', 'unseen'], [key])).toEqual(['alias']);
+    expect(projection.targets[0].states[0].retention).toBeUndefined();
+  });
+});
+
 describe('knowledgeEvents bridge (Capacitor journal)', () => {
   beforeEach(() => {
     vi.resetModules();
