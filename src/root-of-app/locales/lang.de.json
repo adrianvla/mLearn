@@ -1655,6 +1655,7 @@
       "Loading": "Plugin-Oberfläche wird geladen..."
     },
     "Knowledge": {
+      "StudyPreferenceSaveFailed": "Deine Lerneinstellung konnte nicht gespeichert werden. Es wurde nichts geändert; versuche es erneut.",
       "Capability": {
         "sense-recognition": "Bedeutung",
         "surface-recognition": "Diese Schreibweise erkennen",

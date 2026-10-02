@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
   };
   return {
     store,
+    getStudyableCards: vi.fn(() => ({} as Record<string, Flashcard>)),
     getAllCards: vi.fn((): Flashcard[] => []),
     updateMeta: vi.fn(),
     t: vi.fn((key: string) => key),
@@ -27,6 +28,7 @@ vi.mock('../../context', () => ({
   useFlashcards: () => ({
     store: mocks.store,
     getAllCards: mocks.getAllCards,
+    getStudyableCards: mocks.getStudyableCards,
     updateMeta: mocks.updateMeta,
   }),
   useSettings: () => ({
@@ -70,11 +72,24 @@ describe('FlashcardStats', () => {
       reviewsToday: 0,
     };
     mocks.getAllCards.mockReturnValue([]);
+    mocks.getStudyableCards.mockReturnValue({});
     mocks.t.mockImplementation((key: string) => key);
   });
 
   afterEach(() => {
     document.body.innerHTML = '';
+  });
+
+  it('keeps authored totals but uses study eligibility for due work', () => {
+    const card = { id: 'excluded', language: 'package-x', state: 'review',
+      dueDate: 0, interval: 1, ease: 2.5, reviews: 2, lapses: 0,
+      content: { type: 'word', front: 'target', back: 'authored' } } as Flashcard;
+    mocks.getAllCards.mockReturnValue([card]);
+    mocks.getStudyableCards.mockReturnValue({});
+    const container = mount();
+    const hero = container.querySelector('.flashcard-stats-hero')!;
+    const values = Array.from(hero.querySelectorAll('.stat-card-value')).map(node => node.textContent);
+    expect(values.slice(0, 2)).toEqual(['1', '0']);
   });
 
   it('renders an em-dash retention value when there are no reviews', () => {

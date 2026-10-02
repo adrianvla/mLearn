@@ -1,3 +1,4 @@
+/** @deprecated Historical deletion coupling; no runtime caller. Study exclusion now preserves cards. */
 /**
  * One decision for "ignoring a word that owns flashcards".
  *

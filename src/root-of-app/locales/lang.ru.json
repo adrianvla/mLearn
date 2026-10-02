@@ -1655,6 +1655,7 @@
       "Loading": "Загрузка интерфейса плагина..."
     },
     "Knowledge": {
+      "StudyPreferenceSaveFailed": "Не удалось сохранить настройку обучения. Ничего не изменилось; попробуйте ещё раз.",
       "Capability": {
         "sense-recognition": "Значение",
         "surface-recognition": "Узнавание этого написания",

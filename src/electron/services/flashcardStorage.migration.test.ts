@@ -88,6 +88,19 @@ describe('flashcardStorage v2→v3 zh variant migration', () => {
   });
   afterEach(() => tempDir.cleanup());
 
+  it('preserves a newer withdrawal when legacy package variants converge', async () => {
+    writePackage();
+    write(store({ ignoredWords: {
+      [key('zh-Hans', '学')]: { word: '学', language: 'zh-Hans', ignoredAt: 1 },
+      [key('zh-Hant', '學')]: { word: '學', language: 'zh-Hant', ignoredAt: 20, excluded: false, updatedAt: 30 },
+    } }));
+    const migrated = await loadFlashcards();
+    const canonical = canonicalKeyHash('zh', '学', { hashWord: hash, languageData: zhMetadata });
+    expect(migrated.ignoredWords[canonical]).toMatchObject({ excluded: false, updatedAt: 30, language: 'zh' });
+    invalidateFlashcardsCache();
+    expect((await loadFlashcards()).ignoredWords[canonical]).toMatchObject({ excluded: false, updatedAt: 30 });
+  });
+
   it('(a), (h) merges colliding cards and writes a complete report beside the backup', async () => {
     writePackage();
     const hans = card('learned', '学', 'zh-Hans', { state: 'review', ease: 2.8, interval: 800, dueDate: 90, reviews: 10, lapses: 2, lastReviewed: 200, tags: ['a'] });
@@ -362,6 +375,29 @@ describe('flashcardStorage normalization-version keyed-record migration (D3)', (
     ({ loadFlashcards } = await import('./flashcardStorage'));
   });
   afterEach(() => tempDir.cleanup());
+
+  it('keeps withdrawal recency when current-schema records rebuild under canonical keys', async () => {
+    mockLoadLangData.mockReturnValue({ tst: casefoldPackage });
+    const input = store({ version: 3, ignoredWords: {
+      'tst:old-withdrawal': { word: 'Izmir', language: 'tst', ignoredAt: 10, excluded: false, updatedAt: 30 },
+      'tst:stale-exclusion': { word: 'IZMIR', language: 'tst', ignoredAt: 20 },
+    } });
+    input.meta.normalizationVersion = 1;
+    write(input);
+    const migrated = await loadFlashcards();
+    expect(migrated.ignoredWords[`tst:${hash('izmir')}`]).toMatchObject({ excluded: false, updatedAt: 30 });
+    expect(migrated.meta.normalizationVersion).toBe(CURRENT_NORMALIZATION_VERSION);
+  });
+
+  it('keeps newer re-exclusion when canonical keys collide with a withdrawal', async () => {
+    mockLoadLangData.mockReturnValue({ tst: casefoldPackage });
+    write(store({ ignoredWords: {
+      'tst:withdrawal': { word: 'Izmir', language: 'tst', ignoredAt: 100, excluded: false, updatedAt: 30 },
+      'tst:re-exclusion': { word: 'IZMIR', language: 'tst', ignoredAt: 10, excluded: true, updatedAt: 40 },
+    } }));
+    const migrated = await loadFlashcards();
+    expect(migrated.ignoredWords[`tst:${hash('izmir')}`]).toMatchObject({ excluded: true, updatedAt: 40 });
+  });
 
   it('rebuilds mixed-language source-backed records under v2 keys and carries non-attributable cards', async () => {
     mockLoadLangData.mockReturnValue({ tst: casefoldPackage, zh: zhMappingPackage });

@@ -1,3 +1,4 @@
+import { isStudyExcluded, mergeStudyExclusion } from '../../shared/studyExclusion';
 import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset';
 /**
  * Flashcard Context
@@ -309,6 +310,8 @@ interface FlashcardContextValue {
 
   // Query operations
   getAllCards: () => Flashcard[];
+  /** Authored cards eligible for study preferences, across packages; scheduler rules still apply. */
+  getStudyableCards: () => Record<string, Flashcard>;
   getCardById: (id: string) => Flashcard | null;
   /** Get all flashcards for a word (supports multiple cards per word) */
   getCardsByWord: (word: string, language?: string) => Promise<Flashcard[]>;
@@ -584,8 +587,18 @@ function applyStoreDelta(target: Record<string, unknown>, base: Record<string, u
  * a deletion. This walks the delta's own branches instead, so a decision about
  * one card cannot rewrite the rest of the store around it.
  */
-function mergeIntentOnto(target: Record<string, unknown>, intent: Record<string, unknown>): void {
+export function mergeIntentOnto(target: Record<string, unknown>, intent: Record<string, unknown>, root = true): void {
   for (const [key, value] of Object.entries(intent)) {
+    if (root && key === 'ignoredWords' && isStoreRecord(value)) {
+      // Preferences are whole records. A stale retry/local overlay cannot
+      // overwrite a newer peer withdrawal or create hybrid policy metadata.
+      if (!isStoreRecord(target[key])) target[key] = {};
+      const preferences = target[key] as Record<string, IgnoredWordEntry>;
+      for (const [id, entry] of Object.entries(value)) {
+        if (isStoreRecord(entry)) preferences[id] = mergeStudyExclusion(preferences[id], entry as unknown as IgnoredWordEntry);
+      }
+      continue;
+    }
     if (isStoreRecord(value)) {
       if (Object.keys(value).length === 0) {
         // Every key under here was removed; the parent map is what the removal
@@ -595,7 +608,7 @@ function mergeIntentOnto(target: Record<string, unknown>, intent: Record<string,
         continue;
       }
       if (!isStoreRecord(target[key])) target[key] = {};
-      mergeIntentOnto(target[key] as Record<string, unknown>, value);
+      mergeIntentOnto(target[key] as Record<string, unknown>, value, false);
       continue;
     }
     if (value === undefined) {
@@ -621,16 +634,25 @@ function mergeIntentOnto(target: Record<string, unknown>, intent: Record<string,
  * decision never touched, so a removal would be silently dropped. Removals are
  * therefore recorded explicitly, and `mergeIntentOnto` reads them back.
  */
-function recordStoreDelta(target: Record<string, unknown>, base: Record<string, unknown>, next: Record<string, unknown>): void {
+export function recordStoreDelta(target: Record<string, unknown>, base: Record<string, unknown>, next: Record<string, unknown>, root = true): void {
   for (const key of new Set([...Object.keys(base), ...Object.keys(next)])) {
     const before = base[key];
     const after = next[key];
     if (Object.is(before, after)) continue;
+    if (root && key === 'ignoredWords' && isStoreRecord(after)) {
+      const preferences: Record<string, unknown> = {};
+      const previous = isStoreRecord(before) ? before : {};
+      for (const [id, entry] of Object.entries(after)) {
+        if (JSON.stringify(previous[id]) !== JSON.stringify(entry)) preferences[id] = JSON.parse(JSON.stringify(entry));
+      }
+      if (Object.keys(preferences).length > 0) target[key] = preferences;
+      continue;
+    }
     if (!(key in next)) {
       target[key] = undefined;
     } else if (isStoreRecord(before) && isStoreRecord(after)) {
       if (!isStoreRecord(target[key])) target[key] = {};
-      recordStoreDelta(target[key] as Record<string, unknown>, before, after);
+      recordStoreDelta(target[key] as Record<string, unknown>, before, after, false);
       if (Object.keys(target[key] as Record<string, unknown>).length === 0) delete target[key];
     } else {
       if (JSON.stringify(before) === JSON.stringify(after)) continue;
@@ -665,6 +687,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const [store, setStore] = createStore<FlashcardStore>(getDefaultStore());
   const [isLoading, setIsLoading] = createSignal(true);
   const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [] });
+  // Exclusion is a reversible teaching policy. Keep authored/history records
+  // in the store and present only eligible cards to the scheduling mechanism.
+  const studyableCards = createMemo(() => Object.fromEntries(Object.entries(store.flashcards)
+    .filter(([, card]) => !isWordIgnoredSync(card.content.front, card.language || settings.language))));
   const [undoStack, setUndoStack] = createSignal<UndoEntry[]>([]);
   let ratingCommandInFlight = false;
   // Retained only until a command's ACK (or ownership transfer to the
@@ -769,11 +795,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const ipcCleanups: Array<() => void> = [];
 
   // Queue counts memo
-  const queueCounts = createMemo(() => SRS.getQueueCounts(queue(), store.flashcards, newDayHour()));
+  const queueCounts = createMemo(() => SRS.getQueueCounts(queue(), studyableCards(), newDayHour()));
 
   // Get current card
   const getCurrentCard = (): Flashcard | null => {
-    return SRS.getNextCard(queue(), store.flashcards, newDayHour());
+    return SRS.getNextCard(queue(), studyableCards(), newDayHour());
   };
 
   // Preview due dates for rating buttons
@@ -1109,7 +1135,7 @@ function mergeKnowledgeMaps(local: FlashcardStore, incoming: FlashcardStore): vo
   }
   for (const [lk, entry] of Object.entries(incoming.ignoredWords)) {
     const current = local.ignoredWords[lk];
-    if (!current || entry.ignoredAt > current.ignoredAt) local.ignoredWords[lk] = entry;
+    local.ignoredWords[lk] = mergeStudyExclusion(current, entry);
   }
 
   mergeWordCandidates(local, incoming);
@@ -1616,7 +1642,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const learningCap = store.meta.maxNewCardsPerDayLearning;
     const maxNew = learningCap === -1 ? Number.MAX_SAFE_INTEGER : learningCap;
     const newQueue = SRS.buildReviewQueue(
-        store.flashcards,
+        studyableCards(),
         maxNew,
         plm?.newCardsToday ?? 0,
         learningCap,
@@ -1793,7 +1819,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     log.info('%caddFlashcard: wordHash generated:', 'color: magenta;', wordHash);
 
     // Check if marked as known (skip flashcard creation)
-    if (getWordFormKeysSync(word, lang).some((key) => isKnownClaimed(key) || store.ignoredWords[key])) {
+    if (getWordFormKeysSync(word, lang).some((key) => isKnownClaimed(key) || isStudyExcluded(store.ignoredWords[key]))) {
       log.info(`Word "${word}" is marked as known, not creating flashcard.`);
       return '';
     }
@@ -2485,12 +2511,12 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   // Get due count (respects end-of-SRS-day for review cards)
   const getDueCount = (): number => {
-    return SRS.getDueCards(store.flashcards, newDayHour(), settings.language).length;
+    return SRS.getDueCards(studyableCards(), newDayHour(), settings.language).length;
   };
 
   // Get new cards count
   const getNewCount = (): number => {
-    return SRS.getNewCards(store.flashcards, settings.language).length;
+    return SRS.getNewCards(studyableCards(), settings.language).length;
   };
 
   // =========== Synchronous Lookup Methods ===========
@@ -2533,7 +2559,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     },
   );
   /** Teaching-policy exclusions (ignoredWords): never select/teach/test these. */
-  const excludedWordKeys = createMemo(() => new Set(Object.keys(store.ignoredWords)));
+  const excludedWordKeys = createMemo(() => new Set(Object.entries(store.ignoredWords).filter(([, entry]) => isStudyExcluded(entry)).map(([key]) => key)));
   const getPrimaryWordFormForLanguage = (word: string, language = settings.language): string => (
     getWordFormsForLanguage(word, language)[0] ?? word
   );
@@ -2598,7 +2624,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     for (const form of getWordFormsForLanguage(word, language)) {
       const wordHash = SRS.hashWordSync(form);
       const key = langKey(language, wordHash);
-      if (store.ignoredWords[key]) {
+      if (isStudyExcluded(store.ignoredWords[key])) {
         return true;
       }
     }
@@ -2608,7 +2634,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const getIgnoredWordsSync = (): IgnoredWordEntry[] => {
     const prefix = `${settings.language}:`;
     return Object.entries(store.ignoredWords)
-      .filter(([key]) => key.startsWith(prefix))
+      .filter(([key, entry]) => key.startsWith(prefix) && isStudyExcluded(entry))
       .map(([, entry]) => entry)
       .sort((a, b) => b.ignoredAt - a.ignoredAt);
   };
@@ -2688,7 +2714,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const existingKey = matchingKeys.find((key) => store.wordCandidates[key]) ?? lk;
     const hasExistingCardOrKnownState = matchingKeys.some((key) => {
       const cardIds = store.wordToCardMap[key];
-      return (cardIds && cardIds.length > 0) || isKnownClaimed(key) || store.ignoredWords[key];
+      return (cardIds && cardIds.length > 0) || isKnownClaimed(key) || isStudyExcluded(store.ignoredWords[key]);
     });
     if (hasExistingCardOrKnownState) {
       return;
@@ -3488,25 +3514,16 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       hoverTimers.delete(lk);
     }
 
-    setStore(produce((s) => {
-      s.ignoredWords[lk] = {
-        word: storageWord,
-        reading,
-        language: lang,
-        ignoredAt: Date.now(),
-      };
-      delete s.wordCandidates[lk];
-    }));
-    saveFlashcards();
-
-    // If there are flashcards, remove all of them
-    const cardIds = store.wordToCardMap[lk];
-    if (cardIds && cardIds.length > 0) {
-      // Remove all cards for this word
-      for (const cardId of [...cardIds]) {
-        await removeFlashcard(cardId, true);
-      }
-    }
+    if (!await saveFlashcardsImmediate((target, intent) => {
+      const previous = target.ignoredWords[lk];
+      const exclusion: IgnoredWordEntry = { word: storageWord, reading, language: lang,
+        ignoredAt: Date.now(), excluded: true,
+        updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? previous?.ignoredAt ?? 0) + 1) };
+      target.ignoredWords[lk] = exclusion;
+      intent.ignoredWords = { [lk]: exclusion };
+    })) throw lastPersistFailure ?? new Error('Study exclusion persistence was refused');
+    refreshQueue();
+    if (!isWordIgnoredSync(word, lang)) throw new Error('The study preference was superseded by a newer change');
   };
 
   const unignoreWordForLanguage = async (word: string, language?: string) => {
@@ -3515,12 +3532,25 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const wordHash = await SRS.hashWord(storageWord);
     const lk = langKey(lang, wordHash);
 
-    setStore(produce((s) => {
-      // Un-ignore withdraws the exclusion policy only; any explicit claim
-      // stays until the user clears it via the pill.
-      delete s.ignoredWords[lk];
-    }));
-    saveFlashcards();
+    // Withdrawing the policy preserves claims, historical observations and cards.
+    const keys = new Set([lk, ...getWordFormKeysSync(word, lang)]);
+    if (!await saveFlashcardsImmediate((target, intent) => {
+      const preferences: Record<string, IgnoredWordEntry> = {};
+      for (const key of keys) {
+        const previous = target.ignoredWords[key];
+        if (key !== lk && !previous) continue;
+        const withdrawal: IgnoredWordEntry = {
+          word: previous?.word ?? storageWord, language: lang,
+          ignoredAt: previous?.ignoredAt ?? Date.now(), excluded: false,
+          updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? previous?.ignoredAt ?? 0) + 1),
+        };
+        target.ignoredWords[key] = withdrawal;
+        preferences[key] = withdrawal;
+      }
+      intent.ignoredWords = preferences;
+    })) throw lastPersistFailure ?? new Error('Study preference persistence was refused');
+    refreshQueue();
+    if (isWordIgnoredSync(word, lang)) throw new Error('The study preference was superseded by a newer change');
   };
 
   // ========================
@@ -4136,6 +4166,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
       const language = admitted?.options.language || card?.language || options?.language || settings.language;
       options = { ...options, language };
+      if (!admitted && !options.selfAssessment && (isWordIgnoredSync(word, language)
+        || (card && isWordIgnoredSync(card.content.front, language)))) {
+        throw new Error('This target is excluded from study');
+      }
       const restored = scheduler ? store.meta.reviewPresentations?.[language] : undefined;
       const presentationId = admitted ? admitted.presentationId
         : restored?.cardId === scheduler?.cardId ? restored?.id : undefined;
@@ -5073,9 +5107,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const candidates = Object.entries(store.wordCandidates)
       .filter(([key, c]) => {
         // Composite key starts with lang prefix, or legacy entry matches current language
-        if (key.startsWith(lang + ':')) return true;
-        if (!key.includes(':') && (!c.language || c.language === lang)) return true;
-        return false;
+        const matchesPackage = key.startsWith(lang + ':') || (!key.includes(':') && (!c.language || c.language === lang));
+        return matchesPackage && !isWordIgnoredSync(c.word, lang);
       });
     if (candidates.length === 0) return 0;
 
@@ -5115,19 +5148,19 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       // Skip if card already exists for this word
       const existingCards = store.wordToCardMap[compositeKey];
       if (existingCards && existingCards.length > 0) continue;
-      if (isKnownClaimed(compositeKey)) continue;
+      if (isKnownClaimed(compositeKey) || isWordIgnoredSync(candidate.word, lang)) continue;
 
       try {
         // One enrichment owner (see wordEnrichment). The dictionary reading wins
         // here, with the tracked candidate reading as the fallback.
         const enriched = await enrichWord({
           word: candidate.word,
-          language: settings.language,
-          languageData: languageDataFor(settings.language),
+          language: lang,
+          languageData: languageDataFor(lang),
           settings,
-          dictionaryTargetLanguage: dictionaryTargetFor(settings.language),
+          dictionaryTargetLanguage: dictionaryTargetFor(lang),
         });
-        if (!enriched) continue; // Skip words with no translation
+        if (!enriched || isWordIgnoredSync(candidate.word, lang)) continue; // Skip words with no translation
 
         prepared.push({
           compositeKey,
@@ -5142,13 +5175,18 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
     }
 
+    // A preference may change during dictionary enrichment. Never send an
+    // excluded target into optional generation or consume its passive record.
+    for (let index = prepared.length - 1; index >= 0; index--) {
+      if (isWordIgnoredSync(prepared[index].candidate.word, lang)) prepared.splice(index, 1);
+    }
     let examples: LLMExampleResult[] = prepared.map(() => ({ sentence: '', meaning: '' }));
     if (useLLM && prepared.length > 0) {
       try {
         examples = await generateExampleSentencesWithLLM(prepared.map(({ candidate, backText }) => ({
           word: candidate.word,
           definition: backText,
-          language: settings.language,
+          language: lang,
         })));
       } catch (e) {
         log.warn('Failed to generate LLM examples for auto-created flashcards:', e);
@@ -5158,6 +5196,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     let createdCount = 0;
     for (const [index, preparedCard] of prepared.entries()) {
       const { compositeKey, candidate, backText, reading, prosody, definitionArr } = preparedCard;
+      if (isWordIgnoredSync(candidate.word, lang)) continue;
       const example = examples[index];
       try {
         const content: Partial<FlashcardContent> & { front: string; back: string } = {
@@ -5175,7 +5214,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           definition: definitionArr,
         };
 
-        await addFlashcard(content, undefined, true);
+        const createdId = await addFlashcard(content, undefined, true, lang);
+        if (!createdId) continue;
         createdCount++;
 
         // Remove from word candidates after successful creation
@@ -5737,6 +5777,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     getCurrentCard,
     getPreviewDueDates,
     getAllCards,
+    getStudyableCards: studyableCards,
     getCardById,
     getCardsByWord,
     getCardByWord,

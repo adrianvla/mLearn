@@ -1,3 +1,4 @@
+import { isStudyExcluded } from '../../../shared/studyExclusion';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { pushUndo } from '../../learning/undoHistory';
 import { surfaceEntityId } from '../../../shared/graph/load';
@@ -496,7 +497,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
 
         // Structural/policy pool only. Knowledge admission waits for the same
         // on-demand projection as Inspect; no materialized-status fallback.
-        if (store.ignoredWords[lk]) continue;
+        if (isStudyExcluded(store.ignoredWords[lk])) continue;
 
         const lvl = entry.raw_level;
         if (!groups.has(lvl)) groups.set(lvl, []);
@@ -575,7 +576,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       const dictionary = decisionTranslations();
       const ast = filterAst();
       const items = decisionWindow().flatMap(({ index, entry }) => {
-        if (store.ignoredWords[entry.storageKey]) return [];
+        if (isStudyExcluded(store.ignoredWords[entry.storageKey])) return [];
         const data = dictionary?.get(entry.word);
         const reading = data?.data?.[0]?.reading || entry.reading;
         const prosody = extractProsodyFromTranslationData(data ?? undefined, langCtx.currentLangData(), reading);
@@ -718,7 +719,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         && record.queue.every((item) => entryByWord.has(item.id)),
       shouldSkipAttempt: (_pending, record) => {
         const word = entryByWord.get(record.queue[record.index]?.id ?? '');
-        return !word || !!store.ignoredWords[word.storageKey];
+        return !word || isStudyExcluded(store.ignoredWords[word.storageKey]);
       },
       writeAttempt: async (pending, record) => {
         const word = record.queue[pending.index]?.id;
@@ -1423,7 +1424,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const testedAccesses = createMemo(() => probe()?.presentation === presentationCount() ? probe()!.capabilities : []);
   createEffect(on(() => [currentProjection.projection(), currentProjection.loading(), translation.loading, presentationCount(), store.ignoredWords[currentWord()?.storageKey ?? '']] as const, ([projection, projectionLoading, loading, presentation, ignored]) => {
     const w = currentWord();
-    if (w && ignored) {
+    if (w && isStudyExcluded(ignored)) {
       skipCurrentWord();
       return;
     }

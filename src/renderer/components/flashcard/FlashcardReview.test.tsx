@@ -17,6 +17,7 @@ const toastMocks = vi.hoisted(() => ({ showToast: vi.fn(() => 0) }));
 
 let mockCard: Accessor<Flashcard | null> = () => null;
 let setMockCard: (card: Flashcard | null) => void = () => {};
+let mockIgnoredWords: Accessor<Set<string>> = () => new Set();
 let mockReviewCards: Record<string, Flashcard> = {};
 let mockReviewPresentations: Accessor<Record<string, unknown>> = () => ({});
 let mockReviewQueue: Accessor<ReviewQueue> = () => ({ newQueue: [], scheduledQueue: [] });
@@ -99,6 +100,7 @@ vi.mock('../../hooks/useKnowledgeProjection', () => ({
 vi.mock('../../context', () => ({
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
+    isWordIgnoredSync: (word: string) => mockIgnoredWords().has(word),
     store: { get flashcards() { return mockReviewCards; }, get meta() { return { reviewPresentations: mockReviewPresentations() }; } },
     queue: () => mockReviewQueue(),
     queueCounts: () => ({ new: mockQueueTotal(), learning: 0, review: 0, total: mockQueueTotal() }),
@@ -315,6 +317,7 @@ describe('FlashcardReview', () => {
     mockProjection = () => defaultProjection;
     mockRatingPersistenceState = () => 'idle';
     mockTtsAvailable = true;
+    mockIgnoredWords = () => new Set();
     mockPlayedTts.mockClear();
     mockSettings = {
       ...DEFAULT_SETTINGS,
@@ -415,7 +418,7 @@ describe('FlashcardReview', () => {
     }
   });
 
-  it.each(['unqueued', 'suspended', 'buried', 'deleted'] as const)(
+  it.each(['unqueued', 'suspended', 'buried', 'deleted', 'excluded'] as const)(
     'releases the displayed encounter when another window makes it %s', async (change) => {
       const first = makeCard({ id: 'first', state: 'review', interval: 1, dueDate: Date.now() - 1000 });
       const second = makeCard({ id: 'second', state: 'review', interval: 1, dueDate: Date.now() - 1000,
@@ -432,6 +435,7 @@ describe('FlashcardReview', () => {
         if (change === 'suspended' || change === 'buried') {
           mockReviewCards[first.id] = { ...first, [change]: true };
         }
+        if (change === 'excluded') mockIgnoredWords = () => new Set([first.content.front]);
         // A peer commit updates the card store and rebuilds the workload.
         setMockCard(second);
         setQueue({ newQueue: [], scheduledQueue: change === 'unqueued' ? [second.id] : [first.id, second.id] });
@@ -604,6 +608,7 @@ describe('FlashcardReview failure attribution', () => {
     mockProjection = () => defaultProjection;
     mockRatingPersistenceState = () => 'idle';
     mockTtsAvailable = true;
+    mockIgnoredWords = () => new Set();
     mockSettings = {
       ...DEFAULT_SETTINGS,
       language: 'ja',
@@ -1244,6 +1249,7 @@ describe('FlashcardReview Remove asks before it destroys the card', () => {
     document.body.appendChild(container);
     vi.clearAllMocks();
     mockTtsAvailable = true;
+    mockIgnoredWords = () => new Set();
     mockSettings = {
       ...DEFAULT_SETTINGS,
       language: 'ja',

@@ -9,6 +9,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable, buildLexemeIndex, buildWordFrequencyMapFromLanguageData, getFrequencyForLexeme, resolveLanguageFrequencyPayload } from '../../shared/languageFeatures';
 import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
+import { mergeStudyExclusion } from '../../shared/studyExclusion';
 import { readPendingRetraction, readRetractionCompletionClaim } from '../../shared/retractionRecovery';
 import { staleFlashcardRevisionMessage } from '../../shared/flashcardWriteRevision';
 import type { FlashcardStore, FlashcardWriteAuthorization, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
@@ -409,7 +410,7 @@ function migrateV2ToV3(store: FlashcardStore, metadata: LanguageData, backupPath
 
   const wordKnowledge = migrateKeyed(store.wordKnowledge, 'wordKnowledge', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => mergeWordKnowledge(a, b));
   const wordCandidates = migrateKeyed(store.wordCandidates, 'wordCandidates', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => ({ ...((b.lastSeen > a.lastSeen) ? b : a), count: a.count + b.count, lastSeen: Math.max(a.lastSeen, b.lastSeen) }));
-  const ignoredWords = migrateKeyed(store.ignoredWords, 'ignoredWords', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => a.ignoredAt <= b.ignoredAt ? a : b);
+  const ignoredWords = migrateKeyed(store.ignoredWords, 'ignoredWords', entry => entry.word, entry => ({ ...entry, language: 'zh' }), mergeStudyExclusion);
   const suggestedFlashcards = migrateKeyed(store.suggestedFlashcards, 'suggestedFlashcards', entry => entry.word, entry => ({ ...entry, language: 'zh' }), (a, b) => {
     const richer = a.imageUrl && !b.imageUrl ? a : b.imageUrl && !a.imageUrl ? b : (a.lastSeen >= b.lastSeen ? a : b);
     return { ...richer, count: a.count + b.count, lastSeen: Math.max(a.lastSeen, b.lastSeen) };
@@ -660,7 +661,6 @@ function rebuildKeyedRecordsForNormalization(store: FlashcardStore): FlashcardSt
   }
 
   const ignoredWords: Record<string, IgnoredWordEntry> = {};
-  const ignoredWinnerKeys = new Map<string, string>();
   for (const [legacyKey, entry] of Object.entries(store.ignoredWords || {})) {
     if (!entry) continue;
     const key = deriveRecordKey(deriverFor, langData, entry.language, entry.word, legacyKey);
@@ -668,20 +668,7 @@ function rebuildKeyedRecordsForNormalization(store: FlashcardStore): FlashcardSt
       ignoredWords[legacyKey] = entry;
       continue;
     }
-    const prevOldKey = ignoredWinnerKeys.get(key);
-    if (prevOldKey === undefined) {
-      ignoredWords[key] = entry;
-      ignoredWinnerKeys.set(key, legacyKey);
-    } else {
-      const prev = ignoredWords[key];
-      if (
-        (entry.ignoredAt || 0) > (prev.ignoredAt || 0)
-        || ((entry.ignoredAt || 0) === (prev.ignoredAt || 0) && legacyKey < prevOldKey)
-      ) {
-        ignoredWords[key] = entry;
-        ignoredWinnerKeys.set(key, legacyKey);
-      }
-    }
+    ignoredWords[key] = mergeStudyExclusion(ignoredWords[key], entry);
   }
 
   const wordCandidates: Record<string, WordCandidate> = {};

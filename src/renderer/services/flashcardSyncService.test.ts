@@ -606,3 +606,58 @@ describe('mergeFlashcards', () => {
     expect(merged.wordToCardMap[previousKey]).toEqual(['ja']);
   });
 });
+
+
+describe('reversible study exclusions during sync', () => {
+  it('keeps a newer withdrawal against a stale excluded snapshot', async () => {
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    local.ignoredWords['pkg:word'] = { word: 'word', language: 'pkg', ignoredAt: 10, excluded: false, updatedAt: 30 };
+    remote.ignoredWords['pkg:word'] = { word: 'word', language: 'pkg', ignoredAt: 20 };
+    const merged = await mergeFlashcards(local, remote);
+    expect(merged.ignoredWords['pkg:word']).toMatchObject({ excluded: false, updatedAt: 30 });
+  });
+
+  it('accepts a newer incoming withdrawal while retaining authored records', async () => {
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    const authored = makeFlashcard();
+    local.flashcards[authored.id] = authored;
+    local.ignoredWords['pkg:word'] = { word: 'word', language: 'pkg', ignoredAt: 20 };
+    remote.ignoredWords['pkg:word'] = { word: 'word', language: 'pkg', ignoredAt: 10, excluded: false, updatedAt: 30 };
+    const merged = await mergeFlashcards(local, remote);
+    expect(merged.ignoredWords['pkg:word']).toMatchObject({ excluded: false, updatedAt: 30 });
+    expect(merged.flashcards[authored.id]).toEqual(authored);
+    expect(local.ignoredWords['pkg:word']).toEqual({ word: 'word', language: 'pkg', ignoredAt: 20 });
+  });
+
+  it('accepts re-exclusion newer than a withdrawn preference', async () => {
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    local.ignoredWords['pkg:word'] = { word: 'word', language: 'pkg', ignoredAt: 10, excluded: false, updatedAt: 30 };
+    remote.ignoredWords['pkg:word'] = { word: 'word', language: 'pkg', ignoredAt: 40, excluded: true, updatedAt: 40 };
+    const merged = await mergeFlashcards(local, remote);
+    expect(merged.ignoredWords['pkg:word']).toMatchObject({ excluded: true, updatedAt: 40 });
+  });
+
+  it('retains legacy exclusions and keeps equal text scoped to its package', async () => {
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    local.ignoredWords['one:word'] = { word: 'word', language: 'one', ignoredAt: 10, excluded: false, updatedAt: 30 };
+    remote.ignoredWords['two:word'] = { word: 'word', language: 'two', ignoredAt: 20 };
+    const merged = await mergeFlashcards(local, remote);
+    expect(merged.ignoredWords['one:word']).toMatchObject({ excluded: false, updatedAt: 30 });
+    expect(merged.ignoredWords['two:word']).toEqual({ word: 'word', language: 'two', ignoredAt: 20 });
+  });
+
+  it('prefers withdrawal at equal timestamps in either merge direction', async () => {
+    const local = makeEmptyStore();
+    const remote = makeEmptyStore();
+    local.ignoredWords['pkg:word'] = { word: 'word', language: 'pkg', ignoredAt: 30 };
+    remote.ignoredWords['pkg:word'] = { word: 'word', language: 'pkg', ignoredAt: 10, excluded: false, updatedAt: 30 };
+    const merged = await mergeFlashcards(local, remote);
+    const reversed = await mergeFlashcards(remote, local);
+    expect(merged.ignoredWords['pkg:word']).toMatchObject({ excluded: false });
+    expect(reversed.ignoredWords['pkg:word']).toMatchObject({ excluded: false });
+  });
+});

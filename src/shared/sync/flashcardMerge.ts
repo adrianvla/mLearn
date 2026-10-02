@@ -21,12 +21,12 @@
  */
 
 import { CAPABILITY_ASPECT, migrateAspectRecordsToAccess } from '../graph/access';
+import { mergeStudyExclusion } from '../studyExclusion';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../knowledgeEvents';
 import type { CapabilityKind } from '../graph/types';
 import type {
   Flashcard,
   FlashcardStore,
-  IgnoredWordEntry,
   PassiveWordKnowledge,
   WordCandidate,
 } from '../types';
@@ -186,8 +186,7 @@ export function mergeFlashcardStoresWithJournal(current: FlashcardStore, incomin
     if (value && !merged.knownUntracked[lk]) merged.knownUntracked[lk] = value;
   }
   for (const [lk, entry] of Object.entries(incoming.ignoredWords ?? {})) {
-    const existing: IgnoredWordEntry | undefined = merged.ignoredWords[lk];
-    if (!existing || entry.ignoredAt > existing.ignoredAt) merged.ignoredWords[lk] = entry;
+    merged.ignoredWords[lk] = mergeStudyExclusion(merged.ignoredWords[lk], entry);
   }
 
 

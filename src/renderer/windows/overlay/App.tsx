@@ -27,8 +27,7 @@ import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLang
 import { createWatchTogetherRoom, isRemoteWatchTogetherUrl, joinWatchTogetherRoom, isShareableWatchTogetherUrl } from '../../services/watchTogetherRoomService';
 import { ensureCloudAccessToken as ensureSharedCloudAccessToken } from '../../services/cloudSessionManager';
 import { showToast } from '../../components/common/Feedback/Toast';
-import { useConfirmDialog } from '../../components/common';
-import { ignoreWordWithConfirmation } from '../flashcards/ignoreWordWithConfirmation';
+import { excludeWordFromStudy } from '../flashcards/excludeWordFromStudy';
 import { isLLMReady } from '../../services/llmProvider';
 import { requireCapability } from '../../services/capabilityUnavailable';
 import { getLogger } from '../../../shared/utils/logger';
@@ -102,7 +101,6 @@ export const App: Component = () => {
   const bridge = getBridge();
   const subtitles = useSubtitles();
   const { t } = useLocalization();
-  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const { settings, updateSettings, updateSetting } = useSettings();
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
@@ -816,12 +814,10 @@ export const App: Component = () => {
     ).eligible;
 
   const ignoreVideoWord = async (entry: VideoWordEntry) => {
-    await ignoreWordWithConfirmation(
+    await excludeWordFromStudy(
       { word: entry.word, language: settings.language },
       {
-        getCardCount: (word, language) => flashcardCtx.getCardsByWordSync(word, language).length,
         ignoreWordForLanguage: flashcardCtx.ignoreWordForLanguage,
-        showConfirm,
         t,
       },
     );
@@ -1303,7 +1299,6 @@ export const App: Component = () => {
         />
       </Show>
 
-      <ConfirmDialogElement />
     </div>
   );
 };

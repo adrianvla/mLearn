@@ -74,6 +74,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     store,
     queueCounts,
     getCurrentCard,
+    isWordIgnoredSync,
     buryCard,
     removeFlashcard,
     undoLastAction,
@@ -211,7 +212,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const held = ratingWrite();
     if (held) return held.encounter;
     const fallback = getCurrentCard();
-    if (!fallback) return null;
+    if (!fallback || isWordIgnoredSync(fallback.content.front, languageForCard(fallback))) return null;
     const language = languageForCard(fallback);
     // The policy arbitrates within the scheduler's OWN visible workload for
     // today (the queue — respecting daily caps and same-day scheduling), not
@@ -223,7 +224,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const reviewQueueEntries = [...queue().newQueue, ...queue().scheduledQueue]
       .map((id) => store.flashcards[id])
       .filter((card): card is Flashcard => !!card && !card.suspended && !card.buried
-        && (card.language || settings.language) === language)
+        && (card.language || settings.language) === language
+        && !isWordIgnoredSync(card.content.front, language))
       .map((card) => ({
         id: card.id,
         word: card.content.front,

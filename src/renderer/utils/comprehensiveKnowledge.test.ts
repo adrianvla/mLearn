@@ -170,6 +170,16 @@ describe('getComprehensiveWordStatusWithSource (Tier-2 semantics)', () => {
 });
 
 describe('exclusion vs knowledge (Tier-2 semantics)', () => {
+  it('withdrawal preserves a real claim while removing the exclusion flag', () => {
+    const result = getComprehensiveWordStatusWithSource('слово', makeDeps({
+      ignoredWords: { 'ru:hash:слово': { word: 'слово', language: 'ru', ignoredAt: 1, updatedAt: 2, excluded: false } },
+      wordKnowledge: { 'ru:hash:слово': entry({ claim: 'learning', claimAt: 1 }) },
+    }));
+    expect(result.status).toBe('learning');
+    expect(result.basis).toBe('claim');
+    expect(result.excluded).not.toBe(true);
+  });
+
   it('ignored words resolve honestly: status stays truthful + excluded flag, never known-by-ignore', () => {
     const deps = makeDeps({
       ignoredWords: { 'ru:hash:слово': { word: 'слово', language: 'ru', ignoredAt: 1 } },

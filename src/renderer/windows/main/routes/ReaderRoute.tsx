@@ -16,7 +16,7 @@ import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { initWordLookupBridge } from '../../../services/wordLookupService';
 import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats, warmTranslationCache, isTranslationWarming } from '../../../hooks';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
-import { parseKeybind, useConfirmDialog } from '../../../components/common';
+import { parseKeybind } from '../../../components/common';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 import { isLLMReady } from '../../../services/llmProvider';
 import { requireCapability } from '../../../services/capabilityUnavailable';
@@ -51,7 +51,7 @@ import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wor
 import { addAllCapturedWords } from '../../../services/addAllCapturedWords';
 import { resolveCapturedWordEligibility } from '../../../services/wordCaptureEligibility';
 import { reportCaptureFailure } from '../../../services/wordCaptureFailure';
-import { ignoreWordWithConfirmation } from '../../flashcards/ignoreWordWithConfirmation';
+import { excludeWordFromStudy } from '../../flashcards/excludeWordFromStudy';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getUnseenSettingRequirementWarnings, markSettingRequirementWarningSeen } from '../../../services/settingRequirementWarnings';
@@ -567,7 +567,6 @@ export const ReaderRoute: Component = () => {
   const { settings, updateSettings } = useSettings();
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
-  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const langCtx = useLanguage();
   const { detectGrammarInText, supportsGrammar, isTokenTranslatable, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants, getLanguageFeatures } = langCtx;
   const ocrEnabled = () => settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled;
@@ -1670,12 +1669,10 @@ export const ReaderRoute: Component = () => {
 
 
   const handleIgnoreSidebarWord = async (entry: ReaderUnknownWordEntry) => {
-    await ignoreWordWithConfirmation(
+    await excludeWordFromStudy(
       { word: entry.word, reading: entry.token.reading, language: settings.language },
       {
-        getCardCount: (word, language) => flashcardCtx.getCardsByWordSync(word, language).length,
         ignoreWordForLanguage: flashcardCtx.ignoreWordForLanguage,
-        showConfirm,
         t,
       },
     );
@@ -3399,7 +3396,6 @@ export const ReaderRoute: Component = () => {
             active={magnifierActive()}
         />
 
-        <ConfirmDialogElement />
-      </section>
+        </section>
   );
 };

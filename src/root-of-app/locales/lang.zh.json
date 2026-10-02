@@ -1655,6 +1655,7 @@
       "Loading": "正在加载插件界面..."
     },
     "Knowledge": {
+      "StudyPreferenceSaveFailed": "无法保存学习偏好。未作任何更改，请重试。",
       "Capability": {
         "sense-recognition": "意思",
         "surface-recognition": "识别此书写形式",

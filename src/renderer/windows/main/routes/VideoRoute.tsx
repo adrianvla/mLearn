@@ -12,8 +12,8 @@ import { CloudReLoginModal } from '../../../components/cloud';
 import { WatchTogetherCodeModal, WatchTogetherModeModal } from '../../../components/watchTogether';
 import { VideoPlayer, VideoUnknownWordsSidebar } from '../../../components/video';
 import type { VideoWordEntry } from '../../../components/video';
-import { Button, Panel, VideoIcon, Spinner, useConfirmDialog } from '../../../components/common';
-import { ignoreWordWithConfirmation } from '../../flashcards/ignoreWordWithConfirmation';
+import { Button, Panel, VideoIcon, Spinner } from '../../../components/common';
+import { excludeWordFromStudy } from '../../flashcards/excludeWordFromStudy';
 import { isLLMReady } from '../../../services/llmProvider';
 import { requireCapability } from '../../../services/capabilityUnavailable';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
@@ -109,7 +109,6 @@ const getMediaNameFromPath = (filePath: string, parseOptions?: ParseWorkNameOpti
 export const VideoRoute: Component = () => {
   const navigate = useNavigate();
   const { t } = useLocalization();
-  const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const { settings, updateSetting } = useSettings();
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
@@ -778,12 +777,10 @@ export const VideoRoute: Component = () => {
     ).eligible;
 
   const ignoreVideoWord = async (entry: VideoWordEntry) => {
-    await ignoreWordWithConfirmation(
+    await excludeWordFromStudy(
       { word: entry.word, language: settings.language },
       {
-        getCardCount: (word, language) => flashcardCtx.getCardsByWordSync(word, language).length,
         ignoreWordForLanguage: flashcardCtx.ignoreWordForLanguage,
-        showConfirm,
         t,
       },
     );
@@ -1613,7 +1610,6 @@ export const VideoRoute: Component = () => {
         codeHint={t('mlearn.WatchTogether.Code.SignInCodeHint')}
       />
 
-      <ConfirmDialogElement />
     </div>
   );
 };

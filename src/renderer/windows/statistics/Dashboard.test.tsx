@@ -13,6 +13,7 @@ let flashcardStoreMock: {
   dailyStats: Record<string, Record<string, { newCardsStudied: number; reviewCardsStudied: number; lapses: number; timeSpent: number; graduated: number }>>;
   wordKnowledge: Record<string, { word?: string; statusChangedAtSeen?: number }>;
 };
+let studyExcludedIds = new Set<string>();
 let settingsMock: { language: string; newDayHour: number; easeThresholdKnown: number; easeThresholdLearning: number };
 let summariesMock: Record<string, KeyHistorySummary> = {};
 let knowledgeEventsChanged: (() => void) | null = null;
@@ -22,7 +23,7 @@ let unknownWords = 0;
 let unmeasuredWords = 0;
 
 vi.mock('../../context', () => ({
-  useFlashcards: () => ({ store: flashcardStoreMock, isKnowledgeReady: () => true, isLoading: () => flashcardsLoading }),
+  useFlashcards: () => ({ store: flashcardStoreMock, getStudyableCards: () => Object.fromEntries(Object.entries(flashcardStoreMock.flashcards).filter(([id]) => !studyExcludedIds.has(id))), isKnowledgeReady: () => true, isLoading: () => flashcardsLoading }),
   useSettings: () => ({ settings: settingsMock }),
   useLanguage: () => ({
     getWordFrequency: () => ({}),
@@ -114,6 +115,7 @@ describe('Dashboard', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
+    studyExcludedIds = new Set();
     flashcardStoreMock = { flashcards: {}, dailyStats: {}, wordKnowledge: {} };
     settingsMock = { language: 'ja', newDayHour: 4, easeThresholdKnown: 1.8, easeThresholdLearning: 3 };
     summariesMock = {};
@@ -186,6 +188,21 @@ describe('Dashboard', () => {
     expect(container.textContent).not.toContain('mlearn.Statistics.Dashboard.EmptyState.Title');
     expect(container.textContent).not.toContain('mlearn.Statistics.Dashboard.DueForecast.Title');
 
+    dispose();
+  });
+
+  it('forecasts eligible work while retaining excluded authored cards in totals', async () => {
+    flashcardStoreMock.flashcards = { a: makeFlashcard('a'), b: makeFlashcard('b') };
+    studyExcludedIds.add('a');
+    const { Dashboard } = await import('./Dashboard');
+    const dispose = render(() => <Dashboard />, container);
+    const reviews = Array.from(container.querySelectorAll('nav button')).find(button => button.textContent?.endsWith('.reviews')) as HTMLButtonElement;
+    reviews.click();
+    await vi.waitFor(() => expect(container.textContent).toContain('DueForecast.Today'));
+    const forecast = Array.from(container.querySelectorAll('.mock-statcard'))
+      .find(node => node.textContent?.includes('DueForecast.Today'));
+    expect(forecast?.querySelector('b')?.textContent).toBe('1');
+    expect(Object.keys(flashcardStoreMock.flashcards)).toHaveLength(2);
     dispose();
   });
 

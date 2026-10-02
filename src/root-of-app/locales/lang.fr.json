@@ -1655,6 +1655,7 @@
       "Loading": "Chargement de l’interface du plugin..."
     },
     "Knowledge": {
+      "StudyPreferenceSaveFailed": "Impossible d’enregistrer votre préférence d’étude. Rien n’a changé ; réessayez.",
       "Capability": {
         "sense-recognition": "Sens",
         "surface-recognition": "Reconnaître cette forme écrite",

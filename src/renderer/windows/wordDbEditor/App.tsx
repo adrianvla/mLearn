@@ -23,6 +23,7 @@ import { buildWordHoverFlashcardContent, wordStatusToNumeric } from '../../compo
 import { useTokenizer, getCachedTranslation, fetchTranslation } from '../../hooks/useTranslation';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { getLogger } from '../../../shared/utils/logger';
+import { showToast } from '../../components/common/Feedback/Toast';
 import { reportCaptureFailure } from '../../services/wordCaptureFailure';
 import { getLearningLanguageLevelForLanguage } from '../../../shared/languageFeatures';
 import { sortByStudyScope } from './studyOrder';
@@ -515,6 +516,7 @@ export const WordDbEditorContent: Component = () => {
       await unignoreWordForLanguage(entry.word, settings.language);
     } catch (e) {
       log.error('Failed to unignore word:', e);
+      showToast({ message: t('mlearn.Knowledge.StudyPreferenceSaveFailed'), variant: 'error' });
     }
   };
 

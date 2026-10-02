@@ -2377,6 +2377,10 @@ export interface IgnoredWordEntry {
   language?: string;
   /** Timestamp when the word was ignored */
   ignoredAt: number;
+  /** Study preference; absent on legacy entries means excluded. False retains a withdrawal for sync. */
+  excluded?: boolean;
+  /** Timestamp of the latest preference change, including withdrawal. Legacy entries use ignoredAt. */
+  updatedAt?: number;
 }
 
 /** Grammar knowledge entry tracked in FlashcardStore */

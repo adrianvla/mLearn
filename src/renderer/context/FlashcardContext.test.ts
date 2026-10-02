@@ -524,6 +524,7 @@ type FlashcardCtx = {
   ratingPersistenceState: () => 'idle' | 'pending' | 'failed';
   retryRatingPersistence: () => Promise<void>;
   getAllCards: () => Flashcard[];
+  getStudyableCards: () => Record<string, Flashcard>;
   getCardById: (id: string) => Flashcard | null;
   getCardsByWord: (word: string, language?: string) => Promise<Flashcard[]>;
   getCardByWord: (word: string, language?: string) => Promise<Flashcard | null>;
@@ -3090,6 +3091,178 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('keeps an excluded authored card out of study queues and due counts without deleting it', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'excluded-authored', language: 'ja', state: 'review', reviews: 9,
+      dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'authored explanation' } });
+    const key = `ja:${SRS.hashWordSync(card.content.front)}`;
+    const data = makeEmptyStore({ flashcards: { [card.id]: card },
+      ignoredWords: { [key]: { word: card.content.front, language: 'ja', ignoredAt: Date.now() } } });
+    flashcardsCb(data);
+    try {
+      ctx.refreshQueue();
+      expect(ctx.store.flashcards[card.id]).toMatchObject(card);
+      expect(ctx.getCurrentCard()).toBeNull();
+      expect(ctx.queueCounts().total).toBe(0);
+      expect(ctx.getDueCount()).toBe(0);
+      expect(ctx.queue().scheduledQueue).not.toContain(card.id);
+      await expect(ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      })).rejects.toThrow('excluded');
+      expect(ctx.store.flashcards[card.id].reviews).toBe(9);
+      expect(mockAppendEvents).not.toHaveBeenCalled();
+    } finally { dispose(); }
+  });
+
+  it('preserves indexed authored cards through study exclusion and restores eligibility on withdrawal', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'reversible-exclusion', language: 'ja', state: 'new', reviews: 0,
+      content: { type: 'word', front: '学校', back: 'authored explanation' } });
+    const key = `ja:${SRS.hashWordSync(card.content.front)}`;
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card }, wordToCardMap: { [key]: [card.id] } }));
+    try {
+      await ctx.ignoreWordForLanguage(card.content.front, undefined, 'ja');
+      expect(ctx.store.flashcards[card.id]).toMatchObject(card);
+      expect(ctx.store.wordToCardMap[key]).toEqual([card.id]);
+      expect(ctx.queueCounts().total).toBe(0);
+      expect(ctx.getNewCount()).toBe(0);
+      expect(ctx.getCurrentCard()).toBeNull();
+      await ctx.unignoreWordForLanguage(card.content.front, 'ja');
+      expect(ctx.store.flashcards[card.id]).toMatchObject(card);
+      expect(ctx.getCurrentCard()?.id).toBe(card.id);
+      expect(ctx.getNewCount()).toBe(1);
+      expect(ctx.queueCounts().total).toBe(1);
+      expect(mockAppendEvents).not.toHaveBeenCalled();
+    } finally { dispose(); }
+  });
+
+  it('publishes study exclusion and withdrawal only after their durable acknowledgment', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'exclusion-ack', language: 'ja', state: 'review', reviews: 9,
+      dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'authored explanation' } });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    try {
+      mockBridge.flashcards.saveFlashcards.mockRejectedValueOnce(new Error('disk full'));
+      await expect(ctx.ignoreWordForLanguage(card.content.front, undefined, 'ja')).rejects.toThrow('disk full');
+      expect(ctx.isWordIgnoredSync(card.content.front, 'ja')).toBe(false);
+      expect(ctx.getCurrentCard()?.id).toBe(card.id);
+      expect(ctx.store.flashcards[card.id]).toMatchObject(card);
+      await ctx.ignoreWordForLanguage(card.content.front, undefined, 'ja');
+      expect(ctx.isWordIgnoredSync(card.content.front, 'ja')).toBe(true);
+      mockBridge.flashcards.saveFlashcards.mockRejectedValueOnce(new Error('disk full'));
+      await expect(ctx.unignoreWordForLanguage(card.content.front, 'ja')).rejects.toThrow('disk full');
+      expect(ctx.isWordIgnoredSync(card.content.front, 'ja')).toBe(true);
+      expect(ctx.getCurrentCard()).toBeNull();
+      await ctx.unignoreWordForLanguage(card.content.front, 'ja');
+      expect(ctx.isWordIgnoredSync(card.content.front, 'ja')).toBe(false);
+      expect(ctx.getCurrentCard()?.id).toBe(card.id);
+    } finally { dispose(); }
+  });
+
+  it('withdraws legacy alias exclusions without changing another package or authored cards', async () => {
+    mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => language === 'package-x' && word === 'variant' ? 'target' : word);
+    mockGetWordVariantsForLanguage.mockImplementation((language: string, word: string) => language === 'package-x' && word === 'variant' ? ['target', 'variant'] : [word]);
+    const { ctx, dispose } = await mountProvider();
+    const alias = `package-x:${SRS.hashWordSync('variant')}`;
+    const foreign = `package-y:${SRS.hashWordSync('variant')}`;
+    const card = makeCard({ id: 'alias-card', language: 'package-x', content: { type: 'word', front: 'variant', back: 'authored' } });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card }, ignoredWords: {
+      [alias]: { word: 'variant', language: 'package-x', ignoredAt: 10 },
+      [foreign]: { word: 'variant', language: 'package-y', ignoredAt: 10 },
+    } }));
+    try {
+      expect(ctx.isWordIgnoredSync('variant', 'package-x')).toBe(true);
+      expect(ctx.getStudyableCards()[card.id]).toBeUndefined();
+      await ctx.unignoreWordForLanguage('variant', 'package-x');
+      expect(ctx.store.ignoredWords[alias]).toMatchObject({ excluded: false });
+      expect(ctx.isWordIgnoredSync('variant', 'package-x')).toBe(false);
+      expect(ctx.isWordIgnoredSync('variant', 'package-y')).toBe(true);
+      expect(ctx.getStudyableCards()[card.id]).toMatchObject(card);
+    } finally { dispose(); }
+  });
+
+  it('fills a daily-cap slot from eligible cards when an authored card is excluded', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const first = makeCard({ id: 'first-new', language: 'ja', state: 'new', createdAt: 1,
+      content: { type: 'word', front: 'first', back: 'authored' } });
+    const second = makeCard({ id: 'second-new', language: 'ja', state: 'new', createdAt: 2,
+      content: { type: 'word', front: 'second', back: 'authored' } });
+    const data = makeEmptyStore({ flashcards: { [first.id]: first, [second.id]: second } });
+    data.meta.maxNewCardsPerDayLearning = 1;
+    flashcardsCb(data);
+    try {
+      ctx.refreshQueue();
+      expect(ctx.queue().newQueue).toEqual([first.id]);
+      await ctx.ignoreWordForLanguage('first', undefined, 'ja');
+      expect(ctx.queue().newQueue).toEqual([second.id]);
+      expect(ctx.store.flashcards[first.id]).toMatchObject(first);
+    } finally { dispose(); }
+  });
+
+  it('orders withdrawal and re-exclusion even when the wall clock does not advance', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const key = `ja:${SRS.hashWordSync('target')}`;
+    try {
+      await ctx.ignoreWordForLanguage('target', undefined, 'ja');
+      const first = ctx.store.ignoredWords[key].updatedAt!;
+      await ctx.unignoreWordForLanguage('target', 'ja');
+      const second = ctx.store.ignoredWords[key].updatedAt!;
+      expect(second).toBeGreaterThan(first);
+      expect(ctx.getIgnoredWordsSync()).toEqual([]);
+      await ctx.ignoreWordForLanguage('target', undefined, 'ja');
+      expect(ctx.store.ignoredWords[key].updatedAt!).toBeGreaterThan(second);
+      expect(ctx.isWordIgnoredSync('target', 'ja')).toBe(true);
+      expect(ctx.getIgnoredWordsSync()).toHaveLength(1);
+    } finally { now.mockRestore(); dispose(); }
+  });
+
+  it('does not overwrite a newer peer withdrawal when an exclusion save rebases', async () => {
+    answerProbesFromAuthority();
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'peer-policy-card', language: 'ja', state: 'review', dueDate: 0,
+      content: { type: 'word', front: 'target', back: 'authored' } });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card }, rev: 10 }));
+    const key = `ja:${SRS.hashWordSync('target')}`;
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    mockBridge.flashcards.saveFlashcards.mockImplementationOnce(async () => {
+      revision = 11;
+      committed = makeEmptyStore({ flashcards: { [card.id]: card }, rev: 11,
+        ignoredWords: { [key]: { word: 'target', language: 'ja', ignoredAt: 900, updatedAt: 2000, excluded: false } } });
+      throw new Error(staleFlashcardRevisionMessage(11, 10));
+    });
+    try {
+      await expect(ctx.ignoreWordForLanguage('target', undefined, 'ja')).rejects.toThrow('superseded');
+      expect(acceptedSaves.at(-1)?.ignoredWords[key]).toMatchObject({ updatedAt: 2000, excluded: false });
+      expect(ctx.store.ignoredWords[key]).toMatchObject({ updatedAt: 2000, excluded: false });
+      expect(ctx.isWordIgnoredSync('target', 'ja')).toBe(false);
+      expect(ctx.getCurrentCard()?.id).toBe(card.id);
+      expect(ctx.store.flashcards[card.id]).toMatchObject(card);
+    } finally { now.mockRestore(); dispose(); }
+  });
+
+  it('auto-creates eligible candidates before the daily cap and preserves excluded passive counts', async () => {
+    const settingsBefore = { createUnseenCards: mockSettings.createUnseenCards, enable_flashcard_creation: mockSettings.enable_flashcard_creation,
+      maxNewCardsPerDay: mockSettings.maxNewCardsPerDay, flashcardLLMExamples: mockSettings.flashcardLLMExamples };
+    Object.assign(mockSettings, { createUnseenCards: true, enable_flashcard_creation: true, maxNewCardsPerDay: 1, flashcardLLMExamples: false });
+    const { ctx, dispose } = await mountProvider();
+    const excluded = `ja:${SRS.hashWordSync('excluded')}`;
+    const eligible = `ja:${SRS.hashWordSync('eligible')}`;
+    const candidate = (word: string, count: number) => ({ word, count, reading: '', firstSeen: 1, lastSeen: 1, language: 'ja' });
+    seed(makeEmptyStore({ wordCandidates: { [excluded]: candidate('excluded', 100), [eligible]: candidate('eligible', 1) },
+      ignoredWords: { [excluded]: { word: 'excluded', language: 'ja', ignoredAt: 1 } } }));
+    mockBackend.translate.mockResolvedValue({ data: [{ definitions: ['definition'] }] });
+    try {
+      const nextDay = mockBridge.flashcards.onNewDayFlashcards.mock.calls.at(-1)![0] as () => Promise<void>;
+      await nextDay();
+      expect(mockBackend.translate.mock.calls.map(call => call[0])).not.toContain('excluded');
+      expect(ctx.store.wordCandidates[excluded]).toMatchObject({ count: 100 });
+      expect(Object.values(ctx.store.flashcards).map(card => card.content.front)).toContain('eligible');
+      expect(ctx.store.wordCandidates[eligible]).toBeUndefined();
+    } finally { Object.assign(mockSettings, settingsBefore); mockBackend.translate.mockResolvedValue({ data: [] }); dispose(); }
+  });
+
   it('ignoreWordForLanguage stores explicit non-active inflections under that language primary form', async () => {
     mockSettings.language = 'ja';
     mockGetCanonicalFormForLanguage.mockImplementation((language: string, word: string) => (
@@ -3459,7 +3632,7 @@ describe('FlashcardProvider', () => {
     await ctx.unignoreWordForLanguage('يكتب', 'ar');
 
     expect(ctx.store.knownUntracked[primaryKey]).toBeUndefined();
-    expect(ctx.store.ignoredWords[primaryKey]).toBeUndefined();
+    expect(ctx.store.ignoredWords[primaryKey]).toMatchObject({ excluded: false });
     expect(ctx.isWordIgnoredSync('يكتب', 'ar')).toBe(false);
     dispose();
   });
@@ -7689,4 +7862,25 @@ describe('self-assessment durable recovery', () => {
     dispose();
   });
 
+});
+
+describe('study preference replay records', () => {
+  it.each([20, 40])('preserves complete preference metadata when replaying a local change at %i', async updatedAt => {
+    const { recordStoreDelta, mergeIntentOnto } = await import('./FlashcardContext');
+    const previous = { word: 'target', language: 'package-x', reading: 'authored', ignoredAt: 10,
+      excluded: false, updatedAt: 30 };
+    const base = { ignoredWords: { key: previous } };
+    const changed = { ...previous, excluded: true, updatedAt };
+    const delta = {};
+    recordStoreDelta(delta, base, { ignoredWords: { key: changed } });
+    const target = structuredClone(base);
+    mergeIntentOnto(target, delta);
+    expect(target.ignoredWords.key).toEqual(updatedAt > 30 ? changed : previous);
+  });
+  it('does not interpret an unknown nested field as a root study preference map', async () => {
+    const { mergeIntentOnto } = await import('./FlashcardContext');
+    const target = { meta: { packageData: { ignoredWords: { arbitrary: { custom: 1 } } } } };
+    mergeIntentOnto(target, { meta: { packageData: { ignoredWords: { arbitrary: { custom: 2 } } } } });
+    expect(target.meta.packageData.ignoredWords.arbitrary.custom).toBe(2);
+  });
 });

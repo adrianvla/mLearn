@@ -17,7 +17,7 @@ import { showToast } from '../../components/common/Feedback/Toast';
 import { cacheVersion, getCachedReading, getCachedTranslation } from '../../hooks/useTranslation';
 import { useItemSelection } from '../../hooks/useItemSelection';
 import { buildDestructiveConfirmOptions, requiresDestructiveConfirmation } from './bulkDestructiveConfirm';
-import { ignoreWordWithConfirmation } from './ignoreWordWithConfirmation';
+import { excludeWordFromStudy } from './excludeWordFromStudy';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
 import type { WordStatus } from '../../components/subtitle/wordHoverHelpers';
@@ -52,7 +52,6 @@ export const FlashcardsSuggested: Component = () => {
     promoteSuggestedFlashcards,
     garbageCollectSuggestedFlashcards,
     ignoreWordForLanguage,
-    getCardsByWordSync,
     store,
   } = useFlashcards();
 
@@ -439,12 +438,10 @@ export const FlashcardsSuggested: Component = () => {
 
   const handleIgnoreOne = async (s: SuggestedFlashcard) => {
     try {
-      const ignored = await ignoreWordWithConfirmation(
+      const ignored = await excludeWordFromStudy(
         { word: s.word, reading: s.reading, language: s.language },
         {
-          getCardCount: (word, language) => getCardsByWordSync(word, language).length,
           ignoreWordForLanguage,
-          showConfirm,
           t,
         },
       );
