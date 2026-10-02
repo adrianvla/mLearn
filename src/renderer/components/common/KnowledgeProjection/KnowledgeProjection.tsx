@@ -4,7 +4,7 @@ import { retentionPresentation } from './retentionPresentation';
 import { formatDate } from '../../../utils/timeFormatting';
 import { Modal } from '../Modal';
 import { readActiveEvidence } from '../../../../shared/knowledgeEvents';
-import type { GraphRelatedNode, GraphWordLookup, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
+import type { GraphNode, GraphRelatedNode, GraphWordLookup, KnowledgeProjectionState } from '../../../../shared/graph/ipc';
 import type { CapabilityKey, GraphRelationType } from '../../../../shared/graph/types';
 import type { WordStatus } from '../../../../shared/constants';
 import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
@@ -226,7 +226,7 @@ const KnowledgeRelationRow: Component<{
       <Show when={props.phrase}><span class="knowledge-relations__phrase">{props.phrase}</span></Show>
       <Show when={props.showMeta && props.meta}><small class="knowledge-relations__meta">{props.meta}</small></Show>
     </button>
-    <Show when={props.onOpen}>
+    <Show when={props.onOpen && props.showMeta}>
       <button type="button" class="knowledge-relations__open" title={props.openLabel} aria-label={props.openLabel} onClick={() => props.onOpen?.(props.entityId)}>↗</button>
     </Show>
   </li>
@@ -249,6 +249,8 @@ interface RelationSection {
   items: { id: string; label: string; phrase?: string; meta?: string; relation?: GraphRelatedNode }[];
 }
 
+const entityLabel = (node: Pick<GraphNode, 'id' | 'label' | 'displayLabel'>): string => node.displayLabel?.trim() || node.label?.trim() || node.id;
+
 function relationMetadata(relation: GraphRelatedNode): string | undefined {
   return [relation.relationType, relation.domain, relation.confidence, relation.provenance].filter((value) => value !== undefined).join(' · ');
 }
@@ -261,7 +263,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   const graph = useOptionalGraph();
   const [tab, setTab] = createSignal<InspectorTab>('overview');
   const [lookup, setLookup] = createSignal<GraphWordLookup | null>(null);
-  const [neighborhood, setNeighborhood] = createSignal<{ center: { id: string; label?: string }; relations: GraphRelatedNode[] } | null>(null);
+  const [neighborhood, setNeighborhood] = createSignal<{ center: GraphNode; relations: GraphRelatedNode[] } | null>(null);
   const [lookupState, setLookupState] = createSignal<'idle' | 'loading' | 'ready' | 'missing'>('idle');
   const [relationsState, setRelationsState] = createSignal<'idle' | 'loading' | 'ready'>('idle');
   /** Relation navigation target; undefined = the word's own surface is the center. */
@@ -337,8 +339,9 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   const labelFor = (entityId: string): string | undefined => {
     const nb = neighborhood();
     if (!nb) return undefined;
-    if (nb.center.id === entityId) return nb.center.label;
-    return nb.relations.find((relation) => relation.id === entityId)?.label;
+    if (nb.center.id === entityId) return entityLabel(nb.center);
+    const relation = nb.relations.find((relation) => relation.id === entityId);
+    return relation ? entityLabel(relation) : undefined;
   };
 
   const retentionRows = createMemo(() => (model().projection?.targets ?? []).flatMap((target) =>
@@ -437,7 +440,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
         consumed.add(relation.id);
         return {
           id: relation.id,
-          label: relation.label ?? relation.id,
+          label: entityLabel(relation),
           phrase: relationPhraseKey(relation.relationType),
           meta: relationMetadata(relation),
           relation,
@@ -448,15 +451,15 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
       ...nb.relations.filter((relation) => relation.relationType === 'has-pronunciation' || relation.relationType === 'has-reading')
         .map((relation) => {
           consumed.add(relation.id);
-          return { id: relation.id, label: relation.label ?? relation.id, phrase: relationPhraseKey(relation.relationType), meta: relationMetadata(relation), relation };
+          return { id: relation.id, label: entityLabel(relation), phrase: relationPhraseKey(relation.relationType), meta: relationMetadata(relation), relation };
         }),
-      ...(lookup()?.pronunciations ?? []).map((node) => ({ id: node.id, label: node.label ?? node.id, relation: undefined as GraphRelatedNode | undefined })),
+      ...(lookup()?.pronunciations ?? []).map((node) => ({ id: node.id, label: entityLabel(node), relation: undefined as GraphRelatedNode | undefined })),
     ]);
     if (pronunciations.length > 0) sections.push({ key: 'pronunciations', title: t('mlearn.Knowledge.Projection.Identity.Sections.Pronunciations'), items: pronunciations });
 
     const senses = dedupe([
       ...fromRelations(new Set<GraphRelationType>(['has-sense'])),
-      ...(lookup()?.senses ?? []).map((node) => ({ id: node.id, label: node.label ?? '', relation: undefined as GraphRelatedNode | undefined })),
+      ...(lookup()?.senses ?? []).map((node) => ({ id: node.id, label: node.displayLabel?.trim() || node.label?.trim() || '', relation: undefined as GraphRelatedNode | undefined })),
     ]);
     if (senses.length > 0) {
       sections.push({
@@ -469,7 +472,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     const formNodes = [...(lookup()?.entries ?? []), ...(lookup()?.lexemes ?? [])];
     const forms = dedupe([
       ...fromRelations(new Set<GraphRelationType>(['realizes', 'inflection-of', 'lemma-of', 'orthographic-variant-of'])),
-      ...formNodes.map((node) => ({ id: node.id, label: node.label ?? node.id, relation: undefined as GraphRelatedNode | undefined })),
+      ...formNodes.map((node) => ({ id: node.id, label: entityLabel(node), relation: undefined as GraphRelatedNode | undefined })),
     ]);
     for (const item of forms) {
       const kind = item.relation?.kind ?? formNodes.find((node) => node.id === item.id)?.kind;
@@ -488,7 +491,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
       .filter((relation) => !consumed.has(relation.id) && relation.kind === 'grammar-pattern')
       .map((relation) => {
         consumed.add(relation.id);
-        return { id: relation.id, label: relation.label ?? relation.id, phrase: relationPhraseKey(relation.relationType), meta: relationMetadata(relation), relation };
+        return { id: relation.id, label: entityLabel(relation), phrase: relationPhraseKey(relation.relationType), meta: relationMetadata(relation), relation };
       }));
     if (properties.length > 0) sections.push({ key: 'properties', title: t('mlearn.Knowledge.Projection.Relations.Sections.Properties'), items: properties });
 
@@ -505,7 +508,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
       .filter((relation) => !consumed.has(relation.id))
       .map((relation) => ({
         id: relation.id,
-        label: relation.label ?? relation.id,
+        label: entityLabel(relation),
         phrase: relationPhraseKey(relation.relationType),
         meta: relationMetadata(relation),
         relation,

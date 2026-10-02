@@ -436,6 +436,26 @@ describe('KnowledgeProjectionDrawer relations', () => {
     dispose();
   });
 
+  it('uses package descriptions without turning unfamiliar classes into meanings', async () => {
+    getNeighborhoodMock.mockResolvedValue({
+      center: { id: 'pkg:surface', kind: 'surface', label: '猫' },
+      relations: [
+        { id: 'pkg:class', kind: 'grammar-pattern', label: 'q7', displayLabel: 'Speaker relationship class', relationType: 'pkg:classifies' },
+        { id: 'pkg:sense', kind: 'sense', label: 'source-code', displayLabel: 'Package meaning', relationType: 'has-sense' },
+      ],
+    });
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations', onGraph: vi.fn() });
+    expect(host.querySelector('.knowledge-relations__section--properties')?.textContent).toContain('Speaker relationship class');
+    expect(host.querySelector('.knowledge-relations__section--properties')?.textContent).not.toContain('q7');
+    expect(host.querySelector('.knowledge-relations__section--meanings')?.textContent).toContain('Package meaning');
+    expect(host.querySelector('.knowledge-relations__section--meanings')?.textContent).not.toContain('Speaker relationship class');
+    expect(host.querySelector('.knowledge-relations__open')).toBeNull();
+    expect(host.querySelector('.knowledge-relations__graph')).not.toBeNull();
+    (host.querySelector('.knowledge-relations__meta-toggle') as HTMLButtonElement).click();
+    expect(host.querySelector('.knowledge-relations__open')).not.toBeNull();
+    dispose();
+  });
+
   it('groups package grammatical properties by entity semantics, separately from senses', async () => {
     getNeighborhoodMock.mockResolvedValue({
       center: { id: 'ja:surface:hash', kind: 'surface', label: '猫' },
@@ -482,6 +502,7 @@ describe('KnowledgeProjectionDrawer relations', () => {
     const onGraph = vi.fn();
     const { host, dispose } = await renderDrawer({ initialTab: 'relations', onGraph });
     const item = Array.from(host.querySelectorAll('.knowledge-relations__item')).find((li) => li.textContent?.includes('猫')) as HTMLLIElement;
+    (host.querySelector('.knowledge-relations__meta-toggle') as HTMLButtonElement).click();
     const openButton = item.querySelector('.knowledge-relations__open') as HTMLButtonElement;
     openButton.click();
     expect(onGraph).toHaveBeenCalledWith('ja:dictionary-entry:e1');
