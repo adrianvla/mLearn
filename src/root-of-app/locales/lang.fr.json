@@ -1292,6 +1292,7 @@
         "SavingRating": "Enregistrement de l’évaluation…",
         "SaveFailed": "Impossible d’enregistrer cette évaluation. La carte est toujours là ; réessayez.",
         "PendingRatingsSaveFailed": "Les dernières évaluations n’ont pas pu être enregistrées. Réessayez.",
+        "PendingRatingChanged": "Votre carte ou votre état de révision a changé avant que cette réponse puisse être enregistrée. Révisez à nouveau la carte actuelle.",
         "SavingUndo": "Enregistrement de l’annulation…",
         "UndoSaveFailed": "Impossible d’enregistrer cette annulation. La carte reste évaluée ; réessayez.",
         "PreparingQuestion": "Préparation de la prochaine question…",

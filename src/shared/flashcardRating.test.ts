@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyFlashcardRatingCommand, type FlashcardRatingCommand } from './flashcardRating';
+import { applyFlashcardRatingCommand, refusedRatingAttemptIds, RatingAdmissionRefusal, type FlashcardRatingCommand } from './flashcardRating';
 
 const command = (attemptId: string): FlashcardRatingCommand => ({
   attemptId, events: {}, patch: { baseRev: 1, entries: [{
@@ -8,6 +8,13 @@ const command = (attemptId: string): FlashcardRatingCommand => ({
 });
 
 describe('applyFlashcardRatingCommand', () => {
+  it('recognizes refused attempt identities after Electron error serialization without treating I/O failures as cancellation', () => {
+    const refusal = new RatingAdmissionRefusal(['never-admitted']);
+    expect(refusedRatingAttemptIds(refusal)).toEqual(['never-admitted']);
+    expect(refusedRatingAttemptIds(new Error(`Error invoking handler: ${refusal.message}`))).toEqual(['never-admitted']);
+    expect(refusedRatingAttemptIds(new Error('disk full'))).toBeNull();
+    expect(refusedRatingAttemptIds(new Error('mlearn-rating-admission-refused:[1]'))).toBeNull();
+  });
   it('accumulates ratings from the same revision while preserving concurrent content edits', () => {
     const source = { cards: { one: { reviews: 2, answer: 'peer edit', packageFeature: { unknown: [1, 2] } } } };
     const first = applyFlashcardRatingCommand(source, command('first'));

@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
 import path from 'path';
 import fs from 'fs';
+import { DatabaseSync } from 'node:sqlite';
 import type { FlashcardStore, Flashcard } from '../../shared/types';
 import type { StorePatch } from '../../shared/utils/storePatch';
 import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
@@ -156,6 +157,67 @@ describe('flashcardStorage', () => {
       { path: ['flashcards', card.id, 'reviews'], delta: reviews - card.reviews },
       { path: ['meta', 'perLanguage', 'ja', 'reviewsToday'], delta: 1 },
     ],
+  });
+
+  it('admits an ordered same-card queue against each preceding captured response and retains both original Undos', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('queued-chain');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const first = { ...ratingCommand(card, 1, 1), guardCardIds: [card.id] };
+    const nextCard = first.patch.entries[0].after as Flashcard;
+    const second = { ...ratingCommand(nextCard, 2, 2), guardCardIds: [card.id] };
+    const undo = (command: FlashcardRatingCommand) => ({ attemptId: command.attemptId, surface: 'future-review',
+      word: 'cue', language: 'xx', attemptIds: [command.attemptId], restore: { original: command.patch.entries[0].before } });
+    const promises = [storage.enqueueFlashcardRating({ ...first, undo: undo(first) }),
+      storage.enqueueFlashcardRating({ ...second, undo: undo(second) })];
+    await storage.flushFlashcardRatings();
+    await Promise.all(promises);
+    const saved = await loadFlashcards();
+    expect(saved.flashcards[card.id].reviews).toBe(2);
+    expect(saved.meta.perLanguage.ja.reviewsToday).toBe(2);
+    const journal = await import('./knowledgeEvents');
+    expect(journal.pendingRatingCommands()).toEqual([]);
+    const db = new DatabaseSync(path.join(tempDir.tmpDir, 'knowledge-history.sqlite3'));
+    expect(db.prepare('select count(*) as count from rating_undo').get()).toEqual({ count: 2 });
+    db.close();
+  });
+
+  it('refuses a queued stale card before reservation without overwriting a later authored answer', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('queued-stale');
+    const edited = { ...card, content: { ...card.content, back: 'later authored answer' } };
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: edited } }));
+    const command = { ...ratingCommand(card, 1, 1), guardCardIds: [card.id] };
+    const pending = storage.enqueueFlashcardRating(command);
+    const refused = expect(pending).rejects.toThrow(/changed before admission/);
+    await expect(storage.flushFlashcardRatings()).rejects.toThrow(/changed before admission/);
+    await refused;
+    expect((await loadFlashcards()).flashcards[card.id]).toEqual(edited);
+    const journal = await import('./knowledgeEvents');
+    expect(journal.pendingRatingCommands()).toEqual([]);
+    expect(journal.getKnowledgeEvents(['ja:rating-key'])).toEqual({});
+    // The refused command never owns a retry slot or blocks a normal edit.
+    const later = structuredClone(await loadFlashcards());
+    later.flashcards[card.id].content.back = 'another authored edit';
+    await expect(saveFlashcards(later)).resolves.toBeTypeOf('number');
+  });
+
+  it('releases a new queued response during pending Undo so the owning recovery can complete', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('queued-during-undo');
+    const pendingRetraction = { attemptId: 'existing-undo', surface: 'future', word: 'cue', language: 'xx',
+      attemptIds: ['existing-undo'], restore: {} };
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card }, pendingRetraction }));
+    const refused = storage.enqueueFlashcardRating({ ...ratingCommand(card, 1, 1), guardCardIds: [card.id] });
+    const refusal = expect(refused).rejects.toThrow(/pending Undo/);
+    await expect(storage.flushFlashcardRatings()).rejects.toThrow(/pending Undo/);
+    await refusal;
+    const completing = structuredClone(await loadFlashcards());
+    delete completing.pendingRetraction;
+    completing.retractionCompleted = pendingRetraction.attemptId;
+    await expect(saveFlashcards(completing)).resolves.toBeTypeOf('number');
+    expect((await loadFlashcards()).pendingRetraction).toBeUndefined();
+    await expect(storage.flushFlashcardRatings()).resolves.toBeUndefined();
   });
 
   it('protects a decided review rollback from resets and deletion while permitting authored edits', async () => {

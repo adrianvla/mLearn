@@ -31,6 +31,28 @@ export interface FlashcardRatingCommit {
   attemptIds: readonly string[];
 }
 
+const ADMISSION_REFUSAL_MARKER = 'mlearn-rating-admission-refused:';
+
+/** Never-admitted responses can be released; admitted I/O failures must retry. */
+export class RatingAdmissionRefusal extends Error {
+  constructor(readonly attemptIds: readonly string[], reason = 'The captured review card changed before admission.') {
+    super(`${reason} ${ADMISSION_REFUSAL_MARKER}${JSON.stringify(attemptIds)}`);
+    this.name = 'RatingAdmissionRefusal';
+  }
+}
+
+/** Electron serializes errors to messages; keep the refusal identity across IPC. */
+export function refusedRatingAttemptIds(error: unknown): readonly string[] | null {
+  if (error instanceof RatingAdmissionRefusal) return error.attemptIds;
+  const message = error instanceof Error ? error.message : String(error);
+  const index = message.indexOf(ADMISSION_REFUSAL_MARKER);
+  if (index < 0) return null;
+  try {
+    const parsed: unknown = JSON.parse(message.slice(index + ADMISSION_REFUSAL_MARKER.length));
+    return Array.isArray(parsed) && parsed.length > 0 && parsed.every(value => typeof value === 'string' && value.length > 0) ? parsed : null;
+  } catch { return null; }
+}
+
 export function applyFlashcardRatingCommand<T extends object>(source: T, command: FlashcardRatingCommand, inPlace = false): T {
   const record = source as Record<string, unknown>;
   const counters = (command.counterDeltas ?? []).map(({ path, delta, scope }) => {

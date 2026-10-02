@@ -47,7 +47,7 @@ import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
 import { getLogger } from '../../shared/utils/logger';
 import { createKnownWordSet } from '../utils/knowledgeUtils';
-import { applyFlashcardRatingCommand, ratingCounterDeltas, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
+import { applyFlashcardRatingCommand, ratingCounterDeltas, refusedRatingAttemptIds, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
 import { getComprehensiveWordStatus, getComprehensiveWordStatusWithSource, getEffectiveWordStateForKeys } from '../utils/comprehensiveKnowledge';
 import { getWrittenComprehensionStatus } from '../utils/writtenComprehension';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
@@ -707,6 +707,9 @@ export const FlashcardProvider: ParentComponent = (props) => {
       if (!disposed && request === undoHistoryRequest) {
         setCompletedReviewUndos(records);
         setUndoHistoryLoadFailed(false);
+        const durableAttempts = new Set(records.map(record => record.attemptId));
+        setUndoStack(previous => previous.map(entry => entry.reviewUndo && durableAttempts.has(entry.reviewUndo.attemptId)
+          ? { ...entry, durableReview: true } : entry));
       }
       return records;
     } catch (error) {
@@ -735,6 +738,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
   let persistenceQueue: Promise<void> = Promise.resolve();
   let authoritativeStore: FlashcardStore | undefined;
   const pendingRatings = new Map<string, FlashcardRatingCommand>();
+  // Keep refused optimistic effects until hydration can distinguish them from
+  // authored changes. These entries never authorize evidence or persistence.
+  const optimisticRatingCommands = new Map<string, FlashcardRatingCommand>();
+  let refusedRatingsNeedRefresh = false;
   const ratingAcknowledgements = new Set<Promise<void>>();
   const [ratingPersistenceState, setRatingPersistenceState] = createSignal<'idle' | 'pending' | 'failed'>('idle');
 
@@ -750,6 +757,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   const sendBackgroundRating = (command: FlashcardRatingCommand): void => {
     pendingRatings.set(command.attemptId, command);
+    optimisticRatingCommands.set(command.attemptId, command);
     setRatingPersistenceState('pending');
     // Send before returning to the UI. Main owns this work even if the review
     // window closes before the 300ms batch is written.
@@ -757,7 +765,19 @@ export const FlashcardProvider: ParentComponent = (props) => {
       pendingRatings.delete(command.attemptId);
       setStore('rev', Math.max(store.rev ?? 0, revision));
       if (pendingRatings.size === 0) setRatingPersistenceState('idle');
+      requestCompletedReviewUndos();
     }, error => {
+      if (refusedRatingAttemptIds(error)?.includes(command.attemptId)) {
+        pendingRatings.delete(command.attemptId);
+        refusedRatingsNeedRefresh = true;
+        setUndoStack(previous => previous.filter(entry => entry.reviewUndo?.attemptId !== command.attemptId));
+        authorityRefreshRequired = true;
+        loadFlashcards();
+        if (pendingRatings.size === 0) setRatingPersistenceState('idle');
+        showToast({ variant: 'warning', message: t('mlearn.Flashcards.Review.PendingRatingChanged') });
+        log.warn('Queued response was refused before admission; refreshed authoritative card:', command.attemptId);
+        return;
+      }
       // Retain the command and its attempt id; retry cannot duplicate evidence
       // or reconstruct a different scheduler result from a later card state.
       setRatingPersistenceState('failed');
@@ -780,7 +800,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const handleRatingCommit = ({ patch, rev, attemptIds }: FlashcardRatingCommit): void => {
     const currentRevision = authoritativeStore?.rev ?? store.rev ?? 0;
     if (rev < currentRevision) return;
-    for (const attemptId of attemptIds) pendingRatings.delete(attemptId);
+    for (const attemptId of attemptIds) {
+      pendingRatings.delete(attemptId);
+      optimisticRatingCommands.delete(attemptId);
+    }
     if (pendingRatings.size === 0) setRatingPersistenceState('idle');
     if (!authoritativeStore || rev > currentRevision + 1) {
       authorityRefreshRequired = true;
@@ -935,11 +958,17 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (firstHydration) setIsKnowledgeReady(false);
     const localChanges: Record<string, unknown> = {};
     // Preserve edits queued during a requested rebase/refresh round trip.
-    if (request && storeHydrated && authoritativeStore) {
-      recordStoreDelta(localChanges, authoritativeStore as unknown as Record<string, unknown>,
+    if ((request || refusedRatingsNeedRefresh) && storeHydrated && authoritativeStore) {
+      let intentBaseline = authoritativeStore;
+      if (refusedRatingsNeedRefresh) for (const command of optimisticRatingCommands.values()) {
+        intentBaseline = applyFlashcardRatingCommand(intentBaseline, command);
+      }
+      recordStoreDelta(localChanges, intentBaseline as unknown as Record<string, unknown>,
         cloneFlashcardStore(unwrap(store) as FlashcardStore) as unknown as Record<string, unknown>);
       delete localChanges.rev;
     }
+    refusedRatingsNeedRefresh = false;
+    for (const attemptId of optimisticRatingCommands.keys()) if (!pendingRatings.has(attemptId)) optimisticRatingCommands.delete(attemptId);
     authoritativeStore = cloneFlashcardStore(checked);
     const rendered = cloneFlashcardStore(checked);
     mergeIntentOnto(rendered as unknown as Record<string, unknown>, localChanges);
@@ -1827,22 +1856,22 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   // Undo last action
   const undoLastAction = async (): Promise<string | null> => {
-    const stack = undoStack();
-    let entry: UndoEntry | undefined = stack[stack.length - 1];
     if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
     ratingCommandInFlight = true;
     try {
       await flushBackgroundRatings();
       const history = await refreshCompletedReviewUndos();
       const persisted = history.find(reviewUndoIsApplicable);
+      const entry = [...undoStack()].reverse().find(value => !value.reviewUndo
+        || value.reviewUndo.attemptId === persisted?.attemptId
+        || (!value.durableReview && reviewUndoIsApplicable(value.reviewUndo)));
       const pendingUndo = readPendingRetraction(store.pendingRetraction)
         ?? (entry && !entry.reviewUndo ? undefined : persisted)
         ?? (entry?.durableReview ? undefined : entry?.reviewUndo);
       if (!entry && !pendingUndo) return null;
       if (entry?.durableReview && !pendingUndo) return null;
       if (pendingUndo) {
-        entry = stack.find(value => value.reviewUndo?.attemptId === pendingUndo.attemptId);
-        return await finishReviewRetraction(pendingUndo, entry);
+        return await finishReviewRetraction(pendingUndo);
       }
 
       // `restoreCard` was captured out of the live store, so it is a proxy: a
@@ -4479,7 +4508,16 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             recalculateWordStats(statsKey);
             patchRecorder.set(['wordStatsMap', statsKey], unwrap(store.wordStatsMap[statsKey]));
             const patch = patchRecorder.build(commandBase.rev ?? 0);
-            sendBackgroundRating({ attemptId, events: eventsByKey, patch, counterDeltas: ratingCounterDeltas(patch) });
+            sendBackgroundRating(JSON.parse(JSON.stringify({ attemptId, events: eventsByKey, patch,
+              decisionId: options?.decision?.id,
+              ...(options?.decision ? { presentation: { cardId: scheduler!.cardId, language, surface: word,
+                ...(options.decision.selected.presentation?.contentVersion !== undefined
+                  ? { contentVersion: SRS.hashWordSync(JSON.stringify(card!.content)) } : {}) } } : {}),
+              guardCardIds: [scheduler!.cardId], counterDeltas: ratingCounterDeltas(patch),
+              undo: { ...schedulerResult!.undo.reviewUndo!, target: {
+                ...wordRetractionTarget(word, language), keys: Object.keys(eventsByKey),
+              } },
+            })) as FlashcardRatingCommand);
           }
         });
 
@@ -4846,7 +4884,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    * surface's projection. The card write and the record clear are one durable
    * step, so an interrupted Undo is either fully undone or still recorded.
    */
-  const finishReviewRetraction = async (record: PendingRetraction, entry?: UndoEntry): Promise<string> => {
+  const finishReviewRetraction = async (record: PendingRetraction): Promise<string> => {
     validateReviewResponseUndo(unwrap(store) as FlashcardStore, record.restore as ReviewUndoProjection);
     if (!await recordPendingRetraction(record, target => validateReviewResponseUndo(target, record.restore as ReviewUndoProjection))) {
       throw new Error('undo recovery record persistence was refused');
@@ -4855,10 +4893,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (outcome === 'retraction-refused') throw new Error('knowledge retraction was refused');
     if (outcome === 'store-refused') throw new Error('undo persistence was refused');
     if (outcome === 'stale') throw new Error('A different Undo is already awaiting recovery');
-    if (entry) setUndoStack((previous) => {
-      const index = previous.lastIndexOf(entry);
-      return index < 0 ? previous : [...previous.slice(0, index), ...previous.slice(index + 1)];
-    });
+    // History adoption may replace a stack entry while persistence awaits.
+    // The physical response owns removal, independently of object identity.
+    setUndoStack(previous => previous.filter(value => value.reviewUndo?.attemptId !== record.attemptId));
     refreshQueue();
     await refreshCompletedReviewUndos().catch(error => log.warn('Failed to refresh completed review Undo:', error));
     return (record.restore as ReviewUndoProjection).type;

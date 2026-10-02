@@ -1292,6 +1292,7 @@
         "SavingRating": "Bewertung wird gespeichert…",
         "SaveFailed": "Diese Bewertung konnte nicht gespeichert werden. Die Karte ist noch da; versuche es erneut.",
         "PendingRatingsSaveFailed": "Die letzten Bewertungen konnten nicht gespeichert werden. Versuche es erneut.",
+        "PendingRatingChanged": "Deine Karte oder dein Lernstand wurde geändert, bevor diese Antwort gespeichert werden konnte. Wiederhole die aktuelle Karte erneut.",
         "SavingUndo": "Rückgängigmachung wird gespeichert…",
         "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Die Karte bleibt bewertet; versuche es erneut.",
         "PreparingQuestion": "Deine nächste Frage wird vorbereitet…",

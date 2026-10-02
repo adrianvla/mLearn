@@ -1292,6 +1292,7 @@
         "SavingRating": "正在保存评分…",
         "SaveFailed": "评分未能保存。卡片仍在这里，请重试。",
         "PendingRatingsSaveFailed": "无法保存最近的评分。请重试。",
+        "PendingRatingChanged": "保存回答前，卡片或学习状态已发生变化。请重新复习当前卡片。",
         "SavingUndo": "正在保存撤销操作…",
         "UndoSaveFailed": "无法保存撤销操作。卡片仍保持已评分状态，请重试。",
         "PreparingQuestion": "正在准备下一道题…",

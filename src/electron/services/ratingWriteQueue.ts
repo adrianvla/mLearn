@@ -1,4 +1,4 @@
-import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
+import { refusedRatingAttemptIds, type FlashcardRatingCommand } from '../../shared/flashcardRating';
 
 interface PendingRating {
   command: FlashcardRatingCommand;
@@ -44,6 +44,7 @@ export class RatingWriteQueue {
     if (this.active) { await this.active; return this.flush(); }
     if (!this.hasPending) return;
     const batch = [...this.pending.values()];
+    let terminalRefusal: unknown;
     const write = (async () => {
       try {
         const revision = await this.persist(batch.map(entry => entry.command));
@@ -53,6 +54,17 @@ export class RatingWriteQueue {
           for (const waiter of entry.waiters.splice(0)) waiter.resolve(revision);
         }
       } catch (error) {
+        const refused = refusedRatingAttemptIds(error);
+        if (refused) {
+          terminalRefusal = error;
+          for (const entry of batch) if (refused.includes(entry.command.attemptId)) {
+            this.pending.delete(entry.command.attemptId);
+            for (const waiter of entry.waiters.splice(0)) waiter.reject(error);
+          }
+          // Guard against an invalid persistence contract that would recurse
+          // forever without releasing any of this batch's responses.
+          if (batch.some(entry => refused.includes(entry.command.attemptId))) return;
+        }
         for (const entry of batch) for (const waiter of entry.waiters.splice(0)) waiter.reject(error);
         throw error;
       }
@@ -60,5 +72,6 @@ export class RatingWriteQueue {
     this.active = write;
     try { await write; } finally { this.active = undefined; }
     if (this.hasPending) await this.flush();
+    if (terminalRefusal !== undefined) throw terminalRefusal;
   }
 }

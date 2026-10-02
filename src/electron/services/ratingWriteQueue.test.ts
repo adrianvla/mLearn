@@ -1,12 +1,27 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RatingWriteQueue } from './ratingWriteQueue';
-import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
+import { RatingAdmissionRefusal, type FlashcardRatingCommand } from '../../shared/flashcardRating';
 
 const command = (attemptId: string): FlashcardRatingCommand => ({ attemptId, events: {}, patch: { baseRev: 1, entries: [] } });
 
 afterEach(() => vi.useRealTimers());
 
 describe('RatingWriteQueue', () => {
+  it('releases never-admitted refusals, saves independent responses and leaves later saves and quit unblocked', async () => {
+    vi.useFakeTimers();
+    const persist = vi.fn().mockRejectedValueOnce(new RatingAdmissionRefusal(['stale', 'dependent'])).mockResolvedValue(2);
+    const queue = new RatingWriteQueue(persist);
+    const stale = queue.enqueue(command('stale'));
+    const dependent = queue.enqueue(command('dependent'));
+    const independent = queue.enqueue(command('independent'));
+    const refusals = [expect(stale).rejects.toThrow(/changed before admission/), expect(dependent).rejects.toThrow(/changed before admission/)];
+    await expect(queue.flush()).rejects.toThrow(/changed before admission/);
+    await Promise.all(refusals);
+    expect(await independent).toBe(2);
+    expect(persist.mock.calls[1][0]).toEqual([command('independent')]);
+    expect(queue.hasPending).toBe(false);
+    await expect(queue.flush()).resolves.toBeUndefined();
+  });
   it('batches rapid ratings at 300ms from the first attempt and acknowledges one write', async () => {
     vi.useFakeTimers();
     const persist = vi.fn().mockResolvedValue(2);

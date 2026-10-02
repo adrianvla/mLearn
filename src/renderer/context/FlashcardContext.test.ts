@@ -1,4 +1,4 @@
-import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
+import { RatingAdmissionRefusal, type FlashcardRatingCommand } from '../../shared/flashcardRating';
 import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -1033,6 +1033,112 @@ describe('FlashcardProvider', () => {
     await vi.waitFor(() => expect(ctx.ratingPersistenceState()).toBe('idle'));
     expect(ctx.store.flashcards[first.id].reviews).toBe(3);
     expect(ctx.store.flashcards[second.id].reviews).toBe(5);
+    dispose();
+  });
+
+  it('retains the original queued-response Undo after durable acknowledgement and provider restart', async () => {
+    mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(async command => {
+      const commit = await mockBridge.flashcards.commitFlashcardRating(command);
+      mockBridge.flashcards.onFlashcardRatingsCommitted.mock.calls.at(-1)![0](commit);
+      return commit.rev;
+    });
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'queued-restart', state: 'review', reviews: 2 });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating(card.content.front, [], { persistence: 'background', attemptId: 'queued-restart-original' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' } });
+    await vi.waitFor(() => expect(ctx.ratingPersistenceState()).toBe('idle'));
+    const queued = mockBridge.flashcards.enqueueFlashcardRating.mock.calls[0][0];
+    expect(queued.guardCardIds).toEqual([card.id]);
+    expect(queued.undo.restore.restoreCard.reviews).toBe(2);
+    expect(queued.undo.target.keys).toEqual(Object.keys(queued.events));
+    const persisted = structuredClone(committed!);
+    dispose();
+    const reopened = await mountProvider();
+    seed(persisted);
+    await vi.waitFor(() => expect(reopened.ctx.canUndo()).toBe(true));
+    await reopened.ctx.undoLastAction();
+    expect(reopened.ctx.store.flashcards[card.id].reviews).toBe(2);
+    expect(reopened.ctx.store.pendingRetraction).toBeUndefined();
+    expect(reopened.ctx.canUndo()).toBe(false);
+    reopened.dispose();
+  });
+
+  it('removes completed review Undo by attempt identity when a late history refresh replaces its stack entry', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const earlier = makeCard({ id: 'earlier-manual' });
+    const reviewed = makeCard({ id: 'late-ack-reviewed', state: 'review', reviews: 2 });
+    seed(makeEmptyStore({ flashcards: { [earlier.id]: earlier, [reviewed.id]: reviewed } }));
+    ctx.pushUndoState({ type: 'earlier-manual-action', cardId: earlier.id });
+    await ctx.submitRating(reviewed.content.front, [], { attemptId: 'late-ack-owned' as AttemptId,
+      scheduler: { cardId: reviewed.id, rating: 'good' } });
+    const originalAppend = mockAppendEvents.getMockImplementation()!;
+    mockAppendEvents.mockImplementationOnce(async events => {
+      mockBridge.flashcards.onFlashcardRatingsCommitted.mock.calls.at(-1)![0]({
+        patch: { baseRev: ctx.store.rev, entries: [] }, rev: ctx.store.rev, attemptIds: ['late-ack-owned'],
+      });
+      await Promise.resolve();
+      return originalAppend(events);
+    });
+    await ctx.undoLastAction();
+    expect(ctx.canUndo()).toBe(true);
+    await expect(ctx.undoLastAction()).resolves.toBe('earlier-manual-action');
+    expect(ctx.canUndo()).toBe(false);
+    dispose();
+  });
+
+  it('releases a refused queued response, reloads the authored authority and reports that it was not saved', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'queued-refused', state: 'review', reviews: 2 });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    const peer = structuredClone(committed!);
+    peer.flashcards[card.id].content.back = 'authoritative peer answer';
+    mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(async command => {
+      committed = peer;
+      committed.rev = ++revision;
+      throw new Error(`Error invoking enqueue: ${new RatingAdmissionRefusal([command.attemptId]).message}`);
+    });
+    answerProbesFromAuthority();
+    mockShowToast.mockClear();
+    await ctx.submitRating(card.content.front, [], { persistence: 'background', attemptId: 'refused-before-admission' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' } });
+    await vi.waitFor(() => expect(ctx.store.flashcards[card.id].content.back).toBe('authoritative peer answer'));
+    expect(ctx.store.flashcards[card.id].reviews).toBe(2);
+    expect(ctx.ratingPersistenceState()).toBe('idle');
+    expect(ctx.canUndo()).toBe(false);
+    expect(mockShowToast).toHaveBeenCalledWith({ variant: 'warning', message: 'mlearn.Flashcards.Review.PendingRatingChanged' });
+    await ctx.retryRatingPersistence();
+    expect(mockBridge.flashcards.enqueueFlashcardRating).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it('preserves unrelated pending authored edits and unknown content through refusal refresh and eventual save', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'refused-with-local-edit', state: 'review', reviews: 2 });
+    const other = makeCard({ id: 'pending-authored-card' });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card, [other.id]: other } }));
+    const peer = structuredClone(committed!);
+    peer.flashcards[card.id].content.back = 'authoritative peer answer';
+    let reject!: (error: Error) => void;
+    mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(() => new Promise((_resolve, rejectPromise) => { reject = rejectPromise; }));
+    await ctx.submitRating(card.content.front, [], { persistence: 'background', attemptId: 'refused-preserve-authored' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' } });
+    ctx.updateFlashcard(other.id, { content: { ...other.content, back: 'unsaved authored answer',
+      futureFeature: { arbitraryCategory: ['unfamiliar', { conditional: true }] } } as FlashcardContent });
+    committed = peer;
+    committed.rev = ++revision;
+    answerProbesFromAuthority();
+    reject(new RatingAdmissionRefusal(['refused-preserve-authored']));
+    await vi.waitFor(() => expect(ctx.store.flashcards[card.id].content.back).toBe('authoritative peer answer'));
+    expect(ctx.store.flashcards[card.id].reviews).toBe(2);
+    expect(ctx.store.flashcards[other.id].content.back).toBe('unsaved authored answer');
+    expect((ctx.store.flashcards[other.id].content as unknown as Record<string, unknown>).futureFeature)
+      .toEqual({ arbitraryCategory: ['unfamiliar', { conditional: true }] });
+    await vi.waitFor(() => expect(committed!.flashcards[other.id].content.back).toBe('unsaved authored answer'));
+    expect(committed!.flashcards[card.id].content.back).toBe('authoritative peer answer');
+    expect(committed!.flashcards[card.id].reviews).toBe(2);
+    expect((committed!.flashcards[other.id].content as unknown as Record<string, unknown>).futureFeature)
+      .toEqual({ arbitraryCategory: ['unfamiliar', { conditional: true }] });
     dispose();
   });
 

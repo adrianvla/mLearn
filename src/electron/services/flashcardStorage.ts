@@ -16,7 +16,7 @@ import { staleFlashcardRevisionMessage } from '../../shared/flashcardWriteRevisi
 import type { FlashcardStore, FlashcardWriteAuthorization, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
 import { copyStoreWithPatch, getStorePath, storePatchRecorder, type StorePatch } from '../../shared/utils/storePatch';
-import { applyFlashcardRatingCommand, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
+import { applyFlashcardRatingCommand, RatingAdmissionRefusal, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
 import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { RatingWriteQueue } from './ratingWriteQueue';
 import { calculateWordStats } from '../../shared/utils/wordStats';
@@ -34,7 +34,10 @@ export const enqueueFlashcardRating = (command: FlashcardRatingCommand): Promise
 export const flushFlashcardRatings = (): Promise<void> => ratingWrites.flush();
 
 function persistRatingCommands(commands: readonly FlashcardRatingCommand[]): Promise<number> {
-  return enqueueWrite(async () => (await commitRatingCommands(commands)).rev);
+  return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
+    return (await commitRatingCommands(commands)).rev;
+  });
 }
 
 /** Immediate Review admission and both effects share the main write queue. */
@@ -66,15 +69,39 @@ async function commitRatingCommands(commands: readonly FlashcardRatingCommand[],
     // Validate counter declarations before durable admission or evidence append.
     applyFlashcardRatingCommand(current, command);
   };
+  // Preflight the complete ordered batch before reserving any new response.
+  // A stale response and its dependent successors have no durable effects;
+  // independent responses remain eligible for the next queue pass.
+  let preflight = current;
+  const refused: string[] = [];
+  if (current.pendingRetraction !== undefined) {
+    const unadmitted = commands.filter(command => !journal.isRatingCommandCommitted(command.attemptId));
+    if (unadmitted.length > 0) throw new RatingAdmissionRefusal(unadmitted.map(command => command.attemptId),
+      'Complete the pending Undo before submitting another review.');
+  }
   for (const command of commands) {
-    journal.reserveRatingCommand(command, () => {
-      if (current.pendingRetraction !== undefined) throw new Error('Complete the pending Undo before submitting another review');
+    if (journal.isRatingCommandCommitted(command.attemptId)) continue;
+    const captured = (command.guardCardIds ?? []).every(id => {
+      const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
+      return entry && JSON.stringify(preflight.flashcards[id]) === JSON.stringify(entry.before);
+    });
+    if (!captured) { refused.push(command.attemptId); continue; }
+    preflight = applyFlashcardRatingCommand(preflight, command);
+  }
+  if (refused.length > 0) throw new RatingAdmissionRefusal(refused);
+  let admission = current;
+  for (const command of commands) {
+    const reserved = journal.reserveRatingCommand(command, () => {
+      if (admission.pendingRetraction !== undefined) throw new Error('Complete the pending Undo before submitting another review');
       validate(command);
       for (const id of command.guardCardIds ?? []) {
         const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
-        if (!entry || JSON.stringify(current.flashcards[id]) !== JSON.stringify(entry.before)) throw new Error('The captured review card changed before admission');
+        if (!entry || JSON.stringify(admission.flashcards[id]) !== JSON.stringify(entry.before)) throw new Error('The captured review card changed before admission');
       }
     });
+    // A queued second response may have been shown after the first optimistic
+    // response. Its proof belongs to that ordered state, not the batch origin.
+    if ('command' in reserved) admission = applyFlashcardRatingCommand(admission, reserved.command);
   }
   const pending = journal.pendingRatingCommands();
   const ledgerId = journal.ratingLedgerId();

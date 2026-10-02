@@ -363,6 +363,11 @@ export class KnowledgeHistoryStore {
     return (this.db.prepare("SELECT value FROM meta WHERE key = 'ratingLedgerId'").get() as { value: string }).value;
   }
 
+  isRatingCommandCommitted(attemptId: string): boolean {
+    return this.db.prepare('SELECT 1 FROM rating_commands WHERE attempt_id = ? AND committed_revision IS NOT NULL')
+      .get(attemptId) !== undefined;
+  }
+
   /** Technical commands live beside the journal, never among ability observations. */
   reserveRatingCommand(command: FlashcardRatingCommand, validateAdmission?: () => void): RatingCommandReservation {
     if (typeof command.attemptId !== 'string' || !command.attemptId) throw new Error('Invalid rating attempt identity');
