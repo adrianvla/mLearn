@@ -709,12 +709,17 @@
       "TriggerKeyHover": "{key} + 悬停",
       "TriggerLongHover": "长按悬停",
       "Voice": {
+        "AiGroupCall": "AI群组通话",
+        "AiCall": "AI通话",
+        "PeopleInCall": "本次通话的参与者",
+        "ReturnToChat": "返回聊天",
+        "EndAndReturn": "结束通话并返回聊天",
         "BackendAuthError": "语音后端连接失败。请重试。",
         "Aftermath": {
           "Duration": "时长",
-          "Messages": "消息数",
+          "Messages": "你的发言次数",
           "Mistakes": "记录的错误",
-          "NoMistakes": "未记录错误。做得好！",
+          "NoMistakes": "本次通话未记录纠正。",
           "Title": "会话总结"
         },
         "CloudTts": "云端",

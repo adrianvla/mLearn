@@ -709,12 +709,17 @@
       "TriggerKeyHover": "{key} + Hover",
       "TriggerLongHover": "Long hover",
       "Voice": {
+        "AiGroupCall": "AI group call",
+        "AiCall": "AI call",
+        "PeopleInCall": "People in this call",
+        "ReturnToChat": "Return to chat",
+        "EndAndReturn": "End call and return to chat",
         "BackendAuthError": "Voice backend connection failed. Please try again.",
         "Aftermath": {
           "Duration": "Duration",
-          "Messages": "Messages",
+          "Messages": "Your spoken turns",
           "Mistakes": "Mistakes noted",
-          "NoMistakes": "No mistakes were noted. Great job!",
+          "NoMistakes": "No corrections were recorded during this call.",
           "Title": "Session Summary"
         },
         "CloudTts": "Cloud",

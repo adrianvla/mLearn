@@ -19,6 +19,7 @@ import { matchesVoiceTtsRequest } from '../../../shared/utils/voiceTtsOwnership'
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { WordHoverTriggerMode } from '../../../shared/constants';
 import './VoiceTab.css';
+import { CallParticipants, type CallParticipant } from './CallParticipants';
 import { getLogger } from '../../../shared/utils/logger';
 import { scheduleAudioChunk } from './ttsScheduling';
 import {
@@ -141,6 +142,9 @@ function providerFromVoiceTtsChoice(choice: VoiceTtsChoice): LocalVoiceTtsProvid
 }
 
 export interface VoiceTabProps {
+  participants?: readonly CallParticipant[];
+  contextLabel?: string;
+  onDismiss?: () => void;
   /** Start a call immediately after the tab mounts. */
   autoStartCall?: boolean;
   messages: Array<ConversationMessage & { eventId?: string; actorId?: string }>;
@@ -204,6 +208,8 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
   const [downloadProgress, setDownloadProgress] = createSignal(0);
   const [isInitializing, setIsInitializing] = createSignal(false);
   const [initError, setInitError] = createSignal('');
+  const [hasAudibleSpeech, setHasAudibleSpeech] = createSignal(false);
+  const [activeSpeakerId, setActiveSpeakerId] = createSignal<string | null>(null);
   const [callState, setCallState] = createSignal<'idle' | 'listening' | 'processing' | 'speaking'>('idle');
   const [partialTranscript, setPartialTranscript] = createSignal('');
   const [pttActive, setPttActive] = createSignal(false);
@@ -813,14 +819,15 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         ttsGenerationActive = true;
         addDebugEvent('TTS', status.playing ? 'Playback started' : 'Generating audio', 'active');
         if (status.playing) {
-          if (systemPhrase) systemPlaybackStarted = true;
+          if (systemPhrase) { systemPlaybackStarted = true; setHasAudibleSpeech(true); }
           setTtsPlaybackActive(true);
           setCallState('speaking');
         } else {
-          setCallState('processing');
+          setCallState(hasAudibleSpeech() ? 'speaking' : 'processing');
         }
       } else if (status.generating === false) {
         playbackDelivery?.finishGeneration(voiceTtsTurn.activePhraseIndex, systemPhrase && systemPlaybackStarted);
+        if (systemPhrase && ttsSources.length === 0) setHasAudibleSpeech(false);
         if (activeSpeech && playbackDelivery?.snapshot(ttsAudioContext?.currentTime ?? 0).confirmedText
           && voiceTtsTurn.pendingPhrases.length > 0) {
           try { void Promise.resolve(props.onDelivery?.(deliveryFor(activeSpeech, 'playing'))).catch(reportDeliveryFailure); }
@@ -1011,6 +1018,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     if (!next) return;
     resetVoiceTtsTurn(speechTurnIndex++);
     activeSpeech = next;
+    setActiveSpeakerId(next.actorId);
     setCallState('processing');
     const phrases = enqueueVoiceTtsPhrasesForMessage(voiceTtsTurn, voiceTtsTurn.messageIndex, next.content, false);
     playbackDelivery = new VoicePlaybackDelivery(voiceTtsTurn.sentenceTexts);
@@ -1198,6 +1206,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         await props.onDelivery?.(delivery);
         if (activeSpeech !== message || !isCallActive()) return;
         activeSpeech = null;
+        setActiveSpeakerId(null);
         playbackDelivery = null;
         settlingSpeech = null;
         if (!complete) {
@@ -1260,11 +1269,16 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     source.buffer = buffer;
     source.connect(ttsAudioContext.destination);
     ttsSources.push(source);
+    setHasAudibleSpeech(true);
 
     source.onended = () => {
       if (!ttsSources.includes(source)) return;
       source.onended = null;
       ttsSources = ttsSources.filter((s) => s !== source);
+      if (ttsSources.length === 0 && !(systemPhrase && systemPlaybackStarted && ttsGenerationActive)) {
+        setHasAudibleSpeech(false);
+        if (activeSpeech) setCallState('processing');
+      }
       markEnded?.();
       ttsQueueIndex++;
       if (activeSpeech && (ttsSources.length > 0 || ttsGenerationActive || voiceTtsTurn.requestActive || voiceTtsTurn.pendingPhrases.length > 0)) {
@@ -1301,6 +1315,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
         ...pendingSpeech.map(message => deliveryFor(message, 'stopped')),
       ];
       activeSpeech = null;
+      setActiveSpeakerId(null);
       pendingSpeech = [];
       playbackDelivery = null;
       settlingSpeech = null;
@@ -1316,6 +1331,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       }
     }
     ttsSources = [];
+    setHasAudibleSpeech(false);
     setTtsPlaybackActive(false);
     ttsGenerationActive = false;
     abortVoiceTtsTurn(voiceTtsTurn);
@@ -1353,6 +1369,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     greetingRequested = false;
     seenSpeechEventIds = new Set((props.speechMessages ?? []).map(message => message.eventId));
     activeSpeech = null;
+    setActiveSpeakerId(null);
     pendingSpeech = [];
     speechTurnIndex = 0;
     log.info('[VoiceTab] Starting voice call', {
@@ -1655,7 +1672,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   const agentName = () => props.agentName?.trim() ?? '';
   const hasProfilePhoto = () => Boolean(props.profilePhoto);
-  const isAgentSpeaking = () => callState() === 'speaking';
+  const isAgentSpeaking = hasAudibleSpeech;
   const callViewState = () => {
     if (isInitializing() || (isCallActive() && !captureReady()) || ttsModelLoading()) return 'loading';
     if (!isCallActive()) return 'idle';
@@ -1695,6 +1712,16 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
   return (
     <div class="voice-tab">
+      <div class="voice-call-context">
+        <div>
+          <strong>{t((props.participants?.length ?? 0) > 1
+            ? 'mlearn.ConversationAgent.Voice.AiGroupCall' : 'mlearn.ConversationAgent.Voice.AiCall')}</strong>
+          <Show when={props.contextLabel}><span>{props.contextLabel}</span></Show>
+        </div>
+        <Show when={props.onDismiss}><Button variant="ghost" onClick={() => {
+          stopCall('cleanup'); props.onDismiss?.();
+        }}>{t(isCallActive() ? 'mlearn.ConversationAgent.Voice.EndAndReturn' : 'mlearn.ConversationAgent.Voice.ReturnToChat')}</Button></Show>
+      </div>
       {/* Mic error banner */}
       <Show when={micError()}>
         <AlertBanner
@@ -1800,6 +1827,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
                 </button>
 
                 <div class="voice-call-stage">
+                  <Show when={props.participants?.length} fallback={<>
                   <div
                     class={`voice-call-avatar-shell ${hasProfilePhoto() ? 'has-photo' : 'no-photo'} ${isAgentSpeaking() ? 'speaking' : ''} ${isInitializing() || ttsModelLoading() ? 'loading' : ''}`}
                     aria-hidden={!agentName()}
@@ -1820,6 +1848,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
 
                   <Show when={agentName()}>
                     <div class="voice-call-agent-name">{agentName()}</div>
+                  </Show>
+                  </>}>
+                    <CallParticipants participants={props.participants!}
+                      speakingActorId={isAgentSpeaking() ? activeSpeakerId() : null}
+                      usingVoiceSamples={ttsChoice() === 'voice-clone'} voiceLabel={ttsChoice() === 'voice-clone' ? t('mlearn.ConversationAgent.Voice.SystemVoice') : activeTtsLabel()} />
                   </Show>
 
                   <Show when={!isInitializing() && !ttsModelLoading()}>
@@ -1931,6 +1964,11 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
           >
           {/* Call UI */}
           <div class="voice-call-ui">
+            <Show when={props.participants?.length}>
+              <CallParticipants participants={props.participants!}
+                speakingActorId={isAgentSpeaking() ? activeSpeakerId() : null}
+                usingVoiceSamples={ttsChoice() === 'voice-clone'} voiceLabel={ttsChoice() === 'voice-clone' ? t('mlearn.ConversationAgent.Voice.SystemVoice') : activeTtsLabel()} />
+            </Show>
             <button
               type="button"
               class="voice-call-view-button"

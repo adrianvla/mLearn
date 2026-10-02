@@ -709,12 +709,17 @@
       "TriggerKeyHover": "{key} + Hover",
       "TriggerLongHover": "Langes Hover",
       "Voice": {
+        "AiGroupCall": "KI-Gruppenanruf",
+        "AiCall": "KI-Anruf",
+        "PeopleInCall": "Personen in diesem Anruf",
+        "ReturnToChat": "Zurück zum Chat",
+        "EndAndReturn": "Anruf beenden und zum Chat zurückkehren",
         "BackendAuthError": "Sprachbackend-Verbindung fehlgeschlagen. Bitte versuche es erneut.",
         "Aftermath": {
           "Duration": "Dauer",
-          "Messages": "Nachrichten",
+          "Messages": "Deine gesprochenen Beiträge",
           "Mistakes": "Gemeldete Fehler",
-          "NoMistakes": "Keine Fehler gemeldet. Gute Arbeit!",
+          "NoMistakes": "Während dieses Anrufs wurden keine Korrekturen aufgezeichnet.",
           "Title": "Sitzungszusammenfassung"
         },
         "CloudTts": "Cloud",

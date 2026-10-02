@@ -709,12 +709,17 @@
       "TriggerKeyHover": "{key} + survol",
       "TriggerLongHover": "Survol prolongé",
       "Voice": {
+        "AiGroupCall": "Appel de groupe avec l’IA",
+        "AiCall": "Appel avec l’IA",
+        "PeopleInCall": "Participants à cet appel",
+        "ReturnToChat": "Revenir au chat",
+        "EndAndReturn": "Terminer l’appel et revenir au chat",
         "BackendAuthError": "Échec de la connexion au serveur vocal. Veuillez réessayer.",
         "Aftermath": {
           "Duration": "Durée",
-          "Messages": "Messages",
+          "Messages": "Vos prises de parole",
           "Mistakes": "Erreurs signalées",
-          "NoMistakes": "Aucune erreur signalée. Excellent travail !",
+          "NoMistakes": "Aucune correction n’a été enregistrée pendant cet appel.",
           "Title": "Résumé de la session"
         },
         "CloudTts": "Cloud",

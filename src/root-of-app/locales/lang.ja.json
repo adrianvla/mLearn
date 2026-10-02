@@ -709,12 +709,17 @@
       "TriggerKeyHover": "{key} + ホバー",
       "TriggerLongHover": "長押しホバー",
       "Voice": {
+        "AiGroupCall": "AIグループ通話",
+        "AiCall": "AI通話",
+        "PeopleInCall": "この通話の参加者",
+        "ReturnToChat": "チャットに戻る",
+        "EndAndReturn": "通話を終了してチャットに戻る",
         "BackendAuthError": "音声バックエンドへの接続に失敗しました。もう一度お試しください。",
         "Aftermath": {
           "Duration": "所要時間",
-          "Messages": "メッセージ数",
+          "Messages": "自分の発話数",
           "Mistakes": "指摘されたミス",
-          "NoMistakes": "ミスは指摘されませんでした。お疲れ様でした！",
+          "NoMistakes": "この通話では修正が記録されていません。",
           "Title": "セッションサマリー"
         },
         "CloudTts": "Cloud",

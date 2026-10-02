@@ -347,7 +347,7 @@ vi.mock('../../components/subtitle/ExplainerPopup', () => ({
 }));
 
 vi.mock('./VoiceTab', () => ({
-  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; defaultVoiceSampleId?: string; onDelivery?: (delivery: VoiceDeliveryPayload) => Promise<void>; speechMessages?: Array<{ content: string; eventId: string; actorId: string; voiceSessionId: string }>; onSendMessage?: (text: string) => Promise<void>; onAbort?: () => void; onStatusChange?: (status: string) => void; onCallStateChange?: (active: boolean, reason?: 'failed' | 'completed', error?: string, sessionId?: string) => void }) => {
+  VoiceTab: (props: { autoStartCall?: boolean; agentName?: string; participants?: Array<{ id: string }>; defaultVoiceSampleId?: string; onDelivery?: (delivery: VoiceDeliveryPayload) => Promise<void>; speechMessages?: Array<{ content: string; eventId: string; actorId: string; voiceSessionId: string }>; onSendMessage?: (text: string) => Promise<void>; onAbort?: () => void; onStatusChange?: (status: string) => void; onCallStateChange?: (active: boolean, reason?: 'failed' | 'completed', error?: string, sessionId?: string) => void }) => {
     voiceTabMounts++;
     voiceDeliveryCallback = props.onDelivery;
     return (
@@ -355,6 +355,7 @@ vi.mock('./VoiceTab', () => ({
       data-testid="voice-tab"
       data-auto-start={String(props.autoStartCall)}
       data-agent-name={props.agentName}
+      data-call-participants={props.participants?.map(person => person.id).join(',')}
       data-voice-sample={props.defaultVoiceSampleId}
     ><button onClick={() => props.onCallStateChange?.(false, 'failed', "No module named kokoro")}>Simulate voice failure</button>
       <button onClick={() => props.onStatusChange?.('Listening…')}>Simulate listening</button>
@@ -362,6 +363,7 @@ vi.mock('./VoiceTab', () => ({
       <button onClick={() => void props.onSendMessage?.('A spoken question')}>Send voice transcript</button>
       <button onClick={() => props.onAbort?.()}>Abort call response</button>
       <button onClick={() => { props.onCallStateChange?.(true); props.onCallStateChange?.(false, 'completed'); }}>Complete call</button>
+      <button onClick={() => props.onCallStateChange?.(false, 'completed')}>End current call</button>
       <button onClick={() => {
         const message = props.speechMessages?.[0];
         if (message) void props.onDelivery?.({ messageEventId: message.eventId, actorId: message.actorId, voiceSessionId: message.voiceSessionId,
@@ -654,9 +656,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-auto-start')).toBe('true'));
   });
 
-  it('keeps a multi-person incoming call bound to the contacting person and voice', async () => {
+  it.each([false, true])('keeps a multi-person incoming call and its feedback bound to the contacting person (checks: %s)', async (checks) => {
     currentWorld = {
-      rooms: [{ id: 'room-a', title: 'Garden', participantIds: ['agent-a', 'agent-b'], createdAt: 1 }],
+      rooms: [{ id: 'room-a', title: 'Garden', participantIds: ['agent-a', 'agent-b'], interactionMode: 'practice', createdAt: 1 }],
       threads: [],
       participants: [
         { id: 'agent-a', displayName: 'Eli', kind: 'persistent', personaText: 'Eli plans layouts.', setupComplete: true, voiceSampleId: 'voice-eli' },
@@ -670,6 +672,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
         deliveryAttempts: 1, participantRevision: 'p', roomRevision: 'r',
       }],
     };
+    testSettings.agentMistakeChecker = checks; testSettings.agentSafetyChecker = checks;
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent />, container);
     await vi.waitFor(() => expect(mockBridge.window.onOpenRoomEvent).toHaveBeenCalled());
@@ -681,6 +684,39 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
     await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-agent-name')).toBe('Mara'));
     expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-voice-sample')).toBe('voice-mara');
+    expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-call-participants')).toBe('agent-b');
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click(); button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Eli, your thoughts?', done: true });
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="admitted-speech"]')?.textContent).toContain('Eli, your thoughts?'));
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledTimes(checks ? 2 : 1));
+    expect(journalEvents.filter(event => event.type === 'message.character')).toHaveLength(1);
+    expect(journalEvents.find(event => event.type === 'message.character'))
+      .toMatchObject({ actorId: 'agent-b', witnesses: ['agent-b', 'user'] });
+    expect(journalEvents.find(event => event.type === 'message.user')?.witnesses).toEqual(['user', 'agent-b']);
+    if (checks) {
+      // End the call before its asynchronous check completes. Feedback keeps
+      // the original audience rather than reverting to the whole chat.
+      button('End current call').click();
+      emitChunk({ toolCalls: [
+        { id: 'agreement', name: 'report_feedback_agreement', arguments: {
+          active: false, scope: 'This question', evidence: 'A spoken question',
+        } },
+        { id: 'correction', name: 'suggest_corrections', arguments: { corrections: [
+          { error_span: 'A spoken question', correction: 'A question spoken aloud', error_type: 'unnatural' },
+        ] } },
+        { id: 'flag', name: 'flag_self_harm_risk', arguments: {
+          category: 'self-harm-related', severity: 'concern', flagged_span: 'A spoken question',
+        } },
+      ], done: true });
+      await vi.waitFor(() => expect(journalEvents.filter(event =>
+        ['feedback.agreement', 'correction', 'safety_flag'].includes(event.type))).toHaveLength(3));
+      for (const event of journalEvents.filter(event =>
+        ['feedback.agreement', 'correction', 'safety_flag'].includes(event.type))) {
+        expect(event.witnesses).toEqual(['user', 'agent-b']);
+      }
+    }
   });
 
   it('tokenizes journal-restored messages without persisted tokens', async () => {
@@ -716,6 +752,32 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     if (state === 'partial') {
       await vi.waitFor(() => expect(container.querySelector('.chat-bubble .chat-token')?.textContent).toContain('Played phrase.'));
     }
+  });
+
+  it('counts learner spoken turns in the current call, excluding history and AI output', async () => {
+    journalEvents = [{ id: 'old-text', seq: 1, createdAt: 1, roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' },
+      type: 'message.user', actorId: 'user', witnesses: ['user', 'agent-a'], payload: { text: 'Old chat', modality: 'text' } },
+      { id: 'old-voice', seq: 2, createdAt: 2, roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' },
+        type: 'message.character', actorId: 'agent-a', witnesses: ['user', 'agent-a'],
+        payload: { text: 'Prior call', modality: 'voice', voiceSessionId: 'previous-call' } }];
+    testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent />, container);
+    const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
+    await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
+    const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
+    button('Start call session').click(); button('Send voice transcript').click();
+    await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
+    emitChunk({ content: 'Unheard answer.', done: true });
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="admitted-speech"]')?.textContent).toContain('Unheard answer.'));
+    expect(journalEvents.find(event => event.type === 'message.user' && (event.payload as { text: string }).text === 'A spoken question')?.payload)
+      .toMatchObject({ modality: 'voice', voiceSessionId: 'synthetic-call-session' });
+    button('End current call').click();
+    expect(container.querySelector('.voice-aftermath-stats')?.textContent)
+      .toContain('mlearn.ConversationAgent.Voice.Aftermath.Messages: 1');
+    const returnButton = container.querySelector<HTMLButtonElement>('.voice-aftermath-return')!;
+    returnButton.click();
+    expect(container.querySelector('.ca-voice-overlay')).toBeNull();
   });
 
   it('prepares only the current delivered prefix in a live voice transcript', async () => {
@@ -1805,7 +1867,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     callButton()!.click();
     expect(voiceTabMounts).toBe(1);
     Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Complete call')!.click();
-    const dismiss = container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Voice.Aftermath.Title"]');
+    const dismiss = container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Voice.ReturnToChat"]');
     expect(dismiss).not.toBeNull();
     dismiss!.click();
     expect(voiceTabMounts).toBe(1);

@@ -368,6 +368,8 @@ export const ConversationContent: Component = () => {
   const [contactIngressError, setContactIngressError] = createSignal<string | null>(null);
   const [voiceHeaderStatus, setVoiceHeaderStatus] = createSignal('');
   const callSurfaceOpen = () => Boolean(voiceOverlayRequested() || isVoiceCallActive() || voiceAftermath());
+  const voiceParticipants = () => voiceContactParticipantId()
+    ? rosterParticipants().filter(person => person.id === voiceContactParticipantId()) : rosterParticipants();
   const callIdentity = () => (voiceContactParticipantId() ? activeVoiceParticipant()?.displayName : rosterParticipants().map(person => person.displayName).join(', '))
     || activeRoom()?.title || t('mlearn.ConversationAgent.Title');
   const [contactEventId, setContactEventId] = createSignal<string | null>(null);
@@ -774,6 +776,8 @@ export const ConversationContent: Component = () => {
     const room = activeRoom();
     const threadId = selection()?.threadId;
     const session = selectionSession;
+    const sourceEvent = [...journal.threadEvents(), ...journal.seaEvents()].find(event => event.id === messageEventId);
+    const witnesses = [...(sourceEvent?.witnesses ?? [USER_ACTOR, ...(room?.participantIds ?? [])])];
     const initialPracticeIntent = activeThread()?.intent;
     const recentConversation = displayMessages().filter(message => !message.isError && (message.role === 'user' || message.role === 'assistant'))
       .slice(-12).map(message => ({ role: message.role as 'user' | 'assistant', content: message.content.slice(-4000) }));
@@ -796,7 +800,7 @@ export const ConversationContent: Component = () => {
       if (result.feedbackAgreement && room) {
         await getBridge().journal.appendEvent(room.id, { roomId: room.id,
           scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'feedback.agreement',
-          actorId: HARNESS_ACTOR, witnesses: [USER_ACTOR, ...room.participantIds],
+          actorId: HARNESS_ACTOR, witnesses,
           payload: { sourceEventId: messageEventId, ...result.feedbackAgreement } });
         if (session === selectionSession) await journal.refresh();
       }
@@ -812,7 +816,6 @@ export const ConversationContent: Component = () => {
       }
 
       if (!room) return;
-      const witnesses = [USER_ACTOR, ...room.participantIds];
       if (result.corrections.length) await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'correction', actorId: HARNESS_ACTOR, witnesses, payload: { messageEventId, corrections: result.corrections } });
       if (result.safety) {
         agent.lockSafety(); setIsSafetyLockedState(true);
@@ -1484,9 +1487,9 @@ export const ConversationContent: Component = () => {
       // request dispatches when the agent turn below reaches processMessage.
       const voiceTurnTiming = isVoiceCallActive() ? { speechEndTs: lastVadSpeechEndTs ?? Date.now(), requestDispatchTs: 0 } : null;
       let prefetchLogged = false;
-      const witnesses = [USER_ACTOR, ...room.participantIds];
+      const witnesses = [USER_ACTOR, ...(modality === 'voice' ? voiceParticipants().map(person => person.id) : room.participantIds)];
       const previousSourceEventId = lastUserMessageEventRoomId === room.id ? lastUserMessageEventId : null;
-      const userEvent = contextOnly ? null : await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality } satisfies MessagePayload });
+      const userEvent = contextOnly ? null : await journal.append({ roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' }, type: 'message.user', actorId: USER_ACTOR, witnesses, payload: { text, modality, ...(voiceSessionId ? { voiceSessionId } : {}) } satisfies MessagePayload });
       if (!ownsTurn()) return;
       const memorySourceEventId = userEvent?.id ?? previousSourceEventId;
       lastUserMessageEventId = userEvent?.id ?? null;
@@ -1496,11 +1499,11 @@ export const ConversationContent: Component = () => {
       let pendingResponse: { tokens?: Token[]; widgets?: ChatWidget[] } = {};
       await runRoomTurn({
         thread: activeThread() ?? undefined,
-        room,
+        room: modality === 'voice' ? { ...room, participantIds: voiceParticipants().map(person => person.id) } : room,
         ...(contextOnly ? { contextTurn: { text, threadId: threadId ?? undefined } } : {}),
         modality,
         initialSpeakerId: modality === 'voice' ? voiceContactParticipantId() ?? undefined : undefined,
-        participants: rosterParticipants(),
+        participants: modality === 'voice' ? voiceParticipants() : rosterParticipants(),
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
         compileContextFn: (input) => modality === 'voice' ? voiceContextPrefetch.resolveFinal(text, input.participant.id) : compileContext({ ...input, thread: activeThread() ?? undefined, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined), threadIntent: activeThread()?.intent, turn: { text } }),
@@ -2357,6 +2360,11 @@ export const ConversationContent: Component = () => {
         <div class="ca-voice-overlay">
           <Show when={voiceAftermath()} fallback={<VoiceTab
               autoStartCall={voiceOverlayRequested()}
+              participants={voiceParticipants()}
+              contextLabel={`${t((activeThread()?.interactionMode ?? activeRoom()?.interactionMode) === 'practice'
+                ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · ${t(activeThread()?.sandbox
+                ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}`}
+              onDismiss={() => batch(() => { setVoiceOverlayRequested(false); setVoiceContactParticipantId(null); })}
               messages={messages()}
               speechMessages={speechMessages()}
               isStreaming={isStreaming()}
@@ -2373,6 +2381,12 @@ export const ConversationContent: Component = () => {
               defaultVoiceSampleId={activeVoiceParticipant()?.voiceSampleId}
               voiceSampleIds={rosterParticipants().flatMap(person => person.voiceSampleId ? [person.voiceSampleId] : [])}
               onCallStateChange={(active, reason, error, sessionId) => {
+                const endedSessionId = activeVoiceSessionId();
+                const callMessages = displayMessages().filter(message => {
+                  const event = message as EventMessage & { voiceSessionId?: string; modality?: 'voice' };
+                  return message.role === 'user' && event.voiceSessionId === endedSessionId && event.modality === 'voice'
+                    && message.content.trim() && !message.isError;
+                });
                 setAdmittedVoiceEventIds(new Set<string>());
                 setActiveVoiceSessionId(active ? sessionId ?? crypto.randomUUID() : null);
                 if (!active) abortCallResponse();
@@ -2397,7 +2411,7 @@ export const ConversationContent: Component = () => {
                     setVoiceAftermath({
                       mistakes,
                       duration: Date.now() - voiceSessionStart(),
-                      messageCount: messages().filter(m => m.role !== 'system').length,
+                      messageCount: callMessages.length,
                     });
                   }
                   setVoiceContactParticipantId(null);
