@@ -4034,16 +4034,17 @@
       }
     },
     "LearningPlan": {
-      "Description": "Lege Lehrplan, Ziel und Tempo fest und wähle eine Aktivität. Dein Ziel misst nicht deine Fähigkeiten.",
+      "Description": "Übe den Abruf mit deinem gewählten Lernbereich. Prüfe deinen Lernstand, wenn du einen Einstiegspunkt suchst.",
       "Activities": "Aktivität wählen",
       "Assess": "Meinen Lernstand einschätzen",
       "AssessDescription": "Du hast diese Sprache schon gelernt? Prüfe, was du erkennst, und finde einen passenden Einstieg.",
-      "WordSyncDescription": "Wiederhole Wörter, denen du begegnest, und entscheide, was du als Nächstes übst.",
+      "WordSyncDescription": "Rufe Wörter deines Zielbereichs ab. Zeige die Antwort und halte fest, was du erinnern konntest.",
       "CharactersDescription": "Erkunde das Schriftsystem und übe einzelne Zeichen.",
       "Progress": "Fortschritt im Lehrplan",
       "Back": "Zurück zum Lernplan",
       "SettingsHint": "Lehrplan, Lernziel, Lerntempo und Ziele verwaltest du im Lernplan.",
-      "Open": "Lernplan öffnen"
+      "Open": "Lernplan öffnen",
+      "Edit": "Plan ändern"
     },
     "StudyEncounter": {
       "Task": "Erinnern & prüfen",

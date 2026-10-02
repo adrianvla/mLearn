@@ -4034,16 +4034,17 @@
       }
     },
     "LearningPlan": {
-      "Description": "设定课程、目标和节奏，再选择练习。目标不代表当前能力。",
+      "Description": "按照选定的学习范围练习回忆。需要确定起点时，可以检查当前水平。",
       "Activities": "选择活动",
       "Assess": "评估当前水平",
       "AssessDescription": "已经学过这门语言？检查你能认出的内容，选择合适的起点。",
-      "WordSyncDescription": "复习遇到的单词，决定接下来练习什么。",
+      "WordSyncDescription": "回忆目标范围内的词语。显示答案后，记录自己能回忆的内容。",
       "CharactersDescription": "探索书写系统，练习单个字符。",
       "Progress": "课程进度",
       "Back": "返回学习计划",
       "SettingsHint": "课程、目标、学习节奏均在学习计划中管理。",
-      "Open": "打开学习计划"
+      "Open": "打开学习计划",
+      "Edit": "修改计划"
     },
     "StudyEncounter": {
       "Task": "回忆并核对",

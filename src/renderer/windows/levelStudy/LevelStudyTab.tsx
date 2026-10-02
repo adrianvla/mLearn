@@ -68,6 +68,7 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
   const language = useLanguage();
   const { settings } = useSettings();
   const [selectedLevel, setSelectedLevel] = createSignal<LevelStats | null>(null);
+  const [grammarPracticeActive, setGrammarPracticeActive] = createSignal(false);
   const [showBulkAdd, setShowBulkAdd] = createSignal(false);
   // Question-validation record store (R12) is non-reactive localStorage: this
   // version bumps after each run so the resolved data re-applies fresh records.
@@ -448,6 +449,8 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
         </Show>
         <Show when={grammarSummary() !== null && grammarSummary()!.total > 0 && grammarLog() !== undefined}>
           <GrammarCoverage
+            initiallyPaused={!grammarPracticeActive()}
+            onPracticeActiveChange={setGrammarPracticeActive}
             language={resolvedLanguageData().language}
             languageData={resolvedLanguageData().data!}
             eventLog={grammarLog()!}

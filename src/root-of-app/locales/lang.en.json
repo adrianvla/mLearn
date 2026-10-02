@@ -4034,16 +4034,17 @@
       }
     },
     "LearningPlan": {
-      "Description": "Set your curriculum, target and pace, then choose an activity. Your target does not measure your ability.",
+      "Description": "Practise recall with your chosen curriculum. Check your level when you want to find a starting point.",
       "Activities": "Choose an activity",
       "Assess": "Assess my current level",
       "AssessDescription": "Already studied this language? Check what you recognise and choose a suitable starting point.",
-      "WordSyncDescription": "Review words you encounter and decide what to practise next.",
+      "WordSyncDescription": "Recall words in your target curriculum. Reveal the answer, then record what you could recall.",
       "CharactersDescription": "Explore the writing system and practise individual characters.",
       "Progress": "Curriculum progress",
       "Back": "Back to Learning Plan",
       "SettingsHint": "Your curriculum, target, study pace and goals are managed in Learning Plan.",
-      "Open": "Open Learning Plan"
+      "Open": "Open Learning Plan",
+      "Edit": "Change plan"
     },
     "StudyEncounter": {
       "Task": "Recall & check",

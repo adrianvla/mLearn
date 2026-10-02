@@ -182,6 +182,7 @@ function mount(
   repairRequest?: () => { level: number; requestedAt: number } | null,
   onRepairRequestHandled?: (requestedAt: number) => void,
   locks: StudySessionLocks | null = passThroughLocks,
+  initiallyPaused = false,
 ) {
   const container = document.createElement('div');
   // Solid attaches delegated listeners on the document; container must be
@@ -191,6 +192,7 @@ function mount(
   const dispose = render(
     () => (
       <GrammarCoverage
+        initiallyPaused={initiallyPaused}
         language="ja"
         languageData={languageDataOverride ?? languageData}
         eventLog={eventLog}
@@ -922,6 +924,22 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     second.dispose();
     second.container.remove();
+  });
+
+  it('a plan visit offers explicit resume without opening or arming the saved grammar exercise', async () => {
+    const first = mount(vi.fn());
+    await startPass(first.container, 2);
+    const pattern = first.container.querySelector('[data-level="2"] [data-pattern]')?.getAttribute('data-pattern');
+    first.dispose(); first.container.remove();
+    const second = mount(vi.fn(), undefined, undefined, undefined, undefined, undefined, undefined, passThroughLocks, true);
+    expect(second.container.querySelector('.grammar-coverage--studying')).toBeNull();
+    expect(second.container.querySelector('.study-encounter')).toBeNull();
+    const resume = Array.from(second.container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('mlearn.StudyEncounter.Resume'));
+    expect(resume).toBeDefined();
+    resume!.click(); await tick();
+    expect(second.container.querySelector('.grammar-coverage--studying')).not.toBeNull();
+    expect(second.container.querySelector('[data-level="2"] [data-pattern]')?.getAttribute('data-pattern')).toBe(pattern);
+    second.dispose(); second.container.remove();
   });
 
   it('corrupt or stale stored pass entries are discarded, never resumed', async () => {

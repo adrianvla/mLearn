@@ -56,6 +56,9 @@ export interface GrammarUndoLifecycle {
 }
 
 export interface GrammarCoverageProps {
+  /** A plan visit offers resumption; a live task owner may restore its active presentation. */
+  initiallyPaused?: boolean;
+  onPracticeActiveChange?: (active: boolean) => void;
   language: string;
   languageData: LanguageData;
   /** Exact item events for the level (item versions, attempt counts). */
@@ -349,7 +352,7 @@ const questionItemCache = new QuestionBankCache();
  * pool and remain reachable through the regular Practise walk (G04).
  */
 export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
-  const [practicePaused, setPracticePaused] = createSignal(false);
+  const [practicePaused, setPracticePaused] = createSignal(props.initiallyPaused ?? false);
   const log = getLogger('renderer.levelStudy.grammar');
   const { t } = useLocalization();
   const { settings } = useSettings();
@@ -1259,6 +1262,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   };
 
   const practicing = () => sessionLive() && !practicePaused();
+  createEffect(() => props.onPracticeActiveChange?.(practicing()));
   let practiceSection: HTMLElement | undefined;
   createEffect(on(practicing, active => {
     if (active) practiceSection?.scrollIntoView?.({ block: 'start' });

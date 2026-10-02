@@ -4034,16 +4034,17 @@
       }
     },
     "LearningPlan": {
-      "Description": "Définissez votre programme, votre objectif et votre rythme, puis choisissez une activité. L’objectif ne mesure pas vos acquis.",
+      "Description": "Pratiquez le rappel avec votre programme. Évaluez votre niveau pour trouver un point de départ.",
       "Activities": "Choisir une activité",
       "Assess": "Évaluer mon niveau actuel",
       "AssessDescription": "Vous avez déjà étudié cette langue ? Vérifiez ce que vous reconnaissez pour trouver un point de départ adapté.",
-      "WordSyncDescription": "Révisez les mots rencontrés et choisissez ceux à travailler ensuite.",
+      "WordSyncDescription": "Rappelez les mots du programme cible. Révélez la réponse, puis indiquez ce que vous avez pu rappeler.",
       "CharactersDescription": "Explorez le système d’écriture et exercez-vous sur les caractères.",
       "Progress": "Progression dans le programme",
       "Back": "Retour au plan d’apprentissage",
       "SettingsHint": "Votre programme, votre cible, votre rythme et vos objectifs se règlent dans le plan d’apprentissage.",
-      "Open": "Ouvrir le plan d’apprentissage"
+      "Open": "Ouvrir le plan d’apprentissage",
+      "Edit": "Modifier le plan"
     },
     "StudyEncounter": {
       "Task": "Se rappeler et vérifier",
