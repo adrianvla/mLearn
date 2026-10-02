@@ -28,7 +28,7 @@ vi.mock('./windowManager', () => ({
 }));
 
 const mockConsolidateRoom = vi.fn();
-vi.mock('./dreamerRuntime', () => ({ consolidateRoom: mockConsolidateRoom }));
+vi.mock('./dreamerRuntime', () => ({ consolidateRoom: mockConsolidateRoom, cancelMaintenanceContext: vi.fn() }));
 
 const mockLoadSettings = vi.fn();
 
@@ -69,6 +69,7 @@ describe('worldIpc', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     tempDir.cleanup();
   });
 
@@ -195,6 +196,51 @@ describe('worldIpc', () => {
     expect(state.rooms).toHaveLength(1);
     expect(state.rooms[0].id).toBe('r1');
     expect(state.rooms[0].participantIds).toEqual(['p1']);
+  });
+
+  it('retries private thread erasure after outbox removal fails, including after restart', async () => {
+    seedWorld([room('r1', ['p1'])], [thread('t1', 'r1')]);
+    const source = await journal.appendEvent('r1', { roomId: 'r1', scope: { kind: 'thread', threadId: 't1' },
+      type: 'message.user', actorId: 'user', witnesses: ['user', 'p1'], payload: { text: 'Private disposable content' } });
+    const outbox = path.join(tempDir.tmpDir, 'journal', 'r1', 'threads', 't1.ndjson.voice-outbox.json');
+    fs.writeFileSync(outbox, JSON.stringify({ version: 1, drafts: [] }));
+    const unlink = vi.spyOn(fs.promises, 'unlink').mockRejectedValueOnce(new Error('Outbox removal unavailable'));
+    await expect(mod.deleteThread('r1', 't1')).rejects.toThrow('Outbox removal unavailable');
+    unlink.mockRestore();
+    expect(JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'world.json'), 'utf-8')).threads).toEqual([]);
+    vi.resetModules(); mod = await import('./worldIpc'); journal = await import('./journalService');
+    await expect(mod.deleteThread('wrong-room', 't1')).rejects.toThrow('context');
+    await mod.deleteThread('r1', 't1');
+    expect((await mod.getWorldState()).threads).toEqual([]);
+    expect(fs.readdirSync(path.dirname(outbox))).toEqual([]);
+    const erased = (await journal.readSeaProjection('r1')).filter(event => event.type === 'deletion');
+    expect(erased).toHaveLength(1);
+    expect(erased[0].payload).toMatchObject({ sourceEventIds: [source.id] });
+  });
+
+  it('finishes pending erasure on restart after content unlink succeeds but its marker append fails', async () => {
+    seedWorld([room('r1', ['p1'])], [thread('t1', 'r1')]);
+    const source = await journal.appendEvent('r1', { roomId: 'r1', scope: { kind: 'thread', threadId: 't1' },
+      type: 'message.user', actorId: 'user', witnesses: ['user', 'p1'], payload: { text: 'Private disposable content' } });
+    const append = vi.spyOn(fs.promises, 'appendFile').mockRejectedValueOnce(new Error('Erasure marker unavailable'));
+    await expect(mod.deleteThread('r1', 't1')).rejects.toThrow('Erasure marker unavailable');
+    append.mockRestore();
+    vi.resetModules(); mod = await import('./worldIpc'); journal = await import('./journalService');
+    expect((await mod.getWorldState()).threads).toEqual([]);
+    const erased = (await journal.readSeaProjection('r1')).filter(event => event.type === 'deletion');
+    expect(erased).toHaveLength(1);
+    expect(erased[0].payload).toMatchObject({ sourceEventIds: [source.id] });
+  });
+
+  it('preserves an active thread when an inconsistent recovery intent targets it', async () => {
+    seedWorld([room('r1', ['p1'])], [thread('t1', 'r1')]);
+    const source = await journal.appendEvent('r1', { roomId: 'r1', scope: { kind: 'thread', threadId: 't1' },
+      type: 'message.user', actorId: 'user', witnesses: ['user', 'p1'], payload: { text: 'Existing private content' } });
+    const file = path.join(tempDir.tmpDir, 'world.json');
+    const state = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    fs.writeFileSync(file, JSON.stringify({ ...state, pendingThreadErasures: [{ roomId: 'r1', threadId: 't1', sourceEventIds: [source.id] }] }));
+    await expect(mod.getWorldState()).rejects.toThrow('active thread');
+    expect((await journal.readThread('r1', 't1')).map(event => event.id)).toEqual([source.id]);
   });
 
   it('returns contact lifecycle state without exposing prepared publication drafts', async () => {

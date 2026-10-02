@@ -145,6 +145,124 @@ describe('journalService', () => {
     expect(tb[0].scope).toEqual({ kind: 'thread', threadId: 'tb' });
   });
 
+  it('keeps staged private voice notes hidden until completion and releases them after service restart', async () => {
+    seedThread('voice-notes');
+    const scope = { kind: 'thread' as const, threadId: 'voice-notes' };
+    const speech = await mod.appendEvent(roomId, seaDraft({ scope, type: 'message.character', actorId: 'character-a',
+      witnesses: ['user', 'character-a', 'character-b'], payload: { text: 'Noted.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } }));
+    const note = await mod.appendEvent(roomId, seaDraft({ scope, type: 'memory.belief', actorId: 'harness',
+      witnesses: ['user', 'character-a'], provenance: { voiceMemoryMessageId: speech.id },
+      payload: { ownerId: 'character-a', kind: 'belief', text: 'Private reviewed note', sourceEventIds: [speech.id] } }));
+    expect((await mod.readThread(roomId, scope.threadId)).map(event => event.id)).toEqual([speech.id]);
+    await mod.appendEvent(roomId, seaDraft({ scope, type: 'delivery.voice', actorId: 'harness', witnesses: speech.witnesses,
+      payload: { messageEventId: speech.id, actorId: speech.actorId, voiceSessionId: 'call', state: 'completed',
+        spokenText: 'Noted.', confirmedText: 'Noted.', basis: 'playback-complete' } }));
+    vi.resetModules(); mod = await import('./journalService');
+    expect((await mod.readThread(roomId, scope.threadId)).find(event => event.id === note.id)).toMatchObject({
+      witnesses: ['user', 'character-a'], inferenceAvailabilitySeq: 3, payload: { text: 'Private reviewed note' } });
+    await mod.eraseThread(roomId, scope.threadId);
+    expect(await mod.readThread(roomId, scope.threadId)).toEqual([]);
+  });
+
+  it('recovers a durably queued delivery after an append failure and restart without duplicating it', async () => {
+    const speech = await mod.appendEvent(roomId, seaDraft({ type: 'message.character', actorId: 'character-a',
+      witnesses: ['user', 'character-a'], payload: { text: 'Noted.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } }));
+    const draft = seaDraft({ type: 'delivery.voice', actorId: 'harness', witnesses: speech.witnesses,
+      payload: { messageEventId: speech.id, actorId: speech.actorId, voiceSessionId: 'call', state: 'completed',
+        spokenText: 'Noted.', confirmedText: 'Noted.', basis: 'playback-complete' } });
+    const append = vi.spyOn(fs.promises, 'appendFile').mockRejectedValueOnce(new Error('Journal write unavailable'));
+    await expect(mod.appendEvent(roomId, draft)).rejects.toThrow('Journal write unavailable');
+    append.mockRestore();
+    vi.resetModules(); mod = await import('./journalService');
+    const restored = await mod.readSeaProjection(roomId);
+    expect(restored.filter(event => event.type === 'delivery.voice')).toHaveLength(1);
+    const saved = restored.find(event => event.type === 'delivery.voice')!;
+    expect(saved.payload).toEqual(draft.payload);
+    expect(await mod.appendEvent(roomId, draft)).toEqual(saved);
+    expect((await mod.readSeaProjection(roomId)).filter(event => event.type === 'delivery.voice')).toHaveLength(1);
+  });
+
+  it('repairs a torn rejected append and recovers delivery on the next read without restart', async () => {
+    const speech = await mod.appendEvent(roomId, seaDraft({ type: 'message.character', actorId: 'character-a',
+      witnesses: ['user', 'character-a'], payload: { text: 'Noted.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } }));
+    const draft = seaDraft({ type: 'delivery.voice', actorId: 'harness', witnesses: speech.witnesses,
+      payload: { messageEventId: speech.id, actorId: speech.actorId, voiceSessionId: 'call', state: 'completed',
+        spokenText: 'Noted.', confirmedText: 'Noted.', basis: 'playback-complete' } });
+    const original = fs.promises.appendFile.bind(fs.promises);
+    const append = vi.spyOn(fs.promises, 'appendFile').mockImplementationOnce(async (file, data) => {
+      await original(file, String(data).slice(0, 20), 'utf-8');
+      throw new Error('Torn journal append');
+    });
+    await expect(mod.appendEvent(roomId, draft)).rejects.toThrow();
+    append.mockRestore();
+    const recovered = await mod.readSeaProjection(roomId);
+    expect(recovered.map(event => event.type)).toEqual(['message.character', 'delivery.voice']);
+    expect(recovered[1].payload).toEqual(draft.payload);
+  });
+
+  it('does not resurrect queued playback after disposable thread erasure', async () => {
+    seedThread('failed-delivery');
+    const scope = { kind: 'thread' as const, threadId: 'failed-delivery' };
+    const speech = await mod.appendEvent(roomId, seaDraft({ scope, type: 'message.character', actorId: 'character-a',
+      witnesses: ['user', 'character-a'], payload: { text: 'Noted.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } }));
+    const append = vi.spyOn(fs.promises, 'appendFile').mockRejectedValueOnce(new Error('Journal write unavailable'));
+    await expect(mod.appendEvent(roomId, seaDraft({ scope, type: 'delivery.voice', actorId: 'harness', witnesses: speech.witnesses,
+      payload: { messageEventId: speech.id, actorId: speech.actorId, voiceSessionId: 'call', state: 'completed',
+        spokenText: 'Noted.', confirmedText: 'Noted.', basis: 'playback-complete' } }))).rejects.toThrow();
+    append.mockRestore();
+    fs.writeFileSync(path.join(tempDir.tmpDir, 'journal', roomId, 'threads', 'failed-delivery.ndjson.voice-outbox.json.tmp'), 'private incomplete staging');
+    await mod.eraseThread(roomId, scope.threadId);
+    vi.resetModules(); mod = await import('./journalService');
+    expect(await mod.readThread(roomId, scope.threadId)).toEqual([]);
+    expect(fs.existsSync(path.join(tempDir.tmpDir, 'journal', roomId, 'threads', 'failed-delivery.ndjson'))).toBe(false);
+    expect(fs.readdirSync(path.join(tempDir.tmpDir, 'journal', roomId, 'threads'))).toEqual([]);
+  });
+
+  it('keeps queued progress and terminal observations ordered across repeated journal failure', async () => {
+    const speech = await mod.appendEvent(roomId, seaDraft({ type: 'message.character', actorId: 'character-a',
+      witnesses: ['user', 'character-a'], payload: { text: 'First. Second.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } }));
+    const base = seaDraft({ type: 'delivery.voice', actorId: 'harness', witnesses: speech.witnesses,
+      payload: { messageEventId: speech.id, actorId: speech.actorId, voiceSessionId: 'call', state: 'playing',
+        spokenText: 'First.', confirmedText: 'First.', basis: 'playback-complete' } });
+    const final = { ...base, payload: { ...(base.payload as object), state: 'completed', spokenText: 'First. Second.', confirmedText: 'First. Second.' } };
+    const append = vi.spyOn(fs.promises, 'appendFile').mockRejectedValue(new Error('Journal write unavailable'));
+    await expect(mod.appendEvent(roomId, base)).rejects.toThrow('Journal write unavailable');
+    await expect(mod.appendEvent(roomId, final)).rejects.toThrow('Journal write unavailable');
+    await expect(mod.appendEvent(roomId, { ...base, payload: { ...(base.payload as object), state: 'stopped', spokenText: '', confirmedText: '' } })).rejects.toThrow('terminal');
+    append.mockRestore();
+    vi.resetModules(); mod = await import('./journalService');
+    const deliveries = (await mod.readSeaProjection(roomId)).filter(event => event.type === 'delivery.voice');
+    expect(deliveries.map(event => (event.payload as { state: string }).state)).toEqual(['playing', 'completed']);
+    expect(await mod.appendEvent(roomId, base)).toEqual(deliveries[0]);
+  });
+
+  it('does not negate a committed delivery ACK when recovery cleanup fails', async () => {
+    const speech = await mod.appendEvent(roomId, seaDraft({ type: 'message.character', actorId: 'character-a',
+      witnesses: ['user', 'character-a'], payload: { text: 'Noted.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } }));
+    const draft = seaDraft({ type: 'delivery.voice', actorId: 'harness', witnesses: speech.witnesses,
+      payload: { messageEventId: speech.id, actorId: speech.actorId, voiceSessionId: 'call', state: 'completed',
+        spokenText: 'Noted.', confirmedText: 'Noted.', basis: 'playback-complete' } });
+    const unlink = vi.spyOn(fs.promises, 'unlink').mockRejectedValueOnce(new Error('Cleanup unavailable'));
+    const saved = await mod.appendEvent(roomId, draft);
+    unlink.mockRestore();
+    vi.resetModules(); mod = await import('./journalService');
+    const records = (await mod.readSeaProjection(roomId)).filter(event => event.type === 'delivery.voice');
+    expect(records).toEqual([saved]);
+  });
+
+  it('rejects widened, unrelated, missing-source and restricted voice note dependencies', async () => {
+    const user = await mod.appendEvent(roomId, seaDraft({ witnesses: ['user', 'character-a'], payload: { text: 'A private learner utterance' } }));
+    const speech = await mod.appendEvent(roomId, seaDraft({ type: 'message.character', actorId: 'character-a',
+      witnesses: ['user', 'character-a', 'character-b'], payload: { text: 'Noted.', modality: 'voice', voiceSessionId: 'call', voiceDelivery: 'tracked' } }));
+    const note = seaDraft({ type: 'memory.belief', actorId: 'harness', witnesses: ['user', 'character-a'],
+      provenance: { voiceMemoryMessageId: speech.id }, payload: { ownerId: speech.actorId, kind: 'belief', text: 'Reviewed note', sourceEventIds: [user.id, speech.id] } });
+    await expect(mod.appendEvent(roomId, { ...note, witnesses: ['user', 'character-a', 'character-b'] })).rejects.toThrow('memory');
+    await expect(mod.appendEvent(roomId, { ...note, payload: { ...(note.payload as object), ownerId: 'character-b' } })).rejects.toThrow('memory');
+    await expect(mod.appendEvent(roomId, { ...note, payload: { ...(note.payload as object), sourceEventIds: ['missing', speech.id] } })).rejects.toThrow('memory');
+    await mod.appendEvent(roomId, seaDraft({ type: 'review.boundary', actorId: 'harness', witnesses: ['user'], payload: { sourceEventId: user.id } }));
+    await expect(mod.appendEvent(roomId, note)).rejects.toThrow('memory');
+  });
+
   it('queryEvents paginates the Sea stream older-first', async () => {
     for (let i = 0; i < 5; i++) {
       await mod.appendEvent(roomId, seaDraft());

@@ -1,6 +1,6 @@
 {
   "mlearn.ConversationAgent.Voice.VisualActivity": "Visuelle Übung — antworte auf dem Bildschirm.",
-  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Einige Gesprächsnotizen konnten nicht gespeichert werden. Versuche es erneut, solange dieses Fenster geöffnet ist.",
+  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Die Antwort wurde nicht gesprochen, weil Gesprächsnotizen nicht gespeichert werden konnten.",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "Keine Wiedergabe aufgezeichnet.",
   "mlearn.ConversationAgent.Voice.Delivery.playing": "Teilweise Wiedergabe aufgezeichnet.",
   "mlearn.ConversationAgent.Voice.Delivery.completed": "Wiedergabe abgeschlossen.",

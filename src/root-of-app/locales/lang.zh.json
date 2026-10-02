@@ -1,6 +1,6 @@
 {
   "mlearn.ConversationAgent.Voice.VisualActivity": "视觉练习：请在屏幕上作答。",
-  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "部分对话笔记无法保存。请在此窗口保持打开时重试。",
+  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "无法保存对话笔记，因此未播放回复。",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "未记录播放。",
   "mlearn.ConversationAgent.Voice.Delivery.playing": "已记录部分播放。",
   "mlearn.ConversationAgent.Voice.Delivery.completed": "播放已完成。",

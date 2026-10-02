@@ -34,7 +34,7 @@ import type {
   WorldSnapshot,
 } from '../../shared/world';
 import { loadWorld, saveWorld, withWorldMutation } from './worldStore';
-import { appendEvent, eraseThread, readSeaProjection, readThread } from './journalService';
+import { appendEvent, eraseThread, readSeaProjection, readThread, readThreadErasureIds } from './journalService';
 import { openManagedChildWindow } from './windowManager';
 import { loadSettings } from './settings';
 import { consolidateRoom, consolidateContext, cancelMaintenanceContext } from './dreamerRuntime';
@@ -51,15 +51,33 @@ import { localGuardStatus, installLocalGuard } from './localConversationGuard';
 
 export async function getWorldState(): Promise<WorldSnapshot> {
   return withWorldMutation(async () => {
+    for (const intent of (await loadWorld()).pendingThreadErasures ?? []) await finishThreadErasureUnlocked(intent.roomId, intent.threadId);
     const world = await loadWorld();
+    const { pendingThreadErasures: _pendingErasure, ...visible } = world;
     return {
-      ...world,
+      ...visible,
       integrations: world.integrations?.map(({ prepared: _prepared, ...record }) => record),
       reflectionRuns: world.reflectionRuns?.map(({ prepared: _prepared, ...record }) => record),
       autonomyJobs: world.autonomyJobs?.map(({ prepared: _prepared, ...record }) => record),
       contacts: world.contacts?.map(({ prepared: _prepared, ...record }) => record),
     };
   });
+}
+
+async function finishThreadErasureUnlocked(roomId: string, threadId: string): Promise<void> {
+  let state = await loadWorld();
+  let intent = state.pendingThreadErasures?.find(item => item.roomId === roomId && item.threadId === threadId);
+  if (!intent) throw new Error('[world] thread erasure context mismatch');
+  if (state.threads.some(thread => thread.id === threadId)) throw new Error('[world] erasure cannot target an active thread record');
+  if (!intent.sourceEventIds) {
+    const sourceEventIds = await readThreadErasureIds(roomId, threadId);
+    const prepared = { ...intent, sourceEventIds };
+    await saveWorld({ ...state, pendingThreadErasures: state.pendingThreadErasures!.map(item => item.roomId === roomId && item.threadId === threadId ? prepared : item) });
+    intent = prepared;
+  }
+  await eraseThread(roomId, threadId, intent.sourceEventIds);
+  state = await loadWorld();
+  await saveWorld({ ...state, pendingThreadErasures: state.pendingThreadErasures?.filter(item => item.roomId !== roomId || item.threadId !== threadId) });
 }
 
 export async function createRoom(title: string): Promise<Room> {
@@ -228,6 +246,10 @@ export async function deleteThread(roomId: string, threadId: string): Promise<vo
   return withWorldMutation(async () => {
     const state = await loadWorld();
     const thread = state.threads.find(item => item.id === threadId);
+    if (!thread && state.pendingThreadErasures?.some(item => item.roomId === roomId && item.threadId === threadId)) {
+      await finishThreadErasureUnlocked(roomId, threadId);
+      return;
+    }
     if (!thread || threadContextId(thread) !== roomId) throw new Error('[world] thread context mismatch');
     // Cancel any in-flight maintenance for this context and settle its durable
     // records: the journal is being erased, so nothing may recreate or resume it.
@@ -239,9 +261,10 @@ export async function deleteThread(roomId: string, threadId: string): Promise<vo
     // the pre-settle snapshot below.
     const fresh = await loadWorld();
     await saveWorld({ ...fresh, threads: fresh.threads.filter((item) => item.id !== threadId),
+      pendingThreadErasures: [...(fresh.pendingThreadErasures ?? []), { roomId, threadId }],
       reflectionRuns: fresh.reflectionRuns?.filter(run => run.threadId !== threadId),
       ...(fresh.scenarioCreations ? { scenarioCreations: fresh.scenarioCreations.filter(item => item.threadId !== threadId) } : {}) }, { threads: [threadId] });
-    await eraseThread(roomId, threadId);
+    await finishThreadErasureUnlocked(roomId, threadId);
   });
 }
 

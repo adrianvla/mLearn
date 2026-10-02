@@ -1,5 +1,5 @@
 import { voiceSpeakablePhrases } from './voiceSpeechText';
-import { HARNESS_ACTOR, type JournalEvent, type VoiceDeliveryPayload } from './world';
+import { HARNESS_ACTOR, USER_ACTOR, type JournalEvent, type VoiceDeliveryPayload } from './world';
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const normalized = (text: string): string => text.replace(/\s+/g, '');
@@ -15,14 +15,15 @@ export function validVoiceDelivery(message: JournalEvent, sidecar: JournalEvent)
     || (sidecar.scope.kind === 'thread' && message.scope.kind === 'thread' && sidecar.scope.threadId !== message.scope.threadId)
     || sidecar.seq <= message.seq || !record(message.payload) || !record(sidecar.payload)) return false;
   const data = sidecar.payload;
+  if (!Array.isArray(message.witnesses) || !Array.isArray(sidecar.witnesses)) return false;
   const witnesses = new Set(message.witnesses);
   if (sidecar.witnesses.length !== witnesses.size || new Set(sidecar.witnesses).size !== witnesses.size
     || sidecar.witnesses.some(id => !witnesses.has(id))) return false;
   if (data.messageEventId !== message.id || data.actorId !== message.actorId || data.voiceSessionId !== message.payload.voiceSessionId
     || typeof data.voiceSessionId !== 'string' || !data.voiceSessionId || typeof message.payload.text !== 'string'
     || typeof data.spokenText !== 'string' || typeof data.confirmedText !== 'string'
-    || !['playing', 'completed', 'interrupted', 'stopped', 'failed'].includes(String(data.state))
-    || !['playback-complete', 'playback-estimate', 'system-complete', 'unavailable'].includes(String(data.basis))) return false;
+    || typeof data.state !== 'string' || !['playing', 'completed', 'interrupted', 'stopped', 'failed'].includes(data.state)
+    || typeof data.basis !== 'string' || !['playback-complete', 'playback-estimate', 'system-complete', 'unavailable'].includes(data.basis)) return false;
   const phrases = voiceSpeakablePhrases(message.payload.text);
   const expectedText = phrases.join(' ');
   const expected = normalized(expectedText);
@@ -51,10 +52,48 @@ export function voiceDeliveries(events: readonly JournalEvent[]): Map<string, Jo
   return result;
 }
 
+/** Staging never widens a private note's audience or invents a source encounter. */
+export function validVoiceMemoryIntent(message: JournalEvent, note: JournalEvent, events: readonly JournalEvent[]): boolean {
+  if (!isTrackedVoiceMessage(message) || note.type !== 'memory.belief' || note.actorId !== HARNESS_ACTOR
+    || note.provenance?.voiceMemoryMessageId !== message.id || note.seq <= message.seq
+    || note.roomId !== message.roomId || note.scope.kind !== message.scope.kind
+    || (note.scope.kind === 'thread' && message.scope.kind === 'thread' && note.scope.threadId !== message.scope.threadId)
+    || !record(note.payload) || note.payload.ownerId !== message.actorId || note.payload.kind !== 'belief'
+    || typeof note.payload.text !== 'string' || !note.payload.text.trim()
+    || !Array.isArray(note.witnesses) || !Array.isArray(message.witnesses)
+    || note.witnesses.length !== 2 || new Set(note.witnesses).size !== 2
+    || !note.witnesses.includes(USER_ACTOR) || !note.witnesses.includes(message.actorId)
+    || note.witnesses.some(id => !message.witnesses.includes(id))
+    || !Array.isArray(note.payload.sourceEventIds) || !note.payload.sourceEventIds.includes(message.id)
+    || new Set(note.payload.sourceEventIds).size !== note.payload.sourceEventIds.length) return false;
+  const restricted = new Set(events.filter(event => event.type === 'review.boundary')
+    .map(event => (event.payload as { sourceEventId?: unknown } | null)?.sourceEventId));
+  return note.payload.sourceEventIds.every(id => typeof id === 'string' && (id === message.id || events.some(source =>
+    source.id === id && source.seq < message.seq && source.type === 'message.user' && source.roomId === note.roomId
+    && source.scope.kind === note.scope.kind
+    && (source.scope.kind !== 'thread' || note.scope.kind !== 'thread' || source.scope.threadId === note.scope.threadId)
+    && !restricted.has(source.id) && Array.isArray(source.witnesses) && note.witnesses.every(witness => source.witnesses.includes(witness)))));
+}
+
+/** A durable staged note becomes canonical only after its own response finished playback. */
+export function releasedVoiceMemoryEvents(events: readonly JournalEvent[]): JournalEvent[] {
+  if (!events.some(event => event.provenance?.voiceMemoryMessageId !== undefined)) return [...events];
+  const deliveries = voiceDeliveries(events);
+  const messages = new Map(events.filter(isTrackedVoiceMessage).map(event => [event.id, event]));
+  return events.flatMap(event => {
+    const sourceId = event.provenance?.voiceMemoryMessageId;
+    if (sourceId === undefined) return [event];
+    const source = messages.get(sourceId), delivery = deliveries.get(sourceId);
+    if (!source || !delivery || delivery.payload.state !== 'completed' || !validVoiceMemoryIntent(source, event, events)) return [];
+    const { voiceMemoryMessageId: _held, ...provenance } = event.provenance!;
+    return [{ ...event, provenance, inferenceAvailabilitySeq: Math.max(event.seq, delivery.seq) }];
+  });
+}
+
 /** Derived copies only; original generated content and unknown metadata remain in the journal. */
 export function deliveredInferenceEvents(events: readonly JournalEvent[]): JournalEvent[] {
   const deliveries = voiceDeliveries(events);
-  return events.flatMap(event => {
+  return releasedVoiceMemoryEvents(events).flatMap(event => {
     if (event.type === 'delivery.voice') return [];
     if (!isTrackedVoiceMessage(event)) return [event];
     const delivery = deliveries.get(event.id);

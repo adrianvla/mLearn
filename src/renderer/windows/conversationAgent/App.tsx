@@ -274,12 +274,8 @@ export const ConversationContent: Component = () => {
   const journal = createJournalThreadStore();
   const [liveOverlay, setLiveOverlay] = createSignal<ConversationOverlay | null>(null);
   const [messageOverrides, setMessageOverrides] = createSignal<Map<string, Partial<ConversationMessage>>>(new Map());
-  const pendingVoiceMemoryWrites = new Map<string, JournalEventDraft[]>();
   const admittedVoiceSources = new Map<string, JournalEvent>();
   let deliveryWriteQueue: Promise<void> = Promise.resolve();
-  let voiceMemoryWriteQueue: Promise<void> = Promise.resolve();
-  const readyVoiceMemoryIds = new Set<string>();
-  const [failedVoiceMemoryIds, setFailedVoiceMemoryIds] = createSignal<ReadonlySet<string>>(new Set());
   const [activeVoiceSessionId, setActiveVoiceSessionId] = createSignal<string | null>(null);
   const [admittedVoiceEventIds, setAdmittedVoiceEventIds] = createSignal<ReadonlySet<string>>(new Set());
   const supersededEvents = new Set<string>();
@@ -1406,6 +1402,7 @@ export const ConversationContent: Component = () => {
     const turn = { modality, cancelled: false, reviews: new Set<string>() };
     activeTurn = turn;
     const ownsTurn = () => session === selectionSession && activeTurn === turn && !turn.cancelled;
+    let voiceNoteStagingFailed = false;
     // Reserve before preflight: teardown must also cancel a call waiting for
     // credentials, settings, or context, and a second send cannot race it.
     startAssistantStream(displayMessages().length);
@@ -1547,13 +1544,20 @@ export const ConversationContent: Component = () => {
             const writes = approvedMemoryWrites.get(draft.actorId) ?? [];
             approvedMemoryWrites.delete(draft.actorId); pendingMemoryWrites.delete(draft.actorId);
             for (const content of writes) {
-              const sourceEventId = memorySourceEventId && !restrictedUserEventIds.has(memorySourceEventId) ? memorySourceEventId : null;
+              const sourceEventId = memorySourceEventId && !restrictedUserEventIds.has(memorySourceEventId)
+                && journal.threadEvents().some(source => source.id === memorySourceEventId && source.witnesses.includes(draft.actorId))
+                ? memorySourceEventId : null;
               const sourceEventIds = [...(sourceEventId ? [sourceEventId] : []), ...(modality === 'voice' ? [event.id] : [])];
               const memoryDraft: JournalEventDraft = { roomId: room.id, scope: threadId ? { kind: 'thread', threadId } : { kind: 'sea' },
                 type: 'memory.belief', actorId: HARNESS_ACTOR, witnesses: [USER_ACTOR, draft.actorId],
                 payload: { ownerId: draft.actorId, kind: 'belief', text: content,
                   ...(sourceEventIds.length ? { sourceEventIds } : {}) } };
-              if (modality === 'voice') pendingVoiceMemoryWrites.set(event.id, [...(pendingVoiceMemoryWrites.get(event.id) ?? []), memoryDraft]);
+              if (modality === 'voice') {
+                try {
+                  await getBridge().journal.appendEvent(memoryDraft.roomId, { ...memoryDraft, provenance: { voiceMemoryMessageId: event.id } });
+                } catch (error) { voiceNoteStagingFailed = true; throw error; }
+                if (!ownsTurn()) throw new Error('Conversation response cancelled');
+              }
               else void journal.append(memoryDraft).catch(error => log.error('Conversation memory write failed', error));
             }
           }
@@ -1586,7 +1590,9 @@ export const ConversationContent: Component = () => {
     } catch (error) {
       if (ownsTurn()) {
         log.error('Conversation turn failed', error);
-        setLiveOverlay(providerErrorOverlay(error));
+        setLiveOverlay(voiceNoteStagingFailed
+          ? { role: 'assistant', content: t('mlearn.ConversationAgent.Voice.MemoryRecordFailed'), timestamp: Date.now(), isError: true }
+          : providerErrorOverlay(error));
       }
     } finally {
       if (activeTurn === turn) {
@@ -1595,26 +1601,6 @@ export const ConversationContent: Component = () => {
         turnHeuristicSocial = null;
       }
     }
-  };
-
-  const saveDeliveredVoiceMemories = (eventId: string): Promise<void> => {
-    const write = voiceMemoryWriteQueue.then(async () => {
-      if (!readyVoiceMemoryIds.has(eventId)) return;
-      const drafts = pendingVoiceMemoryWrites.get(eventId) ?? [];
-      while (drafts.length) {
-        const draft = drafts[0];
-        await getBridge().journal.appendEvent(draft.roomId, draft);
-        drafts.shift(); // Retire each note only after its own durable ACK.
-      }
-      pendingVoiceMemoryWrites.delete(eventId);
-      readyVoiceMemoryIds.delete(eventId);
-      setFailedVoiceMemoryIds(previous => new Set([...previous].filter(id => id !== eventId)));
-    }).catch(error => {
-      log.error('Conversation voice memory write failed', error);
-      setFailedVoiceMemoryIds(previous => new Set([...previous, eventId]));
-    });
-    voiceMemoryWriteQueue = write;
-    return write;
   };
 
   const persistVoiceDelivery = (delivery: VoiceDeliveryPayload): Promise<void> => {
@@ -1630,13 +1616,10 @@ export const ConversationContent: Component = () => {
       else await getBridge().journal.appendEvent(source.roomId, draft);
     });
     deliveryWriteQueue = write.catch(() => undefined);
-    // Delivery is already committed. Notes/reflection are separate operations with their own recovery.
+    // Delivery is committed; canonical reads release the already durable private notes.
     void write.then(() => {
       if (delivery.state !== 'playing') admittedVoiceSources.delete(source.id);
-      if (delivery.state === 'completed') {
-        readyVoiceMemoryIds.add(source.id);
-        void saveDeliveredVoiceMemories(source.id);
-      } else if (delivery.state !== 'playing') pendingVoiceMemoryWrites.delete(source.id);
+      if (session === selectionSession) void journal.refresh().catch(error => log.error('Conversation voice notes refresh failed', error));
       if (delivery.state !== 'playing') {
         const triggerContext = source.scope.kind === 'thread'
           ? { roomId: source.scope.threadId, threadId: source.scope.threadId } : { roomId: source.roomId };
@@ -2310,14 +2293,6 @@ export const ConversationContent: Component = () => {
           </div>
         </div>
 
-      <Show when={failedVoiceMemoryIds().size > 0}>
-        <div class="ca-contact-error ca-memory-error" role="alert">
-          <span>{t('mlearn.ConversationAgent.Voice.MemoryRecordFailed')}</span>
-          <Button onClick={() => { for (const id of failedVoiceMemoryIds()) void saveDeliveredVoiceMemories(id); }}>
-            {t('mlearn.Global.TryAgain')}
-          </Button>
-        </div>
-      </Show>
       <Show when={contactIngressError()} keyed>
         {(message) => <div class="ca-contact-error" role="status">{message}</div>}
       </Show>

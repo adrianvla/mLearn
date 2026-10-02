@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { LLMModelStatus, LLMStreamChunk } from '../../../shared/types';
 import type { JournalEvent, JournalEventDraft, WorldSnapshot, VoiceDeliveryPayload } from '../../../shared/world';
 import type { TurnReviewRequest, TurnReviewResult } from '../../../shared/conversationReview';
+import { inferenceEvents } from '../../../shared/inferenceBoundary';
 
 const mockForceHideHover = vi.hoisted(() => vi.fn());
 const mockCloudToken = vi.hoisted(() => vi.fn(async () => 'fresh-token'));
@@ -1177,7 +1178,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(journalEvents.find(event => event.type === 'memory.belief')?.payload).toMatchObject({ ownerId: 'agent-a', text: 'Enjoys coffee' });
   });
 
-  it('holds voice memory and reflection until exact-message playback is durably recorded', async () => {
+  it('stages private voice notes durably before speech but hides them until completed delivery', async () => {
     testSettings.agentMemoryEnabled = true;
     testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
     const { ConversationContent } = await import('./App');
@@ -1189,11 +1190,13 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
     emitChunk({ content: 'Noted.', done: true, toolCalls: [{ id: 'voice-memory', name: 'save_memory', arguments: { content: 'Enjoys coffee' } }] });
     await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
-    expect(journalEvents.filter(event => event.type === 'memory.belief' || event.type === 'delivery.voice')).toEqual([]);
+    await vi.waitFor(() => expect(journalEvents.filter(event => event.type === 'memory.belief')).toHaveLength(1));
+    expect(inferenceEvents(journalEvents).filter(event => event.type === 'memory.belief' || event.type === 'delivery.voice')).toEqual([]);
     expect(mockBridge.world.triggerReflection).not.toHaveBeenCalled();
     button('Confirm voice playback').click();
-    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'memory.belief')).toBe(true));
-    expect(journalEvents.findIndex(event => event.type === 'delivery.voice')).toBeLessThan(journalEvents.findIndex(event => event.type === 'memory.belief'));
+    await vi.waitFor(() => expect(inferenceEvents(journalEvents).some(event => event.type === 'memory.belief')).toBe(true));
+    expect(journalEvents.findIndex(event => event.type === 'memory.belief')).toBeLessThan(journalEvents.findIndex(event => event.type === 'delivery.voice'));
+    expect(journalEvents.filter(event => event.type === 'memory.belief')).toHaveLength(1);
     const speech = journalEvents.find(event => event.type === 'message.character')!;
     expect(journalEvents.find(event => event.type === 'delivery.voice')?.payload).toMatchObject({ messageEventId: speech.id, actorId: 'agent-a', voiceSessionId: 'synthetic-call-session', state: 'completed' });
     expect(journalEvents.find(event => event.type === 'memory.belief')?.payload).toMatchObject({ sourceEventIds: expect.arrayContaining([speech.id]) });
@@ -1235,12 +1238,11 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect((journalEvents.filter(event => event.type === 'message.character')[1].payload as { voiceSessionId?: string }).voiceSessionId).toBeUndefined();
   });
 
-  it('keeps successful playback separate from failed note saving and retries only unsaved notes', async () => {
+  it('does not admit speech or reflection when private voice note staging fails', async () => {
     testSettings.agentMemoryEnabled = true;
     testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
-    let rejectMemory = true;
     mockBridge.journal.appendEvent.mockImplementation(async (_roomId, draft) => {
-      if (draft.type === 'memory.belief' && rejectMemory) throw new Error('Notes disk unavailable');
+      if (draft.type === 'memory.belief') throw new Error('Notes disk unavailable');
       return appendJournalEvent(draft);
     });
     const { ConversationContent } = await import('./App');
@@ -1252,17 +1254,13 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalledOnce());
     emitChunk({ content: 'Noted.', done: true, toolCalls: [{ id: 'voice-memory', name: 'save_memory', arguments: { content: 'Enjoys coffee' } }] });
     await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
+    await vi.waitFor(() => expect(container.querySelector('.chat-error-message')).not.toBeNull());
+    expect(container.querySelector('.chat-error-message')?.textContent).toBe('mlearn.ConversationAgent.Voice.MemoryRecordFailed');
+    expect(container.querySelector('[data-testid="admitted-speech"]')?.textContent).toBe('[]');
     button('Confirm voice playback').click();
-    await vi.waitFor(() => expect(container.textContent).toContain('mlearn.ConversationAgent.Voice.MemoryRecordFailed'));
-    expect(journalEvents.filter(event => event.type === 'delivery.voice')).toHaveLength(1);
+    expect(journalEvents.filter(event => event.type === 'delivery.voice')).toHaveLength(0);
     expect(journalEvents.filter(event => event.type === 'memory.belief')).toHaveLength(0);
-    expect(chatText(container)).toContain('Noted.');
-    rejectMemory = false;
-    const retry = container.querySelector<HTMLButtonElement>('.ca-memory-error button')!;
-    retry.click();
-    await vi.waitFor(() => expect(journalEvents.filter(event => event.type === 'memory.belief')).toHaveLength(1));
-    await vi.waitFor(() => expect(container.querySelector('.ca-memory-error')).toBeNull());
-    expect(journalEvents.filter(event => event.type === 'delivery.voice')).toHaveLength(1);
+    expect(mockBridge.world.triggerReflection).not.toHaveBeenCalled();
   });
 
   it('retains captured voice notes when navigation occurs before the completed delivery ACK', async () => {
@@ -1287,10 +1285,11 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const source = journalEvents.find(event => event.type === 'message.character')!;
     button('Confirm voice playback').click();
     await vi.waitFor(() => expect(mockBridge.journal.appendEvent.mock.calls.some(([, draft]) => draft.type === 'delivery.voice')).toBe(true));
+    expect(inferenceEvents(journalEvents).filter(event => event.type === 'memory.belief')).toHaveLength(0);
     windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
     deliveryAck.resolve();
-    await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'memory.belief')).toBe(true));
+    await vi.waitFor(() => expect(inferenceEvents(journalEvents).some(event => event.type === 'memory.belief')).toBe(true));
     const memory = journalEvents.find(event => event.type === 'memory.belief')!;
     expect(memory.roomId).toBe(source.roomId); expect(memory.scope).toEqual(source.scope);
     expect(chatText(container)).not.toContain('Noted.');

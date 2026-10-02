@@ -1,6 +1,6 @@
 {
   "mlearn.ConversationAgent.Voice.VisualActivity": "Exercice visuel — répondez à l’écran.",
-  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "Certaines notes de conversation n’ont pas pu être enregistrées. Réessayez tant que cette fenêtre est ouverte.",
+  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "La réponse n’a pas été prononcée, car les notes de conversation n’ont pas pu être enregistrées.",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "Aucune lecture enregistrée.",
   "mlearn.ConversationAgent.Voice.Delivery.playing": "Lecture partielle enregistrée.",
   "mlearn.ConversationAgent.Voice.Delivery.completed": "Lecture terminée.",

@@ -25,7 +25,7 @@ import { getLogger } from '../../shared/utils/logger';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { HARNESS_ACTOR, USER_ACTOR } from '../../shared/world';
 import { WORLD_CONTINUITY_ID } from '../../shared/world';
-import { validVoiceDelivery, voiceDeliveries } from '../../shared/voiceDelivery';
+import { validVoiceDelivery, voiceDeliveries, validVoiceMemoryIntent, releasedVoiceMemoryEvents } from '../../shared/voiceDelivery';
 import { tombstonedIds } from '../../shared/memoryProjection';
 import { requireLivingWorld } from '../../shared/livingWorld';
 import { loadWorld } from './worldStore';
@@ -136,7 +136,10 @@ async function readStreamUnlocked(roomId: string, scope: EventScope): Promise<Jo
 }
 
 async function readStream(roomId: string, scope: EventScope): Promise<JournalEvent[]> {
-  return enqueueWrite(() => readStreamUnlocked(roomId, scope));
+  return enqueueWrite(async () => {
+    await recoverVoiceDeliveriesUnlocked(roomId, scope);
+    return readStreamUnlocked(roomId, scope);
+  });
 }
 
 async function appendEventUnlocked(roomId: string, draft: JournalEventDraft): Promise<JournalEvent> {
@@ -150,50 +153,153 @@ async function appendEventUnlocked(roomId: string, draft: JournalEventDraft): Pr
     createdAt: Date.now(),
   };
   await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.promises.appendFile(filePath, `${JSON.stringify(event)}\n`, 'utf-8');
-  guardianForWrites()?.recordJournalAppend(filePath, seq);
+  try { await fs.promises.appendFile(filePath, `${JSON.stringify(event)}\n`, 'utf-8'); }
+  catch (error) {
+    // Rejected appends can have written a partial tail. Recheck disk on the
+    // next read rather than keeping a cached head that bypasses repair.
+    streamHeads.delete(streamKey(roomId, draft.scope));
+    throw error;
+  }
   state.headSeq = seq;
+  guardianForWrites()?.recordJournalAppend(filePath, seq);
   publishWorldChange({ kind: 'journal', roomId, threadId: draft.scope.kind === 'thread' ? draft.scope.threadId : undefined });
   return event;
+}
+
+async function validateContext(roomId: string, draft: JournalEventDraft): Promise<void> {
+  if ('inferenceAvailabilitySeq' in draft) throw new Error('[journal] inference availability is a derived projection field');
+  if (draft.roomId !== roomId) throw new Error('[journal] context mismatch');
+  const world = await loadWorld();
+  const sandbox = world.threads.find(thread => thread.sandbox &&
+    (thread.id === roomId || (draft.scope.kind === 'thread' && thread.id === draft.scope.threadId)));
+  if (sandbox) {
+    if (roomId !== sandbox.id || draft.scope.kind !== 'thread' || draft.scope.threadId !== sandbox.id) {
+      throw new Error('[journal] sandbox events must stay in their own thread');
+    }
+    const bound = new Set([USER_ACTOR, HARNESS_ACTOR, ...sandbox.sandbox!.bindings.map(binding => binding.baseline.id)]);
+    if (!bound.has(draft.actorId) || draft.witnesses.some(id => !bound.has(id))) {
+      throw new Error('[journal] actor and witnesses must be bound to the sandbox');
+    }
+  } else if (draft.scope.kind === 'thread') {
+    // Thread-scoped writes require a live Thread record with matching
+    // journal context: erasing the record (sandbox deletion) stops further
+    // thread-journal writes permanently.
+    const threadId = draft.scope.threadId;
+    const thread = world.threads.find(candidate => candidate.id === threadId);
+    if (!thread || thread.roomId !== roomId) throw new Error('[journal] thread context no longer exists');
+  }
+}
+
+function validateDelivery(stream: JournalEvent[], draft: JournalEventDraft): { candidate: JournalEvent; existing?: JournalEvent } {
+  if (draft.provenance?.voiceMemoryMessageId !== undefined) throw new Error('[journal] invalid voice delivery provenance');
+  const payload = draft.payload as { messageEventId?: unknown } | null;
+  const message = stream.find(event => event.id === payload?.messageEventId);
+  const candidate: JournalEvent = { ...draft, id: 'pending-delivery-validation', seq: (stream.at(-1)?.seq ?? 0) + 1, createdAt: Date.now() };
+  if (!message || !validVoiceDelivery(message, candidate)) throw new Error('[journal] invalid voice delivery identity or payload');
+  const existing = stream.find(event => event.type === 'delivery.voice' && validVoiceDelivery(message, event)
+    && JSON.stringify(event.payload) === JSON.stringify(draft.payload));
+  if (existing) return { candidate, existing };
+  const previous = voiceDeliveries(stream).get(message.id);
+  if (previous?.payload.state !== 'playing' && previous) {
+    throw new Error('[journal] terminal voice delivery cannot be rewritten');
+  }
+  if (voiceDeliveries([...stream, candidate]).get(message.id) !== candidate) {
+    throw new Error('[journal] voice delivery cannot regress');
+  }
+  return { candidate };
+}
+
+function deliveryOutboxPath(roomId: string, scope: EventScope): string {
+  return `${streamFilePath(roomId, scope)}.voice-outbox.json`;
+}
+
+async function readDeliveryOutbox(roomId: string, scope: EventScope): Promise<JournalEventDraft[]> {
+  try {
+    const data: unknown = JSON.parse(await fs.promises.readFile(deliveryOutboxPath(roomId, scope), 'utf-8'));
+    if (typeof data !== 'object' || data === null || !('version' in data) || data.version !== 1
+      || !('drafts' in data) || !Array.isArray(data.drafts)) throw new Error('[journal] invalid voice recovery outbox; preserved');
+    const drafts = data.drafts as JournalEventDraft[];
+    if (drafts.some(draft => !draft || draft.type !== 'delivery.voice' || draft.roomId !== roomId
+      || !draft.scope || draft.scope.kind !== scope.kind
+      || (draft.scope.kind === 'thread' && scope.kind === 'thread' && draft.scope.threadId !== scope.threadId))) {
+      throw new Error('[journal] invalid voice recovery scope; preserved');
+    }
+    return drafts;
+  } catch (error) {
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+async function saveDeliveryOutbox(roomId: string, scope: EventScope, drafts: JournalEventDraft[]): Promise<void> {
+  const filePath = deliveryOutboxPath(roomId, scope);
+  if (!drafts.length) {
+    for (const pendingPath of [filePath, `${filePath}.tmp`]) {
+      try { await fs.promises.unlink(pendingPath); }
+      catch (error) { if (typeof error !== 'object' || error === null || !('code' in error) || error.code !== 'ENOENT') throw error; }
+    }
+    return;
+  }
+  await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.promises.writeFile(`${filePath}.tmp`, JSON.stringify({ version: 1, drafts }), 'utf-8');
+  await fs.promises.rename(`${filePath}.tmp`, filePath);
+}
+
+/** Main-owned, profile-local retry. It records observations; it never replays audio. */
+async function recoverVoiceDeliveriesUnlocked(roomId: string, scope: EventScope): Promise<void> {
+  const drafts = await readDeliveryOutbox(roomId, scope);
+  if (!drafts.length) return;
+  const stream = await readStreamUnlocked(roomId, scope);
+  while (drafts.length) {
+    const draft = drafts[0];
+    await validateContext(roomId, draft);
+    const { existing } = validateDelivery(stream, draft);
+    if (!existing) stream.push(await appendEventUnlocked(roomId, draft));
+    drafts.shift();
+    try { await saveDeliveryOutbox(roomId, scope, drafts); }
+    catch (error) {
+      // The journal ACK already exists. A cleanup failure cannot negate it;
+      // the unchanged outbox will match that exact row on the next read.
+      log.warn('[journal] voice recovery cleanup deferred', error);
+      return;
+    }
+  }
+}
+
+async function queueVoiceDeliveryUnlocked(roomId: string, draft: JournalEventDraft): Promise<JournalEvent> {
+  const stream = await readStreamUnlocked(roomId, draft.scope);
+  const drafts = await readDeliveryOutbox(roomId, draft.scope);
+  const virtual = [...stream];
+  for (const pending of drafts) {
+    await validateContext(roomId, pending);
+    const validation = validateDelivery(virtual, pending);
+    if (!validation.existing) virtual.push({ ...validation.candidate, id: `pending-delivery-${virtual.length}` });
+  }
+  const validation = validateDelivery(virtual, draft);
+  if (validation.existing && stream.includes(validation.existing)) return validation.existing;
+  if (!validation.existing) drafts.push(draft);
+  await saveDeliveryOutbox(roomId, draft.scope, drafts);
+  try { await recoverVoiceDeliveriesUnlocked(roomId, draft.scope); }
+  catch (error) {
+    const saved = validateDelivery(await readStreamUnlocked(roomId, draft.scope), draft).existing;
+    if (saved) return saved;
+    throw error;
+  }
+  const saved = validateDelivery(await readStreamUnlocked(roomId, draft.scope), draft).existing;
+  if (!saved) throw new Error('[journal] voice delivery is saved for retry but not yet committed');
+  return saved;
 }
 
 /** Assigns id/seq/createdAt and appends one line to the scope's stream file. */
 export async function appendEvent(roomId: string, draft: JournalEventDraft): Promise<JournalEvent> {
   return enqueueWrite(async () => {
-    if (draft.roomId !== roomId) throw new Error('[journal] context mismatch');
-    const world = await loadWorld();
-    const sandbox = world.threads.find(thread => thread.sandbox &&
-      (thread.id === roomId || (draft.scope.kind === 'thread' && thread.id === draft.scope.threadId)));
-    if (sandbox) {
-      if (roomId !== sandbox.id || draft.scope.kind !== 'thread' || draft.scope.threadId !== sandbox.id) {
-        throw new Error('[journal] sandbox events must stay in their own thread');
-      }
-      const bound = new Set([USER_ACTOR, HARNESS_ACTOR, ...sandbox.sandbox!.bindings.map(binding => binding.baseline.id)]);
-      if (!bound.has(draft.actorId) || draft.witnesses.some(id => !bound.has(id))) {
-        throw new Error('[journal] actor and witnesses must be bound to the sandbox');
-      }
-    } else if (draft.scope.kind === 'thread') {
-      // Thread-scoped writes require a live Thread record with matching
-      // journal context: erasing the record (sandbox deletion) stops further
-      // thread-journal writes permanently.
-      const threadId = draft.scope.threadId;
-      const thread = world.threads.find(candidate => candidate.id === threadId);
-      if (!thread || thread.roomId !== roomId) throw new Error('[journal] thread context no longer exists');
-    }
-    if (draft.type === 'delivery.voice') {
+    await validateContext(roomId, draft);
+    if (draft.type === 'delivery.voice') return queueVoiceDeliveryUnlocked(roomId, draft);
+    if (draft.provenance?.voiceMemoryMessageId !== undefined) {
       const stream = await readStreamUnlocked(roomId, draft.scope);
-      const payload = draft.payload as { messageEventId?: unknown } | null;
-      const message = stream.find(event => event.id === payload?.messageEventId);
-      const candidate: JournalEvent = { ...draft, id: 'pending-delivery-validation', seq: (stream.at(-1)?.seq ?? 0) + 1, createdAt: Date.now() };
-      if (!message || !validVoiceDelivery(message, candidate)) throw new Error('[journal] invalid voice delivery identity or payload');
-      const previous = voiceDeliveries(stream).get(message.id);
-      if (previous?.payload.state !== 'playing' && previous) {
-        if (JSON.stringify(previous.payload) === JSON.stringify(draft.payload)) return previous;
-        throw new Error('[journal] terminal voice delivery cannot be rewritten');
-      }
-      if (voiceDeliveries([...stream, candidate]).get(message.id) !== candidate) {
-        throw new Error('[journal] voice delivery cannot regress');
-      }
+      const source = stream.find(event => event.id === draft.provenance?.voiceMemoryMessageId);
+      const candidate: JournalEvent = { ...draft, id: 'pending-memory-validation', seq: (stream.at(-1)?.seq ?? 0) + 1, createdAt: Date.now() };
+      if (!source || !validVoiceMemoryIntent(source, candidate, stream)) throw new Error('[journal] invalid private voice memory dependency');
     }
     return appendEventUnlocked(roomId, draft);
   });
@@ -229,7 +335,7 @@ async function canonicalEvents(events: JournalEvent[], loadedWorld?: Awaited<Ret
   const runs = new Map((world.reflectionRuns ?? []).map(record => [record.reflectionId, record]));
   const autonomyJobs = new Map((world.autonomyJobs ?? []).map(record => [record.jobId, record]));
   const contacts = new Map((world.contacts ?? []).map(record => [record.contactId, record]));
-  return events.filter(event => {
+  const canonical = events.filter(event => {
     const autonomyJobId = event.provenance?.autonomyJobId;
     if (event.type === 'intention' || event.type === 'occurrence.simulated' || autonomyJobId) {
       if (!autonomyJobId) return false;
@@ -260,6 +366,7 @@ async function canonicalEvents(events: JournalEvent[], loadedWorld?: Awaited<Ret
     return event.provenance?.stagedIntegration === true
       && records.get(id)?.status === 'committed';
   });
+  return releasedVoiceMemoryEvents(canonical);
 }
 
 function hasDerivedDependencies(event: JournalEvent): boolean {
@@ -322,12 +429,19 @@ export async function readThread(roomId: string, threadId: string): Promise<Jour
   return canonicalEvents(await readStream(roomId, { kind: 'thread', threadId }));
 }
 
+/** Main-only erasure preparation; never commits pending playback or exposes content. */
+export async function readThreadErasureIds(roomId: string, threadId: string): Promise<string[]> {
+  return enqueueWrite(async () => (await readStreamUnlocked(roomId, { kind: 'thread', threadId })).map(event => event.id));
+}
+
 /** Physically removes a thread stream, retaining only its event ids in Sea provenance. */
-export async function eraseThread(roomId: string, threadId: string): Promise<{ deletedCount: number }> {
+export async function eraseThread(roomId: string, threadId: string, preparedSourceIds: readonly string[] = []): Promise<{ deletedCount: number }> {
   return enqueueWrite(async () => {
     const scope: EventScope = { kind: 'thread', threadId };
     const filePath = streamFilePath(roomId, scope);
     await loadStreamHead(streamKey(roomId, scope), filePath);
+    // Erasure wins over previously staged retry work, even if the process restarts.
+    await saveDeliveryOutbox(roomId, scope, []);
     let events: JournalEvent[] = [];
     try {
       const raw = await fs.promises.readFile(filePath, 'utf-8');
@@ -342,8 +456,13 @@ export async function eraseThread(roomId: string, threadId: string): Promise<{ d
       if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
     }
     streamHeads.delete(streamKey(roomId, scope));
-    const sourceEventIds = events.map((event) => event.id);
+    const sourceEventIds = [...new Set([...preparedSourceIds, ...events.map(event => event.id)])];
     const payload: DeletionPayload = { threadId, sourceEventIds };
+    const sea = await readStreamUnlocked(roomId, { kind: 'sea' });
+    if (sea.some(event => event.type === 'deletion' && (event.payload as DeletionPayload | null)?.threadId === threadId
+      && JSON.stringify((event.payload as DeletionPayload).sourceEventIds) === JSON.stringify(sourceEventIds))) {
+      return { deletedCount: sourceEventIds.length };
+    }
     await appendEventUnlocked(roomId, {
       roomId,
       scope: { kind: 'sea' },
@@ -353,7 +472,7 @@ export async function eraseThread(roomId: string, threadId: string): Promise<{ d
       payload,
       provenance: { sourceThreadEventIds: sourceEventIds },
     });
-    return { deletedCount: events.length };
+    return { deletedCount: sourceEventIds.length };
   });
 }
 

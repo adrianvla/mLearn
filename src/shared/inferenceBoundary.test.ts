@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { inferenceEvents } from './inferenceBoundary';
 import { HARNESS_ACTOR, type JournalEvent } from './world';
 import { visibleEventsFor } from './contextCompiler';
+import { projectionForCaller } from './memoryProjection';
 
 const message = (id = 'speech-a', actorId = 'a'): JournalEvent => ({ id, seq: 2, createdAt: 2,
   roomId: 'room', scope: { kind: 'sea' }, actorId, witnesses: ['user', 'a', 'b'], type: 'message.character',
@@ -41,8 +42,10 @@ describe('voice delivery inference boundary', () => {
     [{ confirmedText: 'Fir', spokenText: 'Fir', basis: 'playback-complete' }, {}],
     [{ confirmedText: 'F i r s t phrase.', spokenText: 'F i r s t phrase.', basis: 'playback-complete' }, {}],
     [{ confirmedText: 'First phrase.', spokenText: '' }, {}],
+    [{ state: ['interrupted'] }, {}], [{ basis: ['playback-estimate'] }, {}],
     [{}, { roomId: 'other' }], [{}, { scope: { kind: 'thread', threadId: 'other' } }],
     [{}, { actorId: 'a' }], [{}, { witnesses: ['user', 'a', 'b', 'outsider'] }],
+    [{}, { witnesses: null }], [{}, { witnesses: 'user,a,b' }],
   ])('ignores malformed or mismatched delivery records (%j, %j)', (patch, eventPatch) => {
     expect(inferenceEvents([message(), delivery(patch, eventPatch as Partial<JournalEvent>)])).toEqual([]);
   });
@@ -67,5 +70,23 @@ describe('voice delivery inference boundary', () => {
     expect(view.find(event => event.id === original.id)).toMatchObject({ seq: 2, inferenceAvailabilitySeq: 5, payload: { text: 'First phrase.' } });
     const absentSpeech = { ...original, seq: 4, createdAt: 4 };
     expect(visibleEventsFor('b', inferenceEvents([removal, absentSpeech, lateDelivery])).map(event => event.id)).not.toContain(original.id);
+  });
+
+  it('releases durable private voice notes only after exact completed playback and survives projection round trips', () => {
+    const speech = message();
+    const note: JournalEvent = { ...speech, id: 'note', seq: 3, actorId: HARNESS_ACTOR, type: 'memory.belief',
+      witnesses: ['user', 'a'], payload: { ownerId: 'a', kind: 'belief', text: 'Reviewed private note', sourceEventIds: [speech.id], 'future:data': { retained: true } },
+      provenance: { voiceMemoryMessageId: speech.id } };
+    expect(inferenceEvents([speech, note])).toEqual([]);
+    expect(projectionForCaller([speech, note], 'a').beliefs).toEqual([]);
+    expect(inferenceEvents([speech, note, delivery()]).map(event => event.id)).toEqual([speech.id]);
+    const completed = delivery({ state: 'completed', spokenText: 'First phrase. Second phrase.', confirmedText: 'First phrase. Second phrase.', basis: 'playback-complete' });
+    const projected = inferenceEvents(JSON.parse(JSON.stringify([speech, note, completed])) as JournalEvent[]);
+    expect(projected.find(event => event.id === note.id)).toMatchObject({ seq: 3, inferenceAvailabilitySeq: 5,
+      witnesses: ['user', 'a'], payload: { text: 'Reviewed private note', 'future:data': { retained: true } } });
+    expect(inferenceEvents(projected)).toEqual(projected);
+    expect(visibleEventsFor('b', projected).map(event => event.id)).not.toContain(note.id);
+    expect(projectionForCaller([speech, note, completed], 'a').beliefs).toHaveLength(1);
+    expect(projectionForCaller([speech, note, completed], 'b').beliefs).toHaveLength(0);
   });
 });

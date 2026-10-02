@@ -36,6 +36,8 @@ describe('world persistence', () => {
     ['missing required collections', '{}'],
     ['invalid required collection', JSON.stringify({ ...emptyWorld, rooms: {} })],
     ['invalid optional collection', JSON.stringify({ ...emptyWorld, contacts: {} })],
+    ['invalid erasure intent', JSON.stringify({ ...emptyWorld, pendingThreadErasures: [{ threadId: 'thread' }] })],
+    ['invalid erasure provenance', JSON.stringify({ ...emptyWorld, pendingThreadErasures: [{ roomId: 'room', threadId: 'thread', sourceEventIds: [42] }] })],
   ])('rejects %s without overwriting the existing file', async (_name, raw) => {
     fs.writeFileSync(worldPath(), raw);
     await expect(addRoom()).rejects.toThrow();

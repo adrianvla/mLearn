@@ -65,11 +65,13 @@ export interface JournalEvent {
     /** Main-owned V10 contact operation. Prepared rows remain hidden until
      * the contact record certifies their exact event ids. */
     contactId?: string;
+    /** Reviewed private note held until this exact voice message has completed playback. */
+    voiceMemoryMessageId?: string;
   };
 }
 
 /** What callers supply; the journal assigns id/seq/createdAt. */
-export type JournalEventDraft = Omit<JournalEvent, 'id' | 'seq' | 'createdAt'>;
+export type JournalEventDraft = Omit<JournalEvent, 'id' | 'seq' | 'createdAt' | 'inferenceAvailabilitySeq'>;
 
 // ---------------------------------------------------------------------------
 // Event payload contracts (consumer-side; JournalEvent.payload stays unknown)

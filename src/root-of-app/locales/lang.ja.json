@@ -1,6 +1,6 @@
 {
   "mlearn.ConversationAgent.Voice.VisualActivity": "画面で回答する練習です。",
-  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "一部の会話メモを保存できませんでした。このウィンドウを開いたまま再試行してください。",
+  "mlearn.ConversationAgent.Voice.MemoryRecordFailed": "会話のメモを保存できなかったため、返答は読み上げられませんでした。",
   "mlearn.ConversationAgent.Voice.Delivery.pending": "再生記録はありません。",
   "mlearn.ConversationAgent.Voice.Delivery.playing": "部分的な再生が記録されています。",
   "mlearn.ConversationAgent.Voice.Delivery.completed": "再生が完了しました。",
