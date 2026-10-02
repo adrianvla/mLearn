@@ -605,7 +605,10 @@
         "ReadyHint": "发送消息，或让 AI 开始对话。",
         "StartConversation": "让 AI 开始",
         "Title": "开始对话",
-        "NewConversation": "新对话"
+        "NewConversation": "新对话",
+        "ReadyTitle": "可以开始交谈",
+        "SavedTitle": "会话已保存",
+        "SavedUnavailableHint": "AI服务不可用。开始交谈前，请打开AI设置以连接服务。"
       },
       "ExperimentalBanner": "实验性功能 — AI 回复可能包含错误。请验证重要的语言点。",
       "Disclaimer": "这是 AI，可能会犯错。请仔细核对回复内容。",
@@ -839,7 +842,8 @@
         "PracticeHint": "请求语言反馈和针对性练习。",
         "SetupPlaceholder": "描述场景或练习目标，或选择下方的联系人。",
         "SetupHint": "选择联系人、描述场景，或两者兼有。所有选中的人都可以参与。",
-        "OptionalSituation": "场景（可选）"
+        "OptionalSituation": "场景（可选）",
+        "SelectedPeople": "已选参与者：{count}"
       },
       "Integration": {
         "ScenarioNeedsRoom": "请选择一个房间以接纳此情境。",

@@ -533,6 +533,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const recovery = Array.from(container.querySelectorAll<HTMLButtonElement>('.ca-messages button'))
       .find(button => button.textContent === 'mlearn.ConversationAgent.Recovery.Settings');
     expect(recovery).toBeDefined();
+    expect(chatText(container)).toContain('mlearn.ConversationAgent.Empty.SavedTitle');
+    expect(chatText(container)).toContain('mlearn.ConversationAgent.Empty.SavedUnavailableHint');
     expect(chatText(container)).not.toContain('mlearn.ConversationAgent.Empty.StartConversation');
     recovery!.click();
     expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'settings', context: { section: 'ai' } });

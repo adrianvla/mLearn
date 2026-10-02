@@ -1,6 +1,6 @@
 .new-conversation-form { display: flex; flex-direction: column; gap: var(--spacing-4); min-width: 0; }
 .new-conversation-media-context { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
-.new-conversation-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--spacing-2); }
+.new-conversation-actions { width: 100%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--spacing-2); }
 .new-conversation-people { display: flex; flex-direction: column; gap: var(--spacing-2); min-width: 0; }
 .new-conversation-people-list {
     max-height: 10rem; overflow-y: auto; min-width: 0;
@@ -22,3 +22,5 @@
 
 .new-conversation-people-tools { display: flex; align-items: center; gap: var(--spacing-2); min-width: 0; }
 .new-conversation-people-tools > div { flex: 1; min-width: 0; }
+
+.new-conversation-summary { flex: 1 0 100%; margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); overflow-wrap: anywhere; }

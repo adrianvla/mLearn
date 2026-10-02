@@ -605,7 +605,10 @@
         "ReadyHint": "Schreiben Sie eine Nachricht oder lassen Sie die KI beginnen.",
         "StartConversation": "KI beginnen lassen",
         "Title": "Gespräch beginnen",
-        "NewConversation": "Neue Unterhaltung"
+        "NewConversation": "Neue Unterhaltung",
+        "ReadyTitle": "Bereit zum Gespräch",
+        "SavedTitle": "Gespräch gespeichert",
+        "SavedUnavailableHint": "Der KI-Dienst ist nicht verfügbar. Öffne die KI-Einstellungen, um vor dem Gespräch eine Verbindung herzustellen."
       },
       "ExperimentalBanner": "Experimentelle Funktion — KI-Antworten können Fehler enthalten. Überprüfen Sie wichtige sprachliche Punkte.",
       "Disclaimer": "Dies ist KI und kann Fehler machen. Bitte Antworten überprüfen.",
@@ -839,7 +842,8 @@
         "PracticeHint": "Bitte um sprachliches Feedback und gezielte Übungen.",
         "SetupPlaceholder": "Beschreibe eine Situation oder ein Übungsziel oder wähle unten Kontakte aus.",
         "SetupHint": "Wähle Kontakte, beschreibe eine Situation oder beides. Alle ausgewählten Personen können teilnehmen.",
-        "OptionalSituation": "Situation (optional)"
+        "OptionalSituation": "Situation (optional)",
+        "SelectedPeople": "Ausgewählte Personen: {count}"
       },
       "Integration": {
         "ScenarioNeedsRoom": "Wähle einen Raum, um diese Situation zu übernehmen.",

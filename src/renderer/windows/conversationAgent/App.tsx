@@ -2152,8 +2152,8 @@ export const ConversationContent: Component = () => {
                 fallback={
                   <EmptyState
                     icon={<ChatIcon size={24} />}
-                    title={t('mlearn.ConversationAgent.Empty.Title')}
-                    description={hasActiveRoomSelection() ? isConnected() ? t('mlearn.ConversationAgent.Empty.ReadyHint') : undefined : t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
+                    title={t(hasActiveRoomSelection() ? isConnected() ? 'mlearn.ConversationAgent.Empty.ReadyTitle' : 'mlearn.ConversationAgent.Empty.SavedTitle' : 'mlearn.ConversationAgent.Empty.Title')}
+                    description={hasActiveRoomSelection() ? isConnected() ? t('mlearn.ConversationAgent.Empty.ReadyHint') : t('mlearn.ConversationAgent.Empty.SavedUnavailableHint') : t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
                     action={{
                       label: hasActiveRoomSelection() ? t(isConnected() ? 'mlearn.ConversationAgent.Empty.StartConversation' : 'mlearn.ConversationAgent.Recovery.Settings') : t('mlearn.ConversationAgent.NewConversation.Title'),
                       onClick: hasActiveRoomSelection() ? isConnected() ? handleStartConversation : () => openCapabilitySettings('llm') : () => openComposer(sidebarView() === 'practice' ? 'practice' : 'message'),

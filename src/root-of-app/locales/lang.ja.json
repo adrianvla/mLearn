@@ -605,7 +605,10 @@
         "ReadyHint": "メッセージを送るか、AIに会話を始めてもらいましょう。",
         "StartConversation": "AIに始めてもらう",
         "Title": "会話を始める",
-        "NewConversation": "新しい会話"
+        "NewConversation": "新しい会話",
+        "ReadyTitle": "会話の準備ができました",
+        "SavedTitle": "会話を保存しました",
+        "SavedUnavailableHint": "AIサービスを利用できません。会話を始める前にAI設定を開いて接続してください。"
       },
       "ExperimentalBanner": "実験的機能 — AIの回答にはエラーが含まれる場合があります。重要な言語ポイントは確認してください。",
       "Disclaimer": "AIは間違えることがあります。回答を再確認してください。",
@@ -839,7 +842,8 @@
         "PracticeHint": "言語のフィードバックや目的に合った練習を求めます。",
         "SetupPlaceholder": "状況や練習の目的を説明するか、下の連絡先を選んでください。",
         "SetupHint": "連絡先の選択、状況の説明、または両方ができます。選択した全員が参加できます。",
-        "OptionalSituation": "状況（任意）"
+        "OptionalSituation": "状況（任意）",
+        "SelectedPeople": "選択した参加者：{count}"
       },
       "Integration": {
         "ScenarioNeedsRoom": "この状況を引き継ぐにはルームを選択してください。",

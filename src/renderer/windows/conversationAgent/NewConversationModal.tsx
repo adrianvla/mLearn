@@ -217,6 +217,10 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       onSubmit={handleStart}
       footer={
         <div class="new-conversation-actions">
+          <p class="new-conversation-summary" aria-live="polite">
+            {t(purpose() === 'practice' ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · {t(scope() === 'persistent' ? 'mlearn.ConversationAgent.NewConversation.ScopePersistent' : 'mlearn.ConversationAgent.NewConversation.ScopeTemporary')}
+            <Show when={selectedIds().size > 0}> · {t('mlearn.ConversationAgent.NewConversation.SelectedPeople', { count: String(selectedIds().size) })}</Show>
+          </p>
           <Button variant="ghost" onClick={() => { void close(); }}>{t('mlearn.ConversationAgent.NewConversation.Cancel')}</Button>
           <Show when={preview()}>
             <Button variant="ghost" disabled={busy()} onClick={() => { void changeScenario().catch(err => setError(String(err))); }}>{t('mlearn.ConversationAgent.NewConversation.ChangeScenario')}</Button>

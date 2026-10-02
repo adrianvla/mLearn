@@ -605,7 +605,10 @@
         "ReadyHint": "Send a message, or let AI start.",
         "StartConversation": "Let AI start",
         "Title": "Start a conversation",
-        "NewConversation": "New conversation"
+        "NewConversation": "New conversation",
+        "ReadyTitle": "Ready to talk",
+        "SavedTitle": "Conversation saved",
+        "SavedUnavailableHint": "The AI service is unavailable. Open AI settings to connect before chatting."
       },
       "ExperimentalBanner": "Experimental — AI responses may contain errors. Verify important language points.",
       "Disclaimer": "This is AI and can make mistakes. Please double-check responses.",
@@ -839,7 +842,8 @@
         "PracticeHint": "Ask for language feedback and focused exercises.",
         "SetupPlaceholder": "Describe a situation or practice focus, or choose contacts below.",
         "SetupHint": "Choose contacts, describe a situation, or both. Everyone selected can participate.",
-        "OptionalSituation": "Situation (optional)"
+        "OptionalSituation": "Situation (optional)",
+        "SelectedPeople": "Selected people: {count}"
       },
       "Integration": {
         "ScenarioNeedsRoom": "Choose a Room to adopt this situation.",

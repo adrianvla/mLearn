@@ -605,7 +605,10 @@
         "ReadyHint": "Envoyez un message ou laissez l'IA commencer.",
         "StartConversation": "Laisser l'IA commencer",
         "Title": "Démarrer une conversation",
-        "NewConversation": "Nouvelle conversation"
+        "NewConversation": "Nouvelle conversation",
+        "ReadyTitle": "Prêt à discuter",
+        "SavedTitle": "Conversation enregistrée",
+        "SavedUnavailableHint": "Le service d’IA est indisponible. Ouvrez les paramètres d’IA pour vous connecter avant de discuter."
       },
       "ExperimentalBanner": "Fonctionnalité expérimentale — les réponses de l'IA peuvent contenir des erreurs. Vérifiez les points linguistiques importants.",
       "Disclaimer": "Ceci est une IA et peut faire des erreurs. Veuillez vérifier les réponses.",
@@ -839,7 +842,8 @@
         "PracticeHint": "Demandez des retours linguistiques et des exercices ciblés.",
         "SetupPlaceholder": "Décrivez une situation ou un objectif, ou choisissez des contacts ci-dessous.",
         "SetupHint": "Choisissez des contacts, décrivez une situation, ou les deux. Chaque personne choisie peut participer.",
-        "OptionalSituation": "Situation (facultatif)"
+        "OptionalSituation": "Situation (facultatif)",
+        "SelectedPeople": "Personnes sélectionnées : {count}"
       },
       "Integration": {
         "ScenarioNeedsRoom": "Choisissez un salon pour adopter cette situation.",

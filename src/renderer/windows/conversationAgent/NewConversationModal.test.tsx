@@ -242,6 +242,9 @@ describe('NewConversationModal', () => {
     (container.querySelector('[role="radio"][aria-label="mlearn.ConversationAgent.NewConversation.CoachedPractice"]') as HTMLInputElement).click();
     expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.PracticeHint');
     expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.PersistentHint');
+    expect(container.querySelector('.new-conversation-summary')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.CoachedPractice');
+    expect(container.querySelector('.new-conversation-summary')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.ScopePersistent');
+    expect(container.querySelector('.new-conversation-summary')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.SelectedPeople');
     startButton().click();
     await vi.waitFor(() => expect(createPersistentRoom).toHaveBeenCalledWith(expect.objectContaining({
       interactionMode: 'practice', scope: 'persistent', participantIds: [rin.id, alex.id],
