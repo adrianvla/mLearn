@@ -1,4 +1,5 @@
 import type { KnowledgeEventLog } from './knowledgeEvents';
+import type { PendingRetraction } from './retractionRecovery';
 import { applyStorePatchInPlace, copyStoreWithPatch, getStorePath, setStorePath, type StorePatch } from './utils/storePatch';
 
 /** One stable attempt, including the scheduler and its observation provenance. */
@@ -8,6 +9,8 @@ export interface FlashcardRatingCommand {
   decisionId?: string;
   /** Actual input captured by the response producer, compared opaquely at admission. */
   presentation?: Record<string, unknown>;
+  /** The original surface rollback, retained separately from compacted receipts. */
+  undo?: PendingRetraction;
   patch: StorePatch;
   events: KnowledgeEventLog;
   /** First admission must still address these captured card pre-images. */

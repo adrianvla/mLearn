@@ -158,6 +158,43 @@ describe('flashcardStorage', () => {
     ],
   });
 
+  it('protects a decided review rollback from resets and deletion while permitting authored edits', async () => {
+    const card = makeFlashcard('protected-undo');
+    const pendingRetraction = { attemptId: 'owned-response', surface: 'flashcard-review', word: card.content.front,
+      language: 'ja', attemptIds: ['owned-response'], restore: { cardId: card.id, type: 'answer',
+        restoreCard: structuredClone(card), expectedCard: structuredClone(card), today: 'day', restorePerLanguage: null, restoreDailyStats: null } };
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card }, pendingRetraction }));
+    const authored = structuredClone(await loadFlashcards());
+    authored.flashcards[card.id].content.back = 'later authored answer';
+    await saveFlashcards(authored);
+    const changed = structuredClone(await loadFlashcards());
+    changed.flashcards[card.id].reviews += 1;
+    await expect(saveFlashcards(changed, [], true)).rejects.toThrow(/changed/);
+    const deleted = structuredClone(await loadFlashcards());
+    delete deleted.flashcards[card.id];
+    await expect(saveFlashcards(deleted, [card.id])).rejects.toThrow(/changed/);
+    const preserved = await loadFlashcards();
+    expect(preserved.flashcards[card.id].content.back).toBe('later authored answer');
+    expect(preserved.pendingRetraction).toEqual(pendingRetraction);
+    const completed = structuredClone(await loadFlashcards());
+    delete completed.pendingRetraction;
+    completed.retractionCompleted = pendingRetraction.attemptId;
+    await saveFlashcards(completed);
+    expect((await loadFlashcards()).pendingRetraction).toBeUndefined();
+  });
+
+  it('refuses a new review while a decided Undo still owns the journal and scheduler recovery', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('undo-in-flight');
+    const pendingRetraction = { attemptId: 'prior', surface: 'future-surface', word: 'cue', language: 'xx',
+      attemptIds: ['prior'], restore: { future: 'opaque' } };
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card }, pendingRetraction }));
+    await expect(storage.commitFlashcardRating(ratingCommand(card, 1, 1))).rejects.toThrow(/Undo/);
+    const loaded = await storage.loadFlashcards();
+    expect(loaded.flashcards[card.id].reviews).toBe(card.reviews);
+    expect(loaded.pendingRetraction).toEqual(pendingRetraction);
+  });
+
   it('recovers a durably admitted rating after restart, then acknowledges retries without repeating counters', async () => {
     const storage = await import('./flashcardStorage');
     const card = makeFlashcard('crash-recovery');

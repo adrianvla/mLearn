@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
+import { isPendingRetraction, MAX_RETRACTION_HISTORY, type PendingRetraction } from '../../shared/retractionRecovery';
 import { isLearningDecision, learningDecisionMatchesOutcome, type LearningDecision, type LearningDecisionRecord, type LearningTargetAddress } from '../../shared/learningDecision';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { DatabaseSync } from 'node:sqlite';
@@ -287,6 +288,14 @@ export class KnowledgeHistoryStore {
         id TEXT PRIMARY KEY,
         decision_json TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS rating_undo (
+        attempt_id TEXT PRIMARY KEY,
+        surface TEXT NOT NULL,
+        undo_json TEXT NOT NULL,
+        keys_json TEXT NOT NULL,
+        retracted INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS rating_undo_surface ON rating_undo(surface, retracted);
       CREATE TABLE IF NOT EXISTS learning_decision_attempts (
         attempt_id TEXT PRIMARY KEY,
         decision_id TEXT NOT NULL
@@ -382,6 +391,9 @@ export class KnowledgeHistoryStore {
         if (event.decisionRef !== undefined && event.decisionRef.id !== command.decisionId) throw new Error('The response names another learning decision');
       }
     }
+    if (command.undo !== undefined && (!isPendingRetraction(command.undo)
+      || command.undo.attemptId !== command.attemptId || command.undo.attemptIds.length !== 1
+      || command.undo.attemptIds[0] !== command.attemptId)) throw new Error('The rating Undo belongs to another response');
     validateAdmission?.();
     const encoded = JSON.stringify(command);
     let sequence = 0;
@@ -389,6 +401,9 @@ export class KnowledgeHistoryStore {
     try {
       const result = this.db.prepare('INSERT INTO rating_commands (attempt_id, command_json) VALUES (?, ?)').run(command.attemptId, encoded);
       sequence = Number(result.lastInsertRowid);
+      if (command.undo) this.db.prepare('INSERT INTO rating_undo (attempt_id, surface, undo_json, keys_json) VALUES (?, ?, ?, ?)')
+        .run(command.attemptId, command.undo.surface, JSON.stringify(command.undo),
+          JSON.stringify(command.undo.target?.keys ?? Object.keys(command.events)));
       if (command.decisionId !== undefined) this.db.prepare('INSERT INTO learning_decision_attempts (attempt_id, decision_id) VALUES (?, ?)')
         .run(command.attemptId, command.decisionId);
       this.db.exec('COMMIT');
@@ -424,6 +439,18 @@ export class KnowledgeHistoryStore {
     return rows.map(row => ({ sequence: row.sequence, command: JSON.parse(row.command_json) as FlashcardRatingCommand }));
   }
 
+  getRatingUndoHistory(surface: string): PendingRetraction[] {
+    if (typeof surface !== 'string' || !surface) throw new Error('Invalid Undo surface');
+    const rows = this.db.prepare(`SELECT u.undo_json FROM rating_undo u JOIN rating_commands r USING (attempt_id)
+      WHERE u.surface = ? AND u.retracted = 0 AND r.committed_revision IS NOT NULL
+      ORDER BY r.sequence DESC LIMIT ?`).all(surface, MAX_RETRACTION_HISTORY) as Array<{ undo_json: string }>;
+    return rows.map(row => {
+      const record: unknown = JSON.parse(row.undo_json);
+      if (!isPendingRetraction(record)) throw new Error('The saved rating Undo is unreadable');
+      return record;
+    });
+  }
+
   /** Compact completed payloads while retaining durable, small retry receipts. */
   completeRatingCommands(throughSequence: number, revision: number): void {
     if (!Number.isSafeInteger(throughSequence) || throughSequence < 1 || !Number.isSafeInteger(revision) || revision < 0) {
@@ -431,6 +458,14 @@ export class KnowledgeHistoryStore {
     }
     this.db.prepare('UPDATE rating_commands SET command_json = NULL, committed_revision = ? WHERE sequence <= ? AND committed_revision IS NULL')
       .run(revision, throughSequence);
+    // Keep full card pre-images bounded; retry receipts remain small and durable.
+    this.db.exec(`DELETE FROM rating_undo WHERE retracted = 1;
+      DELETE FROM rating_undo WHERE attempt_id IN (
+        SELECT attempt_id FROM (
+          SELECT u.attempt_id, ROW_NUMBER() OVER (PARTITION BY u.surface ORDER BY r.sequence DESC) AS position
+          FROM rating_undo u JOIN rating_commands r USING (attempt_id) WHERE r.committed_revision IS NOT NULL
+        ) WHERE position > ${MAX_RETRACTION_HISTORY}
+      )`);
   }
 
   /** Persisted schema generation (0/undefined = fresh or pre-versioned DB). */
@@ -770,6 +805,9 @@ export class KnowledgeHistoryStore {
         valid.forEach((event, index) => {
           const seq = seqBase + index + 1;
           insert.run(seq, key, lang, event.t, JSON.stringify(event));
+          if (event.retracts !== undefined) this.db.prepare(`UPDATE rating_undo SET retracted = 1
+            WHERE attempt_id = ? AND EXISTS (SELECT 1 FROM json_each(keys_json) WHERE value = ?)`)
+            .run(event.retracts, key);
           newSeqs.push(seq);
         });
         if (newSeqs.length === 0) {

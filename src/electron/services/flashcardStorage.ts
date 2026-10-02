@@ -11,6 +11,7 @@ import { createProsodyForPosition, getLanguageProsodyType, registerMappingTable,
 import { CURRENT_NORMALIZATION_VERSION } from '../../shared/utils/normalizationVersion';
 import { mergeStudyExclusion } from '../../shared/studyExclusion';
 import { readPendingRetraction, readRetractionCompletionClaim } from '../../shared/retractionRecovery';
+import { validateReviewResponseUndo, type ReviewUndoProjection } from '../../shared/flashcardReviewUndo';
 import { staleFlashcardRevisionMessage } from '../../shared/flashcardWriteRevision';
 import type { FlashcardStore, FlashcardWriteAuthorization, WordStats, Flashcard, WordCandidate, FlashcardContent, DailyStudyStats, LanguageData, LanguageDataMap, PassiveWordKnowledge, GrammarKnowledgeEntry, IgnoredWordEntry, SuggestedFlashcard, Settings } from '../../shared/types';
 import { canonicalKeyHash } from '../../shared/utils/canonicalWordKey';
@@ -67,6 +68,7 @@ async function commitRatingCommands(commands: readonly FlashcardRatingCommand[],
   };
   for (const command of commands) {
     journal.reserveRatingCommand(command, () => {
+      if (current.pendingRetraction !== undefined) throw new Error('Complete the pending Undo before submitting another review');
       validate(command);
       for (const id of command.guardCardIds ?? []) {
         const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
@@ -1063,6 +1065,15 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
     const incomingRetraction = readPendingRetraction(store.pendingRetraction);
     if (authoritativeRetraction && incomingRetraction && authoritativeRetraction.attemptId !== incomingRetraction.attemptId) {
       throw new Error('Another pending Undo must be completed before it can be replaced');
+    }
+    // A decided Undo owns its scheduler pre-image until completion. Ordinary
+    // edits can continue, but a reset/deletion/new response cannot strand the
+    // journal half behind a projection that will never accept its rollback.
+    const protectedReview = authoritativeRetraction ?? incomingRetraction;
+    if (protectedReview?.surface === 'flashcard-review'
+      && (!authoritativeRetraction || claim?.attemptId !== authoritativeRetraction.attemptId)) {
+      const projection = protectedReview.restore as ReviewUndoProjection;
+      if (projection?.expectedCard) validateReviewResponseUndo(store, projection);
     }
     if (authoritativeRetraction && !readPendingRetraction(store.pendingRetraction)) {
       // Finishing an Undo is the one write that deliberately drops the record,

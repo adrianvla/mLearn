@@ -136,6 +136,7 @@ const mLearnIPC = {
   // ========== Knowledge Events ==========
   recordLearningDecision: (decision: LearningDecision): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.LEARNING_DECISION_RECORD, decision),
   getLearningDecisionRecord: (id: string): Promise<LearningDecisionRecord | null> => ipcRenderer.invoke(IPC_CHANNELS.LEARNING_DECISION_GET, id),
+  getRatingUndoHistory: (surface: string): Promise<import('../shared/retractionRecovery').PendingRetraction[]> => ipcRenderer.invoke(IPC_CHANNELS.RATING_UNDO_HISTORY, surface),
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog): Promise<boolean> =>
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, eventsByKey),
   queryKnowledgeEvents: (keys: string[]): Promise<KnowledgeEventLog> => readKnowledgeEventPages(keys),

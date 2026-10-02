@@ -275,6 +275,10 @@ export function setupKnowledgeEventsIPC(): void {
     if (typeof id !== 'string' || !id) throw new Error('Invalid learning decision identity');
     return ensureStore().getLearningDecisionRecord(id);
   });
+  ipcMain.handle(IPC_CHANNELS.RATING_UNDO_HISTORY, async (_event, surface: string) => {
+    await whenKnowledgeEventsReady();
+    return ensureStore().getRatingUndoHistory(surface);
+  });
 
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_APPEND, async (_event, eventsByKey: KnowledgeEventLog) => {
     // TEMP DIAGNOSTIC: opt-in via the mlearn.ratingTrace file flag, since the

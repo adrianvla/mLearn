@@ -50,6 +50,7 @@ export interface MLearnIPC {
   // Knowledge events
   recordLearningDecision: (decision: LearningDecision) => Promise<void>;
   getLearningDecisionRecord: (id: string) => Promise<LearningDecisionRecord | null>;
+  getRatingUndoHistory: (surface: string) => Promise<import('./retractionRecovery').PendingRetraction[]>;
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
   queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeItemEvents: (keys: string[]) => Promise<KnowledgeEventLog>;

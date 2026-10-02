@@ -1815,6 +1815,9 @@ async function serializeLearningDecision(id: string, operation: () => Promise<vo
 }
 
 const knowledgeEventsBridge: KnowledgeEventsBridge = {
+  // This history is owned by atomic rating receipts, which this bridge does
+  // not yet produce. Do not manufacture a rollback from hydrated card state.
+  async getRatingUndoHistory() { return []; },
   async recordLearningDecision(decision: LearningDecision) {
     if (!isLearningDecision(decision)) throw new Error('Malformed learning decision');
     const key = `learning-decision:${decision.id}`;

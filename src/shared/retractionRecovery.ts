@@ -41,6 +41,9 @@ export interface RetractionReplayDescriptor {
   [field: string]: unknown;
 }
 
+/** Recent completed actions offered by a surface, independently of journal size. */
+export const MAX_RETRACTION_HISTORY = 50;
+
 export interface RetractionTarget {
   /**
    * Exact journal keys the attempt being retracted was written to. These are

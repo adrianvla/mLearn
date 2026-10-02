@@ -85,6 +85,7 @@ const mockBridge = {
   },
   knowledgeEvents: {
     recordLearningDecision: vi.fn().mockResolvedValue(undefined),
+    getRatingUndoHistory: vi.fn().mockResolvedValue([]),
     queryKnowledgeEvents: knowledgeJournal.queryKnowledgeEvents,
     queryKnowledgeItemEvents: knowledgeJournal.queryKnowledgeItemEvents,
     getGrammarProjections: knowledgeJournal.getGrammarProjections,
@@ -97,6 +98,8 @@ const mockBridge = {
     queryAnkiReviewIdSets: knowledgeJournal.queryAnkiReviewIdSets,
   },
 };
+
+let savedReviewUndos: NonNullable<FlashcardRatingCommand['undo']>[] = [];
 
 /**
  * The main process's flashcard authority: the committed revision, the
@@ -741,8 +744,15 @@ function resetProviderTestHarness() {
     mockBridge.flashcards.commitFlashcardRating.mockReset().mockImplementation(async (command: FlashcardRatingCommand) => {
       if (await mockAppendEvents(command.events) === false) throw new Error('rating journal append was refused');
       const rev = await mockBridge.flashcards.saveFlashcardPatch(command.patch);
+      if (command.undo && !savedReviewUndos.some(record => record.attemptId === command.attemptId)) {
+        savedReviewUndos.unshift(structuredClone(command.undo));
+      }
       return { patch: command.patch, rev, attemptIds: [command.attemptId] };
     });
+    savedReviewUndos = [];
+    mockBridge.knowledgeEvents.getRatingUndoHistory.mockReset().mockImplementation(async () =>
+      savedReviewUndos.filter(record => !Object.values(knowledgeJournal.allRows()).flat()
+        .some(event => event.retracts === record.attemptId)));
     // Patches are applied to the committed authority, including peer edits.
     mockBridge.flashcards.saveFlashcardPatch.mockReset().mockImplementation((patch: StorePatch, removals, reset, authorization) => {
       const target = structuredClone(committed ?? delivered ?? makeEmptyStore());
@@ -1794,6 +1804,109 @@ describe('FlashcardProvider', () => {
       dispose?.();
       vi.unstubAllGlobals();
     }
+  });
+
+  it('keeps Undo retryable when loading saved history fails instead of treating the failure as empty history', async () => {
+    mockBridge.knowledgeEvents.getRatingUndoHistory.mockRejectedValue(new Error('saved Undo unavailable'));
+    const { ctx, dispose } = await mountProvider();
+    seed(makeEmptyStore());
+    await vi.waitFor(() => expect(ctx.canUndo()).toBe(true));
+    await expect(ctx.undoLastAction()).rejects.toThrow('saved Undo unavailable');
+    expect(ctx.store.pendingRetraction).toBeUndefined();
+    mockBridge.knowledgeEvents.getRatingUndoHistory.mockResolvedValue([]);
+    await expect(ctx.undoLastAction()).resolves.toBeNull();
+    expect(ctx.canUndo()).toBe(false);
+    dispose();
+  });
+
+  it('offers a completed response Undo after restart and preserves subsequent authored edits and other-card totals', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'completed-restart', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000 });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating(card.content.front, [], { attemptId: 'completed-original' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' } });
+    expect(savedReviewUndos).toHaveLength(1);
+    const submittedUndo = structuredClone(savedReviewUndos[0]);
+    const saved = structuredClone(committed!);
+    saved.flashcards[card.id].content.back = 'later authored answer';
+    saved.meta.perLanguage.ja.reviewsToday += 2;
+    const today = (submittedUndo.restore as { today: string }).today;
+    saved.dailyStats[today].ja.reviewCardsStudied += 2;
+    dispose();
+
+    const reopened = await mountProvider();
+    seed(saved);
+    await vi.waitFor(() => expect(reopened.ctx.canUndo()).toBe(true));
+    await reopened.ctx.undoLastAction();
+    expect(reopened.ctx.store.flashcards[card.id].reviews).toBe(3);
+    expect(reopened.ctx.store.flashcards[card.id].content.back).toBe('later authored answer');
+    expect(reopened.ctx.store.meta.perLanguage.ja.reviewsToday).toBe(2);
+    expect(reopened.ctx.store.dailyStats[today].ja.reviewCardsStudied).toBe(2);
+    expect(reopened.ctx.store.pendingRetraction).toBeUndefined();
+    expect(reopened.ctx.canUndo()).toBe(false);
+    expect(Object.values(knowledgeJournal.allRows()).flat().filter(row => row.retracts === 'completed-original')).toHaveLength(1);
+    reopened.dispose();
+  });
+
+  it('refuses a stale completed rollback before persisting or retracting when that card was rated again', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'completed-peer', state: 'review', reviews: 3 });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating(card.content.front, [], { attemptId: 'completed-stale' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' } });
+    const peer = structuredClone(committed!);
+    peer.flashcards[card.id].reviews += 1;
+    peer.rev = (peer.rev ?? 0) + 1;
+    seed(peer);
+    expect(ctx.canUndo()).toBe(false);
+    const before = mockBridge.flashcards.saveFlashcards.mock.calls.length;
+    await expect(ctx.undoLastAction()).resolves.toBeNull();
+    expect(mockBridge.flashcards.saveFlashcards).toHaveBeenCalledTimes(before);
+    expect(Object.values(knowledgeJournal.allRows()).flat().some(row => row.retracts === 'completed-stale')).toBe(false);
+    dispose();
+  });
+
+  it('checks refreshed authority before recording a completed Undo or retracting its evidence', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'completed-stale-authority', state: 'review', reviews: 3 });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating(card.content.front, [], { attemptId: 'stale-authority-original' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' } });
+    committed!.flashcards[card.id].reviews += 1;
+    committed!.rev = ++revision;
+    answerProbesFromAuthority();
+    await expect(ctx.undoLastAction()).rejects.toThrow(/persistence was refused/);
+    expect(committed!.pendingRetraction).toBeUndefined();
+    expect(committed!.flashcards[card.id].reviews).toBe(5);
+    expect(Object.values(knowledgeJournal.allRows()).flat().some(row => row.retracts === 'stale-authority-original')).toBe(false);
+    dispose();
+  });
+
+  it('recomputes an Undo on newer authored content and unrelated totals when its final save rebases', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'completed-projection-rebase', state: 'review', reviews: 3 });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    await ctx.submitRating(card.content.front, [], { attemptId: 'projection-rebase-original' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' } });
+    const today = (savedReviewUndos[0].restore as { today: string }).today;
+    answerProbesFromAuthority();
+    const originalAppend = mockAppendEvents.getMockImplementation()!;
+    mockAppendEvents.mockImplementationOnce(async events => {
+      const result = await originalAppend(events);
+      committed!.flashcards[card.id].content.back = 'peer authored answer during Undo';
+      committed!.meta.perLanguage.ja.reviewsToday += 2;
+      committed!.dailyStats[today].ja.reviewCardsStudied += 2;
+      committed!.rev = ++revision;
+      return result;
+    });
+    await ctx.undoLastAction();
+    expect(committed!.flashcards[card.id].reviews).toBe(3);
+    expect(committed!.flashcards[card.id].content.back).toBe('peer authored answer during Undo');
+    expect(committed!.meta.perLanguage.ja.reviewsToday).toBe(2);
+    expect(committed!.dailyStats[today].ja.reviewCardsStudied).toBe(2);
+    expect(committed!.pendingRetraction).toBeUndefined();
+    dispose();
   });
 
   it('persists rating Undo through navigation and a provider restart', async () => {

@@ -9,6 +9,7 @@ import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset'
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, batch } from 'solid-js';
 import { pushUndo } from '../learning/undoHistory';
+import { restoreReviewResponse, validateReviewResponseUndo, type ReviewUndoProjection } from '../../shared/flashcardReviewUndo';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
 import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewPresentation, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PerLanguageMeta } from '../../shared/types';
@@ -191,16 +192,6 @@ export type RetractionProjection = ((
   target: FlashcardStore,
 ) => void) & { authorization?: FlashcardWriteAuthorization };
 
-interface ReviewUndoProjection {
-  cardId: string;
-  type: string;
-  restoreCard: Flashcard;
-  restorePerLanguage: PerLanguageMeta | null;
-  today: string;
-  restoreDailyStats: DailyStudyStats | null;
-  scaffolds?: AttemptScaffolds;
-}
-
 // Undo stack entry
 interface UndoEntry {
   scaffolds?: AttemptScaffolds;
@@ -209,6 +200,7 @@ interface UndoEntry {
   cardId?: string;
   restoreCard?: Flashcard;
   reviewUndo?: PendingRetraction;
+  durableReview?: boolean;
   reviewUndoAuthorization?: FlashcardWriteAuthorization;
 }
 
@@ -705,6 +697,32 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const studyableCards = createMemo(() => Object.fromEntries(Object.entries(store.flashcards)
     .filter(([, card]) => !isWordIgnoredSync(card.content.front, card.language || settings.language))));
   const [undoStack, setUndoStack] = createSignal<UndoEntry[]>([]);
+  const [completedReviewUndos, setCompletedReviewUndos] = createSignal<PendingRetraction[]>([]);
+  const [undoHistoryLoadFailed, setUndoHistoryLoadFailed] = createSignal(false);
+  let undoHistoryRequest = 0;
+  const refreshCompletedReviewUndos = async (): Promise<PendingRetraction[]> => {
+    const request = ++undoHistoryRequest;
+    try {
+      const records = await getBridge().knowledgeEvents.getRatingUndoHistory('flashcard-review');
+      if (!disposed && request === undoHistoryRequest) {
+        setCompletedReviewUndos(records);
+        setUndoHistoryLoadFailed(false);
+      }
+      return records;
+    } catch (error) {
+      if (!disposed && request === undoHistoryRequest) setUndoHistoryLoadFailed(true);
+      throw error;
+    }
+  };
+  const requestCompletedReviewUndos = (): void => {
+    void refreshCompletedReviewUndos().catch(error => log.warn('Failed to load completed review Undo:', error));
+  };
+  const reviewUndoIsApplicable = (record: PendingRetraction): boolean => {
+    try {
+      validateReviewResponseUndo(store, record.restore as ReviewUndoProjection);
+      return true;
+    } catch { return false; }
+  };
   let ratingCommandInFlight = false;
   // Retained only until a command's ACK (or ownership transfer to the
   // background command queue). A retry is the same physical encounter, even if a peer
@@ -780,6 +798,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }));
       refreshQueue();
     });
+    requestCompletedReviewUndos();
   };
   // Used for tracking session start time (could be used for session stats)
   const [, setSessionStartTime] = createSignal<number>(0);
@@ -938,6 +957,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       void recoverPendingRetraction();
     }
     storeHydrated = true;
+    requestCompletedReviewUndos();
     refreshQueue();
     setIsLoading(false);
   };
@@ -1808,14 +1828,20 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   // Undo last action
   const undoLastAction = async (): Promise<string | null> => {
     const stack = undoStack();
-    const entry = stack[stack.length - 1];
-    const pendingUndo = readPendingRetraction(store.pendingRetraction) ?? entry?.reviewUndo;
-    if (!entry && !pendingUndo) return null;
+    let entry: UndoEntry | undefined = stack[stack.length - 1];
     if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
     ratingCommandInFlight = true;
     try {
       await flushBackgroundRatings();
+      const history = await refreshCompletedReviewUndos();
+      const persisted = history.find(reviewUndoIsApplicable);
+      const pendingUndo = readPendingRetraction(store.pendingRetraction)
+        ?? (entry && !entry.reviewUndo ? undefined : persisted)
+        ?? (entry?.durableReview ? undefined : entry?.reviewUndo);
+      if (!entry && !pendingUndo) return null;
+      if (entry?.durableReview && !pendingUndo) return null;
       if (pendingUndo) {
+        entry = stack.find(value => value.reviewUndo?.attemptId === pendingUndo.attemptId);
         return await finishReviewRetraction(pendingUndo, entry);
       }
 
@@ -1845,7 +1871,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         throw new Error('undo persistence was refused');
       }
       if (entry) setUndoStack((previous) => {
-        const index = previous.lastIndexOf(entry);
+        const index = previous.lastIndexOf(entry!);
         return index < 0 ? previous : [...previous.slice(0, index), ...previous.slice(index + 1)];
       });
       refreshQueue();
@@ -1856,7 +1882,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }
   };
 
-  const canUndo = () => undoStack().length > 0 || store.pendingRetraction !== undefined;
+  const canUndo = () => store.pendingRetraction !== undefined
+    || undoHistoryLoadFailed()
+    || completedReviewUndos().some(reviewUndoIsApplicable)
+    || undoStack().some(entry => !entry.durableReview && (!entry.reviewUndo || reviewUndoIsApplicable(entry.reviewUndo)));
 
   // Add new flashcard - now supports multiple cards per word
   // When use_anki is enabled, shows a choice modal (SRS vs Anki) before creation
@@ -2509,6 +2538,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         remainsQueued ? 'answer-requeued' : 'answer', language, options.scaffolds,
       ),
     };
+    Object.assign(undo.reviewUndo!.restore as ReviewUndoProjection, {
+      expectedCard: JSON.parse(JSON.stringify(updated)) as Flashcard,
+      counterDeltas: ratingCounterDeltas(patch?.build(0) ?? { baseRev: 0, entries: [] })
+        .filter(({ path }) => path[0] !== 'flashcards'),
+    });
     return { completed: !remainsQueued, nextQueue, event, undo, updated };
   };
 
@@ -4394,6 +4428,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         // Persistence applies the declared entries to its current snapshot.
         if (atomicScheduler) {
           const envelope = admittedRatingCommands.get(attemptId)!;
+          schedulerResult.undo.durableReview = true;
           envelope.schedulerOutcome ??= JSON.parse(JSON.stringify({
             undo: schedulerResult.undo, completed: schedulerResult.completed, updated: schedulerResult.updated,
           })) as NonNullable<typeof envelope.schedulerOutcome>;
@@ -4402,6 +4437,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           schedulerResult = { ...schedulerResult, ...envelope.schedulerOutcome };
           envelope.command ??= JSON.parse(JSON.stringify({
             attemptId, decisionId: options?.decision?.id, events: eventsByKey, patch: patchRecorder.build(commandBase.rev ?? 0),
+            undo: { ...schedulerResult.undo.reviewUndo!, target: {
+              ...wordRetractionTarget(word, language), keys: Object.keys(eventsByKey),
+            } },
             ...(options?.decision ? { presentation: { cardId: scheduler!.cardId, language, surface: word,
               ...(options.decision.selected.presentation?.contentVersion !== undefined
                 ? { contentVersion: SRS.hashWordSync(JSON.stringify(card!.content)) } : {}) } } : {}),
@@ -4590,8 +4628,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    * the rating is untouched and the surface can tell the learner their Undo did
    * not happen rather than letting them believe it landed.
    */
-  const recordPendingRetraction = async (record: PendingRetraction): Promise<boolean> =>
+  const recordPendingRetraction = async (record: PendingRetraction, validate?: (target: FlashcardStore) => void): Promise<boolean> =>
     saveFlashcardsImmediate((target, intent) => {
+      validate?.(target);
       const existing = readPendingRetraction(target.pendingRetraction);
       if (existing && existing.attemptId !== record.attemptId) {
         throw new Error('A different Undo is already awaiting recovery');
@@ -4599,7 +4638,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const recorded = clonePendingRetraction(record);
       target.pendingRetraction = recorded;
       intent.pendingRetraction = JSON.parse(JSON.stringify(recorded)) as unknown;
-    });
+    }, undefined, undefined, { removedCardIds: [], recomputeOnRebase: true, validate: target => {
+      try {
+        validate?.(target);
+        const pending = readPendingRetraction(target.pendingRetraction);
+        return !pending || pending.attemptId === record.attemptId;
+      } catch { return false; }
+    } });
 
   /**
    * Finishes a recorded retraction: appends the journal tombstones, then lets
@@ -4660,7 +4705,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         cloneFlashcardStore(unwrap(store) as FlashcardStore) as unknown as Record<string, unknown>,
         target as unknown as Record<string, unknown>,
       );
-    }, project?.authorization)) {
+    }, project?.authorization, undefined, { removedCardIds: [], recomputeOnRebase: true,
+      validate: target => readPendingRetraction(target.pendingRetraction)?.attemptId === record.attemptId })) {
       return 'store-refused';
     }
     return 'completed';
@@ -4723,20 +4769,21 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   ): void => {
     const restore = record.restore as ReviewUndoProjection | null;
     if (!restore?.restoreCard) throw new Error('The pending review Undo has no card to restore');
-    target.flashcards[restore.cardId] = { ...restore.restoreCard, content: { ...restore.restoreCard.content } };
+    if (restore.expectedCard) restoreReviewResponse(target, restore);
+    else target.flashcards[restore.cardId] = { ...restore.restoreCard, content: { ...restore.restoreCard.content } };
     (target.meta.reviewPresentations ??= {})[record.language] = {
       id: record.attemptId, cardId: restore.cardId,
       ...(restore.scaffolds ? { scaffolds: { ...restore.scaffolds } } : {}),
     };
-    if (restore.restorePerLanguage) {
+    if (!restore.expectedCard && restore.restorePerLanguage) {
       target.meta.perLanguage[record.language] = { ...restore.restorePerLanguage };
-    } else {
+    } else if (!restore.expectedCard) {
       delete target.meta.perLanguage[record.language];
     }
     const today = restore.today;
-    if (restore.restoreDailyStats) {
+    if (!restore.expectedCard && restore.restoreDailyStats) {
       (target.dailyStats[today] ??= {})[record.language] = { ...restore.restoreDailyStats };
-    } else if (target.dailyStats[today]) {
+    } else if (!restore.expectedCard && target.dailyStats[today]) {
       delete target.dailyStats[today][record.language];
       if (Object.keys(target.dailyStats[today]).length === 0) delete target.dailyStats[today];
     }
@@ -4800,7 +4847,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
    * step, so an interrupted Undo is either fully undone or still recorded.
    */
   const finishReviewRetraction = async (record: PendingRetraction, entry?: UndoEntry): Promise<string> => {
-    if (!await recordPendingRetraction(record)) {
+    validateReviewResponseUndo(unwrap(store) as FlashcardStore, record.restore as ReviewUndoProjection);
+    if (!await recordPendingRetraction(record, target => validateReviewResponseUndo(target, record.restore as ReviewUndoProjection))) {
       throw new Error('undo recovery record persistence was refused');
     }
     const outcome = await completePendingRetraction(record, reviewProjection);
@@ -4812,6 +4860,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       return index < 0 ? previous : [...previous.slice(0, index), ...previous.slice(index + 1)];
     });
     refreshQueue();
+    await refreshCompletedReviewUndos().catch(error => log.warn('Failed to refresh completed review Undo:', error));
     return (record.restore as ReviewUndoProjection).type;
   };
 

@@ -12,6 +12,7 @@ function createMockIPC() {
     commitFlashcardRating: vi.fn(),
     recordLearningDecision: vi.fn(),
     getLearningDecisionRecord: vi.fn(),
+    getRatingUndoHistory: vi.fn(),
     onFlashcards: vi.fn(),
     onFlashcardLoadError: vi.fn(),
     onNewDayFlashcards: vi.fn(),
@@ -201,6 +202,9 @@ describe('createElectronBridge', () => {
     await bridge.knowledgeEvents.recordLearningDecision(decision);
     expect(mockIPC.recordLearningDecision).toHaveBeenCalledWith(decision);
     await expect(bridge.knowledgeEvents.getLearningDecisionRecord('choice')).resolves.toEqual({ decision, attempts: [] });
+    mockIPC.getRatingUndoHistory.mockResolvedValueOnce([]);
+    await expect(bridge.knowledgeEvents.getRatingUndoHistory('future-surface')).resolves.toEqual([]);
+    expect(mockIPC.getRatingUndoHistory).toHaveBeenCalledWith('future-surface');
   });
 
   it('returns an object with all 20 sub-bridge keys', () => {

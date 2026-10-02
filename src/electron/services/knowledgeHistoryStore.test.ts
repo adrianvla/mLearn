@@ -14,6 +14,41 @@ import { COMPACTION_KEY_BUDGET, KnowledgeHistoryStore, isKnowledgeEvent } from '
 const DAY = 24 * 60 * 60 * 1000;
 
 describe('durable rating command ownership', () => {
+  it('retains opaque Undo only for completed commands across restart and consumes it with its exact tombstone', () => {
+    const file = path.join(dir, 'completed-undo.sqlite3');
+    const undo = { attemptId: 'undo-owned', surface: 'future-surface', word: 'cue', language: 'xx',
+      attemptIds: ['undo-owned'], target: { keys: ['xx:cue'], replay: { kind: 'future', opaque: { unknown: [4] } } },
+      restore: { unknownCategory: { structured: ['future', 3] } } };
+    const first = KnowledgeHistoryStore.open(file);
+    first.reserveRatingCommand({ attemptId: undo.attemptId, undo, events: {}, patch: { baseRev: 0, entries: [] } });
+    expect(first.getRatingUndoHistory('future-surface')).toEqual([]);
+    first.completeRatingCommands(1, 1);
+    first.close();
+    const reopened = KnowledgeHistoryStore.open(file);
+    expect(reopened.getRatingUndoHistory('future-surface')).toEqual([undo]);
+    expect(reopened.getRatingUndoHistory('other-surface')).toEqual([]);
+    reopened.appendEvents({ 'xx:wrong-key': [{ t: 1, kind: 'retraction', source: 'manual', retracts: undo.attemptId }] });
+    expect(reopened.getRatingUndoHistory('future-surface')).toEqual([undo]);
+    reopened.appendEvents({ 'xx:cue': [{ t: 2, kind: 'retraction', source: 'manual', retracts: undo.attemptId }] });
+    expect(reopened.getRatingUndoHistory('future-surface')).toEqual([]);
+    reopened.close();
+  });
+
+  it('bounds completed Undo history and rejects a rollback that belongs to another response', () => {
+    const s = store();
+    const undo = { attemptId: 'wrong', surface: 'future', word: '', language: 'xx', attemptIds: ['wrong'], restore: {} };
+    expect(() => s.reserveRatingCommand({ attemptId: 'actual', undo, events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/Undo/);
+    for (let i = 0; i < 55; i++) {
+      const attemptId = `response-${i}`;
+      s.reserveRatingCommand({ attemptId, undo: { ...undo, attemptId, attemptIds: [attemptId] }, events: {}, patch: { baseRev: 0, entries: [] } });
+    }
+    s.completeRatingCommands(55, 2);
+    const records = s.getRatingUndoHistory('future');
+    expect(records).toHaveLength(50);
+    expect(records[0].attemptId).toBe('response-54');
+    expect(records.at(-1)?.attemptId).toBe('response-5');
+    s.close();
+  });
   it('pins an immutable decision before presentation and joins an assisted command without adding ability evidence', () => {
     const file = path.join(dir, 'decision-audit.sqlite3');
     const decision: LearningDecision = { id: 'choice-before-cue', at: 20, policyVersion: 'future-policy',
