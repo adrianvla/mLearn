@@ -2271,6 +2271,29 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('preserves opaque preference metadata and orders re-exclusion when removing the last card', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'remove-with-preference', language: 'package-x',
+      content: { type: 'word', front: 'target', back: 'authored explanation' } });
+    const key = `package-x:${SRS.hashWordSync('target')}`;
+    const previous = { word: 'target', reading: 'retained reading', language: 'package-x', ignoredAt: 10,
+      excluded: false, updatedAt: Date.now() + 10000,
+      'third-party:unfamiliar-feature': { scope: { participants: ['unknown-role'] }, value: [false, { nested: [3] }] } };
+    seed(makeEmptyStore({ flashcards: { [card.id]: card }, wordToCardMap: { [key]: [card.id] },
+      ignoredWords: { [key]: previous } }));
+    try {
+      await expect(ctx.removeFlashcard(card.id, true)).resolves.toBe(true);
+      expect(ctx.store.ignoredWords[key]).toMatchObject({ reading: previous.reading, excluded: true,
+        'third-party:unfamiliar-feature': previous['third-party:unfamiliar-feature'] });
+      expect(ctx.store.ignoredWords[key].updatedAt).toBeGreaterThan(previous.updatedAt);
+      await new Promise(resolve => setTimeout(resolve, SAVE_DEBOUNCE_MS_FOR_TESTS));
+      const serialized = JSON.parse(JSON.stringify(acceptedSaves.at(-1))) as FlashcardStore;
+      expect(serialized.ignoredWords[key]).toMatchObject({ reading: previous.reading, excluded: true,
+        'third-party:unfamiliar-feature': previous['third-party:unfamiliar-feature'] });
+      expect(serialized.flashcards[card.id]).toBeUndefined();
+    } finally { dispose(); }
+  });
+
   it('removeFlashcard returns false for nonexistent card', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
@@ -3136,6 +3159,35 @@ describe('FlashcardProvider', () => {
     } finally { dispose(); }
   });
 
+  it.each(['exclude', 'withdraw'] as const)('preserves opaque package metadata and reading when a learner first chooses to %s', async firstAction => {
+    const { ctx, dispose } = await mountProvider();
+    const key = `package-x:${SRS.hashWordSync('target')}`;
+    const entry = { word: 'target', reading: 'package reading', language: 'package-x',
+      ignoredAt: 10, updatedAt: 10, excluded: firstAction === 'withdraw',
+      'third-party:unfamiliar-feature': { participants: ['speaker', 'listener'],
+        conditions: [{ scope: { spans: [[2, 5]] }, values: ['unknown-class', { nested: true }] }] } };
+    seed(makeEmptyStore({ ignoredWords: { [key]: entry } }));
+    const expectedMetadata = { reading: entry.reading,
+      'third-party:unfamiliar-feature': entry['third-party:unfamiliar-feature'] };
+    const assertPreserved = (excluded: boolean) => {
+      expect(ctx.store.ignoredWords[key]).toMatchObject({ ...expectedMetadata, excluded });
+      const serialized = JSON.parse(JSON.stringify(acceptedSaves.at(-1))) as FlashcardStore;
+      expect(serialized.ignoredWords[key]).toMatchObject({ ...expectedMetadata, excluded });
+    };
+    try {
+      if (firstAction === 'exclude') await ctx.ignoreWordForLanguage('target', undefined, 'package-x');
+      else await ctx.unignoreWordForLanguage('target', 'package-x');
+      assertPreserved(firstAction === 'exclude');
+      await ctx.unignoreWordForLanguage('target', 'package-x');
+      assertPreserved(false);
+      await ctx.ignoreWordForLanguage('target', undefined, 'package-x');
+      assertPreserved(true);
+      await ctx.ignoreWordForLanguage('target', 'corrected package reading', 'package-x');
+      expect(ctx.store.ignoredWords[key]).toMatchObject({ reading: 'corrected package reading',
+        'third-party:unfamiliar-feature': entry['third-party:unfamiliar-feature'], excluded: true });
+    } finally { dispose(); }
+  });
+
   it('publishes study exclusion and withdrawal only after their durable acknowledgment', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'exclusion-ack', language: 'ja', state: 'review', reviews: 9,
@@ -3165,16 +3217,20 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const alias = `package-x:${SRS.hashWordSync('variant')}`;
     const foreign = `package-y:${SRS.hashWordSync('variant')}`;
+    const aliasPreference = { word: 'variant', reading: 'alias reading', language: 'package-x', ignoredAt: 10,
+      'third-party:unfamiliar-feature': { dependentValues: [{ relation: 'unregistered', values: [1, 'opaque'] }] } };
     const card = makeCard({ id: 'alias-card', language: 'package-x', content: { type: 'word', front: 'variant', back: 'authored' } });
     flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card }, ignoredWords: {
-      [alias]: { word: 'variant', language: 'package-x', ignoredAt: 10 },
+      [alias]: aliasPreference,
       [foreign]: { word: 'variant', language: 'package-y', ignoredAt: 10 },
     } }));
     try {
       expect(ctx.isWordIgnoredSync('variant', 'package-x')).toBe(true);
       expect(ctx.getStudyableCards()[card.id]).toBeUndefined();
       await ctx.unignoreWordForLanguage('variant', 'package-x');
-      expect(ctx.store.ignoredWords[alias]).toMatchObject({ excluded: false });
+      expect(ctx.store.ignoredWords[alias]).toMatchObject({ ...aliasPreference, excluded: false });
+      const serialized = JSON.parse(JSON.stringify(acceptedSaves.at(-1))) as FlashcardStore;
+      expect(serialized.ignoredWords[alias]).toMatchObject({ ...aliasPreference, excluded: false });
       expect(ctx.isWordIgnoredSync('variant', 'package-x')).toBe(false);
       expect(ctx.isWordIgnoredSync('variant', 'package-y')).toBe(true);
       expect(ctx.getStudyableCards()[card.id]).toMatchObject(card);

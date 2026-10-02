@@ -2161,11 +2161,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           if (neverShowAgain) {
             // Exclusion policy only — never an epistemic claim. The word's
             // knowledge state stays exactly what its evidence says.
+            const previous = s.ignoredWords[lk];
             s.ignoredWords[lk] = {
+              ...previous,
               word,
-              reading: card.content.reading,
+              ...(card.content.reading !== undefined ? { reading: card.content.reading } : {}),
               language: lang,
               ignoredAt: Date.now(),
+              excluded: true,
+              updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? previous?.ignoredAt ?? 0) + 1),
             };
           }
         } else {
@@ -3516,7 +3520,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
     if (!await saveFlashcardsImmediate((target, intent) => {
       const previous = target.ignoredWords[lk];
-      const exclusion: IgnoredWordEntry = { word: storageWord, reading, language: lang,
+      const exclusion: IgnoredWordEntry = { ...previous, word: storageWord,
+        ...(reading !== undefined ? { reading } : {}), language: lang,
         ignoredAt: Date.now(), excluded: true,
         updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? previous?.ignoredAt ?? 0) + 1) };
       target.ignoredWords[lk] = exclusion;
@@ -3540,6 +3545,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const previous = target.ignoredWords[key];
         if (key !== lk && !previous) continue;
         const withdrawal: IgnoredWordEntry = {
+          ...previous,
           word: previous?.word ?? storageWord, language: lang,
           ignoredAt: previous?.ignoredAt ?? Date.now(), excluded: false,
           updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? previous?.ignoredAt ?? 0) + 1),
