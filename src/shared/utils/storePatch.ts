@@ -23,6 +23,8 @@ export interface StorePatchEntry {
   readonly before: unknown;
   /** The entry as the command left it. */
   readonly after: unknown;
+  /** Apply only while the current scalar owner still matches this command. */
+  readonly condition?: { readonly path: readonly string[]; readonly equals: string | number | boolean | null };
 }
 
 export interface StorePatch {
@@ -66,8 +68,9 @@ export class StorePatchRecorder {
   }
 
   /** Records a delete of `path`. */
-  remove(path: readonly string[]): void {
-    this.entries.set(pathKey(path), { path: [...path], before: copyValue(getStorePath(this.base, path)), after: undefined });
+  remove(path: readonly string[], condition?: StorePatchEntry['condition']): void {
+    this.entries.set(pathKey(path), { path: [...path], before: copyValue(getStorePath(this.base, path)), after: undefined,
+      ...(condition ? { condition: { path: [...condition.path], equals: condition.equals } } : {}) });
   }
 
   /** Whether anything has been recorded yet. */
@@ -83,6 +86,7 @@ export class StorePatchRecorder {
         path: [...entry.path],
         before: entry.before,
         after: entry.after,
+        ...(entry.condition ? { condition: { path: [...entry.condition.path], equals: entry.condition.equals } } : {}),
       })),
     };
   }
@@ -127,6 +131,7 @@ export function copyStoreWithPatch<T extends object>(source: T, patch: StorePatc
   const result = { ...source } as Record<string, unknown>;
   const copied = new Set<object>();
   for (const entry of patch.entries) {
+    if (!conditionMatches(result, entry)) continue;
     let cursor = result;
     for (const segment of entry.path.slice(0, -1)) {
       const current = cursor[segment];
@@ -161,6 +166,10 @@ export function applyStorePatchInPlace(target: Record<string, unknown>, patch: S
   applyPatch(target, patch, mergeEntryInPlace);
 }
 
+function conditionMatches(target: Record<string, unknown>, entry: StorePatchEntry): boolean {
+  return !entry.condition || Object.is(getStorePath(target, entry.condition.path), entry.condition.equals);
+}
+
 function applyPatch(
   target: Record<string, unknown>,
   patch: StorePatch | readonly StorePatchEntry[],
@@ -169,8 +178,9 @@ function applyPatch(
   const entries: readonly StorePatchEntry[] = Array.isArray(patch)
     ? patch as readonly StorePatchEntry[]
     : (patch as StorePatch).entries;
-  for (const { path, before, after } of entries) {
-    if (path.length === 0) continue;
+  for (const entry of entries) {
+    const { path, before, after } = entry;
+    if (path.length === 0 || !conditionMatches(target, entry)) continue;
     let cursor: Record<string, unknown> = target;
     for (let index = 0; index < path.length - 1; index++) {
       const next = cursor[path[index]];

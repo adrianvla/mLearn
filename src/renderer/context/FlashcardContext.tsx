@@ -197,11 +197,14 @@ interface ReviewUndoProjection {
   restorePerLanguage: PerLanguageMeta | null;
   today: string;
   restoreDailyStats: DailyStudyStats | null;
+  scaffolds?: AttemptScaffolds;
 }
 
 // Undo stack entry
 interface UndoEntry {
+  scaffolds?: AttemptScaffolds;
   type: string;
+  language?: string;
   cardId?: string;
   restoreCard?: Flashcard;
   reviewUndo?: PendingRetraction;
@@ -664,6 +667,12 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [] });
   const [undoStack, setUndoStack] = createSignal<UndoEntry[]>([]);
   let ratingCommandInFlight = false;
+  // Retained only until a command's ACK (or ownership transfer to the
+  // background command queue). A retry is the same physical encounter, even if a peer
+  // has meanwhile consumed its restored presentation.
+  const admittedRatingCommands = new Map<AttemptId, {
+    word: string; observations: readonly AttemptObservation[]; options: RatingSubmissionOptions; presentationId?: string; cardFront?: string;
+  }>();
   let pendingRecoveryRequested = false;
   let persistenceQueue: Promise<void> = Promise.resolve();
   let authoritativeStore: FlashcardStore | undefined;
@@ -1679,9 +1688,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const pushUndoState = (options: { type: string; cardId: string }) => {
     const card = store.flashcards[options.cardId];
     if (!card) return;
+    const language = card.language || settings.language;
+    const restored = store.meta.reviewPresentations?.[language];
+    const scaffolds = restored?.cardId === card.id && restored.scaffolds
+      ? { ...restored.scaffolds } : undefined;
     setUndoStack((prev) => {
       return pushUndo(prev, {
         type: options.type,
+        language,
+        ...(scaffolds ? { scaffolds } : {}),
         cardId: options.cardId,
         restoreCard: { ...card, content: { ...card.content } },
       });
@@ -1710,6 +1725,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const restoreCard = entry?.restoreCard
         ? JSON.parse(JSON.stringify(entry.restoreCard)) as Flashcard
         : null;
+      const restoreLanguage = entry?.language || restoreCard?.language || settings.language;
+      const presentationId = nextAttemptId();
       if (!await saveFlashcardsImmediate((target, intent) => {
         if (!restoreId || !restoreCard) return;
         const plain = JSON.parse(JSON.stringify(restoreCard)) as Flashcard;
@@ -1718,6 +1735,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         // record to replay says so, so a refusal can put the card back on top
         // of what another window committed instead of replacing it.
         intent.flashcards = { [restoreId]: plain };
+        const presentation = { id: presentationId, cardId: restoreId,
+          ...(entry?.scaffolds ? { scaffolds: { ...entry.scaffolds } } : {}) };
+        (target.meta.reviewPresentations ??= {})[restoreLanguage] = presentation;
+        intent.meta = { reviewPresentations: { [restoreLanguage]: presentation } };
       }, entry?.reviewUndoAuthorization)) {
         throw new Error('undo persistence was refused');
       }
@@ -2100,6 +2121,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     setStore(produce((s) => {
       // Remove from flashcards
       delete s.flashcards[id];
+      if (s.meta.reviewPresentations?.[lang]?.cardId === id) delete s.meta.reviewPresentations[lang];
       
       // Remove from wordToCardMap array
       if (s.wordToCardMap[lk]) {
@@ -2256,6 +2278,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     pushUndoState({ type: 'bury', cardId: id });
 
     setStore(produce((s) => {
+      const language = s.flashcards[id].language || settings.language;
+      if (s.meta.reviewPresentations?.[language]?.cardId === id) delete s.meta.reviewPresentations[language];
       s.flashcards[id] = SRS.buryCard(s.flashcards[id]);
     }));
 
@@ -2272,6 +2296,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     hasObservations: boolean,
     /** Declares each entry this command writes, as it writes it. */
     patch?: StorePatchRecorder,
+    /** Original return-position owner, including absence on first admission. */
+    presentationId?: string,
   ): { completed: boolean; nextQueue: ReviewQueue; event: KnowledgeEvent; undo: UndoEntry; updated: Flashcard } => {
     const card = target.flashcards[scheduler.cardId];
     if (!card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
@@ -2347,6 +2373,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const dailyBefore = target.dailyStats[today]?.[language]
       ? { ...target.dailyStats[today][language] }
       : null;
+    // The acknowledged scheduler transaction also consumes the restored
+    // presentation; assistance remains durable until this same write lands.
+    const restored = target.meta.reviewPresentations?.[language];
+    if (restored?.cardId === card.id && restored.id === presentationId) {
+      delete target.meta.reviewPresentations![language];
+      const path = ['meta', 'reviewPresentations', language];
+      patch?.remove(path, { path: [...path, 'id'], equals: restored.id });
+    }
     target.flashcards[card.id] = updated;
     const perLanguage = target.meta.perLanguage[language] ?? {
       newCardsToday: 0, reviewsToday: 0, newCardsDate: today,
@@ -2383,7 +2417,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       reviewUndoAuthorization: { kind: 'undo-review', cardId: card.id, restoredReviews: priorCard.reviews },
       reviewUndo: reviewRetraction(
         attemptId, card, priorCard, priorPerLanguage, today, dailyBefore,
-        remainsQueued ? 'answer-requeued' : 'answer',
+        remainsQueued ? 'answer-requeued' : 'answer', language, options.scaffolds,
       ),
     };
     return { completed: !remainsQueued, nextQueue, event, undo, updated };
@@ -4075,12 +4109,55 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     ratingCommandInFlight = true;
     try {
       await knowledgeInitialization;
+      const attemptId = options?.attemptId ?? nextAttemptId();
+      const admitted = admittedRatingCommands.get(attemptId);
+      if (admitted) {
+        if (word !== admitted.word || options?.scheduler?.cardId !== admitted.options.scheduler?.cardId) {
+          throw new Error('An admitted rating attempt cannot be rebound to another encounter');
+        }
+        observations = admitted.observations;
+        options = admitted.options;
+      } else if (admittedRatingCommands.size >= 16) {
+        // Never evict unresolved assistance into an unassisted retry.
+        throw new Error('Unresolved rating commands need retry before admitting another encounter');
+      }
       if (options?.selfAssessment && options.scheduler) throw new Error('A self-assessment cannot advance a review schedule');
       if (options?.selfAssessment && options.decision) throw new Error('A learner claim cannot be recorded as a task outcome');
-      const scheduler = options?.scheduler;
+      let scheduler = options?.scheduler;
       const card = scheduler ? store.flashcards[scheduler.cardId] : undefined;
       if (scheduler && !card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
-      const attemptId = options?.attemptId ?? nextAttemptId();
+      if (admitted && card) {
+        if (card.language && card.language !== admitted.options.language) {
+          throw new Error('The card no longer belongs to the admitted language');
+        }
+        if (card.content.front !== admitted.cardFront) {
+          throw new Error('The card no longer presents the admitted prompt');
+        }
+      }
+      const language = admitted?.options.language || card?.language || options?.language || settings.language;
+      options = { ...options, language };
+      const restored = scheduler ? store.meta.reviewPresentations?.[language] : undefined;
+      const presentationId = admitted ? admitted.presentationId
+        : restored?.cardId === scheduler?.cardId ? restored?.id : undefined;
+      if (!admitted && restored && scheduler && restored.cardId === scheduler.cardId) {
+        // Every review surface inherits the restored encounter's assistance.
+        // Caller flags cannot erase an already admitted cue, and consumption
+        // waits for the same acknowledged scheduler transaction.
+        const scaffolds = { ...options?.scaffolds };
+        for (const [key, value] of Object.entries(restored.scaffolds ?? {})) {
+          if (value === true) scaffolds[key] = true;
+        }
+        options = { ...options, language, scaffolds, persistence: 'immediate' };
+      }
+      if (!admitted) {
+        const envelope = JSON.parse(JSON.stringify({ word, observations, options, presentationId, cardFront: card?.content.front })) as {
+          word: string; observations: readonly AttemptObservation[]; options: RatingSubmissionOptions; presentationId?: string; cardFront?: string;
+        };
+        admittedRatingCommands.set(attemptId, envelope);
+        observations = envelope.observations;
+        options = envelope.options;
+      }
+      scheduler = options.scheduler;
       const prepared = observations.map(({ capability, quality, method }) =>
         options?.selfAssessment
           ? prepareSelfAssessment(word, capability, quality, { ...options, attemptId })
@@ -4128,7 +4205,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
       let schedulerResult: ReturnType<typeof applySchedulerRating> | undefined;
       if (scheduler) {
-        schedulerResult = applySchedulerRating(candidate, queue(), scheduler, attemptId, options ?? {}, observations.length > 0, patchRecorder);
+        schedulerResult = applySchedulerRating(candidate, queue(), scheduler, attemptId, options ?? {}, observations.length > 0, patchRecorder, presentationId);
         const cardLanguage = card!.language || options?.language || settings.language;
         const reviewKey = langKey(
           cardLanguage,
@@ -4188,7 +4265,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           throw new Error('scheduler persistence was refused');
         }
         __mark('storeWrite');
-        const schedulerLanguage = card!.language || settings.language;
+        const schedulerLanguage = card!.language || options?.language || settings.language;
         const statsKey = langKey(schedulerLanguage, SRS.hashWordSync(getPrimaryWordFormForLanguage(card!.content.front, schedulerLanguage)));
         batch(() => {
           if (background) setStore(produce(current => {
@@ -4243,6 +4320,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
       if (ratingTraceOn()) __rows.push({ label: 'rest', ms: performance.now() - __t0 });
       if (ratingTraceOn()) emitRatingTrace(__rows, performance.now() - __t0);
+      admittedRatingCommands.delete(attemptId);
       return { attemptId, completed: schedulerResult?.completed ?? true };
     } finally {
       ratingCommandInFlight = false;
@@ -4502,6 +4580,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const restore = record.restore as ReviewUndoProjection | null;
     if (!restore?.restoreCard) throw new Error('The pending review Undo has no card to restore');
     target.flashcards[restore.cardId] = { ...restore.restoreCard, content: { ...restore.restoreCard.content } };
+    (target.meta.reviewPresentations ??= {})[record.language] = {
+      id: record.attemptId, cardId: restore.cardId,
+      ...(restore.scaffolds ? { scaffolds: { ...restore.scaffolds } } : {}),
+    };
     if (restore.restorePerLanguage) {
       target.meta.perLanguage[record.language] = { ...restore.restorePerLanguage };
     } else {
@@ -4598,13 +4680,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     today: string,
     dailyBefore: DailyStudyStats | null,
     type: string,
+    language: string,
+    scaffolds?: AttemptScaffolds,
   ): PendingRetraction => ({
     attemptId,
     surface: 'flashcard-review',
     word: card.content.front,
-    language: card.language ?? settings.language,
+    language,
     attemptIds: [attemptId],
-    restore: { cardId: card.id, type, restoreCard: priorCard, restorePerLanguage: priorPerLanguage, today, restoreDailyStats: dailyBefore } satisfies ReviewUndoProjection,
+    restore: { cardId: card.id, type, restoreCard: priorCard, restorePerLanguage: priorPerLanguage, today, restoreDailyStats: dailyBefore, ...(scaffolds ? { scaffolds: { ...scaffolds } } : {}) } satisfies ReviewUndoProjection,
   });
 
   /**

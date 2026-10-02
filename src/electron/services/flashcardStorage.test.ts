@@ -466,6 +466,18 @@ describe('flashcardStorage', () => {
     });
   });
 
+  it('preserves restored review position and unknown assistance flags through native store load and save', async () => {
+    const data = makeStore({ version: 3 });
+    data.meta.reviewPresentations = { 'future-package': { id: 'restored-attempt', cardId: 'restored-card',
+      scaffolds: { 'provided-access:future:structured-relationship': true, 'future:cue': true } } };
+    writeFlashcardsFile(tempDir.tmpDir, data);
+    const loaded = await loadFlashcards();
+    expect(loaded.meta.reviewPresentations).toEqual(data.meta.reviewPresentations);
+    await saveFlashcards(loaded);
+    const persisted = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8')) as FlashcardStore;
+    expect(persisted.meta.reviewPresentations).toEqual(data.meta.reviewPresentations);
+  });
+
   it('carries a pending Undo record forward when an unrelated window saves without it', async () => {
     // The store is a whole snapshot and every window saves all of it, so a
     // window whose snapshot predates the record has no `pendingRetraction` key
@@ -917,6 +929,27 @@ describe('flashcardStorage', () => {
       const persisted = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8')) as FlashcardStore;
       expect(persisted.flashcards['card-stale'].reviews).toBe(7);
     }, 10_000);
+
+    it('preserves a newer restored presentation when an older rating consumes its admitted owner', async () => {
+      const data = makeStore({ version: 3 });
+      const ownerPath = ['meta', 'reviewPresentations', 'future'];
+      data.meta.reviewPresentations = { future: { id: 'old-owner', cardId: 'a' } };
+      writeFlashcardsFile(tempDir.tmpDir, data);
+      const original = await loadFlashcards();
+      const stale: StorePatch = { baseRev: original.rev ?? 0, entries: [{
+        path: ownerPath, before: data.meta.reviewPresentations.future, after: undefined,
+        condition: { path: [...ownerPath, 'id'], equals: 'old-owner' },
+      }] };
+      await saveFlashcardPatch(patchFor([{ path: ownerPath, before: data.meta.reviewPresentations.future,
+        after: { id: 'new-owner', cardId: 'b', scaffolds: { 'provided-access:future:cue': true } } }], original.rev ?? 0));
+      await saveFlashcardPatch(stale);
+      const persisted = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8')) as FlashcardStore;
+      expect(persisted.meta.reviewPresentations?.future).toEqual({ id: 'new-owner', cardId: 'b',
+        scaffolds: { 'provided-access:future:cue': true } });
+      await saveFlashcardPatch({ baseRev: persisted.rev ?? 0, entries: [{ ...stale.entries[0],
+        condition: { path: [...ownerPath, 'id'], equals: 'new-owner' } }] });
+      expect((await loadFlashcards()).meta.reviewPresentations?.future).toBeUndefined();
+    });
 
     it('applies to a cold cache by loading the store from disk first', async () => {
       const card = makeFlashcard('card-cold', { reviews: 1 });

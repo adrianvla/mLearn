@@ -1095,6 +1095,155 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
   });
 
+  it('atomically restores review presentation and arbitrary assistance with Undo and consumes it on the next rating', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'restored-presentation', language: 'ja', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'school' } });
+    const scaffolds = { 'provided-access:future:relationship': true };
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    try {
+      await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', attemptId: 'presentation-undo' as AttemptId, scaffolds,
+        scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      await ctx.undoLastAction();
+      expect(ctx.store.meta.reviewPresentations?.ja).toEqual({ id: 'presentation-undo', cardId: card.id, scaffolds });
+      const persisted = mockBridge.flashcards.saveFlashcards.mock.calls.at(-1)![0] as FlashcardStore;
+      expect(persisted.meta.reviewPresentations?.ja).toEqual(ctx.store.meta.reviewPresentations?.ja);
+      expect(persisted.pendingRetraction).toBeUndefined();
+      // Serialization/hydration must retain unknown capability flags.
+      flashcardsCb(JSON.parse(JSON.stringify(persisted)) as FlashcardStore);
+      expect(ctx.store.meta.reviewPresentations?.ja?.scaffolds).toEqual(scaffolds);
+      await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', attemptId: 'after-presentation-undo' as AttemptId, scaffolds,
+        scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      expect(ctx.store.meta.reviewPresentations?.ja).toBeUndefined();
+    } finally { dispose(); }
+  });
+
+  it('inherits restored assistance at canonical admission even when another review surface omits it', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'restored-canonical', language: 'ja', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'school' } });
+    const data = makeEmptyStore({ flashcards: { [card.id]: card } });
+    data.meta.reviewPresentations = { ja: { id: 'restored-owner', cardId: card.id,
+      scaffolds: { 'provided-access:sense-recognition': true, 'provided-access:future:relation': true } } };
+    flashcardsCb(data);
+    try {
+      await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', attemptId: 'canonical-restored-rating' as AttemptId,
+        scaffolds: { reading: true, 'provided-access:sense-recognition': false },
+        scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      const events = mockAppendEvents.mock.calls.flatMap(([byKey]) => Object.values(byKey as Record<string, Array<Record<string, unknown>>>).flat());
+      expect(events.filter(event => event.attemptId === 'canonical-restored-rating' && event.kind === 'rating')).toEqual([]);
+      expect(events.find(event => event.attemptId === 'canonical-restored-rating' && event.kind === 'review')).toMatchObject({
+        retentionCondition: 'supplied', scaffolds: { reading: true, 'provided-access:sense-recognition': true, 'provided-access:future:relation': true },
+      });
+      expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+      expect(ctx.store.meta.reviewPresentations?.ja).toBeUndefined();
+    } finally { dispose(); }
+  });
+
+  it('preserves another card restored in the same language when rating an unrelated card', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'unrelated-rating', language: 'ja', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'school' } });
+    const data = makeEmptyStore({ flashcards: { [card.id]: card } });
+    const restored = { id: 'restored-other', cardId: 'other-card', scaffolds: { 'provided-access:sense-recognition': true } };
+    data.meta.reviewPresentations = { ja: restored };
+    flashcardsCb(data);
+    try {
+      await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      expect(ctx.store.meta.reviewPresentations?.ja).toEqual(restored);
+      expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+    } finally { dispose(); }
+  });
+
+  it.each(['consumed', 'newer-owner', 'language-edit', 'surface-edit'] as const)('retains original admitted assistance across a failed projection ACK and peer %s before retry', async peerChange => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'failed-admission', language: 'ja', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'school' } });
+    const data = makeEmptyStore({ flashcards: { [card.id]: card } });
+    const scaffolds = { 'provided-access:sense-recognition': true, 'provided-access:future:relation': true };
+    data.meta.reviewPresentations = { ja: { id: 'failed-admission-owner', cardId: card.id, scaffolds } };
+    flashcardsCb(data);
+    const options = { language: 'ja', attemptId: 'retained-admission' as AttemptId, scaffolds: { reading: true },
+      scheduler: { cardId: card.id, rating: 'good' as const, tested: ['sense-recognition'] } };
+    try {
+      mockBridge.flashcards.saveFlashcardPatch.mockRejectedValueOnce(new Error('disk full'));
+      await expect(ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], options)).rejects.toThrow('scheduler persistence');
+      const peer = makeEmptyStore({ flashcards: { [card.id]: { ...card, reviews: 4 } }, rev: (ctx.store.rev ?? 0) + 1 });
+      const newer = { id: 'newer-undo-owner', cardId: card.id, scaffolds: { 'provided-access:future:other': true } };
+      if (peerChange === 'newer-owner') peer.meta.reviewPresentations = { ja: newer };
+      if (peerChange === 'language-edit') peer.flashcards[card.id].language = 'ja2';
+      if (peerChange === 'surface-edit') peer.flashcards[card.id].content.front = '新しい';
+      flashcardsCb(peer);
+      expect(ctx.store.meta.reviewPresentations?.ja).toEqual(peerChange === 'newer-owner' ? newer : undefined);
+      const changedRetry = { ...options, scaffolds: { reading: false },
+        scheduler: { ...options.scheduler, rating: 'hard' as const, tested: ['sense-recognition', 'future:other'] } };
+      const retry = ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'missed' },
+        { capability: 'future:other', quality: 'fluent' }], changedRetry);
+      if (peerChange === 'language-edit' || peerChange === 'surface-edit') {
+        await expect(retry).rejects.toThrow(peerChange === 'language-edit' ? 'admitted language' : 'admitted prompt');
+        const originalRows = Object.values(knowledgeJournal.allRows()).flat().filter(event => event.attemptId === 'retained-admission');
+        expect(originalRows).toHaveLength(1);
+        expect(originalRows[0]).toMatchObject({ kind: 'review', retentionCondition: 'supplied', scaffolds });
+        return;
+      }
+      await retry;
+      const events = mockAppendEvents.mock.calls.flatMap(([byKey]) => Object.values(byKey as Record<string, Array<Record<string, unknown>>>).flat())
+        .filter(event => event.attemptId === 'retained-admission');
+      expect(events.filter(event => event.kind === 'rating')).toEqual([]);
+      expect(events.filter(event => event.kind === 'review')).toHaveLength(2);
+      for (const event of events) expect(event).toMatchObject({ retentionCondition: 'supplied',
+        scaffolds: { reading: true, ...scaffolds } });
+      expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+      expect(ctx.store.meta.reviewPresentations?.ja).toEqual(peerChange === 'newer-owner' ? newer : undefined);
+    } finally { dispose(); }
+  });
+
+  it.each([false, true])('restores presentation and prior assistance for a non-rating card Undo (assisted=%s)', async assisted => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'bury-presentation', language: 'ja' });
+    const data = makeEmptyStore({ flashcards: { [card.id]: card } });
+    const scaffolds = { 'provided-access:future:relationship': true };
+    if (assisted) data.meta.reviewPresentations = { ja: { id: 'prior-assisted-owner', cardId: card.id, scaffolds } };
+    flashcardsCb(data);
+    try {
+      ctx.buryCard(card.id);
+      expect(ctx.store.flashcards[card.id].buried).toBe(true);
+      await ctx.undoLastAction();
+      expect(ctx.store.flashcards[card.id].buried).not.toBe(true);
+      expect(ctx.store.meta.reviewPresentations?.ja?.cardId).toBe(card.id);
+      expect(ctx.store.meta.reviewPresentations?.ja?.id).toBeTypeOf('string');
+      expect(ctx.store.meta.reviewPresentations?.ja?.scaffolds).toEqual(assisted ? scaffolds : undefined);
+    } finally { dispose(); }
+  });
+
+  it('routes a legacy card Undo to the originally admitted language', async () => {
+    mockSettings.language = 'ja2';
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'legacy-undo-language', language: undefined,
+      state: 'review', reviews: 3, interval: 86_400_000, dueDate: Date.now() - 1000,
+      content: { type: 'word', front: '学校', back: 'school' } });
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    try {
+      await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', attemptId: 'legacy-original-language' as AttemptId,
+        scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      await ctx.undoLastAction();
+      expect(ctx.store.meta.reviewPresentations?.ja?.id).toBe('legacy-original-language');
+      expect(ctx.store.meta.reviewPresentations?.ja2).toBeUndefined();
+      const events = knowledgeJournal.allRows()[`ja:${SRS.hashWordSync('学校')}`] ?? [];
+      expect(events.some(event => event.kind === 'retraction' && event.retracts === 'legacy-original-language')).toBe(true);
+    } finally { dispose(); mockSettings.language = 'ja'; }
+  });
+
   it('creates a fresh attempt when the same rating is submitted after Undo', async () => {
     mockSettings.language = 'ja2';
     const { ctx, dispose } = await mountProvider();

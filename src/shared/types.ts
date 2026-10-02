@@ -12,6 +12,7 @@ import type { CapabilityKey } from './graph/types';
 export type { CapabilityKey, CapabilityKind } from './graph/types';
 import type { HistoricalBackgroundRecord } from './learningBackground';
 import type { PendingRetraction } from './retractionRecovery';
+import type { AttemptScaffolds } from './knowledgeEvents';
 export type { HistoricalBackgroundRecord, HistoricalBackgroundKind } from './learningBackground';
 
 // Re-export WindowType
@@ -2085,10 +2086,18 @@ export interface PerLanguageMeta {
   newCardsDate: string;
 }
 
-/**
- * Flashcard store meta information
- */
+/** A restored review encounter, persisted with its scheduler restoration. */
+export interface ReviewPresentation {
+  id: string;
+  cardId: string;
+  /** Open-ended assistance flags from the original physical encounter. */
+  scaffolds?: AttemptScaffolds;
+}
+
+/** Flashcard store scheduling and presentation metadata. */
 export interface FlashcardMeta {
+  /** Language-scoped return position; consumed by the next acknowledged review. */
+  reviewPresentations?: Record<string, ReviewPresentation>;
   /** Materialized learner cache schema; evidence remains in the journal. */
   capabilityProjectionVersion?: number;
   /** Per-language daily counters */

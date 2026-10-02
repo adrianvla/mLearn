@@ -313,3 +313,23 @@ describe('private patch snapshots', () => {
     expect(source.nested.b).toEqual([1, 2]);
   });
 });
+
+
+describe('conditional ownership consumption', () => {
+  it.each(['copy', 'mutable', 'reactive'] as const)('retains a newer owner and consumes only the admitted owner through %s application', mode => {
+    const ownerPath = ['meta', 'reviewPresentations', 'future'];
+    const base = { meta: { reviewPresentations: { future: { id: 'admitted', cardId: 'a' } } } };
+    const recorder = storePatchRecorder(base);
+    recorder.remove(ownerPath, { path: [...ownerPath, 'id'], equals: 'admitted' });
+    const patch = JSON.parse(JSON.stringify(recorder.build(1))) as StorePatch;
+    const apply = (source: typeof base): typeof base => {
+      if (mode === 'copy') return copyStoreWithPatch(source, patch);
+      if (mode === 'mutable') applyStorePatch(source, patch);
+      else applyStorePatchInPlace(source, patch);
+      return source;
+    };
+    expect(apply(structuredClone(base)).meta.reviewPresentations.future).toBeUndefined();
+    const newer = { meta: { reviewPresentations: { future: { id: 'newer', cardId: 'b' } } } };
+    expect(apply(newer).meta.reviewPresentations.future).toEqual({ id: 'newer', cardId: 'b' });
+  });
+});
