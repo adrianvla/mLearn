@@ -10,6 +10,7 @@ function createMockIPC() {
     getFlashcards: vi.fn(),
     saveFlashcards: vi.fn(),
     onFlashcards: vi.fn(),
+    onFlashcardLoadError: vi.fn(),
     onNewDayFlashcards: vi.fn(),
     onFlashcardConnectOpen: vi.fn(),
     onReviewFlashcardRequest: vi.fn(),
@@ -298,6 +299,15 @@ describe('flashcardBridge', () => {
 
     expect(mockIPC.saveFlashcards).toHaveBeenCalledWith(store, [], false, authorization);
     expect(result).toBe(acknowledgement);
+  });
+
+  it('forwards library-load failures and their listener cleanup', () => {
+    const bridge = createElectronBridge();
+    const callback = vi.fn();
+    const cleanup = vi.fn();
+    mockIPC.onFlashcardLoadError.mockReturnValue(cleanup);
+    expect(bridge.flashcards.onFlashcardLoadError(callback)).toBe(cleanup);
+    expect(mockIPC.onFlashcardLoadError).toHaveBeenCalledWith(callback);
   });
 
   it('onFlashcards passes callback to ipc.onFlashcards', () => {

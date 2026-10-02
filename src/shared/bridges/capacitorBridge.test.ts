@@ -372,6 +372,43 @@ describe('Sharding helpers (via flashcard bridge)', () => {
     expect(loaded.wordToCardMap['0aabcdef']).toEqual(['card1']);
   });
 
+  it('refuses a failed durable library read even when the WebView cache is absent', async () => {
+    const { Preferences } = await import('@capacitor/preferences');
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const loaded = vi.fn();
+    const failed = vi.fn();
+    bridge.flashcards.onFlashcards(loaded);
+    bridge.flashcards.onFlashcardLoadError(failed);
+    vi.mocked(Preferences.get).mockRejectedValueOnce(new Error('storage unavailable'));
+    bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(failed).toHaveBeenCalledWith('storage unavailable'));
+    expect(loaded).not.toHaveBeenCalled();
+    vi.mocked(Preferences.get).mockRejectedValueOnce(new Error('storage unavailable'));
+    await expect(bridge.kvStore.kvGet('mlearn-flashcards')).rejects.toThrow('storage unavailable');
+    bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+  });
+
+  it('reports a corrupt saved library without emitting an empty replacement and can retry', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    localStorage.setItem('flashcards_meta', '{ broken');
+    const loaded = vi.fn();
+    const failed = vi.fn();
+    bridge.flashcards.onFlashcards(loaded);
+    const cleanup = bridge.flashcards.onFlashcardLoadError(failed);
+    bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(failed).toHaveBeenCalledOnce());
+    expect(loaded).not.toHaveBeenCalled();
+    expect(localStorage.getItem('flashcards_meta')).toBe('{ broken');
+    cleanup();
+    await bridge.flashcards.saveFlashcards(makeStore() as never);
+    bridge.flashcards.getFlashcards();
+    await vi.waitFor(() => expect(loaded).toHaveBeenCalledOnce());
+    expect(failed).toHaveBeenCalledOnce();
+  });
+
   it('loadShardedFlashcards returns empty store when no data', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();

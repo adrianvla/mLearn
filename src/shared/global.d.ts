@@ -40,6 +40,7 @@ export interface MLearnIPC {
   saveFlashcards: (flashcards: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
   saveFlashcardPatch: (patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
+  onFlashcardLoadError: (callback: (message: string) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;
@@ -402,7 +403,7 @@ sendLogRecord: (record: unknown) => void;
   // Window Management
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
-  reportStartupState: (state: 'language' | 'library' | 'backend' | 'ready') => void;
+  reportStartupState: (state: 'language' | 'library' | 'library-error' | 'backend' | 'ready') => void;
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   restoreWindow: () => void;

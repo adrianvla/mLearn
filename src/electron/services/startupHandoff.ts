@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 
-export type StartupWindowState = 'language' | 'library' | 'backend' | 'ready';
+export type StartupWindowState = 'language' | 'library' | 'library-error' | 'backend' | 'ready';
 
 /** Accept readiness only from the window being revealed. */
 export function waitForMainWindowStartup(
@@ -15,9 +15,9 @@ export function waitForMainWindowStartup(
     };
     const onReady = (event: Electron.IpcMainEvent, state: unknown): void => {
       if (event.sender !== window.webContents) return;
-      if (state !== 'language' && state !== 'library' && state !== 'backend' && state !== 'ready') return;
+      if (state !== 'language' && state !== 'library' && state !== 'library-error' && state !== 'backend' && state !== 'ready') return;
       onState(state);
-      if (state === 'ready') {
+      if (state === 'ready' || state === 'library-error') {
         ipcMain.removeListener(IPC_CHANNELS.STARTUP_RENDERER_READY, onReady);
         window.removeListener('closed', onClosed);
         resolve();

@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "LibraryRecovery": {
+      "OpenProtection": "Protection et restauration des données",
+      "Title": "Impossible d’ouvrir votre bibliothèque",
+      "Description": "Votre bibliothèque enregistrée n’a pas pu être lue. Les modifications sont suspendues pour la protéger. Vérifiez que son stockage est accessible, puis réessayez."
+    },
     "GraphInspector": {
       "Title": "Inspecteur de graphe",
       "Unavailable": "Le graphe de langue actif n’est pas installé.",

@@ -34,6 +34,9 @@ export const flushFlashcardRatings = (): Promise<void> => ratingWrites.flush();
 
 function persistRatingCommands(commands: readonly FlashcardRatingCommand[]): Promise<number> {
   return enqueueWrite(async () => {
+    const filePath = getFlashcardsPath();
+    const current = cachedStorePath === filePath && cachedStore
+      ? cachedStore : await loadFlashcardsFromDisk(filePath, loaded => writeStore(loaded, [], false));
     const journal = await import('./knowledgeEvents');
     const { isKnowledgeEvent } = await import('./knowledgeHistoryStore');
     await journal.whenKnowledgeEventsReady();
@@ -52,9 +55,6 @@ function persistRatingCommands(commands: readonly FlashcardRatingCommand[]): Pro
     }
     await journal.appendKnowledgeEvents(additions);
 
-    const filePath = getFlashcardsPath();
-    const current = cachedStorePath === filePath && cachedStore
-      ? cachedStore : await loadFlashcardsFromDisk(filePath, loaded => writeStore(loaded, [], false));
     let candidate = current;
     const paths = new Map<string, readonly string[]>();
     for (const command of commands) {
@@ -264,9 +264,9 @@ function containsLegacyZhData(store: FlashcardStore): boolean {
     store.grammarKnowledge,
   ];
   return Object.values(store.flashcards).some(card => legacyZhSource('', card.language) !== undefined)
-    || maps.some(map => Object.keys(map).some(isLegacyZhKey))
-    || Boolean(store.meta.perLanguage['zh-Hans'] || store.meta.perLanguage['zh-Hant'])
-    || Object.values(store.dailyStats).some(stats => Boolean(stats['zh-Hans'] || stats['zh-Hant']));
+    || maps.some(map => Object.keys(map ?? {}).some(isLegacyZhKey))
+    || Boolean(store.meta?.perLanguage?.['zh-Hans'] || store.meta?.perLanguage?.['zh-Hant'])
+    || Object.values(store.dailyStats ?? {}).some(stats => Boolean(stats['zh-Hans'] || stats['zh-Hant']));
 }
 
 function loadZhMigrationPackage(): LanguageData | null {
@@ -484,7 +484,7 @@ function isValidFlashcardStore(value: unknown): value is FlashcardStore {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
   return (
-    'flashcards' in v && typeof v.flashcards === 'object' && v.flashcards !== null &&
+    'flashcards' in v && typeof v.flashcards === 'object' && v.flashcards !== null && !Array.isArray(v.flashcards) &&
     typeof v.version === 'number'
   );
 }
@@ -740,8 +740,7 @@ function finalizeStore(store: FlashcardStore): FlashcardStore {
 
 function checkFlashcards(fc_to_check: any): FlashcardStore {
   if (!isValidFlashcardStore(fc_to_check)) {
-    log.warn('[flashcardStorage] Loaded store has unexpected structure — using defaults');
-    return { ...DEFAULT_FLASHCARD_STORE };
+    throw new Error('The saved flashcard library has an invalid structure');
   }
 
   if (fc_to_check.version < CURRENT_VERSION && containsLegacyZhData(fc_to_check)) {
@@ -828,7 +827,7 @@ async function loadFlashcardsFromDisk(
     try {
       await fs.promises.access(filePath);
     } catch (e) {
-      log.error("error", e);
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
       const empty = { ...DEFAULT_FLASHCARD_STORE };
       cachedStore = empty;
       cachedStorePath = filePath;
@@ -837,14 +836,6 @@ async function loadFlashcardsFromDisk(
     const data = await fs.promises.readFile(filePath, 'utf-8');
     const parsed: unknown = JSON.parse(data);
     const parsedJson = JSON.stringify(parsed);
-
-    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      log.warn('[flashcardStorage] Loaded JSON is not a plain object — using defaults');
-      const empty = { ...DEFAULT_FLASHCARD_STORE };
-      cachedStore = empty;
-      cachedStorePath = filePath;
-      return empty;
-    }
 
     const store = checkFlashcards(parsed);
     const storeJson = JSON.stringify(store);
@@ -861,16 +852,17 @@ async function loadFlashcardsFromDisk(
     cachedStorePath = filePath;
     return store;
   } catch (error) {
+    invalidateFlashcardsCache();
     log.error('Failed to load flashcards:', error);
+    throw error;
   }
-  return { ...DEFAULT_FLASHCARD_STORE };
 }
 
 /**
  * Retire only media absent from the saved authority. Check and synchronous
  * release share the store-write queue turn, so a queued peer save cannot race
- * the check. Read disk strictly: the normal loader's recovery default is not
- * proof that a resource is unreferenced.
+ * the check. Read disk strictly: an unavailable library is never proof that
+ * a resource is unreferenced.
  */
 export async function releaseUnusedFlashcardMedia(
   kind: 'image' | 'video' | 'tts', id: string, release: () => void,
@@ -960,12 +952,16 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
     const traceOn = fs.existsSync(path.join(getUserDataPath(), 'ratingTrace.flag'));
     const t0 = Date.now();
     const filePath = getFlashcardsPath();
+    let persistedAuthority: FlashcardStore | undefined;
     let currentRevision = cachedStorePath === filePath ? cachedStore?.rev : undefined;
     if (currentRevision === undefined) {
       try {
-        const persisted = JSON.parse(await fs.promises.readFile(filePath, 'utf-8')) as { rev?: unknown };
+        const persisted: unknown = JSON.parse(await fs.promises.readFile(filePath, 'utf-8'));
+        if (!isValidFlashcardStore(persisted)) throw new Error('The saved flashcard library has an invalid structure');
+        persistedAuthority = persisted;
         currentRevision = typeof persisted.rev === 'number' && Number.isSafeInteger(persisted.rev) ? persisted.rev : 0;
-      } catch {
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
         currentRevision = 0;
       }
     }
@@ -989,7 +985,7 @@ async function writeStore(store: FlashcardStore, removedCardIds: readonly string
     // decision to finish still belongs to whoever recorded it.
     const authoritativeRetraction = cachedStorePath === filePath
       ? readPendingRetraction((cachedStore as FlashcardStore | undefined)?.pendingRetraction)
-      : null;
+      : readPendingRetraction(persistedAuthority?.pendingRetraction ?? (persistedAuthority as { pendingReviewUndo?: unknown } | undefined)?.pendingReviewUndo);
     const claim = readRetractionCompletionClaim(store as { pendingRetraction?: unknown; retractionCompleted?: unknown });
     const incomingRetraction = readPendingRetraction(store.pendingRetraction);
     if (authoritativeRetraction && incomingRetraction && authoritativeRetraction.attemptId !== incomingRetraction.attemptId) {
@@ -1099,15 +1095,20 @@ export function setupFlashcardIPC(): void {
   ipcMain.handle(IPC_CHANNELS.ENQUEUE_FLASHCARD_RATING, (_event, command: FlashcardRatingCommand) => enqueueFlashcardRating(command));
   ipcMain.handle(IPC_CHANNELS.FLUSH_FLASHCARD_RATINGS, () => flushFlashcardRatings());
   ipcMain.on(IPC_CHANNELS.GET_FLASHCARDS, async (event, knownRev?: number) => {
-    const flashcards = await loadFlashcards();
-    // Focus/visibility sync: an unchanged rev skips the multi-MB store ship.
-    // The renderer treats a null payload as "nothing to reconcile".
-    const unchanged = knownRev != null && knownRev === (flashcards.rev ?? 0);
-    event.reply(IPC_CHANNELS.FLASHCARDS_LOADED, unchanged ? null : flashcards);
+    try {
+      const flashcards = await loadFlashcards();
+      // Focus/visibility sync: an unchanged rev skips the multi-MB store ship.
+      // The renderer treats a null payload as "nothing to reconcile".
+      const unchanged = knownRev != null && knownRev === (flashcards.rev ?? 0);
+      event.reply(IPC_CHANNELS.FLASHCARDS_LOADED, unchanged ? null : flashcards);
 
-    if (migrationInfo.occurred) {
-      event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
-      migrationInfo = { occurred: false, backupPath: null, fromVersion: null };
+      if (migrationInfo.occurred) {
+        event.reply(IPC_CHANNELS.FLASHCARD_MIGRATION_COMPLETE, migrationInfo);
+        migrationInfo = { occurred: false, backupPath: null, fromVersion: null };
+      }
+    } catch (error) {
+      log.error('Could not deliver the flashcard library:', error);
+      event.reply(IPC_CHANNELS.FLASHCARDS_LOAD_ERROR, error instanceof Error ? error.message : String(error));
     }
   });
 

@@ -85,6 +85,7 @@ export interface FlashcardBridge {
    */
   saveFlashcardPatch: (patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => Promise<number>;
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) => () => void;
+  onFlashcardLoadError: (callback: (message: string) => void) => () => void;
   onNewDayFlashcards: (callback: () => void) => () => void;
   onFlashcardConnectOpen: (callback: () => void) => () => void;
   onReviewFlashcardRequest: (callback: () => void) => () => void;
@@ -172,7 +173,7 @@ export interface WindowBridge {
   openExternalUrl: (url: string) => Promise<boolean>;
   openWindow: (payload: OpenWindowPayload) => void;
   closeWindow: () => void;
-  reportStartupState: (state: 'language' | 'library' | 'backend' | 'ready') => void;
+  reportStartupState: (state: 'language' | 'library' | 'library-error' | 'backend' | 'ready') => void;
   minimizeWindow: () => void;
   maximizeWindow: () => void;
   restoreWindow: () => void;

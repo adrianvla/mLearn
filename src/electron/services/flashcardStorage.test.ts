@@ -406,29 +406,46 @@ describe('flashcardStorage', () => {
       expect(saved.flashcards['card-1'].content.prosody.pitchAccentPosition).toBeUndefined();
     });
 
-    it('returns default store on corrupt JSON', async () => {
-      fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), '{ invalid json <<<');
+    it.each(['{ invalid json <<<', '"just a string"', '[1,2,3]', '{"version":3,"flashcards":[]}'])('refuses an unreadable library without replacing it: %s', async (contents) => {
+      const filePath = path.join(tempDir.tmpDir, 'flashcards.json');
+      fs.writeFileSync(filePath, contents);
+      await expect(loadFlashcards()).rejects.toThrow();
+      await expect(saveFlashcards(makeStore({ version: 3 }))).rejects.toThrow();
+      expect(fs.readFileSync(filePath, 'utf-8')).toBe(contents);
 
-      const store = await loadFlashcards();
-
-      expect(store.flashcards).toEqual({});
-      expect(store.version).toBe(3);
+      // A repaired file is read again; a failed load never installs an empty cache.
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3, rev: 9 }));
+      expect((await loadFlashcards()).rev).toBeGreaterThanOrEqual(9);
     });
 
-    it('returns default store when JSON root is not an object', async () => {
-      fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), '"just a string"');
-
-      const store = await loadFlashcards();
-
-      expect(store.flashcards).toEqual({});
+    it('refuses a cold save over corrupt JSON even before the first load', async () => {
+      const filePath = path.join(tempDir.tmpDir, 'flashcards.json');
+      fs.writeFileSync(filePath, '{ broken');
+      await expect(saveFlashcards(makeStore({ version: 3 }))).rejects.toThrow();
+      expect(fs.readFileSync(filePath, 'utf-8')).toBe('{ broken');
     });
 
-    it('returns default store when JSON is an array', async () => {
-      fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), '[1,2,3]');
+    it('keeps access failures distinct from a genuinely missing library', async () => {
+      const filePath = path.join(tempDir.tmpDir, 'flashcards.json');
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3, rev: 7 }));
+      const original = fs.readFileSync(filePath, 'utf-8');
+      vi.spyOn(fs.promises, 'access').mockRejectedValueOnce(Object.assign(new Error('permission denied'), { code: 'EACCES' }));
+      await expect(loadFlashcards()).rejects.toThrow('permission denied');
+      expect(fs.readFileSync(filePath, 'utf-8')).toBe(original);
+      expect((await loadFlashcards()).rev).toBeGreaterThanOrEqual(7);
+    });
 
-      const store = await loadFlashcards();
-
-      expect(store.flashcards).toEqual({});
+    it('reports an IPC load failure and delivers the repaired library on retry', async () => {
+      setupFlashcardIPC();
+      const receive = mockIpcListeners.get(IPC_CHANNELS.GET_FLASHCARDS)!.at(-1)!;
+      const reply = vi.fn();
+      fs.writeFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), '{ broken');
+      await receive({ reply });
+      expect(reply).toHaveBeenCalledWith('flashcards-load-error', expect.any(String));
+      expect(reply).not.toHaveBeenCalledWith(IPC_CHANNELS.FLASHCARDS_LOADED, expect.anything());
+      writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3, rev: 8 }));
+      await receive({ reply });
+      expect(reply).toHaveBeenLastCalledWith(IPC_CHANNELS.FLASHCARDS_LOADED, expect.objectContaining({ rev: expect.any(Number) }));
     });
 
     it('calls extractBase64Images after loading', async () => {
@@ -514,6 +531,20 @@ describe('flashcardStorage', () => {
     expect(stored.wordStatsMap['赤い']).toEqual({ attempts: 2 });
     // ...and the record the learner is relying on survived it.
     expect(stored.pendingRetraction).toMatchObject({ attemptId: 'attempt-1', surface: 'word-sync' });
+  });
+
+  it.each(['pendingRetraction', 'pendingReviewUndo'])('preserves a cold %s record through unrelated saves and explicit completion', async (field) => {
+    const pending = { attemptId: 'cold-undo', surface: 'custom', word: '', language: 'future', attemptIds: ['physical-response'], restore: { position: 3 } };
+    writeFlashcardsFile(tempDir.tmpDir, makeStore({ version: 3, rev: 9, [field]: pending }));
+    await saveFlashcards(makeStore({ version: 3, rev: 9 }));
+    const persisted = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8'));
+    expect(persisted.pendingRetraction).toMatchObject(pending);
+    const { invalidateFlashcardsCache } = await import('./flashcardStorage');
+    invalidateFlashcardsCache();
+    await saveFlashcards(makeStore({ version: 3, rev: 10, retractionCompleted: 'cold-undo' }));
+    const finished = JSON.parse(fs.readFileSync(path.join(tempDir.tmpDir, 'flashcards.json'), 'utf-8'));
+    expect(finished.pendingRetraction).toBeUndefined();
+    expect(finished.retractionCompleted).toBeUndefined();
   });
 
   it('refuses to replace another pending Undo even at the current revision', async () => {
@@ -729,6 +760,7 @@ describe('flashcardStorage', () => {
       const store = await loadFlashcards();
 
       expect(store.version).toBe(3);
+      expect(store.flashcards[cardId].content.front).toBe('test-word');
     });
 
     it('v2 migration handles array cardIds in wordToCardMap', async () => {
@@ -747,6 +779,7 @@ describe('flashcardStorage', () => {
       const store = await loadFlashcards();
 
       expect(store.version).toBe(3);
+      expect(Object.keys(store.flashcards)).toEqual([cardId1, cardId2]);
     });
 
   });
@@ -896,7 +929,8 @@ describe('flashcardStorage', () => {
 
     it.each(['missing', 'nonobject'] as const)('does not trust a warm %s loader fallback to release media', async variant => {
       if (variant === 'nonobject') writeFlashcardsFile(tempDir.tmpDir, []);
-      await loadFlashcards();
+      if (variant === 'nonobject') await expect(loadFlashcards()).rejects.toThrow();
+      else await loadFlashcards();
       const release = vi.fn();
       const { releaseUnusedFlashcardMedia } = await import('./flashcardStorage');
       await expect(releaseUnusedFlashcardMedia('image', 'shared', release)).rejects.toThrow();

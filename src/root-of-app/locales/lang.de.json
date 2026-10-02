@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "LibraryRecovery": {
+      "OpenProtection": "Einstellungen zum Datenschutz und zur Wiederherstellung",
+      "Title": "Deine Bibliothek konnte nicht geöffnet werden",
+      "Description": "Deine gespeicherte Bibliothek konnte nicht gelesen werden. Änderungen sind zu ihrem Schutz pausiert. Prüfe, ob der Speicher verfügbar ist, und versuche es erneut."
+    },
     "GraphInspector": {
       "Title": "Graphinspektor",
       "Unavailable": "Der Sprachgraph ist nicht installiert.",

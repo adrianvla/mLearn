@@ -279,6 +279,8 @@ interface FlashcardContextValue {
   // Store access
   store: FlashcardStore;
   isLoading: () => boolean;
+  libraryLoadError: () => string | null;
+  retryLibraryLoad: () => void;
   /**
    * True once the flashcard store is loaded AND the legacy epistemic
    * migration (claim/evidence backfill that can legitimately flip rows)
@@ -686,6 +688,15 @@ export const FlashcardProvider: ParentComponent = (props) => {
 
   const [store, setStore] = createStore<FlashcardStore>(getDefaultStore());
   const [isLoading, setIsLoading] = createSignal(true);
+  const [libraryLoadError, setLibraryLoadError] = createSignal<string | null>(null);
+  const handleLibraryLoadError = (message: string): void => {
+    setLibraryLoadError(message);
+    setIsLoading(true);
+    log.error('The saved library could not be loaded:', message);
+    const waiting = authorityRequest;
+    authorityRequest = null;
+    waiting?.(null);
+  };
   const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [] });
   // Exclusion is a reversible teaching policy. Keep authored/history records
   // in the store and present only eligible cards to the scheduling mechanism.
@@ -828,7 +839,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
    * one-shot would either steal a delivery it did not ask for or miss the one
    * it did. Whoever accepts a delivery while this is armed resolves it.
    */
-  let authorityRequest: ((store: FlashcardStore) => void) | null = null;
+  let authorityRequest: ((store: FlashcardStore | null) => void) | null = null;
   /**
    * Set when the window goes away while a rebase is waiting.
    *
@@ -859,7 +870,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // Unchanged-rev probe reply: the main process already holds this exact
     // store — nothing to reconcile, nothing to re-render.
     if (!loaded) {
-      if (authorityRefreshRequired) return;
+      if (authorityRefreshRequired || libraryLoadError()) return;
       // A rebase is waiting to learn what the authority holds. A null answer
       // to its probe means the authority is already at the revision this
       // window holds, so the store in hand is the authority's own — resolving
@@ -874,7 +885,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       return;
     }
     const checked = ensureStoreFields(loaded as Partial<FlashcardStore>);
-    if (storeHydrated && checked.rev != null && checked.rev === store.rev && !authorityRefreshRequired && !authorityRequest) return;
+
     // This window's view of the store only ever moves forward. The store is
     // whole-snapshot and revision-checked, so adopting a snapshot older than
     // one already adopted here does not just render stale data: it rewinds the
@@ -887,6 +898,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // delivery that preceded it. Ignoring them costs nothing: the next probe
     // ships the current snapshot anyway.
     if (storeHydrated && typeof checked.rev === 'number' && checked.rev < (store.rev ?? 0)) return;
+    setLibraryLoadError(null);
+    if (storeHydrated && checked.rev != null && checked.rev === store.rev && !authorityRefreshRequired && !authorityRequest) {
+      setIsLoading(false);
+      return;
+    }
     const request = authorityRequest;
     if (request) {
       authorityRequest = null;
@@ -953,6 +969,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) || !parsed.flashcards || typeof parsed.flashcards !== 'object' || Array.isArray(parsed.flashcards)) {
+              throw new Error('The saved flashcard library has an invalid structure');
+            }
+            setLibraryLoadError(null);
             setIsKnowledgeReady(false);
             const checked = ensureStoreFields(parsed);
             authoritativeStore = cloneFlashcardStore(checked);
@@ -965,9 +985,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
             refreshQueue();
           } catch (e) {
             log.error('Failed to parse flashcards from KV store:', e);
-            setIsKnowledgeReady(true);
+            handleLibraryLoadError(e instanceof Error ? e.message : String(e));
+            return;
           }
         } else {
+          setLibraryLoadError(null);
           // A missing disposable cache does not imply an empty durable journal.
           setIsKnowledgeReady(false);
           knowledgeInitialization = repairCapabilityProjection().finally(() => setIsKnowledgeReady(true));
@@ -975,8 +997,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
         setIsLoading(false);
       }).catch((e) => {
         log.error('Failed to load flashcards from KV store:', e);
-        setIsKnowledgeReady(true);
-        setIsLoading(false);
+        handleLibraryLoadError(e instanceof Error ? e.message : String(e));
       });
     }
   };
@@ -1505,6 +1526,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   ): Promise<boolean> => {
     await flushBackgroundRatings();
     const write = persistenceQueue.then(async () => {
+      if (libraryLoadError()) {
+        lastPersistFailure = new Error('The saved library must be loaded before changes can be saved');
+        return false;
+      }
       if (authorityRefreshRequired && !await requestAuthorityStore()) {
         lastPersistFailure = new Error('The complete flashcard store could not be refreshed');
         return false;
@@ -4172,6 +4197,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     options?: RatingSubmissionOptions,
   ): Promise<{ attemptId: AttemptId; completed: boolean }> => {
     if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
+    if (libraryLoadError()) throw new Error('The saved library must be loaded before a response can be saved');
     if (ratingPersistenceState() === 'failed') throw new Error('Pending ratings need persistence retry');
     ratingCommandInFlight = true;
     try {
@@ -5669,6 +5695,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
       const bridge = getBridge();
       // Flashcards loaded listener (single registration — reused by loadFlashcards and visibility sync)
       ipcCleanups.push(bridge.flashcards.onFlashcards(handleFlashcardsLoaded));
+      ipcCleanups.push(bridge.flashcards.onFlashcardLoadError(handleLibraryLoadError));
       ipcCleanups.push(bridge.flashcards.onFlashcardRatingsCommitted(handleRatingCommit));
 
       // Migration listener
@@ -5809,6 +5836,8 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
   const value: FlashcardContextValue = {
     store,
     isLoading,
+    libraryLoadError,
+    retryLibraryLoad: loadFlashcards,
     isKnowledgeReady,
     queue,
     queueCounts,

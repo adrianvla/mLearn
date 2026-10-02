@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "LibraryRecovery": {
+      "OpenProtection": "Data protection settings",
+      "Title": "Your library could not be opened",
+      "Description": "Your saved library could not be read. Changes are paused to protect it. Check that its storage is available, then try again."
+    },
     "GraphInspector": {
       "Title": "Graph inspector",
       "Unavailable": "The active language graph is not installed.",

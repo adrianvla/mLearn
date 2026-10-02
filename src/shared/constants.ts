@@ -102,6 +102,7 @@ export const IPC_CHANNELS = {
   GUARDIAN_RECOVERY_POINTS: 'guardian-recovery-points',
   GUARDIAN_RESTORE: 'guardian-restore',
   FLASHCARDS_LOADED: 'flashcards-loaded',
+  FLASHCARDS_LOAD_ERROR: 'flashcards-load-error',
   FORCE_NEWDAY_FLASHCARDS: 'force-newday-flashcards',
   FLASHCARD_CONNECT_OPEN: 'flashcard-connect-open',
   REVIEW_FLASHCARDS_REQUEST: 'review-flashcards-request',

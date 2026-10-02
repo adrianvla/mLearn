@@ -64,6 +64,7 @@ const flashcardBridge: FlashcardBridge = {
     ? getIPC().saveFlashcardPatch(patch)
     : getIPC().saveFlashcardPatch(patch, removedCardIds, resetReviewProgress, authorization),
   onFlashcards: (cb) => getIPC().onFlashcards(cb),
+  onFlashcardLoadError: (cb) => getIPC().onFlashcardLoadError(cb),
   onNewDayFlashcards: (cb) => getIPC().onNewDayFlashcards(cb),
   onFlashcardConnectOpen: (cb) => getIPC().onFlashcardConnectOpen(cb),
   onReviewFlashcardRequest: (cb) => getIPC().onReviewFlashcardRequest(cb),

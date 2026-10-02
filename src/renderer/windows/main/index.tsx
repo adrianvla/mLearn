@@ -63,6 +63,7 @@ const StartupReadiness = () => {
     const state = startupRendererState({
       languageLoading: language.isLoading(),
       libraryLoading: flashcards.isLoading(),
+      libraryLoadError: !!flashcards.libraryLoadError(),
       knowledgeReady: flashcards.isKnowledgeReady(),
       serverStatus: server.status(),
     });

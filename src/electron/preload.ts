@@ -122,6 +122,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.SAVE_FLASHCARD_PATCH, patch, removedCardIds, resetReviewProgress, authorization),
   onFlashcards: (callback: (flashcards: FlashcardStore | null) => void) =>
     ipcOn(IPC_CHANNELS.FLASHCARDS_LOADED, (_event, flashcards) => callback(flashcards)),
+  onFlashcardLoadError: (callback: (message: string) => void) =>
+    ipcOn(IPC_CHANNELS.FLASHCARDS_LOAD_ERROR, (_event, message) => callback(message)),
   onNewDayFlashcards: (callback: () => void) =>
     ipcOn(IPC_CHANNELS.FORCE_NEWDAY_FLASHCARDS, () => callback()),
   onFlashcardConnectOpen: (callback: () => void) =>
@@ -254,7 +256,7 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.READER_CTX_MENU_COMMAND, (_event, command) => callback(command)),
   openWindow: (payload: OpenWindowPayload) => ipcRenderer.send(IPC_CHANNELS.OPEN_WINDOW, payload),
   closeWindow: () => ipcRenderer.send(IPC_CHANNELS.CLOSE_WINDOW),
-  reportStartupState: (state: 'language' | 'library' | 'backend' | 'ready') => ipcRenderer.send(IPC_CHANNELS.STARTUP_RENDERER_READY, state),
+  reportStartupState: (state: 'language' | 'library' | 'library-error' | 'backend' | 'ready') => ipcRenderer.send(IPC_CHANNELS.STARTUP_RENDERER_READY, state),
   minimizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MINIMIZE_WINDOW),
   maximizeWindow: () => ipcRenderer.send(IPC_CHANNELS.MAXIMIZE_WINDOW),
   restoreWindow: () => ipcRenderer.send(IPC_CHANNELS.RESTORE_WINDOW),

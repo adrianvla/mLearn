@@ -48,6 +48,7 @@ const mockBackend = vi.hoisted(() => ({
 const mockBridge = {
   flashcards: {
     onFlashcards: vi.fn(),
+    onFlashcardLoadError: vi.fn((_callback: (message: string) => void) => vi.fn()),
     getFlashcards: vi.fn(),
     saveFlashcards: vi.fn(),
     saveFlashcardPatch: vi.fn(),
@@ -500,6 +501,8 @@ vi.mock('../components/common/TaskProgress/TaskProgress', () => ({
 type FlashcardCtx = {
   store: FlashcardStore;
   isLoading: () => boolean;
+  libraryLoadError: () => string | null;
+  retryLibraryLoad: () => void;
   queue: () => ReviewQueue;
   queueCounts: () => { new: number; learning: number; review: number; total: number };
   addFlashcard: (content: Partial<{ type: string; front: string; back: string; reading?: string; prosody?: FlashcardContent['prosody']; pos?: string; level?: number; example?: string; exampleMeaning?: string; imageUrl?: string; videoUrl?: string; skipExampleTts?: boolean; audioUrl?: string; context?: string; source?: string; extra?: string; word?: string; pronunciation?: string; translation?: string[]; definition?: string[]; screenshotUrl?: string; contextPhrase?: string; unpopulated?: boolean }> & { front: string; back: string }, initialEase?: number, skipAnkiChoice?: boolean, language?: string) => Promise<string>;
@@ -1931,6 +1934,51 @@ describe('FlashcardProvider', () => {
   });
 
   // ─── Priority 1: IPC listener registration ───────────────────────
+  it('preserves an unavailable library, refuses responses, and reloads the repaired authority', async () => {
+    const { ctx, dispose } = await mountProvider();
+    try {
+      const fail = mockBridge.flashcards.onFlashcardLoadError.mock.calls.at(-1)![0] as (message: string) => void;
+      fail('permission denied');
+      expect(ctx.libraryLoadError()).toBe('permission denied');
+      expect(ctx.isLoading()).toBe(true);
+      await expect(ctx.submitRating('unread', [{ access: 'sense-recognition', rating: 'normal' }], { language: 'de' })).rejects.toThrow(/library must be loaded/);
+      expect(mockAppendEvents).not.toHaveBeenCalled();
+      ctx.retryLibraryLoad();
+      expect(mockBridge.flashcards.getFlashcards).toHaveBeenCalledTimes(2);
+      flashcardsCb(makeEmptyStore({ rev: 8 }));
+      expect(ctx.libraryLoadError()).toBeNull();
+      expect(ctx.isLoading()).toBe(false);
+      expect(ctx.store.rev).toBe(8);
+    } finally { dispose(); }
+  });
+
+  it('releases the recovery gate when the same intact revision is delivered again', async () => {
+    const { ctx, dispose } = await mountProvider();
+    try {
+      const saved = makeEmptyStore({ rev: 8 });
+      flashcardsCb(saved);
+      const fail = mockBridge.flashcards.onFlashcardLoadError.mock.calls.at(-1)![0];
+      fail('temporarily unavailable');
+      expect(ctx.isLoading()).toBe(true);
+      flashcardsCb(saved);
+      expect(ctx.libraryLoadError()).toBeNull();
+      expect(ctx.isLoading()).toBe(false);
+    } finally { dispose(); }
+  });
+
+  it('keeps recovery blocked for an unchanged probe or a stale snapshot', async () => {
+    const { ctx, dispose } = await mountProvider();
+    try {
+      flashcardsCb(makeEmptyStore({ rev: 8 }));
+      mockBridge.flashcards.onFlashcardLoadError.mock.calls.at(-1)![0]('unavailable');
+      flashcardsCb(null);
+      flashcardsCb(makeEmptyStore({ rev: 7 }));
+      expect(ctx.libraryLoadError()).toBe('unavailable');
+      expect(ctx.isLoading()).toBe(true);
+      expect(ctx.store.rev).toBe(8);
+    } finally { dispose(); }
+  });
+
   it('registers onFlashcards listener before calling getFlashcards', async () => {
     const { dispose } = await mountProvider();
     const onFlashcardsOrder = mockBridge.flashcards.onFlashcards.mock.invocationCallOrder[0];

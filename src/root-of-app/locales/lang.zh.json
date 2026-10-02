@@ -1,5 +1,10 @@
 {
   "mlearn": {
+    "LibraryRecovery": {
+      "OpenProtection": "数据保护与恢复设置",
+      "Title": "无法打开你的资料库",
+      "Description": "无法读取已保存的资料库。为保护数据，修改已暂停。请检查存储位置是否可用，然后重试。"
+    },
     "GraphInspector": {
       "Title": "图谱检查器",
       "Unavailable": "当前语言图谱尚未安装。",

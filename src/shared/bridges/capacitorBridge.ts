@@ -123,14 +123,16 @@ function getPreferencesModule(): Promise<typeof import('@capacitor/preferences')
   return prefsModulePromise;
 }
 
-async function storageGet(key: string): Promise<string | null> {
+async function storageGet(key: string, requireAuthority = false): Promise<string | null> {
   try {
     const mod = await getPreferencesModule();
     if (mod) {
       const result = await mod.Preferences.get({ key });
       return result.value;
     }
+    if (requireAuthority && isCapacitor()) throw new Error('The library storage provider is unavailable');
   } catch (e) {
+    if (requireAuthority) throw e;
     log.error("error", e);
     log.info('[CapacitorBridge] Preferences.get failed, falling back to localStorage:', e);
   }
@@ -491,9 +493,9 @@ let projectionRetentionRequest: Promise<FlashcardStore['meta'] | undefined> | un
 function loadProjectionRetentionPolicy(): Promise<FlashcardStore['meta'] | undefined> {
   if (projectionRetentionRequest) return projectionRetentionRequest;
   const request = (async () => {
-    const raw = await storageGet(FLASHCARD_META_KEY);
+    const raw = await storageGet(FLASHCARD_META_KEY, true);
     if (raw) return (JSON.parse(raw) as FlashcardShardMeta).storeMeta;
-    const legacy = await storageGet(FLASHCARD_LEGACY_KEY);
+    const legacy = await storageGet(FLASHCARD_LEGACY_KEY, true);
     return legacy ? (JSON.parse(legacy) as FlashcardStore).meta : undefined;
   })();
   projectionRetentionRequest = request;
@@ -502,12 +504,15 @@ function loadProjectionRetentionPolicy(): Promise<FlashcardStore['meta'] | undef
 }
 
 async function loadShardedFlashcards(): Promise<FlashcardStore> {
-  const metaRaw = await storageGet(FLASHCARD_META_KEY);
+  const metaRaw = await storageGet(FLASHCARD_META_KEY, true);
 
   if (!metaRaw) {
-    const legacyRaw = await storageGet(FLASHCARD_LEGACY_KEY);
+    const legacyRaw = await storageGet(FLASHCARD_LEGACY_KEY, true);
     if (legacyRaw) {
       const legacy = JSON.parse(legacyRaw) as FlashcardStore;
+      if (!legacy || typeof legacy !== 'object' || Array.isArray(legacy) || !legacy.flashcards || typeof legacy.flashcards !== 'object' || Array.isArray(legacy.flashcards)) {
+        throw new Error('The saved flashcard library has an invalid structure');
+      }
       await saveShardedFlashcards(legacy);
       try {
         const mod = await getPreferencesModule();
@@ -522,12 +527,15 @@ async function loadShardedFlashcards(): Promise<FlashcardStore> {
   }
 
   const meta = JSON.parse(metaRaw) as FlashcardShardMeta;
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta) || (meta.flashcards !== undefined && (!meta.flashcards || typeof meta.flashcards !== 'object' || Array.isArray(meta.flashcards)))) {
+    throw new Error('The saved flashcard library has an invalid structure');
+  }
 
   const allShardRaws = await Promise.all(
     Array.from({ length: FLASHCARD_SHARD_COUNT * 2 }, (_, idx) => {
       const i = idx % FLASHCARD_SHARD_COUNT;
       const prefix = idx < FLASHCARD_SHARD_COUNT ? FLASHCARD_CARDS_SHARD_PREFIX : FLASHCARD_STATS_SHARD_PREFIX;
-      return storageGet(`${prefix}${i}`);
+      return storageGet(`${prefix}${i}`, true);
     })
   );
 
@@ -632,8 +640,8 @@ const flashcardBridge: FlashcardBridge = {
         emitter.emit('flashcards', data);
       })
       .catch(e => {
-        log.error('[CapacitorBridge] Failed to load flashcards, using empty store:', e);
-        emitter.emit('flashcards', { flashcards: {}, wordCandidates: {} });
+        log.error('[CapacitorBridge] Failed to load flashcards:', e);
+        emitter.emit('flashcards-load-error', e instanceof Error ? e.message : String(e));
       });
   },
 
@@ -655,6 +663,10 @@ const flashcardBridge: FlashcardBridge = {
 
   onFlashcards(callback) {
     return emitter.on('flashcards', callback as Listener);
+  },
+
+  onFlashcardLoadError(callback) {
+    return emitter.on('flashcards-load-error', callback as Listener);
   },
 
   onNewDayFlashcards(callback) {
@@ -2213,7 +2225,7 @@ const dataBridge: DataBridge = {
 // ============================================================================
 
 const kvStoreBridge: KVStoreBridge = {
-  kvGet: (key) => storageGet(key),
+  kvGet: (key) => storageGet(key, key === 'mlearn-flashcards'),
   kvSet: (key, value) => storageSet(key, value),
   kvRemove: async (key) => {
     localStorage.removeItem(key);
