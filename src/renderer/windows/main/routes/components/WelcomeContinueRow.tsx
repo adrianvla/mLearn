@@ -42,16 +42,7 @@ export const WelcomeContinueRow: Component<WelcomeContinueRowProps> = (props) =>
           <progress class="welcome-continue-progress" max="100" value={props.item.progress} />
         </span>
         <span class="welcome-continue-pct">{Math.round(props.item.progress)}%</span>
-      </button>
-      <button
-        type="button"
-        class="welcome-continue-action"
-        onClick={() => props.onContinue(props.item)}
-      >
-        <svg class="welcome-continue-action-icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M8 5v14l11-7z" />
-        </svg>
-        {props.continueLabel}
+        <span class="welcome-continue-action-label">{props.continueLabel}</span>
       </button>
     </div>
   );

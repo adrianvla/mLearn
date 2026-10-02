@@ -26,7 +26,7 @@ describe('WelcomeContinueRow', () => {
     container.remove();
   });
 
-  it('renders the item and continues through both the main area and the action button', () => {
+  it('continues the material through one labelled row action', () => {
     const onContinue = vi.fn();
     const item = makeItem();
     const dispose = render(
@@ -49,8 +49,9 @@ describe('WelcomeContinueRow', () => {
     container.querySelector<HTMLButtonElement>('button.welcome-continue-main')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(onContinue).toHaveBeenCalledWith(item);
 
-    container.querySelector<HTMLButtonElement>('button.welcome-continue-action')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(onContinue).toHaveBeenCalledTimes(2);
+    expect(container.querySelectorAll('button')).toHaveLength(1);
+    expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Clip, Continue');
+    expect(onContinue).toHaveBeenCalledTimes(1);
 
     dispose();
   });

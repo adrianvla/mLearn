@@ -1,68 +1,30 @@
-import { useEvidenceLinkedProjections } from '../../../hooks/useEvidenceLinkedProjections';
-/**
- * Welcome Route
- * Start menu showing options to watch videos, open reader, or continue recent content
- */
-
-import { Component, createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js';
+import { type Component, createMemo, createSignal, For, onMount, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
-import { formatDate } from '../../../utils/timeFormatting';
-import type { Flashcard } from '../../../../shared/types';
+import { useEvidenceLinkedProjections } from '../../../hooks/useEvidenceLinkedProjections';
 import { getBridge } from '../../../../shared/bridges';
+import { isMobile } from '../../../../shared/platform';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { VideoIcon, BookIcon, BotIcon, BarChartIcon, TargetIcon, SearchIcon, LanguageVariantGate } from '../../../components/common';
-import {
-  WelcomeFeatureCard,
-  WelcomeVideoPreview,
-  WelcomeReaderPreview,
-  WelcomeFlashcardPreview,
-  WelcomeStatsPreview,
-  WelcomeLookupPreview,
-  WelcomeLevelPreview,
-  WelcomeTutorPreview,
-  WelcomeContinueRow,
-} from './components';
-import { ActionCard } from '../../../components/common/Card/ActionCard';
-import type { TutorSessionConfig } from '../../../../shared/types';
-import { nextAttemptId, type AttemptId } from '../../../../shared/knowledgeEvents';
+import { Button, Panel, SkeletonRows, VideoIcon, BookIcon, BotIcon, TargetIcon, SearchIcon, BarChartIcon, LanguageVariantGate } from '../../../components/common';
+import AppLogo from '@renderer/components/common/Misc/AppLogo';
+import { WelcomeContinueRow } from './components';
 import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
 import { isLLMReady } from '../../../services/llmProvider';
-import { showToast } from '../../../components/common/Feedback/Toast';
 import { notifyCapabilityUnavailable, openCapabilitySettings } from '../../../services/capabilityUnavailable';
-import { openWordLookup } from '../../../services/wordLookupService';
+import { showToast } from '../../../components/common/Feedback/Toast';
 import { computeLevelStats, getLevelStudyFrequency, getLevelStudyLevelNames, summarizeLevelProgress } from '../../../utils/wordLevelStats';
-import { qualityToSrsRating, type AttemptQuality } from '../../../../shared/constants';
 import { getLearningLanguageLevelForLanguage, isFrequencyLevelAtOrEasierThanTarget } from '../../../../shared/languageFeatures';
-import { mergeRowLists, mergeWordRows, selectDictionaryRows, selectLevelChips, selectRecentWordRows, selectWeekStats, selectWordSearchRows } from './welcomeSelectors';
-import { fetchTranslation } from '../../../hooks/useTranslation';
-import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
-import { ankiCacheVersion, searchAnkiWordsCache } from '../../../services/ankiWordsCache';
-import { policyContextFromSettings } from '../../../learning/policyContext';
-import type { StudyWriteState } from '../../../learning/studySession';
-import Icon from '../../../components/common/Icons/Icon';
-import { isMobile } from '../../../../shared/platform';
-import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../../shared/encounterTiming';
-import './welcome.css';
-import AppLogo from "@renderer/components/common/Misc/AppLogo";
-import { getLogger } from '../../../../shared/utils/logger';
-import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
-import { selectNextEncounter } from '../../../learning/engine';
-import { useDecisionPin } from '../../../hooks/useDecisionPin';
 import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
+import { selectWeekStats } from './welcomeSelectors';
+import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
+import { formatDate } from '../../../utils/timeFormatting';
+import { getLogger } from '../../../../shared/utils/logger';
+import { homeNextAction } from './homeNextAction';
+import './welcome.css';
 
-const log = getLogger("renderer.welcome");
-
+const log = getLogger('renderer.welcome');
 const OPEN_VIDEO_SESSION_KEY = 'mlearn_open_video';
 const OPEN_VIDEO_SUBTITLE_SESSION_KEY = 'mlearn_open_video_subtitles';
-
-/** Blank tutor session used when the composer launches a conversation from a draft message. */
-const DEFAULT_TUTOR_CONFIG: TutorSessionConfig = {
-  selectedGrammar: [],
-  selectedWords: [],
-  selectedMedia: [],
-  customInstructions: '',
-};
 
 export const WelcomeRoute: Component = () => {
   const navigate = useNavigate();
@@ -70,125 +32,30 @@ export const WelcomeRoute: Component = () => {
   const { t } = useLocalization();
   const language = useLanguage();
   const flashcards = useFlashcards();
-
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
-  const [lookupDraft, setLookupDraft] = createSignal('');
-  const [tutorDraft, setTutorDraft] = createSignal('');
-  // Same acknowledged-write lifecycle as every other surface that files a
-  // study write: the study session owns the vocabulary, WriteStatusBanner
-  // owns the wording and the retry affordance. This route used to keep a
-  // private 'idle' | 'saving' | 'failed' machine whose translation keys were
-  // never added to any locale, so a failed rating surfaced a raw key in the
-  // page gutter and a retry button detached from the card that failed.
-  const [ratingWrite, setRatingWrite] = createSignal<StudyWriteState | null>(null);
-  type WelcomeRatingCommand = {
-    cardId: string;
-    word: string;
-    observations: readonly [{ capability: 'sense-recognition'; quality: AttemptQuality }];
-    options: {
-      language: string;
-      attemptId: AttemptId;
-      taskType: 'welcome-review';
-      timing?: AttemptTiming;
-      scaffolds: { reading: true };
-    };
-    rating: ReturnType<typeof qualityToSrsRating>;
-    timeSpentMs?: number;
-  };
-  let pendingWelcomeRating: WelcomeRatingCommand | undefined;
-
+  const [materialReady, setMaterialReady] = createSignal(false);
   onMount(async () => {
-    try {
-      const items = await getRecentItems();
-      setRecentItems(items);
-    } catch (e) {
-      log.error('Failed to load recent items:', e);
-    }
-
+    try { setRecentItems(await getRecentItems()); }
+    catch (error) { log.error('Failed to load recent items:', error); }
+    finally { setMaterialReady(true); }
   });
-
-  const openVideoPlayer = () => {
-    navigate('/video');
-  };
-
-  const openReader = () => {
-    navigate('/reader');
-  };
-
-  const openSettings = () => {
-    getBridge().window.openWindow({ type: 'settings' });
-  };
-
-  const openFlashcards = () => {
-    getBridge().window.openWindow({ type: 'flashcards' });
-  };
-
-  const openStatistics = () => {
-    if (isMobile()) {
-      navigate('/statistics');
-    } else {
-      getBridge().window.openWindow({ type: 'statistics' });
-    }
-  };
-
-  const openWordDatabase = () => {
-    if (isMobile()) {
-      navigate('/word-db-editor');
-    } else {
-      getBridge().window.openWindow({ type: 'word-db-editor' });
-    }
-  };
-
-  const openLevelStudy = () => {
-    if (isMobile()) {
-      navigate('/level-study');
-    } else {
-      getBridge().window.openWindow({ type: 'level-study' });
-    }
-  };
-
+  const openVideoPlayer = () => navigate('/video');
+  const openReader = () => navigate('/reader');
+  const openSettings = () => getBridge().window.openWindow({ type: 'settings' });
+  const openFlashcards = () => getBridge().window.openWindow({ type: 'flashcards' });
+  const openStatistics = () => isMobile() ? navigate('/statistics') : getBridge().window.openWindow({ type: 'statistics' });
+  const openWordDatabase = () => isMobile() ? navigate('/word-db-editor') : getBridge().window.openWindow({ type: 'word-db-editor' });
+  const openLevelStudy = (activity: 'plan' | 'assessment' | 'practice' | 'reinforce' = 'plan') =>
+    getBridge().window.openWindow({ type: 'level-study', context: { activity } });
   const openAITutor = () => {
-    // The unconfigured state must not be a dead card: with no LLM ready, the
-    // card routes to Settings → AI where the provider is configured. A
-    // disabled button swallows clicks (and even hover tooltips), which read as
-    // a broken sidebar item rather than a setup requirement.
     if (!isLLMReady(settings)) {
-      // Say why on the way out: the Settings window used to appear with no
-      // explanation of what the click had done.
       notifyCapabilityUnavailable('llm', 'notConfigured', t);
       openCapabilitySettings('llm');
       return;
     }
-    if (isMobile()) {
-      navigate('/conversation-agent');
-    } else {
-      getBridge().window.openWindow({ type: 'conversation-agent' });
-    }
+    if (isMobile()) navigate('/conversation-agent');
+    else getBridge().window.openWindow({ type: 'conversation-agent' });
   };
-
-  const handleTutorSubmit = () => {
-    const draft = tutorDraft().trim();
-    // Both tutor launch paths funnel through the same readiness gate: an
-    // unconfigured LLM routes to Settings → AI instead of opening an agent
-    // that cannot run.
-    if (!isLLMReady(settings)) {
-      openAITutor();
-      return;
-    }
-    if (draft) {
-      getBridge().window.openWindow({
-        type: 'conversation-agent',
-        context: {
-          tutorConfig: { ...DEFAULT_TUTOR_CONFIG, customInstructions: draft },
-        } as unknown as Record<string, unknown>,
-      });
-      setTutorDraft('');
-      return;
-    }
-    openAITutor();
-  };
-
-
   const openRecent = (item: RecentItem) => {
     // Don't try to open items with no path (legacy items or failed saves)
     if (!item.path || !item.path.trim()) {
@@ -233,200 +100,6 @@ export const WelcomeRoute: Component = () => {
     );
   };
 
-  const videoItem = () => recentItems().find((item) => item.type === 'video') ?? null;
-  const bookItem = () => recentItems().find((item) => item.type === 'book') ?? null;
-
-  // One pinned decision per encounter (see useDecisionPin): unrelated
-  // reactive updates re-run the selection memo, and the pin re-serves the
-  // SAME decision instead of re-drawing with a fresh unseeded rng draw.
-  const decisionPin = useDecisionPin<{ card: Flashcard; decision: ReturnType<typeof selectNextEncounter> }>();
-
-  const currentCard = createMemo(() => {
-    const fallback = flashcards.getCurrentCard();
-    if (!fallback) return null;
-    const language = fallback.language || settings.language;
-    // The policy arbitrates within the scheduler's OWN visible workload for
-    // today (the queue — respecting daily caps and same-day scheduling), not
-    // just its first card (R07/R08). Queued-new cards carry their state so
-    // the source scores them as exploration (novelty), never as fabricated
-    // overdue repair.
-    const nowMs = Date.now();
-    const targetsFor = (word: string, cardLanguage: string) =>
-      [{ entityId: `${cardLanguage}:surface:${word}`, capability: 'surface-recognition' as const }];
-    const reviewQueueEntries = [...flashcards.queue().newQueue, ...flashcards.queue().scheduledQueue]
-      .map((id) => flashcards.store.flashcards[id])
-      .filter((card): card is Flashcard => !!card && !card.suspended && !card.buried
-        && (card.language || settings.language) === language)
-      .map((card) => ({
-        id: card.id,
-        word: card.content.front,
-        language: card.language || settings.language,
-        targets: targetsFor(card.content.front, card.language || settings.language),
-        dueDate: card.dueDate,
-        interval: card.interval,
-        suspended: card.suspended,
-        buried: card.buried,
-        state: card.state,
-        // Queue membership IS the scheduler's same-day admission.
-        scheduledForToday: true,
-        // Scheduler-replayed journal state feeding the momentum producer (R08).
-        lastReviewed: card.lastReviewed,
-        ease: card.ease,
-        reviews: card.reviews,
-      }));
-    if (!reviewQueueEntries.some((entry) => entry.id === fallback.id)) {
-      reviewQueueEntries.push({
-        id: fallback.id,
-        word: fallback.content.front,
-        language,
-        targets: targetsFor(fallback.content.front, language),
-        dueDate: fallback.dueDate,
-        interval: fallback.interval,
-        suspended: fallback.suspended,
-        buried: fallback.buried,
-        state: fallback.state,
-        scheduledForToday: true,
-        lastReviewed: fallback.lastReviewed,
-        ease: fallback.ease,
-        reviews: fallback.reviews,
-      });
-    }
-    // Pinned for the active encounter (R20 repair): this memo re-runs on
-    // every unrelated queue/store/settings update, and the unseeded weighted
-    // draw would silently replace the displayed card. The pin re-serves the
-    // same decision until an explicit review action advances the epoch.
-    const availableIds = new Set(reviewQueueEntries.map((entry) => entry.id));
-    const encounter = decisionPin.pin(language, () => {
-      const decision = selectNextEncounter({
-        preset: 'RETENTION',
-        nowMs,
-        // The goal applies only to the queue's own learning language (R07).
-        context: policyContextFromSettings(settings, language),
-        reviewQueueEntries,
-      });
-      const card = decision?.action === 'DEFER'
-        ? fallback
-        : flashcards.store.flashcards[decision?.candidate.key ?? ''] ?? fallback;
-      return { card, decision };
-    }, (selection) => availableIds.has(selection.card.id));
-    return flashcards.store.flashcards[encounter.card.id] ?? encounter.card;
-  });
-  // Active-engagement timing per welcome card (shared encounter
-  // instrumentation): blur/hidden pauses never count as retrieval latency.
-  let welcomeTimer: EncounterTimer | null = null;
-  const stopWelcomeTiming = (): AttemptTiming | null => {
-    const timing = welcomeTimer?.stop() ?? null;
-    welcomeTimer?.dispose();
-    welcomeTimer = null;
-    return timing;
-  };
-  onCleanup(() => stopWelcomeTiming());
-  createEffect(on(
-    () => currentCard()?.id,
-    (cardId) => {
-      stopWelcomeTiming();
-      if (!cardId) return;
-      welcomeTimer = createEncounterTimer();
-      welcomeTimer.start();
-    },
-  ));
-  const saveWelcomeRating = async (command: WelcomeRatingCommand) => {
-    setRatingWrite('pending');
-    try {
-      await flashcards.submitRating(command.word, command.observations, {
-        ...command.options,
-        scheduler: {
-          cardId: command.cardId,
-          rating: command.rating,
-          timeSpentMs: command.timeSpentMs,
-          tested: ['sense-recognition'],
-        },
-      });
-      pendingWelcomeRating = undefined;
-      setRatingWrite(null);
-      // The answer changed the pool: end the encounter so the next displayed
-      // card re-selects instead of replaying the just-rated pick (R20 repair).
-      decisionPin.advance();
-    } catch (error) {
-      log.error('Failed to save welcome card rating:', error);
-      pendingWelcomeRating = command;
-      setRatingWrite('failed');
-    }
-  };
-  const rateCard = (quality: AttemptQuality, easy?: boolean) => {
-    if (ratingWrite() !== null) return;
-    const card = currentCard();
-    if (!card) return;
-    const language = card.language || settings.language;
-    const timing = stopWelcomeTiming();
-    // Meaning-row matrix semantics: the widget's card front supplies the
-    // reading (rendered beneath it), so only Meaning is tested here — and the
-    // evidence records that presentation honestly.
-    const command: WelcomeRatingCommand = {
-      cardId: card.id,
-      word: card.content.front,
-      observations: [{ capability: 'sense-recognition', quality }],
-      options: {
-        language,
-        attemptId: nextAttemptId(),
-        taskType: 'welcome-review',
-        ...(timing ? { timing } : {}),
-        scaffolds: { reading: true },
-      },
-      rating: qualityToSrsRating(quality, easy),
-      ...(timing ? { timeSpentMs: timing.wallLatencyMs } : {}),
-    };
-    pendingWelcomeRating = command;
-    void saveWelcomeRating(command);
-  };
-  const recentWordRows = createMemo(() =>
-    selectRecentWordRows(flashcards.store.flashcards, settings.language, 3),
-  );
-  const lookupRows = createMemo(() => {
-    ankiCacheVersion();
-    const draft = lookupDraft().trim();
-    if (!draft) return recentWordRows();
-    const flashcardRows = selectWordSearchRows(flashcards.store.flashcards, settings.language, draft, 4);
-    const personalRows = settings.use_anki
-      ? mergeWordRows(
-          flashcardRows,
-          searchAnkiWordsCache(draft, 6, {
-            language: settings.language,
-            languageData: language.currentLangData(),
-          }),
-          4,
-        )
-      : flashcardRows;
-    return mergeRowLists(personalRows, selectDictionaryRows(dictResponse() ?? null, draft, 4), 4);
-  });
-
-  const [dictLookupWord, setDictLookupWord] = createSignal('');
-  createEffect(() => {
-    const draft = lookupDraft().trim();
-    if (!draft) {
-      setDictLookupWord('');
-      return;
-    }
-    const timer = setTimeout(() => setDictLookupWord(draft), 300);
-    onCleanup(() => clearTimeout(timer));
-  });
-  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
-  const [dictResponse] = createResource(
-    () => dictLookupWord() || undefined,
-    async (word) => {
-      if (!word) return null;
-      return fetchTranslation(word, settings.language, {
-        getCanonicalForm: language.getCanonicalForm,
-        getWordVariants: language.getWordVariants,
-        dictionaryTargetLanguage,
-        languageData: language.currentLangData,
-      });
-    },
-  );
-  const submitLookup = () => {
-    openWordLookup(lookupDraft());
-  };
-
   const levelStudySource = createMemo(() => {
     const langData = language.currentLangData();
     if (!langData) return null;
@@ -443,12 +116,9 @@ export const WelcomeRoute: Component = () => {
     surfaces: Object.keys(levelStudySource()!.freq),
     materializedKeys: Object.keys(flashcards.store.wordKnowledge),
   } : undefined);
-  // The mastery dial must never render intermediate percentages: the store
-  // arriving, the legacy knowledge migrations settling, and the language
-  // data landing each change the numbers. Until all three are authoritative,
-  // levelStudy is pending (skeleton), not empty (0%).
+  // Do not recommend an activity from an intermediate learner snapshot.
   const levelStudyPending = createMemo(() => (
-    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || !curriculumProjection.ready()
+    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || (Boolean(levelStudySource()) && !curriculumProjection.ready())
   ));
   const levelStudy = createMemo(() => {
     if (levelStudyPending()) return null;
@@ -478,8 +148,6 @@ export const WelcomeRoute: Component = () => {
       ));
     return summarizeLevelProgress(scoped);
   });
-  const levelChips = createMemo(() => selectLevelChips(levelStudy()?.levels ?? []));
-
   const weekStats = createMemo(() =>
     selectWeekStats(flashcards.store.dailyStats, settings.language, new Date()),
   );
@@ -490,15 +158,6 @@ export const WelcomeRoute: Component = () => {
       reviews: days.reduce((sum, day) => sum + day.reviews, 0),
     };
   });
-  const formatWeekday = (date: string) => {
-    try {
-      return new Intl.DateTimeFormat(settings.uiLanguage, { weekday: 'narrow' }).format(new Date(`${date}T00:00:00`));
-    } catch {
-      return date.slice(5);
-    }
-  };
-  const weekdayLabels = createMemo(() => weekStats().map((day) => formatWeekday(day.date)));
-
   const formatLastWatched = (timestamp: number) => {
     try {
       const days = Math.round((timestamp - Date.now()) / 86_400_000);
@@ -508,254 +167,109 @@ export const WelcomeRoute: Component = () => {
     }
   };
 
+
+  const dueCount = () => flashcards.queueCounts().total;
+  const summary = createMemo(() => {
+    const progress = levelProgress();
+    return {
+      assessed: progress?.tracked ?? 0,
+      known: progress?.known ?? 0,
+      needsPractice: progress ? progress.tracked - progress.known : 0,
+      unassessed: progress ? progress.total - progress.tracked : 0,
+    };
+  });
+  const ready = () => materialReady() && !flashcards.isLoading() && flashcards.isKnowledgeReady()
+    && !language.isLoading() && (!levelStudySource() || curriculumProjection.ready());
+  const next = createMemo(() => homeNextAction({ ...summary(), due: dueCount(), hasMaterial: recentItems().length > 0 }));
+  const nextCopy = () => {
+    const keys = {
+      review: ['ReviewTitle', 'ReviewReason', 'ReviewAction'],
+      practice: ['PracticeTitle', 'PracticeReason', 'PracticeAction'],
+      assessment: ['AssessmentTitle', 'AssessmentReason', 'AssessmentAction'],
+      continue: ['ContinueTitle', 'ContinueReason', 'ContinueAction'],
+      read: ['ReadTitle', 'ReadReason', 'ReadAction'],
+    } as const;
+    const params = { count: String(next() === 'review' ? dueCount() : next() === 'practice' ? summary().needsPractice : summary().unassessed),
+      material: recentItems()[0]?.name ?? '' };
+    return keys[next()].map(key => t(`mlearn.Home.Today.${key}`, params));
+  };
+  const startNext = () => {
+    switch (next()) {
+      case 'review': openFlashcards(); break;
+      case 'practice': openLevelStudy('reinforce'); break;
+      case 'assessment': openLevelStudy('assessment'); break;
+      case 'continue': { const item = recentItems()[0]; if (item) openRecent(item); break; }
+      case 'read': openReader(); break;
+    }
+  };
   return (
-    <div class="welcome-container">
+    <main class="welcome-container">
       <LanguageVariantGate />
       <WindowDragRegion />
-      
-      {/* Header */}
-      <header class="welcome-header">
-        <div class="welcome-logo">
-          <AppLogo size={"2.5rem"}/>
-          <h1>{t('mlearn.Global.AppName')}</h1>
-        </div>
-        <div class="welcome-subtitle">
-          <span>
-            <Show when={language.currentLangData()?.flagEmoji}>
-              {(flag) => <span class="welcome-language-flag" aria-hidden="true">{flag()}</span>}
-            </Show>
-            {t('mlearn.Home.UI.LearningLanguage', { language: getLanguageName() })}
-          </span>
-          <button type="button" class="welcome-change-language" onClick={openSettings}>
-            {t('mlearn.Home.Cards.Settings.Title')}
-          </button>
-        </div>
-      </header>
-
-      {/* Main Actions */}
-      <Show
-        when={settings.simplifyHomeScreen}
-        fallback={
-          <section class="welcome-actions">
-            <WelcomeFeatureCard
-          icon={<TargetIcon size={24} />}
-          title={t('mlearn.Home.Cards.LevelStudy.Title')}
-          description={t('mlearn.Home.Cards.LevelStudy.Description')}
-          onClick={openLevelStudy}
-          preview={
-            <Show when={!curriculumProjection.failed()} fallback={<div role="alert">{t('mlearn.WordSync.ProjectionUnavailable')} <button type="button" onClick={(event) => { event.stopPropagation(); curriculumProjection.retry(); }}>{t('mlearn.Knowledge.Retry')}</button></div>}>
-            <WelcomeLevelPreview
-              pending={levelStudyPending()}
-              progress={levelProgress()}
-              active={levelChips().active}
-              chips={levelChips().chips}
-              titleLabel={t('mlearn.LevelStudy.Coverage.Title')}
-              assessedLabel={t('mlearn.LevelStudy.Coverage.Assessed')}
-              knownLabel={t('mlearn.LevelStudy.LevelCard.Known')}
-              emptyLabel={t('mlearn.Home.Cards.LevelStudy.Description')}
-              onOpen={openLevelStudy}
-            />
-            </Show>
-          }
-        />
-        <WelcomeFeatureCard
-              icon={<VideoIcon size={24} />}
-              title={t('mlearn.Home.Cards.Video.Title')}
-              description={t('mlearn.Home.Cards.Video.Description')}
-              onClick={openVideoPlayer}
-              preview={
-                <WelcomeVideoPreview
-                  item={videoItem()}
-                  emptyLabel={t('mlearn.Home.Cards.Video.Description')}
-                  continueLabel={t('mlearn.Global.Continue')}
-                  onResume={openRecent}
-                />
-              }
-            />
-
-        <WelcomeFeatureCard
-          icon={<BookIcon size={24} />}
-          title={t('mlearn.Home.Cards.Reader.Title')}
-          description={t('mlearn.Home.Cards.Reader.Description')}
-          onClick={openReader}
-          preview={
-            <WelcomeReaderPreview
-              item={bookItem()}
-              emptyLabel={t('mlearn.Home.Cards.Reader.Description')}
-              continueLabel={t('mlearn.Global.Continue')}
-              onResume={openRecent}
-            />
-          }
-        />
-
-        <WelcomeFeatureCard
-          icon={<Icon icon="cards" color="currentColor" class="" />}
-          title={t('mlearn.Home.Cards.Flashcards.Title')}
-          description={t('mlearn.Home.Cards.Flashcards.Description')}
-          onClick={openFlashcards}
-          preview={
-            <WelcomeFlashcardPreview
-              card={currentCard()}
-              loading={flashcards.isLoading() || !flashcards.isKnowledgeReady()}
-              dueCount={flashcards.queueCounts().total}
-              dueLabel={t('mlearn.Flashcards.Statistics.DueToday')}
-              emptyLabel={t(Object.keys(flashcards.store.flashcards).length > 0
-                ? 'mlearn.Flashcards.EmptyState.NoCardsDueTitle'
-                : 'mlearn.Flashcards.EmptyState.NoCardsTitle')}
-              loadingLabel={t('mlearn.Global.Loading')}
-              openLabel={t('mlearn.Global.Continue')}
-              keyboardMode={settings.ratingKeyboardMode}
-              onOpen={openFlashcards}
-              onRate={rateCard}
-              ratingWrite={ratingWrite()}
-              onRetryRating={() => { if (pendingWelcomeRating) void saveWelcomeRating(pendingWelcomeRating); }}
-            />
-          }
-        />
-
-        <WelcomeFeatureCard
-          icon={<BarChartIcon size={24} />}
-          title={t('mlearn.Home.Cards.Statistics.Title')}
-          description={t('mlearn.Home.Cards.Statistics.Description')}
-          onClick={openStatistics}
-          preview={
-            <WelcomeStatsPreview
-              days={weekStats()}
-              newTotal={weekTotals().newCards}
-              reviewsTotal={weekTotals().reviews}
-              newLabel={t('mlearn.Statistics.Dashboard.CardState.New')}
-              reviewsLabel={t('mlearn.Statistics.Dashboard.Reviews')}
-              weekdayLabels={weekdayLabels()}
-              onOpen={openStatistics}
-            />
-          }
-        />
-
-        <WelcomeFeatureCard
-          icon={<SearchIcon size={24} />}
-          title={t('mlearn.Home.Cards.WordDatabase.Title')}
-          description={t('mlearn.Home.Cards.WordDatabase.Description')}
-          onClick={openWordDatabase}
-          preview={
-            <WelcomeLookupPreview
-              mobile={isMobile()}
-              draft={lookupDraft()}
-              placeholder={t('mlearn.Global.Search')}
-              searchLabel={t('mlearn.Global.Search')}
-              emptyHint={t('mlearn.Home.Cards.WordDatabase.EmptyHint')}
-              searching={lookupDraft().trim().length > 0}
-              noMatchesLabel={t('mlearn.Home.Cards.WordDatabase.NoMatches')}
-              lookupHint={t('mlearn.Home.Cards.WordDatabase.LookupHint', { query: lookupDraft().trim() })}
-              rows={lookupRows()}
-              onDraftChange={(value) => setLookupDraft(value)}
-              onSubmit={submitLookup}
-              onOpenDatabase={openWordDatabase}
-              onLookupWord={openWordLookup}
-            />
-          }
-        />
-
-        <WelcomeFeatureCard
-          icon={<BotIcon size={24} />}
-          title={t('mlearn.Home.Cards.AITutor.Title')}
-          description={isLLMReady(settings)
-            ? t('mlearn.Home.Cards.AITutor.Description')
-            : t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
-          onClick={openAITutor}
-          class="welcome-ai-tutor-card"
-          preview={
-            <WelcomeTutorPreview
-              ready={isLLMReady(settings)}
-              readyLabel={t('mlearn.Global.Ready')}
-              setupLabel={t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')}
-              placeholder={t('mlearn.ConversationAgent.InputPlaceholder', { language: getLanguageName() })}
-              mobile={isMobile()}
-              draft={tutorDraft()}
-              onDraftChange={setTutorDraft}
-              onSubmit={handleTutorSubmit}
-            />
-          }
-        />
-          </section>
-        }
-      >
-        <section class="welcome-actions welcome-actions--simple">
-          <ActionCard
-            icon={<TargetIcon size={24} />}
-            title={t('mlearn.Home.Cards.LevelStudy.Title')}
-            description={t('mlearn.Home.Cards.LevelStudy.Description')}
-            onClick={openLevelStudy}
-            primary
-          />
-
-          <ActionCard
-            icon={<VideoIcon size={24} />}
-            title={t('mlearn.Home.Cards.Video.Title')}
-            description={t('mlearn.Home.Cards.Video.Description')}
-            onClick={openVideoPlayer}
-          />
-
-          <ActionCard
-            icon={<BookIcon size={24} />}
-            title={t('mlearn.Home.Cards.Reader.Title')}
-            description={t('mlearn.Home.Cards.Reader.Description')}
-            onClick={openReader}
-          />
-
-          <ActionCard
-            icon={<Icon icon="cards" color="currentColor" class="" />}
-            title={t('mlearn.Home.Cards.Flashcards.Title')}
-            description={t('mlearn.Home.Cards.Flashcards.Description')}
-            onClick={openFlashcards}
-          />
-
-          <ActionCard
-            icon={<BarChartIcon size={24} />}
-            title={t('mlearn.Home.Cards.Statistics.Title')}
-            description={t('mlearn.Home.Cards.Statistics.Description')}
-            onClick={openStatistics}
-          />
-
-          <ActionCard
-            icon={<SearchIcon size={24} />}
-            title={t('mlearn.Home.Cards.WordDatabase.Title')}
-            description={t('mlearn.Home.Cards.WordDatabase.Description')}
-            onClick={openWordDatabase}
-          />
-
-          <ActionCard
-            icon={<BotIcon size={24} />}
-            title={t('mlearn.Home.Cards.AITutor.Title')}
-            description={
-              isLLMReady(settings)
-                ? t('mlearn.Home.Cards.AITutor.Description')
-                : t('mlearn.Home.Cards.AITutor.SetupRequiredDescription')
-            }
-            onClick={openAITutor}
-            class="welcome-ai-tutor-card"
-          />
-        </section>
-      </Show>
-
-      {/* Recent items: continue rows */}
-      <Show when={recentItems().length > 0}>
-        <section class="welcome-continue-section">
-          <h2>{t('mlearn.Home.UI.ContinueLearning')}</h2>
-          <div class="welcome-continue-list">
-            <For each={recentItems().slice(0, 5)}>
-              {(item) => (
-                <WelcomeContinueRow
-                  item={item}
-                  continueLabel={t('mlearn.Global.Continue')}
-                  lastWatchedLabel={formatLastWatched(item.lastWatched)}
-                  onContinue={openRecent}
-                />
-              )}
-            </For>
+      <div class="welcome-page">
+        <header class="welcome-header">
+          <div class="welcome-logo"><AppLogo size="1.75rem" /><span>{t('mlearn.Global.AppName')}</span></div>
+          <div class="welcome-subtitle">
+            <span><Show when={language.currentLangData()?.flagEmoji}>{flag => <span class="welcome-language-flag" aria-hidden="true">{flag()}</span>}</Show>
+              {t('mlearn.Home.UI.LearningLanguage', { language: getLanguageName() })}</span>
+            <Button variant="ghost" size="sm" onClick={openSettings}>{t('mlearn.Home.Cards.Settings.Title')}</Button>
           </div>
-        </section>
-      </Show>
-
-    </div>
+        </header>
+        <nav class="welcome-activities" aria-label={t('mlearn.Home.Today.Activities')}>
+          <Button variant="ghost" icon={<BookIcon size={18} />} onClick={openReader}>{t('mlearn.Home.Today.Read')}</Button>
+          <Button variant="ghost" icon={<VideoIcon size={18} />} onClick={openVideoPlayer}>{t('mlearn.Home.Today.Watch')}</Button>
+          <Button variant="ghost" icon={<TargetIcon size={18} />} onClick={() => openLevelStudy('practice')}>{t('mlearn.Home.Today.Practice')}</Button>
+          <Button variant="ghost" icon={<BotIcon size={18} />} onClick={openAITutor}>{t('mlearn.Home.Cards.AITutor.Title')}</Button>
+          <Button variant="ghost" icon={<SearchIcon size={18} />} onClick={openWordDatabase}>{t('mlearn.Home.Cards.WordDatabase.Title')}</Button>
+        </nav>
+        <div class="welcome-today-heading"><h1>{t('mlearn.Home.Today.Title')}</h1><p>{t('mlearn.Home.Today.Description')}</p></div>
+        <div class="welcome-workspace">
+          <Panel class="welcome-next" padding="lg">
+            <span class="welcome-section-label">{t('mlearn.Home.Today.Next')}</span>
+            <Show when={ready()} fallback={
+              <Show when={!curriculumProjection.failed()} fallback={
+                <div role="alert"><p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
+                  <Button onClick={() => curriculumProjection.retry()}>{t('mlearn.Knowledge.Retry')}</Button></div>
+              }><SkeletonRows rows={2} /></Show>
+            }>
+              <h2>{nextCopy()[0]}</h2><p class="welcome-next-reason">{nextCopy()[1]}</p>
+              <Button variant="primary" size="lg" onClick={startNext}>{nextCopy()[2]}</Button>
+            </Show>
+            <Show when={!ready() || next() !== 'review'}><Button variant="ghost" size="sm" onClick={openFlashcards}>{t('mlearn.Home.Cards.Flashcards.Title')}</Button></Show>
+          </Panel>
+          <section class="welcome-material" aria-label={t('mlearn.Home.UI.ContinueLearning')}>
+            <h2>{t('mlearn.Home.UI.ContinueLearning')}</h2>
+            <Show when={materialReady()} fallback={<SkeletonRows rows={2} />}>
+              <Show when={recentItems().length > 0} fallback={
+                <div class="welcome-material-empty"><p>{t('mlearn.Home.Today.NoMaterial')}</p>
+                  <Button onClick={openReader}>{t('mlearn.Home.Today.ReadAction')}</Button>
+                  <Button variant="ghost" onClick={openVideoPlayer}>{t('mlearn.Home.Today.Watch')}</Button></div>
+              }>
+                <div class="welcome-continue-list"><For each={recentItems().slice(0, 3)}>{item =>
+                  <WelcomeContinueRow item={item} continueLabel={t('mlearn.Global.Continue')}
+                    lastWatchedLabel={formatLastWatched(item.lastWatched)} onContinue={openRecent} />
+                }</For></div>
+              </Show>
+            </Show>
+          </section>
+        </div>
+        <footer class="welcome-support" classList={{ 'welcome-support--compact': settings.simplifyHomeScreen }}>
+          <section class="welcome-plan-summary">
+            <h2>{t('mlearn.Home.Cards.LevelStudy.Title')}</h2>
+            <Show when={!settings.simplifyHomeScreen}>
+              <Show when={!levelStudyPending()} fallback={<p>{t('mlearn.Global.Loading')}</p>}>
+                <p>{levelProgress() ? t('mlearn.Home.Today.PlanSummary', { known: String(summary().known), needsPractice: String(summary().needsPractice), unassessed: String(summary().unassessed) }) : t('mlearn.Home.Today.PlanUnmeasured')}</p>
+              </Show>
+            </Show>
+            <Button variant="ghost" size="sm" onClick={() => openLevelStudy()}>{t('mlearn.Home.Today.ViewPlan')}</Button>
+          </section>
+          <section class="welcome-week-summary">
+            <h2>{t('mlearn.Home.Today.ThisWeek')}</h2>
+            <Show when={!settings.simplifyHomeScreen}><p>{t('mlearn.Home.Today.WeekSummary', { reviews: String(weekTotals().reviews), newCards: String(weekTotals().newCards) })}</p></Show>
+            <Button variant="ghost" size="sm" icon={<BarChartIcon size={16} />} onClick={openStatistics}>{t('mlearn.Home.Cards.Statistics.Title')}</Button>
+          </section>
+        </footer>
+      </div>
+    </main>
   );
 };

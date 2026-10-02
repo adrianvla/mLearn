@@ -148,6 +148,7 @@ interface WordSyncUndoEntry {
 
 export interface WordSyncContentProps {
   mode?: 'study' | 'assessment';
+  intent?: 'reinforce';
   onAssessmentApplied?: () => void;
 }
 
@@ -155,6 +156,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
   const assessmentMode = () => props.mode === 'assessment';
+  const studyStorageKey = () => `mlearn-study-word-sync${props.intent === 'reinforce' ? '-reinforce' : ''}:${settings.language}`;
   const langCtx = useLanguage();
   const {
     store,
@@ -546,6 +548,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       levelNames(),
       getLearningLanguageLevelForLanguage(settings, settings.language),
       langCtx.currentLangData(),
+      props.intent === 'reinforce' ? 'reinforce' : 'discover',
     );
   }
 
@@ -1279,7 +1282,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       let savedFilter: FilterToken[] | null = null;
       if (props.mode !== 'assessment') {
         try {
-          savedFilter = wordSyncSavedFilter(globalThis.localStorage.getItem(`mlearn-study-word-sync:${settings.language}`), {
+          savedFilter = wordSyncSavedFilter(globalThis.localStorage.getItem(studyStorageKey()), {
             language: settings.language,
             provider: settings.frequencyProviderSelections?.[settings.language],
             packageVersion: langCtx.currentLangData()?.languageData?.version,
@@ -1409,7 +1412,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       tokens: filterTokens().map(({ instanceId: _instanceId, ...token }) => token),
       packageVersion: langCtx.currentLangData()?.languageData?.version,
     });
-    const controller = createWordController(identity, `mlearn-study-word-sync:${settings.language}`, entryByWord, false);
+    const controller = createWordController(identity, studyStorageKey(), entryByWord, false);
     setSessionController(controller);
     batch(() => {
       setQueueSummary({ ignored: Math.max(0, Object.keys(langCtx.getWordFrequency()).length - [...result.pool.values()].reduce((sum, group) => sum + group.length, 0)), filtered: result.filtered, noPrompt: result.noPrompt });

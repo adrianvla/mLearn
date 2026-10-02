@@ -845,6 +845,21 @@ beforeEach(() => {
     expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null').id).toBe(saved.id);
   });
 
+  it('feeds reinforcement into the shared study component without replacing ordinary study progress', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle();
+    const ordinary = localStorage.getItem('mlearn-study-word-sync:ja');
+    expect(ordinary).not.toBeNull();
+    disposals.pop()!();
+    const dispose = render(() => <WordSyncContent intent="reinforce" />, container);
+    disposals.push(dispose);
+    await settle();
+    expect(mockCommonState.buildWordSyncPreset).toHaveBeenLastCalledWith(expect.any(Object), null, null, 'reinforce');
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBe(ordinary);
+    expect(localStorage.getItem('mlearn-study-word-sync-reinforce:ja')).not.toBeNull();
+  });
+
   it('restores a custom filter with its durable question and count on remount', async () => {
     mockWordSyncState.wordFrequency = Object.fromEntries(['赤い', '青い', '白い'].map((word) => [word, {
       reading: word, raw_level: 5, level: 'N5',

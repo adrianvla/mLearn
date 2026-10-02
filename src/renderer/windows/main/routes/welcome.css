@@ -1,249 +1,40 @@
-/* Welcome Route Styles */
-
 .welcome-container {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 2rem;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: auto;
   background: var(--app-shell-bg);
   color: var(--text-primary);
-  user-select: none;
-  min-height: 0;
-  /* Center the column vertically when it fits; fall back to top-aligned
-     scrolling so small windows never clip the top of the content. */
-  justify-content: safe center;
+  padding: var(--spacing-8);
+  padding-top: var(--spacing-10);
 }
-body.reduce-transparency .welcome-container {
-  background: var(--bg-opaque);
-}
-
-.welcome-header,
-.welcome-actions {
-  flex-shrink: 0;
-}
-
-/* On mobile, allow scrolling and don't force viewport height */
-.mobile-layout .welcome-container {
-  height: auto;
-  min-height: 100%;
-  overflow: visible;
-  padding: var(--spacing-4);
-}
-
-/* Header */
-.welcome-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.welcome-logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
-}
-
-.logo-icon {
-  font-size: 2.5rem;
-}
-
-.welcome-header h1 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin: 0;
-  background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.welcome-subtitle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  color: var(--text-secondary);
-  font-size: 1.1rem;
-  margin: 0;
-}
-
-.welcome-language-flag {
-  display: inline-block;
-  margin-inline-end: var(--spacing-2);
-  font-size: 1.15em;
-  line-height: 1;
-  vertical-align: -0.08em;
-}
-
-/* Quiet accent link for changing the language, with a middot separator */
-.welcome-change-language {
-  font: inherit;
-  font-size: inherit;
-  color: var(--text-secondary);
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: color var(--transition-fast);
-}
-
-.welcome-change-language::before {
-  content: '\00B7';
-  margin: 0 0.5rem;
-  color: var(--text-tertiary);
-}
-
-.welcome-change-language:hover {
-  color: var(--text-primary);
-}
-
-.welcome-change-language:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 2px;
-}
-
-/* Actions: four equal-width tracks with a fixed, capped row height — compact
-   near-square cards that never stretch to fill the viewport */
-.welcome-actions {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: 240px;
-  gap: 1.25rem;
-  max-width: 1200px;
-  margin: 0 auto 2rem;
-  width: 100%;
-}
-
-.welcome-actions > * {
-  min-width: 0;
-  height: 100%;
-}
-
-/* The flashcard preview needs its full rating matrix when Adjust is open. */
-.welcome-actions:has(.wfv-flashcard-ratings) {
-  grid-auto-rows: minmax(240px, auto);
-}
-
-/* Simplified home screen: same grid layout as the feature cards, but the plain
-   buttons keep their natural content height instead of the 240px card rows */
-.welcome-actions--simple {
-  grid-auto-rows: auto;
-}
-
-.welcome-actions--simple > * {
-  height: auto;
-}
-
-/* The AI tutor Tooltip wrapper must occupy one full equal track */
-.welcome-actions > .tooltip-trigger {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-}
-
-.welcome-actions > .tooltip-trigger > .welcome-feature-card {
-  flex: 1;
-  width: 100%;
-}
-
-/* Continue Learning: single full-width row */
-.welcome-continue-section {
-  margin: 0 auto;
-  width: 100%;
-  max-width: 1200px;
-  flex: 0 0 auto;
-  min-height: 0;
-  padding: 1rem;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-}
-body.reduce-transparency .welcome-continue-section {
-  background: var(--bg-nt-secondary);
-}
-
-.welcome-continue-section h2 {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  margin: 0 0 0.75rem;
-  color: var(--text-primary);
-}
-
-.welcome-continue-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  min-width: 0;
-}
-
-/* Tips */
-.welcome-tips {
-  max-width: 600px;
-  margin: 0 auto auto;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.tip {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: var(--bg-nt-secondary);
-  border-radius: 8px;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
-}
-
-.tip-icon {
-  font-size: 1rem;
-}
-
-.tip p {
-  margin: 0;
-}
-
-/* Responsive */
-@media (max-width: 1160px) {
-  .welcome-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 600px) {
-  .welcome-actions {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* Mobile cards keep their natural height — never forced to the 240px desktop cap */
-.mobile-layout .welcome-actions {
-  grid-auto-rows: auto;
-}
-
-/* On mobile, hide welcome header h1 — MobileLayout provides the large title */
-.mobile-layout .welcome-header h1 {
-  display: none;
-}
-
-/* Mobile-specific adjustments */
-.mobile-layout .welcome-header {
-  margin-bottom: var(--spacing-4);
-}
-
-.mobile-layout .welcome-subtitle {
-  font-size: var(--font-size-base);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .welcome-change-language {
-    transition: none;
-  }
+.welcome-page { max-width: 74rem; margin: 0 auto; }
+.welcome-header, .welcome-logo, .welcome-subtitle, .welcome-activities { display: flex; align-items: center; }
+.welcome-header { justify-content: space-between; gap: var(--spacing-4); margin-bottom: var(--spacing-5); }
+.welcome-logo { gap: var(--spacing-2); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
+.welcome-subtitle { gap: var(--spacing-3); color: var(--text-secondary); font-size: var(--font-size-sm); flex-wrap: wrap; }
+.welcome-language-flag { margin-inline-end: var(--spacing-2); }
+.welcome-activities { gap: var(--spacing-2); flex-wrap: wrap; border-bottom: 1px solid var(--border-color); padding-bottom: var(--spacing-4); }
+.welcome-today-heading { margin: var(--spacing-6) 0; }
+.welcome-today-heading h1 { margin: 0 0 var(--spacing-2); font-size: var(--font-size-2xl); }
+.welcome-today-heading p, .welcome-next-reason, .welcome-material-empty p, .welcome-support p { color: var(--text-secondary); line-height: var(--line-height-normal); margin: 0; }
+.welcome-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--spacing-6); align-items: start; }
+.welcome-next { display: flex; flex-direction: column; align-items: flex-start; gap: var(--spacing-4); min-width: 0; }
+.welcome-section-label { color: var(--text-secondary); font-size: var(--font-size-sm); }
+.welcome-next h2 { font-size: var(--font-size-xl); line-height: 1.3; margin: 0; }
+.welcome-next > .btn-primary { margin-top: var(--spacing-2); }
+.welcome-material { min-width: 0; }
+.welcome-material h2, .welcome-support h2 { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); margin: 0 0 var(--spacing-3); }
+.welcome-continue-list { display: flex; flex-direction: column; gap: var(--spacing-3); }
+.welcome-material-empty { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-3); }
+.welcome-material-empty p { flex-basis: 100%; }
+.welcome-support { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-6); border-top: 1px solid var(--border-color); margin-top: var(--spacing-6); padding-top: var(--spacing-5); }
+.welcome-support p { font-size: var(--font-size-sm); margin-bottom: var(--spacing-2); }
+.welcome-support--compact section { display: flex; align-items: center; gap: var(--spacing-2); }
+.welcome-support--compact h2 { margin: 0; }
+.mobile-layout .welcome-container { height: auto; min-height: 100%; overflow: visible; padding: var(--spacing-4); }
+@media (max-width: 850px) { .welcome-workspace { grid-template-columns: 1fr; } .welcome-header { align-items: flex-start; } }
+@media (max-width: 550px) {
+  .welcome-container { padding: var(--spacing-4); padding-top: var(--spacing-8); }
+  .welcome-header { flex-direction: column; }
+  .welcome-support { grid-template-columns: 1fr; }
 }

@@ -1,4 +1,4 @@
-import { Component, Show, createEffect, createSignal, createMemo } from 'solid-js';
+import { Component, Show, createEffect, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useLanguage, useLocalization } from '../../context';
 import { Button, ArrowLeftIcon, Panel, TargetIcon } from '../../components/common';
 import { WordSyncContent } from '../wordSync/App';
@@ -6,6 +6,7 @@ import { CharacterGridContent } from '../characterGrid/App';
 import { LevelStudyTab } from './LevelStudyTab';
 import { LearningPlanSettings } from './LearningPlanSettings';
 import { getCharacterStudyScripts } from '../../../shared/languageFeatures';
+import { getBridge } from '../../../shared/bridges';
 import './LevelStudy.css';
 
 type PlanDestination = 'plan' | 'assessment' | 'word-sync' | 'character-grid';
@@ -20,6 +21,22 @@ export const LevelStudyContent: Component = () => {
     planControls?.querySelector<HTMLSelectElement>('select')?.focus({ preventScroll: true });
   };
   const [destination, setDestination] = createSignal<PlanDestination>('plan');
+  const [studyIntent, setStudyIntent] = createSignal<'reinforce' | undefined>();
+  const openStudy = () => { setStudyIntent(undefined); setDestination('word-sync'); };
+  onMount(() => {
+    const bridge = getBridge();
+    const cleanup = bridge.window.onWindowContext(context => {
+      if (!context) return;
+      if (context.activity === 'practice' || context.activity === 'reinforce') {
+        setStudyIntent(context.activity === 'reinforce' ? 'reinforce' : undefined);
+        setDestination('word-sync');
+      }
+      else if (context.activity === 'assessment') setDestination('assessment');
+      else if (context.activity === 'plan') setDestination('plan');
+    });
+    if (cleanup) onCleanup(cleanup);
+    bridge.window.getWindowContext('level-study');
+  });
   const showCharacterGrid = createMemo(() => getCharacterStudyScripts(currentLangData()).length > 0);
   createEffect(() => {
     if (destination() === 'character-grid' && !showCharacterGrid()) setDestination('plan');
@@ -48,7 +65,7 @@ export const LevelStudyContent: Component = () => {
                 <h2>{t('mlearn.LearningPlan.Activities')}</h2>
                 <div class="learning-plan-activities">
                   <Panel class="learning-plan-activity" padding="lg"><h3>{t('mlearn.LearningPlan.Assess')}</h3><p>{t('mlearn.LearningPlan.AssessDescription')}</p><Button variant="primary" onClick={() => setDestination('assessment')}>{t('mlearn.LearningPlan.Assess')}</Button></Panel>
-                  <Panel class="learning-plan-activity" padding="lg"><h3>{t('mlearn.LevelStudy.Tabs.WordSync')}</h3><p>{t('mlearn.LearningPlan.WordSyncDescription')}</p><Button onClick={() => setDestination('word-sync')}>{t('mlearn.LevelStudy.Tabs.WordSync')}</Button></Panel>
+                  <Panel class="learning-plan-activity" padding="lg"><h3>{t('mlearn.LevelStudy.Tabs.WordSync')}</h3><p>{t('mlearn.LearningPlan.WordSyncDescription')}</p><Button onClick={openStudy}>{t('mlearn.LevelStudy.Tabs.WordSync')}</Button></Panel>
                   <Show when={showCharacterGrid()}><Panel class="learning-plan-activity" padding="lg"><h3>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</h3><p>{t('mlearn.LearningPlan.CharactersDescription')}</p><Button onClick={() => setDestination('character-grid')}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Button></Panel></Show>
                 </div>
               </section>
@@ -58,7 +75,9 @@ export const LevelStudyContent: Component = () => {
           </div>
         </Show>
         <Show when={destination() === 'word-sync' || destination() === 'assessment'}>
-          <WordSyncContent mode={destination() === 'assessment' ? 'assessment' : 'study'} onAssessmentApplied={() => setDestination('plan')} />
+          <Show keyed when={destination() === 'assessment' ? 'assessment' : studyIntent() ?? 'study'}>{mode =>
+            <WordSyncContent mode={mode === 'assessment' ? 'assessment' : 'study'} intent={mode === 'reinforce' ? 'reinforce' : undefined} onAssessmentApplied={() => setDestination('plan')} />
+          }</Show>
         </Show>
         <Show when={destination() === 'character-grid' && showCharacterGrid()}><CharacterGridContent /></Show>
       </div>

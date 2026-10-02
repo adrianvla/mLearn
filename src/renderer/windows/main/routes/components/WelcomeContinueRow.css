@@ -191,3 +191,6 @@
     min-height: 44px;
   }
 }
+
+.welcome-continue-action-label { color: var(--accent-primary); font-size: var(--font-size-sm); }
+@media (max-width: 650px) { .welcome-continue-action-label { display: none; } .welcome-continue-media { width: 72px; } }
