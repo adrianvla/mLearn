@@ -55,6 +55,7 @@ import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { selectWordSyncDecision, wordSyncDecisionWindow } from './wordSyncDecision';
+import { wordSyncSavedFilter } from './wordSyncSavedFilter';
 import type { PolicyTrace } from '../../learning/types';
 import { studySessionState } from '../../learning/studySession';
 import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
@@ -1274,7 +1275,17 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     }
 
     if (!filterPresetInitialized()) {
-      setFilterTokens(buildDefaultFilterPreset());
+      let savedFilter: FilterToken[] | null = null;
+      if (props.mode !== 'assessment') {
+        try {
+          savedFilter = wordSyncSavedFilter(globalThis.localStorage.getItem(`mlearn-study-word-sync:${settings.language}`), {
+            language: settings.language,
+            provider: settings.frequencyProviderSelections?.[settings.language],
+            packageVersion: langCtx.currentLangData()?.languageData?.version,
+          });
+        } catch { /* An unavailable store leaves the default filter usable. */ }
+      }
+      setFilterTokens(savedFilter ?? buildDefaultFilterPreset());
       setFilterPresetInitialized(true);
       return;
     }

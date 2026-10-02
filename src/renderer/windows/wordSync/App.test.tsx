@@ -823,6 +823,35 @@ beforeEach(() => {
     expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null').id).toBe(saved.id);
   });
 
+  it('restores a custom filter with its durable question and count on remount', async () => {
+    mockWordSyncState.wordFrequency = Object.fromEntries(['赤い', '青い', '白い'].map((word) => [word, {
+      reading: word, raw_level: 5, level: 'N5',
+    }]));
+    const customFilter = [{ instanceId: 'chosen-filter', kind: 'operand', field: 'level', op: 'eq', value: '5' }];
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle();
+    buttonByText('mlearn.WordSync.Filter').click(); await settle();
+    mockCommonState.filterBuilderProps!.onChange(customFilter);
+    await settle(); await settle();
+    buttonByText('mlearn.WordSync.Filter').click(); await settle();
+    press(' '); await settle(); press('3'); await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('1 / 3');
+    const nextWord = container.querySelector('.word-sync-word')?.textContent;
+    const saved = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null');
+    expect(JSON.parse(saved.identity).tokens).toEqual(filterTokenShapes(customFilter));
+
+    disposals.pop()!();
+    mountContent(WordSyncContent);
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('1 / 3');
+    expect(container.querySelector('.word-sync-word')?.textContent).toBe(nextWord);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null').id).toBe(saved.id);
+    buttonByText('mlearn.WordSync.Filter').click(); await settle();
+    expect(filterTokenShapes(mockCommonState.filterBuilderProps!.tokens)).toEqual(filterTokenShapes(customFilter));
+    expect((mockCommonState.filterBuilderProps!.tokens[0] as { instanceId?: string }).instanceId).not.toBe('chosen-filter');
+  });
+
   it('reports a refused session start as a session failure, not as a failed rating', async () => {
     // A refused session start has nothing to do with a rating: nothing was
     // rated and no word was shown. It used to render `WordSync.SaveFailed`
