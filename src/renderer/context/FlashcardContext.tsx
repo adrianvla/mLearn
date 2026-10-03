@@ -4378,14 +4378,33 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const presentationId = admitted ? admitted.presentationId
         : restored?.cardId === scheduler?.cardId ? restored?.id : undefined;
       if (!admitted && restored && scheduler && restored.cardId === scheduler.cardId) {
-        // Every review surface inherits the restored encounter's assistance.
-        // Caller flags cannot erase an already admitted cue, and consumption
-        // waits for the same acknowledged scheduler transaction.
+        // Every review surface inherits the restored encounter's assistance:
+        // a caller flag cannot erase a cue the durable cursor records as
+        // already admitted, because that cursor is the record of what the
+        // learner actually saw before this response.
         const scaffolds = { ...options?.scaffolds };
         for (const [key, value] of Object.entries(restored.scaffolds ?? {})) {
           if (value === true) scaffolds[key] = true;
         }
-        options = { ...options, language, scaffolds, persistence: 'immediate' };
+        // Escalate to the acknowledged route only when there is an inherited
+        // cue to protect. The merge above does not depend on this: it runs
+        // before `applySchedulerRating`, which reads the same `scaffolds` to
+        // derive `retentionCondition` and writes them onto the review event, on
+        // either route. So a cursor that carries no scaffold changes nothing
+        // about this response, and consuming it needs no acknowledgement.
+        //
+        // Escalating unconditionally put a whole acknowledged store write
+        // between the rating keypress and the next card on every rating of a
+        // resumed card. A cursor that exists only to say "this is where you
+        // were" carries no assistance at all - `scaffolds: undefined` - and
+        // that is the normal state of a resumed library, so this matched the
+        // ordinary workflow rather than an assisted one.
+        options = {
+          ...options,
+          language,
+          scaffolds,
+          ...(Object.keys(scaffolds).length ? { persistence: 'immediate' as const } : {}),
+        };
       }
       if (!admitted) {
         const envelope = JSON.parse(JSON.stringify({ word, observations, options, presentationId, cardFront: card?.content.front })) as {

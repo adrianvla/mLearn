@@ -1373,6 +1373,64 @@ describe('FlashcardProvider', () => {
     } finally { dispose(); }
   });
 
+  // A durable cursor exists on an ordinary resumed library whether or not the
+  // learner saw any assistance - it is how the surface knows where it was. That
+  // is `scaffolds: undefined`, which is what an unassisted review leaves behind.
+  // Reading "a cursor exists" as "this response is assisted" routed every rating
+  // of a resumed card through an acknowledged store write, putting a whole
+  // disk round-trip between the keypress and the next card.
+  it('keeps an unassisted rating on the background route even when a cursor exists for the card', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'resumed-unassisted', language: 'ja', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'school' } });
+    const data = makeEmptyStore({ flashcards: { [card.id]: card } });
+    // Exactly what an ordinary resume holds: a position, and no assistance.
+    data.meta.reviewPresentations = { ja: { id: 'restored-plain', cardId: card.id } };
+    flashcardsCb(data);
+    try {
+      await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', attemptId: 'resumed-unassisted-rating' as AttemptId,
+        persistence: 'background',
+        scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      // The acknowledged path is the only one that commits rather than queues.
+      expect(mockBridge.flashcards.commitFlashcardRating, 'background must not be upgraded to immediate').not.toHaveBeenCalled();
+      expect(mockBridge.flashcards.enqueueFlashcardRating).toHaveBeenCalledTimes(1);
+      // The cursor is still consumed, so a resume does not replay.
+      expect(ctx.store.meta.reviewPresentations?.ja).toBeUndefined();
+      expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+    } finally { dispose(); }
+  });
+
+  // The scaffold merge itself is unaffected by the route: it runs before the
+  // scheduler derives the retention condition, so a cue the caller tried to
+  // erase is still recorded - and the response still waits for it to be durable.
+  it('keeps the acknowledged route when the restored cursor actually carries assistance', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'resumed-assisted', language: 'ja', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'school' } });
+    const data = makeEmptyStore({ flashcards: { [card.id]: card } });
+    data.meta.reviewPresentations = { ja: { id: 'restored-assisted', cardId: card.id,
+      scaffolds: { 'provided-access:sense-recognition': true } } };
+    flashcardsCb(data);
+    try {
+      await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', attemptId: 'resumed-assisted-rating' as AttemptId,
+        // The caller tries to ERASE the admitted cue.
+        scaffolds: { 'provided-access:sense-recognition': false },
+        persistence: 'background',
+        scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      const events = mockAppendEvents.mock.calls.flatMap(([byKey]) =>
+        Object.values(byKey as Record<string, Array<Record<string, unknown>>>).flat());
+      expect(events.find(event => event.schedulerCardId === card.id)).toMatchObject({
+        retentionCondition: 'supplied', scaffolds: { 'provided-access:sense-recognition': true },
+      });
+      expect(mockBridge.flashcards.commitFlashcardRating).toHaveBeenCalledTimes(1);
+      expect(mockBridge.flashcards.enqueueFlashcardRating).not.toHaveBeenCalled();
+    } finally { dispose(); }
+  });
+
   it('preserves another card restored in the same language when rating an unrelated card', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'unrelated-rating', language: 'ja', state: 'review', reviews: 3,
