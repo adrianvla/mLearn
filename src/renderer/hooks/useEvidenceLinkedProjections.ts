@@ -1,4 +1,4 @@
-import { createMemo, createResource, type Accessor } from 'solid-js';
+import { createMemo, createResource, createSignal, type Accessor } from 'solid-js';
 import { projectedWordStatus } from '../../shared/graph/targets';
 import { queryLanguageKeys, wordEventsVersion } from '../services/knowledgeEvents';
 import { useKnowledgeProjections } from './useKnowledgeProjections';
@@ -13,8 +13,17 @@ export function useEvidenceLinkedProjections(input: Accessor<{
   materializedKeys: readonly string[];
 } | undefined>) {
   const active = useWindowActivity();
-  const [journal, { refetch }] = createResource(
-    () => { if (!active()) return undefined; const source = input(); return source ? { language: source.language, version: wordEventsVersion() } : undefined; },
+  const [retryVersion, setRetryVersion] = createSignal(0);
+  const desiredJournal = createMemo(() => {
+    const source = input();
+    return source ? { language: source.language, version: wordEventsVersion(), retry: retryVersion() } : undefined;
+  }, undefined, { equals: (before, after) => before?.language === after?.language
+    && before?.version === after?.version && before?.retry === after?.retry });
+  // Retain the admitted request on blur. Multiple invalidations admit only
+  // their latest version on focus; clean focus keeps the same resource.
+  const journalRequest = createMemo<ReturnType<typeof desiredJournal>>(previous => active() ? desiredJournal() : previous);
+  const [journal] = createResource(
+    journalRequest,
     source => queryLanguageKeys(source.language),
   );
   const evidenceKeys = createMemo(() => [...new Set([...(journal.state === 'ready' ? journal() ?? [] : []), ...(input()?.materializedKeys ?? [])])]);
@@ -27,7 +36,7 @@ export function useEvidenceLinkedProjections(input: Accessor<{
     evidenceKeys,
     ready: () => journal.state === 'ready' && projected.ready(),
     failed: () => journal.state === 'errored' || projected.failed(),
-    retry: () => { void refetch(); projected.retry(); },
+    retry: () => { setRetryVersion(version => version + 1); projected.retry(); },
     resolveState: (word: string) => projectedWordStatus(projected.projections().get(word)),
   };
 }

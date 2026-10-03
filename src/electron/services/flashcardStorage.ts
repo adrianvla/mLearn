@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util';
 import { reviewPresentationPatch, type ReviewPresentationWrite } from '../../shared/reviewPresentationWrite';
 import { reconcileFlashcardActionOwners } from '../../shared/flashcardActionUndo';
 /**
@@ -925,18 +926,13 @@ async function loadFlashcardsFromDisk(
     }
     const data = await fs.promises.readFile(filePath, 'utf-8');
     const parsed: unknown = JSON.parse(data);
-    const parsedJson = JSON.stringify(parsed);
+    // Normalizers may mutate nested records. Compare against the original
+    // values, independently of object property insertion order.
+    const original = structuredClone(parsed);
 
     const store = checkFlashcards(parsed);
-    const storeJson = JSON.stringify(store);
-
-    if (storeJson !== parsedJson) {
-      await write(store);
-    }
-
-    if (extractBase64Images(store)) {
-      await write(store);
-    }
+    const extracted = extractBase64Images(store);
+    if (extracted || !isDeepStrictEqual(original, store)) await write(store);
 
     cachedStore = store;
     cachedStorePath = filePath;

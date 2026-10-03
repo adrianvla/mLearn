@@ -20,18 +20,21 @@ export function useKnowledgeProjections(query: Accessor<{
   const [ready, setReady] = createSignal(false);
   const [failed, setFailed] = createSignal(false);
   const [retryVersion, setRetryVersion] = createSignal(0);
+  let settledKey: string | undefined;
   createEffect(() => {
     // On blur, effect cleanup cancels the remaining projection fan-out. Keep
-    // the last result; focus reads the latest journal/query exactly once.
+    // the last result; focus consumes changed inputs, not a new invalidation.
     if (!active()) { setLoading(false); return; }
     const input = query();
-    wordEventsVersion();
-    retryVersion();
+    const version = wordEventsVersion();
+    const retry = retryVersion();
     const thresholds = effectiveThresholds(settings);
+    const requestKey = JSON.stringify([input, version, retry, thresholds]);
+    if (requestKey === settledKey) return;
     setReady(false);
     setFailed(false);
     setProjections(new Map());
-    if (!input) { setLoading(false); return; }
+    if (!input) { settledKey = requestKey; setLoading(false); return; }
     let disposed = false;
     onCleanup(() => { disposed = true; });
     setLoading(true);
@@ -59,6 +62,7 @@ export function useKnowledgeProjections(query: Accessor<{
         };
         await Promise.all(Array.from({ length: Math.min(8, surfaces.length) }, worker));
         if (!disposed) batch(() => {
+          settledKey = requestKey;
           setProjections(result);
           setLoading(false);
           setReady([...result.values()].every(projection => projection.status === 'ready'));
@@ -66,6 +70,7 @@ export function useKnowledgeProjections(query: Accessor<{
         });
       } catch {
         if (!disposed) batch(() => {
+          settledKey = requestKey;
           setProjections(new Map());
           setLoading(false);
           setReady(false);

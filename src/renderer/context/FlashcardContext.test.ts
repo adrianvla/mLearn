@@ -806,6 +806,27 @@ function resetProviderTestHarness() {
 describe('FlashcardProvider', () => {
   beforeEach(resetProviderTestHarness);
 
+  it('does not save an unchanged capability projection again when another window starts', async () => {
+    const word = 'startup word';
+    const key = `ja:${SRS.hashWordSync(word)}`;
+    await mockAppendEvents({ [key]: [{ t: 100, kind: 'rollup', source: 'passiveTracking', aspect: 'meaning', timesSeenDelta: 3, presentedSurface: word }] });
+    const first = await mountProvider();
+    seed(makeEmptyStore({ wordKnowledge: { [key]: { word, language: 'ja', ease: SRS.MIN_EASE, timesSeen: 3, timesHovered: 0, firstSeen: 100, lastSeen: 100 } } }));
+    await vi.waitFor(() => expect(first.ctx.isKnowledgeReady()).toBe(true));
+    first.dispose();
+    await vi.waitFor(() => expect(acceptedSaves.length).toBeGreaterThan(0));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const normalized = structuredClone(committed!);
+    mockBridge.flashcards.saveFlashcards.mockClear();
+    const second = await mountProvider();
+    try {
+      seed({ ...normalized, rev: revision });
+      await vi.waitFor(() => expect(second.ctx.isKnowledgeReady()).toBe(true));
+      await new Promise(resolve => setTimeout(resolve, 350));
+      expect(mockBridge.flashcards.saveFlashcards).not.toHaveBeenCalled();
+    } finally { second.dispose(); }
+  });
+
   afterEach(async () => {
     // Tearing the provider down flushes whatever write is still on its
     // debounce timer, and that flush is deliberately detached: a window

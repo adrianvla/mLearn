@@ -121,6 +121,20 @@ function writeLanguageMetadata(dir: string, language: string, data: unknown): vo
 }
 
 describe('flashcardStorage', () => {
+  it('does not rewrite an unchanged library just because stored object keys use a different order', async () => {
+    await saveFlashcards(makeStore({ version: 3, flashcards: { one: makeFlashcard('one') } }));
+    invalidateFlashcardsCache();
+    const normalized = await loadFlashcards();
+    const reversed = Object.fromEntries(Object.entries(normalized).reverse());
+    const file = path.join(tempDir.tmpDir, 'flashcards.json');
+    await fs.promises.writeFile(file, JSON.stringify(reversed));
+    invalidateFlashcardsCache();
+    const rename = vi.spyOn(fs.promises, 'rename');
+    const loaded = await loadFlashcards();
+    expect(loaded.rev).toBe(normalized.rev);
+    expect(rename).not.toHaveBeenCalled();
+    rename.mockRestore();
+  });
   let loadFlashcards: () => Promise<FlashcardStore>;
   let saveFlashcards: (store: FlashcardStore) => Promise<number>;
   let getFlashcardEaseMap: () => Promise<Record<string, number>>;

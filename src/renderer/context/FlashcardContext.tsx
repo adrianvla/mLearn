@@ -4998,19 +4998,23 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   const materializeCapabilityStates = (
     seeds: readonly { key: string; word: string; language: string }[],
     states: Record<string, KeyKnowledgeState>,
-  ): void => {
-    setStore(produce((s) => materializeCapabilityStatesInto(s as FlashcardStore, seeds, states)));
+  ): boolean => {
+    let changed = false;
+    setStore(produce((s) => { changed = materializeCapabilityStatesInto(s as FlashcardStore, seeds, states); }));
+    return changed;
   };
 
   const materializeCapabilityStatesInto = (
     target: FlashcardStore,
     seeds: readonly { key: string; word: string; language: string }[],
     states: Record<string, KeyKnowledgeState>,
-  ): void => {
+  ): boolean => {
+    let changed = false;
     for (const { key: lk, word, language } of seeds) {
       const capabilities = states[lk]?.capabilities ?? {};
       const meaning = capabilities['sense-recognition'];
       if (Object.keys(capabilities).length === 0) {
+        if (target.wordKnowledge[lk] !== undefined) changed = true;
         delete target.wordKnowledge[lk];
         continue;
       }
@@ -5058,8 +5062,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         }
         next.access = { ...next.access, [capability]: record };
       }
-      target.wordKnowledge[lk] = next;
+      const changes: Record<string, unknown> = {};
+      recordStoreDelta(changes, (existing ?? {}) as unknown as Record<string, unknown>,
+        next as unknown as Record<string, unknown>, false);
+      if (Object.keys(changes).length > 0) {
+        target.wordKnowledge[lk] = next;
+        changed = true;
+      }
     }
+    return changed;
   };
 
   const repairCapabilityProjection = async (): Promise<void> => {
@@ -5095,13 +5106,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
     }
     const pending = [...replayKeys].flatMap(key => seeds.has(key) ? [seeds.get(key)!] : []);
+    let changed = false;
     for (let offset = 0; offset < pending.length; offset += 256) {
       const batch = pending.slice(offset, offset + 256);
       const states = await getKnowledgeStates(batch.map(({ key }) => key));
-      materializeCapabilityStates(batch, states);
+      changed = materializeCapabilityStates(batch, states) || changed;
     }
     setStore('meta', 'capabilityProjectionVersion', CAPABILITY_PROJECTION_VERSION);
-    if (upgrading || pending.length > 0) saveFlashcards();
+    if (upgrading || changed) saveFlashcards();
   };
 
   // ========================
@@ -5146,17 +5158,19 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const pattern = grammarPatternFromEvidenceKey(language, key);
       if (pattern !== null && !levels.has(pattern)) levels.set(pattern, undefined);
     }
+    let changed = false;
     setStore(produce((s) => {
       for (const [pattern, level] of levels) {
         const lk = langKey(language, pattern);
         const projection = projections[grammarEvidenceKey(language, pattern, 'grammar-recognition')];
         if (!projection) {
           // No active evidence → no materialized entry.
+          if (s.grammarKnowledge[lk] !== undefined) changed = true;
           delete s.grammarKnowledge[lk];
           continue;
         }
         const existing = s.grammarKnowledge[lk];
-        s.grammarKnowledge[lk] = {
+        const next: GrammarKnowledgeEntry = {
           pattern,
           ease: projection.ease,
           timesEncountered: projection.timesEncountered,
@@ -5168,9 +5182,16 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           level: existing?.level || level || 0,
           language,
         };
+        const changes: Record<string, unknown> = {};
+        recordStoreDelta(changes, (existing ?? {}) as unknown as Record<string, unknown>,
+          next as unknown as Record<string, unknown>, false);
+        if (Object.keys(changes).length > 0) {
+          s.grammarKnowledge[lk] = next;
+          changed = true;
+        }
       }
     }));
-    saveFlashcards();
+    if (changed) saveFlashcards();
   };
 
   // Serialize materializations so a rapid tracker burst lands the latest

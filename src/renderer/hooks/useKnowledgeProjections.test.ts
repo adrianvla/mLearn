@@ -16,6 +16,28 @@ const payload: KnowledgeProjection = { status: 'ready', targets: [{ targetRef: {
 beforeEach(() => { query.mockReset(); linked.mockReset(); setVersion(0); setActive(true); });
 
 describe('canonical projection collections', () => {
+  it('reuses a completed collection on clean focus and flattens deferred journal revisions', async () => {
+    query.mockResolvedValue(payload);
+    linked.mockResolvedValue(['a']);
+    const root = createRoot(dispose => ({ dispose, state: useKnowledgeProjections(() => ({ language: 'pkg', surfaces: ['a'], evidenceKeys: ['pkg:key'] })) }));
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    const previous = root.state.projections();
+    setActive(false);
+    setActive(true);
+    await Promise.resolve();
+    expect(linked).toHaveBeenCalledTimes(1);
+    expect(root.state.projections()).toBe(previous);
+    expect(root.state.ready()).toBe(true);
+    setActive(false);
+    setVersion(1);
+    setVersion(2);
+    setVersion(3);
+    setActive(true);
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    expect(linked).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenCalledTimes(2);
+    root.dispose();
+  });
   it('coalesces inactive revisions and cancels an in-flight collection when the window blurs', async () => {
     setActive(false);
     linked.mockResolvedValue(['a']);

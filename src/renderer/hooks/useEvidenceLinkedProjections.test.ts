@@ -2,16 +2,51 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { createRoot, createSignal } from 'solid-js';
 import { useEvidenceLinkedProjections } from './useEvidenceLinkedProjections';
 const [active, setActive] = createSignal(true);
+const [version, setVersion] = createSignal(0);
 vi.mock('./useWindowActivity', () => ({ useWindowActivity: () => active }));
 const keys = vi.hoisted(() => vi.fn());
 const linked = vi.hoisted(() => vi.fn());
 const project = vi.hoisted(() => vi.fn());
 vi.mock('../context/SettingsContext', () => ({ useSettings: () => ({ settings: { easeThresholdKnown: 1.8, easeThresholdLearning: 1.55 } }) }));
-vi.mock('../services/knowledgeEvents', () => ({ queryLanguageKeys: keys, wordEventsVersion: () => 0 }));
+vi.mock('../services/knowledgeEvents', () => ({ queryLanguageKeys: keys, wordEventsVersion: () => version() }));
 vi.mock('../../shared/bridges', () => ({ getBridge: () => ({ graph: { getEvidenceLinkedSurfaces: linked, getKnowledgeProjection: project } }) }));
 
 describe('evidence-linked summary contract', () => {
-  beforeEach(() => setActive(true));
+  beforeEach(() => { setActive(true); setVersion(0); });
+  it('keeps the journal and collection cached across a clean blur/focus cycle', async () => {
+    keys.mockReset().mockResolvedValue(['pkg:key']);
+    linked.mockReset().mockResolvedValue(['word']);
+    project.mockReset().mockResolvedValue({ status: 'ready', targets: [] });
+    const root = createRoot(dispose => ({ dispose, state: useEvidenceLinkedProjections(() => ({ language: 'pkg', surfaces: ['word'], materializedKeys: [] })) }));
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    setActive(false);
+    setActive(true);
+    await Promise.resolve();
+    expect(keys).toHaveBeenCalledTimes(1);
+    expect(linked).toHaveBeenCalledTimes(1);
+    expect(root.state.ready()).toBe(true);
+    root.dispose();
+  });
+  it('flattens deferred journal events into one refresh on focus', async () => {
+    keys.mockReset().mockResolvedValue(['pkg:key']);
+    linked.mockReset().mockResolvedValue(['word']);
+    project.mockReset().mockResolvedValue({ status: 'ready', targets: [] });
+    const root = createRoot(dispose => ({ dispose, state: useEvidenceLinkedProjections(() => ({ language: 'pkg', surfaces: ['word'], materializedKeys: [] })) }));
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    setActive(false);
+    setVersion(1);
+    setVersion(2);
+    setVersion(3);
+    await Promise.resolve();
+    expect(keys).toHaveBeenCalledTimes(1);
+    expect(linked).toHaveBeenCalledTimes(1);
+    setActive(true);
+    await vi.waitFor(() => expect(keys).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    expect(linked).toHaveBeenCalledTimes(2);
+    expect(project).toHaveBeenCalledTimes(2);
+    root.dispose();
+  });
   it('does not read journal keys or fan out projections while inactive, then catches up on focus', async () => {
     keys.mockReset().mockResolvedValue(['pkg:key']);
     linked.mockReset().mockResolvedValue(['word']);
