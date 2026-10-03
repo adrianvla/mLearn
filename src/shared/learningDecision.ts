@@ -1,5 +1,6 @@
 /** Technical encounter protocol. Package/task identifiers and semantics stay open-ended. */
 export interface LearningTaskSnapshot {
+  stages?: Array<{ id: string; inputModality?: string; supplied: string[]; requested: string[] }>;
   taskTemplateId: string;
   inputModality: string;
   responseModality: string;
@@ -56,6 +57,17 @@ export function isLearningDecision(value: unknown): value is LearningDecision {
     if (!identifier(task.taskTemplateId) || !identifier(task.inputModality) || !identifier(task.responseModality)
       || !identifiers(task.supplied) || !identifiers(task.requested) || typeof task.fluencyRequired !== 'boolean'
       || (task.ratingMode !== 'profile' && task.ratingMode !== 'dominant')) return false;
+    if (task.stages !== undefined && (!Array.isArray(task.stages) || !task.stages.length || !task.stages.every(stage => record(stage) && identifier(stage.id)
+      && (stage.inputModality === undefined || identifier(stage.inputModality)) && identifiers(stage.supplied) && identifiers(stage.requested) && stage.requested.every(target => (task.requested as string[]).includes(target))))) return false;
+    if (Array.isArray(task.stages)) {
+      const supplied = new Set<string>(); const requested = new Set<string>(); const ids = new Set<string>();
+      for (const stage of task.stages) {
+        if (ids.has(stage.id)) return false; ids.add(stage.id);
+        for (const id of stage.supplied) supplied.add(id);
+        for (const id of stage.requested) { if (supplied.has(id) || requested.has(id)) return false; requested.add(id); }
+      }
+      if (requested.size !== task.requested.length || task.requested.some(id => !requested.has(id))) return false;
+    }
     const requested = task.requested;
     return input.targets.every(target => record(target) && identifier(target.kind) && identifier(target.id)
       && identifier(target.capability) && requested.includes(target.capability)

@@ -1,5 +1,34 @@
 {
   "mlearn": {
+    "Goals": {
+      "Purpose": "Votre objectif",
+      "Explore": "Explorer la langue",
+      "Time": "Temps disponible",
+      "Minutes": "{count} min",
+      "Edit": "Modifier les objectifs",
+      "Add": "Ajouter un objectif",
+      "Outcome": "Que souhaitez-vous faire ?",
+      "Deadline": "Échéance (facultative)",
+      "Priority": "Priorité",
+      "First": "En premier",
+      "Normal": "Normale",
+      "Later": "Plus tard",
+      "Status": "État",
+      "Active": "Actif",
+      "Paused": "En pause",
+      "Completed": "Terminé",
+      "Passed": "L’échéance est passée. Choisissez la suite ; vos progrès sont conservés.",
+      "Scope": "Cible (facultative)",
+      "Words": "Mots à préparer, un par ligne",
+      "Coverage": "Vocabulaire : {known} connu · {learning} en cours · {unmeasured} non mesuré",
+      "OtherRequirements": "Le travail du vocabulaire ne démontre pas la performance dans les autres conditions.",
+      "Source": {
+        "user": "Votre sélection",
+        "package": "Couverture du paquet linguistique",
+        "community": "Couverture communautaire",
+        "authoritative": "Exigences officielles"
+      }
+    },
     "LibraryRecovery": {
       "OpenProtection": "Protection et restauration des données",
       "Title": "Impossible d’ouvrir votre bibliothèque",
@@ -1630,7 +1659,9 @@
         "PlanUnmeasured": "Votre suivi se développe en lisant et en pratiquant.",
         "ViewPlan": "Voir le plan",
         "ThisWeek": "Cette semaine",
-        "WeekSummary": "{reviews} révisions · {newCards} nouvelles cartes"
+        "WeekSummary": "{reviews} révisions · {newCards} nouvelles cartes",
+        "DiscoverTitle": "Découvrez vos prochains mots",
+        "DiscoverReason": "Commencez par {count} mots de votre programme."
       }
     },
     "Installer": {
@@ -4128,7 +4159,9 @@
       "PlacementIntro": "Ce bilan adaptatif suit le même déroulement que la pratique. Il teste des mots sans preuve directe, puis propose un point de départ pour votre plan. Les autres mots restent non évalués.",
       "Resume": "Reprendre la pratique",
       "RetrieveWord": "Essayez de retrouver la lecture et le sens avant de révéler la réponse.",
-      "RetrieveAspects": "Concentrez ce rappel sur : {aspects}. Révélez la réponse pour comparer."
+      "RetrieveAspects": "Concentrez ce rappel sur : {aspects}. Révélez la réponse pour comparer.",
+      "Progress": "Séance : {count} sur {total}",
+      "Finished": "Séance terminée. {count} rencontres enregistrées."
     }
   }
 }

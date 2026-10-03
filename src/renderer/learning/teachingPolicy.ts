@@ -87,7 +87,7 @@ export function effectiveWeights(
   if (!context) return { weights, rules };
 
   const goal = context.goal;
-  if (goal?.kind === 'exam' && goal.deadlineMs !== undefined && Number.isFinite(goal.deadlineMs)) {
+  if (goal && goal.deadlineMs !== undefined && Number.isFinite(goal.deadlineMs)) {
     const daysLeft = (goal.deadlineMs - nowMs) / DAY_MS;
     if (daysLeft >= 0 && daysLeft <= DEADLINE_WINDOW_DAYS) {
       const proximity = 1 - daysLeft / DEADLINE_WINDOW_DAYS;
@@ -102,7 +102,7 @@ export function effectiveWeights(
           dimension,
           multiplier: consolidation,
           addend: 0,
-          why: `exam deadline in ${Math.round(daysLeft)} days: ${dimension} weight ×${consolidation.toFixed(2)}`,
+          why: `goal deadline in ${Math.round(daysLeft)} days: ${dimension} weight ×${consolidation.toFixed(2)}`,
         });
       }
       const discount = 1 - 0.5 * proximity;
@@ -111,7 +111,7 @@ export function effectiveWeights(
         dimension: 'novelty',
         multiplier: discount,
         addend: 0,
-        why: `exam deadline in ${Math.round(daysLeft)} days: novelty weight ×${discount.toFixed(2)}`,
+        why: `goal deadline in ${Math.round(daysLeft)} days: novelty weight ×${discount.toFixed(2)}`,
       });
       // Apply each emitted rule exactly once — the loop IS the arithmetic,
       // so the trace's rules always describe the real factors.
@@ -157,6 +157,7 @@ export function selectNext(
 ): PolicyDecision | null {
   if (candidates.length === 0) return null;
 
+  if (config.context?.goals?.length) config = { ...config, weights: { ...config.weights, 'goal-relevance': 1 } };
   const { weights: effective, rules } = effectiveWeights(config.weights, config.context, config.nowMs);
   const scored = candidates.map((candidate) => ({
     candidate,

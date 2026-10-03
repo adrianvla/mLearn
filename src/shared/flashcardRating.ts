@@ -1,5 +1,6 @@
 import type { KnowledgeEventLog } from './knowledgeEvents';
 import type { PendingRetraction } from './retractionRecovery';
+import { completeReviewEncounter, isReviewSession, reviewSessionRemaining } from './reviewSession';
 import { applyStorePatchInPlace, copyStoreWithPatch, getStorePath, setStorePath, type StorePatch } from './utils/storePatch';
 
 /** One stable attempt, including the scheduler and its observation provenance. */
@@ -55,6 +56,23 @@ export function refusedRatingAttemptIds(error: unknown): readonly string[] | nul
 
 export function applyFlashcardRatingCommand<T extends object>(source: T, command: FlashcardRatingCommand, inPlace = false): T {
   const record = source as Record<string, unknown>;
+  // Session progress composes like additive counters: two windows may rate
+  // different frozen members from the same revision without losing a slot.
+  const sessions = command.patch.entries.flatMap(entry => {
+    if (entry.path.length !== 3 || entry.path[0] !== 'meta' || entry.path[1] !== 'reviewSessions') return [];
+    const current = getStorePath(record, entry.path);
+    if (!isReviewSession(entry.before) || !isReviewSession(entry.after) || !isReviewSession(current)
+      || current.id !== entry.before.id || current.id !== entry.after.id) {
+      throw new RatingAdmissionRefusal([command.attemptId], 'The review session changed before admission.');
+    }
+    const before = entry.before;
+    const additions = entry.after.completedCardIds.filter(id => !before.completedCardIds.includes(id));
+    if (additions.length !== 1 || !current.cardIds.includes(additions[0])
+      || (!current.completedCardIds.includes(additions[0]) && reviewSessionRemaining(current) === 0)) {
+      throw new RatingAdmissionRefusal([command.attemptId], 'The review session has no available encounter.');
+    }
+    return [{ path: entry.path, value: completeReviewEncounter(current, additions[0]) }];
+  });
   const counters = (command.counterDeltas ?? []).map(({ path, delta, scope }) => {
     if (!Number.isFinite(delta) || !command.patch.entries.some(entry =>
       entry.path.length <= path.length && entry.path.every((segment, index) => path[index] === segment))) {
@@ -67,10 +85,10 @@ export function applyFlashcardRatingCommand<T extends object>(source: T, command
   const result = inPlace ? source : copyStoreWithPatch(source, command.patch);
   if (inPlace) applyStorePatchInPlace(record, command.patch);
   if (inPlace) {
-    for (const { path, value } of counters) setStorePath(result as Record<string, unknown>, path, value);
+    for (const { path, value } of [...counters, ...sessions]) setStorePath(result as Record<string, unknown>, path, value);
     return result;
   }
-  return copyStoreWithPatch(result, { baseRev: command.patch.baseRev, entries: counters.map(({ path, value }) => ({
+  return copyStoreWithPatch(result, { baseRev: command.patch.baseRev, entries: [...counters, ...sessions].map(({ path, value }) => ({
     path, before: getStorePath(result as Record<string, unknown>, path), after: value,
   })) });
 }

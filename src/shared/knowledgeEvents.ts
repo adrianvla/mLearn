@@ -88,6 +88,20 @@ export function providedAccessScaffolds(capabilities: readonly CapabilityKey[]):
   return Object.fromEntries(capabilities.map(capability => [`provided-access:${capability}`, true]));
 }
 
+/** Conditions before this target's retrieval, including earlier stage cues.
+ * Answers are compared only after all stages; later cues cannot taint earlier retrieval. */
+export function retrievalStageScaffolds(task: import('./learningDecision').LearningTaskSnapshot | undefined,
+  capability: string, common?: AttemptScaffolds, priorConditions?: Record<string, AttemptScaffolds>): AttemptScaffolds | undefined {
+  if (!task?.stages) return common;
+  const supplied: string[] = [];
+  for (const stage of task.stages) {
+    supplied.push(...stage.supplied);
+    if (stage.requested.includes(capability)) return { ...(priorConditions?.[stage.id] ?? common),
+      ...(common?.['prior-cue-exposure'] ? common : {}), ...providedAccessScaffolds(supplied) };
+  }
+  throw new Error('Target has no admitted retrieval stage');
+}
+
 /**
  * Whether an attempt under these scaffold conditions can produce evidence for
  * `capability`. `scaffolds === undefined` (writer did not know) keeps the
@@ -95,6 +109,7 @@ export function providedAccessScaffolds(capabilities: readonly CapabilityKey[]):
  */
 export function isAccessMeasurable(capability: CapabilityKey, scaffolds?: AttemptScaffolds): boolean {
   if (!scaffolds) return true;
+  if (scaffolds['prior-cue-exposure'] === true) return false;
   if (scaffolds[`provided-access:${capability}`] === true) return false;
   for (const [scaffoldId, invalidates] of Object.entries(SCAFFOLD_INVALIDATES)) {
     if (scaffolds[scaffoldId] && invalidates.includes(capability)) return false;

@@ -8,11 +8,11 @@ describe('the next learner activity', () => {
   it('uses recorded difficulties for practice before measuring more words', () => {
     expect(homeNextAction({ ...empty, needsPractice: 25, assessed: 60, unassessed: 30 })).toBe('practice');
   });
-  it('offers a returning learner assessment when there is an actual evidence gap', () => {
-    expect(homeNextAction({ ...empty, assessed: 60, unassessed: 30 })).toBe('assessment');
+  it('does not turn unmeasured coverage into a placement requirement', () => {
+    expect(homeNextAction({ ...empty, assessed: 60, unassessed: 30 })).toBe('read');
   });
   it('does not send a completely new learner through a placement funnel', () => {
-    expect(homeNextAction({ ...empty, unassessed: 30000 })).toBe('read');
+    expect(homeNextAction({ ...empty, unassessed: 30000 })).toBe('practice');
   });
   it('returns to material after the study workload is clear', () => {
     expect(homeNextAction({ ...empty, hasMaterial: true })).toBe('continue');

@@ -23,20 +23,18 @@ describe('shared retrieval encounter', () => {
     root.querySelector<HTMLButtonElement>('.study-encounter__reveal')!.click();
     expect(root.textContent).toContain('package-defined explanation');
     expect(root.querySelector('.study-encounter__response')?.hasAttribute('hidden')).toBe(false);
-    expect(root.querySelectorAll('.rating-matrix__quality')).toHaveLength(3);
+    expect(root.querySelectorAll('.rating-matrix__quality')).toHaveLength(4);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     expect(submit).toHaveBeenCalledWith([{ capability: 'third-party:construction-recall', quality: 'fluent' }], undefined);
   });
-  it('omits scheduler-only Easy in both displayed controls and spatial shortcuts', () => {
+  it('keeps the four-grade grammar in practice without inventing an interval', () => {
     const root = document.createElement('div'); document.body.appendChild(root);
     const submit = vi.fn();
     dispose = render(() => <StudyEncounter prompt="prompt" answer="answer" revealed={true} onReveal={() => {}}
       rating={{ capabilities: ['sense-recognition'], keyboardMode: 'spatial', initiallyExpanded: true, armed: true, onSubmit: submit }} />, root);
-    expect(root.textContent).not.toContain('mlearn.Rating.Matrix.Easy');
+    expect(root.textContent).toContain('mlearn.Rating.Matrix.Easy');
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r' }));
-    expect(submit).not.toHaveBeenCalled();
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e' }));
-    expect(submit).toHaveBeenCalledWith([{ capability: 'sense-recognition', quality: 'fluent' }], undefined);
+    expect(submit).toHaveBeenCalledWith([{ capability: 'sense-recognition', quality: 'fluent', easy: true }], { easy: true });
   });
 
 });

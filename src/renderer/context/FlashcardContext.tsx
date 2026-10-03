@@ -1,3 +1,4 @@
+import { completeReviewEncounter, reviewSessionRemaining } from '../../shared/reviewSession';
 import { isStudyExcluded, mergeStudyExclusion } from '../../shared/studyExclusion';
 import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset';
 /**
@@ -7,7 +8,7 @@ import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset'
  * Supports multiple flashcards per word with O(1) word statistics lookup
  */
 
-import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, batch } from 'solid-js';
+import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, createEffect, on, batch } from 'solid-js';
 import { pushUndo } from '../learning/undoHistory';
 import { clearFlashcardActionOwner, setFlashcardExclusion, captureFlashcardActionUndo, flashcardActionUndoIsApplicable, restoreFlashcardAction, type FlashcardActionUndo } from '../../shared/flashcardActionUndo';
 import { restoreReviewResponse, validateReviewResponseUndo, type ReviewUndoProjection } from '../../shared/flashcardReviewUndo';
@@ -55,7 +56,7 @@ import { getWrittenComprehensionStatus } from '../utils/writtenComprehension';
 import { aspectSourceToDisplay, getAccessStatusSync, legacyAspectFor, migrateAspectRecordsToAccess, type AccessStatusResult } from '../utils/accessKnowledge';
 import { appendEvents, appendEventsIdempotentAcknowledged, getEvents, getKnowledgeStates, queryLanguageKeys } from '../services/knowledgeEvents';
 import { accumulateWordSeen, flushKnowledgeRollup, installPassiveFlushHooks, setKnowledgeRollupTodayFn, uninstallPassiveFlushHooks } from '../services/knowledgeRollup';
-import { nextAttemptId, retentionConditionFor, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
+import { nextAttemptId, retentionConditionFor, retrievalStageScaffolds, providedAccessScaffolds, type AttemptId, type AttemptScaffolds, type AttemptTaskType, type EventSourceVersions, type KnowledgeEvent, type KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { reconcileQuestionItems, type DeclaredItemState } from '../learning/questionBank';
 import type { AttemptTiming } from '../../shared/encounterTiming';
 import { shouldKeepSuggestion, warmDictionaryStatus } from '../utils/suggestedFlashcards';
@@ -266,6 +267,8 @@ type SchedulerRating = {
   tested?: readonly CapabilityKey[];
 };
 type RatingSubmissionOptions = Omit<AttemptOptions, 'method'> & {
+  priorStageScaffolds?: Record<string, AttemptScaffolds>;
+  reviewSessionId?: string;
   scheduler?: SchedulerRating;
   /** Review advances locally while main owns and batches the durable write. */
   persistence?: 'immediate' | 'background';
@@ -1755,6 +1758,12 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     setQueue(newQueue);
   };
 
+  // Settings and installed metadata can finish loading after the library.
+  // Home must see the same admitted scheduler queue as a review window.
+  createEffect(on([() => settings.language, isLoading, isKnowledgeReady, currentLangData], () => {
+    if (!isLoading() && isKnowledgeReady()) refreshQueue();
+  }));
+
   // Start a new study session
   const startSession = () => {
     setSessionStartTime(Date.now());
@@ -2499,11 +2508,17 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const card = target.flashcards[scheduler.cardId];
     if (!card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
 
+    const session = options.reviewSessionId ? target.meta.reviewSessions?.[card.language || options.language || settings.language] : undefined;
+    if (options.reviewSessionId && (!session || session.id !== options.reviewSessionId
+      || !session.cardIds.includes(card.id) || session.completedCardIds.includes(card.id) || reviewSessionRemaining(session) === 0)) {
+      throw new Error('This encounter is no longer part of the active review session');
+    }
     const wasNew = card.state === 'new';
     const wasReview = card.state === 'review';
-    const retentionCondition = scheduler.tested
-      ? retentionConditionFor(scheduler.tested, options.scaffolds)
-      : 'unassisted' as const;
+    const conditions = (scheduler.tested ?? []).map(capability => retentionConditionFor([capability],
+      retrievalStageScaffolds(options.decision?.selected.task, capability, options.scaffolds, options.priorStageScaffolds)));
+    const retentionCondition = conditions.length && conditions.every(condition => condition === 'supplied') ? 'supplied'
+      : conditions.some(condition => condition !== 'unassisted') ? 'assisted' : 'unassisted';
     const updated = SRS.answerCard(card, scheduler.rating, target.meta, retentionCondition);
     const language = card.language || options.language || settings.language;
     const storageWord = getPrimaryWordFormForLanguage(card.content.front, language);
@@ -2609,16 +2624,22 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     patch?.set(['flashcards', card.id], target.flashcards[card.id]);
     patch?.set(['meta', 'perLanguage', language], perLanguage);
     patch?.set(['dailyStats', today, language], target.dailyStats[today][language]);
+    if (session) {
+      (target.meta.reviewSessions ??= {})[language] = completeReviewEncounter(session, card.id);
+      patch?.set(['meta', 'reviewSessions', language], target.meta.reviewSessions[language]);
+    }
     const undo: UndoEntry = {
       type: remainsQueued ? 'answer-requeued' : 'answer',
       cardId: card.id,
       reviewUndoAuthorization: { kind: 'undo-review', cardId: card.id, restoredReviews: priorCard.reviews },
       reviewUndo: reviewRetraction(
         attemptId, card, priorCard, priorPerLanguage, today, dailyBefore,
-        remainsQueued ? 'answer-requeued' : 'answer', language, options.scaffolds,
+        remainsQueued ? 'answer-requeued' : 'answer', language, { ...options.scaffolds,
+          ...providedAccessScaffolds(options.decision?.selected.task.requested ?? scheduler.tested ?? []), 'prior-cue-exposure': true },
       ),
     };
     Object.assign(undo.reviewUndo!.restore as ReviewUndoProjection, {
+      ...(session ? { reviewSessionId: session.id } : {}),
       expectedCard: JSON.parse(JSON.stringify(updated)) as Flashcard,
       counterDeltas: ratingCounterDeltas(patch?.build(0) ?? { baseRev: 0, entries: [] })
         .filter(({ path }) => path[0] !== 'flashcards'),
@@ -4399,6 +4420,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         }
         options = { ...options, language, scaffolds };
       }
+      if (!admitted && options.decision?.selected.task.stages) {
+        const stages = options.decision.selected.task.stages;
+        if (!restored || restored.id !== options.decision.id || (restored.stageIndex ?? 0) !== stages.length - 1
+          || JSON.stringify(restored.decision?.selected.task) !== JSON.stringify(options.decision.selected.task)) {
+          throw new Error('Retrieve every admitted stage before rating');
+        }
+        options = { ...options, priorStageScaffolds: restored.stageScaffolds };
+      }
       if (!admitted) {
         const envelope = JSON.parse(JSON.stringify({ word, observations, options, presentationId, cardFront: card?.content.front })) as {
           word: string; observations: readonly AttemptObservation[]; options: RatingSubmissionOptions; presentationId?: string; cardFront?: string;
@@ -4411,7 +4440,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const prepared = observations.map(({ capability, quality, method }) =>
         options?.selfAssessment
           ? prepareSelfAssessment(word, capability, quality, { ...options, attemptId })
-          : prepareAttempt(word, capability, quality, { ...options, method, attemptId }));
+          : prepareAttempt(word, capability, quality, { ...options, scaffolds: retrievalStageScaffolds(options?.decision?.selected.task, capability, options?.scaffolds, options?.priorStageScaffolds), method, attemptId }));
       const __t0 = performance.now();
       const __rows: RatingTraceMark[] = [];
       const __mark = (label: string): void => { __rows.push({ label, ms: performance.now() - __t0 }); };
@@ -4865,7 +4894,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     else target.flashcards[restore.cardId] = { ...restore.restoreCard, content: { ...restore.restoreCard.content } };
     (target.meta.reviewPresentations ??= {})[record.language] = {
       id: record.attemptId, cardId: restore.cardId,
-      ...(restore.scaffolds ? { scaffolds: { ...restore.scaffolds } } : {}),
+      scaffolds: { ...restore.scaffolds, 'prior-cue-exposure': true },
     };
     if (!restore.expectedCard && restore.restorePerLanguage) {
       target.meta.perLanguage[record.language] = { ...restore.restorePerLanguage };

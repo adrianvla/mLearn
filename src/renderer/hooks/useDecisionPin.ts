@@ -23,12 +23,14 @@ export interface DecisionPin<Selection = PolicyDecision | null> {
   pin: (scopeId: string, compute: () => Selection, isValid?: (selection: Selection) => boolean) => Selection;
   /** Ends the active encounter so the next read selects afresh. */
   advance: () => void;
+  peek: (scopeId: string) => Selection | undefined;
 }
 
 export function useDecisionPin<Selection = PolicyDecision | null>(): DecisionPin<Selection> {
   const [epoch, bumpEpoch] = createSignal(0);
   let pinned: { epoch: number; scopeId: string; selection: Selection } | undefined;
   return {
+    peek(scopeId) { return pinned?.epoch === epoch() && pinned.scopeId === scopeId ? pinned.selection : undefined; },
     pin(scopeId, compute, isValid) {
       // Reading the epoch signal inside the caller's memo subscribes the
       // memo to `advance()` — an epoch bump forces a fresh selection.

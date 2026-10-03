@@ -465,4 +465,6 @@ export { Avatar, type AvatarProps } from './Avatar/Avatar';
 export { ListRow, type ListRowProps } from './ListRow/ListRow';
 export { Disclosure, type DisclosureProps } from './Disclosure/Disclosure';
 
-export { StudyEncounter, type StudyEncounterProps } from './StudyEncounter/StudyEncounter';
+export { StudyEncounter, StudySessionHUD, type StudyEncounterProps } from './StudyEncounter/StudyEncounter';
+
+export { LearningGoals } from './LearningGoals/LearningGoals';

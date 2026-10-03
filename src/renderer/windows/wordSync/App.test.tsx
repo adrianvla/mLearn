@@ -291,6 +291,7 @@ vi.mock('../../components/common', async (importOriginal) => {
   Panel: actual.Panel,
   RatingMatrix: actual.RatingMatrix,
   StudyEncounter: actual.StudyEncounter,
+    StudySessionHUD: actual.StudySessionHUD,
   // Real banner: the save-failure assertions read its role/label contract.
   WriteStatusBanner: actual.WriteStatusBanner,
   KeyboardShortcut: actual.KeyboardShortcut,
@@ -879,6 +880,20 @@ beforeEach(() => {
     expect(container.querySelector('.word-sync-finished')?.textContent).toContain('mlearn.WordSync.MaterialEmptyTitle');
     expect(container.textContent).not.toContain('mlearn.WordSync.ChangeFilters');
     expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
+  it('starts a finite practice session from Home time without inflating its queue', async () => {
+    mockWordSyncState.wordFrequency = Object.fromEntries(['赤い', '青い', '白い'].map(word => [word, { reading: word, raw_level: 5, level: 'N5' }]));
+    const { WordSyncContent } = await import('./App');
+    const dispose = render(() => <WordSyncContent encounterLimit={1} />, container);
+    disposals.push(dispose);
+    await settle();
+    const saved = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!);
+    expect(saved.queue).toHaveLength(1);
+    const word = container.querySelector('.word-sync-word')?.getAttribute('data-word');
+    mockWordSyncState.wordFrequency.extra = { reading: 'extra', raw_level: 5, level: 'N5' };
+    expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!).queue).toHaveLength(1);
+    expect(container.querySelector('.word-sync-word')?.getAttribute('data-word')).toBe(word);
   });
 
   it('feeds reinforcement into the shared study component without replacing ordinary study progress', async () => {
@@ -1491,7 +1506,7 @@ beforeEach(() => {
     await settle();
     expect(container.textContent).toContain(`${firstShown}:`);
     expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 2');
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('SavingRating');
+    expect(container.querySelector('[role="status"]:not(.study-encounter__hud)')?.textContent).toContain('SavingRating');
     press('3');
     await settle();
     expect(mockSubmitRating).toHaveBeenCalledTimes(1);
@@ -1504,7 +1519,7 @@ beforeEach(() => {
     dispose();
   });
 
-  it('non-scheduler practice offers Fluent rather than an Easy interval control', async () => {
+  it('non-scheduler practice preserves all four grades with Fluent evidence', async () => {
     const { WordSyncContent } = await import('./App');
 
     const dispose = mountContent(WordSyncContent);
@@ -1514,7 +1529,7 @@ beforeEach(() => {
     press(' ');
     await settle();
     await settle();
-    expect(container.textContent).not.toContain('mlearn.Rating.Matrix.Easy');
+    expect(container.textContent).toContain('mlearn.Rating.Matrix.Easy');
     press('3');
     await settle();
     await settle();

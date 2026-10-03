@@ -6,6 +6,7 @@ import { CharacterGridContent } from '../characterGrid/App';
 import { LevelStudyTab } from './LevelStudyTab';
 import { LearningPlanSettings } from './LearningPlanSettings';
 import { getCharacterStudyScripts, getLearningLanguageLevelForLanguage, getFrequencyLevelLabel } from '../../../shared/languageFeatures';
+import { goalSessionBudget } from '../../../shared/learningGoals';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 import { hashWordSync } from '../../services/srsAlgorithm';
@@ -29,9 +30,15 @@ export const LevelStudyContent: Component = () => {
   const [studyIntent, setStudyIntent] = createSignal<'reinforce' | undefined>();
   const [materialPractice, setMaterialPractice] = createSignal<MaterialPracticeContext>();
   const openStudy = () => { batch(() => { setMaterialPractice(undefined); setStudyIntent(undefined); setDestination('word-sync'); }); };
+  const [sessionConstraint, setSessionConstraint] = createSignal<{ encounterLimit: number; requestId?: string }>();
   const [incomingContext, setIncomingContext] = createSignal<Record<string, unknown> | null>(null);
   createEffect(on(() => settingsLoading() ? null : incomingContext(), context => {
     if (!context) return;
+    const session = context.session as { encounterLimit?: unknown; requestId?: unknown } | undefined;
+    if (session && typeof session.encounterLimit === 'number' && Number.isFinite(session.encounterLimit)) {
+      setSessionConstraint({ encounterLimit: Math.max(1, Math.min(120, Math.floor(session.encounterLimit))),
+        ...(typeof session.requestId === 'string' ? { requestId: session.requestId } : {}) });
+    }
     batch(() => {
       const material = materialPracticeContext(context.material, settings.language);
       setMaterialPractice(material);
@@ -69,7 +76,7 @@ export const LevelStudyContent: Component = () => {
   });
   const title = () => destination() === 'plan' ? t('mlearn.LevelStudy.Title')
     : destination() === 'assessment' ? t('mlearn.LearningPlan.Assess')
-    : materialPractice() && destination() === 'word-sync' ? t('mlearn.StudyEncounter.Task')
+    : destination() === 'word-sync' ? t('mlearn.Home.Today.Practice')
     : t(destination() === 'word-sync' ? 'mlearn.LevelStudy.Tabs.WordSync' : 'mlearn.LevelStudy.Tabs.CharacterGrid');
 
   return (
@@ -77,8 +84,8 @@ export const LevelStudyContent: Component = () => {
       <header class="level-study-header">
         <div class="level-study-header-title"><TargetIcon size={20} /><span>{title()}</span></div>
         <Show when={destination() !== 'plan'}>
-          <Button buttonType="nav" onClick={() => materialPractice() ? getBridge().window.closeWindow() : setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
-            {t(materialPractice() ? 'mlearn.LearningPlan.BackToMaterial' : 'mlearn.LearningPlan.Back')}
+          <Button buttonType="nav" onClick={() => incomingContext()?.returnTo === 'home' || materialPractice() ? getBridge().window.closeWindow() : setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
+            {t(incomingContext()?.returnTo === 'home' ? 'mlearn.Tabs.Home' : materialPractice() ? 'mlearn.LearningPlan.BackToMaterial' : 'mlearn.LearningPlan.Back')}
           </Button>
         </Show>
       </header>
@@ -108,7 +115,7 @@ export const LevelStudyContent: Component = () => {
         </Show>
         <Show when={destination() === 'word-sync' || destination() === 'assessment'}>
           <Show keyed when={destination() === 'assessment' ? 'assessment' : materialPractice() ? `material:${hashWordSync(materialPractice()!.words.join('\u0000'))}` : studyIntent() ?? 'study'}>{mode =>
-            <WordSyncContent mode={mode === 'assessment' ? 'assessment' : 'study'} intent={mode === 'reinforce' ? 'reinforce' : undefined} words={materialPractice()?.words} sourceLabel={materialPractice()?.label} onAssessmentApplied={() => setDestination('plan')} />
+            <WordSyncContent onClose={incomingContext()?.returnTo === 'home' ? () => getBridge().window.closeWindow() : undefined} encounterLimit={sessionConstraint()?.encounterLimit ?? goalSessionBudget(settings.learningMinutes ?? DEFAULT_SETTINGS.learningMinutes)} sessionRequestId={sessionConstraint()?.requestId} mode={mode === 'assessment' ? 'assessment' : 'study'} intent={mode === 'reinforce' ? 'reinforce' : undefined} words={materialPractice()?.words} sourceLabel={materialPractice()?.label} onAssessmentApplied={() => setDestination('plan')} />
           }</Show>
         </Show>
         <Show when={destination() === 'character-grid' && showCharacterGrid()}><CharacterGridContent /></Show>

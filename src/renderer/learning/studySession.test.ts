@@ -39,9 +39,9 @@ describe('study session presentation contract', () => {
     expect(studySessionState({ ...base, write: null }).write).toBeNull();
     expect(studySessionState({ ...base, write: 'pending' }).write).toBe('pending');
     expect(studySessionState({ ...base, write: 'failed' }).write).toBe('failed');
-    // Completion outranks the write in the phase order, so a settled session
-    // reports no write even though the snapshot still describes one.
-    expect(studySessionState({ ready: true, index: 3, total: 3, revealed: true, write: 'pending' }).write).toBeNull();
+    // Optimistic progress is not durable completion. The final write owns the stopping state.
+    expect(studySessionState({ ready: true, index: 3, total: 3, revealed: true, write: 'pending' }).write).toBe('pending');
+    expect(studySessionState({ ready: true, index: 3, total: 3, revealed: true, write: 'failed' }).phase).toBe('save-failed');
   });
 
   it('bounds cursor and completion without inventing a question', () => {

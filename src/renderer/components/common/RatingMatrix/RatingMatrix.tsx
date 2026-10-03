@@ -51,7 +51,7 @@ export interface RatingMatrixProps {
   /** Tested capability rows, in display order — revealed cues included; scaffold
    * weighting stays in the evidence layer. Core kinds and package-declared keys alike. */
   capabilities: readonly CapabilityKey[];
-  /** Easy changes a review interval; omit it in activities without a scheduler. */
+  /** Easy carries an interval preference only when a scheduler is attached. */
   scheduling?: boolean;
   /** Saved statements displayed using the same quality selections as manual ratings. */
   claims?: Readonly<Partial<Record<CapabilityKey, WordStatus>>>;
@@ -109,7 +109,7 @@ const actionEvidence = (action: RatingAction): AccessDraft =>
   action === 'easy' ? { quality: 'fluent', easy: true } : { quality: action };
 
 export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
-  const ratingActions = () => props.scheduling === false ? ATTEMPT_QUALITIES : RATING_ACTIONS;
+  const ratingActions = () => RATING_ACTIONS;
   const { t } = useLocalization();
   const [pendingQuality, setPendingQuality] = createSignal<RatingAction | null>(null);
   const [expanded, setExpanded] = createSignal(false);
@@ -157,7 +157,10 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
       }
     }
   }));
-  createEffect(on(() => props.wordClaim, () => clearDrafts()));
+  // Parent presentation updates can invalidate a spread prop without changing
+  // the claim. Only a changed claim supersedes the learner's draft.
+  const wordClaim = createMemo(() => props.wordClaim);
+  createEffect(on(wordClaim, () => clearDrafts()));
 
   const submit = (observations: readonly ProfileObservation[], opts?: RateOptions) => {
     if (submitted()) return;

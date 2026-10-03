@@ -1,3 +1,4 @@
+import { beginReviewSession, completeReviewEncounter } from './reviewSession';
 import { describe, expect, it } from 'vitest';
 import { applyFlashcardRatingCommand, refusedRatingAttemptIds, RatingAdmissionRefusal, type FlashcardRatingCommand } from './flashcardRating';
 
@@ -8,6 +9,19 @@ const command = (attemptId: string): FlashcardRatingCommand => ({
 });
 
 describe('applyFlashcardRatingCommand', () => {
+  it('merges concurrent finite-session progress and refuses work beyond the boundary', () => {
+    const session = beginReviewSession('session', ['a', 'b', 'c'], 2, 1);
+    const rating = (card: string): FlashcardRatingCommand => ({ attemptId: card, events: {}, patch: { baseRev: 1, entries: [{
+      path: ['meta', 'reviewSessions', 'future'], before: session, after: completeReviewEncounter(session, card),
+    }] } });
+    const source = { meta: { reviewSessions: { future: session } } };
+    const first = applyFlashcardRatingCommand(source, rating('a'));
+    const second = applyFlashcardRatingCommand(first, rating('b'));
+    expect(second.meta.reviewSessions.future.completedCardIds).toEqual(['a', 'b']);
+    expect(() => applyFlashcardRatingCommand(second, rating('c'))).toThrow(RatingAdmissionRefusal);
+    expect(source.meta.reviewSessions.future.completedCardIds).toEqual([]);
+  });
+
   it('recognizes refused attempt identities after Electron error serialization without treating I/O failures as cancellation', () => {
     const refusal = new RatingAdmissionRefusal(['never-admitted']);
     expect(refusedRatingAttemptIds(refusal)).toEqual(['never-admitted']);

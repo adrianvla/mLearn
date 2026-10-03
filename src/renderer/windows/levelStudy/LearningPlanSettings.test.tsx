@@ -85,6 +85,7 @@ vi.mock('../../components/common', () => ({
       {props.options?.map((option) => <option value={option.value}>{option.label}</option>)}
     </select>
   ),
+  LearningGoals: () => <div data-testid="shared-goals" />,
   Input: (props: JSX.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   ColorInput: () => <div />,
   SortableList: () => <div />,
@@ -242,84 +243,10 @@ describe('LearningPlanSettings', () => {
     dispose();
   });
 
-  it('clears an exam goal and its fields explicitly, preserving the sibling field', async () => {
+  it('shares Home goal controls rather than maintaining another goal editor', async () => {
     const { LearningPlanSettings } = await import('./LearningPlanSettings');
-
-    // exam → none clears the whole goal object.
-    testSettings.sessionIntensity = 'steady';
-    testSettings.examGoal = { kind: 'exam', deadline: '2026-10-01', target: 'JLPT N1' };
-    let dispose = render(() => <LearningPlanSettings />, container);
-    const goalSelect = Array.from(container.querySelectorAll('select')).find(select => select.querySelector('option[value="exam"]'))!;
-    expect(goalSelect.value).toBe('exam');
-    expect(container.querySelectorAll('input[type="date"]')).toHaveLength(1);
-
-    goalSelect.value = 'none';
-    goalSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'none' } });
-    dispose();
-    updateSettingsMock.mockReset();
-
-    // Emptying the target drops target and keeps the deadline. A goal
-    // recorded before scoping gets the active language stamped on edit.
-    testSettings.examGoal = { kind: 'exam', deadline: '2026-10-01', target: 'JLPT N1' };
-    dispose = render(() => <LearningPlanSettings />, container);
-    const targetInput = container.querySelector('input[type="text"]') as HTMLInputElement;
-    expect(targetInput.value).toBe('JLPT N1');
-    targetInput.value = '';
-    targetInput.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', deadline: '2026-10-01', language: 'xx' } });
-    dispose();
-    updateSettingsMock.mockReset();
-
-    // Emptying the date drops deadline and keeps the target.
-    dispose = render(() => <LearningPlanSettings />, container);
-    const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
-    expect(dateInput.value).toBe('2026-10-01');
-    dateInput.value = '';
-    dateInput.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', target: 'JLPT N1', language: 'xx' } });
-    dispose();
-    updateSettingsMock.mockReset();
-
-    // Non-empty edits set the field.
-    dispose = render(() => <LearningPlanSettings />, container);
-    const editableTarget = container.querySelector('input[type="text"]') as HTMLInputElement;
-    editableTarget.value = 'Goethe B1';
-    editableTarget.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', deadline: '2026-10-01', target: 'Goethe B1', language: 'xx' } });
-    dispose();
-  });
-
-  it('stamps a fresh exam goal with the active learning language and keeps an existing stamp', async () => {
-    const { LearningPlanSettings } = await import('./LearningPlanSettings');
-
-    // Fresh goal: the active learning language is the stamp.
-    testSettings.sessionIntensity = 'steady';
-    testSettings.examGoal = { kind: 'none' };
-    let dispose = render(() => <LearningPlanSettings />, container);
-    const goalSelect = Array.from(container.querySelectorAll('select')).find(select => select.querySelector('option[value="exam"]'))!;
-    goalSelect.value = 'exam';
-    goalSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', language: 'xx' } });
-    dispose();
-    updateSettingsMock.mockReset();
-
-    // An already-scoped goal keeps its stamp on re-selection.
-    testSettings.examGoal = { kind: 'exam', deadline: '2026-10-01', language: 'ja' };
-    dispose = render(() => <LearningPlanSettings />, container);
-    const scopedSelect = Array.from(container.querySelectorAll('select')).find(select => select.querySelector('option[value="exam"]'))!;
-    scopedSelect.value = 'exam';
-    scopedSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', deadline: '2026-10-01', language: 'ja' } });
-    dispose();
-    updateSettingsMock.mockReset();
-
-    // Field edits never re-scope an existing stamp.
-    dispose = render(() => <LearningPlanSettings />, container);
-    const dateInput = container.querySelector('input[type="date"]') as HTMLInputElement;
-    dateInput.value = '2026-11-15';
-    dateInput.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(updateSettingsMock).toHaveBeenCalledWith({ examGoal: { kind: 'exam', deadline: '2026-11-15', language: 'ja' } });
+    const dispose = render(() => <LearningPlanSettings />, container);
+    expect(container.querySelector('[data-testid="shared-goals"]')).not.toBeNull();
     dispose();
   });
 
@@ -329,9 +256,8 @@ describe('LearningPlanSettings', () => {
     const { LearningPlanSettings } = await import('./LearningPlanSettings');
     const dispose = render(() => <LearningPlanSettings />, container);
 
-    const selects = [Array.from(container.querySelectorAll('select')).find(select => select.querySelector('option[value="gentle"]'))!, Array.from(container.querySelectorAll('select')).find(select => select.querySelector('option[value="exam"]'))!];
+    const selects = [Array.from(container.querySelectorAll('select')).find(select => select.querySelector('option[value="gentle"]'))!];
     expect(selects[0]!.value).toBe('gentle');
-    expect(selects[1]!.value).toBe('none');
     // No exam goal → no target/deadline fields.
     expect(container.querySelector('input[type="date"]')).toBeNull();
 

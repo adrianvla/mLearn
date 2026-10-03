@@ -324,6 +324,40 @@
                 "targets": [
                     "spoken-recognition"
                 ]
+            },
+            "ja:reading-then-pitch": {
+                "kind": "written-reading-recall",
+                "label": "Reading and pitch recall",
+                "prompt": "Recall the reading, then the pitch pattern.",
+                "targets": [
+                    "surface-reading",
+                    "prosodic-pattern"
+                ],
+                "stages": [
+                    {
+                        "id": "reading",
+                        "kind": "holistic",
+                        "label": "Reading recall",
+                        "prompt": "Recall the reading. Keep it in mind for comparison.",
+                        "targets": [
+                            "surface-reading"
+                        ],
+                        "suppliedAccesses": []
+                    },
+                    {
+                        "id": "pitch",
+                        "kind": "written-reading-recall",
+                        "label": "Pitch recall",
+                        "prompt": "Given the word and reading, recall its pitch pattern.",
+                        "targets": [
+                            "prosodic-pattern"
+                        ],
+                        "suppliedAccesses": [
+                            "surface-reading",
+                            "surface-recognition"
+                        ]
+                    }
+                ]
             }
         }
     },

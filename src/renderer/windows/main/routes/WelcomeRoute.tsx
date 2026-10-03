@@ -1,11 +1,11 @@
-import { type Component, createMemo, createSignal, For, onMount, Show } from 'solid-js';
+import { type Component, createEffect, createMemo, createSignal, For, onMount, onCleanup, Show } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { useEvidenceLinkedProjections } from '../../../hooks/useEvidenceLinkedProjections';
 import { getBridge } from '../../../../shared/bridges';
 import { isMobile } from '../../../../shared/platform';
 import { WindowDragRegion } from '../../../components/utils/WindowDragRegion';
-import { Button, Panel, SkeletonRows, VideoIcon, BookIcon, BotIcon, TargetIcon, SearchIcon, BarChartIcon, LanguageVariantGate } from '../../../components/common';
+import { Button, Panel, SkeletonRows, VideoIcon, BookIcon, BotIcon, TargetIcon, SearchIcon, BarChartIcon, LanguageVariantGate, LearningGoals } from '../../../components/common';
 import AppLogo from '@renderer/components/common/Misc/AppLogo';
 import { WelcomeContinueRow } from './components';
 import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
@@ -19,7 +19,11 @@ import { selectWeekStats } from './welcomeSelectors';
 import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
 import { formatDate } from '../../../utils/timeFormatting';
 import { getLogger } from '../../../../shared/utils/logger';
+import { homePracticeResume } from './homePracticeResume';
 import { homeNextAction } from './homeNextAction';
+import { activeLearningGoals, learningGoalsForSettings, goalSessionBudget } from '../../../../shared/learningGoals';
+import { reviewSessionHasAvailableCards, reviewCardAvailableNow } from '../../../../shared/reviewSession';
+import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import './welcome.css';
 
 const log = getLogger('renderer.welcome');
@@ -33,6 +37,7 @@ export const WelcomeRoute: Component = () => {
   const language = useLanguage();
   const flashcards = useFlashcards();
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
+  const [practiceResume, setPracticeResume] = createSignal<ReturnType<typeof homePracticeResume>>(null);
   const [materialReady, setMaterialReady] = createSignal(false);
   onMount(async () => {
     try { setRecentItems(await getRecentItems()); }
@@ -100,6 +105,8 @@ export const WelcomeRoute: Component = () => {
     );
   };
 
+  const goals = createMemo(() => activeLearningGoals(learningGoalsForSettings(settings), settings.language));
+  const goalWords = createMemo(() => [...new Set(goals().flatMap(goal => goal.scope?.words ?? []))]);
   const levelStudySource = createMemo(() => {
     const langData = language.currentLangData();
     if (!langData) return null;
@@ -111,14 +118,14 @@ export const WelcomeRoute: Component = () => {
       levelNames: getLevelStudyLevelNames(langData, freq),
     };
   });
-  const curriculumProjection = useEvidenceLinkedProjections(() => !flashcards.isLoading() && flashcards.isKnowledgeReady() && !language.isLoading() && levelStudySource() ? {
+  const curriculumProjection = useEvidenceLinkedProjections(() => !flashcards.isLoading() && flashcards.isKnowledgeReady() && !language.isLoading() && (levelStudySource() || goalWords().length) ? {
     language: settings.language,
-    surfaces: Object.keys(levelStudySource()!.freq),
+    surfaces: [...new Set([...Object.keys(levelStudySource()?.freq ?? {}), ...goalWords()])],
     materializedKeys: Object.keys(flashcards.store.wordKnowledge),
   } : undefined);
   // Do not recommend an activity from an intermediate learner snapshot.
   const levelStudyPending = createMemo(() => (
-    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || (Boolean(levelStudySource()) && !curriculumProjection.ready())
+    flashcards.isLoading() || !flashcards.isKnowledgeReady() || language.isLoading() || ((Boolean(levelStudySource()) || goalWords().length > 0) && !curriculumProjection.ready())
   ));
   const levelStudy = createMemo(() => {
     if (levelStudyPending()) return null;
@@ -168,7 +175,11 @@ export const WelcomeRoute: Component = () => {
   };
 
 
-  const dueCount = () => flashcards.queueCounts().total;
+  const dueCount = createMemo(() => {
+    const queue = flashcards.queue();
+    return [...new Set([...queue.newQueue, ...queue.scheduledQueue])].filter(id =>
+      reviewCardAvailableNow(flashcards.store.flashcards[id], flashcards.store, settings.language)).length;
+  });
   const summary = createMemo(() => {
     const progress = levelProgress();
     return {
@@ -179,8 +190,31 @@ export const WelcomeRoute: Component = () => {
     };
   });
   const ready = () => materialReady() && !flashcards.isLoading() && flashcards.isKnowledgeReady()
-    && !language.isLoading() && (!levelStudySource() || curriculumProjection.ready());
-  const next = createMemo(() => homeNextAction({ ...summary(), due: dueCount(), hasMaterial: recentItems().length > 0 }));
+    && !language.isLoading() && (!(levelStudySource() || goalWords().length) || curriculumProjection.ready());
+  const refreshResume = () => setPracticeResume(homePracticeResume(localStorage, { language: settings.language,
+    provider: settings.frequencyProviderSelections?.[settings.language], packageVersion: language.currentLangData()?.languageData?.version }));
+  createEffect(refreshResume);
+  onMount(() => { refreshResume(); window.addEventListener('focus', refreshResume); window.addEventListener('storage', refreshResume); });
+  onCleanup(() => { window.removeEventListener('focus', refreshResume); window.removeEventListener('storage', refreshResume); });
+  const resumableReview = () => {
+    const session = flashcards.store.meta?.reviewSessions?.[settings.language];
+    return Boolean(session && reviewSessionHasAvailableCards(session, flashcards.store, settings.language));
+  };
+  const resumablePractice = () => Boolean(practiceResume() && (!resumableReview()
+    || practiceResume()!.at > (flashcards.store.meta?.reviewPresentations?.[settings.language]?.decision?.at
+      ?? flashcards.store.meta?.reviewSessions?.[settings.language]?.startedAt ?? 0)));
+  const goalCoverage = createMemo(() => curriculumProjection.ready() ? Object.fromEntries(goals().map(goal => {
+    const counts = { known: 0, learning: 0, unmeasured: 0 };
+    for (const word of new Set(goal.scope?.words ?? [])) {
+      const state = curriculumProjection.resolveState(word);
+      if (state.basis === 'unmeasured') counts.unmeasured++;
+      else if (state.status === 'known') counts.known++;
+      else counts.learning++;
+    }
+    return [goal.id, counts];
+  })) : undefined);
+  const goalWork = createMemo(() => goalWords().filter(word => curriculumProjection.resolveState(word).status !== 'known'));
+  const next = createMemo(() => resumablePractice() ? 'practice' : resumableReview() ? 'review' : goalWords().length && dueCount() === 0 ? (goalWork().length ? 'practice' : recentItems().length ? 'continue' : 'read') : homeNextAction({ ...summary(), due: dueCount(), hasMaterial: recentItems().length > 0 }));
   const nextCopy = () => {
     const keys = {
       review: ['ReviewTitle', 'ReviewReason', 'ReviewAction'],
@@ -189,14 +223,18 @@ export const WelcomeRoute: Component = () => {
       continue: ['ContinueTitle', 'ContinueReason', 'ContinueAction'],
       read: ['ReadTitle', 'ReadReason', 'ReadAction'],
     } as const;
-    const params = { count: String(next() === 'review' ? dueCount() : next() === 'practice' ? summary().needsPractice : summary().unassessed),
+    const params = { count: String(next() === 'review' ? dueCount() : next() === 'practice' ? goalWork().length || summary().needsPractice || Math.min(summary().unassessed, goalSessionBudget(settings.learningMinutes ?? DEFAULT_SETTINGS.learningMinutes)) : summary().unassessed),
       material: recentItems()[0]?.name ?? '' };
+    if (next() === 'practice' && !summary().needsPractice && !goalWork().length) return [
+      t('mlearn.Home.Today.DiscoverTitle'), t('mlearn.Home.Today.DiscoverReason', params), t('mlearn.Home.Today.PracticeAction')];
     return keys[next()].map(key => t(`mlearn.Home.Today.${key}`, params));
   };
   const startNext = () => {
+    if (resumablePractice()) { getBridge().window.openWindow({ type: 'level-study', context: { ...practiceResume()!.context, returnTo: 'home' } }); return; }
+    const session = { requestId: crypto.randomUUID(), minutes: settings.learningMinutes ?? DEFAULT_SETTINGS.learningMinutes, encounterLimit: goalSessionBudget(settings.learningMinutes ?? DEFAULT_SETTINGS.learningMinutes) };
     switch (next()) {
-      case 'review': openFlashcards(); break;
-      case 'practice': openLevelStudy('reinforce'); break;
+      case 'review': getBridge().window.openWindow({ type: 'flashcards', context: { activity: 'review', session } }); break;
+      case 'practice': getBridge().window.openWindow({ type: 'level-study', context: { activity: goalWork().length || summary().needsPractice > 0 ? 'reinforce' : 'practice', returnTo: 'home', session, ...(goalWords().length ? { material: { language: settings.language, label: goals()[0]?.outcome || t('mlearn.Goals.Purpose'), words: goalWords() } } : {}) } }); break;
       case 'assessment': openLevelStudy('assessment'); break;
       case 'continue': { const item = recentItems()[0]; if (item) openRecent(item); break; }
       case 'read': openReader(); break;
@@ -223,6 +261,7 @@ export const WelcomeRoute: Component = () => {
           <Button variant="ghost" icon={<SearchIcon size={18} />} onClick={openWordDatabase}>{t('mlearn.Home.Cards.WordDatabase.Title')}</Button>
         </nav>
         <div class="welcome-today-heading"><h1>{t('mlearn.Home.Today.Title')}</h1><p>{t('mlearn.Home.Today.Description')}</p></div>
+        <LearningGoals coverage={goalCoverage()} />
         <div class="welcome-workspace">
           <Panel class="welcome-next" padding="lg">
             <span class="welcome-section-label">{t('mlearn.Home.Today.Next')}</span>
@@ -233,7 +272,7 @@ export const WelcomeRoute: Component = () => {
               }><SkeletonRows rows={2} /></Show>
             }>
               <h2>{nextCopy()[0]}</h2><p class="welcome-next-reason">{nextCopy()[1]}</p>
-              <Button variant="primary" size="lg" onClick={startNext}>{nextCopy()[2]}</Button>
+              <Button variant="primary" size="lg" onClick={startNext}>{(resumablePractice() || resumableReview()) ? t('mlearn.StudyEncounter.Resume') : nextCopy()[2]}</Button>
             </Show>
             <Show when={!ready() || next() !== 'review'}><Button variant="ghost" size="sm" onClick={openFlashcards}>{t('mlearn.Home.Cards.Flashcards.Title')}</Button></Show>
           </Panel>

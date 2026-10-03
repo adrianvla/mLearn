@@ -1,3 +1,4 @@
+import { isReviewSession, reviewSessionRemaining, reviewSessionHasAvailableCards } from './reviewSession';
 import { isLearningDecision } from './learningDecision';
 import type { Flashcard, FlashcardStore, ReviewPresentation } from './types';
 import type { StorePatch } from './utils/storePatch';
@@ -22,6 +23,17 @@ export function reviewPresentationPatch(store: FlashcardStore, command: ReviewPr
     || (cue.contentVersion !== undefined && cue.contentVersion !== hashWordSync(JSON.stringify(card.content)))) {
     throw new Error('Invalid saved review choice');
   }
+  if (presentation.stageIndex !== undefined && (!decision.selected.task.stages
+    || !Number.isInteger(presentation.stageIndex) || presentation.stageIndex < 0
+    || presentation.stageIndex >= decision.selected.task.stages.length)) throw new Error('Invalid retrieval stage');
+  if (presentation.stageScaffolds !== undefined) {
+    if (!presentation.stageScaffolds || typeof presentation.stageScaffolds !== 'object' || Array.isArray(presentation.stageScaffolds)) throw new Error('Invalid stage conditions');
+    for (const [id, flags] of Object.entries(presentation.stageScaffolds)) {
+      const index = decision.selected.task.stages?.findIndex(stage => stage.id === id) ?? -1;
+      if (index < 0 || index >= (presentation.stageIndex ?? 0) || !flags || typeof flags !== 'object'
+        || Array.isArray(flags) || Object.values(flags).some(value => value !== undefined && typeof value !== 'boolean')) throw new Error('Invalid stage conditions');
+    }
+  }
   // A late cursor for a rated/edited/removed card is obsolete, not a failed encounter.
   if (card.suspended || card.buried || JSON.stringify({ ...store.flashcards[card.id], retentionCache: undefined }) !== JSON.stringify({ ...card, retentionCache: undefined })) return null;
   const existing = store.meta.reviewPresentations?.[language];
@@ -29,5 +41,23 @@ export function reviewPresentationPatch(store: FlashcardStore, command: ReviewPr
     return { baseRev: store.rev ?? 0, entries: [] };
   }
   if ((existing?.id ?? null) !== expectedId) throw new Error('The review position was replaced by another window');
-  return { baseRev: store.rev ?? 0, entries: [{ path: ['meta', 'reviewPresentations', language], before: existing, after: presentation }] };
+  if (existing?.id === presentation.id && existing.stageIndex !== undefined
+    && (presentation.stageIndex ?? 0) < existing.stageIndex) throw new Error('Retrieval stage cannot rewind exposed cues');
+  if ((presentation.stageIndex ?? 0) > (existing?.id === presentation.id ? (existing.stageIndex ?? 0) + 1 : 0)) {
+    throw new Error('Retrieval stages must be admitted in order');
+  }
+  if (existing?.id === presentation.id && Object.entries(existing.stageScaffolds ?? {}).some(([id, flags]) =>
+    JSON.stringify(presentation.stageScaffolds?.[id]) !== JSON.stringify(flags))) throw new Error('Completed retrieval conditions cannot be replaced');
+  const entries: Array<StorePatch['entries'][number]> = [{ path: ['meta', 'reviewPresentations', language], before: existing, after: presentation }];
+  if (presentation.session) {
+    const session = presentation.session;
+    const prior = store.meta.reviewSessions?.[language];
+    if (!isReviewSession(session) || !session.cardIds.includes(card.id) || session.completedCardIds.includes(card.id)
+      || reviewSessionRemaining(session) === 0) throw new Error('Invalid finite review session');
+    if (prior?.id !== session.id) {
+      if (prior && reviewSessionHasAvailableCards(prior, store, language)) throw new Error('An interrupted review session must be resumed');
+      entries.push({ path: ['meta', 'reviewSessions', language], before: prior, after: session });
+    } else if (prior.completedCardIds.includes(card.id) || reviewSessionRemaining(prior) === 0) return null;
+  }
+  return { baseRev: store.rev ?? 0, entries };
 }

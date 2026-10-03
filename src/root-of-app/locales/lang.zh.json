@@ -1,5 +1,34 @@
 {
   "mlearn": {
+    "Goals": {
+      "Purpose": "你的目标",
+      "Explore": "探索语言",
+      "Time": "可用时间",
+      "Minutes": "{count}分钟",
+      "Edit": "编辑目标",
+      "Add": "添加目标",
+      "Outcome": "你想做到什么？",
+      "Deadline": "截止日期（可选）",
+      "Priority": "优先级",
+      "First": "优先",
+      "Normal": "普通",
+      "Later": "稍后",
+      "Status": "状态",
+      "Active": "进行中",
+      "Paused": "已暂停",
+      "Completed": "已完成",
+      "Passed": "截止日期已过。请调整下一步；学习进度已保留。",
+      "Scope": "范围（可选）",
+      "Words": "要练习的词，每行一个",
+      "Coverage": "词汇：已掌握 {known} · 学习中 {learning} · 未测量 {unmeasured}",
+      "OtherRequirements": "词汇练习不能证明其他任务条件下的表现。",
+      "Source": {
+        "user": "你的选择",
+        "package": "语言包覆盖",
+        "community": "社区覆盖",
+        "authoritative": "官方要求"
+      }
+    },
     "LibraryRecovery": {
       "OpenProtection": "数据保护与恢复设置",
       "Title": "无法打开你的资料库",
@@ -1630,7 +1659,9 @@
         "PlanUnmeasured": "阅读和练习会不断丰富学习记录。",
         "ViewPlan": "查看学习计划",
         "ThisWeek": "本周",
-        "WeekSummary": "复习{reviews}次 · 新卡片{newCards}张"
+        "WeekSummary": "复习{reviews}次 · 新卡片{newCards}张",
+        "DiscoverTitle": "发现接下来要学的词",
+        "DiscoverReason": "从课程中的{count}个词开始。"
       }
     },
     "Installer": {
@@ -4128,7 +4159,9 @@
       "PlacementIntro": "此自适应检查使用与练习相同的流程，抽查没有直接学习记录的词语，并为学习计划建议起点。未抽查的词语保持未评估。",
       "Resume": "继续练习",
       "RetrieveWord": "查看答案前，请先回忆读音和含义。",
-      "RetrieveAspects": "本次回忆检查的重点：{aspects}。显示答案以进行对比。"
+      "RetrieveAspects": "本次回忆检查的重点：{aspects}。显示答案以进行对比。",
+      "Progress": "学习：{count} / {total}",
+      "Finished": "本次学习结束。已记录{count}次学习。"
     }
   }
 }

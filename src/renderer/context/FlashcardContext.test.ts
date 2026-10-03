@@ -532,6 +532,7 @@ type FlashcardCtx = {
     scaffolds?: AttemptScaffolds;
     sourceVersions?: EventSourceVersions;
     persistence?: 'immediate' | 'background';
+    reviewSessionId?: string;
     scheduler?: { cardId: string; rating: Rating; timeSpentMs?: number; tested?: readonly CapabilityKind[] };
   }) => Promise<{ attemptId: AttemptId; completed: boolean; persisted?: Promise<boolean> }>;
   getCurrentCard: () => Flashcard | null;
@@ -1007,6 +1008,23 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
   });
 
+  it('commits finite review progress with evidence and restores its slot on Undo', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'bounded', state: 'review', reviews: 2, interval: 86400000, dueDate: Date.now() - 100 });
+    const session = { id: 'finite', cardIds: [card.id], completedCardIds: [], encounterLimit: 1, startedAt: 10 };
+    const initial = makeEmptyStore({ flashcards: { [card.id]: card } });
+    initial.meta.reviewSessions = { ja: session };
+    flashcardsCb(initial);
+    const result = await ctx.submitRating(card.content.front, [], { language: 'ja', reviewSessionId: session.id,
+      attemptId: 'finite-attempt' as AttemptId, scheduler: { cardId: card.id, rating: 'again' } });
+    await result.persisted;
+    expect(ctx.store.meta.reviewSessions?.ja?.completedCardIds).toEqual([card.id]);
+    await ctx.undoLastAction();
+    expect(ctx.store.meta.reviewSessions?.ja?.completedCardIds).toEqual([]);
+    expect(ctx.store.flashcards[card.id].reviews).toBe(card.reviews);
+    dispose();
+  });
+
   it.each(['prompt', 'language'])('refuses a first review admission when another window changes its %s', async changed => {
     const { ctx, dispose } = await mountProvider();
     try {
@@ -1369,13 +1387,14 @@ describe('FlashcardProvider', () => {
         scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
       });
       await ctx.undoLastAction();
-      expect(ctx.store.meta.reviewPresentations?.ja).toEqual({ id: 'presentation-undo', cardId: card.id, scaffolds });
+      const exposedScaffolds = { ...scaffolds, 'provided-access:sense-recognition': true, 'prior-cue-exposure': true };
+      expect(ctx.store.meta.reviewPresentations?.ja).toEqual({ id: 'presentation-undo', cardId: card.id, scaffolds: exposedScaffolds });
       const persisted = mockBridge.flashcards.saveFlashcards.mock.calls.at(-1)![0] as FlashcardStore;
       expect(persisted.meta.reviewPresentations?.ja).toEqual(ctx.store.meta.reviewPresentations?.ja);
       expect(persisted.pendingRetraction).toBeUndefined();
       // Serialization/hydration must retain unknown capability flags.
       flashcardsCb(JSON.parse(JSON.stringify(persisted)) as FlashcardStore);
-      expect(ctx.store.meta.reviewPresentations?.ja?.scaffolds).toEqual(scaffolds);
+      expect(ctx.store.meta.reviewPresentations?.ja?.scaffolds).toEqual(exposedScaffolds);
       await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'fluent' }], {
         language: 'ja', attemptId: 'after-presentation-undo' as AttemptId, scaffolds,
         scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
@@ -7575,8 +7594,8 @@ describe('acknowledged rating command semantics', () => {
       // Rate the presented pattern (written-form only; no meaning cue in the pass).
       const presented = block().querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
       expect(presented).toBeTruthy();
-      (block().querySelector('.grammar-coverage__reveal') as HTMLElement).click();
-      (block().querySelector('.grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)') as HTMLElement).click();
+      (block().querySelector('.study-encounter__reveal') as HTMLElement).click();
+      (block().querySelector('.grammar-coverage__encounter .rating-matrix__quality:nth-child(3)') as HTMLElement).click();
 
       // The provider mutation must settle (materialization) before teardown.
       await vi.waitFor(() => expect(ctx.getGrammarKnowledge(presented as string, language)).toBeDefined());
@@ -7585,15 +7604,15 @@ describe('acknowledged rating command semantics', () => {
       // The sanctioned 150ms beat locks ALL session controls after a rating:
       // wait for an enabled skip (or pass completion) before each click.
       for (let guard = 0; guard < 120; guard += 1) {
-        const skip = block().querySelector('.grammar-coverage__session-skip') as HTMLButtonElement | null;
+        const skip = block().querySelector('.study-encounter__skip') as HTMLButtonElement | null;
         if (!skip) break; // pass complete
         if (skip.disabled) {
           await vi.waitFor(() => {
-            const current = block().querySelector('.grammar-coverage__session-skip') as HTMLButtonElement | null;
+            const current = block().querySelector('.study-encounter__skip') as HTMLButtonElement | null;
             if (current) expect(current.disabled).toBe(false);
           });
         }
-        (block().querySelector('.grammar-coverage__session-skip') as HTMLButtonElement).click();
+        (block().querySelector('.study-encounter__skip') as HTMLButtonElement).click();
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
       await vi.waitFor(() => expect(block().querySelector('.grammar-coverage__session-done')).toBeTruthy());
@@ -7680,12 +7699,12 @@ describe('acknowledged rating command semantics', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     const presented = container.querySelector(`[data-level="${level}"] .grammar-coverage__session-prompt`)?.getAttribute('data-pattern');
     expect(presented).toBeTruthy();
-    (container.querySelector(`[data-level="${level}"] .grammar-coverage__reveal`) as HTMLElement).click();
-    (container.querySelector(`[data-level="${level}"] .grammar-coverage__session-probe .rating-matrix__quality:nth-child(3)`) as HTMLElement).click();
+    (container.querySelector(`[data-level="${level}"] .study-encounter__reveal`) as HTMLElement).click();
+    (container.querySelector(`[data-level="${level}"] .grammar-coverage__encounter .rating-matrix__quality:nth-child(3)`) as HTMLElement).click();
     await vi.waitFor(() => expect(ctx.getGrammarKnowledge(presented as string, 'zh')).toBeDefined());
 
     for (let guard = 0; guard < 120; guard += 1) {
-      const skip = container.querySelector(`[data-level="${level}"] .grammar-coverage__session-skip`) as HTMLButtonElement | null;
+      const skip = container.querySelector(`[data-level="${level}"] .study-encounter__skip`) as HTMLButtonElement | null;
       if (!skip) break;
       skip.click();
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -7881,6 +7900,50 @@ describe('acknowledged rating command semantics', () => {
     });
     dispose();
     mockSettings.language = 'ja';
+  });
+
+  it('commits staged retrieval once with target-specific cues and refuses an unfinished stage', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'staged-card', state: 'review', reviews: 2, interval: 86400000, dueDate: Date.now() - 100 });
+    const capabilities = ['surface-reading', 'sense-recognition'];
+    const id = `ja:surface:${SRS.hashWordSync(card.content.front)}`;
+    const decision: import('../../shared/learningDecision').LearningDecision = { id: 'staged-decision', at: 1, policyVersion: 'test',
+      selected: { key: card.id, action: 'PROBE', targets: capabilities.map(capability => ({ kind: 'surface', id, capability })),
+        task: { taskTemplateId: 'staged', inputModality: 'written-form', responseModality: 'self-assessment', supplied: ['written-form'],
+          requested: capabilities, fluencyRequired: false, ratingMode: 'profile', stages: [
+            { id: 'first', supplied: [], requested: ['surface-reading'] },
+            { id: 'later', supplied: ['surface-reading'], requested: ['sense-recognition'] },
+          ] } }, baseline: null, detail: {} };
+    const initial = makeEmptyStore({ flashcards: { [card.id]: card } });
+    initial.meta.reviewPresentations = { ja: { id: decision.id, cardId: card.id, decision, stageIndex: 0 } };
+    flashcardsCb(initial);
+    const observations = capabilities.map(capability => ({ capability, quality: 'fluent' as const }));
+    const options = { language: 'ja', decision, scaffolds: { audio: true }, attemptId: 'staged-attempt', scheduler: { cardId: card.id, rating: 'good' as const, tested: capabilities } };
+    await expect(ctx.submitRating(card.content.front, observations, options)).rejects.toThrow('every admitted stage');
+    initial.meta.reviewPresentations.ja.stageIndex = 1; initial.meta.reviewPresentations.ja.stageScaffolds = { first: {} }; flashcardsCb(initial);
+    mockAppendEvents.mockClear();
+    await ctx.submitRating(card.content.front, observations, options);
+    const rows = mockAppendEvents.mock.calls.flatMap(([batch]) => Object.values(batch).flat()).filter(row => row.kind === 'rating');
+    expect(rows).toHaveLength(2);
+    expect(rows.every(row => row.attemptId === 'staged-attempt' && row.decisionRef?.id === decision.id)).toBe(true);
+    const first = rows.find(row => row.targetRef?.capability === 'surface-reading');
+    const later = rows.find(row => row.targetRef?.capability === 'sense-recognition');
+    expect(first?.scaffolds?.['provided-access:surface-reading']).toBeUndefined();
+    expect(later?.scaffolds?.['provided-access:surface-reading']).toBe(true);
+    expect(first?.scaffolds?.audio).toBeUndefined(); expect(later?.scaffolds?.audio).toBe(true);
+    expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+    await ctx.undoLastAction();
+    expect(ctx.store.meta.reviewPresentations?.ja?.scaffolds).toMatchObject({
+      'prior-cue-exposure': true, 'provided-access:surface-reading': true, 'provided-access:sense-recognition': true,
+    });
+    const restored = makeEmptyStore({ ...JSON.parse(JSON.stringify(ctx.store)), rev: (ctx.store.rev ?? 0) + 1 });
+    const replayDecision = { ...decision, id: 'replay-stage' };
+    restored.meta.reviewPresentations!.ja = { ...restored.meta.reviewPresentations!.ja, id: replayDecision.id,
+      decision: replayDecision, stageIndex: 1, stageScaffolds: { first: {} } };
+    flashcardsCb(restored); mockAppendEvents.mockClear();
+    await ctx.submitRating(card.content.front, observations, { ...options, decision: replayDecision, attemptId: 'replay-stage-attempt' });
+    expect(mockAppendEvents.mock.calls.flatMap(([batch]) => Object.values(batch).flat()).filter(row => row.kind === 'rating')).toHaveLength(0);
+    dispose();
   });
 
   it('journals the pinned decision on the first measured row after scaffold filtering and refuses a mismatched exact target', async () => {

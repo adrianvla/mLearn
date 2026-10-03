@@ -1,3 +1,4 @@
+import { completeReviewEncounter, type ReviewSession } from '../../../shared/reviewSession';
 import { createReviewAssistanceStore } from '../../learning/reviewAssistance';
 // @vitest-environment happy-dom
 
@@ -56,6 +57,7 @@ const defaultProjection: KnowledgeProjection = {
   targets: [{ targetRef: { kind: 'surface', id: 'card-surface' },
     applicableCapabilities: ALL_CAPABILITIES, states: [] }],
 };
+let mockReviewSessions: Accessor<Record<string, ReviewSession>> = () => ({});
 let mockProjection: Accessor<KnowledgeProjection | undefined> = () => defaultProjection;
 const mockProjectionRetry = vi.fn();
 let mockRatingPersistenceState: Accessor<'idle' | 'pending' | 'failed'> = () => 'idle';
@@ -111,7 +113,7 @@ vi.mock('../../context', () => ({
     isKnowledgeReady: () => true,
     getAccessStatus: () => ({ status: 'unknown', ease: 0, source: 'None' }),
     isWordIgnoredSync: (word: string) => mockIgnoredWords().has(word),
-    store: { get flashcards() { return mockReviewCards; }, get meta() { return { reviewPresentations: mockReviewPresentations() }; } },
+    store: { get flashcards() { return mockReviewCards; }, get meta() { return { reviewPresentations: mockReviewPresentations(), reviewSessions: mockReviewSessions() }; } },
     queue: () => mockReviewQueue(),
     queueCounts: () => ({ new: mockQueueTotal(), learning: 0, review: 0, total: mockQueueTotal() }),
     getCurrentCard: () => mockCard(),
@@ -275,6 +277,8 @@ vi.mock('../common', async (importOriginal) => {
     SafeHtml,
     RatingMatrix: actual.RatingMatrix,
     Popover: actual.Popover,
+    StudyEncounter: actual.StudyEncounter,
+    StudySessionHUD: actual.StudySessionHUD,
     // Real banner: the save-failure tests read its role/label contract.
     WriteStatusBanner: actual.WriteStatusBanner,
     // Real confirm dialog: the removal tests assert the prompt is actually in
@@ -382,9 +386,134 @@ describe('FlashcardReview', () => {
   afterEach(() => {
     closeKnowledgeInspector();
     mockReviewCards = {};
+    mockReviewSessions = () => ({});
     mockReviewPresentations = () => ({});
     mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [] });
     container.remove();
+  });
+
+  it('ends a bounded session even when a failed item remains in the scheduler queue', async () => {
+    const [sessions, setSessions] = createSignal<Record<string, ReviewSession>>({});
+    mockReviewSessions = sessions;
+    mockSaveReviewPresentation.mockImplementationOnce(async (_language, presentation) => {
+      if (presentation.session) setSessions({ ja: presentation.session });
+    });
+    mockSubmitRating.mockImplementationOnce(async (...args) => {
+      const options = args[2] as { reviewSessionId: string };
+      expect(options.reviewSessionId).toBe(mockReviewSessions().ja.id);
+      const session = completeReviewEncounter(mockReviewSessions().ja, mockCard()!.id);
+      setSessions({ ja: session });
+      return { attemptId: 'bounded', completed: false };
+    });
+    const dispose = render(() => <FlashcardReview encounterLimit={1} />, container);
+    await flushEffects(); await clickShowAnswer(container);
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+    await flushEffects();
+    expect(container.querySelector('[data-review-phase]')?.getAttribute('data-review-phase')).toBe('complete');
+    expect(mockQueueTotal()).toBe(1);
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    dispose();
+  });
+
+  it('waits for the final durable write, exposes retry, and avoids a false asset warning at finite completion', async () => {
+    const [sessions, setSessions] = createSignal<Record<string, ReviewSession>>({});
+    const [state, setState] = createSignal<'idle' | 'pending' | 'failed'>('idle');
+    mockReviewSessions = sessions; mockRatingPersistenceState = state;
+    mockSaveReviewPresentation.mockImplementationOnce(async (_language, presentation) => {
+      if (presentation.session) setSessions({ ja: presentation.session });
+    });
+    mockSubmitRating.mockImplementationOnce(async () => {
+      setSessions({ ja: completeReviewEncounter(mockReviewSessions().ja, mockCard()!.id) }); setState('failed');
+      return { attemptId: 'last-queued', completed: false };
+    });
+    const complete = vi.fn();
+    const dispose = render(() => <FlashcardReview encounterLimit={1} onComplete={complete} />, container);
+    await flushEffects(); await clickShowAnswer(container);
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click(); await flushEffects();
+    expect(container.querySelector('[data-review-phase]')?.getAttribute('data-review-phase')).toBe('save-failed');
+    expect(container.textContent).toContain('PendingRatingsSaveFailed');
+    expect(container.textContent).not.toContain('NoEligibleActivity');
+    expect(container.querySelector('.flashcard-completion')).toBeNull(); expect(complete).not.toHaveBeenCalled();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.TryAgain')!.click();
+    expect(mockRetryRatingPersistence).toHaveBeenCalledTimes(1);
+    setState('pending'); await flushEffects(); expect(container.textContent).toContain('SavingRating');
+    setState('idle'); await flushEffects(); expect(container.querySelector('.flashcard-completion')).not.toBeNull();
+    expect(complete).toHaveBeenCalledTimes(1); expect(mockSubmitRating).toHaveBeenCalledTimes(1); dispose();
+  });
+
+  it('restores the finished result when a window repeats its original Home request', async () => {
+    mockReviewSessions = () => ({ ja: { id: 'done', requestId: 'home-intent', cardIds: [mockCard()!.id], completedCardIds: [mockCard()!.id], encounterLimit: 1, startedAt: 1 } });
+    const dispose = render(() => <FlashcardReview encounterLimit={10} sessionRequestId="home-intent" />, container);
+    await flushEffects(); expect(container.querySelector('.flashcard-completion')).not.toBeNull();
+    expect(container.querySelector('.flashcard-show-answer-btn')).toBeNull();
+    expect(mockSaveReviewPresentation).not.toHaveBeenCalled(); dispose();
+  });
+
+  it('uses the shared encounter card and preserves the four scheduler grades', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    expect(container.querySelector('.study-encounter')).not.toBeNull();
+    await clickShowAnswer(container);
+    expect(container.querySelectorAll('.rating-matrix__quality')).toHaveLength(4);
+    dispose();
+  });
+
+  it('anchors Review activities outside the card flow', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('Review.Activities'))!.click();
+    expect(container.querySelector('.review-activity-preferences [role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"][aria-label="mlearn.Flashcards.Review.Activities"]')).not.toBeNull();
+    dispose();
+  });
+
+  it('keeps the revealed encounter when preferences change until rating advances it', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects(); await clickShowAnswer(container);
+    const id = container.querySelector('[data-encounter-id]')?.getAttribute('data-encounter-id');
+    mockSettings.reviewActivities = { holistic: false, focused: false, audio: false };
+    setMockQueueTotal(2);
+    setMockCard({ ...mockCard()! });
+    await flushEffects();
+    expect(container.querySelector('[data-encounter-id]')?.getAttribute('data-encounter-id')).toBe(id);
+    expect(container.querySelector('.rating-matrix')).not.toBeNull();
+    dispose();
+  });
+
+  it('keeps earlier answers hidden, durably resumes the next cue, and rates a staged encounter once', async () => {
+    mockLanguageData = { ...jaLanguageData, learning: { reviewActivities: {
+      'future:staged': { kind: 'written-reading-recall', label: 'Combined', prompt: 'Combined',
+        targets: ['surface-reading', 'prosodic-pattern'], stages: [
+          { id: 'first', kind: 'holistic', label: 'Reading', prompt: 'Recall reading first', targets: ['surface-reading'], suppliedAccesses: [] },
+          { id: 'second', kind: 'written-reading-recall', label: 'Pattern', prompt: 'Recall pattern second', targets: ['prosodic-pattern'], suppliedAccesses: ['surface-reading'] },
+        ] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    mockSettings.reviewActivities = { holistic: false, focused: true, audio: false };
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'SECRET meaning', prosody: { type: 'japanese-pitch-accent', position: 2 } } }));
+    let dispose = render(() => <FlashcardReview />, container);
+    await flushEffects(); restoreSavedReviewCursor();
+    expect(container.textContent).toContain('Recall reading first');
+    expect(container.textContent).not.toContain('いぬ');
+    expect(container.textContent).not.toContain('SECRET meaning');
+    await clickShowAnswer(container); restoreSavedReviewCursor();
+    expect(mockSaveReviewPresentation.mock.calls.at(-1)![1].stageIndex).toBe(1);
+    expect(container.textContent).toContain('Recall pattern second');
+    expect(container.textContent).toContain('いぬ');
+    expect(container.textContent).not.toContain('SECRET meaning');
+    expect(container.querySelector('.rating-matrix')).toBeNull();
+    dispose(); container.replaceChildren();
+    dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    expect(container.textContent).toContain('Recall pattern second');
+    await clickShowAnswer(container);
+    expect(container.textContent).toContain('SECRET meaning');
+    container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2]!.click();
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    expect((mockSubmitRating.mock.calls[0][1] as Array<{ capability: string }>).map(o => o.capability)).toEqual(['surface-reading', 'prosodic-pattern']);
+    expect((mockSubmitRating.mock.calls[0][2] as { decision: { selected: { task: { stages: unknown[] } } } }).decision.selected.task.stages).toHaveLength(2);
+    dispose();
   });
 
   it('renders a focused prompt without leaking meaning or the answer and submits only its target', async () => {
@@ -1192,6 +1321,7 @@ describe('FlashcardReview failure attribution', () => {
 
   afterEach(() => {
     mockReviewCards = {};
+    mockReviewSessions = () => ({});
     mockReviewPresentations = () => ({});
     mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [] });
     container.remove();
@@ -2117,6 +2247,7 @@ describe('FlashcardReview rating latency', () => {
 
   afterEach(() => {
     mockReviewCards = {};
+    mockReviewSessions = () => ({});
     mockReviewPresentations = () => ({});
     mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [] });
     container.remove();

@@ -1,3 +1,4 @@
+import { beginReviewSession, reviewSessionRemaining, reviewSessionHasAvailableCards, type ReviewSession } from '../../../shared/reviewSession';
 /**
  * Flashcard Review Component
  * SRS review interface with Anki-like rating buttons
@@ -14,8 +15,8 @@ import { useDecisionPin } from '../../hooks/useDecisionPin';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import {
-  Button, Badge, Panel, ProgressBar, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
-  EyeIcon, Popover, WriteStatusBanner, useConfirmDialog
+  Button, Badge, Panel, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
+  EyeIcon, Popover, WriteStatusBanner, StudyEncounter, StudySessionHUD, useConfirmDialog
 } from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
@@ -34,10 +35,9 @@ import { getProvidedAccessesForCue, getTestedAccesses } from '../../../shared/la
 import { qualityToSrsRating, worstAttemptQuality } from '../../../shared/constants';
 import { nextAttemptId, providedAccessScaffolds, isAccessMeasurable, type AttemptId, type AttemptScaffolds } from '../../../shared/knowledgeEvents';
 import { createEncounterTimer, type AttemptTiming, type EncounterTimer } from '../../../shared/encounterTiming';
-import { RatingMatrix, type ProfileObservation, type RateOptions } from '../common';
+import { type ProfileObservation, type RateOptions } from '../common';
 import type { AttemptQuality } from '../../../shared/constants';
 import { OtherLanguageDueHint } from './OtherLanguageDueHint';
-import { getSessionProgress } from './flashcardReviewSession';
 import { studySessionState, type StudySessionWriteStatus } from '../../learning/studySession';
 import { resolveFlashcardColourCodes } from '../../utils/flashcardBulkExamples';
 import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from '../../utils/ratingShortcuts';
@@ -51,7 +51,7 @@ import { createReviewAssistanceStore, type ReviewAssistance } from '../../learni
 
 const log = getLogger("renderer.components.flashcardReview");
 
-type ReviewEncounter = { carriedScaffolds?: AttemptScaffolds; activity: ReviewActivity; knowledge: FlashcardPresentationKnowledge; tested: readonly CapabilityKey[]; card: Flashcard; decision: PolicyDecision | null; provenance: LearningDecision; cursor?: ReviewPresentation };
+type ReviewEncounter = { session?: ReviewSession; carriedScaffolds?: AttemptScaffolds; activity: ReviewActivity; knowledge: FlashcardPresentationKnowledge; tested: readonly CapabilityKey[]; card: Flashcard; decision: PolicyDecision | null; provenance: LearningDecision; cursor?: ReviewPresentation };
 
 interface ReviewRatingWrite {
   encounter: ReviewEncounter;
@@ -70,6 +70,8 @@ interface ReviewRatingWrite {
 }
 
 export interface FlashcardReviewProps {
+  encounterLimit?: number;
+  sessionRequestId?: string;
   onComplete?: () => void;
   onClose?: () => void;
   style?: JSX.CSSProperties;
@@ -113,6 +115,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [audioFailedChoice, setAudioFailedChoice] = createSignal<string | null>(null);
   const [showCardActions, setShowCardActions] = createSignal(false);
   let cardActionsAnchor: HTMLButtonElement | undefined;
+  let activityPreferencesAnchor: HTMLButtonElement | undefined;
   const assistanceStore = createReviewAssistanceStore(localStorage,
     typeof navigator !== 'undefined' && navigator.locks ? navigator.locks : null);
   const [referenceAssistance, setReferenceAssistance] = createSignal<ReviewAssistance | null>(null);
@@ -136,6 +139,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
   let reviewScrollContainer: HTMLDivElement | undefined;
   let reviewActionsContainer: HTMLDivElement | undefined;
+  const [reviewActionsTarget, setReviewActionsTarget] = createSignal<HTMLDivElement>();
   const resetReviewScroll = () => {
     if (reviewScrollContainer) reviewScrollContainer.scrollTop = 0;
     if (reviewActionsContainer) reviewActionsContainer.scrollTop = 0;
@@ -171,13 +175,37 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return langData[language] ?? (language === settings.language ? currentLangData() : null);
   };
 
+  const [sessionEpoch, setSessionEpoch] = createSignal(0);
+  let localSession: { scope: string; session: ReviewSession } | undefined;
+  const finiteSession = createMemo(() => {
+    if (props.encounterLimit === undefined) return undefined;
+    const scope = JSON.stringify([settings.language, props.sessionRequestId, sessionEpoch()]);
+    const saved = store.meta.reviewSessions?.[settings.language];
+    if (localSession?.scope === scope) return saved?.id === localSession.session.id ? saved : localSession.session;
+    if (saved && (reviewSessionHasAvailableCards(saved, store, settings.language) || (sessionEpoch() === 0 && (!props.sessionRequestId || saved.requestId === props.sessionRequestId)))) {
+      localSession = { scope, session: saved }; return saved;
+    }
+    const ids = [...queue().newQueue, ...queue().scheduledQueue];
+    const fallback = untrack(getCurrentCard);
+    if (fallback && !ids.includes(fallback.id)) ids.push(fallback.id);
+    const eligible = ids.filter(id => {
+      const card = store.flashcards[id] ?? (fallback?.id === id ? fallback : undefined);
+      return card && !card.suspended && !card.buried && languageForCard(card) === settings.language && !isWordIgnoredSync(card.content.front, settings.language);
+    });
+    if (!eligible.length) return undefined;
+    const session = { ...beginReviewSession(crypto.randomUUID(), eligible, props.encounterLimit, Date.now()),
+      ...(props.sessionRequestId ? { requestId: props.sessionRequestId } : {}) };
+    localSession = { scope, session }; return session;
+  });
+  const sessionAllows = (id: string) => !finiteSession() || (reviewSessionRemaining(finiteSession()!) > 0
+    && finiteSession()!.cardIds.includes(id) && !finiteSession()!.completedCardIds.includes(id));
   const preferences = () => settings.reviewActivities ?? DEFAULT_SETTINGS.reviewActivities;
   const activityChoices = (card: Flashcard) => eligibleReviewActivities(card, languageDataForCard(card), preferences(),
     !settings.flashcardMuteAudio && audioAvailability()[card.id] === true, {
       focused: t('mlearn.Flashcards.Review.Focused'), focusedTarget: t('mlearn.Knowledge.Capability.prosodic-pattern'), focusedPrompt: target => t('mlearn.Flashcards.Review.FocusedPrompt', { target }),
       audio: t('mlearn.Flashcards.Review.Audio'), audioPrompt: t('mlearn.Flashcards.Review.AudioPrompt'),
     })
-    .filter(activity => activity.kind !== 'written-reading-recall'
+    .filter(activity => activity.kind !== 'written-reading-recall' && !activity.stages?.some(stage => stage.kind === 'written-reading-recall')
       || !!card.content.prosody?.display || getProsodyOverlayRenderer(languageDataForCard(card), card.content.prosody?.type) !== null);
   // Bounded concurrent metadata-only recording lookups; no synthesis or text fallback.
   const checkedAudio = new Set<string>();
@@ -218,21 +246,21 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const tested = encounter.provenance.selected.task.requested;
     const accesses = Object.fromEntries([...new Set([...tested, ...Object.keys(data?.learning?.capabilities ?? {}), 'prosodic-pattern'])]
       .map(capability => [capability, { ...getAccessStatus(card.content.front, capability, language) }]));
-    let exposed = false;
+    let exposed = encounter.cursor?.cardId === card.id && encounter.cursor.scaffolds?.['prior-cue-exposure'] === true;
     if (encounter.cursor?.cardId === card.id) {
       const previous = encounter.cursor.decision;
       if (previous && previous.id !== encounter.provenance.id
         && JSON.stringify(previous.selected.task) !== JSON.stringify(encounter.provenance.selected.task)) {
         try {
           const prior = assistanceStore.read(assistanceScope(card), previous.id);
-          exposed = prior?.revealed === true || (prior?.scaffolds.audio === true && encounter.activity.kind !== 'audio-recognition');
+          exposed = exposed || prior?.revealed === true || (prior?.scaffolds.audio === true && encounter.activity.kind !== 'audio-recognition');
         }
         catch { exposed = true; } // An unreadable exposure marker cannot justify cold recall.
       } else if (!previous && encounter.activity.kind !== 'holistic' && encounter.cursor.scaffolds && Object.keys(encounter.cursor.scaffolds).length) {
         exposed = true; // Undo returns consulted material, including across an activity change.
       }
     }
-    return { ...encounter, ...(exposed ? { carriedScaffolds: { ...providedAccessScaffolds(tested), 'prior-cue-exposure': true } } : {}),
+    return { ...encounter, session: finiteSession(), ...(exposed ? { carriedScaffolds: { ...providedAccessScaffolds(tested), 'prior-cue-exposure': true } } : {}),
       tested, knowledge: { ready: isKnowledgeReady(),
       wordKnown: getComprehensiveWordStatusWithSourceSync(card.content.front, language).status === 'known', accesses } };
   });
@@ -313,10 +341,27 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     if (removal) return removal.encounter;
     const held = ratingWrite();
     if (held) return held.encounter;
+    if (finiteSession() && reviewSessionRemaining(finiteSession()!) === 0) return null;
     const fallback = getCurrentCard();
     if (fallback && languageLoading() && !languageDataForCard(fallback)) return null;
     if (!fallback || isWordIgnoredSync(fallback.content.front, languageForCard(fallback))) return null;
     const language = languageForCard(fallback);
+    const pinned = decisionPin.peek(language);
+    if (pinned) {
+      const actual = store.flashcards[pinned.card.id] ?? (fallback.id === pinned.card.id ? fallback : undefined);
+      const admitted = actual && sessionAllows(actual.id) && !actual.suspended && !actual.buried && !isWordIgnoredSync(actual.content.front, language)
+        && (actual.id === fallback.id || queue().newQueue.includes(actual.id) || queue().scheduledQueue.includes(actual.id));
+      // Preferences choose future work. Package/task changes and peer ratings
+      // still invalidate the displayed question through the actual card snapshot.
+      const declaration = actual && eligibleReviewActivities(actual, languageDataForCard(actual),
+        { holistic: true, focused: true, audio: true }, true, {
+          focused: t('mlearn.Flashcards.Review.Focused'), focusedTarget: t('mlearn.Knowledge.Capability.prosodic-pattern'),
+          focusedPrompt: target => t('mlearn.Flashcards.Review.FocusedPrompt', { target }),
+          audio: t('mlearn.Flashcards.Review.Audio'), audioPrompt: t('mlearn.Flashcards.Review.AudioPrompt'),
+        }).find(activity => activity.id === pinned.activity.id);
+      if (admitted && declaration && JSON.stringify({ ...actual, retentionCache: undefined }) === JSON.stringify({ ...pinned.card, retentionCache: undefined })
+        && JSON.stringify(flashcardReviewPolicyEntry(actual, language, languageDataForCard(actual), declaration).task) === JSON.stringify(pinned.provenance.selected.task)) return pinned;
+    }
     // The policy arbitrates within the scheduler's OWN visible workload for
     // today (the queue — respecting daily caps and same-day scheduling), not
     // just its first card (R07/R08): goal/deadline weighting and intensity
@@ -333,12 +378,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // selection instead of on every reactive re-run.
     const eligibleCards = timed('eligiblePool', () => [...queue().newQueue, ...queue().scheduledQueue]
       .map((id) => store.flashcards[id])
-      .filter((card): card is Flashcard => !!card && !card.suspended && !card.buried
+      .filter((card): card is Flashcard => !!card && sessionAllows(card.id) && !card.suspended && !card.buried
         && (card.language || settings.language) === language
         && !isWordIgnoredSync(card.content.front, language) && activityChoices(card).length > 0));
     // The scheduler fallback is always eligible, even when the queue has not
     // caught up with it yet - it is the card the surface would present.
-    if (!eligibleCards.some(card => card.id === fallback.id) && activityChoices(fallback).length) eligibleCards.push(fallback);
+    if (sessionAllows(fallback.id) && !eligibleCards.some(card => card.id === fallback.id) && activityChoices(fallback).length) eligibleCards.push(fallback);
     const availableIds = new Set(eligibleCards.map(card => card.id));
     const entryCache = new Map<string, ReturnType<typeof flashcardReviewPolicyEntry>>();
     const selectedActivities = new Map<string, ReviewActivity>();
@@ -408,6 +453,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   // Cursor diagnostics belong to the encounter, but do not decide visibility.
   const [choiceWrite, setChoiceWrite] = createSignal<{ id: string; phase: StudySessionWriteStatus | null } | null>(null);
+  const [stagePosition, setStagePosition] = createSignal<{ id: string; index: number } | null>(null);
+  const stageIndex = () => stagePosition()?.id === currentEncounter()?.provenance.id
+    ? stagePosition()!.index : currentEncounter()?.cursor?.id === currentEncounter()?.provenance.id ? currentEncounter()?.cursor?.stageIndex ?? 0 : 0;
+  const currentStage = () => currentEncounter()?.activity.stages?.[stageIndex()];
+  const hasNextStage = () => !!currentEncounter()?.activity.stages && stageIndex() < currentEncounter()!.activity.stages!.length - 1;
+  const displayedKind = () => currentStage()?.kind ?? currentEncounter()?.activity.kind;
   const saveChoice = async (encounter: ReviewEncounter): Promise<void> => {
     const id = encounter.provenance.id;
     const report = (phase: StudySessionWriteStatus): void => {
@@ -418,6 +469,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       await saveReviewPresentation(languageForCard(encounter.card), { id, cardId: encounter.card.id,
         ...((encounter.cursor?.cardId === encounter.card.id && encounter.cursor.scaffolds) || encounter.carriedScaffolds
           ? { scaffolds: { ...encounter.cursor?.scaffolds, ...encounter.carriedScaffolds } } : {}),
+        ...(encounter.session ? { session: encounter.session } : {}),
+        ...(encounter.activity.stages ? { stageIndex: stageIndex(), stageScaffolds: store.meta.reviewPresentations?.[languageForCard(encounter.card)]?.id === id
+          ? store.meta.reviewPresentations[languageForCard(encounter.card)].stageScaffolds : encounter.cursor?.id === id ? encounter.cursor.stageScaffolds : undefined } : {}),
         decision: encounter.provenance }, encounter.cursor?.id ?? null);
       report(null);
     } catch (error) {
@@ -435,7 +489,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       batch(() => { setShowAnswer(false); decisionPin.advance(); });
     } else void saveChoice(encounter);
   };
-  createEffect(on(() => currentEncounter()?.provenance.id, () => {
+  createEffect(on([() => currentEncounter()?.provenance.id, retractionWrite], () => {
+    if (isRetractionWriteBlocking(retractionWrite())) return;
     const encounter = currentEncounter();
     if (encounter) void saveChoice(encounter);
     else setChoiceWrite(null);
@@ -533,6 +588,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         language: write.language,
         attemptId: write.attemptId,
         decision: write.encounter.provenance,
+        ...(write.encounter.session ? { reviewSessionId: write.encounter.session.id } : {}),
         ...(write.timing ? { timing: write.timing } : {}),
         taskType: write.encounter.activity.kind === 'holistic' ? 'srs-review' : write.encounter.activity.id,
         origin: write.origin,
@@ -679,16 +735,24 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const counts = createMemo(() => queueCounts());
   // An unresolved final encounter is still work until its ACK, even if the
   // provider has already published an empty queue.
-  const remainingWork = createMemo(() => Math.max(counts().total, ratingWrite() || removalWrite() ? 1 : 0));
+  const remainingWork = createMemo(() => {
+    const session = finiteSession();
+    if (!session) return Math.max(counts().total, ratingWrite() || removalWrite() ? 1 : 0);
+    const ids = new Set([...queue().newQueue, ...queue().scheduledQueue]);
+    const fallback = getCurrentCard();
+    if (fallback && counts().total > 0) ids.add(fallback.id);
+    const remaining = session ? Math.min([...ids].filter(sessionAllows).length, reviewSessionRemaining(session)) : counts().total;
+    return Math.max(remaining, ratingWrite() || removalWrite() ? 1 : 0);
+  });
 
   // The interaction phase describes the encounter, never a background write.
   // Failed operations report recoverable errors alongside the same question.
   const presentation = createMemo(() => studySessionState({
     ready: !!currentEncounter() || !languageLoading(),
-    index: cardsAnswered(),
-    total: cardsAnswered() + remainingWork(),
+    index: finiteSession()?.completedCardIds.length ?? cardsAnswered(),
+    total: (finiteSession()?.completedCardIds.length ?? cardsAnswered()) + remainingWork(),
     revealed: showAnswer(),
-    write: null,
+    write: remainingWork() === 0 && ratingPersistenceState() !== 'idle' ? ratingPersistenceState() === 'failed' ? 'failed' : 'pending' : null,
   }));
 
   /** A rating may only be committed from a revealed, idle encounter. */
@@ -697,7 +761,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const ratingArmed = createMemo(() => canRate() && !!currentCard()
     && !knowledge.loading() && knowledge.projection()?.status === 'ready' && admittedAccesses().length > 0
     && ratingPersistenceState() !== 'failed'
-    && choiceWrite()?.phase !== 'failed' && assistanceWrite() === null);
+    && choiceWrite()?.phase !== 'failed' && (!finiteSession() || choiceWrite()?.phase !== 'pending') && assistanceWrite() === null);
 
   function refreshReferenceAssistance(): void { timed('refreshReferenceAssistance', () => {
     const card = currentCard();
@@ -762,11 +826,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     });
   }));
 
-  const sessionTotal = createMemo(() => cardsAnswered() + remainingWork());
+  const sessionAnswered = () => finiteSession()?.completedCardIds.length ?? cardsAnswered();
+  const sessionTotal = createMemo(() => sessionAnswered() + remainingWork());
   // Calculate session progress percentage
-  const sessionProgress = createMemo(() => {
-    return getSessionProgress(cardsAnswered(), remainingWork());
-  });
+
 
   // Keyboard shortcuts
   onMount(() => {
@@ -837,7 +900,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   createEffect(() => {
     const encounter = currentEncounter();
     const ready = !!encounter && ratingWrite() === null && removalWrite() === null && !isRetractionWriteBlocking(retractionWrite()) && assistanceWrite() === null;
-    if (!encounter || encounter.activity.kind !== 'holistic' || !ready || restoredAssistanceScope() !== assistanceScope(encounter.card) || showAnswer() || !settings.flashcardAutoTts || settings.flashcardMuteAudio
+    if (!encounter || encounter.activity.kind !== 'holistic' || encounter.activity.stages || !ready || restoredAssistanceScope() !== assistanceScope(encounter.card) || showAnswer() || !settings.flashcardAutoTts || settings.flashcardMuteAudio
       || automaticAudioEncounter === encounter) return;
     automaticAudioEncounter = encounter;
     timed('autoTtsEffect', () => handlePlayTts(encounter.card.id, encounter.card.content.front, 'word', true, false));
@@ -862,13 +925,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     setRetractionWrite('pending');
     try {
       const actionType = await undoLastAction();
-      if (actionType === 'answer') {
-        setCardsAnswered(prev => Math.max(0, prev - 1));
-      }
-      setRetractionWrite(null);
-      setShowAnswer(false);
-      // The undo restored prior pool state: re-select afresh (R20 pin repair).
-      decisionPin.advance();
+      batch(() => {
+        if (actionType === 'answer') setCardsAnswered(prev => Math.max(0, prev - 1));
+        setRetractionWrite(null); setShowAnswer(false);
+        // Publish one settled restored choice, without an intermediate cursor write.
+        decisionPin.advance();
+      });
       resetReviewScroll();
     } catch (error) {
       log.warn('Failed to persist flashcard Undo:', error);
@@ -940,7 +1002,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     await commitRemoval(write);
   };
 
-  const audioPromptReady = () => currentEncounter()?.activity.kind !== 'audio-recognition'
+  const audioPromptReady = () => displayedKind() !== 'audio-recognition'
     || audioHeardChoice() === currentEncounter()?.provenance.id || showAnswer();
   const playActivityAudio = () => {
     const encounter = currentEncounter();
@@ -982,6 +1044,28 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const card = currentCard();
     if (!card || removalWrite() || ratingWrite() || assistanceWrite() === 'failed' || showAnswer() || !audioPromptReady()) return;
     const encounter = currentEncounter();
+    if (hasNextStage()) {
+      if (choiceWrite()?.phase === 'pending' || assistanceWrite() === 'pending') return;
+      const index = stageIndex() + 1;
+      const advance = async () => {
+        setAssistanceWrite('pending');
+        try {
+          const previous = store.meta.reviewPresentations?.[languageForCard(card)];
+          if (!previous || previous.id !== encounter!.provenance.id) throw new Error('The staged question was replaced');
+          await saveReviewPresentation(languageForCard(card), { ...previous, stageIndex: index,
+            stageScaffolds: { ...previous.stageScaffolds, [currentStage()!.id]: {
+              ...restoredAssistance(), ...referenceAssistance()?.scaffolds,
+            } } }, previous.id);
+          if (disposed || currentEncounter() !== encounter) return;
+          setStagePosition({ id: encounter!.provenance.id, index });
+          setAssistanceWrite(null); retryReference = undefined; resetReviewScroll();
+        } catch (error) {
+          log.warn('Failed to save retrieval stage:', error);
+          setAssistanceWrite('failed'); retryReference = () => { void advance(); };
+        }
+      };
+      void advance(); return;
+    }
     const scope = assistanceScope(card);
     const isCurrent = () => !disposed && currentEncounter() === encounter && !!currentCard()
       && assistanceScope(currentCard()!) === scope && !ratingWrite() && !removalWrite();
@@ -1071,10 +1155,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const handleStartOver = () => {
-    refreshQueue();
-    decisionPin.advance();
-    setShowAnswer(false);
-    setCardsAnswered(0);
+    batch(() => {
+      refreshQueue();
+      setSessionEpoch(epoch => epoch + 1);
+      decisionPin.advance();
+      setShowAnswer(false);
+      setCardsAnswered(0);
+    });
     resetReviewScroll();
   };
 
@@ -1105,10 +1192,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   return (
       <div class="flashcard-review-container" data-review-phase={presentation().phase} data-encounter-id={currentEncounter()?.provenance.id} style={props.style}>
         <div class="review-activity-preferences">
-          <Button size="sm" variant="ghost" onClick={() => setShowActivityPreferences(!showActivityPreferences())}>
+          <Button ref={element => { activityPreferencesAnchor = element; }} size="sm" variant="ghost" aria-haspopup="dialog" aria-expanded={showActivityPreferences()} onClick={() => setShowActivityPreferences(!showActivityPreferences())}>
             {t('mlearn.Flashcards.Review.Activities')}
           </Button>
-          <Show when={showActivityPreferences()}>
+          <Popover open={showActivityPreferences} anchor={() => activityPreferencesAnchor} onClose={() => setShowActivityPreferences(false)}
+            label={t('mlearn.Flashcards.Review.Activities')} class="review-activities-popover">
             <p>{t('mlearn.Flashcards.Review.ActivitiesHint')}</p>
             <ToggleSwitch checked={preferences().holistic} label={t('mlearn.Flashcards.Review.Holistic')}
               onChange={checked => updateSetting('reviewActivities', { ...preferences(), holistic: checked })} />
@@ -1117,27 +1205,15 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             <ToggleSwitch checked={preferences().audio} label={t('mlearn.Flashcards.Review.Audio')}
               onChange={checked => updateSetting('reviewActivities', { ...preferences(), audio: checked })} />
             <Button size="sm" onClick={refreshAudioResources}>{t('mlearn.Flashcards.Review.RefreshRecordings')}</Button>
-          </Show>
-          <Show when={!currentCard() && counts().total > 0 && !languageLoading()}>
+          </Popover>
+          <Show when={!currentCard() && remainingWork() > 0 && !languageLoading()}>
             <p role="status">{t('mlearn.Flashcards.Review.NoEligibleActivity')}</p>
             <Button size="sm" onClick={() => { refreshAudioResources(); }}>
               {t('mlearn.Global.TryAgain')}
             </Button>
           </Show>
         </div>
-        {/* Session progress bar */}
-        <Show when={sessionTotal() > 0}>
-          <div class="flashcard-session-progress">
-            <ProgressBar
-              value={sessionProgress()}
-              size="md"
-              variant="default"
-              class="flashcard-progress-bar"
-              rounded={false}
-            />
-          </div>
-        </Show>
-
+        <Show when={sessionTotal() > 0}><StudySessionHUD class="flashcard-session-progress" completed={sessionAnswered()} total={sessionTotal()} /></Show>
         {/* Header with stats */}
         <div class="flashcard-review-header">
           <div class="flashcard-status">
@@ -1258,6 +1334,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             when={presentation().phase !== 'complete' && currentCard()}
             fallback={
               <>
+              <Show when={presentation().phase === 'saving'}><p role="status">{t('mlearn.Flashcards.Review.SavingRating')}</p></Show>
               <Show when={presentation().phase === 'complete'}>
               <Panel
                   variant="default"
@@ -1268,7 +1345,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   {t('mlearn.Flashcards.Review.Complete')}
                 </h2>
                 <p class="flashcard-completion-text">
-                  {t('mlearn.Flashcards.Review.CompleteDescription')}
+                  {t(finiteSession() ? 'mlearn.StudyEncounter.Finished' : 'mlearn.Flashcards.Review.CompleteDescription', { count: sessionAnswered() })}
                 </p>
                 <OtherLanguageDueHint />
                 <div class="flashcard-completion-actions">
@@ -1299,16 +1376,22 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             </div>
           </Show>
           {/* Show card - non-keyed to avoid remount delay between cards */}
+          <StudyEncounter class="flashcard-study-encounter" prompt="" answer="" scheduling={true}
+            instruction={currentStage()?.prompt || currentEncounter()?.activity.prompt || undefined}
+            revealed={showAnswer()} onReveal={handleFlip} revealDisabled={!audioPromptReady() || (!!currentEncounter()?.activity.stages && (assistanceWrite() === 'pending' || choiceWrite()?.phase === 'pending'))}
+            revealLabel={hasNextStage() ? t('mlearn.Global.Continue') : undefined}
+            revealClass="flashcard-show-answer-btn" responseClass="flashcard-rating-buttons" controlsMount={reviewActionsTarget()}
+            card={
           <Show when={currentCard()}>
             {(card) => (
-              <Show when={currentEncounter()?.activity.kind === 'holistic'} fallback={
+              <Show when={currentEncounter()?.activity.kind === 'holistic' && !currentEncounter()?.activity.stages} fallback={
                 <Panel class="review-activity">
-                  <h2>{currentEncounter()?.activity.label}</h2>
-                  <p>{currentEncounter()?.activity.prompt}</p>
-                  <Show when={currentEncounter()?.activity.kind === 'written-reading-recall'}>
+
+                  <Show when={displayedKind() === 'holistic'}><div class="review-activity-cues"><span>{card().content.front}</span></div></Show>
+                  <Show when={displayedKind() === 'written-reading-recall'}>
                     <div class="review-activity-cues"><span>{card().content.front}</span><span>{card().content.reading}</span></div>
                   </Show>
-                  <Show when={currentEncounter()?.activity.kind === 'audio-recognition'}>
+                  <Show when={displayedKind() === 'audio-recognition'}>
                     <Button class="review-activity-play" disabled={settings.flashcardMuteAudio || ttsGenerating() || assistanceWrite() !== null}
                       onClick={playActivityAudio}>{t('mlearn.Flashcards.Review.PlayPrompt')}</Button>
                     <Show when={audioFailedChoice() === currentEncounter()?.provenance.id}>
@@ -1317,7 +1400,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   </Show>
                   <Show when={showAnswer()}>
                     <div class="review-activity-answer">
-                      <Show when={currentEncounter()?.activity.kind === 'written-reading-recall'} fallback={
+                      <Show when={currentEncounter()?.activity.stages}><p>{card().content.back}</p></Show>
+                      <Show when={displayedKind() === 'written-reading-recall'} fallback={
                         <><p>{card().content.front}</p><p>{card().content.reading}</p><p>{card().content.back}</p></>
                       }>
                         <ProsodyOverlay word={card().content.front} reading={card().content.reading} pos={card().content.pos}
@@ -1348,12 +1432,19 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               </Show>
             )}
           </Show>
+            }
+            rating={{ capabilities: testedAccesses(),
+              capabilityLabels: Object.fromEntries(testedAccesses().map(capability => [capability,
+                (currentCard() ? languageDataForCard(currentCard()!) : undefined)?.learning?.capabilities?.[capability]?.label])
+                .filter((entry): entry is [string, string] => entry[1] !== undefined)),
+              keyboardMode: settings.ratingKeyboardMode, armed: ratingArmed(), resetKey: currentEncounter()?.provenance.id,
+              onSubmit: handleBulkRate }} />
         </Show>
 
         </div>
 
         {/* Buttons container */}
-        <div class="flashcard-buttons-container" ref={reviewActionsContainer}>
+        <div class="flashcard-buttons-container" ref={element => { reviewActionsContainer = element; setReviewActionsTarget(element); }}>
           <WriteStatusBanner status={removalWrite()?.phase === 'failed' ? 'failed' : null}
             savingLabelKey="mlearn.Flashcards.Review.SavingRemoval" failedLabelKey="mlearn.Flashcards.Review.RemovalSaveFailed"
             canRetry={removalWrite()?.phase === 'failed' && removalStillMatches(removalWrite()!)}
@@ -1379,27 +1470,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               onRetry={retryChoice}
               class="flashcard-rating-write" failedClass="flashcard-rating-write--failed" />
           </Show>
-          {/* Show answer button */}
-          <Show when={presentation().phase !== 'complete' && currentCard() && !showAnswer()}>
-            <Button buttonType="default" variant="primary" size="lg" class="flashcard-show-answer-btn" disabled={!audioPromptReady()} onClick={handleFlip}>
-              {t('mlearn.Flashcards.Review.ShowAnswer')}
-            </Button>
-          </Show>
-
           {/* Rating buttons */}
           <Show when={presentation().phase !== 'complete' && currentCard() && showAnswer()}>
             <div class="flashcard-rating-buttons">
-              <RatingMatrix
-                capabilities={testedAccesses()}
-                capabilityLabels={Object.fromEntries(testedAccesses().map((capability) => {
-                  const label = (currentCard() ? languageDataForCard(currentCard()!) : undefined)?.learning?.capabilities?.[capability]?.label;
-                  return [capability, label];
-                }).filter((entry): entry is [string, string] => entry[1] !== undefined))}
-                keyboardMode={settings.ratingKeyboardMode}
-                armed={ratingArmed()}
-                resetKey={currentEncounter() ?? undefined}
-                onSubmit={handleBulkRate}
-              />
+
               <WriteStatusBanner
                 status={ratingWrite()?.phase === 'failed' ? 'failed' : null}
                 savingLabelKey="mlearn.Flashcards.Review.SavingRating"

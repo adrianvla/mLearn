@@ -1,5 +1,34 @@
 {
   "mlearn": {
+    "Goals": {
+      "Purpose": "Dein Ziel",
+      "Explore": "Die Sprache entdecken",
+      "Time": "Verfügbare Zeit",
+      "Minutes": "{count} Min.",
+      "Edit": "Ziele bearbeiten",
+      "Add": "Ziel hinzufügen",
+      "Outcome": "Was möchtest du erreichen?",
+      "Deadline": "Frist (optional)",
+      "Priority": "Priorität",
+      "First": "Zuerst",
+      "Normal": "Normal",
+      "Later": "Später",
+      "Status": "Status",
+      "Active": "Aktiv",
+      "Paused": "Pausiert",
+      "Completed": "Abgeschlossen",
+      "Passed": "Die Frist ist abgelaufen. Prüfe den nächsten Schritt; dein Fortschritt bleibt erhalten.",
+      "Scope": "Fokus (optional)",
+      "Words": "Wörter zur Vorbereitung, eines pro Zeile",
+      "Coverage": "Wortschatz: {known} bekannt · {learning} in Entwicklung · {unmeasured} ungeprüft",
+      "OtherRequirements": "Wortschatzübung weist keine Leistung unter den anderen Aufgabenbedingungen nach.",
+      "Source": {
+        "user": "Dein Umfang",
+        "package": "Sprachpaket-Abdeckung",
+        "community": "Community-Abdeckung",
+        "authoritative": "Offizielle Anforderungen"
+      }
+    },
     "LibraryRecovery": {
       "OpenProtection": "Einstellungen zum Datenschutz und zur Wiederherstellung",
       "Title": "Deine Bibliothek konnte nicht geöffnet werden",
@@ -1630,7 +1659,9 @@
         "PlanUnmeasured": "Dein Lernverlauf wächst beim Lesen und Üben.",
         "ViewPlan": "Lernplan ansehen",
         "ThisWeek": "Diese Woche",
-        "WeekSummary": "{reviews} Wiederholungen · {newCards} neue Karten"
+        "WeekSummary": "{reviews} Wiederholungen · {newCards} neue Karten",
+        "DiscoverTitle": "Entdecke deine nächsten Wörter",
+        "DiscoverReason": "Beginne mit {count} Wörtern aus deinem Lernplan."
       }
     },
     "Installer": {
@@ -4128,7 +4159,9 @@
       "PlacementIntro": "Diese adaptive Prüfung nutzt denselben Ablauf wie die Übung. Wörter ohne direkte Lernbelege werden geprüft; daraus entsteht ein Vorschlag für deinen Lernplan. Andere Wörter bleiben ungeprüft.",
       "Resume": "Übung fortsetzen",
       "RetrieveWord": "Erinnere dich an Lesung und Bedeutung, bevor du die Antwort aufdeckst.",
-      "RetrieveAspects": "Prüfe bei dieser Abrufaufgabe: {aspects}. Decke die Antwort zum Vergleich auf."
+      "RetrieveAspects": "Prüfe bei dieser Abrufaufgabe: {aspects}. Decke die Antwort zum Vergleich auf.",
+      "Progress": "Sitzung: {count} von {total}",
+      "Finished": "Sitzung beendet. {count} Begegnungen aufgezeichnet."
     }
   }
 }

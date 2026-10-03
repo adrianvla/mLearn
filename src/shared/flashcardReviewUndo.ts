@@ -1,9 +1,11 @@
+import { undoReviewEncounter } from './reviewSession';
 import type { DailyStudyStats, Flashcard, FlashcardStore, PerLanguageMeta } from './types';
 import type { AttemptScaffolds } from './knowledgeEvents';
 import type { FlashcardRatingCommand } from './flashcardRating';
 import { getStorePath, setStorePath } from './utils/storePatch';
 
 export interface ReviewUndoProjection {
+  reviewSessionId?: string;
   cardId: string;
   type: string;
   restoreCard: Flashcard;
@@ -50,6 +52,8 @@ export function restoreReviewResponse(store: FlashcardStore, restore: ReviewUndo
     else (card as unknown as Record<string, unknown>)[field] = JSON.parse(JSON.stringify(value)) as unknown;
   }
   if (card.lastUpdated === restore.expectedCard.lastUpdated) card.lastUpdated = restore.restoreCard.lastUpdated;
+  const sessionLanguage = Object.keys(store.meta.reviewSessions ?? {}).find(language => store.meta.reviewSessions![language].id === restore.reviewSessionId);
+  if (sessionLanguage) store.meta.reviewSessions![sessionLanguage] = undoReviewEncounter(store.meta.reviewSessions![sessionLanguage], restore.cardId);
   const record = store as unknown as Record<string, unknown>;
   for (const { path, delta, scope } of restore.counterDeltas ?? []) {
     if (scope && !Object.is(getStorePath(record, scope.path), scope.value)) continue;

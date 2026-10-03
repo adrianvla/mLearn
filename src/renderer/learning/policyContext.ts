@@ -1,3 +1,4 @@
+import { activeLearningGoals, learningGoalsForSettings } from '../../shared/learningGoals';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { PolicyContext, SessionIntensity } from './types';
@@ -20,7 +21,7 @@ const INTENSITIES: readonly SessionIntensity[] = ['gentle', 'steady', 'intensive
  * therefore disables goal weighting for that call.
  */
 export function policyContextFromSettings(
-  settings: Pick<Settings, 'sessionIntensity' | 'examGoal'>,
+  settings: Pick<Settings, 'sessionIntensity' | 'examGoal' | 'learningGoals'>,
   language?: string,
 ): PolicyContext {
   const intensity = INTENSITIES.includes(settings.sessionIntensity)
@@ -28,6 +29,17 @@ export function policyContextFromSettings(
     : DEFAULT_SETTINGS.sessionIntensity;
   const context: PolicyContext = { intensity };
 
+  if (settings.learningGoals !== undefined) {
+    const goals = language ? activeLearningGoals(learningGoalsForSettings(settings), language) : [];
+    context.goals = goals;
+    const primary = goals[0];
+    if (primary) {
+      const deadlineMs = primary.deadline ? Date.parse(primary.deadline) : NaN;
+      context.goal = { kind: 'outcome', target: primary.outcome, language: primary.language,
+        ...(Number.isFinite(deadlineMs) ? { deadlineMs } : {}) };
+    }
+    return context;
+  }
   const goal = settings.examGoal;
   if (goal?.kind === 'exam' && goal.language !== undefined && goal.language === language) {
     const deadlineMs = goal.deadline ? Date.parse(goal.deadline) : NaN;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eligibleReviewActivities, selectReviewActivity, activityScaffolds } from './reviewActivities';
+import { eligibleReviewActivities, selectReviewActivity, activityScaffolds, activityTask } from './reviewActivities';
 import type { Flashcard, LanguageData } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 const card = { id: 'one', content: { front: '表', reading: 'おもて', back: 'front', prosody: { position: 3 } } } as Flashcard;
@@ -9,6 +9,26 @@ const data = { name: 'Synthetic', learning: { reviewActivities: {
 } } } as LanguageData;
 const preferences = DEFAULT_SETTINGS.reviewActivities;
 describe('adaptive review activities', () => {
+  it('uses staged cues only when useful and separates cyclic directions into different encounter choices', () => {
+    const staged = { ...data, learning: { reviewActivities: {
+      combined: { kind: 'written-reading-recall' as const, label: 'Combined', prompt: 'Recall', targets: ['surface-reading', 'future::pattern'], stages: [
+        { id: 'pattern', kind: 'written-reading-recall' as const, label: 'Pattern', prompt: 'Pattern', targets: ['future::pattern'], suppliedAccesses: ['surface-reading'] },
+        { id: 'reading', kind: 'holistic' as const, label: 'Reading', prompt: 'Reading', targets: ['surface-reading'], suppliedAccesses: [] },
+      ] },
+      single: data.learning!.reviewActivities!['future::pattern'],
+    } } };
+    const choices = eligibleReviewActivities(card, staged, { ...preferences, holistic: false }, true);
+    const combined = choices.find(choice => choice.id === 'combined:0')!;
+    expect(activityTask(combined).stages?.map(stage => stage.id)).toEqual(['reading', 'pattern']);
+    expect(selectReviewActivity(choices, () => ({ status: 'unknown', ease: 0, source: 'None' })).id).toBe('combined:0');
+    expect(selectReviewActivity(choices, capability => ({ status: capability === 'surface-reading' ? 'known' : 'unknown', ease: 0, source: 'None' })).id).toBe('single');
+    const cyclic = { ...staged, learning: { reviewActivities: { cycle: { ...staged.learning.reviewActivities.combined,
+      stages: [
+        { id: 'a', kind: 'holistic' as const, label: 'A', prompt: 'A', targets: ['x:a'], suppliedAccesses: ['x:b'] },
+        { id: 'b', kind: 'written-reading-recall' as const, label: 'B', prompt: 'B', targets: ['x:b'], suppliedAccesses: ['x:a'] },
+      ] } } } };
+    expect(eligibleReviewActivities(card, cyclic, preferences, true).filter(choice => choice.id.startsWith('cycle:')).map(choice => choice.targets)).toEqual([['x:a'], ['x:b']]);
+  });
   it('uses canonical weakness instead of rotating and supplies only the written cues', () => {
     const choices = eligibleReviewActivities(card, data, preferences, true);
     const selected = selectReviewActivity(choices, capability => ({ status: capability === 'future::pattern' ? 'unknown' : 'known', ease: 0, source: 'None' }));

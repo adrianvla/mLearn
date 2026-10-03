@@ -11,7 +11,7 @@ import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGa
  * Modernized UI with sidebar navigation
  */
 
-import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo, createEffect, on, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useLocalization, useSettings, useLowPowerGate, useLanguage } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle, OtherLanguageDueHint } from '../../components/flashcard';
@@ -36,6 +36,7 @@ import { buildBulkExampleUpdates } from '../../utils/flashcardBulkExamples';
 import { DEFAULT_REPAIR_SELECTION, selectRepairFindings, repairAspect, planFlashcardRepair, type ExampleFinding, type RepairFinding, type RepairSelection, type ScanOptions } from '../../utils/flashcardRepairPlan';
 import { runFlashcardRepair, runMissingFlashcardRepair, type RepairRunResult } from '../../utils/flashcardRepairRunner';
 import { planBulkGeneration, type BulkGenerationMode, type BulkGenerationModeFor } from './bulkGenerationPlan';
+import { goalSessionBudget } from '../../../shared/learningGoals';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
@@ -97,6 +98,21 @@ export const FlashcardsContent: Component = () => {
   const { langData, currentLangData } = useLanguage();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
+  const [reviewSessionRequest, setReviewSessionRequest] = createSignal<{ encounterLimit: number; requestId?: string }>();
+  onMount(() => {
+    const bridge = getBridge();
+    const cleanup = bridge.window.onWindowContext(context => {
+      if (!context || context.activity !== 'review') return;
+      const session = context.session as { encounterLimit?: unknown; requestId?: unknown } | undefined;
+      if (session && typeof session.encounterLimit === 'number' && Number.isFinite(session.encounterLimit)) {
+        setReviewSessionRequest({ encounterLimit: Math.max(1, Math.min(120, Math.floor(session.encounterLimit))),
+          ...(typeof session.requestId === 'string' ? { requestId: session.requestId } : {}) });
+      }
+      setActiveTab('review');
+    });
+    if (cleanup) onCleanup(cleanup);
+    bridge.window.getWindowContext('flashcards');
+  });
   // Distinguishes "no work was ever due" from "the session just drained".
   const [hasReviewedInSession, setHasReviewedInSession] = createSignal(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = createSignal(false);
@@ -861,7 +877,8 @@ export const FlashcardsContent: Component = () => {
                 </div>
               }
             >
-              <FlashcardReview onComplete={() => setHasReviewedInSession(true)} />
+              <FlashcardReview encounterLimit={reviewSessionRequest()?.encounterLimit ?? goalSessionBudget(settings.learningMinutes ?? DEFAULT_SETTINGS.learningMinutes)}
+                sessionRequestId={reviewSessionRequest()?.requestId} onComplete={() => setHasReviewedInSession(true)} onClose={() => getBridge().window.closeWindow()} />
             </Show>
           </Show>
           </div>

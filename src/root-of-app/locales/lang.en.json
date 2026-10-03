@@ -1,5 +1,34 @@
 {
   "mlearn": {
+    "Goals": {
+      "Purpose": "Your goal",
+      "Explore": "Explore the language",
+      "Time": "Available time",
+      "Minutes": "{count} min",
+      "Edit": "Edit goals",
+      "Add": "Add goal",
+      "Outcome": "What would you like to do?",
+      "Deadline": "Deadline (optional)",
+      "Priority": "Priority",
+      "First": "First",
+      "Normal": "Normal",
+      "Later": "Later",
+      "Status": "Status",
+      "Active": "Active",
+      "Paused": "Paused",
+      "Completed": "Completed",
+      "Passed": "The deadline has passed. Review your next step; progress is preserved.",
+      "Scope": "Focus (optional)",
+      "Words": "Words to prepare, one per line",
+      "Coverage": "Vocabulary: {known} known · {learning} developing · {unmeasured} unmeasured",
+      "OtherRequirements": "Vocabulary practice does not establish performance under the other task conditions.",
+      "Source": {
+        "user": "Your scope",
+        "package": "Language package coverage",
+        "community": "Community coverage",
+        "authoritative": "Authoritative requirements"
+      }
+    },
     "LibraryRecovery": {
       "OpenProtection": "Data protection settings",
       "Title": "Your library could not be opened",
@@ -1630,7 +1659,9 @@
         "PlanUnmeasured": "Your learning record will grow as you read and practise.",
         "ViewPlan": "View Learning Plan",
         "ThisWeek": "This week",
-        "WeekSummary": "{reviews} reviews · {newCards} new cards"
+        "WeekSummary": "{reviews} reviews · {newCards} new cards",
+        "DiscoverTitle": "Discover your next words",
+        "DiscoverReason": "Start with {count} words from your curriculum."
       }
     },
     "Installer": {
@@ -4128,7 +4159,9 @@
       "PlacementIntro": "A short adaptive check uses the same recall and answer flow as practice. It samples words without direct evidence, then suggests a starting point for your Learning Plan. Unsampled words stay unassessed.",
       "Resume": "Resume practice",
       "RetrieveWord": "Try to recall the reading and meaning before revealing the answer.",
-      "RetrieveAspects": "Focus this recall check on: {aspects}. Reveal the answer to compare."
+      "RetrieveAspects": "Focus this recall check on: {aspects}. Reveal the answer to compare.",
+      "Progress": "Session: {count} of {total}",
+      "Finished": "Session finished. {count} encounters recorded."
     }
   }
 }

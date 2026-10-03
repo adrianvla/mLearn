@@ -1,6 +1,6 @@
 import { Component, Show, For, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../context';
-import { SettingRow, SettingGroup, Select, Input } from '../../components/common';
+import { SettingRow, SettingGroup, Select, LearningGoals } from '../../components/common';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getFrequencyLevelLabel, getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import '../settings/SettingsForm.css';
@@ -216,80 +216,8 @@ export const LearningPlanSettings: Component = () => {
           </Select>
         </SettingRow>
 
-        <Show when={settings.examGoal?.kind === 'exam' && settings.examGoal.language && settings.examGoal.language !== settings.language}>
-          <p role="note">{t('mlearn.Settings.Behaviour.ExamGoal.OtherLanguage')}</p>
-        </Show>
-        <SettingRow
-          label={t('mlearn.Settings.Behaviour.ExamGoal.Label')}
-          description={t('mlearn.Settings.Behaviour.ExamGoal.Description')}
-        >
-          <Select
-            class="setting-select"
-            value={settings.examGoal?.kind ?? DEFAULT_SETTINGS.examGoal.kind}
-            onChange={(e) => {
-              const value = e.currentTarget.value;
-              if (value !== 'exam' && value !== 'none') return;
-              const current = settings.examGoal ?? DEFAULT_SETTINGS.examGoal;
-              updateSettings({ examGoal: value === 'exam'
-                // A goal is scoped to the learning language it is recorded
-                // under (R07): a fresh goal inherits the active language; an
-                // existing scoped goal keeps its stamp.
-                ? { ...current, kind: 'exam', language: current.language ?? settings.language }
-                : { kind: 'none' } });
-            }}
-          >
-            <option value="none" selected={(settings.examGoal?.kind ?? DEFAULT_SETTINGS.examGoal.kind) === 'none'}>{t('mlearn.Settings.Behaviour.ExamGoal.None')}</option>
-            <option value="exam" selected={settings.examGoal?.kind === 'exam'}>{t('mlearn.Settings.Behaviour.ExamGoal.Exam')}</option>
-          </Select>
-        </SettingRow>
+        <LearningGoals />
 
-        <Show when={settings.examGoal?.kind === 'exam'}>
-          <SettingRow
-            label={t('mlearn.Settings.Behaviour.ExamGoal.Target.Label')}
-            description={t('mlearn.Settings.Behaviour.ExamGoal.Target.Description')}
-          >
-            <Input
-              type="text"
-              value={settings.examGoal?.target ?? ''}
-              placeholder={t('mlearn.Settings.Behaviour.ExamGoal.Target.Placeholder')}
-              onInput={(e) => {
-                const target = e.currentTarget.value;
-                const current = settings.examGoal ?? DEFAULT_SETTINGS.examGoal;
-                // Clearing the field must drop the stored value, not spread the stale one back.
-                const next: typeof DEFAULT_SETTINGS.examGoal = {
-                  ...current,
-                  kind: 'exam',
-                  language: current.language ?? settings.language,
-                };
-                delete next.target;
-                if (target) next.target = target;
-                updateSettings({ examGoal: next });
-              }}
-            />
-          </SettingRow>
-          <SettingRow
-            label={t('mlearn.Settings.Behaviour.ExamGoal.Deadline.Label')}
-            description={t('mlearn.Settings.Behaviour.ExamGoal.Deadline.Description')}
-          >
-            <Input
-              type="date"
-              value={settings.examGoal?.deadline ?? ''}
-              onInput={(e) => {
-                const deadline = e.currentTarget.value;
-                const current = settings.examGoal ?? DEFAULT_SETTINGS.examGoal;
-                // Clearing the date must drop the stored deadline, not spread the stale one back.
-                const next: typeof DEFAULT_SETTINGS.examGoal = {
-                  ...current,
-                  kind: 'exam',
-                  language: current.language ?? settings.language,
-                };
-                delete next.deadline;
-                if (deadline) next.deadline = deadline;
-                updateSettings({ examGoal: next });
-              }}
-            />
-          </SettingRow>
-        </Show>
       </SettingGroup>
 
   </div>;

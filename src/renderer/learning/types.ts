@@ -26,6 +26,7 @@ export interface ScaffoldRef {
 }
 
 export type ScoreDimension =
+  | 'goal-relevance'
   | 'retention-need'
   | 'curriculum-relevance'
   | 'information-gain'
@@ -52,7 +53,7 @@ export type ScoreDimension =
  * maintenance mode: the policy applies no deadline weighting at all.
  */
 export interface PolicyGoal {
-  kind: 'exam';
+  kind: 'exam' | 'outcome';
   /** Deadline epoch ms. Open horizons omit it: no consolidation weighting. */
   deadlineMs?: number;
   /**
@@ -77,6 +78,7 @@ export type SessionIntensity = 'gentle' | 'steady' | 'intensive';
  * credibility, thresholds, or scoring rules — only selection weighting.
  */
 export interface PolicyContext {
+  goals?: readonly import('../../shared/learningGoals').LearningGoal[];
   goal?: PolicyGoal;
   intensity?: SessionIntensity;
 }

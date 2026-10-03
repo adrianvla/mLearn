@@ -10,6 +10,7 @@ export interface HomeWorkload {
 export function homeNextAction(workload: HomeWorkload): HomeNextAction {
   if (workload.due > 0) return 'review';
   if (workload.needsPractice > 0) return 'practice';
-  if (workload.unassessed > 0 && workload.assessed > 0) return 'assessment';
+  if (workload.unassessed > 0 && workload.assessed === 0) return 'practice';
+  // Unmeasured coverage alone does not justify a compulsory diagnostic.
   return workload.hasMaterial ? 'continue' : 'read';
 }

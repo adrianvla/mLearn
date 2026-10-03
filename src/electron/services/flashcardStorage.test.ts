@@ -183,6 +183,19 @@ describe('flashcardStorage', () => {
       scaffolds: { 'provided-access:future:relationship': true } } };
   };
 
+  it('persists a finite session atomically with its first review cursor', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('finite-cursor');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const command = cursorFor((await loadFlashcards()).flashcards[card.id]);
+    command.presentation.session = { id: 'session', cardIds: [card.id], completedCardIds: [], encounterLimit: 1, startedAt: 20 };
+    await storage.saveReviewPresentation(command);
+    invalidateFlashcardsCache();
+    const reopened = await loadFlashcards();
+    expect(reopened.meta.reviewSessions?.[command.language]).toEqual(command.presentation.session);
+    expect(reopened.meta.reviewPresentations?.[command.language]?.session?.id).toBe('session');
+  });
+
   it('persists a sparse immutable cursor and retains unknown package provenance across restart', async () => {
     const storage = await import('./flashcardStorage');
     const card = makeFlashcard('cursor-roundtrip');
@@ -438,6 +451,16 @@ describe('flashcardStorage', () => {
     expect(restored.meta.perLanguage.ja.reviewsToday).toBe(1);
     await restarted.commitFlashcardRating(command);
     expect((await restarted.loadFlashcards()).flashcards[card.id].reviews).toBe(1);
+  });
+
+  it('admits a renderer-hydrated retention cache without ignoring scheduler or prompt changes', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('cache-only');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const hydrated = { ...card, retentionCache: { state: card.state, ease: card.ease, interval: card.interval,
+      dueAt: card.dueDate, reviews: card.reviews, lapses: card.lapses, provenance: 'migrated-scheduler-cache' as const } };
+    await storage.commitFlashcardRating({ ...ratingCommand(hydrated, 1, 1), guardCardIds: [card.id] });
+    expect((await loadFlashcards()).flashcards[card.id].reviews).toBe(1);
   });
 
   it('refuses a changed captured card before durable admission or journal append', async () => {

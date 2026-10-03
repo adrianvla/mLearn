@@ -51,9 +51,9 @@ export function studySessionState(snapshot: StudySessionSnapshot): StudySessionS
   const total = Math.max(0, snapshot.total);
   const completed = Math.min(Math.max(0, snapshot.index), total);
   const phase: StudySessionPhase = !snapshot.ready ? 'loading'
-    : completed >= total ? 'complete'
     : snapshot.write === 'pending' ? 'saving'
     : snapshot.write === 'failed' ? 'save-failed'
+    : completed >= total ? 'complete'
     : snapshot.answered ? 'answered'
     : snapshot.revealed ? 'revealed'
     : 'question';

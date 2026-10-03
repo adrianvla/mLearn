@@ -228,6 +228,26 @@ export function selectEncounterBatch(inputs: EncounterInputs): PolicyDecision[] 
 }
 
 function sourceCandidates(inputs: EncounterInputs) {
+  const goals = inputs.context?.goals ?? inputs.config?.context?.goals ?? [];
+  const scopes = goals.map(goal => ({ goal, words: new Set(goal.scope?.words ?? []) }));
+  return rawSourceCandidates(inputs).map(candidate => {
+    const relevant = scopes.filter(({ goal, words }) => goal.language === candidate.language
+      && candidate.word !== undefined && words.has(candidate.word));
+    if (!relevant.length) return candidate;
+    return { ...candidate, scores: { ...candidate.scores,
+      'goal-relevance': Math.max(...relevant.map(({ goal }) => {
+        const priority = Math.max(0, Math.min(3, goal.priority));
+        const deadline = goal.deadline ? Date.parse(goal.deadline) : NaN;
+        // Ordinal urgency, never a forecast or an increase in session workload.
+        const days = (deadline - inputs.nowMs) / 86_400_000;
+        return priority * (Number.isFinite(days) ? 1 + Math.max(0, 1 - Math.max(0, days) / 30) : 1);
+      })) },
+      meta: { ...candidate.meta, goalIds: relevant.map(({ goal }) => goal.id),
+        goalScopes: relevant.map(({ goal }) => ({ id: goal.id, provenance: goal.scope?.provenance, reference: goal.scope?.reference, deadline: goal.deadline, priority: goal.priority })) } };
+  });
+}
+
+function rawSourceCandidates(inputs: EncounterInputs) {
   switch (inputs.preset) {
     case 'RETENTION':
       // Weak targets are fallback fill: the retention preset weighs only

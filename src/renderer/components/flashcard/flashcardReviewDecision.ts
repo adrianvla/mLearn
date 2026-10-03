@@ -20,7 +20,7 @@ export function flashcardReviewPolicyEntry(card: Flashcard, language: string, la
     id: card.id, word: card.content.front, language,
     presentation: { cardId: card.id, language, surface: card.content.front, contentVersion: hashWordSync(JSON.stringify(card.content)) },
     targets: requested.map(capability => ({ entityId, capability })),
-    task: activity && activity.kind !== 'holistic' ? activityTask(activity) : { ...PRESETS.RETENTION.task, supplied: [...PRESETS.RETENTION.task.supplied], requested },
+    task: activity && (activity.kind !== 'holistic' || activity.stages) ? activityTask(activity) : { ...PRESETS.RETENTION.task, supplied: [...PRESETS.RETENTION.task.supplied], requested },
     dueDate: card.dueDate, interval: card.interval, suspended: card.suspended, buried: card.buried, state: card.state,
     scheduledForToday: true, lastReviewed: card.lastReviewed, ease: card.ease, reviews: card.reviews,
   };

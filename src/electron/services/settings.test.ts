@@ -137,6 +137,14 @@ describe('loadSettings', () => {
     expect(settings.languageCatalogUrl).toBe('https://mlearn.kikan.net/language-catalog.json');
   });
 
+  it('preserves commitments and opaque package requirements across save and reload', async () => {
+    const learningGoals = [{ id: 'book', language: 'future', outcome: 'Read a book', status: 'active' as const, priority: 2, createdAt: 1,
+      scope: { provenance: 'package' as const, words: ['word'], requirements: { 'x-future:condition': { values: [1, { discourse: true }] } } } }];
+    await mod.saveSettings({ ...mod.loadSettings(), learningGoals, learningMinutes: 5 });
+    expect(mod.loadSettings().learningGoals).toEqual(learningGoals);
+    expect(mod.loadSettings().learningMinutes).toBe(5);
+  });
+
   it('persists a setting that DEFAULT_SETTINGS declares, across a save/load round trip', async () => {
     // keepKnownSettingsKeys allowlists on Object.keys(DEFAULT_SETTINGS), so a
     // setting the interface declares but DEFAULT_SETTINGS omits is silently

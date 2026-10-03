@@ -308,6 +308,9 @@ export interface Settings {
    * once onto legacy goals at settings load.
    */
   examGoal: { kind: 'none' | 'exam'; deadline?: string; target?: string; language?: string };
+  /** Absent on legacy profiles; resolve the existing exam commitment before editing. */
+  learningGoals?: import('./learningGoals').LearningGoal[];
+  learningMinutes: number;
 
   // API URLs
   tokeniserUrl: string;
@@ -733,6 +736,8 @@ export const DEFAULT_SETTINGS: Settings = {
   learningBackground: { records: [] },
   sessionIntensity: 'steady',
   examGoal: { kind: 'none' },
+  learningGoals: undefined,
+  learningMinutes: 10,
   devMode: false,
   lowBatteryMode: false,
   ocr_crop_padding: 200,
@@ -1340,7 +1345,18 @@ export interface LanguageCapabilityDeclaration {
 
 /** Package-owned learner access declarations. Unknown ids and values survive round trips. */
 /** A bounded cue/answer presentation, with package-owned target semantics. */
+export interface LanguageReviewStage {
+  id: string;
+  kind: 'holistic' | 'written-reading-recall' | 'audio-recognition';
+  label: string;
+  prompt: string;
+  targets: string[];
+  /** Package-declared answers supplied by this stage's cues. */
+  suppliedAccesses: string[];
+}
+
 export interface LanguageReviewActivity {
+  stages?: LanguageReviewStage[];
   kind: 'written-reading-recall' | 'audio-recognition';
   label: string;
   prompt: string;
@@ -2110,6 +2126,11 @@ export interface PerLanguageMeta {
 
 /** A restored review encounter, persisted with its scheduler restoration. */
 export interface ReviewPresentation {
+  /** Last durably admitted cue stage; answers remain hidden until comparison. */
+  stageIndex?: number;
+  /** Actual assistance at the end of each completed retrieval stage. */
+  stageScaffolds?: Record<string, AttemptScaffolds>;
+  session?: import('./reviewSession').ReviewSession;
   id: string;
   cardId: string;
   /** Original immutable choice for an unanswered encounter, independent of ability. */
@@ -2120,6 +2141,7 @@ export interface ReviewPresentation {
 
 /** Flashcard store scheduling and presentation metadata. */
 export interface FlashcardMeta {
+  reviewSessions?: Record<string, import('./reviewSession').ReviewSession>;
   /** Main-owned commit frontier; scheduler retry receipts, never evidence of ability. */
   ratingCommitSequence?: number;
   /** Namespaces the frontier to the authority that issued command sequences. */

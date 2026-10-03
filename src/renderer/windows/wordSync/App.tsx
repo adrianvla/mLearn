@@ -12,7 +12,7 @@ import {
   useLanguage,
   useFlashcards,
 } from '../../context';
-import { Button, ConfirmDialog, EmptyState, FilterBuilder, Panel, PillLabel, Popover, StudyEncounter, ToggleSwitch, buildWordSyncFields, buildWordSyncPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ProfileObservation, type RateOptions, type ValidationError } from '../../components/common';
+import { Button, ConfirmDialog, EmptyState, FilterBuilder, Panel, PillLabel, Popover, StudyEncounter, StudySessionHUD, ToggleSwitch, buildWordSyncFields, buildWordSyncPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ProfileObservation, type RateOptions, type ValidationError } from '../../components/common';
 import { WordWithReading } from '../../components/language-specific';
 import { TellMlearn, type AppliedLearnerClaim } from '../../components/common/TellMlearn/TellMlearn';
 import type { LearnerClaimOp } from '../../services/learnerClaimsInterpreter';
@@ -52,7 +52,7 @@ import { wordSyncPoolStatus, wordSyncProbe } from './wordSyncPool';
 import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
-import { selectNextEncounter } from '../../learning/engine';
+import { selectNextEncounter, selectRankedEncounters } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { selectWordSyncDecision, wordSyncDecisionWindow } from './wordSyncDecision';
 import { wordSyncSavedFilter } from './wordSyncSavedFilter';
@@ -88,6 +88,7 @@ interface PoolEntry {
 interface WordQueueEntry { id: string; level?: number }
 
 interface WordSessionMeta {
+  source?: { words: string[]; label: string };
   samplingLevel: number;
   lastRating: AttemptQuality | null;
   assessment?: WordSyncAssessmentState;
@@ -147,6 +148,9 @@ interface WordSyncUndoEntry {
 
 
 export interface WordSyncContentProps {
+  onClose?: () => void;
+  encounterLimit?: number;
+  sessionRequestId?: string;
   mode?: 'study' | 'assessment';
   intent?: 'reinforce';
   /** An explicit material selection uses the same encounter and decision policy. */
@@ -692,7 +696,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       return { index: next.index, meta: { ...record.meta, assessment: next.state, suppliedScaffolds: undefined } };
     }
     const levels = sortedLevels();
-    if (levels.length === 0) return { index: record.queue.length, meta: { samplingLevel: record.meta.samplingLevel, lastRating: record.meta.lastRating } };
+    if (levels.length === 0) return { index: record.queue.length, meta: { source: record.meta.source, samplingLevel: record.meta.samplingLevel, lastRating: record.meta.lastRating } };
 
     let lvl = record.meta.samplingLevel;
     if (!levels.includes(lvl)) lvl = levels[0];
@@ -730,9 +734,9 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     });
     for (const tryLvl of tryOrder) {
       const nextIndex = firstByLevel.get(tryLvl);
-      if (nextIndex !== undefined) return { index: nextIndex, meta: { samplingLevel: tryLvl, lastRating: quality } };
+      if (nextIndex !== undefined) return { index: nextIndex, meta: { source: record.meta.source, samplingLevel: tryLvl, lastRating: quality } };
     }
-    return { index: record.queue.length, meta: { samplingLevel: lvl, lastRating: quality } };
+    return { index: record.queue.length, meta: { source: record.meta.source, samplingLevel: lvl, lastRating: quality } };
   }
 
   function createWordController(
@@ -1410,7 +1414,13 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       return;
     }
 
-    const queue = new Map([...result.pool].map(([level, group]) => [level, group.filter(entry => result.eligible.has(entry.word))]));
+    const admitted = [...result.pool.values()].flat().filter(entry => result.eligible.has(entry.word));
+    const chosen = props.encounterLimit === undefined ? new Set(admitted.map(entry => entry.word))
+      : new Set(selectRankedEncounters({ preset: 'CURRICULUM', nowMs: Date.now(),
+          context: policyContextFromSettings(settings, settings.language), config: { selection: 'ranked' },
+          levelStudyItems: admitted.map(entry => ({ key: entry.storageKey, word: entry.word, language: settings.language })),
+        }, Math.max(1, Math.min(120, Math.floor(props.encounterLimit)))).map(decision => decision.candidate.word));
+    const queue = new Map([...result.pool].map(([level, group]) => [level, group.filter(entry => chosen.has(entry.word))]));
     const entries: WordQueueEntry[] = [...queue.values()].flat().map((entry) => ({ id: entry.word }));
     const identity = JSON.stringify({
       language: settings.language,
@@ -1429,19 +1439,21 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       trace('session queue created', { count: [...queue.values()].reduce((n, group) => n + group.length, 0) });
     });
     const existing = controller.current();
-    if (existing) {
+    if (existing && !(props.sessionRequestId && existing.index >= existing.queue.length && !existing.pending)) {
       pickNext();
     } else {
       retrySessionStart = () => {
       void controller.start(identity, entries, entries.length > 0 ? 0 : entries.length, {
           samplingLevel: sortedLevels()[0] ?? 0,
           lastRating: null,
+          ...(suppliedWords() ? { source: { words: suppliedWords()!, label: props.sourceLabel ?? '' } } : {}),
         }).then((accepted) => {
           setSessionWriteFailure(!accepted && !controller.current() ? 'start' : null);
           if (controller.current()) pickNext();
         });
       };
-      retrySessionStart();
+      if (existing) void controller.clear(existing).then(accepted => { if (accepted) retrySessionStart?.(); });
+      else retrySessionStart();
     }
   }));
 
@@ -1697,14 +1709,11 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       <Show when={suppliedWords() && props.sourceLabel}><p class="word-sync-material-context">
         {t('mlearn.LearningPlan.MaterialPractice', { title: props.sourceLabel!, count: suppliedWords()!.length })}
       </p></Show>
+      <Show when={sessionQueue() && !assessmentMode()}><StudySessionHUD class="word-sync-counter" completed={sessionPresentation().completed} total={sessionPresentation().total}
+        label={t('mlearn.WordSync.Progress', { rated: String(sessionPresentation().completed), total: String(sessionPresentation().total) })} /></Show>
       <div class="word-sync-header">
-        <Show when={sessionQueue() && (!assessmentMode() || !!sessionController()?.current())}><span class="word-sync-counter">
-          <Show when={assessmentMode()} fallback={t('mlearn.WordSync.Progress', {
-            rated: String(sessionPresentation().completed),
-            total: String(sessionPresentation().total),
-          })}>
-            {t('mlearn.LevelStudy.Placement.LiveProgress', { count: assessmentSampled() })}
-          </Show>
+        <Show when={assessmentMode() && !!sessionController()?.current()}><span class="word-sync-counter">
+          {t('mlearn.LevelStudy.Placement.LiveProgress', { count: assessmentSampled() })}
         </span></Show>
         <Show when={!assessmentMode() && !suppliedWords()}>
         <ToggleSwitch checked={additionalInfoInAnswer()} onChange={setAdditionalInfoInAnswer}
@@ -2009,6 +2018,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           <EmptyState title={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedTitle' : suppliedWords() ? 'mlearn.WordSync.MaterialEmptyTitle' : 'mlearn.WordSync.EmptyTitle')}
             description={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedDescription' : suppliedWords() ? 'mlearn.WordSync.MaterialEmptyDescription' : 'mlearn.WordSync.EmptyDescription', { count: String(ratedCount()) })}
             variant="minimal" />
+          <Show when={props.onClose}><Button variant="primary" onClick={() => props.onClose?.()}>{t('mlearn.Global.Close')}</Button></Show>
           <Show when={ratedCount() > 0} fallback={
             <Show when={!suppliedWords()}><Button class="word-sync-recheck-btn" onClick={() => setFilterOpen(true)}>{t('mlearn.WordSync.ChangeFilters')}</Button></Show>
           }><Button class="word-sync-recheck-btn" onClick={() => setConfirmRecheckOpen(true)}>{t('mlearn.WordSync.StartOver')}</Button></Show>

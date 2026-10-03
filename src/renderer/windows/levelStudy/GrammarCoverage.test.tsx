@@ -631,7 +631,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     revealCurrent(container, 2);
     await tick();
     expect(container.querySelector('[data-testid="grammar-session-answer"]')).not.toBeNull();
-    expect(container.querySelectorAll('.rating-matrix__quality')).toHaveLength(3);
+    expect(container.querySelectorAll('.rating-matrix__quality')).toHaveLength(4);
     container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2].click();
     await tick();
     expect(onProbe).toHaveBeenCalledTimes(1);

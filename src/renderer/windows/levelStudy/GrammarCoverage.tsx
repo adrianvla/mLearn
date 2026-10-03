@@ -1,6 +1,6 @@
 import { Component, For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import { Button, Panel, StudyEncounter, WriteStatusBanner } from '../../components/common';
+import { Button, Panel, StudyEncounter, StudySessionHUD, WriteStatusBanner } from '../../components/common';
 import { selectNextEncounter } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import {
@@ -1325,12 +1325,8 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                 <Show when={open()}>
                   <div class="grammar-coverage__session" data-level={level} data-phase={sessionActiveFor(level) ? sessionPresentation().phase : undefined}>
                     <Show when={sessionActiveFor(level)}>
-                      <div class="grammar-coverage__session-progress" role="status" aria-live="polite">
-                        {t('mlearn.LevelStudy.Grammar.SessionProgress', {
-                          current: String(sessionPresentation().current),
-                          total: String(sessionPresentation().total),
-                        })}
-                      </div>
+                      <StudySessionHUD class="grammar-coverage__session-progress" completed={sessionPresentation().completed} total={sessionPresentation().total}
+                        label={t('mlearn.LevelStudy.Grammar.SessionProgress', { current: String(sessionPresentation().current), total: String(sessionPresentation().total) })} />
                     </Show>
                     {/* A refused durable write is surfaced, never silent:
                         the refused action stays retryable and the next

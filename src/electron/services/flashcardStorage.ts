@@ -43,6 +43,12 @@ function persistRatingCommands(commands: readonly FlashcardRatingCommand[]): Pro
   });
 }
 
+/** Derived retention caches can be hydrated locally; authored/scheduling fields own admission. */
+const capturedReviewCardMatches = (actual: Flashcard | undefined, captured: unknown): boolean => {
+  if (!actual || !captured || typeof captured !== 'object') return false;
+  return isDeepStrictEqual({ ...actual, retentionCache: undefined }, { ...captured, retentionCache: undefined });
+};
+
 /** Immediate Review admission and both effects share the main write queue. */
 export function commitFlashcardRating(command: FlashcardRatingCommand): Promise<FlashcardRatingCommit> {
   return enqueueWrite(async () => {
@@ -86,7 +92,7 @@ async function commitRatingCommands(commands: readonly FlashcardRatingCommand[],
     if (journal.isRatingCommandCommitted(command.attemptId)) continue;
     const captured = (command.guardCardIds ?? []).every(id => {
       const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
-      return entry && JSON.stringify(preflight.flashcards[id]) === JSON.stringify(entry.before);
+      return entry && capturedReviewCardMatches(preflight.flashcards[id], entry.before);
     });
     if (!captured) { refused.push(command.attemptId); continue; }
     preflight = applyFlashcardRatingCommand(preflight, command);
@@ -99,7 +105,7 @@ async function commitRatingCommands(commands: readonly FlashcardRatingCommand[],
       validate(command);
       for (const id of command.guardCardIds ?? []) {
         const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
-        if (!entry || JSON.stringify(admission.flashcards[id]) !== JSON.stringify(entry.before)) throw new Error('The captured review card changed before admission');
+        if (!entry || !capturedReviewCardMatches(admission.flashcards[id], entry.before)) throw new Error('The captured review card changed before admission');
       }
     });
     // A queued second response may have been shown after the first optimistic
@@ -118,7 +124,7 @@ async function commitRatingCommands(commands: readonly FlashcardRatingCommand[],
     validate(command);
     for (const id of command.guardCardIds ?? []) {
       const entry = command.patch.entries.find(row => row.path.length === 2 && row.path[0] === 'flashcards' && row.path[1] === id);
-      if (!entry || JSON.stringify(candidate.flashcards[id]) !== JSON.stringify(entry.before)) throw new Error('The admitted review card changed before recovery');
+      if (!entry || !capturedReviewCardMatches(candidate.flashcards[id], entry.before)) throw new Error('The admitted review card changed before recovery');
     }
     candidate = applyFlashcardRatingCommand(candidate, command);
     for (const [key, rows] of Object.entries(command.events)) (events[key] ??= []).push(...rows);
