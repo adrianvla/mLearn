@@ -836,7 +836,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
       }));
       refreshQueue();
     });
-    requestCompletedReviewUndos();
+    if (attemptIds.length > 0) requestCompletedReviewUndos();
   };
   // Used for tracking session start time (could be used for session stats)
   const [, setSessionStartTime] = createSignal<number>(0);

@@ -1,6 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { createRoot, createSignal } from 'solid-js';
 import { useEvidenceLinkedProjections } from './useEvidenceLinkedProjections';
+const [active, setActive] = createSignal(true);
+vi.mock('./useWindowActivity', () => ({ useWindowActivity: () => active }));
 const keys = vi.hoisted(() => vi.fn());
 const linked = vi.hoisted(() => vi.fn());
 const project = vi.hoisted(() => vi.fn());
@@ -9,6 +11,22 @@ vi.mock('../services/knowledgeEvents', () => ({ queryLanguageKeys: keys, wordEve
 vi.mock('../../shared/bridges', () => ({ getBridge: () => ({ graph: { getEvidenceLinkedSurfaces: linked, getKnowledgeProjection: project } }) }));
 
 describe('evidence-linked summary contract', () => {
+  beforeEach(() => setActive(true));
+  it('does not read journal keys or fan out projections while inactive, then catches up on focus', async () => {
+    keys.mockReset().mockResolvedValue(['pkg:key']);
+    linked.mockReset().mockResolvedValue(['word']);
+    project.mockReset().mockResolvedValue({ status: 'ready', targets: [] });
+    setActive(false);
+    const root = createRoot(dispose => ({ dispose, state: useEvidenceLinkedProjections(() => ({ language: 'pkg', surfaces: ['word'], materializedKeys: [] })) }));
+    await Promise.resolve();
+    expect(keys).not.toHaveBeenCalled();
+    expect(linked).not.toHaveBeenCalled();
+    setActive(true);
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    expect(keys).toHaveBeenCalledTimes(1);
+    expect(linked).toHaveBeenCalledTimes(1);
+    root.dispose();
+  });
   it('waits for the journal, resolves a sibling through the graph, and leaves unseen surfaces unmeasured', async () => {
     let finish!: (keys: string[]) => void;
     keys.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));

@@ -4,6 +4,7 @@ import type { KnowledgeProjection } from '../../shared/graph/ipc';
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { wordEventsVersion } from '../services/knowledgeEvents';
 import { useSettings } from '../context/SettingsContext';
+import { useWindowActivity } from './useWindowActivity';
 
 /** Collection view of the canonical projection; stores payloads, never reinterprets evidence. */
 export function useKnowledgeProjections(query: Accessor<{
@@ -13,12 +14,16 @@ export function useKnowledgeProjections(query: Accessor<{
   evidenceKeys?: readonly string[];
 } | undefined>) {
   const { settings } = useSettings();
+  const active = useWindowActivity();
   const [projections, setProjections] = createSignal<ReadonlyMap<string, KnowledgeProjection>>(new Map());
   const [loading, setLoading] = createSignal(false);
   const [ready, setReady] = createSignal(false);
   const [failed, setFailed] = createSignal(false);
   const [retryVersion, setRetryVersion] = createSignal(0);
   createEffect(() => {
+    // On blur, effect cleanup cancels the remaining projection fan-out. Keep
+    // the last result; focus reads the latest journal/query exactly once.
+    if (!active()) { setLoading(false); return; }
     const input = query();
     wordEventsVersion();
     retryVersion();

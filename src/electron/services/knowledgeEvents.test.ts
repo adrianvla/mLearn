@@ -56,6 +56,21 @@ afterEach(() => {
 });
 
 describe('knowledge event storage', () => {
+  it('counts only inserted evidence in Guardian and does not notify windows for an idempotent retry', async () => {
+    const { Guardian, activateGuardian, inspectGuardianData } = await import('./guardian');
+    const guardian = new Guardian(tempDir.tmpDir);
+    await guardian.preflight();
+    activateGuardian(guardian);
+    const send = vi.fn();
+    getAllWindows.mockReturnValue([{ isDestroyed: () => false, webContents: { send } }]);
+    const batch = { 'pkg:one': [event(now, { eventId: 'same-observation' })] };
+    await mod.appendKnowledgeEvents(batch);
+    await mod.appendKnowledgeEvents(batch);
+    expect(guardian.status.metrics?.knowledgeEvidenceCount).toBe(inspectGuardianData(tempDir.tmpDir).knowledgeEvidenceCount);
+    expect(send).toHaveBeenCalledTimes(1);
+    await expect(new Guardian(tempDir.tmpDir).preflight()).resolves.toBeUndefined();
+  });
+
   it('appends and queries events by key', async () => {
     await mod.appendKnowledgeEvents({ 'ja:one': [event(now, { kind: 'status', toStatus: 'learning' })] });
 

@@ -171,8 +171,13 @@ export async function appendKnowledgeEvents(eventsByKey: KnowledgeEventLog): Pro
   const hasAny = Object.values(eventsByKey).some((events) => events.length > 0);
   if (!hasAny) return;
   const active = ensureStore();
+  const before = active.sequenceCounter;
   active.appendEvents(eventsByKey);
-  const appended = Object.values(eventsByKey).reduce((count, events) => count + events.filter(isKnowledgeEvent).length, 0);
+  // Sequence reservations count inserted rows, after validation/deduplication.
+  // Retrying durable observations must not invent evidence in Guardian's ledger
+  // or invalidate every window's knowledge a second time.
+  const appended = active.sequenceCounter - before;
+  if (!appended) return;
   guardianForWrites()?.recordKnowledgeSequence(active.sequenceCounter, appended,
     Object.entries(eventsByKey).filter(([, events]) => events.some(isKnowledgeEvent)).map(([key]) => key));
   scheduleSave();

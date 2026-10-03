@@ -6,14 +6,43 @@ import type { KnowledgeProjection } from '../../shared/graph/ipc';
 const query = vi.hoisted(() => vi.fn());
 const linked = vi.hoisted(() => vi.fn());
 const [version, setVersion] = createSignal(0);
+const [active, setActive] = createSignal(true);
+vi.mock('./useWindowActivity', () => ({ useWindowActivity: () => active }));
 vi.mock('../context/SettingsContext', () => ({ useSettings: () => ({ settings: { easeThresholdLearning: 1.55, easeThresholdKnown: 1.8 } }) }));
 vi.mock('../../shared/bridges', () => ({ getBridge: () => ({ graph: { getKnowledgeProjection: query, getEvidenceLinkedSurfaces: linked } }) }));
 vi.mock('../services/knowledgeEvents', () => ({ wordEventsVersion: () => version() }));
 const payload: KnowledgeProjection = { status: 'ready', targets: [{ targetRef: { kind: 'surface', id: 'test:surface' }, applicableCapabilities: ['test:future-capability'], states: [] }] };
 
-beforeEach(() => { query.mockReset(); linked.mockReset(); setVersion(0); });
+beforeEach(() => { query.mockReset(); linked.mockReset(); setVersion(0); setActive(true); });
 
 describe('canonical projection collections', () => {
+  it('coalesces inactive revisions and cancels an in-flight collection when the window blurs', async () => {
+    setActive(false);
+    linked.mockResolvedValue(['a']);
+    query.mockResolvedValue(payload);
+    const root = createRoot(dispose => ({ dispose, state: useKnowledgeProjections(() => ({ language: 'pkg', surfaces: ['a'], evidenceKeys: ['pkg:key'] })) }));
+    setVersion(1);
+    setVersion(2);
+    await Promise.resolve();
+    expect(linked).not.toHaveBeenCalled();
+    setActive(true);
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    expect(linked).toHaveBeenCalledTimes(1);
+    let finish!: (surfaces: string[]) => void;
+    linked.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    setVersion(3);
+    setActive(false);
+    finish(['a']);
+    await Promise.resolve();
+    expect(query).toHaveBeenCalledTimes(1);
+    setVersion(4);
+    setVersion(5);
+    expect(root.state.loading()).toBe(false);
+    setActive(true);
+    await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+    expect(query).toHaveBeenCalledTimes(2);
+    root.dispose();
+  });
   it('distinguishes an inactive reader from a ready empty result', async () => {
     const [input, setInput] = createSignal<{ language: string; surfaces: string[] }>();
     const root = createRoot(dispose => ({ dispose, state: useKnowledgeProjections(input) }));
