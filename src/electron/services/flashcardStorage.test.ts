@@ -182,6 +182,51 @@ describe('flashcardStorage', () => {
     db.close();
   });
 
+  // The renderer hands a background-routed rating to this queue and advances the
+  // card immediately, so this queue is the ONLY thing standing between an
+  // assisted response and its durable record. A cue recorded on the command must
+  // survive the debounce, the journal append, a restart, and the compaction
+  // that follows - otherwise the optimistic transition would be silently
+  // downgrading a learner-requested rating to an unassisted one.
+  it('durably records an assisted background rating with its scaffolds across a restart', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('background-assisted');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const attemptId = 'attempt-background-assisted-1';
+    const command: FlashcardRatingCommand = {
+      ...ratingCommand(card, 1, 1),
+      attemptId,
+      events: { 'ja:rating-key': [{ t: Date.now(), kind: 'review', source: 'srs', rating: 'good',
+        schedulerCardId: card.id, attemptId,
+        // Exactly what FlashcardReview puts on an attended cue.
+        scaffolds: { audio: true },
+        retentionCondition: 'supplied' }] },
+      guardCardIds: [card.id],
+    };
+    // Enqueued, not committed: this is the path the surface no longer waits on.
+    const queued = storage.enqueueFlashcardRating(command);
+    await storage.flushFlashcardRatings();
+    await expect(queued).resolves.toBeTypeOf('number');
+
+    const { getKnowledgeEvents } = await import('./knowledgeEvents');
+    const before = getKnowledgeEvents(['ja:rating-key'])['ja:rating-key'] ?? [];
+    expect(before).toHaveLength(1);
+    expect(before[0]).toMatchObject({ attemptId, scaffolds: { audio: true }, retentionCondition: 'supplied' });
+    // The journal identities were consumed, so nothing is left to replay.
+    expect((await import('./knowledgeEvents')).pendingRatingCommands()).toEqual([]);
+
+    // A restart reads only what was committed.
+    const restarted = await import('./flashcardStorage');
+    const saved = await loadFlashcards();
+    expect(saved.flashcards[card.id].reviews).toBe(1);
+    const after = getKnowledgeEvents(['ja:rating-key'])['ja:rating-key'] ?? [];
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ attemptId, scaffolds: { audio: true }, retentionCondition: 'supplied' });
+    // Re-committing the same attempt id must not duplicate the evidence.
+    await expect(restarted.commitFlashcardRating(command)).resolves.toMatchObject({ rev: expect.any(Number) });
+    expect(getKnowledgeEvents(['ja:rating-key'])['ja:rating-key']).toHaveLength(1);
+  });
+
   it('refuses a queued stale card before reservation without overwriting a later authored answer', async () => {
     const storage = await import('./flashcardStorage');
     const card = makeFlashcard('queued-stale');

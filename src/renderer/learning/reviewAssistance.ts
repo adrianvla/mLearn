@@ -7,12 +7,21 @@ export interface ReviewAssistance {
   /** This physical choice owns its cues and answer exposure, across windows. */
   choiceId?: string;
   revealed?: true;
+  /**
+   * The learner asked for this cue (a reference drawer they opened, or a
+   * speaker button they pressed) rather than the surface supplying it on its
+   * own (automatic front TTS). It changes the DURABILITY ROUTE of the rating
+   * that consumes it, never its provenance: both kinds travel on the rating
+   * command's events. See FlashcardReview's persistence selection.
+   */
+  requested?: true;
 }
-interface ChoiceAssistance { scaffolds: AttemptScaffolds; revealed?: true }
+interface ChoiceAssistance { scaffolds: AttemptScaffolds; revealed?: true; requested?: true }
 interface StoredAssistance {
   revision: string;
   /** Conservative compatibility with already-saved card-scoped reference cues. */
   scaffolds: AttemptScaffolds;
+  requested?: true;
   choices?: Record<string, ChoiceAssistance>;
 }
 
@@ -29,9 +38,11 @@ export function createReviewAssistanceStore(
     if (raw === null) return null;
     const record = JSON.parse(raw) as Partial<StoredAssistance>;
     if (!record || typeof record.revision !== 'string' || !record.revision || !validScaffolds(record.scaffolds)
+      || (record.requested !== undefined && record.requested !== true)
       || (record.choices !== undefined && (!record.choices || typeof record.choices !== 'object' || Array.isArray(record.choices)
         || Object.entries(record.choices).some(([id, entry]) => !id || !entry || !validScaffolds(entry.scaffolds)
-          || (entry.revealed !== undefined && entry.revealed !== true))))) {
+          || (entry.revealed !== undefined && entry.revealed !== true)
+          || (entry.requested !== undefined && entry.requested !== true))))) {
       throw new Error('Invalid review assistance record');
     }
     return record as StoredAssistance;
@@ -39,14 +50,15 @@ export function createReviewAssistanceStore(
   const view = (record: StoredAssistance, choiceId?: string): ReviewAssistance => {
     const own = choiceId ? record.choices?.[choiceId] : undefined;
     return { revision: record.revision, scaffolds: { ...record.scaffolds, ...own?.scaffolds },
-      ...(choiceId ? { choiceId } : {}), ...(own?.revealed ? { revealed: true } : {}) };
+      ...(choiceId ? { choiceId } : {}), ...(own?.revealed ? { revealed: true } : {}),
+      ...((own?.requested || (own === record && record.requested)) ? { requested: true } : {}) };
   };
   const read = (scope: string, choiceId?: string): ReviewAssistance | null => {
     const record = readStored(scope);
     return record ? view(record, choiceId) : null;
   };
   const provide = async (scope: string, scaffolds: AttemptScaffolds, isCurrent?: () => boolean,
-    choiceId?: string): Promise<ReviewAssistance | null> => {
+    choiceId?: string, requested = false): Promise<ReviewAssistance | null> => {
     let result: ReviewAssistance | null = null;
     await (locks ?? inProcessStudySessionLocks).request(key(scope), () => {
       if (isCurrent && !isCurrent()) return;
@@ -54,6 +66,10 @@ export function createReviewAssistanceStore(
       const own = choiceId ? ((record.choices ??= {})[choiceId] ??= { scaffolds: {} }) : record;
       own.scaffolds = Object.fromEntries([...Object.entries(own.scaffolds), ...Object.entries(scaffolds)]
         .filter(([, value]) => value === true));
+      // A learner-requested cue stays learner-requested for this choice even if
+      // an automatic one follows it: the stronger provenance wins, so a rating
+      // can never be downgraded by a second, unattended cue.
+      if (requested) own.requested = true;
       record.revision = nextAttemptId();
       storage.setItem(key(scope), JSON.stringify(record));
       result = view(record, choiceId);

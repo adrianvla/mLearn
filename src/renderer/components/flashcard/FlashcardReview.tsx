@@ -38,6 +38,7 @@ import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, 
 import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
 import './FlashcardReview.css';
 import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../../windows/flashcards/bulkDestructiveConfirm';
+import { ratingLatencyTraceOn } from '../../services/ratingLatencyTrace';
 import { getLogger } from '../../../shared/utils/logger';
 import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision, restoreFlashcardReviewDecision } from './flashcardReviewDecision';
 import { createReviewAssistanceStore, type ReviewAssistance } from '../../learning/reviewAssistance';
@@ -158,7 +159,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return langData[language] ?? (language === settings.language ? currentLangData() : null);
   };
 
-  const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example', silentIfMissing = false) => {
+  // `requested` distinguishes a cue the learner asked for from one the surface
+  // supplied on its own. Only the automatic front TTS passes false, and it is
+  // on by default - so without this flag every ordinary review looks like a
+  // learner-opened reference and takes the acknowledged persistence path.
+  const handlePlayTts = (cardId: string, text: string, field: 'word' | 'example', silentIfMissing = false, requested = true) => {
     const card = currentCard();
     if (!card || card.id !== cardId || ratingWrite() !== null || removalWrite() !== null
       || isRetractionWriteBlocking(retractionWrite()) || assistanceWrite() !== null) return;
@@ -186,7 +191,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             const capabilities = getTestedAccesses({ languageData: languageDataForCard(card), surface: card.content.front,
               hasReadingData: cardHasReadingData(card), hasProsodyData: cardHasProsodyData(card), taskType: 'srs-review' });
             const supplied = getProvidedAccessesForCue(languageDataForCard(card), capabilities, `${field}-audio`);
-            const record = await assistanceStore.provide(scope, { audio: true, ...providedAccessScaffolds(supplied) }, sameEncounter, choiceId);
+            const record = await assistanceStore.provide(scope, { audio: true, ...providedAccessScaffolds(supplied) }, sameEncounter, choiceId, requested);
             if (!record || !sameEncounter()) return false;
             setReferenceAssistance(record);
             setAssistanceWrite(null);
@@ -453,14 +458,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // Scaffold provenance still travels on each observation (see below).
   const commitRating = async (write: ReviewRatingWrite) => {
     setRatingWrite({ ...write, phase: 'pending' });
-    // TEMP DIAGNOSTIC: see FlashcardContext's rating tracer. Enable with
-    // `window.__mlearnTrace = true` in the DevTools console.
-    const traceOn = (() => {
-      try {
-        return (window as unknown as { __mlearnTrace?: boolean }).__mlearnTrace === true
-          || localStorage.getItem('mlearn.ratingTrace') === '1';
-      } catch { return false; }
-    })();
+    // Opt-in latency tracer; see ratingLatencyTrace.
+    const traceOn = ratingLatencyTraceOn();
     const t0 = performance.now();
     try {
       const result = await submitRating(write.card.content.front, write.observations, {
@@ -472,20 +471,42 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         origin: write.origin,
         // The learner-facing transition is an optimistic local transaction.
         //
-        // What decides the durability requirement is whether this response
-        // CONSUMED A CUE - not whether an assistance record exists at all.
-        // Revealing the answer records `revealed` with no scaffolds, and that
-        // is not a retrieval cue: the learner supplied it. Treating that
-        // record as assisted made EVERY rating take the acknowledged path,
-        // which is precisely the latency this restores.
+        // Recording a consumed cue and making that record durable are two
+        // different obligations, and only the second one costs the learner
+        // time. `scaffolds` already travels on the rating command itself:
+        // `applySchedulerRating` folds it into the review KnowledgeEvent as
+        // `scaffolds` plus the derived `retentionCondition`
+        // ('unassisted' | 'assisted' | 'supplied'), and main's
+        // `commitRatingCommands` appends those events to the journal and
+        // commits the store in the SAME atomic library rename - the identical
+        // code path `enqueueFlashcardRating` runs. Nothing about assisted
+        // provenance is lost by not waiting; the only difference is whether
+        // this window holds the card until that rename lands.
         //
-        // A response that did consume a cue (audio, media, a supplied reading
-        // or the answer itself) must stay visible until the journal and
-        // scheduler writes acknowledge, or a closed window would record the
-        // response as assisted while its assistance was never durable.
-        persistence: Object.values(write.scaffolds ?? {}).some(Boolean)
-          || Object.values(write.assistance?.record.scaffolds ?? {}).some(Boolean)
-          ? 'immediate' : 'background',
+        // So the cue does NOT decide the persistence mode. Automatic front
+        // TTS records `{ audio: true }` on every ordinary review whenever
+        // `flashcardAutoTts` is on - the default - which classified the normal
+        // workflow as assisted and put a whole acknowledged store write
+        // (hundreds of ms on a real library) between the keypress and the
+        // next card. Reading the scaffolds to pick the mode is what made the
+        // default path slow.
+        //
+        // What DOES decide it is whether the learner REQUESTED the cue, not
+        // whether a cue exists. Automatic front TTS (`flashcardAutoTts`, on by
+        // default) writes the same localStorage record through the same
+        // `assistanceStore.provide`, so any test on "assistance present" also
+        // matches the unattended default and reinstates the regression. The
+        // `requested` flag is stamped by the two initiators - the reference
+        // drawer and the speaker button - and never by the automatic effect,
+        // so it separates the two cases exactly.
+        //
+        // A learner-requested cue stays on the acknowledged path. That also
+        // matches a rule the store already enforces: submitRating force-
+        // escalates this same command to 'immediate' when a durable cursor
+        // already carries scaffolds for this card (the restored-presentation
+        // branch), which is precisely the case where the localStorage record
+        // being cleared and the durable cursor being written have to agree.
+        persistence: write.assistance?.record.requested ? 'immediate' : 'background',
         ...(write.scaffolds ? { scaffolds: write.scaffolds } : {}),
         scheduler: {
           cardId: write.card.id,
@@ -495,6 +516,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         },
       });
       const afterAwait = performance.now();
+      // Opt-in latency tracer, same switch as the rating tracer in
+      // FlashcardContext. This is the interval the learner feels as latency
+      // between one card and the next, so it is broken down per step rather
+      // than reported as a single number: a regression that puts a durable
+      // write, a whole-queue policy recomputation, or a Solid flush on this
+      // path shows up here as one dominant step.
+      const marks: Array<[string, number]> = [];
+      const mark = (label: string): void => { if (traceOn) marks.push([label, performance.now() - afterAwait]); };
       if (write.assistance) {
         try { await assistanceStore.acknowledge(write.assistance.scope, write.assistance.record); }
         catch (error) {
@@ -504,9 +533,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           showToast({ message: t('mlearn.WordSync.AssistanceSaveFailed'), variant: 'error' });
         }
       }
+      mark('acknowledge');
       batch(() => {
         setShowAnswer(false);
-        // Publish one next encounter after ACK; readiness must not trigger
+        // Publish the next encounter here; readiness must not trigger
         // auto-play for an intermediate selection before the pin advances.
         decisionPin.advance();
         setRatingWrite(null);
@@ -517,9 +547,13 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           referenceEncounter += 1;
           refreshReferenceAssistance();
         }
+        mark('localApply');
         if (result.completed) setCardsAnswered((previous) => previous + 1);
       });
       if (traceOn) {
+        // eslint-disable-next-line no-console
+        console.log(`%c[APPLY] requested=${write.assistance?.record.requested === true}  ${marks.map(([label, ms]) => `${label}=${ms.toFixed(1)}`).join('  ')}`,
+          'color:#e80; font-weight:bold');
         // eslint-disable-next-line no-console
         console.log(`%c[REVIEW] await submitRating=${(afterAwait - t0).toFixed(1)}ms  localApply=${(performance.now() - afterAwait).toFixed(1)}ms`,
           'color:#f80; font-weight:bold');
@@ -633,7 +667,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           hasReadingData: cardHasReadingData(card), hasProsodyData: cardHasProsodyData(card), taskType: 'srs-review' });
         // Front clips can expose sound, subtitles and translation. Treat the
         // whole clip as reference content; do not guess which answer it hides.
-        return assistanceStore.provide(scope, { ...providedAccessScaffolds(capabilities), ...(media ? { media: true } : {}) }, sameEncounter, choiceId);
+        return assistanceStore.provide(scope, { ...providedAccessScaffolds(capabilities), ...(media ? { media: true } : {}) }, sameEncounter, choiceId, true);
       }).then(record => {
         if (!record || !sameEncounter()) return;
         setReferenceAssistance(record);
@@ -733,7 +767,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     if (!encounter || !ready || restoredAssistanceScope() !== assistanceScope(encounter.card) || showAnswer() || !settings.flashcardAutoTts || settings.flashcardMuteAudio
       || automaticAudioEncounter === encounter) return;
     automaticAudioEncounter = encounter;
-    handlePlayTts(encounter.card.id, encounter.card.content.front, 'word', true);
+    handlePlayTts(encounter.card.id, encounter.card.content.front, 'word', true, false);
   });
 
   // Auto-TTS: play example when answer is revealed (waits for word TTS to finish)

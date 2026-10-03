@@ -66,6 +66,39 @@ describe('durable review assistance', () => {
     expect(store.read('one')?.scaffolds.audio).toBe(true);
   });
 
+  // Automatic front TTS and a learner-opened reference drawer write the SAME
+  // record through the same call. The `requested` flag is the only thing that
+  // tells them apart, and the rating's durability route depends on it, so an
+  // unattended cue must never inherit it - and a requested one must never lose
+  // it to a later automatic cue.
+  it('distinguishes an unattended cue from a learner-requested one', async () => {
+    const { store } = fixture();
+    const automatic = await store.provide('one', { audio: true }, undefined, 'choice-1', false);
+    expect(automatic?.requested).toBeUndefined();
+    const requested = await store.provide('one', { audio: true }, undefined, 'choice-2', true);
+    expect(requested?.requested).toBe(true);
+    // Each choice is scoped: the automatic one is still unattended.
+    expect(store.read('one', 'choice-1')?.requested).toBeUndefined();
+    expect(store.read('one', 'choice-2')?.requested).toBe(true);
+  });
+
+  it('keeps a requested cue requested when an automatic cue follows it', async () => {
+    const { store } = fixture();
+    await store.provide('one', { audio: true }, undefined, 'choice-1', true);
+    const later = await store.provide('one', { 'provided-access:future::unknown': true }, undefined, 'choice-1', false);
+    expect(later?.requested).toBe(true);
+  });
+
+  it('rejects a malformed requested flag rather than guessing its meaning', async () => {
+    const { store, values } = fixture();
+    await store.provide('one', { audio: true }, undefined, 'choice-1', true);
+    const key = store.key('one');
+    const raw = JSON.parse(values.get(key)!) as { choices: Record<string, { requested: unknown }> };
+    raw.choices['choice-1']!.requested = 'yes';
+    values.set(key, JSON.stringify(raw));
+    expect(() => store.read('one', 'choice-1')).toThrow('Invalid review assistance record');
+  });
+
   it('propagates refused storage writes and malformed records rather than claiming no assistance', async () => {
     const { store, storage, values } = fixture();
     storage.setItem = () => { throw new Error('quota'); };

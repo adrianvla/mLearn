@@ -46,6 +46,7 @@ import { withCloudAuth } from '../services/cloudSessionManager';
 import { absorbProviderFailure } from '../services/providerFailure';
 import { useLowPowerGate } from './LowPowerGateContext';
 import { stripHtmlForTts } from '../../shared/utils/textUtils';
+import { ratingLatencyTraceOn } from '../services/ratingLatencyTrace';
 import { getLogger } from '../../shared/utils/logger';
 import { createKnownWordSet } from '../utils/knowledgeUtils';
 import { applyFlashcardRatingCommand, ratingCounterDeltas, refusedRatingAttemptIds, type FlashcardRatingCommand, type FlashcardRatingCommit } from '../../shared/flashcardRating';
@@ -534,12 +535,7 @@ const FLASHCARD_CHANNEL = 'mlearn-flashcards';
 // with `window.__mlearnTrace = true`, disable with `false`. Remove this block
 // together with the trace marks once the flush is resolved.
 type RatingTraceMark = { label: string; ms: number };
-const ratingTraceOn = (): boolean => {
-  try {
-    return (globalThis as unknown as { __mlearnTrace?: boolean }).__mlearnTrace === true
-      || localStorage.getItem('mlearn.ratingTrace') === '1';
-  } catch { return false; }
-};
+const ratingTraceOn = ratingLatencyTraceOn;
 const emitRatingTrace = (rows: RatingTraceMark[], total: number): void => {
   // eslint-disable-next-line no-console
   console.log(`%c[RATING] total=${total.toFixed(1)}ms  ${rows.map((r) => `${r.label}=${r.ms.toFixed(1)}`).join('  ')}`,

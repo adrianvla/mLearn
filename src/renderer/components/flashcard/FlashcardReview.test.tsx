@@ -1232,6 +1232,7 @@ describe('FlashcardReview failure attribution', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
     await flushEffects();
     expect(mockPlayedTts).toHaveBeenCalledTimes(1);
+    // The learner pressed play, so this is a requested cue: acknowledged.
     expect(mockSubmitRating).toHaveBeenCalledWith('犬', expect.any(Array), expect.objectContaining({
       persistence: 'immediate', scaffolds: expect.objectContaining({ audio: true }),
     }));
@@ -1404,7 +1405,11 @@ describe('FlashcardReview failure attribution', () => {
     expect(mockPlayedTts).toHaveBeenCalledTimes(1);
     expect(container.querySelector('.flashcard-front')!.textContent).toBe(first.content.front);
     expect(container.textContent).toContain('mlearn.Flashcards.Review.SavingRating');
-    expect(mockSubmitRating).toHaveBeenCalledWith(first.content.front, expect.any(Array), expect.objectContaining({ persistence: 'immediate' }));
+    // Automatic front TTS is an unattended cue: the transition does not wait
+    // on the acknowledgement, but the scaffold still travels with the attempt.
+    expect(mockSubmitRating).toHaveBeenCalledWith(first.content.front, expect.any(Array), expect.objectContaining({
+      persistence: 'background', scaffolds: expect.objectContaining({ audio: true }),
+    }));
     acknowledge();
     await flushEffects();
     expect(container.querySelector('.flashcard-front')!.textContent).toBe(second.content.front);
@@ -1452,10 +1457,11 @@ describe('FlashcardReview failure attribution', () => {
       { capability: 'surface-reading', quality: 'missed' },
     ], expect.objectContaining({
       taskType: 'srs-review',
+      // The consumed cue is attributed to the attempt, and it travels on the
+      // command either way. Automatic playback is unattended, so the response
+      // does not wait on the durable write to leave the screen.
       scaffolds: { audio: true },
-      // A response that consumed an audio cue is recorded AS assisted, so its
-      // assistance has to be durable before the response leaves the screen.
-      persistence: 'immediate',
+      persistence: 'background',
       scheduler: expect.objectContaining({ cardId: 'card-1', rating: 'again', tested: ['sense-recognition', 'surface-reading'] }),
     }));
     dispose();
@@ -1533,7 +1539,7 @@ describe('FlashcardReview failure attribution', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
       await flushEffects();
       expect(mockSubmitRating).toHaveBeenCalledWith('犬', expect.any(Array), expect.objectContaining({
-        persistence: 'immediate', scaffolds: { audio: true, 'provided-access:future:relationship': true },
+        persistence: 'background', scaffolds: { audio: true, 'provided-access:future:relationship': true },
       }));
     } finally { dispose(); }
   });
@@ -1767,8 +1773,17 @@ describe('FlashcardReview Remove asks before it destroys the card', () => {
 // library, and none of that belongs between the keypress and the next card.
 // These run against a realistically large persisted queue - unit fixtures with
 // one or two cards cannot see the O(queue) work this guards.
+//
+// The stub below mirrors the real provider's routing: it blocks for the
+// simulated disk latency ONLY on the acknowledged path, and returns
+// immediately on the background path (which hands ownership to the
+// main-process write queue). That is what makes these assertions about the
+// ROUTE the surface chose, not just about a wall-clock number.
 describe('FlashcardReview rating latency', () => {
   let container: HTMLDivElement;
+
+  /** A durable rating write on a real library, as a whole-store commit costs. */
+  const DURABLE_WRITE_MS = 300;
 
   beforeEach(() => {
     localStorage.clear();
@@ -1793,6 +1808,20 @@ describe('FlashcardReview rating latency', () => {
     mockLanguageData = jaLanguageData;
     mockSaveReviewPresentation.mockImplementation(async (_language, presentation, _expectedId) => {
       await decisionBridge.record(presentation.decision);
+    });
+    // `persistence` is the route: only 'immediate' waits on the durable write.
+    mockSubmitRating.mockImplementation(async (...args: unknown[]) => {
+      const options = args[2] as { persistence?: string; language?: string; decision?: { id: string } };
+      if (options.persistence !== 'background') {
+        await new Promise<void>((resolve) => { setTimeout(resolve, DURABLE_WRITE_MS); });
+      }
+      const cursors = mockReviewPresentations() as Record<string, ReviewPresentation>;
+      if (options.language && cursors[options.language]?.decision?.id === options.decision?.id) {
+        const next = { ...cursors };
+        delete next[options.language];
+        mockReviewPresentations = () => next;
+      }
+      return { attemptId: 'attempt-1', completed: false };
     });
   });
 
@@ -1853,12 +1882,21 @@ describe('FlashcardReview rating latency', () => {
     return performance.now() - started;
   }
 
-  it('advances to the next usable card without waiting for a slow durable write', async () => {
+  /** Far below the durable write: the transition must not have waited for it. */
+  const INTERACTION_BUDGET_MS = DURABLE_WRITE_MS / 2;
+
+  // The DEFAULT configuration. `flashcardAutoTts` is on in a normal install and
+  // it records an `audio` cue on every single review, so a persistence rule
+  // keyed on "did this consume a cue" matches the ordinary workflow and puts a
+  // durable store write between the keypress and the next card. These two are
+  // the regression guard for exactly that.
+  it.each([true, false])('advances immediately with auto-TTS %s while the durable write is still in flight', async autoTts => {
+    mockSettings.flashcardAutoTts = autoTts;
     useLargeQueue();
-    // A cursor write that takes far longer than a frame, as an acknowledged
-    // whole-store write does on a real library.
-    mockSaveReviewPresentation.mockImplementation(async () => {
-      await new Promise<void>(resolve => { setTimeout(resolve, 120); });
+    // The next card's durable cursor write also takes a disk round-trip.
+    mockSaveReviewPresentation.mockImplementation(async (_language, presentation, _expectedId) => {
+      await new Promise<void>((resolve) => { setTimeout(resolve, DURABLE_WRITE_MS); });
+      await decisionBridge.record(presentation.decision);
     });
     const dispose = render(() => <FlashcardReview />, container);
     try {
@@ -1867,10 +1905,47 @@ describe('FlashcardReview rating latency', () => {
       const elapsed = await rateAndAwaitNextCard();
       const shown = container.querySelector('.flashcard-word')?.textContent;
       expect(shown, 'a different card should be interactive').toBeTruthy();
-      expect(shown).not.toBe(container.textContent ?? shown);
+      expect(mockSubmitRating).toHaveBeenCalledWith(expect.any(String), expect.any(Array),
+        expect.objectContaining({ persistence: 'background' }));
       // Generous bound: the point is that it is bounded by frame work, not by
-      // the 120ms write. Before the fix this waited on the acknowledgement.
-      expect(elapsed, `next card took ${elapsed.toFixed(1)}ms`).toBeLessThan(100);
+      // the 300ms write. Before the fix this waited on the acknowledgement.
+      expect(elapsed, `next card took ${elapsed.toFixed(1)}ms`).toBeLessThan(INTERACTION_BUDGET_MS);
+    } finally { dispose(); }
+  });
+
+  it('still attributes the automatic TTS cue to the attempt on the background route', async () => {
+    mockSettings.flashcardAutoTts = true;
+    useLargeQueue();
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      expect(mockPlayedTts).toHaveBeenCalledTimes(1);
+      await clickShowAnswer(container);
+      container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+      await flushEffects();
+      // Taking the background route must not cost the provenance: the cue is
+      // still recorded as consumed, on the command's own events.
+      expect(mockSubmitRating).toHaveBeenCalledWith(expect.any(String), expect.any(Array), expect.objectContaining({
+        persistence: 'background', scaffolds: expect.objectContaining({ audio: true }),
+      }));
+    } finally { dispose(); }
+  });
+
+  it('keeps a learner-requested cue on the acknowledged path so it is durable before the response leaves', async () => {
+    useLargeQueue();
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      // The learner opens the knowledge inspector, not the automatic effect.
+      Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
+      Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
+      await flushEffects();
+      await clickShowAnswer(container);
+      container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+      await flushEffects();
+      expect(mockSubmitRating).toHaveBeenCalledWith(expect.any(String), expect.any(Array), expect.objectContaining({
+        persistence: 'immediate',
+      }));
     } finally { dispose(); }
   });
 
