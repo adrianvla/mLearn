@@ -95,6 +95,7 @@ export const IPC_CHANNELS = {
   GET_FLASHCARDS: 'get-flashcards',
   SAVE_FLASHCARDS: 'save-flashcards',
   SAVE_FLASHCARD_PATCH: 'save-flashcard-patch',
+  SAVE_REVIEW_PRESENTATION: 'save-review-presentation',
   COMMIT_FLASHCARD_RATING: 'commit-flashcard-rating',
   ENQUEUE_FLASHCARD_RATING: 'enqueue-flashcard-rating',
   FLUSH_FLASHCARD_RATINGS: 'flush-flashcard-ratings',

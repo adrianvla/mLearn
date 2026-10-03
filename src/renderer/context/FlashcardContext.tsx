@@ -17,7 +17,7 @@ import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type Flashca
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
-import { applyLearningDecision, isLearningDecision } from '../../shared/learningDecision';
+import { applyLearningDecision } from '../../shared/learningDecision';
 import { clonePendingRetraction, readPendingRetraction, type PendingRetraction, type RetractionTarget, type RetractionReplayDescriptor } from '../../shared/retractionRecovery';
 import { isStaleFlashcardRevision } from '../../shared/flashcardWriteRevision';
 import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
@@ -416,7 +416,7 @@ interface FlashcardContextValue {
     word: string,
     observations: readonly AttemptObservation[],
     options?: RatingSubmissionOptions,
-  ) => Promise<{ attemptId: AttemptId; completed: boolean }>;
+  ) => Promise<{ attemptId: AttemptId; completed: boolean; persisted?: Promise<boolean> }>;
   /** Append retraction tombstones for the given attempts across the word's form keys (undo bookkeeping). */
   appendRetractions: (word: string, language: string, attemptIds: readonly AttemptId[]) => Promise<boolean>;
   /**
@@ -742,6 +742,11 @@ export const FlashcardProvider: ParentComponent = (props) => {
   const optimisticRatingCommands = new Map<string, FlashcardRatingCommand>();
   let refusedRatingsNeedRefresh = false;
   const ratingAcknowledgements = new Set<Promise<void>>();
+  const ratingDurability = new Map<string, { promise: Promise<boolean>; resolve: (saved: boolean) => void }>();
+  const completeRatingDurability = (id: string, saved: boolean): void => {
+    ratingDurability.get(id)?.resolve(saved);
+    ratingDurability.delete(id);
+  };
   const [ratingPersistenceState, setRatingPersistenceState] = createSignal<'idle' | 'pending' | 'failed'>('idle');
 
   const overlayPendingRatings = (target: FlashcardStore): void => {
@@ -754,7 +759,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
     for (const command of pendingRatings.values()) applyFlashcardRatingCommand(target, command, true);
   };
 
-  const sendBackgroundRating = (command: FlashcardRatingCommand): void => {
+  const sendBackgroundRating = (command: FlashcardRatingCommand): Promise<boolean> => {
+    let receipt = ratingDurability.get(command.attemptId);
+    if (!receipt) {
+      let resolve!: (saved: boolean) => void;
+      const promise = new Promise<boolean>(done => { resolve = done; });
+      receipt = { promise, resolve };
+      ratingDurability.set(command.attemptId, receipt);
+    }
     pendingRatings.set(command.attemptId, command);
     optimisticRatingCommands.set(command.attemptId, command);
     setRatingPersistenceState('pending');
@@ -762,12 +774,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
     // window closes before the 300ms batch is written.
     const acknowledgement = getBridge().flashcards.enqueueFlashcardRating(command).then(revision => {
       pendingRatings.delete(command.attemptId);
+      completeRatingDurability(command.attemptId, true);
       setStore('rev', Math.max(store.rev ?? 0, revision));
       if (pendingRatings.size === 0) setRatingPersistenceState('idle');
       requestCompletedReviewUndos();
     }, error => {
       if (refusedRatingAttemptIds(error)?.includes(command.attemptId)) {
         pendingRatings.delete(command.attemptId);
+        completeRatingDurability(command.attemptId, false);
         refusedRatingsNeedRefresh = true;
         setUndoStack(previous => previous.filter(entry => entry.reviewUndo?.attemptId !== command.attemptId));
         authorityRefreshRequired = true;
@@ -784,6 +798,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     });
     ratingAcknowledgements.add(acknowledgement);
     void acknowledgement.finally(() => ratingAcknowledgements.delete(acknowledgement));
+    return receipt.promise;
   };
 
   const flushBackgroundRatings = async (): Promise<void> => {
@@ -801,6 +816,7 @@ export const FlashcardProvider: ParentComponent = (props) => {
     if (rev < currentRevision) return;
     for (const attemptId of attemptIds) {
       pendingRatings.delete(attemptId);
+      completeRatingDurability(attemptId, true);
       optimisticRatingCommands.delete(attemptId);
     }
     if (pendingRatings.size === 0) setRatingPersistenceState('idle');
@@ -2554,13 +2570,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const dailyBefore = target.dailyStats[today]?.[language]
       ? { ...target.dailyStats[today][language] }
       : null;
-    // The acknowledged scheduler transaction also consumes the restored
-    // presentation; assistance remains durable until this same write lands.
+    // Consume this encounter even if its background cursor ACK has not reached
+    // the renderer. The owner condition protects a peer's successor cursor.
     const restored = target.meta.reviewPresentations?.[language];
-    if (restored?.cardId === card.id && restored.id === presentationId) {
-      delete target.meta.reviewPresentations![language];
+    const choiceId = options.decision?.id ?? presentationId;
+    if (choiceId) {
+      if (restored?.cardId === card.id && restored.id === choiceId) delete target.meta.reviewPresentations![language];
       const path = ['meta', 'reviewPresentations', language];
-      patch?.remove(path, { path: [...path, 'id'], equals: restored.id });
+      patch?.remove(path, { path: [...path, 'id'], equals: choiceId });
     }
     target.flashcards[card.id] = updated;
     const perLanguage = target.meta.perLanguage[language] ?? {
@@ -2862,28 +2879,22 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   const saveReviewPresentation = async (language: string, presentation: ReviewPresentation, expectedId: string | null): Promise<void> => {
+    if (libraryLoadError()) throw new Error('The saved library must be loaded before the review position can be saved');
     const frozen = JSON.parse(JSON.stringify(presentation)) as ReviewPresentation;
-    if (!isLearningDecision(frozen.decision) || frozen.cardId !== frozen.decision.selected.key || frozen.id !== frozen.decision.id) {
-      throw new Error('Invalid saved review choice');
-    }
-    const cue = frozen.decision.selected.presentation;
-    const matchesCard = (target: FlashcardStore) => {
-      const card = target.flashcards[frozen.cardId];
-      return !!card && !card.suspended && !card.buried && cue?.cardId === card.id
-        && cue.surface === card.content.front && cue.language === (card.language || language)
-        && (cue.contentVersion === undefined || cue.contentVersion === SRS.hashWordSync(JSON.stringify(card.content)));
-    };
-    // Durable technical audit precedes the resumable cursor. Neither is evidence.
-    await getBridge().knowledgeEvents.recordLearningDecision(frozen.decision);
-    const existing = store.meta.reviewPresentations?.[language];
-    if (existing?.id === frozen.id && JSON.stringify(existing) === JSON.stringify(frozen) && matchesCard(store)) return;
-    const validate = (target: FlashcardStore) => matchesCard(target)
-      && (target.meta.reviewPresentations?.[language]?.id ?? null) === expectedId;
-    if (!await saveFlashcardsImmediate((target, intent) => {
-      (target.meta.reviewPresentations ??= {})[language] = frozen;
-      intent.meta = { reviewPresentations: { [language]: frozen } };
-    }, undefined, undefined, { removedCardIds: [], validate, recomputeOnRebase: true }, 'review-presentation')) {
-      throw new Error('The review position could not be saved');
+    const card = store.flashcards[frozen.cardId];
+    if (!card) return; // An encounter removed before its background save is obsolete.
+    const captured = JSON.parse(JSON.stringify(unwrap(card))) as Flashcard;
+    // Audit is durable before the cursor, and is independently available to rating admission.
+    await getBridge().knowledgeEvents.recordLearningDecision(frozen.decision!);
+    try {
+      const commit = await getBridge().flashcards.saveReviewPresentation({ language, presentation: frozen, expectedId, card: captured });
+      if (commit) handleRatingCommit(commit);
+    } catch (error) {
+      if (String(error).includes('replaced by another window')) {
+        authorityRefreshRequired = true;
+        await requestAuthorityStore();
+      }
+      throw error;
     }
   };
 
@@ -4328,7 +4339,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     word: string,
     observations: readonly AttemptObservation[],
     options?: RatingSubmissionOptions,
-  ): Promise<{ attemptId: AttemptId; completed: boolean }> => {
+  ): Promise<{ attemptId: AttemptId; completed: boolean; persisted?: Promise<boolean> }> => {
     if (ratingCommandInFlight) throw new Error('A rating command is already being persisted');
     if (libraryLoadError()) throw new Error('The saved library must be loaded before a response can be saved');
     if (ratingPersistenceState() === 'failed') throw new Error('Pending ratings need persistence retry');
@@ -4386,25 +4397,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         for (const [key, value] of Object.entries(restored.scaffolds ?? {})) {
           if (value === true) scaffolds[key] = true;
         }
-        // Escalate to the acknowledged route only when there is an inherited
-        // cue to protect. The merge above does not depend on this: it runs
-        // before `applySchedulerRating`, which reads the same `scaffolds` to
-        // derive `retentionCondition` and writes them onto the review event, on
-        // either route. So a cursor that carries no scaffold changes nothing
-        // about this response, and consuming it needs no acknowledgement.
-        //
-        // Escalating unconditionally put a whole acknowledged store write
-        // between the rating keypress and the next card on every rating of a
-        // resumed card. A cursor that exists only to say "this is where you
-        // were" carries no assistance at all - `scaffolds: undefined` - and
-        // that is the normal state of a resumed library, so this matched the
-        // ordinary workflow rather than an assisted one.
-        options = {
-          ...options,
-          language,
-          scaffolds,
-          ...(Object.keys(scaffolds).length ? { persistence: 'immediate' as const } : {}),
-        };
+        options = { ...options, language, scaffolds };
       }
       if (!admitted) {
         const envelope = JSON.parse(JSON.stringify({ word, observations, options, presentationId, cardFront: card?.content.front })) as {
@@ -4460,6 +4453,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         (eventsByKey[entry.event.key] ??= []).push(entry.event.value);
       }
 
+      let persisted: Promise<boolean> | undefined;
       let schedulerResult: ReturnType<typeof applySchedulerRating> | undefined;
       if (scheduler) {
         schedulerResult = applySchedulerRating(candidate, queue(), scheduler, attemptId, options ?? {}, observations.length > 0, patchRecorder, presentationId);
@@ -4568,7 +4562,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             recalculateWordStats(statsKey);
             patchRecorder.set(['wordStatsMap', statsKey], unwrap(store.wordStatsMap[statsKey]));
             const patch = patchRecorder.build(commandBase.rev ?? 0);
-            sendBackgroundRating(JSON.parse(JSON.stringify({ attemptId, events: eventsByKey, patch,
+            persisted = sendBackgroundRating(JSON.parse(JSON.stringify({ attemptId, events: eventsByKey, patch,
               decisionId: options?.decision?.id,
               ...(options?.decision ? { presentation: { cardId: scheduler!.cardId, language, surface: word,
                 ...(options.decision.selected.presentation?.contentVersion !== undefined
@@ -4601,7 +4595,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       if (ratingTraceOn()) __rows.push({ label: 'rest', ms: performance.now() - __t0 });
       if (ratingTraceOn()) emitRatingTrace(__rows, performance.now() - __t0);
       admittedRatingCommands.delete(attemptId);
-      return { attemptId, completed: schedulerResult?.completed ?? true };
+      return { attemptId, completed: schedulerResult?.completed ?? true, ...(persisted ? { persisted } : {}) };
     } finally {
       ratingCommandInFlight = false;
       drainPendingRecovery();

@@ -1,0 +1,35 @@
+# Flashcard Review interaction ownership
+
+The displayed encounter owns its captured card, learning decision, package-declared task capabilities, and knowledge presentation. A cursor acknowledgment, journal revision, or knowledge refresh does not create another encounter. Rating advances the encounter locally; durable persistence runs behind it.
+
+## Presentation and evidence
+
+`FlashcardReview` pins a physical encounter in `useDecisionPin`. The card and materialized knowledge used by `FlashcardWordTitle` are snapshots. If knowledge has not hydrated when the encounter is selected, its presentation stays neutral for that encounter. The next encounter can use newer knowledge.
+
+The rating profile is selected once for the encounter. An asynchronous graph projection resolves once for that encounter and controls evidence admission, without changing the displayed rows. Ratings require a successful projection and supported capabilities. Unknown package capability identifiers remain open-ended. Live knowledge consumers outside review keep their journal/threshold subscriptions.
+
+The interaction phase is question, revealed, or complete. Pending cursor, assistance, rating, removal, and retraction writes do not supply additional presentation phases. Failures remain visible and recoverable, with controls blocked where continuing would compromise correctness.
+
+Actual peer card edits, schedule changes, removal, exclusion, or task changes invalidate the encounter. Derived retention-cache changes and cursor updates do not. A peer rating must retire a revealed encounter even when the card remains in the learning queue. A conflicting successor cursor is recovered explicitly by adopting the saved peer position.
+
+## Persistence
+
+`FlashcardContext.submitRating` applies the existing sparse optimistic rating command and returns a durability receipt. The command carries evidence, decision audit linkage, scheduler changes, Undo, and assistance provenance. Requested assistance and restored assistance use the same background command; they do not require a separate acknowledged interaction route.
+
+The receipt resolves successfully only when the command is acknowledged or committed. Recoverable I/O failures retain the receipt and assistance through persistence retry; terminal admission refusals resolve it unsuccessfully. Undo, crash recovery, and stale-write validation continue to use the existing authoritative writer and journal.
+
+Review cursor writes use `flashcards.saveReviewPresentation`, a sparse command containing the captured card, decision, and expected cursor owner. They bypass the renderer whole-store save/flush/reconciliation path. At the authoritative writer, earlier admitted ratings settle first; an obsolete cursor for a changed card is discarded, and a competing cursor owner is rejected. Successful cursor writes broadcast a sparse commit. Atomic library disk writes still occur and can be slow, but they are not awaited by the next local rating interaction.
+
+Answer exposure is a monotonic local recovery marker keyed by physical encounter. It requires no shared cue read/modify/write lock, so revealing the answer cannot queue behind automatic audio or delayed cue cleanup. Shared assistance still merges under its existing lock. Cleanup runs after durable rating acknowledgment and compares both cue revision and exposure revision, preserving newer peer exposure. Audio that has not actually been admitted/played is not fabricated as assistance.
+
+## Verification boundary (2026-10-03)
+
+Real Electron validation used isolated copies of the existing 1,202-card persisted library, journal, installed language packages, settings, and media. No acceptance ratings were intentionally applied to the original profile. The copied settings enabled auto-TTS but muted it; both the normal copied configuration and an additional unmuted auto-TTS run were exercised.
+
+The final unmuted run completed 20 consecutive ordinary ratings with 1.1 seconds question dwell and 0.35 seconds revealed dwell. Keypress to next usable question, sampled at animation frames: p50 17.3 ms, p95 24.7 ms, maximum 28.3 ms. Whole-store operations around 1.6–1.8 seconds continued in the background. DOM captures recorded only question/revealed phases, no status banners, and no same-encounter word, title-color, or rating-profile changes. These are local measurements, not a universal latency guarantee.
+
+All 20 ratings had journal decision-audit links and durable Undo records; 13 recorded audio assistance. After draining background work, no rating commands remained uncommitted and SQLite quick_check returned ok. Live Undo returned the actual rated card. A forced process kill/restart restored the exact undone encounter ID and revealed-answer state. Two real Electron renderer windows exercised peer rating invalidation, cursor conflict, and explicit recovery to the authoritative successor.
+
+Automated validation: 631 tests across 13 directly affected suites passed, plus 68 provider persistence/recovery/Undo cases. Both TypeScript configurations, the production build (including its splash asset check), and diff checks passed. The complete provider suite has four unrelated grammar-panel failures (374 passed); the same four failures were independently reproduced on the untouched starting implementation and tests. Those failures are outside this cleanup.
+
+Missing images remained a local image-unavailable state. Unrelated Anki synchronization failures did not supply review phases. Desktop and 580-pixel narrow screenshots were inspected. Baseline runtime capture stopped after seven ratings when the question disappeared following a cursor-save failure; it is not a completed 20-rating baseline or a comparable tail-latency sample.

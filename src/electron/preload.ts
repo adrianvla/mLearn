@@ -1,3 +1,4 @@
+import type { ReviewPresentationWrite } from '../shared/reviewPresentationWrite';
 import type { FlashcardAudioPreset } from '../shared/types';
 import type { EffectiveThresholds } from '../shared/knowledge/effectiveKnowledge';
 /**
@@ -112,6 +113,8 @@ const mLearnIPC = {
 
   // ========== Flashcards ==========
   commitFlashcardRating: (command: FlashcardRatingCommand): Promise<FlashcardRatingCommit> => ipcRenderer.invoke(IPC_CHANNELS.COMMIT_FLASHCARD_RATING, command),
+  saveReviewPresentation: (command: ReviewPresentationWrite): Promise<FlashcardRatingCommit | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.SAVE_REVIEW_PRESENTATION, command),
   enqueueFlashcardRating: (command: FlashcardRatingCommand): Promise<number> =>
     ipcRenderer.invoke(IPC_CHANNELS.ENQUEUE_FLASHCARD_RATING, command),
   flushFlashcardRatings: (): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.FLUSH_FLASHCARD_RATINGS),

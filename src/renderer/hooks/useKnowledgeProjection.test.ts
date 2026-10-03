@@ -86,4 +86,24 @@ describe('useKnowledgeProjection', () => {
     root.dispose();
   });
 
+  it('freezes a review projection across threshold changes and refreshes on the next physical encounter', async () => {
+    query.mockReset().mockResolvedValue(payload);
+    const root = createRoot(dispose => {
+      const [known, setKnown] = createSignal(1.8);
+      const [encounter, setEncounter] = createSignal('first');
+      settings = { easeThresholdLearning: 1.55, get easeThresholdKnown() { return known(); } };
+      return { dispose, setKnown, setEncounter,
+        state: useKnowledgeProjection(() => ({ language: 'pkg', surface: 'same-card' }), encounter) };
+    });
+    await vi.waitFor(() => expect(root.state.projection()).toEqual(payload));
+    root.setKnown(2.4);
+    await Promise.resolve();
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(root.state.loading()).toBe(false);
+    root.setEncounter('second');
+    await vi.waitFor(() => expect(query).toHaveBeenCalledTimes(2));
+    expect(query).toHaveBeenLastCalledWith('pkg', 'same-card', { learning: 1.55, known: 2.4 });
+    root.dispose();
+  });
+
 });

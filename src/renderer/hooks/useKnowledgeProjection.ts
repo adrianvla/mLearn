@@ -1,6 +1,6 @@
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import { useSettings } from '../context/SettingsContext';
-import { createEffect, createMemo, createSignal, onCleanup, type Accessor } from 'solid-js';
+import { batch, untrack, createEffect, createMemo, createSignal, onCleanup, type Accessor } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
 import type { KnowledgeProjection } from '../../shared/graph/ipc';
 import { eventsVersion } from '../services/knowledgeEvents';
@@ -13,19 +13,22 @@ export interface ProjectionQuery {
 /** Active consumers request one surface, sharing in-flight queries within a journal revision. */
 const pending = new Map<string, Promise<KnowledgeProjection>>();
 
-export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefined>) {
+export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefined>, encounter?: Accessor<unknown>) {
   const { settings } = useSettings();
   const [projection, setProjection] = createSignal<KnowledgeProjection>();
   const [loading, setLoading] = createSignal(false);
   const [retryVersion, setRetryVersion] = createSignal(0);
   createEffect(() => {
     retryVersion();
+    encounter?.();
     const input = query();
-    const version = eventsVersion();
-    const thresholds = effectiveThresholds(settings);
+    // Review snapshots resolve once per physical encounter. Live inspectors
+    // retain their normal revision/threshold subscriptions.
+    const version = encounter ? untrack(eventsVersion) : eventsVersion();
+    const thresholds = encounter ? untrack(() => effectiveThresholds(settings)) : effectiveThresholds(settings);
     if (!input?.surface) { setProjection(undefined); setLoading(false); return; }
     let disposed = false;
-    setLoading(true);
+    batch(() => { if (encounter) setProjection(undefined); setLoading(true); });
     const key = JSON.stringify([input.language, input.surface, version, thresholds.learning, thresholds.known]);
     let request = pending.get(key);
     if (!request) {
@@ -34,9 +37,9 @@ export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefin
       void request.finally(() => pending.delete(key)).catch(() => undefined);
     }
     void request.then((value) => {
-      if (!disposed) { setProjection(value); setLoading(false); }
+      if (!disposed) batch(() => { setProjection(value); setLoading(false); });
     }, () => {
-      if (!disposed) { setProjection({ status: 'error', targets: [] }); setLoading(false); }
+      if (!disposed) batch(() => { setProjection({ status: 'error', targets: [] }); setLoading(false); });
     });
     onCleanup(() => { disposed = true; });
   });

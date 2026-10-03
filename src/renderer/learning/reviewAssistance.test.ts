@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createReviewAssistanceStore } from './reviewAssistance';
 
 function fixture() {
@@ -31,6 +31,33 @@ describe('durable review assistance', () => {
     expect(resumed.read('one', 'original-choice')).not.toBeNull();
     await resumed.acknowledge('one', resumed.read('one', 'original-choice'));
     expect(resumed.read('one', 'original-choice')).toBeNull();
+  });
+
+  it('records answer exposure synchronously even while shared cue admission is blocked', async () => {
+    const { storage } = fixture();
+    let release!: () => void;
+    const blocked = new Promise<void>(resolve => { release = resolve; });
+    const locks = { request: vi.fn(async (_name: string, callback: () => void | Promise<void>) => {
+      await blocked;
+      await callback();
+    }) };
+    const store = createReviewAssistanceStore(storage, locks);
+    const audio = store.provide('one', { audio: true }, undefined, 'choice');
+    const revealed = store.reveal('one', 'choice');
+    expect(store.read('one', 'choice')?.revealed).toBe(true);
+    await expect(revealed).resolves.toMatchObject({ revealed: true });
+    expect(locks.request).toHaveBeenCalledTimes(1); // only the shared cue waits
+    release();
+    await audio;
+    expect(store.read('one', 'choice')).toMatchObject({ revealed: true, scaffolds: { audio: true } });
+  });
+
+  it('cannot clear a later exposure of the same choice with an older acknowledgment', async () => {
+    const { store } = fixture();
+    const old = await store.reveal('one', 'same-choice');
+    const next = await store.reveal('one', 'same-choice');
+    await store.acknowledge('one', old);
+    expect(store.read('one', 'same-choice')).toEqual(next);
   });
 
   it('retains both choice exposures when an older window reveals after a newer one', async () => {
@@ -68,7 +95,7 @@ describe('durable review assistance', () => {
 
   // Automatic front TTS and a learner-opened reference drawer write the SAME
   // record through the same call. The `requested` flag is the only thing that
-  // tells them apart, and the rating's durability route depends on it, so an
+  // tells them apart in the reference UI and diagnostics, so an
   // unattended cue must never inherit it - and a requested one must never lose
   // it to a later automatic cue.
   it('distinguishes an unattended cue from a learner-requested one', async () => {

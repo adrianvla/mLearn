@@ -1,3 +1,4 @@
+import { reviewPresentationPatch } from '../reviewPresentationWrite';
 import { createMobileLibraryStore, MOBILE_LIBRARY_KEYS } from './mobileLibraryStore';
 import { staleFlashcardRevisionMessage } from '../flashcardWriteRevision';
 import { scopeSiblingEvent } from '../knowledge/siblingHistory';
@@ -507,6 +508,15 @@ const flashcardBridge: FlashcardBridge = {
   async commitFlashcardRating(command) {
     const rev = await this.enqueueFlashcardRating(command);
     return { patch: command.patch, rev, attemptIds: [command.attemptId] };
+  },
+  async saveReviewPresentation(command) {
+    let patch: StorePatch | null = null;
+    const committed = await mobileLibrary.update(store => {
+      patch = reviewPresentationPatch(store, command);
+      if (patch) applyStorePatch(store as unknown as Record<string, unknown>, patch);
+      return store;
+    });
+    return patch ? { patch, rev: committed.rev!, attemptIds: [] } : null;
   },
   async enqueueFlashcardRating(command) {
     if (!await knowledgeEventsBridge.appendKnowledgeEvents(command.events)) throw new Error('Rating journal append refused');

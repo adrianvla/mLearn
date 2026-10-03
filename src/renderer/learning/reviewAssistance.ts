@@ -7,12 +7,12 @@ export interface ReviewAssistance {
   /** This physical choice owns its cues and answer exposure, across windows. */
   choiceId?: string;
   revealed?: true;
+  /** Identity of the separately saved, monotonic answer-exposure marker. */
+  exposureRevision?: string;
   /**
-   * The learner asked for this cue (a reference drawer they opened, or a
-   * speaker button they pressed) rather than the surface supplying it on its
-   * own (automatic front TTS). It changes the DURABILITY ROUTE of the rating
-   * that consumes it, never its provenance: both kinds travel on the rating
-   * command's events. See FlashcardReview's persistence selection.
+   * The learner asked for this cue rather than automatic front TTS supplying
+   * it. Both kinds travel on the atomic rating command; the flag describes
+   * the learner's action for presentation and diagnostics, not a save route.
    */
   requested?: true;
 }
@@ -31,6 +31,15 @@ export function createReviewAssistanceStore(
   locks: StudySessionLocks | null,
 ) {
   const key = (scope: string) => `mlearn-review-assistance:${encodeURIComponent(scope)}`;
+  const exposureKey = (scope: string, choiceId: string) => `${key(scope)}:exposure:${encodeURIComponent(choiceId)}`;
+  const readExposure = (scope: string, choiceId?: string): { revision: string } | null => {
+    if (!choiceId) return null;
+    const raw = storage.getItem(exposureKey(scope, choiceId));
+    if (raw === null) return null;
+    const record = JSON.parse(raw) as { revision?: unknown };
+    if (!record || typeof record.revision !== 'string' || !record.revision) throw new Error('Invalid review answer exposure');
+    return { revision: record.revision };
+  };
   const validScaffolds = (value: unknown): value is AttemptScaffolds => !!value && typeof value === 'object'
     && !Array.isArray(value) && Object.values(value).every(flag => flag === true);
   const readStored = (scope: string): StoredAssistance | null => {
@@ -55,7 +64,10 @@ export function createReviewAssistanceStore(
   };
   const read = (scope: string, choiceId?: string): ReviewAssistance | null => {
     const record = readStored(scope);
-    return record ? view(record, choiceId) : null;
+    const exposure = readExposure(scope, choiceId);
+    if (!record && !exposure) return null;
+    const result = record ? view(record, choiceId) : { revision: exposure!.revision, scaffolds: {}, choiceId };
+    return { ...result, ...(exposure ? { revealed: true, exposureRevision: exposure.revision } : {}) };
   };
   const provide = async (scope: string, scaffolds: AttemptScaffolds, isCurrent?: () => boolean,
     choiceId?: string, requested = false): Promise<ReviewAssistance | null> => {
@@ -67,33 +79,33 @@ export function createReviewAssistanceStore(
       own.scaffolds = Object.fromEntries([...Object.entries(own.scaffolds), ...Object.entries(scaffolds)]
         .filter(([, value]) => value === true));
       // A learner-requested cue stays learner-requested for this choice even if
-      // an automatic one follows it: the stronger provenance wins, so a rating
-      // can never be downgraded by a second, unattended cue.
+      // an automatic one follows it: the learner intent survives a second unattended cue.
       if (requested) own.requested = true;
       record.revision = nextAttemptId();
       storage.setItem(key(scope), JSON.stringify(record));
-      result = view(record, choiceId);
+      result = read(scope, choiceId);
     });
     return result;
   };
   const reveal = async (scope: string, choiceId: string, isCurrent?: () => boolean): Promise<ReviewAssistance | null> => {
-    let result: ReviewAssistance | null = null;
-    await (locks ?? inProcessStudySessionLocks).request(key(scope), () => {
-      if (isCurrent && !isCurrent()) return;
-      const record = readStored(scope) ?? { revision: nextAttemptId(), scaffolds: {} };
-      const own = (record.choices ??= {})[choiceId] ??= { scaffolds: {} };
-      own.revealed = true;
-      record.revision = nextAttemptId();
-      storage.setItem(key(scope), JSON.stringify(record));
-      result = view(record, choiceId);
-    });
-    return result;
+    if (isCurrent && !isCurrent()) return null;
+    // A monotonic marker for ONE choice has no shared read/modify/write step.
+    // Recording it cannot erase another window's cues or exposure, so it needs
+    // no Web Lock and never waits behind browser/main background disk work.
+    // Read first: malformed cue/exposure state must still refuse the reveal.
+    read(scope, choiceId);
+    storage.setItem(exposureKey(scope, choiceId), JSON.stringify({ revision: nextAttemptId() }));
+    return read(scope, choiceId);
   };
   const acknowledge = async (scope: string, expected: ReviewAssistance | null): Promise<void> => {
     if (!expected) return;
     await (locks ?? inProcessStudySessionLocks).request(key(scope), () => {
       const record = readStored(scope);
-      if (!record || record.revision !== expected.revision) return;
+      if (record && record.revision !== expected.revision) return;
+      const exposure = readExposure(scope, expected.choiceId);
+      if (exposure && exposure.revision !== expected.exposureRevision) return;
+      if (exposure && expected.choiceId) storage.removeItem(exposureKey(scope, expected.choiceId));
+      if (!record) return;
       if (expected.choiceId) delete record.choices?.[expected.choiceId];
       record.scaffolds = {};
       if (Object.keys(record.choices ?? {}).length) {
@@ -102,5 +114,5 @@ export function createReviewAssistanceStore(
       } else storage.removeItem(key(scope));
     });
   };
-  return { key, read, provide, reveal, acknowledge };
+  return { key, exposureKey, read, provide, reveal, acknowledge };
 }

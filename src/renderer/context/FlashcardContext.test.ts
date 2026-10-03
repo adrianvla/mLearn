@@ -1,3 +1,4 @@
+import { reviewPresentationPatch, type ReviewPresentationWrite } from '../../shared/reviewPresentationWrite';
 import { RatingAdmissionRefusal, type FlashcardRatingCommand } from '../../shared/flashcardRating';
 import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
@@ -54,6 +55,7 @@ const mockBridge = {
     getFlashcards: vi.fn(),
     saveFlashcards: vi.fn(),
     saveFlashcardPatch: vi.fn(),
+    saveReviewPresentation: vi.fn(),
     enqueueFlashcardRating: vi.fn().mockResolvedValue(1),
     commitFlashcardRating: vi.fn(),
     flushFlashcardRatings: vi.fn().mockResolvedValue(undefined),
@@ -531,7 +533,7 @@ type FlashcardCtx = {
     sourceVersions?: EventSourceVersions;
     persistence?: 'immediate' | 'background';
     scheduler?: { cardId: string; rating: Rating; timeSpentMs?: number; tested?: readonly CapabilityKind[] };
-  }) => Promise<{ attemptId: AttemptId; completed: boolean }>;
+  }) => Promise<{ attemptId: AttemptId; completed: boolean; persisted?: Promise<boolean> }>;
   getCurrentCard: () => Flashcard | null;
   ratingPersistenceState: () => 'idle' | 'pending' | 'failed';
   retryRatingPersistence: () => Promise<void>;
@@ -761,6 +763,13 @@ function resetProviderTestHarness() {
       target.rev = revision;
       applyStorePatch(target as unknown as Record<string, unknown>, patch);
       return mockBridge.flashcards.saveFlashcards(target, removals, reset, authorization);
+    });
+    mockBridge.flashcards.saveReviewPresentation.mockReset().mockImplementation(async (command: ReviewPresentationWrite) => {
+      const current = committed ?? delivered ?? makeEmptyStore();
+      const patch = reviewPresentationPatch(current, command);
+      if (!patch) return null;
+      const rev = patch.entries.length ? await mockBridge.flashcards.saveFlashcardPatch(patch) : current.rev ?? 0;
+      return { patch, rev, attemptIds: [] };
     });
     mockBridge.kvStore.kvGet.mockResolvedValue(null);
     mockBackend.ping.mockResolvedValue(true);
@@ -1149,12 +1158,17 @@ describe('FlashcardProvider', () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'background-retry', state: 'review', reviews: 2, dueDate: Date.now() - 1000 });
     flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
-    await ctx.submitRating(card.content.front, [], { persistence: 'background', scheduler: { cardId: card.id, rating: 'good' } });
+    const result = await ctx.submitRating(card.content.front, [], { persistence: 'background', scheduler: { cardId: card.id, rating: 'good' } });
     await vi.waitFor(() => expect(ctx.ratingPersistenceState()).toBe('failed'));
+    const durable = vi.fn();
+    void result.persisted!.then(durable);
+    await Promise.resolve();
+    expect(durable).not.toHaveBeenCalled();
     expect(ctx.store.flashcards[card.id].reviews).toBe(3);
     await ctx.retryRatingPersistence();
     expect(mockBridge.flashcards.enqueueFlashcardRating.mock.calls[0]).toEqual(mockBridge.flashcards.enqueueFlashcardRating.mock.calls[1]);
     expect(ctx.ratingPersistenceState()).toBe('idle');
+    await expect(result.persisted).resolves.toBe(true);
     expect(ctx.store.flashcards[card.id].reviews).toBe(3);
     dispose();
   });
@@ -1404,8 +1418,8 @@ describe('FlashcardProvider', () => {
 
   // The scaffold merge itself is unaffected by the route: it runs before the
   // scheduler derives the retention condition, so a cue the caller tried to
-  // erase is still recorded - and the response still waits for it to be durable.
-  it('keeps the acknowledged route when the restored cursor actually carries assistance', async () => {
+  // erase is still recorded on the durable background command.
+  it('keeps restored assistance on the background command without forcing an acknowledged write', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'resumed-assisted', language: 'ja', state: 'review', reviews: 3,
       interval: 86_400_000, dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'school' } });
@@ -1421,13 +1435,13 @@ describe('FlashcardProvider', () => {
         persistence: 'background',
         scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
       });
-      const events = mockAppendEvents.mock.calls.flatMap(([byKey]) =>
-        Object.values(byKey as Record<string, Array<Record<string, unknown>>>).flat());
+      const events = mockBridge.flashcards.enqueueFlashcardRating.mock.calls.flatMap(([command]) =>
+        Object.values((command as FlashcardRatingCommand).events).flat());
       expect(events.find(event => event.schedulerCardId === card.id)).toMatchObject({
         retentionCondition: 'supplied', scaffolds: { 'provided-access:sense-recognition': true },
       });
-      expect(mockBridge.flashcards.commitFlashcardRating).toHaveBeenCalledTimes(1);
-      expect(mockBridge.flashcards.enqueueFlashcardRating).not.toHaveBeenCalled();
+      expect(mockBridge.flashcards.commitFlashcardRating).not.toHaveBeenCalled();
+      expect(mockBridge.flashcards.enqueueFlashcardRating).toHaveBeenCalledTimes(1);
     } finally { dispose(); }
   });
 

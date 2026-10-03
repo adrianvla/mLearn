@@ -1,3 +1,4 @@
+import type { ReviewPresentationWrite } from './reviewPresentationWrite';
 import type { FlashcardAudioPreset } from './types';
 import type { EffectiveThresholds } from './knowledge/effectiveKnowledge';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from './flashcardRating';
@@ -19,6 +20,7 @@ import type { GraphRelationType } from './graph/types';
 
 export interface MLearnIPC {
   commitFlashcardRating: (command: FlashcardRatingCommand) => Promise<FlashcardRatingCommit>;
+  saveReviewPresentation: (command: ReviewPresentationWrite) => Promise<FlashcardRatingCommit | null>;
   enqueueFlashcardRating: (command: FlashcardRatingCommand) => Promise<number>;
   flushFlashcardRatings: () => Promise<void>;
   onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) => () => void;

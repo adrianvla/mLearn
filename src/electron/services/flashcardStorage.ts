@@ -1,3 +1,4 @@
+import { reviewPresentationPatch, type ReviewPresentationWrite } from '../../shared/reviewPresentationWrite';
 import { reconcileFlashcardActionOwners } from '../../shared/flashcardActionUndo';
 /**
  * Flashcard Storage Service
@@ -1183,6 +1184,27 @@ export async function saveFlashcardPatch(
   });
 }
 
+/** Cursor persistence is background work with its own sparse command, never a renderer store save. */
+export async function saveReviewPresentation(command: ReviewPresentationWrite): Promise<FlashcardRatingCommit | null> {
+  const captured = JSON.parse(JSON.stringify(command)) as ReviewPresentationWrite;
+  await flushFlashcardRatings();
+  return enqueueWrite(async () => {
+    await recoverAdmittedRatingsBeforeWrite();
+    const filePath = getFlashcardsPath();
+    const current = cachedStorePath === filePath && cachedStore
+      ? cachedStore : await loadFlashcardsFromDisk(filePath, loaded => writeStore(loaded, [], false));
+    const patch = reviewPresentationPatch(current, captured);
+    if (!patch) return null;
+    const rev = patch.entries.length ? await writeStore(copyStoreWithPatch(current, patch), [], false) : current.rev ?? 0;
+    const commit = { patch, rev, attemptIds: [] };
+    for (const window of BrowserWindow.getAllWindows()) {
+      try { if (!window.isDestroyed()) window.webContents.send(IPC_CHANNELS.FLASHCARD_RATINGS_COMMITTED, commit); }
+      catch (error) { log.warn('Failed to notify a window about its review position:', error); }
+    }
+    return commit;
+  });
+}
+
 export async function getFlashcardEaseMap(): Promise<Record<string, number>> {
   const store = await loadFlashcards();
   const map: Record<string, number> = {};
@@ -1233,6 +1255,8 @@ export function setupFlashcardIPC(): void {
   ipcMain.handle(IPC_CHANNELS.SAVE_FLASHCARDS, (_event, store: FlashcardStore, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => {
     return saveFlashcards(store, removedCardIds, resetReviewProgress, authorization);
   });
+
+  ipcMain.handle(IPC_CHANNELS.SAVE_REVIEW_PRESENTATION, (_event, command: ReviewPresentationWrite) => saveReviewPresentation(command));
 
   ipcMain.handle(IPC_CHANNELS.SAVE_FLASHCARD_PATCH, (_event, patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => {
     return saveFlashcardPatch(patch, removedCardIds, resetReviewProgress, authorization);

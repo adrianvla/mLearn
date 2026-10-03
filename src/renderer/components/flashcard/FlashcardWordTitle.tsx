@@ -1,3 +1,4 @@
+import type { AccessStatusResult } from '../../utils/accessKnowledge';
 /**
  * FlashcardWordTitle Component
  * Displays a flashcard word title with metadata-driven reading annotations and prosody.
@@ -25,7 +26,15 @@ import { extractProsodyData } from '../../utils/translationCacheParsers';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import './FlashcardWordTitle.css';
 
+/** Immutable knowledge presentation selected for one review encounter. */
+export interface FlashcardPresentationKnowledge {
+  ready: boolean;
+  wordKnown: boolean;
+  accesses: Readonly<Record<string, AccessStatusResult>>;
+}
+
 export interface FlashcardWordTitleProps {
+  knowledge?: FlashcardPresentationKnowledge;
   content: FlashcardContent;
   /** Language code saved on the flashcard/suggestion. Used instead of the active language when available. */
   language?: string;
@@ -74,11 +83,11 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
     if (!w) return { status: 'unknown' as const, source: 'None' as const, timesSeen: 0 };
     return flashcards.getComprehensiveWordStatusWithSourceSync(w, props.language ?? settings.language);
   });
-  const wordIsKnown = createMemo(() => flashcards.isKnowledgeReady() && comprehensiveKnowledge().status === 'known');
+  const wordIsKnown = createMemo(() => props.knowledge ? props.knowledge.wordKnown : flashcards.isKnowledgeReady() && comprehensiveKnowledge().status === 'known');
   const getWordColor = createMemo((): string | undefined => {
     // Knowledge-derived coloring stays neutral until the projection hydrates
     // (and stays neutral across store re-delivery when the gate reopens).
-    if (!flashcards.isKnowledgeReady()) return undefined;
+    if (!(props.knowledge?.ready ?? flashcards.isKnowledgeReady())) return undefined;
     if (!settings.enableWordColoring) return undefined;
     if (!settings.colorKnownWords && wordIsKnown()) return undefined;
     if (!settings.do_colour_codes) return undefined;
@@ -89,7 +98,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData,
     prosodyPosition: coloredProsodyPosition,
-    prosodyKnowledge: () => flashcards.getAccessStatus(word(), 'prosodic-pattern', lookupLanguage()),
+    prosodyKnowledge: () => props.knowledge ? props.knowledge.accesses['prosodic-pattern'] : flashcards.getAccessStatus(word(), 'prosodic-pattern', lookupLanguage()),
     partOfSpeechColor: getWordColor,
     surface: 'other',
     settings: () => settings,

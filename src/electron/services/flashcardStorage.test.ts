@@ -1,3 +1,5 @@
+import type { ReviewPresentationWrite } from '../../shared/reviewPresentationWrite';
+import { selectFlashcardReviewDecision, flashcardReviewPolicyEntry } from '../../renderer/components/flashcard/flashcardReviewDecision';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
 import path from 'path';
@@ -157,6 +159,88 @@ describe('flashcardStorage', () => {
       { path: ['flashcards', card.id, 'reviews'], delta: reviews - card.reviews },
       { path: ['meta', 'perLanguage', 'ja', 'reviewsToday'], delta: 1 },
     ],
+  });
+
+  const cursorFor = (card: Flashcard, id = 'cursor-choice', expectedId: string | null = null): ReviewPresentationWrite => {
+    const decision = selectFlashcardReviewDecision({ id, at: 20,
+      entries: [flashcardReviewPolicyEntry(card, card.language || 'ja')], rng: () => 0.7 })!.provenance;
+    decision.detail['third-party:future'] = { nested: ['opaque', { value: 9 }] };
+    return { language: card.language || 'ja', card, expectedId, presentation: { id, cardId: card.id, decision,
+      scaffolds: { 'provided-access:future:relationship': true } } };
+  };
+
+  it('persists a sparse immutable cursor and retains unknown package provenance across restart', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('cursor-roundtrip');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const command = cursorFor((await loadFlashcards()).flashcards[card.id]);
+    const commit = await storage.saveReviewPresentation(command);
+    expect(commit?.patch.entries).toHaveLength(1);
+    expect(commit?.patch.entries[0].path).toEqual(['meta', 'reviewPresentations', command.language]);
+    invalidateFlashcardsCache();
+    const reopened = await loadFlashcards();
+    expect(reopened.meta.reviewPresentations?.[command.language]).toEqual(command.presentation);
+    const second = await storage.saveReviewPresentation(command);
+    expect(second?.rev).toBe(reopened.rev);
+    expect(second?.patch.entries).toEqual([]);
+  });
+
+  it('drops a late cursor behind a queued rating without recreating the rated question', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('cursor-after-rating');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const captured = (await loadFlashcards()).flashcards[card.id];
+    const cursor = cursorFor(captured);
+    const rating = storage.enqueueFlashcardRating(ratingCommand(captured, 1, 1));
+    await expect(storage.saveReviewPresentation(cursor)).resolves.toBeNull();
+    await rating;
+    const saved = await loadFlashcards();
+    expect(saved.flashcards[card.id].reviews).toBe(1);
+    expect(saved.meta.reviewPresentations?.[cursor.language]).toBeUndefined();
+  });
+
+  it('consumes its own cursor even when the renderer rated before the cursor ACK', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('cursor-unacknowledged');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const captured = (await loadFlashcards()).flashcards[card.id];
+    const cursor = cursorFor(captured);
+    await storage.saveReviewPresentation(cursor);
+    const command = ratingCommand(captured, 1, 1);
+    const ownerPath = ['meta', 'reviewPresentations', cursor.language];
+    command.patch.entries = [...command.patch.entries, { path: ownerPath, before: undefined, after: undefined,
+      condition: { path: [...ownerPath, 'id'], equals: cursor.presentation.id } }];
+    await storage.commitFlashcardRating(command);
+    invalidateFlashcardsCache();
+    expect((await loadFlashcards()).meta.reviewPresentations?.[cursor.language]).toBeUndefined();
+  });
+
+  it('refuses a peer cursor replacement without overwriting it or unrelated cards', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('cursor-peer');
+    const other = makeFlashcard('unrelated');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card, [other.id]: other } }));
+    const captured = (await loadFlashcards()).flashcards[card.id];
+    const peer = cursorFor(captured, 'peer-choice');
+    await storage.saveReviewPresentation(peer);
+    await expect(storage.saveReviewPresentation(cursorFor(captured, 'late-local'))).rejects.toThrow('another window');
+    const saved = await loadFlashcards();
+    expect(saved.meta.reviewPresentations?.[peer.language]).toEqual(peer.presentation);
+    expect(saved.flashcards[other.id].content).toEqual(other.content);
+  });
+
+  it('preserves the old cursor on a disk failure and retries the same immutable question', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('cursor-io');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const captured = (await loadFlashcards()).flashcards[card.id];
+    const cursor = cursorFor(captured);
+    const rename = vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('disk full'));
+    await expect(storage.saveReviewPresentation(cursor)).rejects.toThrow('disk full');
+    rename.mockRestore();
+    expect((await loadFlashcards()).meta.reviewPresentations?.[cursor.language]).toBeUndefined();
+    await storage.saveReviewPresentation(cursor);
+    expect((await loadFlashcards()).meta.reviewPresentations?.[cursor.language]).toEqual(cursor.presentation);
   });
 
   it('admits an ordered same-card queue against each preceding captured response and retains both original Undos', async () => {
