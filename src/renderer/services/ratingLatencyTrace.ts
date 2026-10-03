@@ -23,3 +23,32 @@ export function ratingLatencyTraceOn(): boolean {
     return false;
   }
 }
+
+/**
+ * Reports long tasks that overlap a rating transition.
+ *
+ * The per-step stamps say WHICH step ran long; this says whether that step
+ * actually blocked the main thread as one continuous task, or whether it was
+ * many short tasks that merely summed to a large number. That is the
+ * difference between "one expensive synchronous owner" and "the transition is
+ * yielding to unrelated queued work", which need different fixes.
+ */
+export function watchLongTasks(): () => void {
+  if (typeof PerformanceObserver === 'undefined') return () => {};
+  if (PerformanceObserver.supportedEntryTypes?.includes('longtask') !== true) return () => {};
+  let observing = true;
+  const observer = new PerformanceObserver((list) => {
+    for (const entry of list.getEntries()) {
+      if (entry.duration < 50) continue;
+      // eslint-disable-next-line no-console
+      console.log(`%c[LONG-TASK] ${(entry.duration).toFixed(1)}ms start=${entry.startTime.toFixed(1)}`,
+        'color:#d33; font-weight:bold');
+    }
+  });
+  observer.observe({ entryTypes: ['longtask'] });
+  return () => {
+    if (!observing) return;
+    observing = false;
+    observer.disconnect();
+  };
+}

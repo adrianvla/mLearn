@@ -1385,7 +1385,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = null;
-      void saveFlashcardsImmediate();
+      void saveFlashcardsImmediate(undefined, undefined, undefined, undefined, 'debounced-save');
     }, SAVE_DEBOUNCE_MS);
   };
 
@@ -1534,6 +1534,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       /** Recompute dependent indexes/preferences on the refreshed authority. */
       recomputeOnRebase: boolean;
     },
+    /**
+     * Who asked for this write. Every acknowledged save costs a whole-store
+     * serialization and rename, and the trace below prints one line per write.
+     * Without the origin, two writes on one path are indistinguishable and a
+     * regression cannot be attributed to a caller.
+     */
+    origin = 'unknown',
   ): Promise<boolean> => {
     await flushBackgroundRatings();
     const write = persistenceQueue.then(async () => {
@@ -1549,7 +1556,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       const intent: Record<string, unknown> = {};
       // TEMP DIAGNOSTIC: opt-in via window.__mlearnTrace / localStorage mlearn.ratingTrace=1.
       const __tw = performance.now();
-      const __wrows: RatingTraceMark[] = [];
+      const __wrows: RatingTraceMark[] = [{ label: `origin=${origin}`, ms: 0 }];
       const __wmark = (label: string): void => { __wrows.push({ label, ms: performance.now() - __tw }); };
       const base = prebuilt?.base ?? cloneFlashcardStore(unwrap(store) as FlashcardStore);
       if (command && !command.validate(base as FlashcardStore)) {
@@ -1860,7 +1867,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }, entry?.reviewUndoAuthorization, undefined, entry?.manualAction ? {
         removedCardIds: [], recomputeOnRebase: true,
         validate: target => flashcardActionUndoIsApplicable(target, entry.manualAction!),
-      } : undefined)) {
+      } : undefined, 'undo')) {
         throw new Error('undo persistence was refused');
       }
       if (entry) setUndoStack((previous) => {
@@ -2064,7 +2071,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     // writes the same delta, and it serializes on the same persistence queue,
     // so a rapid burst of captures still commits in order. What it changes is
     // that the caller learns the outcome instead of guessing.
-    const persisted = await saveFlashcardsImmediate();
+    const persisted = await saveFlashcardsImmediate(undefined, undefined, undefined, undefined, 'capture');
     if (!persisted) {
       // The card is in memory but not on disk. Taking it back out leaves the
       // rendered deck agreeing with the durable one, so a retry starts from
@@ -2323,7 +2330,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         }
         recordStoreDelta(intent, before as unknown as Record<string, unknown>, target as unknown as Record<string, unknown>);
       }, undefined, undefined, { removedCardIds: [id],
-        validate: target => JSON.stringify(target.flashcards[id]) === confirmed, recomputeOnRebase: true });
+        validate: target => JSON.stringify(target.flashcards[id]) === confirmed, recomputeOnRebase: true }, 'card-removal');
       if (!persisted) return false;
       refreshQueue();
       // A newer acknowledged authority can recreate this ID while the old
@@ -2875,7 +2882,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (!await saveFlashcardsImmediate((target, intent) => {
       (target.meta.reviewPresentations ??= {})[language] = frozen;
       intent.meta = { reviewPresentations: { [language]: frozen } };
-    }, undefined, undefined, { removedCardIds: [], validate, recomputeOnRebase: true })) {
+    }, undefined, undefined, { removedCardIds: [], validate, recomputeOnRebase: true }, 'review-presentation')) {
       throw new Error('The review position could not be saved');
     }
   };
@@ -3708,7 +3715,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         updatedAt: Math.max(Date.now(), (previous?.updatedAt ?? previous?.ignoredAt ?? 0) + 1) };
       target.ignoredWords[lk] = exclusion;
       intent.ignoredWords = { [lk]: exclusion };
-    })) throw lastPersistFailure ?? new Error('Study exclusion persistence was refused');
+    }, undefined, undefined, undefined, 'study-exclusion')) throw lastPersistFailure ?? new Error('Study exclusion persistence was refused');
     refreshQueue();
     if (!isWordIgnoredSync(word, lang)) throw new Error('The study preference was superseded by a newer change');
   };
@@ -3736,7 +3743,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         preferences[key] = withdrawal;
       }
       intent.ignoredWords = preferences;
-    })) throw lastPersistFailure ?? new Error('Study preference persistence was refused');
+    }, undefined, undefined, undefined, 'study-preference')) throw lastPersistFailure ?? new Error('Study preference persistence was refused');
     refreshQueue();
     if (isWordIgnoredSync(word, lang)) throw new Error('The study preference was superseded by a newer change');
   };
@@ -4486,7 +4493,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         }
         if (!await saveFlashcardsImmediate(undefined, undefined, {
           base: commandBase, patch: patchRecorder.build(commandBase.rev ?? 0),
-        })) throw new Error('Self-assessment projection persistence was refused');
+        }, undefined, 'self-assessment')) throw new Error('Self-assessment projection persistence was refused');
       } else if (schedulerResult) {
         // Persistence applies the declared entries to its current snapshot.
         if (atomicScheduler) {
@@ -4525,7 +4532,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           base: commandBase,
           guardCardIds: scheduler ? [scheduler.cardId] : undefined,
           patch: patchRecorder.build(commandBase.rev ?? 0),
-        })) {
+        }, undefined, 'review-rating')) {
           throw new Error('scheduler persistence was refused');
         }
         __mark('storeWrite');
@@ -4716,7 +4723,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         const pending = readPendingRetraction(target.pendingRetraction);
         return !pending || pending.attemptId === record.attemptId;
       } catch { return false; }
-    } });
+    } }, 'pending-retraction');
 
   /**
    * Finishes a recorded retraction: appends the journal tombstones, then lets
@@ -4778,7 +4785,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         target as unknown as Record<string, unknown>,
       );
     }, project?.authorization, undefined, { removedCardIds: [], recomputeOnRebase: true,
-      validate: target => readPendingRetraction(target.pendingRetraction)?.attemptId === record.attemptId })) {
+      validate: target => readPendingRetraction(target.pendingRetraction)?.attemptId === record.attemptId }, 'undo-complete')) {
       return 'store-refused';
     }
     return 'completed';
@@ -5973,7 +5980,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     // Flush any pending save before cleanup
     if (saveTimer) {
       clearTimeout(saveTimer);
-      saveFlashcardsImmediate();
+      saveFlashcardsImmediate(undefined, undefined, undefined, undefined, 'unmount-flush');
     }
     uninstallPassiveFlushHooks();
     void flushKnowledgeRollup();

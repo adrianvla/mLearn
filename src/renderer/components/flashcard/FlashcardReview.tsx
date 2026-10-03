@@ -38,7 +38,7 @@ import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, 
 import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
 import './FlashcardReview.css';
 import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../../windows/flashcards/bulkDestructiveConfirm';
-import { ratingLatencyTraceOn } from '../../services/ratingLatencyTrace';
+import { ratingLatencyTraceOn, watchLongTasks } from '../../services/ratingLatencyTrace';
 import { getLogger } from '../../../shared/utils/logger';
 import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision, restoreFlashcardReviewDecision } from './flashcardReviewDecision';
 import { createReviewAssistanceStore, type ReviewAssistance } from '../../learning/reviewAssistance';
@@ -211,8 +211,28 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     play();
   };
 
+  /**
+   * Opt-in per-computation timing.
+   *
+   * A Solid memo re-runs on every unrelated update, so "the whole-queue
+   * rebuild" is only ever visible as whichever computation happened to trigger
+   * it. Timing each reactive unit at its own boundary names the owner rather
+   * than the symptom, and reports nothing at all when the tracer is off.
+   */
+  const timed = <T,>(name: string, compute: () => T): T => {
+    if (!ratingLatencyTraceOn()) return compute();
+    const started = performance.now();
+    const result = compute();
+    const elapsed = performance.now() - started;
+    if (elapsed >= 1) {
+      // eslint-disable-next-line no-console
+      console.log(`%c[SOLID] ${name}=${elapsed.toFixed(1)}ms`, 'color:#6a9; font-weight:bold');
+    }
+    return result;
+  };
+
   // Current card
-  const currentEncounter = createMemo(() => {
+  const currentEncounter = createMemo(() => timed('currentEncounter', () => {
     const removal = removalWrite();
     if (removal) return removal.encounter;
     const held = ratingWrite();
@@ -235,11 +255,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // actually consults. Selecting a fresh card still sees the whole pool -
     // the policy has to arbitrate the real workload - but it does it once per
     // selection instead of on every reactive re-run.
-    const eligibleCards = [...queue().newQueue, ...queue().scheduledQueue]
+    const eligibleCards = timed('eligiblePool', () => [...queue().newQueue, ...queue().scheduledQueue]
       .map((id) => store.flashcards[id])
       .filter((card): card is Flashcard => !!card && !card.suspended && !card.buried
         && (card.language || settings.language) === language
-        && !isWordIgnoredSync(card.content.front, language));
+        && !isWordIgnoredSync(card.content.front, language)));
     // The scheduler fallback is always eligible, even when the queue has not
     // caught up with it yet - it is the card the surface would present.
     if (!eligibleCards.some(card => card.id === fallback.id)) eligibleCards.push(fallback);
@@ -252,7 +272,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       entryCache.set(card.id, entry);
       return entry;
     };
-    const reviewQueueEntries = (): ReturnType<typeof flashcardReviewPolicyEntry>[] => eligibleCards.map(entryFor);
+    const reviewQueueEntries = (): ReturnType<typeof flashcardReviewPolicyEntry>[] =>
+      timed(`reviewQueueEntries(n=${eligibleCards.length})`, () => eligibleCards.map(entryFor));
     // Pinned for the active encounter (R20 repair): this memo re-runs on
     // every unrelated queue/store/settings update, and the unseeded weighted
     // draw would silently replace the displayed card. The pin re-serves the
@@ -297,7 +318,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         && languageForCard(actual) === languageForCard(encounter.card)
         && JSON.stringify(task) === JSON.stringify(encounter.provenance.selected.task);
     });
-  });
+  }));
 
   /**
    * Which encounters are still awaiting their durable choice cursor.
@@ -375,7 +396,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }
     return undefined;
   };
-  const currentCard = createMemo(() => {
+  const currentCard = createMemo(() => timed('currentCard', () => {
     const removal = removalWrite();
     if (removal) return removal.card;
     const held = ratingWrite();
@@ -384,7 +405,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const encounterReady = choiceReady(encounter);
     if (!encounterReady) return null;
     return encounter ? store.flashcards[encounter.card.id] ?? encounter.card : null;
-  });
+  }));
 
   const currentCardId = createMemo(() => currentCard()?.id);
 
@@ -460,7 +481,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     setRatingWrite({ ...write, phase: 'pending' });
     // Opt-in latency tracer; see ratingLatencyTrace.
     const traceOn = ratingLatencyTraceOn();
-    const t0 = performance.now();
     try {
       const result = await submitRating(write.card.content.front, write.observations, {
         language: write.language,
@@ -515,16 +535,47 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           tested: write.observations.map((observation) => observation.capability),
         },
       });
-      const afterAwait = performance.now();
-      // Opt-in latency tracer, same switch as the rating tracer in
-      // FlashcardContext. This is the interval the learner feels as latency
-      // between one card and the next, so it is broken down per step rather
-      // than reported as a single number: a regression that puts a durable
-      // write, a whole-queue policy recomputation, or a Solid flush on this
-      // path shows up here as one dominant step.
-      const marks: Array<[string, number]> = [];
-      const mark = (label: string): void => { if (traceOn) marks.push([label, performance.now() - afterAwait]); };
+      // Opt-in latency tracer; see ratingLatencyTrace.
+      //
+      // Every boundary is recorded as an ABSOLUTE timestamp and the deltas are
+      // derived afterwards. A delta captured at a mark only proves the work up
+      // to that mark, so when an `await` resumes late - or a step is skipped -
+      // a running delta silently reports someone else's time under this step's
+      // name. Keeping the raw stamps means a label can never claim a duration
+      // it did not actually measure, which is what made an earlier
+      // "acknowledge=1475ms" reading impossible to trust.
+      const stamps: Array<[string, number]> = [];
+      const stamp = (label: string): void => {
+        if (traceOn) stamps.push([label, performance.now()]);
+      };
+      const report = (): void => {
+        if (!traceOn) return;
+        const at = new Map(stamps);
+        const between = (from: string, to: string): string => {
+          const start = at.get(from); const end = at.get(to);
+          return start !== undefined && end !== undefined ? `${from}->${to}=${(end - start).toFixed(1)}` : '';
+        };
+        const first = at.get('afterSubmitRating');
+        const last = at.get('afterBatch');
+        const windows = [
+          between('keypress', 'afterSubmitRating'),
+          between('beforeAcknowledge', 'afterAcknowledge'),
+          between('afterAcknowledge', 'beforeBatch'),
+          between('beforeBatch', 'afterBatch'),
+          between('afterBatch', 'microtask'),
+          between('microtask', 'animationFrame'),
+        ].filter(Boolean);
+        // eslint-disable-next-line no-console
+        console.log(`%c[APPLY] persistence=${write.assistance?.record.requested ? 'immediate' : 'background'}  ${windows.join('  ')}  total=${first !== undefined && last !== undefined ? (last - first).toFixed(1) : '?'}`,
+          'color:#e80; font-weight:bold');
+        // eslint-disable-next-line no-console
+        console.log(`%c[APPLY-RAW] ${stamps.map(([label, ms]) => `${label}@${ms.toFixed(1)}`).join(' ')}`,
+          'color:#999');
+      };
+      const stopLongTasks = traceOn ? watchLongTasks() : () => {};
+      stamp('keypress');
       if (write.assistance) {
+        stamp('beforeAcknowledge');
         try { await assistanceStore.acknowledge(write.assistance.scope, write.assistance.record); }
         catch (error) {
           // The rating is committed. Retaining assistance is conservative;
@@ -532,31 +583,39 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           log.warn('Failed to clear acknowledged review assistance:', error);
           showToast({ message: t('mlearn.WordSync.AssistanceSaveFailed'), variant: 'error' });
         }
+        stamp('afterAcknowledge');
       }
-      mark('acknowledge');
+      stamp('afterSubmitRating');
+      stamp('beforeBatch');
       batch(() => {
         setShowAnswer(false);
+        stamp('afterSetShowAnswer');
         // Publish the next encounter here; readiness must not trigger
         // auto-play for an intermediate selection before the pin advances.
         decisionPin.advance();
+        stamp('afterPinAdvance');
         setRatingWrite(null);
+        stamp('afterClearRatingWrite');
         // A different scope's effect owns its admission refresh. Same-card
         // requeues need an explicit new encounter even though the scope is stable.
+        stamp('beforeCurrentCard');
         const next = currentCard();
+        stamp('afterCurrentCard');
         if (next && assistanceScope(next) === assistanceScope(write.card)) {
           referenceEncounter += 1;
           refreshReferenceAssistance();
         }
-        mark('localApply');
+        stamp('afterReferenceRefresh');
         if (result.completed) setCardsAnswered((previous) => previous + 1);
       });
+      stamp('afterBatch');
+      report();
+      // A Solid write flushes its own memos and effects synchronously, but
+      // whatever it scheduled runs after this function returns. Both are
+      // stamped so the work is attributed to the turn that actually did it.
       if (traceOn) {
-        // eslint-disable-next-line no-console
-        console.log(`%c[APPLY] requested=${write.assistance?.record.requested === true}  ${marks.map(([label, ms]) => `${label}=${ms.toFixed(1)}`).join('  ')}`,
-          'color:#e80; font-weight:bold');
-        // eslint-disable-next-line no-console
-        console.log(`%c[REVIEW] await submitRating=${(afterAwait - t0).toFixed(1)}ms  localApply=${(performance.now() - afterAwait).toFixed(1)}ms`,
-          'color:#f80; font-weight:bold');
+        queueMicrotask(() => { stamp('microtask'); report(); });
+        requestAnimationFrame(() => { stamp('animationFrame'); report(); stopLongTasks(); });
       }
       resetReviewScroll();
     } catch (error) {
@@ -626,7 +685,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const ratingArmed = createMemo(() => canRate() && !!currentCard()
     && knowledge.projection()?.status === 'ready' && ratingPersistenceState() !== 'failed' && assistanceWrite() === null);
 
-  function refreshReferenceAssistance(): void {
+  function refreshReferenceAssistance(): void { timed('refreshReferenceAssistance', () => {
     const card = currentCard();
     try {
       const scope = card ? assistanceScope(card) : null;
@@ -648,7 +707,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       setAssistanceWrite('failed');
       retryReference = refreshReferenceAssistance;
     }
-  }
+  }); }
 
   function withReferenceContent(open: () => void, media = false): void {
     const card = currentCard();
@@ -685,8 +744,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   }
 
   createEffect(on(() => currentCard() ? JSON.stringify([assistanceScope(currentCard()!), currentEncounter()?.provenance.id]) : null, () => {
-    referenceEncounter += 1;
-    refreshReferenceAssistance();
+    timed('choiceScopeEffect', () => {
+      referenceEncounter += 1;
+      refreshReferenceAssistance();
+    });
   }));
 
   const sessionTotal = createMemo(() => cardsAnswered() + remainingWork());
@@ -767,7 +828,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     if (!encounter || !ready || restoredAssistanceScope() !== assistanceScope(encounter.card) || showAnswer() || !settings.flashcardAutoTts || settings.flashcardMuteAudio
       || automaticAudioEncounter === encounter) return;
     automaticAudioEncounter = encounter;
-    handlePlayTts(encounter.card.id, encounter.card.content.front, 'word', true, false);
+    timed('autoTtsEffect', () => handlePlayTts(encounter.card.id, encounter.card.content.front, 'word', true, false));
   });
 
   // Auto-TTS: play example when answer is revealed (waits for word TTS to finish)
