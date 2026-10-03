@@ -138,6 +138,38 @@ describe('useFlashcardTts', () => {
     vi.mocked(platform.isElectron).mockReturnValue(true);
   });
 
+  it('audio-first requires a recording and finishes playback before admitting the answer', async () => {
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot(d => { hook = useFlashcardTts(); return d; });
+    const onCompleted = vi.fn(); const onUnavailable = vi.fn();
+    await hook.playTts('card1', '犬', 'ja', 'word', { savedOnly: true, onCompleted, onUnavailable });
+    expect(onUnavailable).toHaveBeenCalledOnce();
+    expect(onCompleted).not.toHaveBeenCalled();
+    expect(mockTtsSpeak).not.toHaveBeenCalled();
+    mockGetFlashcardTts.mockResolvedValue('flashcard-audio://card1');
+    const playing = hook.playTts('card1', '犬', 'ja', 'word', { savedOnly: true, onCompleted });
+    await flush();
+    expect(onCompleted).not.toHaveBeenCalled();
+    audioInstances.at(-1)!.onended!();
+    await playing;
+    expect(onCompleted).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('failed or aborted audio never admits an audio-first answer', async () => {
+    mockGetFlashcardTts.mockResolvedValue('flashcard-audio://card1');
+    let hook!: ReturnType<typeof useFlashcardTts>;
+    const dispose = createRoot(d => { hook = useFlashcardTts(); return d; });
+    const onCompleted = vi.fn(); const onUnavailable = vi.fn();
+    const playing = hook.playTts('card1', '犬', 'ja', 'word', { savedOnly: true, onCompleted, onUnavailable });
+    await flush();
+    audioInstances.at(-1)!.onerror!();
+    await playing;
+    expect(onCompleted).not.toHaveBeenCalled();
+    expect(onUnavailable).toHaveBeenCalledOnce();
+    dispose();
+  });
+
   it('initial state is not playing and not generating', () => {
     createRoot((dispose) => {
       const hook = useFlashcardTts();

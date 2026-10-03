@@ -1287,6 +1287,17 @@
         "ToastTitle": "正在修复闪卡…"
       },
       "Review": {
+        "RefreshRecordings": "刷新录音",
+        "FocusedPrompt": "根据书写形式和读音，回忆{target}。显示答案后，只评价这项回忆。",
+        "AudioPrompt": "听音频并识别单词或含义。显示答案后，只评价对语音单词的识别。",
+        "NoEligibleActivity": "没有可用的练习。请启用单词复习、取消静音，或添加所需的答案和录音。",
+        "AudioUnavailable": "无法播放录音。请重试或启用其他练习。",
+        "PlayPrompt": "播放录音",
+        "Audio": "听音识别",
+        "Focused": "专项回忆",
+        "Holistic": "单词和例句",
+        "ActivitiesHint": "选择可用的练习。系统会根据你的知识状态选择。专项练习需要语言包答案，音频练习需要已保存的录音。静音时不选择音频练习。",
+        "Activities": "复习活动",
         "CardActions": "卡片操作",
         "Again": "重来",
         "Bury": "暂缓",

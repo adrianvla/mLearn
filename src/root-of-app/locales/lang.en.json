@@ -1287,6 +1287,17 @@
         "ToastTitle": "Repairing flashcards…"
       },
       "Review": {
+        "RefreshRecordings": "Refresh recordings",
+        "FocusedPrompt": "Given the written word and reading, recall {target}. Reveal, then rate only that recall.",
+        "AudioPrompt": "Listen and identify the word or its meaning. Reveal, then rate only your recognition of the spoken word.",
+        "NoEligibleActivity": "No eligible activity. Enable whole-word review, unmute audio, or supply the required package answers and recordings.",
+        "AudioUnavailable": "Recording could not be played. Retry, or enable another activity.",
+        "PlayPrompt": "Play recording",
+        "Audio": "Audio recognition",
+        "Focused": "Focused recall",
+        "Holistic": "Whole word and example",
+        "ActivitiesHint": "Choose eligible activities. Selection uses your knowledge; focused tasks require package answers and audio tasks require saved recordings. Muting excludes audio activities.",
+        "Activities": "Review activities",
         "CardActions": "Card actions",
         "Again": "Again",
         "Bury": "Bury",

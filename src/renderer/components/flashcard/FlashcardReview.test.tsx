@@ -17,7 +17,7 @@ import type { KnowledgeProjection } from '../../../shared/graph/ipc';
 
 const toastMocks = vi.hoisted(() => ({ showToast: vi.fn(() => 0) }));
 const decisionBridge = vi.hoisted(() => ({ record: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ knowledgeEvents: { recordLearningDecision: decisionBridge.record } }) }));
+vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ knowledgeEvents: { recordLearningDecision: decisionBridge.record }, flashcards: { getFlashcardTts: async () => mockTtsAvailable ? 'flashcard-audio://test' : null } }) }));
 afterEach(() => { decisionBridge.record.mockReset().mockResolvedValue(undefined); });
 
 let mockCard: Accessor<Flashcard | null> = () => null;
@@ -169,11 +169,12 @@ vi.mock('../../context', () => ({
 
 vi.mock('../../hooks/useFlashcardTts', () => ({
   useFlashcardTts: () => ({
-    playTts: vi.fn(async (id: string, _text: string, language: string, field: string, options?: { onStarted?: () => void; beforePlay?: () => boolean | Promise<boolean> }) => {
+    playTts: vi.fn(async (id: string, _text: string, language: string, field: string, options?: { onCompleted?: () => void; onStarted?: () => void; beforePlay?: () => boolean | Promise<boolean> }) => {
       if (!mockTtsAvailable) return;
       if (options?.beforePlay && !await options.beforePlay()) return;
       mockPlayedTts(id, language, field);
       options?.onStarted?.();
+      options?.onCompleted?.();
     }),
     isGenerating: () => false,
     stop: vi.fn(),
@@ -384,6 +385,165 @@ describe('FlashcardReview', () => {
     mockReviewPresentations = () => ({});
     mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [] });
     container.remove();
+  });
+
+  it('renders a focused prompt without leaking meaning or the answer and submits only its target', async () => {
+    mockLanguageData = { ...jaLanguageData, learning: { reviewActivities: {
+      'future:recall': { kind: 'written-reading-recall', label: 'Pattern recall', prompt: 'Recall the pattern', targets: ['prosodic-pattern'] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    mockSettings.reviewActivities = { holistic: false, focused: true, audio: false };
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'SECRET meaning', prosody: { type: 'japanese-pitch-accent', position: 2 } } }));
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    expect(container.textContent).toContain('Recall the pattern');
+    expect(container.textContent).toContain('いぬ');
+    expect(container.textContent).not.toContain('SECRET meaning');
+    expect(container.querySelector('.review-activity-answer')).toBeNull();
+    await clickShowAnswer(container);
+    expect(container.querySelector('.review-activity-answer')).not.toBeNull();
+    const allFluent = container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2];
+    allFluent!.click();
+    await flushEffects();
+    expect((mockSubmitRating.mock.calls[0][1] as Array<{ capability: string }>).map(o => o.capability)).toEqual(['prosodic-pattern']);
+    expect((mockSubmitRating.mock.calls[0][2] as { scaffolds: Record<string, boolean> }).scaffolds.reading).toBe(true);
+    dispose();
+  });
+
+  it('requires successful audio playback before reveal and omits the written answer from the question', async () => {
+    mockLanguageData = { ...jaLanguageData, learning: { reviewActivities: {
+      'future:listen': { kind: 'audio-recognition', label: 'Listen', prompt: 'Identify the spoken word', targets: ['spoken-recognition'] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    mockSettings.reviewActivities = { holistic: false, focused: false, audio: true };
+    setMockKnowledgeMeasured(['spoken-recognition']);
+    mockProjection = () => ({ ...defaultProjection, targets: [{ targetRef: { kind: 'surface', id: 'card-surface' }, applicableCapabilities: ['spoken-recognition'], states: [] }] });
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    expect(container.textContent).not.toContain('犬');
+    expect(container.querySelector<HTMLButtonElement>('.flashcard-show-answer-btn')?.disabled).toBe(true);
+    container.querySelector<HTMLButtonElement>('.review-activity-play')!.click();
+    await flushEffects();
+    expect(container.querySelector<HTMLButtonElement>('.flashcard-show-answer-btn')?.disabled).toBe(false);
+    await clickShowAnswer(container);
+    expect(container.textContent).toContain('犬');
+    const allFluent = container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2];
+    allFluent!.click();
+    await flushEffects();
+    expect((mockSubmitRating.mock.calls[0][1] as Array<{ capability: string }>).map(o => o.capability)).toEqual(['spoken-recognition']);
+    dispose();
+  });
+
+  it('restores a revealed audio task as supplied evidence rather than a new cold recognition', async () => {
+    mockLanguageData = { ...jaLanguageData, learning: { reviewActivities: {
+      'future:listen': { kind: 'audio-recognition', label: 'Listen', prompt: 'Identify the spoken word', targets: ['spoken-recognition'] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    mockSettings.reviewActivities = { holistic: false, focused: false, audio: true };
+    setMockKnowledgeMeasured(['spoken-recognition']);
+    mockProjection = () => ({ ...defaultProjection, targets: [{ targetRef: { kind: 'surface', id: 'card-surface' }, applicableCapabilities: ['spoken-recognition'], states: [] }] });
+    const first = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    container.querySelector<HTMLButtonElement>('.review-activity-play')!.click();
+    await flushEffects();
+    await clickShowAnswer(container);
+    const decisionId = mockSaveReviewPresentation.mock.calls.at(-1)![1].decision!.id;
+    restoreSavedReviewCursor();
+    first(); container.replaceChildren();
+    const second = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    expect(mockSaveReviewPresentation.mock.calls.at(-1)![1].decision!.id).toBe(decisionId);
+    expect(container.querySelector('.review-activity-answer')).not.toBeNull();
+    container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2].click();
+    await flushEffects();
+    expect((mockSubmitRating.mock.calls.at(-1)![2] as { scaffolds: Record<string, boolean> }).scaffolds['provided-access:spoken-recognition']).toBe(true);
+    second();
+  });
+
+  it('retries the same focused command identity and targets after a refused submission', async () => {
+    mockLanguageData = { ...jaLanguageData, learning: { reviewActivities: {
+      'future:recall': { kind: 'written-reading-recall', label: 'Pattern', prompt: 'Recall pattern', targets: ['prosodic-pattern'] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    mockSettings.reviewActivities = { holistic: false, focused: true, audio: false };
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', prosody: { type: 'japanese-pitch-accent', position: 2 } } }));
+    mockSubmitRating.mockRejectedValueOnce(new Error('refused'));
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects(); await clickShowAnswer(container);
+    container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2].click();
+    await flushEffects();
+    const original = mockSubmitRating.mock.calls[0];
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('TryAgain'))!.click();
+    await flushEffects();
+    expect(mockSubmitRating.mock.calls[1]).toEqual(original);
+    dispose();
+  });
+
+  it('cannot turn a revealed answer into cold evidence by changing activity', async () => {
+    mockLanguageData = { ...jaLanguageData, learning: { reviewActivities: {
+      'future:recall': { kind: 'written-reading-recall', label: 'Pattern', prompt: 'Recall pattern', targets: ['prosodic-pattern'] },
+      'future:listen': { kind: 'audio-recognition', label: 'Listen', prompt: 'Identify the spoken word', targets: ['spoken-recognition'] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    mockSettings.reviewActivities = { holistic: false, focused: true, audio: false };
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', prosody: { type: 'japanese-pitch-accent', position: 2 } } }));
+    const first = render(() => <FlashcardReview />, container);
+    await flushEffects(); await clickShowAnswer(container); restoreSavedReviewCursor();
+    first(); container.replaceChildren();
+    mockSettings.reviewActivities = { holistic: false, focused: false, audio: true };
+    setMockKnowledgeMeasured(['spoken-recognition']);
+    mockProjection = () => ({ ...defaultProjection, targets: [{ targetRef: { kind: 'surface', id: 'card-surface' }, applicableCapabilities: ['spoken-recognition'], states: [] }] });
+    const second = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    expect(mockSaveReviewPresentation.mock.calls.at(-1)![1].scaffolds?.['provided-access:spoken-recognition']).toBe(true);
+    container.querySelector<HTMLButtonElement>('.review-activity-play')!.click();
+    await flushEffects(); await clickShowAnswer(container);
+    container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2].click();
+    await flushEffects();
+    expect((mockSubmitRating.mock.calls.at(-1)![2] as { scaffolds: Record<string, boolean> }).scaffolds['provided-access:spoken-recognition']).toBe(true);
+    second();
+  });
+
+  it('records an audio target as supplied when reference content reveals the lexical answer', async () => {
+    mockLanguageData = { ...jaLanguageData, learning: { reviewActivities: {
+      'future:listen': { kind: 'audio-recognition', label: 'Listen', prompt: 'Identify the spoken word', targets: ['spoken-recognition'] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    mockSettings.reviewActivities = { holistic: false, focused: false, audio: true };
+    setMockKnowledgeMeasured(['spoken-recognition']);
+    mockProjection = () => ({ ...defaultProjection, targets: [{ targetRef: { kind: 'surface', id: 'card-surface' }, applicableCapabilities: ['spoken-recognition'], states: [] }] });
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.CardActions')!.click();
+    Array.from(document.body.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Knowledge.Popup.Inspect')!.click();
+    await flushEffects(); closeKnowledgeInspector();
+    container.querySelector<HTMLButtonElement>('.review-activity-play')!.click();
+    await flushEffects(); await clickShowAnswer(container);
+    container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2].click();
+    await flushEffects();
+    expect((mockSubmitRating.mock.calls.at(-1)![2] as { scaffolds: Record<string, boolean> }).scaffolds['provided-access:spoken-recognition']).toBe(true);
+    dispose();
+  });
+
+  it('keeps supplied audio from becoming unassisted written recall after a mode change', async () => {
+    mockLanguageData = { ...jaLanguageData, learning: { reviewActivities: {
+      'future:recall': { kind: 'written-reading-recall', label: 'Pattern', prompt: 'Recall pattern', targets: ['prosodic-pattern'] },
+      'future:listen': { kind: 'audio-recognition', label: 'Listen', prompt: 'Identify the spoken word', targets: ['spoken-recognition'] },
+    } } };
+    mockLangMap = { ja: mockLanguageData };
+    mockSettings.reviewActivities = { holistic: false, focused: false, audio: true };
+    setMockCard(makeCard({ content: { type: 'word', front: '犬', reading: 'いぬ', back: 'dog', prosody: { type: 'japanese-pitch-accent', position: 2 } } }));
+    const first = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    container.querySelector<HTMLButtonElement>('.review-activity-play')!.click();
+    await flushEffects(); restoreSavedReviewCursor(); first(); container.replaceChildren();
+    mockSettings.reviewActivities = { holistic: false, focused: true, audio: false };
+    const second = render(() => <FlashcardReview />, container);
+    await flushEffects(); await clickShowAnswer(container);
+    container.querySelectorAll<HTMLButtonElement>('.rating-matrix__quality')[2].click();
+    await flushEffects();
+    expect((mockSubmitRating.mock.calls.at(-1)![2] as { scaffolds: Record<string, boolean> }).scaffolds['provided-access:prosodic-pattern']).toBe(true);
+    second();
   });
 
   it('retains one encounter when its background cursor acknowledgment reaches the store', async () => {

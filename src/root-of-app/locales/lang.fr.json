@@ -1287,6 +1287,17 @@
         "ToastTitle": "Réparation des cartes…"
       },
       "Review": {
+        "RefreshRecordings": "Actualiser les enregistrements",
+        "FocusedPrompt": "À partir du mot écrit et de sa lecture, rappelez-vous {target}. Révélez la réponse et évaluez uniquement ce rappel.",
+        "AudioPrompt": "Écoutez et identifiez le mot ou son sens. Révélez la réponse et évaluez uniquement la reconnaissance du mot parlé.",
+        "NoEligibleActivity": "Aucune activité disponible. Activez la révision du mot, réactivez le son ou ajoutez les réponses et enregistrements requis.",
+        "AudioUnavailable": "L’enregistrement ne peut pas être lu. Réessayez ou activez une autre activité.",
+        "PlayPrompt": "Lire l’enregistrement",
+        "Audio": "Reconnaissance audio",
+        "Focused": "Rappel ciblé",
+        "Holistic": "Mot et exemple",
+        "ActivitiesHint": "Choisissez les activités disponibles. La sélection utilise vos connaissances. Les tâches ciblées nécessitent les réponses du paquet ; les tâches audio, des enregistrements sauvegardés. Le mode muet exclut les tâches audio.",
+        "Activities": "Activités de révision",
         "CardActions": "Actions de la carte",
         "Again": "Encore",
         "Bury": "Enterrer",

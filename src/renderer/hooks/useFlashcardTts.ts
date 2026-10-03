@@ -28,6 +28,10 @@ export interface TtsMetadata {
 }
 
 export interface TtsPlaybackOptions {
+  /** Audio-first review must use an available recording, with no synthesis fallback. */
+  savedOnly?: boolean;
+  onCompleted?: () => void;
+  onUnavailable?: () => void;
   /** Automatic playback should not interrupt review when a recording is absent. */
   silentIfMissing?: boolean;
   /** Admit any durable prompt cue before playback. False cancels this playback. */
@@ -139,7 +143,7 @@ export function useFlashcardTts() {
     const bridge = getBridge();
 
     try {
-      if (isElectron()) {
+      if (isElectron() || options?.savedOnly) {
         // Try existing audio file first
         const existingUrl = await bridge.flashcards.getFlashcardTts(cardId, field);
         if (myGenId !== generationId) return; // Stale
@@ -159,6 +163,7 @@ export function useFlashcardTts() {
             });
             // Append cache-buster to avoid stale audio after regeneration
             await playUrl(existingUrl + '?t=' + Date.now(), myGenId, options?.onStarted);
+            if (myGenId === generationId) options?.onCompleted?.();
             return;
           } catch (e) {
             log.error("error", e);
@@ -167,6 +172,7 @@ export function useFlashcardTts() {
         }
 
         // No saved audio — notify the user to regenerate
+        if (myGenId === generationId) options?.onUnavailable?.();
         if (myGenId === generationId) {
           const fieldLabel = field === 'word'
             ? t('mlearn.Flashcards.PostCreate.WordTts')
@@ -197,6 +203,7 @@ export function useFlashcardTts() {
       log.error("error", e);
       // Ensure state is always reset on any error to prevent stuck buttons
       if (myGenId === generationId) {
+        options?.onUnavailable?.();
         setState({ isPlaying: false, isGenerating: false, playingField: null });
       }
     }

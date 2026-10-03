@@ -320,3 +320,30 @@
     justify-content: flex-start;
   }
 }
+
+.review-activity-preferences {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.review-activity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-6);
+  text-align: center;
+  width: 100%;
+}
+
+.review-activity-cues,
+.review-activity-answer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-xl);
+  overflow-wrap: anywhere;
+}

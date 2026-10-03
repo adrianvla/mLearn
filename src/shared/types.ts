@@ -526,6 +526,8 @@ export interface Settings {
   // Flashcard TTS settings
   /** Auto-play TTS when viewing flashcard front */
   flashcardAutoTts: boolean;
+  /** Eligibility preferences for generated review activities; older settings use DEFAULT_SETTINGS. */
+  reviewActivities: { holistic: boolean; focused: boolean; audio: boolean };
   /** TTS provider for flashcard audio: 'kokoro', 'qwen3', or 'cloud' */
   flashcardTtsProvider: TTSProvider;
   /** Auto-generate .ogg files for new flashcards */
@@ -800,6 +802,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceSilenceThreshold: 0.8,
   uiLanguage: 'en',
   flashcardAutoTts: true,
+  reviewActivities: { holistic: true, focused: true, audio: true },
   flashcardTtsProvider: 'kokoro',
   flashcardAutoGenerateAudio: false,
   flashcardCreationAudioPreset: 'high-quality',
@@ -1336,7 +1339,16 @@ export interface LanguageCapabilityDeclaration {
 }
 
 /** Package-owned learner access declarations. Unknown ids and values survive round trips. */
+/** A bounded cue/answer presentation, with package-owned target semantics. */
+export interface LanguageReviewActivity {
+  kind: 'written-reading-recall' | 'audio-recognition';
+  label: string;
+  prompt: string;
+  targets: string[];
+}
+
 export interface LanguageLearningConfig {
+  reviewActivities?: Record<string, LanguageReviewActivity>;
   capabilities?: Record<string, LanguageCapabilityDeclaration>;
 }
 

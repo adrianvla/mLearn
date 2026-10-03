@@ -35,6 +35,7 @@ function languageUsesJapanesePitchAccentRenderer(data?: LanguageData | null): bo
 }
 
 export interface JapanesePitchAccentOverlayProps {
+  forceVisible?: boolean;
   /** The word to look up pitch accent for (dictionary form) */
   word: string;
   /** Reading in kana. If not provided, tries to extract from cache or uses word. */
@@ -113,7 +114,7 @@ export const JapanesePitchAccentOverlay: Component<JapanesePitchAccentOverlayPro
     const hasExplicitStoredPitch = props.allowStoredPitchWithoutMetadata === true
       && props.pitchPosition !== undefined
       && props.pitchPosition !== null;
-    return prosodyVisible(settings) && (
+    return (props.forceVisible || prosodyVisible(settings)) && (
       languageUsesJapanesePitchAccentRenderer(resolvedLanguageData())
       || hasExplicitStoredPitch
     );

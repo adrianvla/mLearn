@@ -1287,6 +1287,17 @@
         "ToastTitle": "Lernkarten werden repariert…"
       },
       "Review": {
+        "RefreshRecordings": "Aufnahmen prüfen",
+        "FocusedPrompt": "Erinnere dich anhand von Wort und Lesung an {target}. Zeige die Antwort und bewerte nur diese Erinnerung.",
+        "AudioPrompt": "Höre zu und erkenne das Wort oder seine Bedeutung. Zeige die Antwort und bewerte nur die Erkennung des gesprochenen Wortes.",
+        "NoEligibleActivity": "Keine passende Übung. Aktiviere die Wortübung oder Audio, oder ergänze die benötigten Antworten und Aufnahmen.",
+        "AudioUnavailable": "Die Aufnahme konnte nicht abgespielt werden. Versuche es erneut oder aktiviere eine andere Übung.",
+        "PlayPrompt": "Aufnahme abspielen",
+        "Audio": "Audioerkennung",
+        "Focused": "Gezieltes Erinnern",
+        "Holistic": "Wort und Beispiel",
+        "ActivitiesHint": "Wähle verfügbare Übungen. Die Auswahl nutzt deinen Wissensstand. Gezielte Aufgaben benötigen Paketantworten, Audioaufgaben gespeicherte Aufnahmen. Stummschalten schließt Audioaufgaben aus.",
+        "Activities": "Übungsarten",
         "CardActions": "Kartenaktionen",
         "Again": "Nochmal",
         "Bury": "Vergraben",

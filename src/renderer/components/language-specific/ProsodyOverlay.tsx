@@ -4,6 +4,8 @@ import { getLanguageProsodyOverlayConfig, getLanguageProsodyType } from '../../.
 import { getProsodyOverlayComponent } from './prosodyOverlayRenderers';
 
 export interface ProsodyOverlayProps {
+  /** Explicit task answer, independent of optional decoration preferences. */
+  forceVisible?: boolean;
   /** The headword, surface form, or renderer-specific lookup key. */
   word: string;
   /** Reading, pronunciation, transliteration, or display text used by the selected renderer. */

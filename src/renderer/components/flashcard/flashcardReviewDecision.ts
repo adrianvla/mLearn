@@ -1,3 +1,4 @@
+import { activityTask, type ReviewActivity } from './reviewActivities';
 import type { Flashcard, LanguageData, ReviewPresentation } from '../../../shared/types';
 import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { surfaceEntityId } from '../../../shared/graph/load';
@@ -9,8 +10,8 @@ import { isLearningDecision } from '../../../shared/learningDecision';
 import type { LearningChoiceSnapshot, LearningDecision } from '../../../shared/learningDecision';
 
 /** Scheduler admission stays separate from the actual retrieval task/address. */
-export function flashcardReviewPolicyEntry(card: Flashcard, language: string, languageData?: LanguageData | null): FlashcardLike {
-  const requested = [...getTestedAccesses({ languageData, surface: card.content.front,
+export function flashcardReviewPolicyEntry(card: Flashcard, language: string, languageData?: LanguageData | null, activity?: ReviewActivity): FlashcardLike {
+  const requested = activity?.targets ?? [...getTestedAccesses({ languageData, surface: card.content.front,
     hasReadingData: !!card.content.reading && card.content.reading !== card.content.front,
     hasProsodyData: !!card.content.prosody && (card.content.prosody.position !== undefined || !!card.content.prosody.display),
     taskType: 'srs-review' })];
@@ -19,7 +20,7 @@ export function flashcardReviewPolicyEntry(card: Flashcard, language: string, la
     id: card.id, word: card.content.front, language,
     presentation: { cardId: card.id, language, surface: card.content.front, contentVersion: hashWordSync(JSON.stringify(card.content)) },
     targets: requested.map(capability => ({ entityId, capability })),
-    task: { ...PRESETS.RETENTION.task, supplied: [...PRESETS.RETENTION.task.supplied], requested },
+    task: activity && activity.kind !== 'holistic' ? activityTask(activity) : { ...PRESETS.RETENTION.task, supplied: [...PRESETS.RETENTION.task.supplied], requested },
     dueDate: card.dueDate, interval: card.interval, suspended: card.suspended, buried: card.buried, state: card.state,
     scheduledForToday: true, lastReviewed: card.lastReviewed, ease: card.ease, reviews: card.reviews,
   };

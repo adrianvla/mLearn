@@ -307,9 +307,27 @@
                     "example-audio"
                 ]
             }
+        },
+        "reviewActivities": {
+            "ja:written-reading-pitch-recall": {
+                "kind": "written-reading-recall",
+                "label": "Pitch recall",
+                "prompt": "Given the written word and reading, recall its pitch pattern. Reveal, then rate only your pitch recall.",
+                "targets": [
+                    "prosodic-pattern"
+                ]
+            },
+            "ja:audio-lexical-recognition": {
+                "kind": "audio-recognition",
+                "label": "Audio recognition",
+                "prompt": "Listen and identify the word or its meaning. Reveal, then rate only your recognition of the spoken word.",
+                "targets": [
+                    "spoken-recognition"
+                ]
+            }
         }
     },
     "languageData": {
-        "version": "ja-package-2026.10.02-assisted-audio-r1"
+        "version": "ja-package-2026.10.03-adaptive-review-r1"
     }
 }
