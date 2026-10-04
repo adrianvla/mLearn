@@ -612,7 +612,7 @@ describe('WordSyncContent', () => {
     expect(mockSubmitRating).toHaveBeenCalledOnce();
   });
 
-  it('discards a malformed assessment history and starts a fresh deterministic session', async () => {
+  it('preserves an unavailable assessment history on explicit Start of a fresh deterministic session', async () => {
     const malformedSessionWords: Array<[string, number]> = [
       ['easy-a', 5], ['easy-b', 5], ['hard-a', 2], ['hard-b', 2],
     ];
@@ -634,6 +634,7 @@ describe('WordSyncContent', () => {
       },
     }));
 
+    const original = localStorage.getItem('mlearn-study-word-sync-assessment:ja');
     await mountAssessment();
     await settle(); await settle();
     expect(container.querySelector('.word-sync-assessment-start')).not.toBeNull();
@@ -643,6 +644,7 @@ describe('WordSyncContent', () => {
     await settle(); await settle();
     const fresh = JSON.parse(localStorage.getItem('mlearn-study-word-sync-assessment:ja')!);
     expect(fresh.id).not.toBe('corrupt-order');
+    expect(localStorage.getItem('mlearn-study-word-sync-assessment:ja:session:corrupt-order')).toBe(original);
     expect(fresh.meta.assessment.draws).toEqual([]);
     expect(fresh.queue[fresh.index]).toMatchObject({ id: expect.stringMatching(/^(easy|hard)-/) });
   });
@@ -811,6 +813,80 @@ beforeEach(() => {
     document.body.querySelectorAll('.popover-panel').forEach((el) => el.remove());
   });
 
+  it('ordinary practice admits the full eligible scope while an explicit finite request remains bounded', async () => {
+    mockWordSyncState.wordFrequency = Object.fromEntries(Array.from({ length: 20 }, (_, index) => [`word-${index}`, {
+      reading: `word-${index}`, raw_level: 5, level: 'N5',
+    }]));
+    const { WordSyncContent } = await import('./App');
+    mountContent(() => <WordSyncContent launchIntent="start" />);
+    await settle(); await settle();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!).queue).toHaveLength(20);
+    disposals.pop()!();
+    mountContent(() => <WordSyncContent launchIntent="start" encounterLimit={4} />);
+    await settle(); await settle();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!).queue).toHaveLength(4);
+  });
+
+  it('Open prepares the workspace without creating or presenting a task; Start admits it explicitly', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(() => <WordSyncContent encounterLimit={120} launchIntent="open" />);
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-word')).toBeNull();
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBeNull();
+    buttonByText('mlearn.LevelStudy.Mock.Start').click();
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-word')).not.toBeNull();
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).not.toBeNull();
+  });
+
+  it('explicit Start suspends unfinished work and exact Resume restores it without a new attempt', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent);
+    await settle();
+    press(' '); await settle();
+    const key = 'mlearn-study-word-sync:ja';
+    const original = JSON.parse(localStorage.getItem(key)!);
+    const word = container.querySelector('.word-sync-word')?.textContent;
+    disposals.pop()!();
+    mountContent(() => <WordSyncContent encounterLimit={120} launchIntent="start" />);
+    await settle(); await settle();
+    const second = JSON.parse(localStorage.getItem(key)!);
+    expect(second.id).not.toBe(original.id);
+    expect(JSON.parse(localStorage.getItem(`${key}:session:${encodeURIComponent(original.id)}`)!)).toEqual(original);
+    disposals.pop()!();
+    mountContent(() => <WordSyncContent encounterLimit={120} launchIntent="resume" resumeSessionId={original.id} />);
+    await settle(); await settle();
+    expect(JSON.parse(localStorage.getItem(key)!).id).toBe(original.id);
+    expect(container.querySelector('.word-sync-word')?.textContent).toBe(word);
+    expect(JSON.parse(localStorage.getItem(key)!).revealed).toBe(true);
+    expect(container.textContent).toContain('mlearn.WordSync.HideTranslation');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
+  it('Return preserves the active cursor and makes no learner-evidence mutation', async () => {
+    const onClose = vi.fn();
+    const { WordSyncContent } = await import('./App');
+    mountContent(() => <WordSyncContent onClose={onClose} />);
+    await settle();
+    const raw = localStorage.getItem('mlearn-study-word-sync:ja');
+    buttonByText('mlearn.LearningPlan.Back').click();
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBe(raw);
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
+  it('refuses an absent exact Resume instead of presenting or replacing the active task', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(WordSyncContent); await settle();
+    const raw = localStorage.getItem('mlearn-study-word-sync:ja');
+    disposals.pop()!();
+    mountContent(() => <WordSyncContent launchIntent="resume" resumeSessionId="missing" />);
+    await settle(); await settle();
+    expect(container.textContent).toContain('mlearn.Product.ResumeUnavailable');
+    expect(container.querySelector('.word-sync-word')).toBeNull();
+    expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBe(raw);
+  });
+
   it('resumes its durable cursor when filter presentation IDs change on remount', async () => {
     mockWordSyncState.wordFrequency = Object.fromEntries(['赤い', '青い', '白い'].map((word) => [word, {
       reading: word, raw_level: 5, level: 'N5',
@@ -904,16 +980,14 @@ beforeEach(() => {
     expect(mockSubmitRating).not.toHaveBeenCalled();
   });
 
-  it('infers a finite default practice chunk without asking for time or consuming the whole pool', async () => {
+  it('keeps ordinary practice admission stable without imposing an inferred short batch', async () => {
     mockWordSyncState.wordFrequency = Object.fromEntries(Array.from({ length: 24 }, (_, index) => [`word-${index}`, { reading: '', raw_level: 5, level: 'N5' }]));
     const { WordSyncContent } = await import('./App');
     const dispose = render(() => <WordSyncContent />, container);
     disposals.push(dispose);
     await settle();
     const saved = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!);
-    expect(saved.queue.length).toBeGreaterThan(0);
-    expect(saved.queue.length).toBeLessThanOrEqual(12);
-    expect(saved.queue.length).toBeLessThan(24);
+    expect(saved.queue.length).toBe(24);
     const admission = saved.queue.map((entry: { id: string }) => entry.id);
     mockWordSyncState.wordFrequency.extra = { reading: '', raw_level: 5, level: 'N5' };
     await settle();

@@ -2,6 +2,7 @@ import { wordSyncSavedFilter } from '../../wordSync/wordSyncSavedFilter';
 
 export interface HomePracticeContext {
   activity: 'practice' | 'reinforce';
+  sessionId: string;
   material?: { language: string; label: string; words: string[] };
 }
 
@@ -20,7 +21,7 @@ export function homePracticeResume(storage: Storage, scope: { language: string; 
       // Older material sessions lack their original scope; never guess a new one.
       if (key.includes('-material-') && (!source || !Array.isArray(source.words)
         || !source.words.every((word: unknown) => typeof word === 'string') || typeof source.label !== 'string')) continue;
-      const context: HomePracticeContext = { activity: key.includes('-reinforce:') ? 'reinforce' : 'practice',
+      const context: HomePracticeContext = { activity: key.includes('-reinforce:') ? 'reinforce' : 'practice', sessionId: record.id,
         ...(source ? { material: { language: scope.language, label: source.label, words: source.words } } : {}) };
       const at = record.meta.encounter?.decision?.at ?? 0;
       if (!latest || at > latest.at) latest = { at, label: typeof record.queue[record.index]?.id === 'string' ? record.queue[record.index].id : source?.label ?? '', context };
