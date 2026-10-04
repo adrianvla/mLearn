@@ -23,7 +23,7 @@ export const ApplicationShell: ParentComponent = props => {
     const cleanup = bridge.window.onWindowContext(context => {
       if (isApplicationNavigation(context)) {
         const request = context.applicationNavigation;
-        navigate(request.path, { state: { applicationRequestId: request.requestId } });
+        navigate(request.path, { state: { applicationRequestId: request.requestId, applicationContext: request.context ?? {} } });
       }
     });
     if (isElectron()) bridge.window.getWindowContext('main');

@@ -225,6 +225,19 @@ describe('LevelStudyTab', () => {
     container.remove();
   });
 
+  it('shows passive curriculum coverage in Plan without admitting grammar or mock work', async () => {
+    currentLangDataMock = deFixture() as unknown as Record<string, unknown>;
+    settingsLanguageMock = 'de';
+    const { LevelStudyTab } = await import('./LevelStudyTab');
+    const dispose = render(() => <LevelStudyTab />, container);
+    await waitFor(() => container.querySelector('.level-study-grammar-summary') !== null);
+    expect(container.querySelector('.grammar-coverage')).toBeNull();
+    expect(container.querySelector('[data-testid="mock-blueprints"]')).toBeNull();
+    const practise = container.querySelector('.level-study-grammar-summary button') as HTMLButtonElement;
+    practise.click();
+    expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'level-study', context: expect.objectContaining({ activity: 'grammar', returnTo: 'plan' }) }));
+    dispose();
+  });
   it('requests a one-time language data refresh when loaded metadata has no frequency rows', async () => {
     const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
@@ -512,7 +525,7 @@ describe('LevelStudyTab', () => {
     recordGrammarAttemptMock.mockImplementation(mockWriterFlippingProjections);
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
-    const dispose = render(() => <LevelStudyTab />, container);
+    const dispose = render(() => <LevelStudyTab view="mock" />, container);
     await tick();
     await waitFor(() => container.querySelector('[data-testid="mock-blueprints"]') !== null);
 
@@ -551,21 +564,18 @@ describe('LevelStudyTab', () => {
     const agentContext = (agentCall![0] as { context?: { tutorConfig?: { selectedGrammar?: unknown[] } } }).context;
     expect((agentContext?.tutorConfig?.selectedGrammar ?? []).length).toBeGreaterThan(0);
 
-    // The same action routes an unconfigured learner to the AI setup, not
-    // the unrelated Behaviour settings tab.
+    // Provider setup belongs to generation; saved history remains accessible.
     openWindowMock.mockClear();
     llmReadyMock = false;
     outputBtn!.click();
-    expect(openWindowMock).toHaveBeenCalledWith({
-      type: 'settings',
-      context: { section: 'ai' },
-    });
+    expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'conversation-agent' }));
 
     // Repair re-enters the SAME policy walk for the missed level (R13).
     const repairBtn = container.querySelector('[data-testid="mock-repair-btn"]') as HTMLButtonElement | null;
     expect(repairBtn).toBeTruthy();
     repairBtn!.click();
-    await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
+    expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'level-study', context: expect.objectContaining({ activity: 'grammar', level: 3, returnTo: 'evaluate' }) }));
+    expect(container.querySelector('.grammar-coverage')).toBeNull();
 
     // Closing results clears the pending view for good: the next reload
     // returns to blueprints, never back to stale results.
@@ -580,15 +590,16 @@ describe('LevelStudyTab', () => {
     dispose();
   });
 
-  it('starts an owner-held mock repair after projection refresh ends the live walk', async () => {
+  it('keeps grammar attempts and their exact cursor mounted across projection refresh', async () => {
     currentLangDataMock = deFixture() as unknown as Record<string, unknown>;
     settingsLanguageMock = 'de';
     recordGrammarAttemptMock.mockImplementation(mockWriterFlippingProjections);
 
     const { LevelStudyTab } = await import('./LevelStudyTab');
-    const dispose = render(() => <LevelStudyTab />, container);
+    const dispose = render(() => <LevelStudyTab view="grammar" />, container);
     await tick();
-    await waitFor(() => container.querySelector('[data-testid="mock-blueprints"]') !== null);
+    await waitFor(() => container.querySelector('.grammar-coverage') !== null);
+    expect(container.querySelector('[data-testid="mock-blueprints"]')).toBeNull();
 
     // A live self-assessment walk on level 3 (durable cursor) while the
     // mock runs on the same level's blueprint. One probe persists the
@@ -619,17 +630,6 @@ describe('LevelStudyTab', () => {
       } } });
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt[data-pattern]') !== null);
 
-    await runMockThroughResults(container, goldIndexFor(currentLangDataMock as unknown as LanguageData), 3);
-    await waitFor(() => container.querySelector('[data-testid="mock-repair-btn"]') !== null);
-
-    // Repair requested while the walk is live: queued at the owner, never
-    // started, never hidden.
-    (container.querySelector('[data-testid="mock-repair-btn"]') as HTMLButtonElement).click();
-    await tick();
-    expect(levelBlock(container, 3).querySelector('.grammar-contrast')).toBeNull();
-
-    // A probe append's projection reload leaves the walk and queued repair
-    // mounted, retaining their durable cursor and current prompt.
     setProjectionLoading(true);
     await tick();
     expect(container.querySelector('.level-study-boot')).toBeNull();
@@ -640,21 +640,10 @@ describe('LevelStudyTab', () => {
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
     expect(levelBlock(container, 3).querySelector('.grammar-contrast')).toBeNull();
 
-    // Completing the resumed walk starts the queued repair as the
-    // item-backed contrast pass for the missed level — the request
-    // survived the refresh because the owner held it.
-    (levelBlock(container, 3).querySelector('.study-encounter__reveal') as HTMLButtonElement).click();
-    walkProbe().click();
-    await beat();
-    await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
-    (levelBlock(container, 3).querySelector('.study-encounter__reveal') as HTMLButtonElement).click();
-    walkProbe().click();
-    await beat();
-    await waitFor(() => levelBlock(container, 3).querySelector('.grammar-contrast') !== null);
-    expect(levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt[data-pattern]')).toBeNull();
-
+    expect(recordGrammarAttemptMock.mock.calls.filter(([, , options]) => (options as { taskType?: string }).taskType === 'grammar-self-assess')).toHaveLength(1);
     dispose();
   });
+
 });
 
 // ─── Fixtures + drivers for the mock lifecycle integration tests ─────────

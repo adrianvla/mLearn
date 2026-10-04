@@ -3,7 +3,7 @@ import { render } from 'solid-js/web';
 import { HashRouter } from '@solidjs/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => ({ listener: undefined as ((context: Record<string, unknown>) => void) | undefined, unsubscribe: vi.fn(), mounted: vi.fn() }));
-vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }) }));
+vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }), useSettings: () => ({ settings: { language: 'package-x' }, isLoading: () => false }) }));
 vi.mock('../../context/WindowWrapper', () => ({ LibraryLoadGuard: (props: { recoveryAccess?: boolean }) => <span data-testid="guard" data-recovery={String(props.recoveryAccess)} /> }));
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
   onWindowContext: (listener: typeof fixture.listener) => { fixture.listener = listener; return fixture.unsubscribe; }, getWindowContext: vi.fn(),
@@ -15,8 +15,8 @@ vi.mock('../flashcards/App', () => ({ FlashcardsContent: (props: { initialTab?: 
   fixture.mounted(props.initialTab ?? 'review'); return <div data-content={props.initialTab ?? 'review'}><button onClick={props.onClose}>Return</button></div>;
 } }));
 vi.mock('../conversationAgent/App', () => ({ ConversationContent: () => <div data-content="messenger" /> }));
-vi.mock('../levelStudy/App', () => ({ LevelStudyContent: () => <div data-content="plan" /> }));
-vi.mock('../wordSync/App', () => ({ WordSyncContent: () => <div data-content="assessment" /> }));
+vi.mock('../levelStudy/App', () => ({ LevelStudyContent: (props: { workspace?: string }) => <div data-content={props.workspace ?? "plan"} /> }));
+vi.mock('../wordSync/App', () => ({ WordSyncContent: (props: { mode?: string; intent?: string; words?: readonly string[]; encounterLimit?: number }) => <div data-content={props.mode === 'assessment' ? 'assessment' : 'words'} data-intent={props.intent} data-words={JSON.stringify(props.words)} data-limit={props.encounterLimit} /> }));
 vi.mock('../characterGrid/App', () => ({ CharacterGridContent: () => <div data-content="characters" /> }));
 vi.mock('../wordDbEditor/App', () => ({ WordDbEditorContent: () => <div data-content="knowledge" /> }));
 vi.mock('../statistics/App', () => ({ StatisticsContent: () => <div data-content="progress" /> }));
@@ -56,6 +56,33 @@ describe('application shell route ownership', () => {
     await vi.waitFor(() => expect(fixture.mounted).toHaveBeenCalledTimes(3));
     expect(container.querySelectorAll('[data-content="review"]')).toHaveLength(1);
     dispose(); expect(fixture.unsubscribe).toHaveBeenCalledOnce();
+  });
+  it('opens an explicit scoped word task directly, including a repeated request on that route', async () => {
+    mount();
+    fixture.listener!({ applicationNavigation: { path: '/practise/words', requestId: 'material-first', context: {
+      activity: 'reinforce', material: { language: 'package-x', label: 'Chapter', words: ['one', 'two'] },
+      session: { encounterLimit: 7, requestId: 'selection-first' }, returnTo: 'material',
+    } } });
+    await vi.waitFor(() => expect(container.querySelector('[data-content="words"]')).not.toBeNull());
+    expect(container.querySelector('[data-content="plan"]')).toBeNull();
+    expect(container.querySelector('[data-content="words"]')?.getAttribute('data-words')).toBe('["one","two"]');
+    expect(container.querySelector('[data-content="words"]')?.getAttribute('data-intent')).toBe('reinforce');
+    expect(container.querySelector('[data-content="words"]')?.getAttribute('data-limit')).toBe('7');
+    fixture.listener!({ applicationNavigation: { path: '/practise/words', requestId: 'open-second', context: {} } });
+    await vi.waitFor(() => expect(container.querySelector('[data-content="words"]')?.getAttribute('data-words')).toBeNull());
+    expect(container.querySelector('[data-content="words"]')?.getAttribute('data-intent')).toBeNull();
+  });
+  it('refuses a stale source-language selection rather than practising unrelated words', async () => {
+    mount(); fixture.listener!({ applicationNavigation: { path: '/practise/words', requestId: 'wrong-language', context: {
+      activity: 'practice', material: { language: 'other', label: 'Chapter', words: ['one'] },
+    } } });
+    await vi.waitFor(() => expect(container.textContent).toContain('mlearn.Goals.Unavailable'));
+    expect(container.querySelector('[data-content="words"]')).toBeNull();
+  });
+  it.each([['/practise/grammar', 'grammar'], ['/evaluate/grammar', 'mock']])('hosts %s separately from passive Plan', async (path, content) => {
+    window.history.replaceState(null, '', `#${path}`); mount();
+    await vi.waitFor(() => expect(container.querySelector(`[data-content="${content}"]`)).not.toBeNull());
+    expect(container.querySelector('[data-content="plan"]')).toBeNull();
   });
   it('keeps Settings free of backend and library blocking overlays', async () => {
     mount(); await navigate('/settings');

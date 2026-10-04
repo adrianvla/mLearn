@@ -614,7 +614,7 @@ describe('windowManager', () => {
 
       const win = createChildWindow(WINDOW_TYPES.CHARACTER_GRID);
       expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
-      expect(win.webContents.send).toHaveBeenCalledWith(expect.any(String), { applicationNavigation: { path: expect.stringMatching(/^\/(knowledge\/characters|plan)$/), requestId: expect.any(String) } });
+      expect(win.webContents.send).toHaveBeenCalledWith(expect.any(String), { applicationNavigation: { path: expect.stringMatching(/^\/(knowledge\/characters|plan)$/), requestId: expect.any(String), context: expect.any(Object) } });
       delete process.env.NODE_ENV;
     });
 
@@ -628,7 +628,7 @@ describe('windowManager', () => {
 
       const win = createChildWindow(WINDOW_TYPES.LEVEL_STUDY);
       expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
-      expect(win.webContents.send).toHaveBeenCalledWith(expect.any(String), { applicationNavigation: { path: expect.stringMatching(/^\/(knowledge\/characters|plan)$/), requestId: expect.any(String) } });
+      expect(win.webContents.send).toHaveBeenCalledWith(expect.any(String), { applicationNavigation: { path: expect.stringMatching(/^\/(knowledge\/characters|plan)$/), requestId: expect.any(String), context: expect.any(Object) } });
       delete process.env.NODE_ENV;
     });
 
@@ -1059,7 +1059,7 @@ describe('windowManager', () => {
       const context = { updated: true };
       fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards', context, options: {} });
 
-      expect(existingWin.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/practise', requestId: expect.any(String) } });
+      expect(existingWin.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/practise', requestId: expect.any(String), context: expect.any(Object) } });
       expect(createdWindows).toHaveLength(1);
       delete process.env.NODE_ENV;
     });
@@ -1151,7 +1151,7 @@ describe('windowManager', () => {
       expect(createdWindows.length).toBe(countBefore + 1);
       const lastWin = createdWindows[createdWindows.length - 1];
       expect(lastWin.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
-      expect(lastWin.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/settings', requestId: expect.any(String) } });
+      expect(lastWin.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/settings', requestId: expect.any(String), context: expect.any(Object) } });
       const reply = vi.fn();
       fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, { sender: lastWin.webContents, reply }, 'settings');
       expect(reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { section: 'connection' });

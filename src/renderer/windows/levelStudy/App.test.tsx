@@ -8,11 +8,11 @@ import { createSignal, type JSX } from 'solid-js';
 let settingsLoadingMock = () => false;
 let currentLangDataMock: Record<string, unknown> = {};
 const localizationMock = vi.fn((key: string) => key);
-const ingress = vi.hoisted(() => ({ context: {} as Record<string, unknown>, cleanup: vi.fn(), request: vi.fn(), close: vi.fn() }));
+const ingress = vi.hoisted(() => ({ context: {} as Record<string, unknown>, cleanup: vi.fn(), request: vi.fn(), close: vi.fn(), open: vi.fn() }));
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
   onWindowContext: (callback: (context: Record<string, unknown>) => void) => { callback(ingress.context); return ingress.cleanup; },
   getWindowContext: ingress.request,
-  closeWindow: ingress.close,
+  closeWindow: ingress.close, openWindow: ingress.open,
 } }) }));
 
 vi.mock('../../hooks/useLearningModel', () => ({ useLearningModel: () => ({ model: () => fitLearningModel([], Date.now()), snapshot: () => ({ events: [] }), ready: () => true, failed: () => false, retry: vi.fn() }) }));
@@ -138,6 +138,14 @@ describe('LevelStudyContent', () => {
     container.remove();
   });
 
+  it('keeps a routed Plan passive even when transport carries an old task intention', async () => {
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent workspace="plan" launchContext={{ activity: 'practice' }} />, container);
+    expect(container.textContent).toContain('Plan controls');
+    expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
+    expect(ingress.request).not.toHaveBeenCalled();
+    dispose();
+  });
   it('starts with the learning plan and launches practice with a route back', async () => {
     const { LevelStudyContent } = await import('./App');
     const dispose = render(() => <LevelStudyContent />, container);
@@ -145,9 +153,8 @@ describe('LevelStudyContent', () => {
     expect(container.textContent).not.toContain('Word Sync Content');
     const practice = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Home.Today.PracticeAction');
     practice?.click();
-    expect(container.textContent).toContain('Word Sync Content');
-    const back = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('mlearn.LearningPlan.Back'));
-    back?.click();
+    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'practice', returnTo: 'plan' } });
+    expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
     expect(container.textContent).toContain('Plan controls');
     dispose();
   });
@@ -206,7 +213,8 @@ describe('LevelStudyContent', () => {
     expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-intent')).toBe('reinforce');
     Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('mlearn.LearningPlan.Back'))!.click();
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Home.Today.PracticeAction')!.click();
-    expect(container.querySelector('[data-testid="word-sync-content"]')?.hasAttribute('data-intent')).toBe(false);
+    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'practice', returnTo: 'plan' } });
+    expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
     dispose();
   });
 
@@ -233,9 +241,9 @@ describe('LevelStudyContent', () => {
     expect(assess).toBeDefined();
     assess!.click();
 
-    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-mode')).toBe('assessment');
-    expect(container.textContent).toContain('Word Sync Content');
-    expect(container.textContent).not.toContain('Plan controls');
+    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'assessment', returnTo: 'plan' } });
+    expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
+    expect(container.textContent).toContain('Plan controls');
     dispose();
   });
 

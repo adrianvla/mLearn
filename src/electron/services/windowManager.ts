@@ -463,7 +463,7 @@ function openApplicationDestination(type: WindowType, context?: Record<string, u
   const window = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createMainWindow();
   // Empty context is intentional: Open must never replay an older Start request.
   windowContextStore.set(type === 'connect-qr' ? 'settings' : type, destination.context);
-  const navigation = { applicationNavigation: { path: destination.path, requestId: crypto.randomUUID() } };
+  const navigation = { applicationNavigation: { path: destination.path, requestId: crypto.randomUUID(), context: destination.context } };
   windowContextStore.set('main', navigation);
   if (!window.webContents.isLoadingMainFrame()) window.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, navigation);
   window.show();

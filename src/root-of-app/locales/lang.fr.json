@@ -4189,7 +4189,8 @@
       "ReadDescription": "Lisez et consultez la langue en contexte.",
       "WatchDescription": "Regardez avec des sous-titres et des définitions en contexte.",
       "OpenMaterial": "Ouvrir ou importer un support",
-      "MessengerDescription": "Reprenez vos conversations."
+      "MessengerDescription": "Reprenez vos conversations.",
+      "GrammarUnavailable": "Ce paquet ne propose pas de tâches de grammaire."
     }
   }
 }

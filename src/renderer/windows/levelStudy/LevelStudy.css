@@ -486,3 +486,6 @@ body .learning-plan-page .grammar-coverage-panel:has(.grammar-coverage--studying
   .learning-plan-secondary-activities { flex-direction: column; gap: var(--spacing-4); }
   .learning-plan-configuration > summary { align-items: flex-start; }
 }
+
+.level-study-grammar-summary-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-3); margin-block: var(--spacing-3); }
+.level-study-grammar-summary-row > span:first-child { flex: 1; }

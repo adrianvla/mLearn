@@ -4189,7 +4189,8 @@
       "ReadDescription": "Lies und schlage Sprache im Kontext nach.",
       "WatchDescription": "Schau Videos mit Untertiteln und Kontextsuche.",
       "OpenMaterial": "Material öffnen oder importieren",
-      "MessengerDescription": "Setze deine Gespräche fort."
+      "MessengerDescription": "Setze deine Gespräche fort.",
+      "GrammarUnavailable": "Dieses Paket stellt keine Grammatikaufgaben bereit."
     }
   }
 }

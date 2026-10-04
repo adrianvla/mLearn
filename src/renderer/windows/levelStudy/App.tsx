@@ -18,7 +18,7 @@ import './LevelStudy.css';
 
 type PlanDestination = 'plan' | 'assessment' | 'word-sync' | 'character-grid';
 
-export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) => {
+export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'plan' | 'grammar' | 'mock'; launchContext?: Record<string, unknown> }> = (props) => {
   const { t } = useLocalization();
   const { currentLangData, getFreqLevelNames } = useLanguage();
   const { settings, isLoading: settingsLoading } = useSettings();
@@ -39,10 +39,10 @@ export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) =>
     const scope = targetScope();
     if (scope.selected && !scope.goals.length) { editPlan(); return; }
     if (scope.selected && !scope.words.length && scope.patterns.length) {
-      setGrammarRequestConsumed(false); setIncomingContext({ activity: 'grammar', patterns: scope.patterns }); setDestination('plan'); return;
+      getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', patterns: scope.patterns, returnTo: 'plan' } }); return;
     }
-    setMaterialPractice(scope.selected ? { language: settings.language, label: scope.goals.map(goal => goal.outcome).join(' · '), words: scope.words } : undefined);
-    setStudyIntent(undefined); setDestination('word-sync');
+    getBridge().window.openWindow({ type: 'level-study', context: { activity: 'practice', returnTo: 'plan',
+      ...(scope.selected ? { material: { language: settings.language, label: scope.goals.map(goal => goal.outcome).join(' · '), words: scope.words } } : {}) } });
   }); };
   const [sessionConstraint, setSessionConstraint] = createSignal<{ encounterLimit: number; requestId?: string }>();
   const [incomingContext, setIncomingContext] = createSignal<Record<string, unknown> | null>(null);
@@ -60,7 +60,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) =>
   });
 
   createEffect(on(() => settingsLoading() ? null : incomingContext(), context => {
-    if (!context) return;
+    if (!context || props.workspace) return;
     const session = context.session as { encounterLimit?: unknown; requestId?: unknown } | undefined;
     if (session && typeof session.encounterLimit === 'number' && Number.isFinite(session.encounterLimit)) {
       setSessionConstraint({ encounterLimit: Math.max(1, Math.min(120, Math.floor(session.encounterLimit))),
@@ -78,7 +78,9 @@ export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) =>
       else if (context.activity === 'plan' || context.activity === 'grammar') { setDestination('plan'); if (context.edit === true) editPlan(); }
     });
   }));
+  createEffect(() => { if (props.workspace) { setGrammarRequestConsumed(false); setIncomingContext(props.launchContext ?? {}); if (props.workspace === 'plan' && props.launchContext?.edit === true) editPlan(); } });
   onMount(() => {
+    if (props.workspace) return;
     const bridge = getBridge();
     const cleanup = bridge.window.onWindowContext(context => { setGrammarRequestConsumed(false); setIncomingContext(context); });
     if (cleanup) onCleanup(cleanup);
@@ -100,7 +102,8 @@ export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) =>
       batch(() => { setMaterialPractice(undefined); setDestination('plan'); });
     }
   });
-  const title = () => destination() === 'plan' ? t('mlearn.LevelStudy.Title')
+  const title = () => props.workspace === 'grammar' ? t('mlearn.LevelStudy.Grammar.Title')
+    : props.workspace === 'mock' ? t('mlearn.Product.Evaluate') : destination() === 'plan' ? t('mlearn.LevelStudy.Title')
     : destination() === 'assessment' ? t('mlearn.LearningPlan.Assess')
     : destination() === 'word-sync' ? t('mlearn.Home.Today.Practice')
     : t(destination() === 'word-sync' ? 'mlearn.LevelStudy.Tabs.WordSync' : 'mlearn.LevelStudy.Tabs.CharacterGrid');
@@ -109,8 +112,8 @@ export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) =>
     <div class="level-study">
       <header class="level-study-header">
         <div class="level-study-header-title"><TargetIcon size={20} /><span>{title()}</span></div>
-        <Show when={destination() !== 'plan'}>
-          <Button buttonType="nav" onClick={() => incomingContext()?.returnTo === 'home' || materialPractice() ? (props.onClose ?? (() => getBridge().window.closeWindow()))() : setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
+        <Show when={props.workspace === 'grammar' || props.workspace === 'mock' || destination() !== 'plan'}>
+          <Button buttonType="nav" onClick={() => props.workspace || incomingContext()?.returnTo === 'home' || materialPractice() ? (props.onClose ?? (() => getBridge().window.closeWindow()))() : setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
             {t(incomingContext()?.returnTo === 'home' ? 'mlearn.Tabs.Home' : materialPractice() ? 'mlearn.LearningPlan.BackToMaterial' : 'mlearn.LearningPlan.Back')}
           </Button>
         </Show>
@@ -118,7 +121,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) =>
       <div class="level-study-content">
         <Show when={destination() === 'plan'}>
           <div class="learning-plan-page">
-            <Show when={destination() === 'plan'}>
+            <Show when={destination() === 'plan' && (!props.workspace || props.workspace === 'plan')}>
               <p class="learning-plan-intro">{t('mlearn.LearningPlan.Description')}</p>
               <section class="learning-plan-activity-section" aria-label={t('mlearn.LearningPlan.Activities')}>
                 <Panel class="learning-plan-practice" padding="lg">
@@ -126,8 +129,8 @@ export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) =>
                   <Button variant="primary" onClick={openStudy}>{t('mlearn.Home.Today.PracticeAction')}</Button>
                 </Panel>
                 <div class="learning-plan-secondary-activities">
-                  <div><Button variant="ghost" onClick={() => setDestination('assessment')}>{t('mlearn.LearningPlan.Assess')}</Button><p>{t('mlearn.LearningPlan.AssessDescription')}</p></div>
-                  <Show when={showCharacterGrid()}><div><Button variant="ghost" onClick={() => setDestination('character-grid')}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Button><p>{t('mlearn.LearningPlan.CharactersDescription')}</p></div></Show>
+                  <div><Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'assessment', returnTo: 'plan' } })}>{t('mlearn.LearningPlan.Assess')}</Button><p>{t('mlearn.LearningPlan.AssessDescription')}</p></div>
+                  <Show when={showCharacterGrid()}><div><Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'character-grid' })}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Button><p>{t('mlearn.LearningPlan.CharactersDescription')}</p></div></Show>
                 </div>
               </section>
               <details ref={planControls} class="learning-plan-configuration">
@@ -136,7 +139,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) =>
               </details>
               <h2 class="learning-plan-progress-heading">{t('mlearn.LearningPlan.Progress')}</h2>
             </Show>
-            <LevelStudyTab onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
+            <LevelStudyTab view={props.workspace ?? 'plan'} onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
           </div>
         </Show>
         <Show when={destination() === 'word-sync' || destination() === 'assessment'}>

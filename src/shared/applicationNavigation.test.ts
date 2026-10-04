@@ -5,7 +5,7 @@ describe('application destinations', () => {
   it('keeps ordinary destinations stable and separates checks from practice', () => {
     expect(resolveApplicationDestination('flashcards')?.path).toBe('/practise');
     expect(resolveApplicationDestination('level-study')?.path).toBe('/plan');
-    expect(resolveApplicationDestination('level-study', { activity: 'assessment' })?.path).toBe('/evaluate');
+    expect(resolveApplicationDestination('level-study', { activity: 'assessment' })?.path).toBe('/evaluate/words');
     expect(resolveApplicationDestination('level-study', { activity: 'practice', material: { words: ['x'] } }))
       .toEqual({ path: '/practise/words', context: { activity: 'practice', material: { words: ['x'] } } });
     expect(resolveApplicationDestination('level-study', { activity: 'grammar', patterns: ['x'] })?.path).toBe('/practise/grammar');

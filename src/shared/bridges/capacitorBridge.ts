@@ -937,7 +937,7 @@ const windowBridge: WindowBridge = {
       return;
     }
     if (destination) {
-      const navigation = { applicationNavigation: { path: route, requestId: crypto.randomUUID() } };
+      const navigation = { applicationNavigation: { path: route, requestId: crypto.randomUUID(), context: destination.context } };
       windowContextCallbacks.forEach(callback => callback(navigation));
     }
     window.location.hash = `#${route}`;

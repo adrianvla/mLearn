@@ -8,9 +8,9 @@ export function resolveApplicationDestination(type: string, context: Record<stri
   let path: string;
   switch (type) {
     case 'flashcards': path = context.tab === 'stats' ? '/progress' : context.tab && context.tab !== 'review' ? '/knowledge/material' : '/practise'; break;
-    case 'word-sync': path = context.activity === 'practice' || context.activity === 'reinforce' ? '/practise/words' : '/evaluate'; break;
+    case 'word-sync': path = context.activity === 'practice' || context.activity === 'reinforce' ? '/practise/words' : '/evaluate/words'; break;
     case 'level-study':
-      path = context.activity === 'assessment' ? '/evaluate'
+      path = context.activity === 'assessment' ? '/evaluate/words'
         : context.activity === 'grammar' ? context.purpose === 'evaluate' ? '/evaluate/grammar' : '/practise/grammar'
         : context.activity === 'practice' || context.activity === 'reinforce' ? '/practise/words' : '/plan';
       break;
@@ -27,7 +27,7 @@ export function resolveApplicationDestination(type: string, context: Record<stri
 
 /** Explicit route intent. Context stays out of URLs and remains owned by the existing task protocol. */
 export interface ApplicationNavigation {
-  applicationNavigation: { path: string; requestId: string };
+  applicationNavigation: { path: string; requestId: string; context?: Record<string, unknown> };
 }
 export function isApplicationNavigation(value: unknown): value is ApplicationNavigation {
   if (!value || typeof value !== 'object') return false;

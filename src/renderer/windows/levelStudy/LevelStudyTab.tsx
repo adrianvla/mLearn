@@ -10,13 +10,12 @@ import { BulkAddModal } from './BulkAddModal';
 import { GrammarCoverage } from './GrammarCoverage';
 import MockExam from './MockExam';
 import LearningBackgroundPanel from './LearningBackgroundPanel';
-import { summarizeGrammarCurriculum } from '../../utils/curriculumCoverage';
+import { summarizeGrammarCurriculum, grammarLevelName } from '../../utils/curriculumCoverage';
 import { declaredItemStates, questionBankFromLanguageData } from '../../learning/questionBank';
 import { languageDataWithStoredQuestionValidations } from '../../learning/questionValidation';
 import type { MockJournalPayload } from '../../learning/mockExam';
 import type { AttemptId, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import type { GrammarProjectionMap } from '../../../shared/knowledge/historyQueries';
-import { openCapabilitySettings, requireCapability } from '../../services/capabilityUnavailable';
 import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 import { eventsVersion, queryLanguageKeys } from '../../services/knowledgeEvents';
 import { createResource } from 'solid-js';
@@ -64,13 +63,13 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
+export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'mock'; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
   const { settings } = useSettings();
   const [selectedLevel, setSelectedLevel] = createSignal<LevelStats | null>(null);
-  const [grammarPracticeActive, setGrammarPracticeActive] = createSignal(false);
+  const view = () => props.view ?? 'plan';
   const [showBulkAdd, setShowBulkAdd] = createSignal(false);
   // Question-validation record store (R12) is non-reactive localStorage: this
   // version bumps after each run so the resolved data re-applies fresh records.
@@ -279,9 +278,6 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
   };
 
   // ─── Checkpoints & mocks (R13/R14) ──────────────
-  /** Mock repair request: the SAME TeachingPolicy walk re-plans for the
-   *  level (GrammarCoverage consumes it; a live walk is never replaced). */
-  const [mockRepairRequest, setMockRepairRequest] = createSignal<{ level: number; requestedAt: number } | null>(null);
   /** Canonical journal write for a mock attempt: the SAME writer the
    *  practice walks use, carrying `mock-contrast`/`mock-typed` task
    *  provenance plus the versioned item reference (G03). */
@@ -295,19 +291,8 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
       taskType: payload.taskType,
       attemptId,
     });
-  /** Targeted output (R14): the missed constructions pass into the SAME
-   *  conversation agent experience. An unconfigured LLM routes to Settings
-   *  → AI instead of opening an agent that cannot run (same gate as the
-   *  home tutor).
-   *
-   *  The redirect used to happen in silence, so the Settings window appeared
-   *  with no explanation of why. The refusal now names itself on the way out,
-   *  through the same owner every other surface uses. */
+  /** Preparation and saved Messenger history stay accessible before provider setup. */
   const openTargetedOutput = (targets: readonly { pattern: string; meaning: string; level: number }[]) => {
-    if (!requireCapability('llm', settings, t, 'notConfigured')) {
-      openCapabilitySettings('llm');
-      return;
-    }
     getBridge().window.openWindow({
       type: 'conversation-agent',
       context: {
@@ -333,16 +318,17 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
 
   return (
     <div class="level-study-tab">
-      <Show when={projected.failed()}>
+      <Show when={view() === 'plan' && projected.failed()}>
         <KnowledgeLoadError onRetry={() => { projected.retry(); }} />
       </Show>
-      <Show when={resolvedLanguageData().language !== ''}>
+      <Show when={view() === 'plan' && resolvedLanguageData().language !== ''}>
         <LearningBackgroundPanel language={resolvedLanguageData().language} />
       </Show>
       {/* Level stats are derived from the learner projection and the
           installed frequency data: until both are authoritative, keep the
           tab's geometry with placeholders instead of a blank panel, zeroed
           coverage, or a false empty state. */}
+      <Show when={view() === 'plan'}>
       <Show when={flashcards.isKnowledgeReady() && !language.isLoading() && ((projected.ready()) || stats().length > 0)} fallback={
         <Show when={!projected.failed()}>
         <div class="level-study-boot" aria-busy="true">
@@ -449,15 +435,34 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
         </div>
         </Show>
 
+      </Show>
+      </Show>
         <Show when={requiresGrammar() && grammarLog() === undefined}>
           <Show when={grammarLogResource.state === 'errored'} fallback={<SkeletonRows rows={3} />}>
             <KnowledgeLoadError onRetry={() => void retryGrammarLog()} />
           </Show>
         </Show>
+        <Show when={view() !== 'plan' && !language.isLoading() && resolvedLanguageData().data && grammarLog() !== undefined && !requiresGrammar()}>
+          <EmptyState title={t('mlearn.Product.GrammarUnavailable')} variant="card" size="md" />
+        </Show>
         <Show when={grammarSummary() !== null && grammarSummary()!.total > 0 && grammarLog() !== undefined}>
+          <Show when={view() === 'plan'}>
+            <Panel class="level-study-grammar-summary" padding="md">
+              <h3>{t('mlearn.LevelStudy.Grammar.Title')}</h3>
+              <For each={grammarSummary()!.buckets}>{bucket => <div class="level-study-grammar-summary-row">
+                <span>{grammarLevelName(Number(bucket.level), resolvedLanguageData().data!)}</span>
+                <span>{bucket.known + bucket.learning + bucket.unknown} / {bucket.total} {t('mlearn.LevelStudy.Coverage.Assessed')}</span>
+                <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
+                  activity: 'grammar', level: bucket.level, returnTo: 'plan',
+                  patterns: scopedGrammarData()!.grammar!.filter(point => point.level === bucket.level).map(point => point.pattern),
+                } })}>{t('mlearn.Product.Practise')}</Button>
+              </div>}</For>
+              <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', purpose: 'evaluate', returnTo: 'plan' } })}>{t('mlearn.Product.Evaluate')}</Button>
+            </Panel>
+          </Show>
+          <Show when={view() === 'grammar'}>
           <GrammarCoverage
-            initiallyPaused={!grammarPracticeActive()}
-            onPracticeActiveChange={setGrammarPracticeActive}
+            initiallyPaused={true}
             language={resolvedLanguageData().language}
             languageData={resolvedLanguageData().data!}
             eventLog={grammarLog()!}
@@ -465,11 +470,8 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
             summary={grammarSummary()!}
             policyContext={props.policyContext}
             scopePatterns={props.grammarRequest?.patterns ?? (targetScope().selected ? targetScope().patterns : undefined)}
-            repairRequest={props.grammarRequest ?? mockRepairRequest()}
-            onRepairRequestHandled={(requestedAt) => {
-              if (props.grammarRequest) props.onGrammarRequestHandled?.();
-              setMockRepairRequest((request) => request?.requestedAt === requestedAt ? null : request);
-            }}
+            repairRequest={props.grammarRequest}
+            onRepairRequestHandled={() => props.onGrammarRequestHandled?.()}
             onValidated={() => setValidationsVersion((version) => version + 1)}
             undoLifecycle={{
               record: flashcards.recordPendingRetraction,
@@ -491,6 +493,8 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
               });
             }}
           />
+          </Show>
+          <Show when={view() === 'mock'}>
           {/* Checkpoints & mocks (R13): fixed declared blueprints over the
               same journal, results through the canonical writer, repair via
               the SAME policy walk, targeted output via the SAME agent. */}
@@ -499,10 +503,10 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
             languageData={resolvedLanguageData().data!}
             eventLog={grammarLog()!}
             onAttempt={recordMockAttempt}
-            onRepair={(level) => setMockRepairRequest({ level, requestedAt: Date.now() })}
+            onRepair={(level) => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', level, patterns: (resolvedLanguageData().data?.grammar ?? []).filter(point => point.level === level).map(point => point.pattern), returnTo: 'evaluate' } })}
             onTargetedOutput={openTargetedOutput}
           />
-      </Show>
+          </Show>
       </Show>
       <Show when={selectedLevel()}>
         {(level) => (
