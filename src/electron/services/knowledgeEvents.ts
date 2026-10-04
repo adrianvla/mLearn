@@ -10,6 +10,7 @@ import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 import { guardianForWrites } from './guardian';
 import { startupMark, startupTime } from '../startupTiming';
+import { LearningEvidenceReader } from './learningEvidenceReader';
 
 const log = getLogger('electron.knowledgeEvents');
 const LEGACY_FILE_NAME = 'knowledge-events.json';
@@ -19,6 +20,7 @@ const COMPACTION_BUDGET_PER_SAVE = 50;
 const LEGACY_OBJECT_IPC_MAX_BYTES = 512 * 1024;
 
 let store: KnowledgeHistoryStore | undefined;
+let learningEvidenceReader: LearningEvidenceReader | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let writeQueue: Promise<void> = Promise.resolve();
 let readyPromise: Promise<void> = Promise.resolve();
@@ -300,7 +302,9 @@ export function setupKnowledgeEventsIPC(): void {
   });
   ipcMain.handle(IPC_CHANNELS.LEARNING_EVIDENCE_QUERY, async (_event, language: string) => {
     await whenKnowledgeEventsReady();
-    return ensureStore().getLearningEvidence(language);
+    const sequence = ensureStore().sequenceCounter;
+    learningEvidenceReader ??= new LearningEvidenceReader(getStorePath());
+    return learningEvidenceReader.query(language, sequence);
   });
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY, async (_event, keys: string[]) => {
     await whenKnowledgeEventsReady();

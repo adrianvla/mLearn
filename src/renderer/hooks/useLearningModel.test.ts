@@ -9,18 +9,66 @@ vi.mock('../services/knowledgeEvents', () => ({ eventsVersion: () => revision(),
 vi.mock('./useWindowActivity', () => ({ useWindowActivity: () => active }));
 const settle = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
 let dispose: (() => void) | undefined;
-afterEach(() => { dispose?.(); setRevision(0); setActive(true); });
+afterEach(() => { dispose?.(); fixtures.query.mockReset(); setRevision(0); setActive(true); });
 describe('canonical model snapshot admission', () => {
-  it('revalidates on foreground re-entry even when a notification was missed', async () => {
+  it('admits consecutive encounters from the settled snapshot while a journal rebuild is pending', async () => {
+    fixtures.query.mockResolvedValueOnce({ sequence: 10, events: [], truncated: false });
+    let finish!: (value: LearningEvidenceSnapshot) => void;
+    fixtures.query.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    let controller!: ReturnType<typeof useLearningModel>;
+    createRoot(cleanup => { dispose = cleanup; controller = useLearningModel(() => 'future'); });
+    await settle();
+    const model = controller.model();
+    setRevision(1); await settle();
+    expect(controller.ready()).toBe(true);
+    expect(controller.snapshot()?.sequence).toBe(10);
+    expect(controller.model()).toBe(model);
+    finish({ sequence: 11, events: [], truncated: false });
+    await settle();
+    expect(controller.snapshot()?.sequence).toBe(11);
+    expect(controller.model()?.evidenceVersion).toContain('journal:11');
+  });
+  it('withholds the previous language during a pending language switch', async () => {
+    fixtures.query.mockResolvedValueOnce({ sequence: 10, events: [], truncated: false });
+    fixtures.query.mockImplementationOnce(() => new Promise(() => {}));
+    const [language, setLanguage] = createSignal('first');
+    let controller!: ReturnType<typeof useLearningModel>;
+    createRoot(cleanup => { dispose = cleanup; controller = useLearningModel(language); });
+    await settle();
+    expect(controller.ready()).toBe(true);
+    setLanguage('second'); await settle();
+    expect(controller.ready()).toBe(false);
+    expect(controller.model()).toBeUndefined();
+  });
+  it('keeps the settled model and readiness on clean foreground re-entry', async () => {
     fixtures.query.mockResolvedValue({ sequence: 20, events: [], truncated: false });
     let controller!: ReturnType<typeof useLearningModel>;
     createRoot(cleanup => { dispose = cleanup; controller = useLearningModel(() => 'future'); });
     await settle();
+    const model = controller.model();
+    expect(controller.ready()).toBe(true);
     const calls = fixtures.query.mock.calls.length;
     setActive(false); await settle();
-    fixtures.query.mockResolvedValue({ sequence: 21, events: [], truncated: false });
-    setActive(true); await settle();
-    expect(fixtures.query.mock.calls.length).toBe(calls + 1);
+    setActive(true);
+    expect(controller.ready()).toBe(true);
+    expect(controller.model()).toBe(model);
+    await settle();
+    expect(fixtures.query.mock.calls.length).toBe(calls);
+    setActive(false); setActive(true); await settle();
+    expect(fixtures.query.mock.calls.length).toBe(calls);
+  });
+  it('keeps an in-flight read on clean refocus and publishes its result', async () => {
+    let finish!: (value: LearningEvidenceSnapshot) => void;
+    fixtures.query.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    let controller!: ReturnType<typeof useLearningModel>;
+    createRoot(cleanup => { dispose = cleanup; controller = useLearningModel(() => 'future'); });
+    await settle();
+    expect(fixtures.query).toHaveBeenCalledTimes(1);
+    setActive(false); setActive(true); await settle();
+    expect(fixtures.query).toHaveBeenCalledTimes(1);
+    finish({ sequence: 21, events: [], truncated: false });
+    await settle();
+    expect(controller.ready()).toBe(true);
     expect(controller.model()?.evidenceVersion).toContain('journal:21');
   });
   it('fits one bounded snapshot per revision, defers background reads and recomputes after Undo', async () => {

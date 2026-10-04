@@ -56,6 +56,27 @@ afterEach(() => {
 });
 
 describe('knowledge event storage', () => {
+  it('routes learning-evidence IPC through the asynchronous reader without rebuilding on the main thread', async () => {
+    const { LearningEvidenceReader } = await import('./learningEvidenceReader');
+    const { KnowledgeHistoryStore } = await import('./knowledgeHistoryStore');
+    let finish!: (value: import('../../shared/learningEvidence').LearningEvidenceSnapshot) => void;
+    const read = vi.spyOn(LearningEvidenceReader.prototype, 'query').mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    const synchronous = vi.spyOn(KnowledgeHistoryStore.prototype, 'getLearningEvidence').mockImplementation(() => {
+      throw new Error('Full-history rebuild entered the main thread');
+    });
+    try {
+      mod.setupKnowledgeEventsIPC();
+      await mod.whenKnowledgeEventsReady();
+      const handler = ipcHandle.mock.calls.find(([name]) => name === IPC_CHANNELS.LEARNING_EVIDENCE_QUERY)![1];
+      const reply = handler(undefined, 'future');
+      await Promise.resolve();
+      expect(read).toHaveBeenCalledWith('future', 0);
+      expect(synchronous).not.toHaveBeenCalled();
+      const snapshot = { sequence: 0, events: [], truncated: false };
+      finish(snapshot);
+      await expect(reply).resolves.toBe(snapshot);
+    } finally { read.mockRestore(); synchronous.mockRestore(); }
+  });
   it('counts only inserted evidence in Guardian and does not notify windows for an idempotent retry', async () => {
     const { Guardian, activateGuardian, inspectGuardianData } = await import('./guardian');
     const guardian = new Guardian(tempDir.tmpDir);

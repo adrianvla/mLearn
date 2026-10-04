@@ -915,51 +915,7 @@ export class KnowledgeHistoryStore {
    */
   /** Indexed, revision-pinned predictive evidence read; never sends an entire language journal. */
   getLearningEvidence(language: string): LearningEvidenceSnapshot {
-    if (typeof language !== 'string' || !language || language.length > 128) throw new Error('Invalid learning language');
-    const rows = this.db.prepare(`SELECT r.json FROM rows r WHERE r.lang = ?
-      AND json_extract(r.json, '$.kind') IN ('rating', 'review')
-      AND NOT EXISTS (SELECT 1 FROM rows tomb WHERE tomb.key = r.key
-        AND json_extract(tomb.json, '$.retracts') = json_extract(r.json, '$.attemptId'))
-      ORDER BY r.t DESC, r.seq DESC LIMIT ?`).all(language, LEARNING_EVIDENCE_ROW_CAP + 1) as Array<{ json: string }>;
-    const events: KnowledgeEvent[] = []; let bytes = 128;
-    // Older non-scheduler responses keep the complete choice inline on their
-    // first access and references on the remaining accesses. Resolve within
-    // this already bounded tail before applying its wire cap, as mobile does.
-    const sampled = rows.slice(0, LEARNING_EVIDENCE_ROW_CAP).map(row => compactLearningEvidence(JSON.parse(row.json) as KnowledgeEvent));
-    const decisions = new Map<string, LearningDecision | undefined>(sampled.flatMap(event =>
-      event.decision ? [[event.decision.id, event.decision] as const] : []));
-    const readDecision = this.db.prepare('SELECT decision_json FROM learning_decisions WHERE id = ?');
-    for (const parsed of sampled) {
-      if (!parsed.decision && parsed.decisionRef) {
-        const id = parsed.decisionRef.id;
-        if (!decisions.has(id)) decisions.set(id, (() => { const row = readDecision.get(id) as { decision_json: string } | undefined; return row ? JSON.parse(row.decision_json) as LearningDecision : undefined; })());
-        const decision = decisions.get(id);
-        if (decision) parsed.decision = decision;
-      }
-      const event = compactLearningEvidence(parsed);
-      const size = Buffer.byteLength(JSON.stringify(event), 'utf8') + 1;
-      if (bytes + size > LEARNING_EVIDENCE_BYTE_CAP) break;
-      events.push(event); bytes += size;
-    }
-    // Retained addressed attempts, across surfaces and outside the recent wire
-    // tail, condition the existing model. Scheduler-only rows cannot fit an
-    // access; archived aggregates remain canonical projection input, never
-    // invented exact attempts. Retractions use the same durable journal guard.
-    const addressed = this.db.prepare(`SELECT r.json, d.decision_json FROM rows r
-      LEFT JOIN learning_decisions d ON d.id = json_extract(r.json, '$.decisionRef.id')
-      WHERE r.lang = ? AND json_extract(r.json, '$.kind') IN ('rating', 'review')
-      AND json_extract(r.json, '$.targetRef.id') IS NOT NULL
-      AND NOT EXISTS (SELECT 1 FROM rows tomb WHERE tomb.key = r.key
-        AND json_extract(tomb.json, '$.retracts') = json_extract(r.json, '$.attemptId'))
-      ORDER BY r.t, r.seq`).all(language) as Array<{ json: string; decision_json: string | null }>;
-    const model = fitLearningModel(addressed.map(row => {
-      const event = JSON.parse(row.json) as KnowledgeEvent;
-      if (!event.decision && row.decision_json) event.decision = JSON.parse(row.decision_json) as LearningDecision;
-      return compactLearningEvidence(event);
-    }), Date.now(), `journal:${this.sequenceCounter}:retained-addressed-attempts`);
-    events.reverse();
-    return { sequence: this.sequenceCounter, model, events, truncated: events.length < rows.length,
-      ...(events.length ? { firstT: events[0].t } : {}) };
+    return readLearningEvidence(this.db, language, this.sequenceCounter);
   }
 
   pageExactEvents(
@@ -1421,4 +1377,56 @@ export class KnowledgeHistoryStore {
   close(): void {
     this.db.close();
   }
+}
+
+/** Read-only model rebuild, shared by the worker and store-level correctness checks. */
+export function readLearningEvidence(db: DatabaseSync, language: string, sequence: number): LearningEvidenceSnapshot {
+  if (typeof language !== 'string' || !language || language.length > 128) throw new Error('Invalid learning language');
+  const rows = db.prepare(`SELECT r.json FROM rows r WHERE r.lang = ?
+    AND json_extract(r.json, '$.kind') IN ('rating', 'review')
+    AND NOT EXISTS (SELECT 1 FROM rows tomb WHERE tomb.key = r.key
+      AND json_extract(tomb.json, '$.retracts') = json_extract(r.json, '$.attemptId'))
+    ORDER BY r.t DESC, r.seq DESC LIMIT ?`).all(language, LEARNING_EVIDENCE_ROW_CAP + 1) as Array<{ json: string }>;
+  const events: KnowledgeEvent[] = []; let bytes = 128;
+  // Older non-scheduler responses keep the complete choice inline on their
+  // first access and references on the remaining accesses. Resolve within
+  // this already bounded tail before applying its wire cap, as mobile does.
+  const sampled = rows.slice(0, LEARNING_EVIDENCE_ROW_CAP).map(row => compactLearningEvidence(JSON.parse(row.json) as KnowledgeEvent));
+  const decisions = new Map<string, LearningDecision | undefined>(sampled.flatMap(event =>
+    event.decision ? [[event.decision.id, event.decision] as const] : []));
+  const readDecision = db.prepare('SELECT decision_json FROM learning_decisions WHERE id = ?');
+  for (const parsed of sampled) {
+    if (!parsed.decision && parsed.decisionRef) {
+      const id = parsed.decisionRef.id;
+      if (!decisions.has(id)) decisions.set(id, (() => { const row = readDecision.get(id) as { decision_json: string } | undefined; return row ? JSON.parse(row.decision_json) as LearningDecision : undefined; })());
+      const decision = decisions.get(id);
+      if (decision) parsed.decision = decision;
+    }
+    const event = compactLearningEvidence(parsed);
+    const size = Buffer.byteLength(JSON.stringify(event), 'utf8') + 1;
+    if (bytes + size > LEARNING_EVIDENCE_BYTE_CAP) break;
+    events.push(event); bytes += size;
+  }
+  // Retained addressed attempts, across surfaces and outside the recent wire
+  // tail, condition the existing model. Scheduler-only rows cannot fit an
+  // access; archived aggregates remain canonical projection input, never
+  // invented exact attempts. Retractions use the same durable journal guard.
+  const addressed = db.prepare(`SELECT r.json, d.decision_json FROM rows r
+    LEFT JOIN learning_decisions d ON d.id = json_extract(r.json, '$.decisionRef.id')
+    WHERE r.lang = ? AND json_extract(r.json, '$.kind') IN ('rating', 'review')
+    AND json_extract(r.json, '$.targetRef.id') IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM rows tomb WHERE tomb.key = r.key
+      AND json_extract(tomb.json, '$.retracts') = json_extract(r.json, '$.attemptId'))
+    ORDER BY r.t, r.seq`).iterate(language);
+  const retained: KnowledgeEvent[] = [];
+  for (const value of addressed) {
+    const row = value as { json: string; decision_json: string | null };
+    const event = JSON.parse(row.json) as KnowledgeEvent;
+    if (!event.decision && row.decision_json) event.decision = JSON.parse(row.decision_json) as LearningDecision;
+    retained.push(compactLearningEvidence(event));
+  }
+  const model = fitLearningModel(retained, Date.now(), `journal:${sequence}:retained-addressed-attempts`);
+  events.reverse();
+  return { sequence, model, events, truncated: events.length < rows.length,
+    ...(events.length ? { firstT: events[0].t } : {}) };
 }
