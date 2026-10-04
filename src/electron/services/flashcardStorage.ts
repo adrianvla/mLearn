@@ -590,6 +590,12 @@ function backfillMissingFlashcardLevels(store: FlashcardStore): FlashcardStore {
   // Enrichment changes the displayed cue and its content hash. A captured
   // encounter must survive loading unchanged, including after reveal/Undo.
   const admitted = new Set(Object.values(store.meta.reviewPresentations ?? {}).map(presentation => presentation.cardId));
+  for (const positions of Object.values(store.meta.suspendedReviews ?? {})) {
+    for (const position of Object.values(positions)) {
+      if (position.presentation) admitted.add(position.presentation.cardId);
+      if (position.session?.initialHandoff && position.session.completedCardIds.length === 0 && position.session.initialCardId) admitted.add(position.session.initialCardId);
+    }
+  }
   for (const session of Object.values(store.meta.reviewSessions ?? {})) {
     if (session.initialHandoff && session.completedCardIds.length === 0 && session.initialCardId) admitted.add(session.initialCardId);
   }

@@ -47,6 +47,13 @@ describe('application shell route ownership', () => {
       expect(container.querySelectorAll('[data-content]')).toHaveLength(1);
     }
   });
+  it.each([['plan', '/plan'], ['material', '/knowledge/material'], ['home', '/']])('returns Review to its %s source', async (returnTo, path) => {
+    mount();
+    fixture.listener!({ applicationNavigation: { path: '/practise', requestId: 'return-source', context: { returnTo } } });
+    await vi.waitFor(() => expect(container.querySelector('[data-content="review"]')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('[data-content="review"] button')!.click();
+    await vi.waitFor(() => expect(window.location.hash).toBe(`#${path}`));
+  });
   it('mounts a deliberate new request on the same route and releases the navigation listener', async () => {
     window.history.replaceState(null, '', '#/practise'); mount();
     expect(fixture.mounted).toHaveBeenCalledTimes(1);

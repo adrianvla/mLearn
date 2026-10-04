@@ -43,7 +43,10 @@ export const WelcomeRoute: Component = () => {
   const targetScope = createMemo(() => learningScopeForSettings(settings, language.currentLangData()));
   const savedReview = createMemo(() => {
     const session = flashcards.store.meta?.reviewSessions?.[settings.language];
-    return session && reviewSessionHasAvailableCards(session, flashcards.store, settings.language) ? session : undefined;
+    if (session && reviewSessionHasAvailableCards(session, flashcards.store, settings.language)) return session;
+    const presentation = flashcards.store.meta?.reviewPresentations?.[settings.language];
+    const card = presentation && flashcards.store.flashcards[presentation.cardId];
+    return card && !card.buried && !card.suspended && (card.language || settings.language) === settings.language ? { id: presentation!.id } : undefined;
   });
   const recent = (type: RecentItem['type']) => recentItems().find(item => item.type === type) ?? null;
   const openRecent = (item: RecentItem) => {

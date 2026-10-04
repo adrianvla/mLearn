@@ -1,4 +1,5 @@
 import { useLearningModel } from '../../hooks/useLearningModel';
+import { hashWordSync } from '../../../shared/utils/wordHash';
 import { beginReviewSession, reviewSessionRemaining, reviewSessionHasAvailableCards, type ReviewSession } from '../../../shared/reviewSession';
 /**
  * Flashcard Review Component
@@ -75,6 +76,7 @@ export interface FlashcardReviewProps {
   /** Home uses a bounded admission batch, then continues ordinary requested review. */
   continueAfterBatch?: boolean;
   sessionRequestId?: string;
+  resumeSessionId?: string;
   initialCardId?: string;
   handoff?: import('../../../shared/learningDecision').LearningDecision;
   onComplete?: () => void;
@@ -193,6 +195,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const saved = store.meta.reviewSessions?.[settings.language];
     const admission = JSON.stringify([settings.language, sessionEpoch()]);
     const held = localSession && (saved?.id === localSession.session.id ? saved : localSession.session);
+    if (saved && props.resumeSessionId === saved.id) {
+      localSession = { scope, admission, session: saved }; return saved;
+    }
     // A refreshed model may temporarily remove the inferred limit. It cannot
     // turn an admitted finite chunk into continuous work or resize its membership.
     if (localSession?.admission === admission && held && (localSession.scope === scope || reviewSessionRemaining(held) > 0)) return held;
@@ -264,6 +269,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     const accesses = Object.fromEntries([...new Set([...tested, ...Object.keys(data?.learning?.capabilities ?? {}), 'prosodic-pattern'])]
       .map(capability => [capability, { ...getAccessStatus(card.content.front, capability, language) }]));
     let exposed = encounter.cursor?.cardId === card.id && encounter.cursor.scaffolds?.['prior-cue-exposure'] === true;
+    for (const position of Object.values(store.meta.suspendedReviews?.[language] ?? {})) {
+      const prior = position.presentation;
+      if (!prior || prior.cardId !== card.id || prior.id === encounter.provenance.id) continue;
+      const cue = prior.decision?.selected.presentation;
+      if (cue?.contentVersion !== undefined && cue.contentVersion !== hashWordSync(JSON.stringify(card.content))) continue;
+      try {
+        const assistance = assistanceStore.read(assistanceScope(card), prior.id);
+        exposed = exposed || prior.scaffolds?.['prior-cue-exposure'] === true
+          || assistance?.revealed === true || (assistance?.scaffolds.audio === true && encounter.activity.kind !== 'audio-recognition');
+      } catch { exposed = true; }
+    }
     if (encounter.cursor?.cardId === card.id) {
       const previous = encounter.cursor.decision;
       if (previous && previous.id !== encounter.provenance.id
@@ -609,8 +625,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const restoredAssistance = () => {
     const encounter = currentEncounter();
     if (encounter?.cursor?.correction) return encounter.cursor.correction.scaffolds;
-    return encounter && (encounter.cursor?.scaffolds || encounter.carriedScaffolds) && encounter.cursor?.cardId === encounter.card.id
-      ? { ...encounter.cursor?.scaffolds, ...encounter.carriedScaffolds } : undefined;
+    const cursor = encounter?.cursor?.cardId === encounter?.card.id ? encounter?.cursor?.scaffolds : undefined;
+    return cursor || encounter?.carriedScaffolds ? { ...cursor, ...encounter?.carriedScaffolds } : undefined;
   };
   const encounterAssistance = createMemo(() => ({ ...restoredAssistance(), ...referenceAssistance()?.scaffolds, ...ratingWrite()?.scaffolds }));
 
@@ -1505,6 +1521,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
         {/* Buttons container */}
         <div class="flashcard-buttons-container" ref={element => { reviewActionsContainer = element; setReviewActionsTarget(element); }}>
+          <Show when={props.onClose}><Button variant="ghost" onClick={() => props.onClose?.()}>{t('mlearn.Global.Back')}</Button></Show>
           <WriteStatusBanner status={removalWrite()?.phase === 'failed' ? 'failed' : null}
             savingLabelKey="mlearn.Flashcards.Review.SavingRemoval" failedLabelKey="mlearn.Flashcards.Review.RemovalSaveFailed"
             canRetry={removalWrite()?.phase === 'failed' && removalStillMatches(removalWrite()!)}

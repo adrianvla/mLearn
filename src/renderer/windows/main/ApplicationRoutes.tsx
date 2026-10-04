@@ -30,7 +30,9 @@ const RequestedContent: Component<{ content: Component<RequestedWorkspaceProps> 
 
 const Review: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();
-  return <LearningWorkspace><FlashcardsContent workspace="review" launchContext={props.launchContext} onClose={() => navigate('/')} /></LearningWorkspace>;
+  return <LearningWorkspace><FlashcardsContent workspace="review" launchContext={props.launchContext} onClose={() => navigate(
+    props.launchContext?.returnTo === 'plan' ? '/plan' : props.launchContext?.returnTo === 'material' ? '/knowledge/material' : '/'
+  )} /></LearningWorkspace>;
 };
 const Material: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();

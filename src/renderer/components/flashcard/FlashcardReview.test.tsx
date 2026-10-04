@@ -66,6 +66,7 @@ const defaultProjection: KnowledgeProjection = {
     applicableCapabilities: ALL_CAPABILITIES, states: [] }],
 };
 let mockReviewSessions: Accessor<Record<string, ReviewSession>> = () => ({});
+let mockSuspendedReviews: Record<string, Record<string, { presentation?: ReviewPresentation }>> = {};
 let mockProjection: Accessor<KnowledgeProjection | undefined> = () => defaultProjection;
 const mockProjectionRetry = vi.fn();
 let mockRatingPersistenceState: Accessor<'idle' | 'pending' | 'failed'> = () => 'idle';
@@ -121,7 +122,7 @@ vi.mock('../../context', () => ({
     isKnowledgeReady: () => true,
     getAccessStatus: () => ({ status: 'unknown', ease: 0, source: 'None' }),
     isWordIgnoredSync: (word: string) => mockIgnoredWords().has(word),
-    store: { ignoredWords: {}, get flashcards() { return mockReviewCards; }, get meta() { return { reviewPresentations: mockReviewPresentations(), reviewSessions: mockReviewSessions() }; } },
+    store: { ignoredWords: {}, get flashcards() { return mockReviewCards; }, get meta() { return { reviewPresentations: mockReviewPresentations(), reviewSessions: mockReviewSessions(), suspendedReviews: mockSuspendedReviews }; } },
     queue: () => mockReviewQueue(),
     queueCounts: () => ({ new: mockQueueTotal(), learning: 0, review: 0, total: mockQueueTotal() }),
     getCurrentCard: () => mockCard(),
@@ -366,6 +367,7 @@ describe('FlashcardReview', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    mockSuspendedReviews = {};
     localStorage.clear();
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -526,6 +528,31 @@ describe('FlashcardReview', () => {
     await flushEffects();
     expect(container.querySelector('.study-encounter')?.textContent).toContain('selected surface 39');
     expect(mockSaveReviewPresentation.mock.calls[0][1].session).toMatchObject({ initialCardId: 'home-39', requestId: 'home-full-pool' });
+    dispose();
+  });
+
+  it('a new task cannot present a suspended exposed cue as fresh cold retrieval', async () => {
+    const card = mockCard()!;
+    mockSuspendedReviews = { ja: { old: { presentation: { id: 'exposed-choice', cardId: card.id } } } };
+    const scope = JSON.stringify(['ja', card.id]);
+    localStorage.setItem(createReviewAssistanceStore(localStorage, null).exposureKey(scope, 'exposed-choice'), JSON.stringify({ revision: 'exposed-before-start' }));
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects(); await clickShowAnswer(container);
+    expect(container.textContent).toContain('mlearn.WordSync.ReferenceConsulted');
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+    await flushEffects();
+    expect(mockSubmitRating).toHaveBeenCalledWith(card.content.front, expect.any(Array), expect.objectContaining({
+      scaffolds: expect.objectContaining({ 'prior-cue-exposure': true }),
+    }));
+    dispose();
+  });
+
+  it('exact Resume retains the admitted finite boundary without a new launch limit', async () => {
+    const first = mockCard()!;
+    mockReviewSessions = () => ({ ja: { id: 'resume-boundary', cardIds: [first.id], completedCardIds: [], encounterLimit: 1, startedAt: 1 } });
+    const dispose = render(() => <FlashcardReview resumeSessionId="resume-boundary" />, container);
+    await flushEffects();
+    expect(mockSaveReviewPresentation.mock.calls[0][1].session).toMatchObject({ id: 'resume-boundary', encounterLimit: 1 });
     dispose();
   });
 

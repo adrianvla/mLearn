@@ -869,7 +869,7 @@ beforeEach(() => {
     mountContent(() => <WordSyncContent onClose={onClose} />);
     await settle();
     const raw = localStorage.getItem('mlearn-study-word-sync:ja');
-    buttonByText('mlearn.LearningPlan.Back').click();
+    buttonByText('mlearn.Global.Back').click();
     expect(onClose).toHaveBeenCalledOnce();
     expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBe(raw);
     expect(mockSubmitRating).not.toHaveBeenCalled();

@@ -1756,7 +1756,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       <Show when={sessionQueue() && !assessmentMode()}><StudySessionHUD class="word-sync-counter" completed={sessionPresentation().completed} total={sessionPresentation().total}
         label={t('mlearn.WordSync.Progress', { rated: String(sessionPresentation().completed), total: String(sessionPresentation().total) })} /></Show>
       <div class="word-sync-header">
-        <Show when={props.onClose}><Button variant="ghost" onClick={() => props.onClose?.()}>{t('mlearn.LearningPlan.Back')}</Button></Show>
+        <Show when={props.onClose}><Button variant="ghost" onClick={() => props.onClose?.()}>{t('mlearn.Global.Back')}</Button></Show>
         <Show when={assessmentMode() && !!sessionController()?.current()}><span class="word-sync-counter">
           {t('mlearn.LevelStudy.Placement.LiveProgress', { count: assessmentSampled() })}
         </span></Show>
@@ -1874,7 +1874,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         <Panel padding="md">
           <Button variant="primary" onClick={() => retrySessionStart?.()}>{t('mlearn.LevelStudy.Mock.Start')}</Button>
           <Show when={resumableCurrent()}>{record =>
-            <Button onClick={() => { setWorkspaceOpen(false); pickNext(); }}>{t('mlearn.Product.Resume')} · {record().rated}/{record().queue.length}</Button>
+            <Button onClick={() => { setWorkspaceOpen(false); pickNext(); }}>{t('mlearn.StudyEncounter.Resume')} · {record().rated}/{record().queue.length}</Button>
           }</Show>
           <For each={sessionController()?.suspended().filter(record => record.index < record.queue.length) ?? []}>{record =>
             <Button onClick={() => {
@@ -1887,7 +1887,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                 setSessionAdmissionPending(false);
                 if (accepted) { setWorkspaceOpen(false); setUndoStack([]); pickNext(); }
               });
-            }}>{t('mlearn.Product.Resume')} · {record.rated}/{record.queue.length}</Button>
+            }}>{t('mlearn.StudyEncounter.Resume')} · {record.rated}/{record.queue.length}</Button>
           }</For>
         </Panel>
       </Show>

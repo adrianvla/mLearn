@@ -1,4 +1,5 @@
 import { isLearningDecision, type LearningDecision } from '../../../shared/learningDecision';
+import { ReviewWorkspace } from './ReviewWorkspace';
 import { flashcardAudioProvider } from '../../../shared/utils/flashcardAudioPreset';
 import { FlashcardAudioPresetSelect } from '../../components/flashcard/FlashcardAudioPresetSelect';
 import { FlashcardRepairOptions } from '../../components/flashcard/FlashcardRepairOptions';
@@ -884,7 +885,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
                 way back into reviewing. The review surface owns that
                 distinction, so it stays mounted once work has been seen. */}
             <Show
-              when={counts().total > 0 || hasReviewedInSession()}
+              when={props.workspace === 'review' || counts().total > 0 || hasReviewedInSession()}
               fallback={
                 <div class="flashcards-empty-container">
                   <EmptyState
@@ -903,10 +904,19 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
                   <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
                   <Button onClick={() => getBridge().window.getWindowContext('flashcards')}>{t('mlearn.Knowledge.Retry')}</Button>
                 </div>}>
-                  <FlashcardReview continueAfterBatch={true} encounterLimit={reviewSessionRequest()?.encounterLimit}
+                  <Show when={props.workspace === 'review'} fallback={
+                    <FlashcardReview continueAfterBatch={true} encounterLimit={reviewSessionRequest()?.encounterLimit}
+                      sessionRequestId={reviewSessionRequest()?.requestId} initialCardId={reviewSessionRequest()?.initialCardId}
+                      handoff={reviewSessionRequest()?.decision} onComplete={() => setHasReviewedInSession(true)} onClose={props.onClose ?? (() => getBridge().window.closeWindow())} />
+                  }>
+                  <ReviewWorkspace launchContext={props.launchContext} onReturn={props.onClose ?? (() => getBridge().window.closeWindow())}>
+                  <FlashcardReview encounterLimit={reviewSessionRequest()?.encounterLimit}
+                    resumeSessionId={props.launchContext?.intent === 'resume' && typeof props.launchContext.sessionId === 'string' ? props.launchContext.sessionId : undefined}
                     sessionRequestId={reviewSessionRequest()?.requestId}
                     initialCardId={reviewSessionRequest()?.initialCardId}
                     handoff={reviewSessionRequest()?.decision} onComplete={() => setHasReviewedInSession(true)} onClose={props.onClose ?? (() => getBridge().window.closeWindow())} />
+                  </ReviewWorkspace>
+                  </Show>
                 </Show>
               </Show>
             </Show>

@@ -19,6 +19,28 @@ function fixture() {
 }
 
 describe('explicit Review position release', () => {
+  it('suspends captured work on Start and restores only a named saved position', () => {
+    const { store, command } = fixture();
+    const started = copyStoreWithPatch(store, reviewPresentationPatch(store, { ...command, kind: 'switch' })!);
+    expect(started.meta.reviewPresentations?.opaque).toBeUndefined();
+    expect(started.meta.suspendedReviews?.opaque.held).toEqual({ session: command.expectedSession, presentation: command.expectedPresentation });
+    started.meta.reviewPresentations = { opaque: { id: 'other', cardId: 'other-card', revealed: true } };
+    const resumed = copyStoreWithPatch(started, reviewPresentationPatch(started, { kind: 'switch', language: 'opaque',
+      expectedSession: null, expectedPresentation: started.meta.reviewPresentations.opaque, resumeId: 'held' })!);
+    expect(resumed.meta.reviewSessions?.opaque).toEqual(command.expectedSession);
+    expect(resumed.meta.reviewPresentations?.opaque).toEqual(command.expectedPresentation);
+    expect(resumed.meta.suspendedReviews?.opaque.other).toEqual({ presentation: started.meta.reviewPresentations.opaque });
+    expect(resumed.flashcards).toEqual(store.flashcards);
+  });
+
+  it('refuses missing identities, stale switches and switching during Undo recovery', () => {
+    const { store, command } = fixture();
+    expect(() => reviewPresentationPatch(store, { ...command, kind: 'switch', resumeId: 'missing' })).toThrow('unavailable');
+    expect(() => reviewPresentationPatch(store, { ...command, kind: 'switch', expectedSession: null })).toThrow('another window');
+    store.pendingRetraction = {} as NonNullable<FlashcardStore['pendingRetraction']>;
+    expect(() => reviewPresentationPatch(store, { ...command, kind: 'switch' })).toThrow('Undo');
+  });
+
   it('releases only the captured boundary and cursor, preserving learner state and Undo', () => {
     const { store, command } = fixture();
     const original = structuredClone(store);

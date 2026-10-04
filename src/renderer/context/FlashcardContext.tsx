@@ -345,6 +345,7 @@ interface FlashcardContextValue {
   /** Admit a review cursor without replacing a newer window's position. */
   saveReviewPresentation: (language: string, presentation: ReviewPresentation, expectedId: string | null) => Promise<void>;
   releaseReviewPosition: (command: import('../../shared/reviewPresentationWrite').ReviewPositionRelease) => Promise<void>;
+  switchReviewPosition: (command: import('../../shared/reviewPresentationWrite').ReviewPositionSwitch) => Promise<void>;
 
   // Undo support
   pushUndoState: (options: { type: string; cardId: string }) => void;
@@ -2935,7 +2936,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     }
   };
 
-  const releaseReviewPosition = async (command: import('../../shared/reviewPresentationWrite').ReviewPositionRelease): Promise<void> => {
+  const commitReviewPosition = async (command: import('../../shared/reviewPresentationWrite').ReviewPositionRelease | import('../../shared/reviewPresentationWrite').ReviewPositionSwitch): Promise<void> => {
     if (libraryLoadError()) throw new Error('The saved library must be loaded before leaving a review');
     try {
       const commit = await getBridge().flashcards.saveReviewPresentation(JSON.parse(JSON.stringify(command)));
@@ -6150,7 +6151,8 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     populationStats,
     updateMeta,
     saveReviewPresentation,
-    releaseReviewPosition,
+    releaseReviewPosition: commitReviewPosition,
+    switchReviewPosition: commitReviewPosition,
     pushUndoState,
     undoLastAction,
     canUndo,

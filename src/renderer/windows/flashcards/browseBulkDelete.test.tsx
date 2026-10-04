@@ -1,4 +1,5 @@
 import { fitLearningModel } from '../../../shared/learningModel';
+vi.mock('./ReviewWorkspace', () => ({ ReviewWorkspace: (props: { children: unknown }) => props.children }));
 // @vitest-environment happy-dom
 
 /**

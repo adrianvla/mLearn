@@ -21,7 +21,12 @@ export interface ReviewPositionRelease {
   expectedPresentation: ReviewPresentation | null;
   expectedSession: ReviewSession | null;
 }
-export type ReviewPositionWrite = ReviewPresentationWrite | ReviewPositionRelease;
+export interface ReviewPositionSwitch extends Omit<ReviewPositionRelease, 'kind'> {
+  kind: 'switch';
+  /** Absence means Start; Resume must identify a stored position exactly. */
+  resumeId?: string;
+}
+export type ReviewPositionWrite = ReviewPresentationWrite | ReviewPositionRelease | ReviewPositionSwitch;
 
 const samePosition = (left: unknown, right: unknown): boolean => {
   if (Object.is(left, right)) return true;
@@ -34,6 +39,34 @@ const samePosition = (left: unknown, right: unknown): boolean => {
 
 /** Validate at the writer, after earlier ratings/peer writes have settled. */
 export function reviewPresentationPatch(store: FlashcardStore, command: ReviewPositionWrite): StorePatch | null {
+  if ('kind' in command && command.kind === 'switch') {
+    if (!command.language || typeof command.language !== 'string'
+      || (command.resumeId !== undefined && (typeof command.resumeId !== 'string' || !command.resumeId))
+      || (command.expectedSession !== null && !isReviewSession(command.expectedSession))) throw new Error('Invalid review position switch');
+    if (store.pendingRetraction !== undefined) throw new Error('Complete the pending Undo before switching this review');
+    const presentation = store.meta.reviewPresentations?.[command.language];
+    const session = store.meta.reviewSessions?.[command.language];
+    if (!samePosition(presentation ?? null, command.expectedPresentation) || !samePosition(session ?? null, command.expectedSession)) {
+      throw new Error('The review position was replaced by another window');
+    }
+    const id = session?.id ?? presentation?.id;
+    if (command.resumeId && command.resumeId === id) return { baseRev: store.rev ?? 0, entries: [] };
+    const prior = store.meta.suspendedReviews?.[command.language];
+    const restored = command.resumeId ? prior?.[command.resumeId] : undefined;
+    if (command.resumeId && (!restored || (restored.session?.id ?? restored.presentation?.id) !== command.resumeId
+      || (restored.session !== undefined && !isReviewSession(restored.session))
+      || (restored.presentation !== undefined && (!restored.presentation.id || !restored.presentation.cardId
+        || (restored.session && restored.presentation.session?.id !== restored.session.id))))) {
+      throw new Error('The saved review is unavailable');
+    }
+    const suspended = { ...prior, ...(id ? { [id]: { ...(session ? { session } : {}), ...(presentation ? { presentation } : {}) } } : {}) };
+    if (command.resumeId) delete suspended[command.resumeId];
+    return { baseRev: store.rev ?? 0, entries: [
+      { path: ['meta', 'suspendedReviews', command.language], before: prior, after: suspended },
+      { path: ['meta', 'reviewPresentations', command.language], before: presentation, after: restored?.presentation },
+      { path: ['meta', 'reviewSessions', command.language], before: session, after: restored?.session },
+    ] };
+  }
   if ('kind' in command && command.kind === 'release') {
     if (typeof command.language !== 'string' || !command.language
       || (command.expectedSession !== null && !isReviewSession(command.expectedSession))

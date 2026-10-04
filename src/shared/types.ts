@@ -2159,6 +2159,8 @@ export interface ReviewCorrection {
 /** Flashcard store scheduling and presentation metadata. */
 export interface FlashcardMeta {
   reviewSessions?: Record<string, import('./reviewSession').ReviewSession>;
+  /** Suspended task positions; learner evidence remains in the canonical journal. */
+  suspendedReviews?: Record<string, Record<string, { session?: import('./reviewSession').ReviewSession; presentation?: ReviewPresentation }>>;
   /** Main-owned commit frontier; scheduler retry receipts, never evidence of ability. */
   ratingCommitSequence?: number;
   /** Namespaces the frontier to the authority that issued command sequences. */

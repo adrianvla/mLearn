@@ -292,6 +292,38 @@ describe('flashcardStorage', () => {
     expect((await loadFlashcards()).meta.reviewPresentations?.[cursor.language]).toEqual(cursor.presentation);
   });
 
+  it('suspends and restores an exact Review position across disk reload without a card response', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('saved-cue');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const cursor = cursorFor((await loadFlashcards()).flashcards[card.id]);
+    cursor.presentation.scaffolds = { 'prior-cue-exposure': true };
+    cursor.presentation.session = { id: 'saved-boundary', cardIds: [card.id], completedCardIds: [], encounterLimit: 1, startedAt: 20 };
+    await storage.saveReviewPresentation(cursor);
+    const before = structuredClone(await loadFlashcards());
+    const command = { kind: 'switch' as const, language: cursor.language,
+      expectedPresentation: before.meta.reviewPresentations![cursor.language], expectedSession: before.meta.reviewSessions![cursor.language] };
+    const rename = vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('disk full'));
+    await expect(storage.saveReviewPresentation(command)).rejects.toThrow('disk full');
+    rename.mockRestore(); invalidateFlashcardsCache();
+    expect((await loadFlashcards()).meta.reviewPresentations?.[cursor.language]).toEqual(command.expectedPresentation);
+    await storage.saveReviewPresentation(command); invalidateFlashcardsCache();
+    const suspended = await loadFlashcards();
+    expect(suspended.meta.suspendedReviews?.[cursor.language]['saved-boundary']).toEqual({
+      presentation: command.expectedPresentation, session: command.expectedSession,
+    });
+    expect(suspended.meta.reviewPresentations?.[cursor.language]).toBeUndefined();
+    await storage.saveReviewPresentation({ kind: 'switch', language: cursor.language,
+      expectedPresentation: null, expectedSession: null, resumeId: 'saved-boundary' });
+    invalidateFlashcardsCache();
+    const restored = await loadFlashcards();
+    expect(restored.meta.reviewPresentations?.[cursor.language]).toEqual(command.expectedPresentation);
+    expect(restored.meta.reviewSessions?.[cursor.language]).toEqual(command.expectedSession);
+    expect(restored.flashcards).toEqual(before.flashcards);
+    expect(restored.dailyStats).toEqual(before.dailyStats);
+    expect(restored.wordKnowledge).toEqual(before.wordKnowledge);
+  });
+
   it('atomically releases an explicitly abandoned Review boundary, with disk retry and no card response', async () => {
     const storage = await import('./flashcardStorage');
     const card = makeFlashcard('unavailable-cue');

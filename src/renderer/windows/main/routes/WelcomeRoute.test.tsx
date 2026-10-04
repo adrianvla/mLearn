@@ -6,13 +6,14 @@ import type { RecentItem } from '../../../services/thumbnailService';
 const fixture = vi.hoisted(() => ({ navigate: vi.fn(), openWindow: vi.fn(), recent: [] as RecentItem[],
   grammarResume: null as { context: { activity: string; patterns: string[] } } | null,
   review: undefined as { id: string } | undefined,
+  presentation: undefined as { id: string; cardId: string } | undefined,
 }));
 vi.mock('@solidjs/router', () => ({ useNavigate: () => fixture.navigate }));
 vi.mock('../../../context', () => ({
   useSettings: () => ({ settings: { language: 'future', uiLanguage: 'en' } }),
   useLocalization: () => ({ t: (key: string) => key }),
   useLanguage: () => ({ currentLangData: () => ({ name: 'Future language' }) }),
-  useFlashcards: () => ({ store: { meta: { reviewSessions: { future: fixture.review } } } }),
+  useFlashcards: () => ({ store: { flashcards: { card: { language: 'future' } }, meta: { reviewSessions: { future: fixture.review }, reviewPresentations: { future: fixture.presentation } } } }),
 }));
 vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ window: { openWindow: fixture.openWindow } }) }));
 vi.mock('../../../services/thumbnailService', () => ({ getRecentItems: async () => fixture.recent }));
@@ -37,7 +38,7 @@ describe('purpose-led Home', () => {
   let dispose: () => void;
   const mount = async () => { dispose = render(() => <WelcomeRoute />, container); await Promise.resolve(); await Promise.resolve(); };
   const open = (title: string) => container.querySelector<HTMLButtonElement>(`button[aria-labelledby="${Array.from(container.querySelectorAll('h3')).find(h => h.textContent === title)?.id}"]`)!.click();
-  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.grammarResume = null; fixture.review = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
+  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.grammarResume = null; fixture.review = undefined; fixture.presentation = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
   afterEach(() => { dispose?.(); container.remove(); });
   it('keeps five recognizable activities with no raw next-answer recommendation', async () => {
     await mount();
@@ -61,6 +62,11 @@ describe('purpose-led Home', () => {
   });
   it('opens Evaluate without admitting practice', async () => {
     await mount(); open('mlearn.Product.Evaluate'); expect(fixture.navigate).toHaveBeenCalledWith('/evaluate'); expect(fixture.openWindow).not.toHaveBeenCalled();
+  });
+  it('resumes a continuous Review cursor by its exact identity without a finite boundary', async () => {
+    fixture.presentation = { id: 'continuous-choice', cardId: 'card' }; await mount();
+    Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('mlearn.Flashcards.UI.Tabs.Review'))!.click();
+    expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'flashcards', context: { activity: 'review', intent: 'resume', sessionId: 'continuous-choice', returnTo: 'home' } });
   });
   it('resumes an identified review separately from generic Open', async () => {
     fixture.review = { id: 'retained-review' }; await mount();
