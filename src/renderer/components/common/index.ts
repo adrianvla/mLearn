@@ -468,3 +468,4 @@ export { Disclosure, type DisclosureProps } from './Disclosure/Disclosure';
 export { StudyEncounter, StudySessionHUD, type StudyEncounterProps } from './StudyEncounter/StudyEncounter';
 
 export { LearningGoals } from './LearningGoals/LearningGoals';
+export { LearningWorkspace } from './LearningWorkspace/LearningWorkspace';

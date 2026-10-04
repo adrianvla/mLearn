@@ -10,7 +10,7 @@ import { StatisticsContent } from '../statistics/App';
 import { SettingsContent } from '../settings/SettingsWindow';
 import { MobileSettingsView } from '../settings/MobileSettingsView';
 import { useLocalization } from '../../context';
-import { Button } from '../../components/common';
+import { Button, LearningWorkspace } from '../../components/common';
 import { WelcomeRoute } from './routes/WelcomeRoute';
 import { ReaderRoute } from './routes/ReaderRoute';
 import { VideoRoute } from './routes/VideoRoute';
@@ -27,7 +27,7 @@ const RequestedContent: Component<{ content: Component }> = props => {
 
 const Review: Component = () => {
   const navigate = useNavigate();
-  return <FlashcardsContent onClose={() => navigate('/')} />;
+  return <LearningWorkspace><FlashcardsContent onClose={() => navigate('/')} /></LearningWorkspace>;
 };
 const Material: Component = () => {
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ const Evaluate: Component = () => {
 };
 const Assessment: Component = () => {
   const navigate = useNavigate();
-  return <WordSyncContent mode="assessment" onClose={() => navigate('/evaluate')} onAssessmentApplied={() => navigate('/plan')} />;
+  return <LearningWorkspace><WordSyncContent mode="assessment" onClose={() => navigate('/evaluate')} onAssessmentApplied={() => navigate('/plan')} /></LearningWorkspace>;
 };
 const Words: Component = () => {
   const navigate = useNavigate();

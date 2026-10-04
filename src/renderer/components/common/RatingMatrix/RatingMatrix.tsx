@@ -15,7 +15,7 @@
  * - Untouched rows fabricate no evidence; only explicit drafts and explicit
  *   All/whole-word actions emit observations.
  */
-import { Component, For, Show, createEffect, createSignal, createMemo, on, onCleanup, onMount } from 'solid-js';
+import { Component, For, Show, createEffect, createSignal, createMemo, on, onCleanup } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import {
   ATTEMPT_QUALITIES,
@@ -32,6 +32,7 @@ import { useLocalization } from '../../../context';
 import { Button } from '../Button/Button';
 import { KeyboardShortcut } from '../Misc/KeyboardShortcut';
 import { isRatingKeyIgnored } from '../../../utils/ratingShortcuts';
+import { useLearningInput } from '../LearningWorkspace/LearningWorkspace';
 import './RatingMatrix.css';
 
 /** Fluent-only scheduler preference: evidence remains fluent. */
@@ -339,13 +340,8 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
     if (capability) draftAccess(capability, spatialAction, e.altKey);
   };
 
-  onMount(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    onCleanup(() => {
-      window.removeEventListener('keydown', handleKeyDown);
-      clearPending();
-    });
-  });
+  useLearningInput('rating', handleKeyDown);
+  onCleanup(clearPending);
 
   return (
     <div class="rating-matrix" classList={{ 'rating-matrix--expanded': expanded() }}>

@@ -1,0 +1,13 @@
+.learning-workspace {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.learning-workspace .study-encounter {
+  flex: 0 0 auto;
+  max-width: 100%;
+}

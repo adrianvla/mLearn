@@ -7,7 +7,8 @@ import { pushUndo } from '../../learning/undoHistory';
 import { surfaceEntityId } from '../../../shared/graph/load';
 import { getLogger } from '../../../shared/utils/logger';
 import { useKnowledgeProjections } from '../../hooks/useKnowledgeProjections';
-import { Component, Show, batch, createSignal, createMemo, createEffect, on, onMount, onCleanup, createResource, untrack, For } from 'solid-js';
+import { Component, Show, batch, createSignal, createMemo, createEffect, on, onCleanup, createResource, untrack, For } from 'solid-js';
+import { useLearningInput } from '../../components/common/LearningWorkspace/LearningWorkspace';
 import {
   WindowWrapper,
   useLocalization,
@@ -1328,10 +1329,9 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     }
   });
 
-  onMount(() => window.addEventListener('keydown', handleKeyDown));
+  useLearningInput('surface', handleKeyDown);
   onCleanup(() => {
     disposed = true;
-    window.removeEventListener('keydown', handleKeyDown);
     stopWordTiming();
     sessionController()?.dispose();
   });

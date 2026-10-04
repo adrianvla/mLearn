@@ -10,7 +10,7 @@ vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
 } }) }));
 vi.mock('../../../shared/platform', () => ({ isElectron: () => true, isMobile: () => false }));
 vi.mock('./components/LoadingOverlay', () => ({ LoadingOverlay: () => <span data-testid="backend-overlay" /> }));
-vi.mock('../../components/common', () => ({ Button: (props: { children?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button> }));
+vi.mock('../../components/common', () => ({ LearningWorkspace: (props: { children?: import('solid-js').JSX.Element }) => props.children, Button: (props: { children?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button> }));
 vi.mock('../flashcards/App', () => ({ FlashcardsContent: (props: { initialTab?: string; onClose?: () => void }) => {
   fixture.mounted(props.initialTab ?? 'review'); return <div data-content={props.initialTab ?? 'review'}><button onClick={props.onClose}>Return</button></div>;
 } }));

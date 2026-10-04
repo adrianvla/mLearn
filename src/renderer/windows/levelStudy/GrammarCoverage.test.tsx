@@ -253,6 +253,22 @@ function promptedPattern(container: HTMLElement, level: number) {
 }
 
 describe('GrammarCoverage policy-selected practice session', () => {
+  it('shares Space reveal, rating and Undo with lexical tasks without composing or repeated submissions', async () => {
+    const onProbe = vi.fn();
+    const { container, dispose } = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, passThroughLocks, false, ['ば']);
+    try {
+      await startPass(container, 2);
+      const key = (value: string, options: KeyboardEventInit = {}) => window.dispatchEvent(new KeyboardEvent('keydown', { key: value, cancelable: true, ...options }));
+      key(' ', { isComposing: true }); key(' ', { repeat: true }); await beat();
+      expect(container.querySelector('[data-testid="grammar-session-answer"]')).toBeNull();
+      key(' '); await beat();
+      expect(container.querySelector('[data-testid="grammar-session-answer"]')).not.toBeNull();
+      expect(onProbe).not.toHaveBeenCalled();
+      key('3'); await beat(); expect(onProbe).toHaveBeenCalledOnce();
+      key('z', { ctrlKey: true }); await beat(); expect(undoHarness.retract).toHaveBeenCalledOnce();
+    } finally { dispose(); }
+  });
+
   it('admits only the resolved construction subset through the shared encounter and rating path', async () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, passThroughLocks, false, ['ば']);

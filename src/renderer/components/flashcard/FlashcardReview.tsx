@@ -5,7 +5,7 @@ import { beginReviewSession, reviewSessionRemaining, reviewSessionHasAvailableCa
  * SRS review interface with Anki-like rating buttons
  */
 
-import { Component, JSX, Show, createSignal, createMemo, onMount, onCleanup, createEffect, batch, on, untrack } from 'solid-js';
+import { Component, JSX, Show, createSignal, createMemo, onCleanup, createEffect, batch, on, untrack } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import type { FlashcardPresentationKnowledge } from './FlashcardWordTitle';
 import { FlashcardDisplay } from './FlashcardDisplay';
@@ -48,6 +48,7 @@ import { ratingLatencyTraceOn, watchLongTasks } from '../../services/ratingLaten
 import { getLogger } from '../../../shared/utils/logger';
 import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision, restoreFlashcardReviewDecision, reviewHandoffActivity } from './flashcardReviewDecision';
 import { createReviewAssistanceStore, type ReviewAssistance } from '../../learning/reviewAssistance';
+import { useLearningInput } from '../common/LearningWorkspace/LearningWorkspace';
 
 const log = getLogger("renderer.components.flashcardReview");
 
@@ -913,7 +914,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
 
   // Keyboard shortcuts
-  onMount(() => {
+  {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isRatingKeyIgnored(e)) return;
 
@@ -954,9 +955,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    onCleanup(() => document.removeEventListener('keydown', handleKeyDown));
-  });
+    useLearningInput('surface', handleKeyDown, 'document');
+  }
 
   // The session is over when the queue has drained: the contract already
   // reports that as `complete`, so completion is not tracked twice.

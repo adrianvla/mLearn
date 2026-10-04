@@ -1,9 +1,15 @@
 // @vitest-environment happy-dom
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { isBlockedByPendingWrite, isNativeActivationTarget, isRatingKeyIgnored, isRevealKey, isUndoShortcut } from './ratingShortcuts';
 
 describe('isRatingKeyIgnored', () => {
+  it('leaves composition and selected text to their interaction owner', () => {
+    expect(isRatingKeyIgnored(new KeyboardEvent('keydown', { key: '3', isComposing: true }))).toBe(true);
+    const selection = vi.spyOn(document, 'getSelection').mockReturnValue({ isCollapsed: false } as Selection);
+    expect(isRatingKeyIgnored(new KeyboardEvent('keydown', { key: '3' }))).toBe(true);
+    selection.mockRestore();
+  });
   it('respects a key already consumed by another interaction owner', () => {
     const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
     event.preventDefault();

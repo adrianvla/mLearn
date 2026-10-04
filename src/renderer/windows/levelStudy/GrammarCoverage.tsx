@@ -39,6 +39,8 @@ import type { LearningDecision } from '../../../shared/learningDecision';
 import { captureGrammarSelfAssessmentDecision, grammarSelfAssessmentDecisionMatches, GRAMMAR_SELF_ASSESS_TASK } from './grammarSelfAssessmentDecision';
 import { captureGrammarContrastDecision, grammarContrastDecisionMatches, grammarContrastTask, grammarContrastValidationRef, type GrammarContrastAdmission } from './grammarContrastDecision';
 import './GrammarCoverage.css';
+import { useLearningInput } from '../../components/common/LearningWorkspace/LearningWorkspace';
+import { isRatingKeyIgnored, isUndoShortcut } from '../../utils/ratingShortcuts';
 
 /**
  * The shared durable Undo lifecycle, as this surface consumes it.
@@ -896,6 +898,11 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       setRetractionWrite('failed');
     }
   };
+  useLearningInput('surface', event => {
+    if (isRatingKeyIgnored(event) || !isUndoShortcut(event) || !practicing()) return;
+    event.preventDefault();
+    if (!submissionsLocked() && !undoBlocking() && canUndo()) void undoLastGrammarRating();
+  });
 
   const rateSession = (level: number, quality: AttemptQuality, presented: string | undefined) => {
     if (submissionsLocked() || referenceSupplied()) return;

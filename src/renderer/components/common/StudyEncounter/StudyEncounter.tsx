@@ -6,6 +6,8 @@ import { ProgressBar } from '../Feedback/ProgressBar';
 import { Panel } from '../Panel';
 import { RatingMatrix, type RatingMatrixProps } from '../RatingMatrix/RatingMatrix';
 import './StudyEncounter.css';
+import { useLearningInput } from '../LearningWorkspace/LearningWorkspace';
+import { isRatingKeyIgnored, isRevealKey } from '../../../utils/ratingShortcuts';
 
 /** One retrieval interaction, independent of which activity supplied the material. */
 export interface StudyEncounterProps {
@@ -36,6 +38,11 @@ export const StudyEncounter: Component<StudyEncounterProps> = (props) => {
   const card = createMemo(() => props.card);
   const rating = createMemo(() => props.rating);
   const revealed = createMemo(() => props.revealed);
+  useLearningInput('encounter', event => {
+    if (isRatingKeyIgnored(event) || !isRevealKey(event)) return;
+    event.preventDefault();
+    if (!props.revealed && !props.revealDisabled) props.onReveal();
+  });
   const ratingArmed = createMemo(() => revealed() && rating().armed);
   const controlsHost = document.createElement('div');
   const controls = <>
