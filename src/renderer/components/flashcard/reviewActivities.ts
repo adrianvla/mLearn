@@ -15,7 +15,7 @@ export interface ReviewActivity extends Omit<LanguageReviewActivity, 'kind'> {
 /** Resource availability is explicit; absent resources never become an alternate cue. */
 export function eligibleReviewActivities(card: Flashcard, data: LanguageData | null | undefined,
   preferences: Settings['reviewActivities'], audioAvailable: boolean,
-  labels?: { focused: string; focusedTarget: string; focusedPrompt: (target: string) => string; audio: string; audioPrompt: string }): ReviewActivity[] {
+  labels?: { focused: string; focusedTarget: string; focusedPrompt: (target: string) => string; audio: string; audioPrompt: string }, composeMixed = true): ReviewActivity[] {
   const result: ReviewActivity[] = [];
   const resourceReady = (kind: string) => kind === 'holistic' ? preferences.holistic || preferences.focused
     : kind === 'written-reading-recall' ? preferences.focused && !!card.content.reading?.trim() && !!card.content.prosody
@@ -54,6 +54,10 @@ export function eligibleReviewActivities(card: Flashcard, data: LanguageData | n
       }
       continue;
     }
+    // A weak compatible access can select the item without turning its
+    // ordinary written encounter into an isolated, reading-supplied drill.
+    if (composeMixed && !activity.stages && activity.kind === 'written-reading-recall'
+      && result.some(choice => choice.kind === 'holistic' && activity.targets.every(target => choice.targets.includes(target)))) continue;
     if (activity.kind === 'written-reading-recall' && preferences.focused && card.content.reading?.trim()
       && card.content.prosody && (Number.isFinite(card.content.prosody.position) || !!card.content.prosody.display?.trim())) {
       result.push({ ...activity, id, targets: [...activity.targets] });

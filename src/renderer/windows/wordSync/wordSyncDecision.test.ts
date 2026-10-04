@@ -107,6 +107,20 @@ describe('bounded operational Word Sync decisions', () => {
     expect(selected?.decision.selected.key).toBe(unsupported.key);
   });
 
+  it('admits compatible mixed recall even when one weak access selected the item', () => {
+    const projection = supportedProjection();
+    projection.targets[0].applicableCapabilities = ['future::strong', 'future::weak'];
+    projection.targets[0].states = [
+      { capability: 'future::strong', classification: 'known', basis: 'evidence', evidence: [], evidenceSourceCounts: {} },
+      { capability: 'future::weak', classification: 'unmeasured', basis: 'unmeasured', evidence: [], evidenceSourceCounts: {} },
+    ];
+    const choice = selectWordSyncDecision({ id: 'mixed', at: 42, items: [{ ...first, projection,
+      possible: ['future::strong', 'future::weak'], scaffolds: {} }] });
+    expect(choice?.decision.selected.task.requested).toEqual(['future::strong', 'future::weak']);
+    expect(choice?.decision.selected.targets.map(target => target.capability)).toEqual(['future::strong', 'future::weak']);
+    expect(choice?.focused).toBe(false);
+  });
+
   it('keeps the level/direction anchor but bounds projection work to eight unvisited entries at that same level', () => {
     const queue = Array.from({ length: 20 }, (_, index) => ({ id: String(index) }));
     const entries = new Map(queue.map((entry, index) => [entry.id, { level: index < 10 ? 1 : 2 }]));

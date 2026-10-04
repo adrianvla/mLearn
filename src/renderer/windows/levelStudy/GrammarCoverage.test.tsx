@@ -645,16 +645,16 @@ describe('GrammarCoverage policy-selected practice session', () => {
     container.remove();
   });
 
-  it('coverage rows launch the shared recall task instead of rating a visible answer', async () => {
+  it('policy practice launches the shared recall task while rows remain inspection', async () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe);
     await expand(container, 2);
     expect(container.querySelector('.grammar-coverage__probe-btn')).toBeNull();
-    const row = container.querySelector('[data-level="2"] .grammar-coverage__construction')!;
-    const pattern = row.querySelector('.grammar-coverage__pattern')!.textContent;
-    row.querySelector<HTMLButtonElement>('.grammar-coverage__check')!.click();
+    expect(container.querySelector('.grammar-coverage__check')).toBeNull();
+    container.querySelector<HTMLButtonElement>('.grammar-coverage__start')!.click();
     await tick();
-    expect(promptedPattern(container, 2)).toBe(pattern);
+    const pattern = promptedPattern(container, 2);
+    expect(pattern).toBeTruthy();
     expect(container.querySelector('.grammar-coverage--studying')).not.toBeNull();
     expect(container.querySelector('.study-encounter')).not.toBeNull();
     expect(container.querySelector('.study-encounter__response')?.hasAttribute('hidden')).toBe(true);
@@ -1280,8 +1280,8 @@ describe('GrammarCoverage durable Undo', () => {
     undoButton(container, 2)!.click();
     await beat();
     const buttons = levelBlock(container, 2).querySelectorAll<HTMLButtonElement>('.rating-matrix__quality');
-    expect(Array.from(buttons).every(button => button.disabled)).toBe(true);
-    buttons[2].click();
+    expect(buttons).toHaveLength(0);
+    expect(levelBlock(container, 2).querySelector('.study-encounter__instruction')).toBeNull();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
     await beat();
     expect(onProbe).toHaveBeenCalledTimes(1);
@@ -1291,9 +1291,8 @@ describe('GrammarCoverage durable Undo', () => {
     const resumed = mount(onProbe);
     await tick();
     const resumedButtons = levelBlock(resumed.container, 2).querySelectorAll<HTMLButtonElement>('.rating-matrix__quality');
-    expect(resumedButtons.length).toBeGreaterThan(0);
-    expect(Array.from(resumedButtons).every(button => button.disabled)).toBe(true);
-    expect(resumed.container.textContent).toContain('mlearn.WordSync.ReferenceConsulted');
+    expect(resumedButtons).toHaveLength(0);
+    expect(resumed.container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
     resumed.dispose(); resumed.container.remove();
   });
   it('a refused retraction keeps the rating, the record and the control, and reports a retryable failure', async () => {

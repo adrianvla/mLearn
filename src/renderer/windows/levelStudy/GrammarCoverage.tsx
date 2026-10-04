@@ -599,7 +599,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     const byLevel = new Map<number, ConstructionRow[]>();
     const measured = measurements();
     for (const point of props.languageData.grammar ?? []) {
-      if (typeof point.level !== 'number') continue;
+      if (typeof point.level !== 'number' || (props.scopePatterns && !props.scopePatterns.includes(point.pattern))) continue;
       const measurement = measured.get(point.pattern);
       const meaning = grammarPointMeaning(point, settings.uiLanguage, props.languageData.meaningLanguage);
       const rows = byLevel.get(point.level) ?? [];
@@ -671,11 +671,27 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   let submissionLockTimer: number | undefined;
   onCleanup(() => clearTimeout(submissionLockTimer));
 
+  const recommendedPractice = createMemo(() => {
+    const items = (props.languageData.grammar ?? []).filter(point => typeof point.level === 'number'
+      && (!props.scopePatterns || props.scopePatterns.includes(point.pattern))
+      && measurements().get(point.pattern)?.state !== 'known');
+    if (!items.length) return null;
+    const decision = selectNextEncounter({ preset: 'CURRICULUM', levelStudyItems: [],
+      curriculumGrammarItems: items.map(point => ({ language: props.language, pattern: point.pattern,
+        level: point.level!, task: GRAMMAR_SELF_ASSESS_TASK })), nowMs: Date.now(),
+      context: props.policyContext ?? policyContextFromSettings(settings, props.language),
+    });
+    const pattern = decision?.candidate.meta?.pattern;
+    const point = items.find(item => item.pattern === pattern);
+    return decision && decision.action !== 'DEFER' && point ? point : null;
+  });
+
   /** Plans the pass: TeachingPolicy chooses, in order, each un-deferred construction of the level. */
-  const startSession = (level: number, firstPattern?: string, handoff?: LearningDecision) => {
+  const startSession = (level: number, firstPattern?: string, handoff?: LearningDecision, worthwhileOnly = false) => {
     setPracticePaused(false);
     const items = (props.languageData.grammar ?? [])
-      .filter((point) => (!props.scopePatterns || props.scopePatterns.includes(point.pattern)) && point.level === level && typeof point.pattern === 'string')
+      .filter((point) => (!props.scopePatterns || props.scopePatterns.includes(point.pattern)) && point.level === level && typeof point.pattern === 'string'
+        && (!worthwhileOnly || measurements().get(point.pattern)?.state !== 'known'))
       .map((point) => ({
         language: props.language,
         pattern: point.pattern,
@@ -734,7 +750,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     const controller = sessionController();
     if (!controller || queue.length === 0) return;
     const kind = 'self-assess';
-    const scopePatterns = props.scopePatterns ? items.map(item => item.pattern) : undefined;
+    const scopePatterns = props.scopePatterns || worthwhileOnly ? queue : undefined;
     const denominator = levelDenominator(level, (props.languageData.grammar ?? []).filter(point => !scopePatterns || scopePatterns.includes(point.pattern)));
     const identity = JSON.stringify({ language: props.language, level, kind, denominator });
     const captured = controller.current();
@@ -1366,6 +1382,12 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         <Button variant="primary" onClick={() => { setExpandedLevel(session()?.level ?? null); setPracticePaused(false); }}>{t('mlearn.StudyEncounter.Resume')}</Button>
       </Show>
       <div class="grammar-coverage__header">
+        <Show when={!practicing() && !sessionLive() && recommendedPractice()}>
+          <Button variant="primary" class="grammar-coverage__start" disabled={!locksAvailable()}
+            onClick={() => { const point = recommendedPractice(); if (point) { setExpandedLevel(point.level!); startSession(point.level!, point.pattern, undefined, true); } }}>
+            {t('mlearn.LevelStudy.Grammar.Practise')}
+          </Button>
+        </Show>
         <h3 class="grammar-coverage__title">{t('mlearn.LevelStudy.Grammar.Title')}</h3>
         <span class="grammar-coverage__totals">
           {t('mlearn.LevelStudy.Grammar.Totals', {
@@ -1412,7 +1434,6 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                 </button>
                 <Show when={open()}>
                   <div class="grammar-coverage__session" data-level={level} data-phase={sessionActiveFor(level) ? sessionPresentation().phase : undefined}>
-                    <Show when={referenceSupplied()}><p role="status">{t('mlearn.WordSync.ReferenceConsulted')}</p></Show>
                     <Show when={sessionActiveFor(level)}>
                       <StudySessionHUD class="grammar-coverage__session-progress" completed={sessionPresentation().completed} total={sessionPresentation().total}
                         label={t('mlearn.LevelStudy.Grammar.SessionProgress', { current: String(sessionPresentation().current), total: String(sessionPresentation().total) })} />
@@ -1543,6 +1564,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                               return (
                                 <StudyEncounter
                                   class="grammar-coverage__encounter"
+                                  ratingAvailable={!referenceSupplied()}
                                   prompt={<span class="grammar-coverage__session-prompt" data-pattern={presented}>{presented}</span>}
                                   answer={<span class="grammar-coverage__answer" data-testid="grammar-session-answer">
                                     {constructionsByLevel().get(level)?.find(row => row.pattern === presented)?.meaning
@@ -1743,10 +1765,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                               {' '}· {t('mlearn.LevelStudy.Grammar.SeenOnly', { count: row.exposures })}
                             </Show>
                           </span>
-                          <Button size="sm" variant="default" class="grammar-coverage__check"
-                            disabled={sessionLive() || !locksAvailable()} onClick={() => startSession(level, row.pattern)}>
-                            {t('mlearn.StudyEncounter.Check')}
-                          </Button>
+
                         </li>
                       )}
                     </For>

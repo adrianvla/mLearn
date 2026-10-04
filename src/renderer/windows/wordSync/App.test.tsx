@@ -2541,7 +2541,7 @@ beforeEach(() => {
     dispose();
   });
 
-  it('shows only the residual Reading probe and writes only its aspect', async () => {
+  it('calibration exposes its residual Reading row through Adjust and records only that aspect', async () => {
     mockWordSyncState.currentLangData = { textProcessing: { readingAnnotation: true } };
     mockWordSyncState.capabilities = ['sense-recognition', 'surface-reading', 'surface-recognition'];
     mockWordSyncState.projection = {
@@ -2557,6 +2557,8 @@ beforeEach(() => {
     const { WordSyncContent } = await import('./App');
     const dispose = mountContent(WordSyncContent);
     await settle();
+    press(' '); await settle();
+    buttonByText('mlearn.Rating.Compact.Adjust').click(); await settle();
     const labels = Array.from(container.querySelectorAll('.rating-matrix__label')).map(node => node.textContent);
     expect(labels).toContain('mlearn.Knowledge.Capability.surface-reading');
     expect(labels).not.toContain('mlearn.Knowledge.Capability.sense-recognition');

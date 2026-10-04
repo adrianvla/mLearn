@@ -22,6 +22,7 @@ import type { LanguageData } from '../../../shared/types';
 import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 
 interface LevelDetailModalProps {
+  frequency?: import('../../../shared/types').WordFrequencyMap;
   level: number;
   levelName: string;
   language: string;
@@ -75,7 +76,7 @@ export const LevelDetailModal: Component<LevelDetailModalProps> = (props) => {
 
   const buildWordsForLevelSnapshot = (): WordListItem[] => {
     const langData = activeLanguageData();
-    const freq = resolveLevelStudyWordFrequency({}, langData);
+    const freq = props.frequency ?? resolveLevelStudyWordFrequency({}, langData);
 
     return untrack(() => {
       const result: WordListItem[] = [];

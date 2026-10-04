@@ -2,7 +2,7 @@
   "mlearn": {
     "Goals": {
       "ScopeWorkloadRisk": "À votre rythme récent, une partie de ce contenu pourrait rester non évaluée au {date}. Cela ne prédit pas un résultat d’examen.",
-      "Purpose": "Votre objectif",
+      "Purpose": "Objectif d’apprentissage",
       "Explore": "Explorer la langue",
       "Time": "Temps disponible",
       "Minutes": "{count} min",
@@ -19,7 +19,7 @@
       "Paused": "En pause",
       "Completed": "Terminé",
       "Passed": "L’échéance est passée. Choisissez la suite ; vos progrès sont conservés.",
-      "Scope": "Cible (facultative)",
+      "Scope": "Contenu",
       "Words": "Mots à préparer, un par ligne",
       "Coverage": "Vocabulaire : {known} connu · {learning} en cours · {unmeasured} non mesuré",
       "OtherRequirements": "Le travail du vocabulaire ne démontre pas la performance dans les autres conditions.",
@@ -29,9 +29,10 @@
         "community": "Couverture communautaire",
         "authoritative": "Exigences officielles"
       },
-      "Choose": "Choisir un objectif ou un programme",
+      "Choose": "Choisir un objectif",
       "Remove": "Retirer",
-      "Unavailable": "Ce programme nécessite un pack de langue disponible."
+      "Unavailable": "Ce programme nécessite un pack de langue disponible.",
+      "AllMaterial": "Tout le contenu"
     },
     "LibraryRecovery": {
       "OpenProtection": "Protection et restauration des données",

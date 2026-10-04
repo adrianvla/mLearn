@@ -3,12 +3,12 @@ import { discoverReviewRecordings } from '../../../services/reviewRecordings';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { useLearningModel } from '../../../hooks/useLearningModel';
 import { policyContextFromSettings } from '../../../learning/policyContext';
-import { forecastPreparationOffThread } from '../../../services/learningPreparationForecast';
 import { chooseHomeOffThread, type HomeChoice } from '../../../services/homeLearningChoice';
+import { wordSyncProbe } from '../../wordSync/wordSyncPool';
 import { homePracticePool, type HomeLearningCandidate } from './homeLearningDecision';
 import { forecastScopeWorkload } from '../../../../shared/learningWorkload';
 import { inferLearningOpportunities } from '../../../../shared/learningOpportunities';
-import { learningAddress, type LearningAction } from '../../../../shared/learningModel';
+import { learningAddress } from '../../../../shared/learningModel';
 import { surfaceEntityId, grammarEntityId } from '../../../../shared/graph/load';
 import { GRAMMAR_SELF_ASSESS_TASK } from '../../levelStudy/grammarSelfAssessmentDecision';
 import { hashWordSync } from '../../../services/srsAlgorithm';
@@ -42,7 +42,7 @@ import { formatDate } from '../../../utils/timeFormatting';
 import { getLogger } from '../../../../shared/utils/logger';
 import { homeGrammarResume } from './homeGrammarResume';
 import { homePracticeResume } from './homePracticeResume';
-import { activeLearningGoals, learningGoalsForSettings } from '../../../../shared/learningGoals';
+import { learningScopeForSettings } from '../../../../shared/learningScope';
 import { reviewSessionHasAvailableCards, reviewCardAvailableNow } from '../../../../shared/reviewSession';
 import './welcome.css';
 
@@ -136,14 +136,15 @@ export const WelcomeRoute: Component = () => {
     );
   };
 
-  const goals = createMemo(() => activeLearningGoals(learningGoalsForSettings(settings), settings.language));
+  const targetScope = createMemo(() => learningScopeForSettings(settings, language.currentLangData()));
+  const goals = createMemo(() => targetScope().goals);
   const goalScopes = createMemo(() => new Map(goals().map(goal => [goal.id,
-    goal.outcomeRef ? resolveLearningOutcome(language.currentLangData(), goal.outcomeRef.id) : null])));
-  const goalWords = createMemo(() => [...new Set(goals().flatMap(goal => goalScopes().get(goal.id)?.words ?? goal.scope?.words ?? []))]);
+    goal.outcomeRef ? resolveLearningOutcome(language.currentLangData(), goal.outcomeRef.id, goal.outcomeRef.groupIds) : null])));
+  const goalWords = createMemo(() => targetScope().words);
   const levelStudySource = createMemo(() => {
     const langData = language.currentLangData();
     if (!langData) return null;
-    const freq = getLevelStudyFrequency(langData);
+    const freq = targetScope().selected ? targetScope().frequency : getLevelStudyFrequency(langData);
     if (!freq || Object.keys(freq).length === 0) return null;
     return {
       langData,
@@ -180,7 +181,7 @@ export const WelcomeRoute: Component = () => {
   const levelProgress = createMemo(() => {
     const data = levelStudy();
     if (data === null) return null;
-    const examLevel = getLearningLanguageLevelForLanguage(settings, settings.language || null);
+    const examLevel = targetScope().selected ? null : getLearningLanguageLevelForLanguage(settings, settings.language || null);
     const scoped = examLevel === null
       ? data.levels
       : data.levels.filter((level) => (
@@ -269,9 +270,15 @@ export const WelcomeRoute: Component = () => {
     }
     return [goal.id, counts];
   })) : undefined);
-  const practiceScopeIndex = createMemo(() => new Map((goalWords().length ? goalWords() : Object.keys(levelStudySource()?.freq ?? {}))
+  const practiceScopeIndex = createMemo(() => new Map((targetScope().selected ? goalWords() : Object.keys(levelStudySource()?.freq ?? {}))
     .map(word => [surfaceEntityId(settings.language, hashWordSync(word)), word])));
-  const goalWork = createMemo(() => goalWords().filter(word => curriculumProjection.resolveState(word).status !== 'known'));
+  const practiceTargets = (word: string, intent?: 'reinforce') => {
+    const projection = curriculumProjection.projections().get(word);
+    if (!projection && !intent && curriculumProjection.resolveState(word).status === 'known') return [];
+    return wordSyncProbe(projection, getTestedAccesses({ languageData: language.currentLangData(), surface: word,
+      hasReadingData: false, hasProsodyData: false }), surfaceEntityId(settings.language, hashWordSync(word)), intent).targets;
+  };
+  const goalWork = createMemo(() => goalWords().filter(word => practiceTargets(word).length > 0));
   const deadlineWorkloads = createMemo(() => {
     const model = learning.model();
     if (!evidenceReady() || !grammarWorkloadReady() || !recordingsReady() || !model) return [];
@@ -280,7 +287,7 @@ export const WelcomeRoute: Component = () => {
       const deadline = goal.deadline ? Date.parse(goal.deadline) : NaN;
       if (!Number.isFinite(deadline) || deadline <= decisionTime()) return [];
       const resolved = goalScopes().get(goal.id);
-      const pending = [...new Set(resolved?.words ?? goal.scope?.words ?? [])]
+      const pending = [...new Set(resolved?.complete ? resolved.words : [])]
         .filter(word => curriculumProjection.resolveState(word).basis === 'unmeasured');
       const grammar = (resolved?.patterns ?? []).filter(pattern => !grammarWorkloadProjections()?.[
         grammarEvidenceKey(settings.language, pattern, 'grammar-recognition')]?.hasActiveEvidence);
@@ -317,6 +324,7 @@ export const WelcomeRoute: Component = () => {
     const opportunities = inferLearningOpportunities(learning.snapshot()!.events, decisionTime());
     const candidates: HomeLearningCandidate[] = [];
     for (const card of reviewCandidates()) {
+      if (targetScope().selected && !goalWords().includes(card.content.front)) continue;
       const preferences = settings.reviewActivities ?? DEFAULT_SETTINGS.reviewActivities;
       const activities = renderableReviewActivities(eligibleReviewActivities(card, language.currentLangData(), preferences,
         !settings.flashcardMuteAudio && reviewRecordings()?.[card.id] === true, {
@@ -333,21 +341,20 @@ export const WelcomeRoute: Component = () => {
           ...(measured ? { measurement: { address: learningAddress(measured), provenance: 'Prospective unassisted self-reported recall in the offered review task. Supplied accesses excluded; assisted answers remain excluded by canonical evidence admission.' } } : {}) });
       }
     }
-    const words = goalWords().length ? goalWork() : Object.keys(levelStudySource()?.freq ?? {})
-      .filter(word => curriculumProjection.resolveState(word).status !== 'known');
+    const words = targetScope().selected ? goalWork() : Object.keys(levelStudySource()?.freq ?? {})
+      .filter(word => practiceTargets(word).length > 0);
     const pool = homePracticePool(model, practiceScopeIndex(), words,
       word => curriculumProjection.resolveState(word).status === 'known', decisionTime(),
       context.learning!.assessmentAt ?? decisionTime() + context.learning!.horizonDays * 86_400_000);
     for (const { word, intent } of pool) {
       // Handoff forecasts use the same package-owned accesses as the actual
       // word prompt, without assuming dictionary reading/prosody availability.
-      const targets = getTestedAccesses({ languageData: language.currentLangData(), surface: word,
-        hasReadingData: false, hasProsodyData: false }).map(capability => ({ entityId: surfaceEntityId(settings.language, hashWordSync(word)), capability }));
+      const targets = practiceTargets(word, intent);
       if (targets.length) candidates.push({ key: `practice:${word}`, action: 'practice', family: 'word-sync', mode: 'practice',
         targets, ...(intent ? { intent } : {}), words: [word], measurement: { address: learningAddress(targets[0]),
           provenance: 'Prospective self-reported recall before the existing Word Sync reveal. Actual requested accesses and assistance are frozen by its admission; placement and legacy familiarity ratings are not recalled outcomes.' } });
     }
-    const patterns = [...new Set(goals().flatMap(goal => goalScopes().get(goal.id)?.patterns ?? []))];
+    const patterns = targetScope().patterns;
     for (const pattern of patterns) {
       const target = { entityId: grammarEntityId(settings.language, pattern), capability: 'grammar-recognition' };
       candidates.push({ key: `grammar:${pattern}`, action: 'grammar', family: GRAMMAR_SELF_ASSESS_TASK.taskTemplateId, mode: 'practice',
@@ -366,28 +373,13 @@ export const WelcomeRoute: Component = () => {
           provenance: 'Unfitted incidental lexical-learning prior. Waring & Takaki 2003 supports small, access-dependent, delayed reading gains; these rates are engineering assumptions, not transferred fitted coefficients. Upcoming recurrence in the selected content is uncertain. Passive exposure is not evidence of comprehension.' } } : {}) });
     }
     return { model, candidates, context: { nowMs: decisionTime(), horizonDays: context.learning!.horizonDays,
-      deferDays: context.learning!.deferDays, targetWeights: context.learning!.targetWeights, assessmentAt: context.learning!.assessmentAt }, opportunities, preparationTasks: () => {
-        // Resolve runnable tasks from the same installed scope/access declarations as
-        // actual handoffs. Construct only at forecast admission, not each Home render.
-        const tasks: LearningAction[] = [];
-        for (const word of goalWords()) {
-          const targets = getTestedAccesses({ languageData: language.currentLangData(), surface: word,
-            hasReadingData: false, hasProsodyData: false }).map(capability => ({
-              entityId: surfaceEntityId(settings.language, hashWordSync(word)), capability }));
-          if (targets.length) tasks.push({ key: `practice:${word}`, family: 'word-sync', mode: 'practice', targets });
-        }
-        for (const pattern of patterns) tasks.push({ key: `grammar:${pattern}`, family: GRAMMAR_SELF_ASSESS_TASK.taskTemplateId, mode: 'practice',
-          targets: [{ entityId: grammarEntityId(settings.language, pattern), capability: 'grammar-recognition' }] });
-        return tasks;
-      }, deadlineWorkloads: deadlineWorkloads() };
+      deferDays: context.learning!.deferDays, targetWeights: context.learning!.targetWeights, assessmentAt: context.learning!.assessmentAt }, opportunities, deadlineWorkloads: deadlineWorkloads() };
   });
   const homeChoiceInput = createMemo<ReturnType<typeof desiredHomeChoiceInput>>(previous => active() ? desiredHomeChoiceInput() : previous);
   let homeChoiceController: AbortController | undefined;
   let homeDisposed = false;
   const assembleHomeChoice = (input: NonNullable<ReturnType<typeof desiredHomeChoiceInput>>, chosen: HomeChoice) => ({
     ...chosen, candidatesOmitted: 0, trace: { ...chosen.trace, deadlineWorkloads: input.deadlineWorkloads },
-    preparationForecast: () => forecastPreparationOffThread(input.model, input.candidates, chosen.selected,
-      input.context, input.opportunities, input.preparationTasks()),
   });
   let pendingHomeChoice: Promise<ReturnType<typeof assembleHomeChoice>> | undefined;
   const [homeChoice, { refetch: retryHomeChoice }] = createResource(homeChoiceInput, input => {
@@ -409,6 +401,16 @@ export const WelcomeRoute: Component = () => {
     return action === 'grammar' ? 'practice' : action ?? (recentItems().length ? 'continue' : 'read');
   });
   const nextCopy = () => {
+    const selected = homeDecision()?.selected;
+    const savedReview = flashcards.store.meta?.reviewPresentations?.[settings.language];
+    const savedReviewCard = flashcards.store.flashcards[savedReview?.cardId ?? flashcards.store.meta?.reviewSessions?.[settings.language]?.cardIds.find(id => !flashcards.store.meta?.reviewSessions?.[settings.language]?.completedCardIds.includes(id)) ?? ''];
+    const reviewTitle = savedReview?.decision?.selected.task.inputModality === 'audio' ? t('mlearn.Flashcards.Review.Audio') : savedReviewCard?.content.front;
+    const offeredReviewTitle = selected?.retrievalTask?.inputModality === 'audio' ? t('mlearn.Flashcards.Review.Audio') : selected?.presentation?.surface;
+    const concrete = resumableGrammar() ? grammarResume()?.label : resumablePractice() ? practiceResume()?.label
+      : resumableReview() ? reviewTitle : selected?.action === 'grammar' ? selected.patterns?.[0]
+      : selected?.action === 'practice' ? selected.words?.[0]
+      : selected?.action === 'review' && typeof offeredReviewTitle === 'string' ? offeredReviewTitle : undefined;
+    if (concrete) return [concrete, goals().map(goal => goal.outcome).join(' · '), t(next() === 'review' ? 'mlearn.Home.Today.ReviewAction' : 'mlearn.Home.Today.PracticeAction')];
     const keys = {
       review: ['ReviewTitle', 'ReviewReason', 'ReviewAction'],
       practice: ['PracticeTitle', 'PracticeReason', 'PracticeAction'],
@@ -438,14 +440,13 @@ export const WelcomeRoute: Component = () => {
       const selectedLanguage = settings.language;
       const selectedLabel = goals()[0]?.outcome || t('mlearn.Goals.Purpose');
       const selectedMaterial = recentItems().find(item => selected.key === `continue:${item.path}`);
-      const preparationForecast = await chosen.preparationForecast();
-      if (homeDisposed || admittedInput !== homeChoiceInput()) return;
+      // A forecast is audit context, never a prerequisite for starting admitted work.
       const provenance: LearningDecision = { id: crypto.randomUUID(), at: Date.now(), policyVersion: 'home-learning-controller@13',
         selected: { key: selected.key, action: selected.action,
           ...(selected.action === 'review' ? { presentation: { ...selected.presentation, reviewActivityId: selected.reviewActivityId, retrievalTask: selected.retrievalTask } } : {}), targets: selected.targets.map(target => ({ kind: selected.action === 'grammar' ? 'grammar-pattern' : 'surface', id: target.entityId, capability: target.capability })),
           task: { taskTemplateId: selected.family, inputModality: 'activity-handoff', responseModality: 'none', supplied: [],
             requested: selected.targets.map(target => target.capability), fluencyRequired: false, ratingMode: 'profile' } },
-        baseline: null, detail: { homeController: { ...chosen.trace, preparationForecast }, candidatesOmitted: chosen.candidatesOmitted,
+        baseline: null, detail: { homeController: chosen.trace, candidatesOmitted: chosen.candidatesOmitted,
           scope: 'activity-handoff-only', limitation: 'Actual retrieval is separately pinned by the existing activity before presentation.' } };
       await getBridge().knowledgeEvents.recordLearningDecision(provenance);
       if (homeDisposed || admittedInput !== homeChoiceInput()) return;
@@ -482,7 +483,7 @@ export const WelcomeRoute: Component = () => {
           <Button variant="ghost" icon={<SearchIcon size={18} />} onClick={openWordDatabase}>{t('mlearn.Home.Cards.WordDatabase.Title')}</Button>
         </nav>
         <div class="welcome-today-heading"><h1>{t('mlearn.Home.Today.Title')}</h1><p>{t('mlearn.Home.Today.Description')}</p></div>
-        <LearningGoals coverage={goalCoverage()} deadlineWarnings={deadlineWarnings()} />
+        <LearningGoals compact onEdit={() => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'plan', edit: true } })} coverage={goalCoverage()} deadlineWarnings={deadlineWarnings()} />
         <div class="welcome-workspace">
           <Panel class="welcome-next" padding="lg">
             <span class="welcome-section-label">{t('mlearn.Home.Today.Next')}</span>

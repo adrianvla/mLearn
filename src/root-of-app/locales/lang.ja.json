@@ -2,7 +2,7 @@
   "mlearn": {
     "Goals": {
       "ScopeWorkloadRisk": "最近の学習ペースでは、{date}までにこの範囲の一部を確認しきれない可能性があります。試験結果の予測ではありません。",
-      "Purpose": "目標",
+      "Purpose": "学習目標",
       "Explore": "言語を探索する",
       "Time": "使える時間",
       "Minutes": "{count}分",
@@ -19,7 +19,7 @@
       "Paused": "一時停止",
       "Completed": "完了",
       "Passed": "期限が過ぎました。次の一歩を見直しましょう。進捗は保持されています。",
-      "Scope": "対象（任意）",
+      "Scope": "教材",
       "Words": "練習する単語を1行に1つ",
       "Coverage": "語彙：習得済み {known}・学習中 {learning}・未測定 {unmeasured}",
       "OtherRequirements": "語彙の練習だけでは、他の課題条件での能力は確認できません。",
@@ -29,9 +29,10 @@
         "community": "コミュニティの範囲",
         "authoritative": "公式の要件"
       },
-      "Choose": "目標や学習範囲を選択",
+      "Choose": "目標を選択",
       "Remove": "削除",
-      "Unavailable": "この学習範囲には言語パッケージが必要です。"
+      "Unavailable": "この学習範囲には言語パッケージが必要です。",
+      "AllMaterial": "すべての教材"
     },
     "LibraryRecovery": {
       "OpenProtection": "データ保護と復元の設定",

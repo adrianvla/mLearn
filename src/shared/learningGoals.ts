@@ -10,7 +10,7 @@ export interface LearningGoal {
   deadline?: string;
   createdAt: number;
   /** Stable installed-package outcome identity. A display label never defines membership. */
-  outcomeRef?: { id: string; packageVersion?: string };
+  outcomeRef?: { id: string; packageVersion?: string; groupIds?: string[] };
   /** Outcome requirement, not an algorithm weight; only meaningful with a calibrated outcome model. */
   requiredReliability?: number;
   /** Coverage origin must survive storage; user scope is not an official syllabus. */
@@ -25,16 +25,12 @@ export interface LearningGoal {
 
 export function learningGoalsForSettings(settings: Pick<Settings, 'learningGoals' | 'examGoal'> & { language?: string }): LearningGoal[] {
   if (settings.learningGoals !== undefined) return settings.learningGoals;
-  const legacy = settings.examGoal;
-  return legacy?.kind === 'exam' && (legacy.language || settings.language) ? [{
-    id: `legacy-exam:${legacy.language || settings.language}`, language: (legacy.language || settings.language)!,
-    outcome: legacy.target ?? '', status: 'active', priority: 2, createdAt: 0,
-    ...(legacy.deadline ? { deadline: legacy.deadline } : {}),
-  }] : [];
+  // Legacy free text remains in settings.examGoal; it has no package identity.
+  return [];
 }
 
 export function activeLearningGoals(goals: readonly LearningGoal[], language: string): LearningGoal[] {
-  return goals.filter(goal => goal.language === language && goal.status === 'active')
+  return goals.filter(goal => goal.language === language && goal.status === 'active' && Boolean(goal.outcomeRef?.id))
     .sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt);
 }
 

@@ -18,7 +18,7 @@ export function useLearningModel(language: Accessor<string>) {
   const [snapshot, { refetch }] = createResource(request, source => queryLearningEvidence(source.language));
   const model = createMemo(() => {
     const current = snapshot.state === 'ready' ? snapshot() : undefined;
-    return current ? fitLearningModel(current.events, Date.now(), `journal:${current.sequence}:window:${request()?.revision}:${current.firstT ?? 'empty'}:${current.truncated ? 'truncated' : 'exact'}`) : undefined;
+    return current?.model ?? (current ? fitLearningModel(current.events, Date.now(), `journal:${current.sequence}:window:${request()?.revision}:${current.firstT ?? 'empty'}:${current.truncated ? 'truncated' : 'exact'}`) : undefined);
   });
   return { model, snapshot, ready: () => snapshot.state === 'ready', failed: () => snapshot.state === 'errored', retry: () => void refetch() };
 }

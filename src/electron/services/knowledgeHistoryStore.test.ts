@@ -244,6 +244,17 @@ describe('bounded controller evidence', () => {
     expect(s.getLearningEvidence('xx').events.map(event => event.decision?.selected.task.responseModality)).toEqual(['recall', 'recall']);
     s.close();
   });
+  it('keeps older addressed recall in the predictive input after the recent wire tail fills, then retracts it exactly', () => {
+    const s = store();
+    s.appendEvents({ 'xx:old': [{ t: 1, kind: 'rating', source: 'manual', attemptId: 'old-recall', method: 'recall', taskType: 'real-task', quality: 'fluent', targetRef: { kind: 'surface', id: 'older', capability: 'future::access' } }],
+      'xx:recent': Array.from({ length: 1100 }, (_, i): KnowledgeEvent => ({ t: i + 10, kind: 'rating', source: 'srs', quality: 'missed', attemptId: `scheduler-${i}`, targetRef: { kind: 'surface', id: 'recent', capability: 'other::access' } })) });
+    const snapshot = s.getLearningEvidence('xx');
+    expect(snapshot.events.some(event => event.attemptId === 'old-recall')).toBe(false);
+    expect(snapshot.model?.memories['["older","future::access"]']?.observations).toBe(1);
+    s.appendEvents({ 'xx:old': [{ t: 2000, kind: 'retraction', source: 'manual', retracts: 'old-recall' }] });
+    expect(s.getLearningEvidence('xx').model?.memories['["older","future::access"]']).toBeUndefined();
+    s.close();
+  });
   it('excludes durable retractions outside the sampled tail and pins sequence provenance', () => {
     const s = store();
     s.appendEvents({ 'xx:word': [{ t: 9999, kind: 'rating', source: 'srs', attemptId: 'withdrawn', quality: 'fluent', targetRef: { kind: 'surface', id: 'address', capability: 'future::access' } },

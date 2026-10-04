@@ -5,7 +5,7 @@ import { surfaceEntityId, grammarEntityId } from '../../shared/graph/load';
 import { hashWordSync } from '../../shared/utils/wordHash';
 import type { LanguageData } from '../../shared/types';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
-import { activeLearningGoals, learningGoalsForSettings } from '../../shared/learningGoals';
+import { learningScopeForSettings } from '../../shared/learningScope';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { PolicyContext, SessionIntensity } from './types';
@@ -25,34 +25,13 @@ export function policyContextFromSettings(
     : DEFAULT_SETTINGS.sessionIntensity;
   const context: PolicyContext = { intensity };
 
-  if (settings.learningGoals !== undefined) {
-    const goals = language ? activeLearningGoals(learningGoalsForSettings(settings), language) : [];
-    context.goals = goals.map(goal => {
-      const resolved = goal.outcomeRef ? resolveLearningOutcome(runtime?.data, goal.outcomeRef.id) : null;
-      return resolved?.complete ? { ...goal, scope: { ...goal.scope, provenance: resolved.declaration.provenance,
-        words: resolved.words, requirements: resolved.declaration.requirements } } : goal;
-    });
-    const primary = [...goals].sort((a, b) => (a.deadline ? Date.parse(a.deadline) : Infinity) - (b.deadline ? Date.parse(b.deadline) : Infinity))[0];
-    if (primary) {
-      const deadlineMs = primary.deadline ? Date.parse(primary.deadline) : NaN;
-      context.goal = { kind: 'outcome', target: primary.outcome, language: primary.language,
-        ...(Number.isFinite(deadlineMs) ? { deadlineMs } : {}) };
-    }
-    return attachLearningContext(context, language, runtime);
-  }
-  const goal = settings.examGoal;
-  if (goal?.kind === 'exam' && goal.language !== undefined && goal.language === language) {
-    const deadlineMs = goal.deadline ? Date.parse(goal.deadline) : NaN;
-    context.goal = {
-      kind: 'exam',
-      ...(Number.isFinite(deadlineMs) ? { deadlineMs } : {}),
-      // Learner-owned provenance carried verbatim (R19): traces name the
-      // target, the policy never interprets it.
-      ...(goal.target ? { target: goal.target } : {}),
-      // Scope provenance carried verbatim (R07): traces name WHICH learning
-      // language the deadline drives.
-      language: goal.language,
-    };
+  const scope = learningScopeForSettings(settings, runtime?.data, language);
+  if (scope.selected || settings.learningGoals !== undefined) context.goals = scope.goals;
+  const primary = [...(context.goals ?? [])].sort((a, b) => (a.deadline ? Date.parse(a.deadline) : Infinity) - (b.deadline ? Date.parse(b.deadline) : Infinity))[0];
+  if (primary) {
+    const deadlineMs = primary.deadline ? Date.parse(primary.deadline) : NaN;
+    context.goal = { kind: 'outcome', target: primary.outcome, language: primary.language,
+      ...(Number.isFinite(deadlineMs) ? { deadlineMs } : {}) };
   }
   return attachLearningContext(context, language, runtime);
 }
@@ -65,7 +44,7 @@ function attachLearningContext(context: PolicyContext, language: string | undefi
   const gaps = [...opportunities.gapDays].sort((a, b) => a - b);
   const targetWeights: Record<string, number> = {};
   for (const goal of context.goals ?? []) {
-    const resolved = goal.outcomeRef ? resolveLearningOutcome(runtime.data, goal.outcomeRef.id) : null;
+    const resolved = goal.outcomeRef ? resolveLearningOutcome(runtime.data, goal.outcomeRef.id, goal.outcomeRef.groupIds) : null;
     const groups = resolved?.groups ?? [{ words: goal.scope?.words ?? [], patterns: [] }];
     for (const group of groups) {
       const count = group.words.length + group.patterns.length;

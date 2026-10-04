@@ -628,7 +628,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           if (prosody && prosodyVisible(settings) && (getProsodyOverlayRenderer(langCtx.currentLangData(), prosody.type) !== null
             || ((settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled) && coloredProsodyAllowedOnSurface(settings, 'other')))) scaffolds.prosody = true;
         }
-        return [{ index, key: surfaceId, word: entry.word, language: settings.language, surfaceId, possible, projection, scaffolds }];
+        return [{ index, key: surfaceId, word: entry.word, language: settings.language, surfaceId, possible: suppliedWords() ? possible : admitted.targets.map(target => target.capability), projection, scaffolds }];
       });
       const choice = selectWordSyncDecision({ id: nextAttemptId(), at: Date.now(), items, intent: props.intent, context: livePolicyContext() });
       const owner = { controller, record };
@@ -1547,7 +1547,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     }
     trace('projection update', { word: w.word });
     const admitted = wordSyncProbe(projection, possible, surfaceEntityId(settings.language, hashWordSync(w.word)), props.intent);
-    const targets = admitted.targets;
+    const targets = suppliedWords() && admitted.targets.length ? possible.map(capability => ({ entityId: surfaceEntityId(settings.language, hashWordSync(w.word)), capability })) : admitted.targets;
     const ast = filterAst();
     const record = { status: admitted.status, level: w.level };
     const decision = selectNextEncounter({
@@ -1562,7 +1562,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     wordTimer = createEncounterTimer();
     wordTimer.start();
     trace('card rendered', { word: w.word, presentation, targets: targets.length });
-    setProbe({ presentation: presentationCount(), capabilities: [...new Set(targets.map(target => target.capability))], focused: admitted.focused });
+    setProbe({ presentation: presentationCount(), capabilities: [...new Set(targets.map(target => target.capability))], focused: suppliedWords() ? false : admitted.focused });
   }));
 
   const projectedAccess = (capability: string) => {
@@ -1943,6 +1943,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         <Show when={currentWord()}>
           {(word) => <StudyEncounter
             class={assessmentMode() ? 'word-sync-assessment-card' : 'word-sync-card'}
+            ratingAvailable={!referenceSupplied()}
             instruction={suppliedWords() && probe()?.focused
               ? t('mlearn.StudyEncounter.RetrieveAspects', { aspects: testedAccesses().map(capability => langCtx.currentLangData()?.learning?.capabilities?.[capability]?.label
                 ?? t(CAPABILITY_LABEL_KEYS[capability] ?? capability)).join(' · ') })

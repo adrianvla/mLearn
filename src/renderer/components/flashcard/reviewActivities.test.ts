@@ -41,6 +41,17 @@ describe('adaptive review activities', () => {
     expect(activityScaffolds(selected)['provided-access:surface-reading']).toBe(true);
     expect(activityScaffolds(selected)['provided-access:future::pattern']).toBeUndefined();
   });
+  it('keeps ordinary mixed written recall when prosody is the reason for selection', () => {
+    const installed: LanguageData = { name: 'Future', learning: { capabilities: {
+      'sense-recognition': {}, 'surface-reading': {}, 'prosodic-pattern': {},
+    }, reviewActivities: { pattern: { kind: 'written-reading-recall', label: 'Pattern', prompt: 'Recall', targets: ['prosodic-pattern'] } } } };
+    const choices = eligibleReviewActivities(card, installed, preferences, false);
+    const selected = selectReviewActivity(choices, model, 'entity', weights('prosodic-pattern'));
+    expect(selected.kind).toBe('holistic');
+    expect(selected.targets).toEqual(expect.arrayContaining(['sense-recognition', 'surface-reading', 'prosodic-pattern']));
+    expect(activityScaffolds(selected)).toEqual({});
+    expect(eligibleReviewActivities(card, installed, { ...preferences, holistic: false }, false)[0].kind).toBe('written-reading-recall');
+  });
   it('requires actual resources, excludes disabled modes, and never substitutes text for audio', () => {
     expect(eligibleReviewActivities(card, data, preferences, false).map(a => a.kind)).not.toContain('audio-recognition');
     expect(eligibleReviewActivities({ ...card, content: { ...card.content, prosody: undefined } }, data, preferences, true).map(a => a.kind)).not.toContain('written-reading-recall');

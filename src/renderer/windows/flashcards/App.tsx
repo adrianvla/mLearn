@@ -1,7 +1,4 @@
 import { isLearningDecision, type LearningDecision } from '../../../shared/learningDecision';
-import { useLearningModel } from '../../hooks/useLearningModel';
-import { inferLearningOpportunities, manageableEncounterCount } from '../../../shared/learningOpportunities';
-import { evaluateLearningAction } from '../../../shared/learningModel';
 import { flashcardAudioProvider } from '../../../shared/utils/flashcardAudioPreset';
 import { FlashcardAudioPresetSelect } from '../../components/flashcard/FlashcardAudioPresetSelect';
 import { FlashcardRepairOptions } from '../../components/flashcard/FlashcardRepairOptions';
@@ -97,14 +94,6 @@ export const FlashcardsContent: Component = () => {
   } = useFlashcards();
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
-  const learning = useLearningModel(() => settings.language);
-  const inferredReviewLimit = createMemo(() => {
-    const model = learning.model();
-    if (!model) return undefined;
-    return manageableEncounterCount(inferLearningOpportunities(learning.snapshot()!.events, model.at),
-      evaluateLearningAction(model, { key: 'chunk', family: 'srs-review', mode: 'practice', targets: [] },
-        { nowMs: model.at, horizonDays: 30, deferDays: 3 }).effort.meanSeconds);
-  });
   const { requestAccess } = useLowPowerGate();
   const { langData, currentLangData } = useLanguage();
 
@@ -903,7 +892,7 @@ export const FlashcardsContent: Component = () => {
                   <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
                   <Button onClick={() => getBridge().window.getWindowContext('flashcards')}>{t('mlearn.Knowledge.Retry')}</Button>
                 </div>}>
-                  <FlashcardReview encounterLimit={reviewSessionRequest()?.encounterLimit ?? inferredReviewLimit()}
+                  <FlashcardReview continueAfterBatch={true} encounterLimit={reviewSessionRequest()?.encounterLimit}
                     sessionRequestId={reviewSessionRequest()?.requestId}
                     initialCardId={reviewSessionRequest()?.initialCardId}
                     handoff={reviewSessionRequest()?.decision} onComplete={() => setHasReviewedInSession(true)} onClose={() => getBridge().window.closeWindow()} />

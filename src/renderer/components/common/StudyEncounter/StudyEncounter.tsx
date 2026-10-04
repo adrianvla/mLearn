@@ -23,6 +23,8 @@ export interface StudyEncounterProps {
   revealLabel?: string;
   onSkip?: () => void;
   skipDisabled?: boolean;
+  /** Suppress recall affordances after reference consultation or prior answer exposure. */
+  ratingAvailable?: boolean;
   rating: RatingMatrixProps;
   children?: JSX.Element;
   answerControls?: JSX.Element;
@@ -41,9 +43,9 @@ export const StudyEncounter: Component<StudyEncounterProps> = (props) => {
       <Button variant="primary" size="lg" disabled={props.revealDisabled} onClick={props.onReveal}
         class={props.revealClass ?? 'study-encounter__reveal'}>{props.revealLabel ?? t('mlearn.StudyEncounter.Reveal')}</Button>
     </Show>
-    <div class={`study-encounter__response ${props.responseClass ?? ''}`} hidden={!props.revealed}>
+    <Show when={props.ratingAvailable !== false}><div class={`study-encounter__response ${props.responseClass ?? ''}`} hidden={!props.revealed}>
       <Show when={!props.scheduling || props.revealed}><RatingMatrix {...rating()} armed={ratingArmed()} scheduling={props.scheduling ?? false} /></Show>
-    </div>
+    </div></Show>
     <div class="study-encounter__secondary">
       {props.children}
       <Show when={props.onSkip}>
@@ -54,7 +56,7 @@ export const StudyEncounter: Component<StudyEncounterProps> = (props) => {
     </div>
   </>;
   return <section class={`study-encounter ${props.class ?? ''}`} aria-label={t('mlearn.StudyEncounter.Task')}>
-    <p class="study-encounter__instruction">{props.revealed ? t('mlearn.StudyEncounter.Compare') : props.instruction ?? t('mlearn.StudyEncounter.Retrieve')}</p>
+    <Show when={props.ratingAvailable !== false}><p class="study-encounter__instruction">{props.revealed ? t('mlearn.StudyEncounter.Compare') : props.instruction ?? t('mlearn.StudyEncounter.Retrieve')}</p></Show>
     <Show when={card()} fallback={<Panel class="study-encounter__card" padding="lg">
       <div class="study-encounter__prompt">{props.prompt}</div>
       <Show when={props.revealed} fallback={

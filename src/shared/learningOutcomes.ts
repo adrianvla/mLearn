@@ -34,12 +34,15 @@ export interface ResolvedLearningOutcome {
 }
 
 /** Uses only loaded assets; unavailable providers/extensions must never fall back to a convenient list. */
-export function resolveLearningOutcome(data: LanguageData | null | undefined, id: string): ResolvedLearningOutcome | null {
+export function resolveLearningOutcome(data: LanguageData | null | undefined, id: string, groupIds?: readonly string[]): ResolvedLearningOutcome | null {
   const declaration = data?.learning?.outcomes?.[id];
   if (!declaration || typeof declaration.label !== 'string' || !declaration.label.trim() || !Array.isArray(declaration.groups)) return null;
   const groups = new Map<string, ResolvedLearningOutcome['groups'][number]>();
   const unavailable: string[] = [];
+  const selectedGroups = groupIds ? new Set(groupIds) : null;
+  if (selectedGroups && (!selectedGroups.size || [...selectedGroups].some(id => !declaration.groups.some(group => group?.id === id)))) unavailable.push('missing-group');
   for (const group of declaration.groups) {
+    if (selectedGroups && !selectedGroups.has(group?.id)) continue;
     if (!group || typeof group.id !== 'string' || !group.id.trim() || !Array.isArray(group.selectors)) {
       unavailable.push('malformed-group'); continue;
     }
@@ -71,6 +74,7 @@ export function resolveLearningOutcome(data: LanguageData | null | undefined, id
       }
     }
     result.words = [...new Set(result.words)]; result.patterns = [...new Set(result.patterns)];
+    if (!result.words.length && !result.patterns.length) unavailable.push(`${group.id}:empty-membership`);
     groups.set(group.id, result);
   }
   const resolved = [...groups.values()];

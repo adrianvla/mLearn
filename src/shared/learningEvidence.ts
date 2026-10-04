@@ -1,8 +1,11 @@
+import { fitLearningModel, type LearningModel } from './learningModel';
 import { readActiveEvidence, type KnowledgeEvent } from './knowledgeEvents';
 
 /** Bounded canonical tail; not a new evidence authority or an archive reconstruction. */
 export interface LearningEvidenceSnapshot {
   sequence: number;
+  /** Existing model fitted from all retained addressed attempts, before the wire tail is bounded. */
+  model?: LearningModel;
   events: KnowledgeEvent[];
   truncated: boolean;
   /** Oldest retained observation. Missing history stays missing, never failed. */
@@ -20,8 +23,10 @@ export function compactLearningEvidence(event: KnowledgeEvent): KnowledgeEvent {
 
 /** Mobile owns an in-memory shard. Retractions are applied BEFORE taking its bounded tail. */
 export function learningEvidenceFromEvents(events: readonly KnowledgeEvent[], sequence: number): LearningEvidenceSnapshot {
-  const active = readActiveEvidence(events).filter(event => event.kind === 'rating' || event.kind === 'review').sort((a, b) => b.t - a.t);
   const decisions = new Map(events.flatMap(event => event.decision ? [[event.decision.id, event.decision] as const] : []));
+  const active = readActiveEvidence(events).filter(event => event.kind === 'rating' || event.kind === 'review')
+    .map(event => !event.decision && event.decisionRef && decisions.has(event.decisionRef.id)
+      ? { ...event, decision: decisions.get(event.decisionRef.id) } : event).sort((a, b) => b.t - a.t);
   const selected: KnowledgeEvent[] = []; let bytes = 128;
   for (const event of active.slice(0, LEARNING_EVIDENCE_ROW_CAP)) {
     const compact = compactLearningEvidence(!event.decision && event.decisionRef && decisions.has(event.decisionRef.id)
@@ -31,5 +36,5 @@ export function learningEvidenceFromEvents(events: readonly KnowledgeEvent[], se
     selected.push(compact); bytes += size;
   }
   selected.reverse();
-  return { sequence, events: selected, truncated: selected.length < active.length, ...(selected.length ? { firstT: selected[0].t } : {}) };
+  return { sequence, model: fitLearningModel(active, Date.now(), `journal:${sequence}:retained-addressed-attempts`), events: selected, truncated: selected.length < active.length, ...(selected.length ? { firstT: selected[0].t } : {}) };
 }

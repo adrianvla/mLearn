@@ -37,3 +37,12 @@ describe('installed semantic outcome resolution', () => {
     expect(result?.groups.filter(group => group.id === 'lexical')).toHaveLength(1);
   });
 });
+
+describe('package subset selection', () => {
+  it('resolves only the selected declared groups and refuses missing groups or empty membership', () => {
+    expect(resolveLearningOutcome(data, 'subset', ['construction'])).toMatchObject({ words: [], patterns: ['arbitrary construction'], complete: true });
+    expect(resolveLearningOutcome(data, 'subset', ['removed'])).toMatchObject({ complete: false, words: [], patterns: [] });
+    const absent = { ...data, grammar: [{ pattern: 'different', level: 4, meaning: 'Other' }] };
+    expect(resolveLearningOutcome(absent, 'subset', ['construction'])).toMatchObject({ complete: false, patterns: [] });
+  });
+});

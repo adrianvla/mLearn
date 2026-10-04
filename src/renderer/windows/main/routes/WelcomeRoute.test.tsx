@@ -15,7 +15,7 @@ const fixture = vi.hoisted(() => ({
   progress: { tracked: 0, known: 0, total: 0 },
   reviewMeta: {} as Pick<import('../../../../shared/types').FlashcardMeta, 'reviewSessions' | 'reviewPresentations'>,
   grammarProjections: {} as import('../../../../shared/knowledge/historyQueries').GrammarProjectionMap, grammarRead: vi.fn(),
-  scopedKnown: false, futureDue: false, grammar: undefined as import('../../../../shared/types').LanguageData['grammar'], learning: undefined as import('../../../../shared/types').LanguageData['learning'],
+  frequency: [] as import('../../../../shared/types').LanguageData['freq'], scopedKnown: false, futureDue: false, grammar: undefined as import('../../../../shared/types').LanguageData['grammar'], learning: undefined as import('../../../../shared/types').LanguageData['learning'],
   settings: { learningGoals: undefined as import('../../../../shared/learningGoals').LearningGoal[] | undefined, language: 'test-language', uiLanguage: 'en', simplifyHomeScreen: false, reviewActivities: undefined as import('../../../../shared/types').Settings['reviewActivities'] | undefined },
 }));
 const [windowActive, setWindowActive] = createSignal(true);
@@ -29,7 +29,7 @@ vi.mock('@solidjs/router', () => ({ useNavigate: () => fixture.navigate }));
 vi.mock('../../../context', () => ({
   useSettings: () => ({ settings: fixture.settings }),
   useLocalization: () => ({ t: (key: string, params?: Record<string, string>) => `${key}${params ? JSON.stringify(params) : ''}` }),
-  useLanguage: () => ({ currentLangData: () => fixture.source ? { name: 'Test language', grammar: fixture.grammar, learning: fixture.learning } : null, isLoading: () => false }),
+  useLanguage: () => ({ currentLangData: () => fixture.source ? { name: 'Test language', freq: fixture.frequency, frequencyLevels: { rowLevelIndex: 2 }, grammar: fixture.grammar, learning: fixture.learning } : null, isLoading: () => false }),
   useFlashcards: () => ({ store: { wordKnowledge: {}, dailyStats: {}, ignoredWords: {}, get meta() { return fixture.reviewMeta; }, get flashcards() { return Object.fromEntries(Array.from({ length: due() }, (_, index) => [String(index), { id: String(index), language: fixture.settings.language, content: { front: `word-${index}`, back: 'answer' }, state: 'review', dueDate: fixture.futureDue ? Date.now() + 60000 : 1 } as Flashcard])); } }, isLoading: () => false, isKnowledgeReady: knowledgeReady, queue: () => ({ newQueue: [], scheduledQueue: Array.from({ length: due() }, (_, index) => String(index)) }), queueCounts: () => ({ total: due() }) }),
 }));
 vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ window: { openWindow: fixture.openWindow }, flashcards: { getFlashcardTts: fixture.recordingLookup }, knowledgeEvents: { recordLearningDecision: fixture.recordDecision, getGrammarProjections: async () => { await fixture.grammarRead(); return fixture.grammarProjections; } }, mediaStats: { onMediaStatsList: () => () => {}, listMediaStats: vi.fn() } }) }));
@@ -39,12 +39,12 @@ vi.mock('../../../../shared/platform', () => ({ isMobile: () => fixture.mobile }
 vi.mock('../../../services/thumbnailService', () => ({ getRecentItems: async () => fixture.recent }));
 vi.mock('../../../services/llmProvider', () => ({ isLLMReady: () => fixture.llm }));
 vi.mock('../../../services/capabilityUnavailable', () => ({ notifyCapabilityUnavailable: fixture.notify, openCapabilitySettings: fixture.configure }));
-vi.mock('../../../hooks/useEvidenceLinkedProjections', () => ({ useEvidenceLinkedProjections: () => ({ ready: projectionReady, failed: projectionFailed, retry: fixture.retry, resolveState: () => ({ status: fixture.scopedKnown ? 'known' : 'unknown', basis: fixture.scopedKnown ? 'evidence' : 'unmeasured' }) }) }));
+vi.mock('../../../hooks/useEvidenceLinkedProjections', () => ({ useEvidenceLinkedProjections: () => ({ projections: () => new Map(), ready: projectionReady, failed: projectionFailed, retry: fixture.retry, resolveState: () => ({ status: fixture.scopedKnown ? 'known' : 'unknown', basis: fixture.scopedKnown ? 'evidence' : 'unmeasured' }) }) }));
 vi.mock('../../../utils/wordLevelStats', () => ({
   getLevelStudyFrequency: () => fixture.source ? { item: 'level' } : null,
   getLevelStudyLevelNames: () => ['level'], computeLevelStats: () => [{}], summarizeLevelProgress: () => fixture.progress,
 }));
-vi.mock('../../../../shared/languageFeatures', () => ({ getLearningLanguageLevelForLanguage: () => null, isFrequencyLevelAtOrEasierThanTarget: () => true, getTestedAccesses: () => ['sense-recognition', 'surface-recognition'] }));
+vi.mock('../../../../shared/languageFeatures', async () => ({ ...(await vi.importActual<typeof import('../../../../shared/languageFeatures')>('../../../../shared/languageFeatures')), getLearningLanguageLevelForLanguage: () => null, isFrequencyLevelAtOrEasierThanTarget: () => true, getTestedAccesses: () => ['sense-recognition', 'surface-recognition'] }));
 vi.mock('../../../components/utils/WindowDragRegion', () => ({ WindowDragRegion: () => null }));
 vi.mock('./components', async () => ({ WelcomeContinueRow: (await import('./components/WelcomeContinueRow')).WelcomeContinueRow }));
 vi.mock('@renderer/components/common/Misc/AppLogo', () => ({ default: () => null }));
@@ -77,9 +77,17 @@ describe('Home next activity', () => {
     button!.click();
     await vi.waitFor(() => expect(actions.reduce((sum, action) => sum + action.mock.calls.length, 0)).toBeGreaterThan(before));
   };
+  const installTargets = () => {
+    fixture.source = true;
+    fixture.frequency = [...new Set(fixture.settings.learningGoals?.flatMap(goal => goal.scope?.words ?? []) ?? [])].map(word => [word, '', 1]);
+    fixture.learning = { outcomes: Object.fromEntries((fixture.settings.learningGoals ?? []).map(goal => [goal.id, {
+      label: goal.outcome, provenance: 'package', groups: [{ id: 'material', selectors: [{ source: 'frequency', words: goal.scope?.words }] }],
+    }])) };
+    fixture.settings.learningGoals = fixture.settings.learningGoals?.map(goal => ({ ...goal, outcomeRef: { id: goal.id } }));
+  };
   beforeEach(() => {
     vi.clearAllMocks(); setWindowActive(true); setKnowledgeReady(true); setProjectionReady(true); setProjectionFailed(false); setDue(0);
-    fixture.grammarRead.mockReset(); fixture.grammarProjections = {}; fixture.settings.learningGoals = undefined; fixture.grammar = undefined; fixture.learning = undefined; fixture.scopedKnown = false; fixture.futureDue = false;
+    fixture.grammarRead.mockReset(); fixture.grammarProjections = {}; fixture.settings.learningGoals = undefined; fixture.grammar = undefined; fixture.learning = undefined; fixture.frequency = []; fixture.scopedKnown = false; fixture.futureDue = false;
     fixture.reviewMeta = {}; fixture.choiceBarrier = undefined; fixture.settings.reviewActivities = undefined;
     fixture.recordingLookup.mockReset().mockResolvedValue(null);
     fixture.recent = []; fixture.source = false; fixture.progress = { tracked: 0, known: 0, total: 0 };
@@ -89,6 +97,7 @@ describe('Home next activity', () => {
   afterEach(() => { dispose?.(); container.remove(); sessionStorage.clear(); localStorage.clear(); vi.restoreAllMocks(); });
   it('prepares goal scope without a curriculum and retires completed scope from the primary action', async () => {
     fixture.settings.learningGoals = [{ id: 'book', language: 'test-language', outcome: 'Read my book', status: 'active', priority: 2, createdAt: 1, scope: { provenance: 'user', words: ['chosen'] } }];
+    installTargets();
     await mount(); await click('mlearn.Home.Today.PracticeAction');
     expect(fixture.openWindow).toHaveBeenCalledWith(expect.objectContaining({ context: expect.objectContaining({ material: { language: 'test-language', label: 'Read my book', words: ['chosen'] } }) }));
     dispose(); fixture.scopedKnown = true; await mount();
@@ -102,6 +111,7 @@ describe('Home next activity', () => {
       priority: 1, createdAt: 1, scope: { provenance: 'user', words: words.slice(0, 40) } },
       { id: 'priority-access', language: 'test-language', outcome: 'Another scope', status: 'active', priority: 1, createdAt: 1,
         scope: { provenance: 'user', words: [words[40]] } }];
+    installTargets();
     await mount(); await click('mlearn.Home.Today.PracticeAction');
     expect(fixture.openWindow).toHaveBeenCalledWith(expect.objectContaining({ context: expect.objectContaining({
       material: expect.objectContaining({ words: ['a-later-choice'] }) }) }));
@@ -171,6 +181,7 @@ describe('Home next activity', () => {
     fixture.settings.learningGoals = [{ id: 'near', language: 'test-language', outcome: 'Defined scope',
       status: 'active', priority: 1, createdAt: 1, deadline: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),
       scope: { provenance: 'user', words: Array.from({ length: 1000 }, (_, index) => `item-${index}`) } }];
+    installTargets();
     await mount(); await click('mlearn.Home.Today.PracticeAction');
     const decision = fixture.recordDecision.mock.calls[0][0] as unknown as {
       detail: { homeController: { deadlineWorkloads: { items: number; status: string; priorDriven: boolean }[] } }
@@ -179,10 +190,7 @@ describe('Home next activity', () => {
       goalId: 'near', items: 1000, status: 'one-pass-exceeds-opportunity-scenarios', priorDriven: true,
     })]);
     expect(fixture.settings.learningGoals[0].scope?.words).toHaveLength(1000);
-    expect(decision.detail.homeController).toHaveProperty('preparationForecast', expect.objectContaining({
-      version: 'preparation-continuation@8', firstAction: expect.any(String), evaluationEndsAt: expect.any(Number), scenarios: expect.any(Array),
-      scopeTasks: { declared: 1000, admitted: 1000, omitted: 0 }, actionsOmitted: 0,
-    }));
+    expect(decision.detail.homeController).not.toHaveProperty('preparationForecast');
   });
   it('includes unassessed installed grammar and excludes measured grammar from deadline workload', async () => {
     fixture.source = true;
@@ -239,6 +247,7 @@ describe('Home next activity', () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-04'));
     fixture.settings.learningGoals = [{ id: 'near', language: 'test-language', outcome: 'Scope', status: 'active',
       priority: 1, createdAt: 1, deadline: '2026-10-05', scope: { provenance: 'user', words: ['chosen'] } }];
+    installTargets();
     await mount();
     clock.mockReturnValue(Date.parse('2026-10-20'));
     await click('mlearn.Home.Today.PracticeAction');
@@ -293,7 +302,7 @@ describe('Home next activity', () => {
   });
   it('opens the existing review destination without mounting a second rating controller', async () => {
     setDue(214); await mount();
-    expect(container.querySelector('.welcome-next')?.textContent).toContain('mlearn.Home.Today.ReviewTitle');
+    expect(container.querySelector('.welcome-next')?.textContent).toContain('word-0');
     expect(container.querySelectorAll('[data-variant="primary"]')).toHaveLength(1);
     expect(container.querySelector('input')).toBeNull();
     await click('mlearn.Home.Today.ReviewAction');
@@ -332,7 +341,7 @@ describe('Home next activity', () => {
     setKnowledgeReady(false); setDue(12); await mount();
     expect(container.querySelector('.welcome-next h2')).toBeNull();
     setKnowledgeReady(true);
-    await vi.waitFor(() => expect(container.querySelector('.welcome-next h2')?.textContent).toContain('mlearn.Home.Today.ReviewTitle'));
+    await vi.waitFor(() => expect(container.querySelector('.welcome-next h2')?.textContent).toContain('word-0'));
   });
   it('offers retry instead of a recommendation when the required projection fails', async () => {
     fixture.source = true; setProjectionReady(false); setProjectionFailed(true); await mount();

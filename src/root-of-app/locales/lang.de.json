@@ -2,7 +2,7 @@
   "mlearn": {
     "Goals": {
       "ScopeWorkloadRisk": "Bei deinem bisherigen Tempo könnte am {date} noch Material in diesem Lernbereich ungeprüft sein. Das sagt kein Prüfungsergebnis voraus.",
-      "Purpose": "Dein Ziel",
+      "Purpose": "Lernziel",
       "Explore": "Die Sprache entdecken",
       "Time": "Verfügbare Zeit",
       "Minutes": "{count} Min.",
@@ -19,7 +19,7 @@
       "Paused": "Pausiert",
       "Completed": "Abgeschlossen",
       "Passed": "Die Frist ist abgelaufen. Prüfe den nächsten Schritt; dein Fortschritt bleibt erhalten.",
-      "Scope": "Fokus (optional)",
+      "Scope": "Material",
       "Words": "Wörter zur Vorbereitung, eines pro Zeile",
       "Coverage": "Wortschatz: {known} bekannt · {learning} in Entwicklung · {unmeasured} ungeprüft",
       "OtherRequirements": "Wortschatzübung weist keine Leistung unter den anderen Aufgabenbedingungen nach.",
@@ -29,9 +29,10 @@
         "community": "Community-Abdeckung",
         "authoritative": "Offizielle Anforderungen"
       },
-      "Choose": "Lernziel oder Lehrplan wählen",
+      "Choose": "Lernziel wählen",
       "Remove": "Entfernen",
-      "Unavailable": "Für diesen Lehrplan muss das Sprachpaket verfügbar sein."
+      "Unavailable": "Für diesen Lehrplan muss das Sprachpaket verfügbar sein.",
+      "AllMaterial": "Gesamtes Material"
     },
     "LibraryRecovery": {
       "OpenProtection": "Einstellungen zum Datenschutz und zur Wiederherstellung",

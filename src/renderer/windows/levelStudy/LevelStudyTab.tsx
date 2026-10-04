@@ -1,3 +1,4 @@
+import { learningScopeForSettings } from '../../../shared/learningScope';
 import type { PolicyContext } from '../../learning/types';
 import { useEvidenceLinkedProjections } from '../../hooks/useEvidenceLinkedProjections';
 import { projectedWordStatus } from '../../../shared/graph/targets';
@@ -89,9 +90,14 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
       : { ...resolved, data: languageDataWithStoredQuestionValidations(resolved.language, resolved.data) };
   });
 
+  const targetScope = createMemo(() => learningScopeForSettings(settings, resolvedLanguageData().data, resolvedLanguageData().language));
+  const scopedGrammarData = createMemo(() => {
+    const data = resolvedLanguageData().data;
+    return data && targetScope().selected ? { ...data, grammar: data.grammar?.filter(point => targetScope().patterns.includes(point.pattern)) } : data;
+  });
   const frequency = createMemo(() => {
     const langData = resolvedLanguageData().data;
-    return langData ? getLevelStudyFrequency(langData) : {};
+    return targetScope().selected ? targetScope().frequency : langData ? getLevelStudyFrequency(langData) : {};
   });
 
   const levelNames = createMemo(() => {
@@ -107,11 +113,11 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
   const evidenceKeys = createMemo(() => new Set(projected.evidenceKeys()));
   const projectionSurfaces = createMemo(() => [...projected.projections().keys()]);
 
-  let settledStats: { language: string; value: LevelStats[] } | null = null;
+  let settledStats: { language: string; scope: string; value: LevelStats[] } | null = null;
   const stats = createMemo(() => {
     const resolved = resolvedLanguageData();
     if (flashcards.isLoading() || !projected.ready()) {
-      return settledStats?.language === resolved.language ? settledStats.value : [];
+      return settledStats?.language === resolved.language && settledStats.scope === JSON.stringify(targetScope().goals.map(goal => goal.outcomeRef)) ? settledStats.value : [];
     }
     const langData = resolved.data;
     if (!langData) return [];
@@ -132,7 +138,7 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
         return projection ? projectedWordStatus(projection) : { status: 'unknown' as const, basis: 'unmeasured' as const };
       },
     );
-    settledStats = { language: resolved.language, value };
+    settledStats = { language: resolved.language, scope: JSON.stringify(targetScope().goals.map(goal => goal.outcomeRef)), value };
     return value;
   });
 
@@ -165,7 +171,7 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
   });
 
   const userLevel = createMemo(() => (
-    getLearningLanguageLevelForLanguage(settings, resolvedLanguageData().language || null)
+    targetScope().selected ? null : getLearningLanguageLevelForLanguage(settings, resolvedLanguageData().language || null)
   ));
 
   const userLevelLabel = createMemo(() => {
@@ -233,9 +239,9 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
   });
   const grammarLog = () => grammarEvidence()?.itemLog;
   const grammarProjections = () => grammarEvidence()?.projections;
-  const requiresGrammar = () => Boolean(resolvedLanguageData().data?.grammar?.length);
+  const requiresGrammar = () => Boolean(scopedGrammarData()?.grammar?.length);
   const grammarSummary = createMemo(() => {
-    const data = resolvedLanguageData().data;
+    const data = scopedGrammarData();
     const projections = grammarProjections();
     if (!data || !projections || resolvedLanguageData().language === '') return null;
     // Vocabulary-only packages: no grammar gate at all.
@@ -348,13 +354,13 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
         <Show
         when={hasFrequencyData()}
         fallback={
-          <EmptyState
+          <Show when={!targetScope().selected || targetScope().words.length > 0}><EmptyState
             icon={<TargetIcon size={32} />}
             title={t('mlearn.LevelStudy.EmptyState.Title')}
             description={t('mlearn.LevelStudy.EmptyState.Description')}
             variant="card"
             size="md"
-          />
+          /></Show>
         }
       >
         <Show when={stats().length > 0}>
@@ -458,7 +464,7 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
             projections={grammarProjections()!}
             summary={grammarSummary()!}
             policyContext={props.policyContext}
-            scopePatterns={props.grammarRequest?.patterns}
+            scopePatterns={props.grammarRequest?.patterns ?? (targetScope().selected ? targetScope().patterns : undefined)}
             repairRequest={props.grammarRequest ?? mockRepairRequest()}
             onRepairRequestHandled={(requestedAt) => {
               if (props.grammarRequest) props.onGrammarRequestHandled?.();
@@ -505,6 +511,7 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?:
             levelName={level().name}
             language={resolvedLanguageData().language}
             languageData={resolvedLanguageData().data}
+            frequency={frequency()}
             evidenceSurfaces={projectionSurfaces()}
             onClose={() => setSelectedLevel(null)}
           />

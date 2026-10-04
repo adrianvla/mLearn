@@ -1,3 +1,4 @@
+import { learningScopeForSettings } from '../../../shared/learningScope';
 import { useLearningModel } from '../../hooks/useLearningModel';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { Component, Show, batch, createEffect, createSignal, createMemo, on, onMount, onCleanup } from 'solid-js';
@@ -21,6 +22,7 @@ export const LevelStudyContent: Component = () => {
   const { t } = useLocalization();
   const { currentLangData, getFreqLevelNames } = useLanguage();
   const { settings, isLoading: settingsLoading } = useSettings();
+  const targetScope = createMemo(() => learningScopeForSettings(settings, currentLangData()));
   const learning = useLearningModel(() => settings.language);
   const policyContext = () => learning.model() ? policyContextFromSettings(settings, settings.language, { model: learning.model()!, events: learning.snapshot()!.events, data: currentLangData() }) : undefined;
   let planControls: HTMLDetailsElement | undefined;
@@ -33,7 +35,15 @@ export const LevelStudyContent: Component = () => {
   const [destination, setDestination] = createSignal<PlanDestination>('plan');
   const [studyIntent, setStudyIntent] = createSignal<'reinforce' | undefined>();
   const [materialPractice, setMaterialPractice] = createSignal<MaterialPracticeContext>();
-  const openStudy = () => { batch(() => { setMaterialPractice(undefined); setStudyIntent(undefined); setDestination('word-sync'); }); };
+  const openStudy = () => { batch(() => {
+    const scope = targetScope();
+    if (scope.selected && !scope.goals.length) { editPlan(); return; }
+    if (scope.selected && !scope.words.length && scope.patterns.length) {
+      setGrammarRequestConsumed(false); setIncomingContext({ activity: 'grammar', patterns: scope.patterns }); setDestination('plan'); return;
+    }
+    setMaterialPractice(scope.selected ? { language: settings.language, label: scope.goals.map(goal => goal.outcome).join(' · '), words: scope.words } : undefined);
+    setStudyIntent(undefined); setDestination('word-sync');
+  }); };
   const [sessionConstraint, setSessionConstraint] = createSignal<{ encounterLimit: number; requestId?: string }>();
   const [incomingContext, setIncomingContext] = createSignal<Record<string, unknown> | null>(null);
   const [grammarRequestConsumed, setGrammarRequestConsumed] = createSignal(false);
@@ -65,7 +75,7 @@ export const LevelStudyContent: Component = () => {
         setDestination('word-sync');
       }
       else if (context.activity === 'assessment') setDestination('assessment');
-      else if (context.activity === 'plan' || context.activity === 'grammar') setDestination('plan');
+      else if (context.activity === 'plan' || context.activity === 'grammar') { setDestination('plan'); if (context.edit === true) editPlan(); }
     });
   }));
   onMount(() => {
@@ -76,6 +86,7 @@ export const LevelStudyContent: Component = () => {
   });
   const showCharacterGrid = createMemo(() => getCharacterStudyScripts(currentLangData()).length > 0);
   const planSummary = () => {
+    if (targetScope().selected) return targetScope().goals.map(goal => goal.outcome).join(' · ') || t('mlearn.Goals.Unavailable');
     const data = currentLangData();
     const provider = data?.frequencyProviders?.[(settings.frequencyProviderSelections ?? DEFAULT_SETTINGS.frequencyProviderSelections)[settings.language]
       ?? data?.activeFrequencyProvider ?? data?.defaultFrequencyProvider ?? ''];

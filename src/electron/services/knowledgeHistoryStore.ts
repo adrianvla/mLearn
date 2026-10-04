@@ -1,3 +1,4 @@
+import { fitLearningModel } from '../../shared/learningModel';
 import { compactLearningEvidence, LEARNING_EVIDENCE_ROW_CAP, LEARNING_EVIDENCE_BYTE_CAP, type LearningEvidenceSnapshot } from '../../shared/learningEvidence';
 import { randomUUID } from 'node:crypto';
 import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
@@ -940,8 +941,24 @@ export class KnowledgeHistoryStore {
       if (bytes + size > LEARNING_EVIDENCE_BYTE_CAP) break;
       events.push(event); bytes += size;
     }
+    // Retained addressed attempts, across surfaces and outside the recent wire
+    // tail, condition the existing model. Scheduler-only rows cannot fit an
+    // access; archived aggregates remain canonical projection input, never
+    // invented exact attempts. Retractions use the same durable journal guard.
+    const addressed = this.db.prepare(`SELECT r.json, d.decision_json FROM rows r
+      LEFT JOIN learning_decisions d ON d.id = json_extract(r.json, '$.decisionRef.id')
+      WHERE r.lang = ? AND json_extract(r.json, '$.kind') IN ('rating', 'review')
+      AND json_extract(r.json, '$.targetRef.id') IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM rows tomb WHERE tomb.key = r.key
+        AND json_extract(tomb.json, '$.retracts') = json_extract(r.json, '$.attemptId'))
+      ORDER BY r.t, r.seq`).all(language) as Array<{ json: string; decision_json: string | null }>;
+    const model = fitLearningModel(addressed.map(row => {
+      const event = JSON.parse(row.json) as KnowledgeEvent;
+      if (!event.decision && row.decision_json) event.decision = JSON.parse(row.decision_json) as LearningDecision;
+      return compactLearningEvidence(event);
+    }), Date.now(), `journal:${this.sequenceCounter}:retained-addressed-attempts`);
     events.reverse();
-    return { sequence: this.sequenceCounter, events, truncated: events.length < rows.length,
+    return { sequence: this.sequenceCounter, model, events, truncated: events.length < rows.length,
       ...(events.length ? { firstT: events[0].t } : {}) };
   }
 

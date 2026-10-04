@@ -2,7 +2,7 @@
   "mlearn": {
     "Goals": {
       "ScopeWorkloadRisk": "At your recent pace, some material in this scope may remain unassessed by {date}. This does not predict an exam result.",
-      "Purpose": "Your goal",
+      "Purpose": "Learning target",
       "Explore": "Explore the language",
       "Time": "Available time",
       "Minutes": "{count} min",
@@ -19,7 +19,7 @@
       "Paused": "Paused",
       "Completed": "Completed",
       "Passed": "The deadline has passed. Review your next step; progress is preserved.",
-      "Scope": "Focus (optional)",
+      "Scope": "Material",
       "Words": "Words to prepare, one per line",
       "Coverage": "Vocabulary: {known} known · {learning} developing · {unmeasured} unmeasured",
       "OtherRequirements": "Vocabulary practice does not establish performance under the other task conditions.",
@@ -29,9 +29,10 @@
         "community": "Community coverage",
         "authoritative": "Authoritative requirements"
       },
-      "Choose": "Choose an outcome or curriculum",
+      "Choose": "Choose a target",
       "Remove": "Remove",
-      "Unavailable": "This curriculum needs an available language package."
+      "Unavailable": "This curriculum needs an available language package.",
+      "AllMaterial": "All material"
     },
     "LibraryRecovery": {
       "OpenProtection": "Data protection settings",

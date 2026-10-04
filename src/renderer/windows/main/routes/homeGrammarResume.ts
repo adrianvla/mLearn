@@ -32,7 +32,7 @@ export function homeGrammarResume(storage: Pick<Storage, 'getItem'>, language: s
         return true;
       });
     if (!record) return null;
-    return { at: Number.isFinite(record.meta.presentedAt) ? record.meta.presentedAt! : 0,
+    return { label: record.queue[record.index].id, at: Number.isFinite(record.meta.presentedAt) ? record.meta.presentedAt! : 0,
       context: { activity: 'grammar' as const, patterns: record.queue.map(item => item.id) } };
   } catch { return null; }
 }

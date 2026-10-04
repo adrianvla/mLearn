@@ -45,7 +45,9 @@ export function selectWordSyncDecision(input: { id: string; at: number;
     keys.add(item.key);
     if (item.projection?.status === 'error') return [];
     const probe = wordSyncProbe(item.projection, item.possible, item.surfaceId, input.intent);
-    const targets = probe.targets.filter(target => isAccessMeasurable(target.capability, item.scaffolds));
+    if (!probe.targets.length) return [];
+    const targets = [...new Set(item.possible)].filter(capability => isAccessMeasurable(capability, item.scaffolds))
+      .map(capability => ({ entityId: item.surfaceId, capability }));
     if (targets.length === 0) return [];
     // A support prediction for a sense/component is not a prediction of the
     // unresolved surface familiarity this prompt can actually measure.
@@ -56,7 +58,7 @@ export function selectWordSyncDecision(input: { id: string; at: number;
     return [{ key: item.key, word: item.word, language: item.language, targets,
       task: { ...PRESETS.CALIBRATION.task, responseModality: 'recall' as const, requested: targets.map(target => target.capability) },
       scores: { novelty: 1, 'declared-support': support.credit },
-      meta: { index: item.index, focused: probe.focused, support, scaffolds: { ...item.scaffolds } } }];
+      meta: { index: item.index, focused: false, support, scaffolds: { ...item.scaffolds } } }];
   });
   if (candidates.length === 0) return null;
   const inputs = { preset: 'CALIBRATION' as const, nowMs: input.at, context: input.context, config: { selection: 'ranked' as const } };

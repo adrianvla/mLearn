@@ -37,4 +37,21 @@ describe('shared retrieval encounter', () => {
     expect(submit).toHaveBeenCalledWith([{ capability: 'sense-recognition', quality: 'fluent', easy: true }], { easy: true });
   });
 
+  it('uses the same revealed card for reference continuation without recall instructions or rating controls', () => {
+    const [available, setAvailable] = createSignal(true);
+    const submit = vi.fn();
+    dispose = render(() => <StudyEncounter prompt="cue" answer="reference" revealed={true} onReveal={() => {}}
+      ratingAvailable={available()} rating={{ capabilities: ['future:recall'], keyboardMode: 'mnemonic', armed: true, onSubmit: submit }}>
+      <button>Continue</button>
+    </StudyEncounter>, document.body);
+    expect(document.querySelectorAll('.rating-matrix__quality')).toHaveLength(4);
+    setAvailable(false);
+    expect(document.querySelector('.rating-matrix')).toBeNull();
+    expect(document.querySelector('.study-encounter__instruction')).toBeNull();
+    expect(document.body.textContent).toContain('reference');
+    expect(document.body.textContent).toContain('Continue');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+    expect(submit).not.toHaveBeenCalled();
+  });
+
 });

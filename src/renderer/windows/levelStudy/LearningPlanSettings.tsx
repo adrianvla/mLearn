@@ -1,6 +1,7 @@
 import { Component, Show, For, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../context';
 import { SettingRow, SettingGroup, Select, LearningGoals } from '../../components/common';
+import { activeLearningGoals, learningGoalsForSettings } from '../../../shared/learningGoals';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getFrequencyLevelLabel, getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import '../settings/SettingsForm.css';
@@ -65,7 +66,7 @@ export const LearningPlanSettings: Component = () => {
 
 
   return <div class="learning-plan-settings">
-      <Show when={hasFreqLevels()}>
+      <Show when={hasFreqLevels() && !activeLearningGoals(learningGoalsForSettings(settings), settings.language).length}>
         <SettingGroup title={t('mlearn.Settings.Groups.LanguageProficiency')}>
           <Show when={frequencyProviderEntries().length > 1}>
             <SettingRow

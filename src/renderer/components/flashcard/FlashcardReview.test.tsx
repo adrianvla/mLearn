@@ -434,6 +434,37 @@ describe('FlashcardReview', () => {
     dispose();
   });
 
+  it('continues ordinary review after a Home planning batch without reporting all work complete', async () => {
+    const card = mockCard()!;
+    const other = makeCard({ id: 'batch-next', content: { type: 'word', front: '猫', reading: 'ねこ', back: 'cat' } });
+    mockReviewCards = { [card.id]: card, [other.id]: other };
+    const [ids, setIds] = createSignal([card.id, other.id]);
+    mockReviewQueue = () => ({ newQueue: [], scheduledQueue: ids() });
+    const [sessions, setSessions] = createSignal<Record<string, ReviewSession>>({});
+    mockReviewSessions = sessions;
+    mockSaveReviewPresentation.mockImplementation(async (_language, presentation) => {
+      if (presentation.session) setSessions({ ja: presentation.session });
+    });
+    mockSubmitRating.mockImplementationOnce(async () => {
+      setSessions({ ja: completeReviewEncounter(mockReviewSessions().ja, mockCard()!.id) });
+      setIds([other.id]); setMockCard(other);
+      return { attemptId: 'batch', completed: true };
+    });
+    const complete = vi.fn();
+    const dispose = render(() => <FlashcardReview encounterLimit={1} continueAfterBatch={true} onComplete={complete} />, container);
+    try {
+    await flushEffects(); await clickShowAnswer(container);
+    container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click(); await flushEffects(); await flushEffects();
+    expect(complete).not.toHaveBeenCalled();
+    expect(container.querySelector('.flashcard-completion')).toBeNull();
+    await vi.waitFor(() => expect(container.querySelector('.study-encounter')).not.toBeNull());
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    } finally {
+      dispose();
+      mockSaveReviewPresentation.mockImplementation(async (_language, presentation) => { await decisionBridge.record(presentation.decision); });
+    }
+  });
+
   it('keeps the admitted chunk when an inferred limit disappears during evidence refresh', async () => {
     const [sessions, setSessions] = createSignal<Record<string, ReviewSession>>({});
     const [limit, setLimit] = createSignal<number | undefined>(1);

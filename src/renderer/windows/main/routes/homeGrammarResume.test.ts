@@ -10,7 +10,7 @@ const read = (value: unknown, language = 'future', loaded = data) => homeGrammar
 describe('Home grammar continuity', () => {
   it('preserves the original package-resolved scope and never interprets or rewrites its exposure', () => {
     const before = structuredClone(record);
-    expect(read(record)).toEqual({ at: 50, context: { activity: 'grammar', patterns: [denominator] } });
+    expect(read(record)).toEqual({ label: denominator, at: 50, context: { activity: 'grammar', patterns: [denominator] } });
     expect(record).toEqual(before);
     expect(read({ ...record, meta: { ...record.meta, presentedAt: undefined } })?.at).toBe(0);
   });

@@ -10,7 +10,7 @@ describe('Home continuity', () => {
   it('resumes the latest intentional material without rebuilding its original scope', () => {
     localStorage.setItem('mlearn-study-word-sync-reinforce:future', JSON.stringify(record(1)));
     localStorage.setItem('mlearn-study-word-sync-material-hash:future', JSON.stringify(record(2, { words: ['word', 'other'], label: 'My book' })));
-    expect(homePracticeResume(localStorage, scope)).toEqual({ at: 2, context: { activity: 'practice', material: { language: 'future', label: 'My book', words: ['word', 'other'] } } });
+    expect(homePracticeResume(localStorage, scope)).toEqual({ at: 2, label: 'word', context: { activity: 'practice', material: { language: 'future', label: 'My book', words: ['word', 'other'] } } });
   });
   it('resumes scoped maintenance with its original intention and material', () => {
     localStorage.setItem('mlearn-study-word-sync-material-hash-reinforce:future', JSON.stringify(record(2, { words: ['word'], label: 'Scope' })));

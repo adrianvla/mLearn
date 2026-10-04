@@ -71,6 +71,8 @@ interface ReviewRatingWrite {
 
 export interface FlashcardReviewProps {
   encounterLimit?: number;
+  /** Home uses a bounded admission batch, then continues ordinary requested review. */
+  continueAfterBatch?: boolean;
   sessionRequestId?: string;
   initialCardId?: string;
   handoff?: import('../../../shared/learningDecision').LearningDecision;
@@ -193,7 +195,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // A refreshed model may temporarily remove the inferred limit. It cannot
     // turn an admitted finite chunk into continuous work or resize its membership.
     if (localSession?.admission === admission && held && (localSession.scope === scope || reviewSessionRemaining(held) > 0)) return held;
-    const limit = props.encounterLimit;
+    const limit = props.continueAfterBatch && sessionEpoch() > 0 ? undefined : props.encounterLimit;
     if (limit === undefined) return undefined;
     if (saved && (reviewSessionHasAvailableCards(saved, store, settings.language) || (sessionEpoch() === 0 && (!props.sessionRequestId || saved.requestId === props.sessionRequestId)))) {
       localSession = { scope, admission, session: saved }; return saved;
@@ -220,7 +222,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     restoring || (!settings.flashcardMuteAudio && audioAvailability()[card.id] === true), {
       focused: t('mlearn.Flashcards.Review.Focused'), focusedTarget: t('mlearn.Knowledge.Capability.prosodic-pattern'), focusedPrompt: target => t('mlearn.Flashcards.Review.FocusedPrompt', { target }),
       audio: t('mlearn.Flashcards.Review.Audio'), audioPrompt: t('mlearn.Flashcards.Review.AudioPrompt'),
-    }), card, languageDataForCard(card));
+    }, !restoring), card, languageDataForCard(card));
   // Bounded concurrent metadata-only recording lookups; no synthesis or text fallback.
   const checkedAudio = new Set<string>();
   const [audioResourceEpoch, setAudioResourceEpoch] = createSignal(0);
@@ -372,7 +374,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           focused: t('mlearn.Flashcards.Review.Focused'), focusedTarget: t('mlearn.Knowledge.Capability.prosodic-pattern'),
           focusedPrompt: target => t('mlearn.Flashcards.Review.FocusedPrompt', { target }),
           audio: t('mlearn.Flashcards.Review.Audio'), audioPrompt: t('mlearn.Flashcards.Review.AudioPrompt'),
-        }).find(activity => activity.id === pinned.activity.id);
+        }, false).find(activity => activity.id === pinned.activity.id);
       if (admitted && declaration && JSON.stringify({ ...actual, retentionCache: undefined }) === JSON.stringify({ ...pinned.card, retentionCache: undefined })
         && JSON.stringify(flashcardReviewPolicyEntry(actual, language, languageDataForCard(actual), declaration).task) === JSON.stringify(pinned.provenance.selected.task)) return pinned;
     }
@@ -955,7 +957,14 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // The session is over when the queue has drained: the contract already
   // reports that as `complete`, so completion is not tracked twice.
   createEffect(on(() => presentation().phase, phase => {
-    if (phase === 'complete') props.onComplete?.();
+    if (phase !== 'complete') return;
+    if (props.continueAfterBatch && finiteSession() && !releaseWrite()
+      && [...queue().newQueue, ...queue().scheduledQueue].some(id => {
+        const card = store.flashcards[id];
+        return card && !card.suspended && !card.buried && languageForCard(card) === settings.language
+          && !isWordIgnoredSync(card.content.front, settings.language);
+      })) { void startNewReview(); return; }
+    props.onComplete?.();
   }));
 
   // A new displayed card starts face-down (R20 repair): the reveal belongs
@@ -1415,19 +1424,20 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             fallback={
               <>
               <Show when={presentation().phase === 'saving'}><p role="status">{t('mlearn.Flashcards.Review.SavingRating')}</p></Show>
-              <Show when={presentation().phase === 'complete'}>
+              <Show when={presentation().phase === 'complete' && releaseWrite()?.phase !== 'pending'}>
               <Panel
                   variant="default"
                   rounded="xl"
                   class="flashcard-completion"
               >
                 <h2 class="flashcard-completion-title">
-                  {t('mlearn.Flashcards.Review.Complete')}
+                  {t(finiteSession() ? 'mlearn.StudyEncounter.Finished' : 'mlearn.Flashcards.Review.Complete')}
                 </h2>
                 <p class="flashcard-completion-text">
                   {t(finiteSession() ? 'mlearn.StudyEncounter.Finished' : 'mlearn.Flashcards.Review.CompleteDescription', { count: sessionAnswered() })}
                 </p>
                 <OtherLanguageDueHint />
+                <Show when={releaseWrite()?.phase === 'failed'}><p role="alert">{t('mlearn.Flashcards.Review.StartNewFailed')}</p><Button onClick={() => void startNewReview()}>{t('mlearn.Knowledge.Retry')}</Button></Show>
                 <div class="flashcard-completion-actions">
                   <Show when={Object.keys(store.flashcards).length > 0}>
                     <Button buttonType="default" variant="primary" onClick={handleStartOver}>

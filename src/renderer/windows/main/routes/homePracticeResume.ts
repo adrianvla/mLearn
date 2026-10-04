@@ -6,8 +6,8 @@ export interface HomePracticeContext {
 }
 
 /** Read continuity from the existing controller record; this owns no progress. */
-export function homePracticeResume(storage: Storage, scope: { language: string; provider?: string; packageVersion?: string }): { at: number; context: HomePracticeContext } | null {
-  let latest: { at: number; context: HomePracticeContext } | null = null;
+export function homePracticeResume(storage: Storage, scope: { language: string; provider?: string; packageVersion?: string }): { at: number; label: string; context: HomePracticeContext } | null {
+  let latest: { at: number; label: string; context: HomePracticeContext } | null = null;
   try {
     for (let index = 0; index < storage.length; index++) {
       const key = storage.key(index);
@@ -23,7 +23,7 @@ export function homePracticeResume(storage: Storage, scope: { language: string; 
       const context: HomePracticeContext = { activity: key.includes('-reinforce:') ? 'reinforce' : 'practice',
         ...(source ? { material: { language: scope.language, label: source.label, words: source.words } } : {}) };
       const at = record.meta.encounter?.decision?.at ?? 0;
-      if (!latest || at > latest.at) latest = { at, context };
+      if (!latest || at > latest.at) latest = { at, label: typeof record.queue[record.index]?.id === 'string' ? record.queue[record.index].id : source?.label ?? '', context };
     }
   } catch { return null; }
   return latest;
