@@ -519,6 +519,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     report('pending');
     try {
       await saveReviewPresentation(languageForCard(encounter.card), { id, cardId: encounter.card.id,
+        ...(encounter.cursor?.correction ? { correction: encounter.cursor.correction } : {}),
         ...((encounter.cursor?.cardId === encounter.card.id && encounter.cursor.scaffolds) || encounter.carriedScaffolds
           ? { scaffolds: { ...encounter.cursor?.scaffolds, ...encounter.carriedScaffolds } } : {}),
         ...(encounter.session ? { session: encounter.session } : {}),
@@ -606,6 +607,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   const restoredAssistance = () => {
     const encounter = currentEncounter();
+    if (encounter?.cursor?.correction) return encounter.cursor.correction.scaffolds;
     return encounter && (encounter.cursor?.scaffolds || encounter.carriedScaffolds) && encounter.cursor?.cardId === encounter.card.id
       ? { ...encounter.cursor?.scaffolds, ...encounter.carriedScaffolds } : undefined;
   };
@@ -777,8 +779,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       retryReference = () => refreshReferenceAssistance();
       return;
     }
-    const scaffolds = { ...activityScaffolds(encounter.activity), ...restoredAssistance(), ...referenceAssistance()?.scaffolds, ...assistance?.scaffolds };
-    const timing = stopTiming();
+    const scaffolds = encounter.cursor?.correction ? { ...encounter.cursor.correction.scaffolds }
+      : { ...activityScaffolds(encounter.activity), ...restoredAssistance(), ...referenceAssistance()?.scaffolds, ...assistance?.scaffolds };
+    const timing = encounter.cursor?.correction?.timing ?? stopTiming();
     // A mixed profile schedules on its weakest evidence — the same reduction
     // word sync applies, read from the one ordering (missed dominates
     // struggled dominates fluent).
@@ -846,8 +849,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       const scope = card ? assistanceScope(card) : null;
       const record = scope ? assistanceStore.read(scope, currentEncounter()?.provenance.id) : null;
       // Reopening after answer exposure carries the answer, never a fresh recall.
-      const revealed = record?.revealed === true;
-      const resumed = revealed && record && card ? { ...record, scaffolds: { ...record.scaffolds,
+      const correcting = !!currentEncounter()?.cursor?.correction;
+      const revealed = correcting || record?.revealed === true;
+      const resumed = correcting ? null : revealed && record && card ? { ...record, scaffolds: { ...record.scaffolds,
         ...providedAccessScaffolds(currentEncounter()?.tested ?? []) } } : record;
       batch(() => {
         setShowAnswer(revealed);
@@ -1548,7 +1552,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           <WriteStatusBanner status={assistanceWrite() === 'failed' ? 'failed' : null}
             savingLabelKey="mlearn.WordSync.SavingAssistance" failedLabelKey="mlearn.WordSync.AssistanceSaveFailed"
             canRetry={assistanceWrite() === 'failed'} onRetry={() => retryReference?.()} />
-          <Show when={(referenceAssistance()?.requested || !!restoredAssistance()) && (currentEncounter()?.activity.kind === 'holistic'
+          <Show when={currentEncounter()?.cursor?.correction}>
+            <p class="flashcard-rating-write" role="status">{t('mlearn.Flashcards.Review.CorrectingReport')}</p>
+          </Show>
+          <Show when={!currentEncounter()?.cursor?.correction && (referenceAssistance()?.requested || !!restoredAssistance()) && (currentEncounter()?.activity.kind === 'holistic'
             || testedAccesses().some(capability => !isAccessMeasurable(capability, encounterAssistance())))}>
             <p class="flashcard-rating-write" role="status">{t((encounterAssistance().audio || encounterAssistance().media) ? 'mlearn.Flashcards.Review.AssistanceRecorded' : 'mlearn.WordSync.ReferenceConsulted')}</p>
           </Show>

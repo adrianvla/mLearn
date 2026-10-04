@@ -1378,7 +1378,8 @@
         "SavingUndo": "Enregistrement de l’annulation…",
         "UndoSaveFailed": "Impossible d’enregistrer cette annulation. La carte reste évaluée ; réessayez.",
         "PreparingQuestion": "Préparation de la prochaine question…",
-        "QuestionSaveFailed": "Cette question n’a pas pu être enregistrée. Réessayez avant de continuer."
+        "QuestionSaveFailed": "Cette question n’a pas pu être enregistrée. Réessayez avant de continuer.",
+        "CorrectingReport": "Correction de votre réponse précédente. Évaluez votre rappel avant de révéler la réponse."
       },
       "State": {
         "Learning": "En apprentissage",

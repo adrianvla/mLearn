@@ -1378,7 +1378,8 @@
         "SavingUndo": "Rückgängigmachung wird gespeichert…",
         "UndoSaveFailed": "Diese Rückgängigmachung konnte nicht gespeichert werden. Die Karte bleibt bewertet; versuche es erneut.",
         "PreparingQuestion": "Deine nächste Frage wird vorbereitet…",
-        "QuestionSaveFailed": "Diese Frage konnte nicht gespeichert werden. Versuche es erneut, bevor du fortfährst."
+        "QuestionSaveFailed": "Diese Frage konnte nicht gespeichert werden. Versuche es erneut, bevor du fortfährst.",
+        "CorrectingReport": "Vorherige Antwort korrigieren. Bewerte, wie du dich vor dem Aufdecken erinnert hast."
       },
       "State": {
         "Learning": "Lernen",

@@ -2241,6 +2241,40 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
+  it('opens an Undo correction on the answer side and advances with one retrospective rating', async () => {
+    const first = makeCard();
+    const next = makeCard({ id: 'after-correction', content: { type: 'word', front: 'next cue', back: 'next answer' } });
+    mockReviewCards = { [first.id]: first, [next.id]: next };
+    const decision = selectFlashcardReviewDecision({ id: 'original-choice', at: 1,
+      entries: [flashcardReviewPolicyEntry(first, 'ja', jaLanguageData)], rng: () => 0.7 })!.provenance;
+    const [presentations, setPresentations] = createSignal<Record<string, unknown>>({ ja: {
+      id: decision.id, cardId: first.id, decision,
+      scaffolds: { 'prior-cue-exposure': true },
+      correction: { attemptId: 'withdrawn-report', at: 1, decision, scaffolds: { 'package:unknown': true } },
+    } });
+    mockReviewPresentations = presentations;
+    const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: [first.id, next.id] });
+    mockReviewQueue = queue;
+    mockSubmitRating.mockImplementationOnce(async () => {
+      setPresentations({}); setQueue({ newQueue: [], scheduledQueue: [next.id] }); setMockCard(next);
+      return { attemptId: 'replacement-report', completed: true };
+    });
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      expect(container.querySelector('[data-review-phase]')?.getAttribute('data-review-phase')).toBe('revealed');
+      expect(container.textContent).toContain('mlearn.Flashcards.Review.CorrectingReport');
+      expect(container.textContent).not.toContain('mlearn.WordSync.ReferenceConsulted');
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
+      await flushEffects();
+      expect(mockSubmitRating).toHaveBeenCalledOnce();
+      expect(mockSubmitRating).toHaveBeenCalledWith(first.content.front, expect.any(Array), expect.objectContaining({
+        decision, scaffolds: { 'package:unknown': true },
+      }));
+      expect(container.querySelector('.flashcard-front')!.textContent).toBe(next.content.front);
+    } finally { dispose(); }
+  });
+
   it('returns to the actual undone card and retains its assistance after remount', async () => {
     const first = makeCard();
     const next = makeCard({ id: 'next', content: { type: 'word', front: 'next', back: 'different' } });

@@ -11,7 +11,7 @@ import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset'
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createSignal, createMemo, createEffect, on, batch } from 'solid-js';
 import { pushUndo } from '../learning/undoHistory';
 import { clearFlashcardActionOwner, setFlashcardExclusion, captureFlashcardActionUndo, flashcardActionUndoIsApplicable, restoreFlashcardAction, type FlashcardActionUndo } from '../../shared/flashcardActionUndo';
-import { restoreReviewResponse, validateReviewResponseUndo, type ReviewUndoProjection } from '../../shared/flashcardReviewUndo';
+import { isReviewCorrection, restoreReviewResponse, validateReviewResponseUndo, type ReviewUndoProjection } from '../../shared/flashcardReviewUndo';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
 import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewPresentation, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PerLanguageMeta } from '../../shared/types';
@@ -245,6 +245,8 @@ export type LevelStudyTargetStatus = 'new' | 'learning' | 'known' | 'mastered';
 
 // Context interface
 type AttemptOptions = {
+  correctsAttemptId?: AttemptId;
+  correctedAttemptAt?: number;
   /** Exact task/target choice persisted before the learner responded. */
   decision?: import('../../shared/learningDecision').LearningDecision;
   language?: string;
@@ -2523,10 +2525,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       retrievalStageScaffolds(options.decision?.selected.task, capability, options.scaffolds, options.priorStageScaffolds)));
     const retentionCondition = conditions.length && conditions.every(condition => condition === 'supplied') ? 'supplied'
       : conditions.some(condition => condition !== 'unassisted') ? 'assisted' : 'unassisted';
-    const updated = SRS.answerCard(card, scheduler.rating, target.meta, retentionCondition);
+    const updated = SRS.answerCard(card, scheduler.rating, target.meta, retentionCondition, options.correctedAttemptAt);
     const language = card.language || options.language || settings.language;
     const storageWord = getPrimaryWordFormForLanguage(card.content.front, language);
-    const now = Date.now();
+    const now = options.correctedAttemptAt ?? Date.now();
     const key = langKey(language, SRS.hashWordSync(storageWord));
     const event: KnowledgeEvent = {
       t: now,
@@ -2542,6 +2544,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       schedulerCardId: card.id,
       attemptId,
       taskType: options.taskType ?? 'srs-review',
+      ...(options.correctsAttemptId ? { correctsAttemptId: options.correctsAttemptId } : {}),
       ...(options.origin ? { origin: options.origin } : {}),
       ...(options.scaffolds ? { scaffolds: options.scaffolds } : {}),
       ...(retentionCondition !== 'unassisted' ? { retentionCondition } : {}),
@@ -2643,6 +2646,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       ),
     };
     Object.assign(undo.reviewUndo!.restore as ReviewUndoProjection, {
+      ...(options.decision ? { correction: {
+        attemptId, at: now, decision: options.decision,
+        ...(options.scaffolds ? { scaffolds: options.scaffolds } : {}),
+        ...(options.priorStageScaffolds ? { stageScaffolds: options.priorStageScaffolds } : {}),
+        ...(options.timing ? { timing: options.timing } : {}),
+        ...(options.origin ? { origin: options.origin } : {}),
+        ...(options.taskType ? { taskType: options.taskType } : {}),
+        ...(options.sourceVersions ? { sourceVersions: options.sourceVersions } : {}),
+      } } : {}),
       ...(session ? { reviewSessionId: session.id } : {}),
       expectedCard: JSON.parse(JSON.stringify(updated)) as Flashcard,
       counterDeltas: ratingCounterDeltas(patch?.build(0) ?? { baseRev: 0, entries: [] })
@@ -4307,7 +4319,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const anchor = (quality === 'fluent' ? settings.easeThresholdKnown
       : quality === 'missed' ? settings.easeThresholdUnknown : settings.easeThresholdLearning) + settings.manualStatusEaseBuffer;
     const ease = quality === 'fluent' ? Math.max(before.ease, anchor) : anchor;
-    const now = Date.now();
+    const now = options?.correctedAttemptAt ?? Date.now();
     const forms = capability === 'sense-recognition'
       ? getWordFormsForLanguage(word, language)
       : isSurfaceScopedCapability(capability, languageDataFor(language)) ? [word] : getWordFormsForLanguage(word, language);
@@ -4348,6 +4360,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       ...(observationAspect !== undefined ? { aspect: observationAspect } : {}),
       quality,
       attemptId,
+      ...(options?.correctsAttemptId ? { correctsAttemptId: options.correctsAttemptId } : {}),
       targetRef: { kind: 'surface', id: surfaceEntityId(language, SRS.hashWordSync(word)), capability },
       // Exact presented surface — survives even when storage keys resolve to a
       // different primary family form. Never fan observations out from this.
@@ -4425,9 +4438,20 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         throw new Error('This target is excluded from study');
       }
       const restored = scheduler ? store.meta.reviewPresentations?.[language] : undefined;
+      if (!admitted) options = { ...options, correctsAttemptId: undefined, correctedAttemptAt: undefined };
       const presentationId = admitted ? admitted.presentationId
         : restored?.cardId === scheduler?.cardId ? restored?.id : undefined;
-      if (!admitted && restored && scheduler && restored.cardId === scheduler.cardId) {
+      if (!admitted && restored?.correction && scheduler && restored.cardId === scheduler.cardId) {
+        const correction = restored.correction;
+        if (!isReviewCorrection(correction) || options.decision?.id !== correction.decision.id || restored.id !== correction.decision.id
+          || JSON.stringify(options.decision) !== JSON.stringify(correction.decision)) {
+          throw new Error('A correction must retain the original elicitation');
+        }
+        options = { ...options, correctsAttemptId: correction.attemptId, correctedAttemptAt: correction.at,
+          scaffolds: correction.scaffolds, priorStageScaffolds: correction.stageScaffolds,
+          timing: correction.timing, origin: correction.origin, taskType: correction.taskType,
+          sourceVersions: correction.sourceVersions };
+      } else if (!admitted && restored && scheduler && restored.cardId === scheduler.cardId) {
         // Every review surface inherits the restored encounter's assistance:
         // a caller flag cannot erase a cue the durable cursor records as
         // already admitted, because that cursor is the record of what the
@@ -4911,8 +4935,13 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (restore.expectedCard) restoreReviewResponse(target, restore);
     else target.flashcards[restore.cardId] = { ...restore.restoreCard, content: { ...restore.restoreCard.content } };
     (target.meta.reviewPresentations ??= {})[record.language] = {
-      id: record.attemptId, cardId: restore.cardId,
+      id: restore.correction?.decision.id ?? record.attemptId, cardId: restore.cardId,
       scaffolds: { ...restore.scaffolds, 'prior-cue-exposure': true },
+      ...(restore.correction ? { correction: restore.correction, decision: restore.correction.decision,
+        ...(restore.correction.decision.selected.task.stages ? {
+          stageIndex: restore.correction.decision.selected.task.stages.length - 1,
+          stageScaffolds: restore.correction.stageScaffolds,
+        } : {}) } : {}),
     };
     if (!restore.expectedCard && restore.restorePerLanguage) {
       target.meta.perLanguage[record.language] = { ...restore.restorePerLanguage };

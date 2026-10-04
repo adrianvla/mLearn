@@ -2128,6 +2128,8 @@ export interface PerLanguageMeta {
 
 /** A restored review encounter, persisted with its scheduler restoration. */
 export interface ReviewPresentation {
+  /** Correct the withdrawn report of this elicitation; answer exposure is not a new retrieval. */
+  correction?: ReviewCorrection;
   /** Last durably admitted cue stage; answers remain hidden until comparison. */
   stageIndex?: number;
   /** Actual assistance at the end of each completed retrieval stage. */
@@ -2139,6 +2141,19 @@ export interface ReviewPresentation {
   decision?: import('./learningDecision').LearningDecision;
   /** Open-ended assistance flags from the original physical encounter. */
   scaffolds?: AttemptScaffolds;
+}
+
+export interface ReviewCorrection {
+  attemptId: string;
+  /** Timestamp of the original response, not the later correction. */
+  at: number;
+  decision: import('./learningDecision').LearningDecision;
+  scaffolds?: AttemptScaffolds;
+  stageScaffolds?: Record<string, AttemptScaffolds>;
+  timing?: import('./encounterTiming').AttemptTiming;
+  taskType?: import('./knowledgeEvents').AttemptTaskType;
+  origin?: string;
+  sourceVersions?: import('./knowledgeEvents').EventSourceVersions;
 }
 
 /** Flashcard store scheduling and presentation metadata. */

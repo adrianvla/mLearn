@@ -1378,7 +1378,8 @@
         "SavingUndo": "正在保存撤销操作…",
         "UndoSaveFailed": "无法保存撤销操作。卡片仍保持已评分状态，请重试。",
         "PreparingQuestion": "正在准备下一道题…",
-        "QuestionSaveFailed": "无法保存这道题。请重试后再继续。"
+        "QuestionSaveFailed": "无法保存这道题。请重试后再继续。",
+        "CorrectingReport": "正在更正之前的回答。请评价揭示答案前的回忆情况。"
       },
       "State": {
         "Learning": "学习中",

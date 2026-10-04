@@ -212,6 +212,28 @@ describe('flashcardStorage', () => {
     expect(second?.patch.entries).toEqual([]);
   });
 
+  it('retains correction conditions through restart and rejects replacing or inventing them in a cursor write', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('correction-cursor');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const command = cursorFor((await loadFlashcards()).flashcards[card.id]);
+    command.presentation.correction = { attemptId: 'withdrawn-report', at: 10, decision: command.presentation.decision!,
+      scaffolds: { 'package:unknown-cue': true } };
+    await expect(storage.saveReviewPresentation(command)).rejects.toThrow('original elicitation');
+    const original = await loadFlashcards();
+    original.meta.reviewPresentations = { [command.language]: command.presentation };
+    await saveFlashcards(original);
+    invalidateFlashcardsCache();
+    expect((await loadFlashcards()).meta.reviewPresentations?.[command.language]?.correction).toEqual(command.presentation.correction);
+    await expect(storage.saveReviewPresentation(command)).resolves.toMatchObject({ patch: { entries: [] } });
+    const altered = structuredClone(command);
+    altered.presentation.correction!.scaffolds = {};
+    await expect(storage.saveReviewPresentation(altered)).rejects.toThrow('original elicitation');
+    const lost = structuredClone(command);
+    delete lost.presentation.correction;
+    await expect(storage.saveReviewPresentation(lost)).rejects.toThrow('original elicitation');
+  });
+
   it('drops a late cursor behind a queued rating without recreating the rated question', async () => {
     const storage = await import('./flashcardStorage');
     const card = makeFlashcard('cursor-after-rating');

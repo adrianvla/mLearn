@@ -1,10 +1,22 @@
 import { undoReviewEncounter } from './reviewSession';
-import type { DailyStudyStats, Flashcard, FlashcardStore, PerLanguageMeta } from './types';
+import type { DailyStudyStats, Flashcard, FlashcardStore, PerLanguageMeta, ReviewCorrection } from './types';
 import type { AttemptScaffolds } from './knowledgeEvents';
 import type { FlashcardRatingCommand } from './flashcardRating';
 import { getStorePath, setStorePath } from './utils/storePatch';
+import { isLearningDecision } from './learningDecision';
+
+export function isReviewCorrection(value: unknown): value is ReviewCorrection {
+  if (!value || typeof value !== 'object') return false;
+  const correction = value as ReviewCorrection;
+  return typeof correction.attemptId === 'string' && correction.attemptId.length > 0
+    && Number.isFinite(correction.at) && correction.at >= 0 && isLearningDecision(correction.decision)
+    && (correction.scaffolds === undefined || (!!correction.scaffolds && typeof correction.scaffolds === 'object'
+      && !Array.isArray(correction.scaffolds) && Object.values(correction.scaffolds).every(flag => flag === undefined || typeof flag === 'boolean')));
+}
 
 export interface ReviewUndoProjection {
+  /** Immutable original elicitation conditions for retrospective correction. Older receipts lack these. */
+  correction?: ReviewCorrection;
   reviewSessionId?: string;
   cardId: string;
   type: string;

@@ -146,8 +146,8 @@ export function answerCard(
   meta: FlashcardMeta,
   /** Card-level scaffold conditioning; see shared/srs/retentionScheduler. */
   condition: 'assisted' | 'supplied' | 'unassisted' = 'unassisted',
+  now = Date.now(),
 ): Flashcard {
-    const now = Date.now();
     const prior = card.retentionCache ?? {
         state: card.state,
         ease: card.ease,

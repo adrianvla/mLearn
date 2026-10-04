@@ -1378,7 +1378,8 @@
         "SavingUndo": "取り消しを保存しています…",
         "UndoSaveFailed": "取り消しを保存できませんでした。カードは評価済みのままです。もう一度お試しください。",
         "PreparingQuestion": "次の問題を準備しています…",
-        "QuestionSaveFailed": "この問題を保存できませんでした。続ける前にもう一度お試しください。"
+        "QuestionSaveFailed": "この問題を保存できませんでした。続ける前にもう一度お試しください。",
+        "CorrectingReport": "前の回答を修正しています。答えを見る前の思い出し方を評価してください。"
       },
       "State": {
         "Learning": "学習中",

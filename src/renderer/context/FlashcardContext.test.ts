@@ -1375,6 +1375,44 @@ describe('FlashcardProvider', () => {
     mockSettings.language = 'ja';
   });
 
+  it('Undo rerating corrects the original elicitation once rather than scheduling an exposed replay', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'corrected-response', language: 'ja', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000, content: { type: 'word', front: '学校', back: 'school' } });
+    const decision = selectFlashcardReviewDecision({ id: 'original-elicitation', at: Date.now(),
+      entries: [flashcardReviewPolicyEntry(card, 'ja')], rng: () => 0.7 })!.provenance;
+    const scaffolds = { 'unknown-package:cue': true };
+    const timing = { wallLatencyMs: 2100, activeLatencyMs: 1800, interruptionCount: 1, interrupted: true, stalled: false };
+    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    try {
+      await ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', attemptId: 'original-response', decision, scaffolds, timing,
+        scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      await ctx.undoLastAction();
+      expect(ctx.store.meta.reviewPresentations?.ja).toMatchObject({ decision,
+        correction: { attemptId: 'original-response', scaffolds, timing } });
+      const saved = JSON.parse(JSON.stringify(ctx.store)) as FlashcardStore;
+      flashcardsCb(saved);
+      await ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], {
+        language: 'ja', attemptId: 'corrected-response', decision,
+        scaffolds: { 'prior-cue-exposure': true },
+        scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
+      });
+      expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+      expect(ctx.store.flashcards[card.id].dueDate).toBeGreaterThan(Date.now());
+      expect(ctx.store.meta.reviewPresentations?.ja).toBeUndefined();
+      const events = mockAppendEvents.mock.calls.flatMap(([byKey]) => Object.values(byKey as Record<string, Array<Record<string, unknown>>>).flat());
+      const replacement = events.filter(event => event.attemptId === 'corrected-response');
+      expect(replacement.find(event => event.kind === 'rating')).toMatchObject({
+        correctsAttemptId: 'original-response', scaffolds, latencyMs: 2100, activeLatencyMs: 1800,
+        decisionRef: { id: decision.id },
+      });
+      expect(replacement.find(event => event.kind === 'review')?.retentionCondition).toBeUndefined();
+      expect(events.filter(event => event.kind === 'retraction' && event.retracts === 'original-response')).toHaveLength(1);
+    } finally { dispose(); }
+  });
+
   it('atomically restores review presentation and arbitrary assistance with Undo and consumes it on the next rating', async () => {
     const { ctx, dispose } = await mountProvider();
     const card = makeCard({ id: 'restored-presentation', language: 'ja', state: 'review', reviews: 3,
@@ -7968,6 +8006,12 @@ describe('acknowledged rating command semantics', () => {
     restored.meta.reviewPresentations!.ja = { ...restored.meta.reviewPresentations!.ja, id: replayDecision.id,
       decision: replayDecision, stageIndex: 1, stageScaffolds: { first: {} } };
     flashcardsCb(restored); mockAppendEvents.mockClear();
+    await expect(ctx.submitRating(card.content.front, observations, { ...options, decision: replayDecision,
+      attemptId: 'rebound-correction' })).rejects.toThrow('original elicitation');
+    // A separately admitted exposed replay retains exposure, rather than rebinding the correction.
+    delete restored.meta.reviewPresentations!.ja.correction;
+    restored.rev = (ctx.store.rev ?? 0) + 1;
+    flashcardsCb(restored);
     await ctx.submitRating(card.content.front, observations, { ...options, decision: replayDecision, attemptId: 'replay-stage-attempt' });
     expect(mockAppendEvents.mock.calls.flatMap(([batch]) => Object.values(batch).flat()).filter(row => row.kind === 'rating')).toHaveLength(0);
     dispose();

@@ -207,6 +207,8 @@ export interface KnowledgeEvent {
   quality?: AttemptQuality;
   /** Logical-attempt identity: all observation events of one physical response share this id. */
   attemptId?: AttemptId;
+  /** Replaces a retracted report, preserving that elicitation's conditions and choice identity. */
+  correctsAttemptId?: AttemptId;
   /**
    * Response latency of the attempt (interaction start → rating), stored for
    * calibration; never overrides the learner's report. Wall-clock: includes

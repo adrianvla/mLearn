@@ -4,6 +4,7 @@ import type { Flashcard, FlashcardStore, ReviewPresentation } from './types';
 import type { StorePatch } from './utils/storePatch';
 import { hashWordSync } from './utils/wordHash';
 import type { ReviewSession } from './reviewSession';
+import { isReviewCorrection } from './flashcardReviewUndo';
 
 /** A cursor command captures its question; it never carries the whole library. */
 export interface ReviewPresentationWrite {
@@ -76,6 +77,12 @@ export function reviewPresentationPatch(store: FlashcardStore, command: ReviewPo
   // A late cursor for a rated/edited/removed card is obsolete, not a failed encounter.
   if (card.suspended || card.buried || JSON.stringify({ ...store.flashcards[card.id], retentionCache: undefined }) !== JSON.stringify({ ...card, retentionCache: undefined })) return null;
   const existing = store.meta.reviewPresentations?.[language];
+  if ((existing?.correction || presentation.correction) && (!existing?.correction
+    || !isReviewCorrection(existing.correction)
+    || !samePosition(existing.correction, presentation.correction)
+    || !samePosition(presentation.decision, existing.correction.decision))) {
+    throw new Error('The original elicitation of a correction cannot be replaced');
+  }
   if (existing?.id === presentation.id && JSON.stringify(existing) === JSON.stringify(presentation)) {
     return { baseRev: store.rev ?? 0, entries: [] };
   }

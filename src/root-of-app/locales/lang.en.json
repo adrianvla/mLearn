@@ -1378,7 +1378,8 @@
         "SavingUndo": "Saving undo…",
         "UndoSaveFailed": "This undo could not be saved. The card remains rated; try again.",
         "PreparingQuestion": "Preparing your next question…",
-        "QuestionSaveFailed": "This question could not be saved. Try again before continuing."
+        "QuestionSaveFailed": "This question could not be saved. Try again before continuing.",
+        "CorrectingReport": "Correcting your previous response. Rate how you recalled it before revealing the answer."
       },
       "State": {
         "Learning": "Learning",
