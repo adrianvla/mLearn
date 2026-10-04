@@ -124,6 +124,7 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
 ): StudySessionController<I, P, A, M> {
   type Session = RecordOf<I, P, A, M>;
   const [current, setCurrent] = createSignal<Session | null>(null);
+  let unavailableRaw: string | null = null;
   let recoverPending: ((record: Session) => void) | undefined;
 
   const read = (): Session | null => {
@@ -135,6 +136,7 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
     try {
       options.storage.setItem(options.storageKey, JSON.stringify(next));
       setCurrent(next);
+      unavailableRaw = null;
       return true;
     } catch { return false; }
   };
@@ -161,6 +163,15 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
       return true;
     } catch { return false; }
   };
+  const preserveActive = (durable: Session | null): boolean => {
+    if (durable) return !durable.pending && suspend(durable);
+    const raw = options.storage.getItem(options.storageKey);
+    if (raw === null) return true;
+    // A package change may invalidate execution without invalidating the generic
+    // storage envelope. Preserve its complete payload for that package's owner.
+    const unavailable = readStudySessionRecord<I, P, A, M>(raw, () => true);
+    return unavailable !== null && !unavailable.pending && suspend(unavailable);
+  };
   const suspended = (): Session[] => {
     const activeId = current()?.id;
     try { return savedIds().filter(id => id !== activeId).flatMap(id => { const record = saved(id); return record ? [record] : []; }); }
@@ -170,6 +181,8 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
   const resume = (): Session | null => {
     const loaded = read();
     setCurrent(loaded);
+    try { unavailableRaw = loaded ? null : options.storage.getItem(options.storageKey); }
+    catch { unavailableRaw = null; }
     if (loaded?.pending) recoverPending?.(loaded);
     return loaded;
   };
@@ -184,7 +197,9 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
     try {
       await options.locks.request(options.lockKey, async () => {
         const durable = read();
-        const exact = stableJson(durable) === stableJson(expected);
+        const raw = options.storage.getItem(options.storageKey);
+        const exact = stableJson(durable) === stableJson(expected)
+          && !(durable === null && expected === null && raw !== unavailableRaw);
         // A failed attempt may be marked only in memory when storage refuses
         // the failure/acknowledgement write. Retrying that exact durable
         // reservation must still reuse its attempt ID.
@@ -193,6 +208,7 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
           && stableJson({ ...expected, pending: { ...expected.pending, state: durable.pending.state } }) === stableJson(durable);
         if (!exact && !sameReservation) {
           setCurrent(durable);
+          unavailableRaw = durable ? null : raw;
           return;
         }
         accepted = await change(durable);
@@ -254,7 +270,7 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
       if (durable?.pending) return false;
       if (durable?.id === id) return true;
       const target = saved(id);
-      if (!target || (durable && !suspend(durable))) return false;
+      if (!target || !preserveActive(durable)) return false;
       if (!publish(target)) return false;
       if (target.pending) recoverPending?.(target);
       return true;
@@ -262,14 +278,14 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
     start: (identity, queue, index, meta, intent) => locked(current(), (durable) => {
       // A package-invalid or malformed record is unavailable, not an empty slot.
       // Preserve it for recovery rather than overwriting history with a new task.
-      if (!durable && options.storage.getItem(options.storageKey) !== null) return false;
+      if (!durable && options.storage.getItem(options.storageKey) !== null && !intent?.suspendCurrent) return false;
       if (durable?.pending || (durable && durable.index < durable.queue.length && !intent?.suspendCurrent)) return false;
       if (!Number.isInteger(index) || index < 0 || index > queue.length || queue.some((item) => typeof item.id !== 'string')) return false;
       const record: Session = {
         id: nextAttemptId(), identity, queue, index,
         visited: [], rated: 0, revealed: false, meta,
       };
-      return options.validate(record) && (!durable || !intent?.suspendCurrent || suspend(durable)) && publish(record);
+      return options.validate(record) && (!intent?.suspendCurrent || preserveActive(durable)) && publish(record);
     }),
     reveal: (expected) => locked(expected, (record) => {
       if (!record || record.pending || record.answered !== undefined || record.index >= record.queue.length) return false;

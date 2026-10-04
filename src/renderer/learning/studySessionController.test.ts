@@ -79,15 +79,29 @@ describe('shared study session controller', () => {
     expect(stale.current()).toEqual(second);
     owner.dispose(); stale.dispose();
   });
-  it('preserves unavailable package records rather than treating them as empty storage', async () => {
+  it('preserves an unavailable package envelope when an explicit new task suspends it', async () => {
     const h = harness(); const raw = JSON.stringify({ id: 'historic', identity: 'unavailable-package-version',
       queue: [{ id: 'unknown-entity' }], index: 0, visited: [], rated: 0, revealed: true,
       meta: { 'future:opaque': { relational: ['speaker', 'hearer'] } } });
     h.values.set('study:test', raw); const owner = h.make();
     expect(owner.current()).toBeNull();
-    expect(await owner.start('package-v1', [{ id: 'one' }, { id: 'two' }, { id: 'three' }], 0, {}, { suspendCurrent: true })).toBe(false);
+    const queue = [{ id: 'one' }, { id: 'two' }, { id: 'three' }];
+    expect(await owner.start('package-v1', queue, 0, {})).toBe(false);
     expect(h.values.get('study:test')).toBe(raw);
+    expect(await owner.start('package-v1', queue, 0, {}, { suspendCurrent: true })).toBe(true);
+    expect(h.values.get('study:test:session:historic')).toBe(raw);
+    expect(owner.suspended()).toEqual([]); // unavailable to this package's executable validator
     expect(h.write).not.toHaveBeenCalled(); owner.dispose();
+  });
+  it('does not overwrite malformed storage or a stale unavailable-package envelope', async () => {
+    const h = harness(); h.values.set('study:test', '{'); const owner = h.make();
+    const queue = [{ id: 'one' }, { id: 'two' }, { id: 'three' }];
+    expect(await owner.start('package-v1', queue, 0, {}, { suspendCurrent: true })).toBe(false);
+    expect(h.values.get('study:test')).toBe('{');
+    const raw = JSON.stringify({ id: 'later', identity: 'other', queue: [{ id: 'opaque' }], index: 0, visited: [], rated: 0, revealed: false, meta: {} });
+    h.values.set('study:test', raw);
+    expect(await owner.start('package-v1', queue, 0, {}, { suspendCurrent: true })).toBe(false);
+    expect(h.values.get('study:test')).toBe(raw); owner.dispose();
   });
   it('pins a competing question before presentation without recording an encounter or losing its decision on restart', async () => {
     const h = harness();

@@ -690,7 +690,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   });
 
   /** Plans the pass: TeachingPolicy chooses, in order, each un-deferred construction of the level. */
-  const startSession = (level: number, firstPattern?: string, handoff?: LearningDecision, worthwhileOnly = false, suspendCurrent = false) => {
+  const startSession = (level: number, firstPattern?: string, handoff?: LearningDecision, worthwhileOnly = false, suspendCurrent = true) => {
     if (sessionController()?.current()?.pending || undoBlocking()) return Promise.resolve(false);
     if (!suspendCurrent) setPracticePaused(false);
     const items = (props.languageData.grammar ?? [])
@@ -1113,7 +1113,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   /** Plans the contrast pass over the level's item-backed constructions:
    *  TeachingPolicy chooses, in order, each deliverable construction (the
    *  SAME CURRICULUM pick as the self-assessment pass — no second scheduler). */
-  const startContrastSession = (level: number, suspendCurrent = false) => {
+  const startContrastSession = (level: number, suspendCurrent = true) => {
     if (sessionController()?.current()?.pending || undoBlocking()) return Promise.resolve(false);
     if (!suspendCurrent) setPracticePaused(false);
     const selectedItems = new Map<string, { source: GrammarPracticeItemSource; item: QuestionItem }>();
@@ -1424,7 +1424,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       </Show>
       <Show when={resumeUnavailable()}><p role="status">{t('mlearn.Product.ResumeUnavailable')}</p></Show>
       <Show when={!practicing()}>
-        <For each={sessionController()?.suspended() ?? []}>{record => <div class="grammar-coverage__saved-session">
+        <For each={sessionController()?.suspended().filter(record => record.index < record.queue.length) ?? []}>{record => <div class="grammar-coverage__saved-session">
           <Button disabled={Boolean(sessionController()?.current()?.pending) || undoBlocking()} onClick={() => void resumeSaved(record.id)}>
             {t('mlearn.StudyEncounter.Resume')} · {grammarLevelName(record.meta.level, props.languageData)} · {Math.min(record.index + 1, record.queue.length)} / {record.queue.length}
           </Button>
