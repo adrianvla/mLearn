@@ -4169,6 +4169,26 @@
       "RetrieveAspects": "Concentrez ce rappel sur : {aspects}. Révélez la réponse pour comparer.",
       "Progress": "Séance : {count} sur {total}",
       "Finished": "Séance terminée. {count} rencontres enregistrées."
+    },
+    "Product": {
+      "Practise": "Pratiquer",
+      "Evaluate": "Évaluer",
+      "Plan": "Plan",
+      "Knowledge": "Connaissances",
+      "Progress": "Progrès",
+      "MyLearning": "Mon apprentissage",
+      "Navigation": "Navigation",
+      "Messenger": "Messagerie",
+      "KnowledgeCheck": "Bilan des connaissances",
+      "KnowledgeCheckDescription": "Vérifiez ce que vous savez.",
+      "GrammarCheck": "Bilan de grammaire",
+      "GrammarPractice": "Pratique de grammaire",
+      "WordPractice": "Pratique des mots",
+      "SavedMaterial": "Supports enregistrés",
+      "ReadDescription": "Lisez et consultez la langue en contexte.",
+      "WatchDescription": "Regardez avec des sous-titres et des définitions en contexte.",
+      "OpenMaterial": "Ouvrir ou importer un support",
+      "MessengerDescription": "Reprenez vos conversations."
     }
   }
 }

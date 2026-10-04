@@ -4169,6 +4169,26 @@
       "RetrieveAspects": "本次回忆检查的重点：{aspects}。显示答案以进行对比。",
       "Progress": "学习：{count} / {total}",
       "Finished": "本次学习结束。已记录{count}次学习。"
+    },
+    "Product": {
+      "Practise": "练习",
+      "Evaluate": "评估",
+      "Plan": "计划",
+      "Knowledge": "知识",
+      "Progress": "进度",
+      "MyLearning": "我的学习",
+      "Navigation": "导航",
+      "Messenger": "聊天",
+      "KnowledgeCheck": "知识检查",
+      "KnowledgeCheckDescription": "检查你知道什么。",
+      "GrammarCheck": "语法检查",
+      "GrammarPractice": "语法练习",
+      "WordPractice": "词汇练习",
+      "SavedMaterial": "已保存的材料",
+      "ReadDescription": "阅读并结合上下文查词。",
+      "WatchDescription": "通过字幕和上下文查词观看。",
+      "OpenMaterial": "打开或导入材料",
+      "MessengerDescription": "继续你的对话。"
     }
   }
 }

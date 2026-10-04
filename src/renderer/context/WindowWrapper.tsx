@@ -386,7 +386,7 @@ export const LibraryLoadGuard: Component<{ recoveryAccess?: boolean }> = (props)
  */
 const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
 
-export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean; showWindowLoadingScreen?: boolean; libraryRecoveryAccess?: boolean }> = (props) => {
+export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean; showWindowLoadingScreen?: boolean; libraryRecoveryAccess?: boolean; libraryGuard?: boolean }> = (props) => {
   const needsDragRegion = (props.showDragRegion !== false) && !props.showTitleBar && isElectron();
   const needsTitleBar = props.showTitleBar && isElectron();
   const windowControlsInsets = getWindowControlsInsets({
@@ -421,7 +421,7 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
             <LanguageProviderBridge>
             <MigrationHandler>
                 <FlashcardProvider>
-                  <LibraryLoadGuard recoveryAccess={props.libraryRecoveryAccess} />
+                  <Show when={props.libraryGuard !== false}><LibraryLoadGuard recoveryAccess={props.libraryRecoveryAccess} /></Show>
                   <Show when={needsTitleBar} fallback={
                     <>
                       <Show when={needsDragRegion}>

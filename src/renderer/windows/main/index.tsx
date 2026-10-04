@@ -4,14 +4,11 @@
  */
 
 import { render } from 'solid-js/web';
-import { HashRouter, Route } from '@solidjs/router';
-import { createEffect, createMemo, Show } from 'solid-js';
-import { WindowWrapper, useFlashcards, useLanguage, useServer, useSettings } from '../../context';
-import { LoadingOverlay } from './components/LoadingOverlay';
-import { WelcomeRoute } from './routes/WelcomeRoute';
-import { VideoRoute } from './routes/VideoRoute';
-import { ReaderRoute } from './routes/ReaderRoute';
-import { shouldMountMainRoutes } from './mainRouteReadiness';
+import { HashRouter } from '@solidjs/router';
+import { createEffect } from 'solid-js';
+import { WindowWrapper, useFlashcards, useLanguage, useServer } from '../../context';
+import { ApplicationShell } from './ApplicationShell';
+import { ApplicationRoutes } from './ApplicationRoutes';
 import { AppUpdateNotifier } from '../../components/common/Feedback/AppUpdateNotifier';
 import WindowsMenuBar from '../../components/common/WindowsMenuBar/WindowsMenuBar';
 import { getBridge } from '../../../shared/bridges';
@@ -31,26 +28,7 @@ if (!root) {
 
 installPerfObserverCounters();
 
-const MainRoutes = () => {
-  const server = useServer();
-  const settings = useSettings();
-  const language = useLanguage();
-  const canMountRoutes = createMemo(() => shouldMountMainRoutes({
-    serverConnected: server.isConnected(),
-    settingsLoading: settings.isLoading(),
-    languageLoading: language.isLoading(),
-  }));
-
-  return (
-    <Show when={canMountRoutes()}>
-      <HashRouter>
-        <Route path="/" component={WelcomeRoute} />
-        <Route path="/video" component={VideoRoute} />
-        <Route path="/reader" component={ReaderRoute} />
-      </HashRouter>
-    </Show>
-  );
-};
+const MainRoutes = () => <HashRouter root={ApplicationShell}><ApplicationRoutes /></HashRouter>;
 
 const StartupReadiness = () => {
   const server = useServer();
@@ -76,10 +54,9 @@ const StartupReadiness = () => {
 };
 
 const App = () => (
-  <WindowWrapper showDragRegion={false} showActiveGroupSwitch showWindowLoadingScreen={false}>
+  <WindowWrapper showDragRegion={false} showActiveGroupSwitch showWindowLoadingScreen={false} libraryGuard={false}>
     <WindowsMenuBar />
     <AppUpdateNotifier />
-    <LoadingOverlay />
     <StartupReadiness />
     <MainRoutes />
   </WindowWrapper>

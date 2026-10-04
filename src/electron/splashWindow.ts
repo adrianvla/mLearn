@@ -67,7 +67,7 @@ export function createSplashWindow(): Promise<void> {
       if (!window.isDestroyed()) window.show();
       resolve();
     });
-    const load = app.isPackaged
+    const load = (app.isPackaged || process.env.NODE_ENV === 'production')
       ? window.loadFile(htmlPath())
       : window.loadURL('http://localhost:3000/src/html/splash.html');
     void load.then(() => {

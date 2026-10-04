@@ -76,7 +76,7 @@ const formatEta = (ms: number): string => {
   return remMin > 0 ? `${hr}h ${remMin}m` : `${hr}h`;
 };
 
-export const FlashcardsContent: Component = () => {
+export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => void }> = (props) => {
   const {
     getAllCards,
     getCardById,
@@ -97,14 +97,17 @@ export const FlashcardsContent: Component = () => {
   const { requestAccess } = useLowPowerGate();
   const { langData, currentLangData } = useLanguage();
 
-  const [activeTab, setActiveTab] = createSignal<TabId>('review');
+  const [activeTab, setActiveTab] = createSignal<TabId>(props.initialTab ?? 'review');
   const [reviewContextReady, setReviewContextReady] = createSignal(false);
   const [reviewContextRefused, setReviewContextRefused] = createSignal(false);
   const [reviewSessionRequest, setReviewSessionRequest] = createSignal<{ encounterLimit: number; requestId?: string; initialCardId?: string; decision?: LearningDecision }>();
   onMount(() => {
     const bridge = getBridge();
     const cleanup = bridge.window.onWindowContext(context => {
-      if (!context || context.activity !== 'review') { setReviewContextReady(true); return; }
+      if (!context || context.activity !== 'review') {
+        if (context && ['browse', 'generate', 'suggested'].includes(String(context.tab))) setActiveTab(context.tab as TabId);
+        setReviewContextReady(true); return;
+      }
       const session = context.session as { encounterLimit?: unknown; requestId?: unknown; initialCardId?: unknown; decision?: unknown } | undefined;
       if (session?.decision !== undefined && (!isLearningDecision(session.decision) || session.decision.id !== session.requestId)) {
         // An invalid later request cannot replace a task already displayed.
@@ -895,7 +898,7 @@ export const FlashcardsContent: Component = () => {
                   <FlashcardReview continueAfterBatch={true} encounterLimit={reviewSessionRequest()?.encounterLimit}
                     sessionRequestId={reviewSessionRequest()?.requestId}
                     initialCardId={reviewSessionRequest()?.initialCardId}
-                    handoff={reviewSessionRequest()?.decision} onComplete={() => setHasReviewedInSession(true)} onClose={() => getBridge().window.closeWindow()} />
+                    handoff={reviewSessionRequest()?.decision} onComplete={() => setHasReviewedInSession(true)} onClose={props.onClose ?? (() => getBridge().window.closeWindow())} />
                 </Show>
               </Show>
             </Show>

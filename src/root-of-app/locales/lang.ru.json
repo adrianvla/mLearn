@@ -4169,6 +4169,26 @@
       "RetrieveAspects": "В этой проверке сосредоточьтесь на: {aspects}. Покажите ответ для сравнения.",
       "Progress": "Сессия: {count} из {total}",
       "Finished": "Сессия завершена. Записано встреч: {count}."
+    },
+    "Product": {
+      "Practise": "Практика",
+      "Evaluate": "Оценка",
+      "Plan": "План",
+      "Knowledge": "Знания",
+      "Progress": "Прогресс",
+      "MyLearning": "Моё обучение",
+      "Navigation": "Навигация",
+      "Messenger": "Переписка",
+      "KnowledgeCheck": "Проверка знаний",
+      "KnowledgeCheckDescription": "Проверьте, что вы знаете.",
+      "GrammarCheck": "Проверка грамматики",
+      "GrammarPractice": "Практика грамматики",
+      "WordPractice": "Практика слов",
+      "SavedMaterial": "Сохранённые материалы",
+      "ReadDescription": "Читайте и изучайте язык в контексте.",
+      "WatchDescription": "Смотрите с субтитрами и поиском в контексте.",
+      "OpenMaterial": "Открыть или импортировать материал",
+      "MessengerDescription": "Продолжайте свои разговоры."
     }
   }
 }

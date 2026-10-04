@@ -11,6 +11,7 @@ type MockWindow = {
   on: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   hide: ReturnType<typeof vi.fn>;
+  show: ReturnType<typeof vi.fn>;
   setSize: ReturnType<typeof vi.fn>;
   setBounds: ReturnType<typeof vi.fn>;
   getBounds: ReturnType<typeof vi.fn>;
@@ -29,6 +30,7 @@ type MockWindow = {
   webContents: {
     send: ReturnType<typeof vi.fn>;
     isLoading: ReturnType<typeof vi.fn>;
+    isLoadingMainFrame: ReturnType<typeof vi.fn>;
     once: ReturnType<typeof vi.fn>;
     on: ReturnType<typeof vi.fn>;
     isDestroyed: ReturnType<typeof vi.fn>;
@@ -62,6 +64,7 @@ function makeMockWindow(): MockWindow {
     on: vi.fn(),
     close: vi.fn(),
     hide: vi.fn(),
+    show: vi.fn(),
     removeMenu: vi.fn(),
     setSize: vi.fn(),
     setBounds: vi.fn(),
@@ -80,6 +83,7 @@ function makeMockWindow(): MockWindow {
     webContents: {
       send: vi.fn(),
       isLoading: vi.fn(() => false),
+      isLoadingMainFrame: vi.fn(() => false),
       once: vi.fn(),
       on: vi.fn(),
       isDestroyed: vi.fn(() => false),
@@ -99,6 +103,7 @@ class MockBrowserWindow {
   on: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   hide: ReturnType<typeof vi.fn>;
+  show: ReturnType<typeof vi.fn>;
   setSize: ReturnType<typeof vi.fn>;
   setBounds: ReturnType<typeof vi.fn>;
   getBounds: ReturnType<typeof vi.fn>;
@@ -117,6 +122,7 @@ class MockBrowserWindow {
   webContents: {
     send: ReturnType<typeof vi.fn>;
     isLoading: ReturnType<typeof vi.fn>;
+    isLoadingMainFrame: ReturnType<typeof vi.fn>;
     once: ReturnType<typeof vi.fn>;
     on: ReturnType<typeof vi.fn>;
     isDestroyed: ReturnType<typeof vi.fn>;
@@ -130,6 +136,7 @@ class MockBrowserWindow {
     this.on = w.on;
     this.close = w.close;
     this.hide = w.hide;
+    this.show = w.show;
     this.removeMenu = w.removeMenu;
     this.setSize = w.setSize;
     this.setBounds = w.setBounds;
@@ -155,6 +162,7 @@ vi.mock('electron', () => ({
     name: 'mLearnTest',
     getVersion: vi.fn(() => '1.2.3'),
     getPath: vi.fn(() => '/tmp/userData'),
+    getAppPath: vi.fn(() => '/tmp/checkout'),
   },
   ipcMain: {
     on: vi.fn((channel: string, handler: (...args: unknown[]) => void) => {
@@ -529,7 +537,7 @@ describe('windowManager', () => {
         getAppPath: vi.fn(() => '/tmp/appPath'),
       }));
       const { createChildWindow } = await import('./windowManager');
-      createChildWindow('settings' as never);
+      createChildWindow('diagnostics' as never);
 
       const opts = lastWindowOptions();
       expect(opts.frame).toBeUndefined();
@@ -572,7 +580,7 @@ describe('windowManager', () => {
         getAppPath: vi.fn(() => '/tmp/appPath'),
       }));
       const { createChildWindow } = await import('./windowManager');
-      createChildWindow('settings' as never, { titleBarOverlay: false, backgroundColor: '#111111' });
+      createChildWindow('diagnostics' as never, { titleBarOverlay: false, backgroundColor: '#111111' });
 
       const opts = lastWindowOptions();
       expect(opts.titleBarOverlay).toBe(false);
@@ -584,15 +592,15 @@ describe('windowManager', () => {
     it('creates a new BrowserWindow for an unknown type', async () => {
       const countBefore = createdWindows.length;
       const { createChildWindow } = await import('./windowManager');
-      createChildWindow('settings' as never);
+      createChildWindow('diagnostics' as never);
       expect(createdWindows.length).toBeGreaterThan(countBefore);
     });
 
     it('loads dev URL in development mode', async () => {
       process.env.NODE_ENV = 'development';
       const { createChildWindow } = await import('./windowManager');
-      const win = createChildWindow('settings' as never);
-      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/settings.html');
+      const win = createChildWindow('diagnostics' as never);
+      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/diagnostics.html');
       delete process.env.NODE_ENV;
     });
 
@@ -605,7 +613,8 @@ describe('windowManager', () => {
       expect('KANJI_GRID' in WINDOW_TYPES).toBe(false);
 
       const win = createChildWindow(WINDOW_TYPES.CHARACTER_GRID);
-      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/character-grid.html');
+      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
+      expect(win.webContents.send).toHaveBeenCalledWith(expect.any(String), { applicationNavigation: { path: expect.stringMatching(/^\/(knowledge\/characters|plan)$/), requestId: expect.any(String) } });
       delete process.env.NODE_ENV;
     });
 
@@ -618,44 +627,53 @@ describe('windowManager', () => {
       expect('EXAM_CENTRIC_STUDY' in WINDOW_TYPES).toBe(false);
 
       const win = createChildWindow(WINDOW_TYPES.LEVEL_STUDY);
-      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/level-study.html');
+      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
+      expect(win.webContents.send).toHaveBeenCalledWith(expect.any(String), { applicationNavigation: { path: expect.stringMatching(/^\/(knowledge\/characters|plan)$/), requestId: expect.any(String) } });
       delete process.env.NODE_ENV;
     });
 
     it('loads a file in production mode', async () => {
       process.env.NODE_ENV = 'production';
       const { createChildWindow } = await import('./windowManager');
-      const win = createChildWindow('settings' as never);
+      const win = createChildWindow('diagnostics' as never);
       expect(win.loadFile).toHaveBeenCalled();
       expect(win.loadURL).not.toHaveBeenCalled();
       delete process.env.NODE_ENV;
     });
 
+    it('uses emitted HTML when running the production build from a development checkout', async () => {
+      process.env.NODE_ENV = 'production';
+      const { createMainWindow } = await import('./windowManager');
+      const window = createMainWindow();
+      expect(window.loadFile).toHaveBeenCalledWith('/tmp/checkout/dist/src/html/main.html');
+      delete process.env.NODE_ENV;
+    });
+
     it('returns the existing window instead of creating a duplicate', async () => {
       const { createChildWindow } = await import('./windowManager');
-      const win1 = createChildWindow('settings' as never);
-      const win2 = createChildWindow('settings' as never);
+      const win1 = createChildWindow('diagnostics' as never);
+      const win2 = createChildWindow('diagnostics' as never);
       expect(win1).toBe(win2);
     });
 
     it('focuses the existing window on duplicate creation attempt', async () => {
       const { createChildWindow } = await import('./windowManager');
-      const win1 = createChildWindow('settings' as never);
-      createChildWindow('settings' as never);
+      const win1 = createChildWindow('diagnostics' as never);
+      createChildWindow('diagnostics' as never);
       expect(win1.focus).toHaveBeenCalledOnce();
     });
 
     it('creates a distinct new window for a different type', async () => {
       const { createChildWindow } = await import('./windowManager');
       const countBefore = createdWindows.length;
-      createChildWindow('settings' as never);
-      createChildWindow('flashcards' as never);
+      createChildWindow('diagnostics' as never);
+      createChildWindow('word-definition' as never);
       expect(createdWindows.length).toBe(countBefore + 2);
     });
 
     it('registers a closed event listener that removes the window from the map', async () => {
       const { createChildWindow } = await import('./windowManager');
-      const win = createChildWindow('settings' as never);
+      const win = createChildWindow('diagnostics' as never);
       const mockWin = createdWindows[createdWindows.length - 1];
 
       const closedCall = (win.on as ReturnType<typeof vi.fn>).mock.calls.find(
@@ -667,7 +685,7 @@ describe('windowManager', () => {
       mockWin.isDestroyed.mockReturnValue(true);
 
       const countAfterClose = createdWindows.length;
-      createChildWindow('settings' as never);
+      createChildWindow('diagnostics' as never);
       expect(createdWindows.length).toBe(countAfterClose + 1);
     });
   });
@@ -1041,8 +1059,23 @@ describe('windowManager', () => {
       const context = { updated: true };
       fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards', context, options: {} });
 
-      expect(existingWin.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, context);
+      expect(existingWin.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/practise', requestId: expect.any(String) } });
+      expect(createdWindows).toHaveLength(1);
       delete process.env.NODE_ENV;
+    });
+
+    it('ordinary Open clears previous requests and a mounted route consumes context once', async () => {
+      const { setupWindowIPC, getMainWindow } = await import('./windowManager');
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      setupWindowIPC();
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards', context: { activity: 'review', session: { requestId: 'first' } } });
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards' });
+      const event = { sender: getMainWindow()!.webContents, reply: vi.fn() };
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'flashcards');
+      expect(event.reply).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, {});
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'flashcards');
+      expect(event.reply).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, null);
+      expect(createdWindows).toHaveLength(1);
     });
 
     it('GET_WINDOW_CONTEXT: replies with null when no context is stored for the type', async () => {
@@ -1106,7 +1139,7 @@ describe('windowManager', () => {
       expect(event.reply).toHaveBeenCalledWith(IPC_CHANNELS.VERSION, '1.2.3');
     });
 
-    it('FLASHCARD_CONNECT_OPEN: creates a connect-qr child window with correct dimensions', async () => {
+    it('FLASHCARD_CONNECT_OPEN: redirects to supported Settings connections', async () => {
       process.env.NODE_ENV = 'development';
       const { setupWindowIPC } = await import('./windowManager');
       setupWindowIPC();
@@ -1117,7 +1150,11 @@ describe('windowManager', () => {
 
       expect(createdWindows.length).toBe(countBefore + 1);
       const lastWin = createdWindows[createdWindows.length - 1];
-      expect(lastWin.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/connect-qr.html');
+      expect(lastWin.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
+      expect(lastWin.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/settings', requestId: expect.any(String) } });
+      const reply = vi.fn();
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, { sender: lastWin.webContents, reply }, 'settings');
+      expect(reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { section: 'connection' });
       delete process.env.NODE_ENV;
     });
 

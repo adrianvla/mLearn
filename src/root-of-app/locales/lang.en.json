@@ -4169,6 +4169,26 @@
       "RetrieveAspects": "Focus this recall check on: {aspects}. Reveal the answer to compare.",
       "Progress": "Session: {count} of {total}",
       "Finished": "Session finished. {count} encounters recorded."
+    },
+    "Product": {
+      "Practise": "Practise",
+      "Evaluate": "Evaluate",
+      "Plan": "Plan",
+      "Knowledge": "Knowledge",
+      "Progress": "Progress",
+      "MyLearning": "My learning",
+      "Navigation": "Navigation",
+      "Messenger": "Messenger",
+      "KnowledgeCheck": "Knowledge check",
+      "KnowledgeCheckDescription": "Check what you know.",
+      "GrammarCheck": "Grammar check",
+      "GrammarPractice": "Grammar practice",
+      "WordPractice": "Word practice",
+      "SavedMaterial": "Saved material",
+      "ReadDescription": "Read and look up language in context.",
+      "WatchDescription": "Watch with subtitles and contextual lookup.",
+      "OpenMaterial": "Open or import material",
+      "MessengerDescription": "Continue your conversations."
     }
   }
 }

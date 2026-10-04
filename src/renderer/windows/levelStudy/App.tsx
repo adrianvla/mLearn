@@ -18,7 +18,7 @@ import './LevelStudy.css';
 
 type PlanDestination = 'plan' | 'assessment' | 'word-sync' | 'character-grid';
 
-export const LevelStudyContent: Component = () => {
+export const LevelStudyContent: Component<{ onClose?: () => void }> = (props) => {
   const { t } = useLocalization();
   const { currentLangData, getFreqLevelNames } = useLanguage();
   const { settings, isLoading: settingsLoading } = useSettings();
@@ -110,7 +110,7 @@ export const LevelStudyContent: Component = () => {
       <header class="level-study-header">
         <div class="level-study-header-title"><TargetIcon size={20} /><span>{title()}</span></div>
         <Show when={destination() !== 'plan'}>
-          <Button buttonType="nav" onClick={() => incomingContext()?.returnTo === 'home' || materialPractice() ? getBridge().window.closeWindow() : setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
+          <Button buttonType="nav" onClick={() => incomingContext()?.returnTo === 'home' || materialPractice() ? (props.onClose ?? (() => getBridge().window.closeWindow()))() : setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
             {t(incomingContext()?.returnTo === 'home' ? 'mlearn.Tabs.Home' : materialPractice() ? 'mlearn.LearningPlan.BackToMaterial' : 'mlearn.LearningPlan.Back')}
           </Button>
         </Show>
@@ -141,7 +141,7 @@ export const LevelStudyContent: Component = () => {
         </Show>
         <Show when={destination() === 'word-sync' || destination() === 'assessment'}>
           <Show keyed when={destination() === 'assessment' ? 'assessment' : materialPractice() ? `material:${hashWordSync(materialPractice()!.words.join('\u0000'))}` : studyIntent() ?? 'study'}>{mode =>
-            <WordSyncContent onClose={incomingContext()?.returnTo === 'home' ? () => getBridge().window.closeWindow() : undefined} encounterLimit={sessionConstraint()?.encounterLimit} sessionRequestId={sessionConstraint()?.requestId} mode={mode === 'assessment' ? 'assessment' : 'study'} intent={mode === 'assessment' ? undefined : studyIntent()} words={materialPractice()?.words} sourceLabel={materialPractice()?.label} onAssessmentApplied={() => setDestination('plan')} />
+            <WordSyncContent onClose={incomingContext()?.returnTo === 'home' ? () => (props.onClose ?? (() => getBridge().window.closeWindow()))() : undefined} encounterLimit={sessionConstraint()?.encounterLimit} sessionRequestId={sessionConstraint()?.requestId} mode={mode === 'assessment' ? 'assessment' : 'study'} intent={mode === 'assessment' ? undefined : studyIntent()} words={materialPractice()?.words} sourceLabel={materialPractice()?.label} onAssessmentApplied={() => setDestination('plan')} />
           }</Show>
         </Show>
         <Show when={destination() === 'character-grid' && showCharacterGrid()}><CharacterGridContent /></Show>

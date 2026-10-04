@@ -880,11 +880,26 @@ describe('Window Bridge', () => {
     expect(window.location.hash).toBe('#/settings');
   });
 
+  it('delivers distinct requests when reopening the current workspace', async () => {
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const bridge = createCapacitorBridge();
+    const receive = vi.fn();
+    const unsubscribe = bridge.window.onWindowContext(receive);
+    bridge.window.openWindow({ type: 'flashcards', context: { intent: 'resume', sessionId: 'saved' } });
+    bridge.window.openWindow({ type: 'flashcards' });
+    const requests = receive.mock.calls.map(([value]) => value.applicationNavigation);
+    expect(requests).toHaveLength(2);
+    expect(requests.every(request => request.path === '/practise')).toBe(true);
+    expect(requests[0].requestId).not.toBe(requests[1].requestId);
+    expect(sessionStorage.getItem('mlearn_window_ctx_flashcards')).toBe('{}');
+    unsubscribe?.();
+  });
+
   it('openWindow navigates to correct hash for known types', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
     bridge.window.openWindow({ type: 'flashcards' });
-    expect(window.location.hash).toBe('#/flashcards');
+    expect(window.location.hash).toBe('#/practise');
   });
 
   it('closeWindow calls history.back()', async () => {

@@ -4169,6 +4169,26 @@
       "RetrieveAspects": "今回の確認項目：{aspects}。答えを表示して比べましょう。",
       "Progress": "セッション：{total}件中{count}件",
       "Finished": "セッション終了。{count}件の学習を記録しました。"
+    },
+    "Product": {
+      "Practise": "練習",
+      "Evaluate": "評価",
+      "Plan": "学習計画",
+      "Knowledge": "知識",
+      "Progress": "進捗",
+      "MyLearning": "自分の学習",
+      "Navigation": "ナビゲーション",
+      "Messenger": "メッセンジャー",
+      "KnowledgeCheck": "知識チェック",
+      "KnowledgeCheckDescription": "知っていることを確認します。",
+      "GrammarCheck": "文法チェック",
+      "GrammarPractice": "文法練習",
+      "WordPractice": "語彙練習",
+      "SavedMaterial": "保存した教材",
+      "ReadDescription": "読みながら文脈の中で調べます。",
+      "WatchDescription": "字幕と文脈に沿った検索で視聴します。",
+      "OpenMaterial": "教材を開く・取り込む",
+      "MessengerDescription": "会話を続けます。"
     }
   }
 }

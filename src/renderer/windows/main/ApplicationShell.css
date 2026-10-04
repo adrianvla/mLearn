@@ -1,0 +1,15 @@
+.application-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--text-primary); background: var(--app-shell-bg); }
+.application-navigation { display: flex; align-items: center; gap: var(--spacing-4); flex-wrap: wrap; padding: var(--spacing-3) var(--spacing-5); padding-inline-start: max(var(--spacing-5), var(--window-controls-inline-start-inset)); border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+.application-navigation-primary, .application-navigation-secondary { display: flex; align-items: center; flex-wrap: wrap; gap: var(--spacing-2); }
+.application-navigation-secondary { margin-inline-start: auto; }
+.application-navigation-secondary > span { color: var(--text-secondary); font-size: var(--font-size-sm); }
+.application-navigation a { color: var(--text-secondary); text-decoration: none; padding: var(--spacing-2); border-radius: var(--radius-md); font-size: var(--font-size-sm); }
+.application-navigation a:hover, .application-navigation a.is-active { color: var(--text-primary); background: var(--bg-secondary); }
+.application-navigation a:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.application-outlet { flex: 1; min-height: 0; overflow: auto; position: relative; }
+.product-workspace { padding: var(--spacing-5); max-width: 74rem; margin: 0 auto; }
+.product-workspace h1 { font-size: var(--font-size-xl); }
+.product-workspace-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-3); margin-block: var(--spacing-4); }
+@media (max-width: 850px) { .application-navigation-secondary { margin-inline-start: 0; } .application-navigation { gap: var(--spacing-2); padding: var(--spacing-2); } }
+
+.application-shell-mobile { padding-block-start: env(safe-area-inset-top); padding-block-end: env(safe-area-inset-bottom); box-sizing: border-box; }

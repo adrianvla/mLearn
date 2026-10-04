@@ -1,40 +1,10 @@
-.welcome-container {
-  height: 100%;
-  box-sizing: border-box;
-  overflow: auto;
-  background: var(--app-shell-bg);
-  color: var(--text-primary);
-  padding: var(--spacing-8);
-  padding-top: var(--spacing-10);
-}
+.welcome-container { height: 100%; box-sizing: border-box; overflow: auto; background: var(--app-shell-bg); color: var(--text-primary); padding: var(--spacing-6); }
 .welcome-page { max-width: 74rem; margin: 0 auto; }
-.welcome-header, .welcome-logo, .welcome-subtitle, .welcome-activities { display: flex; align-items: center; }
-.welcome-header { justify-content: space-between; gap: var(--spacing-4); margin-bottom: var(--spacing-5); }
-.welcome-logo { gap: var(--spacing-2); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
-.welcome-subtitle { gap: var(--spacing-3); color: var(--text-secondary); font-size: var(--font-size-sm); flex-wrap: wrap; }
-.welcome-language-flag { margin-inline-end: var(--spacing-2); }
-.welcome-activities { gap: var(--spacing-2); flex-wrap: wrap; border-bottom: 1px solid var(--border-color); padding-bottom: var(--spacing-4); }
-.welcome-today-heading { margin: var(--spacing-6) 0; }
-.welcome-today-heading h1 { margin: 0 0 var(--spacing-2); font-size: var(--font-size-2xl); }
-.welcome-today-heading p, .welcome-next-reason, .welcome-material-empty p, .welcome-support p { color: var(--text-secondary); line-height: var(--line-height-normal); margin: 0; }
-.welcome-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--spacing-6); align-items: start; }
-.welcome-next { display: flex; flex-direction: column; align-items: flex-start; gap: var(--spacing-4); min-width: 0; }
-.welcome-section-label { color: var(--text-secondary); font-size: var(--font-size-sm); }
-.welcome-next h2 { font-size: var(--font-size-xl); line-height: 1.3; margin: 0; }
-.welcome-next > .btn-primary { margin-top: var(--spacing-2); }
-.welcome-material { min-width: 0; }
-.welcome-material h2, .welcome-support h2 { font-size: var(--font-size-base); font-weight: var(--font-weight-semibold); margin: 0 0 var(--spacing-3); }
-.welcome-continue-list { display: flex; flex-direction: column; gap: var(--spacing-3); }
-.welcome-material-empty { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-3); }
-.welcome-material-empty p { flex-basis: 100%; }
-.welcome-support { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-6); border-top: 1px solid var(--border-color); margin-top: var(--spacing-6); padding-top: var(--spacing-5); }
-.welcome-support p { font-size: var(--font-size-sm); margin-bottom: var(--spacing-2); }
-.welcome-support--compact section { display: flex; align-items: center; gap: var(--spacing-2); }
-.welcome-support--compact h2 { margin: 0; }
-.mobile-layout .welcome-container { height: auto; min-height: 100%; overflow: visible; padding: var(--spacing-4); }
-@media (max-width: 850px) { .welcome-workspace { grid-template-columns: 1fr; } .welcome-header { align-items: flex-start; } }
-@media (max-width: 550px) {
-  .welcome-container { padding: var(--spacing-4); padding-top: var(--spacing-8); }
-  .welcome-header { flex-direction: column; }
-  .welcome-support { grid-template-columns: 1fr; }
-}
+.welcome-header, .welcome-logo { display: flex; align-items: center; gap: var(--spacing-3); }
+.welcome-header { justify-content: space-between; margin-bottom: var(--spacing-5); flex-wrap: wrap; }
+.welcome-logo h1 { margin: 0; font-size: var(--font-size-xl); }
+.welcome-subtitle { color: var(--text-secondary); font-size: var(--font-size-sm); }
+.welcome-feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-5); margin-top: var(--spacing-5); }
+.welcome-resume-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
+@media (max-width: 950px) { .welcome-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 550px) { .welcome-feature-grid { grid-template-columns: 1fr; } .welcome-container { padding: var(--spacing-4); } }

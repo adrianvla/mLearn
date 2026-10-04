@@ -4169,6 +4169,26 @@
       "RetrieveAspects": "Prüfe bei dieser Abrufaufgabe: {aspects}. Decke die Antwort zum Vergleich auf.",
       "Progress": "Sitzung: {count} von {total}",
       "Finished": "Sitzung beendet. {count} Begegnungen aufgezeichnet."
+    },
+    "Product": {
+      "Practise": "Üben",
+      "Evaluate": "Überprüfen",
+      "Plan": "Plan",
+      "Knowledge": "Wissen",
+      "Progress": "Fortschritt",
+      "MyLearning": "Mein Lernen",
+      "Navigation": "Navigation",
+      "Messenger": "Messenger",
+      "KnowledgeCheck": "Wissenscheck",
+      "KnowledgeCheckDescription": "Prüfe, was du weißt.",
+      "GrammarCheck": "Grammatik überprüfen",
+      "GrammarPractice": "Grammatik üben",
+      "WordPractice": "Wörter üben",
+      "SavedMaterial": "Gespeichertes Material",
+      "ReadDescription": "Lies und schlage Sprache im Kontext nach.",
+      "WatchDescription": "Schau Videos mit Untertiteln und Kontextsuche.",
+      "OpenMaterial": "Material öffnen oder importieren",
+      "MessengerDescription": "Setze deine Gespräche fort."
     }
   }
 }

@@ -1,3 +1,4 @@
+import { resolveApplicationDestination } from '../applicationNavigation';
 import { learningEvidenceFromEvents } from '../learningEvidence';
 import { reviewPresentationPatch } from '../reviewPresentationWrite';
 import { createMobileLibraryStore, MOBILE_LIBRARY_KEYS } from './mobileLibraryStore';
@@ -926,31 +927,20 @@ const windowBridge: WindowBridge = {
   },
 
   openWindow(payload) {
-    // On mobile, navigate via router instead of opening windows
-    const routeMap: Record<string, string> = {
-      settings: '/settings',
-      flashcards: '/flashcards',
-      statistics: '/statistics',
-      'conversation-agent': '/conversation-agent',
-      'word-db-editor': '/word-db-editor',
-      'level-study': '/level-study',
-      licenses: '/licenses',
-      'connect-qr': '/connect-qr',
-    };
-
-    // Store context in sessionStorage so the target route can retrieve it
-    if (payload.context) {
-      try {
-        sessionStorage.setItem(`mlearn_window_ctx_${payload.type}`, JSON.stringify(payload.context));
-      } catch (e) {
-        log.error('[CapacitorBridge] Failed to store window context:', e);
-      }
+    const destination = resolveApplicationDestination(payload.type, payload.context);
+    const route = destination?.path ?? (payload.type === 'licenses' ? '/licenses' : undefined);
+    if (!route) return;
+    try {
+      sessionStorage.setItem(`mlearn_window_ctx_${payload.type === 'connect-qr' ? 'settings' : payload.type}`, JSON.stringify(destination?.context ?? payload.context ?? {}));
+    } catch (error) {
+      log.error('[CapacitorBridge] Failed to store window context:', error);
+      return;
     }
-
-    const route = routeMap[payload.type];
-    if (route) {
-      window.location.hash = `#${route}`;
+    if (destination) {
+      const navigation = { applicationNavigation: { path: route, requestId: crypto.randomUUID() } };
+      windowContextCallbacks.forEach(callback => callback(navigation));
     }
+    window.location.hash = `#${route}`;
   },
 
   closeWindow() {

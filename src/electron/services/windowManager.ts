@@ -15,6 +15,7 @@ import { queueCommand } from './webServer';
 import { hasTray } from './trayManager';
 import { getLogger } from '../../shared/utils/logger';
 import { startupMark, startupTime } from '../startupTiming';
+import { resolveApplicationDestination } from '../../shared/applicationNavigation';
 
 // Title-bar menu strip height — keep in sync with WindowsMenuBar.css --titlebar-height
 const TITLEBAR_MENU_HEIGHT = 40;
@@ -284,8 +285,8 @@ function getPreloadPath(): string {
 function getWindowHtmlPath(windowName: string): string {
   const htmlFile = `${windowName}.html`;
 
-  if (isPackaged) {
-    const appPath = getAppPath();
+  if (isPackaged || process.env.NODE_ENV === 'production') {
+    const appPath = isPackaged ? getAppPath() : app.getAppPath();
     return resolveExistingPath([
       path.join(appPath, 'dist', 'src', 'html', htmlFile),
       path.join(appPath, 'dist', htmlFile),
@@ -298,19 +299,7 @@ function getWindowHtmlPath(windowName: string): string {
 }
 
 function openSettingsWindow(section?: string): BrowserWindow {
-  const settingsWindow = createChildWindow('settings' as WindowType, { width: 800, height: 600 });
-
-  if (section) {
-    if (settingsWindow.webContents.isLoading()) {
-      settingsWindow.webContents.once('did-finish-load', () => {
-        settingsWindow.webContents.send(IPC_CHANNELS.SHOW_SETTINGS, section);
-      });
-    } else {
-      settingsWindow.webContents.send(IPC_CHANNELS.SHOW_SETTINGS, section);
-    }
-  }
-
-  return settingsWindow;
+  return openManagedChildWindow('settings' as WindowType, {}, section ? { section } : undefined);
 }
 
 // Create the main window
@@ -467,10 +456,27 @@ export function createDiagnosticsWindow(): BrowserWindow {
 }
 
 // Create a generic child window
+/** Ordinary legacy window names are compatibility aliases into the main shell. */
+function openApplicationDestination(type: WindowType, context?: Record<string, unknown>): BrowserWindow | null {
+  const destination = resolveApplicationDestination(type, context);
+  if (!destination) return null;
+  const window = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createMainWindow();
+  // Empty context is intentional: Open must never replay an older Start request.
+  windowContextStore.set(type === 'connect-qr' ? 'settings' : type, destination.context);
+  const navigation = { applicationNavigation: { path: destination.path, requestId: crypto.randomUUID() } };
+  windowContextStore.set('main', navigation);
+  if (!window.webContents.isLoadingMainFrame()) window.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, navigation);
+  window.show();
+  window.focus();
+  return window;
+}
+
 export function createChildWindow(
   type: WindowType,
   options: Partial<Electron.BrowserWindowConstructorOptions> = {}
 ): BrowserWindow {
+  const destination = openApplicationDestination(type);
+  if (destination) return destination;
   // Check if window already exists and focus it instead of creating duplicate
   const existingWindow = childWindows.get(type);
   if (existingWindow && !existingWindow.isDestroyed()) {
@@ -517,6 +523,8 @@ export function openManagedChildWindow(
   options: Partial<Electron.BrowserWindowConstructorOptions> = {},
   context?: Record<string, unknown>,
 ): BrowserWindow {
+  const destination = openApplicationDestination(type, context);
+  if (destination) return destination;
   if (type === WINDOW_TYPES.WELCOME) {
     return createWelcomeWindow();
   }
@@ -1060,6 +1068,9 @@ export function setupWindowIPC(): void {
   ipcMain.on(IPC_CHANNELS.GET_WINDOW_CONTEXT, (event, windowType: string) => {
     const ctx = windowContextStore.get(windowType) || null;
     event.reply(IPC_CHANNELS.WINDOW_CONTEXT, ctx);
+    if (windowType === 'main' || (event.sender === mainWindow?.webContents && resolveApplicationDestination(windowType))) {
+      windowContextStore.delete(windowType);
+    }
   });
 
   // Close current window
