@@ -96,7 +96,10 @@ export interface StudySessionControllerOptions<I extends StudyQueueItem, P, A, M
 export interface StudySessionController<I extends StudyQueueItem, P, A, M> {
   current: Accessor<RecordOf<I, P, A, M> | null>;
   resume: () => RecordOf<I, P, A, M> | null;
-  start: (identity: string, queue: I[], index: number, meta: M) => Promise<boolean>;
+  start: (identity: string, queue: I[], index: number, meta: M, intent?: { suspendCurrent: boolean }) => Promise<boolean>;
+  /** Explicit Start may suspend an unfinished cursor; Resume always names an exact stored ID. */
+  suspended: () => RecordOf<I, P, A, M>[];
+  activate: (id: string) => Promise<boolean>;
   reveal: (expected: RecordOf<I, P, A, M>) => Promise<boolean>;
   /** Persist an unpresented policy choice without counting the anchor as encountered. */
   selectQuestion: (expected: RecordOf<I, P, A, M>, index: number, meta: M) => Promise<boolean>;
@@ -134,6 +137,34 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
       setCurrent(next);
       return true;
     } catch { return false; }
+  };
+
+  const savedKey = (id: string) => `${options.storageKey}:session:${encodeURIComponent(id)}`;
+  const savedIds = (): string[] => {
+    const raw = options.storage.getItem(`${options.storageKey}:sessions`);
+    if (raw === null) return [];
+    const ids: unknown = JSON.parse(raw);
+    if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string' || !id)) throw new Error('Invalid saved session index');
+    return [...new Set(ids as string[])];
+  };
+  const saved = (id: string): Session | null => {
+    const record = readStudySessionRecord(options.storage.getItem(savedKey(id)), options.validate);
+    return record?.id === id ? record : null;
+  };
+  const suspend = (record: Session): boolean => {
+    try {
+      const ids = savedIds();
+      // Save the full owner-validated envelope before switching the active key.
+      // If either write fails, the original active cursor remains authoritative.
+      options.storage.setItem(savedKey(record.id), JSON.stringify(record));
+      options.storage.setItem(`${options.storageKey}:sessions`, JSON.stringify([...new Set([...ids, record.id])]));
+      return true;
+    } catch { return false; }
+  };
+  const suspended = (): Session[] => {
+    const activeId = current()?.id;
+    try { return savedIds().filter(id => id !== activeId).flatMap(id => { const record = saved(id); return record ? [record] : []; }); }
+    catch { return []; }
   };
 
   const resume = (): Session | null => {
@@ -218,14 +249,27 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
   const controller: StudySessionController<I, P, A, M> = {
     current,
     resume,
-    start: (identity, queue, index, meta) => locked(current(), (durable) => {
-      if (durable && durable.index < durable.queue.length) return false;
-      if (index < 0 || index > queue.length || queue.some((item) => typeof item.id !== 'string')) return false;
+    suspended,
+    activate: (id) => locked(current(), (durable) => {
+      if (durable?.pending) return false;
+      if (durable?.id === id) return true;
+      const target = saved(id);
+      if (!target || (durable && !suspend(durable))) return false;
+      if (!publish(target)) return false;
+      if (target.pending) recoverPending?.(target);
+      return true;
+    }),
+    start: (identity, queue, index, meta, intent) => locked(current(), (durable) => {
+      // A package-invalid or malformed record is unavailable, not an empty slot.
+      // Preserve it for recovery rather than overwriting history with a new task.
+      if (!durable && options.storage.getItem(options.storageKey) !== null) return false;
+      if (durable?.pending || (durable && durable.index < durable.queue.length && !intent?.suspendCurrent)) return false;
+      if (!Number.isInteger(index) || index < 0 || index > queue.length || queue.some((item) => typeof item.id !== 'string')) return false;
       const record: Session = {
         id: nextAttemptId(), identity, queue, index,
         visited: [], rated: 0, revealed: false, meta,
       };
-      return options.validate(record) && publish(record);
+      return options.validate(record) && (!durable || !intent?.suspendCurrent || suspend(durable)) && publish(record);
     }),
     reveal: (expected) => locked(expected, (record) => {
       if (!record || record.pending || record.answered !== undefined || record.index >= record.queue.length) return false;

@@ -4190,7 +4190,8 @@
       "WatchDescription": "字幕と文脈に沿った検索で視聴します。",
       "OpenMaterial": "教材を開く・取り込む",
       "MessengerDescription": "会話を続けます。",
-      "GrammarUnavailable": "このパッケージには文法の課題がありません。"
+      "GrammarUnavailable": "このパッケージには文法の課題がありません。",
+      "ResumeUnavailable": "この保存済みの課題は利用できません。現在の課題は保持されています。"
     }
   }
 }

@@ -63,7 +63,7 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'mock'; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
+export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'mock'; grammarResumeId?: string; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
@@ -463,6 +463,7 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'mock'; onEd
           <Show when={view() === 'grammar'}>
           <GrammarCoverage
             initiallyPaused={true}
+            resumeSessionId={props.grammarResumeId}
             language={resolvedLanguageData().language}
             languageData={resolvedLanguageData().data!}
             eventLog={grammarLog()!}

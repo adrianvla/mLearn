@@ -1064,6 +1064,28 @@ describe('windowManager', () => {
       delete process.env.NODE_ENV;
     });
 
+    it('delivers a live navigation request once and does not replay Start on renderer reload', async () => {
+      const { setupWindowIPC, createMainWindow } = await import('./windowManager');
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      setupWindowIPC(); const main = createMainWindow();
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'level-study', context: { activity: 'grammar', patterns: ['package-defined'] } });
+      expect(main.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, expect.objectContaining({ applicationNavigation: expect.objectContaining({ path: '/practise/grammar' }) }));
+      const event = { sender: main.webContents, reply: vi.fn() };
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'main');
+      expect(event.reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, null);
+    });
+    it('retains a cold navigation request only until the shell consumes it', async () => {
+      const { setupWindowIPC, createMainWindow } = await import('./windowManager');
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      setupWindowIPC(); const main = createMainWindow();
+      main.webContents.isLoadingMainFrame.mockReturnValue(true);
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'level-study', context: { activity: 'grammar', patterns: ['package-defined'] } });
+      const event = { sender: main.webContents, reply: vi.fn() };
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'main');
+      expect(event.reply).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, expect.objectContaining({ applicationNavigation: expect.objectContaining({ path: '/practise/grammar' }) }));
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'main');
+      expect(event.reply).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, null);
+    });
     it('ordinary Open clears previous requests and a mounted route consumes context once', async () => {
       const { setupWindowIPC, getMainWindow } = await import('./windowManager');
       const { IPC_CHANNELS } = await import('../../shared/constants');

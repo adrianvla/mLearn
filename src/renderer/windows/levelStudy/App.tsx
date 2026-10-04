@@ -49,7 +49,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
   const [grammarRequestConsumed, setGrammarRequestConsumed] = createSignal(false);
   const grammarRequest = createMemo(() => {
     const context = incomingContext();
-    if (grammarRequestConsumed() || context?.activity !== 'grammar' || !learning.ready() || !Array.isArray(context.patterns)) return undefined;
+    if (context?.intent === 'resume' || grammarRequestConsumed() || context?.activity !== 'grammar' || !learning.ready() || !Array.isArray(context.patterns)) return undefined;
     const patterns = context.patterns.filter((value): value is string => typeof value === 'string' && !!currentLangData()?.grammar?.some(point => point.pattern === value));
     const level = currentLangData()?.grammar?.find(point => patterns.includes(point.pattern))?.level;
     const session = context.session as { requestId?: unknown; decision?: unknown } | undefined;
@@ -139,7 +139,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
               </details>
               <h2 class="learning-plan-progress-heading">{t('mlearn.LearningPlan.Progress')}</h2>
             </Show>
-            <LevelStudyTab view={props.workspace ?? 'plan'} onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
+            <LevelStudyTab grammarResumeId={incomingContext()?.intent === 'resume' && typeof incomingContext()?.sessionId === 'string' ? incomingContext()!.sessionId as string : undefined} view={props.workspace ?? 'plan'} onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
           </div>
         </Show>
         <Show when={destination() === 'word-sync' || destination() === 'assessment'}>

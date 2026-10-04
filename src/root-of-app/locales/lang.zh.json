@@ -4190,7 +4190,8 @@
       "WatchDescription": "通过字幕和上下文查词观看。",
       "OpenMaterial": "打开或导入材料",
       "MessengerDescription": "继续你的对话。",
-      "GrammarUnavailable": "此语言包不提供语法任务。"
+      "GrammarUnavailable": "此语言包不提供语法任务。",
+      "ResumeUnavailable": "此已保存任务不可用。当前任务已保留。"
     }
   }
 }

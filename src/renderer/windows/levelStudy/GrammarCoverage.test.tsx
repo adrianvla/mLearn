@@ -184,6 +184,7 @@ function mount(
   locks: StudySessionLocks | null = passThroughLocks,
   initiallyPaused = false,
   scopePatterns?: readonly string[],
+  resumeSessionId?: string,
 ) {
   const container = document.createElement('div');
   // Solid attaches delegated listeners on the document; container must be
@@ -194,6 +195,7 @@ function mount(
     () => (
       <GrammarCoverage
         initiallyPaused={initiallyPaused}
+        resumeSessionId={resumeSessionId}
         scopePatterns={scopePatterns}
         language="ja"
         languageData={languageDataOverride ?? languageData}
@@ -473,6 +475,56 @@ describe('GrammarCoverage policy-selected practice session', () => {
     container.remove();
   });
 
+  it('starts an explicit new scoped request while preserving and resuming the earlier cursor', async () => {
+    const onProbe = vi.fn();
+    const first = mount(onProbe); await startPass(first.container, 2); revealCurrent(first.container, 2);
+    const prior = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
+    first.dispose(); first.container.remove();
+    const next = mount(onProbe, undefined, undefined, undefined, undefined,
+      () => ({ level: 2, requestedAt: 10, patterns: ['ば'] }), undefined, passThroughLocks, true, ['ば']);
+    await tick();
+    const active = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
+    expect(active.id).not.toBe(prior.id);
+    expect(active.queue.map((item: { id: string }) => item.id)).toEqual(['ば']);
+    expect(JSON.parse(localStorage.getItem(`mlearn-study-grammar:ja:session:${encodeURIComponent(prior.id)}`)!)).toEqual(prior);
+    const pause = Array.from(next.container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.LearningPlan.Back')!;
+    pause.click(); await tick();
+    next.container.querySelector<HTMLButtonElement>('.grammar-coverage__saved-session button')!.click(); await tick();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(prior);
+    expect(onProbe).not.toHaveBeenCalled();
+    next.dispose(); next.container.remove();
+  });
+  it('resumes only an explicitly named saved session and leaves unrelated work paused for an unavailable ID', async () => {
+    const onProbe = vi.fn(); const first = mount(onProbe); await startPass(first.container, 2);
+    const saved = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
+    first.dispose(); first.container.remove();
+    const missing = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, passThroughLocks, true, undefined, 'missing');
+    await tick();
+    expect(missing.container.textContent).toContain('mlearn.Product.ResumeUnavailable');
+    expect(missing.container.querySelector('.grammar-coverage__session-prompt')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(saved);
+    missing.dispose(); missing.container.remove();
+    const resumed = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, passThroughLocks, true, undefined, saved.id);
+    await tick(); expect(resumed.container.querySelector('.grammar-coverage__session-prompt')).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(saved);
+    expect(onProbe).not.toHaveBeenCalled(); resumed.dispose(); resumed.container.remove();
+  });
+  it('acknowledges a new scope only after its cursor persists and offers retry after a storage refusal', async () => {
+    const onProbe = vi.fn(); const first = mount(onProbe); await startPass(first.container, 2);
+    const saved = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
+    first.dispose(); first.container.remove();
+    const setItem = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('full'); });
+    const handled = vi.fn();
+    const next = mount(onProbe, undefined, undefined, undefined, undefined,
+      () => ({ level: 2, requestedAt: 10, patterns: ['ば'] }), handled, passThroughLocks, true, ['ば']);
+    await tick(); expect(handled).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(saved);
+    setItem.mockRestore();
+    Array.from(next.container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Knowledge.Retry')!.click();
+    await tick(); expect(handled).toHaveBeenCalledOnce();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).queue.map((item: { id: string }) => item.id)).toEqual(['ば']);
+    expect(onProbe).not.toHaveBeenCalled(); next.dispose(); next.container.remove();
+  });
   it('queues a mock repair until the live policy walk finishes without hiding it', async () => {
     const onProbe = vi.fn();
     const [repairRequest, setRepairRequest] = createSignal<{ level: number; requestedAt: number } | null>(null);

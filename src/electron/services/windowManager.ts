@@ -464,8 +464,13 @@ function openApplicationDestination(type: WindowType, context?: Record<string, u
   // Empty context is intentional: Open must never replay an older Start request.
   windowContextStore.set(type === 'connect-qr' ? 'settings' : type, destination.context);
   const navigation = { applicationNavigation: { path: destination.path, requestId: crypto.randomUUID(), context: destination.context } };
-  windowContextStore.set('main', navigation);
-  if (!window.webContents.isLoadingMainFrame()) window.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, navigation);
+  if (window.webContents.isLoadingMainFrame()) windowContextStore.set('main', navigation);
+  else {
+    // A live shell receives this request immediately. Keeping it as a cold
+    // handoff would replay Start when the renderer later reloads.
+    windowContextStore.delete('main');
+    window.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, navigation);
+  }
   window.show();
   window.focus();
   return window;

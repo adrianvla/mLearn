@@ -29,6 +29,66 @@ function harness(skipAttempts = false) {
 }
 
 describe('shared study session controller', () => {
+  it('suspends unfinished work on explicit Start and restores exact IDs without dropping opaque metadata', async () => {
+    const h = harness(); const first = h.make();
+    const queue = [{ id: 'one' }, { id: 'two' }, { id: 'three' }];
+    const meta = { 'future-package:discourse': { participants: ['a', 'b'], structured: [1, { custom: true }] } };
+    await first.start('package-v1', queue, 0, meta);
+    await first.reveal(first.current()!); const original = first.current()!;
+    expect(await first.start('package-v1', queue, 1, { other: 'scope' })).toBe(false);
+    expect(await first.start('package-v1', queue, 1, { other: 'scope' }, { suspendCurrent: true })).toBe(true);
+    const second = first.current()!;
+    expect(second.id).not.toBe(original.id);
+    expect(first.suspended()).toEqual([original]);
+    const restarted = h.make();
+    expect(await restarted.activate(original.id)).toBe(true);
+    expect(restarted.current()).toEqual(original);
+    expect(restarted.suspended()).toEqual([second]);
+    expect(await restarted.activate(second.id)).toBe(true);
+    expect(restarted.current()).toEqual(second);
+    expect(h.write).not.toHaveBeenCalled();
+    first.dispose(); restarted.dispose();
+  });
+  it('refuses new Start and activation while an attempt reservation is unresolved', async () => {
+    const h = harness(); const owner = h.make(); const queue = [{ id: 'one' }, { id: 'two' }, { id: 'three' }];
+    await owner.start('package-v1', queue, 0, {}); const original = owner.current()!;
+    await owner.start('package-v1', queue, 0, {}, { suspendCurrent: true });
+    await owner.reveal(owner.current()!); h.write.mockRejectedValue(new Error('offline'));
+    await owner.reserve(owner.current()!, { quality: 'fluent' }, 'advance');
+    const failed = owner.current()!;
+    expect(await owner.start('package-v1', queue, 0, {}, { suspendCurrent: true })).toBe(false);
+    expect(await owner.activate(original.id)).toBe(false);
+    expect(owner.current()).toEqual(failed);
+    owner.dispose();
+  });
+  it('keeps active work intact when its suspension cannot persist', async () => {
+    const h = harness(); const owner = h.make(); const queue = [{ id: 'one' }, { id: 'two' }, { id: 'three' }];
+    await owner.start('package-v1', queue, 0, {}); const original = owner.current()!;
+    h.storage.setItem = () => { throw new Error('full'); };
+    expect(await owner.start('package-v1', queue, 1, {}, { suspendCurrent: true })).toBe(false);
+    expect(owner.current()).toEqual(original);
+    owner.dispose();
+  });
+  it('refuses a stale owner switching tasks and refuses an unknown resume ID', async () => {
+    const h = harness(); const owner = h.make(); const queue = [{ id: 'one' }, { id: 'two' }, { id: 'three' }];
+    await owner.start('package-v1', queue, 0, {}); const original = owner.current()!; const stale = h.make();
+    await owner.start('package-v1', queue, 1, {}, { suspendCurrent: true }); const second = owner.current()!;
+    expect(await stale.activate(original.id)).toBe(false);
+    expect(stale.current()).toEqual(second);
+    expect(await stale.activate('missing')).toBe(false);
+    expect(stale.current()).toEqual(second);
+    owner.dispose(); stale.dispose();
+  });
+  it('preserves unavailable package records rather than treating them as empty storage', async () => {
+    const h = harness(); const raw = JSON.stringify({ id: 'historic', identity: 'unavailable-package-version',
+      queue: [{ id: 'unknown-entity' }], index: 0, visited: [], rated: 0, revealed: true,
+      meta: { 'future:opaque': { relational: ['speaker', 'hearer'] } } });
+    h.values.set('study:test', raw); const owner = h.make();
+    expect(owner.current()).toBeNull();
+    expect(await owner.start('package-v1', [{ id: 'one' }, { id: 'two' }, { id: 'three' }], 0, {}, { suspendCurrent: true })).toBe(false);
+    expect(h.values.get('study:test')).toBe(raw);
+    expect(h.write).not.toHaveBeenCalled(); owner.dispose();
+  });
   it('pins a competing question before presentation without recording an encounter or losing its decision on restart', async () => {
     const h = harness();
     const first = h.make();
