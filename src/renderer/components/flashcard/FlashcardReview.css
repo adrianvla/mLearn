@@ -23,15 +23,14 @@
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-4);
-  flex: 1 1 0;
-  min-height: min(8rem, 35%);
+  flex: 0 1 auto;
+  min-height: 0;
   width: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
 .flashcard-review-content > .flashcard-container,
-.flashcard-review-content > .flashcard-state-indicator,
 .flashcard-review-content > .flashcard-completion {
   flex: 0 0 auto;
 }
@@ -179,7 +178,7 @@
 .flashcard-buttons-container {
   display: flex;
   flex-direction: column;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   gap: var(--spacing-4);
   width: 100%;
   max-width: 700px;
@@ -250,11 +249,6 @@
   color: var(--text-secondary);
 }
 
-/* State indicator - uses Label component */
-.flashcard-state-indicator {
-  text-align: center;
-  padding: 0.25rem 0;
-}
 
 .flashcard-stat {
   display: flex;

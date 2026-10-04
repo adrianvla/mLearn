@@ -76,7 +76,7 @@ const formatEta = (ms: number): string => {
   return remMin > 0 ? `${hr}h ${remMin}m` : `${hr}h`;
 };
 
-export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => void }> = (props) => {
+export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => void; workspace?: 'review' | 'material'; launchContext?: Record<string, unknown> }> = (props) => {
   const {
     getAllCards,
     getCardById,
@@ -97,15 +97,16 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
   const { requestAccess } = useLowPowerGate();
   const { langData, currentLangData } = useLanguage();
 
-  const [activeTab, setActiveTab] = createSignal<TabId>(props.initialTab ?? 'review');
+  const admittedTab = (tab?: TabId): TabId => props.workspace === 'review' ? 'review'
+    : props.workspace === 'material' ? tab && ['browse', 'generate', 'suggested'].includes(tab) ? tab : 'browse' : tab ?? 'review';
+  const [activeTab, setActiveTab] = createSignal<TabId>(admittedTab(props.initialTab));
   const [reviewContextReady, setReviewContextReady] = createSignal(false);
   const [reviewContextRefused, setReviewContextRefused] = createSignal(false);
   const [reviewSessionRequest, setReviewSessionRequest] = createSignal<{ encounterLimit: number; requestId?: string; initialCardId?: string; decision?: LearningDecision }>();
-  onMount(() => {
-    const bridge = getBridge();
-    const cleanup = bridge.window.onWindowContext(context => {
+  const acceptContext = (context: Record<string, unknown> | null) => {
+      if (props.workspace === 'material') { setActiveTab(admittedTab(context?.tab as TabId | undefined)); setReviewContextReady(true); return; }
       if (!context || context.activity !== 'review') {
-        if (context && ['browse', 'generate', 'suggested'].includes(String(context.tab))) setActiveTab(context.tab as TabId);
+        if (context && ['browse', 'generate', 'suggested'].includes(String(context.tab))) setActiveTab(admittedTab(context.tab as TabId));
         setReviewContextReady(true); return;
       }
       const session = context.session as { encounterLimit?: unknown; requestId?: unknown; initialCardId?: unknown; decision?: unknown } | undefined;
@@ -122,7 +123,12 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
           ...(isLearningDecision(session.decision) ? { decision: session.decision } : {}) });
       }
       setReviewContextReady(true); setActiveTab('review');
-    });
+  };
+  createEffect(() => { if (props.workspace) acceptContext(props.launchContext ?? {}); });
+  onMount(() => {
+    if (props.workspace) return;
+    const bridge = getBridge();
+    const cleanup = bridge.window.onWindowContext(acceptContext);
     if (cleanup) onCleanup(cleanup);
     bridge.window.getWindowContext('flashcards');
   });
@@ -274,7 +280,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
     }
   };
   createEffect(on(() => [isLoading(), isLLMReady(settings), settings.flashcardAutoGenerateAudio], () => {
-    if (!isLoading() && isElectron() && !repairRunning()) void refreshRepairFindings();
+    if (props.workspace !== 'review' && !isLoading() && isElectron() && !repairRunning()) void refreshRepairFindings();
   }));
 
   const generateRepairExamples = async (exampleFindings: readonly ExampleFinding[]) => {
@@ -803,14 +809,14 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
       label: t('mlearn.Flashcards.UI.Tabs.Statistics'),
       icon: <BarChartIcon size={16} />
     },
-  ]);
+  ].filter(tab => props.workspace !== 'material' || !['review', 'stats'].includes(tab.id)));
 
   const activeTabLabel = createMemo(() => (
     tabs().find((tab) => tab.id === activeTab())?.label ?? t('mlearn.Flashcards.UI.Title')
   ));
 
   const handleTabChange = (id: string) => {
-    setActiveTab(id as TabId);
+    setActiveTab(admittedTab(id as TabId));
     setIsMobileSidebarOpen(false);
   };
 
@@ -818,6 +824,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
     <div class="flashcards-window">
       <div class="flashcards-layout">
         {/* Left Sidebar */}
+        <Show when={props.workspace !== 'review'}>
         <ResponsiveSidebar
           id="flashcards-navigation"
           label={t('mlearn.Flashcards.UI.Title')}
@@ -827,7 +834,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
           class="flashcards-sidebar"
         >
           <div class="flashcards-sidebar-header">
-            <h1 class="flashcards-title">{t('mlearn.Flashcards.UI.Title')}</h1>
+            <h1 class="flashcards-title">{t(props.workspace === 'material' ? 'mlearn.Product.SavedMaterial' : 'mlearn.Flashcards.UI.Title')}</h1>
           </div>
           
           <nav id="flashcards-navigation" class="flashcards-nav">
@@ -864,12 +871,13 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
             </Button>
           </div>
         </ResponsiveSidebar>
+        </Show>
 
         {/* Main Content */}
         <main class="flashcards-main">
           <KnowledgeGate>
           {/* Review Tab */}
-          <div role="tabpanel" id="flashcards-tabs-panel-review" aria-labelledby="flashcards-tabs-tab-review" hidden={activeTab() !== 'review'}>
+          <div class="flashcards-review-panel" role={props.workspace === 'review' ? 'region' : 'tabpanel'} aria-label={props.workspace === 'review' ? t('mlearn.Product.Practise') : undefined} id="flashcards-tabs-panel-review" aria-labelledby={props.workspace === 'review' ? undefined : 'flashcards-tabs-tab-review'} hidden={activeTab() !== 'review'}>
           <Show when={activeTab() === 'review'}>
             {/* "Nothing is due" and "this session finished" are different
                 product states: only the second is a completed session with a

@@ -28,13 +28,13 @@ const RequestedContent: Component<{ content: Component<RequestedWorkspaceProps> 
   return <Show keyed when={requestId()}>{_requestId => <props.content launchContext={context()} />}</Show>;
 };
 
-const Review: Component = () => {
+const Review: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();
-  return <LearningWorkspace><FlashcardsContent onClose={() => navigate('/')} /></LearningWorkspace>;
+  return <LearningWorkspace><FlashcardsContent workspace="review" launchContext={props.launchContext} onClose={() => navigate('/')} /></LearningWorkspace>;
 };
-const Material: Component = () => {
+const Material: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();
-  return <FlashcardsContent initialTab="browse" onClose={() => navigate('/knowledge')} />;
+  return <FlashcardsContent workspace="material" launchContext={props.launchContext} initialTab="browse" onClose={() => navigate('/knowledge')} />;
 };
 const Plan: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();

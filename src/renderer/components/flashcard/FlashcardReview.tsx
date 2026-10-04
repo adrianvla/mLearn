@@ -1254,30 +1254,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     resetReviewScroll();
   };
 
-  // Rating buttons config with time estimates
-  
-  // Get state label variant
-  const getStateLabelVariant = (card: Flashcard) => {
-    switch (card.state) {
-      case 'new': return 'primary' as const;
-      case 'learning': return 'warning' as const;
-      case 'relearning': return 'error' as const;
-      case 'review': return 'success' as const;
-      default: return 'default' as const;
-    }
-  };
-
-  // Get state label text
-  const getStateLabelText = (card: Flashcard) => {
-    switch (card.state) {
-      case 'new': return t('mlearn.Flashcards.Review.NewCard');
-      case 'learning': return t('mlearn.Flashcards.Review.LearningCard');
-      case 'relearning': return t('mlearn.Flashcards.Review.RelearningCard');
-      case 'review': return t('mlearn.Flashcards.Review.ReviewCard');
-      default: return '';
-    }
-  };
-
   return (
       <div class="flashcard-review-container" data-review-phase={presentation().phase} data-encounter-id={currentEncounter()?.provenance.id} style={props.style}>
         <Show when={learning.failed()}><KnowledgeLoadError onRetry={learning.retry} /></Show>
@@ -1459,16 +1435,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               </>
             }
         >
-          {/* Card state indicator */}
-          <Show when={currentCard()}>
-            <div class="flashcard-state-indicator">
-              <Badge variant={getStateLabelVariant(currentCard()!)}>
-                <span class="flashcard-stat-label">
-                  {getStateLabelText(currentCard()!)}
-                </span>
-              </Badge>
-            </div>
-          </Show>
           {/* Show card - non-keyed to avoid remount delay between cards */}
           <StudyEncounter class="flashcard-study-encounter" prompt="" answer="" scheduling={true}
             instruction={currentStage()?.prompt || currentEncounter()?.activity.prompt || undefined}

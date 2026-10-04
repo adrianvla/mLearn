@@ -117,7 +117,8 @@
   min-width: 0;
 }
 
-.flashcards-main > [role="tabpanel"] {
+.flashcards-main > [role="tabpanel"],
+.flashcards-main > .flashcards-review-panel {
   min-height: 100%;
   height: 100%;
 }

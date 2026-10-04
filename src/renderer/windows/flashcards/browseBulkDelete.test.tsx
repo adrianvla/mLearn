@@ -218,6 +218,28 @@ const dialogButton = (label: string) => {
 };
 
 describe('Review window context admission', () => {
+  it('hosts Practise without saved-material tabs and admits its launch context directly', async () => {
+    contextFixture.reviewProps.mockClear(); setDueCount(1);
+    const container = document.createElement('div'); document.body.append(container);
+    const dispose = render(() => <FlashcardsContent workspace="review" launchContext={{ activity: 'review', session: { encounterLimit: 2, requestId: 'route', initialCardId: 'chosen' } }} />, container);
+    try {
+      await flush(); expect(container.querySelectorAll('.tab')).toHaveLength(0);
+      expect(container.textContent).not.toContain('mlearn.Flashcards.UI.AddCard');
+      expect(contextFixture.reviewProps).toHaveBeenCalledWith('chosen', 'route', undefined);
+      expect(container.querySelector('[data-review-session]')?.closest('[aria-labelledby]')).toBeNull();
+    } finally { dispose(); container.remove(); setDueCount(0); }
+  });
+  it('keeps saved-material management discoverable without a second Review or Statistics destination', async () => {
+    contextFixture.reviewProps.mockClear();
+    const container = document.createElement('div'); document.body.append(container);
+    const dispose = render(() => <FlashcardsContent workspace="material" launchContext={{ tab: 'review' }} />, container);
+    try {
+      await flush(); const tabs = Array.from(container.querySelectorAll('.tab')).map(tab => tab.textContent);
+      expect(tabs).toEqual(['mlearn.Flashcards.UI.Tabs.Browse', 'mlearn.Flashcards.UI.Tabs.Generate', 'mlearn.Flashcards.UI.Tabs.Suggested']);
+      expect(container.textContent).toContain('mlearn.Flashcards.UI.AddCard');
+      expect(contextFixture.reviewProps).not.toHaveBeenCalled();
+    } finally { dispose(); container.remove(); }
+  });
   it('waits for the initial context before mounting a different default cue', async () => {
     contextFixture.delayed = true; contextFixture.reviewProps.mockClear(); setDueCount(1);
     const container = document.createElement('div'); document.body.append(container);
