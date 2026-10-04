@@ -1,3 +1,8 @@
+import { chooseLearningSequence, fitLearningModel, learningAddress, type LearningAction } from '../../shared/learningModel';
+import { evaluateLearningActions, learningSequenceDelay } from '../../shared/learningInformation';
+import { inferLearningOpportunities } from '../../shared/learningOpportunities';
+import { surfaceEntityId } from '../../shared/graph/load';
+import { hashWordSync } from '../../shared/utils/wordHash';
 import type {
   Candidate,
   EncounterTask,
@@ -15,17 +20,7 @@ import type {
 export type Rng = () => number;
 
 /** Version of the selection math captured in every trace (R20 replay pin). */
-export const POLICY_TRACE_VERSION = 'teaching-policy@4';
-
-/** Deadline window (days) inside which goal weighting ramps up (R07 heuristic, bounded). */
-export const DEADLINE_WINDOW_DAYS = 42;
-
-/** Momentum weight by session intensity (R08): padding, selection-only. */
-export const MOMENTUM_WEIGHTS: Record<NonNullable<PolicyContext['intensity']>, number> = {
-  gentle: 0.35,
-  steady: 0.15,
-  intensive: 0,
-};
+export const POLICY_TRACE_VERSION = 'teaching-policy@9-sequence-completion';
 
 /** Bounded trace size: ranking rows kept per decision (R20 persistence bound). */
 export const POLICY_RANKING_CAP = 8;
@@ -39,7 +34,7 @@ export const POLICY_TRACE_DETAIL_CAP = 16;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface TeachingPolicyConfig {
-  /** Ranked choice keeps source ordering on ties; weighted remains the default. */
+  /** Stored callers may still supply weighted; live model selection is deterministic. */
   selection?: 'weighted' | 'ranked';
   weights: Partial<Record<ScoreDimension, number>>;
   deferFloor: number;
@@ -53,8 +48,10 @@ export interface TeachingPolicyConfig {
   minRepeatDistance: number;
   task: EncounterTask;
   scaffolds?: readonly ScaffoldRef[];
-  /** Learner goal/intensity context (R07/R08). Absent = legacy behavior, byte-identical. */
+  /** Outcome constraints, model snapshot and observed opportunities. */
   context?: PolicyContext;
+  /** Select within an activity the learner deliberately opened; deferral is advice, not admission control. */
+  preserveActivityChoice?: boolean;
   /**
    * Seed of the rng used for this selection (R20 replay). Recorded in the
    * trace so the stochastic draw can be replayed exactly; absent = the
@@ -63,81 +60,6 @@ export interface TeachingPolicyConfig {
    * from the trace either way.
    */
   seed?: number;
-}
-
-export interface EffectiveWeights {
-  weights: Partial<Record<ScoreDimension, number>>;
-  rules: PolicyWeightRule[];
-}
-
-/**
- * Pure derivation of context-driven weight adjustments (R07/R08).
- *
- * Every emitted rule states its exact arithmetic; absent context emits no
- * rules and returns the base weights unchanged. These are explainable
- * HEURISTICS over bounded constants — never calibrated probabilities.
- */
-export function effectiveWeights(
-  base: Partial<Record<ScoreDimension, number>>,
-  context: PolicyContext | undefined,
-  nowMs: number,
-): EffectiveWeights {
-  const weights = { ...base };
-  const rules: PolicyWeightRule[] = [];
-  if (!context) return { weights, rules };
-
-  const goal = context.goal;
-  if (goal && goal.deadlineMs !== undefined && Number.isFinite(goal.deadlineMs)) {
-    const daysLeft = (goal.deadlineMs - nowMs) / DAY_MS;
-    if (daysLeft >= 0 && daysLeft <= DEADLINE_WINDOW_DAYS) {
-      const proximity = 1 - daysLeft / DEADLINE_WINDOW_DAYS;
-      const consolidation = 1 + proximity;
-      // Deadline pressure shifts weight toward consolidation and repair of
-      // what is learnable now; exploration (novelty) yields half its weight
-      // at the deadline. Six-month horizons sit outside the window and get
-      // no weighting: more varied/spaced development stays available.
-      for (const dimension of ['retention-need', 'curriculum-relevance'] as const) {
-        rules.push({
-          rule: 'deadline-consolidation',
-          dimension,
-          multiplier: consolidation,
-          addend: 0,
-          why: `goal deadline in ${Math.round(daysLeft)} days: ${dimension} weight ×${consolidation.toFixed(2)}`,
-        });
-      }
-      const discount = 1 - 0.5 * proximity;
-      rules.push({
-        rule: 'deadline-novelty-discount',
-        dimension: 'novelty',
-        multiplier: discount,
-        addend: 0,
-        why: `goal deadline in ${Math.round(daysLeft)} days: novelty weight ×${discount.toFixed(2)}`,
-      });
-      // Apply each emitted rule exactly once — the loop IS the arithmetic,
-      // so the trace's rules always describe the real factors.
-      for (const { dimension, multiplier } of rules) {
-        weights[dimension] = (weights[dimension] ?? 0) * multiplier;
-      }
-    }
-  }
-
-  const intensity = context.intensity;
-  if (intensity !== undefined) {
-    // Momentum padding (R08): gentle sessions lean on recently consolidated
-    // material for sustainable participation; intensive sessions keep
-    // padding low. Adds to the momentum weight only — scores are untouched.
-    const addend = MOMENTUM_WEIGHTS[intensity];
-    weights.momentum = (weights.momentum ?? 0) + addend;
-    rules.push({
-      rule: 'intensity-momentum',
-      dimension: 'momentum',
-      multiplier: 1,
-      addend,
-      why: `${intensity} session: momentum weight +${addend.toFixed(2)} (padding, selection-only)`,
-    });
-  }
-
-  return { weights, rules };
 }
 
 interface ScoredCandidate {
@@ -152,17 +74,49 @@ interface ScoredCandidate {
 export function selectNext(
   candidates: readonly Candidate[],
   config: TeachingPolicyConfig,
-  rng: Rng = Math.random,
-  drawForCandidate?: (key: string) => number,
+  _rng: Rng = Math.random,
+  _drawForCandidate?: (key: string) => number,
 ): PolicyDecision | null {
   if (candidates.length === 0) return null;
 
-  if (config.context?.goals?.length) config = { ...config, weights: { ...config.weights, 'goal-relevance': 1 } };
-  const { weights: effective, rules } = effectiveWeights(config.weights, config.context, config.nowMs);
-  const scored = candidates.map((candidate) => ({
-    candidate,
-    total: totalScore(candidate, effective),
-  }));
+  const fallbackOpportunities = inferLearningOpportunities([], config.nowMs);
+  const learned = config.context?.learning;
+  const model = learned?.model ?? fitLearningModel([], config.nowMs, 'unfitted-no-history');
+  const horizonDays = learned?.horizonDays ?? (config.context?.goal?.deadlineMs !== undefined
+    ? Math.max(1, (config.context.goal.deadlineMs - config.nowMs) / DAY_MS) : 30);
+  const deferDays = learned?.deferDays ?? 3;
+  const actions: LearningAction[] = [];
+  const fallbackWeights: Record<string, number> = {};
+  const goalWords = new Set(config.context?.goals?.flatMap(goal => goal.scope?.words ?? []) ?? []);
+  for (const candidate of candidates) {
+    const targets = candidate.word ? candidate.targets.map(target => ({ ...target,
+      entityId: surfaceEntityId(candidate.language, hashWordSync(candidate.word!)) })) : candidate.targets;
+    const task = candidate.task ?? config.task;
+    const targetWeights = learned?.targetWeights ?? (goalWords.size ? Object.fromEntries(targets.map(target =>
+      [learningAddress(target), candidate.word && goalWords.has(candidate.word) ? 1 : 0])) : undefined);
+    if (targetWeights && !learned?.targetWeights) Object.assign(fallbackWeights, targetWeights);
+    const measured = task.responseModality === 'recall' ? targets.find(target => !task.supplied.includes(target.capability)) : undefined;
+    actions.push({
+      key: candidate.key, family: task.taskTemplateId, targets,
+      mode: requiresProbe(candidate) ? 'diagnostic' : 'practice',
+      ...(measured ? { measurement: { address: learningAddress(measured), provenance: 'Declared recall task with requested unsupplied access. Prospective self-reported recall, not independent assessment calibration.' } } : {}),
+    });
+  }
+  const evaluationContext = { nowMs: config.nowMs, horizonDays, deferDays,
+    targetWeights: learned?.targetWeights ?? (goalWords.size ? fallbackWeights : undefined), assessmentAt: learned?.assessmentAt };
+  const actionValues = evaluateLearningActions(model, actions, evaluationContext,
+    { availableSeconds: learned?.availableSeconds ?? fallbackOpportunities.availableSeconds, continuationValue: learned?.continuationValue ?? 0 });
+  const evaluations = new Map(actionValues.map(value => [value.key, value]));
+  // Heuristic source metadata stays available for provenance, but is not a learning-effect model.
+  const effective = {}; const rules: PolicyWeightRule[] = [];
+  const scored = candidates.map(candidate => { const value = evaluations.get(candidate.key)!;
+    return { candidate, total: value.expectedCapabilityDays + (value.information?.expectedDecisionBenefit ?? 0) }; });
+  const modelTrace: NonNullable<PolicyTrace['model']> = {
+    version: model.version, evidenceVersion: model.evidenceVersion, horizonDays, deferDays,
+    evaluations: [...evaluations.values()].slice(0, POLICY_TRACE_DETAIL_CAP),
+    evaluationsOmitted: Math.max(0, evaluations.size - POLICY_TRACE_DETAIL_CAP), sequence: [], alternative: 'continue-immersion',
+  };
+  config = { ...config, selection: 'ranked' };
   const best = scored.reduce((current, item) => item.total > current.total ? item : current);
 
   const defer = (
@@ -171,13 +125,13 @@ export function selectNext(
     exclusions: PolicyExclusion[] = [],
     exclusionsOmitted = 0,
   ) => decision(best, action, config, why, {
-    effective, rules, scored, exclusions, exclusionsOmitted, draws: [], drawsOmitted: 0,
+    effective, rules, scored, exclusions, exclusionsOmitted, draws: [], drawsOmitted: 0, model: modelTrace,
   });
 
   if (config.attentionBudgetRemaining <= 0) {
     return defer('DEFER', 'attention budget exhausted');
   }
-  if (best.total < config.deferFloor) {
+  if (best.total < config.deferFloor && !config.preserveActivityChoice) {
     return defer('DEFER', `best score ${best.total} below floor ${config.deferFloor}`);
   }
 
@@ -234,28 +188,35 @@ export function selectNext(
     if (reason) addExclusion({ key: candidate.key, reason });
   }
 
-  const { selected, draws, drawsOmitted } = config.selection === 'ranked'
-    ? { selected: eligible.reduce((current, item) => item.total > current.total ? item : current), draws: [], drawsOmitted: 0 }
-    : weightedPick(eligible, rng, drawForCandidate);
+  const delay = learningSequenceDelay(model, actions, evaluationContext);
+  const sequence = chooseLearningSequence(eligible.map(row => evaluations.get(row.candidate.key)!), {
+    availableSeconds: learned?.availableSeconds ?? fallbackOpportunities.availableSeconds,
+    continuationValue: learned?.continuationValue ?? 0, delayedValue: delay.delayedValue, delayedIdentity: delay.delayedIdentity,
+  });
+  if (!sequence.keys.length && !config.preserveActivityChoice) return defer('DEFER', 'No feasible additional action improves on continuing immersion under this model', exclusions, exclusionsOmitted);
+  const activityChoicePreserved = sequence.keys.length === 0;
+  const selected = activityChoicePreserved
+    ? eligible.reduce((current, item) => item.total > current.total ? item : current)
+    : eligible.find(row => row.candidate.key === sequence.keys[0])!;
+  modelTrace.sequence = activityChoicePreserved ? [selected.candidate.key] : sequence.keys;
+  modelTrace.sequenceValue = activityChoicePreserved ? undefined : sequence.value;
+  modelTrace.sequenceTiming = 'ordered-completion';
+  modelTrace.activityChoicePreserved = activityChoicePreserved;
+  const draws: RngDraw[] = []; const drawsOmitted = 0;
   const action: PolicyAction = selected.candidate.origin === 'retention'
     ? 'MAINTAIN'
     : requiresProbe(selected.candidate)
       ? 'PROBE'
       : 'TEACH';
-  // The why names the actual selection event: the stochastic pick and what
-  // the deterministic ranking alone would have chosen, so a weighted draw is
-  // explainable without post-hoc narrative.
-  const why = eligible.length === 1
-    ? `sole eligible candidate, score ${selected.total}`
-    : config.selection === 'ranked'
-      ? `highest relative score among ${eligible.length} eligible: "${selected.candidate.key}" at ${selected.total}; source order breaks ties`
-    : `weighted pick over ${eligible.length} eligible (seed ${config.seed ?? 'unseeded'}): "${selected.candidate.key}" won with score ${selected.total}; deterministic top was "${best.candidate.key}" at ${best.total}`;
+  // Explain the conditional action comparison recorded in this same trace.
+  const value = evaluations.get(selected.candidate.key)!;
+  const why = `${activityChoicePreserved ? 'Preserved learner-selected activity; chose its highest-valued eligible task despite the model preference to defer' : `Selected feasible sequence ${sequence.keys.join(' → ')}`}: expected marginal ${value.expectedCapabilityDays.toFixed(3)} capability-days over ${horizonDays.toFixed(1)} days against ${value.counterfactual}; ${value.effort.meanSeconds.toFixed(1)} seconds expected active effort. Expected future decision benefit ${(value.information?.expectedDecisionBenefit ?? 0).toFixed(3)} capability-days; belief revision is not learning. ${value.priorDriven ? 'Prior-driven estimate.' : 'Conditioned on bounded task-compatible observations.'}`;
   return decision(
     selected,
     action,
     config,
     why,
-    { effective, rules, scored, exclusions, exclusionsOmitted, draws, drawsOmitted },
+    { effective, rules, scored, exclusions, exclusionsOmitted, draws, drawsOmitted, model: modelTrace },
   );
 }
 
@@ -280,17 +241,6 @@ function probeBlockReason(candidate: Candidate, config: TeachingPolicyConfig): s
   return `probe cooldown (${Math.max(0, Math.round(remaining))}ms remaining)`;
 }
 
-export function totalScore(
-  candidate: Candidate,
-  weights: Partial<Record<ScoreDimension, number>>,
-): number {
-  let total = 0;
-  for (const [dimension, score] of Object.entries(candidate.scores)) {
-    if (score !== undefined) total += score * (weights[dimension as ScoreDimension] ?? 0);
-  }
-  return total;
-}
-
 /** Seeded 32-bit generator for repeatable policy tests and simulations. */
 export function createSeededRng(seed: number): Rng {
   let state = seed >>> 0;
@@ -304,43 +254,8 @@ export function createSeededRng(seed: number): Rng {
 /** One rng draw recorded in the trace (R20): raw draw and its weighted key. */
 export interface RngDraw { key: string; draw: number; weightedKey: number }
 
-function weightedPick(
-  candidates: readonly ScoredCandidate[],
-  rng: Rng,
-  drawForCandidate?: (key: string) => number,
-): { selected: ScoredCandidate; draws: RngDraw[]; drawsOmitted: number } {
-  const draw = (candidate: ScoredCandidate) => weightedKey(candidate.total,
-    drawForCandidate ? () => drawForCandidate(candidate.candidate.key) : rng);
-  const first = draw(candidates[0]);
-  let selected = candidates[0];
-  let selectedKey = first.weightedKey;
-  const draws: RngDraw[] = [{ key: selected.candidate.key, draw: first.draw, weightedKey: first.weightedKey }];
-  let drawsOmitted = 0;
-
-  for (let index = 1; index < candidates.length; index += 1) {
-    const { weightedKey: key, draw: rawDraw } = draw(candidates[index]);
-    if (draws.length < POLICY_TRACE_DETAIL_CAP) {
-      draws.push({ key: candidates[index].candidate.key, draw: rawDraw, weightedKey: key });
-    } else {
-      drawsOmitted += 1;
-    }
-    if (key < selectedKey) {
-      selected = candidates[index];
-      selectedKey = key;
-    }
-  }
-  return { selected, draws, drawsOmitted };
-}
-
-// Word Sync heritage: higher weights sort first by -random^(1/weight).
-// Returns the weighted key AND the raw draw so the trace can record both (R20).
-function weightedKey(score: number, rng: Rng): { weightedKey: number; draw: number } {
-  const weight = Math.max(Number.EPSILON, score);
-  const draw = rng();
-  return { weightedKey: -Math.pow(draw, 1 / weight), draw };
-}
-
 interface DecisionContext {
+  model?: PolicyTrace['model'];
   effective: Partial<Record<ScoreDimension, number>>;
   rules: PolicyWeightRule[];
   scored: readonly ScoredCandidate[];
@@ -350,12 +265,6 @@ interface DecisionContext {
   draws: RngDraw[];
   drawsOmitted: number;
 }
-
-const TRACE_LIMITS = [
-  'Scores are explainable heuristic weights, not calibrated recall probabilities.',
-  'Momentum is recent-consolidation padding: selection-only, never evidence and never a threshold.',
-  'Declared support is package-authorized relative credit, not measured effort or information gain.',
-] as const;
 
 const MEDIA_LIMIT =
   'media-relevance is recurrence of unmeasured tokens in the learner\'s selected media (coverage), not demonstrated comprehension.';
@@ -392,9 +301,9 @@ function buildTrace(
   const sorted = [...context.scored].sort((left, right) => right.total - left.total);
   const ranking = [chosen, ...sorted.filter((row) => row.candidate.key !== chosen.candidate.key)]
     .slice(0, Math.min(POLICY_RANKING_CAP, context.scored.length))
-    .map((row) => rankRow(row.candidate, context.effective, config.task));
+    .map((row) => ({ ...rankRow(row.candidate, context.effective, config.task), total: row.total, contributions: [] }));
 
-  const limits: string[] = [...TRACE_LIMITS];
+  const limits: string[] = context.model ? ['Capability-days are model-conditional action predictions, not causal effect estimates or official pass probabilities.', 'Action effects and opportunity headroom remain prior-driven where delayed data is sparse.', 'Exact replay requires the recorded model/evidence snapshot; bounded traces alone do not reconstruct learner history.'] : ['No model snapshot recorded.'];
   if (context.scored.some(({ candidate }) => candidate.origin === 'media')) limits.push(MEDIA_LIMIT);
 
   const consultedRecentPicks = config.minRepeatDistance > 0
@@ -403,6 +312,7 @@ function buildTrace(
 
   return {
     version: POLICY_TRACE_VERSION,
+    ...(context.model ? { model: context.model } : {}),
     inputs: {
       ...(config.selection ? { selection: config.selection } : {}),
       nowMs: config.nowMs,
@@ -440,7 +350,7 @@ function buildTrace(
       intensity: config.context?.intensity ?? null,
     },
     weights: {
-      base: config.weights,
+      base: {},
       effective: context.effective,
       rules: context.rules,
     },
@@ -476,85 +386,8 @@ function decision(
   };
 }
 
-/**
- * R20 replay: rebuild the selection from an EMITTED TRACE plus the same
- * candidate pool — not from caller-retained inputs. The reconstructed config
- * comes from the trace's recorded inputs (weights.base, budgets, cooldown
- * snapshot, recent-pick identities, goal incl. target, intensity); the rng is
- * the trace's RECORDED DRAW SEQUENCE — replay never assumes a particular rng
- * algorithm, only that the candidate pool is presented in the same order the
- * trace drew it (the draw record is emitted in eligibility order; a reordered
- * pool diverges and is detectable by comparing the replayed trace). The
- * seed only labels the entropy origin (null = caller-supplied unseeded rng):
- * replay serves the recorded draws either way, so an unseeded trace replays
- * exactly as long as its full draw record is present. `task` is
- * optional: the task template only labels the fallback encounter and never
- * enters the selection math.
- */
-export function replayFromTrace(
-  trace: PolicyTrace,
-  candidates: readonly Candidate[],
-  task?: EncounterTask,
-): PolicyDecision | null {
-  // Replay pins the emitted trace's version (R20): the selection math is
-  // versioned precisely so a trace recorded under an older or unknown
-  // algorithm cannot be re-executed by the current one and presented as an
-  // exact replay. `null` = this trace is not replayable here.
-  if (trace.version !== POLICY_TRACE_VERSION) return null;
-  // Truncated pool-relevant cooldown history cannot be reconstructed from the
-  // trace: an exact replay is impossible, and pretending otherwise would
-  // fabricate a result (R20).
-  if (trace.inputs.cooldownsOmitted > 0) return null;
-  if (trace.inputs.recentPicksOmitted > 0) return null;
-  if (trace.inputs.rng.drawsOmitted > 0) return null;
-  // Integrity: a weighted pick draws once per eligible candidate, so a
-  // successful pick must carry its draw record; a DEFER never drew. A pick
-  // trace with no draws is corrupt and cannot be replayed.
-  if (trace.inputs.selection !== 'ranked' && trace.action !== null && trace.action !== 'DEFER' && trace.inputs.rng.draws.length === 0) return null;
-  if (trace.inputs.selection === 'ranked' && trace.inputs.rng.draws.length !== 0) return null;
-  const goal = trace.inputs.goal;
-  const intensity = trace.inputs.intensity;
-  const context: PolicyContext | undefined = goal || intensity
-    ? {
-        ...(intensity ? { intensity } : {}),
-        ...(goal ? { goal } : {}),
-      }
-    : undefined;
-  return selectNext(candidates, {
-    ...(trace.inputs.selection ? { selection: trace.inputs.selection } : {}),
-    weights: { ...trace.weights.base },
-    deferFloor: trace.inputs.deferFloor,
-    attentionBudgetRemaining: trace.inputs.attentionBudgetRemaining,
-    probeBudgetRemaining: trace.inputs.probeBudgetRemaining,
-    probeCooldownMs: trace.inputs.probeCooldownMs,
-    nowMs: trace.inputs.nowMs,
-    cooldowns: new Map(trace.inputs.cooldowns.map((entry) => [entry.key, entry.lastProbeAtMs])),
-    recentPicks: trace.inputs.recentPicks,
-    minRepeatDistance: trace.inputs.minRepeatDistance,
-    task: task ?? trace.inputs.taskSnapshot ?? {
-      taskTemplateId: trace.inputs.task,
-      inputModality: 'replay',
-      responseModality: 'none',
-      supplied: [],
-      requested: [],
-      fluencyRequired: false,
-      ratingMode: 'profile',
-    },
-    context,
-    // Restore the entropy-origin label so the replayed trace's `why` (and
-    // therefore the whole trace) matches the emitted one; an unseeded trace
-    // replays unseeded.
-    ...(trace.inputs.rng.seed !== null ? { seed: trace.inputs.rng.seed } : {}),
-  }, replayRngFromDraws(trace.inputs.rng.draws));
-}
-
-/** Serves the trace's recorded draws in emission order (R20 exact replay). */
-function replayRngFromDraws(draws: PolicyTrace['inputs']['rng']['draws']): Rng {
-  let index = 0;
-  return () => {
-    if (index >= draws.length) {
-      throw new Error('replay exhausted the trace draw record: the pool differs from the traced one');
-    }
-    return draws[index++]!.draw;
-  };
+/** Exact reconstruction needs the immutable model/evidence snapshot as well as candidates.
+ * A bounded inspection trace cannot silently substitute an unfitted model. */
+export function replayFromTrace(_trace: PolicyTrace, _candidates: readonly Candidate[], _task?: EncounterTask): PolicyDecision | null {
+  return null;
 }

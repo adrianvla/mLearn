@@ -27,6 +27,16 @@ describe('wordSyncPoolStatus', () => {
 
 
 describe('projected residual probes', () => {
+  it('admits the same declared task accesses for deliberate maintenance while ordinary discovery stays residual', async () => {
+    const { wordSyncProbe } = await import('./wordSyncPool');
+    const projection = { status: 'ready' as const, surfaceId: 'future:surface:a', targets: [{
+      targetRef: { kind: 'surface' as const, id: 'future:surface:a' }, applicableCapabilities: ['future::access'],
+      states: [{ capability: 'future::access', classification: 'known' as const, basis: 'evidence' as const,
+        evidence: [], evidenceSourceCounts: { manual: 1 } }] }] };
+    expect(wordSyncProbe(projection, ['future::access'], projection.surfaceId).targets).toEqual([]);
+    expect(wordSyncProbe(projection, ['future::access'], projection.surfaceId, 'reinforce').targets)
+      .toEqual([{ entityId: projection.surfaceId, capability: 'future::access' }]);
+  });
   it('pins a plain word prompt to surface familiarity rather than an exact homograph sense', async () => {
     const { wordSyncProbe } = await import('./wordSyncPool');
     const projection = { status: 'ready' as const, surfaceId: 'future:surface:canonical', targets: [

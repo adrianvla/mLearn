@@ -1,6 +1,7 @@
 {
   "mlearn": {
     "Goals": {
+      "ScopeWorkloadRisk": "Bei deinem bisherigen Tempo könnte am {date} noch Material in diesem Lernbereich ungeprüft sein. Das sagt kein Prüfungsergebnis voraus.",
       "Purpose": "Dein Ziel",
       "Explore": "Die Sprache entdecken",
       "Time": "Verfügbare Zeit",
@@ -27,7 +28,10 @@
         "package": "Sprachpaket-Abdeckung",
         "community": "Community-Abdeckung",
         "authoritative": "Offizielle Anforderungen"
-      }
+      },
+      "Choose": "Lernziel oder Lehrplan wählen",
+      "Remove": "Entfernen",
+      "Unavailable": "Für diesen Lehrplan muss das Sprachpaket verfügbar sein."
     },
     "LibraryRecovery": {
       "OpenProtection": "Einstellungen zum Datenschutz und zur Wiederherstellung",
@@ -1319,6 +1323,8 @@
         "RefreshRecordings": "Aufnahmen prüfen",
         "FocusedPrompt": "Erinnere dich anhand von Wort und Lesung an {target}. Zeige die Antwort und bewerte nur diese Erinnerung.",
         "AudioPrompt": "Höre zu und erkenne das Wort oder seine Bedeutung. Zeige die Antwort und bewerte nur die Erkennung des gesprochenen Wortes.",
+        "StartNew": "Neue Wiederholung beginnen",
+        "StartNewFailed": "Diese Wiederholung konnte nicht verlassen werden. Versuche es erneut.",
         "NoEligibleActivity": "Keine passende Übung. Aktiviere die Wortübung oder Audio, oder ergänze die benötigten Antworten und Aufnahmen.",
         "AudioUnavailable": "Die Aufnahme konnte nicht abgespielt werden. Versuche es erneut oder aktiviere eine andere Übung.",
         "PlayPrompt": "Aufnahme abspielen",
@@ -1640,10 +1646,10 @@
         "Practice": "Üben",
         "Next": "Als Nächstes empfohlen",
         "ReviewTitle": "Gelerntes behalten",
-        "ReviewReason": "{count} Karten stehen zur Wiederholung an. Rufe sie ab, bevor du Neues hinzufügst.",
+        "ReviewReason": "Übe eine kurze Auswahl und mache weiter, wenn du möchtest.",
         "ReviewAction": "Wiederholung starten",
         "PracticeTitle": "Abruf festigen",
-        "PracticeReason": "Dein Lernverlauf enthält {count} noch unsichere Wörter. Übe den Abruf mit deinem Lernplan.",
+        "PracticeReason": "Übe eine kurze Auswahl aus deinem Lernbereich.",
         "PracticeAction": "Abruf üben",
         "AssessmentTitle": "Lernstand ergänzen",
         "AssessmentReason": "{count} Wörter deines Zielbereichs wurden noch nicht geprüft. Ein kurzer Abrufcheck hilft dem Lernplan, passende Übungen zu wählen.",
@@ -1661,7 +1667,7 @@
         "ThisWeek": "Diese Woche",
         "WeekSummary": "{reviews} Wiederholungen · {newCards} neue Karten",
         "DiscoverTitle": "Entdecke deine nächsten Wörter",
-        "DiscoverReason": "Beginne mit {count} Wörtern aus deinem Lernplan."
+        "DiscoverReason": "Lerne eine kurze Auswahl aus deinem Lernstoff kennen."
       }
     },
     "Installer": {

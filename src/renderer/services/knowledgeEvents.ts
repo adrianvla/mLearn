@@ -114,3 +114,9 @@ export async function appendEvents(eventsByKey: KnowledgeEventLog): Promise<void
 export function getVersion(): number {
   return eventsVersion();
 }
+
+/** Bounded canonical predictive read; initializes revision notifications like every evidence consumer. */
+export async function queryLearningEvidence(language: string) {
+  ensureInitialized();
+  return getBridge().knowledgeEvents.getLearningEvidence(language);
+}

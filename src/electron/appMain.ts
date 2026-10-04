@@ -63,6 +63,7 @@ import { initializeKikanRuntime, recordOperationalEvent, refreshKikanRuntime } f
 import { startupMark, startupTime, startupTimingEnabled } from './startupTiming';
 import { closeSplashWindow, completeStartup, getSplashWindow, reportStartupPhase } from './splashWindow';
 import { waitForMainWindowStartup } from './services/startupHandoff';
+import { resumeQuitAfterCheckpoint } from './services/shutdownCheckpoint';
 
 const log = getLogger('electron.main');
 let appWindowCreationPromise: Promise<void> | null = null;
@@ -660,9 +661,9 @@ app.on('will-quit', (event) => {
   event.preventDefault();
   if (shutdownCheckpointStarted) return;
   shutdownCheckpointStarted = true;
-  void guardianForShutdown.checkpoint().catch((error) => {
+  resumeQuitAfterCheckpoint(guardianForShutdown.checkpoint(), (error) => {
     log.error('Guardian could not checkpoint shutdown state; earlier recovery points remain available', error);
-  }).finally(() => {
+  }, () => {
     shutdownCheckpointFinished = true;
     app.quit();
   });

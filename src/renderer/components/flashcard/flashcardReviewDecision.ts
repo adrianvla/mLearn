@@ -30,7 +30,8 @@ export function flashcardReviewPolicyEntry(card: Flashcard, language: string, la
 export function selectFlashcardReviewDecision(input: { id: string; at: number;
   entries: readonly FlashcardLike[]; context?: PolicyContext; rng?: () => number }) {
   const { selected, baseline } = selectCounterfactualEncounter({ preset: 'RETENTION', nowMs: input.at,
-    reviewQueueEntries: input.entries, context: input.context, rng: input.rng });
+    reviewQueueEntries: input.entries, context: input.context, rng: input.rng,
+    config: { preserveActivityChoice: true } });
   if (!selected || selected.action === 'DEFER') return null;
   const snapshot = (choice: PolicyDecision): LearningChoiceSnapshot => ({ key: choice.candidate.key, action: choice.action,
     presentation: input.entries.find(entry => entry.id === choice.candidate.key)?.presentation
@@ -41,8 +42,8 @@ export function selectFlashcardReviewDecision(input: { id: string; at: number;
     selected: snapshot(selected), baseline: baseline && baseline.action !== 'DEFER' ? snapshot(baseline) : null,
     detail: { scope: 'scheduler-admitted-workload', candidateCount: input.entries.length,
       trace: selected.trace, baselineTrace: baseline?.trace, brief: selected.encounter.why,
-      limits: ['Selection preferences are not measured learning gain.',
-        'Bounded traces may omit competitors; both choices were computed from the full workload.'] } };
+      limits: ['Action values are model-conditional predictions, not demonstrated causal learning gain.',
+        'Bounded traces may omit competitors; the source supplies a bounded admitted workload and records the count.'] } };
   return JSON.parse(JSON.stringify({ decision: selected, provenance })) as { decision: PolicyDecision; provenance: LearningDecision };
 }
 
@@ -55,4 +56,21 @@ export function restoreFlashcardReviewDecision(presentation: ReviewPresentation,
     || decision.selected.presentation?.contentVersion !== hashWordSync(JSON.stringify(card.content))
     || JSON.stringify(decision.selected.task) !== JSON.stringify(entry.task)) return null;
   return { provenance: JSON.parse(JSON.stringify(decision)) as LearningDecision };
+}
+
+/** Bind the offered retrieval conditions without interpreting package-owned accesses. */
+export function reviewHandoffActivity(value: unknown, requestId: unknown, card: Flashcard, language: string,
+  data: LanguageData | null | undefined, activities: readonly ReviewActivity[]): ReviewActivity | null {
+  if (!isLearningDecision(value) || value.id !== requestId || value.selected.action !== 'review'
+    || value.selected.task.inputModality !== 'activity-handoff' || value.selected.task.responseModality !== 'none') return null;
+  const cue = value.selected.presentation;
+  if (!cue || cue.cardId !== card.id || cue.language !== language || cue.surface !== card.content.front
+    || cue.contentVersion !== hashWordSync(JSON.stringify(card.content))) return null;
+  const activity = activities.find(item => item.id === cue.reviewActivityId);
+  if (!activity) return null;
+  const entry = flashcardReviewPolicyEntry(card, language, data, activity);
+  const targets = entry.targets.map(target => ({ kind: 'surface', id: target.entityId, capability: target.capability }));
+  return value.selected.task.taskTemplateId === entry.task!.taskTemplateId
+    && JSON.stringify(cue.retrievalTask) === JSON.stringify(entry.task)
+    && JSON.stringify(value.selected.targets) === JSON.stringify(targets) ? activity : null;
 }

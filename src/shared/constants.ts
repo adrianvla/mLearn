@@ -114,6 +114,7 @@ export const IPC_CHANNELS = {
   LEARNING_DECISION_RECORD: 'learning-decision-record',
   LEARNING_DECISION_GET: 'learning-decision-get',
   RATING_UNDO_HISTORY: 'rating-undo-history',
+  LEARNING_EVIDENCE_QUERY: 'learning-evidence-query',
   KNOWLEDGE_EVENTS_QUERY: 'knowledge-events-query',
   KNOWLEDGE_EVENTS_PAGE: 'knowledge-events-page',
   KNOWLEDGE_GRAMMAR_PROJECTIONS_QUERY: 'knowledge-grammar-projections-query',

@@ -1,4 +1,4 @@
-import type { ReviewPresentationWrite } from '../shared/reviewPresentationWrite';
+import type { ReviewPositionWrite } from '../shared/reviewPresentationWrite';
 import type { FlashcardAudioPreset } from '../shared/types';
 import type { EffectiveThresholds } from '../shared/knowledge/effectiveKnowledge';
 /**
@@ -113,7 +113,7 @@ const mLearnIPC = {
 
   // ========== Flashcards ==========
   commitFlashcardRating: (command: FlashcardRatingCommand): Promise<FlashcardRatingCommit> => ipcRenderer.invoke(IPC_CHANNELS.COMMIT_FLASHCARD_RATING, command),
-  saveReviewPresentation: (command: ReviewPresentationWrite): Promise<FlashcardRatingCommit | null> =>
+  saveReviewPresentation: (command: ReviewPositionWrite): Promise<FlashcardRatingCommit | null> =>
     ipcRenderer.invoke(IPC_CHANNELS.SAVE_REVIEW_PRESENTATION, command),
   enqueueFlashcardRating: (command: FlashcardRatingCommand): Promise<number> =>
     ipcRenderer.invoke(IPC_CHANNELS.ENQUEUE_FLASHCARD_RATING, command),
@@ -137,6 +137,7 @@ const mLearnIPC = {
     ipcOn(IPC_CHANNELS.REVIEW_FLASHCARDS_REQUEST, () => callback()),
 
   // ========== Knowledge Events ==========
+  getLearningEvidence: (language: string) => ipcRenderer.invoke(IPC_CHANNELS.LEARNING_EVIDENCE_QUERY, language),
   recordLearningDecision: (decision: LearningDecision): Promise<void> => ipcRenderer.invoke(IPC_CHANNELS.LEARNING_DECISION_RECORD, decision),
   getLearningDecisionRecord: (id: string): Promise<LearningDecisionRecord | null> => ipcRenderer.invoke(IPC_CHANNELS.LEARNING_DECISION_GET, id),
   getRatingUndoHistory: (surface: string): Promise<import('../shared/retractionRecovery').PendingRetraction[]> => ipcRenderer.invoke(IPC_CHANNELS.RATING_UNDO_HISTORY, surface),

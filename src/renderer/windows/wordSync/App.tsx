@@ -1,3 +1,6 @@
+import { inferLearningOpportunities, manageableEncounterCount } from '../../../shared/learningOpportunities';
+import { evaluateLearningAction } from '../../../shared/learningModel';
+import { useLearningModel } from '../../hooks/useLearningModel';
 import { isStudyExcluded } from '../../../shared/studyExclusion';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { pushUndo } from '../../learning/undoHistory';
@@ -164,8 +167,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const assessmentMode = () => props.mode === 'assessment';
   const suppliedWords = createMemo(() => props.words ? [...new Set(props.words.map(word => word.trim()).filter(Boolean))] : undefined);
-  const studyStorageKey = () => `mlearn-study-word-sync${suppliedWords() ? `-material-${hashWordSync(suppliedWords()!.join('\u0000'))}` : props.intent === 'reinforce' ? '-reinforce' : ''}:${settings.language}`;
+  const studyStorageKey = () => `mlearn-study-word-sync${suppliedWords() ? `-material-${hashWordSync(suppliedWords()!.join('\u0000'))}` : ''}${props.intent === 'reinforce' ? '-reinforce' : ''}:${settings.language}`;
   const langCtx = useLanguage();
+  const learning = useLearningModel(() => settings.language);
+  const livePolicyContext = () => policyContextFromSettings(settings, settings.language, learning.model() ? { model: learning.model()!, events: learning.snapshot()!.events, data: langCtx.currentLangData() } : undefined);
   const {
     store,
     isLoading,
@@ -414,8 +419,9 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   });
   const poolProjection = useKnowledgeProjections(() => isKnowledgeReady() && filterPresetInitialized() && poolPrepared() && !sessionQueue() && journalKeysHealthy()
     ? { language: settings.language, surfaces: projectionSurfaces(), evidenceKeys: [...evidenceKeys()] } : undefined);
-  const projectionUnavailable = () => translation.state === 'errored' || journalKeysResource.state === 'errored' || eligibleWords.state === 'errored' || poolProjection.failed() || decisionProjections.failed() || decisionTranslations.state === 'errored' || currentProjection.projection()?.status === 'error' || currentProjection.projection()?.status === 'not-installed';
+  const projectionUnavailable = () => learning.failed() || translation.state === 'errored' || journalKeysResource.state === 'errored' || eligibleWords.state === 'errored' || poolProjection.failed() || decisionProjections.failed() || decisionTranslations.state === 'errored' || currentProjection.projection()?.status === 'error' || currentProjection.projection()?.status === 'not-installed';
   const retryKnowledgeProjections = () => {
+    learning.retry();
     if (decisionWindow().length > 0) decisionProjections.retry();
     if (decisionTranslations.state === 'errored') void Promise.resolve(refetchDecisionTranslations()).catch(() => {});
     if (translation.state === 'errored') void Promise.resolve(refetchTranslation()).catch(() => {});
@@ -498,7 +504,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         const reading = reference?.data?.[0]?.reading || entry.reading;
         const prosody = extractProsodyFromTranslationData(reference ?? undefined, input.data, reading);
         const possible = getTestedAccesses({ languageData: input.data, surface: entry.word, hasReadingData: !!reading, hasProsodyData: !!prosody });
-        const probe = wordSyncProbe(projection, possible, surfaceEntityId(input.language, hashWordSync(entry.word)));
+        const probe = wordSyncProbe(projection, possible, surfaceEntityId(input.language, hashWordSync(entry.word)), props.intent);
         if (probe.targets.length && (!input.filter || evaluateAst<unknown>(input.filter, { status: probe.status, level: entry.level }, filterResolvers()))) eligible.add(entry.word);
         else noPrompt++;
       }
@@ -581,7 +587,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     dictionaryTargetLanguage, languageData: input.data,
   })] as const))));
   let selectionInFlight: { controller: WordController; record: WordSession } | undefined;
-  createEffect(on(() => [decisionProjections.ready(), decisionTranslations.state] as const, () => untrack(pickNext)));
+  createEffect(on(() => [decisionProjections.ready(), decisionTranslations.state, learning.ready()] as const, () => untrack(pickNext)));
 
   // Reservoir-style weighted sampling: sortKey = -weight * random^(1/weight).
   // Higher-weight items land near the front proportionally more often
@@ -603,7 +609,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       setFinished(false);
       setRatedCount(record.rated);
       if (selectionInFlight?.record === record || sessionWriteFailure() === 'select'
-        || !decisionProjections.ready() || decisionTranslations.state !== 'ready') return;
+        || !learning.ready() || !decisionProjections.ready() || decisionTranslations.state !== 'ready') return;
       const dictionary = decisionTranslations();
       const ast = filterAst();
       const items = decisionWindow().flatMap(({ index, entry }) => {
@@ -614,7 +620,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         const possible = getTestedAccesses({ languageData: langCtx.currentLangData(), surface: entry.word, hasReadingData: !!reading, hasProsodyData: !!prosody });
         const projection = decisionProjections.projections().get(entry.word);
         const surfaceId = surfaceEntityId(settings.language, hashWordSync(entry.word));
-        const admitted = wordSyncProbe(projection, possible, surfaceId);
+        const admitted = wordSyncProbe(projection, possible, surfaceId, props.intent);
         if (ast.ok && ast.ast && !evaluateAst<unknown>(ast.ast, { status: admitted.status, level: entry.level }, filterResolvers())) return [];
         const scaffolds: AttemptScaffolds = {};
         if (!additionalInfoInAnswer()) {
@@ -624,7 +630,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         }
         return [{ index, key: surfaceId, word: entry.word, language: settings.language, surfaceId, possible, projection, scaffolds }];
       });
-      const choice = selectWordSyncDecision({ id: nextAttemptId(), at: Date.now(), items, context: policyContextFromSettings(settings, settings.language) });
+      const choice = selectWordSyncDecision({ id: nextAttemptId(), at: Date.now(), items, intent: props.intent, context: livePolicyContext() });
       const owner = { controller, record };
       selectionInFlight = owner;
       const write = choice ? controller.selectQuestion(record, choice.index, { ...record.meta, suppliedScaffolds: choice.scaffolds, encounter: { decision: choice.decision, focused: choice.focused } }) : controller.skip(record);
@@ -791,7 +797,11 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           previousLastRating: before.meta.lastRating,
           previousSamplingLevel: before.meta.samplingLevel,
           previousLevelCursors: new Map(levelCursors),
-          previousSession: { ...before, pending: undefined, revealed: false },
+          previousSession: { ...before, pending: undefined, revealed: false,
+            meta: { ...before.meta, suppliedScaffolds: { ...before.meta.suppliedScaffolds,
+              ...providedAccessScaffolds(before.meta.encounter?.decision.selected.task.requested
+                ?? pending.payload.observations.map(observation => observation.capability)),
+              'prior-cue-exposure': true } } },
         }));
       },
     });
@@ -800,11 +810,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const currentDecisionReason = createMemo(() => {
     const decision = sessionController()?.current()?.meta.encounter?.decision;
     if (!decision) return undefined;
-    return decision.baseline?.key !== decision.selected.key
-      ? Array.isArray(decision.detail.sourceLabels) && decision.detail.sourceLabels.length > 0
-        ? t('mlearn.WordSync.GraphChoiceSourceReason', { source: decision.detail.sourceLabels.join(', '), word: String(decision.detail.baselineWord ?? '') })
-        : t('mlearn.WordSync.GraphChoiceReason', { word: String(decision.detail.baselineWord ?? '') })
-      : t(suppliedWords() ? 'mlearn.WordSync.MaterialPoolChoiceReason' : 'mlearn.WordSync.PoolChoiceReason', { count: String(decision.detail.candidateCount) });
+    return t(suppliedWords() ? 'mlearn.WordSync.MaterialPoolChoiceReason' : 'mlearn.WordSync.PoolChoiceReason', { count: String(decision.detail.candidateCount) });
   });
 
   // One logical attempt and one reactive update: row writes must not repeatedly
@@ -876,7 +882,13 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     void commitProfileRating({
       word: w,
       language: settings.language,
-      observations: measured.map((observation) => ({ ...observation })),
+      observations: measured.map((observation) => ({ ...observation,
+        // A newly admitted cue/reveal retrieval task records the method the
+        // learner was asked to use. Old frozen self-assessments and placement
+        // keep their original meaning; explicit inference remains inference.
+        ...(!assessmentMode() && sessionController()?.current()?.meta.encounter?.decision.selected.task.responseModality === 'recall'
+          && !observation.method ? { method: 'recall' as const } : {}),
+      })),
       timing: stopWordTiming(),
       scaffolds,
     });
@@ -1415,11 +1427,14 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     }
 
     const admitted = [...result.pool.values()].flat().filter(entry => result.eligible.has(entry.word));
-    const chosen = props.encounterLimit === undefined ? new Set(admitted.map(entry => entry.word))
-      : new Set(selectRankedEncounters({ preset: 'CURRICULUM', nowMs: Date.now(),
-          context: policyContextFromSettings(settings, settings.language), config: { selection: 'ranked' },
-          levelStudyItems: admitted.map(entry => ({ key: entry.storageKey, word: entry.word, language: settings.language })),
-        }, Math.max(1, Math.min(120, Math.floor(props.encounterLimit)))).map(decision => decision.candidate.word));
+    const model = learning.model()!;
+    const inferredLimit = manageableEncounterCount(inferLearningOpportunities(learning.snapshot()!.events, model.at),
+      evaluateLearningAction(model, { key: 'chunk', family: 'word-sync', mode: 'practice', targets: [] },
+        { nowMs: model.at, horizonDays: 30, deferDays: 3 }).effort.meanSeconds);
+    const chosen = new Set(selectRankedEncounters({ preset: 'CURRICULUM', nowMs: Date.now(),
+          context: livePolicyContext(), config: { selection: 'ranked' },
+          levelStudyItems: admitted.map(entry => ({ key: `${entry.storageKey}:${hashWordSync(entry.word)}`, word: entry.word, language: settings.language })),
+        }, Math.max(1, Math.min(120, Math.floor(props.encounterLimit ?? inferredLimit)))).map(decision => decision.candidate.word));
     const queue = new Map([...result.pool].map(([level, group]) => [level, group.filter(entry => chosen.has(entry.word))]));
     const entries: WordQueueEntry[] = [...queue.values()].flat().map((entry) => ({ id: entry.word }));
     const identity = JSON.stringify({
@@ -1531,7 +1546,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       return;
     }
     trace('projection update', { word: w.word });
-    const admitted = wordSyncProbe(projection, possible, surfaceEntityId(settings.language, hashWordSync(w.word)));
+    const admitted = wordSyncProbe(projection, possible, surfaceEntityId(settings.language, hashWordSync(w.word)), props.intent);
     const targets = admitted.targets;
     const ast = filterAst();
     const record = { status: admitted.status, level: w.level };
@@ -1611,7 +1626,8 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     displayedPromptScaffolds(),
   ));
   const referenceSupplied = createMemo(() => testedAccesses().length > 0
-    && testedAccesses().every(capability => promptScaffolds()[`provided-access:${capability}`] === true));
+    && (promptScaffolds()['prior-cue-exposure'] === true
+      || testedAccesses().every(capability => promptScaffolds()[`provided-access:${capability}`] === true)));
   let scaffoldWrite: { controller: WordController; promise: Promise<boolean> } | undefined;
   async function savePromptAssistance(expected?: { controller: WordController; id: string; index: number; presentation: number }): Promise<WordSession | null> {
     const controller = sessionController();

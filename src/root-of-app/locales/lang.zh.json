@@ -1,6 +1,7 @@
 {
   "mlearn": {
     "Goals": {
+      "ScopeWorkloadRisk": "按你最近的学习节奏，到 {date} 时可能仍有部分范围内的内容尚未评估。这并不是考试结果的预测。",
       "Purpose": "你的目标",
       "Explore": "探索语言",
       "Time": "可用时间",
@@ -27,7 +28,10 @@
         "package": "语言包覆盖",
         "community": "社区覆盖",
         "authoritative": "官方要求"
-      }
+      },
+      "Choose": "选择学习目标或课程",
+      "Remove": "移除",
+      "Unavailable": "此课程需要可用的语言包。"
     },
     "LibraryRecovery": {
       "OpenProtection": "数据保护与恢复设置",
@@ -1319,6 +1323,8 @@
         "RefreshRecordings": "刷新录音",
         "FocusedPrompt": "根据书写形式和读音，回忆{target}。显示答案后，只评价这项回忆。",
         "AudioPrompt": "听音频并识别单词或含义。显示答案后，只评价对语音单词的识别。",
+        "StartNew": "开始新的复习",
+        "StartNewFailed": "无法结束此次复习。请重试。",
         "NoEligibleActivity": "没有可用的练习。请启用单词复习、取消静音，或添加所需的答案和录音。",
         "AudioUnavailable": "无法播放录音。请重试或启用其他练习。",
         "PlayPrompt": "播放录音",
@@ -1640,10 +1646,10 @@
         "Practice": "练习",
         "Next": "推荐下一步",
         "ReviewTitle": "记住已学内容",
-        "ReviewReason": "复习队列中有{count}张到期卡片。先回忆它们，再学习新内容。",
+        "ReviewReason": "练习一小组内容，想继续时再继续。",
         "ReviewAction": "开始复习",
         "PracticeTitle": "巩固回忆",
-        "PracticeReason": "学习记录中有{count}个尚未掌握的词。根据学习计划练习回忆。",
+        "PracticeReason": "练习学习范围中的一小部分。",
         "PracticeAction": "练习回忆",
         "AssessmentTitle": "补充学习记录",
         "AssessmentReason": "目标范围中有{count}个词尚未评估。简短的回忆检查有助于计划选择合适的练习。",
@@ -1661,7 +1667,7 @@
         "ThisWeek": "本周",
         "WeekSummary": "复习{reviews}次 · 新卡片{newCards}张",
         "DiscoverTitle": "发现接下来要学的词",
-        "DiscoverReason": "从课程中的{count}个词开始。"
+        "DiscoverReason": "学习课程中的一小部分内容。"
       }
     },
     "Installer": {

@@ -16,10 +16,11 @@ describe('goals drive shared preparation', () => {
     expect(decision?.trace?.inputs.candidateCount).toBe(2);
     expect(decision?.candidate.meta?.goalIds).toEqual(['book', 'class']);
   });
-  it('changes preparation when a relevant deadline moves closer without duplicating overlap', () => {
+  it('records a relevant deadline without fabricating a preference multiplier for overlapping scope', () => {
     const other = { ...goal, id: 'other', scope: { provenance: 'user' as const, words: ['other'] } };
     expect(pick([other, goal])?.candidate.word).toBe('other');
-    expect(pick([other, { ...goal, deadline: '1970-01-02' }])?.candidate.word).toBe('chosen');
+    expect(pick([other, { ...goal, deadline: '1970-01-02' }])?.candidate.word).toBe('other');
+    expect(pick([other, { ...goal, deadline: '1970-01-02' }])?.trace?.model?.horizonDays).toBeGreaterThan(0);
   });
   it('does not weight paused goals or another language and keeps deadlines optional', () => {
     expect(policyContextFromSettings({ ...DEFAULT_SETTINGS, learningGoals: [{ ...goal, status: 'paused' }] }, 'future').goals).toEqual([]);

@@ -1,3 +1,4 @@
+import { fitLearningModel } from '../../../shared/learningModel';
 // @vitest-environment happy-dom
 
 /**
@@ -167,7 +168,8 @@ vi.mock('../../components/common', async () => {
 });
 
 vi.mock('../../components/common/Feedback/Toast', () => ({ showToast: vi.fn(), updateToast: vi.fn(), removeToast: vi.fn() }));
-vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ flashcards: {} }) }));
+vi.mock('../../hooks/useLearningModel', () => ({ useLearningModel: () => ({ model: () => fitLearningModel([], Date.now()), snapshot: () => ({ events: [] }), ready: () => true, failed: () => false, retry: vi.fn() }) }));
+vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ flashcards: {}, window: { onWindowContext: () => () => {}, getWindowContext: vi.fn() } }) }));
 vi.mock('../../../shared/backends', () => ({ resolveCloudApiUrl: () => '' }));
 vi.mock('../../../shared/platform', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../shared/platform')>()),

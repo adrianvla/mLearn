@@ -1,6 +1,7 @@
 {
   "mlearn": {
     "Goals": {
+      "ScopeWorkloadRisk": "最近の学習ペースでは、{date}までにこの範囲の一部を確認しきれない可能性があります。試験結果の予測ではありません。",
       "Purpose": "目標",
       "Explore": "言語を探索する",
       "Time": "使える時間",
@@ -27,7 +28,10 @@
         "package": "言語パッケージの範囲",
         "community": "コミュニティの範囲",
         "authoritative": "公式の要件"
-      }
+      },
+      "Choose": "目標や学習範囲を選択",
+      "Remove": "削除",
+      "Unavailable": "この学習範囲には言語パッケージが必要です。"
     },
     "LibraryRecovery": {
       "OpenProtection": "データ保護と復元の設定",
@@ -1319,6 +1323,8 @@
         "RefreshRecordings": "音声を再確認",
         "FocusedPrompt": "表記と読みから{target}を思い出してください。答えを表示して、その想起だけを評価してください。",
         "AudioPrompt": "音声を聞いて単語や意味を特定してください。答えを表示して、音声の単語認識だけを評価してください。",
+        "StartNew": "新しい復習を始める",
+        "StartNewFailed": "この復習を終了できませんでした。もう一度お試しください。",
         "NoEligibleActivity": "利用可能な練習がありません。単語復習を有効にするか、消音を解除するか、必要な答えと音声を追加してください。",
         "AudioUnavailable": "音声を再生できません。再試行するか別の練習を有効にしてください。",
         "PlayPrompt": "音声を再生",
@@ -1640,10 +1646,10 @@
         "Practice": "練習",
         "Next": "おすすめの次の活動",
         "ReviewTitle": "学んだことを覚えておく",
-        "ReviewReason": "復習の時期を迎えたカードが{count}枚あります。新しい内容を増やす前に思い出しましょう。",
+        "ReviewReason": "短いセットを練習し、続けたいときに続けましょう。",
         "ReviewAction": "復習を始める",
         "PracticeTitle": "思い出す力を鍛える",
-        "PracticeReason": "学習記録にはまだ定着していない単語が{count}語あります。学習プランに沿って思い出す練習をしましょう。",
+        "PracticeReason": "学習範囲から少しずつ練習しましょう。",
         "PracticeAction": "思い出す練習",
         "AssessmentTitle": "学習記録を補う",
         "AssessmentReason": "目標範囲の{count}語が未評価です。短い確認で、プランが適切な練習を選びやすくなります。",
@@ -1661,7 +1667,7 @@
         "ThisWeek": "今週",
         "WeekSummary": "復習 {reviews}回 · 新しいカード {newCards}枚",
         "DiscoverTitle": "次に学ぶ単語を見つける",
-        "DiscoverReason": "学習範囲から{count}語で始めます。"
+        "DiscoverReason": "カリキュラムから少しずつ学びましょう。"
       }
     },
     "Installer": {

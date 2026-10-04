@@ -608,6 +608,15 @@ describe('LevelStudyTab', () => {
     (levelBlock(container, 3).querySelector('.study-encounter__reveal') as HTMLButtonElement).click();
     walkProbe().click();
     await beat();
+    const admittedWrite = recordGrammarAttemptMock.mock.calls.find(([, , options]) =>
+      (options as { taskType?: string } | undefined)?.taskType === 'grammar-self-assess');
+    expect(admittedWrite).toBeDefined();
+    const [pattern, , options] = admittedWrite!;
+    expect(options).toMatchObject({ language: 'de', taskType: 'grammar-self-assess', method: 'recall',
+      decision: { id: expect.any(String), selected: {
+        targets: [{ kind: 'grammar-pattern', id: `de:grammar:${pattern}`, capability: 'grammar-recognition' }],
+        task: { taskTemplateId: 'grammar-self-assess', responseModality: 'recall' },
+      } } });
     await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt[data-pattern]') !== null);
 
     await runMockThroughResults(container, goldIndexFor(currentLangDataMock as unknown as LanguageData), 3);

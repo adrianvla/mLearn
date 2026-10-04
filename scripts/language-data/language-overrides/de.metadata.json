@@ -1,0 +1,50 @@
+{
+  "learning": {
+    "outcomes": {
+      "de:core-1000": {
+        "label": "Core 1,000 vocabulary",
+        "provenance": "package",
+        "reference": "https://github.com/hermitdave/FrequencyWords",
+        "groups": [
+          {
+            "id": "core-vocabulary",
+            "selectors": [
+              {
+                "source": "frequency",
+                "levels": [
+                  1
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "de:causal-concessive-constructions": {
+        "label": "Causal and concessive constructions",
+        "provenance": "package",
+        "groups": [
+          {
+            "id": "construction-set",
+            "selectors": [
+              {
+                "source": "grammar",
+                "patterns": [
+                  "weil",
+                  "obwohl",
+                  "deshalb",
+                  "trotzdem"
+                ]
+              }
+            ]
+          }
+        ],
+        "requirements": {
+          "coverageProvenance": "mLearn-authored construction subset; no official exam claim."
+        }
+      }
+    }
+  },
+  "languageData": {
+    "version": "de-package-2026.10.04-learning-outcomes-r1"
+  }
+}

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Flashcard, LanguageData } from '../../../shared/types';
-import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision, restoreFlashcardReviewDecision } from './flashcardReviewDecision';
+import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision, restoreFlashcardReviewDecision, reviewHandoffActivity } from './flashcardReviewDecision';
 import { isLearningDecision } from '../../../shared/learningDecision';
 import { selectNextEncounter } from '../../learning/engine';
+import { fitLearningModel } from '../../../shared/learningModel';
 
 const card: Flashcard = {
   id: 'authored-card', language: 'future', content: { type: 'word', front: '  odd form  ', back: 'authored answer' },
@@ -11,19 +12,63 @@ const card: Flashcard = {
 };
 
 describe('review policy encounter', () => {
+  it('honours deliberate review outside the selected outcome without inventing positive action value', () => {
+    const entry = flashcardReviewPolicyEntry(card, 'future');
+    const context = { learning: { model: fitLearningModel([], 20), horizonDays: 30, deferDays: 3,
+      availableSeconds: [120], continuationValue: 0, targetWeights: {} } };
+    expect(selectNextEncounter({ preset: 'RETENTION', nowMs: 20, reviewQueueEntries: [entry], context })?.action).toBe('DEFER');
+    const selected = selectFlashcardReviewDecision({ id: 'deliberate-review', at: 20, entries: [entry], context });
+    expect(selected).not.toBeNull();
+    expect(selected!.provenance.selected.key).toBe(card.id);
+    expect(selected!.decision.trace?.model?.evaluations[0].expectedCapabilityDays).toBe(0);
+    expect(selected!.decision.encounter.why).toContain('learner-selected activity');
+  });
+  it('preserves a negative recent-repeat estimate while allowing the learner to continue review', () => {
+    const entry = flashcardReviewPolicyEntry(card, 'future');
+    const day = 86_400_000;
+    const model = fitLearningModel(entry.targets.map((target, index) => ({
+      t: day, kind: 'rating' as const, source: 'manual' as const, quality: 'fluent' as const,
+      method: 'recall' as const, attemptId: `recent-${index}`, taskType: entry.task!.taskTemplateId,
+      targetRef: { kind: 'surface' as const, id: target.entityId, capability: target.capability },
+    })), day + 1000);
+    const context = { learning: { model, horizonDays: 30, deferDays: 3, availableSeconds: [120], continuationValue: 0 } };
+    const selected = selectFlashcardReviewDecision({ id: 'deliberate-repeat', at: day + 1000, entries: [entry], context })!;
+    expect(selected.decision.trace?.model?.activityChoicePreserved).toBe(true);
+    expect(selected.decision.trace?.model?.evaluations[0].expectedCapabilityDays).toBeLessThan(0);
+    expect(selected.provenance.selected.key).toBe(card.id);
+    expect(model.observations).toBe(entry.targets.length);
+  });
   it('freezes full-workload choices and exact input before presentation without making up structural improvement', () => {
     const entries = Array.from({ length: 20 }, (_, index) => flashcardReviewPolicyEntry({ ...card, id: `card-${index}` }, 'future'));
     let draws = 0;
     const selected = selectFlashcardReviewDecision({ id: 'pre-presentation', at: 20, entries,
       rng: () => { draws += 1; return draws / 25; } })!;
-    expect(draws).toBe(20);
+    expect(draws).toBe(0);
     expect(isLearningDecision(selected.provenance)).toBe(true);
     expect(selected.provenance.detail.candidateCount).toBe(20);
-    expect(selected.provenance.baseline?.key).toBe(selected.provenance.selected.key);
+    expect(selected.provenance.baseline).toBeNull();
     expect(selected.provenance.selected.presentation).toEqual({ cardId: selected.decision.candidate.key,
       language: 'future', surface: '  odd form  ', contentVersion: expect.any(String) });
     entries[0].task!.requested.push('later mutation');
     expect(selected.provenance.selected.task.requested).not.toContain('later mutation');
+  });
+
+  it('binds an opaque Home retrieval offer to its exact declared task, card and targets', () => {
+    const activity = { id: 'future::sound', kind: 'audio-recognition' as const,
+      label: 'Package sound task', prompt: 'Package prompt', targets: ['future::access'] };
+    const entry = flashcardReviewPolicyEntry(card, 'future', null, activity);
+    const parent = { id: 'home', at: 10, policyVersion: 'home-learning-controller@12',
+      selected: { key: 'review:authored-card:future::sound', action: 'review',
+        task: { ...entry.task!, inputModality: 'activity-handoff', responseModality: 'none' },
+        targets: entry.targets.map(target => ({ kind: 'surface', id: target.entityId, capability: target.capability })),
+        presentation: { ...entry.presentation, reviewActivityId: activity.id, retrievalTask: entry.task } }, baseline: null, detail: {} };
+    expect(reviewHandoffActivity(parent, 'home', card, 'future', null, [activity])).toEqual(activity);
+    expect(reviewHandoffActivity(parent, 'different-request', card, 'future', null, [activity])).toBeNull();
+    expect(reviewHandoffActivity(parent, 'home', card, 'other-language', null, [activity])).toBeNull();
+    expect(reviewHandoffActivity(parent, 'home', { ...card, content: { ...card.content, back: 'changed answer' } }, 'future', null, [activity])).toBeNull();
+    expect(reviewHandoffActivity(parent, 'home', card, 'future', null, [{ ...activity, targets: ['future::other'] }])).toBeNull();
+    expect(reviewHandoffActivity(parent, 'home', card, 'future', null, [])).toBeNull();
+    expect(reviewHandoffActivity({ ...parent, selected: { ...parent.selected, targets: [] } }, 'home', card, 'future', null, [activity])).toBeNull();
   });
 
   it('resumes the original immutable decision without drawing or using a changed cue/task', () => {

@@ -159,7 +159,12 @@ export function answerCard(
         lastReviewed: card.lastReviewed,
         provenance: 'migrated-scheduler-cache' as const,
     };
-    const retentionCache = scheduleAfterAnswer(prior, rating, meta, now, condition);
+    const retentionCache = scheduleAfterAnswer({ ...prior,
+        // Hydration can replay only the available journal window; it must not
+        // erase history already preserved by the saved compatibility counters.
+        reviews: Math.max(card.reviews, prior.reviews),
+        lapses: Math.max(card.lapses, prior.lapses),
+    }, rating, meta, now, condition);
     return {
         ...card,
         state: retentionCache.state,

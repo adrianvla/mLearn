@@ -1,6 +1,7 @@
 {
   "mlearn": {
     "Goals": {
+      "ScopeWorkloadRisk": "At your recent pace, some material in this scope may remain unassessed by {date}. This does not predict an exam result.",
       "Purpose": "Your goal",
       "Explore": "Explore the language",
       "Time": "Available time",
@@ -27,7 +28,10 @@
         "package": "Language package coverage",
         "community": "Community coverage",
         "authoritative": "Authoritative requirements"
-      }
+      },
+      "Choose": "Choose an outcome or curriculum",
+      "Remove": "Remove",
+      "Unavailable": "This curriculum needs an available language package."
     },
     "LibraryRecovery": {
       "OpenProtection": "Data protection settings",
@@ -1319,6 +1323,8 @@
         "RefreshRecordings": "Refresh recordings",
         "FocusedPrompt": "Given the written word and reading, recall {target}. Reveal, then rate only that recall.",
         "AudioPrompt": "Listen and identify the word or its meaning. Reveal, then rate only your recognition of the spoken word.",
+        "StartNew": "Start a new review",
+        "StartNewFailed": "Could not leave this review. Try again.",
         "NoEligibleActivity": "No eligible activity. Enable whole-word review, unmute audio, or supply the required package answers and recordings.",
         "AudioUnavailable": "Recording could not be played. Retry, or enable another activity.",
         "PlayPrompt": "Play recording",
@@ -1640,10 +1646,10 @@
         "Practice": "Practise",
         "Next": "Recommended next",
         "ReviewTitle": "Keep what you have learned",
-        "ReviewReason": "{count} cards are due in your review queue. Recall them before adding more.",
+        "ReviewReason": "Practise a short set, then continue when you want.",
         "ReviewAction": "Start review",
         "PracticeTitle": "Strengthen your recall",
-        "PracticeReason": "Your learning record contains {count} words that are not yet secure. Practise recall using your Learning Plan.",
+        "PracticeReason": "Work on a short selection from your learning scope.",
         "PracticeAction": "Practise recall",
         "AssessmentTitle": "Fill in your learning record",
         "AssessmentReason": "{count} words in your target curriculum have no assessment yet. A short recall check helps your plan choose suitable practice.",
@@ -1661,7 +1667,7 @@
         "ThisWeek": "This week",
         "WeekSummary": "{reviews} reviews · {newCards} new cards",
         "DiscoverTitle": "Discover your next words",
-        "DiscoverReason": "Start with {count} words from your curriculum."
+        "DiscoverReason": "Meet a short selection from your curriculum."
       }
     },
     "Installer": {

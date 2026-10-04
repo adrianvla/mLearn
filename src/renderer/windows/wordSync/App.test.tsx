@@ -1,3 +1,4 @@
+import { fitLearningModel } from '../../../shared/learningModel';
 vi.mock('../../context', async () => {
   return {
   WindowWrapper: (props: { children?: JSX.Element }) => <div>{props.children}</div>,
@@ -698,8 +699,8 @@ describe('WordSyncContent', () => {
     } catch { return null; }
   };
 
-  const mountContent = (Component: Component): (() => void) => {
-    const dispose = render(() => <Component />, container);
+  const mountContent = (Component: Component<{ encounterLimit?: number }>): (() => void) => {
+    const dispose = render(() => <Component encounterLimit={120} />, container);
     disposals.push(dispose);
     return dispose;
   };
@@ -822,6 +823,7 @@ beforeEach(() => {
     press(' '); await settle();
     press('3'); await settle();
     expect(container.querySelector('.word-sync-counter')?.textContent).toBe('1 / 3');
+    expect(mockRatingObservation.mock.calls.at(-1)?.[3]).toMatchObject({ method: 'recall' });
     const nextWord = container.querySelector('.word-sync-word')?.textContent;
     const saved = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null');
     expect(saved?.rated).toBe(1);
@@ -870,6 +872,26 @@ beforeEach(() => {
     expect(container.querySelector('.word-sync-translation')?.textContent).toBeTruthy();
   });
 
+  it('runs a model-selected maintenance word through the same encounter even when its declared accesses are Known', async () => {
+    const { surfaceEntityId } = await import('../../../shared/graph/load');
+    const { hashWordSync } = await import('../../services/srsAlgorithm');
+    const id = surfaceEntityId('ja', hashWordSync('赤い'));
+    mockWordSyncState.projectionByWord.set('赤い', { status: 'ready', surfaceId: id, targets: [{
+      targetRef: { kind: 'surface', id }, applicableCapabilities: ['sense-recognition'],
+      states: [{ capability: 'sense-recognition', classification: 'known', basis: 'evidence',
+        evidence: [], evidenceSourceCounts: { manual: 1 } }] }] } as KnowledgeProjection);
+    const { WordSyncContent } = await import('./App');
+    const dispose = render(() => <WordSyncContent words={['赤い']} sourceLabel="Scope" intent="reinforce" />, container);
+    disposals.push(dispose);
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-word')?.textContent).toContain('赤い');
+    press(' '); await settle(); press('3'); await settle();
+    expect(mockSubmitRating).toHaveBeenCalled();
+    expect(mockRatingObservation.mock.calls.at(-1)?.[3]).toMatchObject({ method: 'recall' });
+    const key = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).find(key => key?.includes('-material-') && key.includes('-reinforce:'));
+    expect(key).toBeDefined();
+  });
+
   it('finishes a skipped material selection without a dead filter action', async () => {
     const { WordSyncContent } = await import('./App');
     const dispose = render(() => <WordSyncContent words={['赤い']} />, container);
@@ -882,7 +904,23 @@ beforeEach(() => {
     expect(mockSubmitRating).not.toHaveBeenCalled();
   });
 
-  it('starts a finite practice session from Home time without inflating its queue', async () => {
+  it('infers a finite default practice chunk without asking for time or consuming the whole pool', async () => {
+    mockWordSyncState.wordFrequency = Object.fromEntries(Array.from({ length: 24 }, (_, index) => [`word-${index}`, { reading: '', raw_level: 5, level: 'N5' }]));
+    const { WordSyncContent } = await import('./App');
+    const dispose = render(() => <WordSyncContent />, container);
+    disposals.push(dispose);
+    await settle();
+    const saved = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!);
+    expect(saved.queue.length).toBeGreaterThan(0);
+    expect(saved.queue.length).toBeLessThanOrEqual(12);
+    expect(saved.queue.length).toBeLessThan(24);
+    const admission = saved.queue.map((entry: { id: string }) => entry.id);
+    mockWordSyncState.wordFrequency.extra = { reading: '', raw_level: 5, level: 'N5' };
+    await settle();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!).queue.map((entry: { id: string }) => entry.id)).toEqual(admission);
+  });
+
+  it('starts an explicitly bounded practice session without inflating its queue', async () => {
     mockWordSyncState.wordFrequency = Object.fromEntries(['赤い', '青い', '白い'].map(word => [word, { reading: word, raw_level: 5, level: 'N5' }]));
     const { WordSyncContent } = await import('./App');
     const dispose = render(() => <WordSyncContent encounterLimit={1} />, container);
@@ -1359,7 +1397,7 @@ beforeEach(() => {
     const { WordSyncContent } = await import('./App');
     const dispose = mountContent(() => {
       createEffect(() => { flushedRevisions.push(revision()); });
-      return <WordSyncContent />;
+      return <WordSyncContent encounterLimit={120} />;
     });
     await settle();
     await settle();
@@ -1858,15 +1896,15 @@ beforeEach(() => {
     // The re-presented word comes back collapsed…
     expect(mockRatingObservation).toHaveBeenCalledTimes(1);
 
-    // …and clean: rating it again records a fresh attempt, not a replay.
+    // The answer was already revealed; Undo retracts evidence, not exposure.
     press(' ');
     await settle();
     await settle();
     press('3');
     await settle();
     await settle();
-    expect(mockRatingObservation).toHaveBeenCalledTimes(2);
-    expect(attemptIdOf(1)).not.toBe(attemptId);
+    expect(mockRatingObservation).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
     dispose();
   });
 
@@ -2851,6 +2889,24 @@ beforeEach(() => {
     dispose();
   });
 
+  it('persists prior-answer exposure after Undo and restart instead of accepting another independent recall', async () => {
+    mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle(); await settle();
+    press(' '); await settle(); press('3'); await settle();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    await settle();
+    const saved = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null');
+    expect(saved.meta.suppliedScaffolds?.['prior-cue-exposure']).toBe(true);
+    dispose();
+    mountContent(WordSyncContent); await settle(); await settle();
+    const calls = mockSubmitRating.mock.calls.length;
+    press(' '); await settle(); press('3'); await settle();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(calls);
+    expect(container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
+  });
+
   it('starting over presents the first word with the answer hidden', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
@@ -3665,3 +3721,5 @@ vi.mock('../../hooks/useKnowledgeProjections', async () => {
     };
   } };
 });
+
+vi.mock('../../hooks/useLearningModel', () => ({ useLearningModel: () => ({ model: () => fitLearningModel([], Date.now()), snapshot: () => ({ events: [] }), ready: () => true, failed: () => false, retry: () => {} }) }));

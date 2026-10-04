@@ -1,3 +1,7 @@
+import { isLearningDecision, type LearningDecision } from '../../../shared/learningDecision';
+import { useLearningModel } from '../../hooks/useLearningModel';
+import { inferLearningOpportunities, manageableEncounterCount } from '../../../shared/learningOpportunities';
+import { evaluateLearningAction } from '../../../shared/learningModel';
 import { flashcardAudioProvider } from '../../../shared/utils/flashcardAudioPreset';
 import { FlashcardAudioPresetSelect } from '../../components/flashcard/FlashcardAudioPresetSelect';
 import { FlashcardRepairOptions } from '../../components/flashcard/FlashcardRepairOptions';
@@ -36,7 +40,6 @@ import { buildBulkExampleUpdates } from '../../utils/flashcardBulkExamples';
 import { DEFAULT_REPAIR_SELECTION, selectRepairFindings, repairAspect, planFlashcardRepair, type ExampleFinding, type RepairFinding, type RepairSelection, type ScanOptions } from '../../utils/flashcardRepairPlan';
 import { runFlashcardRepair, runMissingFlashcardRepair, type RepairRunResult } from '../../utils/flashcardRepairRunner';
 import { planBulkGeneration, type BulkGenerationMode, type BulkGenerationModeFor } from './bulkGenerationPlan';
-import { goalSessionBudget } from '../../../shared/learningGoals';
 import './FlashcardsLayout.css';
 import './FlashcardsBrowse.css';
 import './FlashcardsGenerate.css';
@@ -94,21 +97,39 @@ export const FlashcardsContent: Component = () => {
   } = useFlashcards();
   const { t } = useLocalization();
   const { settings, updateSettings } = useSettings();
+  const learning = useLearningModel(() => settings.language);
+  const inferredReviewLimit = createMemo(() => {
+    const model = learning.model();
+    if (!model) return undefined;
+    return manageableEncounterCount(inferLearningOpportunities(learning.snapshot()!.events, model.at),
+      evaluateLearningAction(model, { key: 'chunk', family: 'srs-review', mode: 'practice', targets: [] },
+        { nowMs: model.at, horizonDays: 30, deferDays: 3 }).effort.meanSeconds);
+  });
   const { requestAccess } = useLowPowerGate();
   const { langData, currentLangData } = useLanguage();
 
   const [activeTab, setActiveTab] = createSignal<TabId>('review');
-  const [reviewSessionRequest, setReviewSessionRequest] = createSignal<{ encounterLimit: number; requestId?: string }>();
+  const [reviewContextReady, setReviewContextReady] = createSignal(false);
+  const [reviewContextRefused, setReviewContextRefused] = createSignal(false);
+  const [reviewSessionRequest, setReviewSessionRequest] = createSignal<{ encounterLimit: number; requestId?: string; initialCardId?: string; decision?: LearningDecision }>();
   onMount(() => {
     const bridge = getBridge();
     const cleanup = bridge.window.onWindowContext(context => {
-      if (!context || context.activity !== 'review') return;
-      const session = context.session as { encounterLimit?: unknown; requestId?: unknown } | undefined;
+      if (!context || context.activity !== 'review') { setReviewContextReady(true); return; }
+      const session = context.session as { encounterLimit?: unknown; requestId?: unknown; initialCardId?: unknown; decision?: unknown } | undefined;
+      if (session?.decision !== undefined && (!isLearningDecision(session.decision) || session.decision.id !== session.requestId)) {
+        // An invalid later request cannot replace a task already displayed.
+        if (!reviewContextReady()) { setReviewContextRefused(true); setReviewContextReady(true); }
+        return;
+      }
+      setReviewContextRefused(false);
       if (session && typeof session.encounterLimit === 'number' && Number.isFinite(session.encounterLimit)) {
         setReviewSessionRequest({ encounterLimit: Math.max(1, Math.min(120, Math.floor(session.encounterLimit))),
-          ...(typeof session.requestId === 'string' ? { requestId: session.requestId } : {}) });
+          ...(typeof session.requestId === 'string' ? { requestId: session.requestId } : {}),
+          ...(typeof session.initialCardId === 'string' ? { initialCardId: session.initialCardId } : {}),
+          ...(isLearningDecision(session.decision) ? { decision: session.decision } : {}) });
       }
-      setActiveTab('review');
+      setReviewContextReady(true); setActiveTab('review');
     });
     if (cleanup) onCleanup(cleanup);
     bridge.window.getWindowContext('flashcards');
@@ -877,8 +898,17 @@ export const FlashcardsContent: Component = () => {
                 </div>
               }
             >
-              <FlashcardReview encounterLimit={reviewSessionRequest()?.encounterLimit ?? goalSessionBudget(settings.learningMinutes ?? DEFAULT_SETTINGS.learningMinutes)}
-                sessionRequestId={reviewSessionRequest()?.requestId} onComplete={() => setHasReviewedInSession(true)} onClose={() => getBridge().window.closeWindow()} />
+              <Show when={reviewContextReady()} fallback={<ProgressBar value={0} indeterminate />}>
+                <Show when={!reviewContextRefused()} fallback={<div role="alert">
+                  <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
+                  <Button onClick={() => getBridge().window.getWindowContext('flashcards')}>{t('mlearn.Knowledge.Retry')}</Button>
+                </div>}>
+                  <FlashcardReview encounterLimit={reviewSessionRequest()?.encounterLimit ?? inferredReviewLimit()}
+                    sessionRequestId={reviewSessionRequest()?.requestId}
+                    initialCardId={reviewSessionRequest()?.initialCardId}
+                    handoff={reviewSessionRequest()?.decision} onComplete={() => setHasReviewedInSession(true)} onClose={() => getBridge().window.closeWindow()} />
+                </Show>
+              </Show>
             </Show>
           </Show>
           </div>

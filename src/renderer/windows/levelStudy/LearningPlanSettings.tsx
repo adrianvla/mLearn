@@ -195,27 +195,7 @@ export const LearningPlanSettings: Component = () => {
         </SettingGroup>
       </Show>
 
-      <SettingGroup title={t('mlearn.Settings.Groups.LearningGoal')}>
-        <SettingRow
-          label={t('mlearn.Settings.Behaviour.SessionIntensity.Label')}
-          description={t('mlearn.Settings.Behaviour.SessionIntensity.Description')}
-        >
-          <Select
-            class="setting-select"
-            value={settings.sessionIntensity}
-            onChange={(e) => {
-              const value = e.currentTarget.value;
-              if (value === 'gentle' || value === 'steady' || value === 'intensive') {
-                updateSettings({ sessionIntensity: value });
-              }
-            }}
-          >
-            <option value="gentle" selected={settings.sessionIntensity === 'gentle'}>{t('mlearn.Settings.Behaviour.SessionIntensity.Gentle')}</option>
-            <option value="steady" selected={settings.sessionIntensity === 'steady'}>{t('mlearn.Settings.Behaviour.SessionIntensity.Steady')}</option>
-            <option value="intensive" selected={settings.sessionIntensity === 'intensive'}>{t('mlearn.Settings.Behaviour.SessionIntensity.Intensive')}</option>
-          </Select>
-        </SettingRow>
-
+      <SettingGroup title={t('mlearn.Goals.Purpose')}>
         <LearningGoals />
 
       </SettingGroup>

@@ -21,10 +21,27 @@ export interface ReviewUndoProjection {
 const schedulingFields = ['state', 'ease', 'interval', 'dueDate', 'reviews', 'lapses',
   'learningStep', 'lastReviewed', 'retentionCache'] as const;
 
+/** A pre-fix revealed-response receipt can retain the stale cache count in its ownership proof. */
+function expectedReviewCard(restore: ReviewUndoProjection): Flashcard | undefined {
+  const expected = restore.expectedCard;
+  const prior = restore.restoreCard;
+  const priorCache = prior.retentionCache;
+  const nextCache = expected?.retentionCache;
+  if (!expected || !priorCache || !nextCache || !restore.scaffolds?.['prior-cue-exposure']
+    || priorCache.provenance !== 'migrated-scheduler-cache' || nextCache.provenance !== 'derived-scheduler-cache'
+    || prior.reviews <= priorCache.reviews || expected.reviews !== priorCache.reviews
+    || nextCache.reviews !== priorCache.reviews
+    || !['state', 'ease', 'interval', 'dueAt', 'lapses', 'learningStep'].every(key =>
+      Object.is((priorCache as unknown as Record<string, unknown>)[key], (nextCache as unknown as Record<string, unknown>)[key]))) return expected;
+  // Everything except the historical count and response timestamp remains the
+  // captured post-image. A later rating or scheduler edit still refuses Undo.
+  return { ...expected, reviews: prior.reviews, retentionCache: { ...nextCache, reviews: prior.reviews } };
+}
+
 export function validateReviewResponseUndo(store: FlashcardStore, restore: ReviewUndoProjection): void {
   if (!restore.expectedCard) return; // Shipped interrupted Undo records retain their recovery contract.
   const card = store.flashcards[restore.cardId];
-  const expected = restore.expectedCard;
+  const expected = expectedReviewCard(restore)!;
   if (!card || card.id !== expected.id || card.language !== expected.language
     || card.content.front !== expected.content.front
     || schedulingFields.some(field => JSON.stringify(card[field]) !== JSON.stringify(expected[field]))) {

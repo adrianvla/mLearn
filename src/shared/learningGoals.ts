@@ -9,6 +9,10 @@ export interface LearningGoal {
   priority: number;
   deadline?: string;
   createdAt: number;
+  /** Stable installed-package outcome identity. A display label never defines membership. */
+  outcomeRef?: { id: string; packageVersion?: string };
+  /** Outcome requirement, not an algorithm weight; only meaningful with a calibrated outcome model. */
+  requiredReliability?: number;
   /** Coverage origin must survive storage; user scope is not an official syllabus. */
   scope?: {
     provenance: 'user' | 'package' | 'community' | 'authoritative';

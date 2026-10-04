@@ -1,3 +1,4 @@
+import { fitLearningModel } from '../../../shared/learningModel';
 // @vitest-environment happy-dom
 
 /**
@@ -20,6 +21,7 @@ import { createEffect, createSignal, type Component } from 'solid-js';
 const [dueCount, setDueCount] = createSignal(0);
 import type { Flashcard } from '../../../shared/types';
 
+const contextFixture = vi.hoisted(() => ({ callback: undefined as ((context: Record<string, unknown> | null) => void) | undefined, delayed: false, reviewProps: vi.fn() }));
 const store = vi.hoisted(() => ({ flashcards: {} as Record<string, unknown> }));
 
 const removeFlashcard = vi.fn(async (id: string) => {
@@ -80,7 +82,8 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../components/flashcard', () => ({
-  FlashcardReview: (props: { onComplete?: () => void }) => {
+  FlashcardReview: (props: { onComplete?: () => void; initialCardId?: string; sessionRequestId?: string; handoff?: unknown }) => {
+    contextFixture.reviewProps(props.initialCardId, props.sessionRequestId, props.handoff);
     createEffect(() => { if (dueCount() === 0) props.onComplete?.(); });
     return <span data-review-session>{dueCount() === 0 ? 'complete' : 'question'}</span>;
   },
@@ -167,7 +170,8 @@ vi.mock('../../components/common', async () => {
 });
 
 vi.mock('../../components/common/Feedback/Toast', () => ({ showToast: vi.fn(), updateToast: vi.fn(), removeToast: vi.fn() }));
-vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({}) }));
+vi.mock('../../hooks/useLearningModel', () => ({ useLearningModel: () => ({ model: () => fitLearningModel([], Date.now()), snapshot: () => ({ events: [] }), ready: () => true, failed: () => false, retry: vi.fn() }) }));
+vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: { onWindowContext: (cb: (context: Record<string, unknown> | null) => void) => { contextFixture.callback = cb; return () => { contextFixture.callback = undefined; }; }, getWindowContext: () => { if (!contextFixture.delayed) queueMicrotask(() => contextFixture.callback?.(null)); } } }) }));
 vi.mock('../../../shared/backends', () => ({ resolveCloudApiUrl: () => '' }));
 vi.mock('../../../shared/platform', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../shared/platform')>()),
@@ -212,6 +216,30 @@ const dialogButton = (label: string) => {
   if (!dialog) return null;
   return Array.from(dialog.querySelectorAll('button')).find((b) => (b.textContent ?? '').trim() === label) ?? null;
 };
+
+describe('Review window context admission', () => {
+  it('waits for the initial context before mounting a different default cue', async () => {
+    contextFixture.delayed = true; contextFixture.reviewProps.mockClear(); setDueCount(1);
+    const container = document.createElement('div'); document.body.append(container);
+    const dispose = render(() => <FlashcardsContent />, container);
+    try {
+      await flush(); expect(contextFixture.reviewProps).not.toHaveBeenCalled();
+      contextFixture.callback!({ activity: 'review', session: { requestId: 'chosen-home', encounterLimit: 2, initialCardId: 'selected-card' } });
+      await flush(); expect(contextFixture.reviewProps).toHaveBeenCalledWith('selected-card', 'chosen-home', undefined);
+    } finally { dispose(); container.remove(); contextFixture.delayed = false; setDueCount(0); }
+  });
+
+  it('refuses a malformed initial Home decision instead of admitting a default encounter', async () => {
+    contextFixture.delayed = true; contextFixture.reviewProps.mockClear(); setDueCount(1);
+    const container = document.createElement('div'); document.body.append(container);
+    const dispose = render(() => <FlashcardsContent />, container);
+    try {
+      contextFixture.callback!({ activity: 'review', session: { requestId: 'home', encounterLimit: 2, initialCardId: 'selected', decision: { id: 'home' } } });
+      await flush(); expect(contextFixture.reviewProps).not.toHaveBeenCalled();
+      expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    } finally { dispose(); container.remove(); contextFixture.delayed = false; setDueCount(0); }
+  });
+});
 
 describe('Browse bulk delete is confirmed before it removes anything', () => {
   let container: HTMLDivElement;

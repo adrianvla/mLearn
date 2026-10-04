@@ -112,7 +112,7 @@ describe('useDecisionPin — surface encounter pattern (R20 repair)', () => {
         return decision?.candidate.key ?? current.id;
       });
       expect(displayed()).toBe('c1');
-      expect(randomSpy).toHaveBeenCalledTimes(2);
+      expect(randomSpy).not.toHaveBeenCalled();
 
       // Unrelated reactive update: the fallback signal fires with a fresh
       // instance of the SAME card (id and fields unchanged). Pre-fix, the
@@ -125,7 +125,7 @@ describe('useDecisionPin — surface encounter pattern (R20 repair)', () => {
 
       expect(displayed()).toBe('c1');
       // The pin re-served the decision: the rng was never consulted again.
-      expect(randomSpy).toHaveBeenCalledTimes(2);
+      expect(randomSpy).not.toHaveBeenCalled();
       dispose();
     });
   });
@@ -137,10 +137,11 @@ describe('useDecisionPin — surface encounter pattern (R20 repair)', () => {
       randomSpy.mockReturnValueOnce(0.1).mockReturnValueOnce(0.9);
 
       const [fallback, setFallback] = createSignal(card('c1'));
+      const [pool, setPool] = createSignal([card('c2'), card('c1')]);
       const pin = useDecisionPin();
       const displayed = createMemo(() => {
         const current = fallback();
-        const decision = pin.pin(current.language, () => selectNextEncounter(policyInputs([card('c1'), card('c2')])));
+        const decision = pin.pin(current.language, () => selectNextEncounter(policyInputs(pool())));
         return decision?.candidate.key ?? current.id;
       });
       expect(displayed()).toBe('c2');
@@ -149,13 +150,15 @@ describe('useDecisionPin — surface encounter pattern (R20 repair)', () => {
       // is keyed by the fallback id, so without an epoch bump a same-id
       // fallback re-run would replay c2 through the stale pin.
       randomSpy.mockReturnValueOnce(0.9).mockReturnValueOnce(0.1);
+      setPool([card('c1'), card('c2')]);
+      expect(displayed()).toBe('c2');
       pin.advance();
       setFallback(card('c1'));
 
       // The encounter ended: the next read re-selects (fresh draw picks c1)
       // instead of replaying the rated c2.
       expect(displayed()).toBe('c1');
-      expect(randomSpy).toHaveBeenCalledTimes(4);
+      expect(randomSpy).not.toHaveBeenCalled();
       dispose();
     });
   });

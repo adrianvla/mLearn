@@ -1,0 +1,55 @@
+import { createRoot, createSignal } from 'solid-js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useLearningModel } from './useLearningModel';
+import type { LearningEvidenceSnapshot } from '../../shared/learningEvidence';
+const fixtures = vi.hoisted(() => ({ query: vi.fn<(...args: unknown[]) => Promise<LearningEvidenceSnapshot>>() }));
+const [revision, setRevision] = createSignal(0);
+const [active, setActive] = createSignal(true);
+vi.mock('../services/knowledgeEvents', () => ({ eventsVersion: () => revision(), queryLearningEvidence: fixtures.query }));
+vi.mock('./useWindowActivity', () => ({ useWindowActivity: () => active }));
+const settle = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
+let dispose: (() => void) | undefined;
+afterEach(() => { dispose?.(); setRevision(0); setActive(true); });
+describe('canonical model snapshot admission', () => {
+  it('revalidates on foreground re-entry even when a notification was missed', async () => {
+    fixtures.query.mockResolvedValue({ sequence: 20, events: [], truncated: false });
+    let controller!: ReturnType<typeof useLearningModel>;
+    createRoot(cleanup => { dispose = cleanup; controller = useLearningModel(() => 'future'); });
+    await settle();
+    const calls = fixtures.query.mock.calls.length;
+    setActive(false); await settle();
+    fixtures.query.mockResolvedValue({ sequence: 21, events: [], truncated: false });
+    setActive(true); await settle();
+    expect(fixtures.query.mock.calls.length).toBe(calls + 1);
+    expect(controller.model()?.evidenceVersion).toContain('journal:21');
+  });
+  it('fits one bounded snapshot per revision, defers background reads and recomputes after Undo', async () => {
+    fixtures.query.mockResolvedValue({ sequence: 10, events: [], truncated: false });
+    let controller!: ReturnType<typeof useLearningModel>;
+    createRoot(cleanup => { dispose = cleanup; controller = useLearningModel(() => 'future'); });
+    await settle();
+    expect(controller.model()?.evidenceVersion).toContain('journal:10');
+    const calls = fixtures.query.mock.calls.length;
+    controller.model(); controller.model();
+    expect(fixtures.query.mock.calls.length).toBe(calls);
+    setActive(false); setRevision(1); setRevision(2); await settle();
+    expect(fixtures.query.mock.calls.length).toBe(calls);
+    fixtures.query.mockResolvedValue({ sequence: 11, events: [], truncated: true });
+    setActive(true); await settle();
+    expect(controller.model()?.evidenceVersion).toContain('journal:11');
+    expect(controller.model()?.evidenceVersion).toContain('truncated');
+    expect(fixtures.query.mock.calls.length).toBe(calls + 1);
+  });
+  it('withholds stale estimates on a rejected canonical read and permits explicit retry', async () => {
+    fixtures.query.mockRejectedValue(new Error('journal unavailable'));
+    let controller!: ReturnType<typeof useLearningModel>;
+    createRoot(cleanup => { dispose = cleanup; controller = useLearningModel(() => 'future'); });
+    await settle();
+    expect(controller.failed()).toBe(true);
+    expect(controller.model()).toBeUndefined();
+    fixtures.query.mockResolvedValue({ sequence: 12, events: [], truncated: false });
+    controller.retry(); await settle();
+    expect(controller.ready()).toBe(true);
+    expect(controller.model()?.evidenceVersion).toContain('journal:12');
+  });
+});

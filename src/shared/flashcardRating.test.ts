@@ -61,6 +61,28 @@ describe('applyFlashcardRatingCommand', () => {
     expect(source.meta).toEqual({ reviewsToday: 9, date: 'previous' });
   });
 
+  it('recovers an immutable supplied-response command whose migrated cache lowered the saved review count', () => {
+    const cache = { state: 'review', ease: 2.5, interval: 100, dueAt: 100, reviews: 18,
+      lapses: 0, learningStep: 0, lastReviewed: 1, provenance: 'migrated-scheduler-cache' };
+    const before = { id: 'one', reviews: 19, retentionCache: cache };
+    const after = { ...before, reviews: 18, retentionCache: { ...cache, lastReviewed: 2, provenance: 'derived-scheduler-cache' } };
+    const rating: FlashcardRatingCommand = { attemptId: 'supplied', guardCardIds: ['one'],
+      events: { word: [{ t: 2, kind: 'review', source: 'srs', rating: 'good', schedulerCardId: 'one',
+        attemptId: 'supplied', retentionCondition: 'supplied' }] },
+      patch: { baseRev: 1, entries: [{ path: ['flashcards', 'one'], before, after }] },
+      counterDeltas: [{ path: ['flashcards', 'one', 'reviews'], delta: -1 }] };
+    const original = JSON.stringify(rating);
+    const result = applyFlashcardRatingCommand({ flashcards: { one: before } }, rating);
+    expect(result.flashcards.one.reviews).toBe(19);
+    expect(result.flashcards.one.retentionCache.reviews).toBe(19);
+    expect(result.flashcards.one.retentionCache.lastReviewed).toBe(2);
+    expect(JSON.stringify(rating)).toBe(original);
+    // An ordinary count-decreasing command is still rejected by Guardian;
+    // only this exact supplied-cache mismatch receives the compatibility repair.
+    const ordinary = { ...rating, events: {} };
+    expect(applyFlashcardRatingCommand({ flashcards: { one: before } }, ordinary).flashcards.one.reviews).toBe(18);
+  });
+
   it('rejects undeclared or invalid counters before mutating live state', () => {
     const source = { cards: { one: { reviews: 2, answer: 'original' } } };
     const invalid = { ...command('invalid'), counterDeltas: [{ path: ['unrelated'], delta: 1 }] };

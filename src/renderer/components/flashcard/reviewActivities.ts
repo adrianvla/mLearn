@@ -1,10 +1,11 @@
+import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import { composeRetrievalStages } from '../../../shared/encounterComposition';
 import type { Flashcard, LanguageData, LanguageReviewActivity, Settings } from '../../../shared/types';
 import { getAvailableAccesses } from '../../../shared/types';
 import { getTestedAccesses, getProsodyPositionLabel } from '../../../shared/languageFeatures';
 import { providedAccessScaffolds } from '../../../shared/knowledgeEvents';
 import type { LearningTaskSnapshot } from '../../../shared/learningDecision';
-import type { AccessStatusResult } from '../../utils/accessKnowledge';
+import { evaluateLearningAction, type LearningModel, type EvaluationContext } from '../../../shared/learningModel';
 
 export interface ReviewActivity extends Omit<LanguageReviewActivity, 'kind'> {
   id: string;
@@ -63,18 +64,21 @@ export function eligibleReviewActivities(card: Flashcard, data: LanguageData | n
   return result;
 }
 
-/** Ordinal selection preference, never calibrated mastery/confidence or evidence. */
-export function selectReviewActivity(activities: readonly ReviewActivity[], state: (capability: string) => AccessStatusResult,
-  now = Date.now()): ReviewActivity {
+/** Availability in the shared renderer is separate from a package's declared activities. */
+export function renderableReviewActivities(activities: readonly ReviewActivity[], card: Flashcard, data: LanguageData | null | undefined): ReviewActivity[] {
+  return activities.filter(activity => activity.kind !== 'written-reading-recall' && !activity.stages?.some(stage => stage.kind === 'written-reading-recall')
+    || !!card.content.prosody?.display || getProsodyOverlayRenderer(data, card.content.prosody?.type) !== null);
+}
+
+/** Compare actual package task/access effects; a status label supplies no fitted gain. */
+export function selectReviewActivity(activities: readonly ReviewActivity[], model: LearningModel,
+  entityId: string, context: EvaluationContext): ReviewActivity {
   if (!activities.length) throw new Error('No eligible review activity');
-  const score = (activity: ReviewActivity) => activity.targets.reduce((sum, target) => {
-    const access = state(target);
-    const need = access.status === 'known' ? 0.2 : access.status === 'learning' ? 0.65 : 1;
-    const age = access.lastStatusChange === undefined ? Infinity : Math.max(0, now - access.lastStatusChange);
-    // Recorded recency pads recently practiced accesses; schedule admission remains authoritative.
-    return sum + need * (age < 10 * 60_000 ? 0.2 : 1);
-  }, 0) / activity.targets.length;
-  return activities.reduce((best, candidate) => score(candidate) > score(best) || (score(candidate) === score(best) && !!candidate.stages && !best.stages) ? candidate : best);
+  const value = (activity: ReviewActivity) => evaluateLearningAction(model, {
+    key: activity.id, family: activityTask(activity).taskTemplateId, mode: 'practice',
+    targets: activity.targets.map(capability => ({ entityId, capability })),
+  }, context).expectedCapabilityDays;
+  return activities.reduce((best, candidate) => value(candidate) > value(best) ? candidate : best);
 }
 
 export function activityTask(activity: ReviewActivity): LearningTaskSnapshot {

@@ -33,6 +33,27 @@ export interface StudySessionRecord<Item extends StudyQueueItem, Payload, Answer
   meta: Meta;
 }
 
+/** Read-only envelope decoding shared by session owners and continuity hints.
+ * Delivery-specific validation remains supplied by the owner. */
+export function readStudySessionRecord<I extends StudyQueueItem, P, A, M>(raw: string | null,
+  validate: (record: StudySessionRecord<I, P, A, M>) => boolean): StudySessionRecord<I, P, A, M> | null {
+  try {
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const record = parsed as StudySessionRecord<I, P, A, M>;
+    if (typeof record.id !== 'string' || typeof record.identity !== 'string'
+      || !Array.isArray(record.queue) || !Array.isArray(record.visited)
+      || !Number.isInteger(record.index) || !Number.isInteger(record.rated)
+      || (record.questionSelected !== undefined && typeof record.questionSelected !== 'boolean')
+      || !validate(record)) return null;
+    if (record.pending && (record.pending.index !== record.index
+      || record.pending.itemId !== record.queue[record.index]?.id
+      || typeof record.pending.attemptId !== 'string')) return null;
+    return record;
+  } catch { return null; }
+}
+
 type RecordOf<I extends StudyQueueItem, P, A, M> = StudySessionRecord<I, P, A, M>;
 
 const stableJson = (value: unknown): string => JSON.stringify(value, (_key, entry: unknown) => {
@@ -103,22 +124,8 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
   let recoverPending: ((record: Session) => void) | undefined;
 
   const read = (): Session | null => {
-    try {
-      const raw = options.storage.getItem(options.storageKey);
-      if (!raw) return null;
-      const parsed: unknown = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return null;
-      const record = parsed as Session;
-      if (typeof record.id !== 'string' || typeof record.identity !== 'string'
-        || !Array.isArray(record.queue) || !Array.isArray(record.visited)
-        || !Number.isInteger(record.index) || !Number.isInteger(record.rated)
-        || (record.questionSelected !== undefined && typeof record.questionSelected !== 'boolean')
-        || !options.validate(record)) return null;
-      if (record.pending && (record.pending.index !== record.index
-        || record.pending.itemId !== record.queue[record.index]?.id
-        || typeof record.pending.attemptId !== 'string')) return null;
-      return record;
-    } catch { return null; }
+    try { return readStudySessionRecord(options.storage.getItem(options.storageKey), options.validate); }
+    catch { return null; }
   };
 
   const publish = (next: Session): boolean => {

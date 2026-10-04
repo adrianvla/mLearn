@@ -1,4 +1,4 @@
-import type { ReviewPresentationWrite } from './reviewPresentationWrite';
+import type { ReviewPositionWrite } from './reviewPresentationWrite';
 import type { FlashcardAudioPreset } from './types';
 import type { EffectiveThresholds } from './knowledge/effectiveKnowledge';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from './flashcardRating';
@@ -20,7 +20,7 @@ import type { GraphRelationType } from './graph/types';
 
 export interface MLearnIPC {
   commitFlashcardRating: (command: FlashcardRatingCommand) => Promise<FlashcardRatingCommit>;
-  saveReviewPresentation: (command: ReviewPresentationWrite) => Promise<FlashcardRatingCommit | null>;
+  saveReviewPresentation: (command: ReviewPositionWrite) => Promise<FlashcardRatingCommit | null>;
   enqueueFlashcardRating: (command: FlashcardRatingCommand) => Promise<number>;
   flushFlashcardRatings: () => Promise<void>;
   onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) => () => void;
@@ -54,6 +54,7 @@ export interface MLearnIPC {
   getLearningDecisionRecord: (id: string) => Promise<LearningDecisionRecord | null>;
   getRatingUndoHistory: (surface: string) => Promise<import('./retractionRecovery').PendingRetraction[]>;
   appendKnowledgeEvents: (eventsByKey: KnowledgeEventLog) => Promise<boolean>;
+  getLearningEvidence: (language: string) => Promise<import('./learningEvidence').LearningEvidenceSnapshot>;
   queryKnowledgeEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeItemEvents: (keys: string[]) => Promise<KnowledgeEventLog>;
   queryKnowledgeEventsForLanguage: (language: string) => Promise<KnowledgeEventLog>;

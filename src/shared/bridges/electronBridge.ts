@@ -294,6 +294,7 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
   getLearningDecisionRecord: (id) => getIPC().getLearningDecisionRecord(id),
   getRatingUndoHistory: (surface) => getIPC().getRatingUndoHistory(surface),
   appendKnowledgeEvents: (eventsByKey) => getIPC().appendKnowledgeEvents(eventsByKey),
+  getLearningEvidence: (language) => getIPC().getLearningEvidence(language),
   queryKnowledgeEvents: (keys) => getIPC().queryKnowledgeEvents(keys),
   queryKnowledgeItemEvents: (keys) => getIPC().queryKnowledgeItemEvents(keys),
   queryKnowledgeEventsForLanguage: (language) => getIPC().queryKnowledgeEventsForLanguage(language),

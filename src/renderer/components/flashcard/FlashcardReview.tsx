@@ -1,3 +1,4 @@
+import { useLearningModel } from '../../hooks/useLearningModel';
 import { beginReviewSession, reviewSessionRemaining, reviewSessionHasAvailableCards, type ReviewSession } from '../../../shared/reviewSession';
 /**
  * Flashcard Review Component
@@ -15,7 +16,7 @@ import { useDecisionPin } from '../../hooks/useDecisionPin';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import {
-  Button, Badge, Panel, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
+  KnowledgeLoadError, Button, Badge, Panel, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
   EyeIcon, Popover, WriteStatusBanner, StudyEncounter, StudySessionHUD, useConfirmDialog
 } from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
@@ -25,9 +26,8 @@ import { colorizeTokenizedText } from '../../utils/languageTokenization';
 import { showToast } from '../common/Feedback/Toast';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
-import { eligibleReviewActivities, selectReviewActivity, activityScaffolds, type ReviewActivity } from './reviewActivities';
+import { eligibleReviewActivities, renderableReviewActivities, selectReviewActivity, activityScaffolds, type ReviewActivity } from './reviewActivities';
 import { ProsodyOverlay } from '../language-specific';
-import { getProsodyOverlayRenderer } from '../../utils/prosodyPresentation';
 import type { CapabilityKey, Flashcard, FlashcardContent, ReviewPresentation } from '../../../shared/types';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
@@ -46,7 +46,7 @@ import './FlashcardReview.css';
 import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../../windows/flashcards/bulkDestructiveConfirm';
 import { ratingLatencyTraceOn, watchLongTasks } from '../../services/ratingLatencyTrace';
 import { getLogger } from '../../../shared/utils/logger';
-import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision, restoreFlashcardReviewDecision } from './flashcardReviewDecision';
+import { flashcardReviewPolicyEntry, selectFlashcardReviewDecision, restoreFlashcardReviewDecision, reviewHandoffActivity } from './flashcardReviewDecision';
 import { createReviewAssistanceStore, type ReviewAssistance } from '../../learning/reviewAssistance';
 
 const log = getLogger("renderer.components.flashcardReview");
@@ -72,6 +72,8 @@ interface ReviewRatingWrite {
 export interface FlashcardReviewProps {
   encounterLimit?: number;
   sessionRequestId?: string;
+  initialCardId?: string;
+  handoff?: import('../../../shared/learningDecision').LearningDecision;
   onComplete?: () => void;
   onClose?: () => void;
   style?: JSX.CSSProperties;
@@ -98,6 +100,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     updateFlashcard,
     submitRating,
     saveReviewPresentation,
+    releaseReviewPosition,
     ratingPersistenceState,
     retryRatingPersistence,
     queue,
@@ -162,6 +165,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // TTS integration
   const { settings, updateSetting } = useSettings();
   const { langData, currentLangData, isLoading: languageLoading } = useLanguage();
+  const learning = useLearningModel(() => settings.language);
+  let lastLocallyRated: { id: string; snapshot: string } | undefined;
   const { playTts, isGenerating: ttsGenerating, stop: stopTts, metadata: ttsMetadata, playingField: ttsPlayingField } = useFlashcardTts();
   // A confirmed command belongs to this study scope. A late old-scope
   // acknowledgment must not hide or advance the successor encounter.
@@ -176,14 +181,22 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   };
 
   const [sessionEpoch, setSessionEpoch] = createSignal(0);
-  let localSession: { scope: string; session: ReviewSession } | undefined;
+  const [releasedRequest, setReleasedRequest] = createSignal<string>();
+  const [releaseWrite, setReleaseWrite] = createSignal<{ command: import('../../../shared/reviewPresentationWrite').ReviewPositionRelease; phase: 'pending' | 'failed'; stale?: boolean }>();
+  createEffect(on(() => settings.language, () => { setReleaseWrite(undefined); }, { defer: true }));
+  let localSession: { scope: string; admission: string; session: ReviewSession } | undefined;
   const finiteSession = createMemo(() => {
-    if (props.encounterLimit === undefined) return undefined;
     const scope = JSON.stringify([settings.language, props.sessionRequestId, sessionEpoch()]);
     const saved = store.meta.reviewSessions?.[settings.language];
-    if (localSession?.scope === scope) return saved?.id === localSession.session.id ? saved : localSession.session;
+    const admission = JSON.stringify([settings.language, sessionEpoch()]);
+    const held = localSession && (saved?.id === localSession.session.id ? saved : localSession.session);
+    // A refreshed model may temporarily remove the inferred limit. It cannot
+    // turn an admitted finite chunk into continuous work or resize its membership.
+    if (localSession?.admission === admission && held && (localSession.scope === scope || reviewSessionRemaining(held) > 0)) return held;
+    const limit = props.encounterLimit;
+    if (limit === undefined) return undefined;
     if (saved && (reviewSessionHasAvailableCards(saved, store, settings.language) || (sessionEpoch() === 0 && (!props.sessionRequestId || saved.requestId === props.sessionRequestId)))) {
-      localSession = { scope, session: saved }; return saved;
+      localSession = { scope, admission, session: saved }; return saved;
     }
     const ids = [...queue().newQueue, ...queue().scheduledQueue];
     const fallback = untrack(getCurrentCard);
@@ -193,20 +206,21 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       return card && !card.suspended && !card.buried && languageForCard(card) === settings.language && !isWordIgnoredSync(card.content.front, settings.language);
     });
     if (!eligible.length) return undefined;
-    const session = { ...beginReviewSession(crypto.randomUUID(), eligible, props.encounterLimit, Date.now()),
+    const acceptOffer = releasedRequest() !== props.sessionRequestId;
+    const initialCardId = acceptOffer && props.sessionRequestId && props.initialCardId && eligible.includes(props.initialCardId) ? props.initialCardId : undefined;
+    const session = { ...(acceptOffer && props.handoff ? { initialHandoff: JSON.parse(JSON.stringify(props.handoff)) } : {}), ...(initialCardId ? { initialCardId } : {}), ...beginReviewSession(crypto.randomUUID(), eligible, limit, Date.now()),
       ...(props.sessionRequestId ? { requestId: props.sessionRequestId } : {}) };
-    localSession = { scope, session }; return session;
+    localSession = { scope, admission, session }; return session;
   });
   const sessionAllows = (id: string) => !finiteSession() || (reviewSessionRemaining(finiteSession()!) > 0
     && finiteSession()!.cardIds.includes(id) && !finiteSession()!.completedCardIds.includes(id));
   const preferences = () => settings.reviewActivities ?? DEFAULT_SETTINGS.reviewActivities;
-  const activityChoices = (card: Flashcard) => eligibleReviewActivities(card, languageDataForCard(card), preferences(),
-    !settings.flashcardMuteAudio && audioAvailability()[card.id] === true, {
+  const activityChoices = (card: Flashcard, restoring = false) => renderableReviewActivities(eligibleReviewActivities(card, languageDataForCard(card),
+    restoring ? { holistic: true, focused: true, audio: true } : preferences(),
+    restoring || (!settings.flashcardMuteAudio && audioAvailability()[card.id] === true), {
       focused: t('mlearn.Flashcards.Review.Focused'), focusedTarget: t('mlearn.Knowledge.Capability.prosodic-pattern'), focusedPrompt: target => t('mlearn.Flashcards.Review.FocusedPrompt', { target }),
       audio: t('mlearn.Flashcards.Review.Audio'), audioPrompt: t('mlearn.Flashcards.Review.AudioPrompt'),
-    })
-    .filter(activity => activity.kind !== 'written-reading-recall' && !activity.stages?.some(stage => stage.kind === 'written-reading-recall')
-      || !!card.content.prosody?.display || getProsodyOverlayRenderer(languageDataForCard(card), card.content.prosody?.type) !== null);
+    }), card, languageDataForCard(card));
   // Bounded concurrent metadata-only recording lookups; no synthesis or text fallback.
   const checkedAudio = new Set<string>();
   const [audioResourceEpoch, setAudioResourceEpoch] = createSignal(0);
@@ -368,7 +382,27 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // momentum can only change allocation when there is more than one
     // candidate. Queued-new cards carry their state so the source scores them
     // as exploration (novelty), never as fabricated overdue repair.
+    if (!learning.ready()) return null;
     const nowMs = Date.now();
+    const restored = store.meta?.reviewPresentations?.[language];
+    const cursor = restored ? JSON.parse(JSON.stringify(restored)) as ReviewPresentation : undefined;
+    // A resumable task is already admitted. Resource discovery and preferences
+    // must not replace its cue while an asynchronous recording lookup is pending.
+    // The original package contract and card content still have to match; audio
+    // playback itself retains its completion/error gate, including missing files.
+    if (restored?.decision) {
+      const card = store.flashcards[restored.cardId] ?? (fallback.id === restored.cardId ? fallback : undefined);
+      const admitted = card && sessionAllows(card.id) && !card.suspended && !card.buried
+        && languageForCard(card) === language && !isWordIgnoredSync(card.content.front, language)
+        && (card.id === fallback.id || queue().newQueue.includes(card.id) || queue().scheduledQueue.includes(card.id));
+      const activity = admitted && activityChoices(card, true).find(activity => activity.id === restored.decision!.selected.task.taskTemplateId
+        || (activity.kind === 'holistic' && restored.decision!.selected.task.taskTemplateId === flashcardReviewPolicyEntry(card, language, languageDataForCard(card)).task?.taskTemplateId));
+      const resumed = activity && restoreFlashcardReviewDecision(restored, card!, flashcardReviewPolicyEntry(card!, language, languageDataForCard(card!), activity));
+      if (resumed && activity) return decisionPin.pin(language, () => snapshotEncounter({
+        card: JSON.parse(JSON.stringify(card)) as Flashcard, decision: null, cursor, activity, ...resumed,
+      }), encounter => !!encounter && encounter.provenance.id === resumed.provenance.id
+        && JSON.stringify({ ...encounter.card, retentionCache: undefined }) === JSON.stringify({ ...card, retentionCache: undefined }));
+    }
     // Identity of the eligible workload. Building the scheduler's entries for
     // every queued card is O(queue) work with two hash derivations per card, so
     // it is resolved LAZILY: an encounter that resumes a durable cursor, or one
@@ -384,28 +418,43 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // The scheduler fallback is always eligible, even when the queue has not
     // caught up with it yet - it is the card the surface would present.
     if (sessionAllows(fallback.id) && !eligibleCards.some(card => card.id === fallback.id) && activityChoices(fallback).length) eligibleCards.push(fallback);
+    // A local rating may precede the scheduler's reactive acknowledgment.
+    // Prefer other admitted work until that exact schedule snapshot changes.
+    const sameRated = (card: Flashcard) => card.id === lastLocallyRated?.id && JSON.stringify(card) === lastLocallyRated.snapshot;
+    const freshCards = eligibleCards.filter(card => !sameRated(card));
+    const first = finiteSession()?.completedCardIds.length === 0 ? finiteSession()?.initialCardId : undefined;
+    const initial = eligibleCards.find(card => card.id === first);
+    const handoff = finiteSession()?.completedCardIds.length === 0 ? finiteSession()?.initialHandoff : undefined;
+    if (handoff && !initial) return null;
+    const offeredActivity = handoff && initial ? reviewHandoffActivity(handoff, finiteSession()?.requestId, initial, language, languageDataForCard(initial), activityChoices(initial)) : null;
+    // A resource or task change cannot silently substitute another retrieval for the offered one.
+    if (handoff && !offeredActivity) return null;
+    const planningCards = initial ? [initial] : (freshCards.length ? freshCards : eligibleCards).sort((a, b) => Number(b.id === fallback.id) - Number(a.id === fallback.id)).slice(0, 32);
     const availableIds = new Set(eligibleCards.map(card => card.id));
     const entryCache = new Map<string, ReturnType<typeof flashcardReviewPolicyEntry>>();
     const selectedActivities = new Map<string, ReviewActivity>();
+    // The admitted pool has one language/package and one evidence snapshot.
+    // Resolve opportunities and scope once rather than again for every card.
+    const reviewPolicyContext = policyContextFromSettings(settings, language, { model: learning.model()!, events: learning.snapshot()!.events, data: languageDataForCard(fallback) });
     const entryFor = (card: Flashcard, selectedActivity?: ReviewActivity) => {
       const cached = entryCache.get(card.id);
       if (cached) return cached;
       const choices = activityChoices(card);
-      const activity = selectedActivity ?? selectReviewActivity(choices,
-        capability => getAccessStatus(card.content.front, capability, languageForCard(card)), nowMs);
+      const runtime = reviewPolicyContext.learning!;
+      const activity = selectedActivity ?? selectReviewActivity(choices, learning.model()!,
+        flashcardReviewPolicyEntry(card, languageForCard(card), languageDataForCard(card)).targets![0].entityId,
+        { nowMs, horizonDays: runtime.horizonDays, deferDays: runtime.deferDays, targetWeights: runtime.targetWeights });
       selectedActivities.set(card.id, activity);
       const entry = flashcardReviewPolicyEntry(card, languageForCard(card), languageDataForCard(card), activity);
       entryCache.set(card.id, entry);
       return entry;
     };
     const reviewQueueEntries = (): ReturnType<typeof flashcardReviewPolicyEntry>[] =>
-      timed(`reviewQueueEntries(n=${eligibleCards.length})`, () => eligibleCards.map(card => entryFor(card)));
+      timed(`reviewQueueEntries(n=${eligibleCards.length})`, () => planningCards.map(card => entryFor(card, card.id === initial?.id ? offeredActivity ?? undefined : undefined)));
     // Pinned for the active encounter (R20 repair): this memo re-runs on
     // every unrelated queue/store/settings update, and the unseeded weighted
     // draw would silently replace the displayed card. The pin re-serves the
     // same decision until an explicit review action advances the epoch.
-    const restored = store.meta?.reviewPresentations?.[language];
-    const cursor = restored ? JSON.parse(JSON.stringify(restored)) as ReviewPresentation : undefined;
     return decisionPin.pin(language, () => {
       if (restored && availableIds.has(restored.cardId)) {
         const card = store.flashcards[restored.cardId];
@@ -432,10 +481,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       const selected = selectFlashcardReviewDecision({
         id: crypto.randomUUID(), at: nowMs,
         // The goal applies only to the queue's own learning language (R07).
-        context: policyContextFromSettings(settings, language),
+        context: reviewPolicyContext,
         entries: reviewQueueEntries(),
       });
       if (!selected) return null;
+      if (handoff && selected.provenance.selected.key === initial?.id) selected.provenance.detail.handoffRef = { id: handoff.id };
       const card = store.flashcards[selected.decision.candidate.key] ?? fallback;
       return snapshotEncounter({ card: JSON.parse(JSON.stringify(card)) as Flashcard, cursor, activity: selectedActivities.get(card.id)!, ...selected });
     }, (encounter) => {
@@ -459,7 +509,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const currentStage = () => currentEncounter()?.activity.stages?.[stageIndex()];
   const hasNextStage = () => !!currentEncounter()?.activity.stages && stageIndex() < currentEncounter()!.activity.stages!.length - 1;
   const displayedKind = () => currentStage()?.kind ?? currentEncounter()?.activity.kind;
-  const saveChoice = async (encounter: ReviewEncounter): Promise<void> => {
+  const saveChoice = async (encounter: ReviewEncounter, expectedId: string | null = encounter.cursor?.id ?? null): Promise<void> => {
     const id = encounter.provenance.id;
     const report = (phase: StudySessionWriteStatus): void => {
       if (!disposed && currentEncounter()?.provenance.id === id) setChoiceWrite({ id, phase });
@@ -472,7 +522,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         ...(encounter.session ? { session: encounter.session } : {}),
         ...(encounter.activity.stages ? { stageIndex: stageIndex(), stageScaffolds: store.meta.reviewPresentations?.[languageForCard(encounter.card)]?.id === id
           ? store.meta.reviewPresentations[languageForCard(encounter.card)].stageScaffolds : encounter.cursor?.id === id ? encounter.cursor.stageScaffolds : undefined } : {}),
-        decision: encounter.provenance }, encounter.cursor?.id ?? null);
+        decision: encounter.provenance }, expectedId);
       report(null);
     } catch (error) {
       log.warn('Failed to save the background review position:', error);
@@ -487,7 +537,31 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
       // A peer owns the resumable position. Explicit recovery adopts that
       // choice instead of repeatedly trying to overwrite it with stale intent.
       batch(() => { setShowAnswer(false); decisionPin.advance(); });
-    } else void saveChoice(encounter);
+    } else void saveChoice(encounter, authoritative?.id ?? null);
+  };
+  const startNewReview = async (): Promise<void> => {
+    if (releaseWrite()?.phase === 'pending' || ratingWrite() || removalWrite() || isRetractionWriteBlocking(retractionWrite())) return;
+    const command = (releaseWrite()?.stale ? undefined : releaseWrite()?.command) ?? JSON.parse(JSON.stringify({ kind: 'release', language: settings.language,
+      expectedPresentation: store.meta.reviewPresentations?.[settings.language] ?? null,
+      expectedSession: store.meta.reviewSessions?.[settings.language] ?? null })) as import('../../../shared/reviewPresentationWrite').ReviewPositionRelease;
+    const request = props.sessionRequestId;
+    setReleaseWrite({ command, phase: 'pending' });
+    try {
+      await releaseReviewPosition(command);
+      if (disposed || settings.language !== command.language) return;
+      batch(() => {
+        if (props.sessionRequestId === request) setReleasedRequest(request);
+        localSession = undefined;
+        setSessionEpoch(value => value + 1);
+        decisionPin.advance();
+        setShowAnswer(false);
+        setReleaseWrite(undefined);
+      });
+    } catch (error) {
+      log.warn('Failed to leave unavailable Review work:', error);
+      if (!disposed && settings.language === command.language) setReleaseWrite({ command, phase: 'failed',
+        stale: String(error).includes('replaced by another window') });
+    }
   };
   createEffect(on([() => currentEncounter()?.provenance.id, retractionWrite], () => {
     if (isRetractionWriteBlocking(retractionWrite())) return;
@@ -656,6 +730,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         stamp('afterSetShowAnswer');
         // Publish the next encounter here; readiness must not trigger
         // auto-play for an intermediate selection before the pin advances.
+        lastLocallyRated = { id: write.card.id, snapshot: JSON.stringify(write.card) };
         decisionPin.advance();
         stamp('afterPinAdvance');
         setRatingWrite(null);
@@ -923,6 +998,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const handleUndo = async () => {
     if (ratingWrite() !== null || removalWrite() !== null || isRetractionWriteBlocking(retractionWrite())) return;
     setRetractionWrite('pending');
+    lastLocallyRated = undefined;
     try {
       const actionType = await undoLastAction();
       batch(() => {
@@ -1191,6 +1267,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
   return (
       <div class="flashcard-review-container" data-review-phase={presentation().phase} data-encounter-id={currentEncounter()?.provenance.id} style={props.style}>
+        <Show when={learning.failed()}><KnowledgeLoadError onRetry={learning.retry} /></Show>
         <div class="review-activity-preferences">
           <Button ref={element => { activityPreferencesAnchor = element; }} size="sm" variant="ghost" aria-haspopup="dialog" aria-expanded={showActivityPreferences()} onClick={() => setShowActivityPreferences(!showActivityPreferences())}>
             {t('mlearn.Flashcards.Review.Activities')}
@@ -1211,6 +1288,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             <Button size="sm" onClick={() => { refreshAudioResources(); }}>
               {t('mlearn.Global.TryAgain')}
             </Button>
+            <Button size="sm" disabled={releaseWrite()?.phase === 'pending' || !!ratingWrite() || !!removalWrite() || isRetractionWriteBlocking(retractionWrite())}
+              onClick={() => { void startNewReview(); }}>{t('mlearn.Flashcards.Review.StartNew')}</Button>
+            <Show when={releaseWrite()?.phase === 'failed'}><p role="alert">{t('mlearn.Flashcards.Review.StartNewFailed')}</p></Show>
           </Show>
         </div>
         <Show when={sessionTotal() > 0}><StudySessionHUD class="flashcard-session-progress" completed={sessionAnswered()} total={sessionTotal()} /></Show>

@@ -1,4 +1,4 @@
-import type { ReviewPresentationWrite } from '../reviewPresentationWrite';
+import type { ReviewPositionWrite } from '../reviewPresentationWrite';
 import type { FlashcardAudioPreset } from '../types';
 import type { EffectiveThresholds } from '../knowledge/effectiveKnowledge';
 import type { FlashcardRatingCommand, FlashcardRatingCommit } from '../flashcardRating';
@@ -76,7 +76,7 @@ export interface SettingsBridge {
 
 export interface FlashcardBridge {
   commitFlashcardRating: (command: FlashcardRatingCommand) => Promise<FlashcardRatingCommit>;
-  saveReviewPresentation: (command: ReviewPresentationWrite) => Promise<FlashcardRatingCommit | null>;
+  saveReviewPresentation: (command: ReviewPositionWrite) => Promise<FlashcardRatingCommit | null>;
   enqueueFlashcardRating: (command: FlashcardRatingCommand) => Promise<number>;
   flushFlashcardRatings: () => Promise<void>;
   onFlashcardRatingsCommitted: (callback: (commit: FlashcardRatingCommit) => void) => () => void;
@@ -321,6 +321,7 @@ export interface MediaStatsBridge {
 }
 
 export interface KnowledgeEventsBridge {
+  getLearningEvidence: (language: string) => Promise<import('../learningEvidence').LearningEvidenceSnapshot>;
   recordLearningDecision: (decision: LearningDecision) => Promise<void>;
   getLearningDecisionRecord: (id: string) => Promise<LearningDecisionRecord | null>;
   getRatingUndoHistory: (surface: string) => Promise<import('../retractionRecovery').PendingRetraction[]>;

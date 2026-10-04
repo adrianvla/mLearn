@@ -2506,6 +2506,33 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('preserves current-day burial when only the obsolete global day marker is old', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const today = SRS.getTodayDateString(DEFAULT_SETTINGS.newDayHour);
+    const snapshot = makeEmptyStore({ flashcards: { buried: makeCard({ id: 'buried', buried: true }) } });
+    snapshot.meta.newCardsDate = '2000-01-01';
+    snapshot.meta.perLanguage.ja.newCardsDate = today;
+    flashcardsCb(snapshot);
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    expect(ctx.store.flashcards.buried.buried).toBe(true);
+    dispose();
+  });
+  it('unburies only cards whose own language day has advanced', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const today = SRS.getTodayDateString(DEFAULT_SETTINGS.newDayHour);
+    const snapshot = makeEmptyStore({ flashcards: {
+      current: makeCard({ id: 'current', language: 'ja', buried: true }),
+      older: makeCard({ id: 'older', language: 'future', buried: true }),
+    } });
+    snapshot.meta.newCardsDate = today;
+    snapshot.meta.perLanguage.ja.newCardsDate = today;
+    snapshot.meta.perLanguage.future = { newCardsToday: 1, reviewsToday: 1, newCardsDate: '2000-01-01' };
+    flashcardsCb(snapshot);
+    await vi.waitFor(() => expect(ctx.isKnowledgeReady()).toBe(true));
+    expect(ctx.store.flashcards.current.buried).toBe(true);
+    expect(ctx.store.flashcards.older.buried).toBe(false);
+    dispose();
+  });
   it('focus redelivery with an unchanged rev keeps the knowledge gate open', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore({ rev: 7 }));
@@ -8644,6 +8671,56 @@ vi.mock('../context', () => ({
 describe('recordGrammarAttempt (curriculum grammar probe)', () => {
   beforeEach(setupMockImplementations);
 
+  it('joins an acknowledged grammar response to its frozen decision and refuses a different target', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    mockAppendEvents.mockClear();
+    const decision = { id: 'grammar-admission', at: Date.now(), policyVersion: 'captured-policy',
+      selected: { key: 'opaque-grammar', action: 'PROBE', targets: [{ kind: 'grammar-pattern', id: 'de:grammar:weil', capability: 'grammar-recognition' }],
+        task: { taskTemplateId: 'grammar-self-assess', inputModality: 'written-form', responseModality: 'recall',
+          supplied: ['written-form'], requested: ['grammar-recognition'], fluencyRequired: false, ratingMode: 'dominant' as const } },
+      baseline: null, detail: { packageOwned: { futureFeature: ['opaque', { value: 7 }] } } };
+    await ctx.recordGrammarAttemptAcknowledged('weil', 'fluent', { language: 'de', attemptId: 'stable-grammar-attempt',
+      taskType: 'grammar-self-assess', method: 'recall', decision });
+    const [event] = (mockAppendEvents.mock.calls[0][0] as KnowledgeEventLog)[grammarEvidenceKey('de', 'weil', 'grammar-recognition')];
+    expect(event).toMatchObject({ attemptId: 'stable-grammar-attempt', decisionRef: { id: decision.id }, decision });
+    mockAppendEvents.mockClear();
+    await expect(ctx.recordGrammarAttemptAcknowledged('obwohl', 'fluent', { language: 'de',
+      taskType: 'grammar-self-assess', method: 'recall', decision })).rejects.toThrow('pinned learning task');
+    await expect(ctx.recordGrammarAttemptAcknowledged('weil', 'fluent', { language: 'de',
+      taskType: 'grammar-recognize', decision })).rejects.toThrow('Grammar response task');
+    expect(mockAppendEvents).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it.each(['mcq', 'typed'] as const)('persists the admitted contrast-%s decision with item validation, without calling it recall', async format => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore()); mockAppendEvents.mockClear();
+    const taskType = `contrast-${format}`;
+    const itemRef = { id: 'vendor:unknown-question', version: 'opaque-version', seed: 7 };
+    const validationRef = { validator: 'test-validator', at: '2026-10-04', contentHash: itemRef.version };
+    const decision = { id: `contrast-${format}-admission`, at: Date.now(), policyVersion: 'captured-policy',
+      selected: { key: 'opaque-grammar', action: 'PROBE', targets: [{ kind: 'grammar-pattern', id: 'future:grammar:unknown', capability: 'grammar-recognition' }],
+        task: { taskTemplateId: taskType, inputModality: 'written-context', responseModality: format === 'mcq' ? 'multiple-choice' : 'typed',
+          supplied: ['written-context'], requested: ['grammar-recognition'], fluencyRequired: false, ratingMode: 'dominant' as const },
+        presentation: { itemRef, validationRef } }, baseline: null, detail: { scope: 'frozen-grammar-contrast' } };
+    await ctx.recordGrammarAttemptAcknowledged('unknown', 'struggled', { language: 'future', taskType, itemRef, validationRef,
+      attemptId: 'stable-contrast-attempt', decision });
+    const [event] = (mockAppendEvents.mock.calls[0][0] as KnowledgeEventLog)[grammarEvidenceKey('future', 'unknown', 'grammar-recognition')];
+    expect(event).toMatchObject({ attemptId: 'stable-contrast-attempt', taskType, itemRef, validationRef,
+      decisionRef: { id: decision.id }, decision });
+    expect(event.method).not.toBe('recall');
+    mockAppendEvents.mockClear();
+    await expect(ctx.recordGrammarAttemptAcknowledged('unknown', 'struggled', { language: 'future',
+      taskType: format === 'mcq' ? 'contrast-typed' : 'contrast-mcq', decision })).rejects.toThrow('Grammar response task');
+    await expect(ctx.recordGrammarAttemptAcknowledged('unknown', 'struggled', { language: 'future', taskType,
+      itemRef: { ...itemRef, version: 'wrong-version' }, validationRef, decision })).rejects.toThrow('Grammar response item');
+    await expect(ctx.recordGrammarAttemptAcknowledged('unknown', 'struggled', { language: 'future', taskType,
+      itemRef, validationRef: { ...validationRef, validator: 'wrong-validator' }, decision })).rejects.toThrow('Grammar response item');
+    expect(mockAppendEvents).not.toHaveBeenCalled();
+    dispose();
+  });
+
   it('a German grammar probe is UNASSISTED by default (cue-free session surface)', async () => {
     mockSettings.language = 'de';
     const { ctx, dispose } = await mountProvider();
@@ -8685,7 +8762,7 @@ describe('recordGrammarAttempt (curriculum grammar probe)', () => {
     dispose();
   });
 
-  it('the acknowledged grammar writer preserves a caller-reserved attempt id', async () => {
+  it('the acknowledged grammar writer preserves a caller-reserved attempt id and declared recall method', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
     mockAppendEvents.mockClear();
@@ -8693,10 +8770,12 @@ describe('recordGrammarAttempt (curriculum grammar probe)', () => {
       language: 'ja',
       level: 2,
       attemptId: 'restart-stable-attempt',
+      method: 'recall',
     });
     expect(attemptId).toBe('restart-stable-attempt');
     expect(Object.values(mockAppendEvents.mock.calls[0][0] as Record<string, Array<{ attemptId?: string }>>)[0][0].attemptId)
       .toBe('restart-stable-attempt');
+    expect(Object.values(mockAppendEvents.mock.calls[0][0] as Record<string, Array<{ method?: string }>>)[0][0].method).toBe('recall');
     dispose();
   });
 

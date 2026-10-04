@@ -270,6 +270,32 @@ describe('flashcardStorage', () => {
     expect((await loadFlashcards()).meta.reviewPresentations?.[cursor.language]).toEqual(cursor.presentation);
   });
 
+  it('atomically releases an explicitly abandoned Review boundary, with disk retry and no card response', async () => {
+    const storage = await import('./flashcardStorage');
+    const card = makeFlashcard('unavailable-cue');
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const cursor = cursorFor((await loadFlashcards()).flashcards[card.id]);
+    cursor.presentation.session = { id: 'boundary', cardIds: [card.id], completedCardIds: [], encounterLimit: 1, startedAt: 20 };
+    await storage.saveReviewPresentation(cursor);
+    const before = structuredClone(await loadFlashcards());
+    const command = { kind: 'release' as const, language: cursor.language,
+      expectedPresentation: before.meta.reviewPresentations![cursor.language], expectedSession: before.meta.reviewSessions![cursor.language] };
+    const rename = vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('disk full'));
+    await expect(storage.saveReviewPresentation(command)).rejects.toThrow('disk full');
+    rename.mockRestore();
+    invalidateFlashcardsCache();
+    expect((await loadFlashcards()).meta.reviewPresentations?.[cursor.language]).toEqual(command.expectedPresentation);
+    await storage.saveReviewPresentation(command);
+    invalidateFlashcardsCache();
+    const after = await loadFlashcards();
+    expect(after.meta.reviewPresentations?.[cursor.language]).toBeUndefined();
+    expect(after.meta.reviewSessions?.[cursor.language]).toBeUndefined();
+    expect(after.flashcards).toEqual(before.flashcards);
+    expect(after.dailyStats).toEqual(before.dailyStats);
+    expect(after.wordKnowledge).toEqual(before.wordKnowledge);
+    expect((await storage.saveReviewPresentation(command))?.patch.entries).toEqual([]);
+  });
+
   it('admits an ordered same-card queue against each preceding captured response and retains both original Undos', async () => {
     const storage = await import('./flashcardStorage');
     const card = makeFlashcard('queued-chain');
@@ -453,6 +479,31 @@ describe('flashcardStorage', () => {
     expect((await restarted.loadFlashcards()).flashcards[card.id].reviews).toBe(1);
   });
 
+  it('recovers an already admitted supplied-cache response without decreasing history or duplicating its attempt', async () => {
+    const storage = await import('./flashcardStorage');
+    const journal = await import('./knowledgeEvents');
+    const cache = { state: 'review' as const, ease: 2.5, interval: 100, dueAt: 100, reviews: 18,
+      lapses: 0, learningStep: 0, lastReviewed: 1, provenance: 'migrated-scheduler-cache' as const };
+    const card = makeFlashcard('supplied-cache-recovery', { state: 'review', reviews: 19, retentionCache: cache });
+    await saveFlashcards(makeStore({ version: 3, flashcards: { [card.id]: card } }));
+    const attemptId = 'supplied-cache-recovery';
+    const command: FlashcardRatingCommand = { attemptId, guardCardIds: [card.id],
+      events: { 'ja:rating-key': [{ t: 2, kind: 'review', source: 'srs', rating: 'good',
+        schedulerCardId: card.id, attemptId, retentionCondition: 'supplied' }] },
+      patch: { baseRev: 1, entries: [{ path: ['flashcards', card.id], before: card,
+        after: { ...card, reviews: 18, retentionCache: { ...cache, lastReviewed: 2, provenance: 'derived-scheduler-cache' } } }] },
+      counterDeltas: [{ path: ['flashcards', card.id, 'reviews'], delta: -1 }] };
+    journal.reserveRatingCommand(command, () => {});
+    await storage.commitFlashcardRating(command);
+    const saved = await loadFlashcards();
+    expect(saved.flashcards[card.id].reviews).toBe(19);
+    expect(saved.flashcards[card.id].retentionCache?.reviews).toBe(19);
+    expect(journal.pendingRatingCommands()).toEqual([]);
+    await storage.commitFlashcardRating(command);
+    expect(journal.getKnowledgeEvents(['ja:rating-key'])['ja:rating-key']).toHaveLength(1);
+    expect((await loadFlashcards()).flashcards[card.id].reviews).toBe(19);
+  });
+
   it('admits a renderer-hydrated retention cache without ignoring scheduler or prompt changes', async () => {
     const storage = await import('./flashcardStorage');
     const card = makeFlashcard('cache-only');
@@ -616,6 +667,29 @@ describe('flashcardStorage', () => {
   });
 
   describe('loadFlashcards', () => {
+    it('defers level enrichment of an admitted Review cue while enriching other cards', async () => {
+      writeLanguageMetadata(tempDir.tmpDir, 'future-package', {
+        name: 'Future package', frequencyLevels: { rowLevelIndex: 2 },
+      });
+      fs.writeFileSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'future-package.freq.json'),
+        JSON.stringify({ freq: [['hello', 'hello', 7]], frequencyLevels: { rowLevelIndex: 2 } }));
+      const held = makeFlashcard('held', { language: 'future-package' });
+      const future = makeFlashcard('future', { language: 'future-package' });
+      const data = makeStore({ version: 3, flashcards: { held, future } });
+      data.meta.reviewPresentations = { 'future-package': { id: 'held-choice', cardId: held.id } };
+      writeFlashcardsFile(tempDir.tmpDir, data);
+      const loaded = await loadFlashcards();
+      expect(loaded.flashcards.held.content).toEqual(held.content);
+      expect(loaded.flashcards.future.content.level).toBe(7);
+      invalidateFlashcardsCache();
+      const reopened = await loadFlashcards();
+      expect(reopened.flashcards.held.content).toEqual(held.content);
+      delete reopened.meta.reviewPresentations;
+      writeFlashcardsFile(tempDir.tmpDir, reopened);
+      invalidateFlashcardsCache();
+      expect((await loadFlashcards()).flashcards.held.content.level).toBe(7);
+    });
+
     it('returns default empty store when flashcards.json does not exist', async () => {
       const store = await loadFlashcards();
 

@@ -18,7 +18,7 @@ import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type Flashca
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
-import { applyLearningDecision } from '../../shared/learningDecision';
+import { applyLearningDecision, type LearningDecision } from '../../shared/learningDecision';
 import { clonePendingRetraction, readPendingRetraction, type PendingRetraction, type RetractionTarget, type RetractionReplayDescriptor } from '../../shared/retractionRecovery';
 import { isStaleFlashcardRevision } from '../../shared/flashcardWriteRevision';
 import { grammarEvidenceKey, grammarPatternFromEvidenceKey, grammarRecognitionEvidence } from '../../shared/grammar/evidence';
@@ -342,6 +342,7 @@ interface FlashcardContextValue {
   updateMeta: (updates: Partial<FlashcardMeta>) => void;
   /** Admit a review cursor without replacing a newer window's position. */
   saveReviewPresentation: (language: string, presentation: ReviewPresentation, expectedId: string | null) => Promise<void>;
+  releaseReviewPosition: (command: import('../../shared/reviewPresentationWrite').ReviewPositionRelease) => Promise<void>;
 
   // Undo support
   pushUndoState: (options: { type: string; cardId: string }) => void;
@@ -486,9 +487,9 @@ interface FlashcardContextValue {
    * rating event on the capability-scoped grammar journal. Active measurement
    * — unlike encounter rollups, it counts as measuring the construction.
    */
-  recordGrammarAttempt: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: AttemptTaskType }) => AttemptId;
+  recordGrammarAttempt: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: AttemptTaskType; decision?: LearningDecision }) => AttemptId;
   /** Same canonical writer, but resolves only after the durable journal accepts the event. */
-  recordGrammarAttemptAcknowledged: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: AttemptTaskType; attemptId?: AttemptId }) => Promise<AttemptId>;
+  recordGrammarAttemptAcknowledged: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: AttemptTaskType; attemptId?: AttemptId; decision?: LearningDecision }) => Promise<AttemptId>;
   getGrammarKnowledge: (pattern: string, language?: string) => GrammarKnowledgeEntry | undefined;
   /**
    * Appends item-invalidation tombstones (items retired, content-changed or
@@ -1060,11 +1061,14 @@ export const FlashcardProvider: ParentComponent = (props) => {
         provenance: 'migrated-scheduler-cache' as const,
       },
     }]));
-    // Legacy stores carried the day marker at the top level; perLanguage is canonical now.
-    const lastDate = (partial.meta as { newCardsDate?: string } | undefined)?.newCardsDate;
-    if (lastDate && lastDate !== today) {
-      flashcards = SRS.unburyCards(flashcards);
-    }
+    // Current language day markers own burial rollover. A leftover global
+    // marker must not repeatedly undo a current-day burial on reload/sync.
+    // Keep it only as the compatibility fallback for an unmigrated language.
+    const legacyDate = (partial.meta as { newCardsDate?: string } | undefined)?.newCardsDate;
+    flashcards = Object.fromEntries(Object.entries(flashcards).map(([id, card]) => {
+      const lastDate = partial.meta?.perLanguage?.[card.language || settings.language]?.newCardsDate || legacyDate;
+      return [id, card.buried && lastDate && lastDate !== today ? setFlashcardExclusion(card, 'buried', false) : card];
+    }));
 
     let wordToCardMap: Record<string, string[]> = partial.wordToCardMap || {};
     for (const [wordHash, cardIds] of Object.entries(wordToCardMap)) {
@@ -2909,6 +2913,20 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     await getBridge().knowledgeEvents.recordLearningDecision(frozen.decision!);
     try {
       const commit = await getBridge().flashcards.saveReviewPresentation({ language, presentation: frozen, expectedId, card: captured });
+      if (commit) handleRatingCommit(commit);
+    } catch (error) {
+      if (String(error).includes('replaced by another window')) {
+        authorityRefreshRequired = true;
+        await requestAuthorityStore();
+      }
+      throw error;
+    }
+  };
+
+  const releaseReviewPosition = async (command: import('../../shared/reviewPresentationWrite').ReviewPositionRelease): Promise<void> => {
+    if (libraryLoadError()) throw new Error('The saved library must be loaded before leaving a review');
+    try {
+      const commit = await getBridge().flashcards.saveReviewPresentation(JSON.parse(JSON.stringify(command)));
       if (commit) handleRatingCommit(commit);
     } catch (error) {
       if (String(error).includes('replaced by another window')) {
@@ -5291,7 +5309,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   // materialization, and coverage see identical evidence. Ease moves along
   // the shared grammar anchors: fluent counts as a successful encounter,
   // struggled as an encounter with friction, missed as a failure.
-  type GrammarAttemptOptions = { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; taskType?: AttemptTaskType; attemptId?: AttemptId };
+  type GrammarAttemptOptions = { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: AttemptTaskType; attemptId?: AttemptId; decision?: LearningDecision };
   const prepareGrammarAttempt = (
     pattern: string,
     quality: AttemptQuality,
@@ -5299,6 +5317,15 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   ): { attemptId: AttemptId; language: string; level?: number; events: KnowledgeEventLog } => {
     const language = options?.language ?? settings.language;
     const attemptId = options?.attemptId ?? nextAttemptId();
+    if (options?.decision && options.decision.selected.task.taskTemplateId !== (options.taskType ?? 'grammar-recognize')) {
+      throw new Error('Grammar response task does not match its admitted decision');
+    }
+    const presentation = options?.decision?.selected.presentation;
+    for (const field of ['itemRef', 'validationRef'] as const) {
+      if (presentation?.[field] !== undefined && JSON.stringify(presentation[field]) !== JSON.stringify(options?.[field])) {
+        throw new Error('Grammar response item does not match its admitted decision');
+      }
+    }
     // An ACTIVE measurement records its outcome explicitly (easeAfter),
     // like the anki import — it must not inherit the slow exposure-anchor
     // walk that passive encounter rollups use. Missed records a failure
@@ -5308,14 +5335,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       : quality === 'struggled'
         ? { easeAfter: (SRS_EASE.MIN + SRS_EASE.DEFAULT_KNOWN) / 2 }
         : { grammarFailedDelta: 1 };
-    return { attemptId, language, level: options?.level, events: {
-      [grammarEvidenceKey(language, pattern, 'grammar-recognition')]: [grammarRecognitionEvidence(language, pattern, {
+    const events = [grammarRecognitionEvidence(language, pattern, {
         t: Date.now(),
         kind: 'rating',
         quality,
         attemptId,
         origin: 'grammar-probe',
         taskType: options?.taskType ?? 'grammar-recognize',
+        ...(options?.method ? { method: options.method } : {}),
         // Presentation provenance: the surface declares what was visible while
         // the learner self-assessed (core contract: translation cues do not
         // invalidate grammar-recognition — SCAFFOLD_INVALIDATES).
@@ -5325,7 +5352,10 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         ...(options?.itemRef ? { itemRef: options.itemRef } : {}),
         ...(options?.validationRef ? { validationRef: options.validationRef } : {}),
         ...outcome,
-      })],
+      })];
+    return { attemptId, language, level: options?.level, events: {
+      [grammarEvidenceKey(language, pattern, 'grammar-recognition')]: options?.decision
+        ? applyLearningDecision(events, options.decision) : events,
     } };
   };
   const recordGrammarAttempt = (
@@ -6091,6 +6121,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     populationStats,
     updateMeta,
     saveReviewPresentation,
+    releaseReviewPosition,
     pushUndoState,
     undoLastAction,
     canUndo,

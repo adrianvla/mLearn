@@ -1,8 +1,39 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { policyContextFromSettings } from './policyContext';
+import { fitLearningModel } from '../../shared/learningModel';
+import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 
 describe('policyContextFromSettings', () => {
+  it('keeps the required date distinct from a consolidation horizon that responds to observed missed opportunities', () => {
+    const day = 86_400_000;
+    const now = Date.parse('2026-10-04');
+    const events: KnowledgeEvent[] = [now - 30 * day, now - 20 * day].map((t, i) => ({ t, kind: 'rating', source: 'srs', attemptId: `episode-${i}`, activeLatencyMs: 10_000 }));
+    const settings = { ...DEFAULT_SETTINGS, learningGoals: [{ id: 'future-outcome', language: 'future', outcome: 'Package assessment', status: 'active' as const,
+      priority: 1, createdAt: now, deadline: '2026-10-14' }] };
+    const sparse = policyContextFromSettings(settings, 'future', { model: fitLearningModel([], now), events: [] }).learning!;
+    const missed = policyContextFromSettings(settings, 'future', { model: fitLearningModel(events, now), events }).learning!;
+    expect(sparse.assessmentAt).toBe(Date.parse('2026-10-14'));
+    expect(missed.assessmentAt).toBe(sparse.assessmentAt);
+    expect(missed.horizonDays).toBe(30);
+    expect(missed.horizonDays).toBeGreaterThan(sparse.horizonDays);
+    expect(missed.deferDays).toBe(20);
+    expect(policyContextFromSettings(settings, 'future', { model: fitLearningModel(events, now + 11 * day), events }).learning!.assessmentAt).toBeUndefined();
+  });
+  it('uses boundary time for deadlines and missed opportunities without resetting the fitted model', () => {
+    const day = 86400000;
+    const fitAt = Date.parse('2026-10-04');
+    const model = fitLearningModel([], fitAt);
+    const settings = { ...DEFAULT_SETTINGS, learningGoals: [{ id: 'scope', language: 'future', outcome: 'Scope',
+      status: 'active' as const, priority: 1, createdAt: fitAt, deadline: '2026-10-14' }] };
+    const before = policyContextFromSettings(settings, 'future', { model, events: [], nowMs: fitAt }).learning!;
+    const later = policyContextFromSettings(settings, 'future', { model, events: [], nowMs: fitAt + 11 * day }).learning!;
+    expect(before.assessmentAt).toBe(Date.parse('2026-10-14'));
+    expect(later.assessmentAt).toBeUndefined();
+    expect(later.horizonDays).toBe(30);
+    expect(later.model).toBe(model);
+    expect(model.at).toBe(fitAt);
+  });
   it('defaults to steady intensity with no goal', () => {
     expect(policyContextFromSettings(DEFAULT_SETTINGS)).toEqual({ intensity: 'steady' });
   });

@@ -447,6 +447,21 @@ describe('getDefaultMeta', () => {
 // answerCard — new state
 // ---------------------------------------------------------------------------
 
+describe('answerCard: hydrated cache counters', () => {
+    it.each(['supplied', 'assisted', 'unassisted'] as const)('preserves saved history with a stale cache for %s answers', condition => {
+        const card = createTestCard({ state: 'review', reviews: 19, lapses: 3, interval: DAY,
+            retentionCache: { state: 'review', ease: 2.5, interval: DAY, dueAt: 0,
+                reviews: 18, lapses: 2, learningStep: 0, lastReviewed: 0,
+                provenance: 'migrated-scheduler-cache' } });
+        const result = answerCard(card, 'good', createTestMeta(), condition);
+        expect(result.reviews).toBe(condition === 'supplied' ? 19 : 20);
+        expect(result.lapses).toBe(3);
+        expect(result.retentionCache?.reviews).toBe(result.reviews);
+        expect(result.retentionCache?.lapses).toBe(result.lapses);
+        expect(card.retentionCache?.reviews).toBe(18);
+    });
+});
+
 describe('answerCard: new state', () => {
     afterEach(() => {
         vi.useRealTimers();

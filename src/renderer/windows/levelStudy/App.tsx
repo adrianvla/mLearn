@@ -1,3 +1,5 @@
+import { useLearningModel } from '../../hooks/useLearningModel';
+import { policyContextFromSettings } from '../../learning/policyContext';
 import { Component, Show, batch, createEffect, createSignal, createMemo, on, onMount, onCleanup } from 'solid-js';
 import { WindowWrapper, useLanguage, useLocalization, useSettings } from '../../context';
 import { Button, ArrowLeftIcon, Panel, TargetIcon } from '../../components/common';
@@ -6,11 +8,11 @@ import { CharacterGridContent } from '../characterGrid/App';
 import { LevelStudyTab } from './LevelStudyTab';
 import { LearningPlanSettings } from './LearningPlanSettings';
 import { getCharacterStudyScripts, getLearningLanguageLevelForLanguage, getFrequencyLevelLabel } from '../../../shared/languageFeatures';
-import { goalSessionBudget } from '../../../shared/learningGoals';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { materialPracticeContext, type MaterialPracticeContext } from './materialPracticeContext';
+import { grammarSelfAssessmentHandoffMatches } from './grammarSelfAssessmentDecision';
 import './LevelStudy.css';
 
 type PlanDestination = 'plan' | 'assessment' | 'word-sync' | 'character-grid';
@@ -19,6 +21,8 @@ export const LevelStudyContent: Component = () => {
   const { t } = useLocalization();
   const { currentLangData, getFreqLevelNames } = useLanguage();
   const { settings, isLoading: settingsLoading } = useSettings();
+  const learning = useLearningModel(() => settings.language);
+  const policyContext = () => learning.model() ? policyContextFromSettings(settings, settings.language, { model: learning.model()!, events: learning.snapshot()!.events, data: currentLangData() }) : undefined;
   let planControls: HTMLDetailsElement | undefined;
   const editPlan = () => {
     setDestination('plan');
@@ -32,6 +36,19 @@ export const LevelStudyContent: Component = () => {
   const openStudy = () => { batch(() => { setMaterialPractice(undefined); setStudyIntent(undefined); setDestination('word-sync'); }); };
   const [sessionConstraint, setSessionConstraint] = createSignal<{ encounterLimit: number; requestId?: string }>();
   const [incomingContext, setIncomingContext] = createSignal<Record<string, unknown> | null>(null);
+  const [grammarRequestConsumed, setGrammarRequestConsumed] = createSignal(false);
+  const grammarRequest = createMemo(() => {
+    const context = incomingContext();
+    if (grammarRequestConsumed() || context?.activity !== 'grammar' || !learning.ready() || !Array.isArray(context.patterns)) return undefined;
+    const patterns = context.patterns.filter((value): value is string => typeof value === 'string' && !!currentLangData()?.grammar?.some(point => point.pattern === value));
+    const level = currentLangData()?.grammar?.find(point => patterns.includes(point.pattern))?.level;
+    const session = context.session as { requestId?: unknown; decision?: unknown } | undefined;
+    const handoff = session?.decision;
+    if (handoff !== undefined && !grammarSelfAssessmentHandoffMatches(handoff, session?.requestId, settings.language, patterns)) return undefined;
+    return patterns.length && level !== undefined ? { level, patterns, requestedAt: 0,
+      ...(handoff !== undefined ? { handoffDecision: handoff } : {}) } : undefined;
+  });
+
   createEffect(on(() => settingsLoading() ? null : incomingContext(), context => {
     if (!context) return;
     const session = context.session as { encounterLimit?: unknown; requestId?: unknown } | undefined;
@@ -48,12 +65,12 @@ export const LevelStudyContent: Component = () => {
         setDestination('word-sync');
       }
       else if (context.activity === 'assessment') setDestination('assessment');
-      else if (context.activity === 'plan') setDestination('plan');
+      else if (context.activity === 'plan' || context.activity === 'grammar') setDestination('plan');
     });
   }));
   onMount(() => {
     const bridge = getBridge();
-    const cleanup = bridge.window.onWindowContext(setIncomingContext);
+    const cleanup = bridge.window.onWindowContext(context => { setGrammarRequestConsumed(false); setIncomingContext(context); });
     if (cleanup) onCleanup(cleanup);
     bridge.window.getWindowContext('level-study');
   });
@@ -64,9 +81,7 @@ export const LevelStudyContent: Component = () => {
       ?? data?.activeFrequencyProvider ?? data?.defaultFrequencyProvider ?? ''];
     const target = getLearningLanguageLevelForLanguage(settings, settings.language);
     const label = target === null ? t('mlearn.Settings.Behaviour.LearningLanguageLevel.NoLimit') : getFrequencyLevelLabel(target, getFreqLevelNames(), data);
-    const intensity = settings.sessionIntensity ?? DEFAULT_SETTINGS.sessionIntensity;
-    const intensityKey = { gentle: 'Gentle', steady: 'Steady', intensive: 'Intensive' }[intensity];
-    return [provider?.name, label, t(`mlearn.Settings.Behaviour.SessionIntensity.${intensityKey}`)].filter(Boolean).join(' · ');
+    return [provider?.name, label].filter(Boolean).join(' · ');
   };
   createEffect(() => {
     if (destination() === 'character-grid' && !showCharacterGrid()) setDestination('plan');
@@ -110,12 +125,12 @@ export const LevelStudyContent: Component = () => {
               </details>
               <h2 class="learning-plan-progress-heading">{t('mlearn.LearningPlan.Progress')}</h2>
             </Show>
-            <LevelStudyTab onEditPlan={editPlan} />
+            <LevelStudyTab onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
           </div>
         </Show>
         <Show when={destination() === 'word-sync' || destination() === 'assessment'}>
           <Show keyed when={destination() === 'assessment' ? 'assessment' : materialPractice() ? `material:${hashWordSync(materialPractice()!.words.join('\u0000'))}` : studyIntent() ?? 'study'}>{mode =>
-            <WordSyncContent onClose={incomingContext()?.returnTo === 'home' ? () => getBridge().window.closeWindow() : undefined} encounterLimit={sessionConstraint()?.encounterLimit ?? goalSessionBudget(settings.learningMinutes ?? DEFAULT_SETTINGS.learningMinutes)} sessionRequestId={sessionConstraint()?.requestId} mode={mode === 'assessment' ? 'assessment' : 'study'} intent={mode === 'reinforce' ? 'reinforce' : undefined} words={materialPractice()?.words} sourceLabel={materialPractice()?.label} onAssessmentApplied={() => setDestination('plan')} />
+            <WordSyncContent onClose={incomingContext()?.returnTo === 'home' ? () => getBridge().window.closeWindow() : undefined} encounterLimit={sessionConstraint()?.encounterLimit} sessionRequestId={sessionConstraint()?.requestId} mode={mode === 'assessment' ? 'assessment' : 'study'} intent={mode === 'assessment' ? undefined : studyIntent()} words={materialPractice()?.words} sourceLabel={materialPractice()?.label} onAssessmentApplied={() => setDestination('plan')} />
           }</Show>
         </Show>
         <Show when={destination() === 'character-grid' && showCharacterGrid()}><CharacterGridContent /></Show>

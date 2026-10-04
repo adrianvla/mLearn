@@ -54,7 +54,43 @@ export function refusedRatingAttemptIds(error: unknown): readonly string[] | nul
   } catch { return null; }
 }
 
+/** Recover the known pre-fix supplied-cache mismatch without rewriting its receipt or evidence. */
+function suppliedCacheRecovery(command: FlashcardRatingCommand): FlashcardRatingCommand {
+  const repairedIds = new Set<string>();
+  const entries = command.patch.entries.map(entry => {
+    if (entry.path.length !== 2 || entry.path[0] !== 'flashcards') return entry;
+    const id = entry.path[1];
+    const before = entry.before as Record<string, unknown> | undefined;
+    const after = entry.after as Record<string, unknown> | undefined;
+    const priorCache = before?.retentionCache as Record<string, unknown> | undefined;
+    const nextCache = after?.retentionCache as Record<string, unknown> | undefined;
+    if (!before || !after || !priorCache || !nextCache
+      || priorCache.provenance !== 'migrated-scheduler-cache'
+      || nextCache.provenance !== 'derived-scheduler-cache'
+      || typeof before.reviews !== 'number' || typeof priorCache.reviews !== 'number'
+      || !Number.isSafeInteger(before.reviews) || !Number.isSafeInteger(priorCache.reviews)
+      || priorCache.reviews < 0 || before.reviews <= priorCache.reviews
+      || after.reviews !== priorCache.reviews || nextCache.reviews !== priorCache.reviews
+      || !['state', 'ease', 'interval', 'dueAt', 'lapses', 'learningStep'].every(key => Object.is(priorCache[key], nextCache[key]))
+      || !(command.guardCardIds ?? []).includes(id)
+      || !Object.values(command.events).some(rows => rows.some(row => row.kind === 'review'
+        && row.schedulerCardId === id && row.attemptId === command.attemptId && row.retentionCondition === 'supplied'))
+      || !(command.counterDeltas ?? []).some(counter => counter.path.length === 3
+        && counter.path[0] === 'flashcards' && counter.path[1] === id && counter.path[2] === 'reviews'
+        && counter.delta === (priorCache.reviews as number) - (before.reviews as number))) return entry;
+    repairedIds.add(id);
+    return { ...entry, after: { ...after, reviews: before.reviews,
+      retentionCache: { ...nextCache, reviews: before.reviews } } };
+  });
+  if (repairedIds.size === 0) return command;
+  return { ...command, patch: { ...command.patch, entries },
+    counterDeltas: command.counterDeltas?.map(counter => counter.path.length === 3
+      && counter.path[0] === 'flashcards' && repairedIds.has(counter.path[1]) && counter.path[2] === 'reviews'
+      ? { ...counter, delta: 0 } : counter) };
+}
+
 export function applyFlashcardRatingCommand<T extends object>(source: T, command: FlashcardRatingCommand, inPlace = false): T {
+  command = suppliedCacheRecovery(command);
   const record = source as Record<string, unknown>;
   // Session progress composes like additive counters: two windows may rate
   // different frozen members from the same revision without losing a slot.

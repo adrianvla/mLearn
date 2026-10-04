@@ -1,3 +1,4 @@
+import type { PolicyContext } from '../../learning/types';
 import { useEvidenceLinkedProjections } from '../../hooks/useEvidenceLinkedProjections';
 import { projectedWordStatus } from '../../../shared/graph/targets';
 import { Component, createEffect, createMemo, createSignal, For, Show } from 'solid-js';
@@ -62,7 +63,7 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => {
+export const LevelStudyTab: Component<{ onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
@@ -456,8 +457,11 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
             eventLog={grammarLog()!}
             projections={grammarProjections()!}
             summary={grammarSummary()!}
-            repairRequest={mockRepairRequest()}
+            policyContext={props.policyContext}
+            scopePatterns={props.grammarRequest?.patterns}
+            repairRequest={props.grammarRequest ?? mockRepairRequest()}
             onRepairRequestHandled={(requestedAt) => {
+              if (props.grammarRequest) props.onGrammarRequestHandled?.();
               setMockRepairRequest((request) => request?.requestedAt === requestedAt ? null : request);
             }}
             onValidated={() => setValidationsVersion((version) => version + 1)}
@@ -474,8 +478,10 @@ export const LevelStudyTab: Component<{ onEditPlan?: () => void }> = (props) => 
                 ...(scaffolds ? { scaffolds } : {}),
                 ...(attempt?.itemRef ? { itemRef: attempt.itemRef } : {}),
                 ...(attempt?.validationRef ? { validationRef: attempt.validationRef } : {}),
+                ...(attempt?.method !== undefined ? { method: attempt.method } : {}),
                 ...(attempt?.taskType !== undefined ? { taskType: attempt.taskType } : {}),
                 ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
+                ...(attempt?.decision ? { decision: attempt.decision } : {}),
               });
             }}
           />

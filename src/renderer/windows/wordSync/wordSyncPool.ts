@@ -29,6 +29,7 @@ export function wordSyncProbe(
   projection: KnowledgeProjection | undefined,
   possible: readonly CapabilityKey[],
   surfaceEntityId?: string,
+  intent?: 'reinforce',
 ) {
   if (!projection) {
     // Absent surface: admissible only with identity (unmeasured shape).
@@ -40,6 +41,13 @@ export function wordSyncProbe(
       };
     }
     return { targets: [], status: WORD_SYNC_STATUS_UNTRACKED, focused: false };
+  }
+  if (intent === 'reinforce' && projection.status === 'ready' && surfaceEntityId) {
+    // A maintenance request reuses the supported surface task, never claims
+    // that it isolates an exact dictionary sense or component.
+    const { status, basis } = projectedWordStatus(projection);
+    return { targets: [...new Set(possible)].map(capability => ({ entityId: surfaceEntityId, capability })),
+      status: wordSyncPoolStatus(status, basis), focused: false };
   }
   // A surface prompt cannot isolate an unmeasured homograph sense from a known one.
   const testable = possible.filter(capability => !projection.targets.some(target => target.states.some(state => state.capability === capability && state.classification === 'known')));

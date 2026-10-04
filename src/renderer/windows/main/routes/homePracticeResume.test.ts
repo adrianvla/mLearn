@@ -12,6 +12,11 @@ describe('Home continuity', () => {
     localStorage.setItem('mlearn-study-word-sync-material-hash:future', JSON.stringify(record(2, { words: ['word', 'other'], label: 'My book' })));
     expect(homePracticeResume(localStorage, scope)).toEqual({ at: 2, context: { activity: 'practice', material: { language: 'future', label: 'My book', words: ['word', 'other'] } } });
   });
+  it('resumes scoped maintenance with its original intention and material', () => {
+    localStorage.setItem('mlearn-study-word-sync-material-hash-reinforce:future', JSON.stringify(record(2, { words: ['word'], label: 'Scope' })));
+    expect(homePracticeResume(localStorage, scope)?.context).toEqual({ activity: 'reinforce',
+      material: { language: 'future', label: 'Scope', words: ['word'] } });
+  });
   it('ignores a finished, malformed, mismatched, or assessment session', () => {
     localStorage.setItem('mlearn-study-word-sync:future', JSON.stringify({ ...record(1), index: 1 }));
     localStorage.setItem('mlearn-study-word-sync-material-hash:future', JSON.stringify(record(2)));

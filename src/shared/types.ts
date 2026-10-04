@@ -1364,6 +1364,8 @@ export interface LanguageReviewActivity {
 }
 
 export interface LanguageLearningConfig {
+  /** Semantic outcomes and membership are declared by installed packages. */
+  outcomes?: Record<string, import('./learningOutcomes').LearningOutcomeDeclaration>;
   reviewActivities?: Record<string, LanguageReviewActivity>;
   capabilities?: Record<string, LanguageCapabilityDeclaration>;
 }

@@ -1,3 +1,4 @@
+import { compactLearningEvidence, LEARNING_EVIDENCE_ROW_CAP, LEARNING_EVIDENCE_BYTE_CAP, type LearningEvidenceSnapshot } from '../../shared/learningEvidence';
 import { randomUUID } from 'node:crypto';
 import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
 import { isPendingRetraction, MAX_RETRACTION_HISTORY, type PendingRetraction } from '../../shared/retractionRecovery';
@@ -310,6 +311,7 @@ export class KnowledgeHistoryStore {
         json TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS rows_key_t ON rows(key, t, seq);
+      CREATE INDEX IF NOT EXISTS rows_lang_t ON rows(lang, t, seq);
       CREATE INDEX IF NOT EXISTS rows_attempt ON rows(key, json_extract(json, '$.attemptId'));
       CREATE INDEX IF NOT EXISTS rows_event_id ON rows(key, json_extract(json, '$.eventId'));
       CREATE INDEX IF NOT EXISTS rows_anki_review ON rows(key, json_extract(json, '$.ankiReviewId'));
@@ -910,6 +912,39 @@ export class KnowledgeHistoryStore {
    * cursor includes a fixed sequence ceiling, so concurrent appends cannot
    * make a backdated event appear halfway through one read.
    */
+  /** Indexed, revision-pinned predictive evidence read; never sends an entire language journal. */
+  getLearningEvidence(language: string): LearningEvidenceSnapshot {
+    if (typeof language !== 'string' || !language || language.length > 128) throw new Error('Invalid learning language');
+    const rows = this.db.prepare(`SELECT r.json FROM rows r WHERE r.lang = ?
+      AND json_extract(r.json, '$.kind') IN ('rating', 'review')
+      AND NOT EXISTS (SELECT 1 FROM rows tomb WHERE tomb.key = r.key
+        AND json_extract(tomb.json, '$.retracts') = json_extract(r.json, '$.attemptId'))
+      ORDER BY r.t DESC, r.seq DESC LIMIT ?`).all(language, LEARNING_EVIDENCE_ROW_CAP + 1) as Array<{ json: string }>;
+    const events: KnowledgeEvent[] = []; let bytes = 128;
+    // Older non-scheduler responses keep the complete choice inline on their
+    // first access and references on the remaining accesses. Resolve within
+    // this already bounded tail before applying its wire cap, as mobile does.
+    const sampled = rows.slice(0, LEARNING_EVIDENCE_ROW_CAP).map(row => compactLearningEvidence(JSON.parse(row.json) as KnowledgeEvent));
+    const decisions = new Map<string, LearningDecision | undefined>(sampled.flatMap(event =>
+      event.decision ? [[event.decision.id, event.decision] as const] : []));
+    const readDecision = this.db.prepare('SELECT decision_json FROM learning_decisions WHERE id = ?');
+    for (const parsed of sampled) {
+      if (!parsed.decision && parsed.decisionRef) {
+        const id = parsed.decisionRef.id;
+        if (!decisions.has(id)) decisions.set(id, (() => { const row = readDecision.get(id) as { decision_json: string } | undefined; return row ? JSON.parse(row.decision_json) as LearningDecision : undefined; })());
+        const decision = decisions.get(id);
+        if (decision) parsed.decision = decision;
+      }
+      const event = compactLearningEvidence(parsed);
+      const size = Buffer.byteLength(JSON.stringify(event), 'utf8') + 1;
+      if (bytes + size > LEARNING_EVIDENCE_BYTE_CAP) break;
+      events.push(event); bytes += size;
+    }
+    events.reverse();
+    return { sequence: this.sequenceCounter, events, truncated: events.length < rows.length,
+      ...(events.length ? { firstT: events[0].t } : {}) };
+  }
+
   pageExactEvents(
     key: string,
     after: KnowledgeEventCursor | null = null,

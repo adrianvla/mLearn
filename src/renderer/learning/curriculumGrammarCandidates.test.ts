@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GRAMMAR_SELF_ASSESS_TASK } from '../windows/levelStudy/grammarSelfAssessmentDecision';
 import {
   curriculumGrammarCandidates,
 } from './candidateSources';
@@ -22,6 +23,12 @@ describe('curriculumGrammarCandidates', () => {
       meta: { pattern: '〜わけではない', level: 6 },
     });
     expect(candidates[0]!.scores['curriculum-relevance']).toBe(1);
+  });
+
+  it('honors the actual encounter task supplied by its producer', () => {
+    const [candidate] = curriculumGrammarCandidates([{ ...item, task: GRAMMAR_SELF_ASSESS_TASK }]);
+    expect(candidate.task).toEqual(GRAMMAR_SELF_ASSESS_TASK);
+    expect(curriculumGrammarCandidates([item])[0].task?.taskTemplateId).toBe('grammar-recognize');
   });
 
   it('honors package-defined weights as curriculum relevance', () => {

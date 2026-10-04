@@ -1,3 +1,4 @@
+import { learningEvidenceFromEvents } from '../learningEvidence';
 import { reviewPresentationPatch } from '../reviewPresentationWrite';
 import { createMobileLibraryStore, MOBILE_LIBRARY_KEYS } from './mobileLibraryStore';
 import { staleFlashcardRevisionMessage } from '../flashcardWriteRevision';
@@ -1794,6 +1795,11 @@ const knowledgeEventsBridge: KnowledgeEventsBridge = {
     }
     notifyKnowledgeEventsChanged(Object.keys(captured).filter((key) => captured[key]?.length));
     return true;
+  },
+
+  async getLearningEvidence(language: string) {
+    const shard = await loadKnowledgeEventsForLanguage(language);
+    return learningEvidenceFromEvents(Object.values(shard).flat(), 0);
   },
 
   async queryKnowledgeEvents(keys: string[]) {

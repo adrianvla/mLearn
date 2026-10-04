@@ -359,9 +359,428 @@
                     }
                 ]
             }
+        },
+        "outcomes": {
+            "ja:jlpt-n5": {
+                "label": "JLPT N5",
+                "provenance": "community",
+                "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                "groups": [
+                    {
+                        "id": "community-vocabulary",
+                        "label": "Community vocabulary list",
+                        "selectors": [
+                            {
+                                "source": "frequency",
+                                "provider": "jlpt",
+                                "levels": [
+                                    5
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "authored-grammar",
+                        "label": "mLearn grammar material",
+                        "selectors": [
+                            {
+                                "source": "grammar",
+                                "levels": [
+                                    5
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "assessment": {
+                    "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                    "verifiedAt": "2026-10-04",
+                    "conditions": {
+                        "scoreScale": "official-scaled-score",
+                        "overallRange": [
+                            0,
+                            180
+                        ],
+                        "overallMinimum": 80,
+                        "allSectionsRequired": true,
+                        "sections": [
+                            {
+                                "id": "language-knowledge-reading",
+                                "label": "Language Knowledge (Vocabulary/Grammar) and Reading",
+                                "range": [
+                                    0,
+                                    120
+                                ],
+                                "minimum": 38
+                            },
+                            {
+                                "id": "listening",
+                                "label": "Listening",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            }
+                        ]
+                    }
+                },
+                "requirements": {
+                    "coverageProvenance": "Community vocabulary and mLearn-authored grammar are preparation material, not an official syllabus.",
+                    "unmodelled": [
+                        "official-scaled-score-calibration",
+                        "reading-section-performance",
+                        "listening-section-performance"
+                    ],
+                    "passPrediction": "unavailable-with-current-evidence"
+                }
+            },
+            "ja:jlpt-n4": {
+                "label": "JLPT N4",
+                "provenance": "community",
+                "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                "groups": [
+                    {
+                        "id": "community-vocabulary",
+                        "label": "Community vocabulary list",
+                        "selectors": [
+                            {
+                                "source": "frequency",
+                                "provider": "jlpt",
+                                "levels": [
+                                    4,
+                                    5
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "authored-grammar",
+                        "label": "mLearn grammar material",
+                        "selectors": [
+                            {
+                                "source": "grammar",
+                                "levels": [
+                                    4,
+                                    5
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "assessment": {
+                    "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                    "verifiedAt": "2026-10-04",
+                    "conditions": {
+                        "scoreScale": "official-scaled-score",
+                        "overallRange": [
+                            0,
+                            180
+                        ],
+                        "overallMinimum": 90,
+                        "allSectionsRequired": true,
+                        "sections": [
+                            {
+                                "id": "language-knowledge-reading",
+                                "label": "Language Knowledge (Vocabulary/Grammar) and Reading",
+                                "range": [
+                                    0,
+                                    120
+                                ],
+                                "minimum": 38
+                            },
+                            {
+                                "id": "listening",
+                                "label": "Listening",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            }
+                        ]
+                    }
+                },
+                "requirements": {
+                    "coverageProvenance": "Community vocabulary and mLearn-authored grammar are preparation material, not an official syllabus.",
+                    "unmodelled": [
+                        "official-scaled-score-calibration",
+                        "reading-section-performance",
+                        "listening-section-performance"
+                    ],
+                    "passPrediction": "unavailable-with-current-evidence"
+                }
+            },
+            "ja:jlpt-n3": {
+                "label": "JLPT N3",
+                "provenance": "community",
+                "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                "groups": [
+                    {
+                        "id": "community-vocabulary",
+                        "label": "Community vocabulary list",
+                        "selectors": [
+                            {
+                                "source": "frequency",
+                                "provider": "jlpt",
+                                "levels": [
+                                    3,
+                                    4,
+                                    5
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "authored-grammar",
+                        "label": "mLearn grammar material",
+                        "selectors": [
+                            {
+                                "source": "grammar",
+                                "levels": [
+                                    3,
+                                    4,
+                                    5
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "assessment": {
+                    "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                    "verifiedAt": "2026-10-04",
+                    "conditions": {
+                        "scoreScale": "official-scaled-score",
+                        "overallRange": [
+                            0,
+                            180
+                        ],
+                        "overallMinimum": 95,
+                        "allSectionsRequired": true,
+                        "sections": [
+                            {
+                                "id": "language-knowledge",
+                                "label": "Language Knowledge (Vocabulary/Grammar)",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            },
+                            {
+                                "id": "reading",
+                                "label": "Reading",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            },
+                            {
+                                "id": "listening",
+                                "label": "Listening",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            }
+                        ]
+                    }
+                },
+                "requirements": {
+                    "coverageProvenance": "Community vocabulary and mLearn-authored grammar are preparation material, not an official syllabus.",
+                    "unmodelled": [
+                        "official-scaled-score-calibration",
+                        "reading-section-performance",
+                        "listening-section-performance"
+                    ],
+                    "passPrediction": "unavailable-with-current-evidence"
+                }
+            },
+            "ja:jlpt-n2": {
+                "label": "JLPT N2",
+                "provenance": "community",
+                "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                "groups": [
+                    {
+                        "id": "community-vocabulary",
+                        "label": "Community vocabulary list",
+                        "selectors": [
+                            {
+                                "source": "frequency",
+                                "provider": "jlpt",
+                                "levels": [
+                                    2,
+                                    3,
+                                    4,
+                                    5
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "authored-grammar",
+                        "label": "mLearn grammar material",
+                        "selectors": [
+                            {
+                                "source": "grammar",
+                                "levels": [
+                                    2,
+                                    3,
+                                    4,
+                                    5
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "assessment": {
+                    "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                    "verifiedAt": "2026-10-04",
+                    "conditions": {
+                        "scoreScale": "official-scaled-score",
+                        "overallRange": [
+                            0,
+                            180
+                        ],
+                        "overallMinimum": 90,
+                        "allSectionsRequired": true,
+                        "sections": [
+                            {
+                                "id": "language-knowledge",
+                                "label": "Language Knowledge (Vocabulary/Grammar)",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            },
+                            {
+                                "id": "reading",
+                                "label": "Reading",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            },
+                            {
+                                "id": "listening",
+                                "label": "Listening",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            }
+                        ]
+                    }
+                },
+                "requirements": {
+                    "coverageProvenance": "Community vocabulary and mLearn-authored grammar are preparation material, not an official syllabus.",
+                    "unmodelled": [
+                        "official-scaled-score-calibration",
+                        "reading-section-performance",
+                        "listening-section-performance"
+                    ],
+                    "passPrediction": "unavailable-with-current-evidence"
+                }
+            },
+            "ja:jlpt-n1": {
+                "label": "JLPT N1",
+                "provenance": "community",
+                "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                "groups": [
+                    {
+                        "id": "community-vocabulary",
+                        "label": "Community vocabulary list",
+                        "selectors": [
+                            {
+                                "source": "frequency",
+                                "provider": "jlpt",
+                                "levels": [
+                                    1,
+                                    2,
+                                    3,
+                                    4,
+                                    5
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "id": "authored-grammar",
+                        "label": "mLearn grammar material",
+                        "selectors": [
+                            {
+                                "source": "grammar",
+                                "levels": [
+                                    1,
+                                    2,
+                                    3,
+                                    4,
+                                    5
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "assessment": {
+                    "reference": "https://www.jlpt.jp/e/guideline/results.html",
+                    "verifiedAt": "2026-10-04",
+                    "conditions": {
+                        "scoreScale": "official-scaled-score",
+                        "overallRange": [
+                            0,
+                            180
+                        ],
+                        "overallMinimum": 100,
+                        "allSectionsRequired": true,
+                        "sections": [
+                            {
+                                "id": "language-knowledge",
+                                "label": "Language Knowledge (Vocabulary/Grammar)",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            },
+                            {
+                                "id": "reading",
+                                "label": "Reading",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            },
+                            {
+                                "id": "listening",
+                                "label": "Listening",
+                                "range": [
+                                    0,
+                                    60
+                                ],
+                                "minimum": 19
+                            }
+                        ]
+                    }
+                },
+                "requirements": {
+                    "coverageProvenance": "Community vocabulary and mLearn-authored grammar are preparation material, not an official syllabus.",
+                    "unmodelled": [
+                        "official-scaled-score-calibration",
+                        "reading-section-performance",
+                        "listening-section-performance"
+                    ],
+                    "passPrediction": "unavailable-with-current-evidence"
+                }
+            }
         }
     },
     "languageData": {
-        "version": "ja-package-2026.10.03-adaptive-review-r1"
+        "version": "ja-package-2026.10.04-learning-outcomes-r1"
     }
 }

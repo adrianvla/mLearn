@@ -1,6 +1,7 @@
 {
   "mlearn": {
     "Goals": {
+      "ScopeWorkloadRisk": "À votre rythme récent, une partie de ce contenu pourrait rester non évaluée au {date}. Cela ne prédit pas un résultat d’examen.",
       "Purpose": "Votre objectif",
       "Explore": "Explorer la langue",
       "Time": "Temps disponible",
@@ -27,7 +28,10 @@
         "package": "Couverture du paquet linguistique",
         "community": "Couverture communautaire",
         "authoritative": "Exigences officielles"
-      }
+      },
+      "Choose": "Choisir un objectif ou un programme",
+      "Remove": "Retirer",
+      "Unavailable": "Ce programme nécessite un pack de langue disponible."
     },
     "LibraryRecovery": {
       "OpenProtection": "Protection et restauration des données",
@@ -1319,6 +1323,8 @@
         "RefreshRecordings": "Actualiser les enregistrements",
         "FocusedPrompt": "À partir du mot écrit et de sa lecture, rappelez-vous {target}. Révélez la réponse et évaluez uniquement ce rappel.",
         "AudioPrompt": "Écoutez et identifiez le mot ou son sens. Révélez la réponse et évaluez uniquement la reconnaissance du mot parlé.",
+        "StartNew": "Commencer une nouvelle révision",
+        "StartNewFailed": "Impossible de quitter cette révision. Réessayez.",
         "NoEligibleActivity": "Aucune activité disponible. Activez la révision du mot, réactivez le son ou ajoutez les réponses et enregistrements requis.",
         "AudioUnavailable": "L’enregistrement ne peut pas être lu. Réessayez ou activez une autre activité.",
         "PlayPrompt": "Lire l’enregistrement",
@@ -1640,10 +1646,10 @@
         "Practice": "Pratiquer",
         "Next": "Prochaine étape conseillée",
         "ReviewTitle": "Retenir vos acquis",
-        "ReviewReason": "{count} cartes sont à réviser. Rappelez-les avant d’en ajouter.",
+        "ReviewReason": "Révisez une courte sélection, puis continuez si vous le souhaitez.",
         "ReviewAction": "Commencer la révision",
         "PracticeTitle": "Renforcer le rappel",
-        "PracticeReason": "Votre suivi contient {count} mots encore fragiles. Exercez le rappel avec votre plan.",
+        "PracticeReason": "Travaillez une courte sélection de votre parcours.",
         "PracticeAction": "Pratiquer le rappel",
         "AssessmentTitle": "Compléter votre suivi",
         "AssessmentReason": "{count} mots de votre programme cible ne sont pas encore évalués. Un bref test de rappel aide le plan à choisir des exercices adaptés.",
@@ -1661,7 +1667,7 @@
         "ThisWeek": "Cette semaine",
         "WeekSummary": "{reviews} révisions · {newCards} nouvelles cartes",
         "DiscoverTitle": "Découvrez vos prochains mots",
-        "DiscoverReason": "Commencez par {count} mots de votre programme."
+        "DiscoverReason": "Découvrez une courte sélection de votre programme."
       }
     },
     "Installer": {

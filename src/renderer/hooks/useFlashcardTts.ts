@@ -87,6 +87,7 @@ export function useFlashcardTts() {
 
       audio.onended = () => {
         if (currentAudio === audio) {
+          log.debug('Stored flashcard audio playback ended');
           setState((s) => ({ ...s, isPlaying: false, playingField: null }));
           currentAudio = null;
         }
@@ -102,7 +103,10 @@ export function useFlashcardTts() {
       };
 
       audio.play().then(() => {
-        if (myGenId === generationId && currentAudio === audio) onStarted?.();
+        if (myGenId === generationId && currentAudio === audio) {
+          log.debug('Stored flashcard audio playback started');
+          onStarted?.();
+        }
       }).catch(reject);
     });
   };

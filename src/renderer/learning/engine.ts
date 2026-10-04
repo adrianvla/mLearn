@@ -152,7 +152,7 @@ export function selectNextEncounter(inputs: EncounterInputs): PolicyDecision | n
   }, inputs.rng);
 }
 
-/** Full source pool and per-candidate entropy stay fixed; only declared support changes. */
+/** Freeze the source pool; the action model records its actual deferral counterfactual. */
 export function selectCounterfactualEncounter(inputs: EncounterInputs): {
   selected: PolicyDecision | null; baseline: PolicyDecision | null;
 } {
@@ -164,21 +164,9 @@ export function selectCounterfactualEncounter(inputs: EncounterInputs): {
     context: inputs.context ?? inputs.config?.context, nowMs: inputs.nowMs,
     cooldowns: inputs.cooldowns ?? new Map(), recentPicks: inputs.recentPicks ?? [],
   };
-  const draws = new Map<string, number>();
-  const entropy = inputs.rng ?? Math.random;
-  const drawForCandidate = (key: string): number => {
-    const saved = draws.get(key);
-    if (saved !== undefined) return saved;
-    const value = entropy();
-    draws.set(key, value);
-    return value;
-  };
-  const selected = selectNext(candidates, config, entropy, drawForCandidate);
-  const baseline = selectNext(candidates.map(candidate => ({ ...candidate,
-    scores: { ...candidate.scores, 'declared-support': 0 },
-    meta: { ...candidate.meta, structuralCreditDisabled: true },
-  })), config, entropy, drawForCandidate);
-  return { selected, baseline };
+  // Each value compares the intervention with deferral/no additional work.
+  // Disabling an association score is not a learning counterfactual.
+  return { selected: selectNext(candidates, config), baseline: null };
 }
 
 /**

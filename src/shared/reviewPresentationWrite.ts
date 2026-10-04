@@ -3,6 +3,7 @@ import { isLearningDecision } from './learningDecision';
 import type { Flashcard, FlashcardStore, ReviewPresentation } from './types';
 import type { StorePatch } from './utils/storePatch';
 import { hashWordSync } from './utils/wordHash';
+import type { ReviewSession } from './reviewSession';
 
 /** A cursor command captures its question; it never carries the whole library. */
 export interface ReviewPresentationWrite {
@@ -12,8 +13,46 @@ export interface ReviewPresentationWrite {
   card: Flashcard;
 }
 
+/** Explicitly leave captured work; this carries no response or scheduling change. */
+export interface ReviewPositionRelease {
+  kind: 'release';
+  language: string;
+  expectedPresentation: ReviewPresentation | null;
+  expectedSession: ReviewSession | null;
+}
+export type ReviewPositionWrite = ReviewPresentationWrite | ReviewPositionRelease;
+
+const samePosition = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true;
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object'
+    || Array.isArray(left) !== Array.isArray(right)) return false;
+  const a = left as Record<string, unknown>, b = right as Record<string, unknown>;
+  return Object.keys(a).length === Object.keys(b).length
+    && Object.keys(a).every(key => Object.hasOwn(b, key) && samePosition(a[key], b[key]));
+};
+
 /** Validate at the writer, after earlier ratings/peer writes have settled. */
-export function reviewPresentationPatch(store: FlashcardStore, command: ReviewPresentationWrite): StorePatch | null {
+export function reviewPresentationPatch(store: FlashcardStore, command: ReviewPositionWrite): StorePatch | null {
+  if ('kind' in command && command.kind === 'release') {
+    if (typeof command.language !== 'string' || !command.language
+      || (command.expectedSession !== null && !isReviewSession(command.expectedSession))
+      || (command.expectedPresentation !== null && (!command.expectedPresentation
+        || typeof command.expectedPresentation.id !== 'string' || typeof command.expectedPresentation.cardId !== 'string'))) {
+      throw new Error('Invalid review position release');
+    }
+    if (store.pendingRetraction !== undefined) throw new Error('Complete the pending Undo before leaving this review');
+    const presentation = store.meta.reviewPresentations?.[command.language];
+    const session = store.meta.reviewSessions?.[command.language];
+    if (!presentation && !session) return { baseRev: store.rev ?? 0, entries: [] };
+    if (!samePosition(presentation ?? null, command.expectedPresentation) || !samePosition(session ?? null, command.expectedSession)) {
+      throw new Error('The review position was replaced by another window');
+    }
+    return { baseRev: store.rev ?? 0, entries: [
+      ...(presentation ? [{ path: ['meta', 'reviewPresentations', command.language], before: presentation, after: undefined }] : []),
+      ...(session ? [{ path: ['meta', 'reviewSessions', command.language], before: session, after: undefined }] : []),
+    ] };
+  }
+  if ('kind' in command) throw new Error('Invalid review position command');
   const { presentation, language, card, expectedId } = command;
   const decision = presentation.decision;
   const cue = decision?.selected.presentation;

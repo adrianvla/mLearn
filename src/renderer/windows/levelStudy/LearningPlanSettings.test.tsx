@@ -250,20 +250,13 @@ describe('LearningPlanSettings', () => {
     dispose();
   });
 
-  it('preselects the session intensity select from settings', async () => {
+  it('keeps legacy intensity stored without exposing an ineffective algorithm control', async () => {
     testSettings.sessionIntensity = 'gentle';
-    testSettings.examGoal = { kind: 'none' };
     const { LearningPlanSettings } = await import('./LearningPlanSettings');
     const dispose = render(() => <LearningPlanSettings />, container);
-
-    const selects = [Array.from(container.querySelectorAll('select')).find(select => select.querySelector('option[value="gentle"]'))!];
-    expect(selects[0]!.value).toBe('gentle');
-    // No exam goal → no target/deadline fields.
-    expect(container.querySelector('input[type="date"]')).toBeNull();
-
-    selects[0]!.value = 'intensive';
-    selects[0]!.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(updateSettingsMock).toHaveBeenCalledWith({ sessionIntensity: 'intensive' });
+    expect(container.querySelector('option[value="gentle"]')).toBeNull();
+    expect(container.querySelector('[data-testid="shared-goals"]')).not.toBeNull();
+    expect(testSettings.sessionIntensity).toBe('gentle');
     dispose();
   });
 });

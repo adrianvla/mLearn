@@ -413,6 +413,8 @@ export function mediaOpportunitiesFromStats(
 export interface CurriculumGrammarItem {
   language: string;
   pattern: string;
+  /** The presenting activity declares its actual task; legacy recognition callers retain their own template. */
+  task?: EncounterTask;
   /** Bucket on the language's OWN grammar scale (GrammarPoint.level). */
   level: number;
   /** Optional package-defined weight; default 1. */
@@ -462,7 +464,7 @@ export function curriculumGrammarCandidates(
       language: item.language,
       targets: [{ entityId: grammarEntityId(item.language, item.pattern), capability: 'grammar-recognition' as const }],
       origin: 'curriculum' as const,
-      task: GRAMMAR_RECOGNIZE_TASK,
+      task: item.task ?? GRAMMAR_RECOGNIZE_TASK,
       scores: { 'curriculum-relevance': clamp(item.weight ?? 1) + boost },
       meta: {
         pattern: item.pattern,

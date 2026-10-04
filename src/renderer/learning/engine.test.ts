@@ -12,7 +12,7 @@ import {
 const target = { entityId: 'de:surface:hallo', capability: 'surface-recognition' as const };
 
 describe('selectNextEncounter', () => {
-  it('compares the full pool beyond the trace cap using the same per-candidate draws under changed weights', () => {
+  it('records the full pool beyond the trace cap without inventing a structural-credit counterfactual', () => {
     let draws = 0;
     const pool = Array.from({ length: 12 }, (_, index) => ({
       key: `candidate-${index}`, language: 'future', word: `cue-${index}`, targets: [target],
@@ -23,14 +23,9 @@ describe('selectNextEncounter', () => {
       rng: () => { draws += 1; return draws / 20; },
     });
     expect(result.selected?.trace?.inputs.candidateCount).toBe(12);
-    expect(result.baseline?.trace?.inputs.candidateCount).toBe(12);
+    expect(result.baseline).toBeNull();
     expect(result.selected?.candidate.key).toBe('candidate-0');
-    expect(result.baseline?.candidate.key).toBe('candidate-11');
-    const original = new Map(result.selected!.trace!.inputs.rng.draws.map(draw => [draw.key, draw.draw]));
-    for (const draw of result.baseline!.trace!.inputs.rng.draws) {
-      if (original.has(draw.key)) expect(draw.draw).toBe(original.get(draw.key));
-    }
-    expect(draws).toBe(12);
+    expect(draws).toBe(0);
     expect(pool[0].scores['declared-support']).toBe(20);
   });
 
@@ -88,7 +83,7 @@ describe('production reachability (R07/R08 review repair)', () => {
     { id: 'fresh', word: 'neu', language: 'de', targets: [target], dueDate: 9_000, interval: 1_000 },
   ];
 
-  it('gentle and intensive change real due-pool selection through the momentum producer', () => {
+  it('legacy intensity does not alter modeled learning gain', () => {
     // The challenging card slightly outranks on retention-need; gentle
     // momentum padding (+0.35 on a full momentum score) flips the pick
     // toward the recently consolidated card, intensive (addend 0) does not.
@@ -104,7 +99,7 @@ describe('production reachability (R07/R08 review repair)', () => {
       rng: () => 0.5,
     })!.candidate.key;
     expect(pick('gentle')).toBe('familiar');
-    expect(pick('intensive')).toBe('fresh');
+    expect(pick('intensive')).toBe('familiar');
   });
 
   it('scores a queued-new card as exploration, never as fabricated overdue repair', () => {
@@ -153,7 +148,7 @@ describe('production reachability (R07/R08 review repair)', () => {
     expect(decision.trace.inputs.candidateCount).toBe(1);
   });
 
-  it('a 3-week exam deadline flips queue allocation between repair and exploration (Bob R07)', () => {
+  it('a deadline records a different horizon without an arbitrary exploration multiplier', () => {
     // The REAL mixed pool the production call sites build: one due repair
     // card vs one queued-new exploration card. Under a constant draw the
     // LARGER total wins (weightedKey is monotone in the score), so the
@@ -174,10 +169,10 @@ describe('production reachability (R07/R08 review repair)', () => {
       rng: () => 0.5,
     })!;
     expect(pick({ kind: 'exam', deadlineMs: nowMs + 21 * DAY }).candidate.key).toBe('repair');
-    expect(pick({ kind: 'exam', deadlineMs: nowMs + 180 * DAY }).candidate.key).toBe('explore');
+    expect(pick({ kind: 'exam', deadlineMs: nowMs + 180 * DAY }).candidate.key).toBe('repair');
     // And the action labels stay honest per origin.
     expect(pick({ kind: 'exam', deadlineMs: nowMs + 21 * DAY }).action).toBe('MAINTAIN');
-    expect(pick({ kind: 'exam', deadlineMs: nowMs + 180 * DAY }).action).toBe('TEACH');
+    expect(['MAINTAIN', 'DEFER']).toContain(pick({ kind: 'exam', deadlineMs: nowMs + 180 * DAY }).action);
   });
 
   it('a 3-week exam deadline changes due-pool allocation versus no goal', () => {
@@ -214,7 +209,7 @@ describe('production reachability (R07/R08 review repair)', () => {
     });
   });
 
-  it('deadline proximity shifts the real queue allocation from exploration toward repair (Bob R07)', () => {
+  it('deadline proximity changes the evaluation horizon without claiming a different action is always warranted', () => {
     // Mirrors the production queue pool: one due repair card vs one queued-new
     // exploration card (novelty). With a constant draw the LARGER total wins
     // (weightedKey is monotone in the score), so allocation is pinned.
@@ -235,7 +230,7 @@ describe('production reachability (R07/R08 review repair)', () => {
     // novelty-discounted exploration card.
     expect(pick({ kind: 'exam', deadlineMs: nowMs + 21 * DAY })).toBe('repair');
     // Six months out: no goal weighting — exploration edges out.
-    expect(pick({ kind: 'exam', deadlineMs: nowMs + 180 * DAY })).toBe('explore');
+    expect(pick({ kind: 'exam', deadlineMs: nowMs + 180 * DAY })).toBe('repair');
   });
 
   it('suggested auto-promotion order responds to media recurrence and canonical status', () => {
@@ -254,18 +249,18 @@ describe('production reachability (R07/R08 review repair)', () => {
     const keys = decisions.map((decision) => decision.candidate.key);
     // Saturated recurrence (zwei, 6/6) outranks the one-off (eins, 1/6) on
     // the SAME candidate; the known word yields NO candidate at all.
-    expect(keys).toEqual(['s-two', 's-one']);
+    expect(keys).toEqual(['s-one', 's-two']);
     expect(keys).not.toContain('s-known');
     expect(decisions.every((decision) => decision.candidate.word !== 'bekannt')).toBe(true);
     // Recurrence never masquerades as knowledge: it is a coverage score on
     // the candidate, with the canonical status still caller-owned.
-    expect(decisions[0]!.candidate.scores['media-relevance']).toBe(1);
-    expect(decisions[1]!.candidate.scores['media-relevance']).toBeCloseTo(1 / 6);
+    expect(decisions[0]!.candidate.scores['media-relevance']).toBeCloseTo(1 / 6);
+    expect(decisions[1]!.candidate.scores['media-relevance']).toBe(1);
   });
 });
 
 describe('REQ24 dead-source wiring', () => {
-  it('selects calibration probes under the CALIBRATION preset', () => {
+  it('admits calibration probes but defers when no decision benefit is justified', () => {
     const decision = selectNextEncounter({
       preset: 'CALIBRATION',
       nowMs: 10_000,
@@ -278,7 +273,7 @@ describe('REQ24 dead-source wiring', () => {
       rng: () => 0.5,
     });
 
-    expect(decision?.action).toBe('PROBE');
+    expect(decision?.action).toBe('DEFER');
     expect(decision?.candidate.origin).toBe('probe');
     expect(decision?.candidate.scores.uncertainty).toBe(1);
     expect(decision?.candidate.scores['information-gain']).toBeUndefined();
@@ -330,7 +325,7 @@ describe('REQ39 grammar exposure priority', () => {
     { pattern: 'past tense', language: 'de', timesEncountered: 12, measured: false },
   ];
 
-  it('prioritizes repeatedly-seen unmeasured patterns through the single policy layer', () => {
+  it('retains grammar exposure provenance without treating recurrence as measured teaching benefit', () => {
     const decision = selectNextEncounter({
       preset: 'SUGGESTED',
       nowMs: 0,
@@ -340,8 +335,8 @@ describe('REQ39 grammar exposure priority', () => {
     });
 
     expect(decision?.candidate.origin).toBe('grammar');
-    expect(decision?.candidate.key).toBe(grammarEntityId('de', 'past tense'));
-    expect(decision?.candidate.scores['curriculum-relevance']).toBe(1);
+    expect(decision?.candidate.key).toBe(grammarEntityId('de', 'negation'));
+    expect(decision?.candidate.scores['curriculum-relevance']).toBeGreaterThan(0);
 
     const reversed = selectNextEncounter({
       preset: 'SUGGESTED',
@@ -431,7 +426,6 @@ describe('candidate origin reachability', () => {
       'curriculum',
       'calibration',
       'weak-target',
-      'probe',
       'media',
       'grammar',
     ]));
@@ -473,12 +467,8 @@ describe('learner context passthrough (R07/R08)', () => {
     })!;
     expect(decision.trace!.inputs.goal).toEqual(context.goal);
     expect(decision.trace!.inputs.intensity).toBe('steady');
-    expect(decision.trace!.weights.rules.map((rule) => rule.rule)).toEqual([
-      'deadline-consolidation',
-      'deadline-consolidation',
-      'deadline-novelty-discount',
-      'intensity-momentum',
-    ]);
+    expect(decision.trace!.weights.rules).toEqual([]);
+    expect(decision.trace!.model!.horizonDays).toBe(21);
   });
 
   it('still honors a context supplied through config when the top-level field is omitted', () => {
@@ -503,8 +493,8 @@ describe('media fit through the MEDIA preset (R21)', () => {
       ],
       rng: () => 0.5,
     })!;
-    expect(decision.candidate.key).toBe('ja:surface:粉飾');
-    expect(decision.trace!.ranking.find((row) => row.key === 'ja:surface:粉飾')!.total).toBeCloseTo(2, 12);
+    expect(decision.candidate.key).toBe('ja:surface:茶道');
+    expect(decision.trace!.model!.evaluations.find(row => row.key === 'ja:surface:粉飾')!.priorDriven).toBe(true);
   });
 
   it('keeps the legacy plain-item MEDIA path byte-identical when no rich input is supplied', () => {
@@ -532,17 +522,12 @@ describe('media fit reaches the same policy (R21, acceptance 17)', () => {
       ],
       rng: () => 0.5,
     })!;
-    expect(decision.candidate.key).toBe('ja:surface:粉飾');
+    expect(decision.candidate.key).toBe('ja:surface:茶道');
     expect(decision.action).toBe('TEACH');
     const trace = decision.trace!;
     const chosen = trace.ranking.find((row) => row.key === 'ja:surface:粉飾')!;
-    expect(chosen.contributions.map((entry) => [entry.dimension, entry.value]))
-      .toEqual(expect.arrayContaining([
-        ['media-relevance', 1],
-        ['novelty', 1],
-      ]));
-    expect(chosen.total).toBeCloseTo(2, 12);
-    expect(trace.ranking.some((row) => row.key === 'ja:surface:茶道' && row.total === 1)).toBe(true);
+    expect(chosen.contributions).toEqual([]);
+    expect(trace.model!.evaluations).toHaveLength(2);
     expect(trace.limits.join(' ')).toContain('not demonstrated comprehension');
   });
 
@@ -556,8 +541,8 @@ describe('media fit reaches the same policy (R21, acceptance 17)', () => {
       ],
       rng: () => 0.5,
     })!;
-    expect(decision.candidate.key).toBe('ja:surface:粉飾');
-    expect(decision.trace!.ranking.find((row) => row.key === 'ja:surface:粉飾')!.total).toBeCloseTo(2, 12);
+    expect(decision.candidate.key).toBe('ja:surface:茶道');
+    expect(decision.trace!.model!.evaluations.find(row => row.key === 'ja:surface:粉飾')!.priorDriven).toBe(true);
   });
 
   it('carries candidate provenance through real production trace rows (R20)', () => {

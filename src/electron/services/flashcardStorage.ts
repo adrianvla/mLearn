@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { reviewPresentationPatch, type ReviewPresentationWrite } from '../../shared/reviewPresentationWrite';
+import { reviewPresentationPatch, type ReviewPositionWrite } from '../../shared/reviewPresentationWrite';
 import { reconcileFlashcardActionOwners } from '../../shared/flashcardActionUndo';
 /**
  * Flashcard Storage Service
@@ -587,7 +587,13 @@ function isValidFlashcardStore(value: unknown): value is FlashcardStore {
  * resolve so it self-heals when language data is installed later.
  */
 function backfillMissingFlashcardLevels(store: FlashcardStore): FlashcardStore {
-  const levelLess = Object.values(store.flashcards).filter((card) => card.content?.level === undefined);
+  // Enrichment changes the displayed cue and its content hash. A captured
+  // encounter must survive loading unchanged, including after reveal/Undo.
+  const admitted = new Set(Object.values(store.meta.reviewPresentations ?? {}).map(presentation => presentation.cardId));
+  for (const session of Object.values(store.meta.reviewSessions ?? {})) {
+    if (session.initialHandoff && session.completedCardIds.length === 0 && session.initialCardId) admitted.add(session.initialCardId);
+  }
+  const levelLess = Object.values(store.flashcards).filter((card) => card.content?.level === undefined && !admitted.has(card.id));
   if (levelLess.length === 0) return store;
 
   const langData = loadLangData();
@@ -1187,8 +1193,8 @@ export async function saveFlashcardPatch(
 }
 
 /** Cursor persistence is background work with its own sparse command, never a renderer store save. */
-export async function saveReviewPresentation(command: ReviewPresentationWrite): Promise<FlashcardRatingCommit | null> {
-  const captured = JSON.parse(JSON.stringify(command)) as ReviewPresentationWrite;
+export async function saveReviewPresentation(command: ReviewPositionWrite): Promise<FlashcardRatingCommit | null> {
+  const captured = JSON.parse(JSON.stringify(command)) as ReviewPositionWrite;
   await flushFlashcardRatings();
   return enqueueWrite(async () => {
     await recoverAdmittedRatingsBeforeWrite();
@@ -1258,7 +1264,7 @@ export function setupFlashcardIPC(): void {
     return saveFlashcards(store, removedCardIds, resetReviewProgress, authorization);
   });
 
-  ipcMain.handle(IPC_CHANNELS.SAVE_REVIEW_PRESENTATION, (_event, command: ReviewPresentationWrite) => saveReviewPresentation(command));
+  ipcMain.handle(IPC_CHANNELS.SAVE_REVIEW_PRESENTATION, (_event, command: ReviewPositionWrite) => saveReviewPresentation(command));
 
   ipcMain.handle(IPC_CHANNELS.SAVE_FLASHCARD_PATCH, (_event, patch: StorePatch, removedCardIds?: string[], resetReviewProgress?: boolean, authorization?: FlashcardWriteAuthorization) => {
     return saveFlashcardPatch(patch, removedCardIds, resetReviewProgress, authorization);

@@ -298,6 +298,10 @@ export function setupKnowledgeEventsIPC(): void {
     if (traceOn) console.log(`[MAIN append] appendKnowledgeEvents=${(Date.now() - t1).toFixed(1)}ms`);
     return true;
   });
+  ipcMain.handle(IPC_CHANNELS.LEARNING_EVIDENCE_QUERY, async (_event, language: string) => {
+    await whenKnowledgeEventsReady();
+    return ensureStore().getLearningEvidence(language);
+  });
   ipcMain.handle(IPC_CHANNELS.KNOWLEDGE_EVENTS_QUERY, async (_event, keys: string[]) => {
     await whenKnowledgeEventsReady();
     assertLegacyObjectReplyBounded(keys);

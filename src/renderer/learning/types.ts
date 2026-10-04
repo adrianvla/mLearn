@@ -78,6 +78,16 @@ export type SessionIntensity = 'gentle' | 'steady' | 'intensive';
  * credibility, thresholds, or scoring rules — only selection weighting.
  */
 export interface PolicyContext {
+  /** Predictive snapshot only; the canonical journal remains the learner-state authority. */
+  learning?: {
+    model: import('../../shared/learningModel').LearningModel;
+    horizonDays: number;
+    deferDays: number;
+    availableSeconds: readonly number[];
+    continuationValue: number;
+    targetWeights?: Readonly<Record<string, number>>;
+    assessmentAt?: number;
+  };
   goals?: readonly import('../../shared/learningGoals').LearningGoal[];
   goal?: PolicyGoal;
   intensity?: SessionIntensity;
@@ -131,6 +141,20 @@ export interface PolicyExclusion {
  * the same inputs, weights, and seed.
  */
 export interface PolicyTrace {
+  model?: {
+    version: string;
+    evidenceVersion: string;
+    horizonDays: number;
+    deferDays: number;
+    evaluations: import('../../shared/learningModel').ActionValue[];
+    evaluationsOmitted: number;
+    sequence: string[];
+    /** Feasible ordered physical value plus bounded information credit; absent in older traces. */
+    sequenceValue?: number;
+    sequenceTiming?: 'ordered-completion';
+    alternative: string;
+    activityChoicePreserved?: boolean;
+  };
   /** Bumped when the selection math changes; replays must pin it. */
   version: string;
   inputs: {

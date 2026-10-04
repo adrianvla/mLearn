@@ -25,13 +25,14 @@ describe('bounded operational Word Sync decisions', () => {
   const first = { index: 0, key: 'first', word: 'first', language: 'future', surfaceId: 'future:surface:first', possible: ['future::access'], scaffolds: {} };
   const second = { ...first, index: 1, key: 'second', word: 'second', surfaceId: 'future:surface:second' };
 
-  it('changes a real candidate choice using authorized source evidence and preserves the same-pool baseline/task', () => {
+  it('does not equate authorized graph association with an estimated instructional advantage', () => {
     const result = selectWordSyncDecision({ id: 'choice-1', at: 42, items: [second, { ...first, projection: supportedProjection() }] });
-    expect(result?.index).toBe(0);
-    expect(result?.decision.baseline?.key).toBe('second');
-    expect(result?.decision.selected.targets).toEqual([{ kind: 'surface', id: first.surfaceId, capability: 'future::access' }]);
+    expect(result?.index).toBe(1);
+    expect(result?.decision.baseline).toBeNull();
+    expect(result?.decision.selected.targets).toEqual([{ kind: 'surface', id: second.surfaceId, capability: 'future::access' }]);
     expect(result?.decision.selected.task.requested).toEqual(['future::access']);
-    expect(result?.decision.detail.sourceLabels).toEqual(['Unfamiliar prior label']);
+    expect(result?.decision.selected.task.responseModality).toBe('recall');
+    expect(result?.decision.detail.sourceLabels).toEqual([]);
     expect(result?.decision.detail.trace).toMatchObject({ inputs: { candidateCount: 2, selection: 'ranked', rng: { draws: [] } } });
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });
@@ -40,13 +41,14 @@ describe('bounded operational Word Sync decisions', () => {
     const projection = supportedProjection();
     projection.targets[0].targetRef = { kind: 'sense', id: 'future::sense' };
     const unsupported = selectWordSyncDecision({ id: 'choice-2', at: 42, items: [{ ...first, projection }, second] });
-    expect(unsupported?.decision.selected.key).toBe(unsupported?.decision.baseline?.key);
+    expect(unsupported?.decision.selected.key).toBe(first.key);
+    expect(unsupported?.decision.baseline).toBeNull();
     expect(unsupported?.decision.selected.targets.every(target => target.kind === 'surface')).toBe(true);
     expect(selectWordSyncDecision({ id: 'choice-3', at: 42, items: [{ ...first,
       possible: ['surface-reading'], scaffolds: { reading: true } }] })).toBeNull();
   });
 
-  it.each([['f', 'a'], ['a', 'f']])('attributes shared-entry support to its observed form regardless of source hash order (%s/%s)', (sourceHash, targetHash) => {
+  it.each([['f', 'a'], ['a', 'f']])('preserves shared-entry support provenance without assigning it a fitted action effect regardless of source hash order (%s/%s)', (sourceHash, targetHash) => {
     const sourceId = `future:surface:${sourceHash.repeat(64)}`;
     const targetId = `future:surface:${targetHash.repeat(64)}`;
     const g = loadLinguisticGraph({ schemaVersion: 1, language: 'future', generatedAt: '', sourceVersions: { dictionary: 'real-entry-v1' },
@@ -72,9 +74,9 @@ describe('bounded operational Word Sync decisions', () => {
       { ...second, key: 'baseline-unrelated', possible: ['surface-recognition'] },
       { ...first, key: targetId, surfaceId: targetId, possible: ['surface-recognition'], projection },
     ] });
-    expect(choice?.decision.selected.key).toBe(targetId);
-    expect(choice?.decision.baseline?.key).toBe('baseline-unrelated');
-    expect(choice?.decision.detail.sourceLabels).toEqual(['Observed form']);
+    expect(choice?.decision.selected.key).toBe('baseline-unrelated');
+    expect(choice?.decision.baseline).toBeNull();
+    expect(choice?.decision.detail.sourceLabels).toEqual([]);
     expect(JSON.parse(JSON.stringify(choice))).toEqual(choice);
     expect(projection.targets.find(t => t.targetRef.kind === 'sense')?.states[0].classification).toBe('unmeasured');
     const undone = buildKnowledgeProjection(g, targetId, [event, { t: 2, kind: 'retraction', source: 'manual', retracts: event.attemptId }],
@@ -82,7 +84,7 @@ describe('bounded operational Word Sync decisions', () => {
     expect(undone.targets.flatMap(t => t.states).every(s => !s.prediction?.contributors?.length)).toBe(true);
   });
 
-  it('uses the shipped spelling-check rule as weak priority without manufacturing spelling knowledge', () => {
+  it('preserves the shipped spelling support rule without manufacturing a measured spelling or instruction effect', () => {
     const target = { entityId: 'ja:surface:spelling', capability: 'surface-recognition' };
     const sourceId = 'ja:surface:prior-form';
     const graph = loadLinguisticGraph({ schemaVersion: 1, language: 'ja', generatedAt: '', sourceVersions: {},
@@ -100,9 +102,9 @@ describe('bounded operational Word Sync decisions', () => {
         prediction: { interpretation: 'heuristic-support', value: prediction.supportScore, model: 'package-support-v2', reasons: [], contributors: prediction.contributors } }] }] };
     const unsupported = { ...second, language: 'ja', possible: [target.capability] };
     const selected = selectWordSyncDecision({ id: 'shipped-rule', at: 1, items: [unsupported, { ...first, language: 'ja', surfaceId: target.entityId, possible: [target.capability], projection }] });
-    expect(selected?.decision.baseline?.key).toBe(unsupported.key);
-    expect(selected?.decision.selected.targets).toEqual([{ kind: 'surface', id: target.entityId, capability: target.capability }]);
-    expect(selected?.decision.selected.key).toBe(first.key);
+    expect(selected?.decision.baseline).toBeNull();
+    expect(selected?.decision.selected.targets).toEqual([{ kind: 'surface', id: unsupported.surfaceId, capability: target.capability }]);
+    expect(selected?.decision.selected.key).toBe(unsupported.key);
   });
 
   it('keeps the level/direction anchor but bounds projection work to eight unvisited entries at that same level', () => {

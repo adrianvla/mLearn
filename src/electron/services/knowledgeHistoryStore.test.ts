@@ -229,6 +229,36 @@ beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mlearn-khstore-'));
 });
 
+describe('bounded controller evidence', () => {
+  it('preserves the declared retrieval task across all accesses of an inline multi-target response', () => {
+    const s = store();
+    const decision: LearningDecision = { id: 'inline-choice', at: 1, policyVersion: 'new',
+      selected: { key: 'word', action: 'TEACH', targets: ['future::one', 'future::two'].map(capability => ({ kind: 'surface', id: 'address', capability })),
+        task: { taskTemplateId: 'word-sync', inputModality: 'written', responseModality: 'recall',
+          supplied: [], requested: ['future::one', 'future::two'], fluencyRequired: false, ratingMode: 'profile' } },
+      baseline: null, detail: { scope: 'bounded-same-level-pool' } };
+    s.appendEvents({ 'xx:word': ['future::one', 'future::two'].map((capability, i): KnowledgeEvent => ({
+      t: 2, kind: 'rating', source: 'manual', attemptId: 'multi', quality: 'fluent', method: 'recall', taskType: 'word-sync',
+      targetRef: { kind: 'surface', id: 'address', capability }, decisionRef: { id: decision.id }, ...(i === 0 ? { decision } : {}),
+    })) });
+    expect(s.getLearningEvidence('xx').events.map(event => event.decision?.selected.task.responseModality)).toEqual(['recall', 'recall']);
+    s.close();
+  });
+  it('excludes durable retractions outside the sampled tail and pins sequence provenance', () => {
+    const s = store();
+    s.appendEvents({ 'xx:word': [{ t: 9999, kind: 'rating', source: 'srs', attemptId: 'withdrawn', quality: 'fluent', targetRef: { kind: 'surface', id: 'address', capability: 'future::access' } },
+      { t: 2, kind: 'retraction', source: 'manual', retracts: 'withdrawn' },
+      ...Array.from({ length: 1100 }, (_, i): KnowledgeEvent => ({ t: i + 10, kind: 'rating', source: 'srs', attemptId: `native-${i}`, quality: 'missed', targetRef: { kind: 'surface', id: 'address', capability: 'future::access' }, activeLatencyMs: 30000 }))] });
+    const snapshot = s.getLearningEvidence('xx');
+    expect(snapshot.events.length).toBeLessThanOrEqual(1024);
+    expect(snapshot.events.some(event => event.attemptId === 'withdrawn')).toBe(false);
+    expect(snapshot.sequence).toBe(s.sequenceCounter);
+    expect(snapshot.truncated).toBe(true);
+    expect(s.getLearningEvidence('other').events).toEqual([]);
+    s.close();
+  });
+});
+
 describe('bounded exact-event wire and grammar fold', () => {
   it('pages Unicode events below the wire ceiling with a stable sequence snapshot', () => {
     const s = store();

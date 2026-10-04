@@ -35,16 +35,16 @@ export interface WordSyncDecisionItem {
   projection?: KnowledgeProjection;
 }
 
-/** Same policy and frozen task/pool; only structural credit changes in the baseline. */
+/** Frozen bounded task/pool; deferral counterfactual lives in each action value. */
 export function selectWordSyncDecision(input: { id: string; at: number;
-  items: readonly WordSyncDecisionItem[]; context?: PolicyContext }) {
+  items: readonly WordSyncDecisionItem[]; intent?: 'reinforce'; context?: PolicyContext }) {
   if (input.items.length > WORD_SYNC_DECISION_WINDOW) throw new Error('Word Sync decision pool exceeds its work bound');
   const keys = new Set<string>();
   const candidates = input.items.flatMap(item => {
     if (keys.has(item.key)) throw new Error('Word Sync decision pool has ambiguous item identities');
     keys.add(item.key);
     if (item.projection?.status === 'error') return [];
-    const probe = wordSyncProbe(item.projection, item.possible, item.surfaceId);
+    const probe = wordSyncProbe(item.projection, item.possible, item.surfaceId, input.intent);
     const targets = probe.targets.filter(target => isAccessMeasurable(target.capability, item.scaffolds));
     if (targets.length === 0) return [];
     // A support prediction for a sense/component is not a prediction of the
@@ -54,28 +54,25 @@ export function selectWordSyncDecision(input: { id: string; at: number;
         state.prediction?.interpretation === 'heuristic-support' ? state.prediction.contributors ?? [] : [])) ?? [];
     const support = candidateSupport(targets, contributors);
     return [{ key: item.key, word: item.word, language: item.language, targets,
-      task: { ...PRESETS.CALIBRATION.task, requested: targets.map(target => target.capability) },
+      task: { ...PRESETS.CALIBRATION.task, responseModality: 'recall' as const, requested: targets.map(target => target.capability) },
       scores: { novelty: 1, 'declared-support': support.credit },
       meta: { index: item.index, focused: probe.focused, support, scaffolds: { ...item.scaffolds } } }];
   });
   if (candidates.length === 0) return null;
   const inputs = { preset: 'CALIBRATION' as const, nowMs: input.at, context: input.context, config: { selection: 'ranked' as const } };
   const selected = selectNextEncounter({ ...inputs, wordSyncPoolItems: candidates });
-  const baseline = selectNextEncounter({ ...inputs, wordSyncPoolItems: candidates.map(candidate => ({ ...candidate,
-    scores: { ...candidate.scores, 'declared-support': 0 }, meta: { ...candidate.meta, structuralCreditDisabled: true } })) });
   if (!selected || selected.action === 'DEFER') return null;
   const snapshot = (decision: PolicyDecision): LearningChoiceSnapshot => ({ key: decision.candidate.key, action: decision.action,
     targets: decision.encounter.targets.map(target => ({ kind: 'surface', id: target.entityId, capability: target.capability })),
     task: decision.encounter.task });
   const decision: LearningDecision = { id: input.id, at: input.at, policyVersion: selected.trace?.version ?? POLICY_TRACE_VERSION,
-    selected: snapshot(selected), baseline: baseline && baseline.action !== 'DEFER' ? snapshot(baseline) : null,
+    selected: snapshot(selected), baseline: null,
     detail: { scope: 'bounded-same-level-pool', candidateCount: candidates.length,
-      baselineWord: baseline?.candidate.word,
       sourceLabels: [...new Set((selected.candidate.meta?.support as ReturnType<typeof candidateSupport> | undefined)?.contributors
         .flatMap(contributor => contributor.sourceLabel ? [contributor.sourceLabel] : []) ?? [])].slice(0, 3),
-      trace: selected.trace, baselineTrace: baseline?.trace,
+      trace: selected.trace,
       limits: ['Plain word prompts measure surface familiarity, not isolated dictionary senses.',
-        'Declared support is a relative heuristic preference, not probability, measured effort or learning gain.'] } };
+        'Graph support is provenance only; action effects come from the uncertain memory/action model.'] } };
   // Durability must freeze inputs before another reactive consumer can mutate them.
   return JSON.parse(JSON.stringify({ index: selected.candidate.meta!.index, focused: selected.candidate.meta!.focused, scaffolds: selected.candidate.meta!.scaffolds, decision })) as {
     index: number; focused: boolean; scaffolds: AttemptScaffolds; decision: LearningDecision;
