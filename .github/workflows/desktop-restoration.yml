@@ -29,13 +29,24 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Prepare offline verification workspace
         run: |
-          mkdir -p /tmp/mlearn-offline
-          git bundle create /tmp/mlearn-offline/source.bundle --all
-          tar -czf /tmp/mlearn-offline/dependencies.tgz node_modules
+          mkdir -p /tmp/mlearn-offline-source /tmp/mlearn-offline-dependencies
+          git archive HEAD | gzip > /tmp/mlearn-offline-source/current.tar.gz
+          git archive refs/remotes/origin/dev | gzip > /tmp/mlearn-offline-source/dev.tar.gz
+          git archive 5577f4b1e58f829cbcb3fb5cb0103689f1ef029f | gzip > /tmp/mlearn-offline-source/base.tar.gz
+          git log -60 --format='%H %s' > /tmp/mlearn-offline-source/commits.txt
+          tar --exclude='node_modules/@node-llama-cpp' --exclude='node_modules/node-llama-cpp/llama/gitRelease.bundle' -czf /tmp/dependencies.tgz node_modules
+          split -b 200M /tmp/dependencies.tgz /tmp/mlearn-offline-dependencies/dependencies.tgz.part-
+          du -sh /tmp/mlearn-offline-source/* /tmp/mlearn-offline-dependencies/*
       - uses: actions/upload-artifact@v4
         with:
-          name: mlearn-offline-workspace
-          path: /tmp/mlearn-offline/
+          name: mlearn-offline-source
+          path: /tmp/mlearn-offline-source/
+          retention-days: 1
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mlearn-offline-dependencies
+          path: /tmp/mlearn-offline-dependencies/
           retention-days: 1
           compression-level: 0
       - name: Focused restoration and shared interaction regressions
