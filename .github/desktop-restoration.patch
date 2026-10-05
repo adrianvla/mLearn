@@ -1,0 +1,630 @@
+diff --git a/src/shared/applicationNavigation.ts b/src/shared/applicationNavigation.ts
+--- a/src/shared/applicationNavigation.ts
++++ b/src/shared/applicationNavigation.ts
+@@ -7,12 +7,12 @@
+ export function resolveApplicationDestination(type: string, context: Record<string, unknown> = {}): ApplicationDestination | null {
+   let path: string;
+   switch (type) {
+-    case 'main': case 'study': case 'my-learning':
++    case 'main': case 'study': case 'my-learning': case 'messenger':
+       path = typeof context.applicationPath === 'string' && isApplicationPath(context.applicationPath)
+-        ? context.applicationPath : type === 'study' ? '/practise' : type === 'my-learning' ? '/plan' : '/';
++        ? context.applicationPath : type === 'study' ? '/practise' : type === 'my-learning' ? '/plan' : type === 'messenger' ? '/messenger' : '/';
+       break;
+     case 'reader': path = '/reader'; break;
+-    case 'flashcards': path = context.tab === 'stats' ? '/progress' : context.tab && context.tab !== 'review' ? '/knowledge/material' : '/practise'; break;
++    case 'flashcards': path = context.tab === 'stats' ? '/progress' : context.tab && context.tab !== 'review' ? '/practise/material' : '/practise'; break;
+     case 'word-sync': path = context.activity === 'practice' || context.activity === 'reinforce' ? '/practise/words' : '/evaluate/words'; break;
+     case 'level-study':
+       path = context.activity === 'assessment' ? '/evaluate/words'
+@@ -43,8 +43,11 @@
+ }
+ 
+ /** Native families are hosts, never learning-attempt identities. */
+-export type ApplicationHost = 'main' | 'study' | 'my-learning' | 'settings';
++export type ApplicationHost = 'main' | 'study' | 'my-learning' | 'settings' | 'messenger';
+ export function applicationHostForPath(path: string): ApplicationHost {
++  // Legacy material links still open the one Flashcards host.
++  if (/^\/knowledge\/material(?:\/|$)/.test(path)) return 'study';
++  if (/^\/messenger(?:\/|$)/.test(path)) return 'messenger';
+   if (/^\/(practise|evaluate)(?:\/|$)/.test(path)) return 'study';
+   if (/^\/(plan|knowledge|progress)(?:\/|$)/.test(path)) return 'my-learning';
+   if (/^\/settings(?:\/|$)/.test(path)) return 'settings';
+diff --git a/src/renderer/windows/main/applicationHost.ts b/src/renderer/windows/main/applicationHost.ts
+--- a/src/renderer/windows/main/applicationHost.ts
++++ b/src/renderer/windows/main/applicationHost.ts
+@@ -10 +10 @@
+-  return host === 'study' || host === 'my-learning' || host === 'settings' ? host : 'main';
++  return host === 'study' || host === 'my-learning' || host === 'settings' || host === 'messenger' ? host : 'main';
+diff --git a/src/renderer/windows/flashcards/App.tsx b/src/renderer/windows/flashcards/App.tsx
+--- a/src/renderer/windows/flashcards/App.tsx
++++ b/src/renderer/windows/flashcards/App.tsx
+@@ -74 +74 @@
+-export const FlashcardsContent: Component<{ initialTab?: MaterialTabId; onClose: () => void; workspace: 'review' | 'material'; launchContext?: Record<string, unknown> }> = (props) => {
++export const FlashcardsContent: Component<{ initialTab?: TabId; onClose: () => void; workspace: 'review' | 'material' | 'flashcards'; launchContext?: Record<string, unknown> }> = (props) => {
+@@ -96,4 +96,10 @@
+   const admittedTab = (tab?: string): TabId => props.workspace === 'review' ? 'review'
+-    : tab && ['browse', 'generate', 'suggested'].includes(tab) ? tab as MaterialTabId : 'browse';
++    : tab === 'review' && props.workspace === 'flashcards' ? 'review'
++    : tab && ['browse', 'generate', 'suggested'].includes(tab) ? tab as MaterialTabId
++    : props.workspace === 'flashcards' ? 'review' : 'browse';
+   const [activeTab, setActiveTab] = createSignal<TabId>(admittedTab(props.initialTab));
+-  createEffect(() => { setActiveTab(admittedTab(typeof props.launchContext?.tab === 'string' ? props.launchContext.tab : props.initialTab)); });
++  const [reviewContext, setReviewContext] = createSignal(props.launchContext);
++  createEffect(() => {
++    setReviewContext(props.launchContext);
++    setActiveTab(admittedTab(typeof props.launchContext?.tab === 'string' ? props.launchContext.tab : props.initialTab));
++  });
+@@ -101,2 +107,3 @@
+-    if (props.launchContext?.activity !== 'review') return undefined;
+-    const session = props.launchContext.session as { encounterLimit?: unknown; requestId?: unknown; initialCardId?: unknown; decision?: unknown } | undefined;
++    const context = reviewContext();
++    if (context?.activity !== 'review') return undefined;
++    const session = context.session as { encounterLimit?: unknown; requestId?: unknown; initialCardId?: unknown; decision?: unknown } | undefined;
+@@ -112,2 +119,3 @@
+-    if (props.launchContext?.activity !== 'review') return false;
+-    const session = props.launchContext.session as { decision?: unknown; requestId?: unknown } | undefined;
++    const context = reviewContext();
++    if (context?.activity !== 'review') return false;
++    const session = context.session as { decision?: unknown; requestId?: unknown } | undefined;
+@@ -282,3 +290,3 @@
+-  createEffect(on(() => [isLoading(), isLLMReady(settings), settings.flashcardAutoGenerateAudio], () => {
+-    if (props.workspace !== 'review' && !isLoading() && isElectron() && !repairRunning()) void refreshRepairFindings();
++  createEffect(on(() => [activeTab(), isLoading(), isLLMReady(settings), settings.flashcardAutoGenerateAudio], () => {
++    if (activeTab() !== 'review' && !isLoading() && isElectron() && !repairRunning()) void refreshRepairFindings();
+   }));
+@@ -756,4 +764,9 @@
+-  // Tab items for vertical navigation
++  // Review and card management are one workspace, backed by the same card owner.
+   const tabs = createMemo<TabItem[]>(() => [
++    ...(props.workspace === 'flashcards' ? [{
++      id: 'review',
++      label: t('mlearn.Flashcards.UI.Tabs.Review'),
++      icon: <BookIcon size={16} />,
++    }] : []),
+     { 
+       id: 'browse', 
+@@ -782,4 +795,9 @@
+   const handleTabChange = (id: string) => {
++    if (id === 'review') {
++      // Returning from Browse resumes the current durable position. It must not
++      // replay the external Start/Resume command that originally opened this window.
++      setReviewContext({ returnTo: props.launchContext?.returnTo, sourceContext: props.launchContext?.sourceContext });
++    }
+     setActiveTab(admittedTab(id as TabId));
+     setIsMobileSidebarOpen(false);
+   };
+@@ -803 +821 @@
+-            <h1 class="flashcards-title">{t('mlearn.Product.SavedMaterial')}</h1>
++            <h1 class="flashcards-title">{t(props.workspace === 'flashcards' ? 'mlearn.Flashcards.UI.Title' : 'mlearn.Product.SavedMaterial')}</h1>
+@@ -820,2 +838,7 @@
+           <div class="flashcards-sidebar-actions">
++            <Show when={props.workspace === 'flashcards'}>
++              <Button size="sm" variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'study', context: { applicationPath: '/evaluate' } })}>
++                {t('mlearn.Product.Evaluate')}
++              </Button>
++            </Show>
+             <Show when={repairFindings().length > 0}>
+@@ -850,2 +873,2 @@
+-          <Show when={props.workspace === 'review'}>
+-            <section class="flashcards-review-panel" aria-label={t('mlearn.Product.Practise')}>
++          <Show when={activeTab() === 'review'}>
++            <section class="flashcards-review-panel" role="tabpanel" id="flashcards-tabs-panel-review" aria-label={t('mlearn.Flashcards.UI.Tabs.Review')}>
+@@ -853,3 +876,3 @@
+-                <ReviewWorkspace launchContext={props.launchContext} onReturn={props.onClose}>
++                <ReviewWorkspace launchContext={reviewContext()} onReturn={props.onClose} autoEnter={props.workspace === 'flashcards'}>
+                   <FlashcardReview encounterLimit={reviewSessionRequest()?.encounterLimit}
+-                    resumeSessionId={props.launchContext?.intent === 'resume' && typeof props.launchContext.sessionId === 'string' ? props.launchContext.sessionId : undefined}
++                    resumeSessionId={reviewContext()?.intent === 'resume' && typeof reviewContext()?.sessionId === 'string' ? reviewContext()!.sessionId as string : undefined}
+diff --git a/src/electron/services/windowFirstPaint.ts b/src/electron/services/windowFirstPaint.ts
+new file mode 100644
+--- /dev/null
++++ b/src/electron/services/windowFirstPaint.ts
+@@ -0,0 +1,49 @@
++/** Keep ordinary windows hidden until Chromium has a frame to display. */
++export interface FirstPaintWindow {
++  once(event: 'ready-to-show' | 'closed', listener: () => void): unknown;
++  isDestroyed(): boolean;
++  isMinimized(): boolean;
++  restore(): void;
++  show(): void;
++  focus(): void;
++}
++
++interface Presentation { ready: boolean; requested: boolean }
++const presentations = new WeakMap<FirstPaintWindow, Presentation>();
++
++export function registerWindowFirstPaint(window: FirstPaintWindow): void {
++  if (presentations.has(window)) return;
++  const presentation: Presentation = { ready: false, requested: false };
++  presentations.set(window, presentation);
++  window.once('ready-to-show', () => {
++    presentation.ready = true;
++    if (presentation.requested) showWindowAfterFirstPaint(window);
++  });
++  window.once('closed', () => {
++    presentation.requested = false;
++    presentations.delete(window);
++  });
++}
++
++export function showWindowAfterFirstPaint(window: FirstPaintWindow): void {
++  if (window.isDestroyed()) return;
++  const presentation = presentations.get(window);
++  if (presentation && !presentation.ready) {
++    presentation.requested = true;
++    return;
++  }
++  if (presentation) presentation.requested = false;
++  if (window.isMinimized()) window.restore();
++  window.show();
++  window.focus();
++}
++
++/** Native backing colour before renderer theme hydration. Never infer theme from the OS. */
++export function initialWindowBackground(scheme: string): string {
++  switch (scheme) {
++    case 'quartz': case 'chalk': return '#f5f5f5';
++    case 'light-high-contrast': return '#ffffff';
++    case 'oled': case 'dark-high-contrast': return '#000000';
++    default: return '#2b2c2a';
++  }
++}
+diff --git a/src/electron/services/windowFirstPaint.test.ts b/src/electron/services/windowFirstPaint.test.ts
+new file mode 100644
+--- /dev/null
++++ b/src/electron/services/windowFirstPaint.test.ts
+@@ -0,0 +1,50 @@
++import { describe, expect, it, vi } from 'vitest';
++import { initialWindowBackground, registerWindowFirstPaint, showWindowAfterFirstPaint, type FirstPaintWindow } from './windowFirstPaint';
++
++function fakeWindow() {
++  const events = new Map<string, () => void>();
++  const window: FirstPaintWindow = {
++    once: (event, listener) => events.set(event, listener),
++    isDestroyed: vi.fn(() => false), isMinimized: vi.fn(() => false),
++    restore: vi.fn(), show: vi.fn(), focus: vi.fn(),
++  };
++  return { window, emit: (event: string) => events.get(event)?.() };
++}
++
++describe('first frame, not a white native window', () => {
++  it('coalesces repeated requests until first paint', () => {
++    const { window, emit } = fakeWindow();
++    registerWindowFirstPaint(window);
++    showWindowAfterFirstPaint(window); showWindowAfterFirstPaint(window);
++    expect(window.show).not.toHaveBeenCalled();
++    emit('ready-to-show');
++    expect(window.show).toHaveBeenCalledOnce();
++    expect(window.focus).toHaveBeenCalledOnce();
++  });
++  it('does not show a deliberately hidden startup window merely because it paints', () => {
++    const { window, emit } = fakeWindow();
++    registerWindowFirstPaint(window); emit('ready-to-show');
++    expect(window.show).not.toHaveBeenCalled();
++    showWindowAfterFirstPaint(window);
++    expect(window.show).toHaveBeenCalledOnce();
++  });
++  it('never reopens a destroyed window', () => {
++    const { window, emit } = fakeWindow();
++    registerWindowFirstPaint(window); showWindowAfterFirstPaint(window);
++    vi.mocked(window.isDestroyed).mockReturnValue(true); emit('closed'); emit('ready-to-show');
++    expect(window.show).not.toHaveBeenCalled();
++  });
++  it('restores an already painted minimized window normally', () => {
++    const { window, emit } = fakeWindow();
++    registerWindowFirstPaint(window); emit('ready-to-show');
++    vi.mocked(window.isMinimized).mockReturnValue(true);
++    showWindowAfterFirstPaint(window);
++    expect(window.restore).toHaveBeenCalledOnce();
++    expect(window.show).toHaveBeenCalledOnce();
++  });
++  it('respects explicit light and dark palettes before settings hydrate', () => {
++    expect(initialWindowBackground('dark-quartz')).toBe('#2b2c2a');
++    expect(initialWindowBackground('chalk')).toBe('#f5f5f5');
++    expect(initialWindowBackground('oled')).toBe('#000000');
++  });
++});
+diff --git a/src/electron/services/windowManager.ts b/src/electron/services/windowManager.ts
+--- a/src/electron/services/windowManager.ts
++++ b/src/electron/services/windowManager.ts
+@@ -12,2 +12,3 @@
+ import { loadSettings } from './settings';
++import { registerWindowFirstPaint, showWindowAfterFirstPaint, initialWindowBackground } from './windowFirstPaint';
+ import { getCurrentLocaleData } from './localization';
+@@ -323,3 +324,3 @@
+     width: 1200,
+     height: 700,
+-    show: options.show ?? true,
++    show: false,
+@@ -337,2 +338,3 @@
+-    ...(isMac ? getMacWindowSurfaceOptions() : { backgroundColor: '#000000' }),
++    ...(isMac ? getMacWindowSurfaceOptions() : {}),
++    backgroundColor: initialWindowBackground(loadSettings().colorScheme),
+   };
+@@ -353,2 +355,3 @@
+   mainWindow = new BrowserWindow(windowOptions);
++  registerWindowFirstPaint(mainWindow);
+   startupMark(`BrowserWindow constructor complete type=main id=${mainWindow.id}`, constructionStart);
+@@ -361,3 +364,4 @@
+   loadWindowHtml(mainWindow, 'main');
++  if (options.show !== false) showWindowAfterFirstPaint(mainWindow);
+ 
+   mainWindow.on('close', (event) => {
+@@ -470,3 +474,4 @@
+     width: host === 'settings' ? 1000 : 1100, height: 760,
+     minWidth: 640, minHeight: 480,
+-    title: host === 'study' ? 'mLearn — Study' : host === 'my-learning' ? 'mLearn — My Learning' : 'mLearn — Settings',
++    show: false,
++    title: host === 'study' ? 'mLearn — Flashcards' : host === 'my-learning' ? 'mLearn — My Learning' : host === 'messenger' ? 'mLearn — Messenger' : 'mLearn — Settings',
+@@ -475,3 +480,5 @@
+-    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true, backgroundColor: '#000000' }),
++    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true }),
++    backgroundColor: initialWindowBackground(loadSettings().colorScheme),
+   });
++  registerWindowFirstPaint(window);
+   childWindows.set(host, window);
+@@ -501,5 +508,3 @@
+   currentWindow = window;
+-  window.show();
+-  if (window.isMinimized?.()) window.restore();
+-  window.focus();
++  showWindowAfterFirstPaint(window);
+   return window;
+diff --git a/src/shared/constants.ts b/src/shared/constants.ts
+--- a/src/shared/constants.ts
++++ b/src/shared/constants.ts
+@@ -440,2 +440,3 @@
+   CONVERSATION_AGENT: 'conversation-agent',
++  MESSENGER: 'messenger',
+   MEMORY_BROWSER: 'memory-browser',
+diff --git a/src/renderer/windows/main/ApplicationShell.tsx b/src/renderer/windows/main/ApplicationShell.tsx
+--- a/src/renderer/windows/main/ApplicationShell.tsx
++++ b/src/renderer/windows/main/ApplicationShell.tsx
+@@ -1,6 +1,7 @@
+ import { useLocation, useNavigate } from '@solidjs/router';
+-import { For, Show, createEffect, onMount, onCleanup, type ParentComponent } from 'solid-js';
++import { Show, createEffect, onMount, onCleanup, type ParentComponent } from 'solid-js';
+ import { useLocalization } from '../../context';
++import { Button, TabContainer } from '../../components/common';
+ import { LibraryLoadGuard } from '../../context/WindowWrapper';
+ import { getBridge } from '../../../shared/bridges';
+ import { isElectron } from '../../../shared/platform';
+@@ -16,12 +17,12 @@
+   const navigate = useNavigate();
+   const open = useApplicationNavigate();
+   const host = () => isElectron() ? currentApplicationHost() : applicationHostForPath(location.pathname);
+-  const links = () => host() === 'study'
++  const links = () => !isElectron() && host() === 'study'
+     ? [['/practise', 'mlearn.Product.Practise'], ['/evaluate', 'mlearn.Product.Evaluate']]
+     : host() === 'my-learning'
+       ? [['/plan', 'mlearn.Product.Plan'], ['/knowledge', 'mlearn.Product.Knowledge'], ['/progress', 'mlearn.Product.Progress']] : [];
+   createEffect(() => {
+-    const label = host() === 'study' ? location.pathname.startsWith('/evaluate') ? 'mlearn.Product.Evaluate' : 'mlearn.Product.Practise' : host() === 'my-learning' ? 'mlearn.Product.MyLearning' : host() === 'settings' ? 'mlearn.Settings.UI.Title' : undefined;
++    const label = host() === 'study' ? location.pathname.startsWith('/evaluate') ? 'mlearn.Product.Evaluate' : 'mlearn.Flashcards.UI.Title' : host() === 'my-learning' ? 'mlearn.Product.MyLearning' : host() === 'settings' ? 'mlearn.Settings.UI.Title' : host() === 'messenger' ? 'mlearn.Product.Messenger' : undefined;
+     document.title = `${t('mlearn.Global.AppName')}${label ? ` · ${t(label)}` : ''}`;
+   });
+   onMount(() => {
+@@ -43,11 +44,18 @@
+     if (isElectron()) bridge.window.getWindowContext(currentApplicationHost());
+     onCleanup(() => cleanup?.());
+   });
+-  return <div class="application-shell" classList={{ 'application-shell-mobile': !isElectron() }}>
++  return <div class="application-shell" classList={{ 'application-shell-mobile': !isElectron(), 'application-shell-study': host() === 'study' }}>
+     <Show when={links().length || (!isElectron() && location.pathname !== '/')}>
+       <nav class="application-navigation" aria-label={t('mlearn.Product.Navigation')}>
+-        <button type="button" onClick={() => open('/')}>{t('mlearn.Tabs.Home')}</button>
+-        <For each={links()}>{item => <button type="button" classList={{ 'is-active': location.pathname.startsWith(item[0]) }} onClick={() => open(item[0])}>{t(item[1])}</button>}</For>
++        <Show when={!isElectron()}><Button buttonType="nav" onClick={() => open('/')}>{t('mlearn.Tabs.Home')}</Button></Show>
++        <TabContainer
++          idBase="workspace-navigation"
++          tabs={links().map(([id, label]) => ({ id: id.slice(1), label: t(label) }))}
++          activeTab={links().find(([path]) => location.pathname.startsWith(path))?.[0].slice(1) ?? ''}
++          onTabChange={id => open(`/${id}`)}
++          variant="underline"
++          class="workspace-tabs"
++        />
+       </nav>
+     </Show>
+     <div class="application-outlet">
+diff --git a/src/renderer/windows/flashcards/ReviewWorkspace.tsx b/src/renderer/windows/flashcards/ReviewWorkspace.tsx
+--- a/src/renderer/windows/flashcards/ReviewWorkspace.tsx
++++ b/src/renderer/windows/flashcards/ReviewWorkspace.tsx
+@@ -11,2 +11,4 @@
+   launchContext?: Record<string, unknown>;
++  /** Direct Review entry; the legacy chooser remains available to explicit callers. */
++  autoEnter?: boolean;
+   onReturn: () => void;
+@@ -54,2 +56,3 @@
+     } else if (context?.intent === 'start' || context?.session !== undefined) admit();
++    else if (props.autoEnter) admit(currentId());
+   });
+@@ -63 +66 @@
+-      <Show when={pending()} fallback={<>
++      <Show when={pending() || (props.autoEnter && !failed())} fallback={<>
+diff --git a/src/renderer/windows/main/ApplicationRoutes.tsx b/src/renderer/windows/main/ApplicationRoutes.tsx
+--- a/src/renderer/windows/main/ApplicationRoutes.tsx
++++ b/src/renderer/windows/main/ApplicationRoutes.tsx
+@@ -15 +15 @@
+-import { ActionCard, Button, TargetIcon, LearningWorkspace } from '../../components/common';
++import { ActionCard, Button, TargetIcon, LearningWorkspace, TabContainer } from '../../components/common';
+@@ -19 +19,2 @@
+-import { isMobile } from '../../../shared/platform';
++import { isMobile, isElectron } from '../../../shared/platform';
++import { getBridge } from '../../../shared/bridges';
+@@ -39 +40 @@
+-  return <ConversationContent launchContext={props.launchContext} onReturn={source => {
++  return <ConversationContent launchContext={props.launchContext} onReturn={(isMobile() || props.launchContext?.sourceContext || props.launchContext?.returnTo) ? source => {
+@@ -52,2 +53,2 @@
+     navigate(path, { sourceContext: returnSource });
+-  }} />;
++  } : undefined} />;
+@@ -55,11 +56,16 @@
+ const Review: Component<RequestedWorkspaceProps> = props => {
+   const navigate = useApplicationReturn();
+-  return <LearningWorkspace><FlashcardsContent workspace="review" launchContext={props.launchContext} onClose={() => navigate(
+-    props.launchContext?.returnTo === 'reader' ? '/reader' : props.launchContext?.returnTo === 'video' ? '/video'
+-      : props.launchContext?.returnTo === 'plan' ? '/plan' : props.launchContext?.returnTo === 'material' ? '/knowledge/material' : '/', props.launchContext
+-  )} /></LearningWorkspace>;
++  const close = () => {
++    const origin = props.launchContext?.returnTo;
++    if (origin === 'reader' || origin === 'video' || origin === 'plan') {
++      navigate(`/${origin}`, props.launchContext);
++    } else if (isElectron()) getBridge().window.closeWindow();
++    else navigate('/');
++  };
++  return <LearningWorkspace><FlashcardsContent workspace="flashcards" launchContext={props.launchContext} onClose={close} /></LearningWorkspace>;
+ };
+ const Material: Component<RequestedWorkspaceProps> = props => {
+   const navigate = useApplicationNavigate();
+-  return <KnowledgeViews><FlashcardsContent workspace="material" launchContext={props.launchContext} initialTab="browse" onClose={() => navigate('/knowledge')} /></KnowledgeViews>;
++  return <LearningWorkspace><FlashcardsContent workspace="flashcards" launchContext={props.launchContext} initialTab="browse"
++    onClose={() => isElectron() ? getBridge().window.closeWindow() : navigate('/practise')} /></LearningWorkspace>;
+ };
+@@ -90 +96,2 @@
+-  return <section class="product-workspace"><h1>{t('mlearn.Product.Evaluate')}</h1>
++  return <section class="product-workspace evaluation-chooser">
++    <header class="evaluation-chooser-header"><Button buttonType="nav" onClick={() => navigate('/practise')}>{t('mlearn.Flashcards.UI.Title')}</Button><h1>{t('mlearn.Product.Evaluate')}</h1></header>
+@@ -118,8 +125,8 @@
+-  const view = (path: string, label: string) => <button type="button" classList={{ 'is-active': location.pathname === path }} onClick={() => navigate(path)}>{t(label)}</button>;
+   return <section class="knowledge-views">
+-    <nav class="knowledge-view-navigation" aria-label={t('mlearn.Product.Knowledge')}>
+-      {view('/knowledge', 'mlearn.MediaStats.Tab.Words')}
+-      {view('/knowledge/material', 'mlearn.Product.SavedMaterial')}
+-      {view('/knowledge/characters', 'mlearn.LevelStudy.Tabs.CharacterGrid')}
+-    </nav><div class="knowledge-view-content">{props.children}</div>
++    <TabContainer idBase="knowledge-navigation" variant="underline" size="sm"
++      class="knowledge-view-navigation"
++      tabs={[{ id: 'words', label: t('mlearn.MediaStats.Tab.Words') }, { id: 'characters', label: t('mlearn.LevelStudy.Tabs.CharacterGrid') }]}
++      activeTab={location.pathname === '/knowledge/characters' ? 'characters' : 'words'}
++      onTabChange={id => navigate(id === 'characters' ? '/knowledge/characters' : '/knowledge')} />
++    <div class="knowledge-view-content">{props.children}</div>
+   </section>;
+@@ -145,2 +152,3 @@
+   <Route path="/practise" component={requested(Review)} />
++  <Route path="/practise/material" component={requested(Material)} />
+   <Route path="/practise/words" component={requested(Words)} />
+diff --git a/src/renderer/windows/main/routes/WelcomeRoute.tsx b/src/renderer/windows/main/routes/WelcomeRoute.tsx
+--- a/src/renderer/windows/main/routes/WelcomeRoute.tsx
++++ b/src/renderer/windows/main/routes/WelcomeRoute.tsx
+@@ -1 +1 @@
+-import { type Component, createEffect, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
++import { type Component, createEffect, createMemo, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
+@@ -7 +7 @@
+-import { WelcomeFeatureCard, WelcomeReaderPreview, WelcomeVideoPreview } from './components';
++import { WelcomeFeatureCard, WelcomeReaderPreview, WelcomeVideoPreview, WelcomeContinueRow } from './components';
+@@ -16 +16,2 @@
+ import './welcome.css';
++import './welcomeRecent.css';
+@@ -37,6 +38,14 @@
+   onMount(() => {
+-    void getRecentItems().then(items => { if (!disposed) setRecentItems(items); }).catch(error => log.error('Recent material could not be loaded', error));
+-    window.addEventListener('focus', refreshResume);
+-    window.addEventListener('storage', refreshResume);
+-    onCleanup(() => { disposed = true; window.removeEventListener('focus', refreshResume); window.removeEventListener('storage', refreshResume); });
++    let revision = 0;
++    const refreshHome = () => {
++      refreshResume();
++      const requested = ++revision;
++      void getRecentItems().then(items => {
++        if (!disposed && requested === revision) setRecentItems(items);
++      }).catch(error => log.error('Recent material could not be loaded', error));
++    };
++    refreshHome();
++    window.addEventListener('focus', refreshHome);
++    window.addEventListener('storage', refreshHome);
++    onCleanup(() => { disposed = true; window.removeEventListener('focus', refreshHome); window.removeEventListener('storage', refreshHome); });
+   });
+@@ -84,2 +93,2 @@
+-        <WelcomeFeatureCard icon={<TargetIcon size={22} />} title={t('mlearn.Product.Practise')}
+-          description={t('mlearn.Flashcards.UI.Tabs.Review')} onClick={() => savedReview() ? resumeReview() : startReview()}
++        <WelcomeFeatureCard icon={<BookIcon size={22} />} title={t('mlearn.Flashcards.UI.Title')}
++          description={t('mlearn.Flashcards.UI.Tabs.Review')} onClick={startReview}
+@@ -101,4 +110,17 @@
++      <Show when={recentItems().length > 0}>
++        <section class="welcome-recent-items" aria-labelledby="welcome-recent-title">
++          <h2 id="welcome-recent-title">{t('mlearn.Home.UI.ContinueLearning')}</h2>
++          <div class="welcome-recent-list">
++            <For each={recentItems()}>{item => <WelcomeContinueRow item={item}
++              continueLabel={t('mlearn.Global.Continue')}
++              lastWatchedLabel={Number.isFinite(item.lastWatched) ? new Date(item.lastWatched).toLocaleDateString(settings.uiLanguage) : ''}
++              onContinue={openRecent} />}</For>
++          </div>
++        </section>
++      </Show>
+       <footer class="welcome-secondary-actions">
+-        <Button onClick={() => getBridge().window.openWindow({ type: 'my-learning' })}>{t('mlearn.Product.MyLearning')}</Button>
++        <Button onClick={() => getBridge().window.openWindow({ type: 'level-study' })}>{t('mlearn.LevelStudy.Title')}</Button>
++        <Button onClick={() => getBridge().window.openWindow({ type: 'word-db-editor' })}>{t('mlearn.Home.Cards.WordDatabase.Title')}</Button>
++        <Button onClick={() => getBridge().window.openWindow({ type: 'statistics' })}>{t('mlearn.Home.Cards.Statistics.Title')}</Button>
+         <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>{t('mlearn.Settings.UI.Title')}</Button>
+       </footer>
+diff --git a/src/renderer/components/flashcard/FlashcardReview.tsx b/src/renderer/components/flashcard/FlashcardReview.tsx
+--- a/src/renderer/components/flashcard/FlashcardReview.tsx
++++ b/src/renderer/components/flashcard/FlashcardReview.tsx
+@@ -21 +21 @@
+-  EyeIcon, Popover, WriteStatusBanner, StudyEncounter, StudySessionHUD, useConfirmDialog
++  EyeIcon, Popover, WriteStatusBanner, StudyEncounter, useConfirmDialog
+@@ -147,7 +147,4 @@
+   let reviewScrollContainer: HTMLDivElement | undefined;
+-  let reviewActionsContainer: HTMLDivElement | undefined;
+-  const [reviewActionsTarget, setReviewActionsTarget] = createSignal<HTMLDivElement>();
+   const resetReviewScroll = () => {
+     if (reviewScrollContainer) reviewScrollContainer.scrollTop = 0;
+-    if (reviewActionsContainer) reviewActionsContainer.scrollTop = 0;
+   };
+@@ -917 +913,0 @@
+-  const sessionTotal = createMemo(() => sessionAnswered() + remainingWork());
+@@ -1296 +1291,0 @@
+-            <p>{t('mlearn.Flashcards.Review.ActivitiesHint')}</p>
+@@ -1318,4 +1312,0 @@
+-        <Show when={sessionTotal() > 0}><StudySessionHUD class="flashcard-session-progress" completed={sessionAnswered()}
+-          total={finiteSession() ? sessionTotal() : undefined} /></Show>
+-
+-            <Show when={props.onClose}><Button variant="ghost" size="sm" onClick={() => props.onClose?.()}>{t('mlearn.Product.Return')}</Button></Show>
+@@ -1427 +1418 @@
+-                  {t(finiteSession() ? 'mlearn.StudyEncounter.Finished' : 'mlearn.Flashcards.Review.Complete')}
++                  {t('mlearn.Flashcards.Review.Complete')}
+@@ -1444,2 +1435,2 @@
+                     <Button buttonType="default" onClick={props.onClose}>
+-                      {t('mlearn.Product.Return')}
++                      {t('mlearn.Global.Close')}
+@@ -1456 +1447,2 @@
+           <StudyEncounter class="flashcard-study-encounter" prompt="" answer="" scheduling={true}
++            showRecallCue={currentEncounter()?.activity.kind !== 'holistic' || !!currentEncounter()?.activity.stages}
+@@ -1460 +1452 @@
+-            revealClass="flashcard-show-answer-btn" responseClass="flashcard-rating-buttons" controlsMount={reviewActionsTarget()}
++            revealClass="flashcard-show-answer-btn" responseClass="flashcard-rating-buttons"
+@@ -1522,2 +1514,3 @@
+-        {/* Buttons container */}
+-        <div class="flashcard-buttons-container" ref={element => { reviewActionsContainer = element; setReviewActionsTarget(element); }}>
++        {/* Only exceptional write/exposure notices live outside the shared encounter. */}
++        <Show when={presentation().phase !== 'complete'}>
++        <div class="flashcard-buttons-container">
+@@ -1575,3 +1568,4 @@
+         </div>
++        </Show>
+ 
+         {/* TTS Regenerate Modal */}
+diff --git a/src/renderer/components/common/StudyEncounter/StudyEncounter.tsx b/src/renderer/components/common/StudyEncounter/StudyEncounter.tsx
+--- a/src/renderer/components/common/StudyEncounter/StudyEncounter.tsx
++++ b/src/renderer/components/common/StudyEncounter/StudyEncounter.tsx
+@@ -16,2 +16,4 @@
+   scheduling?: boolean;
++  /** Ordinary mixed cards use the matrix labels; focused tasks retain an explicit cue. */
++  showRecallCue?: boolean;
+   revealClass?: string;
+@@ -80 +82,3 @@
+-      <RecallCue class="study-encounter__cue" capabilities={rating().capabilities} capabilityLabels={rating().capabilityLabels} />
++      <Show when={props.showRecallCue !== false}>
++        <RecallCue class="study-encounter__cue" capabilities={rating().capabilities} capabilityLabels={rating().capabilityLabels} />
++      </Show>
+diff --git a/src/renderer/windows/main/ApplicationShell.css b/src/renderer/windows/main/ApplicationShell.css
+--- a/src/renderer/windows/main/ApplicationShell.css
++++ b/src/renderer/windows/main/ApplicationShell.css
+@@ -1,21 +1,18 @@
+ .application-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+ .application-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; color: var(--text-primary); background: var(--app-shell-bg); }
+-.application-navigation { display: flex; align-items: center; gap: var(--spacing-4); flex-wrap: wrap; padding: var(--spacing-3) var(--spacing-5); padding-inline-start: max(var(--spacing-5), var(--window-controls-inline-start-inset)); border-bottom: 1px solid var(--border-color); flex-shrink: 0; -webkit-app-region: drag; }
+-.application-navigation button { color: var(--text-secondary); border: 0; background: transparent; cursor: pointer; font: inherit; -webkit-app-region: no-drag; padding: var(--spacing-2); border-radius: var(--radius-md); font-size: var(--font-size-sm); }
+-.application-navigation button:hover, .application-navigation button.is-active { color: var(--text-primary); background: var(--bg-secondary); }
+-.application-navigation button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
++.application-navigation { display: flex; align-items: center; gap: var(--spacing-3); padding: var(--spacing-2) var(--spacing-4); padding-inline-start: max(var(--spacing-4), var(--window-controls-inline-start-inset)); flex-shrink: 0; -webkit-app-region: drag; }
++.application-navigation .tab-container { flex: 1; min-width: 0; }
++.application-navigation button { -webkit-app-region: no-drag; }
+ .application-outlet { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+-.product-workspace { padding: var(--spacing-5); max-width: 74rem; margin: 0 auto; }
++.product-workspace { box-sizing: border-box; width: 100%; padding: var(--spacing-5); max-width: 60rem; margin: 0 auto; overflow: auto; }
+ .product-workspace h1 { font-size: var(--font-size-xl); }
+ .product-workspace-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-3); margin-block: var(--spacing-4); }
+-@media (max-width: 850px) { .application-navigation { gap: var(--spacing-2); padding: var(--spacing-2); } }
+-
+ .application-shell-mobile { padding-block-start: env(safe-area-inset-top); padding-block-end: env(safe-area-inset-bottom); box-sizing: border-box; }
+-
+ .knowledge-views { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+-.knowledge-view-navigation { display: flex; gap: var(--spacing-2); flex-wrap: wrap; padding: var(--spacing-2) var(--spacing-4); border-bottom: 1px solid var(--border-color); }
+-.knowledge-view-navigation button { color: var(--text-secondary); background: transparent; border: 0; font: inherit; cursor: pointer; padding: var(--spacing-2); border-radius: var(--radius-md); }
+-.knowledge-view-navigation button.is-active { color: var(--text-primary); background: var(--bg-secondary); }
+-.knowledge-view-navigation button:focus-visible { outline: 2px solid var(--accent-primary); }
++.knowledge-view-navigation { padding: 0 var(--spacing-4); flex: 0 0 auto; }
+ .knowledge-view-content { flex: 1; min-height: 0; }
+-.product-workspace { box-sizing: border-box; width: 100%; overflow: auto; }
++.evaluation-chooser { max-width: 44rem; margin: auto; }
++.evaluation-chooser-header { display: flex; align-items: center; gap: var(--spacing-4); margin-bottom: var(--spacing-4); }
++.evaluation-chooser-header h1 { margin: 0; }
++@media (max-width: 850px) { .application-navigation { padding-block: var(--spacing-2); } }
+diff --git a/src/renderer/components/flashcard/FlashcardReview.css b/src/renderer/components/flashcard/FlashcardReview.css
+--- a/src/renderer/components/flashcard/FlashcardReview.css
++++ b/src/renderer/components/flashcard/FlashcardReview.css
+@@ -62,19 +62,13 @@
+-/* Header with stats */
++/* Stable compact toolbar, not a second card around the reviewer. */
+ .flashcard-review-header {
+   display: flex;
+-  justify-content: space-between;
+-  align-items: center;
++  flex-direction: column;
++  align-items: flex-start;
+   width: 100%;
+-  max-width: max-content;
+-  flex-wrap: wrap;
+-  padding: 0.5rem 1rem;
+-  background: var(--bg);
+-  backdrop-filter: var(--backdrop-filter);
+-  -webkit-backdrop-filter: var(--backdrop-filter);
+-  border-radius: var(--radius-lg);
+-  border: 1px solid var(--border-color);
++  max-width: 48rem;
++  box-sizing: border-box;
+   position: relative;
+   z-index: var(--z-foreground);
+   flex: 0 0 auto;
+-  gap: var(--spacing-3);
++  gap: var(--spacing-2);
+ }
+@@ -185,20 +179,11 @@
+-/* Buttons container */
++/* Ratings stay beside their card; this region contains exceptional notices only. */
+ .flashcard-buttons-container {
+   display: flex;
+   flex-direction: column;
+   flex: 0 0 auto;
+-  gap: var(--spacing-4);
+-  width: 100%;
+-  max-width: 700px;
+-  max-height: 50%;
++  gap: var(--spacing-2);
++  width: min(100%, 36rem);
+   min-height: 0;
+-  overflow-y: auto;
+-  -webkit-overflow-scrolling: touch;
+   align-self: center;
+-  padding: var(--spacing-3);
+   box-sizing: border-box;
+-  background: var(--panel-bg);
+-  border: 1px solid var(--border-color);
+-  border-radius: var(--radius-lg);
+-  backdrop-filter: var(--backdrop-filter);
+ }
+@@ -247,4 +232,4 @@
+-  gap: var(--spacing-6);
++  gap: var(--spacing-2);
+   font-size: var(--font-size-sm);
+   color: var(--text-secondary);
+ }
+diff --git a/src/renderer/windows/flashcards/FlashcardsLayout.css b/src/renderer/windows/flashcards/FlashcardsLayout.css
+--- a/src/renderer/windows/flashcards/FlashcardsLayout.css
++++ b/src/renderer/windows/flashcards/FlashcardsLayout.css
+@@ -31 +31 @@
+-  --responsive-sidebar-content-padding-block-start: 1rem;
++  --responsive-sidebar-content-padding-block-start: calc(var(--window-controls-block-start-inset) + var(--spacing-3));
+diff --git a/src/renderer/windows/main/routes/welcomeRecent.css b/src/renderer/windows/main/routes/welcomeRecent.css
+new file mode 100644
+--- /dev/null
++++ b/src/renderer/windows/main/routes/welcomeRecent.css
+@@ -0,0 +1,5 @@
++.welcome-recent-items { margin-top: var(--spacing-5); }
++.welcome-recent-items h2 { font-size: var(--font-size-lg); margin: 0 0 var(--spacing-3); }
++.welcome-recent-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); }
++.welcome-recent-list .welcome-continue { min-width: 0; margin: 0; }
++@media (max-width: 800px) { .welcome-recent-list { grid-template-columns: minmax(0, 1fr); } }
