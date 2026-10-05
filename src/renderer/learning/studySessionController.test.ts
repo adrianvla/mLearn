@@ -61,6 +61,31 @@ describe('shared study session controller', () => {
     expect(owner.current()).toEqual(failed);
     owner.dispose();
   });
+  it('activates the named active task after queued recovery advances its cursor', async () => {
+    const h = harness(); const owner = h.make();
+    await owner.start('package-v1', [{ id: 'one' }, { id: 'two' }, { id: 'three' }], 0, {});
+    await owner.reveal(owner.current()!);
+    h.write.mockRejectedValueOnce(new Error('locked')).mockResolvedValue(undefined);
+    await owner.reserve(owner.current()!, { quality: 'fluent' }, 'advance');
+    const failed = owner.current()!;
+    const resumed = h.make();
+    expect(await resumed.activate(failed.id)).toBe(true);
+    expect(resumed.current()).toMatchObject({ id: failed.id, index: 1, rated: 1 });
+    expect(resumed.current()?.pending).toBeUndefined();
+    expect(h.write.mock.calls.map(call => call[0])).toEqual([failed.pending!.attemptId, failed.pending!.attemptId]);
+    owner.dispose(); resumed.dispose();
+  });
+  it('opens its exact failed task without replacing or retrying that response', async () => {
+    const h = harness(); const owner = h.make();
+    await owner.start('package-v1', [{ id: 'one' }, { id: 'two' }, { id: 'three' }], 0, {});
+    await owner.reveal(owner.current()!); h.write.mockRejectedValue(new Error('locked'));
+    await owner.reserve(owner.current()!, { quality: 'fluent' }, 'advance');
+    const failed = owner.current()!;
+    expect(await owner.activate(failed.id)).toBe(true);
+    expect(owner.current()).toEqual(failed);
+    expect(h.write).toHaveBeenCalledTimes(1);
+    owner.dispose();
+  });
   it('keeps active work intact when its suspension cannot persist', async () => {
     const h = harness(); const owner = h.make(); const queue = [{ id: 'one' }, { id: 'two' }, { id: 'three' }];
     await owner.start('package-v1', queue, 0, {}); const original = owner.current()!;

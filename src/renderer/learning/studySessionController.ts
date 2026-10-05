@@ -266,15 +266,34 @@ export function createStudySessionController<I extends StudyQueueItem, P, A, M>(
     current,
     resume,
     suspended,
-    activate: (id) => locked(current(), (durable) => {
-      if (durable?.pending) return false;
-      if (durable?.id === id) return true;
-      const target = saved(id);
-      if (!target || !preserveActive(durable)) return false;
-      if (!publish(target)) return false;
-      if (target.pending) recoverPending?.(target);
-      return true;
-    }),
+    activate: async (id) => {
+      const expected = current();
+      if (expected?.id === id) {
+        // Opening this exact active owner is read-only. Its queued recovery
+        // may have advanced the cursor; mutation guards still require exact
+        // snapshots, and a replaced owner must never activate an old archive.
+        if (!options.locks) return false;
+        let accepted = false;
+        try {
+          await options.locks.request(options.lockKey, () => {
+            const durable = read();
+            setCurrent(durable);
+            unavailableRaw = durable ? null : options.storage.getItem(options.storageKey);
+            accepted = durable?.id === id;
+          });
+        } catch { return false; }
+        return accepted;
+      }
+      return locked(expected, (durable) => {
+        if (durable?.pending) return false;
+        if (durable?.id === id) return true;
+        const target = saved(id);
+        if (!target || !preserveActive(durable)) return false;
+        if (!publish(target)) return false;
+        if (target.pending) recoverPending?.(target);
+        return true;
+      });
+    },
     start: (identity, queue, index, meta, intent) => locked(current(), (durable) => {
       // A package-invalid or malformed record is unavailable, not an empty slot.
       // Preserve it for recovery rather than overwriting history with a new task.
