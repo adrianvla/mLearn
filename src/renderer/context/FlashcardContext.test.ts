@@ -5937,6 +5937,27 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('tracks authored changes without marking cloned package data as edited', async () => {
+    const { ctx, dispose } = await mountProvider();
+    seedAccepted();
+    const id = await ctx.addFlashcard({ front: 'surface', back: 'meaning' }, undefined, true);
+    const prosody = { type: 'future::relationship-contour', raw: { participants: ['speaker', 'hearer'], value: { contour: [2, 1], condition: 'formal' } } };
+    const extra = { 'future::discourse': { relation: { subject: 'speaker', referent: 'prior-clause' }, values: [false, { mode: 'indirect' }] } };
+    ctx.updateFlashcard(id, { content: { ...ctx.store.flashcards[id].content,
+      prosody, extra, userEditedFields: ['example'] } });
+    ctx.updateFlashcardContent(id, {
+      back: 'revised meaning',
+      prosody: JSON.parse(JSON.stringify(prosody)),
+      extra: { 'future::discourse': { values: [false, { mode: 'indirect' }], relation: { referent: 'prior-clause', subject: 'speaker' } } },
+    });
+    expect(ctx.store.flashcards[id].content.userEditedFields).toEqual(['example', 'back']);
+    expect(ctx.store.flashcards[id].content.prosody).toEqual(prosody);
+    expect(ctx.store.flashcards[id].content.extra).toEqual(extra);
+    ctx.updateFlashcardContent(id, { prosody: { ...prosody, raw: { ...prosody.raw, value: { contour: [1, 2], condition: 'formal' } } } });
+    expect(ctx.store.flashcards[id].content.userEditedFields).toEqual(['example', 'back', 'prosody']);
+    dispose();
+  });
+
   it('updateFlashcardContent moves word indexes using the card language when the front changes', async () => {
     const { ctx, dispose } = await mountProvider();
     const SRS = await import('../services/srsAlgorithm');

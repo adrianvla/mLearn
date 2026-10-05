@@ -14,6 +14,7 @@ import { clearFlashcardActionOwner, setFlashcardExclusion, captureFlashcardActio
 import { isReviewCorrection, restoreReviewResponse, validateReviewResponseUndo, type ReviewUndoProjection } from '../../shared/flashcardReviewUndo';
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
+import { canonicalize } from 'json-canonicalize';
 import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewPresentation, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PerLanguageMeta } from '../../shared/types';
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
@@ -2417,7 +2418,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
     const changedFields = trackUserEdits
       ? (Object.keys(content) as Array<keyof FlashcardContent>).filter((key) =>
-        key !== 'userEditedFields' && store.flashcards[id].content[key] !== content[key]
+        key !== 'userEditedFields' &&
+        card.content[key] !== content[key] &&
+        canonicalize(card.content[key]) !== canonicalize(content[key])
       )
       : [];
 
