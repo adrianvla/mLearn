@@ -24,6 +24,7 @@ interface VideoUnknownWordsSidebarProps {
   onAddAll: (entries: VideoWordEntry[]) => void | Promise<void>;
   onIgnoreWord: (entry: VideoWordEntry) => void | Promise<void>;
   onClose: () => void;
+  onPracticeWords?: (entries: VideoWordEntry[]) => void | Promise<void>;
 }
 
 export const VideoUnknownWordsSidebar: Component<VideoUnknownWordsSidebarProps> = (props) => {
@@ -59,6 +60,7 @@ export const VideoUnknownWordsSidebar: Component<VideoUnknownWordsSidebarProps> 
           emptyMessage={t('mlearn.Video.Sidebar.UnknownWordsEmpty')}
           class="video-unknown-words-sidebar"
           onClose={props.onClose}
+          onPracticeWords={props.onPracticeWords ? entries => props.onPracticeWords!(entries as VideoWordEntry[]) : undefined}
           onAddAllClick={(addableEntries, dictionaryFoundAddable) => {
             addAll.open(addableEntries, dictionaryFoundAddable);
           }}

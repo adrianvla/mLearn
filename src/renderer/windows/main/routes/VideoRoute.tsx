@@ -1416,7 +1416,8 @@ export const VideoRoute: Component = () => {
     const context: ConversationAgentContext = {
       mediaName: name,
       mediaType: 'video',
-      sourceContext: { workspace: 'video', path: currentVideoPath(), time: currentVideoTime(), mediaHash: s.mediaHash },
+      sourceContext: { workspace: 'video', path: currentVideoPath(), time: currentVideoTime(),
+        subtitlePath: externalSubtitle()?.filePath, mediaHash: s.mediaHash },
       mediaHash: s.mediaHash,
       assessedLevel: level,
       assessedLevelName: formatFrequencyLevelLabel(level, levelNames, langCtx.currentLangData()),
@@ -1584,6 +1585,18 @@ export const VideoRoute: Component = () => {
           onAddAll={addAllVideoWords}
           onIgnoreWord={ignoreVideoWord}
           onClose={() => setShowWordSidebar(false)}
+          onPracticeWords={async entries => {
+            const video = getCurrentVideoElement();
+            video?.pause();
+            const sourceContext = { workspace: 'video', path: currentVideoPath(),
+              time: video?.currentTime ?? currentVideoTime(), subtitlePath: externalSubtitle()?.filePath,
+              mediaHash: mediaStats.stats().mediaHash };
+            const material = { language: settings.language, words: entries.map(entry => entry.word), label: currentVideoName() };
+            await updateVideoProgress();
+            getBridge().window.openWindow({ type: 'level-study', context: {
+              activity: 'practice', returnTo: 'video', sourceContext, material,
+            } });
+          }}
         />
       </Show>
 

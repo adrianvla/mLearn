@@ -20,4 +20,13 @@ describe('contextual media return', () => {
     expect(consumeMediaWorkspaceReturn(state, 'video', '/different.mp4')).toBeUndefined();
     expect(prepareMediaWorkspaceReturn(state, { workspace: 'video', path: '' })).toBeUndefined();
   });
+  it('restores the captured external subtitle and clears a stale track for a source without one', () => {
+    const state = storage();
+    const source = { workspace: 'video', path: '/video.mp4', time: 134, subtitlePath: '/selected.srt' };
+    expect(prepareMediaWorkspaceReturn(state, source)).toBe('/video');
+    expect(state.getItem('mlearn_open_video_subtitles')).toBe('/selected.srt');
+    expect(consumeMediaWorkspaceReturn(state, 'video', source.path)).toEqual(source);
+    prepareMediaWorkspaceReturn(state, { workspace: 'video', path: '/another.mp4', time: 0 });
+    expect(state.getItem('mlearn_open_video_subtitles')).toBeNull();
+  });
 });
