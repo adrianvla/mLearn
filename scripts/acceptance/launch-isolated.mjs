@@ -2,12 +2,15 @@
 
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 const MARKER_NAME = '.mlearn-acceptance-profile.json';
 const PROFILE_PREFIX = 'mlearn-acceptance-';
+// Copied learner files retain their original timestamps. System temporary
+// cleanup can remove those files while the acceptance application is running.
+const PROFILE_ROOT = path.join(os.homedir(), '.mlearn-acceptance');
 
 function fail(message) {
   console.error(message);
@@ -15,7 +18,8 @@ function fail(message) {
 }
 
 function createProfile() {
-  const profile = mkdtempSync(path.join(os.tmpdir(), PROFILE_PREFIX));
+  mkdirSync(PROFILE_ROOT, { recursive: true, mode: 0o700 });
+  const profile = mkdtempSync(path.join(PROFILE_ROOT, PROFILE_PREFIX));
   writeFileSync(path.join(profile, MARKER_NAME), JSON.stringify({
     schemaVersion: 1,
     id: randomUUID(),
@@ -32,13 +36,11 @@ function validateProfile(candidate) {
 
   const realProfile = realpathSync(profile);
   if (realProfile !== profile || path.basename(realProfile).startsWith(PROFILE_PREFIX) === false) {
-    fail('Acceptance profile must be a real mLearn acceptance directory under the system temporary directory.');
+    fail('Acceptance profile must be a real mLearn acceptance directory under the isolated acceptance root.');
   }
 
-  const tempRoot = realpathSync(os.tmpdir());
-  const relative = path.relative(tempRoot, realProfile);
-  if (relative === '' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    fail('Acceptance profile is outside the system temporary directory.');
+  if (!existsSync(PROFILE_ROOT) || path.dirname(realProfile) !== realpathSync(PROFILE_ROOT)) {
+    fail('Acceptance profile is outside the isolated acceptance root.');
   }
 
   let marker;
@@ -76,7 +78,7 @@ function parseArguments(args) {
   }
 
   if (!executable) {
-    fail('Usage: node scripts/acceptance/launch-isolated.mjs /path/to/mLearn [--profile /tmp/mlearn-acceptance-…] [-- app-args]');
+    fail('Usage: node scripts/acceptance/launch-isolated.mjs /path/to/mLearn [--profile ~/.mlearn-acceptance/mlearn-acceptance-…] [-- app-args]');
   }
 
   const resolvedExecutable = path.resolve(executable);

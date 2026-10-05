@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,15 +16,26 @@ test('packaged app launch always gets a marked disposable profile and can reuse 
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let profile;
+  let temporaryProfile;
 
   try {
     const firstLaunch = run([]);
     const profileLine = firstLaunch.split('\n').find((line) => line.startsWith('ISOLATED_MLEARN_USER_DATA='));
     assert.ok(profileLine, firstLaunch);
     profile = profileLine.slice('ISOLATED_MLEARN_USER_DATA='.length);
-    assert.ok(profile.startsWith(`${realpathSync(os.tmpdir())}${path.sep}`));
+    assert.ok(profile.startsWith(`${realpathSync(path.join(os.homedir(), '.mlearn-acceptance'))}${path.sep}`));
+    assert.equal(profile.startsWith(`${realpathSync(os.tmpdir())}${path.sep}`), false);
     assert.ok(existsSync(path.join(profile, '.mlearn-acceptance-profile.json')));
     assert.equal(readFileSync(path.join(profile, marker), 'utf8'), profile);
+
+    temporaryProfile = mkdtempSync(path.join(os.tmpdir(), 'mlearn-acceptance-'));
+    writeFileSync(path.join(temporaryProfile, '.mlearn-acceptance-profile.json'),
+      readFileSync(path.join(profile, '.mlearn-acceptance-profile.json')));
+    const cleanedBySystem = spawnSync(process.execPath, [launcher, process.execPath, '--profile', realpathSync(temporaryProfile)], {
+      encoding: 'utf8',
+    });
+    assert.equal(cleanedBySystem.status, 2);
+    assert.match(cleanedBySystem.stderr, /outside the isolated acceptance root/);
 
     run(['--profile', profile]);
     assert.equal(readFileSync(path.join(profile, marker), 'utf8'), profile);
@@ -36,5 +47,6 @@ test('packaged app launch always gets a marked disposable profile and can reuse 
     assert.match(unsafeProfile.stderr, /Acceptance profile must be a real mLearn acceptance directory/);
   } finally {
     if (profile) rmSync(profile, { recursive: true, force: true });
+    if (temporaryProfile) rmSync(temporaryProfile, { recursive: true, force: true });
   }
 });
