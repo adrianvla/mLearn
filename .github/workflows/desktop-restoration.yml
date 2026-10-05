@@ -20,12 +20,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
       - id: install
         run: npm ci --ignore-scripts
+      - name: Prepare offline verification workspace
+        run: |
+          mkdir -p /tmp/mlearn-offline
+          git bundle create /tmp/mlearn-offline/source.bundle --all
+          tar -czf /tmp/mlearn-offline/dependencies.tgz node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mlearn-offline-workspace
+          path: /tmp/mlearn-offline/
+          retention-days: 1
+          compression-level: 0
       - name: Focused restoration and shared interaction regressions
         run: npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow
       - name: Both TypeScript configurations
