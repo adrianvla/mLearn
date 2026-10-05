@@ -4164,6 +4164,7 @@
       "MaterialPractice": "Из {title} · выбрано слов: {count}"
     },
     "StudyEncounter": {
+      "VisitProgress": "Завершено за этот сеанс: {count}",
       "Recall": "Вспомнить",
       "Task": "Вспомнить и проверить",
       "Retrieve": "Попробуйте ответить, прежде чем открыть ответ.",

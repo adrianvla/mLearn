@@ -1298,7 +1298,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             <Show when={releaseWrite()?.phase === 'failed'}><p role="alert">{t('mlearn.Flashcards.Review.StartNewFailed')}</p></Show>
           </Show>
         </div>
-        <Show when={sessionTotal() > 0}><StudySessionHUD class="flashcard-session-progress" completed={sessionAnswered()} total={sessionTotal()} /></Show>
+        <Show when={sessionTotal() > 0}><StudySessionHUD class="flashcard-session-progress" completed={sessionAnswered()}
+          total={finiteSession() ? sessionTotal() : undefined} /></Show>
         {/* Header with stats */}
         <div class="flashcard-review-header">
           <div class="flashcard-status">

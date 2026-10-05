@@ -83,11 +83,15 @@ export const StudyEncounter: Component<StudyEncounterProps> = (props) => {
   </section>;
 };
 
-/** A single encounter counter across retrieval families, separate from evidence rows. */
-export const StudySessionHUD: Component<{ completed: number; total: number; label?: JSX.Element; class?: string }> = props => {
+/** Bounded tasks have a finish line; continuous work reports this visit's count. */
+export const StudySessionHUD: Component<{ completed: number; total?: number; label?: JSX.Element; class?: string }> = props => {
   const { t } = useLocalization();
   return <div class={`study-encounter__hud ${props.class ?? ''}`} role="status">
-    <span>{props.label ?? t('mlearn.StudyEncounter.Progress', { count: props.completed, total: props.total })}</span>
-    <ProgressBar value={props.total > 0 ? props.completed / props.total * 100 : 100} size="md" />
+    <span>{props.label ?? (props.total === undefined
+      ? t('mlearn.StudyEncounter.VisitProgress', { count: props.completed })
+      : t('mlearn.StudyEncounter.Progress', { count: props.completed, total: props.total }))}</span>
+    <Show when={props.total !== undefined}>
+      <ProgressBar value={props.total! > 0 ? props.completed / props.total! * 100 : 100} size="md" />
+    </Show>
   </div>;
 };

@@ -416,6 +416,18 @@ describe('FlashcardReview', () => {
     container.remove();
   });
 
+  it('labels continuous progress as visit work without turning the scheduler queue into a finish line', async () => {
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      setMockQueueTotal(9);
+      await flushEffects();
+      expect(container.querySelector('.flashcard-session-progress')?.textContent).toContain('mlearn.StudyEncounter.VisitProgress');
+      expect(container.querySelector('.flashcard-session-progress [role="progressbar"]')).toBeNull();
+      expect(container.querySelector('.flashcard-session-progress')?.textContent).not.toContain('mlearn.StudyEncounter.Progress');
+    } finally { dispose(); }
+  });
+
   it('ends a bounded session even when a failed item remains in the scheduler queue', async () => {
     const [sessions, setSessions] = createSignal<Record<string, ReviewSession>>({});
     mockReviewSessions = sessions;

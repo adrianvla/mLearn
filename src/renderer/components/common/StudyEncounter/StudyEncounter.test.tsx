@@ -1,13 +1,26 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
-import { StudyEncounter } from './StudyEncounter';
+import { StudyEncounter, StudySessionHUD } from './StudyEncounter';
 
 vi.mock('../../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }) }));
 let dispose: (() => void) | undefined;
 afterEach(() => { dispose?.(); document.body.replaceChildren(); });
 
 describe('shared retrieval encounter', () => {
+  it('shows visit progress without a finish-line denominator for continuous work', () => {
+    dispose = render(() => <StudySessionHUD completed={13} />, document.body);
+    expect(document.body.textContent).toContain('mlearn.StudyEncounter.VisitProgress');
+    expect(document.body.textContent).not.toContain('mlearn.StudyEncounter.Progress');
+    expect(document.querySelector('[role="progressbar"]')).toBeNull();
+  });
+
+  it('retains a progress bar and finite-session label for admitted bounded work', () => {
+    dispose = render(() => <StudySessionHUD completed={1} total={2} />, document.body);
+    expect(document.body.textContent).toContain('mlearn.StudyEncounter.Progress');
+    expect(document.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('50');
+  });
+
   it('shows package-defined recall labels once, without default retrieval or comparison narration', () => {
     const [revealed, setRevealed] = createSignal(false);
     dispose = render(() => <StudyEncounter prompt="cue" answer="answer" revealed={revealed()} onReveal={() => setRevealed(true)}

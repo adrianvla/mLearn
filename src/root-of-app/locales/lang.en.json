@@ -4164,6 +4164,7 @@
       "MaterialPractice": "From {title} · {count} selected words"
     },
     "StudyEncounter": {
+      "VisitProgress": "Completed this visit: {count}",
       "Recall": "Recall",
       "Task": "Recall & check",
       "Retrieve": "Try answering the prompt before revealing the answer.",

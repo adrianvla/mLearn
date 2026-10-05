@@ -4164,6 +4164,7 @@
       "MaterialPractice": "来自 {title} · 已选择 {count} 个词"
     },
     "StudyEncounter": {
+      "VisitProgress": "本次完成：{count}",
       "Recall": "回忆",
       "Task": "回忆并核对",
       "Retrieve": "显示答案前，请先尝试回答。",

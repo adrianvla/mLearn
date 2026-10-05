@@ -4164,6 +4164,7 @@
       "MaterialPractice": "Aus {title} · {count} ausgewählte Wörter"
     },
     "StudyEncounter": {
+      "VisitProgress": "In diesem Besuch abgeschlossen: {count}",
       "Recall": "Abrufen",
       "Task": "Erinnern & prüfen",
       "Retrieve": "Versuche die Aufgabe zu beantworten, bevor du die Antwort aufdeckst.",
