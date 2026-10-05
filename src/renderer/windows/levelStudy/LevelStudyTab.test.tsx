@@ -563,6 +563,7 @@ describe('LevelStudyTab', () => {
     expect(agentCall).toBeTruthy();
     const agentContext = (agentCall![0] as { context?: { tutorConfig?: { selectedGrammar?: unknown[] } } }).context;
     expect((agentContext?.tutorConfig?.selectedGrammar ?? []).length).toBeGreaterThan(0);
+    expect(agentContext).toEqual(expect.objectContaining({ returnTo: 'mock' }));
 
     // Provider setup belongs to generation; saved history remains accessible.
     openWindowMock.mockClear();

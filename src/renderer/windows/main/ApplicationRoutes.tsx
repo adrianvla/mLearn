@@ -37,7 +37,18 @@ const Memory: Component<RequestedWorkspaceProps> = props => {
 const Messenger: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();
   return <ConversationContent launchContext={props.launchContext} onReturn={source => {
-    const path = source && prepareMediaWorkspaceReturn(sessionStorage, source);
+    // A targeted discussion belongs to the completed check, even while an
+    // older media conversation remains selected during preparation.
+    if (props.launchContext?.returnTo === 'mock') {
+      navigate('/evaluate/grammar/mock');
+      return;
+    }
+    // Cancelling preparation clears its transient media hints. The routed
+    // launch still owns Return and must not fall back to an older chat.
+    const requestedSource = props.launchContext?.sourceContext;
+    const returnSource = requestedSource && typeof requestedSource === 'object' && !Array.isArray(requestedSource)
+      ? requestedSource as Record<string, unknown> : source;
+    const path = returnSource && prepareMediaWorkspaceReturn(sessionStorage, returnSource);
     navigate(path ?? (props.launchContext?.returnTo === 'plan' ? '/plan' : '/'));
   }} />;
 };

@@ -1993,7 +1993,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
 
   const ConversationHeader: Component = () => (
     <div class="ca-header">
-        <Show when={props.onReturn && (activeThread()?.mediaRef?.sourceContext ?? mediaContext()?.sourceContext ?? props.launchContext?.returnTo)}><Button variant="ghost" onClick={() => props.onReturn?.(activeThread()?.mediaRef?.sourceContext ?? mediaContext()?.sourceContext)}>{t('mlearn.Product.Return')}</Button></Show>
+        <Show when={props.onReturn && (mediaContext()?.sourceContext ?? activeThread()?.mediaRef?.sourceContext ?? props.launchContext?.returnTo)}><Button variant="ghost" onClick={() => props.onReturn?.(mediaContext()?.sourceContext ?? activeThread()?.mediaRef?.sourceContext)}>{t('mlearn.Product.Return')}</Button></Show>
         <Show when={!callSurfaceOpen()}><Button buttonType="icon"
           variant="ghost"
           class="ca-sidebar-toggle"

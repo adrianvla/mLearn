@@ -296,6 +296,7 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
     getBridge().window.openWindow({
       type: 'conversation-agent',
       context: {
+        returnTo: 'mock',
         tutorConfig: {
           selectedGrammar: targets.map((target) => ({ pattern: target.pattern, meaning: target.meaning, level: target.level })),
           selectedWords: [],

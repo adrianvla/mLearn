@@ -14,7 +14,7 @@ vi.mock('../../components/common', () => ({ LearningWorkspace: (props: { childre
 vi.mock('../flashcards/App', () => ({ FlashcardsContent: (props: { initialTab?: string; onClose?: () => void }) => {
   fixture.mounted(props.initialTab ?? 'review'); return <div data-content={props.initialTab ?? 'review'}><button onClick={props.onClose}>Return</button></div>;
 } }));
-vi.mock('../conversationAgent/App', () => ({ ConversationContent: () => <div data-content="messenger" /> }));
+vi.mock('../conversationAgent/App', () => ({ ConversationContent: (props: { onReturn?: (source?: Record<string, unknown>) => void }) => <div data-content="messenger"><button onClick={() => props.onReturn?.(fixture.savedReturn)}>Return</button></div> }));
 vi.mock('../levelStudy/App', () => ({ LevelStudyContent: (props: { workspace?: string }) => <div data-content={props.workspace ?? "plan"} /> }));
 vi.mock('../wordSync/App', () => ({ WordSyncContent: (props: { mode?: string; intent?: string; words?: readonly string[]; encounterLimit?: number; onClose?: (context: Record<string, unknown>) => void }) => <div data-content={props.mode === 'assessment' ? 'assessment' : 'words'} data-intent={props.intent} data-words={JSON.stringify(props.words)} data-limit={props.encounterLimit}><button onClick={() => props.onClose?.(fixture.savedReturn)}>Return</button></div> }));
 vi.mock('../characterGrid/App', () => ({ CharacterGridContent: () => <div data-content="characters" /> }));
@@ -53,6 +53,26 @@ describe('application shell route ownership', () => {
     await vi.waitFor(() => expect(container.querySelector('[data-content="review"]')).not.toBeNull());
     container.querySelector<HTMLButtonElement>('[data-content="review"] button')!.click();
     await vi.waitFor(() => expect(window.location.hash).toBe(`#${path}`));
+  });
+  it('returns a targeted mock discussion to the saved mock results owner', async () => {
+    mount();
+    fixture.savedReturn = { workspace: 'video', path: '/videos/older-conversation.mp4', time: 99 };
+    fixture.listener!({ applicationNavigation: { path: '/messenger', requestId: 'mock-discussion', context: { returnTo: 'mock' } } });
+    await vi.waitFor(() => expect(container.querySelector('[data-content="messenger"]')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('[data-content="messenger"] button')!.click();
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/evaluate/grammar/mock'));
+    expect(container.querySelector('[data-content="mock"]')).not.toBeNull();
+  });
+  it.each([{}, { workspace: 'reader', path: '/books/older.epub', page: 99 }])('retains the explicit media Return after preparation cancellation or an older chat source', async savedSource => {
+    mount();
+    fixture.savedReturn = savedSource;
+    fixture.listener!({ applicationNavigation: { path: '/messenger', requestId: 'media-preparation', context: {
+      returnTo: 'video', sourceContext: { workspace: 'video', path: '/videos/current.mp4', time: 10, subtitlePath: '/videos/current.srt' },
+    } } });
+    await vi.waitFor(() => expect(container.querySelector('[data-content="messenger"]')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('[data-content="messenger"] button')!.click();
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/video'));
+    expect(sessionStorage.getItem('mlearn_open_video_subtitles')).toBe('/videos/current.srt');
   });
   it('mounts a deliberate new request on the same route and releases the navigation listener', async () => {
     window.history.replaceState(null, '', '#/practise'); mount();

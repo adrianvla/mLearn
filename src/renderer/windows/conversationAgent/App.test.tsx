@@ -1557,6 +1557,29 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
   });
 
+  it('returns a media-only preparation to its new source rather than the older selected conversation', async () => {
+    const older = { workspace: 'video', path: '/videos/older.mp4', time: 99 };
+    const source = { workspace: 'reader', path: '/books/current.epub', page: 7, 'package:position': { value: ['kept'] } };
+    currentWorld = { ...worldFixture, threads: [{ ...worldFixture.threads[0], mediaRef: {
+      mediaHash: 'older', mediaName: 'Older', mediaType: 'video', sourceContext: older,
+    } }] };
+    const onReturn = vi.fn();
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} onReturn={onReturn} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    receiveLaunchContext({ mediaHash: 'current', mediaName: 'Current', mediaType: 'book',
+      assessedLevel: null, assessedLevelName: '', language: 'xx', failedWords: [], failedGrammar: [],
+      wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 }, sourceContext: source });
+    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')).toBeDefined());
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
+    await vi.waitFor(() => expect(container.querySelector('.new-conversation-media-context')).not.toBeNull());
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Product.Return')!.click();
+    expect(onReturn).toHaveBeenCalledWith(source);
+    expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+  });
+
   it('keeps launch text as a draft without transmitting during route entry', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent launchContext={{ roomId: 'room-a', threadId: 'thread-a', initialMessage: 'Explain the selected phrase' }} />, container);
