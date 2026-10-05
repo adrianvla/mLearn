@@ -2,9 +2,12 @@ name: Apply authored desktop restoration patch
 on:
   push:
     branches: [fix/restore-mlearn-desktop-ux]
-    paths: [.github/desktop-restoration.patch]
+    paths: [.github/desktop-restoration.patch, .github/workflows/apply-desktop-restoration.yml]
 permissions:
   contents: write
+concurrency:
+  group: apply-desktop-restoration
+  cancel-in-progress: false
 jobs:
   apply:
     if: github.repository == 'adrianvla/mLearn' && github.ref == 'refs/heads/fix/restore-mlearn-desktop-ux'
@@ -22,8 +25,8 @@ jobs:
           test "$(git branch --show-current)" = 'fix/restore-mlearn-desktop-ux'
           git merge-base --is-ancestor 5577f4b1e58f829cbcb3fb5cb0103689f1ef029f HEAD
           test -z "$(git status --porcelain)"
-          git apply --check --unidiff-zero .github/desktop-restoration.patch
-          git apply --unidiff-zero .github/desktop-restoration.patch
+          git apply --check --recount --unidiff-zero .github/desktop-restoration.patch
+          git apply --recount --unidiff-zero .github/desktop-restoration.patch
           git diff --check
           rm .github/desktop-restoration.patch .github/workflows/apply-desktop-restoration.yml
           git add -- src .github/desktop-restoration.patch .github/workflows/apply-desktop-restoration.yml
