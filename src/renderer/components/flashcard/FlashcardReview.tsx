@@ -436,8 +436,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // caught up with it yet - it is the card the surface would present.
     if (sessionAllows(fallback.id) && !eligibleCards.some(card => card.id === fallback.id) && activityChoices(fallback).length) eligibleCards.push(fallback);
     // A local rating may precede the scheduler's reactive acknowledgment.
-    // Prefer other admitted work until that exact schedule snapshot changes.
-    const sameRated = (card: Flashcard) => card.id === lastLocallyRated?.id && JSON.stringify(card) === lastLocallyRated.snapshot;
+    // Prefer other admitted work until the authored schedule changes. Derived
+    // retention caches and response bookkeeping timestamps do not turn an
+    // exposed response with an unchanged schedule into fresh work.
+    const sameRated = (card: Flashcard) => card.id === lastLocallyRated?.id
+      && JSON.stringify({ ...card, retentionCache: undefined, lastReviewed: undefined, lastUpdated: undefined }) === lastLocallyRated.snapshot;
     const freshCards = eligibleCards.filter(card => !sameRated(card));
     const first = finiteSession()?.completedCardIds.length === 0 ? finiteSession()?.initialCardId : undefined;
     const initial = eligibleCards.find(card => card.id === first);
@@ -749,7 +752,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         stamp('afterSetShowAnswer');
         // Publish the next encounter here; readiness must not trigger
         // auto-play for an intermediate selection before the pin advances.
-        lastLocallyRated = { id: write.card.id, snapshot: JSON.stringify(write.card) };
+        lastLocallyRated = { id: write.card.id, snapshot: JSON.stringify({ ...write.card,
+          retentionCache: undefined, lastReviewed: undefined, lastUpdated: undefined }) };
         decisionPin.advance();
         stamp('afterPinAdvance');
         setRatingWrite(null);

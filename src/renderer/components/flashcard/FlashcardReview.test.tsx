@@ -1792,6 +1792,34 @@ describe('FlashcardReview failure attribution', () => {
     dispose();
   });
 
+  it('prefers other queued work when supplied evidence changes only timestamps and the retention cache', async () => {
+    const first = mockCard()!;
+    const other = makeCard({ id: 'other-card', content: { type: 'word', front: '猫', reading: 'ねこ', back: 'cat' } });
+    mockReviewCards = { [first.id]: first, [other.id]: other };
+    mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [first.id, other.id] });
+    const original = selectFlashcardReviewDecision({ id: 'cache-choice', at: 20,
+      entries: [flashcardReviewPolicyEntry(first, 'ja', jaLanguageData)] })!.provenance;
+    mockReviewPresentations = () => ({ ja: { id: original.id, cardId: first.id, decision: original } });
+    mockSubmitRating.mockImplementationOnce(async () => {
+      const cached = { ...first, lastReviewed: Date.now(), lastUpdated: Date.now(), retentionCache: { state: first.state, ease: first.ease,
+        interval: first.interval, dueAt: first.dueDate, reviews: first.reviews, lapses: first.lapses,
+        learningStep: first.learningStep, lastReviewed: first.lastReviewed,
+        provenance: 'derived-scheduler-cache' as const } };
+      mockReviewCards = { [first.id]: cached, [other.id]: other };
+      setMockCard(cached);
+      return { attemptId: 'cache-attempt', completed: true };
+    });
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      await clickShowAnswer(container);
+      container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
+      await flushEffects();
+      expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+      expect(mockSaveReviewPresentation.mock.calls.at(-1)?.[1].cardId).toBe(other.id);
+    } finally { dispose(); }
+  });
+
   it('resets scroll when the same learning card is queued again after rating', async () => {
     const dispose = render(() => <FlashcardReview />, container);
     await flushEffects();
