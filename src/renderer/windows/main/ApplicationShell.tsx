@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from '@solidjs/router';
-import { For, Show, createEffect, onMount, onCleanup, type ParentComponent } from 'solid-js';
+import { Show, createEffect, onMount, onCleanup, type ParentComponent } from 'solid-js';
 import { useLocalization } from '../../context';
+import { Button, TabContainer } from '../../components/common';
 import { LibraryLoadGuard } from '../../context/WindowWrapper';
 import { getBridge } from '../../../shared/bridges';
 import { isElectron } from '../../../shared/platform';
@@ -16,12 +17,12 @@ export const ApplicationShell: ParentComponent = props => {
   const navigate = useNavigate();
   const open = useApplicationNavigate();
   const host = () => isElectron() ? currentApplicationHost() : applicationHostForPath(location.pathname);
-  const links = () => host() === 'study'
+  const links = () => !isElectron() && host() === 'study'
     ? [['/practise', 'mlearn.Product.Practise'], ['/evaluate', 'mlearn.Product.Evaluate']]
     : host() === 'my-learning'
       ? [['/plan', 'mlearn.Product.Plan'], ['/knowledge', 'mlearn.Product.Knowledge'], ['/progress', 'mlearn.Product.Progress']] : [];
   createEffect(() => {
-    const label = host() === 'study' ? location.pathname.startsWith('/evaluate') ? 'mlearn.Product.Evaluate' : 'mlearn.Product.Practise' : host() === 'my-learning' ? 'mlearn.Product.MyLearning' : host() === 'settings' ? 'mlearn.Settings.UI.Title' : undefined;
+    const label = host() === 'study' ? location.pathname.startsWith('/evaluate') ? 'mlearn.Product.Evaluate' : 'mlearn.Flashcards.UI.Title' : host() === 'my-learning' ? 'mlearn.Product.MyLearning' : host() === 'settings' ? 'mlearn.Settings.UI.Title' : host() === 'messenger' ? 'mlearn.Product.Messenger' : undefined;
     document.title = `${t('mlearn.Global.AppName')}${label ? ` · ${t(label)}` : ''}`;
   });
   onMount(() => {
@@ -43,11 +44,18 @@ export const ApplicationShell: ParentComponent = props => {
     if (isElectron()) bridge.window.getWindowContext(currentApplicationHost());
     onCleanup(() => cleanup?.());
   });
-  return <div class="application-shell" classList={{ 'application-shell-mobile': !isElectron() }}>
+  return <div class="application-shell" classList={{ 'application-shell-mobile': !isElectron(), 'application-shell-study': host() === 'study' }}>
     <Show when={links().length || (!isElectron() && location.pathname !== '/')}>
       <nav class="application-navigation" aria-label={t('mlearn.Product.Navigation')}>
-        <button type="button" onClick={() => open('/')}>{t('mlearn.Tabs.Home')}</button>
-        <For each={links()}>{item => <button type="button" classList={{ 'is-active': location.pathname.startsWith(item[0]) }} onClick={() => open(item[0])}>{t(item[1])}</button>}</For>
+        <Show when={!isElectron()}><Button buttonType="nav" onClick={() => open('/')}>{t('mlearn.Tabs.Home')}</Button></Show>
+        <TabContainer
+          idBase="workspace-navigation"
+          tabs={links().map(([id, label]) => ({ id: id.slice(1), label: t(label) }))}
+          activeTab={links().find(([path]) => location.pathname.startsWith(path))?.[0].slice(1) ?? ''}
+          onTabChange={id => open(`/${id}`)}
+          variant="underline"
+          class="workspace-tabs"
+        />
       </nav>
     </Show>
     <div class="application-outlet">

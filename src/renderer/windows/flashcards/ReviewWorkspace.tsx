@@ -9,6 +9,8 @@ import { reviewSessionRemaining } from '../../../shared/reviewSession';
 /** Admission changes only the canonical cursor; the existing reviewer owns encounters and evidence. */
 export const ReviewWorkspace: Component<{
   launchContext?: Record<string, unknown>;
+  /** Direct Review entry; the legacy chooser remains available to explicit callers. */
+  autoEnter?: boolean;
   onReturn: () => void;
   children: JSX.Element;
 }> = props => {
@@ -54,6 +56,7 @@ export const ReviewWorkspace: Component<{
       if (typeof context.sessionId !== 'string' || !context.sessionId) { setFailed(true); setResuming(true); return; }
       admit(context.sessionId);
     } else if (context?.intent === 'start' || context?.session !== undefined) admit();
+    else if (props.autoEnter) admit(currentId());
   });
   return <Show when={active()} fallback={
     <section class="product-workspace">
@@ -61,7 +64,7 @@ export const ReviewWorkspace: Component<{
       <Show when={failed()}><p role="alert">{t(resuming() ? 'mlearn.Product.ResumeUnavailable' : 'mlearn.WordSync.SessionStartFailed')}</p>
         <Show when={retry}><Button disabled={pending()} onClick={() => retry?.()}>{t('mlearn.Global.TryAgain')}</Button></Show>
       </Show>
-      <Show when={pending()} fallback={<>
+      <Show when={pending() || (props.autoEnter && !failed())} fallback={<>
         <div class="study-chooser-primary"><ActionCard icon={<TargetIcon size={24} />} primary
           title={`${t(currentId() ? 'mlearn.StudyEncounter.Resume' : 'mlearn.LevelStudy.Mock.Start')} · ${t('mlearn.Flashcards.UI.Tabs.Review')}`}
           description={t('mlearn.Product.ReviewDescription')} disabled={!isKnowledgeReady()}

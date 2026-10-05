@@ -10,6 +10,7 @@ import { IPC_CHANNELS, WINDOW_TYPES, WindowType } from '../../shared/constants';
 import type { WindowSize, OpenWindowPayload, OverlayVideoScreenshot } from '../../shared/types';
 import { isMac, isLinux, isWindows, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
+import { registerWindowFirstPaint, showWindowAfterFirstPaint, initialWindowBackground } from './windowFirstPaint';
 import { getCurrentLocaleData } from './localization';
 import { queueCommand } from './webServer';
 import { hasTray } from './trayManager';
@@ -323,7 +324,7 @@ export function createMainWindow(options: { show?: boolean } = {}): BrowserWindo
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
     width: 1200,
     height: 700,
-    show: options.show ?? true,
+    show: false,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -331,7 +332,8 @@ export function createMainWindow(options: { show?: boolean } = {}): BrowserWindo
       sandbox: true,
     },
 
-    ...(isMac ? getMacWindowSurfaceOptions() : { backgroundColor: '#000000' }),
+    ...(isMac ? getMacWindowSurfaceOptions() : {}),
+    backgroundColor: initialWindowBackground(loadSettings().colorScheme),
   };
 
   if (isWindows) {
@@ -347,6 +349,7 @@ export function createMainWindow(options: { show?: boolean } = {}): BrowserWindo
 
   const constructionStart = startupTime();
   mainWindow = new BrowserWindow(windowOptions);
+  registerWindowFirstPaint(mainWindow);
   startupMark(`BrowserWindow constructor complete type=main id=${mainWindow.id}`, constructionStart);
   currentWindow = mainWindow;
 
@@ -355,6 +358,7 @@ export function createMainWindow(options: { show?: boolean } = {}): BrowserWindo
   }
 
   loadWindowHtml(mainWindow, 'main');
+  if (options.show !== false) showWindowAfterFirstPaint(mainWindow);
 
   mainWindow.on('close', (event) => {
     // Non-Mac: closing the window hides to tray instead of quitting — but only
@@ -469,11 +473,14 @@ function createApplicationHost(host: Exclude<ApplicationHost, 'main'>, path: str
   const window = new BrowserWindow({
     width: host === 'settings' ? 1000 : 1100, height: 760,
     minWidth: 640, minHeight: 480,
-    title: host === 'study' ? 'mLearn — Study' : host === 'my-learning' ? 'mLearn — My Learning' : 'mLearn — Settings',
+    show: false,
+    title: host === 'study' ? 'mLearn — Flashcards' : host === 'my-learning' ? 'mLearn — My Learning' : host === 'messenger' ? 'mLearn — Messenger' : 'mLearn — Settings',
     webPreferences: { preload: getPreloadPath(), contextIsolation: true, nodeIntegration: false, sandbox: true },
     autoHideMenuBar: !isMac,
-    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true, backgroundColor: '#000000' }),
+    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true }),
+    backgroundColor: initialWindowBackground(loadSettings().colorScheme),
   });
+  registerWindowFirstPaint(window);
   childWindows.set(host, window);
   loadWindowHtml(window, 'main', host, path);
   // Suspend in place, including pending writes and exact navigation identity.
@@ -499,9 +506,7 @@ function openApplicationRoute(path: string, context: Record<string, unknown> = {
     }
   }
   currentWindow = window;
-  window.show();
-  if (window.isMinimized?.()) window.restore();
-  window.focus();
+  showWindowAfterFirstPaint(window);
   return window;
 }
 

@@ -12,11 +12,12 @@ import { StatisticsContent } from '../statistics/App';
 import { SettingsContent } from '../settings/SettingsWindow';
 import { MobileSettingsView } from '../settings/MobileSettingsView';
 import { useLocalization } from '../../context';
-import { ActionCard, Button, TargetIcon, LearningWorkspace } from '../../components/common';
+import { ActionCard, Button, TargetIcon, LearningWorkspace, TabContainer } from '../../components/common';
 import { WelcomeRoute } from './routes/WelcomeRoute';
 import { ReaderRoute } from './routes/ReaderRoute';
 import { VideoRoute } from './routes/VideoRoute';
-import { isMobile } from '../../../shared/platform';
+import { isMobile, isElectron } from '../../../shared/platform';
+import { getBridge } from '../../../shared/bridges';
 import { LicensesRoute } from '../mobile/routes/LicensesRoute';
 
 /** Hash history events may omit transport state. Do not remount a just-admitted request twice. */
@@ -36,7 +37,7 @@ const Memory: Component<RequestedWorkspaceProps> = props => {
 };
 const Messenger: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();
-  return <ConversationContent launchContext={props.launchContext} onReturn={source => {
+  return <ConversationContent launchContext={props.launchContext} onReturn={(isMobile() || props.launchContext?.sourceContext || props.launchContext?.returnTo) ? source => {
     // A targeted discussion belongs to the completed check, even while an
     // older media conversation remains selected during preparation.
     if (props.launchContext?.returnTo === 'mock') {
@@ -50,18 +51,23 @@ const Messenger: Component<RequestedWorkspaceProps> = props => {
       ? requestedSource as Record<string, unknown> : source;
     const path = returnSource?.workspace === 'reader' ? '/reader' : returnSource?.workspace === 'video' ? '/video' : props.launchContext?.returnTo === 'plan' ? '/plan' : '/';
     navigate(path, { sourceContext: returnSource });
-  }} />;
+  } : undefined} />;
 };
 const Review: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();
-  return <LearningWorkspace><FlashcardsContent workspace="review" launchContext={props.launchContext} onClose={() => navigate(
-    props.launchContext?.returnTo === 'reader' ? '/reader' : props.launchContext?.returnTo === 'video' ? '/video'
-      : props.launchContext?.returnTo === 'plan' ? '/plan' : props.launchContext?.returnTo === 'material' ? '/knowledge/material' : '/', props.launchContext
-  )} /></LearningWorkspace>;
+  const close = () => {
+    const origin = props.launchContext?.returnTo;
+    if (origin === 'reader' || origin === 'video' || origin === 'plan') {
+      navigate(`/${origin}`, props.launchContext);
+    } else if (isElectron()) getBridge().window.closeWindow();
+    else navigate('/');
+  };
+  return <LearningWorkspace><FlashcardsContent workspace="flashcards" launchContext={props.launchContext} onClose={close} /></LearningWorkspace>;
 };
 const Material: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationNavigate();
-  return <KnowledgeViews><FlashcardsContent workspace="material" launchContext={props.launchContext} initialTab="browse" onClose={() => navigate('/knowledge')} /></KnowledgeViews>;
+  return <LearningWorkspace><FlashcardsContent workspace="flashcards" launchContext={props.launchContext} initialTab="browse"
+    onClose={() => isElectron() ? getBridge().window.closeWindow() : navigate('/practise')} /></LearningWorkspace>;
 };
 const Plan: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationNavigate();
@@ -85,7 +91,8 @@ const GrammarMock: Component<RequestedWorkspaceProps> = props => {
 const Evaluate: Component = () => {
   const { t } = useLocalization();
   const navigate = useApplicationNavigate();
-  return <section class="product-workspace"><h1>{t('mlearn.Product.Evaluate')}</h1>
+  return <section class="product-workspace evaluation-chooser">
+    <header class="evaluation-chooser-header"><Button buttonType="nav" onClick={() => navigate('/practise')}>{t('mlearn.Flashcards.UI.Title')}</Button><h1>{t('mlearn.Product.Evaluate')}</h1></header>
     <div class="study-chooser-alternatives"><ActionCard icon={<TargetIcon size={24} />} primary title={t('mlearn.Product.KnowledgeCheck')}
       description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate/words', { state: {
         applicationRequestId: crypto.randomUUID(), applicationContext: { intent: 'start', returnTo: 'evaluate' },
@@ -108,13 +115,13 @@ const KnowledgeViews: ParentComponent = props => {
   const { t } = useLocalization();
   const location = useLocation();
   const navigate = useApplicationNavigate();
-  const view = (path: string, label: string) => <button type="button" classList={{ 'is-active': location.pathname === path }} onClick={() => navigate(path)}>{t(label)}</button>;
   return <section class="knowledge-views">
-    <nav class="knowledge-view-navigation" aria-label={t('mlearn.Product.Knowledge')}>
-      {view('/knowledge', 'mlearn.MediaStats.Tab.Words')}
-      {view('/knowledge/material', 'mlearn.Product.SavedMaterial')}
-      {view('/knowledge/characters', 'mlearn.LevelStudy.Tabs.CharacterGrid')}
-    </nav><div class="knowledge-view-content">{props.children}</div>
+    <TabContainer idBase="knowledge-navigation" variant="underline" size="sm"
+      class="knowledge-view-navigation"
+      tabs={[{ id: 'words', label: t('mlearn.MediaStats.Tab.Words') }, { id: 'characters', label: t('mlearn.LevelStudy.Tabs.CharacterGrid') }]}
+      activeTab={location.pathname === '/knowledge/characters' ? 'characters' : 'words'}
+      onTabChange={id => navigate(id === 'characters' ? '/knowledge/characters' : '/knowledge')} />
+    <div class="knowledge-view-content">{props.children}</div>
   </section>;
 };
 const Knowledge: Component = () => <KnowledgeViews><WordDbEditorContent /></KnowledgeViews>;
@@ -129,6 +136,7 @@ export const ApplicationRoutes = () => <>
   <Route path="/messenger" component={requested(Messenger)} />
   <Route path="/messenger/memory" component={requested(Memory)} />
   <Route path="/practise" component={requested(Review)} />
+  <Route path="/practise/material" component={requested(Material)} />
   <Route path="/practise/words" component={requested(Words)} />
   <Route path="/practise/grammar" component={requested(Grammar)} />
   <Route path="/evaluate" component={Evaluate} /><Route path="/evaluate/words" component={requested(Assessment)} />

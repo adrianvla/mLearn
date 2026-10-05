@@ -18,7 +18,7 @@ import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import {
   KnowledgeLoadError, KnowledgeSkeleton, Button, Badge, Panel, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
-  EyeIcon, Popover, WriteStatusBanner, StudyEncounter, StudySessionHUD, useConfirmDialog
+  EyeIcon, Popover, WriteStatusBanner, StudyEncounter, useConfirmDialog
 } from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
@@ -144,11 +144,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   const [editingCard, setEditingCard] = createSignal<Flashcard | null>(null);
   const [regeneratingExample, setRegeneratingExample] = createSignal(false);
   let reviewScrollContainer: HTMLDivElement | undefined;
-  let reviewActionsContainer: HTMLDivElement | undefined;
-  const [reviewActionsTarget, setReviewActionsTarget] = createSignal<HTMLDivElement>();
   const resetReviewScroll = () => {
     if (reviewScrollContainer) reviewScrollContainer.scrollTop = 0;
-    if (reviewActionsContainer) reviewActionsContainer.scrollTop = 0;
   };
 
   // Active-engagement timing per card: blur/hidden pauses are excluded from
@@ -927,7 +924,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   }));
 
   const sessionAnswered = () => finiteSession()?.completedCardIds.length ?? cardsAnswered();
-  const sessionTotal = createMemo(() => sessionAnswered() + remainingWork());
   // Calculate session progress percentage
 
 
@@ -1293,7 +1289,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
           </Button>
           <Popover open={showActivityPreferences} anchor={() => activityPreferencesAnchor} onClose={() => setShowActivityPreferences(false)}
             label={t('mlearn.Flashcards.Review.Activities')} class="review-activities-popover">
-            <p>{t('mlearn.Flashcards.Review.ActivitiesHint')}</p>
             <ToggleSwitch checked={preferences().holistic} label={t('mlearn.Flashcards.Review.Holistic')}
               onChange={checked => updateSetting('reviewActivities', { ...preferences(), holistic: checked })} />
             <ToggleSwitch checked={preferences().focused} label={t('mlearn.Flashcards.Review.Focused')}
@@ -1312,10 +1307,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             <Show when={releaseWrite()?.phase === 'failed'}><p role="alert">{t('mlearn.Flashcards.Review.StartNewFailed')}</p></Show>
           </Show>
         </div>
-        <Show when={sessionTotal() > 0}><StudySessionHUD class="flashcard-session-progress" completed={sessionAnswered()}
-          total={finiteSession() ? sessionTotal() : undefined} /></Show>
-
-            <Show when={props.onClose}><Button variant="ghost" size="sm" onClick={() => props.onClose?.()}>{t('mlearn.Product.Return')}</Button></Show>
             <Show when={ratingPersistenceState() === 'failed'}>
               <div class="flashcard-rating-write flashcard-rating-write--failed" role="alert">
                 <span>{t('mlearn.Flashcards.Review.PendingRatingsSaveFailed')}</span>
@@ -1427,7 +1418,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   class="flashcard-completion"
               >
                 <h2 class="flashcard-completion-title">
-                  {t(finiteSession() ? 'mlearn.StudyEncounter.Finished' : 'mlearn.Flashcards.Review.Complete')}
+                  {t('mlearn.Flashcards.Review.Complete')}
                 </h2>
                 <p class="flashcard-completion-text">
                   {t(finiteSession() ? 'mlearn.StudyEncounter.Finished' : 'mlearn.Flashcards.Review.CompleteDescription', { count: sessionAnswered() })}
@@ -1442,7 +1433,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   </Show>
                   <Show when={props.onClose}>
                     <Button buttonType="default" onClick={props.onClose}>
-                      {t('mlearn.Product.Return')}
+                      {t('mlearn.Global.Close')}
                     </Button>
                   </Show>
                 </div>
@@ -1453,10 +1444,11 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         >
           {/* Show card - non-keyed to avoid remount delay between cards */}
           <StudyEncounter class="flashcard-study-encounter" prompt="" answer="" scheduling={true}
+            showRecallCue={currentEncounter()?.activity.kind !== 'holistic' || !!currentEncounter()?.activity.stages}
             instruction={currentStage()?.prompt || currentEncounter()?.activity.prompt || undefined}
             revealed={showAnswer()} onReveal={handleFlip} revealDisabled={!audioPromptReady() || (!!currentEncounter()?.activity.stages && (assistanceWrite() === 'pending' || choiceWrite()?.phase === 'pending'))}
             revealLabel={hasNextStage() ? t('mlearn.Global.Continue') : undefined}
-            revealClass="flashcard-show-answer-btn" responseClass="flashcard-rating-buttons" controlsMount={reviewActionsTarget()}
+            revealClass="flashcard-show-answer-btn" responseClass="flashcard-rating-buttons"
             card={
           <Show when={currentCard()}>
             {(card) => (
@@ -1519,8 +1511,9 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
         </div>
 
-        {/* Buttons container */}
-        <div class="flashcard-buttons-container" ref={element => { reviewActionsContainer = element; setReviewActionsTarget(element); }}>
+        {/* Only exceptional write/exposure notices live outside the shared encounter. */}
+        <Show when={presentation().phase !== 'complete'}>
+        <div class="flashcard-buttons-container">
           <WriteStatusBanner status={removalWrite()?.phase === 'failed' ? 'failed' : null}
             savingLabelKey="mlearn.Flashcards.Review.SavingRemoval" failedLabelKey="mlearn.Flashcards.Review.RemovalSaveFailed"
             canRetry={removalWrite()?.phase === 'failed' && removalStillMatches(removalWrite()!)}
@@ -1573,6 +1566,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             </div>
           </Show>
         </div>
+        </Show>
 
         {/* TTS Regenerate Modal */}
         <Show when={currentCard()}>

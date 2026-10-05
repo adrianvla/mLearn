@@ -1,21 +1,17 @@
 .application-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .application-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; color: var(--text-primary); background: var(--app-shell-bg); }
-.application-navigation { display: flex; align-items: center; gap: var(--spacing-4); flex-wrap: wrap; padding: var(--spacing-3) var(--spacing-5); padding-inline-start: max(var(--spacing-5), var(--window-controls-inline-start-inset)); border-bottom: 1px solid var(--border-color); flex-shrink: 0; -webkit-app-region: drag; }
-.application-navigation button { color: var(--text-secondary); border: 0; background: transparent; cursor: pointer; font: inherit; -webkit-app-region: no-drag; padding: var(--spacing-2); border-radius: var(--radius-md); font-size: var(--font-size-sm); }
-.application-navigation button:hover, .application-navigation button.is-active { color: var(--text-primary); background: var(--bg-secondary); }
-.application-navigation button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.application-navigation { display: flex; align-items: center; gap: var(--spacing-3); padding: var(--spacing-2) var(--spacing-4); padding-inline-start: max(var(--spacing-4), var(--window-controls-inline-start-inset)); flex-shrink: 0; -webkit-app-region: drag; }
+.application-navigation .tab-container { flex: 1; min-width: 0; }
+.application-navigation button { -webkit-app-region: no-drag; }
 .application-outlet { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
-.product-workspace { padding: var(--spacing-5); max-width: 74rem; margin: 0 auto; }
+.product-workspace { box-sizing: border-box; width: 100%; padding: var(--spacing-5); max-width: 60rem; margin: 0 auto; overflow: auto; }
 .product-workspace h1 { font-size: var(--font-size-xl); }
 .product-workspace-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-3); margin-block: var(--spacing-4); }
-@media (max-width: 850px) { .application-navigation { gap: var(--spacing-2); padding: var(--spacing-2); } }
-
 .application-shell-mobile { padding-block-start: env(safe-area-inset-top); padding-block-end: env(safe-area-inset-bottom); box-sizing: border-box; }
-
 .knowledge-views { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.knowledge-view-navigation { display: flex; gap: var(--spacing-2); flex-wrap: wrap; padding: var(--spacing-2) var(--spacing-4); border-bottom: 1px solid var(--border-color); }
-.knowledge-view-navigation button { color: var(--text-secondary); background: transparent; border: 0; font: inherit; cursor: pointer; padding: var(--spacing-2); border-radius: var(--radius-md); }
-.knowledge-view-navigation button.is-active { color: var(--text-primary); background: var(--bg-secondary); }
-.knowledge-view-navigation button:focus-visible { outline: 2px solid var(--accent-primary); }
+.knowledge-view-navigation { padding: 0 var(--spacing-4); flex: 0 0 auto; }
 .knowledge-view-content { flex: 1; min-height: 0; }
-.product-workspace { box-sizing: border-box; width: 100%; overflow: auto; }
+.evaluation-chooser { max-width: 44rem; margin: auto; }
+.evaluation-chooser-header { display: flex; align-items: center; gap: var(--spacing-4); margin-bottom: var(--spacing-4); }
+.evaluation-chooser-header h1 { margin: 0; }
+@media (max-width: 850px) { .application-navigation { padding-block: var(--spacing-2); } }
