@@ -210,6 +210,31 @@ describe('NewConversationModal', () => {
     expect(createPersistentRoom).not.toHaveBeenCalled();
   });
 
+  it('blocks scenario generation without a provider while plain saved-person setup remains available', async () => {
+    dispose = render(() => <NewConversationModal mode="practice" world={world()} initialIntent="Describe my work"
+      generationAvailable={false} onClose={vi.fn()} onCreated={vi.fn()} />, container);
+    expect(startButton().disabled).toBe(true);
+    startButton().click();
+    expect(prepareScenario).not.toHaveBeenCalled();
+    dispose();
+    dispose = render(() => <NewConversationModal world={world()} generationAvailable={false} onClose={vi.fn()} onCreated={vi.fn()} />, container);
+    personButton('Rin').click();
+    expect(startButton().disabled).toBe(false);
+    startButton().click();
+    await vi.waitFor(() => expect(createSandbox).toHaveBeenCalled());
+    expect(prepareScenario).not.toHaveBeenCalled();
+  });
+
+  it('checks generation consent before preparing a scenario', async () => {
+    const requestAccess = vi.fn(() => false);
+    dispose = render(() => <NewConversationModal mode="practice" world={world()} initialIntent="Describe my work"
+      generationAvailable onRequestGenerationAccess={requestAccess} onClose={vi.fn()} onCreated={vi.fn()} />, container);
+    startButton().click();
+    await vi.waitFor(() => expect(requestAccess).toHaveBeenCalled());
+    expect(prepareScenario).not.toHaveBeenCalled();
+    expect((container.querySelector('textarea') as HTMLTextAreaElement).value).toBe('Describe my work');
+  });
+
   it('labels scenario setup as a situation rather than a practice goal', () => {
     dispose = render(() => <NewConversationModal mode="scenario" world={world()} initialIntent="Negotiate a deadline" onClose={vi.fn()} onCreated={vi.fn()} />, container);
     expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.Title');
@@ -584,7 +609,8 @@ describe('RoomSidebar', () => {
 
     Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.NewConversation.Title')!.click();
     expect(onNewConversation).toHaveBeenCalledTimes(1);
-    Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.Contacts.Practice')!.click();
+    const filter = container.querySelector('.room-sidebar-filter select') as HTMLSelectElement;
+    filter.value = 'practice'; filter.dispatchEvent(new Event('change', { bubbles: true }));
     Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.NewConversation.Title')!.click();
     expect(onPractice).toHaveBeenCalledTimes(1);
     dispose();

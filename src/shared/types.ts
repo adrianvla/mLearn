@@ -3064,6 +3064,8 @@ export interface ConversationSession {
 
 /** Context passed to the conversation agent window when opened from a media route */
 export interface ConversationAgentContext {
+  /** Opaque source-owned position and identity, preserved for contextual return. */
+  sourceContext?: Record<string, unknown>;
   mediaName: string;
   mediaType: 'video' | 'book';
   mediaHash: string;
@@ -3078,7 +3080,7 @@ export interface ConversationAgentContext {
   grammarExposure?: Array<{ pattern: string; timesEncountered: number }>;
   characterContext?: string;
   subtitleHistory?: string[];
-  /** Draft message to seed the composer with and send once the window is ready. */
+  /** Draft message to seed the composer; transmission requires deliberate Send. */
   initialMessage?: string;
 }
 

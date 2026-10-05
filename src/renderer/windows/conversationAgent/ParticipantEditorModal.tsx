@@ -11,7 +11,7 @@ import { resizeProfilePhoto } from '../../utils/profilePhoto';
 import './ParticipantEditorModal.css';
 
 type CreateParticipantInput = Parameters<WorldBridge['createParticipant']>[0];
-type ParticipantEditorModalProps = { onClose: () => void; storyTracks?: StoryTrack[]; persistentOnly?: boolean } & (
+type ParticipantEditorModalProps = { generationAvailable?: boolean; onRequestGenerationAccess?: () => boolean; onClose: () => void; storyTracks?: StoryTrack[]; persistentOnly?: boolean } & (
   | { participant: Participant; onSave: (participant: Participant) => Promise<void> | void; onCreate?: never }
   | { participant?: never; onSave?: never; onCreate: (input: CreateParticipantInput) => Promise<void> | void }
 );
@@ -46,7 +46,7 @@ export const ParticipantEditorModal: Component<ParticipantEditorModalProps> = (p
     stopConsentWait?.(); props.onClose();
   };
   const research = async (): Promise<void> => {
-    if (researching() || !displayName().trim() || !sourceUrl().trim()) return;
+    if (researching() || !displayName().trim() || !sourceUrl().trim() || props.generationAvailable === false || props.onRequestGenerationAccess?.() === false) return;
     setResearching(true); setError(''); setResearchDraft(undefined); setAcceptedResearch(undefined);
     const track = props.storyTracks?.find(item => item.id === trackId());
     researchOperationId = crypto.randomUUID();
@@ -158,7 +158,7 @@ export const ParticipantEditorModal: Component<ParticipantEditorModalProps> = (p
             <FormField label={t('mlearn.ConversationAgent.Story.Track')}><Select value={trackId()} disabled={researching()}
               onChange={event => { setTrackId(event.currentTarget.value); setResearchDraft(undefined); setAcceptedResearch(undefined); }}
               options={[{ value: '', label: t('mlearn.ConversationAgent.Story.NoTrack') }, ...(props.storyTracks ?? []).filter(track => !track.archived).map(track => ({ value: track.id, label: `${track.title} · ${track.edition}` }))]} /></FormField>
-            <Button disabled={!sourceUrl().trim() || !displayName().trim() || researching()} loading={researching()} onClick={() => { void research(); }}>{t('mlearn.ConversationAgent.Story.Research')}</Button>
+            <Button disabled={!sourceUrl().trim() || !displayName().trim() || researching() || props.generationAvailable === false} loading={researching()} onClick={() => { void research(); }}>{t('mlearn.ConversationAgent.Story.Research')}</Button>
             <Show when={researchDraft()}>{result => <div class="participant-editor-research-draft">
               <p>{result().baseline.lore}</p>
               <Show when={result().baseline.context}><h3>{t('mlearn.ConversationAgent.Story.ScopedContext')}</h3><p>{result().baseline.context}</p></Show>

@@ -34,6 +34,8 @@ interface NewConversationModalProps {
   initialParticipantId?: string;
   initialIntent?: string;
   mediaName?: string;
+  generationAvailable?: boolean;
+  onRequestGenerationAccess?: () => boolean;
   onContactCreated?: (person: Participant) => void;
   onCreated: (result: NewConversationResult) => void | Promise<void>;
   onClose: () => void;
@@ -118,6 +120,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       ...(persistent ? { scope: 'persistent' as const } : {}),
       ...(trimmedIntent ? { intent: trimmedIntent } : {}) };
     if (trimmedIntent) {
+      if (props.generationAvailable === false || props.onRequestGenerationAccess?.() === false) return;
       const current = ++generation;
       const prepared = await bridge.prepareScenario(request);
       if (current === generation) setPreview(prepared);
@@ -230,7 +233,8 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
             aria-label={t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.StartAria')}
             onClick={handleStart}
             disabled={busy() || (!preview() && selectedIds().size === 0 && (mode() === 'message' || !intent().trim()))
-              || (!preview() && scope() === 'persistent' && !settings.livingWorldEnabled)}
+              || (!preview() && scope() === 'persistent' && !settings.livingWorldEnabled)
+              || (!preview() && !!intent().trim() && props.generationAvailable === false)}
           >
             {busy() ? t('mlearn.ConversationAgent.NewConversation.Starting') : t(preview() ? 'mlearn.ConversationAgent.NewConversation.UseScenario' : 'mlearn.ConversationAgent.NewConversation.Start')}
           </Button>
@@ -238,6 +242,10 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
       }
     >
       <div class="new-conversation-form">
+        <Show when={!preview() && !!intent().trim() && props.generationAvailable === false}>
+          <HintText>{t('mlearn.ConversationAgent.Empty.SavedUnavailableHint')}</HintText>
+          <Button variant="ghost" onClick={() => openCapabilitySettings('llm')}>{t('mlearn.ConversationAgent.Recovery.Settings')}</Button>
+        </Show>
         <Show when={props.mediaName}>
           <p class="new-conversation-media-context">{t('mlearn.ConversationAgent.NewConversation.MediaContext', { media: props.mediaName! })}</p>
         </Show>
@@ -343,7 +351,7 @@ export const NewConversationModal: Component<NewConversationModalProps> = (props
         </Show>
       </div>
     </ModalForm>
-    <Show when={addingContact()}><ParticipantEditorModal storyTracks={props.world?.storyTracks} persistentOnly={scope() === 'persistent'} onClose={() => setAddingContact(false)} onCreate={async input => {
+    <Show when={addingContact()}><ParticipantEditorModal generationAvailable={props.generationAvailable} onRequestGenerationAccess={props.onRequestGenerationAccess} storyTracks={props.world?.storyTracks} persistentOnly={scope() === 'persistent'} onClose={() => setAddingContact(false)} onCreate={async input => {
       const person = await getBridge().world.createParticipant(input);
       if (scope() === 'persistent' && person.kind !== 'persistent') throw new Error('A persistent contact is required for this conversation');
       setCreatedContacts(current => [...current, person]);

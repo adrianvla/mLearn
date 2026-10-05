@@ -6,6 +6,8 @@ import { ParticipantEditorModal } from './ParticipantEditorModal';
 import './ContactProfileModal.css';
 
 export const ContactProfileModal: Component<{
+  generationAvailable?: boolean;
+  onRequestGenerationAccess?: () => boolean;
   person: Participant;
   onClose: () => void;
   onMessage: (person: Participant) => Promise<void>;
@@ -39,7 +41,7 @@ export const ContactProfileModal: Component<{
     catch (err) { setError(err instanceof Error ? err.message : String(err)); }
     finally { setBusy(false); }
   };
-  return <Show when={!editing()} fallback={<ParticipantEditorModal participant={props.person}
+  return <Show when={!editing()} fallback={<ParticipantEditorModal generationAvailable={props.generationAvailable} onRequestGenerationAccess={props.onRequestGenerationAccess} participant={props.person}
     onClose={() => setEditing(false)} onSave={async person => { await props.onSave(person); setEditing(false); }} />}>
     <Modal isOpen onClose={props.onClose} size="sm" title={t('mlearn.ConversationAgent.Contacts.Profile')}
       closeOnEscape={!busy()} closeOnOverlay={!busy()} showCloseButton={!busy()}>

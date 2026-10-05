@@ -4199,7 +4199,8 @@
       "MessengerDescription": "会話を続けます。",
       "MockUnavailable": "このインストール済みパッケージには、チェックポイント用の問題ソースがありません。",
       "GrammarUnavailable": "このパッケージには文法の課題がありません。",
-      "ResumeUnavailable": "この保存済みの課題は利用できません。現在の課題は保持されています。"
+      "ResumeUnavailable": "この保存済みの課題は利用できません。現在の課題は保持されています。",
+      "Return": "戻る"
     }
   }
 }

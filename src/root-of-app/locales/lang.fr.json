@@ -4199,7 +4199,8 @@
       "MessengerDescription": "Reprenez vos conversations.",
       "MockUnavailable": "Ce paquet installé ne fournit pas de sources de questions pour les bilans.",
       "GrammarUnavailable": "Ce paquet ne propose pas de tâches de grammaire.",
-      "ResumeUnavailable": "Cette tâche enregistrée est indisponible. Votre travail actuel a été conservé."
+      "ResumeUnavailable": "Cette tâche enregistrée est indisponible. Votre travail actuel a été conservé.",
+      "Return": "Retour"
     }
   }
 }

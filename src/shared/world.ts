@@ -330,6 +330,8 @@ export interface Room {
 
 /** Media a thread was launched from — thread-scoped context, not a global signal. */
 export interface ThreadMediaRef {
+  /** Opaque source-owned position and identity, preserved for contextual return. */
+  sourceContext?: Record<string, unknown>;
   mediaHash: string;
   mediaName: string;
   mediaType: 'video' | 'book';

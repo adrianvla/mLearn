@@ -21,9 +21,9 @@ const track: StoryTrack = { id: 'story-1', title: 'Voyage', edition: 'First', un
 const ready: StoryAdvanceRecord = { id: 'advance-1', trackId: track.id, trackRevision: track.revision,
   status: 'ready', createdAt: 2, proposals: [] };
 const cleanups: Array<() => void> = [];
-function mount(): HTMLDivElement {
+function mount(generationAvailable = true, onRequestGenerationAccess?: () => boolean): HTMLDivElement {
   const el = document.createElement('div'); document.body.append(el);
-  const dispose = render(() => <StoryProgressModal world={{ storyTracks: [track], rooms: [], threads: [], participants: [] }}
+  const dispose = render(() => <StoryProgressModal generationAvailable={generationAvailable} onRequestGenerationAccess={onRequestGenerationAccess} world={{ storyTracks: [track], rooms: [], threads: [], participants: [] }}
     onClose={vi.fn()} onRefresh={vi.fn(async () => {})} />, el);
   cleanups.push(() => { dispose(); el.remove(); });
   return el;
@@ -35,6 +35,17 @@ const button = (el: HTMLElement, key: string): HTMLButtonElement => {
 };
 
 describe('Story progress review', () => {
+  it('requires consent for story research while leaving track inspection editable', () => {
+    const requestAccess = vi.fn(() => false);
+    const el = mount(true, requestAccess);
+    const select = el.querySelector('select') as HTMLSelectElement;
+    select.value = track.id; select.dispatchEvent(new Event('change', { bubbles: true }));
+    button(el, 'mlearn.ConversationAgent.Story.ReviewUpdate').click();
+    expect(requestAccess).toHaveBeenCalled();
+    expect(prepareStoryAdvance).not.toHaveBeenCalled();
+    expect(select.disabled).toBe(false);
+  });
+
   it('locks track edits during preparation and prevents applying an out-of-date local draft', async () => {
     let resolve!: (record: StoryAdvanceRecord) => void;
     prepareStoryAdvance.mockReturnValue(new Promise<StoryAdvanceRecord>(value => { resolve = value; }));

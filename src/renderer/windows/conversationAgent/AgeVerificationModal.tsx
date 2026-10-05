@@ -8,6 +8,7 @@ export const CONVERSATION_NOTICE_VERSION = 1;
 
 interface AgeVerificationModalProps {
   onAccept: () => void;
+  onCancel?: () => void;
 }
 
 export const AgeVerificationModal: Component<AgeVerificationModalProps> = (props) => {
@@ -45,6 +46,7 @@ export const AgeVerificationModal: Component<AgeVerificationModalProps> = (props
         </div>
 
         <div class="avm-actions">
+          {props.onCancel && <Button variant="ghost" onClick={props.onCancel}>{t('mlearn.Global.Cancel')}</Button>}
           <Button
             variant="primary"
             size="lg"

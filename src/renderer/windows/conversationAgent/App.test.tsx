@@ -6,7 +6,7 @@
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import { Show } from 'solid-js';
+import { Show, createSignal, type Accessor } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { LLMModelStatus, LLMStreamChunk } from '../../../shared/types';
@@ -32,6 +32,7 @@ vi.mock('../../services/cloudSessionManager', async (original) => ({
 
 vi.mock('../../../shared/backends/cloudLLMAdapter', () => ({
   CloudLLMAdapter: class { async checkAvailability() { return true; } },
+  OpenAICompatibleLLMAdapter: class { async checkAvailability() { return true; } },
 }));
 
 // ============================================================================
@@ -39,7 +40,8 @@ vi.mock('../../../shared/backends/cloudLLMAdapter', () => ({
 // ============================================================================
 
 let streamCallback: (chunk: LLMStreamChunk) => void = () => {};
-let windowContextCallback: (context: unknown) => void = () => {};
+let receiveLaunchContext: (context: unknown) => void = () => {};
+let testLaunchContext: Accessor<Record<string, unknown>>;
 let openRoomCallback: (payload: import('../../../shared/world').OpenRoomEventPayload) => void = () => {};
 let journalEvents: JournalEvent[] = [];
 let voiceTabMounts = 0;
@@ -82,9 +84,7 @@ const mockBridge = {
     ollamaCheck: vi.fn(async () => false),
   },
   window: {
-    onWindowContext: vi.fn((callback: (context: unknown) => void) => { windowContextCallback = callback; return () => {}; }),
     onOpenRoomEvent: vi.fn((callback: typeof openRoomCallback) => { openRoomCallback = callback; return () => {}; }),
-    getWindowContext: vi.fn(),
     openWindow: vi.fn(),
   },
   world: {
@@ -417,7 +417,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     streamCallback = () => {};
-    windowContextCallback = () => {};
+    const [launchContext, setLaunchContext] = createSignal<Record<string, unknown>>({});
+    testLaunchContext = launchContext;
+    receiveLaunchContext = context => setLaunchContext(context as Record<string, unknown>);
     openRoomCallback = () => {};
     journalEvents = [];
     voiceTabMounts = 0;
@@ -428,7 +430,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       threads: [{ id: 'thread-a', roomId: 'room-a', state: 'active', createdAt: 1 }],
       participants: [{ id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true }],
     };
-    testSettings = { ...DEFAULT_SETTINGS, livingWorldEnabled: true };
+    testSettings = { ...DEFAULT_SETTINGS, livingWorldEnabled: true, agentLocalNoticeAcceptedVersion: 1, agentRemoteNoticeAcceptedVersion: 1 };
     settingsLoading = false;
     // Sending is gated on the model's `ready` status. Keep the bridge fixture
     // explicit so this suite never inherits a status implementation from a
@@ -460,7 +462,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       sandbox: { operationId: 'op', requestHash: 'hash', baselineHeads: {}, bindings: [{ baseline: first }] } }] };
     mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'separate', threadId: 'separate' }));
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-header-contact')?.textContent).toContain('Tutor'));
     (container.querySelector('.ca-header-contact') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(container.querySelector('[data-testid="add-person"]')).not.toBeNull());
@@ -481,50 +483,76 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     appendJournalEvent({ roomId: 'separate', scope: { kind: 'thread', threadId: 'separate' },
       type: 'message.character', actorId: departed.id, witnesses: ['user', departed.id, first.id], payload: { text: 'My earlier message' } });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.chat-bubble-speaker')?.textContent).toBe('Local Rin'));
     expect(chatText(container)).toContain('My earlier message');
     expect(chatText(container)).not.toContain('departed');
   });
 
-  it('remembers the accepted remote notice across conversation windows', async () => {
+  it('reads saved history without a provider or remote certification and retains an editable draft', async () => {
     testSettings.llmProvider = 'cloud';
+    testSettings.agentRemoteNoticeAcceptedVersion = 0;
+    testSettings.cloudAuthAccessToken = '';
+    testSettings.cloudAuthToken = '';
+    mockCloudToken.mockResolvedValue('');
+    appendJournalEvent({ roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' },
+      type: 'message.character', actorId: 'agent-a', witnesses: ['user'], payload: { text: 'Saved conversation' } });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    const accept = container.querySelector<HTMLButtonElement>('.avm-overlay button');
-    expect(accept).not.toBeNull();
-    accept!.click();
-    expect(mockUpdateSettings).toHaveBeenCalledWith({ agentRemoteNoticeAcceptedVersion: 1 });
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(chatText(container)).toContain('Saved conversation'));
     expect(container.querySelector('.avm-overlay')).toBeNull();
-    dispose();
-    testSettings.agentRemoteNoticeAcceptedVersion = 1;
-    dispose = render(() => <ConversationContent />, container);
-    expect(container.querySelector('.avm-overlay')).toBeNull();
+    const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    expect(input.disabled).toBe(false);
+    input.value = 'Saved offline draft'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect((container.querySelector('[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
   });
 
-  it('requires the remote certification even when the local notice was accepted', async () => {
+  it('reads a saved persistent room with Living World off without enabling it', async () => {
+    testSettings.livingWorldEnabled = false;
+    appendJournalEvent({ roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' },
+      type: 'message.character', actorId: 'agent-a', witnesses: ['user'], payload: { text: 'Preserved room history' } });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(chatText(container)).toContain('Preserved room history'));
+    expect(mockUpdateSettings).not.toHaveBeenCalledWith({ livingWorldEnabled: true });
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.LivingWorld.ConsentTitle');
+  });
+
+  it('asks for remote certification only when generating, preserving the pending draft', async () => {
     testSettings.llmProvider = 'cloud';
     testSettings.agentLocalNoticeAcceptedVersion = 1;
+    testSettings.agentRemoteNoticeAcceptedVersion = 0;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    expect(container.querySelector('.avm-overlay')).not.toBeNull();
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    expect(container.querySelector('.avm-overlay')).toBeNull();
+    const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    input.value = 'Draft stays here'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('.avm-overlay')).not.toBeNull());
+    expect(input.value).toBe('Draft stays here');
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+    container.querySelector<HTMLButtonElement>('.avm-continue-btn')!.click();
+    expect(mockUpdateSettings).toHaveBeenCalledWith({ agentRemoteNoticeAcceptedVersion: 1 });
+    expect(container.querySelector('.avm-overlay')).toBeNull();
   });
 
-  it('shows changed remote terms again and waits for saved settings before showing them', async () => {
-    testSettings.llmProvider = 'cloud';
-    testSettings.agentRemoteNoticeAcceptedVersion = 2;
+  it('opens memory for the selected persistent room without requiring a provider', async () => {
+    mockBridge.llm.llmCheckModel.mockResolvedValue({ ...readyModelStatus, ready: false });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    expect(container.querySelector('.avm-overlay')).not.toBeNull();
-    dispose(); settingsLoading = true;
-    dispose = render(() => <ConversationContent />, container);
-    expect(container.querySelector('.avm-overlay')).toBeNull();
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    (container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Menu.MemoryBrowser')!.click();
+    expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'memory-browser', context: { roomId: 'room-a' } });
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
   });
 
   it('waits for saved settings before checking the built-in model', async () => {
     settingsLoading = true;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await Promise.resolve();
 
     expect(mockBridge.llm.llmCheckModel).not.toHaveBeenCalled();
@@ -534,7 +562,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const worldRead = deferred<WorldSnapshot>();
     mockBridge.world.getWorldState.mockImplementationOnce(() => worldRead.promise);
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     expect(container.querySelectorAll('.ca-history-loading .skeleton-card')).toHaveLength(3);
     expect(container.querySelector('.room-sidebar-list .skeleton-rows')).not.toBeNull();
     expect(container.textContent).not.toContain('mlearn.ConversationAgent.Empty.Title');
@@ -552,7 +580,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const savedMessage = appendJournalEvent({ roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' },
       type: 'message.character', actorId: 'agent-a', witnesses: ['user'], payload: { text: 'Welcome back' } });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalled());
     expect(container.querySelector('.ca-history-loading')).not.toBeNull();
     expect(container.textContent).not.toContain('mlearn.ConversationAgent.Empty.Title');
@@ -565,7 +593,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('ends a failed load with a retry action and restores the saved conversation on retry', async () => {
     mockBridge.world.getWorldState.mockRejectedValueOnce(new Error('Read unavailable'));
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
     expect(container.querySelector('.ca-messages')?.textContent).toContain('mlearn.ConversationAgent.ErrorTitle');
     expect(container.querySelector('.ca-messages')?.textContent).not.toContain('mlearn.ConversationAgent.Empty.Title');
@@ -579,7 +607,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('offers AI settings instead of an inert greeting when the selected chat has no usable service', async () => {
     mockBridge.llm.llmCheckModel.mockResolvedValue({ ...readyModelStatus, ready: false });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
     const recovery = Array.from(container.querySelectorAll<HTMLButtonElement>('.ca-messages button'))
       .find(button => button.textContent === 'mlearn.ConversationAgent.Recovery.Settings');
@@ -598,7 +626,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       sandbox: { operationId: 'practice', requestHash: 'hash', bindings: [{ baseline: worldFixture.participants[0] }], baselineHeads: {} } }] };
     mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'practice-a', threadId: 'practice-a' }));
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(mockBridge.kvStore.kvSet).toHaveBeenCalledWith('conversation-selection', JSON.stringify({ roomId: 'practice-a', threadId: 'practice-a' })));
     expect(container.querySelector('.room-sidebar-title')?.textContent).toBe('mlearn.ConversationAgent.Contacts.Chats');
     expect(container.querySelectorAll('.room-sidebar-thread')).toHaveLength(1);
@@ -624,9 +652,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     };
     journalEvents = [appendJournalEvent({ roomId: 'room-b', scope: { kind: 'thread', threadId: 'thread-b' }, type: 'message.character', actorId: 'agent-b', witnesses: ['user', 'agent-b'], payload: { text: 'Hello from Partner' } })];
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
-    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    receiveLaunchContext({ roomId: 'room-b', threadId: 'thread-b' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
     await vi.waitFor(() => expect(chatText(container)).toContain('Hello from Partner'));
   });
@@ -643,7 +671,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       }],
     };
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(mockBridge.window.onOpenRoomEvent).toHaveBeenCalled());
 
     openRoomCallback({ roomId: 'room-a', contactId: 'contact-call', callId: 'call-1' });
@@ -674,7 +702,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     };
     testSettings.agentMistakeChecker = checks; testSettings.agentSafetyChecker = checks;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(mockBridge.window.onOpenRoomEvent).toHaveBeenCalled());
 
     openRoomCallback({ roomId: 'room-a', contactId: 'contact-call-b', callId: 'call-b' });
@@ -729,7 +757,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       payload: { text: 'こんにちは' },
     })];
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
 
     await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalledWith('こんにちは'));
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(1));
@@ -744,7 +772,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       actorId: 'harness', witnesses: source.witnesses, payload: { messageEventId: source.id, actorId: source.actorId,
         voiceSessionId: 'old-call', state: 'stopped', spokenText: 'Played phrase.', confirmedText: 'Played phrase.', basis: 'playback-complete' } });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
 
     await vi.waitFor(() => expect(mockBackend.tokenize).toHaveBeenCalledWith('Visible question'));
     await vi.waitFor(() => expect(container.querySelector('.quiz-question .chat-token')?.textContent).toContain('Visible question'));
@@ -762,7 +790,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
         payload: { text: 'Prior call', modality: 'voice', voiceSessionId: 'previous-call' } }];
     testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
     const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
@@ -783,7 +811,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('prepares only the current delivered prefix in a live voice transcript', async () => {
     testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
     const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
@@ -823,17 +851,17 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       payload: { text: 'こんにちは' },
     })];
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
 
     // Thread A mounts: the restored bubble tokenizes.
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(1));
 
     // Switch to thread B, then back to A. The previously loaded bubble must
     // tokenize again instead of rendering as plain text.
-    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    receiveLaunchContext({ roomId: 'room-b', threadId: 'thread-b' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
-    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
+    receiveLaunchContext({ roomId: 'room-a', threadId: 'thread-a' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-a', 'thread-a'));
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-token')).toHaveLength(1));
     await vi.waitFor(() => expect(chatText(container)).toContain('こんにちは'));
@@ -841,7 +869,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('sends on Enter, but not Shift+Enter or an IME composition confirmation', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
@@ -857,7 +885,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('reopens the current conversation without aborting its response', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'Hello'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -866,7 +894,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     emitChunk({ content: 'A pending reply' });
     mockBridge.llm.llmStreamAbort.mockClear();
     const readCount = mockBridge.journal.readThread.mock.calls.length;
-    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
+    receiveLaunchContext({ roomId: 'room-a', threadId: 'thread-a' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread.mock.calls.length).toBeGreaterThan(readCount));
     expect(mockBridge.llm.llmStreamAbort).not.toHaveBeenCalled();
     emitChunk({ done: true });
@@ -881,7 +909,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const annotation = deferred<import('../../../shared/types').Token[]>();
     mockBackend.tokenize.mockImplementation(() => annotation.promise);
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'Hello'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -895,7 +923,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     review.resolve({ status: 'approved', text: 'The latest completed reply', reason: 'none', restrictUserContext: false, reviewId: 'review-complete' });
     await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character' && (event.payload as { text: string }).text === 'The latest completed reply')).toBe(true));
     dispose();
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(chatText(container)).toContain('The latest completed reply'));
     annotation.resolve([]);
   });
@@ -907,7 +935,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const review = deferred<TurnReviewResult>();
     mockBridge.world.reviewConversationTurn.mockImplementationOnce(() => review.promise);
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false));
     call()!.click();
@@ -934,7 +962,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const review = deferred<TurnReviewResult>();
     mockBridge.world.reviewConversationTurn.mockImplementationOnce(() => review.promise);
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
     const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
@@ -960,7 +988,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     mockBridge.journal.appendEvent.mockImplementationOnce(async (_roomId, draft) => appendJournalEvent(draft));
     mockBridge.journal.appendEvent.mockImplementationOnce(async (_roomId, draft) => { delayedDraft = draft; return append.promise; });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false));
     call()!.click();
@@ -992,7 +1020,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     testSettings.llmProvider = 'openai-compatible';
     const preflight = deferred<void>();
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false));
     call()!.click();
@@ -1015,7 +1043,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     currentWorld.threads.push({ id: 'thread-b', roomId: 'room-b', state: 'active', createdAt: 2 });
     const preflight = deferred<void>();
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const input = () => container.querySelector<HTMLTextAreaElement>('.ca-chat-textarea')!;
     await vi.waitFor(() => expect(input().disabled).toBe(false));
     // Availability is established independently; this test owns the save
@@ -1029,7 +1057,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     };
     send('Old preflight');
     await vi.waitFor(() => expect(mockBridge.settings.awaitSettingsSaved).toHaveBeenCalledOnce());
-    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    receiveLaunchContext({ roomId: 'room-b', threadId: 'thread-b' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]')).not.toBeNull());
     send('New room message');
@@ -1045,7 +1073,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('reads an earlier queued exit before checking the next user message', async () => {
     currentWorld.threads[0] = { ...currentWorld.threads[0], interactionMode: 'practice', intent: 'Correct every message until I stop.' };
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const textarea = () => container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     const send = async (text: string) => {
       await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]')).not.toBeNull());
@@ -1074,7 +1102,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('persists ended feedback, reopens quietly, and supplies it to both character and checker', async () => {
     currentWorld.threads[0] = { ...currentWorld.threads[0], interactionMode: 'practice', intent: 'Correct every message until I stop.' };
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const textarea = () => container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea().disabled).toBe(false));
     textarea().value = 'No corrections now. Ice cream?'; textarea().dispatchEvent(new Event('input', { bubbles: true }));
@@ -1086,7 +1114,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       active: false, scope: 'Social conversation', evidence: 'No corrections now.',
     } }], done: true });
     await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'feedback.agreement')).toBe(true));
-    dispose(); dispose = render(() => <ConversationContent />, container);
+    dispose(); dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(chatText(container)).toContain('Chocolate.'));
     expect(container.querySelector('.chat-bubble.showing-analysis')).toBeNull();
     mockBridge.llm.llmStream.mockClear();
@@ -1106,7 +1134,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     testSettings.agentMistakeChecker = false;
     testSettings.agentSafetyChecker = false;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'Who took lunch?'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1121,7 +1149,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(journalEvents.filter(event => event.type === 'message.character').map(event => (event.payload as { text: string }).text)).toEqual(['What?!', 'Who was it?']);
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-bubble.assistant')).toHaveLength(2));
     dispose();
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelectorAll('.chat-bubble.assistant')).toHaveLength(2));
     expect(chatText(container)).toContain('Who was it?');
     expect(container.querySelectorAll('.ca-message-continuation')).toHaveLength(1);
@@ -1131,7 +1159,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     testSettings.agentMistakeChecker = false;
     testSettings.agentSafetyChecker = false;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'Hello'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1152,7 +1180,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const review = deferred<TurnReviewResult>();
     mockBridge.world.reviewConversationTurn.mockImplementationOnce(() => review.promise);
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const textarea = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
     textarea.value = 'Hello'; textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1174,7 +1202,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('opens persistent Room history and commits replies directly to Sea without creating a Thread', async () => {
     mockBridge.kvStore.kvGet.mockResolvedValue(null);
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
@@ -1203,7 +1231,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     } }] };
     const { ConversationContent } = await import('./App');
     for (let turn = 0; turn < 2; turn++) {
-      dispose = render(() => <ConversationContent />, container);
+      dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
       const send = () => container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement;
       await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
       const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
@@ -1228,9 +1256,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('appends user and character journal events for a streamed send', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
-    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    receiveLaunchContext({ roomId: 'room-a', threadId: 'thread-a' });
 
     // Wait for the composer to render, then type and wait for it to become enabled
     // (enabled only once the LLM availability check passed and there is text).
@@ -1267,7 +1295,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('dismisses word lookup while dragging to select message text', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-messages')).not.toBeNull());
     const messages = container.querySelector('.ca-messages')!;
     messages.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 0 }));
@@ -1279,7 +1307,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('keeps model failures readable and offers settings beside the failed reply', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
@@ -1305,7 +1333,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const releaseSave = deferred<void>();
     mockBridge.settings.awaitSettingsSaved.mockReturnValueOnce(releaseSave.promise);
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
@@ -1326,7 +1354,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('keeps AI memory notes in the disposable Thread without writing Sea', async () => {
     testSettings.agentMemoryEnabled = true;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('textarea.ca-chat-textarea')).not.toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
@@ -1346,7 +1374,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     testSettings.agentMemoryEnabled = true;
     testSettings.agentMistakeChecker = false; testSettings.agentSafetyChecker = false;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
     const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
@@ -1372,7 +1400,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     currentWorld.rooms.push({ id: 'room-b', title: 'Other chat', participantIds: ['agent-a'], createdAt: 2 });
     currentWorld.threads.push({ id: 'thread-b', roomId: 'room-b', state: 'active', createdAt: 2 });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
     const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
@@ -1382,7 +1410,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(journalEvents.some(event => event.type === 'message.character')).toBe(true));
     const source = journalEvents.find(event => event.type === 'message.character')!;
     const oldDelivery = voiceDeliveryCallback!;
-    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    receiveLaunchContext({ roomId: 'room-b', threadId: 'thread-b' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
     await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')).toBeNull());
     await oldDelivery({ messageEventId: source.id, actorId: 'agent-a', voiceSessionId: 'synthetic-call-session',
@@ -1410,7 +1438,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       return appendJournalEvent(draft);
     });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
     const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
@@ -1438,7 +1466,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       return appendJournalEvent(draft);
     });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const call = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(call()?.disabled).toBe(false)); call()!.click();
     const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
@@ -1450,7 +1478,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     button('Confirm voice playback').click();
     await vi.waitFor(() => expect(mockBridge.journal.appendEvent.mock.calls.some(([, draft]) => draft.type === 'delivery.voice')).toBe(true));
     expect(inferenceEvents(journalEvents).filter(event => event.type === 'memory.belief')).toHaveLength(0);
-    windowContextCallback({ roomId: 'room-b', threadId: 'thread-b' });
+    receiveLaunchContext({ roomId: 'room-b', threadId: 'thread-b' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-b', 'thread-b'));
     deliveryAck.resolve();
     await vi.waitFor(() => expect(inferenceEvents(journalEvents).some(event => event.type === 'memory.belief')).toBe(true));
@@ -1467,7 +1495,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
         bindings: [{ originId: person.id, baseline: { ...person, personaText: 'Pinned practice persona' } }] },
     }] };
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const sendButton = () => container.querySelector('button[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement | null;
     await vi.waitFor(() => expect(sendButton()).not.toBeNull());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
@@ -1488,10 +1516,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('translates arriving media context into the active thread and renders it in Thread', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
 
-    windowContextCallback({
+    receiveLaunchContext({
       roomId: 'room-a',
       threadId: 'thread-a',
       mediaHash: 'video-1',
@@ -1512,12 +1540,37 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     })));
   });
 
+  it('retains the exact opaque source envelope and returns it without generation', async () => {
+    const source = { workspace: 'reader', path: '/books/story.epub', page: 7, location: { cfi: 'epubcfi(/6/8)' },
+      mediaHash: 'book-a', occurrence: { id: 'pkg:any-occurrence', span: [11, 18], packageFeature: { unknown: ['preserved'] } } };
+    const onReturn = vi.fn();
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} onReturn={onReturn} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    receiveLaunchContext({ roomId: 'room-a', threadId: 'thread-a', mediaHash: 'book-a', mediaName: 'Story', mediaType: 'book',
+      assessedLevel: null, assessedLevelName: '', language: 'xx', failedWords: [], failedGrammar: [],
+      wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
+      grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 }, sourceContext: source });
+    await vi.waitFor(() => expect(mockBridge.world.updateThread).toHaveBeenCalledWith(expect.objectContaining({ mediaRef: expect.objectContaining({ sourceContext: source }) })));
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Product.Return')!.click();
+    expect(onReturn).toHaveBeenCalledWith(source);
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+  });
+
+  it('keeps launch text as a draft without transmitting during route entry', async () => {
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent launchContext={{ roomId: 'room-a', threadId: 'thread-a', initialMessage: 'Explain the selected phrase' }} />, container);
+    await vi.waitFor(() => expect((container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement).value).toBe('Explain the selected phrase'));
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+    expect(journalEvents).toEqual([]);
+  });
+
   it('starts a distinct conversation for a media-only launch', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
-    windowContextCallback({
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')?.click();
+    receiveLaunchContext({
       mediaHash: 'video-2', mediaName: 'Episode Two', mediaType: 'video',
       assessedLevel: null, assessedLevelName: 'N3', language: 'ja',
       failedWords: [], failedGrammar: [],
@@ -1530,9 +1583,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('carries tutor purpose and selections into a newly created conversation', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
-    windowContextCallback({
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    receiveLaunchContext({
       roomId: 'room-a',
       threadId: 'thread-a',
       tutorConfig: {
@@ -1543,7 +1596,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       },
     });
     expect(container.querySelector('.new-conversation-form')).toBeNull();
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')?.click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form textarea')).not.toBeNull());
     const intent = (container.querySelector('.new-conversation-form textarea') as HTMLTextAreaElement).value;
     expect(intent).toContain('Words selected for practice (not evidence of difficulty)');
@@ -1569,10 +1622,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('filters journal-settled words out of media failures in the learner projection', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
     settledWords = new Set(['犬']);
-    windowContextCallback({
+    receiveLaunchContext({
       roomId: 'room-a',
       threadId: 'thread-a',
       mediaHash: 'video-1',
@@ -1603,10 +1656,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('keeps explicit tutor selections even when the word is journal-settled', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
     settledWords = new Set(['犬']);
-    windowContextCallback({
+    receiveLaunchContext({
       roomId: 'room-a',
       threadId: 'thread-a',
       tutorConfig: {
@@ -1617,7 +1670,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       },
     });
     expect(container.querySelector('.new-conversation-form')).toBeNull();
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')?.click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-form textarea')).not.toBeNull());
     const intent = (container.querySelector('.new-conversation-form textarea') as HTMLTextAreaElement).value;
     expect(intent).toContain('Words selected for practice (not evidence of difficulty)');
@@ -1643,7 +1696,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('uses a single chat shell with header overflow controls', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')).not.toBeNull());
     expect(container.querySelector('[role="tab"]')).toBeNull();
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
@@ -1654,16 +1707,16 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('opens details from a media chip and initial stats context', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
-    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a', initialTab: 'stats' });
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    receiveLaunchContext({ roomId: 'room-a', threadId: 'thread-a', initialTab: 'stats' });
     await vi.waitFor(() => expect(container.querySelector('[data-testid="thread-info-panel"]')).not.toBeNull());
   });
 
   it('offers one New conversation action from the unified chat list', async () => {
     currentWorld = { rooms: [], threads: [], participants: [] };
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]')).not.toBeNull());
@@ -1673,10 +1726,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(Array.from(container.querySelectorAll('.ca-chat-content button')).some(button => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')).toBe(true);
   });
 
-  it('defers Living World consent until an existing contact DM is explicitly opened', async () => {
+  it('opens an existing contact history without Living World and requests consent for a reply', async () => {
     testSettings.livingWorldEnabled = false;
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')?.click();
     expect(container.textContent).not.toContain('mlearn.ConversationAgent.LivingWorld.ConsentTitle');
@@ -1688,15 +1741,22 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const message = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Contacts.Message');
     expect(message).toBeTruthy();
     message!.click();
+    await vi.waitFor(() => expect(container.querySelector('.ca-header-contact')?.textContent).toContain('Tutor'));
+    expect(container.textContent).not.toContain('mlearn.ConversationAgent.LivingWorld.ConsentTitle');
+    const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    input.value = 'Reply'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    (container.querySelector('[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(container.textContent).toContain('mlearn.ConversationAgent.LivingWorld.ConsentTitle'));
+    expect(input.value).toBe('Reply');
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
     expect(container.querySelector('.new-conversation-form')).toBeNull();
     expect(mockBridge.world.createPersistentRoom).not.toHaveBeenCalled();
   });
 
   it('offers one composer with explicit style and continuity choices', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')?.click();
     await vi.waitFor(() => expect(container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')).not.toBeNull());
     (container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some(button => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')).toBe(true));
@@ -1708,7 +1768,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     appendJournalEvent({ roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' }, type: 'message.character', actorId: 'agent-a', witnesses: ['user', 'agent-a'],
       payload: { text: 'One question', widgets: [{ type: 'quiz', data: { type: 'mcq', question: 'Choose', options: ['A', 'B'], correctAnswer: 'A' } }] } });
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.quiz-options button')).not.toBeNull());
     const answer = container.querySelector('.quiz-options button') as HTMLButtonElement;
     answer.click(); answer.click();
@@ -1716,7 +1776,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(journalEvents.find(event => event.type === 'widget.response')).toMatchObject({ actorId: 'user', scope: { kind: 'thread', threadId: 'thread-a' },
       payload: { messageEventId: 'evt-1', widgetIndex: 0, userAnswer: 'A', isCorrect: true } });
     dispose();
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.quiz-result-correct')).not.toBeNull());
     expect(container.querySelectorAll('.quiz-options button')[1]).toHaveProperty('disabled', true);
   });
@@ -1725,7 +1785,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     mockBridge.kvStore.kvGet.mockImplementation(async (...args: unknown[]) => args[0] === 'conversation-draft:room-a:thread-a'
       ? JSON.stringify({ text: 'Unsent thought' }) : JSON.stringify({ roomId: 'room-a', threadId: 'thread-a' }));
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect((container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement)?.value).toBe('Unsent thought'));
     const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     input.value = 'Revised thought'; input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1748,9 +1808,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       ],
     };
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    await vi.waitFor(() => expect(mockBridge.window.onWindowContext).toHaveBeenCalled());
-    windowContextCallback({ roomId: 'room-a', threadId: 'thread-a' });
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    receiveLaunchContext({ roomId: 'room-a', threadId: 'thread-a' });
     await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-a', 'thread-a'));
     await vi.waitFor(() => expect((container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement)?.disabled).toBe(false));
     const input = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
@@ -1776,8 +1836,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('opens the NewConversationModal from the room sidebar', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')?.click();
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]')).not.toBeNull());
     (container.querySelector('button[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]')).not.toBeNull());
@@ -1788,10 +1848,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('leaves the empty messenger available after introduction instead of forcing a setup form', async () => {
     currentWorld = { rooms: [], threads: [], participants: [] };
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(mockBridge.world.getWorldState).toHaveBeenCalled());
     expect(container.querySelector('.new-conversation-form')).toBeNull();
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')?.click();
     expect(container.querySelector('.new-conversation-form')).toBeNull();
     expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.Title');
   });
@@ -1803,8 +1863,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       participants: [{ id: 'agent-a', displayName: 'Tutor', kind: 'persistent', personaText: 'Helpful tutor', setupComplete: true }],
     };
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')?.click();
 
     await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')).toBe(true));
     Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')!.click();
@@ -1813,7 +1873,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('preserves the backend error after a failed call unmounts its voice overlay', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const button = () => container.querySelector('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]') as HTMLButtonElement;
     await vi.waitFor(() => expect(button()?.disabled).toBe(false));
     button().click();
@@ -1825,7 +1885,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('mounts VoiceTab with autoStartCall from the call button', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]')).not.toBeNull());
     const callButton = container.querySelector('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]') as HTMLButtonElement;
     await vi.waitFor(() => expect(callButton.disabled).toBe(false));
@@ -1835,7 +1895,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('keeps conversation purpose and history scope in the call header and moves provider details into the menu', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const callButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(callButton()?.disabled).toBe(false));
     callButton()!.click();
@@ -1853,7 +1913,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('cancels a call response without opening new-conversation setup', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const callButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(callButton()?.disabled).toBe(false));
     callButton()!.click();
@@ -1863,7 +1923,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
   it('dismisses the call summary without transiently remounting an auto-start call', async () => {
     const { ConversationContent } = await import('./App');
-    dispose = render(() => <ConversationContent />, container);
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const callButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
     await vi.waitFor(() => expect(callButton()?.disabled).toBe(false));
     callButton()!.click();

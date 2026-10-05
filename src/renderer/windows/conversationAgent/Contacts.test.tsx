@@ -228,6 +228,20 @@ describe('Contacts are independent from conversations', () => {
     await vi.waitFor(() => expect(el.querySelector('[role="alert"]')?.textContent).toContain('Disk is full'));
     expect(name.value).toBe('Mara');
   });
+  it('keeps contact editing usable while research requires provider availability and consent', async () => {
+    const requestAccess = vi.fn(() => false);
+    const el = mount(() => <ParticipantEditorModal generationAvailable onRequestGenerationAccess={requestAccess} onCreate={vi.fn()} onClose={vi.fn()} />);
+    const name = el.querySelector('input[type="text"]') as HTMLInputElement;
+    name.value = 'Mara'; name.dispatchEvent(new Event('input', { bubbles: true }));
+    const source = el.querySelector('input[type="url"]') as HTMLInputElement;
+    source.value = 'https://example.org/wiki/Mara'; source.dispatchEvent(new Event('input', { bubbles: true }));
+    click(el, 'mlearn.ConversationAgent.Story.Research');
+    await vi.waitFor(() => expect(requestAccess).toHaveBeenCalled());
+    expect(researchCharacter).not.toHaveBeenCalled();
+    expect(name.disabled).toBe(false);
+    expect(source.value).toBe('https://example.org/wiki/Mara');
+  });
+
   it('keeps source research as a draft until the owner accepts and creates the contact', async () => {
     researchCharacter.mockResolvedValue({ name: 'Mara', trackId: undefined, trackRevision: undefined,
       evidence: { name: 'Mara', wikiUrl: 'https://example.org', pageTitle: 'Mara', pageUrl: 'https://example.org/wiki/Mara',

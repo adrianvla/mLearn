@@ -15,6 +15,8 @@ import { ParticipantEditorModal } from './ParticipantEditorModal';
 import './ThreadInfoPanel.css';
 
 interface ThreadInfoPanelProps {
+  generationAvailable?: boolean;
+  onRequestGenerationAccess?: () => boolean;
   roomTitle?: string;
   roomId?: string;
   roomScenario?: ScenarioSpec;
@@ -438,6 +440,8 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
       <Show when={editingParticipant()} keyed>
         {(participant) => (
           <ParticipantEditorModal
+            generationAvailable={props.generationAvailable}
+            onRequestGenerationAccess={props.onRequestGenerationAccess}
             participant={participant}
             onSave={saveParticipant}
             onClose={() => setEditingParticipant(null)}

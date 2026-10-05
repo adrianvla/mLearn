@@ -4199,7 +4199,8 @@
       "MessengerDescription": "继续你的对话。",
       "MockUnavailable": "此已安装语言包未提供阶段检查的题目来源。",
       "GrammarUnavailable": "此语言包不提供语法任务。",
-      "ResumeUnavailable": "此已保存任务不可用。当前任务已保留。"
+      "ResumeUnavailable": "此已保存任务不可用。当前任务已保留。",
+      "Return": "返回"
     }
   }
 }

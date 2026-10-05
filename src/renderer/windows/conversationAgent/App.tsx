@@ -9,7 +9,7 @@ import { tutorSessionIntent } from '../../services/tutorSessionIntent';
  */
 
 import { For, Component, Show, Index, batch, createSignal, createEffect, createMemo, onMount, onCleanup, untrack } from 'solid-js';
-import { WindowWrapper, useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
+import { useSettings, useLanguage, useLocalization, useLowPowerGate, useServer } from '../../context';
 import { useFlashcards } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { getTokenLookupWord } from '../../utils/wordForms';
@@ -80,6 +80,7 @@ const mediaRefFromContext = (context: ConversationAgentContext): ThreadMediaRef 
   assessedLevelName: context.assessedLevelName || undefined,
   subtitleHistory: context.subtitleHistory,
   characterContext: context.characterContext,
+  sourceContext: context.sourceContext,
 });
 
 type EventMessage = ConversationMessage & { eventId: string; actorId?: string };
@@ -182,7 +183,7 @@ const PhoneIcon: Component = () => (
   </svg>
 );
 
-export const ConversationContent: Component = () => {
+export const ConversationContent: Component<{ launchContext?: Record<string, unknown>; onReturn?: (sourceContext?: Record<string, unknown>) => void }> = (props) => {
   const { settings, updateSettings, openCloudReLoginModal, isLoading } = useSettings();
   const server = useServer();
   const {
@@ -215,6 +216,7 @@ export const ConversationContent: Component = () => {
   const [mediaContext, setMediaContext] = createSignal<ConversationAgentContext | null>(null);
   let translatedInstructions: string | null = null;
   const [pendingTutorConfig, setPendingTutorConfig] = createSignal<TutorSessionConfig>();
+  const [pendingLaunchDraft, setPendingLaunchDraft] = createSignal<string | null>(null);
   const [inputText, setInputText] = createSignal('');
   const [isStreaming, setIsStreaming] = createSignal(false);
   const [isCompactingContext] = createSignal(false);
@@ -236,19 +238,30 @@ export const ConversationContent: Component = () => {
   const [isRecording, setIsRecording] = createSignal(false);
   const [isSpeaking, setIsSpeaking] = createSignal(false);
 
-  const [showSplash, setShowSplash] = createSignal(true);
-  const [showDisclaimer, setShowDisclaimer] = createSignal(true);
-  createEffect(() => {
-    if (isLoading()) return;
-    setShowSplash((settings.agentRemoteNoticeAcceptedVersion ?? DEFAULT_SETTINGS.agentRemoteNoticeAcceptedVersion) !== CONVERSATION_NOTICE_VERSION);
-    setShowDisclaimer((settings.agentLocalNoticeAcceptedVersion ?? DEFAULT_SETTINGS.agentLocalNoticeAcceptedVersion) !== CONVERSATION_NOTICE_VERSION);
-  });
+  // Reading history never transmits to a provider. Consent is requested by
+  // generation operations, separately for local and remote providers.
+  const [noticeScope, setNoticeScope] = createSignal<'local' | 'remote' | null>(null);
   const acceptConversationNotice = (scope: 'local' | 'remote'): void => {
     updateSettings(scope === 'remote'
       ? { agentRemoteNoticeAcceptedVersion: CONVERSATION_NOTICE_VERSION }
       : { agentLocalNoticeAcceptedVersion: CONVERSATION_NOTICE_VERSION });
-    if (scope === 'remote') setShowSplash(false);
-    else setShowDisclaimer(false);
+    setNoticeScope(null);
+  };
+  const requestGenerationAccess = (mutateCurrentConversation = true): boolean => {
+    if (isLoading() || isCheckingConnection() || !isConnected() || conversationsLoading() || conversationLoadError() || isSafetyLockedState()) return false;
+    const scope = isRemoteLLMProvider(settings.llmProvider) ? 'remote' : 'local';
+    const accepted = scope === 'remote'
+      ? settings.agentRemoteNoticeAcceptedVersion ?? DEFAULT_SETTINGS.agentRemoteNoticeAcceptedVersion
+      : settings.agentLocalNoticeAcceptedVersion ?? DEFAULT_SETTINGS.agentLocalNoticeAcceptedVersion;
+    if (accepted !== CONVERSATION_NOTICE_VERSION) {
+      setNoticeScope(scope);
+      return false;
+    }
+    if (mutateCurrentConversation && activeRoom() && !activeThread()?.sandbox && !settings.livingWorldEnabled) {
+      setLivingWorldPrompt({ roomId: activeRoom()!.id, threadId: selection()?.threadId ?? undefined });
+      return false;
+    }
+    return true;
   };
 
   // Voice mode state
@@ -415,7 +428,7 @@ export const ConversationContent: Component = () => {
 
   const respondToIncomingCall = async (response: 'accept' | 'decline'): Promise<void> => {
     const incoming = incomingCall();
-    if (!incoming) return;
+    if (!incoming || (response === 'accept' && !requestGenerationAccess())) return;
     const result = await getBridge().world.respondToContact(incoming.contactId, response);
     if (!result.ok) {
       setContactIngressError(result.reason);
@@ -841,13 +854,11 @@ export const ConversationContent: Component = () => {
       if (session !== selectionSession) return;
       const savedThread = snapshot.threads.find(thread => thread.id === saved?.threadId
         && threadContextId(thread) === saved?.roomId);
-      const eligibleSavedThread = settings.livingWorldEnabled || savedThread?.sandbox ? savedThread : undefined;
+      const eligibleSavedThread = savedThread;
       const sandboxes = snapshot.threads.filter(thread => thread.sandbox && thread.state !== 'archived')
         .sort((a, b) => b.createdAt - a.createdAt);
-      const roomId = settings.livingWorldEnabled
-        ? (eligibleSavedThread ? threadContextId(eligibleSavedThread) : (snapshot.rooms.find(room => room.id === saved?.roomId)?.id
-          ?? snapshot.rooms.slice().sort((a, b) => b.createdAt - a.createdAt)[0]?.id ?? sandboxes[0]?.id))
-        : (eligibleSavedThread?.id ?? sandboxes[0]?.id);
+      const roomId = eligibleSavedThread ? threadContextId(eligibleSavedThread) : snapshot.rooms.find(room => room.id === saved?.roomId)?.id
+        ?? (settings.livingWorldEnabled ? snapshot.rooms.slice().sort((a, b) => b.createdAt - a.createdAt)[0]?.id : undefined) ?? sandboxes[0]?.id;
       if (roomId) await selectRoom(roomId, eligibleSavedThread?.id);
     } catch (error) {
       if (session === selectionSession) setConversationLoadError(true);
@@ -934,12 +945,6 @@ export const ConversationContent: Component = () => {
       if (!room) return;
       const requestedThread = requestedThreadId ? snapshot.threads.find(thread => thread.id === requestedThreadId && threadContextId(thread) === roomId) : undefined;
       if (requestedThreadId && !requestedThread) throw new Error('Conversation is unavailable');
-      // First entry into a persistent Room (non-sandbox) requires Living World
-      // consent; disposable sandboxes are exempt. Declining selects nothing.
-      if (!selectedSandbox && !settings.livingWorldEnabled) {
-        setLivingWorldPrompt({ roomId, threadId: requestedThreadId });
-        return;
-      }
       const threadId = selectedSandbox?.id ?? requestedThread?.id ?? null;
       cancelVoiceScheduledNudge();
       setMediaContext(null);
@@ -1011,14 +1016,16 @@ export const ConversationContent: Component = () => {
       translatedInstructions = tutor.customInstructions || null;
       setPendingTutorConfig(undefined);
     }
+    const launchDraft = pendingLaunchDraft();
+    if (launchDraft !== null) { setInputText(launchDraft); setPendingLaunchDraft(null); }
     setShowNewConversationModal(false);
     setComposerParticipantId(undefined);
     // Creation publishes setup context. The next actual exchange consumes it;
     // setup is not submitted to the turn engine as a synthetic user action.
   };
 
-  // Consent for a blocked persistent-Room entry: enabling persists the
-  // setting through the settings bridge, then retries the original selection.
+  // Enabling Living World uses the settings owner. The draft remains pending;
+  // consent does not submit the reply or start a call automatically.
   const enableLivingWorldAndEnter = async (): Promise<void> => {
     const prompt = livingWorldPrompt();
     setLivingWorldPrompt(null);
@@ -1094,6 +1101,8 @@ export const ConversationContent: Component = () => {
     void settings.compatibleModel;
 
     setIsCheckingConnection(true);
+    let cancelled = false;
+    onCleanup(() => { cancelled = true; });
 
     (async () => {
       // One probe, one classification. This effect used to dispatch a
@@ -1103,6 +1112,7 @@ export const ConversationContent: Component = () => {
       // so the status chip can name the failure and the send button can be
       // disabled for the reason the learner has to fix.
       const classified = await probeProvider(settings);
+      if (cancelled) return;
       setConnectionFailure(classified);
       setIsConnected(!classified);
       setIsCheckingConnection(false);
@@ -1157,17 +1167,15 @@ export const ConversationContent: Component = () => {
           openComposer('practice');
         }
         if (typeof rawCtx.initialMessage === 'string' && rawCtx.initialMessage.trim()) {
-          setInputText(rawCtx.initialMessage);
-          queueMicrotask(() => {
-            void handleSend();
-          });
+          if (showNewConversationModal()) setPendingLaunchDraft(rawCtx.initialMessage);
+          else setInputText(rawCtx.initialMessage);
+          // Keep the launch as a draft; generation needs a deliberate send.
         }
     };
-    const cleanup = bridge.window.onWindowContext((ctx) => {
-      if (isRecord(ctx)) contextIngress = contextIngress.then(() => receiveContext(ctx)).catch(error => log.error('Unable to open conversation context', error));
+    createEffect(() => {
+      const context = props.launchContext;
+      if (context) contextIngress = contextIngress.then(() => receiveContext(context)).catch(error => log.error('Unable to open conversation context', error));
     });
-    bridge.window.getWindowContext('conversation-agent');
-    if (cleanup) onCleanup(cleanup);
     const cleanupOpen = bridge.window.onOpenRoomEvent((payload) => {
       void selectRoom(payload.roomId, payload.threadId).then(() => ingestContactOpen(payload)).catch(error => log.error('Unable to open conversation', error));
     });
@@ -1434,7 +1442,7 @@ export const ConversationContent: Component = () => {
 
   const runConversationTurn = async (text: string, contextOnly = false, modality: 'text' | 'voice' = isVoiceCallActive() ? 'voice' : 'text'): Promise<void> => {
     const voiceSessionId = modality === 'voice' ? activeVoiceSessionId() ?? undefined : undefined;
-    if (!text || activeTurn || isStreaming() || isSafetyLockedState()) return;
+    if (!text || activeTurn || isStreaming() || !requestGenerationAccess()) return;
     const session = selectionSession;
     const turn = { modality, cancelled: false, reviews: new Set<string>() };
     activeTurn = turn;
@@ -1723,6 +1731,8 @@ export const ConversationContent: Component = () => {
       return;
     }
 
+    if (!requestGenerationAccess()) return;
+
     // Low power gate: prompt before local LLM call
     const allowed = await ensureLlmAllowed();
     if (!allowed) return;
@@ -1983,6 +1993,7 @@ export const ConversationContent: Component = () => {
 
   const ConversationHeader: Component = () => (
     <div class="ca-header">
+        <Show when={props.onReturn && (activeThread()?.mediaRef?.sourceContext ?? mediaContext()?.sourceContext ?? props.launchContext?.returnTo)}><Button variant="ghost" onClick={() => props.onReturn?.(activeThread()?.mediaRef?.sourceContext ?? mediaContext()?.sourceContext)}>{t('mlearn.Product.Return')}</Button></Show>
         <Show when={!callSurfaceOpen()}><Button buttonType="icon"
           variant="ghost"
           class="ca-sidebar-toggle"
@@ -2018,8 +2029,8 @@ export const ConversationContent: Component = () => {
         <Show when={!callSurfaceOpen()}><Button buttonType="icon"
           variant="ghost"
           icon={<PhoneIcon />}
-          disabled={rosterParticipants().length === 0}
-          onClick={() => { setContactIngressError(null); setVoiceOverlayRequested(true); }}
+          disabled={rosterParticipants().length === 0 || !isConnected() || isCheckingConnection() || isSafetyLockedState()}
+          onClick={() => { if (!requestGenerationAccess()) return; setContactIngressError(null); setVoiceOverlayRequested(true); }}
           aria-label={t('mlearn.ConversationAgent.Call.StartAria')}
         /></Show>
         <div class="ca-overflow-anchor">
@@ -2041,7 +2052,7 @@ export const ConversationContent: Component = () => {
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.NewConversation.Title')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser', context: activeThread()?.sandbox || !activeRoom() ? {} : { roomId: activeRoom()!.id } }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { setAddingContact(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.Add')}</Button>
             <Show when={settings.devMode}><Button variant="ghost" class="ca-overflow-item" onClick={() => { setShowRuntimeInspector(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Developer.Title')}</Button></Show>
           </Popover>
@@ -2079,16 +2090,16 @@ export const ConversationContent: Component = () => {
           </Show>
         </div>}
       </For>
-      <Show when={!isLoading() && showSplash() && isRemoteLLMProvider(settings.llmProvider)}>
-        <AgeVerificationModal onAccept={() => acceptConversationNotice('remote')} />
+      <Show when={noticeScope() === 'remote'}>
+        <AgeVerificationModal onAccept={() => acceptConversationNotice('remote')} onCancel={() => setNoticeScope(null)} />
       </Show>
       <Modal
-        isOpen={!isLoading() && showDisclaimer() && !isRemoteLLMProvider(settings.llmProvider)}
-        onClose={() => setShowDisclaimer(false)}
+        isOpen={noticeScope() === 'local'}
+        onClose={() => setNoticeScope(null)}
         title={t('mlearn.ConversationAgent.Title')}
         closeOnOverlay={false}
         closeOnEscape={false}
-        showCloseButton={false}
+        showCloseButton
         size="md"
         footer={
           <Button variant="primary" size="lg" onClick={() => acceptConversationNotice('local')}>
@@ -2114,7 +2125,7 @@ export const ConversationContent: Component = () => {
             <Button variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>
               {t('mlearn.ConversationAgent.Banner.SettingsLink')}
             </Button>
-            <Button variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'memory-browser' })}>
+            <Button variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'memory-browser', context: activeThread()?.sandbox || !activeRoom() ? {} : { roomId: activeRoom()!.id } })}>
               {t('mlearn.MemoryBrowser.OpenInAgent')}
             </Button>
           </div>
@@ -2300,7 +2311,7 @@ export const ConversationContent: Component = () => {
                     onKeyDown={handleKeyDown}
                     rows={1}
                     resize="none"
-                    disabled={conversationsLoading() || conversationLoadError() || !hasActiveRoomSelection() || rosterParticipants().length === 0 || !isConnected() || isSafetyLockedState()}
+                    disabled={conversationsLoading() || conversationLoadError() || !hasActiveRoomSelection() || rosterParticipants().length === 0 || isSafetyLockedState()}
                     ghost
                   />
 
@@ -2347,7 +2358,7 @@ export const ConversationContent: Component = () => {
               <span>{t('mlearn.ConversationAgent.IncomingCall.From', { name: caller() })}</span>
             </div>
             <Button variant="ghost" onClick={() => { void respondToIncomingCall('decline'); }}>{t('mlearn.ConversationAgent.IncomingCall.Decline')}</Button>
-            <Button variant="primary" onClick={() => { void respondToIncomingCall('accept'); }}>{t('mlearn.ConversationAgent.IncomingCall.Accept')}</Button>
+            <Button variant="primary" disabled={!isConnected() || isCheckingConnection() || isSafetyLockedState()} onClick={() => { void respondToIncomingCall('accept'); }}>{t('mlearn.ConversationAgent.IncomingCall.Accept')}</Button>
           </section>;
         }}
       </Show>
@@ -2427,13 +2438,13 @@ export const ConversationContent: Component = () => {
         </div>
       </Show>
 
-      <Show when={addingContact()}><ParticipantEditorModal onClose={() => setAddingContact(false)} onCreate={async input => {
+      <Show when={addingContact()}><ParticipantEditorModal generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} onClose={() => setAddingContact(false)} onCreate={async input => {
         const person = await getBridge().world.createParticipant(input);
         publishContact(person); setAddingContact(false); setContactId(person.id);
       }} storyTracks={world()?.storyTracks ?? []} /></Show>
-      <Show when={showStoryProgress() && world()}>{snapshot => <StoryProgressModal world={snapshot()!}
+      <Show when={showStoryProgress() && world()}>{snapshot => <StoryProgressModal generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} world={snapshot()!}
         onClose={() => setShowStoryProgress(false)} onRefresh={async () => { setWorld(await getBridge().world.getWorldState()); }} />}</Show>
-      <Show when={selectedContact()}>{person => <ContactProfileModal person={person()}
+      <Show when={selectedContact()}>{person => <ContactProfileModal generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} person={person()}
         onClose={() => setContactId(null)} onMessage={messageContact}
         rooms={world()?.rooms.filter(room => room.participantIds.includes(person().id))}
         onOpenRoom={roomId => { void selectRoom(roomId).catch(error => setContactIngressError(String(error))); }}
@@ -2464,7 +2475,7 @@ export const ConversationContent: Component = () => {
       </Show>
       <Show when={showDetailsDrawer()}>
         <Modal isOpen onClose={() => setShowDetailsDrawer(false)} title={t('mlearn.ConversationAgent.Menu.Details')} size="md">
-          <ThreadInfoPanel roomTitle={activeRoom()?.title}
+          <ThreadInfoPanel generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} roomTitle={activeRoom()?.title}
             roomId={activeThread()?.sandbox ? activeThread()?.id : activeRoom()?.id}
             thread={activeThread()}
             roomScenario={activeRoom()?.scenario}
@@ -2490,6 +2501,7 @@ export const ConversationContent: Component = () => {
             onIntegrate={() => { setShowIntegrationModal(true); }}
             onUpdateStoryBranch={async input => { await getBridge().world.updateStoryBranch(input); setWorld(await getBridge().world.getWorldState()); }}
             onRetryMaintenance={async (reflectionId) => {
+              if (!requestGenerationAccess()) return;
               await getBridge().world.retryMaintenance(reflectionId);
               setWorld(await getBridge().world.getWorldState());
             }}
@@ -2523,15 +2535,17 @@ export const ConversationContent: Component = () => {
           />
         </Modal>
       </Show>
-      <Show when={showNewConversationModal() && !(isRemoteLLMProvider(settings.llmProvider) ? showSplash() : showDisclaimer())}>
+      <Show when={showNewConversationModal()}>
         <Show when={pendingTutorConfig() ?? 'manual'} keyed>{(_config) => <NewConversationModal
           world={world()}
           mode={newConversationMode()}
           initialParticipantId={composerParticipantId()}
           initialIntent={pendingTutorConfig() ? tutorSessionIntent(pendingTutorConfig()!) : undefined}
           mediaName={mediaContext()?.mediaName}
+          generationAvailable={isConnected() && !isCheckingConnection() && !isSafetyLockedState()}
+          onRequestGenerationAccess={() => requestGenerationAccess(false)}
           onContactCreated={publishContact}
-          onClose={() => { setShowNewConversationModal(false); setComposerParticipantId(undefined); setPendingTutorConfig(undefined); setMediaContext(null); }}
+          onClose={() => { setShowNewConversationModal(false); setComposerParticipantId(undefined); setPendingTutorConfig(undefined); setPendingLaunchDraft(null); setMediaContext(null); }}
           onCreated={handleScenarioCreated}
         />}</Show>
       </Show>
@@ -2574,13 +2588,5 @@ export const ConversationContent: Component = () => {
       </Show>
 
     </div>
-  );
-};
-
-export const ConversationAgentApp: Component = () => {
-  return (
-    <WindowWrapper showDragRegion={false}>
-      <ConversationContent />
-    </WindowWrapper>
   );
 };

@@ -126,7 +126,6 @@ export default defineConfig(async ({ command, mode }) => {
         'character-grid': resolve(__dirname, 'src/html/character-grid.html'),
         licenses: resolve(__dirname, 'src/html/licenses.html'),
         'connect-qr': resolve(__dirname, 'src/html/connect-qr.html'),
-        'conversation-agent': resolve(__dirname, 'src/html/conversation-agent.html'),
         'memory-browser': resolve(__dirname, 'src/html/memory-browser.html'),
         'word-definition': resolve(__dirname, 'src/html/word-definition.html'),
         'plugin-host': resolve(__dirname, 'src/html/plugin-host.html'),

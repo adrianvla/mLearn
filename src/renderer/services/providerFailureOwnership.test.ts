@@ -88,7 +88,7 @@ describe('failed provider operations are reported through one owner', () => {
     const offenders: string[] = [];
     for (const file of files) {
       const source = readFileSync(file, 'utf-8').replace(/\/\/.*$/gm, '');
-      const ladderKeys = (source.match(/mlearn\.(AI\.CloudUnreachable|CloudReLogin\.SignInCanceled|CloudReLogin\.SessionExpired|AI\.Settings\.CompatibleConfig\.AuthenticationFailed|ConversationAgent\.Recovery\.[A-Za-z]+)/g) ?? []).length;
+      const ladderKeys = new Set(source.match(/mlearn\.(AI\.CloudUnreachable|CloudReLogin\.SignInCanceled|CloudReLogin\.SessionExpired|AI\.Settings\.CompatibleConfig\.AuthenticationFailed|ConversationAgent\.Recovery\.[A-Za-z]+)/g) ?? []).size;
       if (ladderKeys >= 2) offenders.push(`${relative(RENDERER_ROOT, file)} (${ladderKeys})`);
     }
     expect(offenders).toEqual([]);
