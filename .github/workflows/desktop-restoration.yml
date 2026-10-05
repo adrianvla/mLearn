@@ -1,0 +1,31 @@
+name: Desktop restoration checks
+on:
+  push:
+    branches: [fix/restore-mlearn-desktop-ux]
+  pull_request:
+    branches: [refactor/minimize-tech-debt]
+permissions:
+  contents: read
+concurrency:
+  group: desktop-restoration-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      NODE_LLAMA_CPP_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm test -- --maxWorkers=2
+      - run: npm run build
+      - run: npm run build:mobile
