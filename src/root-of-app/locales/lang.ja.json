@@ -4182,6 +4182,10 @@
       "Finished": "セッション終了。{count}件の学習を記録しました。"
     },
     "Product": {
+      "ReviewDescription": "音声・評価・取り消しを使って保存したカードを復習します。",
+      "WordPracticeDescription": "選択した範囲の単語を練習します。",
+      "GrammarPracticeDescription": "練習する構文を選びます。",
+      "OtherSessions": "ほかの保存済みセッション",
       "Practise": "練習",
       "Evaluate": "評価",
       "Plan": "学習計画",

@@ -11,6 +11,7 @@ export function resolveApplicationDestination(type: string, context: Record<stri
       path = typeof context.applicationPath === 'string' && isApplicationPath(context.applicationPath)
         ? context.applicationPath : type === 'study' ? '/practise' : type === 'my-learning' ? '/plan' : '/';
       break;
+    case 'reader': path = '/reader'; break;
     case 'flashcards': path = context.tab === 'stats' ? '/progress' : context.tab && context.tab !== 'review' ? '/knowledge/material' : '/practise'; break;
     case 'word-sync': path = context.activity === 'practice' || context.activity === 'reinforce' ? '/practise/words' : '/evaluate/words'; break;
     case 'level-study':

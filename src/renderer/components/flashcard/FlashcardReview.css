@@ -42,7 +42,7 @@
   gap: 1rem;
   width: 100%;
   max-width: 600px;
-  padding: 0.5rem 1rem;
+  padding: 0;
   flex: 0 0 auto;
 }
 
@@ -341,3 +341,5 @@
   font-size: var(--font-size-xl);
   overflow-wrap: anywhere;
 }
+
+.flashcard-review-header .flashcard-session-progress { width: auto; font-size: var(--font-size-sm); }

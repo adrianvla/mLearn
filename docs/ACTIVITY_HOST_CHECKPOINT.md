@@ -24,3 +24,7 @@ Cross-family Return sends the source envelope to the receiving host. Main compar
 ## Evidence and limits
 
 Pending. Runtime uses current checkout via the existing Vite server, isolated copied profile `/Users/adrian/.mlearn-acceptance/mlearn-acceptance-host-families-20261005` cloned from the previous returning-learner acceptance profile. Real user profile/history is not used.
+
+Slice 1 committed as `ed1117c2`. First native Home → saved Reader → separate Settings → Main Return exercised on copied data. Reader remained at page 10 with its toolbar/canvas/status bar; Settings had only its own sidebar/search. Screenshots in `/tmp/mlearn-host-evidence/first-reader.png` and `first-settings.png`. These establish layout/source preservation for that flow, not all lifecycle acceptance.
+
+Slice 2 removes the admission corridor from direct Review Start/Resume, provides a passive useful Review chooser, restores package-declared language flag and usable media preview height, adds compact Home secondary access, foregrounds Plan target/coverage, groups Knowledge views, and consolidates the existing Review toolbar. Settings' unused Compact Home summary control is removed; its persisted compatibility field remains. Shared scheduling/evidence/task logic is retained. Focused route/entry/Plan/Review tests and both TypeScript configurations pass; final native/build acceptance remains pending.

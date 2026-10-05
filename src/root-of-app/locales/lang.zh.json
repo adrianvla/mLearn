@@ -4182,6 +4182,10 @@
       "Finished": "本次学习结束。已记录{count}次学习。"
     },
     "Product": {
+      "ReviewDescription": "使用音频、评分和撤销功能复习已保存的卡片。",
+      "WordPracticeDescription": "练习所选范围内的单词。",
+      "GrammarPracticeDescription": "选择要练习的结构。",
+      "OtherSessions": "其他已保存的练习",
       "Practise": "练习",
       "Evaluate": "评估",
       "Plan": "计划",

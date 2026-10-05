@@ -3,10 +3,10 @@ import { useLearningModel } from '../../hooks/useLearningModel';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { Component, Show, createEffect, createSignal, createMemo } from 'solid-js';
 import { useLanguage, useLocalization, useSettings } from '../../context';
-import { Button, ArrowLeftIcon, Panel, TargetIcon } from '../../components/common';
+import { Button, ArrowLeftIcon, TargetIcon } from '../../components/common';
 import { LevelStudyTab } from './LevelStudyTab';
 import { LearningPlanSettings } from './LearningPlanSettings';
-import { getCharacterStudyScripts, getLearningLanguageLevelForLanguage, getFrequencyLevelLabel } from '../../../shared/languageFeatures';
+import { getLearningLanguageLevelForLanguage, getFrequencyLevelLabel } from '../../../shared/languageFeatures';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 import { grammarSelfAssessmentHandoffMatches } from './grammarSelfAssessmentDecision';
@@ -31,7 +31,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
     if (scope.selected && !scope.words.length && scope.patterns.length) {
       getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', patterns: scope.patterns, returnTo: 'plan' } }); return;
     }
-    getBridge().window.openWindow({ type: 'level-study', context: { activity: 'practice', returnTo: 'plan',
+    getBridge().window.openWindow({ type: 'level-study', context: { activity: 'practice', intent: 'start', returnTo: 'plan',
       ...(scope.selected ? { material: { language: settings.language, label: scope.goals.map(goal => goal.outcome).join(' · '), words: scope.words } } : {}) } });
   };
   const incomingContext = () => props.launchContext ?? {};
@@ -54,7 +54,6 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
   const grammarRequest = () => grammarRequestConsumed() ? undefined : grammarSelection() ?? undefined;
 
   createEffect(() => { setGrammarRequestConsumed(false); if (props.workspace === 'plan' && props.launchContext?.edit === true) editPlan(); });
-  const showCharacterGrid = createMemo(() => getCharacterStudyScripts(currentLangData()).length > 0);
   const planSummary = () => {
     if (targetScope().selected) return targetScope().goals.map(goal => goal.outcome).join(' · ') || t('mlearn.Goals.Unavailable');
     const data = currentLangData();
@@ -73,28 +72,22 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
         <div class="level-study-header-title"><TargetIcon size={20} /><span>{title()}</span></div>
         <Show when={props.workspace === 'grammar' || props.workspace === 'grammar-check' || props.workspace === 'mock'}>
           <Button buttonType="nav" onClick={() => props.onClose?.()} icon={<ArrowLeftIcon size={16} />}>
-            {t('mlearn.Global.Back')}
+            {t('mlearn.Product.Return')}
           </Button>
         </Show>
       </header>
       <div class="level-study-content">
           <div class="learning-plan-page">
             <Show when={!props.workspace || props.workspace === 'plan'}>
-              <p class="learning-plan-intro">{t('mlearn.LearningPlan.Description')}</p>
-              <section class="learning-plan-activity-section" aria-label={t('mlearn.LearningPlan.Activities')}>
-                <Panel class="learning-plan-practice" padding="lg">
-                  <div><h2>{t('mlearn.StudyEncounter.Task')}</h2><p>{t('mlearn.LearningPlan.WordSyncDescription')}</p></div>
-                  <Button variant="primary" onClick={openStudy}>{t('mlearn.Home.Today.PracticeAction')}</Button>
-                </Panel>
-                <div class="learning-plan-secondary-activities">
-                  <div><Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'assessment', returnTo: 'plan' } })}>{t('mlearn.LearningPlan.Assess')}</Button><p>{t('mlearn.LearningPlan.AssessDescription')}</p></div>
-                  <Show when={showCharacterGrid()}><div><Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'character-grid' })}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Button><p>{t('mlearn.LearningPlan.CharactersDescription')}</p></div></Show>
-                </div>
-              </section>
               <details ref={planControls} class="learning-plan-configuration">
                 <summary><span>{planSummary()}</span><span class="learning-plan-edit-label">{t('mlearn.LearningPlan.Edit')}</span></summary>
                 <LearningPlanSettings />
               </details>
+              <div class="learning-plan-scope-actions"><Button onClick={openStudy}>{t('mlearn.Home.Today.PracticeAction')}</Button>
+                <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
+                  activity: 'assessment', intent: 'start', returnTo: 'plan',
+                  ...(targetScope().selected ? { material: { language: settings.language, label: planSummary(), words: targetScope().words } } : {}),
+                } })}>{t('mlearn.LearningPlan.Assess')}</Button></div>
               <h2 class="learning-plan-progress-heading">{t('mlearn.LearningPlan.Progress')}</h2>
             </Show>
             <Show when={!hasGrammarSelection() || grammarSelection() !== undefined} fallback={<p role="status">{t('mlearn.Global.Loading')}</p>}>

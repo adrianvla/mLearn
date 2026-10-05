@@ -1838,7 +1838,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       <Show when={sessionQueue() && !assessmentMode()}><StudySessionHUD class="word-sync-counter" completed={sessionPresentation().completed} total={sessionPresentation().total}
         label={t('mlearn.WordSync.Progress', { rated: String(sessionPresentation().completed), total: String(sessionPresentation().total) })} /></Show>
       <div class="word-sync-header">
-        <Show when={props.onClose}><Button variant="ghost" onClick={() => props.onClose?.(workspaceOpen() ? props.returnContext : sessionController()?.current()?.meta.returnContext ?? {})}>{t('mlearn.Global.Back')}</Button></Show>
+        <Show when={props.onClose}><Button variant="ghost" onClick={() => props.onClose?.(workspaceOpen() ? props.returnContext : sessionController()?.current()?.meta.returnContext ?? {})}>{t('mlearn.Product.Return')}</Button></Show>
         <Show when={assessmentMode() && !!sessionController()?.current()}><span class="word-sync-counter">
           {t('mlearn.LevelStudy.Placement.LiveProgress', { count: assessmentSampled() })}
         </span></Show>
@@ -2174,7 +2174,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           <EmptyState title={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedTitle' : suppliedWords() ? 'mlearn.WordSync.MaterialEmptyTitle' : 'mlearn.WordSync.EmptyTitle')}
             description={t(ratedCount() > 0 ? 'mlearn.WordSync.FinishedDescription' : suppliedWords() ? 'mlearn.WordSync.MaterialEmptyDescription' : 'mlearn.WordSync.EmptyDescription', { count: String(ratedCount()) })}
             variant="minimal" />
-          <Show when={props.onClose}><Button variant="primary" onClick={() => props.onClose?.(workspaceOpen() ? props.returnContext : sessionController()?.current()?.meta.returnContext ?? {})}>{t('mlearn.Global.Close')}</Button></Show>
+          <Show when={props.onClose}><Button variant="primary" onClick={() => props.onClose?.(workspaceOpen() ? props.returnContext : sessionController()?.current()?.meta.returnContext ?? {})}>{t('mlearn.Product.Return')}</Button></Show>
           <Show when={ratedCount() > 0} fallback={
             <Show when={!suppliedWords()}><Button class="word-sync-recheck-btn" onClick={() => setFilterOpen(true)}>{t('mlearn.WordSync.ChangeFilters')}</Button></Show>
           }><Button class="word-sync-recheck-btn" onClick={() => setConfirmRecheckOpen(true)}>{t('mlearn.WordSync.StartOver')}</Button></Show>

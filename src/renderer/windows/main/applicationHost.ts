@@ -23,7 +23,8 @@ export function useApplicationNavigate() {
     if (isElectron() && host !== currentApplicationHost()) {
       getBridge().window.openWindow({ type: host, context: { applicationPath: path,
         ...((options?.state as { applicationContext?: Record<string, unknown> } | undefined)?.applicationContext ?? {}) } });
-    } else navigate(path, options);
+    } else if (options) navigate(path, options);
+    else navigate(path);
   };
 }
 

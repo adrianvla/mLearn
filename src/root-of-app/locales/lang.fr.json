@@ -4182,6 +4182,10 @@
       "Finished": "Séance terminée. {count} rencontres enregistrées."
     },
     "Product": {
+      "ReviewDescription": "Révisez vos cartes avec audio, évaluations et annulation.",
+      "WordPracticeDescription": "Pratiquez les mots de votre sélection.",
+      "GrammarPracticeDescription": "Choisissez les structures à pratiquer.",
+      "OtherSessions": "Autres sessions enregistrées",
       "Practise": "Pratiquer",
       "Evaluate": "Évaluer",
       "Plan": "Plan",

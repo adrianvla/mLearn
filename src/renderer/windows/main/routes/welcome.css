@@ -8,3 +8,6 @@
 .welcome-resume-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
 @media (max-width: 950px) { .welcome-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 550px) { .welcome-feature-grid { grid-template-columns: 1fr; } .welcome-container { padding: var(--spacing-4); } }
+
+.welcome-language-flag { margin-inline-end: var(--spacing-2); font-size: var(--font-size-lg); }
+.welcome-secondary-actions { display: flex; gap: var(--spacing-3); flex-wrap: wrap; margin-top: var(--spacing-5); }

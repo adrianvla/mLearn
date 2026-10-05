@@ -119,7 +119,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
 
   return (
       <StatusBar class="reader-status">
-        <span class="statusbar-text">{props.progressString()}</span>
+        <Show when={props.hasPages()}><span class="statusbar-text">{props.progressString()}</span></Show>
 
         {/* Word Hover Trigger Mode Select */}
         <div class="hover-trigger-section">

@@ -1,7 +1,9 @@
 import { createEffect, createSignal, For, onCleanup, Show, type Component, type JSX } from 'solid-js';
 import { useFlashcards, useLocalization, useSettings } from '../../context';
-import { Button } from '../../components/common';
+import { ActionCard, Button, TargetIcon } from '../../components/common';
 import type { ReviewPositionSwitch } from '../../../shared/reviewPresentationWrite';
+import { getBridge } from '../../../shared/bridges';
+import './ReviewWorkspace.css';
 import { reviewSessionRemaining } from '../../../shared/reviewSession';
 
 /** Admission changes only the canonical cursor; the existing reviewer owns encounters and evidence. */
@@ -59,15 +61,31 @@ export const ReviewWorkspace: Component<{
       <Show when={failed()}><p role="alert">{t(resuming() ? 'mlearn.Product.ResumeUnavailable' : 'mlearn.WordSync.SessionStartFailed')}</p>
         <Show when={retry}><Button disabled={pending()} onClick={() => retry?.()}>{t('mlearn.Global.TryAgain')}</Button></Show>
       </Show>
-      <div class="product-workspace-actions">
-        <Button variant="primary" disabled={pending() || !isKnowledgeReady()} onClick={() => admit()}>{t('mlearn.LevelStudy.Mock.Start')}</Button>
-        <Show when={currentId()}>{id => <Button disabled={pending()} onClick={() => admit(id())}>{t('mlearn.StudyEncounter.Resume')}</Button>}</Show>
-        <For each={saved()}>{([id, position]) => <Button disabled={pending()} onClick={() => admit(id)}>
-          {t('mlearn.StudyEncounter.Resume')} · {position.session?.completedCardIds.length ?? 0}/{position.session?.encounterLimit ?? 1}
-          <Show when={position.session?.startedAt ?? position.presentation?.decision?.at}>{at => <>{' · '}{new Date(at()).toLocaleString(settings.uiLanguage)}</>}</Show>
-        </Button>}</For>
-        <Button onClick={props.onReturn}>{t('mlearn.Global.Back')}</Button>
-      </div>
+      <Show when={pending()} fallback={<>
+        <div class="study-chooser-primary"><ActionCard icon={<TargetIcon size={24} />} primary
+          title={`${t(currentId() ? 'mlearn.StudyEncounter.Resume' : 'mlearn.LevelStudy.Mock.Start')} · ${t('mlearn.Flashcards.UI.Tabs.Review')}`}
+          description={t('mlearn.Product.ReviewDescription')} disabled={!isKnowledgeReady()}
+          onClick={() => admit(currentId())} /></div>
+        <div class="study-chooser-alternatives">
+          <ActionCard icon={<TargetIcon size={20} />} title={t('mlearn.Product.WordPractice')}
+            description={t('mlearn.Product.WordPracticeDescription')}
+            onClick={() => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'practice' } })} />
+          <ActionCard icon={<TargetIcon size={20} />} title={t('mlearn.Product.GrammarPractice')}
+            description={t('mlearn.Product.GrammarPracticeDescription')}
+            onClick={() => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar' } })} />
+        </div>
+        <Show when={currentId() || saved().length}><details class="study-chooser-saved">
+          <summary>{t('mlearn.Product.OtherSessions')}</summary>
+          <div class="product-workspace-actions">
+            <Show when={currentId()}><Button onClick={() => admit()}>{t('mlearn.LevelStudy.Mock.Start')} · {t('mlearn.Flashcards.UI.Tabs.Review')}</Button></Show>
+            <For each={saved()}>{([id, position]) => <Button onClick={() => admit(id)}>
+              {t('mlearn.StudyEncounter.Resume')} · {t('mlearn.Flashcards.UI.Tabs.Review')}
+              <Show when={position.session?.startedAt ?? position.presentation?.decision?.at}>{at => <>{' · '}{new Date(at()).toLocaleString(settings.uiLanguage)}</>}</Show>
+            </Button>}</For>
+          </div>
+        </details></Show>
+        <Button variant="ghost" onClick={props.onReturn}>{t('mlearn.Product.Return')}</Button>
+      </>}><p role="status">{t('mlearn.Global.Loading')}</p></Show>
     </section>
   }>{props.children}</Show>;
 };

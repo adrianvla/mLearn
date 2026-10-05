@@ -4182,6 +4182,10 @@
       "Finished": "Sitzung beendet. {count} Begegnungen aufgezeichnet."
     },
     "Product": {
+      "ReviewDescription": "Gespeicherte Karten mit Audio, Bewertungen und Rückgängig wiederholen.",
+      "WordPracticeDescription": "Wörter im gewählten Umfang üben.",
+      "GrammarPracticeDescription": "Strukturen zum Üben auswählen.",
+      "OtherSessions": "Andere gespeicherte Sitzungen",
       "Practise": "Üben",
       "Evaluate": "Überprüfen",
       "Plan": "Plan",

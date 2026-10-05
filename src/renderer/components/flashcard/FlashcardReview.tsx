@@ -1269,6 +1269,24 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   return (
       <div class="flashcard-review-container" data-review-phase={presentation().phase} data-encounter-id={currentEncounter()?.provenance.id} style={props.style}>
         <Show when={learning.failed()}><KnowledgeLoadError onRetry={learning.retry} /></Show>
+        {/* Header with stats */}
+        <div class="flashcard-review-header">
+          <div class="flashcard-status">
+            <Badge class="flashcard-stat flashcard-stat--new">
+              <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.New')}</span>
+              <span class="flashcard-stat-value">{counts().new}</span>
+            </Badge>
+            <Badge class="flashcard-stat flashcard-stat--learning" variant="warning">
+              <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.LearningLabel')}</span>
+              <span class="flashcard-stat-value">{counts().learning}</span>
+            </Badge>
+            <Badge class="flashcard-stat flashcard-stat--review" variant="success">
+              <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.Review')}</span>
+              <span class="flashcard-stat-value">{counts().review}</span>
+            </Badge>
+          </div>
+
+          <div class="flashcard-header-actions">
         <div class="review-activity-preferences">
           <Button ref={element => { activityPreferencesAnchor = element; }} size="sm" variant="ghost" aria-haspopup="dialog" aria-expanded={showActivityPreferences()} onClick={() => setShowActivityPreferences(!showActivityPreferences())}>
             {t('mlearn.Flashcards.Review.Activities')}
@@ -1296,24 +1314,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         </div>
         <Show when={sessionTotal() > 0}><StudySessionHUD class="flashcard-session-progress" completed={sessionAnswered()}
           total={finiteSession() ? sessionTotal() : undefined} /></Show>
-        {/* Header with stats */}
-        <div class="flashcard-review-header">
-          <div class="flashcard-status">
-            <Badge class="flashcard-stat flashcard-stat--new">
-              <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.New')}</span>
-              <span class="flashcard-stat-value">{counts().new}</span>
-            </Badge>
-            <Badge class="flashcard-stat flashcard-stat--learning" variant="warning">
-              <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.LearningLabel')}</span>
-              <span class="flashcard-stat-value">{counts().learning}</span>
-            </Badge>
-            <Badge class="flashcard-stat flashcard-stat--review" variant="success">
-              <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.Review')}</span>
-              <span class="flashcard-stat-value">{counts().review}</span>
-            </Badge>
-          </div>
 
-          <div class="flashcard-header-actions">
+            <Show when={props.onClose}><Button variant="ghost" size="sm" onClick={() => props.onClose?.()}>{t('mlearn.Product.Return')}</Button></Show>
             <Show when={ratingPersistenceState() === 'failed'}>
               <div class="flashcard-rating-write flashcard-rating-write--failed" role="alert">
                 <span>{t('mlearn.Flashcards.Review.PendingRatingsSaveFailed')}</span>
@@ -1440,7 +1442,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   </Show>
                   <Show when={props.onClose}>
                     <Button buttonType="default" onClick={props.onClose}>
-                      {t('mlearn.Global.Close')}
+                      {t('mlearn.Product.Return')}
                     </Button>
                   </Show>
                 </div>
@@ -1519,7 +1521,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
 
         {/* Buttons container */}
         <div class="flashcard-buttons-container" ref={element => { reviewActionsContainer = element; setReviewActionsTarget(element); }}>
-          <Show when={props.onClose}><Button variant="ghost" onClick={() => props.onClose?.()}>{t('mlearn.Global.Back')}</Button></Show>
           <WriteStatusBanner status={removalWrite()?.phase === 'failed' ? 'failed' : null}
             savingLabelKey="mlearn.Flashcards.Review.SavingRemoval" failedLabelKey="mlearn.Flashcards.Review.RemovalSaveFailed"
             canRetry={removalWrite()?.phase === 'failed' && removalStillMatches(removalWrite()!)}

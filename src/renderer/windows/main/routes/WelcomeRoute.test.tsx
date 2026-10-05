@@ -8,11 +8,11 @@ const fixture = vi.hoisted(() => ({ navigate: vi.fn(), openWindow: vi.fn(), rece
   review: undefined as { id: string } | undefined,
   presentation: undefined as { id: string; cardId: string } | undefined,
 }));
-vi.mock('@solidjs/router', () => ({ useNavigate: () => fixture.navigate }));
+vi.mock('../applicationHost', () => ({ useApplicationNavigate: () => fixture.navigate }));
 vi.mock('../../../context', () => ({
   useSettings: () => ({ settings: { language: 'future', uiLanguage: 'en' } }),
   useLocalization: () => ({ t: (key: string) => key }),
-  useLanguage: () => ({ currentLangData: () => ({ name: 'Future language' }) }),
+  useLanguage: () => ({ currentLangData: () => ({ name: 'Future language', flagEmoji: 'package-flag' }) }),
   useFlashcards: () => ({ store: { flashcards: { card: { language: 'future' } }, meta: { reviewSessions: { future: fixture.review }, reviewPresentations: { future: fixture.presentation } } } }),
 }));
 vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ window: { openWindow: fixture.openWindow } }) }));
@@ -40,6 +40,11 @@ describe('purpose-led Home', () => {
   const open = (title: string) => container.querySelector<HTMLButtonElement>(`button[aria-labelledby="${Array.from(container.querySelectorAll('h3')).find(h => h.textContent === title)?.id}"]`)!.click();
   beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.grammarResume = null; fixture.review = undefined; fixture.presentation = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
   afterEach(() => { dispose?.(); container.remove(); });
+  it('retains the installed package badge and accessible language text', async () => {
+    await mount(); expect(container.querySelector('.welcome-language-flag')?.textContent).toBe('package-flag');
+    expect(container.querySelector('.welcome-subtitle')?.textContent).toContain('mlearn.Home.UI.LearningLanguage');
+    expect(container.querySelector('.welcome-language-flag')?.getAttribute('aria-hidden')).toBe('true');
+  });
   it('keeps five recognizable activities with no raw next-answer recommendation', async () => {
     await mount();
     expect(Array.from(container.querySelectorAll('h3')).map(h => h.textContent)).toEqual([
@@ -51,8 +56,8 @@ describe('purpose-led Home', () => {
   it('opens Review when an unrelated grammar pass is retained', async () => {
     fixture.grammarResume = { context: { activity: 'grammar', patterns: ['private upcoming cue'] } };
     await mount(); open('mlearn.Product.Practise');
-    expect(fixture.navigate).toHaveBeenCalledWith('/practise');
-    expect(fixture.openWindow).not.toHaveBeenCalled();
+    expect(fixture.navigate).not.toHaveBeenCalled();
+    expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'flashcards', context: { activity: 'review', intent: 'start', returnTo: 'home' } });
     expect(container.textContent).not.toContain('private upcoming cue');
     Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('mlearn.Product.GrammarPractice'))!.click();
     expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'grammar', patterns: ['private upcoming cue'], intent: 'resume', returnTo: 'home' } });

@@ -4182,6 +4182,10 @@
       "Finished": "Session finished. {count} encounters recorded."
     },
     "Product": {
+      "ReviewDescription": "Recall saved cards with audio, ratings and Undo.",
+      "WordPracticeDescription": "Practise words in your selected scope.",
+      "GrammarPracticeDescription": "Choose structures to practise.",
+      "OtherSessions": "Other saved sessions",
       "Practise": "Practise",
       "Evaluate": "Evaluate",
       "Plan": "Plan",

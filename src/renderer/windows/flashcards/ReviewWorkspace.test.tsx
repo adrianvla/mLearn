@@ -7,7 +7,7 @@ vi.mock('../../context', () => ({
   useSettings: () => ({ settings: { language: 'future' } }),
   useLocalization: () => ({ t: (key: string) => key }),
 }));
-vi.mock('../../components/common', () => ({ Button: (props: { children: unknown; onClick?: () => void; disabled?: boolean }) =>
+vi.mock('../../components/common', () => ({ TargetIcon: () => null, ActionCard: (props: { title: string; onClick?: () => void }) => <button onClick={props.onClick}>{props.title}</button>, Button: (props: { children: unknown; onClick?: () => void; disabled?: boolean }) =>
   <button disabled={props.disabled} onClick={props.onClick}>{props.children as string}</button> }));
 import { ReviewWorkspace } from './ReviewWorkspace';
 let container: HTMLDivElement;
@@ -23,6 +23,22 @@ beforeEach(() => {
 });
 afterEach(() => { dispose?.(); dispose = undefined; container.remove(); });
 describe('Review workspace admission', () => {
+  it('the primary chooser action resumes the exact saved Review in one action', async () => {
+    mount();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent?.startsWith('mlearn.StudyEncounter.Resume'))!.click();
+    await settle();
+    expect(fixture.switchPosition).toHaveBeenCalledOnce();
+    expect(fixture.switchPosition).toHaveBeenCalledWith(expect.objectContaining({ resumeId: 'saved-choice' }));
+    expect(container.querySelector('[data-reviewer]')).not.toBeNull();
+  });
+  it('the default chooser action starts directly when no saved Review exists', async () => {
+    fixture.store.meta = {}; mount();
+    expect(fixture.switchPosition).not.toHaveBeenCalled();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent?.startsWith('mlearn.LevelStudy.Mock.Start'))!.click();
+    await settle();
+    expect(fixture.switchPosition).toHaveBeenCalledOnce();
+    expect(container.querySelector('[data-reviewer]')).not.toBeNull();
+  });
   it('Open offers Start and exact Resume without mounting a reviewer or changing the cursor', () => {
     mount();
     expect(container.querySelector('[data-reviewer]')).toBeNull();

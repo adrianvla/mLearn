@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from '@solidjs/router';
-import { For, Show, onMount, onCleanup, type ParentComponent } from 'solid-js';
+import { For, Show, createEffect, onMount, onCleanup, type ParentComponent } from 'solid-js';
 import { useLocalization } from '../../context';
 import { LibraryLoadGuard } from '../../context/WindowWrapper';
 import { getBridge } from '../../../shared/bridges';
@@ -20,11 +20,16 @@ export const ApplicationShell: ParentComponent = props => {
     ? [['/practise', 'mlearn.Product.Practise'], ['/evaluate', 'mlearn.Product.Evaluate']]
     : host() === 'my-learning'
       ? [['/plan', 'mlearn.Product.Plan'], ['/knowledge', 'mlearn.Product.Knowledge'], ['/progress', 'mlearn.Product.Progress']] : [];
+  createEffect(() => {
+    const label = host() === 'study' ? location.pathname.startsWith('/evaluate') ? 'mlearn.Product.Evaluate' : 'mlearn.Product.Practise' : host() === 'my-learning' ? 'mlearn.Product.MyLearning' : host() === 'settings' ? 'mlearn.Settings.UI.Title' : undefined;
+    document.title = `${t('mlearn.Global.AppName')}${label ? ` · ${t(label)}` : ''}`;
+  });
   onMount(() => {
     const bridge = getBridge();
     const cleanup = bridge.window.onWindowContext(context => {
       if (isApplicationNavigation(context)) {
         const request = context.applicationNavigation;
+        if (location.pathname === request.path && Object.keys(request.context ?? {}).every(key => key === 'applicationPath')) return;
         if (request.context?.applicationReturn === true) {
           const source = request.context.sourceContext;
           if (source && typeof source === 'object' && !Array.isArray(source)) {

@@ -59,6 +59,7 @@ export const WelcomeRoute: Component = () => {
     } else sessionStorage.setItem('mlearn_open_book', item.path);
     navigate(route);
   };
+  const startReview = () => getBridge().window.openWindow({ type: 'flashcards', context: { activity: 'review', intent: 'start', returnTo: 'home' } });
   const resumeReview = () => getBridge().window.openWindow({ type: 'flashcards', context: {
     activity: 'review', intent: 'resume', sessionId: savedReview()?.id, returnTo: 'home',
   } });
@@ -67,7 +68,7 @@ export const WelcomeRoute: Component = () => {
     <div class="welcome-page">
       <header class="welcome-header">
         <div class="welcome-logo"><AppLogo size="1.75rem" /><h1>{t('mlearn.Global.AppName')}</h1></div>
-        <span class="welcome-subtitle">{t('mlearn.Home.UI.LearningLanguage', { language: getLocalizedLanguageName(settings.language,
+        <span class="welcome-subtitle"><Show when={language.currentLangData()?.flagEmoji}>{flag => <span class="welcome-language-flag" aria-hidden="true">{flag()}</span>}</Show>{t('mlearn.Home.UI.LearningLanguage', { language: getLocalizedLanguageName(settings.language,
           language.currentLangData(), t, t('mlearn.Common.Status.Unknown'), settings.uiLanguage) })}</span>
       </header>
       <Show when={targetScope().selected}><LearningGoals compact onEdit={() => navigate('/plan')} /></Show>
@@ -83,9 +84,9 @@ export const WelcomeRoute: Component = () => {
         <WelcomeFeatureCard icon={<BotIcon size={22} />} title={t('mlearn.Product.Messenger')}
           description={t('mlearn.Product.MessengerDescription')} onClick={() => navigate('/messenger')} />
         <WelcomeFeatureCard icon={<TargetIcon size={22} />} title={t('mlearn.Product.Practise')}
-          description={t('mlearn.Flashcards.UI.Tabs.Review')} onClick={() => navigate('/practise')}
+          description={t('mlearn.Flashcards.UI.Tabs.Review')} onClick={() => savedReview() ? resumeReview() : startReview()}
           preview={<div class="welcome-resume-actions">
-            <Show when={savedReview()}><Button variant="primary" onClick={resumeReview}>{t('mlearn.StudyEncounter.Resume')} · {t('mlearn.Flashcards.UI.Tabs.Review')}</Button></Show>
+            <Button variant="primary" onClick={() => savedReview() ? resumeReview() : startReview()}>{t(savedReview() ? 'mlearn.StudyEncounter.Resume' : 'mlearn.LevelStudy.Mock.Start')} · {t('mlearn.Flashcards.UI.Tabs.Review')}</Button>
             <Show when={grammarResume()}>{saved => <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
               ...saved().context, intent: 'resume', returnTo: 'home',
             } })}>{t('mlearn.StudyEncounter.Resume')} · {t('mlearn.Product.GrammarPractice')}</Button>}</Show>
@@ -96,6 +97,10 @@ export const WelcomeRoute: Component = () => {
         <WelcomeFeatureCard icon={<TargetIcon size={22} />} title={t('mlearn.Product.Evaluate')}
           description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate')} />
       </div>
+      <footer class="welcome-secondary-actions">
+        <Button onClick={() => getBridge().window.openWindow({ type: 'my-learning' })}>{t('mlearn.Product.MyLearning')}</Button>
+        <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>{t('mlearn.Settings.UI.Title')}</Button>
+      </footer>
     </div>
   </main>;
 };

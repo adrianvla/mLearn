@@ -1,7 +1,7 @@
 import { MemoryBrowserContent } from '../memoryBrowser/App';
 import { useApplicationNavigate, useApplicationReturn } from './applicationHost';
 import { Route, useLocation } from '@solidjs/router';
-import { Show, createMemo, type Component } from 'solid-js';
+import { Show, createMemo, type Component, type ParentComponent } from 'solid-js';
 import { FlashcardsContent } from '../flashcards/App';
 import { ConversationContent } from '../conversationAgent/App';
 import { LevelStudyContent } from '../levelStudy/App';
@@ -12,7 +12,7 @@ import { StatisticsContent } from '../statistics/App';
 import { SettingsContent } from '../settings/SettingsWindow';
 import { MobileSettingsView } from '../settings/MobileSettingsView';
 import { useLocalization } from '../../context';
-import { Button, LearningWorkspace } from '../../components/common';
+import { ActionCard, Button, TargetIcon, LearningWorkspace } from '../../components/common';
 import { WelcomeRoute } from './routes/WelcomeRoute';
 import { ReaderRoute } from './routes/ReaderRoute';
 import { VideoRoute } from './routes/VideoRoute';
@@ -55,12 +55,13 @@ const Messenger: Component<RequestedWorkspaceProps> = props => {
 const Review: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();
   return <LearningWorkspace><FlashcardsContent workspace="review" launchContext={props.launchContext} onClose={() => navigate(
-    props.launchContext?.returnTo === 'plan' ? '/plan' : props.launchContext?.returnTo === 'material' ? '/knowledge/material' : '/'
+    props.launchContext?.returnTo === 'reader' ? '/reader' : props.launchContext?.returnTo === 'video' ? '/video'
+      : props.launchContext?.returnTo === 'plan' ? '/plan' : props.launchContext?.returnTo === 'material' ? '/knowledge/material' : '/', props.launchContext
   )} /></LearningWorkspace>;
 };
 const Material: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationNavigate();
-  return <FlashcardsContent workspace="material" launchContext={props.launchContext} initialTab="browse" onClose={() => navigate('/knowledge')} />;
+  return <KnowledgeViews><FlashcardsContent workspace="material" launchContext={props.launchContext} initialTab="browse" onClose={() => navigate('/knowledge')} /></KnowledgeViews>;
 };
 const Plan: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationNavigate();
@@ -69,7 +70,7 @@ const Plan: Component<RequestedWorkspaceProps> = props => {
 const Grammar: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();
   return <LearningWorkspace><LevelStudyContent workspace="grammar" launchContext={props.launchContext}
-    onClose={() => navigate(props.launchContext?.returnTo === 'home' ? '/' : props.launchContext?.returnTo === 'mock' ? '/evaluate/grammar/mock' : props.launchContext?.returnTo === 'evaluate' ? '/evaluate/grammar' : '/plan')} /></LearningWorkspace>;
+    onClose={() => navigate(props.launchContext?.returnTo === 'home' ? '/' : props.launchContext?.returnTo === 'mock' ? '/evaluate/grammar/mock' : props.launchContext?.returnTo === 'evaluate' ? '/evaluate/grammar' : props.launchContext?.returnTo === 'reader' ? '/reader' : props.launchContext?.returnTo === 'video' ? '/video' : '/plan', props.launchContext)} /></LearningWorkspace>;
 };
 const GrammarAssessment: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();
@@ -86,9 +87,13 @@ const Evaluate: Component = () => {
   const navigate = useApplicationNavigate();
   return <section class="product-workspace"><h1>{t('mlearn.Product.Evaluate')}</h1>
     <p>{t('mlearn.Product.KnowledgeCheckDescription')}</p>
-    <div class="product-workspace-actions"><Button variant="primary" onClick={() => navigate('/evaluate/words')}>{t('mlearn.Product.KnowledgeCheck')}</Button>
-      <Button onClick={() => navigate('/evaluate/grammar')}>{t('mlearn.Product.GrammarCheck')}</Button>
-      <Button onClick={() => navigate('/evaluate/grammar/mock')}>{t('mlearn.LevelStudy.Mock.Title')}</Button></div>
+    <div class="study-chooser-alternatives"><ActionCard icon={<TargetIcon size={24} />} primary title={t('mlearn.Product.KnowledgeCheck')}
+      description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate/words', { state: {
+        applicationRequestId: crypto.randomUUID(), applicationContext: { intent: 'start', returnTo: 'evaluate' },
+      } })} />
+      <ActionCard icon={<TargetIcon size={24} />} title={t('mlearn.Product.GrammarCheck')}
+        description={t('mlearn.Product.GrammarPracticeDescription')} onClick={() => navigate('/evaluate/grammar')} /></div>
+      <div class="product-workspace-actions"><Button variant="ghost" onClick={() => navigate('/evaluate/grammar/mock')}>{t('mlearn.LevelStudy.Mock.Title')}</Button></div>
   </section>;
 };
 const returnToWorkspace = (navigate: ReturnType<typeof useApplicationReturn>, context: Record<string, unknown> | undefined) => (path: string, savedContext?: Record<string, unknown>) => navigate(path, savedContext ?? context);
@@ -100,12 +105,21 @@ const Words: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();
   return <LearningWorkspace><WordStudyWorkspace mode="study" launchContext={props.launchContext} onReturn={returnToWorkspace(navigate, props.launchContext)} /></LearningWorkspace>;
 };
-const Knowledge: Component = () => {
+const KnowledgeViews: ParentComponent = props => {
   const { t } = useLocalization();
+  const location = useLocation();
   const navigate = useApplicationNavigate();
-  return <><div class="product-workspace-actions"><Button onClick={() => navigate('/knowledge/material')}>{t('mlearn.Product.SavedMaterial')}</Button>
-    <Button onClick={() => navigate('/knowledge/characters')}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Button></div><WordDbEditorContent /></>;
+  const view = (path: string, label: string) => <button type="button" classList={{ 'is-active': location.pathname === path }} onClick={() => navigate(path)}>{t(label)}</button>;
+  return <section class="knowledge-views">
+    <nav class="knowledge-view-navigation" aria-label={t('mlearn.Product.Knowledge')}>
+      {view('/knowledge', 'mlearn.MediaStats.Tab.Words')}
+      {view('/knowledge/material', 'mlearn.Product.SavedMaterial')}
+      {view('/knowledge/characters', 'mlearn.LevelStudy.Tabs.CharacterGrid')}
+    </nav><div class="knowledge-view-content">{props.children}</div>
+  </section>;
 };
+const Knowledge: Component = () => <KnowledgeViews><WordDbEditorContent /></KnowledgeViews>;
+const Characters: Component = () => <KnowledgeViews><CharacterGridContent /></KnowledgeViews>;
 const Settings: Component<RequestedWorkspaceProps> = props => <Show when={isMobile()} fallback={<SettingsContent launchContext={props.launchContext} />}><MobileSettingsView launchContext={props.launchContext} /></Show>;
 
 const requested = (content: Component<RequestedWorkspaceProps>) => () => <RequestedContent content={content} />;
@@ -123,7 +137,7 @@ export const ApplicationRoutes = () => <>
   <Route path="/evaluate/grammar/mock" component={requested(GrammarMock)} />
   <Route path="/plan" component={requested(Plan)} />
   <Route path="/knowledge" component={Knowledge} /><Route path="/knowledge/material" component={requested(Material)} />
-  <Route path="/knowledge/characters" component={CharacterGridContent} />
+  <Route path="/knowledge/characters" component={Characters} />
   <Route path="/progress" component={StatisticsContent} /><Route path="/settings" component={requested(Settings)} />
   <Route path="/flashcards" component={requested(Review)} /><Route path="/level-study" component={requested(Plan)} />
   <Route path="/conversation-agent" component={requested(Messenger)} /><Route path="/word-db-editor" component={Knowledge} />

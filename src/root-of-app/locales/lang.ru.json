@@ -4182,6 +4182,10 @@
       "Finished": "Сессия завершена. Записано встреч: {count}."
     },
     "Product": {
+      "ReviewDescription": "Повторяйте сохранённые карточки с аудио, оценками и отменой.",
+      "WordPracticeDescription": "Практикуйте слова в выбранном объёме.",
+      "GrammarPracticeDescription": "Выберите конструкции для практики.",
+      "OtherSessions": "Другие сохранённые занятия",
       "Practise": "Практика",
       "Evaluate": "Оценка",
       "Plan": "План",

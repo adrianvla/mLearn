@@ -168,13 +168,13 @@ describe('LevelStudyContent', () => {
     expect(container.textContent).not.toContain('Word Sync Content');
     const practice = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Home.Today.PracticeAction');
     practice?.click();
-    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'practice', returnTo: 'plan' } });
+    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'practice', intent: 'start', returnTo: 'plan' } });
     expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
     expect(container.textContent).toContain('Plan controls');
     dispose();
   });
 
-  it('shows the character grid tab when language metadata enables character study scripts', async () => {
+  it('foregrounds target and coverage even when character study is available', async () => {
     currentLangDataMock = {
             characterStudy: { scripts: ['Arab'] },
     };
@@ -182,8 +182,8 @@ describe('LevelStudyContent', () => {
     const { LevelStudyContent } = await import('./App');
     const dispose = render(() => <LevelStudyContent />, container);
 
-    expect(container.textContent).toContain('mlearn.StudyEncounter.Task');
-    expect(container.textContent).toContain('Character Grid');
+    expect(container.textContent).not.toContain('mlearn.StudyEncounter.Task');
+    expect(container.textContent).not.toContain('Character Grid');
     expect(container.textContent).toContain('Level Study');
 
     dispose();
@@ -197,7 +197,7 @@ describe('LevelStudyContent', () => {
     expect(assess).toBeDefined();
     assess!.click();
 
-    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'assessment', returnTo: 'plan' } });
+    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'assessment', intent: 'start', returnTo: 'plan' } });
     expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
     expect(container.textContent).toContain('Plan controls');
     dispose();
@@ -214,7 +214,7 @@ describe('LevelStudyContent', () => {
     const { LevelStudyContent } = await import('./App');
     const dispose = render(() => <LevelStudyContent />, container);
 
-    expect(container.textContent).toContain('mlearn.StudyEncounter.Task');
+    expect(container.textContent).not.toContain('mlearn.StudyEncounter.Task');
     expect(container.textContent).not.toContain('Character Grid');
     expect(container.textContent).toContain('Level Study');
 

@@ -10,7 +10,7 @@ vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
 } }) }));
 vi.mock('../../../shared/platform', () => ({ isElectron: () => !fixture.mobile, isMobile: () => fixture.mobile }));
 vi.mock('./components/LoadingOverlay', () => ({ LoadingOverlay: () => <span data-testid="backend-overlay" /> }));
-vi.mock('../../components/common', () => ({ LearningWorkspace: (props: { children?: import('solid-js').JSX.Element }) => props.children, Button: (props: { children?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button> }));
+vi.mock('../../components/common', () => ({ LearningWorkspace: (props: { children?: import('solid-js').JSX.Element }) => props.children, TargetIcon: () => null, ActionCard: (props: { title: string; onClick?: () => void }) => <button onClick={props.onClick}>{props.title}</button>, Button: (props: { children?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button> }));
 vi.mock('../flashcards/App', () => ({ FlashcardsContent: (props: { initialTab?: string; onClose?: () => void }) => {
   fixture.mounted(props.initialTab ?? 'review'); return <div data-content={props.initialTab ?? 'review'}><button onClick={props.onClose}>Return</button></div>;
 } }));
@@ -85,9 +85,9 @@ describe('application shell route ownership', () => {
   it('mounts a deliberate new request on the same route and releases the navigation listener', async () => {
     window.history.replaceState(null, '', '#/practise'); mount();
     expect(fixture.mounted).toHaveBeenCalledTimes(1);
-    fixture.listener!({ applicationNavigation: { path: '/practise', requestId: 'first' } });
+    fixture.listener!({ applicationNavigation: { path: '/practise', requestId: 'first', context: { intent: 'start' } } });
     await vi.waitFor(() => expect(fixture.mounted).toHaveBeenCalledTimes(2));
-    fixture.listener!({ applicationNavigation: { path: '/practise', requestId: 'second' } });
+    fixture.listener!({ applicationNavigation: { path: '/practise', requestId: 'second', context: { intent: 'start' } } });
     await vi.waitFor(() => expect(fixture.mounted).toHaveBeenCalledTimes(3));
     expect(container.querySelectorAll('[data-content="review"]')).toHaveLength(1);
     dispose(); expect(fixture.unsubscribe).toHaveBeenCalledOnce();
@@ -103,7 +103,7 @@ describe('application shell route ownership', () => {
     expect(container.querySelector('[data-content="words"]')?.getAttribute('data-words')).toBe('["one","two"]');
     expect(container.querySelector('[data-content="words"]')?.getAttribute('data-intent')).toBe('reinforce');
     expect(container.querySelector('[data-content="words"]')?.getAttribute('data-limit')).toBe('7');
-    fixture.listener!({ applicationNavigation: { path: '/practise/words', requestId: 'open-second', context: {} } });
+    fixture.listener!({ applicationNavigation: { path: '/practise/words', requestId: 'open-second', context: { intent: 'open' } } });
     await vi.waitFor(() => expect(container.querySelector('[data-content="words"]')?.getAttribute('data-words')).toBeNull());
     expect(container.querySelector('[data-content="words"]')?.getAttribute('data-intent')).toBeNull();
   });

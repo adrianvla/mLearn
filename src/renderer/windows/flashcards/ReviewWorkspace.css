@@ -1,0 +1,4 @@
+.study-chooser-primary { margin-block: var(--spacing-4); }
+.study-chooser-alternatives { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-3); }
+.study-chooser-saved { margin-block: var(--spacing-4); }
+@media (max-width: 640px) { .study-chooser-alternatives { grid-template-columns: 1fr; } }
