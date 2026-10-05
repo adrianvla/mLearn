@@ -8017,6 +8017,49 @@ describe('acknowledged rating command semantics', () => {
     dispose();
   });
 
+  it('corrects a retracted frozen word report using original conditions and one idempotent replacement', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const SRS = await import('../services/srsAlgorithm');
+    const key = `ja:${SRS.hashWordSync('学校')}`;
+    const decision = { id: 'word-original-correction', at: 1, policyVersion: 'test',
+      selected: { key: 'school', action: 'PROBE', targets: ['sense-recognition', 'surface-reading'].map(capability => ({ kind: 'surface', id: `ja:surface:${SRS.hashWordSync('学校')}`, capability })),
+        task: { taskTemplateId: 'word-sync', inputModality: 'written-form', responseModality: 'recall', supplied: ['written-form'],
+          requested: ['sense-recognition', 'surface-reading'], fluencyRequired: false, ratingMode: 'profile' as const } },
+      baseline: null, detail: { 'package:unknown': { values: ['opaque', 3] } } };
+    await ctx.submitRating('学校', [{ capability: 'sense-recognition', quality: 'struggled', method: 'recall' }, { capability: 'surface-reading', quality: 'missed', method: 'recall' }],
+      { language: 'ja', attemptId: 'word-original', origin: 'word-sync', decision, sourceVersions: { packageVersions: { 'unknown-package': 'v7' } }, scaffolds: { 'package:unknown': true },
+        timing: { wallLatencyMs: 500, activeLatencyMs: 400, interruptionCount: 1, interrupted: true, stalled: false } });
+    const original = (await knowledgeJournal.getKnowledgeRows([key]))[key].find(row => row.event.attemptId === 'word-original')!.event;
+    const options = { language: 'ja', attemptId: 'word-replacement', origin: 'word-sync', decision,
+      correctsAttemptId: 'word-original', scaffolds: { translation: true }, correctedAttemptAt: 999 };
+    const observations = [{ capability: 'sense-recognition', quality: 'fluent', method: 'recall' },
+      { capability: 'surface-reading', quality: 'struggled', method: 'recall' }] as const;
+    await expect(ctx.submitRating('学校', observations, options)).rejects.toThrow('retracted original');
+    await mockAppendEvents({ [key]: [{ t: Date.now(), kind: 'retraction', source: 'manual', retracts: 'word-original' }] });
+    mockAppendEvents.mockRejectedValueOnce(new Error('correction journal unavailable'));
+    await expect(ctx.submitRating('学校', observations, options)).rejects.toThrow('correction journal unavailable');
+    await ctx.submitRating('学校', observations, options);
+    const replacement = (await knowledgeJournal.getKnowledgeRows([key]))[key].find(row => row.event.correctsAttemptId === 'word-original')!.event;
+    expect(replacement).toMatchObject({ t: original.t, attemptId: 'word-replacement', correctsAttemptId: 'word-original', quality: 'fluent',
+      scaffolds: { 'package:unknown': true }, latencyMs: 500, activeLatencyMs: 400, interruptionCount: 1, decision });
+    const originals = (await knowledgeJournal.getKnowledgeRows([key]))[key].filter(row => row.event.attemptId === 'word-original');
+    const corrected = (await knowledgeJournal.getKnowledgeRows([key]))[key].filter(row => row.event.correctsAttemptId === 'word-original');
+    for (const row of originals) {
+      const event = corrected.find(value => value.event.targetRef?.capability === row.event.targetRef?.capability)!.event;
+      expect(event).toMatchObject({ targetRef: row.event.targetRef, decisionRef: row.event.decisionRef, t: row.event.t,
+        scaffolds: row.event.scaffolds, sourceVersions: row.event.sourceVersions, latencyMs: row.event.latencyMs,
+        activeLatencyMs: row.event.activeLatencyMs, interruptionCount: row.event.interruptionCount });
+    }
+    await ctx.submitRating('学校', observations, options);
+    expect((await knowledgeJournal.getKnowledgeRows([key]))[key].filter(row => row.event.correctsAttemptId === 'word-original')).toHaveLength(2);
+    await expect(ctx.submitRating('学校', observations, { ...options, attemptId: 'word-second-replacement' })).rejects.toThrow('already has a replacement');
+    await expect(ctx.submitRating('学校', observations.slice(0, 1), { ...options, attemptId: 'word-partial' })).rejects.toThrow('retracted original');
+    await expect(ctx.submitRating('different', observations, { ...options, attemptId: 'word-other-target' })).rejects.toThrow();
+    await expect(ctx.submitRating('学校', observations, { ...options, attemptId: 'word-rebound', decision: { ...decision, id: 'other-decision' } })).rejects.toThrow();
+    dispose();
+  });
+
   it('journals the pinned decision on the first measured row after scaffold filtering and refuses a mismatched exact target', async () => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());

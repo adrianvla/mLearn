@@ -130,7 +130,6 @@ export default defineConfig(async ({ command, mode }) => {
         'memory-browser': resolve(__dirname, 'src/html/memory-browser.html'),
         'word-definition': resolve(__dirname, 'src/html/word-definition.html'),
         'plugin-host': resolve(__dirname, 'src/html/plugin-host.html'),
-        'word-sync': resolve(__dirname, 'src/html/word-sync.html'),
         'level-study': resolve(__dirname, 'src/html/level-study.html'),
         overlay: resolve(__dirname, 'src/html/overlay.html'),
         diagnostics: resolve(__dirname, 'src/html/diagnostics.html'),

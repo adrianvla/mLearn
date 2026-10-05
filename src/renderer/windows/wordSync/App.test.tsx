@@ -715,17 +715,21 @@ describe('WordSyncContent', () => {
   };
 
 beforeEach(() => {
-    let lockChain = Promise.resolve();
+    const lockChains = new Map<string, Promise<void>>();
     Object.defineProperty(navigator, 'locks', {
       configurable: true,
       value: {
-        request: async <T,>(_name: string, callback: () => T | Promise<T>): Promise<T> => {
-          const job = lockChain.then(callback);
-          lockChain = job.then(() => undefined, () => undefined);
+        request: async <T,>(name: string, callback: () => T | Promise<T>): Promise<T> => {
+          const job = (lockChains.get(name) ?? Promise.resolve()).then(callback);
+          lockChains.set(name, job.then(() => undefined, () => undefined));
           return job;
         },
       },
     });
+    for (let index = localStorage.length - 1; index >= 0; index--) {
+      const key = localStorage.key(index);
+      if (key?.startsWith('mlearn-review-assistance:')) localStorage.removeItem(key);
+    }
     window.localStorage.removeItem('mlearn-study-word-sync:ja');
     window.localStorage.removeItem('mlearn-study-word-sync-assessment:ja');
     container = document.createElement('div');
@@ -899,6 +903,97 @@ beforeEach(() => {
     expect(container.querySelector('.word-sync-assessment-card')).not.toBeNull();
     expect(JSON.parse(localStorage.getItem(key)!).revealed).toBe(true);
     expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
+  it.each(['study', 'assessment'] as const)('an explicit new %s task inherits unanswered reveal exposure while exact Resume retains the original report', async mode => {
+    const { WordSyncContent } = await import('./App');
+    let dispose = mountContent(() => <WordSyncContent mode={mode} launchIntent="start" />);
+    await settle(); await settle();
+    press(' '); await settle();
+    const key = mode === 'study' ? 'mlearn-study-word-sync:ja' : 'mlearn-study-word-sync-assessment:ja';
+    const original = JSON.parse(localStorage.getItem(key)!);
+    dispose();
+    dispose = mountContent(() => <WordSyncContent mode={mode} launchIntent="start" />);
+    await settle(); await settle();
+    const replay = JSON.parse(localStorage.getItem(key)!);
+    expect(replay.id).not.toBe(original.id);
+    press(' '); await settle(); press('3'); await settle();
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
+    dispose();
+    dispose = mountContent(() => <WordSyncContent mode={mode} launchIntent="resume" resumeSessionId={original.id} />);
+    await settle(); await settle();
+    press('3'); await settle();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    if (mode === 'study') expect(mockSubmitRating.mock.calls[0][2]).toMatchObject({ decision: original.meta.encounter.decision });
+    dispose();
+  });
+
+  it.each(['reference', 'correction'] as const)('preserves %s exposure in another word task without rebinding the original report', async kind => {
+    const { WordSyncContent } = await import('./App');
+    let dispose = mountContent(() => <WordSyncContent launchIntent="start" />);
+    await settle(); await settle();
+    if (kind === 'reference') {
+      buttonByText('mlearn.Knowledge.Popup.Inspect').click(); await settle(); await settle();
+      closeKnowledgeInspector();
+    } else {
+      press(' '); await settle(); press('3'); await settle(); await settle();
+      press('z', { metaKey: true }); await settle(); await settle();
+    }
+    const original = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!);
+    const calls = mockSubmitRating.mock.calls.length;
+    dispose();
+    dispose = mountContent(() => <WordSyncContent launchIntent="start" />);
+    await settle(); await settle(); press(' '); await settle(); press('3'); await settle();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(calls);
+    expect(container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
+    dispose();
+    dispose = mountContent(() => <WordSyncContent launchIntent="resume" resumeSessionId={original.id} />);
+    await settle(); await settle();
+    if (kind === 'correction') {
+      press('3'); await settle(); await settle();
+      expect(mockSubmitRating).toHaveBeenCalledTimes(calls + 1);
+      expect(mockSubmitRating.mock.calls.at(-1)![2]).toMatchObject({ correctsAttemptId: original.meta.correction.attemptId, decision: original.meta.encounter.decision });
+    } else {
+      press(' '); await settle(); press('3'); await settle();
+      expect(mockSubmitRating).toHaveBeenCalledTimes(calls);
+    }
+    dispose();
+  });
+
+  it('an unrevealed saved word task inherits a later sibling task reveal on Resume', async () => {
+    const { WordSyncContent } = await import('./App');
+    let dispose = mountContent(() => <WordSyncContent launchIntent="start" />);
+    await settle(); await settle();
+    const original = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!);
+    expect(original.revealed).toBe(false);
+    dispose();
+    dispose = mountContent(() => <WordSyncContent launchIntent="start" />);
+    await settle(); await settle(); press(' '); await settle();
+    dispose();
+    dispose = mountContent(() => <WordSyncContent launchIntent="resume" resumeSessionId={original.id} />);
+    await settle(); await settle(); press(' '); await settle(); press('3'); await settle();
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
+    dispose();
+  });
+
+  it('recovers an interrupted original correction with the answer side still rateable', async () => {
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle(); await settle(); press(' '); await settle(); press('3'); await settle(); await settle();
+    mockCompletePendingRetraction.mockResolvedValueOnce('store-refused');
+    press('z', { metaKey: true }); await settle();
+    const originalId = mockSubmitRating.mock.calls[0][2].attemptId;
+    expect(pendingRecord).not.toBeNull();
+    dispose();
+    const resumed = mountContent(WordSyncContent); await settle(); await settle();
+    expect(container.textContent).toContain('mlearn.Flashcards.Review.CorrectingReport');
+    press('3'); await settle();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(2);
+    expect(mockSubmitRating.mock.calls[1][2]).toMatchObject({ correctsAttemptId: originalId });
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+    resumed();
   });
 
   it('editing filters preserves the old task until an explicit Start archives it', async () => {
@@ -1959,7 +2054,7 @@ beforeEach(() => {
     // This record predates retraction targets, so it carries none. It must
     // still be routed rather than dropped: discarding it mid-undo is exactly
     // the stranded rating the record was written to prevent.
-    expect(pendingRecord).toBeNull();
+    await vi.waitFor(() => expect(pendingRecord).toBeNull());
     // The record is cleared only once the retraction is durable.
     expect(pendingRecord).toBeNull();
 
@@ -2042,15 +2137,13 @@ beforeEach(() => {
     // The re-presented word comes back collapsed…
     expect(mockRatingObservation).toHaveBeenCalledTimes(1);
 
-    // The answer was already revealed; Undo retracts evidence, not exposure.
-    press(' ');
-    await settle();
-    await settle();
+    // One rating directly corrects the original report from its answer side.
     press('3');
     await settle();
     await settle();
-    expect(mockRatingObservation).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
+    expect(mockRatingObservation).toHaveBeenCalledTimes(2);
+    expect(mockSubmitRating.mock.calls.at(-1)![2]).toMatchObject({ correctsAttemptId: attemptId });
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
     dispose();
   });
 
@@ -2937,7 +3030,7 @@ beforeEach(() => {
     dispose();
   });
 
-  it('hides a manually-toggled translation on undo', async () => {
+  it('restores the answer side for a frozen original report correction', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
 
@@ -2952,11 +3045,12 @@ beforeEach(() => {
     await settle();
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
 
-    // Undo restores the word with the translation hidden.
+    // Undo opens the original report on its answer side.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
     await settle();
     expect(container.textContent).toContain('赤い:あかい');
-    expect(container.textContent).not.toContain('red');
+    expect(container.textContent).toContain('red');
+    expect(container.textContent).toContain('mlearn.Flashcards.Review.CorrectingReport');
     dispose();
   });
 
@@ -3015,7 +3109,7 @@ beforeEach(() => {
     dispose();
   });
 
-  it('undo restores the previous word with the answer hidden again', async () => {
+  it('undo restores the previous frozen word report on its answer side', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
 
@@ -3030,15 +3124,16 @@ beforeEach(() => {
     await settle();
     expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
 
-    // Undo restores the word with the answer hidden (no translation leak).
+    // Undo restores the original report with its answer visible.
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
     await settle();
     expect(container.textContent).toContain('赤い:あかい');
-    expect(container.textContent).not.toContain('red');
+    expect(container.textContent).toContain('red');
+    expect(container.textContent).toContain('mlearn.Flashcards.Review.CorrectingReport');
     dispose();
   });
 
-  it('persists prior-answer exposure after Undo and restart instead of accepting another independent recall', async () => {
+  it('persists original report correction after Undo and restart instead of accepting another independent recall', async () => {
     mockFetchTranslation.mockResolvedValue({ data: [{ definitions: ['red'] }] });
     const { WordSyncContent } = await import('./App');
     const dispose = mountContent(WordSyncContent);
@@ -3047,13 +3142,38 @@ beforeEach(() => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
     await settle();
     const saved = JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja') ?? 'null');
-    expect(saved.meta.suppliedScaffolds?.['prior-cue-exposure']).toBe(true);
+    expect(saved.revealed).toBe(true);
+    expect(saved.meta.correction?.attemptId).toBe(mockSubmitRating.mock.calls.at(-1)![2].attemptId);
     dispose();
     mountContent(WordSyncContent); await settle(); await settle();
+    const calls = mockSubmitRating.mock.calls.length;
+    press('3'); await settle();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(calls + 1);
+    expect(mockSubmitRating.mock.calls.at(-1)![2]).toMatchObject({ correctsAttemptId: saved.meta.correction.attemptId, decision: saved.meta.encounter.decision });
+    expect(container.textContent).toContain('mlearn.WordSync.FinishedTitle');
+  });
+
+  it('keeps an unprovable legacy Undo receipt exposed after restart', async () => {
+    const { WordSyncContent } = await import('./App');
+    const dispose = mountContent(WordSyncContent);
+    await settle(); await settle();
+    press(' '); await settle(); press('3'); await settle();
+    mockCompletePendingRetraction.mockResolvedValueOnce('store-refused');
+    press('z', { metaKey: true }); await settle();
+    expect(pendingRecord).not.toBeNull();
+    const restored = pendingRecord!.restore.session as { revealed: boolean; meta: Record<string, unknown> };
+    delete restored.meta.correction;
+    delete restored.meta.encounter;
+    restored.revealed = false;
+    restored.meta.suppliedScaffolds = { 'provided-access:sense-recognition': true, 'prior-cue-exposure': true };
+    dispose();
+    const resumed = mountContent(WordSyncContent); await settle(); await settle();
     const calls = mockSubmitRating.mock.calls.length;
     press(' '); await settle(); press('3'); await settle();
     expect(mockSubmitRating).toHaveBeenCalledTimes(calls);
     expect(container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
+    expect(container.textContent).not.toContain('mlearn.Flashcards.Review.CorrectingReport');
+    resumed();
   });
 
   it('starting over presents the first word with the answer hidden', async () => {

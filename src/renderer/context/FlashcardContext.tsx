@@ -4439,7 +4439,37 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         throw new Error('This target is excluded from study');
       }
       const restored = scheduler ? store.meta.reviewPresentations?.[language] : undefined;
-      if (!admitted) options = { ...options, correctsAttemptId: undefined, correctedAttemptAt: undefined };
+      const wordCorrectionId = !scheduler && !options.selfAssessment ? options.correctsAttemptId : undefined;
+      let wordOriginals: KnowledgeEvent[] | undefined;
+      if (wordCorrectionId) {
+        const rows = await getBridge().knowledgeEvents.getKnowledgeRows([...wordRetractionTarget(word, language).keys]);
+        const logs = Object.values(rows).map(values => values.map(row => row.event));
+        wordOriginals = logs.flatMap(events => events.filter(event => event.kind === 'rating' && event.attemptId === wordCorrectionId));
+        const original = wordOriginals.find(event => event.decision);
+        if (!original?.decision || attemptId === wordCorrectionId || original.presentedSurface !== word || original.origin !== 'word-sync'
+          || original.taskType !== 'word-sync' || original.decision.selected.task.stages
+          || JSON.stringify(original.decision) !== JSON.stringify(options.decision)
+          || options.origin !== original.origin
+          || wordOriginals.length !== observations.length
+          || new Set(wordOriginals.map(event => event.targetRef?.capability)).size !== wordOriginals.length
+          || new Set(observations.map(row => row.capability)).size !== observations.length
+          || wordOriginals.some(event => event.presentedSurface !== word || (event.method && event.method !== 'recall')
+            || !observations.some(row => row.capability === event.targetRef?.capability)
+            || JSON.stringify(event.decisionRef) !== JSON.stringify(original.decisionRef))
+          || logs.some(events => events.some(event => event.kind === 'rating' && event.attemptId === wordCorrectionId)
+            && !events.some(event => event.kind === 'retraction' && event.retracts === wordCorrectionId))) {
+          throw new Error('Word correction requires the retracted original self-report');
+        }
+        const replacements = logs.flat().filter(event => event.correctsAttemptId === wordCorrectionId);
+        if (replacements.some(event => event.attemptId !== attemptId
+          || !observations.some(row => row.capability === event.targetRef?.capability && row.quality === event.quality))) {
+          throw new Error('The word report already has a replacement');
+        }
+        options = { ...options, correctsAttemptId: wordCorrectionId, correctedAttemptAt: original.t,
+          scaffolds: original.scaffolds, origin: original.origin, taskType: original.taskType, sourceVersions: original.sourceVersions };
+        observations = observations.map(row => ({ ...row,
+          method: wordOriginals!.find(event => event.targetRef?.capability === row.capability)!.method as AttemptObservation['method'] }));
+      } else if (!admitted) options = { ...options, correctsAttemptId: undefined, correctedAttemptAt: undefined };
       const presentationId = admitted ? admitted.presentationId
         : restored?.cardId === scheduler?.cardId ? restored?.id : undefined;
       if (!admitted && restored?.correction && scheduler && restored.cardId === scheduler.cardId) {
@@ -4518,6 +4548,12 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
       for (const entry of prepared) {
         if (!entry.event) continue;
+        if (wordOriginals) {
+          const original = wordOriginals.find(event => event.targetRef?.capability === entry.event!.value.targetRef?.capability)!;
+          const outcome = entry.event.value;
+          entry.event.value = { ...original, attemptId, correctsAttemptId: original.attemptId,
+            quality: outcome.quality, toStatus: outcome.toStatus, easeAfter: outcome.easeAfter };
+        }
         // An authored card can address an unmapped surface without claiming
         // that a dictionary node exists. Preserve the producing card identity
         // alongside its exact presented surface and explicit origin.
