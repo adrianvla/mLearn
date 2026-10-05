@@ -867,6 +867,63 @@ beforeEach(() => {
     expect(mockSubmitRating).not.toHaveBeenCalled();
   });
 
+  it.each(['study', 'assessment'] as const)('durably restores the original %s return source by exact identity across restart', async mode => {
+    const { WordSyncContent } = await import('./App');
+    const originalReturn = { returnTo: 'reader', sourceContext: { workspace: 'reader', path: '/books/source.epub', position: { chapter: 3, selection: [4, 9] }, 'future:source': { unknown: ['kept'] } } };
+    const newReturn = { returnTo: 'video', sourceContext: { workspace: 'video', path: '/videos/new.mp4', seconds: 12 } };
+    const key = mode === 'study' ? 'mlearn-study-word-sync:ja' : 'mlearn-study-word-sync-assessment:ja';
+    mountContent(() => <WordSyncContent mode={mode} launchIntent="start" returnContext={originalReturn} />);
+    await settle(); await settle();
+    const original = JSON.parse(localStorage.getItem(key)!);
+    expect(original.meta.returnContext).toEqual(originalReturn);
+    disposals.pop()!();
+    const onCloseNew = vi.fn();
+    mountContent(() => <WordSyncContent mode={mode} launchIntent="start" returnContext={newReturn} onClose={onCloseNew} />);
+    await settle(); await settle();
+    buttonByText('mlearn.Global.Back').click();
+    expect(onCloseNew).toHaveBeenCalledWith(newReturn);
+    disposals.pop()!();
+    const onClose = vi.fn();
+    mountContent(() => <WordSyncContent mode={mode} launchIntent="resume" resumeSessionId={original.id} returnContext={newReturn} onClose={onClose} />);
+    await settle(); await settle();
+    press(' '); await settle(); press('3'); await settle(); await settle();
+    buttonByText('mlearn.Global.Back').click();
+    expect(onClose).toHaveBeenCalledWith(originalReturn);
+    expect(JSON.parse(localStorage.getItem(key)!).meta.returnContext).toEqual(originalReturn);
+  });
+
+  it('exact Resume restores the original material scope without source context in the new route', async () => {
+    const { WordSyncContent } = await import('./App');
+    const origin = { returnTo: 'reader', sourceContext: { workspace: 'reader', path: '/source.epub', selection: { opaque: true } } };
+    mountContent(() => <WordSyncContent launchIntent="start" words={['赤い']} sourceLabel="Selection" returnContext={origin} />);
+    await settle(); await settle();
+    const key = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)!).find(key => key.startsWith('mlearn-study-word-sync-material-') && !key.includes(':session'))!;
+    const saved = JSON.parse(localStorage.getItem(key)!);
+    disposals.pop()!();
+    const onClose = vi.fn();
+    mountContent(() => <WordSyncContent launchIntent="resume" resumeSessionId={saved.id} words={['unrelated-new-source']} returnContext={{ returnTo: 'video' }} onClose={onClose} />);
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-word')).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem(key)!).id).toBe(saved.id);
+    buttonByText('mlearn.Global.Back').click();
+    expect(onClose).toHaveBeenCalledWith(origin);
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
+  it('a new task without a source cannot inherit the suspended task origin', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(() => <WordSyncContent launchIntent="start" returnContext={{ returnTo: 'reader', sourceContext: { path: '/previous.epub' } }} />);
+    await settle(); await settle();
+    disposals.pop()!();
+    const onClose = vi.fn();
+    mountContent(() => <WordSyncContent launchIntent="start" onClose={onClose} />);
+    await settle(); await settle();
+    buttonByText('mlearn.Global.Back').click();
+    expect(onClose).toHaveBeenCalledWith({});
+    expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!).meta.returnContext).toBeUndefined();
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
   it('Return preserves the active cursor and makes no learner-evidence mutation', async () => {
     const onClose = vi.fn();
     const { WordSyncContent } = await import('./App');

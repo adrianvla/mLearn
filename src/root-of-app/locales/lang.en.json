@@ -4164,6 +4164,7 @@
       "MaterialPractice": "From {title} · {count} selected words"
     },
     "StudyEncounter": {
+      "Recall": "Recall",
       "Task": "Recall & check",
       "Retrieve": "Try answering the prompt before revealing the answer.",
       "Compare": "Compare with your answer, then record how you recalled it.",

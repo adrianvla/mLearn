@@ -27,7 +27,17 @@ describe('routed Word task ownership', () => {
     expect(fixture.task.words).toEqual(['actual-source-word']);
     expect(fixture.task.launchIntent).toBe('start');
     (fixture.task.onClose as () => void)();
-    expect(onReturn).toHaveBeenCalledWith('/reader');
+    expect(onReturn).toHaveBeenCalledWith('/reader', undefined);
+  });
+  it('returns with the resumed task source instead of a conflicting launch origin', async () => {
+    const onReturn = vi.fn();
+    const saved = { returnTo: 'reader', sourceContext: { workspace: 'reader', path: '/saved.epub', selection: { 'future:field': [3, 8] } } };
+    const { WordStudyWorkspace } = await import('./WordStudyWorkspace');
+    dispose = render(() => <WordStudyWorkspace mode="study" launchContext={{ intent: 'resume', sessionId: 'saved', returnTo: 'video', sourceContext: { path: '/new.mp4' } }} onReturn={onReturn} />, host);
+    (fixture.task.onClose as (context: Record<string, unknown>) => void)(saved);
+    expect(onReturn).toHaveBeenCalledWith('/reader', saved);
+    (fixture.task.onClose as (context: Record<string, unknown>) => void)({});
+    expect(onReturn).toHaveBeenLastCalledWith('/practise', {});
   });
   it('refuses a stale language selection instead of starting unscoped study', async () => {
     const { WordStudyWorkspace } = await import('./WordStudyWorkspace');

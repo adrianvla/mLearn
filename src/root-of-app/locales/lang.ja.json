@@ -4164,6 +4164,7 @@
       "MaterialPractice": "{title}から · 選択した単語 {count} 語"
     },
     "StudyEncounter": {
+      "Recall": "思い出す",
       "Task": "思い出して確認",
       "Retrieve": "答えを見る前に、自分で答えてみてください。",
       "Compare": "答えと比較して、どのように思い出せたか記録してください。",

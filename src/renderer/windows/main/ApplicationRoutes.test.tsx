@@ -2,7 +2,7 @@
 import { render } from 'solid-js/web';
 import { HashRouter } from '@solidjs/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const fixture = vi.hoisted(() => ({ listener: undefined as ((context: Record<string, unknown>) => void) | undefined, unsubscribe: vi.fn(), mounted: vi.fn() }));
+const fixture = vi.hoisted(() => ({ listener: undefined as ((context: Record<string, unknown>) => void) | undefined, unsubscribe: vi.fn(), mounted: vi.fn(), savedReturn: {} as Record<string, unknown> }));
 vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }), useSettings: () => ({ settings: { language: 'package-x' }, isLoading: () => false }) }));
 vi.mock('../../context/WindowWrapper', () => ({ LibraryLoadGuard: (props: { recoveryAccess?: boolean }) => <span data-testid="guard" data-recovery={String(props.recoveryAccess)} /> }));
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
@@ -16,7 +16,7 @@ vi.mock('../flashcards/App', () => ({ FlashcardsContent: (props: { initialTab?: 
 } }));
 vi.mock('../conversationAgent/App', () => ({ ConversationContent: () => <div data-content="messenger" /> }));
 vi.mock('../levelStudy/App', () => ({ LevelStudyContent: (props: { workspace?: string }) => <div data-content={props.workspace ?? "plan"} /> }));
-vi.mock('../wordSync/App', () => ({ WordSyncContent: (props: { mode?: string; intent?: string; words?: readonly string[]; encounterLimit?: number }) => <div data-content={props.mode === 'assessment' ? 'assessment' : 'words'} data-intent={props.intent} data-words={JSON.stringify(props.words)} data-limit={props.encounterLimit} /> }));
+vi.mock('../wordSync/App', () => ({ WordSyncContent: (props: { mode?: string; intent?: string; words?: readonly string[]; encounterLimit?: number; onClose?: (context: Record<string, unknown>) => void }) => <div data-content={props.mode === 'assessment' ? 'assessment' : 'words'} data-intent={props.intent} data-words={JSON.stringify(props.words)} data-limit={props.encounterLimit}><button onClick={() => props.onClose?.(fixture.savedReturn)}>Return</button></div> }));
 vi.mock('../characterGrid/App', () => ({ CharacterGridContent: () => <div data-content="characters" /> }));
 vi.mock('../wordDbEditor/App', () => ({ WordDbEditorContent: () => <div data-content="knowledge" /> }));
 vi.mock('../statistics/App', () => ({ StatisticsContent: () => <div data-content="progress" /> }));
@@ -31,7 +31,7 @@ import { ApplicationRoutes } from './ApplicationRoutes';
 describe('application shell route ownership', () => {
   let container: HTMLDivElement;
   let dispose: () => void;
-  beforeEach(() => { vi.clearAllMocks(); window.history.replaceState(null, '', '#/'); container = document.createElement('div'); document.body.append(container); });
+  beforeEach(() => { vi.clearAllMocks(); fixture.savedReturn = {}; sessionStorage.clear(); window.history.replaceState(null, '', '#/'); container = document.createElement('div'); document.body.append(container); });
   afterEach(() => { dispose?.(); container.remove(); window.history.replaceState(null, '', '#/'); });
   const mount = () => { dispose = render(() => <HashRouter root={ApplicationShell}><ApplicationRoutes /></HashRouter>, container); };
   const navigate = async (path: string) => {
@@ -100,5 +100,18 @@ describe('application shell route ownership', () => {
   it('Return from an embedded review navigates Home rather than closing the application', async () => {
     window.history.replaceState(null, '', '#/practise'); mount(); container.querySelector<HTMLButtonElement>('[data-content="review"] button')!.click();
     await vi.waitFor(() => expect(container.querySelector('[data-content="home"]')).not.toBeNull());
+  });
+  it('returns a resumed word task to its saved source rather than conflicting launch metadata', async () => {
+    mount();
+    fixture.savedReturn = { returnTo: 'reader', sourceContext: { workspace: 'reader', path: '/books/original.epub', page: 17, 'package:position': { value: 4 } } };
+    fixture.listener!({ applicationNavigation: { path: '/practise/words', requestId: 'resume-source', context: {
+      intent: 'resume', sessionId: 'saved-task', returnTo: 'video', sourceContext: { workspace: 'video', path: '/videos/conflicting.mp4', time: 99 },
+    } } });
+    await vi.waitFor(() => expect(container.querySelector('[data-content="words"]')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('[data-content="words"] button')!.click();
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/reader'));
+    expect(sessionStorage.getItem('mlearn_open_book')).toBe('/books/original.epub');
+    expect(JSON.parse(sessionStorage.getItem('mlearn_media_return')!)).toEqual(fixture.savedReturn.sourceContext);
+    expect(sessionStorage.getItem('mlearn_open_video')).toBeNull();
   });
 });

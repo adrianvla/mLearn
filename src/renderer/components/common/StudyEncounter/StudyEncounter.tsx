@@ -4,7 +4,7 @@ import { useLocalization } from '../../../context';
 import { Button } from '../Button';
 import { ProgressBar } from '../Feedback/ProgressBar';
 import { Panel } from '../Panel';
-import { RatingMatrix, type RatingMatrixProps } from '../RatingMatrix/RatingMatrix';
+import { RatingMatrix, RecallCue, type RatingMatrixProps } from '../RatingMatrix/RatingMatrix';
 import './StudyEncounter.css';
 import { useLearningInput } from '../LearningWorkspace/LearningWorkspace';
 import { isRatingKeyIgnored, isRevealKey } from '../../../utils/ratingShortcuts';
@@ -51,7 +51,7 @@ export const StudyEncounter: Component<StudyEncounterProps> = (props) => {
         class={props.revealClass ?? 'study-encounter__reveal'}>{props.revealLabel ?? t('mlearn.StudyEncounter.Reveal')}</Button>
     </Show>
     <Show when={props.ratingAvailable !== false}><div class={`study-encounter__response ${props.responseClass ?? ''}`} hidden={!props.revealed}>
-      <Show when={!props.scheduling || props.revealed}><RatingMatrix {...rating()} armed={ratingArmed()} scheduling={props.scheduling ?? false} /></Show>
+      <Show when={!props.scheduling || props.revealed}><RatingMatrix {...rating()} showCapabilitySummary={false} armed={ratingArmed()} scheduling={props.scheduling ?? false} /></Show>
     </div></Show>
     <div class="study-encounter__secondary">
       {props.children}
@@ -63,7 +63,10 @@ export const StudyEncounter: Component<StudyEncounterProps> = (props) => {
     </div>
   </>;
   return <section class={`study-encounter ${props.class ?? ''}`} aria-label={t('mlearn.StudyEncounter.Task')}>
-    <Show when={props.ratingAvailable !== false}><p class="study-encounter__instruction">{props.revealed ? t('mlearn.StudyEncounter.Compare') : props.instruction ?? t('mlearn.StudyEncounter.Retrieve')}</p></Show>
+    <Show when={props.ratingAvailable !== false}>
+      <RecallCue class="study-encounter__cue" capabilities={rating().capabilities} capabilityLabels={rating().capabilityLabels} />
+      <Show when={!props.revealed && props.instruction}><p class="study-encounter__instruction">{props.instruction}</p></Show>
+    </Show>
     <Show when={card()} fallback={<Panel class="study-encounter__card" padding="lg">
       <div class="study-encounter__prompt">{props.prompt}</div>
       <Show when={props.revealed} fallback={

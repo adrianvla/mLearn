@@ -1,5 +1,6 @@
+import { hashWordSync } from '../../../shared/utils/wordHash';
 import { describe, expect, it } from 'vitest';
-import { wordSyncSavedFilter, wordSyncSavedTasks } from './wordSyncSavedFilter';
+import { wordSyncSavedFilter, wordSyncSavedTasks, wordSyncSavedTaskById } from './wordSyncSavedFilter';
 
 const scope = { language: 'synthetic-package', provider: 'package-frequency', packageVersion: 'release-1' };
 const tokens = [
@@ -63,5 +64,37 @@ describe('wordSyncSavedFilter', () => {
     ].map(invalidTokens => JSON.stringify({ ...record(), identity: JSON.stringify({ ...scope, tokens: invalidTokens }) })),
   ])('rejects malformed or assessment records without throwing (%#)', raw => {
     expect(wordSyncSavedFilter(raw, scope)).toBeNull();
+  });
+});
+
+
+describe('named word task discovery', () => {
+  const key = `mlearn-study-word-sync:${scope.language}`;
+  const storage = (items: Array<[string, string]>) => {
+    const map = new Map(items);
+    return { get length() { return map.size; }, key: (index: number) => [...map.keys()][index] ?? null, getItem: (key: string) => map.get(key) ?? null };
+  };
+  it('reads the exact archived identity without changing storage or admitting another task', () => {
+    const raw = JSON.stringify(record());
+    const store = storage([[key, JSON.stringify({ ...record(), id: 'other' })], [`${key}:session:saved-session`, raw]]);
+    expect(wordSyncSavedTaskById(store, 'saved-session', scope)).toEqual({ key, source: undefined });
+    expect(store.getItem(`${key}:session:saved-session`)).toBe(raw);
+    expect(wordSyncSavedTaskById(store, 'missing', scope)).toBeUndefined();
+  });
+  it.each(['language', 'provider', 'packageVersion'] as const)('rejects a mismatched %s owner', field => {
+    const store = storage([[key, JSON.stringify(record())]]);
+    expect(wordSyncSavedTaskById(store, 'saved-session', { ...scope, [field]: 'other' })).toBeUndefined();
+  });
+  it('locates multiword material using the same NUL separator as the task owner', () => {
+    const source = { words: ['surface-1', 'surface-2'], label: 'Selected material' };
+    const materialKey = `mlearn-study-word-sync-material-${hashWordSync(source.words.join('\u0000'))}:${scope.language}`;
+    const raw = JSON.stringify({ ...record(), meta: { ...record().meta, source } });
+    const store = storage([[`${materialKey}:session:saved-session`, raw]]);
+    expect(wordSyncSavedTaskById(store, 'saved-session', scope)).toEqual({ key: materialKey, source });
+    expect(store.getItem(`${materialKey}:session:saved-session`)).toBe(raw);
+  });
+  it('rejects source metadata stored under an unrelated task namespace', () => {
+    const store = storage([[key, JSON.stringify({ ...record(), meta: { source: { words: ['surface-1'], label: 'Selected material' } } })]]);
+    expect(wordSyncSavedTaskById(store, 'saved-session', scope)).toBeUndefined();
   });
 });

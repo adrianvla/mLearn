@@ -13,8 +13,8 @@
   box-sizing: border-box;
   overflow-y: auto;
   min-width: 0;
-  gap: var(--spacing-6);
-  padding: var(--spacing-8);
+  gap: var(--spacing-4);
+  padding: var(--spacing-4);
   background: var(--app-shell-bg);
   user-select: none;
   position: relative;
@@ -54,6 +54,8 @@
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
+
+.word-sync > .word-sync-counter { width: min(100%, 36rem); }
 
 .word-sync-projection-error {
   display: flex;
@@ -108,7 +110,8 @@
   font-size: var(--font-size-md);
   color: var(--text-secondary);
   text-align: center;
-  max-width: 300px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .word-sync-translation-toggle {

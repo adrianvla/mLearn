@@ -8,6 +8,16 @@ let dispose: (() => void) | undefined;
 afterEach(() => { dispose?.(); document.body.replaceChildren(); });
 
 describe('shared retrieval encounter', () => {
+  it('shows package-defined recall labels once, without default retrieval or comparison narration', () => {
+    const [revealed, setRevealed] = createSignal(false);
+    dispose = render(() => <StudyEncounter prompt="cue" answer="answer" revealed={revealed()} onReveal={() => setRevealed(true)}
+      rating={{ capabilities: ['future:relationship'], capabilityLabels: { 'future:relationship': 'Speaker relationship' }, keyboardMode: 'mnemonic', armed: true, onSubmit: vi.fn() }} />, document.body);
+    expect(document.querySelector('.study-encounter__cue')?.textContent).toContain('Speaker relationship');
+    expect(document.body.textContent).not.toContain('mlearn.StudyEncounter.Retrieve');
+    setRevealed(true);
+    expect(document.body.textContent).not.toContain('mlearn.StudyEncounter.Compare');
+    expect(document.querySelectorAll('.recall-cue')).toHaveLength(1);
+  });
   it('keeps the answer and response controls out of the task until explicit reveal, for arbitrary material', () => {
     const root = document.createElement('div'); document.body.appendChild(root);
     const [revealed, setRevealed] = createSignal(false);

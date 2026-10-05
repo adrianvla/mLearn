@@ -19,6 +19,23 @@
   overflow-wrap: anywhere;
 }
 
+.recall-cue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+.recall-cue__heading { font-weight: var(--font-weight-semibold); }
+.recall-cue__label {
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  max-width: 100%;
+}
+
 .rating-matrix__bar {
   display: grid;
   grid-template-columns: repeat(4, minmax(4em, 1fr)) auto;

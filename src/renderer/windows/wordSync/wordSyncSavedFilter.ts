@@ -1,3 +1,4 @@
+import { hashWordSync } from '../../../shared/utils/wordHash';
 import { uniqueId, validateTokens, type FilterToken } from '../../components/common/FilterBuilder/filterExpr';
 
 export interface FilterScope {
@@ -60,4 +61,32 @@ export function wordSyncSavedFilter(raw: string | null, scope: FilterScope): Fil
     }
     return validateTokens(tokens).ok ? tokens : null;
   } catch { return null; }
+}
+
+/** Locate only a named existing task; its controller still validates and activates it. */
+export function wordSyncSavedTaskById(storage: Pick<Storage, 'length' | 'key' | 'getItem'>, id: string, scope: FilterScope): {
+  key: string; source?: { words: string[]; label: string };
+} | undefined {
+  if (!id) return undefined;
+  try {
+    for (let index = 0; index < storage.length; index++) {
+      const storedKey = storage.key(index);
+      if (!storedKey) continue;
+      const key = storedKey.split(':session:')[0];
+      if (!/^mlearn-study-word-sync(?:-material-[a-f0-9]{64})?(?:-reinforce)?:[^:]+$/.test(key)
+        || !key.endsWith(`:${scope.language}`) || storedKey.endsWith(':sessions')) continue;
+      const raw = storage.getItem(storedKey);
+      if (!raw || wordSyncSavedFilter(raw, scope) === null) continue;
+      const record = JSON.parse(raw);
+      if (record.id !== id) continue;
+      const source = record.meta.source;
+      if (source !== undefined && (!isObject(source) || !Array.isArray(source.words)
+        || !source.words.every((word: unknown) => typeof word === 'string' && !!word.trim())
+        || typeof source.label !== 'string')) continue;
+      const sourceKey = `mlearn-study-word-sync${source ? `-material-${hashWordSync(source.words.join('\u0000'))}` : ''}`;
+      if (key !== `${sourceKey}:${scope.language}` && key !== `${sourceKey}-reinforce:${scope.language}`) continue;
+      return { key, source };
+    }
+  } catch { /* A malformed or unavailable named record cannot choose another task. */ }
+  return undefined;
 }

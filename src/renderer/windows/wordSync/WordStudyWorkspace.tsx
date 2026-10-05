@@ -8,7 +8,7 @@ import { WordSyncContent } from './App';
 export const WordStudyWorkspace: Component<{
   mode: 'study' | 'assessment';
   launchContext?: Record<string, unknown>;
-  onReturn: (path: string) => void;
+  onReturn: (path: string, context?: Record<string, unknown>) => void;
 }> = props => {
   const { settings, isLoading } = useSettings();
   const { t } = useLocalization();
@@ -20,11 +20,11 @@ export const WordStudyWorkspace: Component<{
     return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.min(120, Math.floor(value))) : undefined;
   };
   const requestId = () => typeof session()?.requestId === 'string' ? session()!.requestId as string : undefined;
-  const returnPath = () => props.launchContext?.returnTo === 'reader' ? '/reader'
-    : props.launchContext?.returnTo === 'video' ? '/video'
-    : props.launchContext?.returnTo === 'home' ? '/'
-    : material() || props.launchContext?.returnTo === 'material' ? '/knowledge/material'
-    : props.launchContext?.returnTo === 'plan' ? '/plan' : props.mode === 'assessment' ? '/evaluate' : '/practise';
+  const returnPath = (context = props.launchContext) => context?.returnTo === 'reader' ? '/reader'
+    : context?.returnTo === 'video' ? '/video'
+    : context?.returnTo === 'home' ? '/'
+    : context?.material || context?.returnTo === 'material' ? '/knowledge/material'
+    : context?.returnTo === 'plan' ? '/plan' : props.mode === 'assessment' ? '/evaluate' : '/practise';
   return <Show when={!isLoading()}><Show when={valid()} fallback={
     <section class="product-workspace"><p>{t('mlearn.Goals.Unavailable')}</p>
       <Button onClick={() => props.onReturn(returnPath())}>{t('mlearn.LearningPlan.Back')}</Button></section>
@@ -35,6 +35,7 @@ export const WordStudyWorkspace: Component<{
       encounterLimit={limit()} sessionRequestId={requestId()}
       launchIntent={props.launchContext?.intent === 'start' || props.launchContext?.intent === 'resume' ? props.launchContext.intent : requestId() || material() ? 'start' : 'open'}
       resumeSessionId={typeof props.launchContext?.sessionId === 'string' ? props.launchContext.sessionId : undefined}
-      onClose={() => props.onReturn(returnPath())} onAssessmentApplied={() => props.onReturn('/plan')} />
+      returnContext={{ returnTo: props.launchContext?.returnTo ?? (material() ? 'material' : undefined), sourceContext: props.launchContext?.sourceContext }}
+      onClose={context => props.onReturn(returnPath(context), context)} onAssessmentApplied={() => props.onReturn('/plan')} />
   </Show></Show>;
 };

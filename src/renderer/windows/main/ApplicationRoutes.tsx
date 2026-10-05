@@ -80,8 +80,8 @@ const Evaluate: Component = () => {
       <Button onClick={() => navigate('/evaluate/grammar/mock')}>{t('mlearn.LevelStudy.Mock.Title')}</Button></div>
   </section>;
 };
-const returnToWorkspace = (navigate: ReturnType<typeof useNavigate>, context: Record<string, unknown> | undefined) => (path: string) => {
-  const source = context?.sourceContext;
+const returnToWorkspace = (navigate: ReturnType<typeof useNavigate>, context: Record<string, unknown> | undefined) => (path: string, savedContext?: Record<string, unknown>) => {
+  const source = (savedContext ?? context)?.sourceContext;
   if ((path === '/reader' || path === '/video') && source && typeof source === 'object' && !Array.isArray(source)) {
     const actual = prepareMediaWorkspaceReturn(sessionStorage, source as Record<string, unknown>);
     if (actual) { navigate(actual); return; }

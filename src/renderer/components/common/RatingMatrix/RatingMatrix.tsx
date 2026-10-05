@@ -58,6 +58,8 @@ export interface RatingMatrixProps {
   claims?: Readonly<Partial<Record<CapabilityKey, WordStatus>>>;
   /** Package-resolved labels for opaque capability ids. */
   capabilityLabels?: Readonly<Partial<Record<CapabilityKey, string>>>;
+  /** A surrounding encounter can show the same cue above its card. */
+  showCapabilitySummary?: boolean;
   /** Whole-word selection; specific capability statements take precedence. */
   wordClaim?: WordStatus | null;
   keyboardMode: RatingKeyboardMode;
@@ -70,6 +72,15 @@ export interface RatingMatrixProps {
   /** One logical attempt: the full observation set, in display order. */
   onSubmit: (observations: readonly ProfileObservation[], opts?: RateOptions) => void;
 }
+
+/** Open package labels, shared by the cue and the standalone rating control. */
+export const RecallCue: Component<Pick<RatingMatrixProps, 'capabilities' | 'capabilityLabels'> & { class?: string }> = props => {
+  const { t } = useLocalization();
+  return <div class={`recall-cue ${props.class ?? ''}`} role="group" aria-label={t('mlearn.StudyEncounter.Recall')}>
+    <span class="recall-cue__heading">{t('mlearn.StudyEncounter.Recall')}</span>
+    <For each={props.capabilities}>{capability => <span class="recall-cue__label">{props.capabilityLabels?.[capability] ?? t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}</span>}</For>
+  </div>;
+};
 
 const PENDING_TIMEOUT_MS = 1500;
 
@@ -345,8 +356,8 @@ export const RatingMatrix: Component<RatingMatrixProps> = (props) => {
 
   return (
     <div class="rating-matrix" classList={{ 'rating-matrix--expanded': expanded() }}>
-      <Show when={!expanded() && props.capabilities.length > 0}>
-        <p class="rating-matrix__tested">{t('mlearn.WordSync.TestedAccesses', { aspects: props.capabilities.map(capabilityLabel).join(' · ') })}</p>
+      <Show when={props.showCapabilitySummary !== false && !expanded() && props.capabilities.length > 0}>
+        <RecallCue class="rating-matrix__tested" capabilities={props.capabilities} capabilityLabels={props.capabilityLabels} />
       </Show>
       <div class="rating-matrix__bar" classList={{ 'rating-matrix__bar--head': expanded() }}>
         <Show when={expanded()}>
