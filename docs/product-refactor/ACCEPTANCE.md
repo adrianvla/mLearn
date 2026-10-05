@@ -54,7 +54,7 @@ Retained old navigation aliases resolve through the shared destination owner rat
 | J23 recovery/managed | Native damaged-copy guardian recovery and reachable Settings. Managed/plugin auth/cleanup/privacy regressions pass; no signed-in group or installed plugin available for live verification. |
 | J24 retirement/gates | Caller removals, both TS configurations, desktop/postbuild/mobile builds and integration gates recorded. Final-source gates and native compatibility recheck are recorded below. |
 
-Rating trace samples: baseline 85.4 ms, later regular rating 82.6 ms and correction 70.4 ms, each a single sample. These establish observation, not a speedup. Comparable route/start/reveal baseline timing remains missing; no performance completion claim.
+Paired native latency observation is now recorded in [LATENCY.md](LATENCY.md): shell opening 432.0/110.6 ms, baseline restored admission 5071.9 ms versus explicit current Start 2257.5 ms, three reveal and grade samples each. Different admission semantics and small samples preclude a generalized speedup claim. Persisted attempt groups and normal Quit were verified; temporary instrumentation was removed.
 
 ## One integrated review
 
