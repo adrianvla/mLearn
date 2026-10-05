@@ -1961,7 +1961,8 @@
           "Anki": "Anki",
           "PassiveTracking": "パッシブトラッキング",
           "Manual": "手動",
-          "Grammar": "文法"
+          "Grammar": "文法",
+          "Migration": "取り込んだ履歴"
         },
         "Times": "{count}回"
       },

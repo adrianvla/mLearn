@@ -1961,7 +1961,8 @@
           "Anki": "Anki",
           "PassiveTracking": "Passives Tracking",
           "Manual": "Manuell",
-          "Grammar": "Grammatik"
+          "Grammar": "Grammatik",
+          "Migration": "Importierter Verlauf"
         },
         "Times": "{count}×"
       },

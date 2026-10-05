@@ -1961,7 +1961,8 @@
           "Anki": "Anki",
           "PassiveTracking": "Пассивное отслеживание",
           "Manual": "Вручную",
-          "Grammar": "Грамматика"
+          "Grammar": "Грамматика",
+          "Migration": "Импортированная история"
         },
         "Times": "{count}×"
       },

@@ -1961,7 +1961,8 @@
           "Anki": "Anki",
           "PassiveTracking": "被动追踪",
           "Manual": "手动",
-          "Grammar": "语法"
+          "Grammar": "语法",
+          "Migration": "导入的历史记录"
         },
         "Times": "{count}次"
       },

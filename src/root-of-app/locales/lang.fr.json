@@ -1961,7 +1961,8 @@
           "Anki": "Anki",
           "PassiveTracking": "Suivi passif",
           "Manual": "Manuel",
-          "Grammar": "Grammaire"
+          "Grammar": "Grammaire",
+          "Migration": "Historique importé"
         },
         "Times": "{count}×"
       },
