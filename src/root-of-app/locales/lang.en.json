@@ -3449,6 +3449,7 @@
       "PreviousTooltip": "Sync to previous subtitle"
     },
     "Video": {
+      "LoadUnavailable": "This video could not be opened. Check that the file is available and supported, or open another video.",
       "Controls": {
         "Mute": "Mute",
         "PlaybackSpeed": "Playback speed",

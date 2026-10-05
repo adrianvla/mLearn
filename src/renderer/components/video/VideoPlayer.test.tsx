@@ -14,7 +14,8 @@ vi.mock('../../hooks', async () => {
 });
 
 vi.mock('../../hooks/useVideoTouch', () => ({ useVideoTouch: () => {} }));
-vi.mock('../../context', () => ({ useSettings: () => ({ settings: {} }) }));
+vi.mock('../../context', () => ({ useSettings: () => ({ settings: {} }), useLocalization: () => ({ t: (key: string) => key }) }));
+vi.mock('../common', () => ({ Button: (props: { children?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button> }));
 vi.mock('../subtitle/SubtitleContainer', () => ({ SubtitleContainer: () => null }));
 vi.mock('../subtitle/LiveWordTranslator', () => ({ LiveWordTranslator: () => null }));
 vi.mock('./VideoControls', () => ({ VideoControls: () => null }));
@@ -99,5 +100,24 @@ it('shows the media surface only after a decoded frame is available', () => {
   video.dispatchEvent(new Event('loadeddata'));
   expect(video.classList.contains('video-element-loading')).toBe(false);
   dispose();
+  container.remove();
+});
+
+it('keeps an unavailable source from replacing saved playback and offers normal file recovery', () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const onBeforeDetach = vi.fn(), onOpenVideo = vi.fn();
+  const dispose = render(() => <VideoPlayer subtitles={{
+    tokens: () => [], isTokenizing: () => false, observationReady: () => false,
+    currentSubtitle: () => null, updateTime: async () => {},
+  } as never} onBeforeDetach={onBeforeDetach} onOpenVideo={onOpenVideo} />, container);
+  const video = container.querySelector('video')!;
+  video.pause = vi.fn(); video.load = vi.fn();
+  video.dispatchEvent(new Event('error'));
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.Video.LoadUnavailable');
+  container.querySelector('[role="alert"] button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  expect(onOpenVideo).toHaveBeenCalledOnce();
+  dispose();
+  expect(onBeforeDetach).not.toHaveBeenCalled();
   container.remove();
 });

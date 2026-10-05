@@ -3449,6 +3449,7 @@
       "PreviousTooltip": "前の字幕に同期"
     },
     "Video": {
+      "LoadUnavailable": "この動画を開けませんでした。ファイルが利用可能で対応形式か確認するか、別の動画を開いてください。",
       "Controls": {
         "Mute": "ミュート",
         "PlaybackSpeed": "再生速度",

@@ -156,7 +156,12 @@ export function setupLocalMediaProtocol(): void {
       stat = await fs.promises.stat(resolvedPath);
     } catch (e) {
       log.error('local-media stat failed', e);
-      return new Response('File not found', { status: 404 });
+      // A moved/disconnected file can become available again at the same path.
+      // Do not let Chromium reuse a cached failure for an explicit reopen.
+      return new Response('File not found', {
+        status: 404,
+        headers: { ...LOCAL_MEDIA_RESPONSE_HEADERS, 'Cache-Control': 'no-store' },
+      });
     }
 
     const fileSize = stat.size;

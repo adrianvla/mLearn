@@ -3449,6 +3449,7 @@
       "PreviousTooltip": "Synchroniser avec le sous-titre précédent"
     },
     "Video": {
+      "LoadUnavailable": "Cette vidéo n’a pas pu être ouverte. Vérifiez que le fichier est disponible et pris en charge, ou ouvrez une autre vidéo.",
       "Controls": {
         "Mute": "Couper le son",
         "PlaybackSpeed": "Vitesse de lecture",

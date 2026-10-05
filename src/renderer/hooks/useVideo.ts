@@ -4,7 +4,7 @@
  */
 
 import { perfCount } from '../utils/perfCounters';
-import { createSignal, createMemo, onCleanup } from 'solid-js';
+import { createSignal, createMemo, onCleanup, untrack } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -34,6 +34,7 @@ export interface VideoState {
   volume: number;
   playbackRate: number;
   isLoaded: boolean;
+  hasError: boolean;
   isPiP: boolean;
   isFullscreen: boolean;
   isBuffering: boolean;
@@ -58,6 +59,7 @@ export function useVideo(options: UseVideoOptions = {}) {
     volume: 1,
     playbackRate: 1,
     isLoaded: false,
+    hasError: false,
     isPiP: false,
     isFullscreen: false,
     isBuffering: false,
@@ -229,6 +231,7 @@ export function useVideo(options: UseVideoOptions = {}) {
     if (!videoRef) return;
     const err = videoRef.error;
     log.error('Video element error:', err?.code, err?.message);
+    setState({ hasError: true, isPlaying: false, isBuffering: false });
   };
 
   const readAudioTracks = (): VideoTrack[] => {
@@ -401,6 +404,7 @@ export function useVideo(options: UseVideoOptions = {}) {
   };
 
   const loadVideo = (src: string) => {
+    const retryFailedResource = untrack(() => state.hasError && videoSrc() === src);
     // Revoke previous object URL if any
     if (objectUrlRef && objectUrlRef !== src) {
       URL.revokeObjectURL(objectUrlRef);
@@ -409,13 +413,23 @@ export function useVideo(options: UseVideoOptions = {}) {
 
     log.info('useVideo.loadVideo: src=', src);
     setVideoSrc(src);
-    setState({ isLoaded: false, currentTime: 0, duration: 0, isBuffering: false, audioTracks: [], textTracks: [] });
+    setState({ isLoaded: false, hasError: false, currentTime: 0, duration: 0, isBuffering: false, audioTracks: [], textTracks: [] });
 
     if (videoRef) {
       // Assigning src already starts the media resource selection algorithm.
       // Calling load() again aborts that first load and can briefly surface a
       // native "Unable to play media" overlay during Continue.
-      videoRef.src = src;
+      if (retryFailedResource && src.startsWith('local-media:')) {
+        // Chromium's media cache can retain a failed resource even with no-store.
+        // A fresh request identity retries the same authorized local pathname;
+        // the canonical source used by saved material and track detection stays intact.
+        const retryUrl = new URL(src);
+        retryUrl.searchParams.set('mlearn-retry', crypto.randomUUID());
+        videoRef.src = retryUrl.href;
+      } else {
+        videoRef.src = src;
+        if (retryFailedResource) videoRef.load();
+      }
     } else {
       log.warn('useVideo.loadVideo: videoRef is null, cannot set src');
     }

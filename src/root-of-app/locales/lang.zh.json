@@ -3449,6 +3449,7 @@
       "PreviousTooltip": "同步到上一字幕"
     },
     "Video": {
+      "LoadUnavailable": "无法打开此视频。请检查文件是否可用且格式受支持，或打开其他视频。",
       "Controls": {
         "Mute": "静音",
         "PlaybackSpeed": "播放速度",

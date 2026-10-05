@@ -3,11 +3,12 @@
  * Main video player with controls and subtitle overlay
  */
 
-import { Component, JSX, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
+import { Component, JSX, Show, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { useVideo, useVideoKeyboard, useCursorVisibility } from '../../hooks';
 import type { useSubtitles } from '../../hooks';
 import { useVideoTouch } from '../../hooks/useVideoTouch';
-import { useSettings } from '../../context';
+import { useLocalization, useSettings } from '../../context';
+import { Button } from '../common';
 import { getBridge } from '../../../shared/bridges';
 import { isElectron } from '../../../shared/platform';
 import { getLogger } from '../../../shared/utils/logger';
@@ -57,6 +58,7 @@ export interface VideoPlayerProps {
   /** Toggle word sidebar visibility */
   onToggleWordSidebar?: () => void;
   onOpenSubtitles?: () => void;
+  onOpenVideo?: () => void;
   /** Audio tracks detected via ffmpeg (for formats Chromium doesn't expose) */
   detectedAudioTracks?: DetectedTrack[];
   /** Subtitle tracks detected via ffmpeg (for formats Chromium doesn't expose) */
@@ -73,6 +75,7 @@ export interface VideoPlayerProps {
 
 export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   const { settings } = useSettings();
+  const { t } = useLocalization();
   const video = useVideo({
     getFullscreenContainer: () => containerRef ?? null,
   });
@@ -165,7 +168,9 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
   onCleanup(() => {
     if (videoRef) {
       pauseOwnedVideo('teardown');
-      props.onBeforeDetach?.({ currentTime: videoRef.currentTime, duration: videoRef.duration });
+      if (Number.isFinite(videoRef.currentTime) && Number.isFinite(videoRef.duration) && videoRef.duration > 0) {
+        props.onBeforeDetach?.({ currentTime: videoRef.currentTime, duration: videoRef.duration });
+      }
     }
     props.onMediaElement?.(null);
     video.detachVideo();
@@ -221,6 +226,15 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
             autoplay={props.autoplay}
             onEnded={props.onEnded}
         />
+
+        <Show when={video.state.hasError}>
+          <div class="video-load-error" role="alert">
+            <p>{t('mlearn.Video.LoadUnavailable')}</p>
+            <Show when={props.onOpenVideo}>
+              <Button variant="primary" onClick={props.onOpenVideo}>{t('mlearn.Video.UI.OpenVideo')}</Button>
+            </Show>
+          </div>
+        </Show>
 
         {/* Subtitle overlay */}
         <SubtitleContainer

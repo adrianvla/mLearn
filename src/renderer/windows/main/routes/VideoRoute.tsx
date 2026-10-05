@@ -131,7 +131,8 @@ export const VideoRoute: Component = () => {
     getVideoTitle: () => currentVideoName(),
   });
 
-  const [videoSrc, setVideoSrc] = createSignal<string>('');
+  // Selecting the same file explicitly must retry resource loading after failure.
+  const [videoSrc, setVideoSrc] = createSignal<string>('', { equals: false });
   const [subtitleContent, setSubtitleContent] = createSignal<string>('');
   const [showDropZone, setShowDropZone] = createSignal(true);
   const [isDragging, setIsDragging] = createSignal(false);
@@ -1541,6 +1542,7 @@ export const VideoRoute: Component = () => {
             showWordSidebar={showWordSidebar()}
             onToggleWordSidebar={() => setShowWordSidebar(!showWordSidebar())}
             onOpenSubtitles={() => void handleSelectSubtitle()}
+            onOpenVideo={() => void handleSelectVideo()}
             detectedAudioTracks={detectedAudioTracks()}
             detectedSubtitleTracks={detectedSubtitleTracks()}
             activeDetectedSubtitleTrack={activeDetectedSubtitleTrack()}

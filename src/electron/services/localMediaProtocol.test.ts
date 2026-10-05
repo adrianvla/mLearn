@@ -96,6 +96,8 @@ describe('localMediaProtocol', () => {
       const response = await handler!(new Request(`local-media://${nonExistentPath}`));
 
       expect(response.status).toBe(404);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
     });
 
     it('returns 403 for paths outside allowed bases', async () => {
@@ -107,6 +109,21 @@ describe('localMediaProtocol', () => {
 
       const response = await handler!(new Request('local-media:///etc/passwd'));
       expect(response.status).toBe(403);
+    });
+
+    it('serves a restored authorized path with a fresh media retry identity', async () => {
+      const { setupLocalMediaProtocol } = await import('./localMediaProtocol');
+      setupLocalMediaProtocol();
+      const handler = mockProtocolHandlers.get('local-media')!;
+      const restoredPath = path.join(tempDir.tmpDir, 'restored.mp4');
+      const source = `local-media://${restoredPath}`;
+      expect((await handler(new Request(source))).status).toBe(404);
+      fs.writeFileSync(restoredPath, 'restored media bytes');
+      const response = await handler(new Request(`${source}?mlearn-retry=explicit-reopen`));
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe('restored media bytes');
+      const denied = await handler(new Request('local-media:///etc/passwd?mlearn-retry=explicit-reopen'));
+      expect(denied.status).toBe(403);
     });
 
     it('allows linux mount paths under /mnt, /media, /run/media', async () => {

@@ -1,4 +1,4 @@
-import { createRoot } from 'solid-js';
+import { createComputed, createRoot } from 'solid-js';
 import { useVideo, useVideoKeyboard } from './useVideo';
 
 function createMockVideoElement(): HTMLVideoElement {
@@ -11,6 +11,37 @@ function createMockVideoElement(): HTMLVideoElement {
 
 describe('useVideo', () => {
   describe('initial state', () => {
+    it('does not subscribe a source loader to playback errors', () => {
+      createRoot((dispose) => {
+        const video = useVideo();
+        const element = createMockVideoElement();
+        video.attachVideo(element);
+        const load = vi.fn(() => video.loadVideo('local-media://supported-video'));
+        createComputed(load);
+        element.dispatchEvent(new Event('error'));
+        expect(load).toHaveBeenCalledTimes(1);
+        expect(video.state.hasError).toBe(true);
+        dispose();
+      });
+    });
+    it('clears a failed resource when the user explicitly reopens the same video', () => {
+      createRoot((dispose) => {
+        const video = useVideo();
+        const element = createMockVideoElement();
+        video.attachVideo(element);
+        video.loadVideo('local-media://supported-video');
+        expect(element.load).not.toHaveBeenCalled();
+        element.dispatchEvent(new Event('error'));
+        expect(video.state.hasError).toBe(true);
+        expect(video.state.isPlaying).toBe(false);
+        video.loadVideo('local-media://supported-video');
+        expect(video.state.hasError).toBe(false);
+        expect(new URL(element.src).searchParams.get('mlearn-retry')).toBeTruthy();
+        expect(video.videoSrc()).toBe('local-media://supported-video');
+        expect(element.load).not.toHaveBeenCalled();
+        dispose();
+      });
+    });
     it('has correct default values', () => {
       createRoot((dispose) => {
         const video = useVideo();

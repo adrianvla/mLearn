@@ -3449,6 +3449,7 @@
       "PreviousTooltip": "Mit vorherigem Untertitel synchronisieren"
     },
     "Video": {
+      "LoadUnavailable": "Dieses Video konnte nicht geöffnet werden. Prüfe, ob die Datei verfügbar ist und unterstützt wird, oder öffne ein anderes Video.",
       "Controls": {
         "Mute": "Stummschalten",
         "PlaybackSpeed": "Wiedergabegeschwindigkeit",
