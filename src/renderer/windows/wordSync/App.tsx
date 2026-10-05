@@ -1256,6 +1256,8 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   // A session belongs to one language/package/target scope. Journal updates
   // revalidate the current prompt; a different scope starts a new session.
   createEffect(on(() => [settings.language, langCtx.getWordFrequency(), langCtx.currentLangData(), getLearningLanguageLevelForLanguage(settings, settings.language)] as const, () => batch(() => {
+    setWorkspaceOpen(props.launchIntent !== undefined && props.launchIntent !== 'resume');
+    setSessionAdmissionPending(props.launchIntent !== undefined);
     sessionController()?.dispose();
     setSessionController(null);
     setSessionWriteFailure(null);
@@ -1409,7 +1411,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       retrySessionStart = null;
       setQueueSummary({ ignored: 0, filtered: 0, noPrompt: 0 });
       const existing = controller.current();
-      if (existing?.meta.assessment) {
+      if (existing?.meta.assessment && props.launchIntent === undefined) {
         setAssessmentPlan(existing.meta.assessment.pools);
         const resumedQueue = new Map<number, PoolEntry[]>();
         for (const item of existing.queue) {
@@ -1428,19 +1430,34 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       }
       retrySessionStart = () => {
         const activeController = sessionController();
-        if (!activeController || activeController.current()) return;
+        if (!activeController) return;
         if (pools.length === 0 || entries.length === 0) return;
         const state: WordSyncAssessmentState = { pools, draws: [] };
         const index = firstWordSyncAssessmentIndex(entries, state);
+        setSessionAdmissionPending(true);
         void activeController.start(identity, entries, index, {
           samplingLevel: pools[0]?.level ?? 0,
           lastRating: null,
           assessment: state,
         }, { suspendCurrent: true }).then((accepted) => {
-          setSessionWriteFailure(!accepted && !activeController.current() ? 'start' : null);
-          if (activeController.current()) pickNext();
+          if (disposed || sessionController() !== activeController) return;
+          setSessionWriteFailure(!accepted ? 'start' : null);
+          setSessionAdmissionPending(!accepted);
+          if (accepted) { setWorkspaceOpen(false); setUndoStack([]); setAssessmentPlan(pools); pickNext(); }
         });
       };
+      if (props.launchIntent === 'resume') {
+        void controller.activate(props.resumeSessionId ?? '').then(accepted => {
+          if (disposed || sessionController() !== controller) return;
+          setResumeUnavailable(!accepted);
+          setSessionAdmissionPending(false);
+          if (accepted) { setWorkspaceOpen(false); pickNext(); }
+        });
+      } else if (props.launchIntent === 'start') {
+        retrySessionStart();
+      } else {
+        setSessionAdmissionPending(false);
+      }
       return;
     }
 
@@ -1791,15 +1808,17 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             paletteItems={filterContext().paletteItems}
             tokens={filterTokens()}
             onChange={(tokens) => {
-              if (navigationPending()) return;
+              if (navigationPending() || ratingWrite() !== null || undoBlocking() || sessionController()?.current()?.pending) return;
               const controller = sessionController();
-              const record = controller?.current();
               const language = settings.language;
               void (async () => {
-                if (controller && record && !await controller.clear(record)) return;
                 if (disposed || sessionController() !== controller || settings.language !== language) return;
                 controller?.dispose();
                 batch(() => {
+                  // Editing prepares another scope. Its explicit Start will
+                  // suspend the durable task; editing alone changes no cursor.
+                  setWorkspaceOpen(true);
+                  setSessionAdmissionPending(true);
                   setSessionController(null);
                   setSessionWriteFailure(null);
                   retrySessionStart = null;
@@ -1872,7 +1891,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     }>
       <Show when={workspaceOpen()}>
         <Panel padding="md">
-          <Button variant="primary" onClick={() => retrySessionStart?.()}>{t('mlearn.LevelStudy.Mock.Start')}</Button>
+          <Show when={assessmentMode()}><p>{t('mlearn.StudyEncounter.PlacementIntro')}</p>
+            <Show when={assessmentPlan().length === 0}><p>{t('mlearn.LevelStudy.Placement.EmptyPools')}</p></Show>
+          </Show>
+          <Button variant="primary" disabled={assessmentMode() && assessmentPlan().length === 0} onClick={() => retrySessionStart?.()}>{t('mlearn.LevelStudy.Mock.Start')}</Button>
           <Show when={resumableCurrent()}>{record =>
             <Button onClick={() => { setWorkspaceOpen(false); pickNext(); }}>{t('mlearn.StudyEncounter.Resume')} · {record().rated}/{record().queue.length}</Button>
           }</Show>

@@ -31,7 +31,7 @@ export const WordStudyWorkspace: Component<{
       intent={props.mode === 'study' && props.launchContext?.activity === 'reinforce' ? 'reinforce' : undefined}
       words={material()?.words} sourceLabel={material()?.label}
       encounterLimit={limit()} sessionRequestId={requestId()}
-      launchIntent={props.mode !== 'study' ? undefined : props.launchContext?.intent === 'start' || props.launchContext?.intent === 'resume' ? props.launchContext.intent : requestId() || material() ? 'start' : 'open'}
+      launchIntent={props.launchContext?.intent === 'start' || props.launchContext?.intent === 'resume' ? props.launchContext.intent : requestId() || material() ? 'start' : 'open'}
       resumeSessionId={typeof props.launchContext?.sessionId === 'string' ? props.launchContext.sessionId : undefined}
       onClose={() => props.onReturn(returnPath())} onAssessmentApplied={() => props.onReturn('/plan')} />
   </Show></Show>;

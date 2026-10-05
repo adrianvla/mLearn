@@ -875,6 +875,51 @@ beforeEach(() => {
     expect(mockSubmitRating).not.toHaveBeenCalled();
   });
 
+  it('assessment Open does not inherit a paused task; Start suspends it and exact Resume restores it', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(() => <WordSyncContent mode="assessment" />);
+    await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Placement.Start').click(); await settle(); await settle();
+    press(' '); await settle();
+    const key = 'mlearn-study-word-sync-assessment:ja';
+    const original = localStorage.getItem(key)!;
+    const saved = JSON.parse(original);
+    disposals.pop()!();
+    mountContent(() => <WordSyncContent mode="assessment" launchIntent="open" />);
+    await settle(); await settle();
+    expect(container.querySelector('.word-sync-assessment-card')).toBeNull();
+    expect(localStorage.getItem(key)).toBe(original);
+    buttonByText('mlearn.LevelStudy.Mock.Start').click(); await settle(); await settle();
+    expect(JSON.parse(localStorage.getItem(key)!).id).not.toBe(saved.id);
+    expect(localStorage.getItem(`${key}:session:${encodeURIComponent(saved.id)}`)).toBe(original);
+    disposals.pop()!();
+    mountContent(() => <WordSyncContent mode="assessment" launchIntent="resume" resumeSessionId={saved.id} />);
+    await settle(); await settle();
+    expect(JSON.parse(localStorage.getItem(key)!).id).toBe(saved.id);
+    expect(container.querySelector('.word-sync-assessment-card')).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem(key)!).revealed).toBe(true);
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
+  it('editing filters preserves the old task until an explicit Start archives it', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(() => <WordSyncContent launchIntent="start" />);
+    await settle(); await settle();
+    press(' '); await settle();
+    const key = 'mlearn-study-word-sync:ja';
+    const original = localStorage.getItem(key)!;
+    const saved = JSON.parse(original);
+    buttonByText('mlearn.WordSync.Filter').click();
+    mockCommonState.filterBuilderProps!.onChange([{ kind: 'operand', field: 'level', op: 'eq', value: '5' }]);
+    await settle(); await settle();
+    expect(localStorage.getItem(key)).toBe(original);
+    expect(container.querySelector('.word-sync-word')).toBeNull();
+    buttonByText('mlearn.LevelStudy.Mock.Start').click(); await settle(); await settle();
+    expect(JSON.parse(localStorage.getItem(key)!).id).not.toBe(saved.id);
+    expect(localStorage.getItem(`${key}:session:${encodeURIComponent(saved.id)}`)).toBe(original);
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
   it('refuses an absent exact Resume instead of presenting or replacing the active task', async () => {
     const { WordSyncContent } = await import('./App');
     mountContent(WordSyncContent); await settle();
@@ -1034,6 +1079,7 @@ beforeEach(() => {
     buttonByText('mlearn.WordSync.Filter').click(); await settle();
     mockCommonState.filterBuilderProps!.onChange(customFilter);
     await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Mock.Start').click(); await settle(); await settle();
     buttonByText('mlearn.WordSync.Filter').click(); await settle();
     press(' '); await settle(); press('3'); await settle();
     expect(container.querySelector('.word-sync-counter')?.textContent).toBe('1 / 3');
@@ -1239,6 +1285,7 @@ beforeEach(() => {
     expect(container.querySelector('.word-sync-filter-toggle')).not.toBeNull();
     mockCommonState.filterBuilderProps!.onChange([]);
     await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Mock.Start').click(); await settle(); await settle();
     expect(container.querySelector('.word-sync-word')).not.toBeNull();
   });
 
@@ -1424,6 +1471,7 @@ beforeEach(() => {
     mockCommonState.filterBuilderProps!.onChange([{ kind: 'operand', field: 'level', op: 'eq', value: '5' }]);
     await settle(); await settle(); await settle();
     expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 1');
+    buttonByText('mlearn.LevelStudy.Mock.Start').click(); await settle(); await settle();
     expect(container.textContent).toContain('赤い:あかい');
     buttonByText('mlearn.WordSync.Filter').click();
     await settle();
@@ -2526,7 +2574,8 @@ beforeEach(() => {
     expect(replacementPrompt).not.toBeNull();
     pause = false; release();
     await settle(); await settle();
-    expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBeNull();
+    if (action === 'restart') expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBeNull();
+    else expect(localStorage.getItem('mlearn-study-word-sync:ja')).not.toBeNull();
     expect(localStorage.getItem('mlearn-study-word-sync:de')).toBe(replacement);
     expect(container.querySelector('.word-sync-word')).toBe(replacementPrompt);
     expect(container.textContent).not.toContain('mlearn.WordSync.InvalidFilter');
@@ -3705,6 +3754,7 @@ beforeEach(() => {
     container.querySelector<HTMLButtonElement>('.word-sync-filter-toggle')?.click();
     await settle();
 
+    buttonByText('mlearn.LevelStudy.Mock.Start').click(); await settle(); await settle();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
     await settle();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
