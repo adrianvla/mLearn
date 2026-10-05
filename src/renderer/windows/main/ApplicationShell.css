@@ -1,4 +1,5 @@
-.application-shell { display: flex; flex-direction: column; height: 100%; min-height: 0; color: var(--text-primary); background: var(--app-shell-bg); }
+.application-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.application-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; color: var(--text-primary); background: var(--app-shell-bg); }
 .application-navigation { display: flex; align-items: center; gap: var(--spacing-4); flex-wrap: wrap; padding: var(--spacing-3) var(--spacing-5); padding-inline-start: max(var(--spacing-5), var(--window-controls-inline-start-inset)); border-bottom: 1px solid var(--border-color); flex-shrink: 0; -webkit-app-region: drag; }
 .application-navigation button { color: var(--text-secondary); border: 0; background: transparent; cursor: pointer; font: inherit; -webkit-app-region: no-drag; padding: var(--spacing-2); border-radius: var(--radius-md); font-size: var(--font-size-sm); }
 .application-navigation button:hover, .application-navigation button.is-active { color: var(--text-primary); background: var(--bg-secondary); }

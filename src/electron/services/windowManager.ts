@@ -1050,8 +1050,9 @@ export function setupWindowIPC(): void {
   );
 
   // Window resize
-  ipcMain.on(IPC_CHANNELS.CHANGE_WINDOW_SIZE, (_event, arg: WindowSize) => {
-    mainWindow?.setSize(arg.width, arg.height, true);
+  ipcMain.on(IPC_CHANNELS.CHANGE_WINDOW_SIZE, (event, arg: WindowSize) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    window?.setSize(arg.width, arg.height, true);
   });
 
   // PiP mode

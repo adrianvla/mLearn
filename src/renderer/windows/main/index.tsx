@@ -57,9 +57,10 @@ const StartupReadiness = () => {
 
 const App = () => (
   <WindowWrapper showDragRegion={false} showActiveGroupSwitch showWindowLoadingScreen={false} libraryGuard={false}>
-    <WindowsMenuBar />
-    <Show when={currentApplicationHost() === 'main'}><AppUpdateNotifier /><StartupReadiness /></Show>
-    <MainRoutes />
+    <div class="application-host">
+      <Show when={currentApplicationHost() === 'main'}><WindowsMenuBar /><AppUpdateNotifier /><StartupReadiness /></Show>
+      <MainRoutes />
+    </div>
   </WindowWrapper>
 );
 

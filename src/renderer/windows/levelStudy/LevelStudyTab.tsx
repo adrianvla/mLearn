@@ -324,9 +324,6 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
       <Show when={view() === 'plan' && projected.failed()}>
         <KnowledgeLoadError onRetry={() => { projected.retry(); }} />
       </Show>
-      <Show when={view() === 'plan' && resolvedLanguageData().language !== ''}>
-        <LearningBackgroundPanel language={resolvedLanguageData().language} />
-      </Show>
       {/* Level stats are derived from the learner projection and the
           installed frequency data: until both are authoritative, keep the
           tab's geometry with placeholders instead of a blank panel, zeroed
@@ -516,6 +513,9 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
             onTargetedOutput={openTargetedOutput}
           />
           </Show>
+      </Show>
+      <Show when={view() === 'plan' && resolvedLanguageData().language !== ''}>
+        <LearningBackgroundPanel language={resolvedLanguageData().language} />
       </Show>
       <Show when={selectedLevel()}>
         {(level) => (

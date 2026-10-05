@@ -753,14 +753,17 @@ describe('windowManager', () => {
       expect(() => fireOn(IPC_CHANNELS.TRAFFIC_LIGHTS, {}, { visibility: true })).not.toThrow();
     });
 
-    it('CHANGE_WINDOW_SIZE: calls setSize on mainWindow with provided dimensions', async () => {
+    it('CHANGE_WINDOW_SIZE: resizes only the requesting host', async () => {
       const { setupWindowIPC, createMainWindow } = await import('./windowManager');
       const win = createMainWindow();
+      const study = makeMockWindow();
+      mockFromWebContents.mockReturnValueOnce(study);
       setupWindowIPC();
       const { IPC_CHANNELS } = await import('../../shared/constants');
 
-      fireOn(IPC_CHANNELS.CHANGE_WINDOW_SIZE, {}, { width: 900, height: 500 });
-      expect(win.setSize).toHaveBeenCalledWith(900, 500, true);
+      fireOn(IPC_CHANNELS.CHANGE_WINDOW_SIZE, { sender: study.webContents }, { width: 900, height: 500 });
+      expect(study.setSize).toHaveBeenCalledWith(900, 500, true);
+      expect(win.setSize).not.toHaveBeenCalled();
     });
 
     it('MAKE_PIP: saves old bounds and applies PiP window properties', async () => {

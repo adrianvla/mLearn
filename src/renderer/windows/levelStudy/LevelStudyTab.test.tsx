@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LevelStudyTab } from './LevelStudyTab';
 import { render } from 'solid-js/web';
 import { createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
@@ -232,7 +233,6 @@ describe('LevelStudyTab', () => {
   it('shows passive curriculum coverage in Plan without admitting grammar or mock work', async () => {
     currentLangDataMock = deFixture() as unknown as Record<string, unknown>;
     settingsLanguageMock = 'de';
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await waitFor(() => container.querySelector('.level-study-grammar-summary') !== null);
     expect(container.querySelector('.grammar-coverage')).toBeNull();
@@ -251,7 +251,6 @@ describe('LevelStudyTab', () => {
     } } } };
     currentLangDataMock = data as unknown as Record<string, unknown>;
     settingsLanguageMock = 'de';
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const first = render(() => <LevelStudyTab view="grammar" grammarRequest={{ level: 2, patterns: ['trotzdem'], requestedAt: 0 }} />, container);
     await waitFor(() => localStorage.getItem('mlearn-study-grammar:de') !== null);
     const saved = JSON.parse(localStorage.getItem('mlearn-study-grammar:de')!);
@@ -265,7 +264,6 @@ describe('LevelStudyTab', () => {
     resumed();
   });
   it('requests a one-time language data refresh when loaded metadata has no frequency rows', async () => {
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -279,7 +277,6 @@ describe('LevelStudyTab', () => {
     learningBackgroundMock = {
       records: [{ id: 'old-result', language: 'de', kind: 'exam', label: 'B2 certificate', recordedAt: 12, providerMetadata: { source: 'learner' } }],
     };
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -325,7 +322,6 @@ describe('LevelStudyTab', () => {
         { id: 'other-language', language: 'de', kind: 'exam', label: 'Deutsch', recordedAt: 14 },
       ],
     };
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -357,7 +353,6 @@ describe('LevelStudyTab', () => {
       },
     };
 
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -378,7 +373,6 @@ describe('LevelStudyTab', () => {
       ],
     };
 
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -406,7 +400,6 @@ describe('LevelStudyTab', () => {
       },
     };
 
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -436,7 +429,6 @@ describe('LevelStudyTab', () => {
       },
     };
 
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -465,7 +457,6 @@ describe('LevelStudyTab', () => {
       },
     };
 
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -496,7 +487,6 @@ describe('LevelStudyTab', () => {
       },
     };
 
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -524,7 +514,6 @@ describe('LevelStudyTab', () => {
       },
     };
 
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
@@ -550,7 +539,6 @@ describe('LevelStudyTab', () => {
     settingsLanguageMock = 'de';
     recordGrammarAttemptMock.mockImplementation(mockWriterFlippingProjections);
 
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab view="mock" />, container);
     await tick();
     await waitFor(() => container.querySelector('[data-testid="mock-blueprints"]') !== null);
@@ -622,7 +610,6 @@ describe('LevelStudyTab', () => {
     settingsLanguageMock = 'de';
     recordGrammarAttemptMock.mockImplementation(mockWriterFlippingProjections);
 
-    const { LevelStudyTab } = await import('./LevelStudyTab');
     const dispose = render(() => <LevelStudyTab view="grammar" />, container);
     await tick();
     await waitFor(() => container.querySelector('.grammar-coverage') !== null);

@@ -880,14 +880,14 @@ beforeEach(() => {
     const onCloseNew = vi.fn();
     mountContent(() => <WordSyncContent mode={mode} launchIntent="start" returnContext={newReturn} onClose={onCloseNew} />);
     await settle(); await settle();
-    buttonByText('mlearn.Global.Back').click();
+    buttonByText('mlearn.Product.Return').click();
     expect(onCloseNew).toHaveBeenCalledWith(newReturn);
     disposals.pop()!();
     const onClose = vi.fn();
     mountContent(() => <WordSyncContent mode={mode} launchIntent="resume" resumeSessionId={original.id} returnContext={newReturn} onClose={onClose} />);
     await settle(); await settle();
     press(' '); await settle(); press('3'); await settle(); await settle();
-    buttonByText('mlearn.Global.Back').click();
+    buttonByText('mlearn.Product.Return').click();
     expect(onClose).toHaveBeenCalledWith(originalReturn);
     expect(JSON.parse(localStorage.getItem(key)!).meta.returnContext).toEqual(originalReturn);
   });
@@ -905,7 +905,7 @@ beforeEach(() => {
     await settle(); await settle();
     expect(container.querySelector('.word-sync-word')).not.toBeNull();
     expect(JSON.parse(localStorage.getItem(key)!).id).toBe(saved.id);
-    buttonByText('mlearn.Global.Back').click();
+    buttonByText('mlearn.Product.Return').click();
     expect(onClose).toHaveBeenCalledWith(origin);
     expect(mockSubmitRating).not.toHaveBeenCalled();
   });
@@ -930,7 +930,7 @@ beforeEach(() => {
     expect(JSON.parse(localStorage.getItem(key)!).id).toBe(saved.id);
     expect(JSON.parse(localStorage.getItem(key)!).revealed).toBe(true);
     expect(container.querySelector('.word-sync-word')).not.toBeNull();
-    buttonByText('mlearn.Global.Back').click();
+    buttonByText('mlearn.Product.Return').click();
     expect(onClose).toHaveBeenCalledWith(origin);
     expect(mockSubmitRating).not.toHaveBeenCalled();
   });
@@ -943,7 +943,7 @@ beforeEach(() => {
     const onClose = vi.fn();
     mountContent(() => <WordSyncContent launchIntent="start" onClose={onClose} />);
     await settle(); await settle();
-    buttonByText('mlearn.Global.Back').click();
+    buttonByText('mlearn.Product.Return').click();
     expect(onClose).toHaveBeenCalledWith({});
     expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!).meta.returnContext).toBeUndefined();
     expect(mockSubmitRating).not.toHaveBeenCalled();
@@ -955,7 +955,7 @@ beforeEach(() => {
     mountContent(() => <WordSyncContent onClose={onClose} />);
     await settle();
     const raw = localStorage.getItem('mlearn-study-word-sync:ja');
-    buttonByText('mlearn.Global.Back').click();
+    buttonByText('mlearn.Product.Return').click();
     expect(onClose).toHaveBeenCalledOnce();
     expect(localStorage.getItem('mlearn-study-word-sync:ja')).toBe(raw);
     expect(mockSubmitRating).not.toHaveBeenCalled();

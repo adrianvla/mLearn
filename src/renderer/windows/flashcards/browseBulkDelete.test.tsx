@@ -127,6 +127,8 @@ vi.mock('../../components/common', async () => {
   return {
     useConfirmDialog: modal.useConfirmDialog,
     Button,
+    TargetIcon: passthrough,
+    ActionCard: (props: Record<string, unknown>) => <button onClick={() => (props.onClick as (() => void) | undefined)?.()}>{props.title as never}</button>,
     SelectableCard,
     Modal: passthrough,
     Input: passthrough,
@@ -250,8 +252,8 @@ describe('Review window context admission', () => {
     try {
       await flush(); expect(contextFixture.reviewProps).not.toHaveBeenCalled();
       expect(contextFixture.switchPosition).not.toHaveBeenCalled();
-      clickKey(container, 'mlearn.Global.Back'); expect(onReturn).toHaveBeenCalledOnce();
-      clickKey(container, 'mlearn.LevelStudy.Mock.Start'); await flush();
+      clickKey(container, 'mlearn.Product.Return'); expect(onReturn).toHaveBeenCalledOnce();
+      clickKey(container, 'mlearn.LevelStudy.Mock.Start · mlearn.Flashcards.UI.Tabs.Review'); await flush();
       expect(contextFixture.switchPosition).toHaveBeenCalledWith({ kind: 'switch', language: 'ja', expectedPresentation: null, expectedSession: null });
       expect(contextFixture.reviewProps).toHaveBeenCalled();
       container.querySelector<HTMLButtonElement>('[data-review-return]')!.click();

@@ -4,14 +4,11 @@
   --windows-menu-bar-height: 40px;
 }
 
-/* Only rendered on Windows (native menu bar is hidden there). Fixed overlay:
-   routes keep full viewport height; fixed chrome below is offset by
-   var(--windows-menu-bar-height). */
+/* Main owns the Windows native-control strip; activity content fills the remainder. */
 .windows-menu-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex-shrink: 0;
+  box-sizing: border-box;
   height: var(--windows-menu-bar-height);
   display: flex;
   align-items: center;
@@ -62,68 +59,4 @@ body.window-fullscreen {
 .windows-menu-label:hover {
   background: var(--border-color);
   color: var(--text-primary);
-}
-
-/* Fixed chrome shifts down by the strip height. nav 48px + strip = content
-   top offset; the reader status bar is fixed at the bottom (30px). */
-body.platform-windows .reader-nav {
-  top: var(--windows-menu-bar-height);
-}
-
-body.platform-windows .reader-main {
-  margin-top: calc(var(--windows-menu-bar-height) + 48px);
-  height: calc(100vh - var(--windows-menu-bar-height) - 48px - 30px);
-}
-
-body.platform-windows .reader-sidebar {
-  top: calc(var(--windows-menu-bar-height) + 48px);
-  height: calc(100vh - var(--windows-menu-bar-height) - 48px - 30px);
-}
-
-body.platform-windows .reader-unknown-words-sidebar {
-  top: calc(var(--windows-menu-bar-height) + 48px);
-  height: calc(100vh - var(--windows-menu-bar-height) - 48px - 30px);
-}
-
-body.platform-windows .video-unknown-words-sidebar {
-  top: var(--windows-menu-bar-height);
-  height: calc(100vh - var(--windows-menu-bar-height));
-}
-
-/* Video nav floats at the top of the route — keep it below the strip */
-body.platform-windows .video-route > .video-nav {
-  top: calc(var(--spacing-2) + var(--windows-menu-bar-height));
-}
-
-/* Live word translator sits above the nav buttons on other platforms (top:
-   38px); on Windows the nav row is lower, so keep the translator below it
-   (nav top + button height + small gap). The hide-cursor rule in
-   LiveWordTranslator.css (top: 10px) must not apply here — it would slide the
-   panel under the strip; keep it just below the strip instead. */
-body.platform-windows .live-word-translator {
-  top: calc(var(--spacing-2) + var(--windows-menu-bar-height) + 2.5rem);
-}
-
-body.hide-cursor.platform-windows .live-word-translator {
-  top: calc(var(--spacing-2) + var(--windows-menu-bar-height));
-}
-
-/* Fullscreen (window): nav buttons keep a slight margin from the screen top */
-body.window-fullscreen.platform-windows .video-route > .video-nav {
-  top: calc(var(--spacing-2) + 0.5rem);
-}
-
-/* Welcome route content starts under the strip */
-body.platform-windows .welcome-container {
-  padding-top: calc(2rem + var(--windows-menu-bar-height));
-}
-
-body.platform-windows :root[data-sidebar-layout='drawer'] .reader-sidebar,
-body.platform-windows :root[data-sidebar-layout='drawer'] .reader-unknown-words-sidebar {
-  top: var(--windows-menu-bar-height);
-  height: calc(100vh - var(--windows-menu-bar-height));
-}
-
-body.platform-windows .reader-main .page-image {
-  max-height: calc(100vh - var(--windows-menu-bar-height) - 48px - 30px - 2rem);
 }

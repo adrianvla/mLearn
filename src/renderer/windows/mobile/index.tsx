@@ -34,7 +34,9 @@ const App = () => {
     <WindowWrapper showDragRegion={false} showActiveGroupSwitch libraryGuard={false}>
       <SyncProvider>
         <MobileContextMenuHandler />
-        <HashRouter root={ApplicationShell}><ApplicationRoutes /></HashRouter>
+        <div class="application-host">
+          <HashRouter root={ApplicationShell}><ApplicationRoutes /></HashRouter>
+        </div>
       </SyncProvider>
     </WindowWrapper>
   );

@@ -86,13 +86,12 @@ const Evaluate: Component = () => {
   const { t } = useLocalization();
   const navigate = useApplicationNavigate();
   return <section class="product-workspace"><h1>{t('mlearn.Product.Evaluate')}</h1>
-    <p>{t('mlearn.Product.KnowledgeCheckDescription')}</p>
     <div class="study-chooser-alternatives"><ActionCard icon={<TargetIcon size={24} />} primary title={t('mlearn.Product.KnowledgeCheck')}
       description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate/words', { state: {
         applicationRequestId: crypto.randomUUID(), applicationContext: { intent: 'start', returnTo: 'evaluate' },
       } })} />
       <ActionCard icon={<TargetIcon size={24} />} title={t('mlearn.Product.GrammarCheck')}
-        description={t('mlearn.Product.GrammarPracticeDescription')} onClick={() => navigate('/evaluate/grammar')} /></div>
+        description={t('mlearn.Product.GrammarSelfCheckDescription')} onClick={() => navigate('/evaluate/grammar')} /></div>
       <div class="product-workspace-actions"><Button variant="ghost" onClick={() => navigate('/evaluate/grammar/mock')}>{t('mlearn.LevelStudy.Mock.Title')}</Button></div>
   </section>;
 };
