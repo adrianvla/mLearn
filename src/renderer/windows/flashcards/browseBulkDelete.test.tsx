@@ -1,5 +1,4 @@
 import { fitLearningModel } from '../../../shared/learningModel';
-vi.mock('./ReviewWorkspace', () => ({ ReviewWorkspace: (props: { children: unknown }) => props.children }));
 // @vitest-environment happy-dom
 
 /**
@@ -22,7 +21,7 @@ import { createEffect, createSignal, type Component } from 'solid-js';
 const [dueCount, setDueCount] = createSignal(0);
 import type { Flashcard } from '../../../shared/types';
 
-const contextFixture = vi.hoisted(() => ({ callback: undefined as ((context: Record<string, unknown> | null) => void) | undefined, delayed: false, reviewProps: vi.fn() }));
+const contextFixture = vi.hoisted(() => ({ reviewProps: vi.fn(), switchPosition: vi.fn(async () => {}), nativeContext: vi.fn(), closeWindow: vi.fn() }));
 const store = vi.hoisted(() => ({ flashcards: {} as Record<string, unknown> }));
 
 const removeFlashcard = vi.fn(async (id: string) => {
@@ -66,6 +65,8 @@ vi.mock('../../context', () => ({
     getFreqLevelNames: () => ({}),
   }),
   useFlashcards: () => ({
+    store: { meta: {} },
+    switchReviewPosition: contextFixture.switchPosition,
     getAllCards: () => Object.values(store.flashcards) as Flashcard[],
     getCardById: (id: string) => (store.flashcards[id] as Flashcard) ?? null,
     queueCounts: () => ({ new: 0, learning: 0, review: dueCount(), relearning: 0, total: dueCount() }),
@@ -83,10 +84,10 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../components/flashcard', () => ({
-  FlashcardReview: (props: { onComplete?: () => void; initialCardId?: string; sessionRequestId?: string; handoff?: unknown }) => {
+  FlashcardReview: (props: { onComplete?: () => void; onClose: () => void; initialCardId?: string; sessionRequestId?: string; handoff?: unknown }) => {
     contextFixture.reviewProps(props.initialCardId, props.sessionRequestId, props.handoff);
     createEffect(() => { if (dueCount() === 0) props.onComplete?.(); });
-    return <span data-review-session>{dueCount() === 0 ? 'complete' : 'question'}</span>;
+    return <><span data-review-session>{dueCount() === 0 ? 'complete' : 'question'}</span><button data-review-return onClick={props.onClose}>Return</button></>;
   },
   FlashcardEditModal: () => <span />,
   FlashcardSyncModal: () => <span />,
@@ -172,7 +173,7 @@ vi.mock('../../components/common', async () => {
 
 vi.mock('../../components/common/Feedback/Toast', () => ({ showToast: vi.fn(), updateToast: vi.fn(), removeToast: vi.fn() }));
 vi.mock('../../hooks/useLearningModel', () => ({ useLearningModel: () => ({ model: () => fitLearningModel([], Date.now()), snapshot: () => ({ events: [] }), ready: () => true, failed: () => false, retry: vi.fn() }) }));
-vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: { onWindowContext: (cb: (context: Record<string, unknown> | null) => void) => { contextFixture.callback = cb; return () => { contextFixture.callback = undefined; }; }, getWindowContext: () => { if (!contextFixture.delayed) queueMicrotask(() => contextFixture.callback?.(null)); } } }) }));
+vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: { onWindowContext: contextFixture.nativeContext, getWindowContext: contextFixture.nativeContext, closeWindow: contextFixture.closeWindow } }) }));
 vi.mock('../../../shared/backends', () => ({ resolveCloudApiUrl: () => '' }));
 vi.mock('../../../shared/platform', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../shared/platform')>()),
@@ -222,7 +223,7 @@ describe('Review window context admission', () => {
   it('hosts Practise without saved-material tabs and admits its launch context directly', async () => {
     contextFixture.reviewProps.mockClear(); setDueCount(1);
     const container = document.createElement('div'); document.body.append(container);
-    const dispose = render(() => <FlashcardsContent workspace="review" launchContext={{ activity: 'review', session: { encounterLimit: 2, requestId: 'route', initialCardId: 'chosen' } }} />, container);
+    const dispose = render(() => <FlashcardsContent workspace="review" onClose={() => {}} launchContext={{ activity: 'review', session: { encounterLimit: 2, requestId: 'route', initialCardId: 'chosen' } }} />, container);
     try {
       await flush(); expect(container.querySelectorAll('.tab')).toHaveLength(0);
       expect(container.textContent).not.toContain('mlearn.Flashcards.UI.AddCard');
@@ -233,7 +234,7 @@ describe('Review window context admission', () => {
   it('keeps saved-material management discoverable without a second Review or Statistics destination', async () => {
     contextFixture.reviewProps.mockClear();
     const container = document.createElement('div'); document.body.append(container);
-    const dispose = render(() => <FlashcardsContent workspace="material" launchContext={{ tab: 'review' }} />, container);
+    const dispose = render(() => <FlashcardsContent workspace="material" onClose={() => {}} launchContext={{ tab: 'review' }} />, container);
     try {
       await flush(); const tabs = Array.from(container.querySelectorAll('.tab')).map(tab => tab.textContent);
       expect(tabs).toEqual(['mlearn.Flashcards.UI.Tabs.Browse', 'mlearn.Flashcards.UI.Tabs.Generate', 'mlearn.Flashcards.UI.Tabs.Suggested']);
@@ -241,27 +242,37 @@ describe('Review window context admission', () => {
       expect(contextFixture.reviewProps).not.toHaveBeenCalled();
     } finally { dispose(); container.remove(); }
   });
-  it('waits for the initial context before mounting a different default cue', async () => {
-    contextFixture.delayed = true; contextFixture.reviewProps.mockClear(); setDueCount(1);
+  it('opens through canonical admission and uses the host Return without native context or window close', async () => {
+    contextFixture.reviewProps.mockClear(); contextFixture.switchPosition.mockClear();
+    contextFixture.nativeContext.mockClear(); contextFixture.closeWindow.mockClear();
+    const onReturn = vi.fn(); setDueCount(1);
     const container = document.createElement('div'); document.body.append(container);
-    const dispose = render(() => <FlashcardsContent />, container);
+    const dispose = render(() => <FlashcardsContent workspace="review" onClose={onReturn} />, container);
     try {
       await flush(); expect(contextFixture.reviewProps).not.toHaveBeenCalled();
-      contextFixture.callback!({ activity: 'review', session: { requestId: 'chosen-home', encounterLimit: 2, initialCardId: 'selected-card' } });
-      await flush(); expect(contextFixture.reviewProps).toHaveBeenCalledWith('selected-card', 'chosen-home', undefined);
-    } finally { dispose(); container.remove(); contextFixture.delayed = false; setDueCount(0); }
+      expect(contextFixture.switchPosition).not.toHaveBeenCalled();
+      clickKey(container, 'mlearn.Global.Back'); expect(onReturn).toHaveBeenCalledOnce();
+      clickKey(container, 'mlearn.LevelStudy.Mock.Start'); await flush();
+      expect(contextFixture.switchPosition).toHaveBeenCalledWith({ kind: 'switch', language: 'ja', expectedPresentation: null, expectedSession: null });
+      expect(contextFixture.reviewProps).toHaveBeenCalled();
+      container.querySelector<HTMLButtonElement>('[data-review-return]')!.click();
+      expect(onReturn).toHaveBeenCalledTimes(2);
+      expect(contextFixture.nativeContext).not.toHaveBeenCalled();
+      expect(contextFixture.closeWindow).not.toHaveBeenCalled();
+    } finally { dispose(); container.remove(); setDueCount(0); }
   });
 
-  it('refuses a malformed initial Home decision instead of admitting a default encounter', async () => {
-    contextFixture.delayed = true; contextFixture.reviewProps.mockClear(); setDueCount(1);
+  it('refuses a malformed routed decision before canonical admission or a default encounter', async () => {
+    contextFixture.reviewProps.mockClear(); contextFixture.switchPosition.mockClear(); setDueCount(1);
     const container = document.createElement('div'); document.body.append(container);
-    const dispose = render(() => <FlashcardsContent />, container);
+    const dispose = render(() => <FlashcardsContent workspace="review" onClose={() => {}} launchContext={{ activity: 'review', session: { requestId: 'home', encounterLimit: 2, initialCardId: 'selected', decision: { id: 'home' } } }} />, container);
     try {
-      contextFixture.callback!({ activity: 'review', session: { requestId: 'home', encounterLimit: 2, initialCardId: 'selected', decision: { id: 'home' } } });
       await flush(); expect(contextFixture.reviewProps).not.toHaveBeenCalled();
+      expect(contextFixture.switchPosition).not.toHaveBeenCalled();
       expect(container.querySelector('[role="alert"]')).not.toBeNull();
-    } finally { dispose(); container.remove(); contextFixture.delayed = false; setDueCount(0); }
+    } finally { dispose(); container.remove(); setDueCount(0); }
   });
+
 });
 
 describe('Browse bulk delete is confirmed before it removes anything', () => {
@@ -280,7 +291,7 @@ describe('Browse bulk delete is confirmed before it removes anything', () => {
   afterEach(() => container.remove());
 
   const openBrowse = async () => {
-    render(() => <FlashcardsContent />, container);
+    render(() => <FlashcardsContent workspace="material" onClose={() => {}} />, container);
     await flush();
     clickKey(container, 'mlearn.Flashcards.UI.Tabs.Browse');
     await flush();
@@ -288,7 +299,7 @@ describe('Browse bulk delete is confirmed before it removes anything', () => {
 
   it('keeps the review mounted when the last due card is answered', async () => {
     setDueCount(1);
-    const dispose = render(() => <FlashcardsContent />, container);
+    const dispose = render(() => <FlashcardsContent workspace="review" onClose={() => {}} launchContext={{ intent: 'start' }} />, container);
     try {
       await flush();
       expect(container.querySelector('[data-review-session]')?.textContent).toBe('question');

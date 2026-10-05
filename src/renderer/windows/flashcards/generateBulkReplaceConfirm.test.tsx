@@ -245,7 +245,7 @@ describe('Generate tab: replacing existing content is confirmed first', () => {
   const openGenerate = async () => {
     let thrown: unknown = null;
     try {
-      render(() => <FlashcardsContent />, container);
+      render(() => <FlashcardsContent workspace="material" onClose={() => {}} />, container);
     } catch (e) { thrown = e; }
     await flush();
     if (thrown) throw new Error('render threw: ' + String(thrown));
@@ -328,7 +328,7 @@ describe('Generate tab: the mode pickers match what each run can honour', () => 
   afterEach(() => container.remove());
 
   const openGenerate = async () => {
-    render(() => <FlashcardsContent />, container);
+    render(() => <FlashcardsContent workspace="material" onClose={() => {}} />, container);
     await flush();
     clickKey(container, 'mlearn.Flashcards.UI.Tabs.Generate');
     await flush();

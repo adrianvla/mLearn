@@ -1,4 +1,4 @@
-import { isLearningDecision, type LearningDecision } from '../../../shared/learningDecision';
+import { isLearningDecision } from '../../../shared/learningDecision';
 import { ReviewWorkspace } from './ReviewWorkspace';
 import { flashcardAudioProvider } from '../../../shared/utils/flashcardAudioPreset';
 import { FlashcardAudioPresetSelect } from '../../components/flashcard/FlashcardAudioPresetSelect';
@@ -7,17 +7,13 @@ import { FlashcardCreateModal } from '../../components/flashcard/FlashcardCreate
 import { buildDestructiveConfirmOptions, requiresDestructiveConfirmation } from './bulkDestructiveConfirm';
 import { FlashcardInspectButton } from '../../components/flashcard/FlashcardInspectButton';
 import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGate';
-/**
- * Flashcards Window App Component
- * SRS flashcard review interface with Anki-like queue management
- * Modernized UI with sidebar navigation
- */
+/** Routed Review admission and saved-material management share the existing card owner. */
 
-import { Component, Show, For, createSignal, createMemo, createEffect, on, onMount, onCleanup } from 'solid-js';
+import { Component, Show, For, createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings, useLowPowerGate, useLanguage } from '../../context';
 import { useFlashcards } from '../../context';
-import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle, OtherLanguageDueHint } from '../../components/flashcard';
-import { Button, Modal, Input, Badge, useConfirmDialog, EmptyState, SearchIcon, TabContainer, Select, EditIcon, BookIcon, BarChartIcon, SparklesIcon, PlusIcon, ProgressBar, ResponsiveSidebar, MicrophoneIcon, VoiceSamplePicker, CollapsibleStickyHeader, FilterBuilder, SelectableCard, TrashIcon, buildFlashcardBrowseFields, buildEmptyPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ValidationError } from '../../components/common';
+import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardWordTitle } from '../../components/flashcard';
+import { Button, Modal, Input, Badge, useConfirmDialog, EmptyState, SearchIcon, TabContainer, Select, BookIcon, SparklesIcon, PlusIcon, ProgressBar, ResponsiveSidebar, MicrophoneIcon, VoiceSamplePicker, CollapsibleStickyHeader, FilterBuilder, SelectableCard, TrashIcon, buildFlashcardBrowseFields, buildEmptyPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ValidationError } from '../../components/common';
 import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
 import { getLanguageDisplayName, stripHtmlForTts } from '../../../shared/utils/textUtils';
 import { getBridge } from '../../../shared/bridges';
@@ -46,7 +42,8 @@ import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.flashcards.app");
 
-type TabId = FlashcardsTabId;
+type TabId = Exclude<FlashcardsTabId, 'stats'>;
+type MaterialTabId = Exclude<TabId, 'review'>;
 
 /** The bridge-backed probes the shared repair plan needs, in one place. */
 const ttsScanDeps = (
@@ -77,11 +74,10 @@ const formatEta = (ms: number): string => {
   return remMin > 0 ? `${hr}h ${remMin}m` : `${hr}h`;
 };
 
-export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => void; workspace?: 'review' | 'material'; launchContext?: Record<string, unknown> }> = (props) => {
+export const FlashcardsContent: Component<{ initialTab?: MaterialTabId; onClose: () => void; workspace: 'review' | 'material'; launchContext?: Record<string, unknown> }> = (props) => {
   const {
     getAllCards,
     getCardById,
-    queueCounts,
     removeFlashcard,
     addFlashcard,
     updateFlashcardContent,
@@ -98,43 +94,24 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
   const { requestAccess } = useLowPowerGate();
   const { langData, currentLangData } = useLanguage();
 
-  const admittedTab = (tab?: TabId): TabId => props.workspace === 'review' ? 'review'
-    : props.workspace === 'material' ? tab && ['browse', 'generate', 'suggested'].includes(tab) ? tab : 'browse' : tab ?? 'review';
+  const admittedTab = (tab?: string): TabId => props.workspace === 'review' ? 'review'
+    : tab && ['browse', 'generate', 'suggested'].includes(tab) ? tab as MaterialTabId : 'browse';
   const [activeTab, setActiveTab] = createSignal<TabId>(admittedTab(props.initialTab));
-  const [reviewContextReady, setReviewContextReady] = createSignal(false);
-  const [reviewContextRefused, setReviewContextRefused] = createSignal(false);
-  const [reviewSessionRequest, setReviewSessionRequest] = createSignal<{ encounterLimit: number; requestId?: string; initialCardId?: string; decision?: LearningDecision }>();
-  const acceptContext = (context: Record<string, unknown> | null) => {
-      if (props.workspace === 'material') { setActiveTab(admittedTab(context?.tab as TabId | undefined)); setReviewContextReady(true); return; }
-      if (!context || context.activity !== 'review') {
-        if (context && ['browse', 'generate', 'suggested'].includes(String(context.tab))) setActiveTab(admittedTab(context.tab as TabId));
-        setReviewContextReady(true); return;
-      }
-      const session = context.session as { encounterLimit?: unknown; requestId?: unknown; initialCardId?: unknown; decision?: unknown } | undefined;
-      if (session?.decision !== undefined && (!isLearningDecision(session.decision) || session.decision.id !== session.requestId)) {
-        // An invalid later request cannot replace a task already displayed.
-        if (!reviewContextReady()) { setReviewContextRefused(true); setReviewContextReady(true); }
-        return;
-      }
-      setReviewContextRefused(false);
-      if (session && typeof session.encounterLimit === 'number' && Number.isFinite(session.encounterLimit)) {
-        setReviewSessionRequest({ encounterLimit: Math.max(1, Math.min(120, Math.floor(session.encounterLimit))),
-          ...(typeof session.requestId === 'string' ? { requestId: session.requestId } : {}),
-          ...(typeof session.initialCardId === 'string' ? { initialCardId: session.initialCardId } : {}),
-          ...(isLearningDecision(session.decision) ? { decision: session.decision } : {}) });
-      }
-      setReviewContextReady(true); setActiveTab('review');
-  };
-  createEffect(() => { if (props.workspace) acceptContext(props.launchContext ?? {}); });
-  onMount(() => {
-    if (props.workspace) return;
-    const bridge = getBridge();
-    const cleanup = bridge.window.onWindowContext(acceptContext);
-    if (cleanup) onCleanup(cleanup);
-    bridge.window.getWindowContext('flashcards');
+  createEffect(() => { setActiveTab(admittedTab(typeof props.launchContext?.tab === 'string' ? props.launchContext.tab : props.initialTab)); });
+  const reviewSessionRequest = createMemo(() => {
+    if (props.launchContext?.activity !== 'review') return undefined;
+    const session = props.launchContext.session as { encounterLimit?: unknown; requestId?: unknown; initialCardId?: unknown; decision?: unknown } | undefined;
+    if (!session || typeof session.encounterLimit !== 'number' || !Number.isFinite(session.encounterLimit)) return undefined;
+    return { encounterLimit: Math.max(1, Math.min(120, Math.floor(session.encounterLimit))),
+      ...(typeof session.requestId === 'string' ? { requestId: session.requestId } : {}),
+      ...(typeof session.initialCardId === 'string' ? { initialCardId: session.initialCardId } : {}),
+      ...(isLearningDecision(session.decision) ? { decision: session.decision } : {}) };
   });
-  // Distinguishes "no work was ever due" from "the session just drained".
-  const [hasReviewedInSession, setHasReviewedInSession] = createSignal(false);
+  const reviewContextRefused = createMemo(() => {
+    if (props.launchContext?.activity !== 'review') return false;
+    const session = props.launchContext.session as { decision?: unknown; requestId?: unknown } | undefined;
+    return session?.decision !== undefined && (!isLearningDecision(session.decision) || session.decision.id !== session.requestId);
+  });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = createSignal(false);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
@@ -514,11 +491,6 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
     return cards;
   });
 
-  // Queue counts for UI
-  const counts = createMemo(() => queueCounts());
-  createEffect(() => {
-    if (counts().total > 0) setHasReviewedInSession(true);
-  });
   const suggestedCount = createMemo(() => getSuggestedFlashcardBadgeCount(getSuggestedFlashcardsSync));
 
   const allFilteredSelected = createMemo(() => selection.allSelected(filteredFlashcards().map((card) => card.id)));
@@ -784,12 +756,6 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
   // Tab items for vertical navigation
   const tabs = createMemo<TabItem[]>(() => [
     { 
-      id: 'review', 
-      label: t('mlearn.Flashcards.UI.Tabs.Review'),
-      icon: <EditIcon size={16} />,
-      badge: isKnowledgeReady() && counts().total > 0 ? counts().total : undefined
-    },
-    { 
       id: 'browse', 
       label: t('mlearn.Flashcards.UI.Tabs.Browse'),
       icon: <BookIcon size={16} />
@@ -805,12 +771,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
       icon: <PlusIcon size={16} />,
       badge: isKnowledgeReady() && suggestedCount() > 0 ? suggestedCount() : undefined,
     },
-    { 
-      id: 'stats', 
-      label: t('mlearn.Flashcards.UI.Tabs.Statistics'),
-      icon: <BarChartIcon size={16} />
-    },
-  ].filter(tab => props.workspace !== 'material' || !['review', 'stats'].includes(tab.id)));
+  ]);
 
   const activeTabLabel = createMemo(() => (
     tabs().find((tab) => tab.id === activeTab())?.label ?? t('mlearn.Flashcards.UI.Title')
@@ -835,7 +796,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
           class="flashcards-sidebar"
         >
           <div class="flashcards-sidebar-header">
-            <h1 class="flashcards-title">{t(props.workspace === 'material' ? 'mlearn.Product.SavedMaterial' : 'mlearn.Flashcards.UI.Title')}</h1>
+            <h1 class="flashcards-title">{t('mlearn.Product.SavedMaterial')}</h1>
           </div>
           
           <nav id="flashcards-navigation" class="flashcards-nav">
@@ -877,51 +838,19 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
         {/* Main Content */}
         <main class="flashcards-main">
           <KnowledgeGate>
-          {/* Review Tab */}
-          <div class="flashcards-review-panel" role={props.workspace === 'review' ? 'region' : 'tabpanel'} aria-label={props.workspace === 'review' ? t('mlearn.Product.Practise') : undefined} id="flashcards-tabs-panel-review" aria-labelledby={props.workspace === 'review' ? undefined : 'flashcards-tabs-tab-review'} hidden={activeTab() !== 'review'}>
-          <Show when={activeTab() === 'review'}>
-            {/* "Nothing is due" and "this session finished" are different
-                product states: only the second is a completed session with a
-                way back into reviewing. The review surface owns that
-                distinction, so it stays mounted once work has been seen. */}
-            <Show
-              when={props.workspace === 'review' || counts().total > 0 || hasReviewedInSession()}
-              fallback={
-                <div class="flashcards-empty-container">
-                  <EmptyState
-                    icon={<SparklesIcon size={32} />}
-                    title={t('mlearn.Flashcards.EmptyState.NoCardsDueTitle')}
-                    description={t('mlearn.Flashcards.EmptyState.NoCardsDueDescription')}
-                    variant="card"
-                    size="md"
-                  />
-                  <OtherLanguageDueHint />
-                </div>
-              }
-            >
-              <Show when={reviewContextReady()} fallback={<ProgressBar value={0} indeterminate />}>
-                <Show when={!reviewContextRefused()} fallback={<div role="alert">
-                  <p>{t('mlearn.WordSync.ProjectionUnavailable')}</p>
-                  <Button onClick={() => getBridge().window.getWindowContext('flashcards')}>{t('mlearn.Knowledge.Retry')}</Button>
-                </div>}>
-                  <Show when={props.workspace === 'review'} fallback={
-                    <FlashcardReview continueAfterBatch={true} encounterLimit={reviewSessionRequest()?.encounterLimit}
-                      sessionRequestId={reviewSessionRequest()?.requestId} initialCardId={reviewSessionRequest()?.initialCardId}
-                      handoff={reviewSessionRequest()?.decision} onComplete={() => setHasReviewedInSession(true)} onClose={props.onClose ?? (() => getBridge().window.closeWindow())} />
-                  }>
-                  <ReviewWorkspace launchContext={props.launchContext} onReturn={props.onClose ?? (() => getBridge().window.closeWindow())}>
+          <Show when={props.workspace === 'review'}>
+            <section class="flashcards-review-panel" aria-label={t('mlearn.Product.Practise')}>
+              <Show when={!reviewContextRefused()} fallback={<div role="alert"><p>{t('mlearn.WordSync.ProjectionUnavailable')}</p><Button onClick={props.onClose}>{t('mlearn.Global.Back')}</Button></div>}>
+                <ReviewWorkspace launchContext={props.launchContext} onReturn={props.onClose}>
                   <FlashcardReview encounterLimit={reviewSessionRequest()?.encounterLimit}
                     resumeSessionId={props.launchContext?.intent === 'resume' && typeof props.launchContext.sessionId === 'string' ? props.launchContext.sessionId : undefined}
                     sessionRequestId={reviewSessionRequest()?.requestId}
                     initialCardId={reviewSessionRequest()?.initialCardId}
-                    handoff={reviewSessionRequest()?.decision} onComplete={() => setHasReviewedInSession(true)} onClose={props.onClose ?? (() => getBridge().window.closeWindow())} />
-                  </ReviewWorkspace>
-                  </Show>
-                </Show>
+                    handoff={reviewSessionRequest()?.decision} onClose={props.onClose} />
+                </ReviewWorkspace>
               </Show>
-            </Show>
+            </section>
           </Show>
-          </div>
 
           {/* Browse Tab */}
           <div role="tabpanel" id="flashcards-tabs-panel-browse" aria-labelledby="flashcards-tabs-tab-browse" hidden={activeTab() !== 'browse'}>
@@ -1248,12 +1177,6 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
           </Show>
           </div>
 
-          {/* Stats Tab */}
-          <div role="tabpanel" id="flashcards-tabs-panel-stats" aria-labelledby="flashcards-tabs-tab-stats" hidden={activeTab() !== 'stats'}>
-          <Show when={activeTab() === 'stats'}>
-            <FlashcardStats />
-          </Show>
-          </div>
           </KnowledgeGate>
         </main>
       </div>
