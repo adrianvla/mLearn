@@ -248,6 +248,7 @@ describe('MockExam surface (R13/R14)', () => {
 
   it('does not advertise an unfinished checkpoint when the package declares none', () => {
     const harness = mount({ ...baseLanguageData(), grammar: [], grammarLevels: { names: {} } });
+    expect(harness.container.textContent).toContain('mlearn.Product.MockUnavailable');
     expect(harness.container.querySelector('[data-testid="mock-exam"]')).toBeNull();
     harness.dispose();
     harness.container.remove();

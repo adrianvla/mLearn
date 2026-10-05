@@ -4191,6 +4191,7 @@
       "WatchDescription": "Watch with subtitles and contextual lookup.",
       "OpenMaterial": "Open or import material",
       "MessengerDescription": "Continue your conversations.",
+      "MockUnavailable": "This installed package does not provide checkpoint question sources.",
       "GrammarUnavailable": "This package does not provide grammar tasks.",
       "ResumeUnavailable": "This saved task is unavailable. Your current work has been kept."
     }

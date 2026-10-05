@@ -1,6 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import { Panel } from '../../components/common';
+import { EmptyState, Panel } from '../../components/common';
 import { formatDateTime } from '../../utils/timeFormatting';
 import {
   MOCK_PER_ITEM_SECONDS,
@@ -542,7 +542,8 @@ export const MockExam: Component<MockExamProps> = (props) => {
   };
 
   return (
-    <Show when={blueprints().length > 0 || summaries().length > 0 || live() || results() !== null}>
+    <Show when={blueprints().length > 0 || summaries().length > 0 || live() || results() !== null}
+      fallback={<EmptyState title={t('mlearn.Product.MockUnavailable')} variant="card" size="md" />}>
     <Panel class="mock-exam-panel" padding="md">
     <section class="mock-exam" data-testid="mock-exam">
       <div class="mock-exam__header">
