@@ -4165,7 +4165,7 @@
       "Consequence": "Nicht gewusst: kein Abruf. Schwierig: hergeleitet. Sicher: ohne Hilfe erinnert. Deine Antwort aktualisiert deinen Lernstand und bestimmt die nächste Aufgabe.",
       "Check": "Überprüfen",
       "PlacementIntro": "Diese adaptive Prüfung nutzt denselben Ablauf wie die Übung. Wörter ohne direkte Lernbelege werden geprüft; daraus entsteht ein Vorschlag für deinen Lernplan. Andere Wörter bleiben ungeprüft.",
-      "Resume": "Übung fortsetzen",
+      "Resume": "Fortsetzen",
       "RetrieveWord": "Erinnere dich an Lesung und Bedeutung, bevor du die Antwort aufdeckst.",
       "RetrieveAspects": "Prüfe bei dieser Abrufaufgabe: {aspects}. Decke die Antwort zum Vergleich auf.",
       "Progress": "Sitzung: {count} von {total}",

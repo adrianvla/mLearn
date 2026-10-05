@@ -4165,7 +4165,7 @@
       "Consequence": "Missed: could not recall. Struggled: worked it out. Fluent: recalled without help. Your response updates your learning record and chooses the next item.",
       "Check": "Check this",
       "PlacementIntro": "A short adaptive check uses the same recall and answer flow as practice. It samples words without direct evidence, then suggests a starting point for your Learning Plan. Unsampled words stay unassessed.",
-      "Resume": "Resume practice",
+      "Resume": "Resume",
       "RetrieveWord": "Try to recall the reading and meaning before revealing the answer.",
       "RetrieveAspects": "Focus this recall check on: {aspects}. Reveal the answer to compare.",
       "Progress": "Session: {count} of {total}",

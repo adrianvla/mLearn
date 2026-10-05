@@ -4165,7 +4165,7 @@
       "Consequence": "Oublié : aucun rappel. Difficile : réponse déduite. Fluide : rappel sans aide. Votre réponse actualise votre apprentissage et détermine la suite.",
       "Check": "Vérifier",
       "PlacementIntro": "Ce bilan adaptatif suit le même déroulement que la pratique. Il teste des mots sans preuve directe, puis propose un point de départ pour votre plan. Les autres mots restent non évalués.",
-      "Resume": "Reprendre la pratique",
+      "Resume": "Reprendre",
       "RetrieveWord": "Essayez de retrouver la lecture et le sens avant de révéler la réponse.",
       "RetrieveAspects": "Concentrez ce rappel sur : {aspects}. Révélez la réponse pour comparer.",
       "Progress": "Séance : {count} sur {total}",
