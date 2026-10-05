@@ -1398,11 +1398,11 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   });
   const totalAvailable = createMemo(() => Math.max(0,
     (sessionController()?.current()?.queue.length
-      ?? [...(sessionQueue()?.values() ?? [])].reduce((total, group) => total + group.length, 0)) - skippedCount(),
+      ?? [...(sessionQueue()?.values() ?? [])].reduce((total, group) => total + group.length, 0)),
   ));
   const sessionPresentation = createMemo(() => studySessionState({
     ready: !!sessionController()?.current(),
-    index: sessionController()?.current()?.rated ?? 0,
+    index: sessionController()?.current()?.visited.length ?? 0,
     total: totalAvailable(),
     revealed: sessionController()?.current()?.revealed ?? false,
     write: sessionController()?.current()?.pending?.state ?? null,
@@ -1958,10 +1958,10 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
           </Show>
           <Button variant="primary" disabled={assessmentMode() && assessmentPlan().length === 0} onClick={() => retrySessionStart?.()}>{t('mlearn.LevelStudy.Mock.Start')}</Button>
           <Show when={assessmentMode() && resumableCurrent()}>{record =>
-            <Button onClick={() => { setWorkspaceOpen(false); pickNext(); }}>{t('mlearn.StudyEncounter.Resume')} · {record().rated}/{record().queue.length}</Button>
+            <Button onClick={() => { setWorkspaceOpen(false); pickNext(); }}>{t('mlearn.StudyEncounter.Resume')} · {record().visited.length}/{record().queue.length}</Button>
           }</Show>
           <For each={savedWordTasks()}>{task => <Button data-session-id={task.id}
-            onClick={() => resumeWordTask(task)}>{t('mlearn.StudyEncounter.Resume')} · {task.source?.label ? `${task.source.label} · ` : ''}{task.rated}/{task.total}</Button>}</For>
+            onClick={() => resumeWordTask(task)}>{t('mlearn.StudyEncounter.Resume')} · {task.source?.label ? `${task.source.label} · ` : ''}{task.completed}/{task.total}</Button>}</For>
           <For each={assessmentMode() ? sessionController()?.suspended().filter(record => record.index < record.queue.length) ?? [] : []}>{record =>
             <Button onClick={() => {
               const controller = sessionController();
@@ -1973,7 +1973,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                 setSessionAdmissionPending(false);
                 if (accepted) { setWorkspaceOpen(false); setUndoStack([]); pickNext(); }
               });
-            }}>{t('mlearn.StudyEncounter.Resume')} · {record.rated}/{record.queue.length}</Button>
+            }}>{t('mlearn.StudyEncounter.Resume')} · {record.visited.length}/{record.queue.length}</Button>
           }</For>
         </Panel>
       </Show>

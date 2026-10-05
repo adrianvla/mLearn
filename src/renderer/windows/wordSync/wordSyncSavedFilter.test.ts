@@ -18,6 +18,11 @@ const record = () => ({
 });
 
 describe('wordSyncSavedFilter', () => {
+  it('discovers handled membership separately from reports after a skipped entry', () => {
+    const raw = JSON.stringify({ ...record(), rated: 0 });
+    const tasks = wordSyncSavedTasks({ getItem: key => key === 'task' ? raw : null }, 'task', scope);
+    expect(tasks[0]).toMatchObject({ completed: 1, rated: 0, total: 2 });
+  });
   it('discovers current and suspended tasks with different expressions without mutating either', () => {
     const current = record();
     const saved = { ...record(), id: 'saved-other-expression', identity: JSON.stringify({ ...scope, tokens: [] }) };

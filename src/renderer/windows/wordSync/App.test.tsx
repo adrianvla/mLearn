@@ -1226,6 +1226,27 @@ beforeEach(() => {
     expect(mockSubmitRating).not.toHaveBeenCalled();
   });
 
+  it('keeps bounded membership in progress when an entry is skipped without a report', async () => {
+    const { WordSyncContent } = await import('./App');
+    const dispose = render(() => <WordSyncContent words={['赤い', '青い']} />, container);
+    disposals.push(dispose);
+    await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 2');
+    buttonByText('mlearn.LevelStudy.Placement.Skip').click();
+    await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('1 / 2');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+    press(' '); await settle(); press('3'); await settle();
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('2 / 2');
+    expect(container.querySelector('.word-sync-finished')).not.toBeNull();
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+    const key = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).find(key => key?.includes('-material-'))!;
+    const record = JSON.parse(localStorage.getItem(key)!);
+    expect(record.queue).toHaveLength(2);
+    expect(record.visited).toHaveLength(2);
+    expect(record.rated).toBe(1);
+  });
+
   it('keeps ordinary practice admission stable without imposing an inferred short batch', async () => {
     mockWordSyncState.wordFrequency = Object.fromEntries(Array.from({ length: 24 }, (_, index) => [`word-${index}`, { reading: '', raw_level: 5, level: 'N5' }]));
     const { WordSyncContent } = await import('./App');
@@ -2963,7 +2984,8 @@ beforeEach(() => {
     buttonByText('mlearn.LevelStudy.Placement.Skip').click();
     await settle(); await settle();
 
-    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 1');
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('1 / 2');
+    expect(mockSubmitRating).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain('mlearn.WordSync.AnswerUnavailable');
     expect(container.textContent).toContain(`${other}:`);
     dispose();

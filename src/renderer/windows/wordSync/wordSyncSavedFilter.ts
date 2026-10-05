@@ -9,7 +9,7 @@ export interface FilterScope {
 
 /** Read-only discovery across expressions. Activation still validates the complete owner record. */
 export function wordSyncSavedTasks(storage: Pick<Storage, 'getItem'>, key: string, scope: FilterScope) {
-  const tasks: Array<{ id: string; rated: number; total: number; tokens: FilterToken[] }> = [];
+  const tasks: Array<{ id: string; rated: number; completed: number; total: number; tokens: FilterToken[] }> = [];
   try {
     const current = storage.getItem(key);
     const index: unknown = JSON.parse(storage.getItem(`${key}:sessions`) ?? '[]');
@@ -20,7 +20,7 @@ export function wordSyncSavedTasks(storage: Pick<Storage, 'getItem'>, key: strin
       if (!raw || tokens === null) continue;
       const record = JSON.parse(raw);
       if (record.index >= record.queue.length || tasks.some(task => task.id === record.id)) continue;
-      tasks.push({ id: record.id, rated: record.rated, total: record.queue.length, tokens });
+      tasks.push({ id: record.id, rated: record.rated, completed: new Set(record.visited).size, total: record.queue.length, tokens });
     }
   } catch { /* Unavailable storage exposes no fabricated resume choice. */ }
   return tasks;
