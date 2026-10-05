@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { wordSyncSavedFilter } from './wordSyncSavedFilter';
+import { wordSyncSavedFilter, wordSyncSavedTasks } from './wordSyncSavedFilter';
 
 const scope = { language: 'synthetic-package', provider: 'package-frequency', packageVersion: 'release-1' };
 const tokens = [
@@ -17,6 +17,19 @@ const record = () => ({
 });
 
 describe('wordSyncSavedFilter', () => {
+  it('discovers current and suspended tasks with different expressions without mutating either', () => {
+    const current = record();
+    const saved = { ...record(), id: 'saved-other-expression', identity: JSON.stringify({ ...scope, tokens: [] }) };
+    const store = new Map([['task', JSON.stringify(current)], ['task:sessions', JSON.stringify([saved.id, current.id, 'absent'])],
+      [`task:session:${saved.id}`, JSON.stringify(saved)], [`task:session:${current.id}`, JSON.stringify(current)]]);
+    const before = [...store];
+    const tasks = wordSyncSavedTasks({ getItem: key => store.get(key) ?? null }, 'task', scope);
+    expect(tasks.map(task => task.id)).toEqual([current.id, saved.id]);
+    expect(tasks[0].tokens.map(({ instanceId: _id, ...token }) => token)).toEqual(tokens);
+    expect(tasks[1].tokens).toEqual([]);
+    expect([...store]).toEqual(before);
+    expect(wordSyncSavedTasks({ getItem: key => store.get(key) ?? null }, 'task', { ...scope, language: 'other' })).toEqual([]);
+  });
   it('preserves unknown package fields, structured value strings and extensions with fresh UI identities', () => {
     const restored = wordSyncSavedFilter(JSON.stringify(record()), scope)!;
     expect(restored.map(({ instanceId: _id, ...token }) => token)).toEqual(tokens);

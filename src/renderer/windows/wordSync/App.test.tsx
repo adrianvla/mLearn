@@ -920,6 +920,30 @@ beforeEach(() => {
     expect(mockSubmitRating).not.toHaveBeenCalled();
   });
 
+  it('discovers and resumes a suspended task with a different filter expression', async () => {
+    const { WordSyncContent } = await import('./App');
+    mountContent(() => <WordSyncContent launchIntent="start" />);
+    await settle(); await settle();
+    press(' '); await settle();
+    const key = 'mlearn-study-word-sync:ja';
+    const saved = JSON.parse(localStorage.getItem(key)!);
+    buttonByText('mlearn.WordSync.Filter').click();
+    mockCommonState.filterBuilderProps!.onChange([{ kind: 'operand', field: 'level', op: 'eq', value: '5' }]);
+    await settle(); await settle();
+    buttonByText('mlearn.LevelStudy.Mock.Start').click(); await settle(); await settle();
+    const second = JSON.parse(localStorage.getItem(key)!);
+    disposals.pop()!();
+    mountContent(() => <WordSyncContent launchIntent="open" />);
+    await settle(); await settle();
+    const resume = container.querySelector<HTMLButtonElement>(`button[data-session-id="${saved.id}"]`);
+    expect(resume).not.toBeNull();
+    resume!.click(); await settle(); await settle();
+    expect(JSON.parse(localStorage.getItem(key)!).id).toBe(saved.id);
+    expect(JSON.parse(localStorage.getItem(key)!).revealed).toBe(true);
+    expect(JSON.parse(localStorage.getItem(`${key}:session:${encodeURIComponent(second.id)}`)!).id).toBe(second.id);
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
   it('refuses an absent exact Resume instead of presenting or replacing the active task', async () => {
     const { WordSyncContent } = await import('./App');
     mountContent(WordSyncContent); await settle();

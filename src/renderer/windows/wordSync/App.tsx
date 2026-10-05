@@ -57,7 +57,7 @@ import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter, selectRankedEncounters } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { selectWordSyncDecision, wordSyncDecisionWindow } from './wordSyncDecision';
-import { wordSyncSavedFilter } from './wordSyncSavedFilter';
+import { wordSyncSavedFilter, wordSyncSavedTasks } from './wordSyncSavedFilter';
 import type { PolicyTrace } from '../../learning/types';
 import { studySessionState } from '../../learning/studySession';
 import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
@@ -263,6 +263,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const [assessmentReady, setAssessmentReady] = createSignal(false);
   const [sessionAdmissionPending, setSessionAdmissionPending] = createSignal(props.launchIntent !== undefined || props.sessionRequestId !== undefined);
   const [workspaceOpen, setWorkspaceOpen] = createSignal(props.launchIntent === 'open');
+  const [requestedResumeId, setRequestedResumeId] = createSignal(props.launchIntent === 'resume' ? props.resumeSessionId ?? '' : undefined);
   const resumableCurrent = createMemo(() => {
     const record = sessionController()?.current();
     return record && record.index < record.queue.length ? record : null;
@@ -1500,12 +1501,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         if (accepted) { setWorkspaceOpen(false); pickNext(); }
       });
     };
-    if (props.launchIntent === 'resume') {
-      void controller.activate(props.resumeSessionId ?? '').then(accepted => {
+    if (requestedResumeId() !== undefined) {
+      void controller.activate(requestedResumeId()!).then(accepted => {
         if (disposed || sessionController() !== controller) return;
         setResumeUnavailable(!accepted);
         setSessionAdmissionPending(false);
-        if (accepted) pickNext();
+        if (accepted) { setWorkspaceOpen(false); pickNext(); }
       });
     } else if (workspaceOpen()) {
       setSessionAdmissionPending(false);
@@ -1765,6 +1766,44 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     setSessionWriteFailure(null);
   };
 
+  const savedWordTasks = createMemo(() => {
+    sessionController()?.current(); // Refresh after this owner's durable switch.
+    if (assessmentMode()) return [];
+    const available = new Set([...wordPool().values()].flat().map(entry => entry.word));
+    return wordSyncSavedTasks(globalThis.localStorage, studyStorageKey(), {
+      language: settings.language,
+      provider: settings.frequencyProviderSelections?.[settings.language],
+      packageVersion: langCtx.currentLangData()?.languageData?.version,
+    }).filter(task => {
+      try {
+        const key = studyStorageKey();
+        const active = globalThis.localStorage.getItem(key);
+        const raw = active && JSON.parse(active).id === task.id ? active
+          : globalThis.localStorage.getItem(`${key}:session:${encodeURIComponent(task.id)}`);
+        return raw !== null && JSON.parse(raw).queue.every((item: WordQueueEntry) => available.has(item.id));
+      } catch { return false; }
+    });
+  });
+  const resumeWordTask = (task: ReturnType<typeof wordSyncSavedTasks>[number]) => {
+    if (ratingWrite() !== null || navigationPending() || undoBlocking() || sessionController()?.current()?.pending) return;
+    sessionController()?.dispose();
+    batch(() => {
+      setRequestedResumeId(task.id);
+      setWorkspaceOpen(false);
+      setSessionAdmissionPending(true);
+      setSessionController(null);
+      setSessionQueue(undefined);
+      setSessionWriteFailure(null);
+      setResumeUnavailable(false);
+      setCurrentWord(null);
+      setUndoStack([]);
+      setFilterTokens(task.tokens);
+      levelCursors = new Map();
+      setFinished(false);
+      rebuildWordPool();
+    });
+  };
+
   return (
     <div class="word-sync" classList={{ 'word-sync--assessment': assessmentMode(), 'word-sync--material': suppliedWords() !== undefined }}>
       <Show when={suppliedWords() && props.sourceLabel}><p class="word-sync-material-context">
@@ -1818,6 +1857,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
                   // Editing prepares another scope. Its explicit Start will
                   // suspend the durable task; editing alone changes no cursor.
                   setWorkspaceOpen(true);
+                  setRequestedResumeId(undefined);
                   setSessionAdmissionPending(true);
                   setSessionController(null);
                   setSessionWriteFailure(null);
@@ -1895,10 +1935,12 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             <Show when={assessmentPlan().length === 0}><p>{t('mlearn.LevelStudy.Placement.EmptyPools')}</p></Show>
           </Show>
           <Button variant="primary" disabled={assessmentMode() && assessmentPlan().length === 0} onClick={() => retrySessionStart?.()}>{t('mlearn.LevelStudy.Mock.Start')}</Button>
-          <Show when={resumableCurrent()}>{record =>
+          <Show when={assessmentMode() && resumableCurrent()}>{record =>
             <Button onClick={() => { setWorkspaceOpen(false); pickNext(); }}>{t('mlearn.StudyEncounter.Resume')} · {record().rated}/{record().queue.length}</Button>
           }</Show>
-          <For each={sessionController()?.suspended().filter(record => record.index < record.queue.length) ?? []}>{record =>
+          <For each={savedWordTasks()}>{task => <Button data-session-id={task.id}
+            onClick={() => resumeWordTask(task)}>{t('mlearn.StudyEncounter.Resume')} · {task.rated}/{task.total}</Button>}</For>
+          <For each={assessmentMode() ? sessionController()?.suspended().filter(record => record.index < record.queue.length) ?? [] : []}>{record =>
             <Button onClick={() => {
               const controller = sessionController();
               if (!controller) return;
