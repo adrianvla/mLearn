@@ -1,0 +1,29 @@
+name: Apply restoration follow-up
+
+on:
+  push:
+    branches: [fix/restore-mlearn-desktop-ux]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: contains(github.event.head_commit.message, 'stage restoration follow-up')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/restore-mlearn-desktop-ux
+          fetch-depth: 2
+      - name: Apply verified follow-up
+        run: |
+          git apply --check .github/restoration-followup.patch
+          git apply .github/restoration-followup.patch
+          rm .github/restoration-followup.patch .github/workflows/apply-restoration-followup.yml
+          git config user.name "mLearn restoration"
+          git config user.email "86854740+adrianvla@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: restore reader evidence and interaction semantics"
+          git push origin HEAD:fix/restore-mlearn-desktop-ux
