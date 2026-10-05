@@ -76,17 +76,51 @@ export function wordSyncSavedTaskById(storage: Pick<Storage, 'length' | 'key' | 
       if (!/^mlearn-study-word-sync(?:-material-[a-f0-9]{64})?(?:-reinforce)?:[^:]+$/.test(key)
         || !key.endsWith(`:${scope.language}`) || storedKey.endsWith(':sessions')) continue;
       const raw = storage.getItem(storedKey);
-      if (!raw || wordSyncSavedFilter(raw, scope) === null) continue;
-      const record = JSON.parse(raw);
-      if (record.id !== id) continue;
-      const source = record.meta.source;
-      if (source !== undefined && (!isObject(source) || !Array.isArray(source.words)
-        || !source.words.every((word: unknown) => typeof word === 'string' && !!word.trim())
-        || typeof source.label !== 'string')) continue;
-      const sourceKey = `mlearn-study-word-sync${source ? `-material-${hashWordSync(source.words.join('\u0000'))}` : ''}`;
-      if (key !== `${sourceKey}:${scope.language}` && key !== `${sourceKey}-reinforce:${scope.language}`) continue;
-      return { key, source };
+      if (!raw) continue;
+      const owner = wordSyncSavedTaskSource(raw, key, scope);
+      if (owner && JSON.parse(raw).id === id) return { key, source: owner.source };
     }
   } catch { /* A malformed or unavailable named record cannot choose another task. */ }
   return undefined;
+}
+
+function wordSyncSavedTaskSource(raw: string, key: string, scope: FilterScope): {
+  source?: { words: string[]; label: string }; words: string[];
+} | undefined {
+  if (wordSyncSavedFilter(raw, scope) === null) return undefined;
+  const record = JSON.parse(raw);
+  const source = record.meta.source;
+  if (source !== undefined && (!isObject(source) || !Array.isArray(source.words)
+    || !source.words.every((word: unknown) => typeof word === 'string' && !!word.trim())
+    || typeof source.label !== 'string')) return undefined;
+  const sourceKey = `mlearn-study-word-sync${source ? `-material-${hashWordSync(source.words.join('\u0000'))}` : ''}`;
+  if (key !== `${sourceKey}:${scope.language}` && key !== `${sourceKey}-reinforce:${scope.language}`) return undefined;
+  return { source, words: record.queue.map((item: { id: string }) => item.id) };
+}
+
+/** Discover existing owner namespaces, keeping current snapshots ahead of their archives. */
+export function wordSyncSavedTaskInventory(storage: Pick<Storage, 'length' | 'key' | 'getItem'>, scope: FilterScope) {
+  const tasks: Array<ReturnType<typeof wordSyncSavedTasks>[number] & {
+    key: string; source?: { words: string[]; label: string }; words: string[];
+  }> = [];
+  try {
+    const namespaces = new Set<string>();
+    for (let index = 0; index < storage.length; index++) {
+      const key = storage.key(index)?.split(':session:')[0];
+      if (key && /^mlearn-study-word-sync(?:-material-[a-f0-9]{64})?(?:-reinforce)?:[^:]+$/.test(key)
+        && key.endsWith(`:${scope.language}`)) namespaces.add(key);
+    }
+    for (const key of namespaces) {
+      for (const task of wordSyncSavedTasks(storage, key, scope)) {
+        if (tasks.some(saved => saved.id === task.id)) continue;
+        const current = storage.getItem(key);
+        let raw = storage.getItem(`${key}:session:${encodeURIComponent(task.id)}`);
+        try { if (current && JSON.parse(current)?.id === task.id) raw = current; } catch { /* An invalid active snapshot cannot hide valid archives. */ }
+        if (!raw) continue;
+        const owner = wordSyncSavedTaskSource(raw, key, scope);
+        if (owner) tasks.push({ ...task, key, ...owner });
+      }
+    }
+  } catch { /* Unavailable storage advertises no additional resume choices. */ }
+  return tasks;
 }

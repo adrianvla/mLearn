@@ -910,6 +910,31 @@ beforeEach(() => {
     expect(mockSubmitRating).not.toHaveBeenCalled();
   });
 
+  it('generic Open discovers and resumes material with its original source and reveal state', async () => {
+    const { WordSyncContent } = await import('./App');
+    const origin = { returnTo: 'reader', sourceContext: { workspace: 'reader', path: '/source.epub', page: 9 } };
+    mountContent(() => <WordSyncContent launchIntent="start" words={['赤い', '青い']} sourceLabel="Original chapter" returnContext={origin} />);
+    await settle(); await settle();
+    press(' '); await settle();
+    const key = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index)!).find(key => key.startsWith('mlearn-study-word-sync-material-') && !key.includes(':session'))!;
+    const saved = JSON.parse(localStorage.getItem(key)!);
+    disposals.pop()!();
+    const onClose = vi.fn();
+    mountContent(() => <WordSyncContent launchIntent="open" onClose={onClose} />);
+    await settle(); await settle();
+    const resume = container.querySelector<HTMLButtonElement>(`button[data-session-id="${saved.id}"]`);
+    expect(resume).not.toBeNull();
+    expect(resume!.textContent).toContain('Original chapter');
+    expect(container.querySelector('.word-sync-word')).toBeNull();
+    resume!.click(); await settle(); await settle();
+    expect(JSON.parse(localStorage.getItem(key)!).id).toBe(saved.id);
+    expect(JSON.parse(localStorage.getItem(key)!).revealed).toBe(true);
+    expect(container.querySelector('.word-sync-word')).not.toBeNull();
+    buttonByText('mlearn.Global.Back').click();
+    expect(onClose).toHaveBeenCalledWith(origin);
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
   it('a new task without a source cannot inherit the suspended task origin', async () => {
     const { WordSyncContent } = await import('./App');
     mountContent(() => <WordSyncContent launchIntent="start" returnContext={{ returnTo: 'reader', sourceContext: { path: '/previous.epub' } }} />);

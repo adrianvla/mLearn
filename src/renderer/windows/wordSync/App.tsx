@@ -58,7 +58,7 @@ import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { selectNextEncounter, selectRankedEncounters } from '../../learning/engine';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { selectWordSyncDecision, wordSyncDecisionWindow } from './wordSyncDecision';
-import { wordSyncSavedFilter, wordSyncSavedTasks, wordSyncSavedTaskById } from './wordSyncSavedFilter';
+import { wordSyncSavedFilter, wordSyncSavedTaskInventory, wordSyncSavedTaskById } from './wordSyncSavedFilter';
 import type { PolicyTrace } from '../../learning/types';
 import { studySessionState } from '../../learning/studySession';
 import { canRetryRetraction, isRetractionWriteBlocking, type RetractionWriteState } from '../../learning/undoHistory';
@@ -179,8 +179,9 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const answerExposure = createReviewAssistanceStore(globalThis.localStorage, globalThis.navigator?.locks ?? inProcessStudySessionLocks);
   const exposureScope = (word: string, language = settings.language) => JSON.stringify(['word', surfaceEntityId(language, hashWordSync(word))]);
   const langCtx = useLanguage();
-  const restoredTask = createMemo(() => props.launchIntent === 'resume' && !assessmentMode()
-    ? wordSyncSavedTaskById(globalThis.localStorage, props.resumeSessionId ?? '', {
+  const [selectedSavedTaskId, setSelectedSavedTaskId] = createSignal<string>();
+  const restoredTask = createMemo(() => (selectedSavedTaskId() !== undefined || props.launchIntent === 'resume') && !assessmentMode()
+    ? wordSyncSavedTaskById(globalThis.localStorage, selectedSavedTaskId() ?? props.resumeSessionId ?? '', {
       language: settings.language,
       provider: settings.frequencyProviderSelections?.[settings.language],
       packageVersion: langCtx.currentLangData()?.languageData?.version,
@@ -1791,27 +1792,24 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   };
 
   const savedWordTasks = createMemo(() => {
+    if (assessmentMode() || !workspaceOpen()) return [];
     sessionController()?.current(); // Refresh after this owner's durable switch.
-    if (assessmentMode()) return [];
-    const available = new Set([...wordPool().values()].flat().map(entry => entry.word));
-    return wordSyncSavedTasks(globalThis.localStorage, studyStorageKey(), {
+    const frequencyWords = Object.keys(langCtx.getWordFrequency());
+    return wordSyncSavedTaskInventory(globalThis.localStorage, {
       language: settings.language,
       provider: settings.frequencyProviderSelections?.[settings.language],
       packageVersion: langCtx.currentLangData()?.languageData?.version,
     }).filter(task => {
-      try {
-        const key = studyStorageKey();
-        const active = globalThis.localStorage.getItem(key);
-        const raw = active && JSON.parse(active).id === task.id ? active
-          : globalThis.localStorage.getItem(`${key}:session:${encodeURIComponent(task.id)}`);
-        return raw !== null && JSON.parse(raw).queue.every((item: WordQueueEntry) => available.has(item.id));
-      } catch { return false; }
+      if (task.key.endsWith(`-reinforce:${settings.language}`) !== (props.intent === 'reinforce')) return false;
+      const candidates = new Set(task.source?.words ?? frequencyWords);
+      return task.words.every(word => candidates.has(word) && !isStudyExcluded(store.ignoredWords[`${settings.language}:${hashWordSync(langCtx.getCanonicalFormForLanguage(settings.language, word))}`]));
     });
   });
-  const resumeWordTask = (task: ReturnType<typeof wordSyncSavedTasks>[number]) => {
+  const resumeWordTask = (task: ReturnType<typeof wordSyncSavedTaskInventory>[number]) => {
     if (ratingWrite() !== null || navigationPending() || undoBlocking() || sessionController()?.current()?.pending) return;
     sessionController()?.dispose();
     batch(() => {
+      setSelectedSavedTaskId(task.id);
       setRequestedResumeId(task.id);
       setWorkspaceOpen(false);
       setSessionAdmissionPending(true);
@@ -1963,7 +1961,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
             <Button onClick={() => { setWorkspaceOpen(false); pickNext(); }}>{t('mlearn.StudyEncounter.Resume')} · {record().rated}/{record().queue.length}</Button>
           }</Show>
           <For each={savedWordTasks()}>{task => <Button data-session-id={task.id}
-            onClick={() => resumeWordTask(task)}>{t('mlearn.StudyEncounter.Resume')} · {task.rated}/{task.total}</Button>}</For>
+            onClick={() => resumeWordTask(task)}>{t('mlearn.StudyEncounter.Resume')} · {task.source?.label ? `${task.source.label} · ` : ''}{task.rated}/{task.total}</Button>}</For>
           <For each={assessmentMode() ? sessionController()?.suspended().filter(record => record.index < record.queue.length) ?? [] : []}>{record =>
             <Button onClick={() => {
               const controller = sessionController();

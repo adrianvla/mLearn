@@ -1,6 +1,6 @@
 import { hashWordSync } from '../../../shared/utils/wordHash';
 import { describe, expect, it } from 'vitest';
-import { wordSyncSavedFilter, wordSyncSavedTasks, wordSyncSavedTaskById } from './wordSyncSavedFilter';
+import { wordSyncSavedFilter, wordSyncSavedTasks, wordSyncSavedTaskById, wordSyncSavedTaskInventory } from './wordSyncSavedFilter';
 
 const scope = { language: 'synthetic-package', provider: 'package-frequency', packageVersion: 'release-1' };
 const tokens = [
@@ -74,12 +74,37 @@ describe('named word task discovery', () => {
     const map = new Map(items);
     return { get length() { return map.size; }, key: (index: number) => [...map.keys()][index] ?? null, getItem: (key: string) => map.get(key) ?? null };
   };
+  it('discovers compatible material and ordinary tasks without exposing cues or mutating storage', () => {
+    const source = { words: ['surface-1', 'surface-2'], label: 'Original chapter' };
+    const materialKey = `mlearn-study-word-sync-material-${hashWordSync(source.words.join('\u0000'))}:${scope.language}`;
+    const material = { ...record(), id: 'material-task', meta: { ...record().meta, source } };
+    const raw = JSON.stringify(material);
+    const store = storage([[key, JSON.stringify(record())], [materialKey, raw],
+      [`${materialKey}:sessions`, JSON.stringify(['material-task', 'missing'])], [`${materialKey}:session:material-task`, raw],
+      [`mlearn-study-word-sync:other`, JSON.stringify({ ...record(), identity: JSON.stringify({ ...scope, language: 'other', tokens }) })]]);
+    const before = Array.from({ length: store.length }, (_, index) => [store.key(index), store.getItem(store.key(index)!)]);
+    const tasks = wordSyncSavedTaskInventory(store, scope);
+    expect(tasks.map(task => ({ id: task.id, key: task.key, source: task.source }))).toEqual([
+      { id: 'saved-session', key, source: undefined }, { id: 'material-task', key: materialKey, source },
+    ]);
+    expect(Array.from({ length: store.length }, (_, index) => [store.key(index), store.getItem(store.key(index)!)])).toEqual(before);
+  });
   it('reads the exact archived identity without changing storage or admitting another task', () => {
     const raw = JSON.stringify(record());
     const store = storage([[key, JSON.stringify({ ...record(), id: 'other' })], [`${key}:session:saved-session`, raw]]);
     expect(wordSyncSavedTaskById(store, 'saved-session', scope)).toEqual({ key, source: undefined });
     expect(store.getItem(`${key}:session:saved-session`)).toBe(raw);
     expect(wordSyncSavedTaskById(store, 'missing', scope)).toBeUndefined();
+  });
+  it('preserves malformed active data while still discovering a valid archive and another namespace', () => {
+    const source = { words: ['surface-1', 'surface-2'], label: 'Saved chapter' };
+    const materialKey = `mlearn-study-word-sync-material-${hashWordSync(source.words.join('\u0000'))}:${scope.language}`;
+    const material = { ...record(), id: 'material-task', meta: { ...record().meta, source } };
+    const store = storage([[materialKey, '{broken'], [`${materialKey}:sessions`, JSON.stringify([material.id])],
+      [`${materialKey}:session:${material.id}`, JSON.stringify(material)], [key, JSON.stringify(record())]]);
+    expect(wordSyncSavedTaskInventory(store, scope).map(task => task.id)).toEqual(['material-task', 'saved-session']);
+    expect(wordSyncSavedTaskById(store, 'saved-session', scope)).toEqual({ key, source: undefined });
+    expect(store.getItem(materialKey)).toBe('{broken');
   });
   it.each(['language', 'provider', 'packageVersion'] as const)('rejects a mismatched %s owner', field => {
     const store = storage([[key, JSON.stringify(record())]]);
