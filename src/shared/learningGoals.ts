@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS, type Settings } from './types';
+import type { Settings } from './types';
 
 /** Requirements are learner intent, never another learner/evidence model. */
 export interface LearningGoal {
@@ -32,10 +32,4 @@ export function learningGoalsForSettings(settings: Pick<Settings, 'learningGoals
 export function activeLearningGoals(goals: readonly LearningGoal[], language: string): LearningGoal[] {
   return goals.filter(goal => goal.language === language && goal.status === 'active' && Boolean(goal.outcomeRef?.id))
     .sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt);
-}
-
-/** A transparent encounter budget. This is not an estimate of learning speed. */
-export function goalSessionBudget(minutes: number): number {
-  const effort = Number.isFinite(minutes) ? minutes : DEFAULT_SETTINGS.learningMinutes;
-  return Math.max(1, Math.min(120, Math.floor(effort * 2)));
 }

@@ -296,20 +296,11 @@ export interface Settings {
    * never evidence credibility, mastery thresholds, or scoring.
    */
   sessionIntensity: 'gentle' | 'steady' | 'intensive';
-  /**
-   * Learner exam goal (R07): a free-label target plus optional ISO deadline
-   * feed deadline-proximity weighting into the teaching policy. `kind:
-   * 'none'` means no goal weighting. Ordinary settings — never knowledge,
-   * never a questionnaire.
-   *
-   * `language` scopes the goal to the learning language it was recorded for
-   * (R07): a JLPT deadline never weights a German queue. Stamped from the
-   * active learning language when the goal is created in the UI and stamped
-   * once onto legacy goals at settings load.
-   */
+  /** Legacy free-label intent retained for storage compatibility; it defines no runtime scope. */
   examGoal: { kind: 'none' | 'exam'; deadline?: string; target?: string; language?: string };
-  /** Absent on legacy profiles; resolve the existing exam commitment before editing. */
+  /** Package-defined preparation scopes. Legacy records without package identity stay inactive. */
   learningGoals?: import('./learningGoals').LearningGoal[];
+  /** Legacy effort setting retained on disk; ordinary practice has no inferred minute budget. */
   learningMinutes: number;
 
   // API URLs

@@ -32,7 +32,7 @@
 | Management console | Separate role-scoped product | Preserve learner auth/policy seams; no control-plane rewrite |
 
 ## Milestones
-M1 shell cutover implemented. M2 starts with the reproduced Undo/readmission failure. M3–M4 not started. Final J01–J24 acceptance remains unverified.
+M1 shell cutover implemented. M2 starts with the reproduced Undo/readmission failure. M3 legacy-data scope trace started; M4 not started. Final J01–J24 acceptance remains unverified.
 
 ## M1 evidence and carried work
 - Shared desktop/mobile shell hosts ordinary workspaces; native launch aliases use one pure destination resolver. Same-route requests remount once with a unique admission token; mobile emits the same navigation envelope. Legal mobile route retained.
@@ -111,3 +111,7 @@ M1 shell cutover implemented. M2 starts with the reproduced Undo/readmission fai
 ## M2 fixed-checkpoint unavailable presentation
 - A loaded package without checkpoint item-source declarations now renders an explicit localized unavailable state. Existing declared-blueprint empty assembly/validation failures retain their own messages; no question generation, fabricated validation or score added.
 - Mock surface regression red→green; full 22 tests pass. Both TypeScript configurations and desktop production build pass; six locale files parse. Full native restart on the fresh returning clone confirms /evaluate/grammar/mock displays “This installed package does not provide checkpoint question sources.” with Back. This establishes that package limitation, not successful timed-mock content acceptance.
+
+## M3 legacy intent runtime retirement
+- Caller trace found no live generic-minute budgeting caller and no free-text goal launcher. Removed goalSessionBudget and the load-time free-label exam language-stamping migration. Existing examGoal and learningMinutes values remain accepted and persisted by the settings owner; structured records without package outcome identity remain inactive. No retrospective curriculum identity guessed or data deleted. Shared field comments now describe that compatibility boundary.
+- Settings regression red→green proves old unscoped intent is preserved unchanged without a write. Settings/canonical storage/structured-scope/policy regressions: 152 pass. Both TypeScript configurations and desktop production build pass. Target/assessed-state presentation, Progress, Messenger operations and final removal remain M3/M4 work.

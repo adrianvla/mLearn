@@ -329,7 +329,7 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
-  it('stamps a legacy exam goal with the active learning language and persists it', async () => {
+  it('preserves inactive legacy exam intent without assigning a package or language', async () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings({
       language: 'ja',
@@ -337,11 +337,9 @@ describe('SettingsProvider', () => {
     }));
 
     expect(ctx.settings.examGoal).toEqual({
-      kind: 'exam', deadline: '2026-10-11', target: 'JLPT N1', language: 'ja',
+      kind: 'exam', deadline: '2026-10-11', target: 'JLPT N1',
     });
-    expect(mockBridge.settings.saveSettings).toHaveBeenCalledWith(expect.objectContaining({
-      examGoal: { kind: 'exam', deadline: '2026-10-11', target: 'JLPT N1', language: 'ja' },
-    }));
+    expect(mockBridge.settings.saveSettings).not.toHaveBeenCalled();
     dispose();
   });
 
