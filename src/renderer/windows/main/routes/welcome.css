@@ -1,4 +1,4 @@
-.welcome-container { height: 100%; box-sizing: border-box; overflow: auto; background: var(--app-shell-bg); color: var(--text-primary); padding: var(--spacing-6); }
+.welcome-container { height: 100%; box-sizing: border-box; overflow: auto; background: var(--app-shell-bg); color: var(--text-primary); padding: max(var(--spacing-6), var(--window-controls-block-start-inset)) var(--spacing-6) var(--spacing-6); }
 .welcome-page { max-width: 74rem; margin: 0 auto; }
 .welcome-header, .welcome-logo { display: flex; align-items: center; gap: var(--spacing-3); }
 .welcome-header { justify-content: space-between; margin-bottom: var(--spacing-5); flex-wrap: wrap; }

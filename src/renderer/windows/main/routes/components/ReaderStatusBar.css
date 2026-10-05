@@ -4,10 +4,8 @@
  */
 
 .reader-status {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex-shrink: 0;
   z-index: 100;
   min-width: 0;
   gap: var(--spacing-2);

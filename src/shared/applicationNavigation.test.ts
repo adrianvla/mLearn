@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { isApplicationNavigation, resolveApplicationDestination } from './applicationNavigation';
+import { applicationHostForPath, isApplicationNavigation, resolveApplicationDestination } from './applicationNavigation';
 
 describe('application destinations', () => {
+  it('maps every logical destination to exactly one desktop family', () => {
+    for (const path of ['/', '/reader', '/video', '/messenger', '/messenger/memory']) expect(applicationHostForPath(path)).toBe('main');
+    for (const path of ['/practise', '/practise/words', '/evaluate/grammar/mock']) expect(applicationHostForPath(path)).toBe('study');
+    for (const path of ['/plan', '/knowledge/material', '/knowledge/characters', '/progress']) expect(applicationHostForPath(path)).toBe('my-learning');
+    expect(applicationHostForPath('/settings')).toBe('settings');
+    expect(resolveApplicationDestination('study')?.path).toBe('/practise');
+    expect(resolveApplicationDestination('my-learning')?.path).toBe('/plan');
+    expect(resolveApplicationDestination('main', { applicationPath: '/video' })?.path).toBe('/video');
+    expect(resolveApplicationDestination('main', { applicationPath: 'https://invalid.test' })?.path).toBe('/');
+  });
   it('keeps ordinary destinations stable and separates checks from practice', () => {
     expect(resolveApplicationDestination('flashcards')?.path).toBe('/practise');
     expect(resolveApplicationDestination('level-study')?.path).toBe('/plan');

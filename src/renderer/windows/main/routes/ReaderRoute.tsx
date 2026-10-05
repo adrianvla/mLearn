@@ -1,3 +1,4 @@
+import { setActiveMediaSource } from '../applicationHost';
 import { consumeMediaWorkspaceReturn } from './mediaWorkspaceReturn';
 import { tokenLookupContext } from '../../../hooks/useTranslation';
 import { hasSignedInCloudSession, withCloudAuth } from '../../../services/cloudSessionManager';
@@ -610,6 +611,8 @@ export const ReaderRoute: Component = () => {
   // Track the filesystem path of the current book (PDF file or directory)
   // Used for persisting to recent items so users can click to re-open
   const [currentBookPath, setCurrentBookPath] = createSignal<string>('');
+  createEffect(() => setActiveMediaSource(currentBookPath() ? { workspace: 'reader', path: currentBookPath() } : undefined));
+  onCleanup(() => setActiveMediaSource(undefined));
   const [currentBookFormat, setCurrentBookFormat] = createSignal<'images' | 'pdf' | 'epub' | null>(null);
   const [currentBookFile, setCurrentBookFile] = createSignal<File | null>(null);
   const [bookProgressionDirection, setBookProgressionDirection] = createSignal<BookProgressionDirection>(null);

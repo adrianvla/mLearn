@@ -15,7 +15,7 @@ import { queueCommand } from './webServer';
 import { hasTray } from './trayManager';
 import { getLogger } from '../../shared/utils/logger';
 import { startupMark, startupTime } from '../startupTiming';
-import { resolveApplicationDestination } from '../../shared/applicationNavigation';
+import { resolveApplicationDestination, applicationHostForPath, type ApplicationHost } from '../../shared/applicationNavigation';
 
 // Title-bar menu strip height — keep in sync with WindowsMenuBar.css --titlebar-height
 const TITLEBAR_MENU_HEIGHT = 40;
@@ -61,16 +61,17 @@ function focusWindow(window: BrowserWindow): void {
   window.focus();
 }
 
-function loadWindowHtml(window: BrowserWindow, type: WindowType): void {
+function loadWindowHtml(window: BrowserWindow, type: WindowType, host?: ApplicationHost, initialPath?: string): void {
   startupMark(`renderer load requested type=${type} id=${window.id}`);
   const isDev = process.env.NODE_ENV === 'development';
 
   if (!isDev) {
-    window.loadFile(getWindowHtmlPath(type));
+    if (host) window.loadFile(getWindowHtmlPath(type), { query: { host }, hash: initialPath });
+    else window.loadFile(getWindowHtmlPath(type));
     return;
   }
 
-  const url = `http://localhost:3000/src/html/${type}.html`;
+  const url = `http://localhost:3000/src/html/${type}.html${host ? `?host=${host}#${initialPath ?? '/'}` : ''}`;
   let retryCount = 0;
   let retryTimer: NodeJS.Timeout | null = null;
 
@@ -456,26 +457,50 @@ export function createDiagnosticsWindow(): BrowserWindow {
 }
 
 // Create a generic child window
-/** Ordinary legacy window names are compatibility aliases into the main shell. */
+/** Aliases and explicit routes share the same host dispatch. */
 function openApplicationDestination(type: WindowType, context?: Record<string, unknown>): BrowserWindow | null {
   const destination = resolveApplicationDestination(type, context);
   if (!destination) return null;
-  windowContextStore.set(type === 'connect-qr' ? 'settings' : type, destination.context);
-  return openApplicationRoute(destination.path, destination.context);
+  const focusOnly = !context && ['main', 'study', 'my-learning', 'settings', 'flashcards'].includes(type);
+  return openApplicationRoute(destination.path, destination.context, focusOnly);
 }
 
-function openApplicationRoute(path: string, context: Record<string, unknown> = {}): BrowserWindow {
-  const window = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createMainWindow();
-  // Empty context is intentional: Open must never replay an older Start request.
-  const navigation = { applicationNavigation: { path, requestId: crypto.randomUUID(), context } };
-  if (window.webContents.isLoadingMainFrame()) windowContextStore.set('main', navigation);
-  else {
-    // A live shell receives this request immediately. Keeping it as a cold
-    // handoff would replay Start when the renderer later reloads.
-    windowContextStore.delete('main');
-    window.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, navigation);
+function createApplicationHost(host: Exclude<ApplicationHost, 'main'>, path: string): BrowserWindow {
+  const window = new BrowserWindow({
+    width: host === 'settings' ? 1000 : 1100, height: 760,
+    minWidth: 640, minHeight: 480,
+    title: host === 'study' ? 'mLearn — Study' : host === 'my-learning' ? 'mLearn — My Learning' : 'mLearn — Settings',
+    webPreferences: { preload: getPreloadPath(), contextIsolation: true, nodeIntegration: false, sandbox: true },
+    autoHideMenuBar: !isMac,
+    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true, backgroundColor: '#000000' }),
+  });
+  childWindows.set(host, window);
+  loadWindowHtml(window, 'main', host, path);
+  // Suspend in place, including pending writes and exact navigation identity.
+  // App shutdown still closes every renderer through the canonical shutdown protocol.
+  window.on('close', event => {
+    if (!(app as any).isQuitting) { event.preventDefault(); window.hide(); }
+  });
+  window.on('closed', () => { childWindows.delete(host); windowContextStore.delete(host); });
+  return window;
+}
+
+function openApplicationRoute(path: string, context: Record<string, unknown> = {}, focusOnly = false): BrowserWindow {
+  const host = applicationHostForPath(path);
+  const existing = host === 'main' ? mainWindow : childWindows.get(host);
+  const live = existing && !existing.isDestroyed();
+  const window = live ? existing : host === 'main' ? createMainWindow() : createApplicationHost(host, path);
+  if (!focusOnly || !live) {
+    const navigation = { applicationNavigation: { path, requestId: crypto.randomUUID(), context } };
+    if (!live || window.webContents.isLoadingMainFrame()) windowContextStore.set(host, navigation);
+    else {
+      windowContextStore.delete(host);
+      window.webContents.send(IPC_CHANNELS.WINDOW_CONTEXT, navigation);
+    }
   }
+  currentWindow = window;
   window.show();
+  if (window.isMinimized?.()) window.restore();
   window.focus();
   return window;
 }
@@ -1057,7 +1082,7 @@ export function setupWindowIPC(): void {
   ipcMain.on(IPC_CHANNELS.GET_WINDOW_CONTEXT, (event, windowType: string) => {
     const ctx = windowContextStore.get(windowType) || null;
     event.reply(IPC_CHANNELS.WINDOW_CONTEXT, ctx);
-    if (windowType === 'main' || (event.sender === mainWindow?.webContents && resolveApplicationDestination(windowType))) {
+    if (['main', 'study', 'my-learning', 'settings'].includes(windowType) || resolveApplicationDestination(windowType)) {
       windowContextStore.delete(windowType);
     }
   });

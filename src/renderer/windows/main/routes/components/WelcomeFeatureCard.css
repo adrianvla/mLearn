@@ -15,7 +15,7 @@
   transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal), background var(--transition-normal);
   text-align: left;
   min-width: 0;
-  height: 100%;
+  box-sizing: border-box;
   min-height: 0;
 }
 body.reduce-transparency .welcome-feature-card {

@@ -2,7 +2,7 @@
 import { render } from 'solid-js/web';
 import { HashRouter } from '@solidjs/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const fixture = vi.hoisted(() => ({ listener: undefined as ((context: Record<string, unknown>) => void) | undefined, unsubscribe: vi.fn(), mounted: vi.fn(), savedReturn: {} as Record<string, unknown>, mobile: false }));
+const fixture = vi.hoisted(() => ({ listener: undefined as ((context: Record<string, unknown>) => void) | undefined, unsubscribe: vi.fn(), mounted: vi.fn(), savedReturn: {} as Record<string, unknown>, mobile: true }));
 vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }), useSettings: () => ({ settings: { language: 'package-x' }, isLoading: () => false }) }));
 vi.mock('../../context/WindowWrapper', () => ({ LibraryLoadGuard: (props: { recoveryAccess?: boolean }) => <span data-testid="guard" data-recovery={String(props.recoveryAccess)} /> }));
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
@@ -31,22 +31,29 @@ import { ApplicationRoutes } from './ApplicationRoutes';
 describe('application shell route ownership', () => {
   let container: HTMLDivElement;
   let dispose: () => void;
-  beforeEach(() => { vi.clearAllMocks(); fixture.savedReturn = {}; fixture.mobile = false; sessionStorage.clear(); window.history.replaceState(null, '', '#/'); container = document.createElement('div'); document.body.append(container); });
+  beforeEach(() => { vi.clearAllMocks(); fixture.savedReturn = {}; fixture.mobile = true; sessionStorage.clear(); window.history.replaceState(null, '', '#/'); container = document.createElement('div'); document.body.append(container); });
   afterEach(() => { dispose?.(); container.remove(); window.history.replaceState(null, '', '#/'); });
   const mount = () => { dispose = render(() => <HashRouter root={ApplicationShell}><ApplicationRoutes /></HashRouter>, container); };
+  let routeRequest = 0;
   const navigate = async (path: string) => {
-    container.querySelector<HTMLAnchorElement>(`a[href="#${path}"]`)!.click();
+    fixture.listener!({ applicationNavigation: { path, requestId: `test-${++routeRequest}` } });
     await vi.waitFor(() => expect(window.location.hash).toBe(`#${path}`));
   };
-  it.each([false, true])('keeps navigation stable across immersion and learning workspaces (mobile: %s)', async mobile => {
-    fixture.mobile = mobile;
-    mount(); const links = Array.from(container.querySelectorAll('nav a')).map(a => a.textContent);
+  it('uses local purpose/utility navigation and mounts one active content owner', async () => {
+    mount();
+    expect(container.querySelector('nav')).toBeNull();
     for (const [path, content] of [['/reader', 'reader'], ['/video', 'video'], ['/messenger', 'messenger'], ['/practise', 'review'], ['/plan', 'plan']]) {
       await navigate(path);
       expect(container.querySelector(`[data-content="${content}"]`)).not.toBeNull();
-      expect(Array.from(container.querySelectorAll('nav a')).map(a => a.textContent)).toEqual(links);
       expect(container.querySelectorAll('[data-content]')).toHaveLength(1);
+      const count = container.querySelectorAll('nav button').length;
+      expect(count).toBe(path === '/practise' ? 3 : path === '/plan' ? 4 : 1);
     }
+  });
+  it('Main desktop has no sitemap above an immersion activity', async () => {
+    fixture.mobile = false; mount(); await navigate('/reader');
+    expect(container.querySelector('nav')).toBeNull();
+    expect(container.querySelectorAll('[data-content]')).toHaveLength(1);
   });
   it.each([['plan', '/plan'], ['material', '/knowledge/material'], ['home', '/']])('returns Review to its %s source', async (returnTo, path) => {
     mount();
@@ -113,7 +120,7 @@ describe('application shell route ownership', () => {
     expect(container.querySelector('[data-content="plan"]')).toBeNull();
   });
   it('keeps Settings free of backend and library blocking overlays', async () => {
-    mount(); await navigate('/settings');
+    fixture.mobile = false; mount(); await navigate('/settings');
     expect(container.querySelector('[data-content="settings"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="backend-overlay"]')).toBeNull();
     expect(container.querySelector('[data-testid="guard"]')?.getAttribute('data-recovery')).toBe('true');

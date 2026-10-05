@@ -1,5 +1,6 @@
 .reader-unknown-words-sidebar {
   top: 48px;
-  height: calc(100vh - 48px - 30px);
+  bottom: 30px;
+  height: auto;
   padding-top:var(--spacing-4);
 }

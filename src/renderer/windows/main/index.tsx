@@ -13,6 +13,8 @@ import { AppUpdateNotifier } from '../../components/common/Feedback/AppUpdateNot
 import WindowsMenuBar from '../../components/common/WindowsMenuBar/WindowsMenuBar';
 import { getBridge } from '../../../shared/bridges';
 import { isElectron } from '../../../shared/platform';
+import { currentApplicationHost } from './applicationHost';
+import { Show } from 'solid-js';
 import { startupRendererState } from './startupReadiness';
 
 // Import global styles
@@ -56,8 +58,7 @@ const StartupReadiness = () => {
 const App = () => (
   <WindowWrapper showDragRegion={false} showActiveGroupSwitch showWindowLoadingScreen={false} libraryGuard={false}>
     <WindowsMenuBar />
-    <AppUpdateNotifier />
-    <StartupReadiness />
+    <Show when={currentApplicationHost() === 'main'}><AppUpdateNotifier /><StartupReadiness /></Show>
     <MainRoutes />
   </WindowWrapper>
 );

@@ -1,3 +1,4 @@
+import { setActiveMediaSource } from '../applicationHost';
 import { consumeMediaWorkspaceReturn } from './mediaWorkspaceReturn';
 /**
  * Video Route
@@ -140,6 +141,8 @@ export const VideoRoute: Component = () => {
   const [currentVideoName, setCurrentVideoName] = createSignal('');
   const [currentVideoDuration, setCurrentVideoDuration] = createSignal<number | null>(null);
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
+  createEffect(() => setActiveMediaSource(currentVideoPath() ? { workspace: 'video', path: currentVideoPath() } : undefined));
+  onCleanup(() => setActiveMediaSource(undefined));
   const [externalSubtitle, setExternalSubtitle] = createSignal<ExternalSubtitle | null>(null);
   const showWordSidebar = () => settings.rightSidebarOpen ?? DEFAULT_SETTINGS.rightSidebarOpen;
   const setShowWordSidebar = (open: boolean) => updateSetting('rightSidebarOpen', open);

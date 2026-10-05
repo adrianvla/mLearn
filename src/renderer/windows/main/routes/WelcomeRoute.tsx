@@ -1,5 +1,5 @@
 import { type Component, createEffect, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
-import { useNavigate } from '@solidjs/router';
+import { useApplicationNavigate } from '../applicationHost';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { Button, BookIcon, VideoIcon, BotIcon, TargetIcon, LanguageVariantGate, LearningGoals } from '../../../components/common';
@@ -19,7 +19,7 @@ const log = getLogger('renderer.welcome');
 
 /** Home opens identifiable activities. Selection and mutation belong to the task workspace. */
 export const WelcomeRoute: Component = () => {
-  const navigate = useNavigate();
+  const navigate = useApplicationNavigate();
   const { settings } = useSettings();
   const { t } = useLocalization();
   const language = useLanguage();

@@ -425,6 +425,8 @@ export const IPC_CHANNELS = {
 // Window types
 export const WINDOW_TYPES = {
   MAIN: 'main',
+  STUDY: 'study',
+  MY_LEARNING: 'my-learning',
   WELCOME: 'welcome',
   SETTINGS: 'settings',
   READER: 'reader',

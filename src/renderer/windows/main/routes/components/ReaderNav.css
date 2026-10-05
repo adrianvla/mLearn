@@ -14,10 +14,9 @@
   background: var(--bg-nt-secondary);
   backdrop-filter: none;
   z-index: 100;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
+  flex-shrink: 0;
+  box-sizing: border-box;
   color: var(--text-secondary);
   min-width: 0;
 }

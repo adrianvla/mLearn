@@ -613,8 +613,8 @@ describe('windowManager', () => {
       expect('KANJI_GRID' in WINDOW_TYPES).toBe(false);
 
       const win = createChildWindow(WINDOW_TYPES.CHARACTER_GRID);
-      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
-      expect(win.webContents.send).toHaveBeenCalledWith(expect.any(String), { applicationNavigation: { path: expect.stringMatching(/^\/(knowledge\/characters|plan)$/), requestId: expect.any(String), context: expect.any(Object) } });
+      expect(win.loadURL).toHaveBeenCalledWith(expect.stringContaining('main.html?host=my-learning#'));
+      expect(win.webContents.send).not.toHaveBeenCalled();
       delete process.env.NODE_ENV;
     });
 
@@ -627,8 +627,8 @@ describe('windowManager', () => {
       expect('EXAM_CENTRIC_STUDY' in WINDOW_TYPES).toBe(false);
 
       const win = createChildWindow(WINDOW_TYPES.LEVEL_STUDY);
-      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
-      expect(win.webContents.send).toHaveBeenCalledWith(expect.any(String), { applicationNavigation: { path: expect.stringMatching(/^\/(knowledge\/characters|plan)$/), requestId: expect.any(String), context: expect.any(Object) } });
+      expect(win.loadURL).toHaveBeenCalledWith(expect.stringContaining('main.html?host=my-learning#'));
+      expect(win.webContents.send).not.toHaveBeenCalled();
       delete process.env.NODE_ENV;
     });
 
@@ -1042,8 +1042,8 @@ describe('windowManager', () => {
       fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards', context, options: {} });
 
       const event = { reply: vi.fn() };
-      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'flashcards');
-      expect(event.reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, context);
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'study');
+      expect(event.reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/practise', requestId: expect.any(String), context } });
       delete process.env.NODE_ENV;
     });
 
@@ -1064,40 +1064,60 @@ describe('windowManager', () => {
       delete process.env.NODE_ENV;
     });
 
-    it('delivers a live navigation request once and does not replay Start on renderer reload', async () => {
+    it('delivers a live navigation once without touching Main or replaying Start on reload', async () => {
       const { setupWindowIPC, createMainWindow } = await import('./windowManager');
       const { IPC_CHANNELS } = await import('../../shared/constants');
       setupWindowIPC(); const main = createMainWindow();
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'study' });
+      const study = createdWindows.at(-1)!;
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, { reply: vi.fn() }, 'study');
+      study.webContents.send.mockClear();
       fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'level-study', context: { activity: 'grammar', patterns: ['package-defined'] } });
-      expect(main.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, expect.objectContaining({ applicationNavigation: expect.objectContaining({ path: '/practise/grammar' }) }));
-      const event = { sender: main.webContents, reply: vi.fn() };
-      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'main');
+      expect(study.webContents.send).toHaveBeenCalledOnce();
+      expect(study.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, expect.objectContaining({ applicationNavigation: expect.objectContaining({ path: '/practise/grammar' }) }));
+      expect(main.webContents.send).not.toHaveBeenCalled();
+      const event = { sender: study.webContents, reply: vi.fn() };
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'study');
       expect(event.reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, null);
     });
-    it('retains a cold navigation request only until the shell consumes it', async () => {
-      const { setupWindowIPC, createMainWindow } = await import('./windowManager');
-      const { IPC_CHANNELS } = await import('../../shared/constants');
-      setupWindowIPC(); const main = createMainWindow();
-      main.webContents.isLoadingMainFrame.mockReturnValue(true);
-      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'level-study', context: { activity: 'grammar', patterns: ['package-defined'] } });
-      const event = { sender: main.webContents, reply: vi.fn() };
-      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'main');
-      expect(event.reply).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, expect.objectContaining({ applicationNavigation: expect.objectContaining({ path: '/practise/grammar' }) }));
-      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'main');
-      expect(event.reply).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, null);
-    });
-    it('ordinary Open clears previous requests and a mounted route consumes context once', async () => {
-      const { setupWindowIPC, getMainWindow } = await import('./windowManager');
+    it('retains a cold request only until its receiving family consumes it', async () => {
+      const { setupWindowIPC } = await import('./windowManager');
       const { IPC_CHANNELS } = await import('../../shared/constants');
       setupWindowIPC();
-      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards', context: { activity: 'review', session: { requestId: 'first' } } });
-      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards' });
-      const event = { sender: getMainWindow()!.webContents, reply: vi.fn() };
-      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'flashcards');
-      expect(event.reply).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, {});
-      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'flashcards');
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'level-study', context: { activity: 'grammar', intent: 'start', patterns: ['package-defined'] } });
+      const study = createdWindows.at(-1)!;
+      const event = { sender: study.webContents, reply: vi.fn() };
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'study');
+      expect(event.reply).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, expect.objectContaining({ applicationNavigation: expect.objectContaining({ path: '/practise/grammar', context: expect.objectContaining({ intent: 'start' }) }) }));
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'study');
       expect(event.reply).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, null);
+    });
+    it('ordinary family activation focuses the active subview without replaying admission', async () => {
+      const { setupWindowIPC } = await import('./windowManager');
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      setupWindowIPC();
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards', context: { intent: 'start' } });
+      const study = createdWindows.at(-1)!;
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, { reply: vi.fn() }, 'study');
+      study.webContents.send.mockClear();
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'study' });
+      fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards' });
+      expect(study.webContents.send).not.toHaveBeenCalled();
+      expect(study.focus).toHaveBeenCalled();
       expect(createdWindows).toHaveLength(1);
+    });
+    it('secondary close suspends the renderer and pending work until app shutdown', async () => {
+      const { setupWindowIPC } = await import('./windowManager');
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      const { app } = await import('electron');
+      setupWindowIPC(); fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'study' });
+      const study = createdWindows.at(-1)!;
+      const close = study.on.mock.calls.find(call => call[0] === 'close')![1];
+      const preventDefault = vi.fn();
+      close({ preventDefault }); expect(preventDefault).toHaveBeenCalledOnce(); expect(study.hide).toHaveBeenCalledOnce();
+      (app as unknown as { isQuitting: boolean }).isQuitting = true;
+      preventDefault.mockClear(); close({ preventDefault }); expect(preventDefault).not.toHaveBeenCalled();
+      (app as unknown as { isQuitting: boolean }).isQuitting = false;
     });
 
     it('GET_WINDOW_CONTEXT: replies with null when no context is stored for the type', async () => {
@@ -1120,8 +1140,8 @@ describe('windowManager', () => {
       fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'statistics', context: ctx, options: {} });
 
       const event = { reply: vi.fn() };
-      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'statistics');
-      expect(event.reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, ctx);
+      fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, event, 'my-learning');
+      expect(event.reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/progress', requestId: expect.any(String), context: ctx } });
       delete process.env.NODE_ENV;
     });
 
@@ -1172,11 +1192,11 @@ describe('windowManager', () => {
 
       expect(createdWindows.length).toBe(countBefore + 1);
       const lastWin = createdWindows[createdWindows.length - 1];
-      expect(lastWin.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
-      expect(lastWin.webContents.send).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/settings', requestId: expect.any(String), context: expect.any(Object) } });
+      expect(lastWin.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html?host=settings#/settings');
+      expect(lastWin.webContents.send).not.toHaveBeenCalled();
       const reply = vi.fn();
       fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, { sender: lastWin.webContents, reply }, 'settings');
-      expect(reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { section: 'connection' });
+      expect(reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path: '/settings', requestId: expect.any(String), context: { section: 'connection' } } });
       delete process.env.NODE_ENV;
     });
 
@@ -1373,7 +1393,7 @@ describe('windowManager', () => {
   });
 
   describe('setupAppMenu via createMainWindow', () => {
-    it('routes every purpose-led Go destination through one shell without creating child workspaces', async () => {
+    it('routes native Go destinations through their singleton on-demand families', async () => {
       const { createMainWindow } = await import('./windowManager');
       const window = createMainWindow();
       const count = createdWindows.length;
@@ -1387,10 +1407,12 @@ describe('windowManager', () => {
       expect(go?.submenu).toHaveLength(destinations.length);
       for (const [index, path] of destinations.entries()) {
         go?.submenu?.[index].click?.();
-        expect(window.webContents.send).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT,
-          { applicationNavigation: { path, requestId: expect.any(String), context: {} } });
+        const host = path.startsWith('/practise') || path.startsWith('/evaluate') ? 'study' : ['/plan', '/knowledge', '/progress'].includes(path) ? 'my-learning' : 'main';
+        const target = host === 'main' ? window : createdWindows.find(win => win.loadFile.mock.calls.some(call => call[1]?.query?.host === host))!;
+        if (target.webContents.send.mock.calls.length) expect(target.webContents.send).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path, requestId: expect.any(String), context: {} } });
+        else { const reply = vi.fn(); const { setupWindowIPC } = await import('./windowManager'); setupWindowIPC(); fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, { reply }, host); expect(reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path, requestId: expect.any(String), context: {} } }); }
       }
-      expect(createdWindows).toHaveLength(count);
+      expect(createdWindows).toHaveLength(count + 2);
     });
 
     it('makes diagnostics and the public bug tracker reachable from Help', async () => {

@@ -135,7 +135,7 @@ export const SettingsContent: Component<{ launchContext?: Record<string, unknown
         setActiveTab(resolveTab(ctx.section));
       }
     });
-    bridge.window.getWindowContext('settings');
+    if (props.launchContext === undefined) bridge.window.getWindowContext('settings');
 
     onCleanup(() => {
       cleanup();

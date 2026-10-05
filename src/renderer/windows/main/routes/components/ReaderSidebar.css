@@ -4,11 +4,12 @@
 
 .reader-sidebar {
   --reader-sidebar-padding-block-start: 1rem;
-  position: fixed;
+  position: absolute;
   left: 0;
   top: 48px;
   width: 160px;
-  height: calc(100vh - 48px - 30px);
+  bottom: 30px;
+  height: auto;
   overflow: hidden;
   display: flex;
   flex-direction: column;

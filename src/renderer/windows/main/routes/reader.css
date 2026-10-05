@@ -6,7 +6,9 @@
 .reader-route {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
+  position: relative;
   background: var(--bg-opaque);
   color: var(--text-primary);
 }
@@ -51,10 +53,8 @@ body.reduce-transparency .reader-route .panel{
   padding: 1rem;
   background: var(--bg-opaque);
   -webkit-app-region: no-drag;
-  /* Account for fixed nav (48px) and status bar (30px) */
-  height: calc(100vh - 48px - 30px);
-  margin-top: 48px; /* Push below fixed nav */
-  margin-bottom: 30px; /* Push above fixed status bar */
+  min-height: 0;
+  height: 0;
   box-sizing: border-box;
 }
 
