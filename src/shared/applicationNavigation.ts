@@ -15,6 +15,7 @@ export function resolveApplicationDestination(type: string, context: Record<stri
         : context.activity === 'practice' || context.activity === 'reinforce' ? '/practise/words' : '/plan';
       break;
     case 'conversation-agent': path = '/messenger'; break;
+    case 'memory-browser': path = '/messenger/memory'; break;
     case 'word-db-editor': path = '/knowledge'; break;
     case 'character-grid': path = '/knowledge/characters'; break;
     case 'statistics': path = '/progress'; break;
@@ -32,6 +33,6 @@ export interface ApplicationNavigation {
 export function isApplicationNavigation(value: unknown): value is ApplicationNavigation {
   if (!value || typeof value !== 'object') return false;
   const request = (value as ApplicationNavigation).applicationNavigation;
-  return !!request && typeof request.path === 'string' && /^\/(practise|evaluate|plan|knowledge|progress|messenger|settings)(\/|$)/.test(request.path)
+  return !!request && typeof request.path === 'string' && /^\/(?:$|(?:reader|video|practise|evaluate|plan|knowledge|progress|messenger|settings)(?:\/|$))/.test(request.path)
     && typeof request.requestId === 'string';
 }

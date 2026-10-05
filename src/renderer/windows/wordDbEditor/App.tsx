@@ -8,7 +8,7 @@ import { projectedWordStatus } from '../../../shared/graph/targets';
 
 import { Component, createSignal, For, Show, onMount, createEffect, createMemo, createResource, on, onCleanup } from 'solid-js';
 import { createVirtualizer } from '../../hooks/useVirtualizer';
-import { WindowWrapper, useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
+import { useLanguage, useFlashcards, useLocalization, useSettings } from '../../context';
 import { requiresDestructiveConfirmation, buildDestructiveConfirmOptions } from '../flashcards/bulkDestructiveConfirm';
 import type { Flashcard, FlashcardContent } from '../../../shared/types';
 import { loadDictionaryUniverse } from '../../services/dictionaryUniverse';
@@ -116,12 +116,12 @@ export const WordDbEditorContent: Component = () => {
   const getLevelNames = (): Record<number, string> => {
     const langLevelNames = getFreqLevelNames();
     const result: Record<number, string> = {};
-    
+
     // Add language-specific level names
     for (const [key, value] of Object.entries(langLevelNames)) {
       result[Number(key)] = value;
     }
-    
+
     return result;
   };
 
@@ -863,14 +863,3 @@ export const WordDbEditorContent: Component = () => {
       </div>
   );
 };
-
-// Main App with providers
-export const WordDbEditorApp: Component = () => {
-  return (
-      <WindowWrapper showDragRegion={false}>
-        <WordDbEditorContent />
-      </WindowWrapper>
-  );
-};
-
-export default WordDbEditorApp;

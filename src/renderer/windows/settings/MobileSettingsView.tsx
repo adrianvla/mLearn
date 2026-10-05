@@ -69,11 +69,17 @@ const TAB_COMPONENTS: Record<TabId, Component> = {
 
 const backArrow = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
 
-export const MobileSettingsView: Component = () => {
+export const MobileSettingsView: Component<{ launchContext?: Record<string, unknown> }> = props => {
   const { t } = useLocalization();
   const [activeCategory, setActiveCategory] = createSignal<TabId | null>(null);
   const [isOpen, setIsOpen] = createSignal(false);
   const [isStuck, setIsStuck] = createSignal(false);
+
+  createEffect(() => {
+    const section = props.launchContext?.section;
+    const category = ALL_CATEGORIES.find(item => item.id === section);
+    if (category) { setActiveCategory(category.id); setIsOpen(true); }
+  });
 
   let scrollRef: HTMLDivElement | undefined;
   let largeTitleRef: HTMLDivElement | undefined;

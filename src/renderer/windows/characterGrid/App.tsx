@@ -9,7 +9,7 @@ import { projectionStateForCapability } from '../../components/common/WordStatus
  */
 
 import { Component, createSignal, For, Show, createMemo, createEffect, createResource } from 'solid-js';
-import { WindowWrapper, useLanguage, useLocalization, useSettings, useFlashcards } from '../../context';
+import { useLanguage, useLocalization, useSettings, useFlashcards } from '../../context';
 import { WORD_STATUS, type WordStatus } from '../../../shared/constants';
 import {
   extractUniqueStudyCharacters,
@@ -415,10 +415,10 @@ export const CharacterGridContent: Component = () => {
   const isCharacterDimmed = (item: StudyCharacterData) => {
     const level = pinnedLevel() ?? hoveredLevel();
     if (level === null) return false;
-    
+
     const charactersInLevel = levelCharacters()[level];
     if (!charactersInLevel) return true;
-    
+
     return !charactersInLevel.has(item.character);
   };
 
@@ -473,7 +473,7 @@ export const CharacterGridContent: Component = () => {
               )}
             </For>
           </Show>
-          
+
           <Show when={!contentPending() && !buildFailed() && supportsCharacterStudy() && characterData().length === 0}>
             <div class="cg-empty-state">
               <div class="empty-icon"><BookIcon size={40} /></div>
@@ -490,7 +490,7 @@ export const CharacterGridContent: Component = () => {
               <p>{characterStudyText('unsupportedDescription', 'mlearn.CharacterGrid.Unsupported.Description')}</p>
             </div>
           </Show>
-          
+
           {/* Cell colors encode knowledge state: keep the grid's geometry with
               placeholders instead of rendering unmeasured cells as real. */}
           <Show when={contentPending() && !hasCurrentGrid() && journalKeysResource.state !== 'errored' && !projected.failed()}>
@@ -611,14 +611,3 @@ export const CharacterGridContent: Component = () => {
     </div>
   );
 };
-
-// Main App with providers
-export const CharacterGridApp: Component = () => {
-  return (
-    <WindowWrapper>
-      <CharacterGridContent />
-    </WindowWrapper>
-  );
-};
-
-export default CharacterGridApp;

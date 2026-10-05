@@ -1,3 +1,5 @@
+import { MemoryBrowserContent } from '../memoryBrowser/App';
+import { prepareMediaWorkspaceReturn } from './routes/mediaWorkspaceReturn';
 import { Route, useLocation, useNavigate } from '@solidjs/router';
 import { Show, createMemo, type Component } from 'solid-js';
 import { FlashcardsContent } from '../flashcards/App';
@@ -28,6 +30,17 @@ const RequestedContent: Component<{ content: Component<RequestedWorkspaceProps> 
   return <Show keyed when={requestId()}>{_requestId => <props.content launchContext={context()} />}</Show>;
 };
 
+const Memory: Component<RequestedWorkspaceProps> = props => {
+  const navigate = useNavigate();
+  return <MemoryBrowserContent launchContext={props.launchContext} onReturn={() => navigate('/messenger')} />;
+};
+const Messenger: Component<RequestedWorkspaceProps> = props => {
+  const navigate = useNavigate();
+  return <ConversationContent launchContext={props.launchContext} onReturn={source => {
+    const path = source && prepareMediaWorkspaceReturn(sessionStorage, source);
+    navigate(path ?? (props.launchContext?.returnTo === 'plan' ? '/plan' : '/'));
+  }} />;
+};
 const Review: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();
   return <LearningWorkspace><FlashcardsContent workspace="review" launchContext={props.launchContext} onClose={() => navigate(
@@ -67,13 +80,21 @@ const Evaluate: Component = () => {
       <Button onClick={() => navigate('/evaluate/grammar/mock')}>{t('mlearn.LevelStudy.Mock.Title')}</Button></div>
   </section>;
 };
+const returnToWorkspace = (navigate: ReturnType<typeof useNavigate>, context: Record<string, unknown> | undefined) => (path: string) => {
+  const source = context?.sourceContext;
+  if ((path === '/reader' || path === '/video') && source && typeof source === 'object' && !Array.isArray(source)) {
+    const actual = prepareMediaWorkspaceReturn(sessionStorage, source as Record<string, unknown>);
+    if (actual) { navigate(actual); return; }
+  }
+  navigate(path);
+};
 const Assessment: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();
-  return <LearningWorkspace><WordStudyWorkspace mode="assessment" launchContext={props.launchContext} onReturn={navigate} /></LearningWorkspace>;
+  return <LearningWorkspace><WordStudyWorkspace mode="assessment" launchContext={props.launchContext} onReturn={returnToWorkspace(navigate, props.launchContext)} /></LearningWorkspace>;
 };
 const Words: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();
-  return <LearningWorkspace><WordStudyWorkspace mode="study" launchContext={props.launchContext} onReturn={navigate} /></LearningWorkspace>;
+  return <LearningWorkspace><WordStudyWorkspace mode="study" launchContext={props.launchContext} onReturn={returnToWorkspace(navigate, props.launchContext)} /></LearningWorkspace>;
 };
 const Knowledge: Component = () => {
   const { t } = useLocalization();
@@ -81,14 +102,15 @@ const Knowledge: Component = () => {
   return <><div class="product-workspace-actions"><Button onClick={() => navigate('/knowledge/material')}>{t('mlearn.Product.SavedMaterial')}</Button>
     <Button onClick={() => navigate('/knowledge/characters')}>{t('mlearn.LevelStudy.Tabs.CharacterGrid')}</Button></div><WordDbEditorContent /></>;
 };
-const Settings: Component = () => <Show when={isMobile()} fallback={<SettingsContent />}><MobileSettingsView /></Show>;
+const Settings: Component<RequestedWorkspaceProps> = props => <Show when={isMobile()} fallback={<SettingsContent launchContext={props.launchContext} />}><MobileSettingsView launchContext={props.launchContext} /></Show>;
 
 const requested = (content: Component<RequestedWorkspaceProps>) => () => <RequestedContent content={content} />;
 
 export const ApplicationRoutes = () => <>
   <Route path="/" component={WelcomeRoute} />
   <Route path="/reader" component={ReaderRoute} /><Route path="/video" component={VideoRoute} />
-  <Route path="/messenger" component={requested(ConversationContent)} />
+  <Route path="/messenger" component={requested(Messenger)} />
+  <Route path="/messenger/memory" component={requested(Memory)} />
   <Route path="/practise" component={requested(Review)} />
   <Route path="/practise/words" component={requested(Words)} />
   <Route path="/practise/grammar" component={requested(Grammar)} />
@@ -100,7 +122,7 @@ export const ApplicationRoutes = () => <>
   <Route path="/knowledge/characters" component={CharacterGridContent} />
   <Route path="/progress" component={StatisticsContent} /><Route path="/settings" component={requested(Settings)} />
   <Route path="/flashcards" component={requested(Review)} /><Route path="/level-study" component={requested(Plan)} />
-  <Route path="/conversation-agent" component={requested(ConversationContent)} /><Route path="/word-db-editor" component={Knowledge} />
+  <Route path="/conversation-agent" component={requested(Messenger)} /><Route path="/word-db-editor" component={Knowledge} />
   <Route path="/statistics" component={StatisticsContent} />
   <Route path="/licenses" component={LicensesRoute} />
 </>;

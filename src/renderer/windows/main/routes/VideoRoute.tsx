@@ -1,3 +1,4 @@
+import { consumeMediaWorkspaceReturn } from './mediaWorkspaceReturn';
 /**
  * Video Route
  * Video player with subtitle display and all video-related functionality
@@ -106,6 +107,7 @@ const getMediaNameFromPath = (filePath: string, parseOptions?: ParseWorkNameOpti
 };
 
 export const VideoRoute: Component = () => {
+  let returnedSource: Record<string, unknown> | undefined;
   const navigate = useNavigate();
   const { t } = useLocalization();
   const { settings, updateSetting } = useSettings();
@@ -828,6 +830,7 @@ export const VideoRoute: Component = () => {
         return;
       }
 
+      returnedSource = consumeMediaWorkspaceReturn(sessionStorage, 'video', pendingVideo);
       const name = getMediaNameFromPath(pendingVideo, mediaNameParseOptions());
       let selectedSubtitle: ExternalSubtitle | null = null;
       try {
@@ -861,12 +864,12 @@ export const VideoRoute: Component = () => {
     ipcCleanups.push(bridge.window.onContextMenuCommand((command: string) => {
       handleContextMenuCommand(command);
     }));
-    
+
     // Set up thumbnail capture interval
     thumbnailInterval = window.setInterval(() => {
       captureThumbnailIfReady();
     }, 30000); // Capture thumbnail every 30 seconds while watching
-    
+
     // Set up video progress save interval
     progressInterval = window.setInterval(() => {
       void updateVideoProgress();
@@ -1031,6 +1034,11 @@ export const VideoRoute: Component = () => {
         const path = currentVideoPath();
         if (!path || path === lastRestoredPath) return;
         lastRestoredPath = path;
+        if (returnedSource?.path === path && typeof returnedSource.time === 'number' && Number.isFinite(returnedSource.time) && returnedSource.time >= 0) {
+          video.currentTime = returnedSource.time;
+          returnedSource = undefined;
+          return;
+        }
         const items = await getRecentItems();
         const saved = items.find(i => i.path === path);
         if (saved?.playbackTime && saved.playbackTime > 5 && isFinite(saved.playbackTime)) {
@@ -1070,7 +1078,7 @@ export const VideoRoute: Component = () => {
       ipcCleanups.push(() => observer.disconnect());
     }
   });
-  
+
   onCleanup(() => {
     if (thumbnailInterval !== null) {
       clearInterval(thumbnailInterval);
@@ -1104,7 +1112,7 @@ export const VideoRoute: Component = () => {
       settings.subtitle_font_weight ?? DEFAULT_SETTINGS.subtitle_font_weight,
     );
   });
-  
+
   const captureThumbnailIfReady = () => {
     const videoEl = getCurrentVideoElement();
     const name = currentVideoName();
@@ -1408,6 +1416,7 @@ export const VideoRoute: Component = () => {
     const context: ConversationAgentContext = {
       mediaName: name,
       mediaType: 'video',
+      sourceContext: { workspace: 'video', path: currentVideoPath(), time: currentVideoTime(), mediaHash: s.mediaHash },
       mediaHash: s.mediaHash,
       assessedLevel: level,
       assessedLevelName: formatFrequencyLevelLabel(level, levelNames, langCtx.currentLangData()),
@@ -1426,7 +1435,7 @@ export const VideoRoute: Component = () => {
         .map((sub) => sub.text),
     };
 
-    getBridge().window.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
+    getBridge().window.openWindow({ type: 'conversation-agent', context: { ...context, returnTo: 'video' } });
   };
 
   const videoRouteClass = () => {
@@ -1553,7 +1562,7 @@ export const VideoRoute: Component = () => {
         initialPosition={explainerPosition()}
       />
 
-      <SubtitleSync 
+      <SubtitleSync
         currentVideoTime={currentVideoTime}
         subtitles={subtitles.subtitles()}
       />

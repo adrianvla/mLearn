@@ -14,7 +14,7 @@ import { KnowledgeGate } from '../../components/common/KnowledgeGate/KnowledgeGa
  */
 
 import { Component, Show, For, createSignal, createMemo, createEffect, on, onMount, onCleanup } from 'solid-js';
-import { WindowWrapper, useLocalization, useSettings, useLowPowerGate, useLanguage } from '../../context';
+import { useLocalization, useSettings, useLowPowerGate, useLanguage } from '../../context';
 import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardStats, FlashcardWordTitle, OtherLanguageDueHint } from '../../components/flashcard';
 import { Button, Modal, Input, Badge, useConfirmDialog, EmptyState, SearchIcon, TabContainer, Select, EditIcon, BookIcon, BarChartIcon, SparklesIcon, PlusIcon, ProgressBar, ResponsiveSidebar, MicrophoneIcon, VoiceSamplePicker, CollapsibleStickyHeader, FilterBuilder, SelectableCard, TrashIcon, buildFlashcardBrowseFields, buildEmptyPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ValidationError } from '../../components/common';
@@ -1331,13 +1331,3 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose?: () => 
     </div>
   );
 };
-
-export const FlashcardsApp: Component = () => {
-  return (
-    <WindowWrapper showDragRegion={false}>
-      <FlashcardsContent />
-    </WindowWrapper>
-  );
-};
-
-export default FlashcardsApp;

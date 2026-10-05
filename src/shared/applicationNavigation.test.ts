@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveApplicationDestination } from './applicationNavigation';
+import { isApplicationNavigation, resolveApplicationDestination } from './applicationNavigation';
 
 describe('application destinations', () => {
   it('keeps ordinary destinations stable and separates checks from practice', () => {
@@ -23,6 +23,10 @@ describe('application destinations', () => {
   it('generic opens carry no stale start or resume request', () => {
     resolveApplicationDestination('flashcards', { activity: 'review', session: { requestId: 'old' } });
     expect(resolveApplicationDestination('flashcards')).toEqual({ path: '/practise', context: {} });
+  });
+  it('accepts immersion and Home navigation while refusing external destinations', () => {
+    for (const path of ['/', '/reader', '/video']) expect(isApplicationNavigation({ applicationNavigation: { path, requestId: 'native' } })).toBe(true);
+    expect(isApplicationNavigation({ applicationNavigation: { path: 'https://example.com', requestId: 'native' } })).toBe(false);
   });
   it('preserves native boundaries', () => {
     for (const type of ['overlay', 'word-definition', 'welcome', 'plugin-host', 'diagnostics']) {

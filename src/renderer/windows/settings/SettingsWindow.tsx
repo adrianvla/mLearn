@@ -1,5 +1,5 @@
-import { Component, createSignal, createMemo, onCleanup, onMount, Show } from 'solid-js';
-import { WindowWrapper, useLocalization, useSettings, SettingsSearchContext, SettingsTabContext } from '../../context';
+import { Component, createSignal, createMemo, createEffect, onCleanup, onMount, Show } from 'solid-js';
+import { useLocalization, useSettings, SettingsSearchContext, SettingsTabContext } from '../../context';
 import { getBridge } from '../../../shared/bridges';
 import { TabContainer } from '../../components/common/Tabs/TabContainer';
 import type { TabItem } from '../../components/common/Tabs/TabContainer';
@@ -47,7 +47,7 @@ const TABS: SettingsTab[] = [
 
 const EVENT_AUDIT_TAB: SettingsTab = { id: 'event-audit', labelKey: 'mlearn.Settings.Tabs.EventAudit', icon: 'cog' };
 
-export const SettingsContent: Component = () => {
+export const SettingsContent: Component<{ launchContext?: Record<string, unknown> }> = (props) => {
   const [activeTab, setActiveTab] = createSignal<TabId>('general');
   const [searchQuery, setSearchQuery] = createSignal<string>('');
   const { t } = useLocalization();
@@ -115,6 +115,10 @@ export const SettingsContent: Component = () => {
     if (normalized.includes('behav') || normalized.includes('behavior')) return 'behaviour';
     return 'general';
   };
+
+  createEffect(() => {
+    if (typeof props.launchContext?.section === 'string') setActiveTab(resolveTab(props.launchContext.section));
+  });
 
   onMount(() => {
     const bridge = getBridge();
@@ -193,13 +197,3 @@ export const SettingsContent: Component = () => {
     </div>
   );
 };
-
-export const SettingsWindow: Component = () => {
-  return (
-    <WindowWrapper showDragRegion={false} showActiveGroupSwitch libraryRecoveryAccess>
-      <SettingsContent />
-    </WindowWrapper>
-  );
-};
-
-export default SettingsWindow;

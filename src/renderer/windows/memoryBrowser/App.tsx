@@ -1,7 +1,7 @@
 /**
- * Memory Browser Window — perspective-first, read-only view of room memory.
+ * Memory Browser — perspective-first, read-only view of room memory.
  *
- * Opens at the first room from the world snapshot, then renders one
+ * Opens the requested persistent room from the world snapshot, then renders one
  * perspective tab per room participant plus a room-level tab. Each tab shows
  * the projectionForCaller output for that caller verbatim: the participant's
  * own witness-scoped view of beliefs/open loops/episodes/relationships, or the
@@ -10,9 +10,9 @@
  */
 
 import { Component, For, Show, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
-import { WindowWrapper, useLocalization } from '../../context';
+import { useLocalization } from '../../context';
 import { getBridge } from '../../../shared/bridges';
-import { EmptyState, SkeletonRows } from '../../components/common';
+import { EmptyState, SkeletonRows, Select } from '../../components/common';
 import { getLogger } from '../../../shared/utils/logger';
 import { projectionForCaller, type RoomMemoryProjection } from '@shared/memoryProjection';
 import { WORLD_CONTINUITY_ID, USER_ACTOR, type JournalEvent, type Participant, type Room } from '@shared/world';
@@ -58,7 +58,9 @@ function callerCutoff(participantId: string, events: JournalEvent[]): number | u
   return firstAdded?.seq;
 }
 
-const MemoryBrowserContent: Component = () => {
+export const MemoryBrowserContent: Component<{ launchContext?: Record<string, unknown>; onReturn?: () => void }> = (props) => {
+  const hasRequestedRoom = Object.prototype.hasOwnProperty.call(props.launchContext ?? {}, 'roomId');
+  const requestedRoomId = typeof props.launchContext?.roomId === 'string' ? props.launchContext.roomId : null;
   const { t } = useLocalization();
 
   const [rooms, setRooms] = createSignal<Room[]>([]);
@@ -67,6 +69,7 @@ const MemoryBrowserContent: Component = () => {
   const [events, setEvents] = createSignal<JournalEvent[]>([]);
   const [activeTab, setActiveTab] = createSignal<string>(ROOM_TAB);
   const [isLoading, setIsLoading] = createSignal(true);
+  const [roomUnavailable, setRoomUnavailable] = createSignal(false);
 
   const selectedRoom = createMemo(() => rooms().find((r) => r.id === selectedRoomId()) ?? null);
 
@@ -121,15 +124,22 @@ const MemoryBrowserContent: Component = () => {
   const [roomLoading, setRoomLoading] = createSignal(false);
   const [loadFailed, setLoadFailed] = createSignal<'world' | 'room' | null>(null);
   let roomRequest = 0;
-  onCleanup(() => { roomRequest++; });
+  let worldRequest = 0;
+  onCleanup(() => { roomRequest++; worldRequest++; });
   const contentPending = () => isLoading() || roomLoading();
 
   const loadRoom = async (roomId: string): Promise<void> => {
     const request = ++roomRequest;
     setLoadFailed(null);
+    setRoomUnavailable(false);
     setEvents([]);
     setSelectedRoomId(roomId);
     setActiveTab(ROOM_TAB);
+    if (!rooms().some(room => room.id === roomId)) {
+      setRoomUnavailable(true);
+      setRoomLoading(false);
+      return;
+    }
     setRoomLoading(true);
     try {
       const seaEvents = await getBridge().journal.readSeaProjection(roomId);
@@ -143,39 +153,48 @@ const MemoryBrowserContent: Component = () => {
   };
 
   const loadWorld = async () => {
-      setIsLoading(true);
-      setLoadFailed(null);
-      try {
-        const snapshot = await getBridge().world.getWorldState();
-        const contexts = [...snapshot.rooms, { id: WORLD_CONTINUITY_ID, title: t('mlearn.ConversationAgent.Integration.WorldDestination'), participantIds: snapshot.participants.map(person => person.id), createdAt: 0 }];
-        setRooms(contexts);
-        setParticipants(snapshot.participants);
-        const first = contexts[0];
-        if (first) await loadRoom(first.id);
-      } catch (err) {
-        log.error('error', err);
-        setLoadFailed('world');
-      } finally {
-        setIsLoading(false);
-      }
+    const request = ++worldRequest;
+    roomRequest++;
+    setIsLoading(true);
+    setLoadFailed(null);
+    setEvents([]);
+    setRoomLoading(false);
+    setRoomUnavailable(false);
+    setSelectedRoomId('');
+    try {
+      const snapshot = await getBridge().world.getWorldState();
+      if (request !== worldRequest) return;
+      const contexts = [...snapshot.rooms, { id: WORLD_CONTINUITY_ID, title: t('mlearn.ConversationAgent.Integration.WorldDestination'), participantIds: snapshot.participants.map(person => person.id), createdAt: 0 }];
+      setRooms(contexts);
+      setParticipants(snapshot.participants);
+      const requested = hasRequestedRoom ? contexts.find(room => room.id === requestedRoomId) : contexts[0];
+      if (requested) await loadRoom(requested.id);
+      else setRoomUnavailable(true);
+    } catch (err) {
+      log.error('error', err);
+      if (request === worldRequest) setLoadFailed('world');
+    } finally {
+      if (request === worldRequest) setIsLoading(false);
+    }
   };
   onMount(() => { void loadWorld(); });
 
   return (
       <div class="memory-browser">
         <header class="memory-browser-header">
+          <Show when={props.onReturn}><button type="button" class="memory-browser-retry" onClick={() => props.onReturn?.()}>{t('mlearn.Global.Back')}</button></Show>
           <span class="memory-browser-title">{t('mlearn.MemoryBrowser.Title')}</span>
-          <select
+          <Select
             aria-label={t('mlearn.MemoryBrowser.Tabs.Room')}
             class="memory-browser-room-select"
             value={selectedRoomId()}
-            disabled={rooms().length === 0}
-            onChange={(e) => void loadRoom((e.target as HTMLSelectElement).value)}
-          >
-            <For each={rooms()}>
-              {(room) => <option value={room.id}>{room.title}</option>}
-            </For>
-          </select>
+            disabled={isLoading() || rooms().length === 0}
+            options={[
+              ...(roomUnavailable() ? [{ value: '', label: t('mlearn.Home.Cards.Room.RoomNotFound'), disabled: true }] : []),
+              ...rooms().map(room => ({ value: room.id, label: room.title })),
+            ]}
+            onChange={event => void loadRoom(event.currentTarget.value)}
+          />
         </header>
         <div class="memory-browser-body">
           <Show when={!loadFailed()} fallback={
@@ -185,6 +204,12 @@ const MemoryBrowserContent: Component = () => {
             when={!contentPending()}
             fallback={<div class="memory-browser-loading" aria-busy="true"><SkeletonRows rows={5} /></div>}
           >
+            <Show when={!roomUnavailable()} fallback={
+              <div class="memory-browser-error" role="status">
+                <p>{t('mlearn.Home.Cards.Room.RoomNotFound')}</p>
+                <button type="button" class="memory-browser-retry" onClick={() => void loadWorld()}>{t('mlearn.Knowledge.Retry')}</button>
+              </div>
+            }>
             <Show
               when={selectedRoom()}
               fallback={<div class="memory-browser-empty">{t('mlearn.MemoryBrowser.Empty')}</div>}
@@ -209,15 +234,10 @@ const MemoryBrowserContent: Component = () => {
                 </Show>
               </main>
             </Show>
+            </Show>
           </Show>
           </Show>
         </div>
       </div>
   );
 };
-
-export const MemoryBrowserApp: Component = () => (
-  <WindowWrapper showDragRegion={false}>
-    <MemoryBrowserContent />
-  </WindowWrapper>
-);

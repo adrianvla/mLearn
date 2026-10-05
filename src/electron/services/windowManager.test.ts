@@ -1373,6 +1373,26 @@ describe('windowManager', () => {
   });
 
   describe('setupAppMenu via createMainWindow', () => {
+    it('routes every purpose-led Go destination through one shell without creating child workspaces', async () => {
+      const { createMainWindow } = await import('./windowManager');
+      const window = createMainWindow();
+      const count = createdWindows.length;
+      const { Menu } = await import('electron');
+      const { IPC_CHANNELS } = await import('../../shared/constants');
+      const template = (Menu.buildFromTemplate as ReturnType<typeof vi.fn>).mock.calls[0][0] as Array<{
+        id?: string; submenu?: Array<{ click?: () => void }>;
+      }>;
+      const go = template.find(item => item.id === 'mlearn-menu-go');
+      const destinations = ['/', '/reader', '/video', '/messenger', '/practise', '/evaluate', '/plan', '/knowledge', '/progress'];
+      expect(go?.submenu).toHaveLength(destinations.length);
+      for (const [index, path] of destinations.entries()) {
+        go?.submenu?.[index].click?.();
+        expect(window.webContents.send).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT,
+          { applicationNavigation: { path, requestId: expect.any(String), context: {} } });
+      }
+      expect(createdWindows).toHaveLength(count);
+    });
+
     it('makes diagnostics and the public bug tracker reachable from Help', async () => {
       const { createMainWindow } = await import('./windowManager');
       createMainWindow();

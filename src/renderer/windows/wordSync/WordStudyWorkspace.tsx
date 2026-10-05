@@ -20,7 +20,9 @@ export const WordStudyWorkspace: Component<{
     return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.min(120, Math.floor(value))) : undefined;
   };
   const requestId = () => typeof session()?.requestId === 'string' ? session()!.requestId as string : undefined;
-  const returnPath = () => props.launchContext?.returnTo === 'home' ? '/'
+  const returnPath = () => props.launchContext?.returnTo === 'reader' ? '/reader'
+    : props.launchContext?.returnTo === 'video' ? '/video'
+    : props.launchContext?.returnTo === 'home' ? '/'
     : material() || props.launchContext?.returnTo === 'material' ? '/knowledge/material'
     : props.launchContext?.returnTo === 'plan' ? '/plan' : props.mode === 'assessment' ? '/evaluate' : '/practise';
   return <Show when={!isLoading()}><Show when={valid()} fallback={

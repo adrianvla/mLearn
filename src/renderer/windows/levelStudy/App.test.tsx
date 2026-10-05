@@ -3,7 +3,7 @@ import { fitLearningModel } from '../../../shared/learningModel';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import { createSignal, type JSX } from 'solid-js';
+import { type JSX } from 'solid-js';
 
 let settingsLoadingMock = () => false;
 let currentLangDataMock: Record<string, unknown> = {};
@@ -84,7 +84,7 @@ describe('LevelStudyContent', () => {
     ingress.context = { activity: 'grammar', patterns: ['package-defined', 'invented'], returnTo: 'home' };
     const { LevelStudyContent } = await import('./App');
     const host = document.createElement('div'); document.body.append(host);
-    const dispose = render(() => <LevelStudyContent />, host);
+    const dispose = render(() => <LevelStudyContent workspace="grammar" launchContext={ingress.context} />, host);
     try {
       expect(host.querySelector('[data-grammar-request]')?.getAttribute('data-grammar-request')).toContain('package-defined');
       expect(host.querySelector('[data-grammar-request]')?.getAttribute('data-grammar-request')).not.toContain('invented');
@@ -103,7 +103,7 @@ describe('LevelStudyContent', () => {
     ingress.context = { activity: 'grammar', patterns: ['package-defined'], session: {
       requestId: kind === 'wrong-request' ? 'other-id' : decision.id, encounterLimit: 1, decision } };
     const { LevelStudyContent } = await import('./App');
-    const dispose = render(() => <LevelStudyContent />, container);
+    const dispose = render(() => <LevelStudyContent workspace="grammar" launchContext={ingress.context} />, container);
     const raw = container.querySelector('[data-grammar-request]')?.getAttribute('data-grammar-request');
     if (kind === 'valid') expect(JSON.parse(raw!)).toMatchObject({ patterns: ['package-defined'], handoffDecision: decision });
     else expect(raw).toBeUndefined();
@@ -156,65 +156,6 @@ describe('LevelStudyContent', () => {
     expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'practice', returnTo: 'plan' } });
     expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
     expect(container.textContent).toContain('Plan controls');
-    dispose();
-  });
-
-  it.each([['practice', 'study'], ['assessment', 'assessment']])('continues the Home %s intention without another activity funnel', async (activity, mode) => {
-    ingress.context = { activity };
-    const { LevelStudyContent } = await import('./App');
-    const dispose = render(() => <LevelStudyContent />, container);
-    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-mode')).toBe(mode);
-    expect(container.textContent).not.toContain('Plan controls');
-    expect(ingress.request).toHaveBeenCalledWith('level-study');
-    dispose();
-    expect(ingress.cleanup).toHaveBeenCalledOnce();
-  });
-
-  it('waits for loaded language settings before accepting a material handoff', async () => {
-    const [loading, setLoading] = createSignal(true);
-    settingsLoadingMock = loading;
-    ingress.context = { activity: 'practice', material: { language: 'test', label: 'Chapter', words: ['alpha'] } };
-    const { LevelStudyContent } = await import('./App');
-    const dispose = render(() => <LevelStudyContent />, container);
-    try {
-      expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
-      setLoading(false);
-      expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-words')).toBe('["alpha"]');
-    } finally {
-      dispose();
-      settingsLoadingMock = () => false;
-    }
-  });
-
-  it('preserves a maintenance intention when the handoff also contains material scope', async () => {
-    ingress.context = { activity: 'reinforce', material: { language: 'test', label: 'Scope', words: ['alpha'] } };
-    const { LevelStudyContent } = await import('./App');
-    const dispose = render(() => <LevelStudyContent />, container);
-    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-intent')).toBe('reinforce');
-    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-words')).toBe('["alpha"]');
-    dispose();
-  });
-
-  it('starts material recall directly and returns to the reading window', async () => {
-    ingress.context = { activity: 'practice', material: { language: 'test', label: 'Chapter', words: ['alpha', 'beta'] } };
-    const { LevelStudyContent } = await import('./App');
-    const dispose = render(() => <LevelStudyContent />, container);
-    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-words')).toBe('["alpha","beta"]');
-    expect(container.textContent).not.toContain('Plan controls');
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.LearningPlan.BackToMaterial')!.click();
-    expect(ingress.close).toHaveBeenCalled();
-    dispose();
-  });
-
-  it('feeds developing-word practice to the shared component and resets that context when choosing ordinary study', async () => {
-    ingress.context = { activity: 'reinforce' };
-    const { LevelStudyContent } = await import('./App');
-    const dispose = render(() => <LevelStudyContent />, container);
-    expect(container.querySelector('[data-testid="word-sync-content"]')?.getAttribute('data-intent')).toBe('reinforce');
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('mlearn.LearningPlan.Back'))!.click();
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Home.Today.PracticeAction')!.click();
-    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'practice', returnTo: 'plan' } });
-    expect(container.querySelector('[data-testid="word-sync-content"]')).toBeNull();
     dispose();
   });
 

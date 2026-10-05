@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 
 /**
- * Memory Browser window test — bridge boundary mocked, context layer stubbed,
- * window code + the real projectionForCaller under test (room/App.test.tsx is
+ * Memory Browser content test — bridge boundary mocked, context layer stubbed,
+ * routed content + the real projectionForCaller under test (room/App.test.tsx is
  * the precedent).
  *
  * Golden path: world snapshot (1 room, 2 participants) → first room loads →
@@ -15,7 +15,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
+import { MemoryBrowserContent } from './App';
 import type { JournalEvent, Participant, Room } from '../../../shared/world';
 
 const p1: Participant = {
@@ -107,20 +107,9 @@ const mockBridge = {
 
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => mockBridge }));
 
-vi.mock('../../context', async () => {
-  const { createContext, useContext } = await import('solid-js');
-  const Context = createContext<{ t: (key: string) => string }>();
-  return {
-    WindowWrapper: (props: { children?: JSX.Element }) => <Context.Provider value={{ t: (key: string) => key }}>{props.children}</Context.Provider>,
-    useLocalization: () => {
-      const context = useContext(Context);
-      if (!context) throw new Error('Localization consumer mounted outside WindowWrapper');
-      return context;
-    },
-  };
-});
+vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }) }));
 
-describe('memory browser window', () => {
+describe('memory browser content', () => {
   let container: HTMLDivElement;
   let dispose: () => void;
 
@@ -128,6 +117,8 @@ describe('memory browser window', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     vi.clearAllMocks();
+    mockBridge.world.getWorldState.mockResolvedValue({ rooms: [roomFixture], threads: [], participants: [p1, p2] });
+    mockBridge.journal.readSeaProjection.mockResolvedValue(seaEvents);
   });
 
   afterEach(() => {
@@ -135,10 +126,56 @@ describe('memory browser window', () => {
     container.remove();
   });
 
+  it('waits for the snapshot and opens the exact requested room without reading the first room', async () => {
+    let resolveWorld!: (value: { rooms: Room[]; threads: never[]; participants: Participant[] }) => void;
+    mockBridge.world.getWorldState.mockReturnValueOnce(new Promise(resolve => { resolveWorld = resolve; }));
+    const onReturn = vi.fn();
+    dispose = render(() => <MemoryBrowserContent launchContext={{ roomId: 'room-2' }} onReturn={onReturn} />, container);
+    expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalled();
+    resolveWorld({ rooms: [roomFixture, { ...roomFixture, id: 'room-2', title: 'Studio' }], threads: [], participants: [p1, p2] });
+    await vi.waitFor(() => expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledExactlyOnceWith('room-2'));
+    expect((container.querySelector('select') as HTMLSelectElement).value).toBe('room-2');
+    (Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.Back') as HTMLButtonElement).click();
+    expect(onReturn).toHaveBeenCalledOnce();
+  });
+
+  it('preserves an unavailable named room without exposing another room and retries its exact identity', async () => {
+    dispose = render(() => <MemoryBrowserContent launchContext={{ roomId: 'missing' }} />, container);
+    await vi.waitFor(() => expect(container.querySelector('[role="status"]')).not.toBeNull());
+    expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('Room culture entry');
+    expect(container.querySelector('.memory-browser-tabs')).toBeNull();
+    expect((container.querySelector('select') as HTMLSelectElement).value).toBe('');
+    mockBridge.world.getWorldState.mockResolvedValueOnce({ rooms: [roomFixture, { ...roomFixture, id: 'missing', title: 'Restored room' }], threads: [], participants: [p1, p2] });
+    (container.querySelector('[role="status"] button') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledExactlyOnceWith('missing'));
+  });
+
+  it('does not treat malformed requested room context as unscoped browsing', async () => {
+    dispose = render(() => <MemoryBrowserContent launchContext={{ roomId: { id: 'room-1' } }} />, container);
+    await vi.waitFor(() => expect(container.querySelector('[role="status"]')).not.toBeNull());
+    expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalled();
+    const picker = container.querySelector('select') as HTMLSelectElement;
+    picker.value = 'room-1'; picker.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledExactlyOnceWith('room-1'));
+  });
+
+  it('keeps participant pre-join cutoffs in the requested room projection', async () => {
+    mockBridge.journal.readSeaProjection.mockResolvedValueOnce([...seaEvents,
+      { ...seaEvents[0], id: 'membership', type: 'membership', seq: 3, payload: { participantId: 'p2', action: 'added' } },
+      { ...seaEvents[0], id: 'after-join', seq: 6, payload: { ownerId: 'p1', kind: 'belief', text: 'After joining' } },
+    ]);
+    dispose = render(() => <MemoryBrowserContent launchContext={{ roomId: 'room-1' }} />, container);
+    await vi.waitFor(() => expect(container.querySelectorAll('.memory-browser-tab')).toHaveLength(3));
+    (Array.from(container.querySelectorAll('.memory-browser-tab')).find(tab => tab.textContent === 'Bob') as HTMLButtonElement).click();
+    expect(container.textContent).toContain('After joining');
+    expect(container.textContent).not.toContain('Shared belief');
+    expect(container.textContent).not.toContain('Alice-only belief');
+  });
+
   it('keeps a failed memory read distinct from no memories and retries', async () => {
     mockBridge.journal.readSeaProjection.mockRejectedValueOnce(new Error('offline'));
-    const { MemoryBrowserApp } = await import('./App');
-    dispose = render(() => <MemoryBrowserApp />, container);
+    dispose = render(() => <MemoryBrowserContent />, container);
     await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
     expect(container.textContent).not.toContain('mlearn.MemoryBrowser.Empty');
     (container.querySelector('[role="alert"] button') as HTMLButtonElement).click();
@@ -147,8 +184,7 @@ describe('memory browser window', () => {
   });
 
   it('renders per-participant projections with perspective redaction and no editing affordances', async () => {
-    const { MemoryBrowserApp } = await import('./App');
-    dispose = render(() => <MemoryBrowserApp />, container);
+    dispose = render(() => <MemoryBrowserContent />, container);
 
     await vi.waitFor(() => expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledWith('room-1'));
 
@@ -176,8 +212,7 @@ describe('memory browser window', () => {
 
   it('shows one empty state and omits empty categories', async () => {
     mockBridge.journal.readSeaProjection.mockResolvedValueOnce([]);
-    const { MemoryBrowserApp } = await import('./App');
-    dispose = render(() => <MemoryBrowserApp />, container);
+    dispose = render(() => <MemoryBrowserContent />, container);
     await vi.waitFor(() => expect(container.querySelector('.memory-browser-empty')).not.toBeNull());
     expect(container.querySelectorAll('.memory-browser-empty')).toHaveLength(1);
     expect(container.querySelectorAll('.memory-browser-section')).toHaveLength(0);

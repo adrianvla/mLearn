@@ -1,3 +1,4 @@
+import { consumeMediaWorkspaceReturn } from './mediaWorkspaceReturn';
 import { tokenLookupContext } from '../../../hooks/useTranslation';
 import { hasSignedInCloudSession, withCloudAuth } from '../../../services/cloudSessionManager';
 import { classifyProviderFailure } from '../../../services/providerFailure';
@@ -2381,7 +2382,13 @@ export const ReaderRoute: Component = () => {
     const pendingBook = sessionStorage.getItem('mlearn_open_book');
     if (pendingBook) {
       sessionStorage.removeItem('mlearn_open_book');
-      void loadBookFromPath(pendingBook);
+      const source = consumeMediaWorkspaceReturn(sessionStorage, 'reader', pendingBook);
+      void loadBookFromPath(pendingBook).then(() => {
+        if (currentBookPath() !== pendingBook || !source) return;
+        const location = parseSavedReaderLocation(JSON.stringify(source.location) ?? null);
+        const page = location && typeof location !== 'number' ? pageForLocation(pages(), location) : source.page;
+        if (typeof page === 'number' && Number.isInteger(page) && page >= 0) goToPage(page);
+      });
     } else {
       void loadActiveBookPath().then((activeBookPath) => {
         if (activeBookPath && pages().length === 0) {
@@ -2952,6 +2959,7 @@ export const ReaderRoute: Component = () => {
     const context: ConversationAgentContext = {
       mediaName: name,
       mediaType: 'book',
+      sourceContext: { workspace: 'reader', path: currentBookPath(), page: currentPage(), location: sourceLocation(), mediaHash: s.mediaHash },
       mediaHash: s.mediaHash,
       assessedLevel: level,
       assessedLevelName: formatFrequencyLevelLabel(level, levelNames, langCtx.currentLangData()),
@@ -2963,7 +2971,7 @@ export const ReaderRoute: Component = () => {
       grammarLevelPercentages: grammarLevels,
     };
 
-    getBridge().window.openWindow({ type: 'conversation-agent', context: context as unknown as Record<string, unknown> });
+    getBridge().window.openWindow({ type: 'conversation-agent', context: { ...context, returnTo: 'reader' } });
   };
 
   const toggleOcrOverlay = () => setShowOcrOverlay(!showOcrOverlay());
@@ -3296,7 +3304,8 @@ export const ReaderRoute: Component = () => {
               onWordLeave={() => setSidebarHoveredEntry(null)}
               onClose={() => setShowWordSidebar(false)}
               onPracticeWords={entries => getBridge().window.openWindow({ type: 'level-study', context: {
-                activity: 'practice',
+                activity: 'practice', returnTo: 'reader',
+                sourceContext: { workspace: 'reader', path: currentBookPath(), page: currentPage(), location: sourceLocation() },
                 material: { language: settings.language, words: entries.map(entry => entry.word), label: bookTitle() },
               } })}
           />

@@ -1,11 +1,9 @@
 /**
  * Statistics Window App
- * Comprehensive learning analytics dashboard with charts, heatmaps,
- * distributions, forecasts, and SRS insights.
+ * Learning analytics hosted by the application shell.
  */
 
 import { Component } from 'solid-js';
-import { WindowWrapper } from '../../context';
 import { Dashboard } from './Dashboard';
 import './Statistics.css';
 
@@ -14,13 +12,5 @@ export const StatisticsContent: Component = () => {
     <div class="statistics-window">
       <Dashboard />
     </div>
-  );
-};
-
-export const StatisticsApp: Component = () => {
-  return (
-    <WindowWrapper showDragRegion={true}>
-      <StatisticsContent />
-    </WindowWrapper>
   );
 };

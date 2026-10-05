@@ -135,6 +135,13 @@ describe('SettingsContent', () => {
     dispose();
   });
 
+  it('opens the section supplied by the shared shell request', async () => {
+    const { SettingsContent } = await import('./SettingsWindow');
+    const dispose = render(() => SettingsContent({ launchContext: { section: 'connection' } }), container);
+    expect(container.querySelector('[role="tab"][aria-selected="true"] .tab-label')?.textContent).toContain('Connection');
+    dispose();
+  });
+
   it('reads the section from the window context on mount', async () => {
     const { SettingsContent } = await import('./SettingsWindow');
     const dispose = render(() => SettingsContent({}), container);

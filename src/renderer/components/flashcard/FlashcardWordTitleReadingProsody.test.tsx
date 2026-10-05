@@ -539,7 +539,8 @@ describe('FlashcardWordTitle', () => {
     const segments = container.querySelectorAll<HTMLElement>('.colored-prosody__segment');
     expect(segments.length).toBeGreaterThan(0);
     expect(segments[0].dataset.prosodyValue).toBe('tone-1');
-    expect(segments[0].style.color).toBe('#ff00ff');
+    expect(segments[0].style.color).toBe('var(--language-word-ink)');
+    expect(segments[0].style.getPropertyValue('--language-word-ink')).toContain('#ff00ff');
 
     dispose();
   });

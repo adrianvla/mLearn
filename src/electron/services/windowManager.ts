@@ -460,10 +460,14 @@ export function createDiagnosticsWindow(): BrowserWindow {
 function openApplicationDestination(type: WindowType, context?: Record<string, unknown>): BrowserWindow | null {
   const destination = resolveApplicationDestination(type, context);
   if (!destination) return null;
+  windowContextStore.set(type === 'connect-qr' ? 'settings' : type, destination.context);
+  return openApplicationRoute(destination.path, destination.context);
+}
+
+function openApplicationRoute(path: string, context: Record<string, unknown> = {}): BrowserWindow {
   const window = mainWindow && !mainWindow.isDestroyed() ? mainWindow : createMainWindow();
   // Empty context is intentional: Open must never replay an older Start request.
-  windowContextStore.set(type === 'connect-qr' ? 'settings' : type, destination.context);
-  const navigation = { applicationNavigation: { path: destination.path, requestId: crypto.randomUUID(), context: destination.context } };
+  const navigation = { applicationNavigation: { path, requestId: crypto.randomUUID(), context } };
   if (window.webContents.isLoadingMainFrame()) windowContextStore.set('main', navigation);
   else {
     // A live shell receives this request immediately. Keeping it as a cold
@@ -917,28 +921,32 @@ function setupAppMenu(): void {
       ],
     },
 
-    // Go menu (Windows/Linux: navigation targets)
-    ...(!isMac ? [{
+    // The same purpose-led destinations are available on every desktop platform.
+    {
       id: 'mlearn-menu-go',
       label: getLocalizedString('mlearn.Menu.Go'),
       submenu: [
-        ...flashcardsItems,
-        { type: 'separator' as const },
-        ...statisticsItems,
+        ...[
+          ['/', 'mlearn.Tabs.Home'], ['/reader', 'mlearn.Home.Today.Read'],
+          ['/video', 'mlearn.Home.Today.Watch'], ['/messenger', 'mlearn.Product.Messenger'],
+          ['/practise', 'mlearn.Product.Practise'], ['/evaluate', 'mlearn.Product.Evaluate'],
+          ['/plan', 'mlearn.Product.Plan'], ['/knowledge', 'mlearn.Product.Knowledge'],
+          ['/progress', 'mlearn.Product.Progress'],
+        ].map(([path, key]) => ({ label: getLocalizedString(key), click: () => openApplicationRoute(path) })),
       ],
-    }] : []),
-
-    // Tools menu (Windows/Linux: video + browser extension)
-    ...(!isMac ? [{
+    },
+    {
       id: 'mlearn-menu-tools',
       label: getLocalizedString('mlearn.Menu.Tools'),
       submenu: [
         ...videoItems,
-        { type: 'separator' as const },
+        { type: 'separator' },
+        ...flashcardsItems.slice(1),
+        ...statisticsItems.slice(2),
         ...browserExtensionItems,
       ],
-    }] : []),
-    
+    },
+
     // Window menu (macOS)
     ...(isMac ? [{
       label: getLocalizedString('mlearn.Menu.Window'),
@@ -950,30 +958,6 @@ function setupAppMenu(): void {
         { type: 'separator' as const },
         { role: 'window' as const },
       ],
-    }] : []),
-    
-    // Video menu (macOS)
-    ...(isMac ? [{
-      label: getLocalizedString('mlearn.Menu.Video'),
-      submenu: videoItems,
-    }] : []),
-
-    // Flashcards menu (macOS)
-    ...(isMac ? [{
-      label: getLocalizedString('mlearn.Menu.Flashcards'),
-      submenu: flashcardsItems,
-    }] : []),
-
-    // Statistics menu (macOS)
-    ...(isMac ? [{
-      label: getLocalizedString('mlearn.Menu.Statistics'),
-      submenu: statisticsItems,
-    }] : []),
-
-    // Browser Extension menu (macOS)
-    ...(isMac ? [{
-      label: getLocalizedString('mlearn.Menu.BrowserExtension.Title'),
-      submenu: browserExtensionItems,
     }] : []),
     
     // Help menu

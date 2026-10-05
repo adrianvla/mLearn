@@ -130,7 +130,7 @@ describe('word capture eligibility has one owner', () => {
     // guards become load-bearing again and the batch has to be able to run
     // twice; this assertion is what would notice.
     const source = read(join(RENDERER, 'components/sidebar/UnknownWordsSidebar.tsx'));
-    const button = source.slice(source.indexOf("t('mlearn.Sidebar.AddAll')"));
+    const button = source.slice(source.indexOf("t('mlearn.Sidebar.SaveAllForReview')"));
     expect(button).toContain('props.isAddingAll()');
   });
 
