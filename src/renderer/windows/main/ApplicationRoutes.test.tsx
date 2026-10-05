@@ -2,13 +2,13 @@
 import { render } from 'solid-js/web';
 import { HashRouter } from '@solidjs/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const fixture = vi.hoisted(() => ({ listener: undefined as ((context: Record<string, unknown>) => void) | undefined, unsubscribe: vi.fn(), mounted: vi.fn(), savedReturn: {} as Record<string, unknown> }));
+const fixture = vi.hoisted(() => ({ listener: undefined as ((context: Record<string, unknown>) => void) | undefined, unsubscribe: vi.fn(), mounted: vi.fn(), savedReturn: {} as Record<string, unknown>, mobile: false }));
 vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }), useSettings: () => ({ settings: { language: 'package-x' }, isLoading: () => false }) }));
 vi.mock('../../context/WindowWrapper', () => ({ LibraryLoadGuard: (props: { recoveryAccess?: boolean }) => <span data-testid="guard" data-recovery={String(props.recoveryAccess)} /> }));
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
   onWindowContext: (listener: typeof fixture.listener) => { fixture.listener = listener; return fixture.unsubscribe; }, getWindowContext: vi.fn(),
 } }) }));
-vi.mock('../../../shared/platform', () => ({ isElectron: () => true, isMobile: () => false }));
+vi.mock('../../../shared/platform', () => ({ isElectron: () => !fixture.mobile, isMobile: () => fixture.mobile }));
 vi.mock('./components/LoadingOverlay', () => ({ LoadingOverlay: () => <span data-testid="backend-overlay" /> }));
 vi.mock('../../components/common', () => ({ LearningWorkspace: (props: { children?: import('solid-js').JSX.Element }) => props.children, Button: (props: { children?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button> }));
 vi.mock('../flashcards/App', () => ({ FlashcardsContent: (props: { initialTab?: string; onClose?: () => void }) => {
@@ -31,14 +31,15 @@ import { ApplicationRoutes } from './ApplicationRoutes';
 describe('application shell route ownership', () => {
   let container: HTMLDivElement;
   let dispose: () => void;
-  beforeEach(() => { vi.clearAllMocks(); fixture.savedReturn = {}; sessionStorage.clear(); window.history.replaceState(null, '', '#/'); container = document.createElement('div'); document.body.append(container); });
+  beforeEach(() => { vi.clearAllMocks(); fixture.savedReturn = {}; fixture.mobile = false; sessionStorage.clear(); window.history.replaceState(null, '', '#/'); container = document.createElement('div'); document.body.append(container); });
   afterEach(() => { dispose?.(); container.remove(); window.history.replaceState(null, '', '#/'); });
   const mount = () => { dispose = render(() => <HashRouter root={ApplicationShell}><ApplicationRoutes /></HashRouter>, container); };
   const navigate = async (path: string) => {
     container.querySelector<HTMLAnchorElement>(`a[href="#${path}"]`)!.click();
     await vi.waitFor(() => expect(window.location.hash).toBe(`#${path}`));
   };
-  it('keeps navigation stable across immersion and learning workspaces', async () => {
+  it.each([false, true])('keeps navigation stable across immersion and learning workspaces (mobile: %s)', async mobile => {
+    fixture.mobile = mobile;
     mount(); const links = Array.from(container.querySelectorAll('nav a')).map(a => a.textContent);
     for (const [path, content] of [['/reader', 'reader'], ['/video', 'video'], ['/messenger', 'messenger'], ['/practise', 'review'], ['/plan', 'plan']]) {
       await navigate(path);
@@ -116,6 +117,19 @@ describe('application shell route ownership', () => {
     expect(container.querySelector('[data-content="settings"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="backend-overlay"]')).toBeNull();
     expect(container.querySelector('[data-testid="guard"]')?.getAttribute('data-recovery')).toBe('true');
+  });
+  it('uses the mobile Settings owner while retaining shared recovery access and navigation cleanup', async () => {
+    fixture.mobile = true;
+    mount(); await navigate('/settings');
+    expect(container.querySelector('[data-content="mobile-settings"]')).not.toBeNull();
+    expect(container.querySelector('[data-content="settings"]')).toBeNull();
+    expect(container.querySelectorAll('[data-content]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="backend-overlay"]')).toBeNull();
+    expect(container.querySelector('[data-testid="guard"]')?.getAttribute('data-recovery')).toBe('true');
+    await navigate('/practise');
+    expect(container.querySelector('[data-content="review"]')).not.toBeNull();
+    expect(container.querySelector('[data-content="mobile-settings"]')).toBeNull();
+    dispose(); expect(fixture.unsubscribe).toHaveBeenCalledOnce();
   });
   it('Return from an embedded review navigates Home rather than closing the application', async () => {
     window.history.replaceState(null, '', '#/practise'); mount(); container.querySelector<HTMLButtonElement>('[data-content="review"] button')!.click();

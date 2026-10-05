@@ -9,6 +9,27 @@ vi.mock('../../../context', () => ({ useLocalization: () => ({ t: (key: string) 
 describe('foreground learning input', () => {
   let dispose: (() => void) | undefined;
   afterEach(() => { dispose?.(); document.body.replaceChildren(); vi.restoreAllMocks(); });
+  it('does not retain reveal or rating owners across repeated workspace visits', () => {
+    const visits = Array.from({ length: 3 }, () => ({ reveal: vi.fn(), rate: vi.fn() }));
+    const container = document.createElement('div'); document.body.append(container);
+    const key = (value: string) => window.dispatchEvent(new KeyboardEvent('keydown', { key: value, cancelable: true }));
+    for (const [index, visit] of visits.entries()) {
+      const Task = () => {
+        const [revealed, reveal] = createSignal(false);
+        return <StudyEncounter prompt="Cue" answer="Answer" revealed={revealed()} onReveal={() => { visit.reveal(); reveal(true); }}
+          rating={{ capabilities: ['sense-recognition'], armed: true, keyboardMode: 'mnemonic', onSubmit: visit.rate }} />;
+      };
+      dispose = render(() => <LearningWorkspace><Task /></LearningWorkspace>, container);
+      key(' '); key('3');
+      expect(visit.reveal).toHaveBeenCalledOnce(); expect(visit.rate).toHaveBeenCalledOnce();
+      for (const previous of visits.slice(0, index)) {
+        expect(previous.reveal).toHaveBeenCalledOnce(); expect(previous.rate).toHaveBeenCalledOnce();
+      }
+      dispose(); dispose = undefined;
+      key(' '); key('3');
+      expect(visit.reveal).toHaveBeenCalledOnce(); expect(visit.rate).toHaveBeenCalledOnce();
+    }
+  });
   it('owns reveal, rating and Undo in one listener and releases all task handlers', () => {
     const rated = vi.fn(), undo = vi.fn();
     const listen = vi.spyOn(window, 'addEventListener');

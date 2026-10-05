@@ -1,5 +1,7 @@
 # Bounded learning product refactor — 2026-10-04
 
+Historical report for the earlier bounded task. The current broad product refactor and its J01–J24 acceptance evidence are tracked in [the product refactor ledger](product-refactor/LEDGER.md). Completion statements below apply only to that earlier task and are not evidence that the current product refactor is complete.
+
 Baseline: branch `refactor/minimize-tech-debt`, HEAD `7d64cb38dc2a1e91062a44448c0ba969f6289f62`. No tracked changes. Three existing untracked checkpoint documents are preserved and excluded from this commit. Existing Vite process serves port 3000; native verification will use an isolated copied profile and rebuilt Electron output, sequentially after build.
 
 ## Surface contracts

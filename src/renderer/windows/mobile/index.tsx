@@ -1,7 +1,7 @@
 /**
  * Mobile App Entry Point
- * Single-page SolidJS app with HashRouter and bottom tab navigation.
- * Reuses all existing components via WindowWrapper context providers.
+ * Uses the shared application shell/routes with one WindowWrapper provider tree.
+ * Sync and native keyboard/context-menu integration remain mobile-specific.
  */
 
 import { render } from 'solid-js/web';
