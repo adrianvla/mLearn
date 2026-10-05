@@ -20,35 +20,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+      - name: Match the offline verification runtime
+        run: |
+          mkdir -p /tmp/mlearn-runtime
+          cp "$(command -v node)" /tmp/mlearn-runtime/node
+          node --version > /tmp/mlearn-runtime/version.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mlearn-verification-node
+          path: /tmp/mlearn-runtime/
+          retention-days: 1
       - id: install
         run: npm ci --ignore-scripts
-      - name: Prepare offline verification workspace
-        run: |
-          mkdir -p /tmp/mlearn-offline-source /tmp/mlearn-offline-dependencies
-          git archive HEAD | gzip > /tmp/mlearn-offline-source/current.tar.gz
-          git archive refs/remotes/origin/dev | gzip > /tmp/mlearn-offline-source/dev.tar.gz
-          git archive 5577f4b1e58f829cbcb3fb5cb0103689f1ef029f | gzip > /tmp/mlearn-offline-source/base.tar.gz
-          git log -60 --format='%H %s' > /tmp/mlearn-offline-source/commits.txt
-          tar --exclude='node_modules/@node-llama-cpp' --exclude='node_modules/node-llama-cpp/llama/gitRelease.bundle' -czf /tmp/dependencies.tgz node_modules
-          split -b 200M /tmp/dependencies.tgz /tmp/mlearn-offline-dependencies/dependencies.tgz.part-
-          du -sh /tmp/mlearn-offline-source/* /tmp/mlearn-offline-dependencies/*
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mlearn-offline-source
-          path: /tmp/mlearn-offline-source/
-          retention-days: 1
-          compression-level: 0
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mlearn-offline-dependencies
-          path: /tmp/mlearn-offline-dependencies/
-          retention-days: 1
-          compression-level: 0
       - name: Focused restoration and shared interaction regressions
         run: npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow
       - name: Both TypeScript configurations
