@@ -178,7 +178,7 @@
       "UpdatingMessage": "正在下载并安装最新的语言数据。"
     },
     "RuntimeRestart": {
-      "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
+      "Message": "设置已保存。请重启 mLearn，以安全应用这些更改。",
       "RestartNow": "Restart Now",
       "Title": "Restart Required"
     },

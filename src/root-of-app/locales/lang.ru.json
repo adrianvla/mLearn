@@ -178,7 +178,7 @@
       "UpdatingMessage": "Загрузка и установка последних языковых данных."
     },
     "RuntimeRestart": {
-      "Message": "Language and dictionary changes are saved, but they require an app restart before the backend can use them safely.",
+      "Message": "Настройки сохранены. Перезапустите mLearn, чтобы безопасно применить изменения.",
       "RestartNow": "Restart Now",
       "Title": "Restart Required"
     },
