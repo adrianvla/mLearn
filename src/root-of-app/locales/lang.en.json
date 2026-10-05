@@ -4202,6 +4202,7 @@
       "MessengerDescription": "Continue your conversations.",
       "MockUnavailable": "This installed package does not provide checkpoint question sources.",
       "GrammarUnavailable": "This package does not provide grammar tasks.",
+      "GrammarSelectionUnavailable": "This grammar selection is unavailable. Return and choose it again.",
       "ResumeUnavailable": "This saved task is unavailable. Your current work has been kept.",
       "Return": "Return"
     }

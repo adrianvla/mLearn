@@ -4202,6 +4202,7 @@
       "MessengerDescription": "会話を続けます。",
       "MockUnavailable": "このインストール済みパッケージには、チェックポイント用の問題ソースがありません。",
       "GrammarUnavailable": "このパッケージには文法の課題がありません。",
+      "GrammarSelectionUnavailable": "この文法の選択は利用できません。戻ってもう一度選択してください。",
       "ResumeUnavailable": "この保存済みの課題は利用できません。現在の課題は保持されています。",
       "Return": "戻る"
     }

@@ -515,6 +515,31 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(onProbe).not.toHaveBeenCalled();
     next.dispose(); next.container.remove();
   });
+  it('keeps a complete cross-level request through restart and records each construction at its package level', async () => {
+    const onProbe = vi.fn();
+    const first = mount(onProbe, undefined, undefined, undefined, undefined,
+      () => ({ level: 2, requestedAt: 10, patterns: ['ば', 'たびに'] }), undefined, passThroughLocks, true, ['ば', 'たびに']);
+    await tick();
+    const saved = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
+    expect(saved.queue.map((item: { id: string }) => item.id).sort()).toEqual(['ば', 'たびに'].sort());
+    first.dispose(); first.container.remove();
+    const resumed = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined,
+      passThroughLocks, true, undefined, saved.id);
+    await tick();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(saved);
+    for (const item of saved.queue as Array<{ id: string }>) {
+      const point = languageData.grammar!.find(point => point.pattern === item.id)!;
+      expect(promptedPattern(resumed.container, point.level!)).toBe(item.id);
+      revealCurrent(resumed.container, point.level!);
+      expect(levelBlock(resumed.container, point.level!).querySelector('[data-testid="grammar-session-answer"]')?.textContent).not.toContain('AnswerUnavailable');
+      (resumed.container.querySelector('.study-encounter__response .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+      await beat();
+      expect(onProbe.mock.calls.at(-1)?.slice(0, 3)).toEqual([item.id, 'fluent', point.level]);
+    }
+    expect(onProbe).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).index).toBe(2);
+    resumed.dispose(); resumed.container.remove();
+  });
   it('resumes only an explicitly named saved session and leaves unrelated work paused for an unavailable ID', async () => {
     const onProbe = vi.fn(); const first = mount(onProbe); await startPass(first.container, 2);
     const saved = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);

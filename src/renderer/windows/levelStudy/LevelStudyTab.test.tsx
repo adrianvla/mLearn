@@ -6,6 +6,7 @@ import { createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { assembleContrastItem, itemContentVersion, questionBankFromLanguageData } from '../../learning/questionBank';
 import type { GrammarItemSemanticValidation, GrammarPracticeItemSource, LanguageData } from '../../../shared/types';
+import type { LearningGoal } from '../../../shared/learningGoals';
 
 const refreshLanguageDataMock = vi.fn();
 const addLevelStudyFlashcardsMock = vi.fn();
@@ -19,6 +20,7 @@ let supportedLanguagesMock: string[] = [];
 let wordFrequencyMock: Record<string, unknown> = {};
 let settingsLanguageMock = 'ja';
 let learningLanguageLevelsMock: Record<string, number> | undefined;
+let learningGoalsMock: LearningGoal[] | undefined;
 let bulkAddModalPropsMock: Record<string, unknown> | null = null;
 const updateSettingsMock = vi.fn();
 let learningBackgroundMock: { records: Array<Record<string, unknown>> } = { records: [] };
@@ -107,6 +109,7 @@ vi.mock('../../context', () => ({
       easeThresholdKnown: 3.5,
       easeThresholdLearning: 1.5,
       learningLanguageLevels: learningLanguageLevelsMock,
+      learningGoals: learningGoalsMock,
       get learningBackground() { return learningBackgroundMock; },
       get uiLanguage() { return settingsUiLanguage; },
       llmProvider: 'builtin',
@@ -202,6 +205,7 @@ describe('LevelStudyTab', () => {
     journalKeysMock = [];
     wordVariantsForWordMock = (word) => [word];
     learningLanguageLevelsMock = undefined;
+    learningGoalsMock = undefined;
     getComprehensiveWordStatusSyncMock.mockReturnValue('unknown');
     hasWordSyncMock.mockReturnValue(false);
     currentLangDataMock = {
@@ -237,6 +241,28 @@ describe('LevelStudyTab', () => {
     practise.click();
     expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'level-study', context: expect.objectContaining({ activity: 'grammar', returnTo: 'plan' }) }));
     dispose();
+  });
+  it.each(['words', 'other-grammar'])('resumes the exact saved grammar task independently of the current %s target', async group => {
+    const data: LanguageData = { ...deFixture(), learning: { outcomes: { selected: {
+      label: 'Selected curriculum', provenance: 'package', groups: [
+        { id: 'words', selectors: [{ source: 'frequency', levels: [5] }] },
+        { id: 'other-grammar', selectors: [{ source: 'grammar', patterns: ['weil'] }] },
+      ],
+    } } } };
+    currentLangDataMock = data as unknown as Record<string, unknown>;
+    settingsLanguageMock = 'de';
+    const { LevelStudyTab } = await import('./LevelStudyTab');
+    const first = render(() => <LevelStudyTab view="grammar" grammarRequest={{ level: 2, patterns: ['trotzdem'], requestedAt: 0 }} />, container);
+    await waitFor(() => localStorage.getItem('mlearn-study-grammar:de') !== null);
+    const saved = JSON.parse(localStorage.getItem('mlearn-study-grammar:de')!);
+    first();
+    learningGoalsMock = [{ id: 'chosen', language: 'de', outcome: 'Selected curriculum', outcomeRef: { id: 'selected', groupIds: [group] }, status: 'active', priority: 1, createdAt: 1 }];
+    const resumed = render(() => <LevelStudyTab view="grammar" grammarResumeId={saved.id} />, container);
+    await waitFor(() => container.querySelector('.grammar-coverage__session[data-level="2"] .grammar-coverage__session-prompt[data-pattern="trotzdem"]') !== null);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:de')!)).toEqual(saved);
+    expect(recordGrammarAttemptMock).not.toHaveBeenCalled();
+    expect(updateSettingsMock).not.toHaveBeenCalled();
+    resumed();
   });
   it('requests a one-time language data refresh when loaded metadata has no frequency rows', async () => {
     const { LevelStudyTab } = await import('./LevelStudyTab');

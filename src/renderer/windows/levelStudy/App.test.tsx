@@ -75,21 +75,32 @@ vi.mock('../characterGrid/App', () => ({
 vi.mock('./LearningPlanSettings', () => ({ LearningPlanSettings: () => <div>Plan controls</div> }));
 
 vi.mock('./LevelStudyTab', () => ({
-  LevelStudyTab: (props: { onEditPlan?: () => void; grammarRequest?: unknown }) => <div data-grammar-request={props.grammarRequest ? JSON.stringify(props.grammarRequest) : undefined}>Level Study Content<button onClick={props.onEditPlan}>Edit from progress</button></div>,
+  LevelStudyTab: (props: { onEditPlan?: () => void; grammarRequest?: unknown; grammarScopePatterns?: readonly string[]; onGrammarRequestHandled?: () => void }) => <div data-grammar-request={props.grammarRequest ? JSON.stringify(props.grammarRequest) : undefined} data-grammar-scope={props.grammarScopePatterns ? JSON.stringify(props.grammarScopePatterns) : undefined}>Level Study Content<button onClick={props.onEditPlan}>Edit from progress</button><button onClick={props.onGrammarRequestHandled}>Admission acknowledged</button></div>,
 }));
 
 describe('LevelStudyContent', () => {
-  it('hands an installed construction subset to the existing plan owner and rejects unknown patterns', async () => {
+  it('keeps an installed construction subset after the admission request is acknowledged', async () => {
     currentLangDataMock = { grammar: [{ pattern: 'package-defined', level: 2 }] };
-    ingress.context = { activity: 'grammar', patterns: ['package-defined', 'invented'], returnTo: 'home' };
+    ingress.context = { activity: 'grammar', patterns: ['package-defined'], returnTo: 'home' };
     const { LevelStudyContent } = await import('./App');
     const host = document.createElement('div'); document.body.append(host);
     const dispose = render(() => <LevelStudyContent workspace="grammar" launchContext={ingress.context} />, host);
     try {
       expect(host.querySelector('[data-grammar-request]')?.getAttribute('data-grammar-request')).toContain('package-defined');
       expect(host.querySelector('[data-grammar-request]')?.getAttribute('data-grammar-request')).not.toContain('invented');
+      Array.from(host.querySelectorAll('button')).find(button => button.textContent === 'Admission acknowledged')!.click();
+      expect(host.querySelector('[data-grammar-request]')?.getAttribute('data-grammar-request')).toBeUndefined();
+      expect(host.querySelector('[data-grammar-scope]')?.getAttribute('data-grammar-scope')).toBe('["package-defined"]');
       expect(host.querySelector('[data-testid="word-sync-content"]')).toBeNull();
     } finally { dispose(); host.remove(); }
+  });
+  it.each([{ patterns: [] }, { patterns: ['removed'] }, { patterns: ['package-defined', 'removed'] }, { patterns: ['package-defined', 12] }])('refuses an explicit invalid scope without generic grammar controls: $patterns', async ({ patterns }) => {
+    currentLangDataMock = { grammar: [{ pattern: 'package-defined', level: 2 }] };
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent workspace="grammar" launchContext={{ activity: 'grammar', patterns }} />, container);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.Product.GrammarSelectionUnavailable');
+    expect(container.textContent).not.toContain('Level Study Content');
+    dispose();
   });
 
   it.each(['valid', 'wrong-request', 'wrong-target', 'wrong-task'])('validates and forwards the %s Home grammar decision', async kind => {
@@ -106,7 +117,11 @@ describe('LevelStudyContent', () => {
     const dispose = render(() => <LevelStudyContent workspace="grammar" launchContext={ingress.context} />, container);
     const raw = container.querySelector('[data-grammar-request]')?.getAttribute('data-grammar-request');
     if (kind === 'valid') expect(JSON.parse(raw!)).toMatchObject({ patterns: ['package-defined'], handoffDecision: decision });
-    else expect(raw).toBeUndefined();
+    else {
+      expect(raw).toBeUndefined();
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.Product.GrammarSelectionUnavailable');
+      expect(container.textContent).not.toContain('Level Study Content');
+    }
     dispose();
   });
 

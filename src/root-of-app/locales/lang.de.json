@@ -4202,6 +4202,7 @@
       "MessengerDescription": "Setze deine Gespräche fort.",
       "MockUnavailable": "Dieses installierte Paket enthält keine Fragequellen für Lernkontrollen.",
       "GrammarUnavailable": "Dieses Paket stellt keine Grammatikaufgaben bereit.",
+      "GrammarSelectionUnavailable": "Diese Grammatikauswahl ist nicht verfügbar. Kehre zurück und wähle sie erneut.",
       "ResumeUnavailable": "Diese gespeicherte Aufgabe ist nicht verfügbar. Die aktuelle Arbeit wurde beibehalten.",
       "Return": "Zurück"
     }

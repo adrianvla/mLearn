@@ -229,11 +229,11 @@ function contrastAdmissionMatches(value: GrammarContrastAdmission, pattern: stri
     && formats.every(format => grammarContrastDecisionMatches(value.decisions[format], item, format));
 }
 
-function presentGrammarRecord(record: GrammarRecord | null): StoredPass | null {
+function presentGrammarRecord(record: GrammarRecord | null, grammar: LanguageData['grammar']): StoredPass | null {
   if (!record) return null;
   const pattern = record.queue[record.index]?.id;
   return {
-    level: record.meta.level,
+    level: grammar?.find(point => point.pattern === (pattern ?? record.queue.at(-1)?.id))?.level ?? record.meta.level,
     kind: record.meta.kind,
     denominator: record.meta.denominator,
     mode: record.meta.mode,
@@ -288,9 +288,9 @@ function validStoredAnswer(
     && item.seed === answered.itemRef.seed;
 }
 
-function levelDenominator(level: number, grammar: NonNullable<LanguageData['grammar']>): string {
+function levelDenominator(level: number, grammar: NonNullable<LanguageData['grammar']>, scopePatterns?: readonly string[]): string {
   return grammar
-    .filter((point) => point.level === level)
+    .filter((point) => scopePatterns ? typeof point.level === 'number' && scopePatterns.includes(point.pattern) : point.level === level)
     .map((point) => point.pattern)
     .sort()
     .join('\u0000');
@@ -415,14 +415,16 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       storage: globalThis.localStorage,
       validate: (record) => {
         const { level, kind, denominator } = record.meta;
-        const declared = new Set(grammar.filter((point) => point.level === level).map((point) => point.pattern));
         const scope = record.meta.scopePatterns;
+        const declared = new Set(grammar.filter(point => kind === 'self-assess' && scope !== undefined
+          ? typeof point.level === 'number' : point.level === level).map(point => point.pattern));
         const correction = record.meta.correction;
         if (correction !== undefined && (kind !== 'self-assess' || correction.index !== record.index
           || correction.itemId !== record.queue[record.index]?.id || typeof correction.attemptId !== 'string'
           || !correction.attemptId || !record.queue[record.index]?.decision)) return false;
         if (scope !== undefined && (!Array.isArray(scope) || !scope.length
-          || new Set(scope).size !== scope.length || scope.some(pattern => !declared.has(pattern)))) return false;
+          || new Set(scope).size !== scope.length || scope.some(pattern => !declared.has(pattern))
+          || !grammar.some(point => point.level === level && scope.includes(point.pattern)))) return false;
         const scopedGrammar = scope ? grammar.filter(point => scope.includes(point.pattern)) : grammar;
         return record.meta.purpose === purpose && record.identity === JSON.stringify({ language, level, kind, denominator, ...(purpose ? { purpose } : {}) })
           && record.index >= 0 && record.index <= record.queue.length
@@ -433,7 +435,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
           && record.queue.map((item) => item.id).sort().join('\u0000') === denominator
           && denominator === (kind === 'contrast'
             ? contrastDenominator(level, questionBank, scopedGrammar)
-            : levelDenominator(level, scopedGrammar))
+            : levelDenominator(level, scopedGrammar, scope))
           && (kind !== 'contrast' || record.queue.every((item) => deliverablePatterns(level, questionBank, grammar).has(item.id)))
           && (record.answered === undefined || validStoredAnswer(record.answered, record.index, record.queue[record.index]?.id, kind, questionBank));
       },
@@ -450,7 +452,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         await props.onProbe(
           pending.itemId,
           pending.payload.quality,
-          record.meta.level,
+          grammar.find(point => point.pattern === pending.itemId)!.level!,
           pending.payload.scaffolds,
           { ...pending.payload.attempt, attemptId: pending.attemptId },
         );
@@ -463,7 +465,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       // learner never saw.
       onAcknowledged: (before, _after, pending) => {
         setUndoStack((previous) => pushUndo(previous, {
-          level: before.meta.level,
+          level: grammar.find(point => point.pattern === pending.itemId)!.level!,
           pattern: pending.itemId,
           language: props.language,
           attemptId: pending.attemptId,
@@ -511,13 +513,14 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   };
 
   const [sessionController, setSessionController] = createSignal<GrammarController | null>(createGrammarController(props.language, props.languageData));
-  const session = createMemo(() => presentGrammarRecord(sessionController()?.current() ?? null));
+  const session = createMemo(() => presentGrammarRecord(sessionController()?.current() ?? null, props.languageData.grammar));
   /** The pass this window started with (marker feedback seeds the initial
    *  presentation below). */
   const initialPass = session();
   // Projection refreshes remount this section after a probe. Restore the
   // visible level with its durable cursor so the next prompt stays in view.
   const [expandedLevel, setExpandedLevel] = createSignal<number | null>(initialPass?.level ?? null);
+  createEffect(on(() => session()?.level, level => { if (level !== undefined) setExpandedLevel(level); }));
   /** A durable write failed (quota/private storage): the refused action is
    *  surfaced with an honest note and stays retryable — never a probe
    *  without a durable cursor (shared study-session contract, G01/G04). Cleared
@@ -570,7 +573,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   onCleanup(() => sessionController()?.dispose());
 
   createEffect(on(() => sessionController()?.current(), (record) => {
-    adoptPresentation(presentGrammarRecord(record ?? null));
+    adoptPresentation(presentGrammarRecord(record ?? null, props.languageData.grammar));
   }));
 
   // How this surface puts its own state back. Registered rather than passed to
@@ -704,11 +707,12 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   });
 
   /** Plans the pass: TeachingPolicy chooses, in order, each un-deferred construction of the level. */
-  const startSession = (level: number, firstPattern?: string, handoff?: LearningDecision, worthwhileOnly = false, suspendCurrent = true) => {
+  const startSession = (level: number, firstPattern?: string, handoff?: LearningDecision, worthwhileOnly = false, suspendCurrent = true, requestedPatterns?: readonly string[]) => {
     if (sessionController()?.current()?.pending || undoBlocking()) return Promise.resolve(false);
     if (!suspendCurrent) setPracticePaused(false);
     const items = (props.languageData.grammar ?? [])
-      .filter((point) => (!props.scopePatterns || props.scopePatterns.includes(point.pattern)) && point.level === level && typeof point.pattern === 'string'
+      .filter((point) => (requestedPatterns ? requestedPatterns.includes(point.pattern) : (!props.scopePatterns || props.scopePatterns.includes(point.pattern)) && point.level === level)
+        && typeof point.level === 'number' && typeof point.pattern === 'string'
         && (!worthwhileOnly || measurements().get(point.pattern)?.state !== 'known'))
       .map((point) => ({
         language: props.language,
@@ -760,8 +764,8 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     const controller = sessionController();
     if (!controller || queue.length === 0) return Promise.resolve(false);
     const kind = 'self-assess';
-    const scopePatterns = props.scopePatterns || worthwhileOnly ? queue : undefined;
-    const denominator = levelDenominator(level, (props.languageData.grammar ?? []).filter(point => !scopePatterns || scopePatterns.includes(point.pattern)));
+    const scopePatterns = requestedPatterns || props.scopePatterns || worthwhileOnly ? queue : undefined;
+    const denominator = levelDenominator(level, props.languageData.grammar ?? [], scopePatterns);
     const purpose = props.purpose === 'check' ? 'check' : undefined;
     const identity = JSON.stringify({ language: props.language, level, kind, denominator, ...(purpose ? { purpose } : {}) });
     const captured = controller.current();
@@ -772,7 +776,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         setUndoStack([]);
         setSubmissionsLocked(false);
         clearTimeout(submissionLockTimer);
-        adoptPresentation(presentGrammarRecord(controller.current()));
+        adoptPresentation(presentGrammarRecord(controller.current(), props.languageData.grammar));
       }
       else if (controller.current() === captured) {
         setStorageUnavailable(true);
@@ -1209,7 +1213,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         setUndoStack([]);
         setSubmissionsLocked(false);
         clearTimeout(submissionLockTimer);
-        adoptPresentation(presentGrammarRecord(controller.current()));
+        adoptPresentation(presentGrammarRecord(controller.current(), props.languageData.grammar));
       }
       else if (controller.current() === captured) setStorageUnavailable(true);
       return accepted;
@@ -1229,9 +1233,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   const requestStart = (request: NonNullable<GrammarCoverageProps['repairRequest']>) => {
     setExpandedLevel(request.level);
     retryRequestedStart = () => {
-      const start = request.handoffDecision ? startSession(request.level, undefined, request.handoffDecision, false, true)
+      const crossLevel = request.patterns && new Set((props.languageData.grammar ?? []).filter(point => request.patterns!.includes(point.pattern)).map(point => point.level)).size > 1;
+      const start = request.handoffDecision || crossLevel ? startSession(request.level, undefined, request.handoffDecision, false, true, request.patterns)
         : contrastAvailableByLevel().get(request.level) === true ? startContrastSession(request.level, true)
-        : startSession(request.level, undefined, undefined, false, true);
+        : startSession(request.level, undefined, undefined, false, true, request.patterns);
       void start.then(accepted => {
         setRequestedStartFailed(!accepted);
         if (!accepted) setPracticePaused(true);
@@ -1271,9 +1276,9 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     setResumeUnavailable(!accepted);
     if (accepted) {
       setUndoStack([]);
-      setExpandedLevel(controller.current()?.meta.level ?? null);
+      setExpandedLevel(session()?.level ?? null);
       setPracticePaused(false);
-      adoptPresentation(presentGrammarRecord(controller.current()));
+      adoptPresentation(presentGrammarRecord(controller.current(), props.languageData.grammar));
     }
   };
   createEffect(on(() => props.resumeSessionId, id => { if (id) void resumeSaved(id); }));

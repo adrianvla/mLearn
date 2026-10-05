@@ -63,7 +63,7 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; grammarResumeId?: string; mockAction?: 'open' | 'start' | 'resume'; mockResumeId?: string; mockLevel?: number; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
+export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; grammarResumeId?: string; grammarScopePatterns?: readonly string[]; mockAction?: 'open' | 'start' | 'resume'; mockResumeId?: string; mockLevel?: number; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
@@ -90,9 +90,11 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
   });
 
   const targetScope = createMemo(() => learningScopeForSettings(settings, resolvedLanguageData().data, resolvedLanguageData().language));
+  const executionPatterns = () => props.grammarResumeId ? undefined : props.grammarScopePatterns ?? props.grammarRequest?.patterns;
   const scopedGrammarData = createMemo(() => {
     const data = resolvedLanguageData().data;
-    return data && targetScope().selected ? { ...data, grammar: data.grammar?.filter(point => targetScope().patterns.includes(point.pattern)) } : data;
+    const patterns = view() === 'plan' ? targetScope().selected ? targetScope().patterns : undefined : executionPatterns();
+    return data && patterns !== undefined ? { ...data, grammar: data.grammar?.filter(point => patterns.includes(point.pattern)) } : data;
   });
   const frequency = createMemo(() => {
     const langData = resolvedLanguageData().data;
@@ -472,7 +474,7 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
             projections={grammarProjections()!}
             summary={grammarSummary()!}
             policyContext={props.policyContext}
-            scopePatterns={props.grammarRequest?.patterns ?? (targetScope().selected ? targetScope().patterns : undefined)}
+            scopePatterns={executionPatterns()}
             repairRequest={props.grammarRequest}
             onRepairRequestHandled={() => props.onGrammarRequestHandled?.()}
             onValidated={() => setValidationsVersion((version) => version + 1)}

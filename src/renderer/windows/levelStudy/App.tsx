@@ -36,17 +36,22 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
   };
   const incomingContext = () => props.launchContext ?? {};
   const [grammarRequestConsumed, setGrammarRequestConsumed] = createSignal(false);
-  const grammarRequest = createMemo(() => {
+  const hasGrammarSelection = () => incomingContext().intent !== 'resume' && incomingContext().activity === 'grammar'
+    && Object.prototype.hasOwnProperty.call(incomingContext(), 'patterns');
+  const grammarSelection = createMemo(() => {
     const context = incomingContext();
-    if (context?.intent === 'resume' || grammarRequestConsumed() || context?.activity !== 'grammar' || !learning.ready() || !Array.isArray(context.patterns)) return undefined;
-    const patterns = context.patterns.filter((value): value is string => typeof value === 'string' && !!currentLangData()?.grammar?.some(point => point.pattern === value));
+    if (!hasGrammarSelection() || !learning.ready() || !currentLangData()) return undefined;
+    if (!Array.isArray(context.patterns) || !context.patterns.length
+      || context.patterns.some(value => typeof value !== 'string' || !currentLangData()?.grammar?.some(point => point.pattern === value && typeof point.level === 'number'))) return null;
+    const patterns = [...new Set(context.patterns as string[])];
     const level = currentLangData()?.grammar?.find(point => patterns.includes(point.pattern))?.level;
     const session = context.session as { requestId?: unknown; decision?: unknown } | undefined;
     const handoff = session?.decision;
-    if (handoff !== undefined && !grammarSelfAssessmentHandoffMatches(handoff, session?.requestId, settings.language, patterns)) return undefined;
+    if (handoff !== undefined && !grammarSelfAssessmentHandoffMatches(handoff, session?.requestId, settings.language, patterns)) return null;
     return patterns.length && level !== undefined ? { level, patterns, requestedAt: 0,
-      ...(handoff !== undefined ? { handoffDecision: handoff } : {}) } : undefined;
+      ...(handoff !== undefined ? { handoffDecision: handoff } : {}) } : null;
   });
+  const grammarRequest = () => grammarRequestConsumed() ? undefined : grammarSelection() ?? undefined;
 
   createEffect(() => { setGrammarRequestConsumed(false); if (props.workspace === 'plan' && props.launchContext?.edit === true) editPlan(); });
   const showCharacterGrid = createMemo(() => getCharacterStudyScripts(currentLangData()).length > 0);
@@ -92,11 +97,15 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
               </details>
               <h2 class="learning-plan-progress-heading">{t('mlearn.LearningPlan.Progress')}</h2>
             </Show>
-            <LevelStudyTab grammarResumeId={incomingContext()?.intent === 'resume' && typeof incomingContext()?.sessionId === 'string' ? incomingContext()!.sessionId as string : undefined}
+            <Show when={!hasGrammarSelection() || grammarSelection() !== undefined} fallback={<p role="status">{t('mlearn.Global.Loading')}</p>}>
+            <Show when={grammarSelection() !== null} fallback={<p role="alert">{t('mlearn.Product.GrammarSelectionUnavailable')}</p>}>
+            <LevelStudyTab grammarScopePatterns={grammarSelection()?.patterns} grammarResumeId={incomingContext()?.intent === 'resume' && typeof incomingContext()?.sessionId === 'string' ? incomingContext()!.sessionId as string : undefined}
               mockAction={incomingContext().intent === 'start' ? 'start' : incomingContext().intent === 'resume' ? 'resume' : 'open'}
               mockResumeId={typeof incomingContext().sessionId === 'string' ? incomingContext().sessionId as string : undefined}
               mockLevel={typeof incomingContext().level === 'number' ? incomingContext().level as number : undefined}
               view={props.workspace ?? 'plan'} onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
+            </Show>
+            </Show>
           </div>
       </div>
     </div>
