@@ -12,6 +12,9 @@ export const GRAMMAR_SELF_ASSESS_TASK: EncounterTask = {
   taskTemplateId: 'grammar-self-assess', inputModality: 'written-form', responseModality: 'recall',
   supplied: ['written-form'], requested: ['grammar-recognition'], fluencyRequired: false, ratingMode: 'dominant',
 };
+export const GRAMMAR_SELF_CHECK_TASK: EncounterTask = {
+  ...GRAMMAR_SELF_ASSESS_TASK, taskTemplateId: 'grammar-self-check',
+};
 
 export function captureGrammarSelfAssessmentDecision(selection: PolicyDecision, language: string, point: GrammarPoint, at: number, handoff?: LearningDecision) {
   if (handoff && !grammarSelfAssessmentHandoffMatches(handoff, handoff.id, language, [point.pattern], false))
@@ -32,7 +35,7 @@ export function captureGrammarSelfAssessmentDecision(selection: PolicyDecision, 
 /** New admissions bind both the exact task and complete package-owned cue data. Legacy queues omit decisions. */
 export function grammarSelfAssessmentDecisionMatches(value: unknown, language: string, point: GrammarPoint): value is LearningDecision {
   return isLearningDecision(value)
-    && JSON.stringify(value.selected.task) === JSON.stringify(GRAMMAR_SELF_ASSESS_TASK)
+    && [GRAMMAR_SELF_ASSESS_TASK, GRAMMAR_SELF_CHECK_TASK].some(task => JSON.stringify(value.selected.task) === JSON.stringify(task))
     && value.selected.targets.length === 1
     && learningDecisionMatchesOutcome(value, { kind: 'grammar-pattern', id: grammarEntityId(language, point.pattern), capability: 'grammar-recognition' })
     && value.selected.presentation?.language === language && value.selected.presentation.pattern === point.pattern

@@ -63,7 +63,7 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'mock'; grammarResumeId?: string; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
+export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; grammarResumeId?: string; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
@@ -460,8 +460,9 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'mock'; gram
               <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', purpose: 'evaluate', returnTo: 'plan' } })}>{t('mlearn.Product.Evaluate')}</Button>
             </Panel>
           </Show>
-          <Show when={view() === 'grammar'}>
+          <Show when={view() === 'grammar' || view() === 'grammar-check'}>
           <GrammarCoverage
+            purpose={view() === 'grammar-check' ? 'check' : 'practice'}
             initiallyPaused={true}
             resumeSessionId={props.grammarResumeId}
             language={resolvedLanguageData().language}
@@ -504,7 +505,7 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'mock'; gram
             languageData={resolvedLanguageData().data!}
             eventLog={grammarLog()!}
             onAttempt={recordMockAttempt}
-            onRepair={(level) => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', level, patterns: (resolvedLanguageData().data?.grammar ?? []).filter(point => point.level === level).map(point => point.pattern), returnTo: 'evaluate' } })}
+            onRepair={(level) => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', level, patterns: (resolvedLanguageData().data?.grammar ?? []).filter(point => point.level === level).map(point => point.pattern), returnTo: 'mock' } })}
             onTargetedOutput={openTargetedOutput}
           />
           </Show>

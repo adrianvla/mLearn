@@ -17,7 +17,7 @@ import { useDecisionPin } from '../../hooks/useDecisionPin';
 import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import {
-  KnowledgeLoadError, Button, Badge, Panel, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
+  KnowledgeLoadError, KnowledgeSkeleton, Button, Badge, Panel, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
   EyeIcon, Popover, WriteStatusBanner, StudyEncounter, StudySessionHUD, useConfirmDialog
 } from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
@@ -845,7 +845,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // The interaction phase describes the encounter, never a background write.
   // Failed operations report recoverable errors alongside the same question.
   const presentation = createMemo(() => studySessionState({
-    ready: !!currentEncounter() || !languageLoading(),
+    ready: !!currentEncounter() || (!languageLoading() && learning.ready()),
     index: finiteSession()?.completedCardIds.length ?? cardsAnswered(),
     total: (finiteSession()?.completedCardIds.length ?? cardsAnswered()) + remainingWork(),
     revealed: showAnswer(),
@@ -1288,7 +1288,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               onChange={checked => updateSetting('reviewActivities', { ...preferences(), audio: checked })} />
             <Button size="sm" onClick={refreshAudioResources}>{t('mlearn.Flashcards.Review.RefreshRecordings')}</Button>
           </Popover>
-          <Show when={!currentCard() && remainingWork() > 0 && !languageLoading()}>
+          <Show when={!currentCard() && remainingWork() > 0 && !languageLoading() && learning.ready()}>
             <p role="status">{t('mlearn.Flashcards.Review.NoEligibleActivity')}</p>
             <Button size="sm" onClick={() => { refreshAudioResources(); }}>
               {t('mlearn.Global.TryAgain')}
@@ -1419,6 +1419,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             when={presentation().phase !== 'complete' && currentCard()}
             fallback={
               <>
+              <Show when={presentation().phase === 'loading' && !learning.failed()}><KnowledgeSkeleton variant="word-sync" /></Show>
               <Show when={presentation().phase === 'saving'}><p role="status">{t('mlearn.Flashcards.Review.SavingRating')}</p></Show>
               <Show when={presentation().phase === 'complete' && releaseWrite()?.phase !== 'pending'}>
               <Panel

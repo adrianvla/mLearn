@@ -66,6 +66,7 @@ const defaultProjection: KnowledgeProjection = {
     applicableCapabilities: ALL_CAPABILITIES, states: [] }],
 };
 let mockReviewSessions: Accessor<Record<string, ReviewSession>> = () => ({});
+let mockLearningReady: Accessor<boolean> = () => true;
 let mockSuspendedReviews: Record<string, Record<string, { presentation?: ReviewPresentation }>> = {};
 let mockProjection: Accessor<KnowledgeProjection | undefined> = () => defaultProjection;
 const mockProjectionRetry = vi.fn();
@@ -269,6 +270,7 @@ vi.mock('../common', async (importOriginal) => {
     return el;
   };
   return {
+    KnowledgeSkeleton: actual.KnowledgeSkeleton,
     Button,
     Panel,
     Badge,
@@ -367,6 +369,7 @@ describe('FlashcardReview', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    mockLearningReady = () => true;
     mockSuspendedReviews = {};
     localStorage.clear();
     container = document.createElement('div');
@@ -528,6 +531,17 @@ describe('FlashcardReview', () => {
     await flushEffects();
     expect(container.querySelector('.study-encounter')?.textContent).toContain('selected surface 39');
     expect(mockSaveReviewPresentation.mock.calls[0][1].session).toMatchObject({ initialCardId: 'home-39', requestId: 'home-full-pool' });
+    dispose();
+  });
+
+  it('reports loading while fresh admission waits for evidence instead of claiming no eligible activity', async () => {
+    const [ready, setReady] = createSignal(false); mockLearningReady = ready;
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    expect(container.querySelector('[data-review-phase]')?.getAttribute('data-review-phase')).toBe('loading');
+    expect(container.textContent).not.toContain('mlearn.Flashcards.Review.NoEligibleActivity');
+    setReady(true); await flushEffects();
+    expect(container.querySelector('.flashcard-front')).not.toBeNull();
     dispose();
   });
 
@@ -2769,4 +2783,4 @@ describe('FlashcardReview rating latency', () => {
   });
 });
 
-vi.mock('../../hooks/useLearningModel', () => ({ useLearningModel: () => ({ model: () => fitLearningModel([], Date.now()), snapshot: () => ({ events: [] }), ready: () => true, failed: () => false, retry: () => {} }) }));
+vi.mock('../../hooks/useLearningModel', () => ({ useLearningModel: () => ({ model: () => fitLearningModel([], Date.now()), snapshot: () => ({ events: [] }), ready: () => mockLearningReady(), failed: () => false, retry: () => {} }) }));

@@ -185,6 +185,7 @@ function mount(
   initiallyPaused = false,
   scopePatterns?: readonly string[],
   resumeSessionId?: string,
+  purpose?: 'practice' | 'check',
 ) {
   const container = document.createElement('div');
   // Solid attaches delegated listeners on the document; container must be
@@ -194,6 +195,7 @@ function mount(
   const dispose = render(
     () => (
       <GrammarCoverage
+        purpose={purpose}
         initiallyPaused={initiallyPaused}
         resumeSessionId={resumeSessionId}
         scopePatterns={scopePatterns}
@@ -357,6 +359,25 @@ describe('GrammarCoverage policy-selected practice session', () => {
     container.remove();
   });
 
+  it('keeps a self-reported grammar check distinct from suspended practice and records its purpose', async () => {
+    const onProbe = vi.fn();
+    const practice = mount(onProbe); await startPass(practice.container, 2);
+    const original = localStorage.getItem('mlearn-study-grammar:ja');
+    practice.dispose(); practice.container.remove();
+    const check = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, passThroughLocks, true, undefined, undefined, 'check');
+    expect(check.container.querySelector('.grammar-coverage__start')).toBeNull();
+    await startPass(check.container, 2);
+    expect(localStorage.getItem('mlearn-study-grammar:ja')).toBe(original);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar-check:ja')!).meta.purpose).toBe('check');
+    revealCurrent(check.container, 2);
+    (levelBlock(check.container, 2).querySelectorAll('.study-encounter__response .rating-matrix__quality')[2] as HTMLButtonElement).click();
+    await beat();
+    expect(onProbe.mock.calls[0][4]).toMatchObject({ method: 'recall', taskType: 'grammar-self-check' });
+    expect(onProbe.mock.calls[0][4].decision.selected.task.taskTemplateId).toBe('grammar-self-check');
+    expect(localStorage.getItem('mlearn-study-grammar:ja')).toBe(original);
+    check.dispose(); check.container.remove();
+  });
+
   it('resumes a revealed question and advances only after an acknowledged rating without remounting the session', async () => {
     const onProbe = vi.fn().mockResolvedValue('attempt-1');
     const first = mount(onProbe);
@@ -487,7 +508,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(active.id).not.toBe(prior.id);
     expect(active.queue.map((item: { id: string }) => item.id)).toEqual(['ば']);
     expect(JSON.parse(localStorage.getItem(`mlearn-study-grammar:ja:session:${encodeURIComponent(prior.id)}`)!)).toEqual(prior);
-    const pause = Array.from(next.container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.LearningPlan.Back')!;
+    const pause = Array.from(next.container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.LevelStudy.Mock.Pause')!;
     pause.click(); await tick();
     next.container.querySelector<HTMLButtonElement>('.grammar-coverage__saved-session button')!.click(); await tick();
     expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(prior);
@@ -745,7 +766,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await startPass(container, 2);
     const pattern = promptedPattern(container, 2);
     revealCurrent(container, 2); await tick();
-    const back = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('mlearn.LearningPlan.Back'))!;
+    const back = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('mlearn.LevelStudy.Mock.Pause'))!;
     back.click(); await tick();
     expect(container.querySelector('.study-encounter')).toBeNull();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3' }));
@@ -815,10 +836,11 @@ describe('GrammarCoverage policy-selected practice session', () => {
     container.remove();
   });
 
-  it('a live pass on one level never leaks into another level and pauses other Practise entries', async () => {
+  it('a live pass never leaks across levels and explicit Start suspends it instead of imposing a latch', async () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe);
     await startPass(container, 2); // level 2 pass running
+    const original = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
 
     await expand(container, 3);
     const level3 = levelBlock(container, 3);
@@ -826,13 +848,17 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(level3.querySelector('.study-encounter__response')).toBeNull();
     const level3Practise = level3.querySelector('.grammar-coverage__session-btn') as HTMLButtonElement;
     expect(level3Practise).toBeTruthy();
-    expect(level3Practise.disabled).toBe(true); // no silent replan while a pass is live
-    expect(level3.textContent).toContain('mlearn.LevelStudy.Grammar.FinishCurrentPass');
+    expect(level3Practise.disabled).toBe(false);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).id).toBe(original.id);
 
     // Single-expansion collapsed level 2; reopening shows the pass intact.
     await expand(container, 2);
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')).toBeTruthy();
     expect(levelBlock(container, 2).querySelector('.study-encounter__response')).toBeTruthy();
+    await expand(container, 3);
+    levelBlock(container, 3).querySelector<HTMLButtonElement>('.grammar-coverage__session-btn')!.click(); await tick();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).meta.level).toBe(3);
+    expect(JSON.parse(localStorage.getItem(`mlearn-study-grammar:ja:session:${encodeURIComponent(original.id)}`)!)).toEqual(original);
 
     dispose();
     container.remove();
@@ -1985,7 +2011,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     first.container.remove();
   });
 
-  it('a live contrast pass pauses other Practise and Contrast entries (G01)', async () => {
+  it('a live contrast pass survives inspection of another level without blocking its explicit Start', async () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe, contrastData, contrastSummary);
     await startContrast(container, 2);
@@ -1993,7 +2019,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     // contrast pass must survive and other entries must stay paused.
     await expand(container, 3);
     const level3 = levelBlock(container, 3);
-    expect(level3.querySelector('.grammar-coverage__session-btn')?.getAttribute('disabled')).toBe('');
+    expect(level3.querySelector<HTMLButtonElement>('.grammar-coverage__session-btn')?.disabled).toBe(false);
     expect(container.querySelectorAll('.grammar-contrast').length).toBe(0); // collapsed, not leaked
     await expand(container, 2);
     expect(levelBlock(container, 2).querySelector('.grammar-contrast')).toBeTruthy();

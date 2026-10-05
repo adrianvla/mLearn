@@ -18,7 +18,7 @@ import './LevelStudy.css';
 
 type PlanDestination = 'plan' | 'assessment' | 'word-sync' | 'character-grid';
 
-export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'plan' | 'grammar' | 'mock'; launchContext?: Record<string, unknown> }> = (props) => {
+export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; launchContext?: Record<string, unknown> }> = (props) => {
   const { t } = useLocalization();
   const { currentLangData, getFreqLevelNames } = useLanguage();
   const { settings, isLoading: settingsLoading } = useSettings();
@@ -102,7 +102,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
       batch(() => { setMaterialPractice(undefined); setDestination('plan'); });
     }
   });
-  const title = () => props.workspace === 'grammar' ? t('mlearn.LevelStudy.Grammar.Title')
+  const title = () => props.workspace === 'grammar-check' ? t('mlearn.Product.GrammarCheck') : props.workspace === 'grammar' ? t('mlearn.LevelStudy.Grammar.Title')
     : props.workspace === 'mock' ? t('mlearn.Product.Evaluate') : destination() === 'plan' ? t('mlearn.LevelStudy.Title')
     : destination() === 'assessment' ? t('mlearn.LearningPlan.Assess')
     : destination() === 'word-sync' ? t('mlearn.Home.Today.Practice')
@@ -112,9 +112,9 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
     <div class="level-study">
       <header class="level-study-header">
         <div class="level-study-header-title"><TargetIcon size={20} /><span>{title()}</span></div>
-        <Show when={props.workspace === 'grammar' || props.workspace === 'mock' || destination() !== 'plan'}>
+        <Show when={props.workspace === 'grammar' || props.workspace === 'grammar-check' || props.workspace === 'mock' || destination() !== 'plan'}>
           <Button buttonType="nav" onClick={() => props.workspace || incomingContext()?.returnTo === 'home' || materialPractice() ? (props.onClose ?? (() => getBridge().window.closeWindow()))() : setDestination('plan')} icon={<ArrowLeftIcon size={16} />}>
-            {t(incomingContext()?.returnTo === 'home' ? 'mlearn.Tabs.Home' : materialPractice() ? 'mlearn.LearningPlan.BackToMaterial' : 'mlearn.LearningPlan.Back')}
+            {t(props.workspace ? 'mlearn.Global.Back' : incomingContext()?.returnTo === 'home' ? 'mlearn.Tabs.Home' : materialPractice() ? 'mlearn.LearningPlan.BackToMaterial' : 'mlearn.LearningPlan.Back')}
           </Button>
         </Show>
       </header>

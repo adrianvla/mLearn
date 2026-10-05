@@ -8715,22 +8715,22 @@ vi.mock('../context', () => ({
 describe('recordGrammarAttempt (curriculum grammar probe)', () => {
   beforeEach(setupMockImplementations);
 
-  it('joins an acknowledged grammar response to its frozen decision and refuses a different target', async () => {
+  it.each(['grammar-self-assess', 'grammar-self-check'])('joins an acknowledged %s response to its frozen decision and refuses a different target', async taskType => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());
     mockAppendEvents.mockClear();
     const decision = { id: 'grammar-admission', at: Date.now(), policyVersion: 'captured-policy',
       selected: { key: 'opaque-grammar', action: 'PROBE', targets: [{ kind: 'grammar-pattern', id: 'de:grammar:weil', capability: 'grammar-recognition' }],
-        task: { taskTemplateId: 'grammar-self-assess', inputModality: 'written-form', responseModality: 'recall',
+        task: { taskTemplateId: taskType, inputModality: 'written-form', responseModality: 'recall',
           supplied: ['written-form'], requested: ['grammar-recognition'], fluencyRequired: false, ratingMode: 'dominant' as const } },
       baseline: null, detail: { packageOwned: { futureFeature: ['opaque', { value: 7 }] } } };
     await ctx.recordGrammarAttemptAcknowledged('weil', 'fluent', { language: 'de', attemptId: 'stable-grammar-attempt',
-      taskType: 'grammar-self-assess', method: 'recall', decision });
+      taskType, method: 'recall', decision });
     const [event] = (mockAppendEvents.mock.calls[0][0] as KnowledgeEventLog)[grammarEvidenceKey('de', 'weil', 'grammar-recognition')];
     expect(event).toMatchObject({ attemptId: 'stable-grammar-attempt', decisionRef: { id: decision.id }, decision });
     mockAppendEvents.mockClear();
     await expect(ctx.recordGrammarAttemptAcknowledged('obwohl', 'fluent', { language: 'de',
-      taskType: 'grammar-self-assess', method: 'recall', decision })).rejects.toThrow('pinned learning task');
+      taskType, method: 'recall', decision })).rejects.toThrow('pinned learning task');
     await expect(ctx.recordGrammarAttemptAcknowledged('weil', 'fluent', { language: 'de',
       taskType: 'grammar-recognize', decision })).rejects.toThrow('Grammar response task');
     expect(mockAppendEvents).not.toHaveBeenCalled();

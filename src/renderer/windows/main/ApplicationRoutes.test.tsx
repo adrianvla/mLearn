@@ -86,7 +86,7 @@ describe('application shell route ownership', () => {
     await vi.waitFor(() => expect(container.textContent).toContain('mlearn.Goals.Unavailable'));
     expect(container.querySelector('[data-content="words"]')).toBeNull();
   });
-  it.each([['/practise/grammar', 'grammar'], ['/evaluate/grammar', 'mock']])('hosts %s separately from passive Plan', async (path, content) => {
+  it.each([['/practise/grammar', 'grammar'], ['/evaluate/grammar', 'grammar-check'], ['/evaluate/grammar/mock', 'mock']])('hosts %s separately from passive Plan', async (path, content) => {
     window.history.replaceState(null, '', `#${path}`); mount();
     await vi.waitFor(() => expect(container.querySelector(`[data-content="${content}"]`)).not.toBeNull());
     expect(container.querySelector('[data-content="plan"]')).toBeNull();

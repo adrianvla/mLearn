@@ -574,7 +574,7 @@ describe('LevelStudyTab', () => {
     const repairBtn = container.querySelector('[data-testid="mock-repair-btn"]') as HTMLButtonElement | null;
     expect(repairBtn).toBeTruthy();
     repairBtn!.click();
-    expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'level-study', context: expect.objectContaining({ activity: 'grammar', level: 3, returnTo: 'evaluate' }) }));
+    expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'level-study', context: expect.objectContaining({ activity: 'grammar', level: 3, returnTo: 'mock' }) }));
     expect(container.querySelector('.grammar-coverage')).toBeNull();
 
     // Closing results clears the pending view for good: the next reload

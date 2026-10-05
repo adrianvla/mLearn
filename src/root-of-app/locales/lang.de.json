@@ -4183,6 +4183,7 @@
       "KnowledgeCheck": "Wissenscheck",
       "KnowledgeCheckDescription": "Prüfe, was du weißt.",
       "GrammarCheck": "Grammatik überprüfen",
+      "GrammarSelfCheckDescription": "Gib an, welche Konstruktionen du abrufen kannst. Diese Überprüfung erfasst deine Selbsteinschätzung; sie bestätigt kein Sprachniveau.",
       "GrammarPractice": "Grammatik üben",
       "WordPractice": "Wörter üben",
       "SavedMaterial": "Gespeichertes Material",

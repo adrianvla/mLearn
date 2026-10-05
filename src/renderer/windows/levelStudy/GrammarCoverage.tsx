@@ -36,7 +36,7 @@ import type { RetractionCompletion, RetractionProjection } from '../../context/F
 import { canRetryRetraction, isRetractionWriteBlocking, pushUndo, type RetractionWriteState } from '../../learning/undoHistory';
 import { createStudySessionController, type StudySessionController, type StudySessionRecord } from '../../learning/studySessionController';
 import type { LearningDecision } from '../../../shared/learningDecision';
-import { captureGrammarSelfAssessmentDecision, grammarSelfAssessmentDecisionMatches, GRAMMAR_SELF_ASSESS_TASK } from './grammarSelfAssessmentDecision';
+import { captureGrammarSelfAssessmentDecision, grammarSelfAssessmentDecisionMatches, GRAMMAR_SELF_ASSESS_TASK, GRAMMAR_SELF_CHECK_TASK } from './grammarSelfAssessmentDecision';
 import { captureGrammarContrastDecision, grammarContrastDecisionMatches, grammarContrastTask, grammarContrastValidationRef, type GrammarContrastAdmission } from './grammarContrastDecision';
 import './GrammarCoverage.css';
 import { useLearningInput } from '../../components/common/LearningWorkspace/LearningWorkspace';
@@ -62,6 +62,7 @@ export interface GrammarUndoLifecycle {
 }
 
 export interface GrammarCoverageProps {
+  purpose?: 'practice' | 'check';
   policyContext?: PolicyContext;
   scopePatterns?: readonly string[];
   /** A plan visit offers resumption; a live task owner may restore its active presentation. */
@@ -173,6 +174,7 @@ interface StoredPass {
 
 interface GrammarQueueItem { id: string; decision?: LearningDecision; contrast?: GrammarContrastAdmission }
 interface GrammarSessionMeta {
+  purpose?: 'check';
   presentedAt?: number;
   /** Exposure restored by Undo belongs only to this exact queue position. */
   priorCueExposure?: { index: number; itemId: string };
@@ -399,13 +401,14 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   const locksAvailable = (): boolean => locksApi() != null;
   const bank = createMemo(() => questionBankFromLanguageData(props.language, props.languageData));
   const createGrammarController = (language: string, data: LanguageData): GrammarController | null => {
+    const purpose = props.purpose === 'check' ? 'check' : undefined;
     const locks = locksApi();
     if (!locks) return null;
     const grammar = data.grammar ?? [];
     const questionBank = questionBankFromLanguageData(language, data);
     return createStudySessionController<GrammarQueueItem, GrammarAttemptPayload, GrammarAnswer, GrammarSessionMeta>({
-      storageKey: `mlearn-study-grammar:${language}`,
-      lockKey: `mlearn-grammar-session:${language}`,
+      storageKey: `mlearn-study-grammar${purpose ? '-check' : ''}:${language}`,
+      lockKey: `mlearn-grammar-session${purpose ? '-check' : ''}:${language}`,
       locks,
       storage: globalThis.localStorage,
       validate: (record) => {
@@ -415,7 +418,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         if (scope !== undefined && (!Array.isArray(scope) || !scope.length
           || new Set(scope).size !== scope.length || scope.some(pattern => !declared.has(pattern)))) return false;
         const scopedGrammar = scope ? grammar.filter(point => scope.includes(point.pattern)) : grammar;
-        return record.identity === JSON.stringify({ language, level, kind, denominator })
+        return record.meta.purpose === purpose && record.identity === JSON.stringify({ language, level, kind, denominator, ...(purpose ? { purpose } : {}) })
           && record.index >= 0 && record.index <= record.queue.length
           && record.queue.length > 0 && record.queue.every((item) => declared.has(item.id)
             && (item.decision === undefined || (kind === 'self-assess'
@@ -549,7 +552,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
 
   const measurements = createMemo(grammarMeasurements);
 
-  createEffect(on([() => props.language, () => props.languageData], ([language, data]) => {
+  createEffect(on([() => props.language, () => props.languageData, () => props.purpose], ([language, data]) => {
     sessionController()?.dispose();
     setStorageUnavailable(false);
     // The controller these entries point back into is being disposed, so its
@@ -572,7 +575,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   createEffect(() => {
     const controller = sessionController();
     if (!controller) return;
-    const unregister = props.undoLifecycle.register('grammar', async (record) => {
+    const unregister = props.undoLifecycle.register(props.purpose === 'check' ? 'grammar-check' : 'grammar', async (record) => {
       const restore = record.restore as GrammarProjection | undefined;
       if (!restore || typeof restore.revealed !== 'boolean' || !restore.session) {
         throw new Error('Grammar undo record carries no usable projection');
@@ -722,7 +725,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       const decision = selectNextEncounter({
         preset: 'CURRICULUM',
         levelStudyItems: [],
-        curriculumGrammarItems: items.map(item => ({ ...item, task: GRAMMAR_SELF_ASSESS_TASK })),
+        curriculumGrammarItems: items.map(item => ({ ...item, task: props.purpose === 'check' ? GRAMMAR_SELF_CHECK_TASK : GRAMMAR_SELF_ASSESS_TASK })),
         grammarCategoryPressure: pressure,
         nowMs: at,
         // The goal applies only to this package's learning language (R07).
@@ -748,9 +751,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     const kind = 'self-assess';
     const scopePatterns = props.scopePatterns || worthwhileOnly ? queue : undefined;
     const denominator = levelDenominator(level, (props.languageData.grammar ?? []).filter(point => !scopePatterns || scopePatterns.includes(point.pattern)));
-    const identity = JSON.stringify({ language: props.language, level, kind, denominator });
+    const purpose = props.purpose === 'check' ? 'check' : undefined;
+    const identity = JSON.stringify({ language: props.language, level, kind, denominator, ...(purpose ? { purpose } : {}) });
     const captured = controller.current();
-    return controller.start(identity, queue.map((id) => ({ id, decision: decisions.get(id) })), 0, { level, kind, denominator, presentedAt: Date.now(), ...(scopePatterns ? { scopePatterns } : {}) }, { suspendCurrent }).then((accepted) => {
+    return controller.start(identity, queue.map((id) => ({ id, decision: decisions.get(id) })), 0, { level, kind, denominator, presentedAt: Date.now(), ...(purpose ? { purpose } : {}), ...(scopePatterns ? { scopePatterns } : {}) }, { suspendCurrent }).then((accepted) => {
       if (accepted) {
         setStorageUnavailable(false);
         setPracticePaused(false);
@@ -838,7 +842,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   /** This surface's record for a decided Undo. */
   const grammarRetraction = (entry: GrammarUndoEntry, previousSession: GrammarRecord): PendingRetraction => ({
     attemptId: entry.attemptId,
-    surface: 'grammar',
+    surface: props.purpose === 'check' ? 'grammar-check' : 'grammar',
     // The record's subject fields are the envelope's generic spelling; the
     // routing below is what actually decides which keys are tombstoned.
     word: entry.pattern,
@@ -919,7 +923,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     const captured = controller?.current();
     if (!controller || !captured) return;
     const decision = captured.queue[captured.index]?.decision;
-    finishAction(controller, captured, controller.reserve(captured, { quality, attempt: { taskType: 'grammar-self-assess', method: 'recall',
+    finishAction(controller, captured, controller.reserve(captured, { quality, attempt: { taskType: props.purpose === 'check' ? 'grammar-self-check' : 'grammar-self-assess', method: 'recall',
       ...(decision ? { decision } : {}) } }, 'advance'));
   };
 
@@ -1181,9 +1185,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     const kind = 'contrast';
     const scopePatterns = props.scopePatterns ? items.map(item => item.pattern) : undefined;
     const denominator = contrastDenominator(level, bank(), (props.languageData.grammar ?? []).filter(point => !scopePatterns || scopePatterns.includes(point.pattern)));
-    const identity = JSON.stringify({ language: props.language, level, kind, denominator });
+    const purpose = props.purpose === 'check' ? 'check' : undefined;
+    const identity = JSON.stringify({ language: props.language, level, kind, denominator, ...(purpose ? { purpose } : {}) });
     const captured = controller.current();
-    return controller.start(identity, queue, 0, { level, kind, denominator, presentedAt: Date.now(), mode: 'mcq', ...(scopePatterns ? { scopePatterns } : {}) }, { suspendCurrent }).then((accepted) => {
+    return controller.start(identity, queue, 0, { level, kind, denominator, presentedAt: Date.now(), ...(purpose ? { purpose } : {}), mode: 'mcq', ...(scopePatterns ? { scopePatterns } : {}) }, { suspendCurrent }).then((accepted) => {
       if (accepted) {
         setStorageUnavailable(false);
         setPracticePaused(false);
@@ -1413,8 +1418,9 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   return (
     <Panel class="grammar-coverage-panel" padding={practicing() ? 'none' : 'lg'} border={!practicing()} shadow={!practicing()}>
     <section ref={practiceSection} class="grammar-coverage" classList={{ 'grammar-coverage--studying': practicing() }} aria-label={t('mlearn.LevelStudy.Grammar.Title')}>
+      <Show when={props.purpose === 'check' && !practicing()}><p>{t('mlearn.Product.GrammarSelfCheckDescription')}</p></Show>
       <Show when={practicing()}>
-        <Button variant="ghost" onClick={() => setPracticePaused(true)}>{t('mlearn.LearningPlan.Back')}</Button>
+        <Button variant="ghost" onClick={() => setPracticePaused(true)}>{t('mlearn.LevelStudy.Mock.Pause')}</Button>
       </Show>
       <Show when={sessionLive() && practicePaused()}>
         <Button variant="primary" onClick={() => { setExpandedLevel(session()?.level ?? null); setPracticePaused(false); }}>{t('mlearn.StudyEncounter.Resume')}</Button>
@@ -1431,7 +1437,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         </div>}</For>
       </Show>
       <div class="grammar-coverage__header">
-        <Show when={!practicing() && !sessionLive() && recommendedPractice()}>
+        <Show when={props.purpose !== 'check' && !practicing() && !sessionLive() && recommendedPractice()}>
           <Button variant="primary" class="grammar-coverage__start" disabled={!locksAvailable()}
             onClick={() => { const point = recommendedPractice(); if (point) { setExpandedLevel(point.level!); startSession(point.level!, point.pattern, undefined, true); } }}>
             {t('mlearn.LevelStudy.Grammar.Practise')}
@@ -1539,20 +1545,17 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                             {t('mlearn.LevelStudy.NoLocks')}
                           </span>
                         }>
-                        <button type="button" class="grammar-coverage__session-btn" disabled={sessionLive()} onClick={() => startSession(level)}>
-                          {t('mlearn.LevelStudy.Grammar.Practise')}
+                        <button type="button" class="grammar-coverage__session-btn" disabled={Boolean(sessionController()?.current()?.pending) || undoBlocking()} onClick={() => startSession(level)}>
+                          {t(props.purpose === 'check' ? 'mlearn.Product.GrammarCheck' : 'mlearn.LevelStudy.Grammar.Practise')}
                         </button>
-                        <Show when={sessionLive()}>
-                          <span class="grammar-coverage__session-done">{t('mlearn.LevelStudy.Grammar.FinishCurrentPass')}</span>
-                        </Show>
                         {/* Availability honesty (G04): the contrast pass exists only where the
                             package declares deliverable items — nothing is invented for levels
                             without them, and the regular Practise walk stays available. */}
-                        <Show when={contrastAvailableByLevel().get(level) === true}>
+                        <Show when={props.purpose !== 'check' && contrastAvailableByLevel().get(level) === true}>
                           <button
                             type="button"
                             class="grammar-coverage__session-btn grammar-coverage__contrast-btn"
-                            disabled={sessionLive()}
+                            disabled={Boolean(sessionController()?.current()?.pending) || undoBlocking()}
                             onClick={() => startContrastSession(level)}
                           >
                             {t('mlearn.LevelStudy.Grammar.Contrast')}
@@ -1564,7 +1567,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                             flight; disabled while any pass is live so deliverability
                             cannot change under an active session (G01/G03). Cloud
                             providers are refused by the producer — honestly reported. */}
-                        <Show when={validationPendingByLevel().get(level) === true || validating() || validationStatus()}>
+                        <Show when={props.purpose !== 'check' && (validationPendingByLevel().get(level) === true || validating() || validationStatus())}>
                         <details class="grammar-coverage__technical">
                           <summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary>
                         <Show when={validationPendingByLevel().get(level) === true || validating()}>

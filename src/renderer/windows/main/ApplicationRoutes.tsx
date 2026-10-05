@@ -45,9 +45,14 @@ const Plan: Component<RequestedWorkspaceProps> = props => {
 const Grammar: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();
   return <LearningWorkspace><LevelStudyContent workspace="grammar" launchContext={props.launchContext}
-    onClose={() => navigate(props.launchContext?.returnTo === 'home' ? '/' : props.launchContext?.returnTo === 'evaluate' ? '/evaluate/grammar' : '/plan')} /></LearningWorkspace>;
+    onClose={() => navigate(props.launchContext?.returnTo === 'home' ? '/' : props.launchContext?.returnTo === 'mock' ? '/evaluate/grammar/mock' : props.launchContext?.returnTo === 'evaluate' ? '/evaluate/grammar' : '/plan')} /></LearningWorkspace>;
 };
 const GrammarAssessment: Component<RequestedWorkspaceProps> = props => {
+  const navigate = useNavigate();
+  return <LearningWorkspace><LevelStudyContent workspace="grammar-check" launchContext={props.launchContext}
+    onClose={() => navigate(props.launchContext?.returnTo === 'plan' ? '/plan' : '/evaluate')} /></LearningWorkspace>;
+};
+const GrammarMock: Component<RequestedWorkspaceProps> = props => {
   const navigate = useNavigate();
   return <LearningWorkspace><LevelStudyContent workspace="mock" launchContext={props.launchContext}
     onClose={() => navigate(props.launchContext?.returnTo === 'plan' ? '/plan' : '/evaluate')} /></LearningWorkspace>;
@@ -58,7 +63,8 @@ const Evaluate: Component = () => {
   return <section class="product-workspace"><h1>{t('mlearn.Product.Evaluate')}</h1>
     <p>{t('mlearn.Product.KnowledgeCheckDescription')}</p>
     <div class="product-workspace-actions"><Button variant="primary" onClick={() => navigate('/evaluate/words')}>{t('mlearn.Product.KnowledgeCheck')}</Button>
-      <Button onClick={() => navigate('/evaluate/grammar')}>{t('mlearn.Product.GrammarCheck')}</Button></div>
+      <Button onClick={() => navigate('/evaluate/grammar')}>{t('mlearn.Product.GrammarCheck')}</Button>
+      <Button onClick={() => navigate('/evaluate/grammar/mock')}>{t('mlearn.LevelStudy.Mock.Title')}</Button></div>
   </section>;
 };
 const Assessment: Component<RequestedWorkspaceProps> = props => {
@@ -88,6 +94,7 @@ export const ApplicationRoutes = () => <>
   <Route path="/practise/grammar" component={requested(Grammar)} />
   <Route path="/evaluate" component={Evaluate} /><Route path="/evaluate/words" component={requested(Assessment)} />
   <Route path="/evaluate/grammar" component={requested(GrammarAssessment)} />
+  <Route path="/evaluate/grammar/mock" component={requested(GrammarMock)} />
   <Route path="/plan" component={requested(Plan)} />
   <Route path="/knowledge" component={Knowledge} /><Route path="/knowledge/material" component={requested(Material)} />
   <Route path="/knowledge/characters" component={CharacterGridContent} />
