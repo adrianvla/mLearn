@@ -1,7 +1,7 @@
 import { activeLearningGoals, learningGoalsForSettings, type LearningGoal } from './learningGoals';
 import { resolveLearningOutcome } from './learningOutcomes';
 import { buildWordFrequencyMapFromLanguageData, resolveLanguageFrequencyPayload } from './languageFeatures';
-import type { WordFrequencyMap, LanguageData, Settings } from './types';
+import { DEFAULT_SETTINGS, type WordFrequencyMap, type LanguageData, type Settings } from './types';
 
 /** One package-resolved target boundary for Home, Plan and activity policy. */
 export function learningScopeForSettings(settings: Pick<Settings, 'learningGoals' | 'examGoal'> & { language?: string },
@@ -31,4 +31,25 @@ export function learningScopeForSettings(settings: Pick<Settings, 'learningGoals
     resolved.patterns.forEach(pattern => patterns.add(pattern));
   }
   return { selected: selected.length > 0, goals, words: [...words], patterns: [...patterns], frequency, unavailable };
+}
+
+/** Deliberately change preparation scope through the existing settings owner.
+ * Assessment evidence and structured package outcomes are never rewritten here.
+ */
+export function learningTargetSettingsUpdate(
+  settings: Pick<Settings, 'learningLanguageLevels' | 'frequencyProviderTargets' | 'frequencyProviderSelections'>,
+  language: string,
+  level: number | null,
+  data?: LanguageData | null,
+): Partial<Settings> {
+  const providers = data?.frequencyProviders ?? {};
+  const providerId = [settings.frequencyProviderSelections?.[language], data?.activeFrequencyProvider,
+    data?.defaultFrequencyProvider, Object.keys(providers)[0]]
+    .find((candidate): candidate is string => typeof candidate === 'string' && Object.prototype.hasOwnProperty.call(providers, candidate));
+  const targets = settings.frequencyProviderTargets ?? DEFAULT_SETTINGS.frequencyProviderTargets;
+  return {
+    learningLanguageLevels: { ...(settings.learningLanguageLevels ?? DEFAULT_SETTINGS.learningLanguageLevels), [language]: level },
+    ...(providerId ? { frequencyProviderTargets: { ...targets,
+      [language]: { ...targets[language], [providerId]: level } } } : {}),
+  };
 }

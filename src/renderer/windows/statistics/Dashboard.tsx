@@ -33,27 +33,8 @@ import {
   computeDueForecast,
 } from '../../services/flashcardStats';
 import './Dashboard.css';
+import { progressCards, progressMedia, progressDailyStats, recordedMediaDuration } from './progressScope';
 import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
-
-/** Merge overlapping [start,end] intervals and return total non-overlapping duration. */
-function scanlineMerge(intervals: Array<{ start: number; end: number }>): number {
-  if (intervals.length === 0) return 0;
-  intervals.sort((a, b) => a.start - b.start);
-  let total = 0;
-  let curStart = intervals[0].start;
-  let curEnd = intervals[0].end;
-  for (let i = 1; i < intervals.length; i++) {
-    if (intervals[i].start <= curEnd) {
-      curEnd = Math.max(curEnd, intervals[i].end);
-    } else {
-      total += curEnd - curStart;
-      curStart = intervals[i].start;
-      curEnd = intervals[i].end;
-    }
-  }
-  total += curEnd - curStart;
-  return total;
-}
 
 export const Dashboard: Component = () => {
   const { store, getStudyableCards, isLoading, isKnowledgeReady } = useFlashcards();
@@ -64,12 +45,15 @@ export const Dashboard: Component = () => {
   initTimeWatched(settings);
 
   const [section, setSection] = createSignal('knowledge');
+  const [allActivity, setAllActivity] = createSignal(false);
+  const scopeLanguage = () => allActivity() ? null : settings.language;
 
   // ── Media stats ──
   const [mediaStatsList, setMediaStatsList] = createSignal<MediaStats[]>([]);
   // Until the media-stats snapshot has arrived, "no immersion time" is not
   // evidence — the empty state must not flash before this resolves.
   const [mediaStatsLoaded, setMediaStatsLoaded] = createSignal(false);
+  const scopedMedia = createMemo(() => progressMedia(mediaStatsList(), scopeLanguage()));
 
   onMount(() => {
     const bridge = getBridge();
@@ -82,7 +66,7 @@ export const Dashboard: Component = () => {
   });
 
   const mediaTimeStats = createMemo(() => {
-    const all = mediaStatsList();
+    const all = scopedMedia();
     let watchTime = 0;
     let readTime = 0;
     for (const ms of all) {
@@ -94,7 +78,7 @@ export const Dashboard: Component = () => {
 
   // ── Immersion heatmap (scanline per day) ──
   const immersionHeatmap = createMemo(() => {
-    const all = mediaStatsList();
+    const all = scopedMedia();
     const byDate = new Map<string, { legacy: number; intervals: Array<{ start: number; end: number }> }>();
 
     for (const ms of all) {
@@ -103,7 +87,7 @@ export const Dashboard: Component = () => {
           byDate.set(session.date, { legacy: 0, intervals: [] });
         }
         const bucket = byDate.get(session.date)!;
-        if (session.startTime && session.endTime) {
+        if (session.startTime !== undefined && session.endTime !== undefined) {
           bucket.intervals.push({ start: session.startTime, end: session.endTime });
         } else {
           bucket.legacy += session.duration;
@@ -113,7 +97,7 @@ export const Dashboard: Component = () => {
 
     const result: Record<string, number> = {};
     for (const [date, { legacy, intervals }] of byDate) {
-      const merged = scanlineMerge(intervals);
+      const merged = recordedMediaDuration(intervals.map(interval => ({ startTime: interval.start, endTime: interval.end, duration: interval.end - interval.start })));
       const totalMinutes = Math.round((legacy + merged) / 60000);
       if (totalMinutes > 0) result[date] = totalMinutes;
     }
@@ -122,9 +106,9 @@ export const Dashboard: Component = () => {
 
   // ── Flashcard aggregate stats ──
 
-  const cards = createMemo(() => Object.values(store.flashcards));
+  const cards = createMemo(() => progressCards(Object.values(store.flashcards), scopeLanguage()));
 
-  const flatDailyStats = createMemo(() => aggregateDailyStats(store.dailyStats));
+  const flatDailyStats = createMemo(() => aggregateDailyStats(progressDailyStats(store.dailyStats, scopeLanguage())));
 
   const cardStats = createMemo(() => {
     const all = cards();
@@ -149,7 +133,7 @@ export const Dashboard: Component = () => {
   });
 
   const dueForecast = createMemo(() =>
-    computeDueForecast(Object.values(getStudyableCards()), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!),
+    computeDueForecast(progressCards(Object.values(getStudyableCards()), scopeLanguage()), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!),
   );
 
   const retentionCard = createMemo(() => retentionDisplay(cardStats().retentionRate, cardStats().totalReviews));
@@ -210,7 +194,7 @@ export const Dashboard: Component = () => {
   });
 
   const isEmpty = createMemo(() =>
-    mediaStatsLoaded() && cardStats().total === 0 && dailyStatsData().totalDaysStudied === 0 && mediaTimeStats().totalImmersion === 0 && wordStats().allEncountered.total === 0
+    mediaStatsLoaded() && cardStats().total === 0 && dailyStatsData().totalDaysStudied === 0 && mediaTimeStats().totalImmersion === 0 && (allActivity() || wordStats().allEncountered.total === 0)
   );
 
   const projected = useEvidenceLinkedProjections(() => !isLoading() && isKnowledgeReady() && !languageLoading() ? {
@@ -235,22 +219,9 @@ export const Dashboard: Component = () => {
 
   const todaySessionStats = createMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    let videoTime = 0;
-    let readTime = 0;
-
-    for (const ms of mediaStatsList()) {
-      for (const session of ms.sessions) {
-        if (session.date === today) {
-          if (ms.mediaType === 'video') videoTime += session.duration;
-          else if (ms.mediaType === 'book') readTime += session.duration;
-        }
-      }
-    }
-
-    const flashcardTime = dailyStatsData().todayTime;
-    const total = flashcardTime + videoTime + readTime;
-
-    return { videoTime, readTime, flashcardTime, total };
+    const videoSessions = scopedMedia().filter(ms => ms.mediaType === 'video').flatMap(ms => ms.sessions.filter(session => session.date === today));
+    const readSessions = scopedMedia().filter(ms => ms.mediaType === 'book').flatMap(ms => ms.sessions.filter(session => session.date === today));
+    return { videoTime: recordedMediaDuration(videoSessions), readTime: recordedMediaDuration(readSessions), flashcardTime: dailyStatsData().todayTime };
   });
 
   // ── Learning velocity cohorts (event-store aggregates) ──
@@ -349,6 +320,18 @@ export const Dashboard: Component = () => {
           <SkeletonCard lines={4} />
         </div>
       }>
+      <label class="analytics-scope">
+        <span>{t('mlearn.Statistics.Scope.Label')}</span>
+        <select value={allActivity() ? 'all' : 'language'} onChange={event => {
+          const all = event.currentTarget.value === 'all';
+          setAllActivity(all);
+          if (all && section() === 'knowledge') setSection('activity');
+        }}>
+          <option value="language">{t('mlearn.Statistics.Scope.SelectedLanguage', { language: currentLangData()?.name ?? settings.language })}</option>
+          <option value="all">{t('mlearn.Statistics.Scope.AllActivity')}</option>
+        </select>
+      </label>
+      <Show when={allActivity()}><p class="analytics-caption">{t('mlearn.Statistics.Scope.AllActivityDescription')}</p></Show>
       <Show when={!isEmpty()} fallback={
         <div class="dashboard-empty-state">
           <div class="dashboard-empty-icon"><BookIcon size={40} /></div>
@@ -361,7 +344,7 @@ export const Dashboard: Component = () => {
       <header class="analytics-header">
         <h1>{t('mlearn.Statistics.Title')}</h1>
         <nav class="analytics-nav" aria-label={t('mlearn.Statistics.Title')}>
-          <For each={['knowledge', 'reviews', 'activity']}>{(id) => <button type="button" aria-pressed={section() === id} onClick={() => setSection(id)}>{t(`mlearn.Statistics.Sections.${id}`)}</button>}</For>
+          <For each={allActivity() ? ['reviews', 'activity'] : ['knowledge', 'reviews', 'activity']}>{(id) => <button type="button" aria-pressed={section() === id} onClick={() => setSection(id)}>{t(`mlearn.Statistics.Sections.${id}`)}</button>}</For>
         </nav>
       </header>
       <p class="analytics-caption">{t(`mlearn.Statistics.Sections.${section()}Description`)}</p>
@@ -544,10 +527,7 @@ export const Dashboard: Component = () => {
         </details>
       </Show>
       <Show when={section() === 'activity'}>        <div class="session-time-breakdown">
-          <div class="session-time-total">
-            <span class="session-time-label">{t('mlearn.Statistics.Sections.TodayActivity')}</span>
-            <span class="session-time-value">{formatDuration(todaySessionStats().total)}</span>
-          </div>
+          <h2 class="dashboard-section-title">{t('mlearn.Statistics.Sections.TodayActivity')}</h2>
           <div class="session-time-grid">
             <div class="session-time-item">
               <span class="session-time-dot" style={{ background: 'var(--color-primary)' }} />

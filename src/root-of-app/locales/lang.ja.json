@@ -3436,7 +3436,13 @@
         "TodayActivity": "今日の活動",
         "AllTimeActivity": "これまでの活動"
       },
-      "WordsEncountered": "出会った単語"
+      "WordsEncountered": "出会った単語",
+      "Scope": {
+        "Label": "範囲",
+        "SelectedLanguage": "選択中の言語：{language}",
+        "AllActivity": "すべての活動",
+        "AllActivityDescription": "すべての言語の復習とイマージョンの活動。"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "次の字幕に同期",

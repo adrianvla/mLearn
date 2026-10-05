@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { learningScopeForSettings } from './learningScope';
+import { learningScopeForSettings, learningTargetSettingsUpdate } from './learningScope';
 import { DEFAULT_SETTINGS, type LanguageData } from './types';
 const data: LanguageData = { name: 'Future', freq: [['alpha', '', 1], ['beta', '', 2]], frequencyLevels: { rowLevelIndex: 2 },
   grammar: [{ pattern: 'construction', meaning: 'Meaning', level: 9 }], learning: { outcomes: { scope: {
@@ -21,5 +21,27 @@ describe('shared supported learning scope', () => {
     const scope = learningScopeForSettings({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [{ ...goal, outcomeRef: { id: 'scope', groupIds: ['missing'] } }] }, data);
     expect(scope).toMatchObject({ selected: true, words: [], patterns: [], goals: [], unavailable: ['target'] });
     expect(learningScopeForSettings({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [goal] }, null)).toMatchObject({ selected: true, words: [], patterns: [], unavailable: ['target'] });
+  });
+});
+
+describe('deliberate preparation target update', () => {
+  const packageData: LanguageData = { name: 'Future', frequencyProviders: {
+    'arbitrary.provider': { name: 'Future provider' }, 'unrelated.provider': { name: 'Other provider' },
+  }, defaultFrequencyProvider: 'arbitrary.provider' };
+  it('updates the installed provider and language mirror together without changing outcomes or assessment', () => {
+    const settings = { ...DEFAULT_SETTINGS, language: 'future', learningGoals: [goal],
+      learningLanguageLevels: { future: 1, unrelated: 17 }, frequencyProviderTargets: { future: { 'arbitrary.provider': 1, 'unrelated.provider': 9 } } };
+    const update = learningTargetSettingsUpdate(settings, 'future', 4, packageData);
+    expect(update).toEqual({ learningLanguageLevels: { future: 4, unrelated: 17 },
+      frequencyProviderTargets: { future: { 'arbitrary.provider': 4, 'unrelated.provider': 9 } } });
+    expect(settings.learningGoals).toEqual([goal]);
+    expect(settings.learningLanguageLevels.future).toBe(1);
+  });
+  it('retains explicit unlimited scope and never guesses an unavailable provider', () => {
+    const settings = { ...DEFAULT_SETTINGS, frequencyProviderSelections: { future: 'absent' }, frequencyProviderTargets: { future: { absent: 8 } } };
+    expect(learningTargetSettingsUpdate(settings, 'future', null, packageData)).toMatchObject({
+      learningLanguageLevels: { future: null }, frequencyProviderTargets: { future: { absent: 8, 'arbitrary.provider': null } },
+    });
+    expect(learningTargetSettingsUpdate(settings, 'future', 7, null)).toEqual({ learningLanguageLevels: { future: 7 } });
   });
 });

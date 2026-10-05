@@ -423,3 +423,19 @@
 }
 .dashboard-charts-row .dashboard-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .analytics-review-chart .bar-chart-label { max-width: none; overflow: visible; }
+
+.analytics-scope {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-4);
+}
+.analytics-scope select {
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-2);
+  max-width: 100%;
+}

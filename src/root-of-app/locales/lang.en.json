@@ -3436,7 +3436,13 @@
         "TodayActivity": "Today’s activity",
         "AllTimeActivity": "All-time activity"
       },
-      "WordsEncountered": "Words encountered"
+      "WordsEncountered": "Words encountered",
+      "Scope": {
+        "Label": "Scope",
+        "SelectedLanguage": "Selected language: {language}",
+        "AllActivity": "All activity",
+        "AllActivityDescription": "Review and immersion activity across all languages."
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "Sync to next subtitle",

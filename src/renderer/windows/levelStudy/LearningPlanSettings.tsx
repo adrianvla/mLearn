@@ -2,6 +2,7 @@ import { Component, Show, For, createMemo } from 'solid-js';
 import { useSettings, useLocalization, useLanguage } from '../../context';
 import { SettingRow, SettingGroup, Select, LearningGoals } from '../../components/common';
 import { activeLearningGoals, learningGoalsForSettings } from '../../../shared/learningGoals';
+import { learningTargetSettingsUpdate } from '../../../shared/learningScope';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getFrequencyLevelLabel, getLearningLanguageLevelForLanguage, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import '../settings/SettingsForm.css';
@@ -168,21 +169,7 @@ export const LearningPlanSettings: Component = () => {
                 const val = e.currentTarget.value;
                 const parsed = Number(val);
                 const level = val && Number.isFinite(parsed) ? parsed : null;
-                updateSettings({
-                  learningLanguageLevels: {
-                    ...(settings.learningLanguageLevels ?? {}),
-                    [settings.language]: level,
-                  },
-                  ...(selectedFrequencyProviderId() ? {
-                    frequencyProviderTargets: {
-                      ...(settings.frequencyProviderTargets ?? DEFAULT_SETTINGS.frequencyProviderTargets),
-                      [settings.language]: {
-                        ...((settings.frequencyProviderTargets ?? DEFAULT_SETTINGS.frequencyProviderTargets)[settings.language] ?? {}),
-                        [selectedFrequencyProviderId()]: level,
-                      },
-                    },
-                  } : {}),
-                });
+                updateSettings(learningTargetSettingsUpdate(settings, settings.language, level, currentLangData()));
               }}
             >
               <option value="">{t('mlearn.Settings.Behaviour.LearningLanguageLevel.NoLimit')}</option>

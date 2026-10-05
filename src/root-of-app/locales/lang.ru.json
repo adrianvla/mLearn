@@ -3436,7 +3436,13 @@
         "TodayActivity": "Активность сегодня",
         "AllTimeActivity": "Активность за всё время"
       },
-      "WordsEncountered": "Встреченные слова"
+      "WordsEncountered": "Встреченные слова",
+      "Scope": {
+        "Label": "Область",
+        "SelectedLanguage": "Выбранный язык: {language}",
+        "AllActivity": "Вся активность",
+        "AllActivityDescription": "Повторение и погружение на всех языках."
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "Синхронизировать со следующим субтитром",

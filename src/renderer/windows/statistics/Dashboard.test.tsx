@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
-import type { Flashcard } from '../../../shared/types';
+import type { Flashcard, MediaStats } from '../../../shared/types';
 import type { KnowledgeEvent } from '../../../shared/knowledgeEvents';
 import type { KeyHistorySummary } from '../../../shared/knowledge/historyQueries';
 
@@ -21,6 +21,7 @@ let flashcardsLoading = false;
 let knownWords = 0;
 let unknownWords = 0;
 let unmeasuredWords = 0;
+let mediaStatsMock: MediaStats[] = [];
 
 vi.mock('../../context', () => ({
   useFlashcards: () => ({ store: flashcardStoreMock, getStudyableCards: () => Object.fromEntries(Object.entries(flashcardStoreMock.flashcards).filter(([id]) => !studyExcludedIds.has(id))), isKnowledgeReady: () => true, isLoading: () => flashcardsLoading }),
@@ -51,7 +52,7 @@ vi.mock('../../utils/wordLevelStats', () => ({
 vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({
     mediaStats: {
-      onMediaStatsList: (callback: (stats: unknown[]) => void) => { callback([]); return () => {}; },
+      onMediaStatsList: (callback: (stats: unknown[]) => void) => { callback(mediaStatsMock); return () => {}; },
       listMediaStats: () => {},
     },
     knowledgeEvents: {
@@ -95,6 +96,7 @@ vi.mock('./charts', () => ({
 function makeFlashcard(id: string): Flashcard {
   return {
     id,
+    language: 'ja',
     content: { type: 'word', front: id, back: 'x' },
     state: 'review',
     ease: 2.5,
@@ -123,6 +125,7 @@ describe('Dashboard', () => {
     knownWords = 0;
     unknownWords = 0;
     unmeasuredWords = 0;
+    mediaStatsMock = [];
     // Exercise the production invalidation path: the knowledge log cache is
     // keyed by the events version, and swapping the mock without a bump must
     // look exactly like an external change to the log.
@@ -133,6 +136,61 @@ describe('Dashboard', () => {
     container.remove();
     document.querySelectorAll('.tooltip-content').forEach((element) => { element.remove(); });
     vi.clearAllMocks();
+  });
+
+  it('keeps review totals and forecasts in the selected language and offers explicit all activity', async () => {
+    flashcardStoreMock.flashcards = { a: makeFlashcard('a'), b: { ...makeFlashcard('b'), language: 'future' }, legacy: { ...makeFlashcard('legacy'), language: undefined } };
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const stats = (count: number) => ({ date, newCardsStudied: 0, reviewCardsStudied: count, lapses: 0, timeSpent: 0, graduated: 0 });
+    flashcardStoreMock.dailyStats = { [date]: { ja: stats(2), future: stats(9) } };
+    const { Dashboard } = await import('./Dashboard');
+    const dispose = render(() => <Dashboard />, container);
+    (Array.from(container.querySelectorAll('nav button')).find(button => button.textContent?.endsWith('.reviews')) as HTMLButtonElement).click();
+    const value = (key: string) => Array.from(container.querySelectorAll('.mock-statcard')).find(card => card.textContent?.includes(key))?.querySelector('b')?.textContent;
+    expect(value('Dashboard.TotalCards')).toBe('1');
+    expect(value('DueForecast.Today')).toBe('1');
+    expect(value('Dashboard.Reviews')).toBe('2');
+    const scope = container.querySelector('.analytics-scope select') as HTMLSelectElement;
+    scope.value = 'all'; scope.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(value('Dashboard.TotalCards')).toBe('3');
+    expect(value('DueForecast.Today')).toBe('3');
+    expect(value('Dashboard.Reviews')).toBe('11');
+    expect(Array.from(container.querySelectorAll('nav button')).some(button => button.textContent?.endsWith('.knowledge'))).toBe(false);
+    expect(container.textContent).toContain('mlearn.Statistics.Scope.AllActivityDescription');
+    dispose();
+  });
+
+  it('uses the same language boundary for recorded immersion and keeps durations separate', async () => {
+    const date = new Date().toISOString().split('T')[0];
+    const media = (language: string, mediaType: 'video' | 'book', duration: number): MediaStats => ({
+      mediaHash: `${language}-${mediaType}`, mediaName: 'Saved source', mediaType, language,
+      wordsEncountered: {}, grammarEncountered: {}, assessedLevel: null,
+      sessions: [{ date, duration, wordsLearned: 0 }], totalTimeSpent: duration, lastAccessed: 1,
+    });
+    mediaStatsMock = [media('ja', 'video', 60000), media('future', 'video', 180000), media('future', 'book', 120000)];
+    const { Dashboard } = await import('./Dashboard');
+    const dispose = render(() => <Dashboard />, container);
+    (Array.from(container.querySelectorAll('nav button')).find(button => button.textContent?.endsWith('.activity')) as HTMLButtonElement).click();
+    const times = () => Array.from(container.querySelectorAll('.session-time-value-sm')).map(node => node.textContent);
+    expect(times()).toEqual(['0m', '1m', '0m']);
+    expect(container.querySelector('.session-time-total')).toBeNull();
+    const scope = container.querySelector('.analytics-scope select') as HTMLSelectElement;
+    scope.value = 'all'; scope.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(times()).toEqual(['0m', '4m', '2m']);
+    dispose();
+  });
+
+  it('retains scope selection when the selected language has no data', async () => {
+    flashcardStoreMock.flashcards = { other: { ...makeFlashcard('other'), language: 'future' } };
+    const { Dashboard } = await import('./Dashboard');
+    const dispose = render(() => <Dashboard />, container);
+    expect(container.querySelector('.dashboard-empty-state')).not.toBeNull();
+    const scope = container.querySelector('.analytics-scope select') as HTMLSelectElement;
+    scope.value = 'all'; scope.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(container.querySelector('.dashboard-empty-state')).toBeNull();
+    expect(container.textContent).not.toContain('mlearn.Statistics.Legend.Learned');
+    dispose();
   });
 
   it('renders the empty state when there is no card or study data', async () => {

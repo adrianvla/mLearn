@@ -3436,7 +3436,13 @@
         "TodayActivity": "今日活动",
         "AllTimeActivity": "累计活动"
       },
-      "WordsEncountered": "遇到的单词"
+      "WordsEncountered": "遇到的单词",
+      "Scope": {
+        "Label": "范围",
+        "SelectedLanguage": "所选语言：{language}",
+        "AllActivity": "所有活动",
+        "AllActivityDescription": "所有语言的复习与沉浸活动。"
+      }
     },
     "SubtitleSync": {
       "NextTooltip": "同步到下一字幕",
