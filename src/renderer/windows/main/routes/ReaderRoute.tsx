@@ -450,6 +450,7 @@ export async function prepareEpubReaderLoad(
   title: string,
   capacity: number,
   loadSavedPage: () => Promise<ReaderSourceLocation | number | null>,
+  requestedLocation?: ReaderSourceLocation,
 ) {
   const newBlobUrls: string[] = [];
   try {
@@ -464,7 +465,7 @@ export async function prepareEpubReaderLoad(
     const pages = paginateTextSources(sources, title, capacity);
     const declaredCover = sources.find((source) => source.kind === 'image' && source.name === content.coverImage?.zipPath);
     const coverBlob = declaredCover?.blob ?? sources.find((source) => source.kind === 'image')?.blob;
-    const saved = await loadSavedPage();
+    const saved = requestedLocation ?? await loadSavedPage();
     const startPage = typeof saved === 'number'
       ? (saved >= 0 && saved < pages.length ? saved : 0)
       : saved ? pageForLocation(pages, saved) : 0;
@@ -2173,14 +2174,14 @@ export const ReaderRoute: Component = () => {
     setOcrStatus(t('mlearn.Reader.Status.Ready'));
   };
 
-  const loadEpubFileIntoReader = async (file: File, path: string = '') => {
+  const loadEpubFileIntoReader = async (file: File, path: string = '', requestedLocation?: ReaderSourceLocation) => {
     const epubT0 = performance.now();
     setOcrStatus(t('mlearn.Reader.Status.LoadingBook'));
     const bookId = parseCurrentWorkName(file.name);
     const title = bookId || t('mlearn.Reader.Status.EpubDocument');
     const content = await epubToContentPages(file);
     perfCount('reader.loadEpub.parse.ms', performance.now() - epubT0);
-    const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedReaderLocation(bookId));
+    const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedReaderLocation(bookId), requestedLocation);
     commitLoadedPages(prepared.pages, {
       bookId,
       title,
@@ -2205,7 +2206,7 @@ export const ReaderRoute: Component = () => {
   };
 
   // Load book from filesystem path (for recent items)
-  const loadBookFromPath = async (bookPath: string, documentOcrOverride?: boolean) => {
+  const loadBookFromPath = async (bookPath: string, documentOcrOverride?: boolean, requestedLocation?: ReaderSourceLocation) => {
     const loadT0 = performance.now();
     setBookLoadError(null);
     setOcrStatus(t('mlearn.Reader.Status.Loading'));
@@ -2228,7 +2229,7 @@ export const ReaderRoute: Component = () => {
         if (!data) throw new Error('Failed to read EPUB file');
         const fileName = bookPath.split('/').pop() || 'book.epub';
         const file = new File([new Blob([data])], fileName, { type: 'application/epub+zip' });
-        await loadEpubFileIntoReader(file, bookPath);
+        await loadEpubFileIntoReader(file, bookPath, requestedLocation);
       } else {
         // Load directory of images
         const result = await getBridge().files.readDirectoryImages(bookPath);
@@ -2383,10 +2384,14 @@ export const ReaderRoute: Component = () => {
     if (pendingBook) {
       sessionStorage.removeItem('mlearn_open_book');
       const source = consumeMediaWorkspaceReturn(sessionStorage, 'reader', pendingBook);
-      void loadBookFromPath(pendingBook).then(() => {
+      const location = source ? parseSavedReaderLocation(JSON.stringify(source.location) ?? null) : null;
+      const requestedLocation = location && typeof location !== 'number' ? location : undefined;
+      void loadBookFromPath(pendingBook, undefined, requestedLocation).then(() => {
         if (currentBookPath() !== pendingBook || !source) return;
-        const location = parseSavedReaderLocation(JSON.stringify(source.location) ?? null);
-        const page = location && typeof location !== 'number' ? pageForLocation(pages(), location) : source.page;
+        // Text anchors enter the loader directly and survive repagination.
+        // Page navigation would replace them with the new page's first chunk.
+        if (currentBookFormat() === 'epub' && requestedLocation) return;
+        const page = requestedLocation ? pageForLocation(pages(), requestedLocation) : source.page;
         if (typeof page === 'number' && Number.isInteger(page) && page >= 0) goToPage(page);
       });
     } else {

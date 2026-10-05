@@ -19,6 +19,14 @@ function makeEpub(ppd: 'ltr' | 'rtl', vertical: boolean, declaresCover = true): 
 }
 
 describe('ReaderRoute EPUB flow wiring', () => {
+  it('gives an explicit source Return priority over the later saved reading position', async () => {
+    const content = await epubToContentPages(makeEpub('ltr', false));
+    const location = { kind: 'text' as const, sourceIndex: 0, offset: 5 };
+    const saved = vi.fn(async () => ({ kind: 'text' as const, sourceIndex: 0, offset: 0 }));
+    const prepared = await prepareEpubReaderLoad(content, 'Flow Book', 100, saved, location);
+    expect(prepared.startLocation).toEqual(location);
+    expect(saved).not.toHaveBeenCalled();
+  });
   afterEach(() => {
     revokeEpubBlobUrls();
     vi.restoreAllMocks();
