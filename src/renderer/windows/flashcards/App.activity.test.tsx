@@ -20,7 +20,7 @@ describe('getFlashcardsPluginActivityValue', () => {
 
     createRoot((rootDispose) => {
       dispose = rootDispose;
-      const [activeTab] = createSignal<'review' | 'browse' | 'generate' | 'stats'>('review');
+      const [activeTab] = createSignal<'review' | 'browse' | 'generate' | 'suggested'>('review');
       const [isFocused, updateIsFocused] = createSignal(true);
       setIsFocused = updateIsFocused;
 
@@ -54,7 +54,7 @@ describe('getFlashcardsPluginActivityValue', () => {
 
     createRoot((rootDispose) => {
       dispose = rootDispose;
-      const [activeTab] = createSignal<'review' | 'browse' | 'generate' | 'stats'>('review');
+      const [activeTab] = createSignal<'review' | 'browse' | 'generate' | 'suggested'>('review');
       const [isFocused] = createSignal(true);
 
       syncFlashcardsPluginActivity({

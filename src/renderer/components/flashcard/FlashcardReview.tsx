@@ -73,8 +73,6 @@ interface ReviewRatingWrite {
 
 export interface FlashcardReviewProps {
   encounterLimit?: number;
-  /** Home uses a bounded admission batch, then continues ordinary requested review. */
-  continueAfterBatch?: boolean;
   sessionRequestId?: string;
   resumeSessionId?: string;
   initialCardId?: string;
@@ -201,7 +199,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     // A refreshed model may temporarily remove the inferred limit. It cannot
     // turn an admitted finite chunk into continuous work or resize its membership.
     if (localSession?.admission === admission && held && (localSession.scope === scope || reviewSessionRemaining(held) > 0)) return held;
-    const limit = props.continueAfterBatch && sessionEpoch() > 0 ? undefined : props.encounterLimit;
+    const limit = props.encounterLimit;
     if (limit === undefined) return undefined;
     if (saved && (reviewSessionHasAvailableCards(saved, store, settings.language) || (sessionEpoch() === 0 && (!props.sessionRequestId || saved.requestId === props.sessionRequestId)))) {
       localSession = { scope, admission, session: saved }; return saved;
@@ -978,12 +976,6 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   // reports that as `complete`, so completion is not tracked twice.
   createEffect(on(() => presentation().phase, phase => {
     if (phase !== 'complete') return;
-    if (props.continueAfterBatch && finiteSession() && !releaseWrite()
-      && [...queue().newQueue, ...queue().scheduledQueue].some(id => {
-        const card = store.flashcards[id];
-        return card && !card.suspended && !card.buried && languageForCard(card) === settings.language
-          && !isWordIgnoredSync(card.content.front, settings.language);
-      })) { void startNewReview(); return; }
     props.onComplete?.();
   }));
 

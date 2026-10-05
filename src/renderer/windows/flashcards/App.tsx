@@ -42,7 +42,7 @@ import { getLogger } from '../../../shared/utils/logger';
 
 const log = getLogger("renderer.flashcards.app");
 
-type TabId = Exclude<FlashcardsTabId, 'stats'>;
+type TabId = FlashcardsTabId;
 type MaterialTabId = Exclude<TabId, 'review'>;
 
 /** The bridge-backed probes the shared repair plan needs, in one place. */

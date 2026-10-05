@@ -1,8 +1,7 @@
 /**
  * Flashcard Stats Service
  * Unified, pure functions for calculating flashcard statistics.
- * Both the in-app FlashcardStats panel and the standalone Statistics Dashboard
- * consume these functions so numbers are always consistent.
+ * The routed Progress dashboard consumes these functions.
  */
 
 import type { Flashcard, DailyStudyStats } from '../../shared/types';

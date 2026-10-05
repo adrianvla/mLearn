@@ -87,7 +87,6 @@ vi.mock('../../components/flashcard', () => ({
   FlashcardReview: () => <span />,
   FlashcardEditModal: () => <span />,
   FlashcardSyncModal: () => <span />,
-  FlashcardStats: () => <span />,
   FlashcardWordTitle: () => <span />,
   OtherLanguageDueHint: () => <span />,
 }));
