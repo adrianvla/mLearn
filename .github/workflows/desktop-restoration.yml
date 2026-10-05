@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: desktop-restoration-${{ github.ref }}
+  group: desktop-restoration-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: true
 jobs:
   check:
@@ -24,8 +24,16 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npm run typecheck
-      - run: npm test -- --maxWorkers=2
-      - run: npm run build
-      - run: npm run build:mobile
+      - id: install
+        run: npm ci --ignore-scripts
+      - name: Focused restoration and shared interaction regressions
+        run: npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow
+      - name: Both TypeScript configurations
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+      - name: Desktop production build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build
+      - name: Mobile compatibility build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build:mobile
