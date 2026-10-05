@@ -1,0 +1,37 @@
+name: Apply authored desktop restoration patch
+on:
+  push:
+    branches: [fix/restore-mlearn-desktop-ux]
+    paths: [.github/desktop-restoration.patch]
+permissions:
+  contents: write
+concurrency:
+  group: apply-desktop-restoration
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.repository == 'adrianvla/mLearn' && github.ref == 'refs/heads/fix/restore-mlearn-desktop-ux'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/restore-mlearn-desktop-ux
+          fetch-depth: 100
+      - name: Apply authored changes and remove this one-time helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = 'fix/restore-mlearn-desktop-ux'
+          git merge-base --is-ancestor 5577f4b1e58f829cbcb3fb5cb0103689f1ef029f HEAD
+          test -z "$(git status --porcelain)"
+          git apply --check --recount --unidiff-zero .github/desktop-restoration.patch
+          git apply --recount --unidiff-zero .github/desktop-restoration.patch
+          git diff --check
+          rm .github/desktop-restoration.patch .github/workflows/apply-desktop-restoration.yml
+          git add -- src .github/desktop-restoration.patch .github/workflows/apply-desktop-restoration.yml
+          git diff --cached --stat
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: restore responsive reader tools and truthful native UI'
+          git push origin HEAD:refs/heads/fix/restore-mlearn-desktop-ux
