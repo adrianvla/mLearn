@@ -380,6 +380,7 @@ export interface MockSessionState {
   answers: readonly MockAnswerRecord[];
   finishedAt?: number;
   abandoned?: boolean;
+  draft?: { value: string; suppliedBy: 'keyboard' | 'ime' };
 }
 
 /**
@@ -420,9 +421,9 @@ export function gradeMockSubmission(step: MockStepPlan, submission: MockSubmissi
   };
 }
 
-/** Stable per-session identity: blueprint, seed and start bind one session (G01). */
+/** Frozen per-session identity: distinct Starts remain distinct even within one clock tick. */
 const mockSessionId = (instance: MockInstance, startedAt: number): string =>
-  `${instance.blueprint.id}#${instance.seed}#${startedAt}`;
+  `${instance.blueprint.id}#${instance.seed}#${startedAt}#${nextAttemptId()}`;
 
 export function startMockSession(instance: MockInstance, now: number = Date.now()): MockSessionState {
   return {
@@ -598,6 +599,7 @@ export function applyMockAnswer(
   return {
     ...state,
     cursor: nextCursor,
+    draft: undefined,
     answers: [...state.answers, record],
     stepStartedAt: nextCursor >= state.instance.steps.length ? 0 : now,
     finishedAt: nextCursor >= state.instance.steps.length ? now : undefined,
@@ -652,6 +654,7 @@ export function stageMockAnswer(
   return {
     ...state,
     cursor: nextCursor,
+    draft: undefined,
     answers: [...state.answers, record],
     stepStartedAt: nextCursor >= state.instance.steps.length ? 0 : now,
     finishedAt: nextCursor >= state.instance.steps.length ? now : undefined,
@@ -861,11 +864,14 @@ export function saveStoredMockSession(language: string, state: MockSessionState 
   const store = storage();
   if (store === undefined) return false;
   try {
+    const previous = JSON.parse(store.getItem(sessionStorageKey(language)) ?? '{}') as { suspendedSessions?: unknown[] };
+    const suspendedSessions = previous.suspendedSessions ?? [];
     if (state === null || (state.finishedAt !== undefined && pendingMockAttempt(state) === null) || state.abandoned === true) {
-      store.removeItem(sessionStorageKey(language));
+      if (suspendedSessions.length > 0) store.setItem(sessionStorageKey(language), JSON.stringify({ suspendedSessions }));
+      else store.removeItem(sessionStorageKey(language));
       store.removeItem(sessionHeartbeatStorageKey(language));
     } else {
-      store.setItem(sessionStorageKey(language), JSON.stringify({ ...state, persistedAt: now }));
+      store.setItem(sessionStorageKey(language), JSON.stringify({ ...state, persistedAt: now, suspendedSessions }));
       touchStoredMockSession(language, state, now);
     }
     return true;
@@ -902,9 +908,10 @@ export function touchStoredMockSession(language: string, state: MockSessionState
 export function rebuildStoredMockSession(
   language: string,
   languageData: LanguageData,
+  stored?: unknown,
 ): (MockSessionState & { persistedAt: number }) | null {
   try {
-    const raw = storage()?.getItem(sessionStorageKey(language));
+    const raw = stored === undefined ? storage()?.getItem(sessionStorageKey(language)) : JSON.stringify(stored);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as MockSessionState & { persistedAt: number };
     if (
@@ -913,6 +920,12 @@ export function rebuildStoredMockSession(
       || !Array.isArray(parsed.pauses)
       || !Array.isArray(parsed.answers)
       || typeof parsed.persistedAt !== 'number'
+      || (parsed.draft !== undefined && (
+        parsed.draft === null
+        || typeof parsed.draft !== 'object'
+        || typeof parsed.draft.value !== 'string'
+        || (parsed.draft.suppliedBy !== 'keyboard' && parsed.draft.suppliedBy !== 'ime')
+      ))
       || (parsed.finishedAt !== undefined && pendingMockAttempt(parsed) === null)
       || parsed.abandoned === true
       || parsed.instance?.blueprint?.language !== language
@@ -997,7 +1010,7 @@ export function loadStoredMockSession(
  * stale window's queued action is dropped (or adopted) instead of
  * double-writing evidence or clobbering the shared session.
  */
-export function mockSessionFingerprint(state: Pick<MockSessionState, 'sessionId' | 'cursor' | 'startedAt' | 'stepStartedAt' | 'finishedAt' | 'abandoned' | 'answers' | 'pauses'>): string {
+export function mockSessionFingerprint(state: Pick<MockSessionState, 'sessionId' | 'cursor' | 'startedAt' | 'stepStartedAt' | 'finishedAt' | 'abandoned' | 'answers' | 'pauses' | 'draft'>): string {
   return [
     state.sessionId,
     state.cursor,
@@ -1007,6 +1020,7 @@ export function mockSessionFingerprint(state: Pick<MockSessionState, 'sessionId'
     state.abandoned === true ? 'abandoned' : 'live',
     JSON.stringify(state.answers),
     JSON.stringify(state.pauses),
+    JSON.stringify(state.draft ?? null),
   ].join('|');
 }
 
@@ -1018,10 +1032,73 @@ export function storedMockSessionFingerprint(language: string): string | null {
   try {
     const raw = storage()?.getItem(sessionStorageKey(language));
     if (!raw) return null;
-    return mockSessionFingerprint(JSON.parse(raw) as MockSessionState);
+    const parsed = JSON.parse(raw) as MockSessionState;
+    return typeof parsed.sessionId === 'string' ? mockSessionFingerprint(parsed) : null;
   } catch {
     return null;
   }
+}
+
+/** Read-only discovery: unknown/retired stored tasks remain on disk, but are
+ * never advertised as resumable against a different package. */
+export function loadSavedMockSessions(language: string, data: LanguageData): MockSessionState[] {
+  try {
+    const record = JSON.parse(storage()?.getItem(sessionStorageKey(language)) ?? '{}') as { suspendedSessions?: unknown[] };
+    return [rebuildStoredMockSession(language, data), ...(record.suspendedSessions ?? []).map(s => rebuildStoredMockSession(language, data, s))]
+      .filter((s): s is MockSessionState & { persistedAt: number } => s !== null);
+  } catch { return []; }
+}
+
+/** Caller holds the existing per-language Web Lock. One write owns both
+ * suspension and admission; failure or a stale fingerprint changes neither. */
+export function switchStoredMockSession(
+  language: string, data: LanguageData, expected: string | null,
+  action: { start: MockSessionState } | { resume: string }, now: number = Date.now(),
+): MockSessionState | null {
+  try {
+    if (storedMockSessionFingerprint(language) !== expected) return null;
+    const store = storage();
+    if (!store) return null;
+    const record = JSON.parse(store.getItem(sessionStorageKey(language)) ?? '{}') as MockSessionState & { persistedAt?: number; suspendedSessions?: unknown[] };
+    if (record.sessionId && pendingMockAttempt(record) !== null && !('resume' in action && action.resume === record.sessionId)) return null;
+    const saved = record.suspendedSessions ?? [];
+    let next: MockSessionState;
+    if ('start' in action) {
+      next = { ...action.start, startedAt: now, stepStartedAt: now };
+      if (next.instance.blueprint.language !== language || next.instance.steps.length === 0 || next.sessionId === record.sessionId || saved.some(s => (s as MockSessionState)?.sessionId === next.sessionId)) return null;
+    } else {
+      const candidate = record.sessionId === action.resume ? record : saved.find(s => (s as MockSessionState)?.sessionId === action.resume);
+      if (!candidate) return null;
+      const rebuilt = rebuildStoredMockSession(language, data, candidate);
+      if (!rebuilt) return null;
+      next = rebuilt;
+      if (isMockPaused(next)) next = resumeMockSession(next, now);
+      else {
+        const boundary = mockInterruptionBoundary(language, rebuilt, now);
+        next = { ...next, pauses: [...next.pauses, ...(now > boundary ? [{ start: boundary, end: now }] : [])] };
+      }
+    }
+    const suspended = saved.filter(s => (s as MockSessionState)?.sessionId !== next.sessionId);
+    if (record.sessionId && record.sessionId !== next.sessionId) {
+      // Preserve even incompatible legacy content intact; a running task's
+      // clock stops at its last acknowledged foreground heartbeat.
+      const { suspendedSessions: _saved, ...old } = record;
+      const boundary = expected === null ? now : mockInterruptionBoundary(language, { ...old, persistedAt: old.persistedAt ?? now }, now);
+      suspended.unshift({ ...pauseMockSession(old, boundary), persistedAt: now });
+    }
+    const { suspendedSessions: _old, ...active } = next as MockSessionState & { suspendedSessions?: unknown[] };
+    store.setItem(sessionStorageKey(language), JSON.stringify({ ...active, persistedAt: now, suspendedSessions: suspended }));
+    touchStoredMockSession(language, active, now);
+    return active;
+  } catch { return null; }
+}
+
+function mockInterruptionBoundary(language: string, state: MockSessionState & { persistedAt: number }, now: number): number {
+  try {
+    const heartbeat = JSON.parse(storage()?.getItem(sessionHeartbeatStorageKey(language)) ?? '{}') as { sessionId?: string; activeAt?: number };
+    if (heartbeat.sessionId === state.sessionId && typeof heartbeat.activeAt === 'number' && heartbeat.activeAt >= state.persistedAt && heartbeat.activeAt <= now) return heartbeat.activeAt;
+  } catch { /* full snapshot is the conservative clock boundary */ }
+  return state.persistedAt;
 }
 
 export function saveMockSummary(language: string, results: MockResults): void {

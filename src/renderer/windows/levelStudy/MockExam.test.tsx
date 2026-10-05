@@ -172,6 +172,9 @@ function mount(
   languageData: LanguageData = baseLanguageData(),
   overrides: {
     eventLog?: KnowledgeEventLog;
+    requestedLevel?: number;
+    workspaceAction?: 'open' | 'start' | 'resume';
+    resumeSessionId?: string;
     /** `null` simulates a lock-less environment (the session surface is
      *  DISABLED with the G04 note); omitted/default uses a pass-through fake
      *  lock so single-window tests exercise the serialized path
@@ -199,6 +202,9 @@ function mount(
         onRepair={onRepair}
         onTargetedOutput={onTargetedOutput}
         locks={locks}
+        requestedLevel={overrides.requestedLevel}
+        workspaceAction={overrides.workspaceAction}
+        resumeSessionId={overrides.resumeSessionId}
       />
     ),
     container,
@@ -216,6 +222,11 @@ const startBlueprint = async (container: HTMLElement, level: number) => {
   const start = container.querySelector(`[data-testid="mock-start-${level}"]`) as HTMLButtonElement;
   expect(start).toBeTruthy();
   start.click();
+  await tick();
+};
+
+const resumeFirst = async (container: HTMLElement) => {
+  (container.querySelector('[data-testid^="mock-resume-"]') as HTMLElement).click();
   await tick();
 };
 
@@ -252,6 +263,113 @@ describe('MockExam surface (R13/R14)', () => {
     expect(harness.container.querySelector('[data-testid="mock-exam"]')).toBeNull();
     harness.dispose();
     harness.container.remove();
+  });
+
+  it('refuses a missing exact Resume identity and reports it without replacing saved work', async () => {
+    const data = baseLanguageData();
+    const first = mount(data);
+    await startBlueprint(first.container, 3);
+    first.dispose(); first.container.remove();
+    const before = localStorage.getItem('mlearn-mock-session:de');
+    const second = mount(data, { workspaceAction: 'resume', resumeSessionId: 'missing' });
+    await tick();
+    expect(second.container.textContent).toContain('mlearn.Product.ResumeUnavailable');
+    expect(second.container.querySelector('[data-testid="mock-session"]')).toBeNull();
+    expect(localStorage.getItem('mlearn-mock-session:de')).toBe(before);
+    second.dispose(); second.container.remove();
+  });
+
+  it('reports an unavailable requested checkpoint instead of exposing a different supported level', () => {
+    const harness = mount(baseLanguageData(), { requestedLevel: 999, workspaceAction: 'start' });
+    expect(harness.container.textContent).toContain('mlearn.Product.MockUnavailable');
+    expect(harness.container.querySelector('[data-testid^="mock-start-"]')).toBeNull();
+    expect(localStorage.getItem('mlearn-mock-session:de')).toBeNull();
+    harness.dispose(); harness.container.remove();
+  });
+
+  it('scopes Start to the exact supported level and preserves the previous mock for named Resume', async () => {
+    const data = baseLanguageData();
+    const first = mount(data);
+    await startBlueprint(first.container, 3);
+    const original = JSON.parse(localStorage.getItem('mlearn-mock-session:de')!);
+    first.dispose(); first.container.remove();
+    const second = mount(data, { requestedLevel: 2 });
+    expect(second.container.querySelector('[data-testid="mock-start-3"]')).toBeNull();
+    await startBlueprint(second.container, 2);
+    const next = JSON.parse(localStorage.getItem('mlearn-mock-session:de')!);
+    expect(next.instance.blueprint.level).toBe(2);
+    expect(next.suspendedSessions[0].sessionId).toBe(original.sessionId);
+    (second.container.querySelector('[data-testid="mock-suspend-btn"]') as HTMLElement).click();
+    await tick();
+    (second.container.querySelector(`[data-testid="mock-resume-${original.sessionId}"]`) as HTMLElement).click();
+    await tick();
+    expect(JSON.parse(localStorage.getItem('mlearn-mock-session:de')!).sessionId).toBe(original.sessionId);
+    expect(second.container.querySelector('[data-testid="mock-session"]')?.getAttribute('data-blueprint')).toBe(original.instance.blueprint.id);
+    second.dispose(); second.container.remove();
+  });
+
+  it('retries a failed Start with the same requested identity and leaves old work intact until acceptance', async () => {
+    const data = baseLanguageData();
+    const first = mount(data);
+    await startBlueprint(first.container, 3);
+    first.dispose(); first.container.remove();
+    const before = localStorage.getItem('mlearn-mock-session:de');
+    const second = mount(data, { requestedLevel: 2 });
+    let attemptedId = '';
+    const writer = vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === 'mlearn-mock-session:de') attemptedId = JSON.parse(value).sessionId;
+      throw new Error('quota');
+    });
+    await startBlueprint(second.container, 2);
+    expect(second.container.querySelector('[data-testid="mock-session"]')).toBeNull();
+    expect(localStorage.getItem('mlearn-mock-session:de')).toBe(before);
+    writer.mockRestore();
+    (second.container.querySelector('[data-testid="mock-storage-unavailable"]') as HTMLElement).click();
+    await tick();
+    expect(JSON.parse(localStorage.getItem('mlearn-mock-session:de')!).sessionId).toBe(attemptedId);
+    expect(JSON.parse(localStorage.getItem('mlearn-mock-session:de')!).suspendedSessions[0].sessionId).toBe(JSON.parse(before!).sessionId);
+    second.dispose(); second.container.remove();
+  });
+
+  it('submits the last rapid typed input after the draft lock settles and retains IME provenance', async () => {
+    const data = baseLanguageData();
+    const source = { ...reviewedItem('trotzdem'), formats: ['typed'] } as GrammarPracticeItemSource;
+    data.grammar = [{ pattern: 'trotzdem', meaning: 'nevertheless', level: 2, items: [{ ...source, validation: { semantic: semanticRecord(source) } }] }];
+    const harness = mount(data, { locks: { request: async (_name, callback) => { await Promise.resolve(); await callback(); } } });
+    await startBlueprint(harness.container, 2);
+    const input = harness.container.querySelector('input') as HTMLInputElement;
+    input.dispatchEvent(new Event('compositionstart', { bubbles: true }));
+    input.value = 'trotzdem'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await tick(); await tick();
+    expect(harness.onAttempt.mock.calls[0]?.[0].quality).toBe('struggled');
+    expect(harness.onAttempt.mock.calls[0]?.[0].scaffolds).toMatchObject({ 'ime-composition': true });
+    harness.dispose(); harness.container.remove();
+  });
+
+  it('keeps typed drafts through rapid input, suspend and exact Resume; failed submission retains the draft', async () => {
+    const data = baseLanguageData();
+    const source = { ...reviewedItem('trotzdem'), formats: ['typed'] as const };
+    const typed = { ...source, formats: [...source.formats], validation: { semantic: semanticRecord({ ...source, formats: [...source.formats] }) } };
+    data.grammar = [{ pattern: 'trotzdem', meaning: 'nevertheless', level: 2, items: [typed] }];
+    const first = mount(data, { locks: { request: async (_name, callback) => { await Promise.resolve(); await callback(); } } });
+    await startBlueprint(first.container, 2);
+    const input = first.container.querySelector('input') as HTMLInputElement;
+    input.value = 'trotz'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.value = 'trotzdem'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    await tick();
+    expect(JSON.parse(localStorage.getItem('mlearn-mock-session:de')!).draft.value).toBe('trotzdem');
+    first.dispose(); first.container.remove();
+    const second = mount(data);
+    await resumeFirst(second.container);
+    expect((second.container.querySelector('input') as HTMLInputElement).value).toBe('trotzdem');
+    const writer = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+    (second.container.querySelector('[data-testid="mock-typed-submit"]') as HTMLElement).click();
+    await tick();
+    expect((second.container.querySelector('input') as HTMLInputElement).value).toBe('trotzdem');
+    expect(second.onAttempt).not.toHaveBeenCalled();
+    writer.mockRestore();
+    second.dispose(); second.container.remove();
   });
 
   it('declares blueprints with honest mlearn-derived labeling and no score language', async () => {
@@ -468,6 +586,9 @@ describe('MockExam surface (R13/R14)', () => {
     first.container.remove();
 
     const second = mount(languageData);
+    expect(second.container.querySelector('[data-testid="mock-session"]')).toBeNull();
+    (second.container.querySelector('[data-testid^="mock-resume-"]') as HTMLElement).click();
+    await tick();
     expect(second.container.querySelector('[data-testid="mock-session"]')).toBeTruthy();
     expect(second.onAttempt).not.toHaveBeenCalled();
     second.dispose();
@@ -497,6 +618,7 @@ describe('MockExam surface (R13/R14)', () => {
     // active seconds still count against the original 90-second budget.
     vi.setSystemTime(1_100_000);
     const restored = mount(languageData);
+    await resumeFirst(restored.container);
     vi.advanceTimersByTime(500);
     expect(restored.container.querySelector('[data-testid="mock-timer"]')?.textContent).toContain('seconds=10');
 
@@ -508,6 +630,7 @@ describe('MockExam surface (R13/R14)', () => {
 
     vi.setSystemTime(1_125_000);
     const restoredAgain = mount(languageData);
+    await resumeFirst(restoredAgain.container);
     vi.advanceTimersByTime(500);
     expect(restoredAgain.container.querySelector('[data-testid="mock-timer"]')?.textContent).toContain('seconds=5');
     expect((restoredAgain.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')).toBe(firstItemId);
@@ -575,7 +698,7 @@ describe('MockExam surface (R13/R14)', () => {
     second.container.remove();
   });
 
-  it('a second window adopts the live session another window persisted, without write-back (G01)', async () => {
+  it('Open discovers another window’s saved task without admitting it or writing back (G01)', async () => {
     const languageData = baseLanguageData();
     // The second window mounts BEFORE any session exists: it stays idle
     // until the first window's write reaches it through the storage event.
@@ -594,7 +717,8 @@ describe('MockExam surface (R13/R14)', () => {
     window.dispatchEvent(new StorageEvent('storage', { key: 'mlearn-mock-session:de', newValue: stored }));
     await tick();
     await tick();
-    expect(second.container.querySelector('[data-testid="mock-session"]')).toBeTruthy();
+    expect(second.container.querySelector('[data-testid="mock-session"]')).toBeNull();
+    expect(second.container.querySelector('[data-testid^="mock-resume-"]')).toBeTruthy();
     expect(first.container.querySelector('[data-testid="mock-session"]')).toBeTruthy();
     expect(second.onAttempt).not.toHaveBeenCalled();
     expect(first.onAttempt).not.toHaveBeenCalled();
@@ -637,9 +761,11 @@ describe('MockExam surface (R13/R14)', () => {
     const tabB = mount(languageData, { locks: gating }); // shares the same lock + localStorage
 
     await startBlueprint(tabA.container, 3);
-    // B's start ADOPTS the live session A holds instead of starting a
-    // clobbering second one.
-    await startBlueprint(tabB.container, 3);
+    // B explicitly Resumes A's named session; an Open storage event only
+    // discovers the saved activity.
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mlearn-mock-session:de', newValue: globalThis.localStorage!.getItem('mlearn-mock-session:de')! }));
+    await resumeFirst(tabB.container);
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mlearn-mock-session:de', newValue: globalThis.localStorage!.getItem('mlearn-mock-session:de')! }));
     expect(tabB.container.querySelector('[data-testid="mock-session"]')).toBeTruthy();
     expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).cursor).toBe(0);
 
@@ -683,13 +809,16 @@ describe('MockExam surface (R13/R14)', () => {
       newValue: globalThis.localStorage!.getItem('mlearn-mock-session:de')!,
     }));
     await tick();
+    await resumeFirst(tabB.container);
+    window.dispatchEvent(new StorageEvent('storage', { key: 'mlearn-mock-session:de', newValue: globalThis.localStorage!.getItem('mlearn-mock-session:de')! }));
+    const existingPauseCount = JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).pauses.length;
     expect((tabB.container.querySelector('.mock-exam__context') as HTMLElement).getAttribute('data-item-id')).toBe(itemId);
 
     // A pauses (persisted). B has not received a storage event yet: its copy
     // is stale (unpaused, same cursor).
     (tabA.container.querySelector('[data-testid="mock-pause-btn"]') as HTMLElement).click();
     await tick();
-    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).pauses).toHaveLength(1);
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).pauses).toHaveLength(existingPauseCount + 1);
 
     // B's stale unpaused submit queues for the lock, finds the durable
     // fingerprint changed (pause history), and is DROPPED with the paused
@@ -699,7 +828,7 @@ describe('MockExam surface (R13/R14)', () => {
     await tick();
     expect(tabB.onAttempt).not.toHaveBeenCalled();
     expect(tabA.onAttempt).not.toHaveBeenCalled();
-    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).pauses).toHaveLength(1);
+    expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-mock-session:de')!).pauses).toHaveLength(existingPauseCount + 1);
     expect(tabB.container.querySelector('[data-testid="mock-paused-note"]')).toBeTruthy();
     tabA.dispose();
     tabB.dispose();
@@ -784,6 +913,8 @@ describe('MockExam surface (R13/R14)', () => {
     first.container.remove();
 
     const second = mount(languageData);
+    expect(second.onAttempt).not.toHaveBeenCalled();
+    await resumeFirst(second.container);
     await tick();
     await tick();
     expect(second.onAttempt.mock.calls[0][1]).toBe(attemptId);
@@ -812,6 +943,8 @@ describe('MockExam surface (R13/R14)', () => {
     first.container.remove();
 
     const second = mount(languageData);
+    expect(second.onAttempt).not.toHaveBeenCalled();
+    await resumeFirst(second.container);
     await tick();
     await tick();
     expect(second.onAttempt.mock.calls[0][1]).toBe(attemptId);

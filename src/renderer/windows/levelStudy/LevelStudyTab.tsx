@@ -63,7 +63,7 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; grammarResumeId?: string; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
+export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; grammarResumeId?: string; mockAction?: 'open' | 'start' | 'resume'; mockResumeId?: string; mockLevel?: number; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
@@ -502,6 +502,9 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
               same journal, results through the canonical writer, repair via
               the SAME policy walk, targeted output via the SAME agent. */}
           <MockExam
+            workspaceAction={props.mockAction}
+            resumeSessionId={props.mockResumeId}
+            requestedLevel={props.mockLevel}
             language={resolvedLanguageData().language}
             languageData={resolvedLanguageData().data!}
             eventLog={grammarLog()!}

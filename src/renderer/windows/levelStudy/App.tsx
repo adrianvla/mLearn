@@ -92,7 +92,11 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
               </details>
               <h2 class="learning-plan-progress-heading">{t('mlearn.LearningPlan.Progress')}</h2>
             </Show>
-            <LevelStudyTab grammarResumeId={incomingContext()?.intent === 'resume' && typeof incomingContext()?.sessionId === 'string' ? incomingContext()!.sessionId as string : undefined} view={props.workspace ?? 'plan'} onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
+            <LevelStudyTab grammarResumeId={incomingContext()?.intent === 'resume' && typeof incomingContext()?.sessionId === 'string' ? incomingContext()!.sessionId as string : undefined}
+              mockAction={incomingContext().intent === 'start' ? 'start' : incomingContext().intent === 'resume' ? 'resume' : 'open'}
+              mockResumeId={typeof incomingContext().sessionId === 'string' ? incomingContext().sessionId as string : undefined}
+              mockLevel={typeof incomingContext().level === 'number' ? incomingContext().level as number : undefined}
+              view={props.workspace ?? 'plan'} onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
           </div>
       </div>
     </div>

@@ -13,7 +13,8 @@ import {
   isMockStepTimedOut,
   loadMockSummaries,
   loadPendingMockResults,
-  loadStoredMockSession,
+  loadSavedMockSessions,
+  switchStoredMockSession,
   mockAttemptPayload,
   mockSessionFingerprint,
   mockSessionStorageKey,
@@ -47,6 +48,9 @@ import './MockExam.css';
 export interface MockExamProps {
   language: string;
   languageData: LanguageData;
+  workspaceAction?: 'open' | 'start' | 'resume';
+  resumeSessionId?: string;
+  requestedLevel?: number;
   /** Capability-scoped journal for the language (already loaded by the tab). */
   eventLog: KnowledgeEventLog;
   /** Canonical journal writer — the SAME provider the practice walks use.
@@ -95,9 +99,8 @@ export const MockExam: Component<MockExamProps> = (props) => {
   };
   const locksAvailable = (): boolean => locksApi() != null;
 
-  const [state, setState] = createSignal<MockSessionState | null>(
-    locksApi() != null ? loadStoredMockSession(props.language, props.languageData) : null,
-  );
+  const [state, setState] = createSignal<MockSessionState | null>(null);
+  const [savedSessions, setSavedSessions] = createSignal(loadSavedMockSessions(props.language, props.languageData));
   const [results, setResults] = createSignal<MockResults | null>(loadPendingMockResults(props.language));
   const [summaries, setSummaries] = createSignal<MockResults[]>(loadMockSummaries(props.language));
   /** A blueprint whose sections assembled ZERO deliverable items (G04). */
@@ -107,6 +110,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
    *  never evidence without a durable cursor (shared study-session contract,
    *  G01/G04). Cleared by the next successful durable write. */
   const [storageUnavailable, setStorageUnavailable] = createSignal(false);
+  const [resumeUnavailable, setResumeUnavailable] = createSignal(false);
   /** Active-time tick for the countdown; the interval is the sanctioned
    *  race-condition exception. */
   const [now, setNow] = createSignal(0);
@@ -121,6 +125,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
 
   const bank = createMemo(() => questionBankFromLanguageData(props.language, props.languageData));
   const blueprints = createMemo(() => deriveMockBlueprints(props.language, props.languageData));
+  const scopedBlueprints = createMemo(() => blueprints().filter(blueprint => props.requestedLevel === undefined || blueprint.level === props.requestedLevel));
 
   /** Language/package switch: swap in-memory state for the durable one of
    *  the new language (or none). The previous language's last persisted
@@ -132,10 +137,12 @@ export const MockExam: Component<MockExamProps> = (props) => {
     setSubmissionsLocked(false);
     clearTimeout(submissionLockTimer);
     setStorageUnavailable(false);
+    setResumeUnavailable(false);
     setResults(loadPendingMockResults(language));
     setAssembleEmpty(null);
     setSummaries(loadMockSummaries(language));
-    setState(locksApi() != null ? loadStoredMockSession(language, data) : null);
+    setState(null);
+    setSavedSessions(loadSavedMockSessions(language, data));
     setNow(0);
   }, { defer: true }));
 
@@ -144,10 +151,10 @@ export const MockExam: Component<MockExamProps> = (props) => {
    *  re-verify the shared session inside the lock. Without a real lock
    *  primitive the surface is disabled (G04) — the fallback is never
    *  "run the session unserialized". */
-  const inMockLock = (language: string, critical: () => void | Promise<void>): void => {
+  const inMockLock = async (language: string, critical: () => void | Promise<void>): Promise<void> => {
     const locks = locksApi();
     if (locks == null) return;
-    void locks.request(`mlearn-mock-session:${language}`, critical);
+    await locks.request(`mlearn-mock-session:${language}`, critical);
   };
 
   /** Fingerprint of the last session write THIS window made (self-write
@@ -175,7 +182,9 @@ export const MockExam: Component<MockExamProps> = (props) => {
    *  as idle (discard), never as a silently replanned session. The data is
    *  the handler-captured package for the same captured language. */
   const adoptDurableSession = (language: string, data: LanguageData): void => {
-    setState(rebuildStoredMockSession(language, data));
+    const durable = rebuildStoredMockSession(language, data);
+    setState(current => current !== null && current.sessionId === durable?.sessionId ? durable : null);
+    setSavedSessions(loadSavedMockSessions(language, data));
   };
 
   /** True when the in-memory session still matches BOTH the snapshot
@@ -334,48 +343,91 @@ export const MockExam: Component<MockExamProps> = (props) => {
     onCleanup(() => window.clearInterval(interval));
   });
 
+  let retryAdmission: (() => void) | null = null;
   const start = (blueprint: MockBlueprint) => {
     if (state() !== null || results() !== null) return;
-    const startLanguage = props.language;
-    const startData = props.languageData;
+    const language = props.language;
+    const data = props.languageData;
+    const expected = storedMockSessionFingerprint(language);
     const at = Date.now();
-    // The eventLog prop is the snapshot the instance binds to (G01: the
-    // queue never depends on anything that changes mid-session).
     const instance = assembleMockInstance(blueprint, bank(), props.eventLog, at, at);
-    if (instance.steps.length === 0) {
-      // Nothing deliverable for the whole level (validation missing):
-      // honest empty state, no fabricated session (G04).
-      setAssembleEmpty(blueprint.id);
+    if (instance.steps.length === 0) { setAssembleEmpty(blueprint.id); return; }
+    setAssembleEmpty(null);
+    setResumeUnavailable(false);
+    const fresh = startMockSession(instance, at);
+    const request = () => inMockLock(language, () => {
+      if (props.language !== language || props.languageData !== data) return;
+      const next = switchStoredMockSession(language, data, expected, { start: fresh }, Date.now());
+      if (next === null) { setStorageUnavailable(true); setSavedSessions(loadSavedMockSessions(language, data)); return; }
+      lastWrittenSession = mockSessionFingerprint(next);
+      retryAdmission = null;
+      setStorageUnavailable(false);
+      setState(next);
+      setNow(Date.now());
+    });
+    retryAdmission = request;
+    request();
+  };
+
+  const resumeSaved = (id: string) => {
+    const language = props.language;
+    const data = props.languageData;
+    setResumeUnavailable(false);
+    if (!loadSavedMockSessions(language, data).some(candidate => candidate.sessionId === id)) {
+      setResumeUnavailable(true);
       return;
     }
-    setAssembleEmpty(null);
-    inMockLock(startLanguage, () => {
-      // A language switch while this start waited for the lock aborts: the
-      // assembled instance belongs to the captured language, and a queued
-      // action must never commit one language's state under another's key
-      // (G01/R19 — shared study-session's queued language-switch guard).
-      if (props.language !== startLanguage) return;
-      // Another window may have started (or advanced) a session for this
-      // language while this start queued behind the lock: ADOPT the durable
-      // session instead of clobbering it with a fresh start (G01; the
-      // shared session adoption semantics). A durable copy that fails
-      // revalidation adopts as idle.
-      if (storedMockSessionFingerprint(startLanguage) !== null || state() !== null) {
-        adoptDurableSession(startLanguage, startData);
+    const expected = storedMockSessionFingerprint(language);
+    const request = () => inMockLock(language, () => {
+      if (props.language !== language || props.languageData !== data) return;
+      const next = switchStoredMockSession(language, data, expected, { resume: id }, Date.now());
+      if (next === null) {
+        if (storedMockSessionFingerprint(language) !== expected) setResumeUnavailable(true);
+        else setStorageUnavailable(true);
         return;
       }
-      // A session that cannot durably keep its cursor must not start:
-      // submissions would be refused for lack of a cursor (G01), so the
-      // failure is surfaced instead of a silently broken session (G04).
-      const fresh = startMockSession(instance, at);
-      if (!persistSession(startLanguage, fresh)) {
-        setStorageUnavailable(true);
-        return;
-      }
+      lastWrittenSession = mockSessionFingerprint(next);
+      setResults(null);
+      setState(next);
+      setNow(Date.now());
+      retryAdmission = null;
       setStorageUnavailable(false);
-      setState(fresh);
+    });
+    retryAdmission = request;
+    request();
+  };
+
+  const suspend = () => {
+    const active = state();
+    if (!active || !live() || pendingMockAttempt(active)) return;
+    const language = props.language;
+    inMockLock(language, () => {
+      if (props.language !== language || !verifyOrAdopt(language, active)) return;
+      const next = pauseMockSession(active, Date.now());
+      if (!persistSession(language, next)) { setStorageUnavailable(true); return; }
+      setState(null);
+      setSavedSessions(loadSavedMockSessions(language, props.languageData));
+      setStorageUnavailable(false);
     });
   };
+
+  createEffect(on([() => props.workspaceAction, () => props.resumeSessionId, () => props.requestedLevel], ([action, id, level]) => {
+    if (action === 'resume' && id) resumeSaved(id);
+    else if (action === 'start' && level !== undefined) {
+      const blueprint = blueprints().find(candidate => candidate.level === level);
+      if (blueprint) start(blueprint);
+    }
+  }));
+
+  onCleanup(() => {
+    const active = state();
+    if (!active || !live() || pendingMockAttempt(active)) return;
+    const language = props.language;
+    const fingerprint = mockSessionFingerprint(active);
+    inMockLock(language, () => {
+      if (storedMockSessionFingerprint(language) === fingerprint) saveStoredMockSession(language, pauseMockSession(active, Date.now()));
+    });
+  });
 
   /** Submits a REAL answer (G01): the payload is derived for the presented
    *  step, the canonical writer records it, and the core applies the
@@ -529,20 +581,38 @@ export const MockExam: Component<MockExamProps> = (props) => {
     return targets;
   });
 
-  const [typedValue, setTypedValue] = createSignal('');
+  let typedInput: HTMLInputElement | undefined;
   let typedComposed = false;
-  const resetTyped = () => {
-    setTypedValue('');
-    typedComposed = false;
+  let draftWrite: Promise<void> = Promise.resolve();
+  createEffect(on(() => `${state()?.sessionId ?? ''}:${state()?.cursor ?? ''}`, () => { typedComposed = state()?.draft?.suppliedBy === 'ime'; }));
+  const typedValue = () => state()?.draft?.value ?? '';
+  const setDraft = (value: string, suppliedBy: 'keyboard' | 'ime') => {
+    const active = state();
+    if (!active || paused() || pendingMockAttempt(active)) return;
+    const language = props.language;
+    draftWrite = inMockLock(language, () => {
+      const current = state();
+      if (props.language !== language || !current || current.sessionId !== active.sessionId || current.cursor !== active.cursor || pendingMockAttempt(current) || isMockPaused(current) || !verifyOrAdopt(language, current)) return;
+      if (!commit(language, { ...current, draft: { value, suppliedBy } })) setStorageUnavailable(true);
+    });
   };
   const submitTyped = () => {
-    if (typedValue().trim().length === 0) return;
-    submit({ kind: 'typed', value: typedValue(), ...(typedComposed ? { suppliedBy: 'ime' as const } : { suppliedBy: 'keyboard' as const }) });
-    resetTyped();
+    const value = typedInput?.value ?? typedValue();
+    if (value.trim().length === 0) return;
+    const active = state();
+    const suppliedBy = typedComposed || active?.draft?.suppliedBy === 'ime' ? 'ime' as const : 'keyboard' as const;
+    // The input event's durable draft update may still be waiting for the
+    // Web Lock. Capture the actual submitted text and wait before capturing
+    // the response fingerprint; a queued draft cannot invalidate Enter.
+    void draftWrite.then(() => {
+      const current = state();
+      if (!active || !current || current.sessionId !== active.sessionId || current.cursor !== active.cursor) return;
+      submit({ kind: 'typed', value, suppliedBy });
+    });
   };
 
   return (
-    <Show when={blueprints().length > 0 || summaries().length > 0 || live() || results() !== null}
+    <Show when={resumeUnavailable() || scopedBlueprints().length > 0 || savedSessions().length > 0 || summaries().length > 0 || live() || results() !== null}
       fallback={<EmptyState title={t('mlearn.Product.MockUnavailable')} variant="card" size="md" />}>
     <Panel class="mock-exam-panel" padding="md">
     <section class="mock-exam" data-testid="mock-exam">
@@ -550,6 +620,8 @@ export const MockExam: Component<MockExamProps> = (props) => {
         <h3 class="mock-exam__title">{t('mlearn.LevelStudy.Mock.Title')}</h3>
         <span class="mock-exam__subtitle">{t('mlearn.LevelStudy.Mock.Subtitle')}</span>
       </div>
+
+      <Show when={resumeUnavailable()}><p role="status">{t('mlearn.Product.ResumeUnavailable')}</p></Show>
 
       {/* ── Session view: the fixed queue, no mid-session feedback ── */}
       <Show when={locksAvailable() && live() && step() !== null}>
@@ -609,6 +681,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
           }>
             <div class="mock-exam__typed">
               <input
+                ref={typedInput}
                 type="text"
                 class="mock-exam__typed-input"
                 autocomplete="off"
@@ -617,8 +690,8 @@ export const MockExam: Component<MockExamProps> = (props) => {
                 placeholder={t('mlearn.LevelStudy.Grammar.TypePlaceholder')}
                 value={typedValue()}
                 disabled={submissionsLocked() || paused()}
-                onInput={(event) => setTypedValue(event.currentTarget.value)}
-                onCompositionStart={() => { typedComposed = true; }}
+                onInput={(event) => setDraft(event.currentTarget.value, typedComposed ? 'ime' : 'keyboard')}
+                onCompositionStart={() => { typedComposed = true; setDraft(typedValue(), 'ime'); }}
                 onKeyDown={(key) => {
                   if (key.repeat) key.preventDefault();
                   else if (key.isComposing) return;
@@ -641,6 +714,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
             </div>
           </Show>
           <div class="mock-exam__controls">
+            <button type="button" class="mock-exam__control-btn" data-testid="mock-suspend-btn" disabled={pendingMockAttempt(state()!) !== null} onClick={() => suspend()}>{t('mlearn.LevelStudy.Mock.BackToBlueprints')}</button>
             <button
               type="button"
               class="mock-exam__control-btn"
@@ -809,14 +883,17 @@ export const MockExam: Component<MockExamProps> = (props) => {
             <span class="mock-exam__empty" data-testid="mock-no-locks">{t('mlearn.LevelStudy.NoLocks')}</span>
           }>
           <Show when={storageUnavailable()}>
-            <span class="mock-exam__empty" data-testid="mock-storage-unavailable">
-              {t('mlearn.LevelStudy.Mock.StorageUnavailable')}
-            </span>
+            <button type="button" class="mock-exam__empty" data-testid="mock-storage-unavailable" onClick={() => retryAdmission?.()}>
+              {t('mlearn.WordSync.SessionStartFailed')}
+            </button>
           </Show>
           <Show when={blueprints().length > 0} fallback={
             <span class="mock-exam__empty">{t('mlearn.LevelStudy.Mock.NoBlueprints')}</span>
           }>
-            <For each={blueprints()}>
+            <For each={savedSessions()}>
+              {(saved) => <button type="button" class="mock-exam__control-btn" data-testid={`mock-resume-${saved.sessionId}`} onClick={() => resumeSaved(saved.sessionId)}>{t('mlearn.LevelStudy.Mock.Resume')} {saved.instance.blueprint.levelLabel} · {formatDateTime(saved.startedAt, settings.uiLanguage)}</button>}
+            </For>
+            <For each={scopedBlueprints()}>
               {(blueprint) => (
                 <div class="mock-exam__blueprint" data-blueprint={blueprint.id}>
                   <span class="mock-exam__blueprint-level">{blueprint.levelLabel}</span>

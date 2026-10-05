@@ -3,6 +3,9 @@ import type { GrammarItemSemanticValidation, GrammarPracticeItemSource, Language
 import type { AttemptId, KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { grammarEvidenceKey } from '../../shared/grammar/evidence';
 import {
+  touchStoredMockSession,
+  switchStoredMockSession,
+  loadSavedMockSessions,
   MOCK_MAX_REQUESTED_PER_SECTION,
   MOCK_PER_ITEM_SECONDS,
   MOCK_SUMMARY_LIMIT,
@@ -698,5 +701,69 @@ describe('persistence (G01/G04)', () => {
     expect(restored).not.toBeNull();
     expect(restored!.cursor).toBe(1);
     expect(restored!.answers[0].attemptId).toBeUndefined();
+  });
+});
+
+describe('explicit fixed mock switching', () => {
+  it('rejects malformed known draft envelopes without changing their stored bytes', () => {
+    localStorage.clear();
+    const data = baseLanguageData();
+    const instance = assembleMockInstance(blueprint3(), bank(), {}, 42, 1000);
+    const first = startMockSession(instance, 1000);
+    for (const draft of [null, { value: 42, suppliedBy: 'keyboard' }, { value: 'draft', suppliedBy: 'unknown' }]) {
+      const raw = JSON.stringify({ ...first, persistedAt: 1000, draft });
+      localStorage.setItem('mlearn-mock-session:de', raw);
+      expect(rebuildStoredMockSession('de', data)).toBeNull();
+      expect(loadSavedMockSessions('de', data)).toEqual([]);
+      expect(localStorage.getItem('mlearn-mock-session:de')).toBe(raw);
+    }
+    localStorage.clear();
+  });
+
+  it('allocates distinct frozen identities for Starts at the same clock instant', () => {
+    const instance = assembleMockInstance(blueprint3(), bank(), {}, 42, 1000);
+    expect(startMockSession(instance, 1000).sessionId).not.toBe(startMockSession(instance, 1000).sessionId);
+  });
+
+  it('refuses stale and pending switches and retains storage on quota failure', () => {
+    localStorage.clear();
+    const data = baseLanguageData();
+    const instance = assembleMockInstance(blueprint3(), bank(), {}, 42, 1000);
+    const first = startMockSession(instance, 1000);
+    saveStoredMockSession('de', first, 1000);
+    const next = startMockSession(instance, 2000);
+    const before = localStorage.getItem('mlearn-mock-session:de');
+    expect(switchStoredMockSession('de', data, 'stale', { start: next }, 2000)).toBeNull();
+    expect(localStorage.getItem('mlearn-mock-session:de')).toBe(before);
+    const writer = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota'); });
+    expect(switchStoredMockSession('de', data, mockSessionFingerprint(first), { start: next }, 2000)).toBeNull();
+    expect(localStorage.getItem('mlearn-mock-session:de')).toBe(before);
+    writer.mockRestore();
+    const staged = stageMockAnswer(first, { kind: 'mcq', index: goldIndex(first.instance.steps[0]) }, 1500)!;
+    saveStoredMockSession('de', staged, 1500);
+    expect(switchStoredMockSession('de', data, mockSessionFingerprint(staged), { start: next }, 2000)).toBeNull();
+    expect(JSON.parse(localStorage.getItem('mlearn-mock-session:de')!).sessionId).toBe(first.sessionId);
+    localStorage.clear();
+  });
+
+  it('atomically preserves multiple paused tasks and resumes only the exact identity', () => {
+    globalThis.localStorage?.clear();
+    const data = baseLanguageData();
+    const instance = assembleMockInstance(blueprint3(), questionBankFromLanguageData('de', data), {}, 42, 1000);
+    const first = { ...startMockSession(instance, 1000), draft: { value: 'unfinished', suppliedBy: 'ime' as const } };
+    expect(saveStoredMockSession('de', first, 1000)).toBe(true);
+    touchStoredMockSession('de', first, 2000);
+    const second = startMockSession(instance, 2000);
+    expect(switchStoredMockSession('de', data, mockSessionFingerprint(first), { start: second }, 2000)?.sessionId).toBe(second.sessionId);
+    expect(loadSavedMockSessions('de', data).map(s => s.sessionId)).toEqual([second.sessionId, first.sessionId]);
+    const before = globalThis.localStorage!.getItem('mlearn-mock-session:de');
+    expect(switchStoredMockSession('de', data, mockSessionFingerprint(second), { resume: 'missing' }, 3000)).toBeNull();
+    expect(globalThis.localStorage!.getItem('mlearn-mock-session:de')).toBe(before);
+    const restored = switchStoredMockSession('de', data, mockSessionFingerprint(second), { resume: first.sessionId }, 4000)!;
+    expect(restored.draft).toEqual(first.draft);
+    expect(restored.instance).toEqual(first.instance);
+    expect(activeStepMs(restored, 4000)).toBe(1000);
+    expect(loadSavedMockSessions('de', data).map(s => s.sessionId)).toEqual([first.sessionId, second.sessionId]);
+    globalThis.localStorage?.clear();
   });
 });
