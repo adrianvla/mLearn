@@ -492,7 +492,7 @@ interface FlashcardContextValue {
    */
   recordGrammarAttempt: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: AttemptTaskType; decision?: LearningDecision }) => AttemptId;
   /** Same canonical writer, but resolves only after the durable journal accepts the event. */
-  recordGrammarAttemptAcknowledged: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: AttemptTaskType; attemptId?: AttemptId; decision?: LearningDecision }) => Promise<AttemptId>;
+  recordGrammarAttemptAcknowledged: (pattern: string, quality: AttemptQuality, options?: { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: AttemptTaskType; attemptId?: AttemptId; decision?: LearningDecision; correctsAttemptId?: AttemptId }) => Promise<AttemptId>;
   getGrammarKnowledge: (pattern: string, language?: string) => GrammarKnowledgeEntry | undefined;
   /**
    * Appends item-invalidation tombstones (items retired, content-changed or
@@ -5339,7 +5339,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   // materialization, and coverage see identical evidence. Ease moves along
   // the shared grammar anchors: fluent counts as a successful encounter,
   // struggled as an encounter with friction, missed as a failure.
-  type GrammarAttemptOptions = { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: AttemptTaskType; attemptId?: AttemptId; decision?: LearningDecision };
+  type GrammarAttemptOptions = { language?: string; level?: number; scaffolds?: AttemptScaffolds; itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: AttemptTaskType; attemptId?: AttemptId; decision?: LearningDecision; correctsAttemptId?: AttemptId };
   const prepareGrammarAttempt = (
     pattern: string,
     quality: AttemptQuality,
@@ -5405,6 +5405,26 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     options?: GrammarAttemptOptions,
   ): Promise<AttemptId> => {
     const prepared = prepareGrammarAttempt(pattern, quality, options);
+    if (options?.correctsAttemptId) {
+      const key = grammarEvidenceKey(prepared.language, pattern, 'grammar-recognition');
+      const rows = await getBridge().knowledgeEvents.getKnowledgeRows([key]);
+      const events = (rows[key] ?? []).map(row => row.event);
+      const original = events.find(event => event.kind === 'rating' && event.attemptId === options.correctsAttemptId);
+      if (!original || original.method !== 'recall' || !original.decision
+        || !events.some(event => event.kind === 'retraction' && event.retracts === original.attemptId)
+        || JSON.stringify(original.decision) !== JSON.stringify(options.decision)
+        || original.taskType !== options.taskType) {
+        throw new Error('Grammar correction requires the retracted original self-report');
+      }
+      const replacement = events.find(event => event.correctsAttemptId === original.attemptId);
+      if (replacement && (replacement.attemptId !== prepared.attemptId || replacement.quality !== quality)) {
+        throw new Error('The grammar report already has a replacement');
+      }
+      const outcome = prepared.events[key][0];
+      prepared.events[key] = [{ ...original, attemptId: prepared.attemptId,
+        correctsAttemptId: original.attemptId, quality,
+        easeAfter: outcome.easeAfter, grammarFailedDelta: outcome.grammarFailedDelta }];
+    }
     if (!await appendEventsIdempotentAcknowledged(prepared.events)) {
       throw new Error('grammar attempt journal append was refused');
     }

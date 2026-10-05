@@ -86,7 +86,7 @@ export interface GrammarCoverageProps {
     quality: AttemptQuality,
     level: number,
     scaffolds?: AttemptScaffolds,
-    attempt?: { itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: string; attemptId?: AttemptId; decision?: LearningDecision },
+    attempt?: { itemRef?: { id: string; version: string; seed?: number }; validationRef?: KnowledgeEvent['validationRef']; method?: KnowledgeEvent['method']; taskType?: string; attemptId?: AttemptId; decision?: LearningDecision; correctsAttemptId?: AttemptId },
   ) => Promise<AttemptId>;
   /**
    * The shared durable Undo lifecycle, supplied by the owner.
@@ -178,6 +178,7 @@ interface GrammarSessionMeta {
   presentedAt?: number;
   /** Exposure restored by Undo belongs only to this exact queue position. */
   priorCueExposure?: { index: number; itemId: string };
+  correction?: { index: number; itemId: string; attemptId: AttemptId };
   level: number;
   kind: 'self-assess' | 'contrast';
   denominator: string;
@@ -197,6 +198,7 @@ type GrammarRecord = StudySessionRecord<GrammarQueueItem, GrammarAttemptPayload,
 interface GrammarProjection {
   session: GrammarRecord;
   revealed: boolean;
+  correctionAttemptId?: AttemptId;
 }
 
 /**
@@ -415,6 +417,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         const { level, kind, denominator } = record.meta;
         const declared = new Set(grammar.filter((point) => point.level === level).map((point) => point.pattern));
         const scope = record.meta.scopePatterns;
+        const correction = record.meta.correction;
+        if (correction !== undefined && (kind !== 'self-assess' || correction.index !== record.index
+          || correction.itemId !== record.queue[record.index]?.id || typeof correction.attemptId !== 'string'
+          || !correction.attemptId || !record.queue[record.index]?.decision)) return false;
         if (scope !== undefined && (!Array.isArray(scope) || !scope.length
           || new Set(scope).size !== scope.length || scope.some(pattern => !declared.has(pattern)))) return false;
         const scopedGrammar = scope ? grammar.filter(point => scope.includes(point.pattern)) : grammar;
@@ -449,7 +455,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
           { ...pending.payload.attempt, attemptId: pending.attemptId },
         );
       },
-      next: (record) => ({ index: record.index + 1, meta: { ...record.meta, presentedAt: Date.now() } }),
+      next: (record) => ({ index: record.index + 1, meta: { ...record.meta, correction: undefined, presentedAt: Date.now() } }),
       // The rating is durable and the prompt has advanced. `before` is the
       // session the learner was actually looking at, which is what an Undo
       // has to put back — the pass cursor alone would rewind without
@@ -662,6 +668,11 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     return Boolean(active?.priorCueExposure && active.priorCueExposure.index === active.index
       && active.priorCueExposure.itemId === active.queue[active.index]);
   };
+  const correction = () => {
+    const record = sessionController()?.current();
+    const value = record?.meta.correction;
+    return value && value.index === record?.index && value.itemId === record?.queue[record.index]?.id ? value : undefined;
+  };
 
   /** Presentation-beat submission lock (G01): after one rating, the session
    *  controls stay disabled for a short beat so a rapid second click cannot
@@ -808,8 +819,11 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     projection: GrammarProjection,
   ): Promise<RetractionProjection> => {
     const session = controller.current();
+    const position = { index: projection.session.index, itemId: projection.session.queue[projection.session.index]?.id ?? '' };
     const restored = { ...projection.session, meta: { ...projection.session.meta, presentedAt: Date.now(),
-      priorCueExposure: { index: projection.session.index, itemId: projection.session.queue[projection.session.index]?.id ?? '' } } };
+      ...(projection.correctionAttemptId ? { priorCueExposure: undefined,
+        correction: { ...position, attemptId: projection.correctionAttemptId } }
+        : { correction: undefined, priorCueExposure: position }) } };
     if (!session || !await controller.undo(session, restored)) {
       throw new Error('Grammar undo could not restore the pass position');
     }
@@ -854,6 +868,8 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     restore: {
       session: previousSession,
       revealed: entry.revealed,
+      ...(previousSession.meta.kind === 'self-assess' && previousSession.queue[previousSession.index]?.decision
+        ? { correctionAttemptId: entry.attemptId } : {}),
     } satisfies GrammarProjection,
   });
 
@@ -882,10 +898,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       }
       const outcome = await props.undoLifecycle.complete(
         record,
-        () => grammarProjection(controller, {
-          session: previousSession,
-          revealed: entry.revealed,
-        }),
+        () => grammarProjection(controller, record.restore as GrammarProjection),
       );
       if (outcome !== 'completed') {
         // Refused or superseded. Either way the rating is still applied and
@@ -924,6 +937,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
     if (!controller || !captured) return;
     const decision = captured.queue[captured.index]?.decision;
     finishAction(controller, captured, controller.reserve(captured, { quality, attempt: { taskType: props.purpose === 'check' ? 'grammar-self-check' : 'grammar-self-assess', method: 'recall',
+      ...(correction() ? { correctsAttemptId: correction()!.attemptId } : {}),
       ...(decision ? { decision } : {}) } }, 'advance'));
   };
 
@@ -1638,6 +1652,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                     },
                                   }}
                                 >
+                                    <Show when={correction()}><p role="status">{t('mlearn.Flashcards.Review.CorrectingReport')}</p></Show>
                                     <Show when={referenceSupplied()}><Button variant="primary"
                                       disabled={session()?.pending !== undefined || submissionsLocked() || undoBlocking()}
                                       onClick={() => skipSession(level, presented)}>{t('mlearn.WordSync.ContinueAfterReference')}</Button></Show>

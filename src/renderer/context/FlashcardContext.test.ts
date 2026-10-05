@@ -8715,6 +8715,36 @@ vi.mock('../context', () => ({
 describe('recordGrammarAttempt (curriculum grammar probe)', () => {
   beforeEach(setupMockImplementations);
 
+  it('corrects a retracted grammar self-report using original canonical conditions and rejects another target', async () => {
+    const { ctx, dispose } = await mountProvider();
+    flashcardsCb(makeEmptyStore());
+    const decision = { id: 'correctable-grammar', at: 100, policyVersion: 'test',
+      selected: { key: 'grammar', action: 'PROBE', targets: [{ kind: 'grammar-pattern', id: 'de:grammar:weil', capability: 'grammar-recognition' }],
+        task: { taskTemplateId: 'grammar-self-assess', inputModality: 'written-form', responseModality: 'recall',
+          supplied: ['written-form'], requested: ['grammar-recognition'], fluencyRequired: false, ratingMode: 'dominant' as const } },
+      baseline: null, detail: { opaquePackageMetadata: { 'future:feature': [7, 'value'] } } };
+    const originalId = await ctx.recordGrammarAttemptAcknowledged('weil', 'struggled', {
+      language: 'de', taskType: 'grammar-self-assess', method: 'recall', decision, scaffolds: { audio: true } });
+    const key = grammarEvidenceKey('de', 'weil', 'grammar-recognition');
+    const original = (await knowledgeJournal.getKnowledgeRows([key]))[key].find(row => row.event.attemptId === originalId)!.event;
+    await expect(ctx.recordGrammarAttemptAcknowledged('weil', 'fluent', {
+      language: 'de', taskType: 'grammar-self-assess', method: 'recall', decision, correctsAttemptId: originalId })).rejects.toThrow('retracted original');
+    await mockAppendEvents({ [key]: [{ t: Date.now(), kind: 'retraction', source: 'manual', retracts: originalId }] });
+    const replacement = await ctx.recordGrammarAttemptAcknowledged('weil', 'fluent', {
+      language: 'de', taskType: 'grammar-self-assess', method: 'recall', decision, correctsAttemptId: originalId });
+    const event = (mockAppendEvents.mock.calls.at(-1)![0] as KnowledgeEventLog)[key][0];
+    expect(event).toMatchObject({ attemptId: replacement, correctsAttemptId: originalId, t: original.t,
+      quality: 'fluent', scaffolds: { audio: true }, decision });
+    await ctx.recordGrammarAttemptAcknowledged('weil', 'fluent', {
+      language: 'de', taskType: 'grammar-self-assess', method: 'recall', decision, correctsAttemptId: originalId, attemptId: replacement });
+    expect((await knowledgeJournal.getKnowledgeRows([key]))[key].filter(row => row.event.correctsAttemptId === originalId)).toHaveLength(1);
+    await expect(ctx.recordGrammarAttemptAcknowledged('weil', 'missed', {
+      language: 'de', taskType: 'grammar-self-assess', method: 'recall', decision, correctsAttemptId: originalId })).rejects.toThrow('already has a replacement');
+    await expect(ctx.recordGrammarAttemptAcknowledged('obwohl', 'fluent', {
+      language: 'de', taskType: 'grammar-self-assess', method: 'recall', decision, correctsAttemptId: originalId })).rejects.toThrow();
+    dispose();
+  });
+
   it.each(['grammar-self-assess', 'grammar-self-check'])('joins an acknowledged %s response to its frozen decision and refuses a different target', async taskType => {
     const { ctx, dispose } = await mountProvider();
     flashcardsCb(makeEmptyStore());

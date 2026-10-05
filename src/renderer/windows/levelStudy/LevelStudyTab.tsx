@@ -492,6 +492,7 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
                 ...(attempt?.taskType !== undefined ? { taskType: attempt.taskType } : {}),
                 ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
                 ...(attempt?.decision ? { decision: attempt.decision } : {}),
+                ...(attempt?.correctsAttemptId ? { correctsAttemptId: attempt.correctsAttemptId } : {}),
               });
             }}
           />

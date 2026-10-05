@@ -1369,26 +1369,47 @@ describe('GrammarCoverage durable Undo', () => {
     container.remove();
   });
 
-  it('retains prior-answer exposure after Undo and restart instead of accepting another independent rating', async () => {
-    const { container, dispose, rated, onProbe } = await mountRatedPass();
+  it('retains the original self-report correction after Undo and restart and rerates once to the next prompt', async () => {
+    const { container, dispose, rated, onProbe, attemptId } = await mountRatedPass();
+    const next = promptedPattern(container, 2);
     undoButton(container, 2)!.click();
     await beat();
-    const buttons = levelBlock(container, 2).querySelectorAll<HTMLButtonElement>('.rating-matrix__quality');
-    expect(buttons).toHaveLength(0);
-    expect(levelBlock(container, 2).querySelector('.study-encounter__instruction')).toBeNull();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
-    await beat();
-    expect(onProbe).toHaveBeenCalledTimes(1);
+    expect(promptedPattern(container, 2)).toBe(rated);
+    expect(levelBlock(container, 2).querySelectorAll('.rating-matrix__quality')).toHaveLength(4);
     const persisted = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
-    expect(persisted.meta.priorCueExposure).toMatchObject({ index: persisted.index, itemId: rated });
+    expect(persisted.meta.correction).toMatchObject({ index: persisted.index, itemId: rated, attemptId });
+    expect(persisted.meta.priorCueExposure).toBeUndefined();
     dispose(); container.remove();
     const resumed = mount(onProbe);
     await tick();
-    const resumedButtons = levelBlock(resumed.container, 2).querySelectorAll<HTMLButtonElement>('.rating-matrix__quality');
-    expect(resumedButtons).toHaveLength(0);
-    expect(resumed.container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
+    expect(resumed.container.textContent).toContain('mlearn.Flashcards.Review.CorrectingReport');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true }));
+    await beat();
+    expect(onProbe).toHaveBeenCalledTimes(2);
+    expect(onProbe.mock.calls[1][4]).toMatchObject({ correctsAttemptId: attemptId });
+    expect(promptedPattern(resumed.container, 2)).toBe(next);
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).meta.correction).toBeUndefined();
     resumed.dispose(); resumed.container.remove();
   });
+
+  it('keeps older Undo receipts without original report identity as exposed replay after restart', async () => {
+    const { container, dispose, rated, onProbe } = await mountRatedPass();
+    undoHarness.record.mockImplementation(async record => {
+      delete (record.restore as { correctionAttemptId?: string }).correctionAttemptId;
+      pendingRecord = record;
+      return true;
+    });
+    undoButton(container, 2)!.click(); await beat();
+    expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!).meta.priorCueExposure).toMatchObject({ itemId: rated });
+    expect(levelBlock(container, 2).querySelectorAll('.rating-matrix__quality')).toHaveLength(0);
+    dispose(); container.remove();
+    const resumed = mount(onProbe); await tick();
+    expect(resumed.container.textContent).toContain('mlearn.WordSync.ContinueAfterReference');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true })); await beat();
+    expect(onProbe).toHaveBeenCalledTimes(1);
+    resumed.dispose(); resumed.container.remove();
+  });
+
   it('a refused retraction keeps the rating, the record and the control, and reports a retryable failure', async () => {
     undoHarness.retract.mockImplementation(async () => false);
     const { container, dispose, attemptId } = await mountRatedPass();
