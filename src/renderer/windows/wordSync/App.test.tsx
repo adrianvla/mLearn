@@ -1247,6 +1247,33 @@ beforeEach(() => {
     expect(record.rated).toBe(1);
   });
 
+  it('starts new material work after a routed Resume completes, keeping its source and Return', async () => {
+    const { WordSyncContent } = await import('./App');
+    const returnContext = { source: { kind: 'reader' as const, path: '/saved/book.epub', position: 6 } };
+    const first = render(() => <WordSyncContent words={['赤い']} sourceLabel="Chapter" returnContext={returnContext} />, container);
+    await settle();
+    const key = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).find(key => key?.includes('-material-'))!;
+    const original = JSON.parse(localStorage.getItem(key)!);
+    first(); container.textContent = '';
+    disposals.push(render(() => <WordSyncContent launchIntent="resume" resumeSessionId={original.id} />, container));
+    await settle();
+    press(' '); await settle(); press('3'); await settle();
+    expect(container.querySelector('.word-sync-finished')).not.toBeNull();
+    container.querySelector<HTMLButtonElement>('.word-sync-recheck-btn')!.click();
+    await settle();
+    container.querySelector<HTMLButtonElement>('.mock-confirm-dialog-confirm')!.click();
+    await settle(); await settle();
+    expect(container.textContent).not.toContain('mlearn.Product.ResumeUnavailable');
+    expect(container.querySelector('.word-sync-counter')?.textContent).toBe('0 / 1');
+    const restarted = JSON.parse(localStorage.getItem(key)!);
+    expect(restarted.id).not.toBe(original.id);
+    expect(restarted.queue).toEqual(original.queue);
+    expect(restarted.meta.source).toEqual(original.meta.source);
+    expect(restarted.meta.returnContext).toEqual(returnContext);
+    expect(restarted.rated).toBe(0);
+    expect(mockSubmitRating).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps ordinary practice admission stable without imposing an inferred short batch', async () => {
     mockWordSyncState.wordFrequency = Object.fromEntries(Array.from({ length: 24 }, (_, index) => [`word-${index}`, { reading: '', raw_level: 5, level: 'N5' }]));
     const { WordSyncContent } = await import('./App');

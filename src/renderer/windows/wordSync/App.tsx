@@ -286,6 +286,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   const [sessionAdmissionPending, setSessionAdmissionPending] = createSignal(props.launchIntent !== undefined || props.sessionRequestId !== undefined);
   const [workspaceOpen, setWorkspaceOpen] = createSignal(props.launchIntent === 'open');
   const [requestedResumeId, setRequestedResumeId] = createSignal(props.launchIntent === 'resume' ? props.resumeSessionId ?? '' : undefined);
+  const [startReturnContext, setStartReturnContext] = createSignal(props.returnContext);
   const resumableCurrent = createMemo(() => {
     const record = sessionController()?.current();
     return record && record.index < record.queue.length ? record : null;
@@ -1045,6 +1046,8 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     const language = settings.language;
     if (controller && record && !await controller.clear(record)) return;
     if (disposed || sessionController() !== controller || settings.language !== language) return;
+    setStartReturnContext(record?.meta.returnContext ?? props.returnContext);
+    setRequestedResumeId(undefined);
     controller?.dispose();
     setSessionController(null);
     setSessionWriteFailure(null);
@@ -1279,6 +1282,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
   // A session belongs to one language/package/target scope. Journal updates
   // revalidate the current prompt; a different scope starts a new session.
   createEffect(on(() => [settings.language, langCtx.getWordFrequency(), langCtx.currentLangData(), getLearningLanguageLevelForLanguage(settings, settings.language)] as const, () => batch(() => {
+    setStartReturnContext(props.returnContext);
     setWorkspaceOpen(props.launchIntent !== undefined && props.launchIntent !== 'resume');
     setSessionAdmissionPending(props.launchIntent !== undefined);
     sessionController()?.dispose();
@@ -1459,7 +1463,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
         const index = firstWordSyncAssessmentIndex(entries, state);
         setSessionAdmissionPending(true);
         void activeController.start(identity, entries, index, {
-          returnContext: props.returnContext,
+          returnContext: startReturnContext(),
           samplingLevel: pools[0]?.level ?? 0,
           lastRating: null,
           assessment: state,
@@ -1515,7 +1519,7 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
     retrySessionStart = () => {
       setSessionAdmissionPending(true);
       void controller.start(identity, entries, entries.length > 0 ? 0 : entries.length, {
-        returnContext: props.returnContext,
+        returnContext: startReturnContext(),
         samplingLevel: sortedLevels()[0] ?? 0,
         lastRating: null,
         ...(suppliedWords() ? { source: { words: suppliedWords()!, label: sourceLabel() ?? '' } } : {}),
