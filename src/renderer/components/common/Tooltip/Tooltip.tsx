@@ -18,7 +18,9 @@ export interface TooltipProps {
   interactive?: boolean;
   /** Keep the portal open until its owner explicitly closes it. */
   pinned?: boolean;
-  onRequestClose?: () => void;
+  onRequestClose?: (reason: 'escape' | 'outside-pointer') => void;
+  /** Restore focus to the trigger when a pinned child surface closes explicitly. */
+  restoreFocusOnHide?: boolean;
   class?: string;
 }
 
@@ -48,6 +50,13 @@ export const Tooltip: Component<TooltipProps> = (props) => {
     }
 
     setPos({ left, top });
+  };
+
+  const focusTrigger = () => {
+    const target = triggerRef?.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    ) ?? triggerRef;
+    target?.focus();
   };
 
   const clampToViewport = () => {
@@ -129,7 +138,9 @@ export const Tooltip: Component<TooltipProps> = (props) => {
       cancelHide();
       show();
     } else if (previous !== undefined && visible()) {
+      const restoreFocus = props.restoreFocusOnHide === true;
       hide();
+      if (restoreFocus) focusTrigger();
     }
   }, { defer: true }));
 
@@ -138,7 +149,10 @@ export const Tooltip: Component<TooltipProps> = (props) => {
   // and are not dismissed this way.
   useDismiss({
     active: () => !!props.pinned,
-    onDismiss: () => props.onRequestClose?.(),
+    onDismiss: (reason) => {
+      props.onRequestClose?.(reason);
+      if (reason === 'escape') focusTrigger();
+    },
     inside: () => [triggerRef, contentRef],
     closeOnOutsidePointer: true,
   });

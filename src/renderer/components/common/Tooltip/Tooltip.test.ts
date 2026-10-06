@@ -26,10 +26,11 @@ describe('Tooltip', () => {
             return span;
           })() as unknown as import('solid-js').JSX.Element,
           children: (() => {
-            const span = document.createElement('span');
-            span.textContent = 'trigger';
-            span.className = 'child';
-            return span;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'trigger';
+            button.className = 'child';
+            return button;
           })() as unknown as import('solid-js').JSX.Element,
           ...props,
         }),
@@ -230,6 +231,67 @@ describe('Tooltip', () => {
     const content = document.body.querySelector('.tooltip-content')!;
     trigger.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: content.firstElementChild }));
     expect(document.body.querySelector('.tooltip-content')).not.toBeNull();
+    dispose();
+  });
+
+  it('keeps interactive portal content open while the pointer crosses the entry gap', async () => {
+    vi.useFakeTimers();
+    const onHide = vi.fn();
+    const { dispose } = await renderTooltip({ interactive: true, onHide });
+    const trigger = container.querySelector('.tooltip-trigger')!;
+    trigger.dispatchEvent(new MouseEvent('mouseenter'));
+    trigger.dispatchEvent(new MouseEvent('mouseleave'));
+    vi.advanceTimersByTime(150);
+    const content = document.body.querySelector('.tooltip-content')!;
+    content.dispatchEvent(new MouseEvent('mouseenter'));
+    vi.advanceTimersByTime(200);
+    expect(document.body.querySelector('.tooltip-content')).toBe(content);
+    expect(onHide).not.toHaveBeenCalled();
+
+    content.dispatchEvent(new MouseEvent('mouseleave'));
+    vi.advanceTimersByTime(200);
+    expect(document.body.querySelector('.tooltip-content')).toBeNull();
+    expect(onHide).toHaveBeenCalledOnce();
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('returns focus to the trigger control when Escape closes a pinned tooltip', async () => {
+    const onRequestClose = vi.fn();
+    const { dispose } = await renderTooltip({
+      interactive: true,
+      pinned: true,
+      onRequestClose,
+    });
+    const triggerSurface = container.querySelector('.tooltip-trigger')!;
+    triggerSurface.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    const trigger = container.querySelector<HTMLButtonElement>('.tooltip-trigger button')!;
+    const portalControl = document.createElement('button');
+    document.body.querySelector('.tooltip-content')!.appendChild(portalControl);
+    portalControl.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(onRequestClose).toHaveBeenCalledWith('escape');
+    expect(document.activeElement).toBe(trigger);
+    dispose();
+  });
+
+  it('dismisses a pinned tooltip on outside pointer without stealing focus', async () => {
+    const onRequestClose = vi.fn();
+    const { dispose } = await renderTooltip({
+      interactive: true,
+      pinned: true,
+      onRequestClose,
+    });
+    const trigger = container.querySelector('.tooltip-trigger')!;
+    trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    const outside = document.createElement('button');
+    outside.textContent = 'outside';
+    container.appendChild(outside);
+    outside.focus();
+    outside.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+
+    expect(onRequestClose).toHaveBeenCalledWith('outside-pointer');
+    expect(document.activeElement).toBe(outside);
     dispose();
   });
 });

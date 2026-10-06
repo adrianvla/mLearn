@@ -18,6 +18,8 @@ export interface HoverData {
   lookupWord?: string;
   language?: string;
   trackPassiveHover?: boolean;
+  /** Context identity separates repeated forms in different authored encounters. */
+  contextIdentity?: string;
 }
 
 export interface WordHoverLifecycle {
@@ -45,6 +47,8 @@ export function useWordHover(lifecycle: WordHoverLifecycle = {}) {
     && left.token === right.token
     && left.lookupWord === right.lookupWord
     && left.language === right.language
+    && left.trackPassiveHover === right.trackPassiveHover
+    && left.contextIdentity === right.contextIdentity
   );
 
   const dismissActiveHover = () => {
@@ -53,23 +57,38 @@ export function useWordHover(lifecycle: WordHoverLifecycle = {}) {
     lifecycle.onDismiss?.(activeHover);
   };
 
-  const showHover = (data: HoverData) => {
+  const updateHoverPosition = (data: HoverData): boolean => {
+    if (!activeHover || dismissed || !isVisible() || !sameOccurrence(activeHover, data)) return false;
+    const next = {
+      ...activeHover,
+      position: data.position,
+      anchorRect: data.anchorRect,
+    };
+    activeHover = next;
+    setHoverData(next);
+    return true;
+  };
+
+  const showHover = (data: HoverData): boolean => {
     if (hoverTimeout) clearTimeout(hoverTimeout);
     hoverTimeout = null;
     if (cleanupTimeout) clearTimeout(cleanupTimeout);
 
     const isSameOpen = activeHover !== null && !dismissed && sameOccurrence(activeHover, data);
-    if (!isSameOpen) {
-      dismissActiveHover();
+    if (isSameOpen) {
       activeHover = data;
-      dismissed = false;
-      admitted = false;
-    } else {
-      activeHover = data;
+      setHoverData(data);
+      setIsVisible(true);
+      return false;
     }
 
+    dismissActiveHover();
+    activeHover = data;
+    dismissed = false;
+    admitted = false;
     setHoverData(data);
     setIsVisible(true);
+    return true;
   };
 
   const hideHover = () => {
@@ -120,7 +139,7 @@ export function useWordHover(lifecycle: WordHoverLifecycle = {}) {
   };
 
   const isCurrentHover = (data: HoverData): boolean => (
-    activeHover === data && !dismissed && isVisible() && hoverData() === data
+    activeHover !== null && !dismissed && isVisible() && sameOccurrence(activeHover, data)
   );
 
   onCleanup(() => {
@@ -137,6 +156,7 @@ export function useWordHover(lifecycle: WordHoverLifecycle = {}) {
     hideHover,
     cancelHide,
     forceHide,
+    updateHoverPosition,
     admitVisibleReveal,
     isCurrentHover,
   };

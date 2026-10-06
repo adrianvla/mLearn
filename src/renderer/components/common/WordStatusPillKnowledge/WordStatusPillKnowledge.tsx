@@ -4,22 +4,25 @@ import { useFlashcards, useLocalization, useSettings } from '../../../context';
 import { openKnowledgeInspector } from '../../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../../services/surfaceKnowledgeInspection';
 import { nextAttemptId, type AttemptId } from '../../../../shared/knowledgeEvents';
-import { useKnowledgeProjection } from '../../../hooks/useKnowledgeProjection';
+import { useKnowledgeProjection, type KnowledgeProjectionState } from '../../../hooks/useKnowledgeProjection';
 import { Button } from '../Button';
 import { RatingMatrix, type ProfileObservation, type RateOptions } from '../RatingMatrix';
 import { WriteStatusBanner } from '../WriteStatusBanner';
 import type { StudyWriteState } from '../../../learning/studySession';
 import { KnowledgeCapabilitySummary } from './KnowledgeCapabilitySummary';
 import { isUnmeasuredKnowledge, knowledgeStatusLabelKey } from './knowledgeSummary';
+import { KnowledgeSkeleton } from '../KnowledgeGate';
 import './WordStatusPillKnowledge.css';
 
 export interface WordStatusPillKnowledgeProps {
   word: string;
   language?: string;
   pinned?: boolean;
-  onClose?: () => void;
+  onClose?: (reason: 'close' | 'inspect') => void;
   onPin?: () => void;
   statusSourceLabel?: string;
+  /** Reuse the owning pill's target-bound projection so a warm Portal has no second cold lookup. */
+  projectionState?: KnowledgeProjectionState;
 }
 
 export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = (props) => {
@@ -27,7 +30,13 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
   const { settings } = useSettings();
   const { t } = useLocalization();
   const language = () => props.language ?? settings.language;
-  const knowledge = useKnowledgeProjection(() => ({ language: language(), surface: props.word }));
+  const ownedKnowledge = useKnowledgeProjection(() => props.projectionState ? undefined : ({ language: language(), surface: props.word }));
+  const knowledge: KnowledgeProjectionState = {
+    projection: () => props.projectionState ? props.projectionState.projection() : ownedKnowledge.projection(),
+    loading: () => props.projectionState ? props.projectionState.loading() : ownedKnowledge.loading(),
+    capabilities: () => props.projectionState ? props.projectionState.capabilities() : ownedKnowledge.capabilities(),
+    retry: () => (props.projectionState ? props.projectionState.retry : ownedKnowledge.retry)(),
+  };
   const overall = createMemo(() => projectedWordStatus(knowledge.projection()));
   const [showRate, setShowRate] = createSignal(false);
   // The acknowledged-write lifecycle is owned by the study session
@@ -70,18 +79,26 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
   };
   const inspect = () => {
     openKnowledgeInspector(surfaceKnowledgeInspection(language(), props.word));
-    props.onClose?.();
+    props.onClose?.('inspect');
   };
-  return <div class={`word-status-knowledge${props.pinned !== false ? ' word-status-knowledge--pinned' : ''}`}>
+  return <Show when={knowledge.projection()} fallback={<KnowledgeSkeleton variant="lines" />}>
+  <div class={`word-status-knowledge${props.pinned !== false ? ' word-status-knowledge--pinned' : ''}`} aria-busy={knowledge.loading()}>
     <div class="word-status-knowledge__summary">
       <strong>{props.word}</strong>
       <span class={`word-status-knowledge__status word-status-knowledge__status--${isUnmeasuredKnowledge(overall().status, overall().basis) ? 'untracked' : overall().status}`}>
         {t(knowledgeStatusLabelKey(overall().status, overall().basis))}
       </span>
       <Show when={props.pinned !== false}>
-        <button type="button" class="word-status-knowledge__close" aria-label={t('mlearn.Global.Close')} onClick={props.onClose}>×</button>
+        <button type="button" class="word-status-knowledge__close" aria-label={t('mlearn.Global.Close')} onClick={() => props.onClose?.('close')}>×</button>
       </Show>
     </div>
+    <Show when={knowledge.loading() && knowledge.projection()?.status === 'ready'}>
+      <small class="word-status-knowledge__updating" role="status" aria-live="polite">{t('mlearn.Knowledge.Updating')}</small>
+    </Show>
+    <Show when={knowledge.projection()?.status === 'error'}>
+      <small class="word-status-knowledge__source" role="alert">{t('mlearn.Knowledge.LoadError')}</small>
+      <Button variant="ghost" size="sm" onClick={knowledge.retry}>{t('mlearn.Knowledge.Retry')}</Button>
+    </Show>
     <KnowledgeCapabilitySummary word={props.word} language={language()} projection={knowledge.projection()} />
     <Show when={props.statusSourceLabel}><small class="word-status-knowledge__source">{props.statusSourceLabel}</small></Show>
     <Show when={showRate()}>
@@ -113,5 +130,6 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
       </Button>
       <Button variant="ghost" size="sm" onClick={inspect}>{t('mlearn.Knowledge.Popup.Inspect')}</Button>
     </div>
-  </div>;
+  </div>
+  </Show>;
 };

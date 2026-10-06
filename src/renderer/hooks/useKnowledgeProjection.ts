@@ -10,12 +10,27 @@ export interface ProjectionQuery {
   readonly surface: string;
 }
 
+export interface KnowledgeProjectionState {
+  readonly projection: Accessor<KnowledgeProjection | undefined>;
+  readonly loading: Accessor<boolean>;
+  readonly capabilities: Accessor<string[]>;
+  readonly retry: () => void;
+}
+
+const targetKeyFor = (input: ProjectionQuery): string => JSON.stringify([input.language, input.surface]);
+
 /** Active consumers request one surface, sharing in-flight queries within a journal revision. */
 const pending = new Map<string, Promise<KnowledgeProjection>>();
 
-export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefined>, encounter?: Accessor<unknown>) {
+export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefined>, encounter?: Accessor<unknown>): KnowledgeProjectionState {
   const { settings } = useSettings();
-  const [projection, setProjection] = createSignal<KnowledgeProjection>();
+  const [projectionValue, setProjectionValue] = createSignal<KnowledgeProjection>();
+  const [projectionTargetKey, setProjectionTargetKey] = createSignal<string>();
+  const projection = createMemo(() => {
+    const input = query();
+    if (!input?.surface || projectionTargetKey() !== targetKeyFor(input)) return undefined;
+    return projectionValue();
+  });
   const [loading, setLoading] = createSignal(false);
   const [retryVersion, setRetryVersion] = createSignal(0);
   createEffect(() => {
@@ -26,29 +41,45 @@ export function useKnowledgeProjection(query: Accessor<ProjectionQuery | undefin
     // retain their normal revision/threshold subscriptions.
     const version = encounter ? untrack(eventsVersion) : eventsVersion();
     const thresholds = encounter ? untrack(() => effectiveThresholds(settings)) : effectiveThresholds(settings);
-    if (!input?.surface) { setProjection(undefined); setLoading(false); return; }
+    if (!input?.surface) {
+      batch(() => { setProjectionValue(undefined); setProjectionTargetKey(undefined); setLoading(false); });
+      return;
+    }
     let disposed = false;
-    batch(() => { if (encounter) setProjection(undefined); setLoading(true); });
+    batch(() => {
+      if (encounter) { setProjectionValue(undefined); setProjectionTargetKey(undefined); }
+      setLoading(true);
+    });
     const key = JSON.stringify([input.language, input.surface, version, thresholds.learning, thresholds.known]);
     let request = pending.get(key);
     if (!request) {
-      request = getBridge().graph.getKnowledgeProjection(input.language, input.surface, thresholds);
+      request = getBridge().graph.getKnowledgeProjectionCollection(input.language, [input.surface], undefined, thresholds)
+        .then(collection => collection.projections[input.surface] ?? {
+          status: 'error' as const,
+          targets: [],
+          querySurface: input.surface,
+        });
       pending.set(key, request);
       void request.finally(() => pending.delete(key)).catch(() => undefined);
     }
     void request.then((value) => {
-      if (!disposed) batch(() => { setProjection(value); setLoading(false); });
+      if (!disposed) batch(() => {
+        setProjectionValue(value);
+        setProjectionTargetKey(targetKeyFor(input));
+        setLoading(false);
+      });
     }, () => {
-      if (!disposed) batch(() => { setProjection({ status: 'error', targets: [] }); setLoading(false); });
+      if (!disposed) batch(() => {
+        setProjectionValue({ status: 'error', targets: [], querySurface: input.surface });
+        setProjectionTargetKey(targetKeyFor(input));
+        setLoading(false);
+      });
     });
     onCleanup(() => { disposed = true; });
   });
-  // The last resolved projection stays visible while a new surface is looked
-  // up. Clearing it per query made `capabilities` transiently empty, which any
-  // consumer gating an action on "has capabilities" reads as a permanent loss
-  // of affordance rather than a pending lookup.
-  const capabilities = createMemo(() => [...new Set(
-    projection()?.targets.flatMap((target) => target.applicableCapabilities) ?? [],
-  )]);
+  // A same-target result remains available during revalidation. The projection
+  // memo hides results bound to a different language/surface until that target
+  // resolves, so old capabilities cannot be shown under a new heading.
+  const capabilities = createMemo(() => [...new Set(projection()?.targets.flatMap((target) => target.applicableCapabilities) ?? [])]);
   return { projection, loading, capabilities, retry: () => setRetryVersion(value => value + 1) };
 }

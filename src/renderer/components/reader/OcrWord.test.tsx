@@ -173,6 +173,26 @@ describe('OcrWord', () => {
     vi.useRealTimers();
   });
 
+  it('keeps key-hover admission single while reporting movement within the active occurrence', () => {
+    mockSettings.readerWordHoverTrigger = 'key-hover';
+    const onWordEnter = vi.fn();
+    const onWordMove = vi.fn();
+    const dispose = render(() => <OcrWord token={token} onWordEnter={onWordEnter} onWordMove={onWordMove} />, container);
+
+    const word = container.querySelector('.ocr-word')!;
+    word.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Alt', altKey: true }));
+    word.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    word.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+
+    expect(onWordEnter).toHaveBeenCalledOnce();
+    expect(onWordMove).toHaveBeenCalledTimes(2);
+    expect(onWordMove.mock.calls[0]?.[0].surface).toBe('يكتب');
+    word.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Alt', altKey: false }));
+    dispose();
+  });
+
   it('can provide immediate hover without passively tracking an untokenized fallback', () => {
     const onWordEnter = vi.fn();
     const dispose = render(() => (

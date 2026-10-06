@@ -1970,6 +1970,7 @@
         "ClearOverride": "Clear override"
       },
       "Loading": "Loading knowledge…",
+      "Updating": "Updating knowledge…",
       "GraphContract": {
         "Degraded": "Knowledge evidence, claims, SRS and reader aids keep working without the graph; graph identity, learnable targets, projections and predictions stay unavailable until it is installed.",
         "NotPublished": "The published language package does not include a linguistic graph yet, so installing the package will not change this."

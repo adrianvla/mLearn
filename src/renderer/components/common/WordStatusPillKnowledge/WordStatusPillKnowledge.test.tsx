@@ -7,16 +7,22 @@ import { hashWordSync } from '../../../services/srsAlgorithm';
 const inspect = vi.hoisted(() => vi.fn());
 const recordAttempt = vi.hoisted(() => vi.fn());
 const submitRating = vi.hoisted(() => vi.fn());
+const projectionQuery = vi.hoisted(() => vi.fn());
 vi.mock('../../../services/openKnowledgeInspector', () => ({ openKnowledgeInspector: inspect }));
 vi.mock('../../../context', () => ({
   useSettings: () => ({ settings: { language: 'ja', ratingKeyboardMode: 'mnemonic' } }),
   useLocalization: () => ({ t: (key: string) => key }),
   useFlashcards: () => ({ getComprehensiveWordStatusWithSourceSync: () => ({ status: 'known', basis: 'evidence' }), recordAttempt, submitRating }),
 }));
-vi.mock('../../../hooks/useKnowledgeProjection', () => ({ useKnowledgeProjection: () => ({
-  projection: () => undefined,
-  capabilities: () => ['sense-recognition', 'surface-recognition'],
-}) }));
+vi.mock('../../../hooks/useKnowledgeProjection', () => ({ useKnowledgeProjection: (query: () => unknown) => {
+  projectionQuery(query);
+  return {
+    projection: () => ({ status: 'ready', targets: [] }),
+    loading: () => false,
+    retry: vi.fn(),
+    capabilities: () => ['sense-recognition', 'surface-recognition'],
+  };
+} }));
 let dispose: (() => void) | undefined;
 afterEach(() => { dispose?.(); document.body.replaceChildren(); vi.clearAllMocks(); submitRating.mockReset(); });
 describe('knowledge hover', () => {
@@ -59,6 +65,21 @@ describe('knowledge hover', () => {
       { capability: 'sense-recognition', quality: 'missed' },
       { capability: 'surface-recognition', quality: 'missed' },
     ], expect.objectContaining({ language: 'ja', attemptId: expect.any(String), selfAssessment: true }));
+  });
+
+  it('uses the owning pill projection immediately instead of starting a second cold lookup', () => {
+    const container = document.createElement('div'); document.body.append(container);
+    const projectionState = {
+      projection: () => ({ status: 'ready' as const, targets: [] }),
+      loading: () => false,
+      retry: vi.fn(),
+      capabilities: () => ['package::capability'],
+    };
+    dispose = render(() => <WordStatusPillKnowledge word="犬" language="ja" projectionState={projectionState} />, container);
+
+    expect(container.querySelector('.knowledge-skeleton')).toBeNull();
+    expect(projectionQuery).toHaveBeenCalled();
+    expect(projectionQuery.mock.calls.every(([query]) => (query as () => unknown)() === undefined)).toBe(true);
   });
 
   it('returns to the summary after an acknowledged attempt so Rate can start another attempt', async () => {

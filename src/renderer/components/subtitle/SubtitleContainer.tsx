@@ -10,6 +10,7 @@ import { tokenLookupContext } from '../../hooks/useTranslation';
 import { useWordHover, useDictionary, useTranslation, getCachedTranslation } from '../../hooks';
 import { SubtitleWord } from './SubtitleWord';
 import { WordHover } from './WordHover';
+import { StableWordHover } from './StableWordHover';
 import { ExplainerPopup } from './ExplainerPopup';
 import { initWordLookupBridge } from '../../services/wordLookupService';
 import { tokensToPlainText } from '../../../shared/languageFeatures';
@@ -148,8 +149,8 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     }
 
     const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
+    const contextPhrase = props.originalText || tokensToPlainText(props.tokens, currentLangData());
     
-    const requestId = ++hoverRequestId;
     const position = {
       x: rect.left + rect.width / 2,
       y: rect.top,
@@ -160,12 +161,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     
     // Check if translation is already cached (from pre-fetch)
     // This ensures prosody and level metadata show immediately on first hover
-    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, { ...lookupOptions, context: tokenLookupContext(token, props.originalText || tokensToPlainText(props.tokens, currentLangData())) });
-    
-    setTranslationData(cachedTranslation ?? null);
-    setDictionaryEntries([]);
-    setIsLoadingDict(false);
-    setCurrentHoverToken(token);
+    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, { ...lookupOptions, context: tokenLookupContext(token, contextPhrase) });
     
     const openedHover = {
       word: displayWord,
@@ -177,8 +173,15 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       lookupWord,
       language: settings.language,
       trackPassiveHover: true,
+      contextIdentity: contextPhrase,
     };
-    showHover(openedHover);
+    if (!showHover(openedHover)) return;
+    const requestId = ++hoverRequestId;
+
+    setTranslationData(cachedTranslation ?? null);
+    setDictionaryEntries([]);
+    setIsLoadingDict(false);
+    setCurrentHoverToken(token);
 
     let resolvedTranslation = cachedTranslation;
     const maybeAdmitUsefulReveal = (response: TranslationResponse | null, entries: DictionaryEntry[]) => {
@@ -195,7 +198,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (!cachedTranslation) {
       try {
         // Use dictionary form (actual_word) for translation lookup
-        const translation = await translateWord(lookupWord, tokenLookupContext(token, props.originalText || tokensToPlainText(props.tokens, currentLangData())));
+        const translation = await translateWord(lookupWord, tokenLookupContext(token, contextPhrase));
         
         // Check if this request is still current (race condition protection)
         if (requestId !== hoverRequestId) return;
@@ -534,18 +537,18 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       </div>
 
       {/* Word hover popup */}
-      <Show when={hoverData()} keyed>
-        {(data) => data.token ? (
+      <StableWordHover data={hoverData}>
+        {(data) => data().token ? (
           <WordHover
-            token={data.token}
-            word={data.word || data.token.surface || data.token.word || ''}
-            position={data.position}
-            anchorRect={data.anchorRect}
+            token={data().token!}
+            word={data().word || data().token!.surface || data().token!.word || ''}
+            position={data().position}
+            anchorRect={data().anchorRect}
             dictionaryEntries={dictionaryEntries()}
             translationData={translationData() || undefined}
             isLoading={isLoadingDict()}
             headwordFontFamily={subtitleStyle()['font-family']}
-            lookupContext={tokenLookupContext(data.token, props.originalText || tokensToPlainText(props.tokens, currentLangData()))}
+            lookupContext={tokenLookupContext(data().token!, props.originalText || tokensToPlainText(props.tokens, currentLangData()))}
             contextPhrase={props.originalText || tokensToPlainText(props.tokens, currentLangData())}
             onClose={hideHover}
             visible={isVisible()}
@@ -557,10 +560,10 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             videoSrc={props.videoSrc}
             lastScreenshot={props.lastScreenshot}
             grammarOccurrences={grammarOccurrences()}
-            tokenIndex={props.tokens.indexOf(data.token)}
+            tokenIndex={props.tokens.indexOf(data().token!)}
           />
         ) : null}
-      </Show>
+      </StableWordHover>
       
       {/* LLM Explainer popup */}
       <ExplainerPopup

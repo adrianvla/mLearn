@@ -57,6 +57,7 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
   // as an internal modal so hover-popover parents don't close mid-interaction.
   const [knowledgeTooltipOpen, setKnowledgeTooltipOpen] = createSignal(false);
   const [knowledgePinned, setKnowledgePinned] = createSignal(false);
+  const [restoreFocusAfterTooltipClose, setRestoreFocusAfterTooltipClose] = createSignal(false);
 
   const targetLanguage = createMemo(() => props.language ?? settings.language);
   const isActiveLanguage = createMemo(() => targetLanguage() === settings.language);
@@ -198,7 +199,8 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
     variant={statusVariant()}
     icon={statusIcon()}
     label={props.iconOnly ? '' : statusLabel()}
-    title={props.onInspect ? t('mlearn.Knowledge.Popup.Inspect') : undefined}
+    title={props.onInspect ? t('mlearn.Knowledge.Popup.Inspect') : projection.loading() ? t('mlearn.Knowledge.Updating') : undefined}
+    aria-busy={projection.loading()}
     onClick={handleStatusChange}
   />;
 
@@ -217,17 +219,28 @@ export const WordStatusPill: Component<WordStatusPillProps> = (props) => {
           <Tooltip
             interactive
             pinned={knowledgePinned() || undefined}
-            onRequestClose={() => setKnowledgePinned(false)}
+            restoreFocusOnHide={restoreFocusAfterTooltipClose()}
+            onRequestClose={(reason) => {
+              setRestoreFocusAfterTooltipClose(reason === 'escape');
+              setKnowledgePinned(false);
+            }}
             onShow={() => setKnowledgeTooltipOpen(true)}
-            onHide={() => setKnowledgeTooltipOpen(false)}
+            onHide={() => {
+              setKnowledgeTooltipOpen(false);
+              setRestoreFocusAfterTooltipClose(false);
+            }}
             content={
               <WordStatusPillKnowledge
                 word={props.word}
                 language={targetLanguage()}
                 pinned={knowledgePinned()}
-                onClose={() => setKnowledgePinned(false)}
+                onClose={(reason) => {
+                  setRestoreFocusAfterTooltipClose(reason === 'close');
+                  setKnowledgePinned(false);
+                }}
                 onPin={() => setKnowledgePinned(true)}
                 statusSourceLabel={statusSourceLabel()}
+                projectionState={projection}
               />
             }
           >{pill()}</Tooltip>

@@ -231,7 +231,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   }) : null) ?? selectedResponse() ?? props.translationData;
   let selectionRequest = 0;
   createEffect(() => {
-    void props.token; void props.translationData;
+    void props.token; void props.translationData; void props.lookupContext; void settings.language;
     selectionRequest++;
     setSelectedResponse(undefined); setSelectionFailed(false); setSelectingCandidate(false);
   });
@@ -609,11 +609,10 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   };
 
   const [showDuplicateWarning, setShowDuplicateWarning] = createSignal(false);
+  const [statusInteractionOpen, setStatusInteractionOpen] = createSignal(false);
 
   // Track whether any internal modal is open (prevents hide during modal interaction)
-  const isInternalModalOpen = createMemo(() =>
-    showDuplicateWarning()
-  );
+  const isInternalModalOpen = createMemo(() => showDuplicateWarning() || statusInteractionOpen());
 
   // When an internal modal opens, cancel any pending hide from the parent
   let wasBlockingHide = false;
@@ -783,6 +782,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               <WordStatusPill
                 word={actualWord()}
                 language={settings.language}
+                onModalOpenChange={setStatusInteractionOpen}
               />
               <ResourcePill
                 word={actualWord()}

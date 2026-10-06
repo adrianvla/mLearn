@@ -1,15 +1,28 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, createSignal } from 'solid-js';
 import { useKnowledgeProjection } from './useKnowledgeProjection';
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
 import type { KnowledgeProjection } from '../../shared/graph/ipc';
 
 const query = vi.hoisted(() => vi.fn());
+const [revision, setRevision] = createSignal(0);
 let settings: { easeThresholdLearning: number; easeThresholdKnown: number } = { easeThresholdLearning: 1.55, easeThresholdKnown: 1.8 };
 vi.mock('../context/SettingsContext', () => ({ useSettings: () => ({ settings }) }));
-vi.mock('../../shared/bridges', () => ({ getBridge: () => ({ graph: { getKnowledgeProjection: query } }) }));
-vi.mock('../services/knowledgeEvents', () => ({ eventsVersion: () => 0 }));
+vi.mock('../../shared/bridges', () => ({ getBridge: () => ({ graph: {
+  getKnowledgeProjectionCollection: (language: string, surfaces: string[], _evidenceKeys?: string[], thresholds?: object) =>
+    query(language, surfaces[0], thresholds).then((projection: KnowledgeProjection) => ({
+      projections: { [surfaces[0]]: projection },
+      revision: { packageRevision: 1, journalSequence: 0, libraryRevision: 0 },
+    })),
+} }) }));
+vi.mock('../services/knowledgeEvents', () => ({ eventsVersion: () => revision() }));
 const payload: KnowledgeProjection = { status: 'ready', targets: [{ targetRef: { kind: 'surface', id: 'surface-a' }, applicableCapabilities: ['x-test::novel'], states: [] }] };
+
+afterEach(() => {
+  query.mockReset();
+  setRevision(0);
+  settings = { easeThresholdLearning: 1.55, easeThresholdKnown: 1.8 };
+});
 
 describe('useKnowledgeProjection', () => {
   it('derives unknown package capabilities from applicability even without state rows', async () => {
@@ -53,7 +66,7 @@ describe('useKnowledgeProjection', () => {
     root.dispose();
   });
 
-  it('keeps the last resolved capabilities visible while the next surface is still loading', async () => {
+  it('clears capabilities from the previous surface while the next surface is loading', async () => {
     let resolveNext: (value: KnowledgeProjection) => void = () => undefined;
     query.mockClear();
     query.mockResolvedValueOnce(payload).mockImplementationOnce(() => new Promise<KnowledgeProjection>((resolve) => { resolveNext = resolve; }));
@@ -65,12 +78,52 @@ describe('useKnowledgeProjection', () => {
 
     root.setSurface('second');
     await vi.waitFor(() => expect(root.state.loading()).toBe(true));
-    // Capabilities describe what the surface may record; a pending lookup must
-    // not report "none" for a surface whose capabilities are already known.
-    expect(root.state.capabilities()).toEqual(['x-test::novel']);
+    expect(root.state.projection()).toBeUndefined();
+    expect(root.state.capabilities()).toEqual([]);
 
     resolveNext({ status: 'ready', targets: [{ targetRef: { kind: 'surface', id: 'surface-b' }, applicableCapabilities: ['x-test::known'], states: [] }] });
     await vi.waitFor(() => expect(root.state.capabilities()).toEqual(['x-test::known']));
+    root.dispose();
+  });
+
+  it('does not expose one target projection under a different target while it resolves', async () => {
+    let resolveSecond!: (value: KnowledgeProjection) => void;
+    query.mockReset()
+      .mockResolvedValueOnce({ ...payload, querySurface: 'first' })
+      .mockImplementationOnce(() => new Promise<KnowledgeProjection>((resolve) => { resolveSecond = resolve; }));
+    const root = createRoot((dispose) => {
+      const [surface, setSurface] = createSignal('first');
+      return { dispose, setSurface, state: useKnowledgeProjection(() => ({ language: 'test', surface: surface() })) };
+    });
+    await vi.waitFor(() => expect(root.state.projection()?.querySurface).toBe('first'));
+
+    root.setSurface('second');
+    await vi.waitFor(() => expect(root.state.loading()).toBe(true));
+    expect(root.state.projection()).toBeUndefined();
+
+    resolveSecond({ ...payload, querySurface: 'second' });
+    await vi.waitFor(() => expect(root.state.projection()?.querySurface).toBe('second'));
+    root.dispose();
+  });
+
+  it('keeps ready same-target data visible with an updating state during journal revalidation', async () => {
+    let resolveRefresh!: (value: KnowledgeProjection) => void;
+    query.mockResolvedValueOnce({ ...payload, querySurface: 'stable' })
+      .mockImplementationOnce(() => new Promise<KnowledgeProjection>((resolve) => { resolveRefresh = resolve; }));
+    const root = createRoot((dispose) => ({
+      dispose,
+      state: useKnowledgeProjection(() => ({ language: 'test', surface: 'stable' })),
+    }));
+    await vi.waitFor(() => expect(root.state.projection()?.querySurface).toBe('stable'));
+
+    setRevision(1);
+    await vi.waitFor(() => expect(query).toHaveBeenCalledTimes(2));
+    expect(root.state.loading()).toBe(true);
+    expect(root.state.projection()?.querySurface).toBe('stable');
+
+    resolveRefresh({ ...payload, querySurface: 'stable' });
+    await vi.waitFor(() => expect(root.state.loading()).toBe(false));
+    expect(root.state.projection()?.querySurface).toBe('stable');
     root.dispose();
   });
 

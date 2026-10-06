@@ -65,6 +65,8 @@ export interface OcrOverlayProps {
   onBoxClick?: (box: OcrBox, rect: DOMRect) => void;
   /** Called when hovering over a word. Includes context phrase from neighboring boxes. */
   onWordHover?: (token: Token, rect: DOMRect, contextPhrase: string, element: HTMLElement, trackPassiveHover: boolean) => void;
+  /** Updates the active word popup anchor without admitting another lookup. */
+  onWordMove?: (token: Token, rect: DOMRect, contextPhrase: string, element: HTMLElement, trackPassiveHover: boolean) => void;
   onWordLeave?: () => void;
   /** Called on right-click with context phrase for the clicked area */
   onContextMenu?: (contextPhrase: string, boxIndex: number, position: { x: number; y: number }) => void;
@@ -395,6 +397,17 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     props.onWordHover?.(token, target.getBoundingClientRect(), context, target, !untokenizedFallback);
   };
 
+  const handleWordMove = (
+    token: Token,
+    boxIndex: number,
+    e: MouseEvent,
+    untokenizedFallback = false,
+  ) => {
+    const target = e.currentTarget as HTMLElement;
+    const context = contextMap().get(boxIndex) || '';
+    props.onWordMove?.(token, target.getBoundingClientRect(), context, target, !untokenizedFallback);
+  };
+
   // Handle right-click context menu on OCR boxes
   const handleBoxContextMenu = (boxIndex: number, e: MouseEvent) => {
     e.preventDefault();
@@ -585,6 +598,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                                   token={createUntokenizedOcrToken(segment.text)}
                                   lookupContext={tokenLookupContext(createUntokenizedOcrToken(segment.text), contextMap().get(index()))}
                                   onWordEnter={(token, event) => handleWordEnter(token, index(), event, true)}
+                                  onWordMove={(token, event) => handleWordMove(token, index(), event, true)}
                                   onWordLeave={props.onWordLeave}
                                   trackPassiveHover={false}
                                 />
@@ -611,6 +625,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
                                       token={token}
                                       lookupContext={tokenLookupContext(token, contextMap().get(index()))}
                                       onWordEnter={(t, e) => handleWordEnter(t, index(), e)}
+                                      onWordMove={(t, e) => handleWordMove(t, index(), e)}
                                       onWordLeave={props.onWordLeave}
                                     />
                                   )}

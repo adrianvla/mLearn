@@ -101,9 +101,15 @@ vi.mock('../../hooks', () => ({
       hoverData: () => mockHoverState.data,
       isVisible: () => mockHoverState.visible,
       showHover: (data: HoverData) => {
+        const sameOpen = mockHoverState.visible && mockHoverState.data?.element === data.element
+          && mockHoverState.data?.token === data.token
+          && mockHoverState.data?.lookupWord === data.lookupWord
+          && mockHoverState.data?.language === data.language
+          && mockHoverState.data?.contextIdentity === data.contextIdentity;
         mockHoverState.data = data;
         mockHoverState.visible = true;
-        mockHoverState.admitted = false;
+        if (!sameOpen) mockHoverState.admitted = false;
+        return !sameOpen;
       },
       hideHover: vi.fn(),
       cancelHide: vi.fn(),

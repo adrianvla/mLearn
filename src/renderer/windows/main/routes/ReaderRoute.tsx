@@ -14,6 +14,7 @@ import { createStore, reconcile } from 'solid-js/store';
 import { useNavigate } from '@solidjs/router';
 import { OcrOverlay, MagnifyingGlass, OcrWord, type OcrBox, type OcrResult, type OcrProcessingTimes } from '../../../components/reader';
 import { WordHover } from '../../../components/subtitle/WordHover';
+import { StableWordHover } from '../../../components/subtitle/StableWordHover';
 import { ExplainerPopup } from '../../../components/subtitle/ExplainerPopup';
 import { initWordLookupBridge } from '../../../services/wordLookupService';
 import { useOCR, prepareBlobForOCR, sendImageForOCR, assertOcrLanguageDataReady, getOcrLanguageDataReadinessError, useTranslation, useDictionary, useTokenizer, useWordHover, getCachedTranslation, getGlobalHoverManager, useMediaStats, warmTranslationCache, isTranslationWarming } from '../../../hooks';
@@ -176,6 +177,7 @@ interface ReaderTextPageProps {
   tokenizeMany: (texts: string[]) => Promise<Token[][]>;
   tokenJoinSeparator: string;
   onWordHover: (token: Token, rect: DOMRect, contextPhrase: string, element: HTMLElement, trackPassiveHover: boolean) => void;
+  onWordMove?: (token: Token, rect: DOMRect, contextPhrase: string, element: HTMLElement, trackPassiveHover: boolean) => void;
   onWordLeave: () => void;
   vertical?: boolean;
   onTokenized?: () => void;
@@ -363,6 +365,10 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
                         onWordEnter={(hoverToken, event, trackPassiveHover) => {
                           const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
                           props.onWordHover(hoverToken, rect, bodyText(), event.currentTarget as HTMLElement, trackPassiveHover);
+                        }}
+                        onWordMove={(hoverToken, event) => {
+                          const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+                          props.onWordMove?.(hoverToken, rect, bodyText(), event.currentTarget as HTMLElement, true);
                         }}
                         onWordLeave={props.onWordLeave}
                         withReadingAnnotation
@@ -601,6 +607,7 @@ export const ReaderRoute: Component = () => {
     hideHover: hideOcrHover,
     cancelHide: cancelOcrHide,
     forceHide: forceHideOcrHover,
+    updateHoverPosition: updateOcrHoverPosition,
     admitVisibleReveal: admitOcrReveal,
     isCurrentHover: isCurrentOcrHover,
   } = useWordHover({
@@ -2900,21 +2907,13 @@ export const ReaderRoute: Component = () => {
     element: HTMLElement | null = null,
     trackPassiveHover = true,
   ) => {
-    const requestId = ++ocrHoverRequestId;
     // Use actual_word (dictionary form) for translation lookup, fallback to surface
     const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
     const displayWord = token.surface ?? token.word;
 
-    // Store context phrase for LLM explain and flashcard example
-    setOcrContextPhrase(contextPhrase);
-
     // Check if translation is already cached (from pre-warm)
     // This ensures the prosody pill shows immediately on first hover
     const cachedTranslation = getCachedTranslation(lookupWord, settings.language, { ...wordLookupOptions, context: tokenLookupContext(token, contextPhrase) });
-
-    // Set cached data if available, otherwise clear
-    setOcrTranslationData(cachedTranslation);
-    setOcrDictionaryEntries([]);
 
     const openedHover = {
       word: displayWord,
@@ -2926,8 +2925,16 @@ export const ReaderRoute: Component = () => {
       lookupWord,
       language: settings.language,
       trackPassiveHover,
+      contextIdentity: contextPhrase,
     };
-    showOcrHover(openedHover);
+    if (!showOcrHover(openedHover)) return;
+    const requestId = ++ocrHoverRequestId;
+
+    // Store context phrase for LLM explain and flashcard example
+    setOcrContextPhrase(contextPhrase);
+    // Preserve settled data for repeated movement; reset only for a new open.
+    setOcrTranslationData(cachedTranslation);
+    setOcrDictionaryEntries([]);
 
     let resolvedTranslation = cachedTranslation;
     const maybeAdmitUsefulReveal = (response: TranslationResponse | null, entries: DictionaryEntry[]) => {
@@ -2969,6 +2976,31 @@ export const ReaderRoute: Component = () => {
         if (!isCurrentOcrHover(openedHover)) return;
         setOcrDictionaryEntries([]);
       }
+    }
+  };
+  const handleOcrWordMove = (
+    token: Token,
+    rect: DOMRect,
+    contextPhrase = '',
+    element: HTMLElement | null = null,
+    trackPassiveHover = true,
+  ) => {
+    if (!element) return;
+    const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
+    const openedHover = {
+      word: token.surface ?? token.word,
+      token,
+      translation: null,
+      position: { x: rect.left + rect.width / 2, y: rect.top },
+      anchorRect: rect,
+      element,
+      lookupWord,
+      language: settings.language,
+      trackPassiveHover,
+      contextIdentity: contextPhrase,
+    };
+    if (!updateOcrHoverPosition(openedHover)) {
+      void handleOcrWordHover(token, rect, contextPhrase, element, trackPassiveHover);
     }
   };
   const handleOcrWordLeave = () => hideOcrHover();
@@ -3312,6 +3344,7 @@ export const ReaderRoute: Component = () => {
                                     debugOcr={ocrDebugOverlay()}
                                     zoneDeltaThreshold={zoneDeltaThreshold()}
                                     onWordHover={handleOcrWordHover}
+                                    onWordMove={handleOcrWordMove}
                                     onWordLeave={handleOcrWordLeave}
                                     onContextMenu={handleOcrContextMenu}
                                     onTokenDataChange={(entries) => handlePageTokenData(page.id, entries)}
@@ -3330,6 +3363,7 @@ export const ReaderRoute: Component = () => {
                             tokenizeMany={tokenizeMany}
                             tokenJoinSeparator={getTokenJoinSeparator(currentLangData())}
                             onWordHover={handleOcrWordHover}
+                            onWordMove={handleOcrWordMove}
                             onWordLeave={handleOcrWordLeave}
                             vertical={readerBookVertical()}
                             onTokenDataChange={(entries) => handlePageTokenData(page.id, entries)}
@@ -3400,23 +3434,23 @@ export const ReaderRoute: Component = () => {
             onZoneDeltaThresholdChange={setZoneDeltaThreshold}
         />
 
-        <Show when={ocrHoverData()} keyed>
-          {(hoverData) => hoverData.token ? (
+        <StableWordHover data={ocrHoverData}>
+          {(hoverData) => hoverData().token ? (
             <WordHover
-              token={hoverData.token}
-              word={hoverData.word || hoverData.token.surface || hoverData.token.word || ''}
-              position={hoverData.position}
-              anchorRect={hoverData.anchorRect}
+              token={hoverData().token!}
+              word={hoverData().word || hoverData().token!.surface || hoverData().token!.word || ''}
+              position={hoverData().position}
+              anchorRect={hoverData().anchorRect}
               dictionaryEntries={ocrDictionaryEntries()}
               translationData={ocrTranslationData() || undefined}
               isOCR={true}
               headwordFontFamily={readerTextFontFamily()} /*this is tech debt but idc*/
-              lookupContext={tokenLookupContext(hoverData.token, ocrContextPhrase())}
+              lookupContext={tokenLookupContext(hoverData().token!, ocrContextPhrase())}
               contextPhrase={ocrContextPhrase()}
               ocrImageElement={(() => {
                 // Find the correct page image based on anchor position
                 // This is crucial for double-page mode where words could be on either page
-                const anchorRect = hoverData.anchorRect;
+                const anchorRect = hoverData().anchorRect;
                 if (anchorRect) {
                   const anchorCenterX = (anchorRect.left + anchorRect.right) / 2;
                   const anchorCenterY = (anchorRect.top + anchorRect.bottom) / 2;
@@ -3451,7 +3485,7 @@ export const ReaderRoute: Component = () => {
               onOpenExplainer={handleOpenExplainer}
             />
           ) : null}
-        </Show>
+        </StableWordHover>
 
         {/* LLM Explainer Popup */}
         <ExplainerPopup

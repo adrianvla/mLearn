@@ -341,4 +341,45 @@ describe('useWordHover lookup admission lifecycle', () => {
     expect(onAdmit).not.toHaveBeenCalled();
     dispose();
   });
+
+  it('updates geometry without starting a new lookup admission for the active occurrence', () => {
+    const source = document.createElement('span');
+    const onDismiss = vi.fn();
+    const onAdmit = vi.fn();
+    let hover!: ReturnType<typeof useWordHover>;
+    let dispose!: () => void;
+    createRoot((disposeRoot) => {
+      hover = useWordHover({ onDismiss });
+      dispose = disposeRoot;
+    });
+
+    const opened = makeHoverData({ element: source, trackPassiveHover: true });
+    expect(hover.showHover(opened)).toBe(true);
+    expect(hover.admitVisibleReveal(onAdmit)).toBe(true);
+    const moved = { ...opened, position: { x: 240, y: 180 }, anchorRect: new DOMRect(220, 170, 40, 18) };
+    expect(hover.showHover(moved)).toBe(false);
+    expect(hover.updateHoverPosition(moved)).toBe(true);
+    expect(hover.hoverData()).toMatchObject({ position: moved.position, anchorRect: moved.anchorRect });
+    expect(hover.admitVisibleReveal(onAdmit)).toBe(false);
+    expect(onAdmit).toHaveBeenCalledOnce();
+    expect(onDismiss).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('does not apply geometry under a changed language or context identity', () => {
+    const source = document.createElement('span');
+    let hover!: ReturnType<typeof useWordHover>;
+    let dispose!: () => void;
+    createRoot((disposeRoot) => {
+      hover = useWordHover();
+      dispose = disposeRoot;
+    });
+    const opened = makeHoverData({ element: source, language: 'a', contextIdentity: 'first' });
+    hover.showHover(opened);
+
+    expect(hover.updateHoverPosition({ ...opened, language: 'b', position: { x: 300, y: 120 } })).toBe(false);
+    expect(hover.updateHoverPosition({ ...opened, contextIdentity: 'second', position: { x: 300, y: 120 } })).toBe(false);
+    expect(hover.hoverData()?.position).toEqual(opened.position);
+    dispose();
+  });
 });

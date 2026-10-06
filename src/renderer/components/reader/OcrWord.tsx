@@ -25,6 +25,8 @@ export interface OcrWordProps {
   token: Token;
   lookupContext?: WordLookupContext;
   onWordEnter?: (token: Token, e: MouseEvent, trackPassiveHover: boolean) => void;
+  /** Update the visible popup's anchor without admitting a second lookup. */
+  onWordMove?: (token: Token, e: MouseEvent) => void;
   onWordLeave?: () => void;
   /** Disable passive tracking for temporary, untokenized OCR fallback text. */
   trackPassiveHover?: boolean;
@@ -195,7 +197,11 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     // In key-hover mode with key held, behave like normal hover
     const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     if (triggerMode === 'key-hover' && isKeyHeld() && isMouseOver()) {
-      triggerHoverFromElement(e);
+      if (hoverWasTriggered) {
+        props.onWordMove?.(occurrenceToken(), e);
+      } else {
+        triggerHoverFromElement(e);
+      }
     }
   };
   
