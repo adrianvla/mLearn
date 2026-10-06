@@ -1,4 +1,4 @@
-import { eventCapability, eventIsMeasurable, type KnowledgeEvent } from '../knowledgeEvents';
+import { eventCapability, eventIsDirectKnowledgeEvidence, type KnowledgeEvent } from '../knowledgeEvents';
 import { applyEventToFold, emptyKeyFold, mergeKeyFolds, projectKeyFold, type FoldState, type ReplayProjection } from '../utils/projectionReplay';
 import { bucketRepresentative, type KeyArchive } from './historyArchive';
 
@@ -20,7 +20,7 @@ export function projectCapabilities(
   for (const { event, seq } of ordered) {
     if (event.kind === 'retraction' || (event.attemptId !== undefined && retracted.has(String(event.attemptId)))) continue;
     const capability = eventCapability(event);
-    if (capability === undefined || !eventIsMeasurable(event) || (surfaceOnly && event.targetRef !== undefined && event.targetRef.kind !== 'surface')) continue;
+    if (capability === undefined || !eventIsDirectKnowledgeEvidence(event) || (surfaceOnly && event.targetRef !== undefined && event.targetRef.kind !== 'surface')) continue;
     const fold = folds.get(capability) ?? emptyKeyFold();
     applyEventToFold(fold, event, seq);
     folds.set(capability, fold);

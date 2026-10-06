@@ -30,6 +30,10 @@ export interface OcrWordProps {
   trackPassiveHover?: boolean;
   /** Opt-in rendering of token readings as ruby annotations (e.g. EPUB text pages). */
   withReadingAnnotation?: boolean;
+  /** Occurrence-bound publisher reading; it survives dictionary/cache refreshes and display toggles. */
+  authoredReading?: string;
+  /** Base text covered by source ruby when the authored span covers only a token prefix. */
+  authoredText?: string;
 }
 
 /** Delay in ms for long-hover mode before triggering */
@@ -60,11 +64,18 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   };
 
   const displayWord = () => props.token.surface ?? props.token.word;
+  const occurrenceToken = () => {
+    const reading = authoredReading();
+    return reading && reading !== props.token.reading ? { ...props.token, reading } : props.token;
+  };
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   const lookupWord = createMemo(() => (
     getTokenLookupWord(props.token, tokenizerCapabilities()) || displayWord()
   ));
-  const showReading = () => (
+  const authoredReading = () => props.authoredReading || undefined;
+  const authoredText = () => props.authoredText || (authoredReading() ? displayWord() : undefined);
+  const hasAuthoredReading = () => Boolean(authoredReading() && authoredText());
+  const showReading = () => hasAuthoredReading() || (
     props.withReadingAnnotation === true
     && readingAnnotationsEnabled(settings)
     && Boolean(effectiveReading())
@@ -103,6 +114,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   });
 
   const effectiveReading = createMemo(() => {
+    if (authoredReading()) return authoredReading();
     const resolved = cachedTranslation();
     return (resolved?.resolution ? extractReadingValue(resolved.data, currentLangData()) : null) || props.token.reading;
   });
@@ -132,9 +144,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
 
   // The reading is passed through even when annotations are hidden so the
   // word slot renderer can color tone-marked text (hanzi chars → tone syllables).
-  const readingForDisplay = () => (
-    showReading() || coloredProsodyActive() ? effectiveReading() : undefined
-  );
+  const readingForDisplay = () => showReading() || coloredProsodyActive() ? effectiveReading() : undefined;
   
   // Trigger hover using the stable element reference
   // Creates a synthetic event-like object with the element as currentTarget
@@ -145,21 +155,21 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     const syntheticEvent = {
       currentTarget: wordRef,
     } as unknown as MouseEvent;
-    props.onWordEnter?.(props.token, syntheticEvent);
+    props.onWordEnter?.(occurrenceToken(), syntheticEvent);
   };
   
   const handleMouseEnter = (e: MouseEvent) => {
     setIsMouseOver(true);
     
     if (props.trackPassiveHover !== false && knowledgeReady()) {
-      flashcardCtx.trackWordHovered(lookupWord(), props.token.reading, settings.language);
+      flashcardCtx.trackWordHovered(lookupWord(), authoredReading() ?? props.token.reading, settings.language);
     }
     const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     
     switch (triggerMode) {
       case 'hover':
         // Immediate hover - trigger right away using the live event
-        props.onWordEnter?.(props.token, e);
+        props.onWordEnter?.(occurrenceToken(), e);
         break;
         
       case 'long-hover':
@@ -175,7 +185,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       case 'key-hover':
         // Key hover - only trigger if key is already held
         if (isKeyHeld()) {
-          props.onWordEnter?.(props.token, e);
+          props.onWordEnter?.(occurrenceToken(), e);
         }
         break;
     }
@@ -185,7 +195,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     // In key-hover mode with key held, behave like normal hover
     const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     if (triggerMode === 'key-hover' && isKeyHeld() && isMouseOver()) {
-      props.onWordEnter?.(props.token, e);
+      props.onWordEnter?.(occurrenceToken(), e);
     }
   };
   
@@ -250,12 +260,26 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     >
       <Show when={showReading() || coloredProsodyActive()} fallback={displayWord()}>
         {/* reader text page owns the font (serif/mono styles) — don't force the language content font */}
-        <WordWithReading
-          word={displayWord()}
-          reading={readingForDisplay()}
-          inheritFontFamily
-          coloredProsody={coloredProsodyCtx}
-        />
+        <Show when={hasAuthoredReading() && authoredText() !== displayWord()} fallback={(
+          <WordWithReading
+            word={displayWord()}
+            reading={readingForDisplay()}
+            annotationVisibility={hasAuthoredReading() ? 'source' : 'preference'}
+            forceShowReadingAnnotation={hasAuthoredReading()}
+            inheritFontFamily
+            coloredProsody={coloredProsodyCtx}
+          />
+        )}>
+          <WordWithReading
+            word={authoredText()!}
+            reading={authoredReading()}
+            annotationVisibility="source"
+            forceShowReadingAnnotation
+            inheritFontFamily
+            coloredProsody={coloredProsodyCtx}
+          />
+          {displayWord().slice(authoredText()!.length)}
+        </Show>
       </Show>
     </span>
   );

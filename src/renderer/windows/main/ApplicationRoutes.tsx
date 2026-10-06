@@ -57,8 +57,8 @@ const Review: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();
   const close = () => {
     const origin = props.launchContext?.returnTo;
-    if (origin === 'reader' || origin === 'video' || origin === 'plan') {
-      navigate(`/${origin}`, props.launchContext);
+    if (origin === 'reader' || origin === 'video' || origin === 'plan' || origin === 'material') {
+      navigate(origin === 'material' ? '/practise/material' : `/${origin}`, props.launchContext);
     } else if (isElectron()) getBridge().window.closeWindow();
     else navigate('/');
   };

@@ -783,8 +783,6 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               <WordStatusPill
                 word={actualWord()}
                 language={settings.language}
-                suppressKnowledgePopover
-                onInspect={() => openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, actualWord()))}
               />
               <ResourcePill
                 word={actualWord()}

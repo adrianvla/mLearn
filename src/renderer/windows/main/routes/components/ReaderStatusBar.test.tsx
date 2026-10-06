@@ -9,6 +9,7 @@ const updateSettingsMock = vi.fn();
 const testSettings = {
   ocrEnabled: true,
   ocrReadingAnnotationFiltering: true,
+  showReadingAnnotations: true,
   readerWordHoverTrigger: 'hover',
   readerWordHoverKey: 'Meta',
 };
@@ -27,8 +28,10 @@ const translations: Record<string, string> = {
   'mlearn.Reader.StatusBar.CropModeCursorTitle': 'Cursor mode',
   'mlearn.Reader.StatusBar.CropModeTitle': 'Drag to recognize a crop',
   'mlearn.Settings.Reader.OcrSettings.ReadingAnnotationDetection.Description': 'Detect reading annotations',
-  'mlearn.Reader.StatusBar.ReadingAnnotationDetectionOn': 'Reading annotations: On',
-  'mlearn.Reader.StatusBar.ReadingAnnotationDetectionOff': 'Reading annotations: Off',
+  'mlearn.Reader.StatusBar.ReadingAnnotationDetectionOn': 'OCR reading filter: On',
+  'mlearn.Reader.StatusBar.ReadingAnnotationDetectionOff': 'OCR reading filter: Off',
+  'mlearn.Reader.StatusBar.ReadingAnnotationDisplayOn': 'Reading annotations: On',
+  'mlearn.Reader.StatusBar.ReadingAnnotationDisplayOff': 'Reading annotations: Off',
   'mlearn.Reader.StatusBar.Ready': 'Ready',
   'mlearn.Reader.StatusBar.MoreTools': 'More tools',
 };
@@ -97,10 +100,28 @@ describe('ReaderStatusBar reading annotation controls', () => {
     ), container);
 
     expect(container.textContent).toContain('Reading annotations: On');
+    expect(container.textContent).toContain('OCR reading filter: On');
     expect(container.textContent).not.toContain('Furigana');
     expect(container.querySelector('details.reader-status-tools > summary')?.textContent).toBe('More tools');
     expect(container.querySelector('details.reader-status-tools .statusbar-toggle')?.textContent).toBe('Crop: Off');
 
+    dispose();
+  });
+
+  it('turns generated reader annotations off through the shared display setting', async () => {
+    const { ReaderStatusBar } = await import('./ReaderStatusBar');
+    const dispose = render(() => (
+      <ReaderStatusBar
+        bookTitle={() => 'Book'} progressString={() => '1 / 2'} ocrStatus={() => ''}
+        ocrProgress={() => 0} isProcessingOcr={() => false} hasOcrResult={() => false}
+        hasPages={() => true} onRunOcr={() => undefined} onOpenConversationAgent={() => undefined}
+      />
+    ), container);
+    const displayToggle = Array.from(container.querySelectorAll<HTMLButtonElement>('.statusbar-toggle'))
+      .find(button => button.textContent === 'Reading annotations: On');
+    expect(displayToggle).toBeDefined();
+    displayToggle!.click();
+    expect(updateSettingsMock).toHaveBeenCalledWith({ showReadingAnnotations: false });
     dispose();
   });
 });

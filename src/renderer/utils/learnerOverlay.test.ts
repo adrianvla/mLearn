@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PassiveWordKnowledge } from '../../shared/types';
 import type { LinguisticGraph } from '../../shared/graph/load';
 import { assembleTargetExplanation } from '../../shared/graph/explanations';
+import { observedTransferHistory } from '../../shared/knowledge/projectionBuilder';
 import { eventAppliesToCapability } from '../../shared/graph/addressing';
 import { CAPABILITY_ACCESS, demonstratesOf, migrateAspectRecordsToAccess } from '../../shared/graph/access';
 import { predictTargetAccessibility } from '../../shared/prediction/supportPredictor';
@@ -109,7 +110,7 @@ describe('learner overlay: claims, evidence, and predictions stay separate', () 
     expect(word.basis).toBe('claim');
   });
 
-  it('B: observed compositional inference is evidence (with method), never a claim', () => {
+  it('B: observed compositional inference remains transfer evidence without becoming memorized word knowledge', () => {
     const inferenceAttempt: KnowledgeEvent = {
       t: 1,
       kind: 'rating',
@@ -120,6 +121,8 @@ describe('learner overlay: claims, evidence, and predictions stay separate', () 
       attemptId: 'a1',
       targetRef: { kind: 'surface', id: 'ja:surface:abc', capability: 'sense-recognition' },
       presentedSurface: '苗字',
+      taskType: 'compound-inference',
+      scaffolds: {},
     };
     // Precise addressing: capability-addressed events match ONLY their access
     // (no legacy fan-out).
@@ -127,9 +130,10 @@ describe('learner overlay: claims, evidence, and predictions stay separate', () 
     expect(eventAppliesToCapability(inferenceAttempt, 'surface-recognition')).toBe(false);
 
     const explanation = assembleTargetExplanation('sense-recognition', [inferenceAttempt], policy, 2);
-    expect(explanation.state).toBe('evidence-backed-known');
-    expect(explanation.projection?.claim).toBeUndefined();
-    expect(explanation.evidence[0].method).toBe('inference');
+    expect(explanation.state).toBe('unmeasured');
+    expect(explanation.projection).toBeNull();
+    expect(explanation.evidence).toEqual([]);
+    expect(observedTransferHistory([inferenceAttempt])).toEqual({ attempts: 1, successes: 1 });
   });
 
   it('B2: the predictor calibrates on observed transfer without writing knowledge', () => {

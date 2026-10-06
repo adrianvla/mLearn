@@ -154,6 +154,20 @@ export function eventIsMeasurable(event: KnowledgeEvent): boolean {
 }
 
 /**
+ * Direct learner knowledge is narrower than a valid observation. A successful
+ * compositional inference is useful calibration data, but it does not mean the
+ * learner had the lexical item in memory before the encounter. Keep those rows
+ * in the journal/analytics while excluding them from knowledge and retention
+ * projections.
+ */
+export function eventIsDirectKnowledgeEvidence(event: KnowledgeEvent): boolean {
+  // An explicit user statement remains a claim even if a caller happens to
+  // attach inference provenance to a surrounding task. Only performance rows
+  // with inferred outcomes are excluded from direct lexical evidence.
+  return event.kind === 'claim' || (event.method !== 'inference' && eventIsMeasurable(event));
+}
+
+/**
  * Versions of the reference data the observation was recorded under, so future
  * re-projections can tell which graph schema / package generation an attempt
  * predates. Only written where meaningfully available.

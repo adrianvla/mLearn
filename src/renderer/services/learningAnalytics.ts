@@ -1,6 +1,6 @@
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import type { KeyHistorySummary } from '../../shared/knowledge/historyQueries';
-import { eventCapability, stripRetractedLog } from '../../shared/knowledgeEvents';
+import { eventCapability, eventIsDirectKnowledgeEvidence, stripRetractedLog } from '../../shared/knowledgeEvents';
 import { ANKI_EASE } from '../../shared/constants';
 import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
 
@@ -68,12 +68,14 @@ function median(values: readonly number[]): number {
 // Anki review events carry no toStatus — derive transitions from ease/rating,
 // otherwise anki-only words are invisible to the cohort metrics below.
 function reachesKnown(event: KnowledgeEvent): boolean {
+  if (!eventIsDirectKnowledgeEvidence(event)) return false;
   if (event.kind === 'rollup') return false;
   if (event.toStatus === 'known') return true;
   return event.kind === 'review' && event.source === 'anki' && (event.easeAfter ?? 0) >= ANKI_EASE.DEFAULT_KNOWN;
 }
 
 function downgradesBelowKnown(event: KnowledgeEvent): boolean {
+  if (!eventIsDirectKnowledgeEvidence(event)) return false;
   if (event.kind === 'rollup') return false;
   if (event.toStatus === 'unknown' || event.toStatus === 'learning') return true;
   return event.kind === 'review' && event.rating === 'again';
@@ -115,7 +117,7 @@ export function acquisitionSlope(eventsByWord: ReadonlyMap<string, readonly Know
     const meaning = meaningEvents(events);
     const first = meaning[0];
     if (!first) continue;
-    const windowed = meaning.filter((event) => event.t <= first.t + SLOPE_WINDOW);
+    const windowed = meaning.filter((event) => event.t <= first.t + SLOPE_WINDOW && eventIsDirectKnowledgeEvidence(event));
     const points = replayKnowledgeHistory(windowed, { now: first.t + SLOPE_WINDOW }).points;
     if (points.length > 0) values.push({ month: monthFor(first.t), value: points[points.length - 1].strength - points[0].strength });
   }

@@ -8,8 +8,9 @@ import { useSettings, useLocalization, useLanguage, useLowPowerGate } from '../.
 import { StatusBar, formatKeybindDisplay, RangeInput, BatteryLowIcon, CursorPointerIcon, PlusIcon } from '../../../../components/common';
 import type { WordHoverTriggerMode } from '../../../../../shared/constants';
 import { DEFAULT_SETTINGS } from '../../../../../shared/types';
-import { ocrReadingAnnotationFilteringEnabled } from '../../../../../shared/readingAnnotationSettings';
+import { ocrReadingAnnotationFilteringEnabled, readingAnnotationsEnabled } from '../../../../../shared/readingAnnotationSettings';
 import type { OcrProcessingTimes } from '../../../../components/reader';
+import { useToolbarOverflow } from '../../../../hooks/useToolbarOverflow';
 import './ReaderStatusBar.css';
 
 interface ReaderStatusBarProps {
@@ -46,6 +47,8 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
   const { t } = useLocalization();
   const { getLanguageFeatures } = useLanguage();
   const { isActive: isLowPowerActive } = useLowPowerGate();
+  let toolsMenuRef: HTMLDetailsElement | undefined;
+  const toolsOverflow = useToolbarOverflow(() => toolsMenuRef);
 
   /** Get label for hover trigger mode - dynamically includes the configured key for key-hover mode */
   const getHoverTriggerLabel = (mode: WordHoverTriggerMode, key: string): string => {
@@ -88,9 +91,14 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
     updateSettings({ readerWordHoverTrigger: value });
   };
 
+  const showReadingAnnotations = () => readingAnnotationsEnabled(settings);
   const isReadingAnnotationDetection = () => ocrReadingAnnotationFilteringEnabled(settings);
   const supportsReadingDetection = () => getLanguageFeatures().supportsReadings;
   const showOcrControls = () => props.ocrControlsVisible?.() ?? settings.ocrEnabled;
+
+  const toggleReadingAnnotations = () => {
+    updateSettings({ showReadingAnnotations: !showReadingAnnotations() });
+  };
 
   const toggleReadingAnnotationDetection = () => {
     const enabled = !isReadingAnnotationDetection();
@@ -144,9 +152,15 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
           {t('mlearn.Reader.StatusBar.OpenConversationAgent')}
         </button>
 
-        <details class="reader-status-tools">
-          <summary aria-label={t('mlearn.Reader.StatusBar.MoreTools')}>{t('mlearn.Reader.StatusBar.MoreTools')}</summary>
-          <div class="reader-status-tools-panel statusbar-toggles">
+        <details
+          ref={toolsMenuRef}
+          class="reader-status-tools"
+          classList={{ 'is-overflowing': toolsOverflow.overflow() }}
+          data-overflow={String(toolsOverflow.overflow())}
+          open={toolsOverflow.open()}
+        >
+          <summary aria-label={t('mlearn.Reader.StatusBar.MoreTools')} onClick={toolsOverflow.toggle}>{t('mlearn.Reader.StatusBar.MoreTools')}</summary>
+          <div class="reader-status-tools-panel statusbar-toggles" data-overflow-panel>
           <Show when={showOcrControls()}>
             <div class="crop-mode-controls">
               <button
@@ -189,6 +203,20 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
               {props.documentOcr?.()
                 ? t('mlearn.Reader.StatusBar.DocumentOcrOn')
                 : t('mlearn.Reader.StatusBar.DocumentOcrOff')}
+            </button>
+          </Show>
+          <Show when={props.hasPages() && supportsReadingDetection()}>
+            <button
+              class="statusbar-toggle"
+              classList={{ active: showReadingAnnotations() }}
+              onClick={toggleReadingAnnotations}
+              title={t(showReadingAnnotations()
+                ? 'mlearn.Reader.StatusBar.ReadingAnnotationDisplayOn'
+                : 'mlearn.Reader.StatusBar.ReadingAnnotationDisplayOff')}
+            >
+              {t(showReadingAnnotations()
+                ? 'mlearn.Reader.StatusBar.ReadingAnnotationDisplayOn'
+                : 'mlearn.Reader.StatusBar.ReadingAnnotationDisplayOff')}
             </button>
           </Show>
           <Show when={showOcrControls() && supportsReadingDetection()}>

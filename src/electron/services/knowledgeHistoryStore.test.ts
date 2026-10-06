@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { KeyArchive } from '../../shared/knowledge/historyArchive';
+import { KNOWLEDGE_MEASURABLE_VERSION, type KeyArchive } from '../../shared/knowledge/historyArchive';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -379,6 +379,55 @@ function ankiStatus(t: number, toStatus: KnowledgeEvent['toStatus']): KnowledgeE
 }
 
 describe('KnowledgeHistoryStore', () => {
+  it('keeps inferred successes out of direct capability knowledge after compaction', () => {
+    const now = Date.now();
+    const key = 'xx:inference-only';
+    const store = KnowledgeHistoryStore.open(path.join(dir, 'inference-only.sqlite3'));
+    store.appendEvents({ [key]: [
+      { t: now - 500 * DAY, kind: 'rating', source: 'srs', aspect: 'meaning', attemptId: 'inferred-1',
+        method: 'inference', taskType: 'compound-inference', quality: 'fluent', rating: 'good', easeAfter: 2.8,
+        timesSeenDelta: 1, scaffolds: {} },
+      { t: now - 400 * DAY, kind: 'rating', source: 'srs', aspect: 'meaning', attemptId: 'inferred-2',
+        method: 'inference', taskType: 'compound-inference', quality: 'fluent', rating: 'good', easeAfter: 2.9,
+        timesSeenDelta: 1, scaffolds: {} },
+    ] });
+    store.compact(now);
+    expect(store.getKnowledgeState(key).capabilities?.['sense-recognition']).toBeUndefined();
+    store.close();
+  });
+
+  it('rebuilds stale archived knowledge folds from retained provenance on restart', () => {
+    const now = Date.now();
+    const key = 'xx:inference-archive-rebuild';
+    const file = path.join(dir, 'inference-archive-rebuild.sqlite3');
+    const store = KnowledgeHistoryStore.open(file);
+    store.appendEvents({ [key]: [
+      { t: now - 500 * DAY, kind: 'rating', source: 'srs', aspect: 'meaning', attemptId: 'archive-inferred-1',
+        method: 'inference', taskType: 'compound-inference', quality: 'fluent', rating: 'good', easeAfter: 2.8,
+        timesSeenDelta: 1, scaffolds: {} },
+      { t: now - 400 * DAY, kind: 'rating', source: 'srs', aspect: 'meaning', attemptId: 'archive-inferred-2',
+        method: 'inference', taskType: 'compound-inference', quality: 'fluent', rating: 'good', easeAfter: 2.9,
+        timesSeenDelta: 1, scaffolds: {} },
+    ] });
+    store.compact(now);
+    store.close();
+
+    const database = new DatabaseSync(file);
+    const row = database.prepare('SELECT json FROM archives WHERE key = ?').get(key) as { json?: string } | undefined;
+    if (!row?.json) expect.fail('archive missing');
+    const archive = JSON.parse(row.json) as KeyArchive;
+    archive.measurableVersion = KNOWLEDGE_MEASURABLE_VERSION - 1;
+    database.prepare('UPDATE archives SET json = ? WHERE key = ?').run(JSON.stringify(archive), key);
+    database.close();
+
+    const reopened = KnowledgeHistoryStore.open(file);
+    const state = reopened.getKnowledgeState(key);
+    expect(state.capabilities?.['sense-recognition']).toBeUndefined();
+    expect(state.projection).toBeNull();
+    expect(reopened.getArchive(key)?.measurableVersion).toBe(KNOWLEDGE_MEASURABLE_VERSION);
+    reopened.close();
+  });
+
   it('finds exact target addresses under a different storage key through compaction and restart', () => {
     const file = path.join(dir, 'addressed-family.sqlite3');
     const store = KnowledgeHistoryStore.open(file);

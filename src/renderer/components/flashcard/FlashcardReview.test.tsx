@@ -416,15 +416,14 @@ describe('FlashcardReview', () => {
     container.remove();
   });
 
-  it('labels continuous progress as visit work without turning the scheduler queue into a finish line', async () => {
+  it('does not turn a moving scheduler queue into a learner-facing session denominator', async () => {
     const dispose = render(() => <FlashcardReview />, container);
     try {
       await flushEffects();
       setMockQueueTotal(9);
       await flushEffects();
-      expect(container.querySelector('.flashcard-session-progress')?.textContent).toContain('mlearn.StudyEncounter.VisitProgress');
-      expect(container.querySelector('.flashcard-session-progress [role="progressbar"]')).toBeNull();
-      expect(container.querySelector('.flashcard-session-progress')?.textContent).not.toContain('mlearn.StudyEncounter.Progress');
+      expect(container.querySelector('.flashcard-session-progress')).toBeNull();
+      expect(container.textContent).not.toContain('mlearn.StudyEncounter.VisitProgress');
     } finally { dispose(); }
   });
 
@@ -1257,7 +1256,7 @@ describe('FlashcardReview', () => {
     } finally { dispose(); }
   });
 
-  it.each(['pointer', 'keyboard'] as const)('keeps %s reveal and rating outside the card scroll owner and resets both positions for the next encounter', async revealMethod => {
+  it.each(['pointer', 'keyboard'] as const)('keeps %s reveal and rating with the card interaction and resets the card scroll for the next encounter', async revealMethod => {
     setMockCard(makeCard({ content: { type: 'word', front: 'Long prompt', back: 'Answer',
       example: 'Long example '.repeat(100), imageUrl: 'flashcard-image://unavailable.png' } }));
     const dispose = render(() => <FlashcardReview />, container);
@@ -1269,22 +1268,20 @@ describe('FlashcardReview', () => {
       const reveal = container.querySelector<HTMLButtonElement>('.flashcard-show-answer-btn')!;
       expect(content).not.toBeNull();
       expect(content!.contains(container.querySelector('.flashcard-container'))).toBe(true);
-      expect(content!.contains(reveal)).toBe(false);
+      expect(content!.contains(reveal)).toBe(true);
       expect(content!.contains(container.querySelector('.flashcard-review-header'))).toBe(false);
-      expect(actions.contains(reveal)).toBe(true);
+      expect(actions.contains(reveal)).toBe(false);
       content!.scrollTop = 240;
       if (revealMethod === 'pointer') await clickShowAnswer(container);
       else { document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' })); await flushEffects(); }
       expect(content!.scrollTop).toBe(0);
-      expect(actions.querySelector('.rating-matrix')).not.toBeNull();
-      expect(content!.contains(actions)).toBe(false);
+      expect(content!.querySelector('.rating-matrix')).not.toBeNull();
+      expect(actions.querySelector('.rating-matrix')).toBeNull();
       content!.scrollTop = 240;
-      actions.scrollTop = 170;
       setMockCard(makeCard({ id: 'next-layout-card', content: { type: 'word', front: 'Next prompt', back: 'Next answer' } }));
       await flushEffects();
       expect(content!.scrollTop).toBe(0);
-      expect(actions.scrollTop).toBe(0);
-      expect(actions.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
+      expect(content!.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
       expect(container.querySelector('.flashcard-front')!.textContent).toContain('Next prompt');
     } finally { dispose(); }
   });
@@ -2701,9 +2698,6 @@ describe('FlashcardReview rating latency', () => {
     return performance.now() - started;
   }
 
-  /** Far below the durable write: the transition must not have waited for it. */
-  const INTERACTION_BUDGET_MS = DURABLE_WRITE_MS / 2;
-
   // The DEFAULT configuration. `flashcardAutoTts` is on in a normal install and
   // it records an `audio` cue on every single review, so a persistence rule
   // keyed on "did this consume a cue" matches the ordinary workflow and puts a
@@ -2713,22 +2707,25 @@ describe('FlashcardReview rating latency', () => {
     mockSettings.flashcardAutoTts = autoTts;
     useLargeQueue();
     // The next card's durable cursor write also takes a disk round-trip.
+    let presentationSettled = false;
     mockSaveReviewPresentation.mockImplementation(async (_language, presentation, _expectedId) => {
       await new Promise<void>((resolve) => { setTimeout(resolve, DURABLE_WRITE_MS); });
       await decisionBridge.record(presentation.decision);
+      presentationSettled = true;
     });
     const dispose = render(() => <FlashcardReview />, container);
     try {
       await flushEffects();
       await clickShowAnswer(container);
-      const elapsed = await rateAndAwaitNextCard();
+      await rateAndAwaitNextCard();
       const shown = container.querySelector('.flashcard-word')?.textContent;
       expect(shown, 'a different card should be interactive').toBeTruthy();
       expect(mockSubmitRating).toHaveBeenCalledWith(expect.any(String), expect.any(Array),
         expect.objectContaining({ persistence: 'background' }));
-      // Generous bound: the point is that it is bounded by frame work, not by
-      // the 300ms write. Before the fix this waited on the acknowledgement.
-      expect(elapsed, `next card took ${elapsed.toFixed(1)}ms`).toBeLessThan(INTERACTION_BUDGET_MS);
+      // The user-visible transition must happen while the durable cursor write
+      // is still unresolved. This directly guards the behavior without making
+      // CI machine speed part of the product contract.
+      expect(presentationSettled).toBe(false);
     } finally { dispose(); }
   });
 

@@ -1,4 +1,4 @@
-import { eventIsMeasurable, type KnowledgeEvent } from '../knowledgeEvents';
+import { eventIsDirectKnowledgeEvidence, type KnowledgeEvent } from '../knowledgeEvents';
 import { eventAppliesToCapability } from './addressing';
 import {
   computeRetention,
@@ -114,7 +114,7 @@ export function assembleTargetExplanation(
   // review still HAPPENED — retention scheduling consumes the occurrence,
   // never crediting knowledge.
   const evidenceRows = active
-    .filter(({ event }) => eventIsMeasurable(event) && matcher(event))
+    .filter(({ event }) => eventIsDirectKnowledgeEvidence(event) && matcher(event))
     .sort((a, b) => a.event.t - b.event.t || a.seq - b.seq);
   const evidence = evidenceRows.filter(({ event }) => event.kind !== 'claim').map(({ event }) => event);
   const mergedArchive = mergeArchives(archives ?? []);

@@ -141,6 +141,7 @@ export const VideoRoute: Component = () => {
   const [currentVideoName, setCurrentVideoName] = createSignal('');
   const [currentVideoDuration, setCurrentVideoDuration] = createSignal<number | null>(null);
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
+  const [videoLoadState, setVideoLoadState] = createSignal<'idle' | 'loading' | 'ready' | 'error'>('idle');
   createEffect(() => setActiveMediaSource(currentVideoPath() ? { workspace: 'video', path: currentVideoPath() } : undefined));
   onCleanup(() => setActiveMediaSource(undefined));
   const [externalSubtitle, setExternalSubtitle] = createSignal<ExternalSubtitle | null>(null);
@@ -366,6 +367,7 @@ export const VideoRoute: Component = () => {
     thumbnailCaptureBlockedKeys.delete(name);
     setCurrentVideoTime(0);
     setCurrentVideoDuration(null);
+    setVideoLoadState('loading');
     setCurrentVideoPath(path);
     setShowDropZone(false);
     setCurrentVideoName(name);
@@ -1468,7 +1470,10 @@ export const VideoRoute: Component = () => {
           <Button buttonType="nav"
             class="conversation-agent-button"
             onClick={openConversationAgent}
-            title={t('mlearn.Video.Tooltip.OpenConversationAgent')}
+            disabled={videoLoadState() !== 'ready'}
+            title={videoLoadState() === 'error'
+              ? t('mlearn.Video.LoadUnavailable')
+              : t('mlearn.Video.Tooltip.OpenConversationAgent')}
           >
             {t('mlearn.Video.UI.OpenConversationAgent')}
           </Button>
@@ -1516,6 +1521,7 @@ export const VideoRoute: Component = () => {
         <div class="video-player-container">
           <VideoPlayer
             src={videoSrc()}
+            onLoadStateChange={setVideoLoadState}
             onMediaElement={(element) => { ownedVideoElement = element; }}
             subtitleContent={subtitleContent()}
             remoteSubtitleHtml={watchTogether.remoteSubtitle()?.html || null}

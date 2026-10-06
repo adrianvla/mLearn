@@ -25,6 +25,7 @@ vi.mock('./components', async () => ({
   WelcomeFeatureCard: (await import('./components/WelcomeFeatureCard')).WelcomeFeatureCard,
   WelcomeReaderPreview: (await import('./components/WelcomeFeaturePreviews')).WelcomeReaderPreview,
   WelcomeVideoPreview: (await import('./components/WelcomeFeaturePreviews')).WelcomeVideoPreview,
+  WelcomeContinueRow: (await import('./components/WelcomeContinueRow')).WelcomeContinueRow,
 }));
 vi.mock('../../../components/common', () => ({
   Button: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
@@ -48,14 +49,14 @@ describe('purpose-led Home', () => {
   it('keeps five recognizable activities with no raw next-answer recommendation', async () => {
     await mount();
     expect(Array.from(container.querySelectorAll('h3')).map(h => h.textContent)).toEqual([
-      'mlearn.Home.Today.Read', 'mlearn.Home.Today.Watch', 'mlearn.Product.Messenger', 'mlearn.Product.Practise', 'mlearn.Product.Evaluate',
+      'mlearn.Home.Today.Read', 'mlearn.Home.Today.Watch', 'mlearn.Product.Messenger', 'mlearn.Flashcards.UI.Title', 'mlearn.Product.Evaluate',
     ]);
     expect(container.textContent).not.toContain('mlearn.Home.Today.Next');
     expect(container.textContent).not.toContain('no-target-filler');
   });
   it('opens Review when an unrelated grammar pass is retained', async () => {
     fixture.grammarResume = { context: { activity: 'grammar', patterns: ['private upcoming cue'] } };
-    await mount(); open('mlearn.Product.Practise');
+    await mount(); open('mlearn.Flashcards.UI.Title');
     expect(fixture.navigate).not.toHaveBeenCalled();
     expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'flashcards', context: { activity: 'review', intent: 'start', returnTo: 'home' } });
     expect(container.textContent).not.toContain('private upcoming cue');
@@ -83,6 +84,25 @@ describe('purpose-led Home', () => {
     await mount(); container.querySelector<HTMLButtonElement>('.wfv-play')!.click();
     expect(sessionStorage.getItem('mlearn_open_video')).toBe('/copied/film.mp4');
     expect(sessionStorage.getItem('mlearn_open_video_subtitles')).toBe('/copied/film.vtt');
+    expect(fixture.navigate).toHaveBeenCalledWith('/video');
+    expect(fixture.navigate).toHaveBeenCalledOnce();
+  });
+  it('shows and opens each recent source with its own progress and subtitle identity', async () => {
+    fixture.recent = [
+      { type: 'video', name: 'Film one', path: '/media/one.mp4', subtitlePath: '/subs/one.vtt', progress: 31, lastWatched: 3 },
+      { type: 'book', name: 'Book two', path: '/books/two.epub', progress: 62, lastWatched: 2 },
+      { type: 'video', name: 'Film three', path: '/media/three.mp4', subtitlePath: '/subs/three.vtt', progress: 87, lastWatched: 1 },
+    ];
+    await mount();
+    const rows = Array.from(container.querySelectorAll<HTMLButtonElement>('.welcome-recent-list .welcome-continue-main'));
+    expect(rows.map(row => row.getAttribute('aria-label'))).toEqual([
+      'Film one, mlearn.Global.Continue', 'Book two, mlearn.Global.Continue', 'Film three, mlearn.Global.Continue',
+    ]);
+    expect(Array.from(container.querySelectorAll('.welcome-recent-list progress')).map(progress => progress.getAttribute('value')))
+      .toEqual(['31', '62', '87']);
+    rows[2].click();
+    expect(sessionStorage.getItem('mlearn_open_video')).toBe('/media/three.mp4');
+    expect(sessionStorage.getItem('mlearn_open_video_subtitles')).toBe('/subs/three.vtt');
     expect(fixture.navigate).toHaveBeenCalledWith('/video');
     expect(fixture.navigate).toHaveBeenCalledOnce();
   });

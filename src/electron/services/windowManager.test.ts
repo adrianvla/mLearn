@@ -4,10 +4,12 @@ const ipcOnHandlers = new Map<string, (...args: unknown[]) => void>();
 const ipcHandleHandlers = new Map<string, (...args: unknown[]) => unknown>();
 
 const mockMenuInstance = { popup: vi.fn() };
+let mockLoadFileError: Error | null = null;
 
 type MockWindow = {
   loadURL: ReturnType<typeof vi.fn>;
   loadFile: ReturnType<typeof vi.fn>;
+  once: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   hide: ReturnType<typeof vi.fn>;
@@ -27,6 +29,8 @@ type MockWindow = {
   setTitleBarOverlay: ReturnType<typeof vi.fn>;
   isDestroyed: ReturnType<typeof vi.fn>;
   focus: ReturnType<typeof vi.fn>;
+  isMinimized: ReturnType<typeof vi.fn>;
+  restore: ReturnType<typeof vi.fn>;
   webContents: {
     send: ReturnType<typeof vi.fn>;
     isLoading: ReturnType<typeof vi.fn>;
@@ -57,10 +61,16 @@ function lastWindowOptions(): CapturedWindowOptions {
   return capturedWindowOptions[capturedWindowOptions.length - 1] as CapturedWindowOptions;
 }
 
+function emitWindowEvent(window: MockWindow, event: string): void {
+  const listener = window.once.mock.calls.find(call => call[0] === event)?.[1];
+  if (typeof listener === 'function') listener();
+}
+
 function makeMockWindow(): MockWindow {
   const win: MockWindow = {
     loadURL: vi.fn(() => Promise.resolve()),
-    loadFile: vi.fn(),
+    loadFile: vi.fn(() => mockLoadFileError ? Promise.reject(mockLoadFileError) : Promise.resolve()),
+    once: vi.fn(),
     on: vi.fn(),
     close: vi.fn(),
     hide: vi.fn(),
@@ -80,6 +90,8 @@ function makeMockWindow(): MockWindow {
     setTitleBarOverlay: vi.fn(),
     isDestroyed: vi.fn(() => false),
     focus: vi.fn(),
+    isMinimized: vi.fn(() => false),
+    restore: vi.fn(),
     webContents: {
       send: vi.fn(),
       isLoading: vi.fn(() => false),
@@ -100,6 +112,7 @@ class MockBrowserWindow {
 
   loadURL: ReturnType<typeof vi.fn>;
   loadFile: ReturnType<typeof vi.fn>;
+  once: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   hide: ReturnType<typeof vi.fn>;
@@ -119,6 +132,8 @@ class MockBrowserWindow {
   setTitleBarOverlay: ReturnType<typeof vi.fn>;
   isDestroyed: ReturnType<typeof vi.fn>;
   focus: ReturnType<typeof vi.fn>;
+  isMinimized: ReturnType<typeof vi.fn>;
+  restore: ReturnType<typeof vi.fn>;
   webContents: {
     send: ReturnType<typeof vi.fn>;
     isLoading: ReturnType<typeof vi.fn>;
@@ -133,6 +148,7 @@ class MockBrowserWindow {
     const w = makeMockWindow();
     this.loadURL = w.loadURL;
     this.loadFile = w.loadFile;
+    this.once = w.once;
     this.on = w.on;
     this.close = w.close;
     this.hide = w.hide;
@@ -152,6 +168,8 @@ class MockBrowserWindow {
     this.setTitleBarOverlay = w.setTitleBarOverlay;
     this.isDestroyed = w.isDestroyed;
     this.focus = w.focus;
+    this.isMinimized = w.isMinimized;
+    this.restore = w.restore;
     this.webContents = w.webContents;
   }
 }
@@ -219,7 +237,7 @@ vi.mock('./trayManager', () => ({
 }));
 
 vi.mock('./settings', () => ({
-  loadSettings: vi.fn(() => ({ devMode: false })),
+  loadSettings: vi.fn(() => ({ devMode: false, colorScheme: 'quartz', customColors: {} })),
 }));
 
 vi.mock('./localization', () => ({
@@ -309,6 +327,7 @@ describe('windowManager', () => {
     mockFromWebContents.mockImplementation(() => makeMockWindow());
     MockBrowserWindow.fromWebContents = mockFromWebContents;
     capturedWindowOptions.length = 0;
+    mockLoadFileError = null;
   });
 
   describe('getMainWindow', () => {
@@ -439,6 +458,8 @@ describe('windowManager', () => {
       const win = createWelcomeWindow();
       expect(win).toBeDefined();
       expect(createdWindows.length).toBeGreaterThanOrEqual(1);
+      expect(lastWindowOptions().show).toBe(false);
+      expect(win.once).toHaveBeenCalledWith('ready-to-show', expect.any(Function));
     });
 
     it('reuses the existing welcome window instead of creating duplicates', async () => {
@@ -525,7 +546,7 @@ describe('windowManager', () => {
       expect(opts.transparent).toBe(true);
       expect(opts.visualEffectState).toBe('followWindow');
       expect(opts.titleBarStyle).toBe('hidden');
-      expect('backgroundColor' in opts).toBe(false);
+      expect(opts.backgroundColor).toBe('#f3f5f7');
     });
 
     it('gives ordinary child windows the app-window surface on macOS', async () => {
@@ -547,7 +568,7 @@ describe('windowManager', () => {
       expect(opts.transparent).toBe(true);
       expect(opts.visualEffectState).toBe('followWindow');
       expect(opts.titleBarStyle).toBe('hidden');
-      expect('backgroundColor' in opts).toBe(false);
+      expect(opts.backgroundColor).toBe('#f3f5f7');
     });
 
     it('keeps explicit frame:false overlay children free of vibrancy and overlay controls', async () => {
@@ -589,6 +610,28 @@ describe('windowManager', () => {
   });
 
   describe('createChildWindow', () => {
+    it('waits for first paint before showing ordinary child windows', async () => {
+      const { createChildWindow } = await import('./windowManager');
+      const win = createChildWindow('diagnostics' as never);
+      expect(lastWindowOptions().show).toBe(false);
+      expect(lastWindowOptions().backgroundColor).toBe('#f3f5f7');
+      expect(win.once).toHaveBeenCalledWith('ready-to-show', expect.any(Function));
+    });
+
+    it('reveals a themed retry surface when a packaged renderer file cannot load', async () => {
+      process.env.NODE_ENV = 'production';
+      mockLoadFileError = new Error('renderer file unavailable');
+      const { createChildWindow } = await import('./windowManager');
+      const win = createChildWindow('diagnostics' as never);
+      await vi.waitFor(() => expect(win.loadURL).toHaveBeenCalledWith(expect.stringContaining('data:text/html;charset=utf-8,')));
+      const recoveryUrl = win.loadURL.mock.calls.find(call => String(call[0]).startsWith('data:text/html;charset=utf-8,'))?.[0] as string;
+      const recoveryHtml = decodeURIComponent(recoveryUrl.slice(recoveryUrl.indexOf(',') + 1));
+      expect(recoveryHtml).toContain('background:#f3f5f7');
+      expect(recoveryHtml).toContain('Try again');
+      await vi.waitFor(() => expect(win.show).toHaveBeenCalledOnce());
+      delete process.env.NODE_ENV;
+    });
+
     it('creates a new BrowserWindow for an unknown type', async () => {
       const countBefore = createdWindows.length;
       const { createChildWindow } = await import('./windowManager');
@@ -1101,6 +1144,8 @@ describe('windowManager', () => {
       setupWindowIPC();
       fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'flashcards', context: { intent: 'start' } });
       const study = createdWindows.at(-1)!;
+      emitWindowEvent(study, 'ready-to-show');
+      study.focus.mockClear();
       fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, { reply: vi.fn() }, 'study');
       study.webContents.send.mockClear();
       fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: 'study' });
@@ -1410,12 +1455,12 @@ describe('windowManager', () => {
       expect(go?.submenu).toHaveLength(destinations.length);
       for (const [index, path] of destinations.entries()) {
         go?.submenu?.[index].click?.();
-        const host = path.startsWith('/practise') || path.startsWith('/evaluate') ? 'study' : ['/plan', '/knowledge', '/progress'].includes(path) ? 'my-learning' : 'main';
+        const host = path === '/messenger' ? 'messenger' : path.startsWith('/practise') || path.startsWith('/evaluate') ? 'study' : ['/plan', '/knowledge', '/progress'].includes(path) ? 'my-learning' : 'main';
         const target = host === 'main' ? window : createdWindows.find(win => win.loadFile.mock.calls.some(call => call[1]?.query?.host === host))!;
         if (target.webContents.send.mock.calls.length) expect(target.webContents.send).toHaveBeenLastCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path, requestId: expect.any(String), context: {} } });
         else { const reply = vi.fn(); const { setupWindowIPC } = await import('./windowManager'); setupWindowIPC(); fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, { reply }, host); expect(reply).toHaveBeenCalledWith(IPC_CHANNELS.WINDOW_CONTEXT, { applicationNavigation: { path, requestId: expect.any(String), context: {} } }); }
       }
-      expect(createdWindows).toHaveLength(count + 2);
+      expect(createdWindows).toHaveLength(count + 3);
     });
 
     it('makes diagnostics and the public bug tracker reachable from Help', async () => {

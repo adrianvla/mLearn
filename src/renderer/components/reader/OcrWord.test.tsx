@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { OcrWord } from './OcrWord';
 import type { AccessStatusResult } from '../../utils/accessKnowledge';
@@ -40,9 +41,10 @@ const mockGetComprehensiveWordStatusWithSourceSync = vi.fn(
 );
 const mockGetAccessStatus = vi.fn<() => AccessStatusResult>(() => ({ status: 'unknown', ease: 0, source: 'None', untracked: true }));
 const mockGetCachedTranslation = vi.fn();
+const mockCacheState = vi.hoisted(() => ({ read: (): number => 0, bump: (): void => {} }));
 
 vi.mock('../../hooks/useTranslation', () => ({
-  cacheVersion: () => 0,
+  cacheVersion: () => mockCacheState.read(),
   getCachedReading: () => null,
   getCachedTranslation: (...args: unknown[]) => mockGetCachedTranslation(...args),
 }));
@@ -74,6 +76,9 @@ describe('OcrWord', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    const [read, set] = createSignal(0);
+    mockCacheState.read = read;
+    mockCacheState.bump = () => set((version) => version + 1);
     container = document.createElement('div');
     document.body.appendChild(container);
     mockGetAccessStatus.mockReset();
@@ -83,6 +88,8 @@ describe('OcrWord', () => {
     mockCancelWordHover.mockClear();
     mockGetCanonicalForm.mockClear();
     mockGetComprehensiveWordStatusWithSourceSync.mockClear();
+    mockGetCachedTranslation.mockReset();
+    mockGetCachedTranslation.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -170,6 +177,53 @@ describe('OcrWord', () => {
       expect(container.querySelector('rt')?.textContent).toBe('corrected');
       dispose();
       mockGetCachedTranslation.mockReset();
+    });
+
+    it('keeps a source-authored reading even when the dictionary cache resolves another reading', () => {
+      mockGetCachedTranslation.mockReturnValueOnce({
+        data: [{ word: '端', reading: 'はし' }],
+        resolution: { selectedId: 'dictionary', basis: 'dictionary', candidates: [] },
+      });
+      const sourceToken: Token = { word: '端', actual_word: '端', type: '名詞', reading: 'ば' };
+      const dispose = render(() => (
+        <OcrWord token={sourceToken} authoredReading="ば" withReadingAnnotation />
+      ), container);
+      expect(container.querySelector('rt')?.textContent).toBe('ば');
+      dispose();
+    });
+
+    it('keeps publisher-authored ruby visible when generated annotations are disabled', () => {
+      mockSettings.showReadingAnnotations = false;
+      const sourceToken: Token = { word: '端', actual_word: '端', type: '名詞', reading: 'ば' };
+      const dispose = render(() => (
+        <OcrWord token={sourceToken} authoredReading="ば" withReadingAnnotation />
+      ), container);
+      expect(container.querySelector('rt')?.textContent).toBe('ば');
+      dispose();
+    });
+
+    it('keeps the occurrence reading through hover and an asynchronous dictionary-cache refresh', () => {
+      const onWordEnter = vi.fn();
+      const sourceToken: Token = { word: '端', actual_word: '端', type: '名詞', reading: 'はし' };
+      mockGetCachedTranslation.mockReturnValue(null);
+      const dispose = render(() => (
+        <OcrWord token={sourceToken} authoredReading="ば" withReadingAnnotation onWordEnter={onWordEnter} />
+      ), container);
+
+      const word = container.querySelector('.ocr-word')!;
+      expect(container.querySelector('rt')?.textContent).toBe('ば');
+      word.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      expect(mockTrackWordHovered).toHaveBeenCalledWith('端', 'ば', 'ar');
+      expect(onWordEnter.mock.calls[0]?.[0].reading).toBe('ば');
+
+      mockGetCachedTranslation.mockReturnValue({
+        data: [{ word: '端', reading: 'はし' }],
+        resolution: { selectedId: 'dictionary', basis: 'dictionary', candidates: [] },
+      });
+      mockCacheState.bump();
+      expect(container.querySelector('rt')?.textContent).toBe('ば');
+
+      dispose();
     });
 
     it('renders ruby with the reading when enabled and the metadata supports it', () => {

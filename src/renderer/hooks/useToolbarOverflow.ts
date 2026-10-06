@@ -3,14 +3,17 @@ import { useDismiss } from './useDismiss';
 import './toolbarOverflow.css';
 
 /** One set of controls: inline when it fits, a disclosure only when it does not. */
-export function useToolbarOverflow(getMenu: () => HTMLDetailsElement | undefined) {
+export function useToolbarOverflow(
+  getMenu: () => HTMLDetailsElement | undefined,
+  getRoot: () => HTMLElement | undefined = () => getMenu()?.parentElement ?? undefined,
+) {
   const [overflow, setOverflow] = createSignal(false);
   const [expanded, setExpanded] = createSignal(false);
   let frame: number | undefined;
   const measure = () => {
     frame = undefined;
     const menu = getMenu();
-    const root = menu?.parentElement;
+    const root = getRoot();
     const panel = menu?.querySelector<HTMLElement>('[data-overflow-panel]');
     if (!menu || !root || !panel || root.clientWidth === 0) return;
     const wasOpen = menu.open;
@@ -51,7 +54,7 @@ export function useToolbarOverflow(getMenu: () => HTMLDetailsElement | undefined
     if (frame === undefined) frame = requestAnimationFrame(measure);
   };
   onMount(() => {
-    const root = getMenu()?.parentElement;
+    const root = getRoot();
     if (!root) return;
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(schedule);
     observer?.observe(root);
