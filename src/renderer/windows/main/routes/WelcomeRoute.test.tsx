@@ -106,6 +106,20 @@ describe('purpose-led Home', () => {
     expect(fixture.navigate).toHaveBeenCalledWith('/video');
     expect(fixture.navigate).toHaveBeenCalledOnce();
   });
+  it('opens the selected recent book by its persisted source path', async () => {
+    fixture.recent = [
+      { type: 'video', name: 'Film', path: '/media/film.mp4', subtitlePath: '/subs/film.vtt', progress: 31, lastWatched: 2 },
+      { type: 'book', name: 'Saved chapter', path: '/books/chapter.epub', progress: 62, lastWatched: 1 },
+    ];
+    await mount();
+    const bookRow = Array.from(container.querySelectorAll<HTMLButtonElement>('.welcome-recent-list .welcome-continue-main'))
+      .find(row => row.getAttribute('aria-label') === 'Saved chapter, mlearn.Global.Continue');
+    expect(bookRow).toBeDefined();
+    bookRow!.click();
+    expect(sessionStorage.getItem('mlearn_open_book')).toBe('/books/chapter.epub');
+    expect(fixture.navigate).toHaveBeenCalledWith('/reader');
+    expect(fixture.navigate).toHaveBeenCalledOnce();
+  });
   it('does not reuse old subtitles for a different saved video', async () => {
     sessionStorage.setItem('mlearn_open_video_subtitles', 'other');
     fixture.recent = [{ type: 'video', name: 'Film', path: '/film.mp4', progress: 0, lastWatched: 1 }]; await mount();
