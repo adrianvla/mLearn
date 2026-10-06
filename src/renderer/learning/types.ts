@@ -88,7 +88,11 @@ export interface PolicyContext {
     targetWeights?: Readonly<Record<string, number>>;
     assessmentAt?: number;
   };
-  goals?: readonly import('../../shared/learningGoals').LearningGoal[];
+  goals?: readonly (import('../../shared/learningGoals').LearningGoal & {
+    resolvedOutcome?: import('../../shared/learningOutcomes').ResolvedLearningOutcome;
+  })[];
+  /** Independent read-only package/user requirement forecasts; provider conditions stay unsupported. */
+  requirementEvaluations?: readonly import('../../shared/learningRequirementEvaluation').LearningGoalRequirementEvaluation[];
   goal?: PolicyGoal;
   intensity?: SessionIntensity;
 }
@@ -148,6 +152,20 @@ export interface PolicyTrace {
     deferDays: number;
     evaluations: import('../../shared/learningModel').ActionValue[];
     evaluationsOmitted: number;
+    /** Aggregate values used for ranking; no synthetic confidence interval is attached. */
+    selectionValues?: Array<{ key: string; expectedCapabilityDays: number; completionSamples?: Array<{ seconds: number; expectedCapabilityDays: number }> }>;
+    /** Requirement forecasts retain their own deadline, horizon and interval. */
+    requirementEvaluations?: Array<{
+      goalId: string;
+      requirementId: string;
+      status: import('../../shared/learningRequirementEvaluation').LearningRequirementStatus;
+      deadline?: string;
+      assessmentAt: number;
+      horizonDays: number;
+      values: Array<{ key: string; expectedCapabilityDays: number; interval: [number, number] }>;
+      valuesOmitted: number;
+    }>;
+    requirementEvaluationsOmitted?: number;
     sequence: string[];
     /** Feasible ordered physical value plus bounded information credit; absent in older traces. */
     sequenceValue?: number;

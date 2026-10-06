@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { selectNext, replayFromTrace, POLICY_TRACE_VERSION, POLICY_RANKING_CAP, POLICY_TRACE_DETAIL_CAP } from './teachingPolicy';
 import type { Candidate, EncounterTask } from './types';
 import { fitLearningModel, learningAddress } from '../../shared/learningModel';
+import { evaluateLearningRequirements } from '../../shared/learningRequirementEvaluation';
+import { surfaceEntityId } from '../../shared/graph/load';
+import { hashWordSync } from '../../shared/utils/wordHash';
+import type { LearningGoal } from '../../shared/learningGoals';
+import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
+import type { LanguageData } from '../../shared/types';
 
 const task: EncounterTask = { taskTemplateId: 'srs-review', inputModality: 'text', responseModality: 'recall', supplied: [], requested: ['future::access'], fluencyRequired: false, ratingMode: 'profile' };
 const candidate = (key: string, origin: Candidate['origin'] = 'curriculum'): Candidate => ({ key, language: 'future', origin, targets: [{ entityId: key, capability: 'future::access' }], scores: { novelty: 1 } });
@@ -47,6 +53,62 @@ describe('model-driven TeachingPolicy', () => {
     expect(a.action).toBe('MAINTAIN');
     expect(b.candidate.key).toBe(a.candidate.key);
     expect(b.trace!.model).toEqual(a.trace!.model);
+  });
+  it('selects against each requirement on its own target and assessment date', () => {
+    const model = fitLearningModel([], 10000);
+    const aAddress = learningAddress(candidate('a').targets[0]);
+    const bAddress = learningAddress(candidate('b').targets[0]);
+    const evaluate = (address: string, assessmentAt: number) => selectNext([candidate('a'), candidate('b')], {
+      ...config(), context: {
+        learning: { model, horizonDays: 30, deferDays: 3, availableSeconds: [120], continuationValue: 0, targetWeights: {} },
+        requirementEvaluations: [{ goalId: 'goal', language: 'future', outcomeId: 'objective', deadline: new Date(assessmentAt).toISOString().slice(0, 10),
+          status: 'unmet', requirements: [{ goalId: 'goal', requirementId: `condition-${address}`, source: 'package', kind: 'canonical-capability-threshold',
+            status: 'unmet', conditions: {}, conditional: true, deadline: new Date(assessmentAt).toISOString().slice(0, 10), deadlineMs: assessmentAt,
+            selection: { assessmentAt, horizonDays: (assessmentAt - 10000) / 86_400_000, targetWeights: { [address]: 1 } } }] }],
+      },
+    })!;
+
+    const first = evaluate(aAddress, 10000 + 86_400_000);
+    const second = evaluate(bAddress, 10000 + 3 * 86_400_000);
+    expect(first.candidate.key).toBe('a');
+    expect(second.candidate.key).toBe('b');
+    expect(first.trace!.model!.requirementEvaluations?.[0]).toMatchObject({ assessmentAt: 10000 + 86_400_000, horizonDays: 1 });
+    expect(second.trace!.model!.requirementEvaluations?.[0]).toMatchObject({ assessmentAt: 10000 + 3 * 86_400_000, horizonDays: 3 });
+  });
+  it('changes the next action when a supported canonical threshold changes from met to unmet', () => {
+    const now = Date.parse('2026-10-04');
+    const assessmentAt = Date.parse('2026-10-14');
+    const capability = 'future-language::recall';
+    const alphaId = surfaceEntityId('future', hashWordSync('alpha'));
+    const betaId = surfaceEntityId('future', hashWordSync('beta'));
+    const events: KnowledgeEvent[] = [{ t: now, kind: 'rating', source: 'srs', rating: 'easy', quality: 'easy',
+      attemptId: 'alpha-attempt', eventId: 'alpha-event', taskType: 'srs-review', method: 'recall',
+      targetRef: { kind: 'surface', id: alphaId, capability } }];
+    const model = fitLearningModel(events, now);
+    const goal: LearningGoal = { id: 'threshold-goal', language: 'future', outcome: 'Alpha objective',
+      outcomeRef: { id: 'objective', packageVersion: 'future-v2' }, status: 'active', priority: 1, createdAt: now,
+      deadline: '2026-10-14' };
+    const packageData = (minimum: number): LanguageData => ({ name: 'Future', languageData: { version: 'future-v2', assets: [] },
+      freq: [['alpha', '', 1]], frequencyLevels: { rowLevelIndex: 2 }, learning: { outcomes: { objective: {
+        label: 'Alpha objective', provenance: 'package', groups: [{ id: 'alpha', selectors: [{ source: 'frequency', words: ['alpha'] }] }],
+        requirements: { conditions: [{ id: 'alpha-floor', kind: 'canonical-capability-threshold', groupIds: ['alpha'], capability, minimum }] },
+      } } } });
+    const highEvaluation = evaluateLearningRequirements([goal], 'future', model, events, packageData(0.99), now)[0];
+    const predicted = highEvaluation.requirements[0].targets![0].mean!;
+    const lowEvaluation = evaluateLearningRequirements([goal], 'future', model, events, packageData(predicted), now)[0];
+    const toWordCandidate = (word: string, entityId: string) => ({ ...candidate(word), word,
+      targets: [{ entityId, capability }], task: { ...task, taskTemplateId: 'future-intervention' } });
+    const run = (evaluation: typeof highEvaluation) => selectNext([
+      toWordCandidate('beta', betaId),
+      toWordCandidate('alpha', alphaId),
+    ], { ...config(), nowMs: now, context: { learning: { model, horizonDays: 30, deferDays: 3,
+      availableSeconds: [120], continuationValue: 0, targetWeights: { [learningAddress({ entityId: betaId, capability })]: 1 } },
+      requirementEvaluations: [evaluation] } })!;
+
+    expect(lowEvaluation.requirements[0].status).toBe('met');
+    expect(highEvaluation.requirements[0].status).toBe('unmet');
+    expect(run(lowEvaluation).candidate.key).toBe('beta');
+    expect(run(highEvaluation).candidate.key).toBe('alpha');
   });
   it('keeps the actual package task and scaffolds frozen in the decision', () => {
     const custom = { ...task, taskTemplateId: 'future::task', requested: ['future::other'] };

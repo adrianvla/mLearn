@@ -22,6 +22,34 @@ describe('shared supported learning scope', () => {
     expect(scope).toMatchObject({ selected: true, words: [], patterns: [], goals: [], unavailable: ['target'] });
     expect(learningScopeForSettings({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [goal] }, null)).toMatchObject({ selected: true, words: [], patterns: [], unavailable: ['target'] });
   });
+
+  it('preserves learner scope provenance and opaque conditions while exposing package conditions separately', () => {
+    const packageRequirements = { conditions: [{ id: 'package-floor', kind: 'canonical-capability-threshold', groupIds: ['words'], capability: 'future::recall', minimum: 0.7 }] };
+    const assessment = { reference: 'package assessment', conditions: { scoreScale: 'provider-scale', sections: [{ id: 'future::section', minimum: 2 }] } };
+    const userRequirements = { conditions: [{ id: 'personal-floor', kind: 'future::condition', value: { nested: [1, 'x'] } }] };
+    const packageData: LanguageData = {
+      ...data,
+      languageData: { version: 'future-v2', assets: [] },
+      learning: { outcomes: { scope: { ...data.learning!.outcomes!.scope, requirements: packageRequirements, assessment } } },
+    };
+    const userScope = { provenance: 'user' as const, reference: 'my own source', words: ['personal'], requirements: userRequirements };
+    const settings = { ...DEFAULT_SETTINGS, language: 'future', learningGoals: [{ ...goal, outcomeRef: { id: 'scope' }, scope: userScope }] };
+
+    const resolved = learningScopeForSettings(settings, packageData).goals[0];
+
+    expect(resolved.scope).toEqual(userScope);
+    expect(resolved.resolvedOutcome.declaration.requirements).toEqual(packageRequirements);
+    expect(resolved.resolvedOutcome.declaration.assessment).toEqual(assessment);
+    expect(JSON.parse(JSON.stringify(settings.learningGoals?.[0]?.scope))).toEqual(userScope);
+  });
+
+  it('does not resolve a goal against a different pinned package version', () => {
+    const versionedGoal = { ...goal, outcomeRef: { id: 'scope', packageVersion: 'future-v1' } };
+    const versionedData: LanguageData = { ...data, languageData: { version: 'future-v2', assets: [] } };
+
+    expect(learningScopeForSettings({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [versionedGoal] }, versionedData))
+      .toMatchObject({ selected: true, goals: [], unavailable: ['target'] });
+  });
 });
 
 describe('deliberate preparation target update', () => {

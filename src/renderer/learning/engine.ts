@@ -217,7 +217,7 @@ export function selectEncounterBatch(inputs: EncounterInputs): PolicyDecision[] 
 
 function sourceCandidates(inputs: EncounterInputs) {
   const goals = inputs.context?.goals ?? inputs.config?.context?.goals ?? [];
-  const scopes = goals.map(goal => ({ goal, words: new Set(goal.scope?.words ?? []) }));
+  const scopes = goals.map(goal => ({ goal, words: new Set(goal.resolvedOutcome?.words ?? goal.scope?.words ?? []) }));
   return rawSourceCandidates(inputs).map(candidate => {
     const relevant = scopes.filter(({ goal, words }) => goal.language === candidate.language
       && candidate.word !== undefined && words.has(candidate.word));

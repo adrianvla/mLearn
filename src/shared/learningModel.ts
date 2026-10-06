@@ -120,7 +120,8 @@ export const learningAddress = (target: LearnableTarget): string => JSON.stringi
 const eventAddress = (event: KnowledgeEvent): string | null => !event.targetRef?.to && event.targetRef?.id && eventCapability(event)
   ? learningAddress({ entityId: event.targetRef.id, capability: eventCapability(event)! }) : null;
 const familyOf = (event: KnowledgeEvent) => event.decision?.selected.task.taskTemplateId ?? event.taskType ?? 'unspecified';
-const isRecall = (event: KnowledgeEvent): boolean => event.method === 'inference'
+/** Whether fitLearningModel accepts this event as a recall observation. */
+export const isLearningModelRecallEvidence = (event: KnowledgeEvent): boolean => event.method === 'inference'
   ? false : event.decision?.detail.scope === 'scheduler-admitted-workload'
   ? true : event.decision?.selected.task.responseModality === 'self-assessment'
   ? false : event.decision?.selected.task.responseModality === 'recall' && event.taskType === 'word-sync'
@@ -181,7 +182,7 @@ export function fitLearningModel(events: readonly KnowledgeEvent[], nowMs: numbe
       }
     }
     // Self-assessment affects ordinary canonical claims; it cannot fit recall or instructional benefit here.
-    if (!isRecall(event)) continue;
+    if (!isLearningModelRecallEvidence(event)) continue;
     const memory = model.memories[address];
     const item = event.itemRef ? `${event.itemRef.id}:${event.itemRef.version}` : undefined;
     const delayed = memory !== undefined && event.t - memory.lastAt >= DAY && memory.lastTask === family

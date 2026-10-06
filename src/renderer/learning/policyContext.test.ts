@@ -55,6 +55,27 @@ describe('policyContextFromSettings', () => {
     expect(policyContextFromSettings(settings, 'future', { ...runtime, data: null }).goals).toEqual([]);
   });
 
+  it('carries package requirement evaluations with their own deadlines into policy context', () => {
+    const requirementData: LanguageData = { ...data, languageData: { version: 'future-v3', assets: [] }, learning: { outcomes: {
+      scope: { label: 'Package assessment', provenance: 'package', groups: [
+        { id: 'words', selectors: [{ source: 'frequency', words: ['word'] }] },
+      ], requirements: { conditions: [{ id: 'recall-floor', kind: 'canonical-capability-threshold', groupIds: ['words'],
+        capability: 'future::recall', minimum: 0.8 }] } },
+    } } };
+    const deadline = '2026-10-14';
+    const settings = { ...DEFAULT_SETTINGS, learningGoals: [{ id: 'scope', language: 'future', outcome: 'Package assessment',
+      outcomeRef: { id: 'scope', packageVersion: 'future-v3' }, status: 'active' as const, priority: 1,
+      createdAt: Date.parse('2026-10-04'), deadline }] };
+    const context = policyContextFromSettings(settings, 'future', { model: fitLearningModel([], Date.parse('2026-10-04')),
+      events: [], data: requirementData, nowMs: Date.parse('2026-10-04') });
+
+    expect(context.requirementEvaluations?.[0]).toMatchObject({ goalId: 'scope', deadline,
+      requirements: [{ requirementId: 'recall-floor', status: 'unknown', deadline, selection: {
+        assessmentAt: Date.parse(deadline), horizonDays: 10,
+      } }] });
+    expect(context.learning?.targetWeights).toBeUndefined();
+  });
+
   it('falls back to the default intensity on unknown or legacy values', () => {
     for (const value of [undefined, 'furious'] as const) {
       expect(

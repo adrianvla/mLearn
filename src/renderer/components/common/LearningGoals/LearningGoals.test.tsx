@@ -20,7 +20,9 @@ describe('semantic learning outcome controls', () => {
     expect(document.querySelector('input[name="outcome"], select[name="minutes"], select[name="status"], select[name="priority"], textarea')).toBeNull();
     const select = document.querySelector<HTMLSelectElement>('select[name="learning-outcome"]')!;
     select.value = 'future:curriculum'; select.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(settings.learningGoals?.[0]).toMatchObject({ outcomeRef: { id: 'future:curriculum', packageVersion: 'future-v1' }, scope: { provenance: 'package', words: ['chosen'], requirements: loaded.learning!.outcomes!['future:curriculum'].requirements } });
+    expect(settings.learningGoals?.[0]).toMatchObject({ outcomeRef: { id: 'future:curriculum', packageVersion: 'future-v1' }, scope: { provenance: 'package', words: ['chosen'] } });
+    expect(settings.learningGoals?.[0].scope).not.toHaveProperty('requirements');
+    expect(loaded.learning!.outcomes!['future:curriculum'].requirements).toEqual({ 'unknown:dimension': { a: [1, 2] } });
     const date = document.querySelector<HTMLInputElement>('input[type="date"]')!;
     date.value = '2027-01-01'; date.dispatchEvent(new Event('change', { bubbles: true }));
     expect(settings.learningGoals?.[0].deadline).toBe('2027-01-01');
@@ -75,5 +77,23 @@ describe('semantic learning outcome controls', () => {
     expect(document.querySelector('input[type="date"]')).toBeNull();
     expect(settings.examGoal.target).toBe('Read for class');
     expect(settings.learningGoals).toBeUndefined();
+  });
+
+  it('preserves user-owned scope through edits and reports a pinned package version mismatch', () => {
+    const userScope = { provenance: 'user' as const, reference: 'personal plan', words: ['personal'],
+      requirements: { conditions: [{ id: 'opaque-user-rule', kind: 'future::rule', payload: { nested: [1, 'x'] } }] } };
+    const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [{
+      id: 'pinned', language: 'future', outcome: 'Defined curriculum', outcomeRef: { id: 'future:curriculum', packageVersion: 'future-v0' },
+      status: 'active', priority: 1, createdAt: 1, scope: userScope,
+    }] });
+    fixture.data = loaded;
+    fixture.context = { settings, updateSetting: (key: string, value: unknown) => setSettings(key as never, value as never) };
+    dispose = render(() => <LearningGoals />, document.body);
+
+    expect(document.querySelector('[role="status"]')?.textContent).toBe('mlearn.Goals.Unavailable');
+    document.querySelector<HTMLInputElement>('input[type="date"]')!.value = '2027-02-01';
+    document.querySelector<HTMLInputElement>('input[type="date"]')!.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(settings.learningGoals![0].deadline).toBe('2027-02-01');
+    expect(JSON.parse(JSON.stringify(settings.learningGoals![0].scope))).toEqual(userScope);
   });
 });

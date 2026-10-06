@@ -87,13 +87,16 @@ export function selectNext(
   const deferDays = learned?.deferDays ?? 3;
   const actions: LearningAction[] = [];
   const fallbackWeights: Record<string, number> = {};
-  const goalWords = new Set(config.context?.goals?.flatMap(goal => goal.scope?.words ?? []) ?? []);
+  const requirementEntities = new Set((config.context?.requirementEvaluations ?? []).flatMap(goal => goal.requirements
+    .filter(requirement => requirement.status !== 'unsupported')
+    .flatMap(requirement => requirement.targets?.map(target => target.target.entityId) ?? [])));
+  const goalWords = new Set(config.context?.goals?.flatMap(goal => goal.resolvedOutcome?.words ?? goal.scope?.words ?? []) ?? []);
   for (const candidate of candidates) {
     const targets = candidate.word ? candidate.targets.map(target => ({ ...target,
       entityId: surfaceEntityId(candidate.language, hashWordSync(candidate.word!)) })) : candidate.targets;
     const task = candidate.task ?? config.task;
     const targetWeights = learned?.targetWeights ?? (goalWords.size ? Object.fromEntries(targets.map(target =>
-      [learningAddress(target), candidate.word && goalWords.has(candidate.word) ? 1 : 0])) : undefined);
+      [learningAddress(target), candidate.word && goalWords.has(candidate.word) && !requirementEntities.has(target.entityId) ? 1 : 0])) : undefined);
     if (targetWeights && !learned?.targetWeights) Object.assign(fallbackWeights, targetWeights);
     const measured = task.responseModality === 'recall' ? targets.find(target => !task.supplied.includes(target.capability)) : undefined;
     actions.push({
@@ -104,17 +107,72 @@ export function selectNext(
   }
   const evaluationContext = { nowMs: config.nowMs, horizonDays, deferDays,
     targetWeights: learned?.targetWeights ?? (goalWords.size ? fallbackWeights : undefined), assessmentAt: learned?.assessmentAt };
-  const actionValues = evaluateLearningActions(model, actions, evaluationContext,
-    { availableSeconds: learned?.availableSeconds ?? fallbackOpportunities.availableSeconds, continuationValue: learned?.continuationValue ?? 0 });
-  const evaluations = new Map(actionValues.map(value => [value.key, value]));
+  const opportunity = { availableSeconds: learned?.availableSeconds ?? fallbackOpportunities.availableSeconds,
+    continuationValue: learned?.continuationValue ?? 0 };
+  const actionValues = evaluateLearningActions(model, actions, evaluationContext, opportunity);
+  const activeRequirements = (config.context?.requirementEvaluations ?? []).flatMap(goal => goal.requirements
+    .filter(requirement => (requirement.status === 'unmet' || requirement.status === 'unknown') && requirement.selection)
+    .map(requirement => ({ goalId: goal.goalId, requirement })));
+  const requestedTotals = new Map<string, number>();
+  const requestedMaxima = new Map<string, number>();
+  for (const { requirement } of activeRequirements) for (const [address, weight] of Object.entries(requirement.selection!.targetWeights)) {
+    requestedTotals.set(address, (requestedTotals.get(address) ?? 0) + weight);
+    requestedMaxima.set(address, Math.max(requestedMaxima.get(address) ?? 0, weight));
+  }
+  const requirementForecasts = activeRequirements.map(({ goalId, requirement }) => {
+    const weights = Object.fromEntries(Object.entries(requirement.selection!.targetWeights).map(([address, weight]) => [address,
+      weight / (requestedTotals.get(address) || weight) * (requestedMaxima.get(address) ?? weight)]));
+    const context = { nowMs: config.nowMs, horizonDays: requirement.selection!.horizonDays,
+      deferDays: Math.min(deferDays, requirement.selection!.horizonDays),
+      targetWeights: weights, assessmentAt: requirement.selection!.assessmentAt };
+    const values = evaluateLearningActions(model, actions, context, opportunity);
+    return { goalId, requirement, context, values, delay: learningSequenceDelay(model, actions, context) };
+  });
+  const requirementValues = new Map<string, typeof actionValues>();
+  for (const forecast of requirementForecasts) {
+    for (const value of forecast.values) {
+      const rows = requirementValues.get(value.key) ?? [];
+      rows.push(value);
+      requirementValues.set(value.key, rows);
+    }
+  }
+  const selectionValues = actionValues.map(value => {
+    const contributions = requirementValues.get(value.key) ?? [];
+    const information = Math.max(value.information?.expectedDecisionBenefit ?? 0,
+      ...contributions.map(row => row.information?.expectedDecisionBenefit ?? 0));
+    const completionSamples = value.completionSamples?.map(draw => ({ ...draw,
+      expectedCapabilityDays: draw.expectedCapabilityDays + contributions.reduce((sum, row) => {
+        const matching = row.completionSamples?.find(sample => sample.seconds === draw.seconds);
+        return sum + (matching?.expectedCapabilityDays ?? row.expectedCapabilityDays);
+      }, 0),
+    }));
+    return { ...value,
+      expectedCapabilityDays: value.expectedCapabilityDays + contributions.reduce((sum, row) => sum + row.expectedCapabilityDays, 0),
+      ...(completionSamples ? { completionSamples } : {}),
+      ...(information > 0 ? { information: { ...(value.information ?? contributions.find(row => row.information)?.information!),
+        expectedDecisionBenefit: information } } : {}),
+    };
+  });
+  const evaluations = new Map(selectionValues.map(value => [value.key, value]));
   // Heuristic source metadata stays available for provenance, but is not a learning-effect model.
   const effective = {}; const rules: PolicyWeightRule[] = [];
   const scored = candidates.map(candidate => { const value = evaluations.get(candidate.key)!;
     return { candidate, total: value.expectedCapabilityDays + (value.information?.expectedDecisionBenefit ?? 0) }; });
   const modelTrace: NonNullable<PolicyTrace['model']> = {
     version: model.version, evidenceVersion: model.evidenceVersion, horizonDays, deferDays,
-    evaluations: [...evaluations.values()].slice(0, POLICY_TRACE_DETAIL_CAP),
+    evaluations: actionValues.slice(0, POLICY_TRACE_DETAIL_CAP),
     evaluationsOmitted: Math.max(0, evaluations.size - POLICY_TRACE_DETAIL_CAP), sequence: [], alternative: 'continue-immersion',
+    selectionValues: selectionValues.slice(0, POLICY_TRACE_DETAIL_CAP).map(value => ({ key: value.key,
+      expectedCapabilityDays: value.expectedCapabilityDays, ...(value.completionSamples ? { completionSamples: value.completionSamples } : {}) })),
+    requirementEvaluations: requirementForecasts.slice(0, POLICY_TRACE_DETAIL_CAP).map(forecast => ({
+      goalId: forecast.goalId, requirementId: forecast.requirement.requirementId, status: forecast.requirement.status,
+      ...(forecast.requirement.deadline ? { deadline: forecast.requirement.deadline } : {}),
+      assessmentAt: forecast.context.assessmentAt!, horizonDays: forecast.context.horizonDays,
+      values: forecast.values.slice(0, POLICY_TRACE_DETAIL_CAP).map(value => ({ key: value.key,
+        expectedCapabilityDays: value.expectedCapabilityDays, interval: value.interval })),
+      valuesOmitted: Math.max(0, forecast.values.length - POLICY_TRACE_DETAIL_CAP),
+    })),
+    requirementEvaluationsOmitted: Math.max(0, requirementForecasts.length - POLICY_TRACE_DETAIL_CAP),
   };
   config = { ...config, selection: 'ranked' };
   const best = scored.reduce((current, item) => item.total > current.total ? item : current);
@@ -188,10 +246,23 @@ export function selectNext(
     if (reason) addExclusion({ key: candidate.key, reason });
   }
 
-  const delay = learningSequenceDelay(model, actions, evaluationContext);
+  const baseDelay = learningSequenceDelay(model, actions, evaluationContext);
   const sequence = chooseLearningSequence(eligible.map(row => evaluations.get(row.candidate.key)!), {
     availableSeconds: learned?.availableSeconds ?? fallbackOpportunities.availableSeconds,
-    continuationValue: learned?.continuationValue ?? 0, delayedValue: delay.delayedValue, delayedIdentity: delay.delayedIdentity,
+    continuationValue: learned?.continuationValue ?? 0,
+    delayedValue: (value, elapsed, own) => {
+      const base = baseDelay.delayedValue(value, elapsed, own);
+      if (base === undefined) return undefined;
+      let total = base;
+      for (const forecast of requirementForecasts) {
+        const contribution = forecast.delay.delayedValue(value, elapsed, own);
+        if (contribution === undefined) return undefined;
+        total += contribution;
+      }
+      return total;
+    },
+    delayedIdentity: value => JSON.stringify([baseDelay.delayedIdentity(value),
+      ...requirementForecasts.map(forecast => forecast.delay.delayedIdentity(value))]),
   });
   if (!sequence.keys.length && !config.preserveActivityChoice) return defer('DEFER', 'No feasible additional action improves on continuing immersion under this model', exclusions, exclusionsOmitted);
   const activityChoicePreserved = sequence.keys.length === 0;
@@ -210,7 +281,11 @@ export function selectNext(
       : 'TEACH';
   // Explain the conditional action comparison recorded in this same trace.
   const value = evaluations.get(selected.candidate.key)!;
-  const why = `${activityChoicePreserved ? 'Preserved learner-selected activity; chose its highest-valued eligible task despite the model preference to defer' : `Selected feasible sequence ${sequence.keys.join(' → ')}`}: expected marginal ${value.expectedCapabilityDays.toFixed(3)} capability-days over ${horizonDays.toFixed(1)} days against ${value.counterfactual}; ${value.effort.meanSeconds.toFixed(1)} seconds expected active effort. Expected future decision benefit ${(value.information?.expectedDecisionBenefit ?? 0).toFixed(3)} capability-days; belief revision is not learning. ${value.priorDriven ? 'Prior-driven estimate.' : 'Conditioned on bounded task-compatible observations.'}`;
+  const requirementWhy = requirementForecasts.flatMap(forecast => {
+    const contribution = forecast.values.find(row => row.key === selected.candidate.key)?.expectedCapabilityDays ?? 0;
+    return contribution > 0 ? [`${forecast.requirement.requirementId} at ${forecast.requirement.deadline ?? 'open horizon'} (+${contribution.toFixed(3)} conditional capability-days)`] : [];
+  });
+  const why = `${activityChoicePreserved ? 'Preserved learner-selected activity; chose its highest-valued eligible task despite the model preference to defer' : `Selected feasible sequence ${sequence.keys.join(' → ')}`}: selection value ${value.expectedCapabilityDays.toFixed(3)} capability-days over the applicable horizon(s); ${value.effort.meanSeconds.toFixed(1)} seconds expected active effort. ${requirementWhy.length ? `Unmet or unknown conditions: ${requirementWhy.join('; ')}. ` : ''}Expected future decision benefit ${(value.information?.expectedDecisionBenefit ?? 0).toFixed(3)} capability-days; belief revision is not learning. ${value.priorDriven ? 'Prior-driven estimate.' : 'Conditioned on bounded task-compatible observations.'}`;
   return decision(
     selected,
     action,

@@ -1,11 +1,12 @@
 import { inferLearningOpportunities } from '../../shared/learningOpportunities';
-import { resolveLearningOutcome } from '../../shared/learningOutcomes';
 import { learningAddress, type LearningModel } from '../../shared/learningModel';
 import { surfaceEntityId, grammarEntityId } from '../../shared/graph/load';
 import { hashWordSync } from '../../shared/utils/wordHash';
 import type { LanguageData } from '../../shared/types';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 import { learningScopeForSettings } from '../../shared/learningScope';
+import { learningGoalsForSettings } from '../../shared/learningGoals';
+import { evaluateLearningRequirements } from '../../shared/learningRequirementEvaluation';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { PolicyContext, SessionIntensity } from './types';
@@ -27,6 +28,10 @@ export function policyContextFromSettings(
 
   const scope = learningScopeForSettings(settings, runtime?.data, language);
   if (scope.selected || settings.learningGoals !== undefined) context.goals = scope.goals;
+  if (runtime) {
+    context.requirementEvaluations = evaluateLearningRequirements(learningGoalsForSettings(settings), language ?? '',
+      runtime.model, runtime.events, runtime.data, runtime.nowMs ?? runtime.model.at);
+  }
   const primary = [...(context.goals ?? [])].sort((a, b) => (a.deadline ? Date.parse(a.deadline) : Infinity) - (b.deadline ? Date.parse(b.deadline) : Infinity))[0];
   if (primary) {
     const deadlineMs = primary.deadline ? Date.parse(primary.deadline) : NaN;
@@ -43,9 +48,11 @@ function attachLearningContext(context: PolicyContext, language: string | undefi
   const opportunities = inferLearningOpportunities(runtime.events, now);
   const gaps = [...opportunities.gapDays].sort((a, b) => a - b);
   const targetWeights: Record<string, number> = {};
+  const requirementEntities = new Set((context.requirementEvaluations ?? []).flatMap(goal => goal.requirements
+    .filter(requirement => requirement.status !== 'unsupported')
+    .flatMap(requirement => requirement.targets?.map(target => target.target.entityId) ?? [])));
   for (const goal of context.goals ?? []) {
-    const resolved = goal.outcomeRef ? resolveLearningOutcome(runtime.data, goal.outcomeRef.id, goal.outcomeRef.groupIds) : null;
-    const groups = resolved?.groups ?? [{ words: goal.scope?.words ?? [], patterns: [] }];
+    const groups = goal.resolvedOutcome?.groups ?? [{ words: goal.scope?.words ?? [], patterns: [] }];
     for (const group of groups) {
       const count = group.words.length + group.patterns.length;
       if (!count || !language) continue;
@@ -53,10 +60,13 @@ function attachLearningContext(context: PolicyContext, language: string | undefi
         const entityId = surfaceEntityId(language, hashWordSync(word));
         // Membership applies to the actual task's package-owned access, with no central capability checklist.
         const address = learningAddress({ entityId, capability: '*' });
+        if (requirementEntities.has(entityId)) continue;
         targetWeights[address] = Math.max(targetWeights[address] ?? 0, 1 / count);
       }
       for (const pattern of group.patterns) {
         const address = learningAddress({ entityId: grammarEntityId(language, pattern), capability: 'grammar-recognition' });
+        const entityId = grammarEntityId(language, pattern);
+        if (requirementEntities.has(entityId)) continue;
         targetWeights[address] = Math.max(targetWeights[address] ?? 0, 1 / count);
       }
     }

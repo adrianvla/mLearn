@@ -1,23 +1,31 @@
 import { activeLearningGoals, learningGoalsForSettings, type LearningGoal } from './learningGoals';
-import { resolveLearningOutcome } from './learningOutcomes';
+import { resolveLearningOutcome, type ResolvedLearningOutcome } from './learningOutcomes';
 import { buildWordFrequencyMapFromLanguageData, resolveLanguageFrequencyPayload } from './languageFeatures';
 import { DEFAULT_SETTINGS, type WordFrequencyMap, type LanguageData, type Settings } from './types';
+
+export interface ResolvedLearningGoal extends LearningGoal {
+  /** Derived package snapshot. Settings-owned scope/provenance/conditions stay untouched. */
+  resolvedOutcome: ResolvedLearningOutcome;
+}
 
 /** One package-resolved target boundary for Home, Plan and activity policy. */
 export function learningScopeForSettings(settings: Pick<Settings, 'learningGoals' | 'examGoal'> & { language?: string },
   data: LanguageData | null | undefined, language = settings.language ?? '') {
   const selected = activeLearningGoals(learningGoalsForSettings(settings), language);
-  const goals: LearningGoal[] = [];
+  const goals: ResolvedLearningGoal[] = [];
   const words = new Set<string>();
   const patterns = new Set<string>();
   const unavailable: string[] = [];
   const frequency: WordFrequencyMap = {};
   for (const goal of selected) {
+    const packageVersion = data?.languageData?.version;
+    if (goal.outcomeRef?.packageVersion && goal.outcomeRef.packageVersion !== packageVersion) {
+      unavailable.push(goal.id);
+      continue;
+    }
     const resolved = resolveLearningOutcome(data, goal.outcomeRef!.id, goal.outcomeRef!.groupIds);
     if (!resolved?.complete) { unavailable.push(goal.id); continue; }
-    goals.push({ ...goal, outcome: resolved.declaration.label, scope: { ...goal.scope,
-      provenance: resolved.declaration.provenance, reference: resolved.declaration.reference,
-      words: resolved.words, requirements: resolved.declaration.requirements } });
+    goals.push({ ...goal, outcome: resolved.declaration.label, resolvedOutcome: resolved });
     const membership = new Set(resolved.words);
     for (const group of resolved.declaration.groups.filter(group => !goal.outcomeRef?.groupIds || goal.outcomeRef.groupIds.includes(group.id))) {
       for (const selector of group.selectors.filter(selector => selector.source === 'frequency')) {

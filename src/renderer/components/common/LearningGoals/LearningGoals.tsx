@@ -13,6 +13,12 @@ export const LearningGoals: Component<{ compact?: boolean; onEdit?: () => void; 
   const goals = createMemo(() => learningGoalsForSettings(settings));
   const active = createMemo(() => activeLearningGoals(goals(), settings.language));
   const options = createMemo(() => learningOutcomeOptions(currentLangData()).filter(option => !active().some(goal => goal.outcomeRef?.id === option.id)));
+  const outcomeUnavailable = (goal: LearningGoal) => {
+    const data = currentLangData();
+    return !goal.outcomeRef || !data
+      || (!!goal.outcomeRef.packageVersion && goal.outcomeRef.packageVersion !== data.languageData?.version)
+      || !resolveLearningOutcome(data, goal.outcomeRef.id, goal.outcomeRef.groupIds)?.complete;
+  };
   const patch = (id: string, change: Partial<LearningGoal>) => updateSetting('learningGoals', goals().map(goal => goal.id === id ? { ...goal, ...change } : goal));
   const select = (id: string) => {
     const outcome = resolveLearningOutcome(currentLangData(), id);
@@ -20,7 +26,7 @@ export const LearningGoals: Component<{ compact?: boolean; onEdit?: () => void; 
     updateSetting('learningGoals', [...goals(), { id: crypto.randomUUID(), language: settings.language,
       outcome: outcome.declaration.label, outcomeRef: { id, packageVersion: currentLangData()?.languageData?.version },
       status: 'active', priority: 1, createdAt: Date.now(), scope: { provenance: outcome.declaration.provenance,
-        reference: outcome.declaration.reference, words: outcome.words, requirements: outcome.declaration.requirements } }]);
+        reference: outcome.declaration.reference, words: outcome.words } }]);
   };
   return <section class="learning-goals" aria-label={t('mlearn.Goals.Purpose')}>
     <div class="learning-goals__purpose"><span>{active().length ? t('mlearn.Goals.Purpose') : t('mlearn.Goals.Explore')}</span>
@@ -32,7 +38,7 @@ export const LearningGoals: Component<{ compact?: boolean; onEdit?: () => void; 
     </div>
     <For each={active()}>{goal => <div class="learning-goals__constraints">
       <span>{goal.outcomeRef ? currentLangData()?.learning?.outcomes?.[goal.outcomeRef.id]?.label ?? goal.outcome : goal.outcome}</span>
-      <Show when={goal.outcomeRef && !resolveLearningOutcome(currentLangData(), goal.outcomeRef.id, goal.outcomeRef.groupIds)?.complete}><span role="status">{t('mlearn.Goals.Unavailable')}</span></Show>
+      <Show when={outcomeUnavailable(goal)}><span role="status">{t('mlearn.Goals.Unavailable')}</span></Show>
       <Show when={!props.compact}>
       <Show when={resolveLearningOutcome(currentLangData(), goal.outcomeRef!.id)?.groups.length! > 1}>
         <label>{t('mlearn.Goals.Scope')}<select name="learning-subset" value={goal.outcomeRef?.groupIds?.[0] ?? ''} onChange={event => patch(goal.id, { outcomeRef: { ...goal.outcomeRef!, groupIds: event.currentTarget.value ? [event.currentTarget.value] : undefined } })}>
