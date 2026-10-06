@@ -1,0 +1,21 @@
+name: Recover staged restoration patch
+on:
+  push:
+    branches: [fix/restore-mlearn-desktop-ux]
+    paths: [.github/workflows/recover-restoration-patch.yml]
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staged-restoration-patch
+          path: .github/restoration-followup.patch
+          include-hidden-files: true
+          retention-days: 1
