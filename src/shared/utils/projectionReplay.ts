@@ -148,6 +148,7 @@ export function applyEventToFold(state: FoldState, event: KnowledgeEvent, seq: n
       // presentation state supplied the access it addresses (furigana-visible
       // reading row, translation-visible meaning row) carries no knowledge —
       // only bookkeeping. Replay skips it entirely rather than weighing it.
+      if (event.method === 'inference') break;
       if (event.scaffolds !== undefined && !eventIsMeasurable(event)) break;
       applyEvidenceRow(state, event, seq);
       break;

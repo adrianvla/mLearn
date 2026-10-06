@@ -14,6 +14,8 @@ export interface StudyEncounterProps {
   card?: JSX.Element;
   controlsMount?: HTMLElement;
   scheduling?: boolean;
+  /** Ordinary mixed cards use the matrix labels; focused tasks retain an explicit cue. */
+  showRecallCue?: boolean;
   revealClass?: string;
   responseClass?: string;
   prompt: JSX.Element;
@@ -64,7 +66,9 @@ export const StudyEncounter: Component<StudyEncounterProps> = (props) => {
   </>;
   return <section class={`study-encounter ${props.class ?? ''}`} aria-label={t('mlearn.StudyEncounter.Task')}>
     <Show when={props.ratingAvailable !== false}>
-      <RecallCue class="study-encounter__cue" capabilities={rating().capabilities} capabilityLabels={rating().capabilityLabels} />
+      <Show when={props.showRecallCue !== false}>
+        <RecallCue class="study-encounter__cue" capabilities={rating().capabilities} capabilityLabels={rating().capabilityLabels} />
+      </Show>
       <Show when={!props.revealed && props.instruction}><p class="study-encounter__instruction">{props.instruction}</p></Show>
     </Show>
     <Show when={card()} fallback={<Panel class="study-encounter__card" padding="lg">

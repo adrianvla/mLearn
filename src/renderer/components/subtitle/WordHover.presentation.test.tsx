@@ -69,17 +69,17 @@ describe('shared popup presentation', () => {
     expect(popup.style.getPropertyValue('--word-hover-scale')).toBe('1');
   });
 
-  it('opens the same dictionary identity from status and Inspect without cycling claims or a nested rating popup', () => {
+  it('keeps the compact rating popup on the status pill while Inspect opens the full evidence view', () => {
     setSettings({ language: 'future-language' });
     dispose = render(() => <WordHover word="walk" token={{ word: 'walked', actual_word: 'walk', type: 'verb' }}
       position={{ x: 200, y: 200 }} translationData={{ data: [{ definitions: 'go on foot' }] }} />, host);
     const status = host.querySelector<HTMLButtonElement>('[data-testid="status-record"]')!;
     expect(status.dataset.cycleClaims).toBe('false');
-    expect(status.dataset.nestedPopover).toBe('false');
+    expect(status.dataset.nestedPopover).toBe('true');
     status.click();
+    expect(inspect).not.toHaveBeenCalled();
     host.querySelector<HTMLButtonElement>('.word-hover-inspect')!.click();
-    expect(inspect).toHaveBeenCalledTimes(2);
-    expect(inspect.mock.calls[0]).toEqual(inspect.mock.calls[1]);
+    expect(inspect).toHaveBeenCalledOnce();
     expect(inspect).toHaveBeenCalledWith(surfaceKnowledgeInspection(settings.language, 'walk'));
   });
 });

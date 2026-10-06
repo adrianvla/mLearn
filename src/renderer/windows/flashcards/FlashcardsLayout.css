@@ -28,7 +28,7 @@
 /* Left Sidebar */
 .flashcards-sidebar {
   --responsive-sidebar-width: 17.5rem;
-  --responsive-sidebar-content-padding-block-start: 1rem;
+  --responsive-sidebar-content-padding-block-start: calc(var(--window-controls-block-start-inset) + var(--spacing-3));
   display: flex;
   flex-direction: column;
   width: 220px;

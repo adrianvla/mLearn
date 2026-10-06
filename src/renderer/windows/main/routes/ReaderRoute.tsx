@@ -80,6 +80,7 @@ import {
   applyReadingSpansToTokens,
   sliceReadingSpansForRange,
   type ReaderSourcePage,
+  type ReaderSourceToken,
   type ReaderTextSourceChunk,
   type TextPageCapacityEpoch,
 } from './readerTextPagination';
@@ -237,7 +238,7 @@ function normalizeReaderOcrResult(result: ReaderCompatibleOcrResult): OcrResult 
 }
 
 export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
-  const [tokenParagraphs, setTokenParagraphs] = createSignal<Token[][]>([]);
+  const [tokenParagraphs, setTokenParagraphs] = createSignal<ReaderSourceToken[][]>([]);
   const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
   const { settings } = useSettings();
   const { currentLangData, getLanguageFeatures } = useLanguage();
@@ -356,6 +357,8 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
                     <>
                       <OcrWord
                         token={token}
+                        authoredReading={token.authoredReading}
+                        authoredText={token.authoredText}
                         lookupContext={tokenLookupContext(token, bodyText())}
                         onWordEnter={(hoverToken, event) => {
                           const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();

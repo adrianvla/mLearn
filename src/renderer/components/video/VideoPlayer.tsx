@@ -47,6 +47,8 @@ export interface VideoPlayerProps {
   onBeforeDetach?: (snapshot: { currentTime: number; duration: number }) => void;
   /** Identifies the element that owns playback for the containing route. */
   onMediaElement?: (element: HTMLVideoElement | null) => void;
+  /** Reports whether this player has a usable source for contextual actions. */
+  onLoadStateChange?: (state: 'idle' | 'loading' | 'ready' | 'error') => void;
   /** Callback when video ends */
   onEnded?: () => void;
   /** Options forwarded to the native context menu */
@@ -181,6 +183,12 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
     if (props.src) {
       video.loadVideo(props.src);
     }
+  });
+
+  createEffect(() => {
+    const source = props.src;
+    const state = !source ? 'idle' : video.state.hasError ? 'error' : video.state.isLoaded ? 'ready' : 'loading';
+    props.onLoadStateChange?.(state);
   });
 
   // Load subtitles

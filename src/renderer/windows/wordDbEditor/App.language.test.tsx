@@ -103,8 +103,14 @@ vi.mock('../../services/ankiWordsCache', () => ({
 }));
 
 vi.mock('./components', () => ({
-  SearchBar: (props: { searchQuery: () => string; setSearchQuery: (value: string) => void }) => <input aria-label="Search vocabulary" value={props.searchQuery()} onInput={event => props.setSearchQuery(event.currentTarget.value)} />,
-  EntriesHeader: (props: { onSort: (key: string) => void }) => <button onClick={() => props.onSort('status')}>Sort knowledge</button>,
+  SearchBar: (props: { searchQuery: () => string; setSearchQuery: (value: string) => void; studyOrderSelected: boolean; onStudyOrder: () => void }) => <>
+    <input aria-label="Search vocabulary" value={props.searchQuery()} onInput={event => props.setSearchQuery(event.currentTarget.value)} />
+    <button aria-pressed={props.studyOrderSelected} onClick={props.onStudyOrder}>Study order</button>
+  </>,
+  EntriesHeader: (props: { onSort: (key: string) => void }) => <>
+    <button onClick={() => props.onSort('word')}>Sort vocabulary</button>
+    <button onClick={() => props.onSort('status')}>Sort knowledge</button>
+  </>,
   WordEntryRow: (props: { entry: WordEntry; onEdit?: (entry: WordEntry) => void }) => {
     renderedEntries.push(props.entry);
     return (
@@ -216,6 +222,27 @@ describe('WordDbEditorContent', () => {
 
     await vi.waitFor(() => expect(container.querySelectorAll('[data-testid^="edit-"]').length).toBe(2));
     expect(Array.from(container.querySelectorAll('[data-testid^="edit-"]'), element => element.textContent)).toEqual(['word2', 'word10']);
+    dispose();
+  });
+
+  it('changes visible entries from alphabetical sorting back to package study order', async () => {
+    mockWordFrequency = {
+      'a-level-1': { reading: '', raw_level: 1, level: '1' },
+      'z-level-5': { reading: '', raw_level: 5, level: '5' },
+    };
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+
+    await vi.waitFor(() => expect(container.querySelectorAll('[data-testid^="edit-"]').length).toBe(2));
+    const visibleWords = () => Array.from(container.querySelectorAll<HTMLButtonElement>('[data-testid^="edit-"]'), element => element.textContent);
+    const sortWordsButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'Sort vocabulary');
+    sortWordsButton!.click();
+    await vi.waitFor(() => expect(visibleWords()).toEqual(['a-level-1', 'z-level-5']));
+
+    const studyOrderButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'Study order');
+    studyOrderButton!.click();
+    await vi.waitFor(() => expect(visibleWords()).toEqual(['z-level-5', 'a-level-1']));
+    expect(studyOrderButton!.getAttribute('aria-pressed')).toBe('true');
     dispose();
   });
 

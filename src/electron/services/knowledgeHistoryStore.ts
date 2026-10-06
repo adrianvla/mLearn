@@ -108,7 +108,7 @@ export function isKnowledgeEvent(value: unknown): value is KnowledgeEvent {
 
 /** 3 = durable observation identities, separate from multi-access attempt ids. */
 export const KNOWLEDGE_STORE_SCHEMA_VERSION = 3;
-export const KNOWLEDGE_STORE_FOLD_VERSION = 2;
+export const KNOWLEDGE_STORE_FOLD_VERSION = 3;
 export const STORE_FILE_NAME = 'knowledge-history.sqlite3';
 /** Maximum keys compacted per pass — bounded incremental work. */
 export const COMPACTION_KEY_BUDGET = 200;
@@ -665,7 +665,9 @@ export class KnowledgeHistoryStore {
       }
       if (records.length === bucket.rowCount) {
         const rebuilt = rebuildBucketFromRecords(bucketKey, records, now);
+        bucket.fold = rebuilt.fold;
         bucket.measurableFold = rebuilt.measurableFold;
+        bucket.transitions = rebuilt.transitions;
         bucket.ratings = rebuilt.ratings;
         bucket.latency = rebuilt.latency;
         bucket.sourceSeen = rebuilt.sourceSeen;
@@ -676,7 +678,19 @@ export class KnowledgeHistoryStore {
         // Preserve the audit fold and row counts; missing records cannot prove which
         // old observations were genuine reviews rather than scheduler snapshots.
         incomplete = true;
+        const priorFold = bucket.fold;
+        bucket.fold = {
+          ...emptyKeyFold(),
+          ...(priorFold.firstSeen !== undefined ? { firstSeen: priorFold.firstSeen, firstSeq: priorFold.firstSeq } : {}),
+          ...(priorFold.lastSeen !== undefined ? { lastSeen: priorFold.lastSeen, lastSeenSeq: priorFold.lastSeenSeq } : {}),
+          timesSeen: priorFold.timesSeen,
+          timesHovered: priorFold.timesHovered,
+        };
         bucket.measurableFold = emptyKeyFold();
+        bucket.transitions = {
+          ...emptyTransitions(),
+          ...(bucket.transitions.firstT !== undefined ? { firstT: bucket.transitions.firstT } : {}),
+        };
         bucket.ratings = [];
         bucket.latency = { count: 0, sum: 0 };
         delete bucket.sourceSeen;

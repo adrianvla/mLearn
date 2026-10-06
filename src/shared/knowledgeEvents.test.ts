@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   collectRetractedAttemptIds,
   eventIsMeasurable,
+  eventIsDirectKnowledgeEvidence,
   isAccessMeasurable,
   measurableAccesses,
   providedAccessScaffolds,
@@ -179,5 +180,13 @@ describe('scaffold-aware measurability', () => {
     expect(eventIsMeasurable(cued)).toBe(false);
     expect(eventIsMeasurable(measured)).toBe(true);
     expect(eventIsMeasurable(rollupRow)).toBe(true);
+  });
+
+  it('keeps successful inference as observed transfer without promoting direct word knowledge', () => {
+    const inferred: KnowledgeEvent = event({ method: 'inference', quality: 'fluent', easeAfter: 2.8 });
+    const recalled: KnowledgeEvent = event({ method: 'recall', quality: 'fluent', easeAfter: 2.8 });
+    expect(eventIsMeasurable(inferred)).toBe(true);
+    expect(eventIsDirectKnowledgeEvidence(inferred)).toBe(false);
+    expect(eventIsDirectKnowledgeEvidence(recalled)).toBe(true);
   });
 });

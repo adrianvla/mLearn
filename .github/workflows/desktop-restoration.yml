@@ -1,0 +1,49 @@
+name: Desktop restoration checks
+on:
+  push:
+    branches: [fix/restore-mlearn-desktop-ux]
+  pull_request:
+    branches: [refactor/minimize-tech-debt]
+permissions:
+  contents: read
+concurrency:
+  group: desktop-restoration-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      NODE_LLAMA_CPP_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Match the offline verification runtime
+        run: |
+          mkdir -p /tmp/mlearn-runtime
+          cp "$(command -v node)" /tmp/mlearn-runtime/node
+          node --version > /tmp/mlearn-runtime/version.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mlearn-verification-node
+          path: /tmp/mlearn-runtime/
+          retention-days: 1
+      - id: install
+        run: npm ci --ignore-scripts
+      - name: Focused restoration and shared interaction regressions
+        run: npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow
+      - name: Both TypeScript configurations
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+      - name: Desktop production build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build
+      - name: Mobile compatibility build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build:mobile

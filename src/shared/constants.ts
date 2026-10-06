@@ -438,6 +438,7 @@ export const WINDOW_TYPES = {
   LICENSES: 'licenses',
   CONNECT_QR: 'connect-qr',
   CONVERSATION_AGENT: 'conversation-agent',
+  MESSENGER: 'messenger',
   MEMORY_BROWSER: 'memory-browser',
   STATISTICS: 'statistics',
   WORD_DEFINITION: 'word-definition',

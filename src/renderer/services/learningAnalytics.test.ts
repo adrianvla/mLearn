@@ -39,6 +39,15 @@ describe('learning analytics cohorts', () => {
     expect(daysToStableKnown(eventsByWord)).toEqual([{ month: '2026-01', medianDays: 40, wordCount: 1 }]);
   });
 
+  it('does not treat an inferred success as a known transition', () => {
+    const eventsByWord = new Map([
+      ['inferred', [event(0), event(5, { kind: 'rating', source: 'srs', toStatus: 'known', method: 'inference', easeAfter: 3 })]],
+    ]);
+
+    expect(daysToStableKnown(eventsByWord)).toEqual([]);
+    expect(retentionAfterKnown(eventsByWord, start + 50 * DAY)).toEqual([]);
+  });
+
   it('excludes recent known words and counts lapses during the 30-day retention window', () => {
     const now = start + 50 * DAY;
     const eventsByWord = new Map([

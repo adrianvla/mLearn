@@ -10,7 +10,15 @@ vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
 } }) }));
 vi.mock('../../../shared/platform', () => ({ isElectron: () => !fixture.mobile, isMobile: () => fixture.mobile }));
 vi.mock('./components/LoadingOverlay', () => ({ LoadingOverlay: () => <span data-testid="backend-overlay" /> }));
-vi.mock('../../components/common', () => ({ LearningWorkspace: (props: { children?: import('solid-js').JSX.Element }) => props.children, TargetIcon: () => null, ActionCard: (props: { title: string; onClick?: () => void }) => <button onClick={props.onClick}>{props.title}</button>, Button: (props: { children?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button> }));
+vi.mock('../../components/common', () => ({
+  LearningWorkspace: (props: { children?: import('solid-js').JSX.Element }) => props.children,
+  TargetIcon: () => null,
+  ActionCard: (props: { title: string; onClick?: () => void }) => <button onClick={props.onClick}>{props.title}</button>,
+  Button: (props: { children?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  TabContainer: (props: { tabs: Array<{ id: string; label: string }>; onTabChange: (tabId: string) => void }) => <div>
+    {props.tabs.map(tab => <button onClick={() => props.onTabChange(tab.id)}>{tab.label}</button>)}
+  </div>,
+}));
 vi.mock('../flashcards/App', () => ({ FlashcardsContent: (props: { initialTab?: string; onClose?: () => void }) => {
   fixture.mounted(props.initialTab ?? 'review'); return <div data-content={props.initialTab ?? 'review'}><button onClick={props.onClose}>Return</button></div>;
 } }));
@@ -55,7 +63,7 @@ describe('application shell route ownership', () => {
     expect(container.querySelector('nav')).toBeNull();
     expect(container.querySelectorAll('[data-content]')).toHaveLength(1);
   });
-  it.each([['plan', '/plan'], ['material', '/knowledge/material'], ['home', '/']])('returns Review to its %s source', async (returnTo, path) => {
+  it.each([['plan', '/plan'], ['material', '/practise/material'], ['home', '/']])('returns Review to its %s source', async (returnTo, path) => {
     mount();
     fixture.listener!({ applicationNavigation: { path: '/practise', requestId: 'return-source', context: { returnTo } } });
     await vi.waitFor(() => expect(container.querySelector('[data-content="review"]')).not.toBeNull());

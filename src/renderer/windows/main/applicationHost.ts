@@ -6,7 +6,7 @@ import { prepareMediaWorkspaceReturn } from './routes/mediaWorkspaceReturn';
 
 export function currentApplicationHost(): ApplicationHost {
   const host = new URLSearchParams(window.location.search).get('host');
-  return host === 'study' || host === 'my-learning' || host === 'settings' ? host : 'main';
+  return host === 'study' || host === 'my-learning' || host === 'settings' || host === 'messenger' ? host : 'main';
 }
 
 let mediaSource: { workspace: 'reader' | 'video'; path: string } | undefined;

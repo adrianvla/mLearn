@@ -6,10 +6,13 @@
 import { BrowserWindow, app, ipcMain, Menu, dialog, screen, nativeTheme, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { pathToFileURL } from 'url';
 import { IPC_CHANNELS, WINDOW_TYPES, WindowType } from '../../shared/constants';
-import type { WindowSize, OpenWindowPayload, OverlayVideoScreenshot } from '../../shared/types';
+import { DEFAULT_SETTINGS, type WindowSize, type OpenWindowPayload, type OverlayVideoScreenshot } from '../../shared/types';
+import { isDarkColorScheme } from '../../shared/constants';
 import { isMac, isLinux, isWindows, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
+import { registerWindowFirstPaint, showWindowAfterFirstPaint, showWindowAfterLoadFailure, initialWindowBackground, loadRecoveryHtml } from './windowFirstPaint';
 import { getCurrentLocaleData } from './localization';
 import { queueCommand } from './webServer';
 import { hasTray } from './trayManager';
@@ -61,19 +64,25 @@ function focusWindow(window: BrowserWindow): void {
   window.focus();
 }
 
+function getInitialWindowBackground(): string {
+  const settings = loadSettings();
+  return initialWindowBackground(settings.colorScheme ?? DEFAULT_SETTINGS.colorScheme, settings.customColors ?? DEFAULT_SETTINGS.customColors);
+}
+
 function loadWindowHtml(window: BrowserWindow, type: WindowType, host?: ApplicationHost, initialPath?: string): void {
   startupMark(`renderer load requested type=${type} id=${window.id}`);
   const isDev = process.env.NODE_ENV === 'development';
 
-  if (!isDev) {
-    if (host) window.loadFile(getWindowHtmlPath(type), { query: { host }, hash: initialPath });
-    else window.loadFile(getWindowHtmlPath(type));
-    return;
-  }
-
-  const url = `http://localhost:3000/src/html/${type}.html${host ? `?host=${host}#${initialPath ?? '/'}` : ''}`;
+  const filePath = getWindowHtmlPath(type);
+  const url = isDev ? `http://localhost:3000/src/html/${type}.html${host ? `?host=${host}#${initialPath ?? '/'}` : ''}` : (() => {
+    const fileUrl = pathToFileURL(filePath);
+    if (host) fileUrl.searchParams.set('host', host);
+    if (initialPath) fileUrl.hash = initialPath;
+    return fileUrl.toString();
+  })();
   let retryCount = 0;
   let retryTimer: NodeJS.Timeout | null = null;
+  let recoveryPageRequested = false;
 
   const clearRetryTimer = (): void => {
     if (retryTimer) {
@@ -82,26 +91,49 @@ function loadWindowHtml(window: BrowserWindow, type: WindowType, host?: Applicat
     }
   };
 
+  const showLoadRecovery = (errorDescription: string, background = getInitialWindowBackground()): void => {
+    if (recoveryPageRequested || window.isDestroyed()) return;
+    recoveryPageRequested = true;
+    clearRetryTimer();
+    log.error(`Could not load ${type} window after ${retryCount} retries: ${errorDescription}`);
+    void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadRecoveryHtml(url, background))}`)
+      .then(() => { if (!window.isDestroyed()) showWindowAfterLoadFailure(window); })
+      .catch(error => {
+        log.error(`Could not render the ${type} load recovery page:`, error);
+        showWindowAfterLoadFailure(window);
+      });
+  };
+
+  if (!isDev) {
+    const load = host ? window.loadFile(filePath, { query: { host }, hash: initialPath }) : window.loadFile(filePath);
+    void load.catch((error) => showLoadRecovery(error instanceof Error ? error.message : String(error)));
+    return;
+  }
+
   const load = (): void => {
     if (window.isDestroyed()) return;
     window.loadURL(url).catch((error) => {
-      if (window.isDestroyed()) return;
-      if (retryCount >= DEV_WINDOW_LOAD_RETRY_LIMIT) {
-        log.error(`Failed to load ${type} window after ${retryCount} retries:`, error);
-        return;
-      }
-      retryCount += 1;
-      retryTimer = setTimeout(load, DEV_WINDOW_LOAD_RETRY_DELAY_MS);
+      scheduleRetry(error instanceof Error ? error.message : String(error));
     });
+  };
+
+  const scheduleRetry = (errorDescription: string): void => {
+    if (window.isDestroyed() || recoveryPageRequested || retryTimer) return;
+    if (retryCount >= DEV_WINDOW_LOAD_RETRY_LIMIT) {
+      showLoadRecovery(errorDescription);
+      return;
+    }
+    retryCount += 1;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      load();
+    }, DEV_WINDOW_LOAD_RETRY_DELAY_MS);
+    log.warn(`Retrying ${type} window load after dev-server failure: ${errorDescription}`);
   };
 
   window.webContents.on('did-fail-load', (_event, _errorCode, errorDescription, validatedUrl, isMainFrame) => {
     if (!isMainFrame || validatedUrl !== url || window.isDestroyed()) return;
-    if (retryCount >= DEV_WINDOW_LOAD_RETRY_LIMIT) return;
-    retryCount += 1;
-    clearRetryTimer();
-    retryTimer = setTimeout(load, DEV_WINDOW_LOAD_RETRY_DELAY_MS);
-    log.warn(`Retrying ${type} window load after dev-server failure: ${errorDescription}`);
+    scheduleRetry(errorDescription);
   });
 
   window.on('closed', clearRetryTimer);
@@ -323,7 +355,7 @@ export function createMainWindow(options: { show?: boolean } = {}): BrowserWindo
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
     width: 1200,
     height: 700,
-    show: options.show ?? true,
+    show: false,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -331,22 +363,26 @@ export function createMainWindow(options: { show?: boolean } = {}): BrowserWindo
       sandbox: true,
     },
 
-    ...(isMac ? getMacWindowSurfaceOptions() : { backgroundColor: '#000000' }),
+    ...(isMac ? getMacWindowSurfaceOptions() : {}),
+    backgroundColor: getInitialWindowBackground(),
   };
 
   if (isWindows) {
+    const savedScheme = loadSettings().colorScheme ?? DEFAULT_SETTINGS.colorScheme;
+    const useDarkChrome = savedScheme === 'custom' ? nativeTheme.shouldUseDarkColors : isDarkColorScheme(savedScheme);
     // Windows: hide the native frame/title and draw our own menu strip over the
     // title bar area; titleBarOverlay keeps the native ─ □ × controls on top.
     windowOptions.titleBarStyle = 'hidden';
     windowOptions.titleBarOverlay = {
-      color: getTitleBarOverlayColor(nativeTheme.shouldUseDarkColors),
-      symbolColor: getTitleBarOverlaySymbolColor(nativeTheme.shouldUseDarkColors),
+      color: getTitleBarOverlayColor(useDarkChrome),
+      symbolColor: getTitleBarOverlaySymbolColor(useDarkChrome),
       height: TITLEBAR_MENU_HEIGHT,
     };
   }
 
   const constructionStart = startupTime();
   mainWindow = new BrowserWindow(windowOptions);
+  registerWindowFirstPaint(mainWindow);
   startupMark(`BrowserWindow constructor complete type=main id=${mainWindow.id}`, constructionStart);
   currentWindow = mainWindow;
 
@@ -355,6 +391,7 @@ export function createMainWindow(options: { show?: boolean } = {}): BrowserWindo
   }
 
   loadWindowHtml(mainWindow, 'main');
+  if (options.show !== false) showWindowAfterFirstPaint(mainWindow);
 
   mainWindow.on('close', (event) => {
     // Non-Mac: closing the window hides to tray instead of quitting — but only
@@ -398,7 +435,7 @@ export function createWelcomeWindow(options: { show?: boolean } = {}): BrowserWi
   welcomeWindow = new BrowserWindow({
     width: 800,
     height: 900,
-    show: options.show ?? true,
+    show: false,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -406,13 +443,16 @@ export function createWelcomeWindow(options: { show?: boolean } = {}): BrowserWi
       sandbox: true,
     },
     autoHideMenuBar: !isMac,
-    ...(isMac ? getMacWindowSurfaceOptions() : { backgroundColor: '#000000', frame: true }),
+    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true }),
+    backgroundColor: getInitialWindowBackground(),
   });
+  registerWindowFirstPaint(welcomeWindow);
   startupMark(`BrowserWindow constructor complete type=welcome id=${welcomeWindow.id}`, constructionStart);
 
   currentWindow = welcomeWindow;
 
   loadWindowHtml(welcomeWindow, 'welcome');
+  if (options.show ?? true) showWindowAfterFirstPaint(welcomeWindow);
 
   welcomeWindow.on('closed', () => {
     if (currentWindow === welcomeWindow) {
@@ -435,6 +475,7 @@ export function createDiagnosticsWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 900,
     height: 700,
+    show: false,
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -442,12 +483,15 @@ export function createDiagnosticsWindow(): BrowserWindow {
       sandbox: true,
     },
     autoHideMenuBar: !isMac,
-    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true, backgroundColor: '#000000' }),
+    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true }),
+    ...(!isMac ? { backgroundColor: getInitialWindowBackground() } : {}),
   });
+  registerWindowFirstPaint(window);
 
   childWindows.set('diagnostics' as WindowType, window);
 
   loadWindowHtml(window, 'diagnostics' as WindowType);
+  showWindowAfterFirstPaint(window);
 
   window.on('closed', () => {
     childWindows.delete('diagnostics' as WindowType);
@@ -469,11 +513,14 @@ function createApplicationHost(host: Exclude<ApplicationHost, 'main'>, path: str
   const window = new BrowserWindow({
     width: host === 'settings' ? 1000 : 1100, height: 760,
     minWidth: 640, minHeight: 480,
-    title: host === 'study' ? 'mLearn — Study' : host === 'my-learning' ? 'mLearn — My Learning' : 'mLearn — Settings',
+    show: false,
+    title: host === 'study' ? 'mLearn — Flashcards' : host === 'my-learning' ? 'mLearn — My Learning' : host === 'messenger' ? 'mLearn — Messenger' : 'mLearn — Settings',
     webPreferences: { preload: getPreloadPath(), contextIsolation: true, nodeIntegration: false, sandbox: true },
     autoHideMenuBar: !isMac,
-    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true, backgroundColor: '#000000' }),
+    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true }),
+    backgroundColor: getInitialWindowBackground(),
   });
+  registerWindowFirstPaint(window);
   childWindows.set(host, window);
   loadWindowHtml(window, 'main', host, path);
   // Suspend in place, including pending writes and exact navigation identity.
@@ -499,9 +546,7 @@ function openApplicationRoute(path: string, context: Record<string, unknown> = {
     }
   }
   currentWindow = window;
-  window.show();
-  if (window.isMinimized?.()) window.restore();
-  window.focus();
+  showWindowAfterFirstPaint(window);
   return window;
 }
 
@@ -524,26 +569,32 @@ export function createChildWindow(
   // launch overlay) keep plain frameless behavior without vibrancy.
   const platformOptions: Partial<Electron.BrowserWindowConstructorOptions> =
     isMac && options.frame !== false ? getMacWindowSurfaceOptions() : {};
+  const firstPaintManaged = options.frame !== false;
+  const shouldShow = options.show !== false;
 
   const defaultOptions: Electron.BrowserWindowConstructorOptions = {
     width: 800,
     height: 600,
+    backgroundColor: getInitialWindowBackground(),
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
-    ...(isMac ? {} : { frame: true, backgroundColor: '#000000' }),
+    ...(isMac ? {} : { frame: true }),
     autoHideMenuBar: !isMac,
     ...platformOptions,
     ...options,
+    ...(firstPaintManaged ? { show: false } : {}),
   };
 
   const window = new BrowserWindow(defaultOptions);
   childWindows.set(type, window);
+  if (firstPaintManaged) registerWindowFirstPaint(window);
 
   loadWindowHtml(window, type);
+  if (firstPaintManaged && shouldShow) showWindowAfterFirstPaint(window);
 
   window.on('closed', () => {
     childWindows.delete(type);

@@ -378,7 +378,7 @@ describe('UnknownWordsSidebar', () => {
     dispose();
   });
 
-  it('offers the current visible word selection directly to recall', async () => {
+  it('hands the visible material scope to policy without promising an exhaustive recall queue', async () => {
     const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
     const words = [{ key: 'one', word: 'one', token: { word: 'one', actual_word: 'one', type: 'word' }, contextPhrase: 'context' }];
     const onPractice = vi.fn();
@@ -387,7 +387,7 @@ describe('UnknownWordsSidebar', () => {
       sortOptions={() => []} defaultSort="word" emptyMessage="Empty" onAddAllClick={() => undefined}
       onPracticeWords={onPractice} />, container);
     await Promise.resolve();
-    const action = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Sidebar.RecallWords')!;
+    const action = Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Product.Practise')!;
     expect(action.closest('details')).toBeNull();
     action.click();
     expect(onPractice).toHaveBeenCalledWith(words);

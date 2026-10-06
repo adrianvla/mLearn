@@ -1,7 +1,7 @@
 import { ANKI_EASE } from '../constants';
 import { ASPECT_CAPABILITY } from '../graph/types';
 import type { AttemptScaffolds, KnowledgeEvent, Rating } from '../knowledgeEvents';
-import { eventCapability, eventIsMeasurable, SCAFFOLD_INVALIDATES } from '../knowledgeEvents';
+import { eventCapability, eventIsDirectKnowledgeEvidence, SCAFFOLD_INVALIDATES } from '../knowledgeEvents';
 import type { RetentionScheduleCache } from '../types';
 import {
   applyEventToFold,
@@ -123,12 +123,14 @@ export function bucketRepresentative(bucketKey: string): KnowledgeEvent | undefi
 // ─── Cohort transitions (shared predicates; learningAnalytics reuses them) ───
 
 export function reachesKnown(event: KnowledgeEvent): boolean {
+  if (!eventIsDirectKnowledgeEvidence(event)) return false;
   if (event.kind === 'rollup') return false;
   if (event.toStatus === 'known') return true;
   return event.kind === 'review' && event.source === 'anki' && (event.easeAfter ?? 0) >= ANKI_EASE.DEFAULT_KNOWN;
 }
 
 export function downgradesBelowKnown(event: KnowledgeEvent): boolean {
+  if (!eventIsDirectKnowledgeEvidence(event)) return false;
   if (event.kind === 'rollup') return false;
   if (event.toStatus === 'unknown' || event.toStatus === 'learning') return true;
   return event.kind === 'review' && event.rating === 'again';
@@ -230,7 +232,7 @@ export interface BucketArchive {
   lastDirect?: { t: number; seq: number };
 }
 
-export const KNOWLEDGE_MEASURABLE_VERSION = 3;
+export const KNOWLEDGE_MEASURABLE_VERSION = 4;
 
 export interface KeyArchive {
   /** Measurable evidence semantics, independent of the physical archive generation. */
@@ -283,7 +285,7 @@ function isNewer(aT: number, aSeq: number, bT: number, bSeq: number): boolean {
 }
 
 function residueOf(event: KnowledgeEvent, seq: number): RatingResidue | undefined {
-  if (!eventIsMeasurable(event) || event.rating === undefined) return undefined;
+  if (!eventIsDirectKnowledgeEvidence(event) || event.rating === undefined) return undefined;
   if (event.kind !== 'review' && event.kind !== 'rating') return undefined;
   return {
     t: event.t,
@@ -297,11 +299,11 @@ function residueOf(event: KnowledgeEvent, seq: number): RatingResidue | undefine
 function accumulateBucket(bucket: TransientBucket, bucketKey: string, event: KnowledgeEvent, seq: number, now: number): void {
   bucket.rowCount += 1;
   applyEventToFold(bucket.fold, event, seq);
-  if (eventIsMeasurable(event)) applyEventToFold(bucket.measurableFold, event, seq);
+  if (eventIsDirectKnowledgeEvidence(event)) applyEventToFold(bucket.measurableFold, event, seq);
   applyTransitions(bucket.transitions, event, now);
   const residue = residueOf(event, seq);
   if (residue !== undefined) bucket.ratings.push(residue);
-  if (!event.stalled && eventIsMeasurable(event)) {
+  if (!event.stalled && eventIsDirectKnowledgeEvidence(event)) {
     const latency = event.activeLatencyMs ?? event.latencyMs;
     if (latency !== undefined) {
       bucket.latency.count += 1;
@@ -313,7 +315,7 @@ function accumulateBucket(bucket: TransientBucket, bucketKey: string, event: Kno
   // evidence path applies (knowledgeProjection reduces explanation.evidence,
   // which is measurability+matcher filtered; calibration reads active rows
   // unconditionally).
-  const measurable = eventIsMeasurable(event);
+  const measurable = eventIsDirectKnowledgeEvidence(event);
   if (event.method === 'inference') {
     const stats = (bucket.methodStats ??= { inference: 0, inferenceSuccess: 0 });
     stats.inference += 1;
@@ -336,7 +338,7 @@ function accumulateBucket(bucket: TransientBucket, bucketKey: string, event: Kno
   }
   point.n += 1;
   point.seen += event.timesSeenDelta ?? 0;
-  if (eventIsMeasurable(event)) {
+  if (eventIsDirectKnowledgeEvidence(event)) {
     const ease = outcomeEase(event);
     if (ease !== undefined) point.ease = ease;
     point.source = event.source;
@@ -689,7 +691,7 @@ export function retentionSequence(
   const preArchive: OrderedRetentionEvidence[] = [];
   const postArchive: OrderedRetentionEvidence[] = [];
   for (const { event, seq } of exactRows) {
-    if (event.rating === undefined || !eventIsMeasurable(event) || !matches(event)) continue;
+    if (event.rating === undefined || !eventIsDirectKnowledgeEvidence(event) || !matches(event)) continue;
     const evidence: OrderedRetentionEvidence = {
       t: event.t,
       seq,
@@ -737,7 +739,7 @@ export function computeRetention(
   if (preArchive.length === 0 && postArchive.length === 0) return null;
   let firstEvidenceT = Number.POSITIVE_INFINITY;
   for (const { event } of exactRows) {
-    if (eventIsMeasurable(event) && matches(event) && event.t < firstEvidenceT) firstEvidenceT = event.t;
+    if (eventIsDirectKnowledgeEvidence(event) && matches(event) && event.t < firstEvidenceT) firstEvidenceT = event.t;
   }
   if (archive !== undefined) {
     const archiveFold = foldArchiveBucketsMeasurable(archive, matches);

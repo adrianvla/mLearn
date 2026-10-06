@@ -57,24 +57,18 @@
   white-space: nowrap;
 }
 
-/* Header with stats */
+/* Stable compact toolbar, not a second card around the reviewer. */
 .flashcard-review-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   width: 100%;
-  max-width: max-content;
-  flex-wrap: wrap;
-  padding: 0.5rem 1rem;
-  background: var(--bg);
-  backdrop-filter: var(--backdrop-filter);
-  -webkit-backdrop-filter: var(--backdrop-filter);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
+  max-width: 48rem;
+  box-sizing: border-box;
   position: relative;
   z-index: var(--z-foreground);
   flex: 0 0 auto;
-  gap: var(--spacing-3);
+  gap: var(--spacing-2);
 }
 
 /* Header right side - bury/remove + undo */
@@ -174,25 +168,16 @@
   gap: 1rem;
 }
 
-/* Buttons container */
+/* Ratings stay beside their card; this region contains exceptional notices only. */
 .flashcard-buttons-container {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  gap: var(--spacing-4);
-  width: 100%;
-  max-width: 700px;
-  max-height: 50%;
+  gap: var(--spacing-2);
+  width: min(100%, 36rem);
   min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   align-self: center;
-  padding: var(--spacing-3);
   box-sizing: border-box;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  backdrop-filter: var(--backdrop-filter);
 }
 
 /* Show answer button */
@@ -244,7 +229,7 @@
 .flashcard-status {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-6);
+  gap: var(--spacing-2);
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }

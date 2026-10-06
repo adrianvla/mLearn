@@ -3,9 +3,10 @@ import { applicationHostForPath, isApplicationNavigation, resolveApplicationDest
 
 describe('application destinations', () => {
   it('maps every logical destination to exactly one desktop family', () => {
-    for (const path of ['/', '/reader', '/video', '/messenger', '/messenger/memory']) expect(applicationHostForPath(path)).toBe('main');
-    for (const path of ['/practise', '/practise/words', '/evaluate/grammar/mock']) expect(applicationHostForPath(path)).toBe('study');
-    for (const path of ['/plan', '/knowledge/material', '/knowledge/characters', '/progress']) expect(applicationHostForPath(path)).toBe('my-learning');
+    for (const path of ['/', '/reader', '/video']) expect(applicationHostForPath(path)).toBe('main');
+    for (const path of ['/messenger', '/messenger/memory']) expect(applicationHostForPath(path)).toBe('messenger');
+    for (const path of ['/practise', '/practise/material', '/practise/words', '/evaluate/grammar/mock', '/knowledge/material']) expect(applicationHostForPath(path)).toBe('study');
+    for (const path of ['/plan', '/knowledge', '/knowledge/characters', '/progress']) expect(applicationHostForPath(path)).toBe('my-learning');
     expect(applicationHostForPath('/settings')).toBe('settings');
     expect(resolveApplicationDestination('study')?.path).toBe('/practise');
     expect(resolveApplicationDestination('my-learning')?.path).toBe('/plan');
@@ -23,7 +24,7 @@ describe('application destinations', () => {
   });
   it('opens Messenger regardless of provider readiness and keeps saved management distinct', () => {
     expect(resolveApplicationDestination('conversation-agent')?.path).toBe('/messenger');
-    expect(resolveApplicationDestination('flashcards', { tab: 'browse' })?.path).toBe('/knowledge/material');
+    expect(resolveApplicationDestination('flashcards', { tab: 'browse' })?.path).toBe('/practise/material');
     expect(resolveApplicationDestination('character-grid')?.path).toBe('/knowledge/characters');
   });
   it('redirects legacy pairing to real connections and retains recovery context', () => {

@@ -1,5 +1,5 @@
 import type { WordStatus } from '../../../../shared/constants';
-import { eventIsMeasurable, readActiveEvidence, type KnowledgeEvent } from '../../../../shared/knowledgeEvents';
+import { eventIsDirectKnowledgeEvidence, readActiveEvidence, type KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 import { bucketRepresentative, type KeyArchive } from '../../../../shared/knowledge/historyArchive';
 import { eventAppliesToCapability } from '../../../../shared/graph/addressing';
 import type { CapabilityKey } from '../../../../shared/graph/types';
@@ -29,7 +29,7 @@ export function knowledgeTrajectoryData(events: readonly KnowledgeEvent[], archi
   }));
   const exact = emptyKeyFold();
   const points: TrajectoryPoint[] = [];
-  readActiveEvidence(events).filter((event) => eventAppliesToCapability(event, capability) && eventIsMeasurable(event))
+  readActiveEvidence(events).filter((event) => eventAppliesToCapability(event, capability) && eventIsDirectKnowledgeEvidence(event))
     .sort((a, b) => a.t - b.t).forEach((event, seq) => {
       applyEventToFold(exact, event, seq);
       let prefix = emptyKeyFold();

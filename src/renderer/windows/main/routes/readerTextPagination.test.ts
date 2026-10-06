@@ -238,7 +238,7 @@ describe('reading span pagination', () => {
     expect(pages[1]).toMatchObject({ text: 'cd', readingSpans: [{ start: 0, end: 2, reading: 'y' }] });
   });
 
-  it('drops spans whose base text is split across page boundaries', () => {
+  it('keeps source ruby intact by moving a page split outside its base span', () => {
     const pages = paginateTextSources([{
       kind: 'text',
       name: 'chapter',
@@ -246,8 +246,8 @@ describe('reading span pagination', () => {
       text: 'abcdef',
       readingSpans: [{ start: 1, end: 5, reading: 'r' }],
     }], 'fallback', 3);
-    expect(pages.map((page) => page.text)).toEqual(['abc', 'def']);
-    expect(pages.every((page) => page.readingSpans === undefined)).toBe(true);
+    expect(pages.map((page) => page.text)).toEqual(['a', 'bcde', 'f']);
+    expect(pages[1].readingSpans).toEqual([{ start: 0, end: 4, reading: 'r' }]);
   });
 
   it('carries spans through the unpaginated fallback path', () => {
@@ -290,7 +290,8 @@ describe('applyReadingSpansToTokens', () => {
   it('keeps the complete tokenizer reading when a stem-prefix span already covers it', () => {
     const tokens = [token('与える', 'あたえる')];
     const result = applyReadingSpansToTokens('与える', tokens, [{ start: 0, end: 1, reading: 'あた' }]);
-    expect(result).toBe(tokens);
+    expect(result).not.toBe(tokens);
+    expect(result[0]).toMatchObject({ reading: 'あたえる', authoredReading: 'あた', authoredText: '与' });
     expect(result[0].reading).toBe('あたえる');
   });
 
@@ -313,6 +314,25 @@ describe('applyReadingSpansToTokens', () => {
     ]);
     expect(result).toBe(tokens);
     expect(result[0].reading).toBe('よくあつ');
+  });
+
+  it('keeps different readings for repeated identical source occurrences', () => {
+    const tokens = [token('端', 'はし'), token('と'), token('端', 'はし')];
+    const result = applyReadingSpansToTokens('端と端', tokens, [
+      { start: 0, end: 1, reading: 'ば' },
+      { start: 2, end: 3, reading: 'は' },
+    ]);
+    expect(result.map(({ authoredReading, authoredText }) => [authoredReading, authoredText])).toEqual([
+      ['ば', '端'], [undefined, undefined], ['は', '端'],
+    ]);
+    expect(tokens.map(({ reading }) => reading)).toEqual(['はし', undefined, 'はし']);
+  });
+
+  it('retains an authored prefix reading separately from the full token reading', () => {
+    const [result] = applyReadingSpansToTokens('与える', [token('与える', 'あたえる')], [
+      { start: 0, end: 1, reading: 'あた' },
+    ]);
+    expect(result).toMatchObject({ reading: 'あたえる', authoredReading: 'あた', authoredText: '与' });
   });
 
   it('ignores spans that cover multiple tokens', () => {

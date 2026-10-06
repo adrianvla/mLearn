@@ -1,10 +1,10 @@
-import { type Component, createEffect, createMemo, createSignal, onMount, onCleanup, Show } from 'solid-js';
+import { type Component, createEffect, createMemo, createSignal, onMount, onCleanup, Show, For } from 'solid-js';
 import { useApplicationNavigate } from '../applicationHost';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { Button, BookIcon, VideoIcon, BotIcon, TargetIcon, LanguageVariantGate, LearningGoals } from '../../../components/common';
 import AppLogo from '../../../components/common/Misc/AppLogo';
-import { WelcomeFeatureCard, WelcomeReaderPreview, WelcomeVideoPreview } from './components';
+import { WelcomeFeatureCard, WelcomeReaderPreview, WelcomeVideoPreview, WelcomeContinueRow } from './components';
 import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
 import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
 import { showToast } from '../../../components/common/Feedback/Toast';
@@ -14,6 +14,7 @@ import { learningScopeForSettings } from '../../../../shared/learningScope';
 import { reviewSessionHasAvailableCards } from '../../../../shared/reviewSession';
 import { getLogger } from '../../../../shared/utils/logger';
 import './welcome.css';
+import './welcomeRecent.css';
 
 const log = getLogger('renderer.welcome');
 
@@ -35,10 +36,18 @@ export const WelcomeRoute: Component = () => {
   };
   createEffect(refreshResume);
   onMount(() => {
-    void getRecentItems().then(items => { if (!disposed) setRecentItems(items); }).catch(error => log.error('Recent material could not be loaded', error));
-    window.addEventListener('focus', refreshResume);
-    window.addEventListener('storage', refreshResume);
-    onCleanup(() => { disposed = true; window.removeEventListener('focus', refreshResume); window.removeEventListener('storage', refreshResume); });
+    let revision = 0;
+    const refreshHome = () => {
+      refreshResume();
+      const requested = ++revision;
+      void getRecentItems().then(items => {
+        if (!disposed && requested === revision) setRecentItems(items);
+      }).catch(error => log.error('Recent material could not be loaded', error));
+    };
+    refreshHome();
+    window.addEventListener('focus', refreshHome);
+    window.addEventListener('storage', refreshHome);
+    onCleanup(() => { disposed = true; window.removeEventListener('focus', refreshHome); window.removeEventListener('storage', refreshHome); });
   });
   const targetScope = createMemo(() => learningScopeForSettings(settings, language.currentLangData()));
   const savedReview = createMemo(() => {
@@ -83,8 +92,8 @@ export const WelcomeRoute: Component = () => {
             continueLabel={t('mlearn.Global.Continue')} onResume={openRecent} />} />
         <WelcomeFeatureCard icon={<BotIcon size={22} />} title={t('mlearn.Product.Messenger')}
           description={t('mlearn.Product.MessengerDescription')} onClick={() => navigate('/messenger')} />
-        <WelcomeFeatureCard icon={<TargetIcon size={22} />} title={t('mlearn.Product.Practise')}
-          description={t('mlearn.Flashcards.UI.Tabs.Review')} onClick={() => savedReview() ? resumeReview() : startReview()}
+        <WelcomeFeatureCard icon={<BookIcon size={22} />} title={t('mlearn.Flashcards.UI.Title')}
+          description={t('mlearn.Flashcards.UI.Tabs.Review')} onClick={startReview}
           preview={<div class="welcome-resume-actions">
             <Button variant="primary" onClick={() => savedReview() ? resumeReview() : startReview()}>{t(savedReview() ? 'mlearn.StudyEncounter.Resume' : 'mlearn.LevelStudy.Mock.Start')} · {t('mlearn.Flashcards.UI.Tabs.Review')}</Button>
             <Show when={grammarResume()}>{saved => <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
@@ -97,8 +106,21 @@ export const WelcomeRoute: Component = () => {
         <WelcomeFeatureCard icon={<TargetIcon size={22} />} title={t('mlearn.Product.Evaluate')}
           description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate')} />
       </div>
+      <Show when={recentItems().length > 0}>
+        <section class="welcome-recent-items" aria-labelledby="welcome-recent-title">
+          <h2 id="welcome-recent-title">{t('mlearn.Home.UI.ContinueLearning')}</h2>
+          <div class="welcome-recent-list">
+            <For each={recentItems()}>{item => <WelcomeContinueRow item={item}
+              continueLabel={t('mlearn.Global.Continue')}
+              lastWatchedLabel={Number.isFinite(item.lastWatched) ? new Date(item.lastWatched).toLocaleDateString(settings.uiLanguage) : ''}
+              onContinue={openRecent} />}</For>
+          </div>
+        </section>
+      </Show>
       <footer class="welcome-secondary-actions">
-        <Button onClick={() => getBridge().window.openWindow({ type: 'my-learning' })}>{t('mlearn.Product.MyLearning')}</Button>
+        <Button onClick={() => getBridge().window.openWindow({ type: 'level-study' })}>{t('mlearn.LevelStudy.Title')}</Button>
+        <Button onClick={() => getBridge().window.openWindow({ type: 'word-db-editor' })}>{t('mlearn.Home.Cards.WordDatabase.Title')}</Button>
+        <Button onClick={() => getBridge().window.openWindow({ type: 'statistics' })}>{t('mlearn.Home.Cards.Statistics.Title')}</Button>
         <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>{t('mlearn.Settings.UI.Title')}</Button>
       </footer>
     </div>

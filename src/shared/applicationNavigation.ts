@@ -7,12 +7,12 @@ export interface ApplicationDestination {
 export function resolveApplicationDestination(type: string, context: Record<string, unknown> = {}): ApplicationDestination | null {
   let path: string;
   switch (type) {
-    case 'main': case 'study': case 'my-learning':
+    case 'main': case 'study': case 'my-learning': case 'messenger':
       path = typeof context.applicationPath === 'string' && isApplicationPath(context.applicationPath)
-        ? context.applicationPath : type === 'study' ? '/practise' : type === 'my-learning' ? '/plan' : '/';
+        ? context.applicationPath : type === 'study' ? '/practise' : type === 'my-learning' ? '/plan' : type === 'messenger' ? '/messenger' : '/';
       break;
     case 'reader': path = '/reader'; break;
-    case 'flashcards': path = context.tab === 'stats' ? '/progress' : context.tab && context.tab !== 'review' ? '/knowledge/material' : '/practise'; break;
+    case 'flashcards': path = context.tab === 'stats' ? '/progress' : context.tab && context.tab !== 'review' ? '/practise/material' : '/practise'; break;
     case 'word-sync': path = context.activity === 'practice' || context.activity === 'reinforce' ? '/practise/words' : '/evaluate/words'; break;
     case 'level-study':
       path = context.activity === 'assessment' ? '/evaluate/words'
@@ -43,8 +43,11 @@ export function isApplicationNavigation(value: unknown): value is ApplicationNav
 }
 
 /** Native families are hosts, never learning-attempt identities. */
-export type ApplicationHost = 'main' | 'study' | 'my-learning' | 'settings';
+export type ApplicationHost = 'main' | 'study' | 'my-learning' | 'settings' | 'messenger';
 export function applicationHostForPath(path: string): ApplicationHost {
+  // Legacy material links still open the one Flashcards host.
+  if (/^\/knowledge\/material(?:\/|$)/.test(path)) return 'study';
+  if (/^\/messenger(?:\/|$)/.test(path)) return 'messenger';
   if (/^\/(practise|evaluate)(?:\/|$)/.test(path)) return 'study';
   if (/^\/(plan|knowledge|progress)(?:\/|$)/.test(path)) return 'my-learning';
   if (/^\/settings(?:\/|$)/.test(path)) return 'settings';

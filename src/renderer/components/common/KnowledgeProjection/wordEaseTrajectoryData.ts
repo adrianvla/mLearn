@@ -1,7 +1,7 @@
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, SRS_EASE } from '../../../../shared/constants';
 import { LEXICAL_IDENTITY_CAPABILITIES } from '../../../../shared/graph/access';
 import { bucketRepresentative, type KeyArchive } from '../../../../shared/knowledge/historyArchive';
-import { eventCapability, eventIsMeasurable, readActiveEvidence, type KnowledgeEvent } from '../../../../shared/knowledgeEvents';
+import { eventCapability, eventIsDirectKnowledgeEvidence, readActiveEvidence, type KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 import type { PassiveWordKnowledge } from '../../../../shared/types';
 import { applyEventToFold, emptyKeyFold, mergeKeyFolds, projectKeyFold, type FoldState, type ReplayProjection } from '../../../../shared/utils/projectionReplay';
 import { getComprehensiveWordStatusWithSource } from '../../../utils/comprehensiveKnowledge';
@@ -47,7 +47,7 @@ export function wordEaseTrajectoryData(entries: readonly WordEaseHistoryEntry[],
   const compressed = archiveBuckets.map(({ bucket }) => ({ from: bucket.fold.firstSeen ?? 0, to: bucket.fold.lastSeen ?? 0, count: bucket.rowCount }));
   const active = new Set(readActiveEvidence(entries.flatMap((entry) => entry.events)));
   const ordered = entries.flatMap((entry) => entry.events.filter((event) => active.has(event)).map((event, seq) => ({ entry, event, seq })))
-    .filter(({ event }) => identityCapabilities.has(eventCapability(event) ?? '') && eventIsMeasurable(event))
+    .filter(({ event }) => identityCapabilities.has(eventCapability(event) ?? '') && eventIsDirectKnowledgeEvidence(event))
     .sort((a, b) => a.event.t - b.event.t || a.seq - b.seq);
   const wordKnowledge: Record<string, PassiveWordKnowledge> = {};
   const points: WordEasePoint[] = [];

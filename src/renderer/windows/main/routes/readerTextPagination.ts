@@ -1,6 +1,12 @@
 import type { Token } from '../../../../shared/types';
 import type { EpubReadingSpan } from '../../../services/epubService';
 
+/** A reader occurrence can carry a source-authored reading independently of tokenizer data. */
+export interface ReaderSourceToken extends Token {
+  authoredReading?: string;
+  authoredText?: string;
+}
+
 export interface ReaderSourcePage {
   kind?: 'text' | 'image';
   name: string;
@@ -127,17 +133,30 @@ export const textPagesFromExtractedText = (
   }))
 );
 
-export function splitParagraphForPage(paragraph: string, capacity: number): string[] {
+export function splitParagraphForPage(
+  paragraph: string,
+  capacity: number,
+  protectedRanges: Array<{ start: number; end: number }> = [],
+): string[] {
   if (paragraph.length <= capacity) return [paragraph];
   const chunks: string[] = [];
   let remaining = paragraph.trim();
+  let sourceOffset = 0;
 
   while (remaining.length > capacity) {
     const slice = remaining.slice(0, capacity);
     const breakAt = slice.search(/\s+\S*$/u);
-    const end = breakAt > Math.floor(capacity * 0.55) ? breakAt + 1 : capacity;
+    let end = breakAt > Math.floor(capacity * 0.55) ? breakAt + 1 : capacity;
+    const crossing = protectedRanges.find((range) => range.start < sourceOffset + end && range.end > sourceOffset + end);
+    if (crossing) {
+      if (crossing.start > sourceOffset) end = crossing.start - sourceOffset;
+      else end = crossing.end - sourceOffset;
+    }
+    end = Math.max(1, end);
     chunks.push(remaining.slice(0, end).trim());
     remaining = remaining.slice(end).trim();
+    sourceOffset = paragraph.indexOf(remaining, sourceOffset + end);
+    if (sourceOffset < 0) sourceOffset = paragraph.length;
   }
 
   if (remaining) chunks.push(remaining);
@@ -193,7 +212,11 @@ export function paginateTextSources(
       const blockStart = source.text.indexOf(block, blockSearchCursor);
       if (blockStart >= 0) blockSearchCursor = blockStart + block.length;
       const blockBreaksPage = blockStart >= 0 && (source.pageBreakOffsets?.includes(blockStart) ?? false);
-      const blockChunks = splitParagraphForPage(block, capacity);
+      const blockEnd = blockStart >= 0 ? blockStart + block.length : -1;
+      const protectedRanges = source.readingSpans
+        ?.filter((span) => blockStart >= 0 && span.start >= blockStart && span.end <= blockEnd)
+        .map((span) => ({ start: span.start - blockStart, end: span.end - blockStart })) ?? [];
+      const blockChunks = splitParagraphForPage(block, capacity, protectedRanges);
       let chunkSearchCursor = 0;
       for (let chunkIndex = 0; chunkIndex < blockChunks.length; chunkIndex += 1) {
         const chunk = blockChunks[chunkIndex];
@@ -262,18 +285,16 @@ export function sliceReadingSpansForRange(
   return sliced.length > 0 ? sliced : undefined;
 }
 
-// Book-defined readings take precedence over tokenizer/dictionary readings when a span
-// aligns with a token: exact surface match, or a strict prefix (ruby over the stem of an
-// inflected token) provided no further span continues inside the same token. A prefix span
-// only overrides when the token reading is missing or disagrees — a complete tokenizer
-// reading that already covers the stem (e.g. 違う→ちがう with book ruby 違→ちが) is kept whole.
+// Keep source-authored readings attached to the occurrence, separately from the token's
+// tokenizer reading. Exact spans cover the token; one strict prefix span can cover a stem
+// when no further source span continues inside that token.
 export function applyReadingSpansToTokens(
   paragraph: string,
   tokens: Token[],
   spans: EpubReadingSpan[] | undefined,
-): Token[] {
+): ReaderSourceToken[] {
   if (!spans?.length || tokens.length === 0) return tokens;
-  let adjusted: Token[] | null = null;
+  let adjusted: ReaderSourceToken[] | null = null;
   let cursor = 0;
   tokens.forEach((token, index) => {
     const surface = token.surface || token.word;
@@ -285,10 +306,24 @@ export function applyReadingSpansToTokens(
     const exact = spans.find((span) => span.start === start && span.end === end);
     const prefix = exact === undefined ? prefixSpanForToken(spans, start, end) : undefined;
     const override = exact ?? prefix;
-    if (!override || override.reading === token.reading) return;
-    if (prefix && token.reading && token.reading.startsWith(override.reading)) return;
+    if (!override) return;
+    const authoredText = paragraph.slice(override.start, override.end);
+    const nextReading = exact || !token.reading || !token.reading.startsWith(override.reading)
+      ? override.reading
+      : token.reading;
+    if (override.reading === token.reading && authoredText === surface) {
+      // Still retain source provenance even when the tokenizer happens to agree.
+      if (!adjusted) adjusted = tokens.slice() as ReaderSourceToken[];
+      adjusted[index] = { ...token, authoredReading: override.reading, authoredText };
+      return;
+    }
     if (!adjusted) adjusted = tokens.slice();
-    adjusted[index] = { ...token, reading: override.reading };
+    adjusted[index] = {
+      ...token,
+      reading: nextReading,
+      authoredReading: override.reading,
+      authoredText,
+    };
   });
   return adjusted ?? tokens;
 }

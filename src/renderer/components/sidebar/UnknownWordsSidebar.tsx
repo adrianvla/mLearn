@@ -457,7 +457,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
           <p class="unknown-words-sidebar-guidance">{t('mlearn.Sidebar.InspectionHint')}</p>
           <Show when={props.onPracticeWords}>
             <Button variant="primary" size="sm"
-              label={t('mlearn.Sidebar.RecallWords', { count: visibleWords().length })}
+              label={t('mlearn.Product.Practise')}
               disabled={visibleWords().length === 0}
               onClick={() => props.onPracticeWords?.(visibleWords())} />
           </Show>

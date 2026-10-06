@@ -1,0 +1,36 @@
+/* The same DOM controls serve both layouts. Measuring never exposes a second control. */
+.toolbar-overflow-measuring {
+  position: fixed !important;
+  visibility: hidden !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  width: max-content !important;
+  max-width: none !important;
+  padding: 0 !important;
+  border: 0 !important;
+  pointer-events: none !important;
+}
+.toolbar-overflow-measuring > * { flex: 0 0 auto !important; width: max-content !important; }
+.reader-nav .reader-nav-options:not(.is-overflowing) > summary,
+.reader-status-tools:not(.is-overflowing) > summary { display: none; }
+.reader-nav .reader-nav-options:not(.is-overflowing) .reader-nav-options-panel,
+.reader-status-tools:not(.is-overflowing) .reader-status-tools-panel {
+  position: static;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  width: max-content;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.reader-nav .reader-nav-options:not(.is-overflowing) .reader-nav-options-panel > *,
+.reader-status-tools:not(.is-overflowing) .reader-status-tools-panel > * { flex: 0 0 auto; width: auto; }
+.reader-nav-options.is-overflowing:not([open]) > .reader-nav-options-panel,
+.reader-status-tools.is-overflowing:not([open]) > .reader-status-tools-panel { display: none; }
+.reader-nav-options.is-overflowing > .reader-nav-options-panel,
+.reader-status-tools.is-overflowing > .reader-status-tools-panel { max-height: min(70vh, 30rem); overflow-y: auto; }

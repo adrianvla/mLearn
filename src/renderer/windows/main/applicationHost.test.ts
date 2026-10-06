@@ -8,11 +8,12 @@ import { currentApplicationHost, hasActiveMediaSource, setActiveMediaSource, use
 beforeEach(() => { vi.clearAllMocks(); fixture.desktop = true; sessionStorage.clear(); window.history.replaceState(null, '', '?host=study#/practise'); });
 afterEach(() => { setActiveMediaSource(undefined); window.history.replaceState(null, '', '/'); });
 describe('host-aware navigation', () => {
-  it('switches study purpose locally and opens utilities without unmounting Study', () => {
+  it('switches study purpose locally and keeps saved material inside the Flashcards host', () => {
     const navigate = useApplicationNavigate();
     navigate('/evaluate'); expect(fixture.navigate).toHaveBeenCalledWith('/evaluate');
-    navigate('/knowledge/material'); expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'my-learning', context: { applicationPath: '/knowledge/material' } });
-    expect(fixture.navigate).toHaveBeenCalledTimes(1);
+    navigate('/knowledge/material'); expect(fixture.navigate).toHaveBeenCalledWith('/knowledge/material');
+    expect(fixture.navigate).toHaveBeenCalledTimes(2);
+    expect(fixture.openWindow).not.toHaveBeenCalled();
   });
   it('transfers opaque media Return to its receiving renderer instead of writing Study storage', () => {
     const source = { workspace: 'reader', path: '/book.epub', page: 17, 'third-party:location': { segments: [1, 4] } };

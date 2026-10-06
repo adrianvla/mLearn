@@ -10,6 +10,7 @@ import { isElectron } from '@shared/platform';
 import './ReaderNav.css';
 import Icon from "@renderer/components/common/Icons/Icon";
 import { ReaderThemePopover } from './ReaderThemePopover';
+import { useToolbarOverflow } from '../../../../hooks/useToolbarOverflow';
 
 interface ReaderNavProps {
   hasPages: Accessor<boolean>;
@@ -39,6 +40,9 @@ interface ReaderNavProps {
 export const ReaderNav: Component<ReaderNavProps> = (props) => {
   const { t } = useLocalization();
   const [themePopoverOpen, setThemePopoverOpen] = createSignal(false);
+  let navRef: HTMLElement | undefined;
+  let optionsRef: HTMLDetailsElement | undefined;
+  const toolbar = useToolbarOverflow(() => optionsRef, () => navRef);
   let themeTriggerRef: HTMLButtonElement | undefined;
 
   const closeThemePopover = () => {
@@ -52,7 +56,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
   };
 
   return (
-    <nav class={`reader-nav panel`}>
+    <nav ref={navRef} class={`reader-nav panel`}>
       {/* Childless drag overlay: avoids Chromium bug where -webkit-app-region: drag
           on a complex element with children corrupts the OS drag hitbox bitmap,
           freezing all mouse events window-wide (electron/electron#1354) */}
@@ -78,9 +82,15 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         <Tag class="progress label-secondary" headless size={"sm"}>{props.progressString()}</Tag>
       </div>
       
-      <details class="nav-group reader-nav-options">
-        <summary aria-label={t('mlearn.Reader.Toolbar.ViewOptions')}>{t('mlearn.Reader.Toolbar.ViewOptions')}</summary>
-        <div class="reader-nav-options-panel">
+      <details
+        ref={optionsRef}
+        class="nav-group reader-nav-options"
+        classList={{ 'is-overflowing': toolbar.overflow() }}
+        data-overflow={String(toolbar.overflow())}
+        open={toolbar.open()}
+      >
+        <summary aria-label={t('mlearn.Reader.Toolbar.ViewOptions')} onClick={toolbar.toggle}>{t('mlearn.Reader.Toolbar.ViewOptions')}</summary>
+        <div class="reader-nav-options-panel" data-overflow-panel>
         <Button buttonType="nav" onClick={props.onOpenFolder}>
           {t('mlearn.Reader.UI.WelcomeSplash.OpenFolder')}
         </Button>

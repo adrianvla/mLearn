@@ -55,7 +55,7 @@ export interface WordWithReadingProps {
   /** Force showing the reading annotation even if metadata would normally hide it */
   forceShowReadingAnnotation?: boolean;
   /** An intentional exercise answer can reveal its reading independently of optional scaffolding. */
-  annotationVisibility?: 'preference' | 'answer';
+  annotationVisibility?: 'preference' | 'answer' | 'source';
   /** Skip forcing the language content font — the surrounding content surface owns the font */
   inheritFontFamily?: boolean;
   /** Feature-agnostic colored-prosody context applied to every slot (see createWordRenderText). */
@@ -84,6 +84,7 @@ export const WordWithReading: Component<WordWithReadingProps> = (props) => {
   );
 
   const needsReadingAnnotation = createMemo(() => {
+    if (props.annotationVisibility === 'source') return Boolean(props.reading && props.reading !== props.word);
     if (props.annotationVisibility !== 'answer' && !readingAnnotationsEnabled(settings)) return false;
     return wordNeedsReadingAnnotation(props.word, props.reading, resolvedLanguageData(), {
       force: props.forceShowReadingAnnotation,
