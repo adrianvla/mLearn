@@ -1856,8 +1856,8 @@ export interface Token {
   actual_word: string; // The dictionary form
   type: string;        // Part of speech (動詞, 名詞, etc.)
   reading?: string;
-  /** Optional morphosyntactic analyzer features, e.g. { Case: "Acc", Number: "Sing" }. */
-  features?: Record<string, string | string[]>;
+  /** Optional package-owned analyzer features with open-ended structured values. */
+  features?: Record<string, unknown>;
   // Computed/derived properties for UI
   surface?: string;    // Alias for word (for compatibility)
   partOfSpeech?: string; // Alias for type

@@ -24,6 +24,8 @@ ENTRY_CACHE_SIZE = 4096
 READING_CACHE_SIZE = 4096
 PROSODY_CACHE_SIZE = 2048
 LOOKUP_CANDIDATE_LIMIT = 64
+MAX_DICTIONARY_BACKED_COMPOUND_PATTERNS = 64
+MAX_DICTIONARY_BACKED_COMPOUND_PARTS = 32
 ROUGH_UNSAFE_TOKENIZER_SCRIPTS = {"Han", "Hira", "Kana", "Bopo", "Thai", "Khmr", "Mymr"}
 ROUGH_TOKENIZER_TYPES = {"unicode-word"}
 _SUDACHI_TOKENIZER_LOCKS: dict[str, threading.Lock] = {}
@@ -1591,25 +1593,180 @@ class GenericLanguageModule:
         if tokenizer_obj is None:
             return self._missing_tokenizer_fallback("sudachi", tokenizer_config, text)
         ignored_pos = set(tokenizer_config.get("ignoredPos") or [])
+        compound_config = self._dictionary_backed_compound_config(tokenizer_config)
+        if compound_config is not None:
+            self._ensure_dictionary_connection()
+            if self._db_conn is None or self._dictionary_schema != "headword-reading-zlib-json":
+                raise RuntimeError(
+                    f"Dictionary-backed compound reconciliation requires an installed headword-reading dictionary for {self.language}"
+                )
         reading_normalizer = tokenizer_config.get("outputReadingNormalizer") or "none"
         token_list = []
         sudachi_lock = _get_sudachi_tokenizer_lock(self.language, tokenizer_config)
         with sudachi_lock:
             for token in tokenizer_obj.tokenize(text, self._sudachi_mode):
                 surface = token.surface()
+                if not surface:
+                    continue
                 pos = token.part_of_speech()[0]
+                if pos in ignored_pos:
+                    if compound_config is not None:
+                        token_list.append({
+                            "word": surface,
+                            "actual_word": surface,
+                            "type": pos,
+                            "_begin": self._sudachi_token_offset(token, "begin"),
+                            "_end": self._sudachi_token_offset(token, "end"),
+                        })
+                    continue
                 actual_word = self._sudachi_lexical_form(token, tokenizer_config)
                 reading = _normalize_token_reading(token.reading_form(), reading_normalizer, self.metadata)
                 if actual_word == surface and not self._entries_by_headword_cached(actual_word):
                     actual_word = self._apply_lemma_fallback_rules(surface, pos, tokenizer_config)
-                if surface and pos not in ignored_pos:
-                    token_list.append({
-                        "word": surface,
-                        "actual_word": actual_word,
-                        "type": pos,
-                        "reading": reading,
-                    })
-        return token_list
+                token_result = {
+                    "word": surface,
+                    "actual_word": actual_word,
+                    "type": pos,
+                    "reading": reading,
+                }
+                if compound_config is not None:
+                    token_result["_begin"] = self._sudachi_token_offset(token, "begin")
+                    token_result["_end"] = self._sudachi_token_offset(token, "end")
+                token_list.append(token_result)
+        return self._reconcile_dictionary_backed_compounds(token_list, ignored_pos, tokenizer_config, compound_config)
+
+    def _dictionary_backed_compound_config(self, tokenizer_config: dict[str, Any]):
+        config = tokenizer_config.get("dictionaryBackedCompounds")
+        if config is None:
+            return None
+        if not isinstance(config, dict):
+            raise RuntimeError("Tokenizer dictionaryBackedCompounds metadata must be an object")
+
+        feature_id = config.get("componentsFeatureId")
+        if not isinstance(feature_id, str) or not feature_id.strip():
+            raise RuntimeError("Tokenizer dictionaryBackedCompounds must declare componentsFeatureId")
+
+        raw_patterns = config.get("partOfSpeechSequences")
+        if not isinstance(raw_patterns, list) or not raw_patterns:
+            raise RuntimeError("Tokenizer dictionaryBackedCompounds must declare partOfSpeechSequences")
+        if len(raw_patterns) > MAX_DICTIONARY_BACKED_COMPOUND_PATTERNS:
+            raise RuntimeError("Tokenizer dictionaryBackedCompounds declares too many POS sequences")
+
+        patterns = []
+        for pattern in raw_patterns:
+            if (
+                not isinstance(pattern, list)
+                or len(pattern) < 2
+                or len(pattern) > MAX_DICTIONARY_BACKED_COMPOUND_PARTS
+                or any(not isinstance(pos, str) or not pos for pos in pattern)
+            ):
+                raise RuntimeError("Tokenizer dictionaryBackedCompounds contains an invalid POS sequence")
+            patterns.append(pattern)
+
+        return {"componentsFeatureId": feature_id.strip(), "partOfSpeechSequences": patterns}
+
+    def _sudachi_token_offset(self, token, name: str) -> int | None:
+        try:
+            value = getattr(token, name)()
+        except Exception:
+            return None
+        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+    def _reconcile_dictionary_backed_compounds(
+        self,
+        tokens: list[dict[str, Any]],
+        ignored_pos: set[str],
+        tokenizer_config: dict[str, Any],
+        compound_config: dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
+        if compound_config is None:
+            return [
+                {key: value for key, value in token.items() if not key.startswith("_")}
+                for token in tokens
+                if token.get("type") not in ignored_pos
+            ]
+
+        patterns = compound_config["partOfSpeechSequences"]
+        component_feature_id = compound_config["componentsFeatureId"]
+        result = []
+        index = 0
+        while index < len(tokens):
+            matched = None
+            for pattern in patterns:
+                end_index = index + len(pattern)
+                parts = tokens[index:end_index]
+                if len(parts) != len(pattern):
+                    continue
+                if [part.get("type") for part in parts] != pattern:
+                    continue
+                if any(part.get("type") in ignored_pos for part in parts):
+                    continue
+                boundaries = [(part.get("_begin"), part.get("_end")) for part in parts]
+                if any(start is None or end is None for start, end in boundaries):
+                    continue
+                if any(boundaries[position][1] != boundaries[position + 1][0] for position in range(len(boundaries) - 1)):
+                    continue
+
+                headword = "".join(str(part.get("word") or "") for part in parts)
+                if not headword:
+                    continue
+                entries = self._entries_by_headword_cached(headword)
+                exact_entries = []
+                for entry in entries:
+                    entry_headword = self._headword_reading_entry_headword(entry)
+                    if not entry_headword or entry_headword == headword:
+                        exact_entries.append(entry)
+                if not exact_entries:
+                    continue
+
+                # The package controls the permitted POS boundaries and their priority.
+                # Exact dictionary evidence is still required; no surface-length heuristic is used.
+                reading = self._dictionary_backed_compound_reading(exact_entries, tokenizer_config)
+                components = [self._dictionary_backed_component(part) for part in parts]
+                merged = {
+                    "word": headword,
+                    "actual_word": headword,
+                    "type": parts[0]["type"],
+                    "features": {component_feature_id: components},
+                }
+                if reading:
+                    merged["reading"] = reading
+                matched = (merged, len(parts))
+                break
+
+            token = tokens[index]
+            if matched is not None:
+                result.append(matched[0])
+                index += matched[1]
+            else:
+                if token.get("type") not in ignored_pos:
+                    result.append({key: value for key, value in token.items() if not key.startswith("_")})
+                index += 1
+        return result
+
+    def _dictionary_backed_compound_reading(
+        self,
+        entries: list[Any],
+        tokenizer_config: dict[str, Any],
+    ) -> str | None:
+        ranked = sorted(entries, key=self._rank_headword_reading_entry)
+        normalizer = tokenizer_config.get("outputReadingNormalizer") or "none"
+        for entry in ranked:
+            raw_reading = self._headword_reading_entry_reading(entry)
+            if not raw_reading:
+                continue
+            reading = _normalize_token_reading(raw_reading, normalizer, self.metadata)
+            if reading:
+                return reading
+        return None
+
+    def _dictionary_backed_component(self, token: dict[str, Any]) -> dict[str, Any]:
+        component = {
+            key: token[key]
+            for key in ("word", "actual_word", "type", "reading", "features")
+            if key in token
+        }
+        return component
 
     def _sudachi_lexical_form(self, token, tokenizer_config: dict[str, Any]) -> str:
         fallback = token.dictionary_form()

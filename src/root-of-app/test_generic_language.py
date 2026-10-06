@@ -3013,6 +3013,158 @@ def test_missing_sudachi_tokenizer_without_explicit_fallback_raises(tmp_path, mo
         module.LANGUAGE_TOKENIZE("日本語")
 
 
+def test_package_declared_dictionary_compounds_keep_identity_reading_pitch_and_boundaries(tmp_path):
+    data_root = tmp_path / "language-data"
+    _write_json(
+        data_root / "languages" / "zz.json",
+        {
+            "name": "Unregistered test language",
+            "languageData": {"version": "zz-test-v1"},
+            "runtime": {
+                "nlp": {
+                    "tokenizer": {
+                        "type": "sudachi",
+                        "required": True,
+                        "ignoredPos": ["SPACE"],
+                        "dictionaryBackedCompounds": {
+                            "partOfSpeechSequences": [["ROOT", "SUFFIX"]],
+                            "componentsFeatureId": "zz::analyzer-components",
+                        },
+                    },
+                    "dictionary": {
+                        "type": "sqlite-zlib-json",
+                        "schema": "headword-reading-zlib-json",
+                        "path": "dictionaries/zz/en/dictionary.db",
+                        "defaultTargetLanguage": "en",
+                        "schemaVersion": "1",
+                        "renderer": "structured-glosses",
+                        "prosody": {
+                            "table": "pitch",
+                            "headwordColumn": "headword",
+                            "readingColumn": "reading",
+                            "dataColumn": "data",
+                        },
+                        "lookup": {
+                            "readingRank": ["score-desc"],
+                            "contextMatch": [{"hint": "reading", "field": "reading"}],
+                        },
+                    },
+                },
+            },
+        },
+    )
+
+    dictionary_path = data_root / "dictionaries" / "zz" / "en" / "dictionary.db"
+    dictionary_path.parent.mkdir(parents=True)
+    conn = sqlite3.connect(dictionary_path)
+    conn.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute("INSERT INTO meta VALUES ('version', '1:test')")
+    conn.execute("CREATE TABLE entries (headword TEXT, reading TEXT, data BLOB)")
+    conn.execute("CREATE TABLE pitch (headword TEXT, reading TEXT, data BLOB)")
+    for headword, reading in [("a", "a"), ("b", "b"), ("aa", "a-a")]:
+        entry = {"word": headword, "reading": reading, "score": 10, "glosses": [headword]}
+        conn.execute("INSERT INTO entries VALUES (?, ?, ?)", (headword, reading, _zjson(entry)))
+    for reading, score in [("joined-reading", 10), ("alternate-reading", 5)]:
+        entry = {"word": "ab", "reading": reading, "score": score, "glosses": ["compound"]}
+        conn.execute("INSERT INTO entries VALUES (?, ?, ?)", ("ab", reading, _zjson(entry)))
+    pitch = ["ab", "pitch", {"reading": "joined-reading", "position": 7}]
+    conn.execute("INSERT INTO pitch VALUES (?, ?, ?)", ("ab", "joined-reading", _zjson(pitch)))
+    alternate_pitch = ["ab", "pitch", {"reading": "alternate-reading", "position": 9}]
+    conn.execute("INSERT INTO pitch VALUES (?, ?, ?)", ("ab", "alternate-reading", _zjson(alternate_pitch)))
+    conn.commit()
+    conn.close()
+
+    class FakeMorpheme:
+        def __init__(self, surface, reading, pos, begin, end):
+            self._surface = surface
+            self._reading = reading
+            self._pos = pos
+            self._begin = begin
+            self._end = end
+
+        def surface(self):
+            return self._surface
+
+        def part_of_speech(self):
+            return [self._pos]
+
+        def dictionary_form(self):
+            return self._surface
+
+        def normalized_form(self):
+            return self._surface
+
+        def reading_form(self):
+            return self._reading
+
+        def begin(self):
+            return self._begin
+
+        def end(self):
+            return self._end
+
+    class FakeSudachiTokenizer:
+        def __init__(self, tokens_by_text):
+            self._tokens_by_text = tokens_by_text
+
+        def tokenize(self, text, _mode):
+            return self._tokens_by_text[text]
+
+    def morpheme(surface, reading, pos, begin, end):
+        return FakeMorpheme(surface, reading, pos, begin, end)
+
+    module = GenericLanguageModule("zz")
+    module._initialize_tokenizer = lambda: None
+    module.LOAD_MODULE(str(tmp_path), str(data_root))
+    module._sudachi_tokenizer = FakeSudachiTokenizer({
+        "🙂ab": [
+            morpheme("🙂", "🙂", "SYMBOL", 0, 1),
+            morpheme("a", "a", "ROOT", 1, 2),
+            morpheme("b", "b", "SUFFIX", 2, 3),
+        ],
+        "ab": [morpheme("a", "a", "ROOT", 0, 1), morpheme("b", "b", "SUFFIX", 1, 2)],
+        "a b": [
+            morpheme("a", "a", "ROOT", 0, 1),
+            morpheme(" ", " ", "SPACE", 1, 2),
+            morpheme("b", "b", "SUFFIX", 2, 3),
+        ],
+        "a,b": [
+            morpheme("a", "a", "ROOT", 0, 1),
+            morpheme(",", ",", "PUNCT", 1, 2),
+            morpheme("b", "b", "SUFFIX", 2, 3),
+        ],
+        "aa": [morpheme("a", "a", "ROOT", 0, 1), morpheme("a", "a", "ROOT", 1, 2)],
+        "ax": [morpheme("a", "a", "ROOT", 0, 1), morpheme("x", "x", "SUFFIX", 1, 2)],
+    })
+    module._sudachi_mode = object()
+
+    emoji_prefixed = module.LANGUAGE_TOKENIZE("🙂ab")
+    assert [token["word"] for token in emoji_prefixed] == ["🙂", "ab"]
+    compound = emoji_prefixed[1]
+    assert compound["actual_word"] == "ab"
+    assert compound["reading"] == "joined-reading"
+    assert compound["features"]["zz::analyzer-components"] == [
+        {"word": "a", "actual_word": "a", "type": "ROOT", "reading": "a"},
+        {"word": "b", "actual_word": "b", "type": "SUFFIX", "reading": "b"},
+    ]
+
+    resolution = module.LANGUAGE_RESOLVE("ab", {"hints": {"reading": compound["reading"]}})
+    assert resolution["data"][0]["reading"] == "joined-reading"
+    candidates_by_reading = {
+        candidate["metadata"]["reading"]: candidate
+        for candidate in resolution["resolution"]["candidates"]
+    }
+    pitch_records = candidates_by_reading["joined-reading"]["data"][2]
+    assert pitch in pitch_records
+    assert alternate_pitch in pitch_records
+
+    assert [token["word"] for token in module.LANGUAGE_TOKENIZE("ab")] == ["ab"]
+    assert [token["word"] for token in module.LANGUAGE_TOKENIZE("a b")] == ["a", "b"]
+    assert [token["word"] for token in module.LANGUAGE_TOKENIZE("a,b")] == ["a", ",", "b"]
+    assert [token["word"] for token in module.LANGUAGE_TOKENIZE("aa")] == ["a", "a"]
+    assert [token["word"] for token in module.LANGUAGE_TOKENIZE("ax")] == ["a", "x"]
+
+
 def test_sudachi_tokenization_is_serialized_for_thread_unsafe_tokenizer():
     class FakeSudachiToken:
         def __init__(self, surface):

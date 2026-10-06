@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTokenDisplayForms, getTokenLookupWord, getTokenWordFormCandidates, getWordFormCandidates } from './wordForms';
+import { getTokenDisplayForms, getTokenLookupWord, getTokenWordFormCandidates, getWordFormCandidates, tokenLookupContext } from './wordForms';
 
 describe('getWordFormCandidates', () => {
   it('leads with the canonical form, then the raw word, then remaining variants', () => {
@@ -95,6 +95,31 @@ describe('getWordFormCandidates', () => {
 });
 
 describe('getTokenWordFormCandidates', () => {
+  it('keeps structured package component data and compound lookup identity on one token', () => {
+    const token = {
+      word: 'ab',
+      actual_word: 'ab',
+      type: 'ROOT',
+      reading: 'joined-reading',
+      features: {
+        'zz::analyzer-components': [
+          { word: 'a', actual_word: 'a', type: 'ROOT', reading: 'a' },
+          { word: 'b', actual_word: 'b', type: 'SUFFIX', reading: 'b' },
+        ],
+      },
+    };
+
+    expect(getTokenLookupWord(token, { providesLemmas: true })).toBe('ab');
+    expect(tokenLookupContext(token, 'a sentence containing ab')).toEqual({
+      surface: 'ab',
+      text: 'a sentence containing ab',
+      hints: {
+        ...token.features,
+        reading: 'joined-reading',
+      },
+    });
+  });
+
   it('keeps package-provided lemmas distinct from encountered forms across scripts', () => {
     for (const [surface, lemma] of [
       ['分から', '分かる'],

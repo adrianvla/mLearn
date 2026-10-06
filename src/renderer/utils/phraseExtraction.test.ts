@@ -116,6 +116,47 @@ describe('tokensToColoredHtml', () => {
         expect(result).not.toContain('defined');
     });
 
+    it('highlights repeated full compound tokens and keeps a same-prefix base word separate', () => {
+        const compoundComponents = [
+            { word: '婚約', actual_word: '婚約', type: '名詞', reading: 'こんやく' },
+            { word: '者', actual_word: '者', type: '接尾辞', reading: 'しゃ' },
+        ];
+        const tokens = [
+            token('🙂', '補助記号'),
+            token('婚約者', '名詞', {
+                reading: 'こんやくしゃ',
+                features: { 'ja::sudachi-components': compoundComponents },
+            }),
+            token('は', '助詞'),
+            token('婚約', '名詞'),
+            token('し', '動詞'),
+            token('た', '助動詞'),
+            token('。', '補助記号'),
+            token('婚約者', '名詞', {
+                reading: 'こんやくしゃ',
+                features: { 'ja::sudachi-components': compoundComponents },
+            }),
+            token('の', '助詞'),
+            token('写真', '名詞'),
+        ];
+        const japaneseLanguage: LanguageData = {
+            name: 'Japanese package',
+            colour_codes: {},
+            settings: { fixed: {} },
+            textProcessing: {
+                scriptProfile: { acceptedScripts: ['Han', 'Hira', 'Kana'] },
+                tokenJoinSeparator: '',
+            },
+        };
+
+        const result = tokensToColoredHtml(tokens, {}, '婚約者', japaneseLanguage);
+
+        expect(result.match(/class="subtitle_word defined"/g)).toHaveLength(2);
+        expect(result).toContain('<span class="subtitle_word defined">婚約者</span>');
+        expect(result).toContain('<span class="subtitle_word">婚約</span>');
+        expect(result).toContain('<span class="subtitle_word">🙂</span>');
+    });
+
     it('renders multiple tokens concatenated', () => {
         const tokens = [token('foo', ''), token('bar', '')];
         const result = tokensToColoredHtml(tokens);
@@ -256,4 +297,3 @@ describe('formatForClipboard', () => {
         expect(formatForClipboard('<span class="foo"><em>text</em></span>')).toBe('text');
     });
 });
-

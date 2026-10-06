@@ -1150,6 +1150,60 @@ describe('language feature bricks', () => {
     )).toBe(true);
   });
 
+  it('keeps package-owned structured token features while grammar matching ignores their values', () => {
+    const packageFeatureLanguage: LanguageData = {
+      ...latinLanguage,
+      runtime: {
+        nlp: {
+          tokenizer: {
+            type: 'spacy',
+            capabilities: ['segments', 'morphology'],
+          },
+        },
+      },
+    };
+    const token = {
+      word: 'школу',
+      actual_word: 'школа',
+      type: 'NOUN',
+      features: {
+        Case: 'Acc',
+        'example-language::class-system': { class: 'animate', hierarchy: ['human', 'kin'] },
+      },
+    };
+
+    expect(grammarPointMatchesTokens(
+      {
+        pattern: 'accusative object',
+        meaning: 'direct object marked with accusative',
+        level: 2,
+        match: {
+          type: 'token-sequence',
+          tokens: [{ features: { Case: 'Acc' } }],
+        },
+      },
+      [token],
+      packageFeatureLanguage,
+    )).toBe(true);
+    expect(grammarPointMatchesTokens(
+      {
+        pattern: 'unknown scalar feature',
+        meaning: 'package-owned structured value is not a scalar grammar match',
+        level: 2,
+        match: {
+          type: 'token-sequence',
+          tokens: [{ features: { 'example-language::class-system': 'animate' } }],
+        },
+      },
+      [token],
+      packageFeatureLanguage,
+    )).toBe(false);
+    expect(token.features['example-language::class-system']).toEqual({
+      class: 'animate',
+      hierarchy: ['human', 'kin'],
+    });
+  });
+
   it('does not match morphology feature grammar when the tokenizer does not provide morphology', () => {
     const tokenizerWithoutMorphology: LanguageData = {
       ...latinLanguage,

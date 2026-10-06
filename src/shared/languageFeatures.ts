@@ -683,15 +683,19 @@ function grammarMatcherCanUseTokenizerField(
 }
 
 function tokenFeatureMatches(
-  actual: string | string[] | undefined,
+  actual: unknown,
   expected: string | string[],
   caseSensitive: boolean,
 ): boolean {
-  if (actual === undefined) return false;
-  const actualValues = Array.isArray(actual) ? actual : [actual];
+  const actualValues = typeof actual === 'string'
+    ? [actual]
+    : Array.isArray(actual) && actual.every((value): value is string => typeof value === 'string')
+      ? actual
+      : [];
+  if (actualValues.length === 0) return false;
   const expectedValues = Array.isArray(expected) ? expected : [expected];
   return expectedValues.some((expectedValue) => (
-    actualValues.some((actualValue) => compareGrammarValue(String(actualValue), String(expectedValue), caseSensitive))
+    actualValues.some((actualValue) => compareGrammarValue(actualValue, expectedValue, caseSensitive))
   ));
 }
 

@@ -210,7 +210,7 @@ describe('language-agnostic runtime API naming', () => {
     const tokenizerHook = readRepoFile('src/renderer/hooks/useNLPTokenizer.ts');
     const tokenizerHookTests = readRepoFile('src/renderer/hooks/useNLPTokenizer.test.ts');
 
-    expect(tokenInterface).toContain('features?: Record<string, string | string[]>;');
+    expect(tokenInterface).toContain('features?: Record<string, unknown>;');
     expect(tokenInterface).not.toMatch(/\bpitchAccent\b/);
     expect(tokenizerHook).not.toMatch(/\bpitchAccent\b/);
     expect(tokenizerHookTests).not.toMatch(/\bpitchAccent\b/);
