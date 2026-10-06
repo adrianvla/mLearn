@@ -357,8 +357,7 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
                 when={userLevel() !== null}
                 fallback={t('mlearn.LevelStudy.Coverage.AllLevels')}
               >
-                {t('mlearn.LevelStudy.Coverage.UpTo')}
-                <Button buttonType="pill" size="sm" variant="primary" label={userLevelLabel()} onClick={openBehaviourSettings} />
+                {t('mlearn.LearningPlan.FrequencyDetailThrough', { level: userLevelLabel() })}
               </Show>
             </span>
             <span>
@@ -408,7 +407,7 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
                }
              >
                <button type="button" class="level-study-set-level-link" onClick={openBehaviourSettings}>
-                 {t('mlearn.LevelStudy.Coverage.SetLevelHint')}
+                 {t('mlearn.LearningPlan.SetBrowsePreference')}
                </button>
              </Show>
           </Show>
@@ -449,15 +448,30 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
           <Show when={view() === 'plan'}>
             <Panel class="level-study-grammar-summary" padding="md">
               <h3>{t('mlearn.LevelStudy.Grammar.Title')}</h3>
-              <For each={grammarSummary()!.buckets}>{bucket => <div class="level-study-grammar-summary-row">
-                <span>{grammarLevelName(Number(bucket.level), resolvedLanguageData().data!)}</span>
-                <span>{bucket.known + bucket.learning + bucket.unknown} / {bucket.total} {t('mlearn.LevelStudy.Coverage.Assessed')}</span>
+              <p class="level-study-grammar-summary__counts">
+                <span>{t('mlearn.LevelStudy.Grammar.State.Known')}: {grammarSummary()!.known}</span>
+                <span>{t('mlearn.LevelStudy.Grammar.State.Learning')}: {grammarSummary()!.learning}</span>
+                <span>{t('mlearn.LevelStudy.Grammar.State.Unknown')}: {grammarSummary()!.unknown}</span>
+                <span>{t('mlearn.LevelStudy.Grammar.State.Unmeasured')}: {grammarSummary()!.unmeasured}</span>
+              </p>
+              <details class="level-study-grammar-summary__detail">
+                <summary>{t('mlearn.LearningPlan.CurriculumDetails')}</summary>
+                <For each={grammarSummary()!.buckets}>{bucket => <div class="level-study-grammar-summary-row">
+                  <span>{grammarLevelName(Number(bucket.level), resolvedLanguageData().data!)}</span>
+                  <span>{t('mlearn.LevelStudy.Grammar.State.Known')}: {bucket.known}</span>
+                  <span>{t('mlearn.LevelStudy.Grammar.State.Learning')}: {bucket.learning}</span>
+                  <span>{t('mlearn.LevelStudy.Grammar.State.Unknown')}: {bucket.unknown}</span>
+                  <span>{t('mlearn.LevelStudy.Grammar.State.Unmeasured')}: {bucket.unmeasured}</span>
+                </div>}</For>
+              </details>
+              <div class="level-study-grammar-actions">
                 <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
-                  activity: 'grammar', level: bucket.level, returnTo: 'plan',
-                  patterns: scopedGrammarData()!.grammar!.filter(point => point.level === bucket.level).map(point => point.pattern),
-                } })}>{t('mlearn.Product.Practise')}</Button>
-              </div>}</For>
-              <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', purpose: 'evaluate', returnTo: 'plan' } })}>{t('mlearn.Product.Evaluate')}</Button>
+                  activity: 'grammar', returnTo: 'plan', patterns: scopedGrammarData()?.grammar?.map(point => point.pattern) ?? [],
+                } })}>{t('mlearn.LevelStudy.Grammar.Practise')}</Button>
+                <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
+                  activity: 'grammar', purpose: 'evaluate', returnTo: 'plan', patterns: scopedGrammarData()?.grammar?.map(point => point.pattern) ?? [],
+                } })}>{t('mlearn.Product.GrammarCheck')}</Button>
+              </div>
             </Panel>
           </Show>
           <Show when={view() === 'grammar' || view() === 'grammar-check'}>

@@ -7,6 +7,11 @@
 .learning-goals summary { cursor: pointer; color: var(--text-secondary); }
 .learning-goals fieldset { margin-top: var(--spacing-4); padding: var(--spacing-4); border: 1px solid var(--border-color); border-radius: var(--radius-md); }
 .learning-goals__constraints { display: flex; flex-wrap: wrap; gap: var(--spacing-4); margin: var(--spacing-2) 0; }
+.learning-goals__outcome { color: var(--text-primary); font-weight: var(--font-weight-semibold); }
+.learning-goals__deadline, .learning-goals__scope-reference { color: var(--text-secondary); }
+.learning-goals__requirements { display: grid; gap: var(--spacing-1); flex-basis: 100%; margin: 0; padding: 0; list-style: none; }
+.learning-goals__requirement { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--spacing-2); color: var(--text-secondary); font-size: var(--font-size-sm); }
+.learning-goals__edit { justify-self: start; }
 .learning-goals form { display: flex; align-items: end; gap: var(--spacing-2); margin-top: var(--spacing-4); }
 .learning-goals form label { flex: 1; }
 .learning-goals textarea { min-height: 5rem; }

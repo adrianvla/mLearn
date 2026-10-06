@@ -68,6 +68,8 @@ export const LearningPlanSettings: Component = () => {
 
   return <div class="learning-plan-settings">
       <Show when={hasFreqLevels() && !activeLearningGoals(learningGoalsForSettings(settings), settings.language).length}>
+        <details class="learning-plan-curriculum-preference">
+        <summary>{t('mlearn.LearningPlan.BrowsePreference')}</summary>
         <SettingGroup title={t('mlearn.Settings.Groups.LanguageProficiency')}>
           <Show when={frequencyProviderEntries().length > 1}>
             <SettingRow
@@ -181,6 +183,7 @@ export const LearningPlanSettings: Component = () => {
             </Select>
           </SettingRow>
         </SettingGroup>
+        </details>
       </Show>
 
       <SettingGroup title={t('mlearn.Goals.Purpose')}>

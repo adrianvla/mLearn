@@ -3,18 +3,17 @@ import { useLearningModel } from '../../hooks/useLearningModel';
 import { policyContextFromSettings } from '../../learning/policyContext';
 import { Component, Show, createEffect, createSignal, createMemo } from 'solid-js';
 import { useLanguage, useLocalization, useSettings } from '../../context';
-import { Button, ArrowLeftIcon, TargetIcon } from '../../components/common';
+import { Button, ArrowLeftIcon, TargetIcon, LearningGoals } from '../../components/common';
 import { LevelStudyTab } from './LevelStudyTab';
 import { LearningPlanSettings } from './LearningPlanSettings';
-import { getLearningLanguageLevelForLanguage, getFrequencyLevelLabel } from '../../../shared/languageFeatures';
-import { DEFAULT_SETTINGS } from '../../../shared/types';
+import { activeLearningGoals, learningGoalsForSettings } from '../../../shared/learningGoals';
 import { getBridge } from '../../../shared/bridges';
 import { grammarSelfAssessmentHandoffMatches } from './grammarSelfAssessmentDecision';
 import './LevelStudy.css';
 
 export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; launchContext?: Record<string, unknown> }> = (props) => {
   const { t } = useLocalization();
-  const { currentLangData, getFreqLevelNames } = useLanguage();
+  const { currentLangData } = useLanguage();
   const { settings } = useSettings();
   const targetScope = createMemo(() => learningScopeForSettings(settings, currentLangData()));
   const learning = useLearningModel(() => settings.language);
@@ -23,7 +22,15 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
   const editPlan = () => {
     if (planControls) planControls.open = true;
     planControls?.scrollIntoView({ block: 'start' });
-    planControls?.querySelector<HTMLSelectElement>('select')?.focus({ preventScroll: true });
+    const firstControl = planControls?.querySelector<HTMLSelectElement>('select');
+    if (firstControl) firstControl.focus({ preventScroll: true });
+    else planControls?.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true });
+  };
+  const handlePlanKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || !planControls?.open) return;
+    event.preventDefault();
+    planControls.open = false;
+    planControls.parentElement?.querySelector<HTMLButtonElement>('.learning-goals__edit')?.focus({ preventScroll: true });
   };
   const openStudy = () => {
     const scope = targetScope();
@@ -55,13 +62,10 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
 
   createEffect(() => { setGrammarRequestConsumed(false); if (props.workspace === 'plan' && props.launchContext?.edit === true) editPlan(); });
   const planSummary = () => {
-    if (targetScope().selected) return targetScope().goals.map(goal => goal.outcome).join(' · ') || t('mlearn.Goals.Unavailable');
-    const data = currentLangData();
-    const provider = data?.frequencyProviders?.[(settings.frequencyProviderSelections ?? DEFAULT_SETTINGS.frequencyProviderSelections)[settings.language]
-      ?? data?.activeFrequencyProvider ?? data?.defaultFrequencyProvider ?? ''];
-    const target = getLearningLanguageLevelForLanguage(settings, settings.language);
-    const label = target === null ? t('mlearn.Settings.Behaviour.LearningLanguageLevel.NoLimit') : getFrequencyLevelLabel(target, getFreqLevelNames(), data);
-    return [provider?.name, label].filter(Boolean).join(' · ');
+    const goals = activeLearningGoals(learningGoalsForSettings(settings), settings.language);
+    if (!goals.length) return t('mlearn.Goals.Explore');
+    const resolved = new Map(targetScope().goals.map(goal => [goal.id, goal.outcome]));
+    return goals.map(goal => resolved.get(goal.id) ?? goal.outcome).join(' · ');
   };
   const title = () => props.workspace === 'grammar-check' ? t('mlearn.Product.GrammarCheck') : props.workspace === 'grammar' ? t('mlearn.LevelStudy.Grammar.Title')
     : props.workspace === 'mock' ? t('mlearn.Product.Evaluate') : t('mlearn.LevelStudy.Title');
@@ -79,8 +83,11 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
       <div class="level-study-content">
           <div class="learning-plan-page">
             <Show when={!props.workspace || props.workspace === 'plan'}>
-              <details ref={planControls} class="learning-plan-configuration">
-                <summary><span>{planSummary()}</span><span class="learning-plan-edit-label">{t('mlearn.LearningPlan.Edit')}</span></summary>
+              <div class="learning-plan-target-summary" data-testid="learning-plan-target-summary">
+                <LearningGoals compact summaryOnly onEdit={editPlan} requirementEvaluations={policyContext()?.requirementEvaluations} />
+              </div>
+              <details ref={planControls} class="learning-plan-configuration" onKeyDown={handlePlanKeyDown}>
+                <summary>{t('mlearn.LearningPlan.EditControls')}</summary>
                 <LearningPlanSettings />
               </details>
               <div class="learning-plan-scope-actions"><Button onClick={openStudy}>{t('mlearn.Home.Today.PracticeAction')}</Button>

@@ -32,7 +32,15 @@
       "Choose": "Choose a target",
       "Remove": "Remove",
       "Unavailable": "This curriculum needs an available language package.",
-      "AllMaterial": "All material"
+      "AllMaterial": "All material",
+      "DeadlineDate": "Deadline: {date}",
+      "RequirementEvidence": "Requirement evidence",
+      "RequirementStatus": {
+        "met": "Met by current evidence",
+        "unmet": "Needs work",
+        "unknown": "Not yet measurable",
+        "unsupported": "Not measured by this language package"
+      }
     },
     "LibraryRecovery": {
       "OpenProtection": "Data protection settings",
@@ -2093,7 +2101,7 @@
       "Placement": {
         "Title": "Returning learner",
         "Description": "Optional: record an old exam or school result as background, or let a short sample of unmeasured words suggest a starting level. Nothing is claimed as known, and you can skip all of it.",
-        "BackgroundTitle": "Your background",
+        "BackgroundTitle": "Past results (optional)",
         "BackgroundEmpty": "No past results recorded.",
         "AddRecord": "Add past result",
         "KindLabel": "Type of result",
@@ -2131,7 +2139,8 @@
         "EmptyPools": "No unmeasured words are available to sample right now.",
         "DateRequired": "An exam or school result needs the date it was achieved.",
         "DateUnknown": "date unknown",
-        "LiveProgress": "{count} responses · Next words adapt to your answers"
+        "LiveProgress": "{count} responses · Next words adapt to your answers",
+        "BackgroundNote": "Stored as background only; it does not mark words or grammar as known."
       },
       "Mock": {
         "Title": "Practice checkpoints",
@@ -4166,7 +4175,12 @@
       "Open": "Open Learning Plan",
       "Edit": "Change plan",
       "BackToMaterial": "Back to reading",
-      "MaterialPractice": "From {title} · {count} selected words"
+      "MaterialPractice": "From {title} · {count} selected words",
+      "BrowsePreference": "Curriculum browsing preference",
+      "EditControls": "Edit target and preferences",
+      "CurriculumDetails": "Curriculum detail",
+      "FrequencyDetailThrough": "Frequency detail through {level}",
+      "SetBrowsePreference": "Set a frequency browsing preference"
     },
     "StudyEncounter": {
       "VisitProgress": "Completed this visit: {count}",

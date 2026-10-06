@@ -32,7 +32,15 @@
       "Choose": "选择学习目标",
       "Remove": "移除",
       "Unavailable": "此课程需要可用的语言包。",
-      "AllMaterial": "全部材料"
+      "AllMaterial": "全部材料",
+      "DeadlineDate": "截止日期：{date}",
+      "RequirementEvidence": "条件证据",
+      "RequirementStatus": {
+        "met": "当前证据已满足",
+        "unmet": "需要练习",
+        "unknown": "暂时无法测量",
+        "unsupported": "此语言包无法测量"
+      }
     },
     "LibraryRecovery": {
       "OpenProtection": "数据保护与恢复设置",
@@ -2093,7 +2101,7 @@
       "Placement": {
         "Title": "回归学习者",
         "Description": "可选：将旧的考试或学校成绩记录为背景，或让少量未测单词的抽样建议一个起始等级。不会据此断言任何已知，且全部可跳过。",
-        "BackgroundTitle": "你的背景",
+        "BackgroundTitle": "过往结果（可选）",
         "BackgroundEmpty": "尚无过往成绩记录。",
         "AddRecord": "添加过往成绩",
         "KindLabel": "成绩类型",
@@ -2131,7 +2139,8 @@
         "EmptyPools": "当前没有可供抽样的未测单词。",
         "DateRequired": "考试或学校成绩需要填写取得日期。",
         "DateUnknown": "日期未知",
-        "LiveProgress": "已回答 {count} 题 · 后续词语根据回答调整"
+        "LiveProgress": "已回答 {count} 题 · 后续词语根据回答调整",
+        "BackgroundNote": "仅作为背景信息保存，不会将单词或语法标记为已掌握。"
       },
       "Mock": {
         "Title": "学习检查",
@@ -4166,7 +4175,12 @@
       "Open": "打开学习计划",
       "Edit": "修改计划",
       "BackToMaterial": "返回阅读",
-      "MaterialPractice": "来自 {title} · 已选择 {count} 个词"
+      "MaterialPractice": "来自 {title} · 已选择 {count} 个词",
+      "BrowsePreference": "课程浏览偏好",
+      "EditControls": "编辑目标和偏好",
+      "CurriculumDetails": "课程详情",
+      "FrequencyDetailThrough": "频率级别至 {level}",
+      "SetBrowsePreference": "设置频率级别浏览偏好"
     },
     "StudyEncounter": {
       "VisitProgress": "本次完成：{count}",

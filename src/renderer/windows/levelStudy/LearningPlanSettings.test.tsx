@@ -130,6 +130,10 @@ describe('LearningPlanSettings', () => {
     const { LearningPlanSettings } = await import('./LearningPlanSettings');
     const dispose = render(() => <LearningPlanSettings />, container);
 
+    const browsingPreference = container.querySelector<HTMLDetailsElement>('.learning-plan-curriculum-preference');
+    expect(browsingPreference?.open).toBe(false);
+    expect(browsingPreference?.querySelector('summary')?.textContent).toBe('mlearn.LearningPlan.BrowsePreference');
+
     const selects = Array.from(container.querySelectorAll('select'));
     const levelSelect = selects.find((select) =>
       Array.from(select.options).some((option) => option.textContent === 'Band 2')
@@ -140,6 +144,19 @@ describe('LearningPlanSettings', () => {
     expect(Array.from(levelSelect!.options).map((option) => option.value)).not.toContain('-1');
     expect(Array.from(levelSelect!.options).map((option) => option.value)).not.toContain('0');
 
+    dispose();
+  });
+
+  it('does not present the legacy frequency preference as a second active target', async () => {
+    testSettings.learningLanguageLevels = { xx: 2 };
+    const { LearningPlanSettings } = await import('./LearningPlanSettings');
+    const dispose = render(() => <LearningPlanSettings />, container);
+
+    const preference = container.querySelector<HTMLDetailsElement>('.learning-plan-curriculum-preference');
+    expect(preference?.open).toBe(false);
+    expect(preference?.textContent).toContain('Band 2');
+    expect(container.textContent).not.toContain('mlearn.LearningPlan.CurrentTarget');
+    expect(container.querySelector('[data-testid="shared-goals"]')).not.toBeNull();
     dispose();
   });
 

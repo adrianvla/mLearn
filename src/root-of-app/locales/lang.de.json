@@ -32,7 +32,15 @@
       "Choose": "Lernziel wählen",
       "Remove": "Entfernen",
       "Unavailable": "Für diesen Lehrplan muss das Sprachpaket verfügbar sein.",
-      "AllMaterial": "Gesamtes Material"
+      "AllMaterial": "Gesamtes Material",
+      "DeadlineDate": "Frist: {date}",
+      "RequirementEvidence": "Nachweise zu den Anforderungen",
+      "RequirementStatus": {
+        "met": "Durch aktuelle Nachweise erfüllt",
+        "unmet": "Noch zu üben",
+        "unknown": "Noch nicht messbar",
+        "unsupported": "Von diesem Sprachpaket nicht messbar"
+      }
     },
     "LibraryRecovery": {
       "OpenProtection": "Einstellungen zum Datenschutz und zur Wiederherstellung",
@@ -2093,7 +2101,7 @@
       "Placement": {
         "Title": "Rückkehrender Lernender",
         "Description": "Optional: Erfasse ein älteres Prüfungs- oder Schulergebnis als Hintergrund, oder lass eine kurze Stichprobe unerfasster Wörter ein Startniveau vorschlagen. Es wird nichts als bekannt behauptet, und du kannst alles überspringen.",
-        "BackgroundTitle": "Dein Hintergrund",
+        "BackgroundTitle": "Frühere Ergebnisse (optional)",
         "BackgroundEmpty": "Keine früheren Ergebnisse erfasst.",
         "AddRecord": "Früheres Ergebnis hinzufügen",
         "KindLabel": "Art des Ergebnisses",
@@ -2131,7 +2139,8 @@
         "EmptyPools": "Derzeit sind keine unerfassten Wörter für eine Stichprobe verfügbar.",
         "DateRequired": "Ein Prüfungs- oder Schulergebnis braucht das Datum des Erreichens.",
         "DateUnknown": "Datum unbekannt",
-        "LiveProgress": "{count} Antworten · Die nächsten Wörter passen sich deinen Antworten an"
+        "LiveProgress": "{count} Antworten · Die nächsten Wörter passen sich deinen Antworten an",
+        "BackgroundNote": "Wird nur als Hintergrund gespeichert und markiert keine Wörter oder Grammatik als bekannt."
       },
       "Mock": {
         "Title": "Lernstand prüfen",
@@ -4166,7 +4175,12 @@
       "Open": "Lernplan öffnen",
       "Edit": "Plan ändern",
       "BackToMaterial": "Zurück zum Lesen",
-      "MaterialPractice": "Aus {title} · {count} ausgewählte Wörter"
+      "MaterialPractice": "Aus {title} · {count} ausgewählte Wörter",
+      "BrowsePreference": "Lernstoff durchsuchen",
+      "EditControls": "Lernziel und Einstellungen bearbeiten",
+      "CurriculumDetails": "Lernstoffdetails",
+      "FrequencyDetailThrough": "Häufigkeitsstufen bis {level}",
+      "SetBrowsePreference": "Einstellung zum Durchsuchen der Häufigkeitsstufen"
     },
     "StudyEncounter": {
       "VisitProgress": "In diesem Besuch abgeschlossen: {count}",

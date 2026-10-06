@@ -32,7 +32,15 @@
       "Choose": "Choisir un objectif",
       "Remove": "Retirer",
       "Unavailable": "Ce programme nécessite un pack de langue disponible.",
-      "AllMaterial": "Tout le contenu"
+      "AllMaterial": "Tout le contenu",
+      "DeadlineDate": "Échéance : {date}",
+      "RequirementEvidence": "Éléments liés aux critères",
+      "RequirementStatus": {
+        "met": "Satisfait selon les éléments actuels",
+        "unmet": "À travailler",
+        "unknown": "Pas encore mesurable",
+        "unsupported": "Non mesuré par ce paquet linguistique"
+      }
     },
     "LibraryRecovery": {
       "OpenProtection": "Protection et restauration des données",
@@ -2093,7 +2101,7 @@
       "Placement": {
         "Title": "Apprenant qui reprend",
         "Description": "Optionnel : notez un ancien résultat d'examen ou scolaire comme contexte, ou laissez un court échantillon de mots non mesurés suggérer un niveau de départ. Rien n'est déclaré connu, et vous pouvez tout ignorer.",
-        "BackgroundTitle": "Votre parcours",
+        "BackgroundTitle": "Résultats antérieurs (facultatif)",
         "BackgroundEmpty": "Aucun résultat antérieur enregistré.",
         "AddRecord": "Ajouter un résultat passé",
         "KindLabel": "Type de résultat",
@@ -2131,7 +2139,8 @@
         "EmptyPools": "Aucun mot non mesuré n'est disponible pour l'échantillonnage pour le moment.",
         "DateRequired": "Un résultat d'examen ou scolaire nécessite la date d'obtention.",
         "DateUnknown": "date inconnue",
-        "LiveProgress": "{count} réponses · Les mots suivants s’adaptent à vos réponses"
+        "LiveProgress": "{count} réponses · Les mots suivants s’adaptent à vos réponses",
+        "BackgroundNote": "Conservé comme contexte uniquement ; cela ne marque aucun mot ni point de grammaire comme acquis."
       },
       "Mock": {
         "Title": "Bilans de pratique",
@@ -4166,7 +4175,12 @@
       "Open": "Ouvrir le plan d’apprentissage",
       "Edit": "Modifier le plan",
       "BackToMaterial": "Retour à la lecture",
-      "MaterialPractice": "Depuis {title} · {count} mots sélectionnés"
+      "MaterialPractice": "Depuis {title} · {count} mots sélectionnés",
+      "BrowsePreference": "Préférence de parcours à parcourir",
+      "EditControls": "Modifier l’objectif et les préférences",
+      "CurriculumDetails": "Détails du parcours",
+      "FrequencyDetailThrough": "Fréquences jusqu’à {level}",
+      "SetBrowsePreference": "Définir une préférence de parcours à parcourir"
     },
     "StudyEncounter": {
       "VisitProgress": "Terminé pendant cette visite : {count}",

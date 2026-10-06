@@ -7,6 +7,9 @@ import { type JSX } from 'solid-js';
 
 let settingsLoadingMock = () => false;
 let currentLangDataMock: Record<string, unknown> = {};
+let currentSettingsMock: { language: string; learningLanguageLevels: Record<string, number>; sessionIntensity: string; frequencyProviderSelections: Record<string, string>; learningGoals?: Array<Record<string, unknown>> } = {
+  language: 'test', learningLanguageLevels: { test: 2 }, sessionIntensity: 'steady', frequencyProviderSelections: {},
+};
 const localizationMock = vi.fn((key: string) => key);
 const ingress = vi.hoisted(() => ({ context: {} as Record<string, unknown>, cleanup: vi.fn(), request: vi.fn(), close: vi.fn(), open: vi.fn() }));
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
@@ -23,7 +26,7 @@ vi.mock('../../context', () => ({
     currentLangData: () => currentLangDataMock,
     getFreqLevelNames: () => ({ '2': 'Package target' }),
   }),
-  useSettings: () => ({ isLoading: () => settingsLoadingMock(), settings: { language: 'test', learningLanguageLevels: { test: 2 }, sessionIntensity: 'steady', frequencyProviderSelections: {} } }),
+  useSettings: () => ({ isLoading: () => settingsLoadingMock(), settings: currentSettingsMock }),
   useLocalization: () => ({
     t: localizationMock,
   }),
@@ -62,6 +65,12 @@ vi.mock('../../components/common', () => ({
   BookIcon: () => <span />,
   GridIcon: () => <span />,
   SparklesIcon: () => <span />,
+  LearningGoals: (props: { compact?: boolean; summaryOnly?: boolean; onEdit?: () => void; requirementEvaluations?: unknown[] }) => (
+    <section data-testid="plan-target-summary" data-summary-only={props.summaryOnly} data-has-evaluation={props.requirementEvaluations?.length ? 'true' : undefined}>
+      <span>{String(currentSettingsMock.learningGoals?.[0]?.outcome ?? 'mlearn.Goals.Explore')}</span>
+      <button class="learning-goals__edit" onClick={props.onEdit}>mlearn.LearningPlan.Edit</button>
+    </section>
+  ),
 }));
 
 vi.mock('../wordSync/App', () => ({
@@ -131,6 +140,7 @@ describe('LevelStudyContent', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     currentLangDataMock = {};
+    currentSettingsMock = { language: 'test', learningLanguageLevels: { test: 2 }, sessionIntensity: 'steady', frequencyProviderSelections: {} };
     ingress.context = {};
     localizationMock.mockImplementation((key: string) => {
       switch (key) {
@@ -226,9 +236,16 @@ describe('LevelStudyContent', () => {
     const dispose = render(() => <LevelStudyContent />, container);
     const configuration = container.querySelector<HTMLDetailsElement>('.learning-plan-configuration')!;
     expect(configuration.open).toBe(false);
-    expect(configuration.querySelector('summary')?.textContent).toContain('Package target');
+    expect(container.querySelector('[data-testid="plan-target-summary"]')?.textContent).toContain('mlearn.Goals.Explore');
+    expect(container.querySelector('[data-testid="plan-target-summary"]')?.getAttribute('data-summary-only')).toBe('true');
+    expect(container.textContent).not.toContain('Package target');
+    expect(configuration.querySelector('summary')?.textContent).toContain('mlearn.LearningPlan.EditControls');
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'Edit from progress')!.click();
     expect(configuration.open).toBe(true);
+    expect(document.activeElement).toBe(configuration.querySelector('summary'));
+    configuration.querySelector('summary')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(configuration.open).toBe(false);
+    expect(document.activeElement).toBe(container.querySelector('[data-testid="plan-target-summary"] button'));
     dispose();
   });
 });

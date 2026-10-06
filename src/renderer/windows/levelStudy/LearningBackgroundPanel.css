@@ -1,18 +1,24 @@
 .learning-background-panel {
   max-width: 850px;
   margin: 0 auto var(--spacing-5);
+  padding-block: var(--spacing-3);
+  border-block: 1px solid var(--border-color);
 }
 
 .learning-background-panel summary {
+  list-style: none;
   cursor: pointer;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
 }
 
-.learning-background-panel__description,
+.learning-background-panel summary::-webkit-details-marker { display: none; }
+
+.learning-background-panel__note,
 .learning-background-panel__empty {
   color: var(--text-secondary);
   line-height: var(--line-height-normal);
+  font-size: var(--font-size-sm);
 }
 
 .learning-background-panel__records {

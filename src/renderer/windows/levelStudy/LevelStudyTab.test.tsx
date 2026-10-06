@@ -237,9 +237,20 @@ describe('LevelStudyTab', () => {
     await waitFor(() => container.querySelector('.level-study-grammar-summary') !== null);
     expect(container.querySelector('.grammar-coverage')).toBeNull();
     expect(container.querySelector('[data-testid="mock-blueprints"]')).toBeNull();
-    const practise = container.querySelector('.level-study-grammar-summary button') as HTMLButtonElement;
+    const summary = container.querySelector('.level-study-grammar-summary')!;
+    expect(summary.textContent).toContain('mlearn.LevelStudy.Grammar.State.Known');
+    expect(summary.textContent).toContain('mlearn.LevelStudy.Grammar.State.Unmeasured');
+    expect(summary.querySelectorAll('.level-study-grammar-summary-row button')).toHaveLength(0);
+    const practise = summary.querySelector('.level-study-grammar-actions button') as HTMLButtonElement;
     practise.click();
-    expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'level-study', context: expect.objectContaining({ activity: 'grammar', returnTo: 'plan' }) }));
+    expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'level-study', context: expect.objectContaining({
+      activity: 'grammar', returnTo: 'plan', patterns: ['weil', 'deshalb', 'obwohl', 'trotzdem'],
+    }) }));
+    const check = summary.querySelectorAll('.level-study-grammar-actions button')[1] as HTMLButtonElement;
+    check.click();
+    expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'level-study', context: expect.objectContaining({
+      activity: 'grammar', purpose: 'evaluate', returnTo: 'plan', patterns: ['weil', 'deshalb', 'obwohl', 'trotzdem'],
+    }) }));
     dispose();
   });
   it.each(['words', 'other-grammar'])('resumes the exact saved grammar task independently of the current %s target', async group => {
@@ -281,6 +292,8 @@ describe('LevelStudyTab', () => {
     await tick();
 
     const panel = container.querySelector('.learning-background-panel')!;
+    expect(panel.textContent).toContain('mlearn.LevelStudy.Placement.BackgroundNote');
+    expect(panel.querySelector('summary')?.textContent).toContain('mlearn.LevelStudy.Placement.BackgroundTitle');
     (panel.querySelector('summary') as HTMLElement).click();
     const addButton = Array.from(panel.querySelectorAll('button')).find((button) => button.textContent?.includes('mlearn.LevelStudy.Placement.AddRecord'))!;
     addButton.click();
@@ -473,7 +486,7 @@ describe('LevelStudyTab', () => {
     dispose();
   });
 
-  it('shows the coverage bar scoped to the user learning level as a pill linking to Learning Plan', async () => {
+  it('shows a legacy frequency level only as an explicit browsing scope, not as the current goal', async () => {
     learningLanguageLevelsMock = { ja: 5 };
     currentLangDataMock = {
       name: 'Japanese',
@@ -490,13 +503,10 @@ describe('LevelStudyTab', () => {
     const dispose = render(() => <LevelStudyTab />, container);
     await tick();
 
-    expect(container.textContent).toContain('mlearn.LevelStudy.Coverage.UpTo');
-    const pill = container.querySelector('[data-testid="level-pill"]');
-    expect(pill?.textContent).toBe('N5');
+    expect(container.textContent).toContain('mlearn.LearningPlan.FrequencyDetailThrough');
+    expect(container.querySelector('[data-testid="level-pill"]')).toBeNull();
     expect(container.querySelector('.level-study-coverage-progress')).not.toBeNull();
-
-    (pill as HTMLElement).click();
-    expect(openWindowMock).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'plan' } });
+    expect(container.textContent).not.toContain('mlearn.LevelStudy.Coverage.UpTo');
 
     dispose();
   });
@@ -519,7 +529,7 @@ describe('LevelStudyTab', () => {
 
     expect(container.textContent).toContain('mlearn.LevelStudy.Coverage.AllLevels');
     const hint = container.querySelector('.level-study-set-level-link');
-    expect(hint?.textContent).toBe('mlearn.LevelStudy.Coverage.SetLevelHint');
+    expect(hint?.textContent).toBe('mlearn.LearningPlan.SetBrowsePreference');
 
     (hint as HTMLElement).click();
     expect(openWindowMock).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'plan' } });

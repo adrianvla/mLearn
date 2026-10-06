@@ -32,7 +32,15 @@
       "Choose": "目標を選択",
       "Remove": "削除",
       "Unavailable": "この学習範囲には言語パッケージが必要です。",
-      "AllMaterial": "すべての教材"
+      "AllMaterial": "すべての教材",
+      "DeadlineDate": "期限：{date}",
+      "RequirementEvidence": "条件の評価",
+      "RequirementStatus": {
+        "met": "現在の記録で達成",
+        "unmet": "練習が必要",
+        "unknown": "まだ測定できません",
+        "unsupported": "この言語パッケージでは測定できません"
+      }
     },
     "LibraryRecovery": {
       "OpenProtection": "データ保護と復元の設定",
@@ -2093,7 +2101,7 @@
       "Placement": {
         "Title": "学習再開者向け",
         "Description": "任意：以前の試験や学校の結果を背景情報として記録するか、未測定の単語の短いサンプルから開始レベルを提案させられます。既知として主張されることはなく、すべてスキップできます。",
-        "BackgroundTitle": "あなたの背景",
+        "BackgroundTitle": "過去の結果（任意）",
         "BackgroundEmpty": "過去の結果は記録されていません。",
         "AddRecord": "過去の結果を追加",
         "KindLabel": "結果の種類",
@@ -2131,7 +2139,8 @@
         "EmptyPools": "現在、サンプルできる未測定の単語がありません。",
         "DateRequired": "試験・学校の結果には達成日が必要です。",
         "DateUnknown": "日付不明",
-        "LiveProgress": "回答数：{count} · 回答に合わせて次の単語を選びます"
+        "LiveProgress": "回答数：{count} · 回答に合わせて次の単語を選びます",
+        "BackgroundNote": "背景情報として保存され、単語や文法を習得済みにはしません。"
       },
       "Mock": {
         "Title": "学習チェック",
@@ -4166,7 +4175,12 @@
       "Open": "学習プランを開く",
       "Edit": "プランを変更",
       "BackToMaterial": "読書に戻る",
-      "MaterialPractice": "{title}から · 選択した単語 {count} 語"
+      "MaterialPractice": "{title}から · 選択した単語 {count} 語",
+      "BrowsePreference": "教材の閲覧範囲",
+      "EditControls": "目標と設定を編集",
+      "CurriculumDetails": "教材の詳細",
+      "FrequencyDetailThrough": "{level}までの頻度帯",
+      "SetBrowsePreference": "頻度帯の閲覧範囲を設定"
     },
     "StudyEncounter": {
       "VisitProgress": "今回の完了数：{count}",

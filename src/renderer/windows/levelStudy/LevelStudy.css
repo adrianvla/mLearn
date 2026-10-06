@@ -424,7 +424,7 @@
 .learning-plan-page { height: 100%; overflow: auto; padding: var(--spacing-6); box-sizing: border-box; }
 .learning-plan-page > .level-study-tab { height: auto; overflow: visible; padding: 0; }
 .learning-plan-progress-heading { margin: 0 0 var(--spacing-4); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
-.learning-plan-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-4); margin-bottom: var(--spacing-8); }
+.learning-plan-settings { display: flex; flex-direction: column; gap: var(--spacing-4); margin-bottom: var(--spacing-6); }
 .learning-plan-settings .setting-group { margin: 0; padding: var(--spacing-5); border: 1px solid var(--border-color); border-radius: var(--radius-lg); background: var(--panel-bg); }
 .learning-plan-settings .setting-group:not(:last-child) { margin: 0; padding: var(--spacing-5); border-bottom: 1px solid var(--border-color); }
 .learning-plan-settings .setting-group-title { font-size: var(--font-size-base); }
@@ -432,7 +432,7 @@
 .learning-plan-settings .setting-row { align-items: flex-start; flex-direction: column; gap: var(--spacing-2); }
 .learning-plan-settings .setting-control, .learning-plan-settings .setting-select { width: 100%; }
 @media (max-width: 950px) {
-  .learning-plan-settings { grid-template-columns: minmax(0, 1fr); }
+  .learning-plan-settings { gap: var(--spacing-3); }
 }
 @media (max-width: 640px) {
   .learning-plan-page { padding: var(--spacing-4); }
@@ -464,14 +464,30 @@ body .learning-plan-page .grammar-coverage-panel:has(.grammar-coverage--studying
 .grammar-coverage--studying .grammar-coverage__session { background: transparent; }
 
 .learning-plan-configuration { margin: 0 0 var(--spacing-6); border-block: 1px solid var(--border-color); }
-.learning-plan-configuration > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); padding: var(--spacing-4) 0; cursor: pointer; font-size: var(--font-size-sm); color: var(--text-secondary); }
-.learning-plan-edit-label { color: var(--accent-primary); white-space: nowrap; }
+.learning-plan-configuration > summary,
+.learning-plan-curriculum-preference > summary,
+.level-study-grammar-summary__detail > summary { list-style: none; cursor: pointer; }
+.learning-plan-configuration > summary::-webkit-details-marker,
+.learning-plan-curriculum-preference > summary::-webkit-details-marker,
+.level-study-grammar-summary__detail > summary::-webkit-details-marker { display: none; }
+.learning-plan-configuration > summary { padding: var(--spacing-3) 0; font-size: var(--font-size-sm); color: var(--text-secondary); }
+.learning-plan-target-summary { margin-bottom: var(--spacing-4); padding-block: var(--spacing-3); border-block: 1px solid var(--border-color); }
+.learning-plan-target-summary .learning-goals { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--spacing-2) var(--spacing-4); margin: 0; }
+.learning-plan-target-summary .learning-goals__purpose { flex-basis: 100%; }
+.learning-plan-target-summary .learning-goals__purpose > span { font-size: var(--font-size-base); }
+.learning-plan-target-summary .learning-goals__constraints { flex: 1 1 18rem; margin: 0; }
+.learning-plan-target-summary .learning-goals__edit { margin-left: auto; }
 .learning-plan-configuration[open] .learning-plan-settings { margin: 0 0 var(--spacing-4); }
+.learning-plan-curriculum-preference { border-block: 1px solid var(--border-color); }
+.learning-plan-curriculum-preference > summary,
+.level-study-grammar-summary__detail > summary { padding-block: var(--spacing-3); color: var(--text-secondary); font-size: var(--font-size-sm); }
 @media (max-width: 700px) {
-  .learning-plan-configuration > summary { align-items: flex-start; }
+  .learning-plan-target-summary .learning-goals__constraints { flex-basis: 100%; }
 }
 
 .level-study-grammar-summary-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-3); margin-block: var(--spacing-3); }
 .level-study-grammar-summary-row > span:first-child { flex: 1; }
+.level-study-grammar-summary__counts { display: flex; flex-wrap: wrap; gap: var(--spacing-2) var(--spacing-4); margin-block: var(--spacing-2); color: var(--text-secondary); }
+.level-study-grammar-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-2); margin-top: var(--spacing-3); }
 
 .learning-plan-scope-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-2); margin-block: var(--spacing-3); }

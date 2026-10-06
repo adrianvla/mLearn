@@ -3,11 +3,15 @@ import { render } from 'solid-js/web';
 import { createStore } from 'solid-js/store';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type LanguageData, type Settings } from '../../../../shared/types';
-const fixture = vi.hoisted(() => ({ context: {} as Record<string, unknown>, data: null as LanguageData | null }));
-vi.mock('../../../context', () => ({ useSettings: () => fixture.context, useLocalization: () => ({ t: (key: string) => key }), useLanguage: () => ({ currentLangData: () => fixture.data }) }));
+import type { LearningGoalRequirementEvaluation } from '../../../../shared/learningRequirementEvaluation';
+import { evaluateLearningRequirements } from '../../../../shared/learningRequirementEvaluation';
+import { fitLearningModel } from '../../../../shared/learningModel';
+const fixture = vi.hoisted(() => ({ context: {} as Record<string, unknown>, data: null as LanguageData | null,
+  translate: (key: string, params?: Record<string, string>) => params ? `${key} ${Object.values(params).join(' ')}` : key }));
+vi.mock('../../../context', () => ({ useSettings: () => fixture.context, useLocalization: () => ({ t: fixture.translate }), useLanguage: () => ({ currentLangData: () => fixture.data }) }));
 import { LearningGoals } from './LearningGoals';
 let dispose: (() => void) | undefined;
-afterEach(() => { dispose?.(); document.body.replaceChildren(); });
+afterEach(() => { dispose?.(); fixture.translate = (key, params) => params ? `${key} ${Object.values(params).join(' ')}` : key; document.body.replaceChildren(); });
 const loaded: LanguageData = { name: 'Future', languageData: { version: 'future-v1', assets: [] }, freq: [['chosen', '', 1]], frequencyLevels: { rowLevelIndex: 2 }, learning: { outcomes: {
   'future:curriculum': { label: 'Defined curriculum', provenance: 'package', groups: [{ id: 'required', selectors: [{ source: 'frequency', levels: [1] }] }], requirements: { 'unknown:dimension': { a: [1, 2] } } },
 } } };
@@ -36,14 +40,14 @@ describe('semantic learning outcome controls', () => {
     fixture.context = { settings, updateSetting: (key: string, value: unknown) => setSettings(key as never, value as never) };
     const [warnings, setWarnings] = createStore<Record<string, boolean>>({ scope: true });
     dispose = render(() => <LearningGoals deadlineWarnings={warnings} />, document.body);
-    expect(document.querySelector('[role="status"]')?.textContent).toBe('mlearn.Goals.ScopeWorkloadRisk');
+    expect(document.querySelector('[role="status"]')?.textContent).toContain('mlearn.Goals.ScopeWorkloadRisk 2027-01-01');
     expect(document.querySelector<HTMLInputElement>('input[type="date"]')?.value).toBe('2027-01-01');
     setWarnings('scope', false);
     expect(document.querySelector('[role="status"]')).toBeNull();
     expect(settings.learningGoals[0].deadline).toBe('2027-01-01');
     expect(document.body.textContent).not.toContain('%');
   });
-  it('shares a selected package subset across remount and preserves unrelated legacy data when clearing it', () => {
+  it('shares a selected package subset across remount and preserves unrelated legacy data when clearing it', async () => {
     const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [{
       id: 'old', language: 'future', outcome: 'Personal project', status: 'active' as const, priority: 1, createdAt: 1,
     }] });
@@ -63,6 +67,7 @@ describe('semantic learning outcome controls', () => {
     expect(settings.learningGoals![1].outcomeRef?.groupIds).toEqual(['grammar']);
     dispose(); document.body.replaceChildren();
     dispose = render(() => <LearningGoals />, document.body);
+    await Promise.resolve();
     expect(document.querySelector<HTMLSelectElement>('select[name="learning-subset"]')?.value).toBe('grammar');
     expect(document.body.textContent).not.toContain('Personal project');
     document.querySelector<HTMLButtonElement>('button')!.click();
@@ -95,5 +100,99 @@ describe('semantic learning outcome controls', () => {
     document.querySelector<HTMLInputElement>('input[type="date"]')!.dispatchEvent(new Event('change', { bubbles: true }));
     expect(settings.learningGoals![0].deadline).toBe('2027-02-01');
     expect(JSON.parse(JSON.stringify(settings.learningGoals![0].scope))).toEqual(userScope);
+  });
+
+  it('shows the saved target, selected group, date and canonical evaluator results for an unavailable package', () => {
+    const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [{
+      id: 'pinned', language: 'future', outcome: 'Personal curriculum',
+      outcomeRef: { id: 'future:curriculum', packageVersion: 'future-v0', groupIds: ['required'] },
+      status: 'active', priority: 1, createdAt: 1, deadline: '2027-04-05',
+      scope: { provenance: 'community', reference: 'Community workbook', words: ['chosen'] },
+    }] });
+    fixture.data = loaded;
+    fixture.context = { settings, updateSetting: (key: string, value: unknown) => setSettings(key as never, value as never) };
+    const evaluations: LearningGoalRequirementEvaluation[] = [{
+      goalId: 'pinned', language: 'future', outcomeId: 'future:curriculum', status: 'unmet',
+      modelVersion: 'model-v1', evidenceVersion: 'events-v1',
+      requirements: [
+        { requirementId: 'package::opaque-rule', source: 'package', kind: 'future-rule', status: 'met',
+          conditions: { label: 'Structured future condition', dimensions: { arbitrary: ['one', 2] } } },
+        { requirementId: 'package::other-rule', source: 'package', kind: 'future-rule', status: 'unknown',
+          conditions: { dimensions: { unrecognized: { nested: true } } } },
+      ],
+    }];
+
+    dispose = render(() => <LearningGoals compact summaryOnly onEdit={() => {}} requirementEvaluations={evaluations} />, document.body);
+
+    expect(document.body.textContent).toContain('Personal curriculum');
+    expect(document.body.textContent).toContain('required');
+    expect(document.body.textContent).toContain('mlearn.Goals.Source.community · Community workbook');
+    expect(document.body.textContent).toContain('2027-04-05');
+    expect(document.body.textContent).toContain('mlearn.Goals.Unavailable');
+    expect(document.body.textContent).toContain('Structured future condition');
+    expect(document.body.textContent).toContain('mlearn.Goals.RequirementStatus.met');
+    expect(document.body.textContent).toContain('package::other-rule');
+    expect(document.body.textContent).toContain('mlearn.Goals.RequirementStatus.unknown');
+    expect(document.querySelector('select[name="learning-outcome"]')).toBeNull();
+    expect(document.querySelector('input[type="date"]')).toBeNull();
+    expect(document.body.textContent).not.toContain('unrecognized');
+  });
+
+  it('renders multiple saved outcomes and overdue dates as separate targets', () => {
+    const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [
+      { id: 'first', language: 'future', outcome: 'Defined curriculum', outcomeRef: { id: 'future:curriculum' }, status: 'active', priority: 2, createdAt: 1 },
+      { id: 'second', language: 'future', outcome: 'Independent path', outcomeRef: { id: 'future:independent' }, status: 'active', priority: 1, createdAt: 2, deadline: '2025-01-01' },
+    ] });
+    fixture.data = { ...loaded, learning: { outcomes: { ...loaded.learning!.outcomes,
+      'future:independent': { label: 'Independent package path', provenance: 'package', groups: [{ id: 'open', selectors: [{ source: 'frequency', words: ['chosen'] }] }] },
+    } } };
+    fixture.context = { settings, updateSetting: (key: string, value: unknown) => setSettings(key as never, value as never) };
+    dispose = render(() => <LearningGoals compact summaryOnly onEdit={() => {}} />, document.body);
+
+    expect(document.querySelectorAll('.learning-goals__constraints')).toHaveLength(2);
+    expect(document.body.textContent).toContain('Defined curriculum');
+    expect(document.body.textContent).toContain('Independent package path');
+    expect(document.body.textContent).toContain('2025-01-01');
+    expect(document.body.textContent).toContain('mlearn.Goals.Passed');
+  });
+
+  it('keeps Explore as the target summary and renders its label through the selected UI locale', () => {
+    const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future', learningLanguageLevels: { future: 9 } });
+    fixture.data = loaded;
+    fixture.context = { settings, updateSetting: (key: string, value: unknown) => setSettings(key as never, value as never) };
+    fixture.translate = (key, params) => key === 'mlearn.Goals.Explore' ? '言語を学ぶ'
+      : params ? `${key} ${Object.values(params).join(' ')}` : key;
+    dispose = render(() => <LearningGoals compact summaryOnly onEdit={() => {}} />, document.body);
+
+    expect(document.body.textContent).toContain('言語を学ぶ');
+    expect(document.body.textContent).not.toContain('Band 9');
+    expect(document.querySelector('select[name="learning-outcome"]')).toBeNull();
+    fixture.translate = (key, params) => params ? `${key} ${Object.values(params).join(' ')}` : key;
+  });
+
+  it('recomputes Task05 evaluation after saving a package target', () => {
+    const targetData: LanguageData = { ...loaded, learning: { outcomes: {
+      'future:curriculum': { ...loaded.learning!.outcomes!['future:curriculum'], requirements: { conditions: [{
+        id: 'future::recall-condition', kind: 'canonical-capability-threshold', groupIds: ['required'],
+        capability: 'future::arbitrary-recall', minimum: 0.6,
+      }] } },
+    } } };
+    const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future' });
+    fixture.data = targetData;
+    const model = fitLearningModel([], 1000);
+    const evaluations = () => evaluateLearningRequirements(settings.learningGoals ?? [], 'future', model, [], targetData, 1000);
+    fixture.context = { settings, updateSetting: (key: string, value: unknown) => setSettings(key as never, value as never) };
+    dispose = render(() => <LearningGoals requirementEvaluations={evaluations()} />, document.body);
+    expect(evaluations()).toHaveLength(0);
+
+    const selector = document.querySelector<HTMLSelectElement>('select[name="learning-outcome"]')!;
+    selector.value = 'future:curriculum'; selector.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(settings.learningGoals).toHaveLength(1);
+    expect(evaluations()[0]?.requirements[0]).toMatchObject({ requirementId: 'future::recall-condition', status: 'unknown' });
+    dispose(); document.body.replaceChildren();
+    dispose = render(() => <LearningGoals compact summaryOnly requirementEvaluations={evaluations()} />, document.body);
+    expect(document.body.textContent).toContain('future::recall-condition');
+    expect(document.body.textContent).toContain('mlearn.Goals.RequirementStatus.unknown');
   });
 });
