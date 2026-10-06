@@ -39,6 +39,7 @@
   padding: 2rem;
   text-align: center;
   border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg), var(--shadow-border);
 }
 
 /* Hidden face collapses out of flow so it doesn't affect height */
@@ -238,14 +239,15 @@
 .flashcard-word-header {
   /*margin-bottom: 1rem;*/
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: center;
+  gap: var(--spacing-2);
+  max-width: 100%;
 }
 
-.flashcard-word-title {
-  font-size: var(--font-size-3xl);
-  font-weight: 600;
-  color: var(--text-primary);
+.flashcard-word-header > .flashcard-word-title {
+  font-size: var(--font-size-4xl);
 }
 
 .flashcard-word-reading {

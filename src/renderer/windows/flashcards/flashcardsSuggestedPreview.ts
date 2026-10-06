@@ -1,4 +1,4 @@
-import type { FlashcardContent, LanguageData, LanguageDataCatalogStatus, Settings, TranslationResponse, WordFrequencyEntry } from '../../../shared/types';
+import type { FlashcardContent, FlashcardStore, LanguageData, LanguageDataCatalogStatus, Settings, TranslationResponse, WordFrequencyEntry } from '../../../shared/types';
 import type { WordLookupCandidateOptions } from '../../hooks/useTranslation';
 import type { SuggestedFlashcard } from '../../../shared/types';
 import { extractFirstDefinition } from '../../utils/translationCacheParsers';
@@ -6,6 +6,7 @@ import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { getDictionaryTargetLanguageForSettings, installedDictionaryTargetLanguages } from '../../utils/dictionaryTargetLanguage';
 import { getFrequencyLevelLabel, isDisplayableFrequencyLevel, sortFrequencyLevelsForDisplay } from '../../../shared/languageFeatures';
 import { getLocalizedLanguageName, type TranslateLanguageName } from '../../utils/languageDisplayName';
+import { getLanguageDisplayName } from '../../../shared/utils/textUtils';
 
 export interface SuggestedLookupLanguageTools {
   getCanonicalFormForLanguage: (language: string, word: string) => string;
@@ -43,6 +44,62 @@ interface SuggestedLevelFilterOptions {
 }
 
 const LEVEL_FILTER_PREFIX = 'level:';
+
+/** Languages represented in the learner's own flashcard material or history. */
+export function getSuggestedFilterLanguages(
+  store: Partial<Pick<FlashcardStore,
+    'flashcards' | 'suggestedFlashcards' | 'wordCandidates' | 'wordKnowledge' | 'grammarKnowledge'
+    | 'dailyStats' | 'ignoredWords' | 'knownUntracked' | 'wordStatsMap'>>,
+  selectedLanguages: readonly string[] = [],
+  fallbackLanguage?: string,
+): string[] {
+  const languages = new Set<string>();
+  const add = (language?: string) => {
+    const normalized = language?.trim();
+    if (normalized) languages.add(normalized);
+  };
+  const addFromKey = (key: string) => {
+    const separator = key.indexOf(':');
+    if (separator > 0) add(key.slice(0, separator));
+    else add(fallbackLanguage);
+  };
+  const addEntryLanguage = (language: string | undefined, key: string) => {
+    if (language) add(language);
+    else addFromKey(key);
+  };
+
+  for (const card of Object.values(store.flashcards ?? {})) add(card.language ?? fallbackLanguage);
+  for (const suggestion of Object.values(store.suggestedFlashcards ?? {})) add(suggestion.language);
+  for (const [key, candidate] of Object.entries(store.wordCandidates ?? {})) addEntryLanguage(candidate.language, key);
+  for (const [key, entry] of Object.entries(store.wordKnowledge ?? {})) addEntryLanguage(entry.language, key);
+  for (const [key, entry] of Object.entries(store.grammarKnowledge ?? {})) addEntryLanguage(entry.language, key);
+  for (const [key, entry] of Object.entries(store.ignoredWords ?? {})) addEntryLanguage(entry.language, key);
+  for (const [date, byLanguage] of Object.entries(store.dailyStats ?? {})) {
+    if (!date) continue;
+    for (const language of Object.keys(byLanguage)) add(language);
+  }
+  for (const key of Object.keys(store.knownUntracked ?? {})) addFromKey(key);
+  for (const key of Object.keys(store.wordStatsMap ?? {})) addFromKey(key);
+  for (const language of selectedLanguages) add(language);
+
+  return [...languages].sort((left, right) => left.localeCompare(right));
+}
+
+/** Adds display labels only after the learner-relevant language set is known. */
+export function buildSuggestedFilterLanguageNames(
+  store: Partial<Pick<FlashcardStore,
+    'flashcards' | 'suggestedFlashcards' | 'wordCandidates' | 'wordKnowledge' | 'grammarKnowledge'
+    | 'dailyStats' | 'ignoredWords' | 'knownUntracked' | 'wordStatsMap'>>,
+  installedLanguageData: Record<string, LanguageData | null | undefined>,
+  displayLocale: string,
+  selectedLanguages: readonly string[] = [],
+  fallbackLanguage?: string,
+): Record<string, string> {
+  return Object.fromEntries(getSuggestedFilterLanguages(store, selectedLanguages, fallbackLanguage).map(language => [
+    language,
+    getLanguageDisplayName(language, installedLanguageData[language] ?? null, displayLocale),
+  ]));
+}
 
 function buildSuggestedLevelFilterValue(language: string, level: number): string {
   return `${LEVEL_FILTER_PREFIX}${encodeURIComponent(language)}:${level}`;

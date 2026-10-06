@@ -422,8 +422,8 @@ describe('FlashcardReview', () => {
       await flushEffects();
       setMockQueueTotal(9);
       await flushEffects();
-      expect(container.querySelector('.flashcard-session-progress')).toBeNull();
-      expect(container.textContent).not.toContain('mlearn.StudyEncounter.VisitProgress');
+      expect(container.querySelector('.flashcard-review-session-hud')?.textContent).toContain('mlearn.StudyEncounter.VisitProgress');
+      expect(container.querySelector('.flashcard-review-session-hud .progress-bar-container')).toBeNull();
     } finally { dispose(); }
   });
 
@@ -442,6 +442,8 @@ describe('FlashcardReview', () => {
     });
     const dispose = render(() => <FlashcardReview encounterLimit={1} />, container);
     await flushEffects(); await clickShowAnswer(container);
+    expect(container.querySelector('.flashcard-review-session-hud')?.textContent).toContain('mlearn.StudyEncounter.Progress');
+    expect(container.querySelector('.flashcard-review-session-hud .progress-bar-container')).not.toBeNull();
     container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
     await flushEffects();
     expect(container.querySelector('[data-review-phase]')?.getAttribute('data-review-phase')).toBe('complete');

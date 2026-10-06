@@ -11,7 +11,7 @@
  */
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on, onCleanup } from 'solid-js';
-import type { Flashcard } from '../../../shared/types';
+import type { Flashcard, LanguageData } from '../../../shared/types';
 import { Button, Panel, PillLabel, HoverReveal, AnkiIcon, SafeHtml } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { formatDate } from '../../utils/timeFormatting';
@@ -28,6 +28,8 @@ import './FlashcardDisplay.css';
 export interface FlashcardDisplayProps {
   flashcard: Flashcard;
   knowledge?: FlashcardPresentationKnowledge;
+  /** Language rendering metadata frozen at review admission, when provided. */
+  presentationLanguageData?: LanguageData | null;
   showAnswer?: boolean;
   onFlip?: () => void;
   onPlayTts?: (cardId: string, text: string, field: 'word' | 'example') => void;
@@ -369,7 +371,9 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           </Show>
 
           <div class="flashcard-word-header">
-            <FlashcardWordTitle knowledge={props.knowledge} content={content()} language={props.flashcard.language} readingAnswer={isFlipped()}/>
+            <FlashcardWordTitle knowledge={props.knowledge} content={content()} language={props.flashcard.language}
+              readingAnswer={isFlipped()} presentationOwner={props.promptMediaOwner}
+              presentationLanguageData={props.presentationLanguageData}/>
             <Show when={props.onPlayTts}>
               <Button buttonType="icon"
                 icon="volume"

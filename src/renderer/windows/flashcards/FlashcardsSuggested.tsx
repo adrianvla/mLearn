@@ -25,12 +25,12 @@ import type { FlashcardContent, LanguageData, SuggestedFlashcard } from '../../.
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import './FlashcardsSuggested.css';
 import { getLogger } from '@shared/utils/logger';
-import { getLanguageDisplayName } from '../../../shared/utils/textUtils';
 import { getLevelStudyLevelNames } from '../../utils/wordLevelStats';
 import {
   buildSuggestedFlashcardPreviewContent,
   buildSuggestedLevelFilterOptions,
   buildSuggestedWordLookupOptions,
+  buildSuggestedFilterLanguageNames,
   resolveSuggestedLevel,
   suggestedLevelFilterMatches,
 } from './flashcardsSuggestedPreview';
@@ -139,11 +139,16 @@ export const FlashcardsSuggested: Component = () => {
   ]);
 
   const filterFields = createMemo<{ fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] }>(() => {
-    const languageNames: Record<string, string> = {};
-    for (const [code, data] of Object.entries(langCtx.langData)) {
-      if (!data) continue;
-      languageNames[code] = getLanguageDisplayName(code, data, settings.uiLanguage);
-    }
+    const selectedLanguages = filterTokens()
+      .filter((token): token is Extract<FilterToken, { kind: 'operand' }> => token.kind === 'operand' && token.field === 'language')
+      .map((token) => token.value);
+    const languageNames = buildSuggestedFilterLanguageNames(
+      store,
+      { ...langCtx.langData, [settings.language]: langCtx.langData[settings.language] ?? langCtx.currentLangData() },
+      settings.uiLanguage,
+      selectedLanguages,
+      settings.language,
+    );
 
     const sourceNames = new Map<string, string>();
     for (const suggestion of suggestions()) {

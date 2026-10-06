@@ -4,7 +4,7 @@ import type { AccessStatusResult } from '../../utils/accessKnowledge';
  * Displays a flashcard word title with metadata-driven reading annotations and prosody.
  */
 
-import { Component, Show, createMemo } from 'solid-js';
+import { Component, Show, createMemo, on, untrack } from 'solid-js';
 import { WordWithReading } from '../language-specific';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
 import {
@@ -15,7 +15,7 @@ import {
   getProsodyPositionLabel,
   getReadingAnnotationScripts,
 } from '../../../shared/languageFeatures';
-import type { FlashcardContent } from '../../../shared/types';
+import type { FlashcardContent, LanguageData } from '../../../shared/types';
 import {
   canRenderStoredProsodyWithoutMetadata,
   getProsodyOverlayRenderer,
@@ -38,8 +38,12 @@ export interface FlashcardWordTitleProps {
   content: FlashcardContent;
   /** Language code saved on the flashcard/suggestion. Used instead of the active language when available. */
   language?: string;
+  /** Optional language metadata captured when a review encounter was admitted. */
+  presentationLanguageData?: LanguageData | null;
   /** Revealed task answer; ordinary titles respect optional reading preferences. */
   readingAnswer?: boolean;
+  /** Stable owner for one admitted review encounter; freezes cache-derived annotation data. */
+  presentationOwner?: unknown;
 }
 
 export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) => {
@@ -50,9 +54,11 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
   const word = () => props.content.front;
   const reading = () => props.content.reading || props.content.front;
   const languageData = createMemo(() => (
-    props.language
-      ? langData?.[props.language] ?? (props.language === settings.language ? currentLangData() : null)
-      : currentLangData()
+    props.presentationLanguageData !== undefined
+      ? props.presentationLanguageData
+      : props.language
+        ? langData?.[props.language] ?? (props.language === settings.language ? currentLangData() : null)
+        : currentLangData()
   ));
   const storedProsodyPosition = createMemo(() => (
     props.content.prosody?.position ?? null
@@ -72,9 +78,23 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
     if (!w) return null;
     return getCachedTranslation(w, lookupLanguage(), lookupOptions);
   });
+  const encounterProsody = createMemo(on(() => props.presentationOwner, (owner) => {
+    if (owner === undefined) return undefined;
+    const position = untrack(() => {
+      const stored = storedProsodyPosition();
+      if (stored !== null) return stored;
+      const prosody = extractProsodyData(cachedTranslation()?.data, languageData());
+      return getProsodyPositionFromOverride(null, prosody);
+    });
+    return { owner, position };
+  }));
   const coloredProsodyPosition = createMemo(() => {
     const stored = storedProsodyPosition();
     if (stored !== null) return stored;
+    if (props.presentationOwner !== undefined) {
+      const snapshot = encounterProsody();
+      return snapshot?.owner === props.presentationOwner ? snapshot.position : null;
+    }
     const prosody = extractProsodyData(cachedTranslation()?.data, languageData());
     return getProsodyPositionFromOverride(null, prosody);
   });
@@ -145,7 +165,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
   });
 
   return (
-    <div class="flashcard-word-title fc-prosody">
+    <span class="flashcard-word-title fc-prosody">
       <WordWithReading
         word={word()}
         reading={reading()}
@@ -165,7 +185,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
             </span>
           )}
       </Show>
-    </div>
+    </span>
   );
 };
 

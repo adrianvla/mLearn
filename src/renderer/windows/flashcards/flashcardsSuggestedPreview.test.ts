@@ -1,13 +1,77 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { LanguageData, LanguageDataCatalogStatus, SuggestedFlashcard, TranslationResponse } from '../../../shared/types';
+import type { FlashcardStore, LanguageData, LanguageDataCatalogStatus, SuggestedFlashcard, TranslationResponse } from '../../../shared/types';
 import {
   buildSuggestedLevelFilterOptions,
   buildSuggestedFlashcardPreviewContent,
   buildSuggestedWordLookupOptions,
+  buildSuggestedFilterLanguageNames,
+  getSuggestedFilterLanguages,
   groupSuggestedWordsByLanguageForWarmCache,
   resolveSuggestedLevel,
   suggestedLevelFilterMatches,
 } from './flashcardsSuggestedPreview';
+
+describe('getSuggestedFilterLanguages', () => {
+  it('includes learner material and history, keeps a selected language, and omits installed-only languages', () => {
+    const sources = {
+      flashcards: { card: { language: 'de' } },
+      suggestedFlashcards: { suggestion: { language: 'mi-x' } },
+      wordCandidates: { 'ar:word': { language: 'ar' } },
+      wordKnowledge: { 'ja:word': { language: 'ja' } },
+      grammarKnowledge: { 'fr:pattern': { language: 'fr' } },
+      ignoredWords: { 'it:word': { language: 'it' } },
+      dailyStats: { '2026-10-06': { ru: {} } },
+      knownUntracked: { 'uk:word': true },
+      wordStatsMap: { 'pt:word': {} },
+    } as unknown as Partial<Pick<FlashcardStore,
+      'flashcards' | 'suggestedFlashcards' | 'wordCandidates' | 'wordKnowledge' | 'grammarKnowledge'
+      | 'dailyStats' | 'ignoredWords' | 'knownUntracked' | 'wordStatsMap'>>;
+
+    expect(getSuggestedFilterLanguages(sources, ['church-slavonic'], 'zh')).toEqual([
+      'ar', 'church-slavonic', 'de', 'fr', 'it', 'ja', 'mi-x', 'pt', 'ru', 'uk',
+    ]);
+  });
+
+  it('does not mistake an unqualified legacy key for a language code', () => {
+    const sources = {
+      wordCandidates: { 'legacy-hash': { language: undefined } },
+    } as unknown as Partial<Pick<FlashcardStore, 'wordCandidates'>>;
+
+    expect(getSuggestedFilterLanguages(sources)).toEqual([]);
+    expect(getSuggestedFilterLanguages(sources, [], 'de')).toEqual(['de']);
+  });
+
+  it('limits filter labels to used, history-only, imported, and selected languages across a large catalog', () => {
+    const sources = {
+      flashcards: { japanese: { language: 'ja' }, german: { language: 'de' } },
+      suggestedFlashcards: { imported: { language: 'mi-x' } },
+      dailyStats: { '2026-10-06': { ru: {} } },
+    } as unknown as Partial<Pick<FlashcardStore, 'flashcards' | 'suggestedFlashcards' | 'dailyStats'>>;
+    const catalog = Object.fromEntries(Array.from({ length: 50 }, (_, index) => [
+      `catalog-${index}`,
+      { name: `Catalog language ${index}`, settings: { fixed: {} } } as LanguageData,
+    ]));
+    catalog.ja = { name: '日本語', settings: { fixed: {} } };
+    catalog.de = { name: 'Deutsch', settings: { fixed: {} } };
+
+    const labels = buildSuggestedFilterLanguageNames(
+      sources,
+      catalog,
+      'fr',
+      ['church-slavonic'],
+      'de',
+    );
+
+    expect(Object.keys(labels)).toEqual(['church-slavonic', 'de', 'ja', 'mi-x', 'ru']);
+    expect(labels.de).toBe('Deutsch');
+    expect(labels.ja).toBe('日本語');
+    expect(labels['mi-x']).toBeTruthy(); // No package metadata is available.
+
+    const afterLanguageSwitch = buildSuggestedFilterLanguageNames(sources, catalog, 'de', ['church-slavonic'], 'ja');
+    expect(Object.keys(afterLanguageSwitch)).toEqual(Object.keys(labels));
+    expect(afterLanguageSwitch['church-slavonic']).toBeTruthy(); // Existing selection survives if its material disappears.
+  });
+});
 
 function makeSuggestion(overrides: Partial<SuggestedFlashcard> = {}): SuggestedFlashcard {
   return {

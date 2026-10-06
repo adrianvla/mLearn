@@ -1,3 +1,39 @@
+.flashcard-word-title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-1) var(--spacing-2);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--text-primary);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-normal);
+  overflow-wrap: anywhere;
+  vertical-align: baseline;
+}
+
+.flashcard-word-title__reading {
+  min-width: 0;
+  line-height: inherit;
+  overflow-wrap: anywhere;
+}
+
+.flashcard-word-title .ruby-text {
+  line-height: var(--line-height-normal);
+  ruby-position: over;
+}
+
+.flashcard-word-title .ruby-text rt {
+  line-height: 1;
+  vertical-align: baseline;
+}
+
+.flashcard-word-title .prosody-overlay-wrapper--reading {
+  line-height: 1;
+  vertical-align: baseline;
+}
+
 .flashcard-word-title__reading rt,
 .fc-reading-annotation rt {
   color: var(--reading-annotation-color);

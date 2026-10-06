@@ -8,6 +8,7 @@ import { Component, Show, createMemo, createSignal } from 'solid-js';
 import { useLocalization } from '../../../context';
 import type { FilterToken } from './filterExpr';
 import { Select } from '../Select/Select';
+import { ChevronDownIcon, ChevronUpIcon } from '../Misc/Icons';
 
 export interface FilterTokenProps {
   token: FilterToken;
@@ -72,7 +73,7 @@ export const FilterTokenView: Component<FilterTokenProps> = (props) => {
           disabled={atFirst()}
           onClick={() => props.onMoveUp(current().instanceId)}
         >
-          ▲
+          <ChevronUpIcon size={12} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -81,7 +82,7 @@ export const FilterTokenView: Component<FilterTokenProps> = (props) => {
           disabled={atLast()}
           onClick={() => props.onMoveDown(current().instanceId)}
         >
-          ▼
+          <ChevronDownIcon size={12} aria-hidden="true" />
         </button>
         <button
           type="button"

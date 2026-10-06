@@ -18,7 +18,7 @@ import { FlashcardEditModal } from './FlashcardEditModal';
 import { TtsGenerateModal } from './TtsGenerateModal';
 import {
   KnowledgeLoadError, KnowledgeSkeleton, Button, Badge, Panel, MicrophoneIcon, EditIcon, ToggleSwitch, StealthIcon, VolumeOffIcon,
-  EyeIcon, Popover, WriteStatusBanner, StudyEncounter, useConfirmDialog
+  EyeIcon, Popover, WriteStatusBanner, StudyEncounter, StudySessionHUD, useConfirmDialog
 } from '../common';
 import { useKnowledgeProjection } from '../../hooks/useKnowledgeProjection';
 import { useFlashcardTts } from '../../hooks/useFlashcardTts';
@@ -29,7 +29,7 @@ import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 import { eligibleReviewActivities, renderableReviewActivities, selectReviewActivity, activityScaffolds, type ReviewActivity } from './reviewActivities';
 import { ProsodyOverlay } from '../language-specific';
-import type { CapabilityKey, Flashcard, FlashcardContent, ReviewPresentation } from '../../../shared/types';
+import type { CapabilityKey, Flashcard, FlashcardContent, LanguageData, ReviewPresentation } from '../../../shared/types';
 import { openKnowledgeInspector } from '../../services/openKnowledgeInspector';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 import { getProvidedAccessesForCue, getTestedAccesses } from '../../../shared/languageFeatures';
@@ -53,7 +53,7 @@ import { useLearningInput } from '../common/LearningWorkspace/LearningWorkspace'
 
 const log = getLogger("renderer.components.flashcardReview");
 
-type ReviewEncounter = { session?: ReviewSession; carriedScaffolds?: AttemptScaffolds; activity: ReviewActivity; knowledge: FlashcardPresentationKnowledge; tested: readonly CapabilityKey[]; card: Flashcard; decision: PolicyDecision | null; provenance: LearningDecision; cursor?: ReviewPresentation };
+type ReviewEncounter = { session?: ReviewSession; carriedScaffolds?: AttemptScaffolds; activity: ReviewActivity; knowledge: FlashcardPresentationKnowledge; languageData: LanguageData | null; tested: readonly CapabilityKey[]; card: Flashcard; decision: PolicyDecision | null; provenance: LearningDecision; cursor?: ReviewPresentation };
 
 interface ReviewRatingWrite {
   encounter: ReviewEncounter;
@@ -256,7 +256,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     setAudioResourceEpoch(epoch => epoch + 1);
   };
 
-  const snapshotEncounter = (encounter: Omit<ReviewEncounter, 'knowledge' | 'tested'>): ReviewEncounter => untrack(() => {
+  const snapshotEncounter = (encounter: Omit<ReviewEncounter, 'knowledge' | 'languageData' | 'tested'>): ReviewEncounter => untrack(() => {
     const card = encounter.card;
     const language = languageForCard(card);
     const data = languageDataForCard(card);
@@ -288,7 +288,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         exposed = true; // Undo returns consulted material, including across an activity change.
       }
     }
-    return { ...encounter, session: finiteSession(), ...(exposed ? { carriedScaffolds: { ...providedAccessScaffolds(tested), 'prior-cue-exposure': true } } : {}),
+    return { ...encounter, session: finiteSession(), languageData: data ?? null, ...(exposed ? { carriedScaffolds: { ...providedAccessScaffolds(tested), 'prior-cue-exposure': true } } : {}),
       tested, knowledge: { ready: isKnowledgeReady(),
       wordKnown: getComprehensiveWordStatusWithSourceSync(card.content.front, language).status === 'known', accesses } };
   });
@@ -1282,6 +1282,12 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             </Badge>
           </div>
 
+          <StudySessionHUD
+            completed={presentation().completed}
+            total={finiteSession()?.cardIds.length}
+            class="flashcard-review-session-hud"
+          />
+
           <div class="flashcard-header-actions">
         <div class="review-activity-preferences">
           <Button ref={element => { activityPreferencesAnchor = element; }} size="sm" variant="ghost" aria-haspopup="dialog" aria-expanded={showActivityPreferences()} onClick={() => setShowActivityPreferences(!showActivityPreferences())}>
@@ -1473,7 +1479,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                         <><p>{card().content.front}</p><p>{card().content.reading}</p><p>{card().content.back}</p></>
                       }>
                         <ProsodyOverlay word={card().content.front} reading={card().content.reading} pos={card().content.pos}
-                          language={languageForCard(card())} languageData={languageDataForCard(card())} mode="preview"
+                          language={languageForCard(card())} languageData={currentEncounter()?.languageData} mode="preview"
                           forceVisible={true} prosodyType={card().content.prosody?.type} prosodyPosition={card().content.prosody?.position} />
                         <Show when={card().content.prosody?.display}><p>{card().content.prosody?.display}</p></Show>
                       </Show>
@@ -1484,6 +1490,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               <FlashcardDisplay
                   flashcard={card()}
                   knowledge={currentEncounter()?.knowledge}
+                  presentationLanguageData={currentEncounter()?.languageData}
                   showAnswer={showAnswer()}
                   onFlip={handleFlip}
                   onPlayTts={handlePlayTts}
