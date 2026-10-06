@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, on, type Component } from 'solid-js';
 import { threadParticipants, type Participant, type WorldSnapshot } from '../../../shared/world';
-import { Avatar, Badge, Button, Disclosure, Input, ListRow, PlusIcon, SearchIcon, SkeletonLine, SkeletonRows, Select, TabContainer } from '../../components/common';
+import { Avatar, Badge, Button, Disclosure, Input, ListRow, ParticipantAvatarGroup, PlusIcon, SearchIcon, SkeletonLine, SkeletonRows, Select, TabContainer } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import { formatClockTime, formatDateShort } from '../../utils/timeFormatting';
 import type { ConversationPreviews } from './conversationPreviews';
@@ -63,8 +63,9 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
       const targetThread = preferredSea ? undefined : preferredThread ?? (latestPreview ? eligibleThreads.find(thread => thread.id === latestPreview.threadId)
         : latestThread ?? (modeMatches(room.interactionMode) ? undefined : threads.slice().sort((a, b) => b.createdAt - a.createdAt)[0]));
       const preview = preferredSea ? props.previews?.[room.id] : preferredThread ? props.previews?.[`${room.id}/${preferredThread.id}`] : latestPreview;
-      const person = room.participantIds.length === 1 ? world.participants.find(item => item.id === room.participantIds[0]) : undefined;
-      return { id: room.id, title: person?.displayName ?? room.title, person, preview,
+      const roster = room.participantIds.map(id => world.participants.find(item => item.id === id)).filter((item): item is Participant => Boolean(item));
+      const person = roster.length === 1 ? roster[0] : undefined;
+      return { id: room.id, title: person?.displayName ?? room.title, person, people: roster, preview,
         roomId: room.id, roomIds: [room.id], threadId: targetThread?.id, sessionTitle: targetThread?.title,
         unread: room.unreadCount ?? 0, timestamp: preview?.timestamp ?? targetThread?.createdAt ?? room.createdAt,
         practice: (targetThread?.interactionMode ?? room.interactionMode) === 'practice', temporary: false,
@@ -88,7 +89,7 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
       const person = profiles.length === 1 ? profiles[0] : undefined;
       const title = thread.title || profiles.map(profile => profile.displayName).join(', ') || t('mlearn.ConversationAgent.Sidebar.UntitledThread');
       const preview = props.previews?.[`${thread.id}/${thread.id}`];
-      return { id: thread.id, roomId: thread.id, roomIds: [thread.id], threadId: thread.id, title, person, preview,
+      return { id: thread.id, roomId: thread.id, roomIds: [thread.id], threadId: thread.id, title, person, people: profiles, preview,
         timestamp: preview?.timestamp ?? thread.createdAt, unread: 0, practice: thread.interactionMode === 'practice', temporary: true, sessionTitle: thread.title,
         loading: !preview && props.previewLoading?.(`${thread.id}/${thread.id}`) };
     });
@@ -156,8 +157,11 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
             class={chat.temporary ? 'room-sidebar-thread' : 'room-sidebar-room'}
             selected={chatSelected(chat)}
             aria-current={chatSelected(chat)}
-            leading={<Avatar name={chat.title} src={chat.person?.profilePhoto} />}
+            leading={chat.people.length > 1
+              ? <ParticipantAvatarGroup participants={chat.people} />
+              : <Avatar name={chat.title} src={chat.person?.profilePhoto} />}
             headline={chat.title}
+            title={chat.title}
             description={<><span class="room-sidebar-scope">{t(chat.practice ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · {t(chat.temporary ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}</span>
               <Show when={chat.loading} fallback={chat.preview?.text || (chat.sessionTitle !== chat.title ? chat.sessionTitle : '')}><SkeletonLine width="80%" animate={false} /></Show></>}
             trailing={<><Show when={chat.preview}><time dateTime={new Date(chat.timestamp).toISOString()}>{timestamp(chat.timestamp)}</time></Show>
@@ -181,11 +185,11 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
           </div></Show>
         </>}>
           <div class="room-sidebar-story-action"><Button variant="ghost" size="sm" onClick={props.onStoryProgress}>{t('mlearn.ConversationAgent.Story.Title')}</Button></div>
-          <For each={people()}>{person => <ListRow leading={<Avatar name={person.displayName} src={person.profilePhoto} />}
+          <For each={people()}>{person => <ListRow title={person.displayName} leading={<Avatar name={person.displayName} src={person.profilePhoto} />}
             headline={person.displayName} description={t(person.kind === 'persistent' ? 'mlearn.ConversationAgent.Contacts.InWorld' : 'mlearn.ConversationAgent.Contacts.PracticeOnly')}
             onClick={() => props.onSelectContact(person)} />}</For>
           <Show when={archivedPeople().length > 0}><Disclosure title={t('mlearn.ConversationAgent.Contacts.Archived')}>
-            <For each={archivedPeople()}>{person => <ListRow leading={<Avatar name={person.displayName} src={person.profilePhoto} />}
+            <For each={archivedPeople()}>{person => <ListRow title={person.displayName} leading={<Avatar name={person.displayName} src={person.profilePhoto} />}
               headline={person.displayName} onClick={() => props.onSelectContact(person)} />}</For>
           </Disclosure></Show>
           <Show when={people().length === 0}><div class="room-sidebar-empty">

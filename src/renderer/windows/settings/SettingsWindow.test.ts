@@ -21,7 +21,7 @@ vi.mock('../../context', () => ({
     t: (key: string) => {
       const labels: Record<string, string> = {
         'mlearn.Settings.Tabs.General': 'General',
-        'mlearn.Settings.Tabs.EventAudit': 'Event journal',
+        'mlearn.Settings.Tabs.Developer': 'Developer',
         'mlearn.Settings.Tabs.Behaviour': 'Behaviour',
         'mlearn.Settings.Tabs.Appearance': 'Appearance',
         'mlearn.Settings.Tabs.SRS': 'SRS',
@@ -178,22 +178,31 @@ describe('SettingsContent', () => {
     dispose();
   });
 
-  it('shows the event journal tab only in dev mode', async () => {
+  it('shows the Developer tools tab only in dev mode', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const { SettingsContent } = await import('./SettingsWindow');
 
     mockSettings = { devMode: false };
     let dispose = render(() => SettingsContent({}), container);
-    expect(Array.from(container.querySelectorAll('[role="tab"] .tab-label')).some((label) => label.textContent?.includes('Event journal'))).toBe(false);
+    expect(Array.from(container.querySelectorAll('[role="tab"] .tab-label')).some((label) => label.textContent?.includes('Developer'))).toBe(false);
     dispose();
 
     mockSettings = { devMode: true };
     dispose = render(() => SettingsContent({}), container);
-    expect(Array.from(container.querySelectorAll('[role="tab"] .tab-label')).some((label) => label.textContent?.includes('Event journal'))).toBe(true);
+    expect(Array.from(container.querySelectorAll('[role="tab"] .tab-label')).some((label) => label.textContent?.includes('Developer'))).toBe(true);
     dispose();
 
     container.remove();
+    mockSettings = { devMode: false };
+  });
+
+  it('routes a developer settings request to the Developer section', async () => {
+    const { SettingsContent } = await import('./SettingsWindow');
+    mockSettings = { devMode: true };
+    const dispose = render(() => SettingsContent({ launchContext: { section: 'developer-tools' } }), container);
+    expect(container.querySelector('[role="tab"][aria-selected="true"] .tab-label')?.textContent).toContain('Developer');
+    dispose();
     mockSettings = { devMode: false };
   });
 });

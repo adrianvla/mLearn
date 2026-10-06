@@ -1,0 +1,45 @@
+.participant-avatar-group {
+  display: inline-grid;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--bg-intense);
+  vertical-align: middle;
+}
+
+.participant-avatar-group--sm { width: 2rem; height: 2rem; }
+.participant-avatar-group--md { width: 2.75rem; height: 2.75rem; }
+.participant-avatar-group--lg { width: 4.5rem; height: 4.5rem; }
+
+.participant-avatar-group[data-slot-count="1"] { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.participant-avatar-group[data-slot-count="2"] { grid-template-columns: repeat(2, 1fr); grid-template-rows: 1fr; }
+.participant-avatar-group[data-slot-count="3"],
+.participant-avatar-group[data-slot-count="4"] { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); }
+.participant-avatar-group[data-slot-count="3"] .participant-avatar-group__slot:last-child { grid-column: span 2; }
+
+.participant-avatar-group__slot,
+.participant-avatar-group__overflow {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--bg);
+}
+
+.participant-avatar-group__slot:first-child { border-inline-start: 0; border-block-start: 0; }
+.participant-avatar-group__slot:nth-child(2) { border-inline-end: 0; border-block-start: 0; }
+.participant-avatar-group__slot:nth-child(3) { border-block-end: 0; border-inline-start: 0; }
+.participant-avatar-group__slot:nth-child(4),
+.participant-avatar-group__overflow { border-inline-end: 0; border-block-end: 0; }
+.participant-avatar-group[data-slot-count="2"] .participant-avatar-group__slot { border-block: 0; }
+.participant-avatar-group__slot .avatar { width: 100%; height: 100%; border-radius: 0; font-size: var(--font-size-xs); }
+.participant-avatar-group__slot .avatar img { width: 100%; height: 100%; object-fit: cover; }
+.participant-avatar-group__overflow {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}

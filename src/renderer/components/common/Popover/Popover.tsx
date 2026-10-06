@@ -31,31 +31,32 @@ export const Popover: Component<PopoverProps> = (props) => {
   const isOpen = () => (typeof props.open === 'function' ? props.open() : props.open);
 
   const [position, setPosition] = createSignal({ left: 0, top: 0 });
-  let panelRef: HTMLDivElement | undefined;
+  const [panelRef, setPanelRef] = createSignal<HTMLDivElement>();
 
-  const focusPanel = () => {
-    const target = panelRef?.querySelector<HTMLElement>(
+  const focusPanel = (panel: HTMLDivElement) => {
+    const target = panel.querySelector<HTMLElement>(
       'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
     );
-    (target ?? panelRef)?.focus();
+    (target ?? panel).focus();
   };
 
   createEffect(() => {
     if (!isOpen()) return;
+    const panel = panelRef();
+    const anchorEl = props.anchor();
+    if (!panel || !anchorEl) return;
 
     const updatePosition = () => {
-      if (!panelRef) return;
-      const anchorEl = props.anchor();
-      if (!anchorEl) return;
       const rect = anchorEl.getBoundingClientRect();
-      const panelW = panelRef.offsetWidth;
-      const panelH = panelRef.offsetHeight;
+      const panelW = panel.offsetWidth;
+      const panelH = panel.offsetHeight;
       const left = Math.max(MARGIN, Math.min(rect.right - panelW, window.innerWidth - panelW - MARGIN));
       const top = Math.max(MARGIN, Math.min(rect.bottom + MARGIN, window.innerHeight - panelH - MARGIN));
       setPosition({ left, top });
     };
 
     updatePosition();
+    focusPanel(panel);
     // No scroll listener: the anchor lives in a fixed nav bar, so page
     // scrolling cannot move it relative to the viewport the fixed panel
     // is positioned against.
@@ -71,7 +72,7 @@ export const Popover: Component<PopoverProps> = (props) => {
       props.onClose();
       if (reason === 'escape') props.anchor()?.focus();
     },
-    inside: () => [props.anchor?.(), panelRef],
+    inside: () => [props.anchor?.(), panelRef()],
     closeOnOutsidePointer: true,
   });
 
@@ -79,7 +80,7 @@ export const Popover: Component<PopoverProps> = (props) => {
     <Show when={isOpen()}>
       <Portal mount={document.body}>
         <div
-          ref={(element) => { panelRef = element; focusPanel(); }}
+          ref={setPanelRef}
           class={`popover-panel${props.class ? ` ${props.class}` : ''}`}
           role="dialog"
           aria-label={props.label}

@@ -1123,6 +1123,15 @@
         "Search": "Filter records",
         "Refresh": "Refresh",
         "Calls": "Model & tools",
+        "ModelRequestSummary": "Model request captured; raw payload is available below.",
+        "ToolRequestSummary": "Tool input captured; raw payload is available below.",
+        "ResponseCharacters": "Response captured · {count} characters",
+        "ResponseCaptured": "Response captured",
+        "ResponseErrorCaptured": "Error details captured",
+        "RawData": "Raw data",
+        "RecordCount": "{count} records",
+        "NoRuntimeData": "No records in this context.",
+        "WorldSummary": "{rooms} rooms · {threads} threads · {participants} participants",
         "Runs": "Background runs",
         "Memories": "Memories",
         "Journal": "Sea & threads",
@@ -3278,6 +3287,7 @@
         "Statistics": "Statistics",
         "VideoPlayer": "Video Player",
         "BrowserExtension": "Browser Extension",
+        "Developer": "Developer",
         "EventAudit": "Runtime inspector"
       },
       "SearchPlaceholder": "Search settings..."

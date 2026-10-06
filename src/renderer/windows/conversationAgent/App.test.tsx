@@ -6,7 +6,7 @@
 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import { Show, createSignal, type Accessor } from 'solid-js';
+import { createSignal, type Accessor } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { LLMModelStatus, LLMStreamChunk } from '../../../shared/types';
@@ -17,6 +17,7 @@ import { inferenceEvents } from '../../../shared/inferenceBoundary';
 const mockUpdateSettings = vi.hoisted(() => vi.fn());
 const mockForceHideHover = vi.hoisted(() => vi.fn());
 const mockCloudToken = vi.hoisted(() => vi.fn(async () => 'fresh-token'));
+const mockOpenCloudReLoginModal = vi.hoisted(() => vi.fn());
 let desktopRuntime = false;
 let voiceDeliveryCallback: ((delivery: VoiceDeliveryPayload) => Promise<void>) | undefined;
 
@@ -178,7 +179,7 @@ vi.mock('../../context', () => ({
     settings: testSettings,
     isLoading: () => settingsLoading,
     updateSettings: mockUpdateSettings,
-    openCloudReLoginModal: vi.fn(),
+    openCloudReLoginModal: mockOpenCloudReLoginModal,
   }),
   useLocalization: () => ({
     t: (key: string) => key,
@@ -241,15 +242,10 @@ vi.mock('../../components/common', async (original) => ({
   ...await original<typeof import('../../components/common')>(),
   PlusIcon: () => <span aria-hidden="true" />,
   SearchIcon: () => <span aria-hidden="true" />,
-  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; variant?: string; size?: string; class?: string; 'aria-label'?: string; 'aria-disabled'?: boolean }) => (
-    <button type="button" class={props.class} aria-label={props['aria-label']} aria-disabled={props['aria-disabled']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; variant?: string; size?: string; class?: string; title?: string; ref?: (el: HTMLButtonElement) => void; 'aria-label'?: string; 'aria-disabled'?: boolean }) => (
+    <button ref={props.ref} type="button" class={props.class} title={props.title} aria-label={props['aria-label']} aria-disabled={props['aria-disabled']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
   Badge: (props: { children?: JSX.Element }) => <span>{props.children}</span>,
-  Popover: (props: { open: boolean | (() => boolean); children?: JSX.Element }) => (
-    <Show when={typeof props.open === 'function' ? props.open() : props.open}>
-      <div class="ca-overflow-menu">{props.children}</div>
-    </Show>
-  ),
   IconBtn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string; ref?: (el: HTMLButtonElement) => void }) => (
     <button type="button" ref={props.ref} aria-label={props['aria-label']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
@@ -473,6 +469,26 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(container.querySelector('[data-testid="new-conversation-modal"]')).toBeNull();
   });
 
+  it('uses the same stable roster avatar order in the conversation header and sidebar', async () => {
+    const first = currentWorld.participants[0];
+    const second = { ...first, id: 'agent-b', displayName: 'Tutor' };
+    currentWorld = {
+      rooms: [{ id: 'room-pair', title: 'Tutors', participantIds: [first.id, second.id], createdAt: 1 }],
+      threads: [{ id: 'thread-pair', roomId: 'room-pair', state: 'active', createdAt: 1 }],
+      participants: [first, second],
+    };
+    mockBridge.kvStore.kvGet.mockResolvedValue(JSON.stringify({ roomId: 'room-pair', threadId: 'thread-pair' }));
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-header-contact [data-testid="participant-avatar-group"]')).not.toBeNull());
+    const headerIds = Array.from(container.querySelectorAll('.ca-header-contact [data-participant-id]')).map(slot => slot.getAttribute('data-participant-id'));
+    (container.querySelector('[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('.room-sidebar-room [data-testid="participant-avatar-group"]')).not.toBeNull());
+    const sidebarIds = Array.from(container.querySelectorAll('.room-sidebar-room [data-participant-id]')).map(slot => slot.getAttribute('data-participant-id'));
+    expect(headerIds).toEqual([first.id, second.id]);
+    expect(sidebarIds).toEqual(headerIds);
+  });
+
   it('keeps departed local speakers named in the transcript after the roster becomes one person', async () => {
     const first = currentWorld.participants[0];
     const departed = { ...first, id: 'departed', displayName: 'Local Rin', kind: 'temporary' as const };
@@ -504,6 +520,57 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     expect(input.disabled).toBe(false);
     input.value = 'Saved offline draft'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect((container.querySelector('[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).disabled).toBe(true);
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+  });
+
+  it('offers cloud reauthentication once and preserves the draft while sending stays disabled', async () => {
+    testSettings.llmProvider = 'cloud';
+    mockCloudToken.mockResolvedValue('');
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-provider-notice')?.textContent).toContain('mlearn.CloudReLogin.SessionExpired'));
+    const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    input.value = 'Keep this while I sign in'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    expect((container.querySelector('[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).disabled).toBe(true);
+    const notice = container.querySelector('.ca-provider-notice')!;
+    expect(notice.querySelectorAll('button')).toHaveLength(1);
+    expect(notice.querySelector('button')?.textContent).toBe('mlearn.Connection.SignIn');
+    notice.querySelector<HTMLButtonElement>('button')!.click();
+    expect(mockOpenCloudReLoginModal).toHaveBeenCalledOnce();
+    expect(input.value).toBe('Keep this while I sign in');
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+  });
+
+  it('routes a missing local model to AI settings without dropping the draft', async () => {
+    testSettings.llmProvider = 'builtin';
+    mockBridge.llm.llmCheckModel.mockResolvedValue({ ...readyModelStatus, ready: false });
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-provider-notice')?.textContent).toContain('mlearn.ConversationAgent.Recovery.Model'));
+    const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    input.value = 'Draft remains here'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    const action = container.querySelector<HTMLButtonElement>('.ca-provider-notice button')!;
+    expect(action.textContent).toBe('mlearn.CapabilityUnavailable.OpenSettings');
+    action.click();
+    expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'settings', context: { section: 'ai' } });
+    expect(input.value).toBe('Draft remains here');
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+  });
+
+  it('offers a provider retry for an offline local service and keeps sending disabled', async () => {
+    testSettings.llmProvider = 'ollama';
+    mockBridge.llm.ollamaCheck.mockResolvedValue(false);
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-provider-notice')?.textContent).toContain('mlearn.ConversationAgent.Recovery.Connection'));
+    const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
+    input.value = 'Offline draft'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    const action = container.querySelector<HTMLButtonElement>('.ca-provider-notice button')!;
+    expect(action.textContent).toBe('mlearn.Global.Retry');
+    action.click();
+    await vi.waitFor(() => expect(mockBridge.llm.ollamaCheck).toHaveBeenCalledTimes(2));
+    expect(input.value).toBe('Offline draft');
     expect((container.querySelector('[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).disabled).toBe(true);
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
   });
@@ -544,7 +611,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
     (container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
-    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Menu.MemoryBrowser')!.click();
+    Array.from(document.querySelectorAll<HTMLButtonElement>('.ca-overflow-menu button')).find(button => button.textContent === 'mlearn.ConversationAgent.Menu.MemoryBrowser')!.click();
     expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'memory-browser', context: { roomId: 'room-a' } });
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
   });
@@ -609,9 +676,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
-    const recovery = Array.from(container.querySelectorAll<HTMLButtonElement>('.ca-messages button'))
-      .find(button => button.textContent === 'mlearn.ConversationAgent.Recovery.Settings');
+    const recovery = container.querySelector<HTMLButtonElement>('.ca-provider-notice button');
     expect(recovery).toBeDefined();
+    expect(recovery?.textContent).toBe('mlearn.CapabilityUnavailable.OpenSettings');
     expect(chatText(container)).toContain('mlearn.ConversationAgent.Empty.SavedTitle');
     expect(chatText(container)).toContain('mlearn.ConversationAgent.Empty.SavedUnavailableHint');
     expect(chatText(container)).not.toContain('mlearn.ConversationAgent.Empty.StartConversation');
@@ -1722,10 +1789,21 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')).not.toBeNull());
     expect(container.querySelector('[role="tab"]')).toBeNull();
-    (container.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
-    expect(container.textContent).toContain('mlearn.ConversationAgent.NewConversation.Title');
-    expect(container.textContent).toContain('mlearn.ConversationAgent.Menu.Details');
-    expect(container.textContent).not.toContain('mlearn.ConversationAgent.Menu.WordHover');
+    const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')!;
+    trigger.focus();
+    trigger.click();
+    const menu = await vi.waitFor(() => document.querySelector<HTMLElement>('.ca-overflow-menu'));
+    expect(menu?.textContent).toContain('mlearn.ConversationAgent.Menu.Details');
+    expect(menu?.textContent).toContain('mlearn.ConversationAgent.Menu.MemoryBrowser');
+    expect(menu?.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.Title');
+    expect(menu?.textContent).not.toContain('mlearn.ConversationAgent.Contacts.Add');
+    expect(menu?.textContent).not.toContain('mlearn.ConversationAgent.Menu.Settings');
+    expect(menu?.textContent).not.toContain('mlearn.ConversationAgent.Developer.Title');
+    expect(menu?.textContent).not.toContain('mlearn.ConversationAgent.Disclaimer');
+    expect(document.activeElement).toBe(menu?.querySelector('button'));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await vi.waitFor(() => expect(document.querySelector('.ca-overflow-menu')).toBeNull());
+    expect(document.activeElement).toBe(trigger);
   });
 
   it('opens details from a media chip and initial stats context', async () => {
@@ -1781,9 +1859,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')?.click();
     await vi.waitFor(() => expect(container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')).not.toBeNull());
-    (container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some(button => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')).toBe(true));
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.NewConversation.Title')!.click();
+    (container.querySelector('[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]')).not.toBeNull());
+    (container.querySelector('.room-sidebar button[aria-label="mlearn.ConversationAgent.NewConversation.Title"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(container.querySelector('.new-conversation-scope')).not.toBeNull());
   });
 
@@ -1903,7 +1981,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')).not.toBeNull());
     Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Simulate voice failure')!.click();
     expect(container.querySelector('[data-testid="voice-tab"]')).toBeNull();
-    expect(container.querySelector('[role="status"]')?.textContent).toContain('No module named kokoro');
+    expect(container.querySelector('.ca-contact-error')?.textContent).toContain('No module named kokoro');
   });
 
   it('mounts VoiceTab with autoStartCall from the call button', async () => {
@@ -1916,7 +1994,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('[data-testid="voice-tab"]')?.getAttribute('data-auto-start')).toBe('true'));
   });
 
-  it('keeps conversation purpose and history scope in the call header and moves provider details into the menu', async () => {
+  it('keeps conversation purpose and history scope in the call header without repeating connection detail in the menu', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     const callButton = () => container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Call.StartAria"]');
@@ -1931,7 +2009,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(header.querySelector('.ca-connection-info')).toBeNull();
     expect(callButton()).toBeNull();
     (header.querySelector('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
-    await vi.waitFor(() => expect(document.querySelector('.ca-overflow-menu .ca-connection-info')).not.toBeNull());
+    await vi.waitFor(() => expect(document.querySelector('.ca-overflow-menu')).not.toBeNull());
+    expect(document.querySelector('.ca-overflow-menu .ca-connection-info')).toBeNull();
   });
 
   it('cancels a call response without opening new-conversation setup', async () => {

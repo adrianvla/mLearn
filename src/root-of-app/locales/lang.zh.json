@@ -1123,6 +1123,15 @@
         "Search": "筛选记录",
         "Refresh": "刷新",
         "Calls": "模型与工具",
+        "ModelRequestSummary": "已记录模型请求；原始数据可在下方查看。",
+        "ToolRequestSummary": "已记录工具输入；原始数据可在下方查看。",
+        "ResponseCharacters": "已记录响应 · {count} 个字符",
+        "ResponseCaptured": "已记录响应",
+        "ResponseErrorCaptured": "已记录错误详情",
+        "RawData": "原始数据",
+        "RecordCount": "{count} 条记录",
+        "NoRuntimeData": "此上下文中没有记录。",
+        "WorldSummary": "{rooms} 个房间 · {threads} 个会话 · {participants} 位参与者",
         "Runs": "后台运行",
         "Memories": "记忆",
         "Journal": "Sea 与线程",
@@ -3278,6 +3287,7 @@
         "Statistics": "统计",
         "VideoPlayer": "视频播放器",
         "BrowserExtension": "浏览器扩展",
+        "Developer": "开发者",
         "EventAudit": "运行时检查器"
       },
       "SearchPlaceholder": "搜索设置..."

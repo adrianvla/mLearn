@@ -213,6 +213,8 @@
 .ca-header-contact { min-width: 0; max-width: 100%; overflow: hidden; padding: var(--spacing-1); }
 .ca-header-contact > .btn-content { min-width: 0; gap: var(--spacing-2); }
 .ca-header-identity { flex: 1; overflow: hidden; }
+.ca-header-conversation { flex: 1; min-width: 0; }
+.ca-header-context { max-width: 100%; }
 .ca-message-row { display: flex; flex-direction: column; min-width: 0; }
 .ca-jump-latest { position: absolute; bottom: 7rem; inset-inline-end: max(var(--spacing-4), calc((100% - 64rem) / 2 + var(--spacing-4))); z-index: var(--z-dropdown); box-shadow: var(--shadow-md); }
 .ca-annotation-notice { display: flex; gap: var(--spacing-2); align-items: center; padding: var(--spacing-1) var(--spacing-4); color: var(--text-secondary); font-size: var(--font-size-xs); }
@@ -512,18 +514,15 @@ textarea.ca-chat-textarea,
 :root[data-sidebar-layout='drawer'] .ca-chat-content > .ca-header { padding-inline-start: calc(var(--spacing-1) + var(--window-controls-inline-start-inset)); }
 .ca-header .ca-provider-label { display: none; }
 
-/* Keep transport detail out of the identity row. Failures belong beside the
-   unavailable composer; the menu retains full provider information. */
-.ca-header .ca-connection-info { flex: 0 1 auto; max-width: 12rem; font-size: var(--font-size-xs); }
-.ca-connection-info > .btn-content { min-width: 0; gap: var(--spacing-2); }
-.ca-header .ca-provider-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ca-header .connection-status { flex-shrink: 0; }
+/* Keep the header status concise; its single actionable explanation sits by the composer. */
+.ca-header .ca-connection-info { display: inline-flex; flex: 0 0 auto; align-items: center; gap: var(--spacing-1); color: var(--text-secondary); font-size: var(--font-size-xs); white-space: nowrap; }
+.ca-header .connection-status { flex: 0 0 auto; }
+.ca-connection-label { overflow: hidden; text-overflow: ellipsis; }
 .ca-overflow-anchor { flex-shrink: 0; }
-.ca-provider-details .ca-connection-info > .btn-content { flex-wrap: wrap; justify-content: flex-start; }
-.ca-provider-details .ca-connection-reason { max-width: none; white-space: normal; line-height: var(--line-height-normal); }
 .ca-provider-notice { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); padding: var(--spacing-2) var(--spacing-4); color: var(--text-secondary); font-size: var(--font-size-sm); line-height: var(--line-height-normal); }
 .ca-provider-notice > span { min-width: 0; }
 .ca-provider-notice > button { flex-shrink: 0; }
+.ca-ai-disclaimer { max-width: 64rem; margin: var(--spacing-1) auto 0; color: var(--text-tertiary); font-size: var(--font-size-xs); line-height: var(--line-height-normal); }
 
 .ca-message-row.ca-message-continuation {
   margin-top: calc(var(--spacing-1) - var(--spacing-3));
@@ -541,3 +540,12 @@ textarea.ca-chat-textarea,
 
 .ca-header-conversation { display: flex; flex-direction: column; min-width: 0; gap: var(--spacing-1); }
 .ca-header-context { color: var(--text-secondary); font-size: var(--font-size-xs); padding-inline: var(--spacing-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 620px) {
+  .ca-header { gap: var(--spacing-1); }
+  .ca-header .ca-connection-label { display: none; }
+  .ca-header-context { max-width: 12rem; }
+  .ca-provider-notice { align-items: flex-start; flex-wrap: wrap; padding-inline: var(--spacing-3); }
+  .ca-provider-notice > span { flex: 1 1 12rem; }
+  .ca-provider-notice > button { margin-inline-start: auto; }
+}

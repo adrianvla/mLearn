@@ -462,6 +462,7 @@ export { RatingMatrix, type RatingMatrixProps, type ProfileObservation, type Rat
 export { PolicyTraceDetails } from './PolicyTrace/PolicyTraceDetails';
 
 export { Avatar, type AvatarProps } from './Avatar/Avatar';
+export { ParticipantAvatarGroup, type AvatarParticipant, type ParticipantAvatarGroupProps } from './ParticipantAvatarGroup/ParticipantAvatarGroup';
 export { ListRow, type ListRowProps } from './ListRow/ListRow';
 export { Disclosure, type DisclosureProps } from './Disclosure/Disclosure';
 

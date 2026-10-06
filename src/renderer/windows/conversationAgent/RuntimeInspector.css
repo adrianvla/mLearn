@@ -1,21 +1,30 @@
 .runtime-inspector { display: flex; flex-direction: column; gap: var(--spacing-3); min-height: 0; height: 100%; }
-.runtime-inspector-toolbar { display: flex; align-items: center; gap: var(--spacing-2); flex-wrap: wrap; }
-.runtime-inspector-toolbar > select { max-width: 18rem; }
-.runtime-inspector-toolbar > .input-wrapper { flex: 1; min-width: 10rem; }
-.runtime-inspector > .tab-container { flex: 1; min-height: 0; }
+.runtime-inspector-toolbar { display: flex; flex-direction: column; gap: var(--spacing-3); padding-block-end: var(--spacing-3); border-bottom: 1px solid var(--border-color); }
+.runtime-inspector-status { display: flex; flex-direction: column; gap: var(--spacing-1); min-width: 0; }
+.runtime-inspector-status h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); }
+.runtime-inspector-status .hint-text { max-width: 72rem; }
+.runtime-inspector-controls { display: grid; grid-template-columns: minmax(12rem, 1.1fr) minmax(10rem, 1fr) auto; align-items: center; gap: var(--spacing-2); }
+.runtime-inspector-controls > select { min-width: 0; max-width: 24rem; }
+.runtime-inspector-controls > .input-wrapper { min-width: 0; }
+.runtime-inspector > .tab-container { flex: 1; min-height: 0; overflow: hidden; }
 .runtime-inspector > .tab-container > .tab-list { flex-shrink: 0; overflow-x: auto; }
-.runtime-inspector > .tab-container > .tab-content { flex: 1; min-height: 0; overflow: auto; }
-.runtime-inspector-panel { min-height: 0; height: 100%; display: flex; flex-direction: column; gap: var(--spacing-3); }
+.runtime-inspector > .tab-container > .tab-content { flex: 1; min-height: 0; overflow: hidden; }
+.runtime-inspector-panel { min-height: 0; height: 100%; display: flex; flex-direction: column; gap: var(--spacing-3); overflow: auto; padding-block: var(--spacing-2); }
 .runtime-inspector-capture-note, .runtime-inspector-detail-heading { display: flex; gap: var(--spacing-2); align-items: center; flex-wrap: wrap; }
 .runtime-inspector-capture-note > .hint-text { flex: 1; }
 .runtime-inspector-split { flex: 1; min-height: 15rem; display: grid; grid-template-columns: minmax(12rem, 30%) minmax(0, 1fr); border-top: 1px solid var(--border-color); }
 .runtime-inspector-call-list { overflow: auto; border-right: 1px solid var(--border-color); padding: var(--spacing-2); }
 .runtime-inspector-detail { overflow: auto; padding: var(--spacing-3); min-width: 0; }
 .runtime-inspector-detail-heading > strong { flex: 1; }
+.runtime-inspector-summary { margin: 0; padding: var(--spacing-2) var(--spacing-3); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-secondary); background: var(--bg-secondary); font-size: var(--font-size-sm); }
 .runtime-inspector pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; user-select: text; font-family: monospace; font-size: var(--font-size-xs); line-height: var(--line-height-relaxed); margin-block: var(--spacing-2); }
 .runtime-inspector pre.runtime-inspector-output { font-family: inherit; font-size: var(--font-size-sm); }
 .runtime-inspector-meta { color: var(--text-secondary); }
 .runtime-inspector .disclosure { margin-block: var(--spacing-2); }
 .runtime-inspector-error { color: var(--color-error); margin: 0; font-size: var(--font-size-sm); }
-.ca-runtime-modal .modal-content { min-height: 0; display: flex; flex-direction: column; }
-@media (max-width: 650px) { .runtime-inspector-split { grid-template-columns: 1fr; grid-template-rows: minmax(8rem, 30%) minmax(12rem, 1fr); } .runtime-inspector-call-list { border-right: 0; border-bottom: 1px solid var(--border-color); } }
+@media (max-width: 650px) {
+  .runtime-inspector-controls { grid-template-columns: minmax(0, 1fr) auto; }
+  .runtime-inspector-controls > select { grid-column: 1 / -1; max-width: none; }
+  .runtime-inspector-split { grid-template-columns: 1fr; grid-template-rows: minmax(8rem, 30%) minmax(12rem, 1fr); }
+  .runtime-inspector-call-list { border-right: 0; border-bottom: 1px solid var(--border-color); }
+}

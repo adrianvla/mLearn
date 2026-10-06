@@ -22,7 +22,7 @@ import Icon from '../../components/common/Icons/Icon';
 import { EventAuditPanel } from './EventAuditPanel';
 import './SettingsLayout.css';
 
-type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'video-player' | 'ai' | 'connection' | 'plugins' | 'components' | 'about' | 'browser-extension' | 'event-audit';
+type TabId = 'general' | 'behaviour' | 'customization' | 'srs' | 'reader' | 'video-player' | 'ai' | 'connection' | 'plugins' | 'components' | 'about' | 'browser-extension' | 'developer';
 
 interface SettingsTab {
   id: TabId;
@@ -45,14 +45,14 @@ const TABS: SettingsTab[] = [
   { id: 'about', labelKey: 'mlearn.Settings.Tabs.About', icon: 'star' },
 ];
 
-const EVENT_AUDIT_TAB: SettingsTab = { id: 'event-audit', labelKey: 'mlearn.Settings.Tabs.EventAudit', icon: 'cog' };
+const DEVELOPER_TAB: SettingsTab = { id: 'developer', labelKey: 'mlearn.Settings.Tabs.Developer', icon: 'cog' };
 
 export const SettingsContent: Component<{ launchContext?: Record<string, unknown> }> = (props) => {
   const [activeTab, setActiveTab] = createSignal<TabId>('general');
   const [searchQuery, setSearchQuery] = createSignal<string>('');
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const visibleTabs = createMemo(() => (settings.devMode ? [...TABS, EVENT_AUDIT_TAB] : TABS));
+  const visibleTabs = createMemo(() => (settings.devMode ? [...TABS.slice(0, -1), DEVELOPER_TAB, TABS.at(-1)!] : TABS));
 
   const matchRegistry = new Map<string, Set<string>>();
   const [matchCounts, setMatchCounts] = createSignal<Record<string, number>>({});
@@ -102,6 +102,7 @@ export const SettingsContent: Component<{ launchContext?: Record<string, unknown
     if (!section) return 'general';
 
     const normalized = section.toLowerCase();
+    if (normalized.includes('developer') || normalized.includes('runtime') || normalized.includes('debug')) return 'developer';
     if (normalized.includes('about') || normalized.includes('license')) return 'about';
     if (normalized.includes('ai') || normalized.includes('llm')) return 'ai';
     if (normalized.includes('connect') || normalized.includes('tether') || normalized.includes('cloud') || normalized.includes('backend')) return 'connection';
@@ -188,7 +189,7 @@ export const SettingsContent: Component<{ launchContext?: Record<string, unknown
             <TabPanel tabId="components"><ComponentsTab /></TabPanel>
             <TabPanel tabId="browser-extension"><BrowserExtensionSettings /></TabPanel>
             <Show when={settings.devMode}>
-              <TabPanel tabId="event-audit"><EventAuditPanel /></TabPanel>
+              <TabPanel tabId="developer"><EventAuditPanel /></TabPanel>
             </Show>
             <TabPanel tabId="about"><AboutTab /></TabPanel>
           </div>

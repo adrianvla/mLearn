@@ -16,7 +16,7 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const bridge = getBridge();
-  const label = (key: string) => t(`mlearn.ConversationAgent.Developer.${key}`);
+  const label = (key: string, params?: Record<string, string | number>) => t(`mlearn.ConversationAgent.Developer.${key}`, params);
   const [tab, setTab] = createSignal('calls');
   const [traceList, setTraceList] = createSignal<RuntimeTraceList | null>(null);
   const [traceId, setTraceId] = createSignal('');
@@ -46,6 +46,15 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
     const relevant = (value: unknown): boolean => !roomId() || (isRecord(value) && (value.roomId === roomId() || value.contextId === roomId() || value.threadId === roomId()));
     return { reflectionRuns: w.reflectionRuns?.filter(relevant) ?? [], autonomyJobs: w.autonomyJobs?.filter(relevant) ?? [],
       contacts: w.contacts?.filter(relevant) ?? [], scenarioCreations: w.scenarioCreations?.filter(relevant) ?? [], integrations: w.integrations?.filter(relevant) ?? [] };
+  };
+  const requestSummary = (entry: RuntimeTraceEntry): string => label(entry.kind === 'model' ? 'ModelRequestSummary' : 'ToolRequestSummary');
+  const responseSummary = (entry: RuntimeTraceEntry): string => typeof entry.output.content === 'string'
+    ? label('ResponseCharacters', { count: Array.from(entry.output.content).length })
+    : entry.output.error !== undefined ? label('ResponseErrorCaptured') : label('ResponseCaptured');
+  const worldSummary = (): string => {
+    const current = world();
+    return label('WorldSummary', { rooms: current?.rooms.length ?? 0, threads: current?.threads.length ?? 0,
+      participants: current?.participants.length ?? 0 });
   };
 
   const refresh = async (includeWorld = true): Promise<void> => {
@@ -112,19 +121,25 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
   return <Show when={settings.devMode} fallback={<HintText>{label('Disabled')}</HintText>}>
     <section class="runtime-inspector" aria-label={label('Title')}>
       <div class="runtime-inspector-toolbar">
+        <div class="runtime-inspector-status">
+          <h2>{label('Title')}</h2>
+          <HintText>{label('CaptureNotice')}</HintText>
+        </div>
+        <div class="runtime-inspector-controls">
         <Select aria-label={label('Context')} value={roomId()} onChange={event => chooseContext(event.currentTarget.value)} options={[
           { value: '', label: label('AllContexts') }, { value: WORLD_CONTINUITY_ID, label: label('WorldContinuity') }, ...rooms().map(room => ({ value: room.id, label: room.title })),
           ...(world()?.threads ?? []).filter(thread => thread.sandbox).map(thread => ({ value: thread.id, label: thread.title || thread.id })),
         ]} />
         <Input type="search" size="sm" disabled={tab() === 'runs' || tab() === 'world'} value={query()} onInput={event => setQuery(event.currentTarget.value)} placeholder={label('Search')} aria-label={label('Search')} />
         <Button size="sm" variant="ghost" onClick={() => { setRevision(value => value + 1); void refresh(); }}>{label('Refresh')}</Button>
+        </div>
       </div>
       <Show when={Object.values(errors()).some(Boolean)}><p class="runtime-inspector-error" role="alert">{Object.values(errors()).filter(Boolean).join(' · ')}</p></Show>
       <TabContainer idBase="runtime-inspector" activeTab={tab()} onTabChange={value => { setTab(value); setQuery(''); }} variant="underline" size="sm"
         tabs={[{ id: 'calls', label: label('Calls') }, { id: 'runs', label: label('Runs') }, { id: 'memories', label: label('Memories') }, { id: 'sea', label: label('Journal') }, { id: 'world', label: label('World') }]}>
         <div class="runtime-inspector-panel" role="tabpanel" id={`runtime-inspector-panel-${tab()}`} aria-labelledby={`runtime-inspector-tab-${tab()}`}>
           <Show when={tab() === 'calls'}>
-            <div class="runtime-inspector-capture-note"><HintText>{label('CaptureNotice')}</HintText><Button variant="ghost" size="sm" onClick={() => void clear()}>{label('Clear')}</Button></div>
+            <div class="runtime-inspector-capture-note"><HintText>{traceList()?.entries.length ?? 0} · {label('Calls')}</HintText><Button variant="ghost" size="sm" onClick={() => void clear()}>{label('Clear')}</Button></div>
             <Show when={traceList()?.available !== false} fallback={<EmptyState title={label('Unavailable')} />}>
               <div class="runtime-inspector-split">
                 <div class="runtime-inspector-call-list">
@@ -138,17 +153,25 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
                     <div class="runtime-inspector-detail-heading"><strong>{selected().context.source}</strong><Tag>{selected().status}</Tag><Button variant="ghost" size="sm" onClick={() => void copy(selected())}>{label('Copy')}</Button></div>
                     <Disclosure title={label('Context')}><pre class="runtime-inspector-meta">{json({ id: selected().id, ...selected().context, provider: selected().provider, model: selected().model, tier: selected().tier, startedAt: selected().startedAt, providerStartedAt: selected().providerStartedAt, firstTokenAt: selected().firstTokenAt, timeToFirstTokenMs: selected().timeToFirstTokenMs, finishedAt: selected().finishedAt })}</pre></Disclosure>
                     <Show when={selected().truncated}><HintText>{label('Truncated')}</HintText></Show>
-                    <Disclosure open title={label('Request')}><pre>{json(selected().input)}</pre><Button variant="ghost" size="sm" onClick={() => void copy(selected().input)}>{label('Copy')}</Button></Disclosure>
-                    <Disclosure open title={label('Response')}><Show when={selected().output.content !== undefined}><pre class="runtime-inspector-output">{selected().output.content}</pre></Show><pre>{json(Object.fromEntries(Object.entries(selected().output).filter(([key]) => key !== 'content')))}</pre></Disclosure>
+                    <Disclosure title={`${label('Request')} · ${requestSummary(selected())}`}><pre>{json(selected().input)}</pre><Button variant="ghost" size="sm" onClick={() => void copy(selected().input)}>{label('Copy')}</Button></Disclosure>
+                    <Disclosure title={`${label('Response')} · ${responseSummary(selected())}`}><Show when={selected().output.content !== undefined}><pre class="runtime-inspector-output">{selected().output.content}</pre></Show><pre>{json(Object.fromEntries(Object.entries(selected().output).filter(([key]) => key !== 'content')))}</pre><Button variant="ghost" size="sm" onClick={() => void copy(selected().output)}>{label('Copy')}</Button></Disclosure>
                   </>}</Show>
                 </div>
               </div>
             </Show>
           </Show>
           <Show when={tab() === 'runs'}><HintText>{label('RunsNotice')}</HintText>
-            <For each={Object.entries(scopedRuns() ?? {})}>{([key, value]) => <Disclosure open title={`${key} (${value.length})`}><pre>{json(value)}</pre><Button size="sm" variant="ghost" onClick={() => void copy(value)}>{label('Copy')}</Button></Disclosure>}</For>
+            <For each={Object.entries(scopedRuns() ?? {})}>{([key, value]) => <Disclosure title={`${key} · ${label('RecordCount', { count: value.length })}`}>
+              <p class="runtime-inspector-summary">{value.length === 0 ? label('NoRuntimeData') : label('RecordCount', { count: value.length })}</p>
+              <Disclosure title={label('RawData')}><pre>{json(value)}</pre></Disclosure>
+              <Button size="sm" variant="ghost" onClick={() => void copy(value)}>{label('Copy')}</Button>
+            </Disclosure>}</For>
           </Show>
-          <Show when={tab() === 'world'}><HintText>{label('WorldNotice')}</HintText><Button size="sm" variant="ghost" onClick={() => void copy(world())}>{label('Copy')}</Button><pre>{json(world())}</pre></Show>
+          <Show when={tab() === 'world'}><HintText>{label('WorldNotice')}</HintText>
+            <p class="runtime-inspector-summary">{worldSummary()}</p>
+            <Disclosure title={label('RawData')}><pre>{json(world())}</pre></Disclosure>
+            <Button size="sm" variant="ghost" onClick={() => void copy(world())}>{label('Copy')}</Button>
+          </Show>
           <Show when={tab() === 'sea' || tab() === 'memories'}>
             <HintText>{label('JournalNotice')}</HintText>
             <Show when={roomId()} fallback={<EmptyState title={label('ChooseContext')} />}>

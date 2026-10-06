@@ -37,12 +37,28 @@ describe('the settings inspector reads actual runtime capture, not reconstructed
  it('does not read runtime data with developer mode off', async () => { setSettings('devMode', false); const el = mount(); await Promise.resolve(); expect(el.textContent).toContain('Developer.Disabled'); expect(bridge.diagnostics.getRuntimeTraces).not.toHaveBeenCalled(); expect(bridge.diagnostics.getRuntimeWorld).not.toHaveBeenCalled(); });
  it('shows the captured request and live model response and copies that capture', async () => {
   const el = mount(); await vi.waitFor(() => expect(el.textContent).toContain('Exact dispatched instruction'));
+  const request = Array.from(el.querySelectorAll<HTMLDetailsElement>('.runtime-inspector-detail details'))
+   .find(disclosure => disclosure.querySelector('summary')?.textContent?.includes('Request'))!;
+  expect(request.open).toBe(false);
+  request.querySelector('summary')!.click();
+  expect(request.open).toBe(true);
   expect(el.textContent).toContain('First chunk');
   records[0].output.content += ' followed by another chunk'; traceChanged();
   await vi.waitFor(() => expect(el.textContent).toContain('followed by another chunk'));
   expect(bridge.diagnostics.getRuntimeWorld).toHaveBeenCalledTimes(1);
   button('Copy').click(); await vi.waitFor(() => expect(bridge.files.writeToClipboard).toHaveBeenCalled());
   expect(bridge.files.writeToClipboard.mock.calls[0][0]).toContain('Exact dispatched instruction');
+ });
+ it('summarizes world state before showing its raw snapshot', async () => {
+  const el = mount(); await vi.waitFor(() => expect(bridge.diagnostics.getRuntimeWorld).toHaveBeenCalled());
+  button('World').click();
+  const raw = await vi.waitFor(() => Array.from(el.querySelectorAll<HTMLDetailsElement>('details'))
+   .find(disclosure => disclosure.querySelector('summary')?.textContent?.includes('RawData')));
+  expect(el.textContent).toContain('WorldSummary');
+  expect(raw?.open).toBe(false);
+  raw?.querySelector('summary')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  expect(raw?.open).toBe(true);
+  expect(el.textContent).toContain('reflection-a');
  });
  it('reads memories and refreshes committed journal changes without inventing empty data', async () => {
   const el = mount(); await vi.waitFor(() => expect(bridge.diagnostics.getRuntimeWorld).toHaveBeenCalled());

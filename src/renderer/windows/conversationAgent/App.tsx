@@ -24,7 +24,7 @@ import {
   probeProvider,
   type ProviderFailure,
 } from '../../services/providerFailure';
-import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, Tag, ChatIcon, Avatar, ResponsiveSidebar, SkeletonCard } from '../../components/common';
+import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, ChatIcon, ParticipantAvatarGroup, ResponsiveSidebar, SkeletonCard } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
 import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
 import { useWordHover, useTranslation, useTokenizer, useDictionary, getCachedTranslation } from '../../hooks';
@@ -44,7 +44,6 @@ import { ContactProfileModal } from './ContactProfileModal';
 import { useConversationPreviews } from './useConversationPreviews';
 import { createMessagePreparationQueue, messagePreparations } from './messagePreparation';
 import { tokenLookupContext, warmTranslationCache } from '../../hooks/useTranslation';
-import { RuntimeInspector } from './RuntimeInspector';
 import { NewConversationModal } from './NewConversationModal';
 import { StoryProgressModal } from './StoryProgressModal';
 
@@ -66,8 +65,8 @@ import { createVoicePrefetch } from './voicePrefetch';
 import { HARNESS_ACTOR, USER_ACTOR, sandboxContext, threadContextId, threadParticipants, type MessagePayload, type OpenRoomEventPayload, type Participant, type ThreadMediaRef, type WorldSnapshot, type VoiceDeliveryPayload, type JournalEventDraft, type JournalEvent } from '../../../shared/world';
 import { getLearningLanguageLevelForLanguage, getTokenizerCacheNamespace, shouldTokenizeTextForLanguage } from '../../../shared/languageFeatures';
 import './ConversationAgent.css';
-import { openCapabilitySettings } from '../../services/capabilityUnavailable';
 import { getLogger } from '../../../shared/utils/logger';
+import { openCapabilitySettings } from '../../services/capabilityUnavailable';
 
 const log = getLogger("renderer.conversationAgent.app");
 const HISTORY_WINDOW = 40;
@@ -235,6 +234,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
    * point a non-null value is the reason the composer is disabled.
    */
   const [connectionFailure, setConnectionFailure] = createSignal<ProviderFailure | null>(null);
+  const [connectionProbeRevision, setConnectionProbeRevision] = createSignal(0);
   const [isRecording, setIsRecording] = createSignal(false);
   const [isSpeaking, setIsSpeaking] = createSignal(false);
 
@@ -328,7 +328,6 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   const [addingContact, setAddingContact] = createSignal(false);
   const [showStoryProgress, setShowStoryProgress] = createSignal(false);
   const [contactId, setContactId] = createSignal<string | null>(null);
-  const [showRuntimeInspector, setShowRuntimeInspector] = createSignal(false);
   const selectedContact = () => world()?.participants.find(person => person.id === contactId());
   const conversationPreviews = useConversationPreviews(world);
   const publishContact = (person: Participant): void => { setWorld(current => current ? {
@@ -1088,6 +1087,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
       setIsCheckingConnection(true);
       return;
     }
+    void connectionProbeRevision();
     // Track reactive dependencies so the effect re-runs on change
     void settings.ollamaUrl;
     void settings.ollamaModel;
@@ -1712,13 +1712,15 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   const handleConnectionStatusClick = () => {
     if (!canActOnConnection()) return;
     const failure = connectionFailure();
-    if (failure?.recovery === 'settings' && settings.llmProvider === 'cloud') {
+    if (failure?.requiresSignIn) {
       openCloudReLoginModal();
       return;
     }
-    // Every other unusable provider is repaired where it is configured, not
-    // in a re-authentication flow that only the cloud provider has.
-    getBridge().window.openWindow({ type: 'settings' });
+    if (failure?.recovery === 'settings') {
+      openCapabilitySettings('llm');
+      return;
+    }
+    if (failure?.recovery === 'none') setConnectionProbeRevision(value => value + 1);
   };
 
   const handleSend = async () => {
@@ -1954,41 +1956,36 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
     return t(connectionFailure()?.key ?? 'mlearn.ConnectionStatus.Disconnected');
   };
 
+  const connectionStatusLabel = (): string => t(isCheckingConnection()
+    ? 'mlearn.ConnectionStatus.Connecting'
+    : isConnected() ? 'mlearn.ConnectionStatus.Connected' : 'mlearn.ConnectionStatus.Disconnected');
+
   /**
-   * What clicking the status chip should do.
-   *
-   * Driven by the failure's recovery rather than by the provider, so a cloud
-   * session that expired offers sign-in and every other unusable provider
-   * offers the AI settings where its fix lives. A failure with no recovery the
-   * window can offer keeps the chip inert rather than pretending otherwise.
+   * Keep one useful next step beside the explanatory failure notice. A
+   * disconnected status by itself is informational and never hides the cause.
    */
   const canActOnConnection = (): boolean => (
     !isCheckingConnection()
     && !isConnected()
-    && connectionFailure()?.recovery === 'settings'
+    && (connectionFailure()?.recovery === 'settings' || connectionFailure()?.recovery === 'none')
   );
 
-  const ConnectionInfo: Component<{ details?: boolean }> = (props) => (
-    <Button
-          variant="ghost"
-          class={`ca-connection-info ${canActOnConnection() ? 'is-actionable' : ''}`}
-          onClick={handleConnectionStatusClick}
-          aria-disabled={!canActOnConnection()}
-          aria-label={`${providerLabel()} · ${connectionLabel()}`}
-        >
-          <Tag class="ca-provider-label" headless size="sm">{providerLabel()}</Tag>
-          <ConnectionStatus
-            status={isCheckingConnection() ? 'loading' : isConnected() ? 'connected' : 'disconnected'}
-            showLabel={isCheckingConnection() || !isConnected()}
-            size="sm"
-          />
-          <Show when={props.details && !isCheckingConnection() && !isConnected()}>
-            <span class="ca-connection-reason">{connectionLabel()}</span>
-          </Show>
-          <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
-            <span class="ca-header-status">{t('mlearn.Global.Status.StartingBackend')}</span>
-          </Show>
-        </Button>
+  const connectionActionLabel = (): string => {
+    const failure = connectionFailure();
+    if (failure?.requiresSignIn) return t('mlearn.Connection.SignIn');
+    if (failure?.recovery === 'settings') return t('mlearn.CapabilityUnavailable.OpenSettings');
+    if (failure?.recovery === 'none') return t('mlearn.Global.Retry');
+    return '';
+  };
+
+  const ConnectionInfo: Component = () => (
+    <span class="ca-connection-info" role="status" aria-label={`${providerLabel()} · ${connectionStatusLabel()}`} title={`${providerLabel()} · ${connectionStatusLabel()}`}>
+      <ConnectionStatus status={isCheckingConnection() ? 'loading' : isConnected() ? 'connected' : 'disconnected'} showLabel={false} size="sm" />
+      <span class="ca-connection-label">{connectionStatusLabel()}</span>
+      <Show when={isCheckingConnection() && server.statusMessage() && server.statusMessage() !== 'Initializing...'}>
+        <span class="ca-header-status">{t('mlearn.Global.Status.StartingBackend')}</span>
+      </Show>
+    </span>
   );
 
   const ConversationHeader: Component = () => (
@@ -2008,7 +2005,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
               if (rosterParticipants().length === 1 && !activeThread()?.sandbox) setContactId(rosterParticipants()[0].id);
               else openDetails();
             }} disabled={!activeRoom()}>
-              <Show when={rosterParticipants().length === 1}><Avatar size="sm" name={rosterParticipants()[0].displayName} src={rosterParticipants()[0].profilePhoto} /></Show>
+              <ParticipantAvatarGroup size="sm" participants={rosterParticipants()} />
               <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
             </Button>
             <Show when={activeRoom()}>
@@ -2047,14 +2044,8 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
             label={t('mlearn.ConversationAgent.Menu.OverflowAria')}
             class="ca-overflow-menu"
           >
-            <div class="ca-provider-details"><ConnectionInfo details /></div>
-            <p class="ca-ai-notice">{t('mlearn.ConversationAgent.Disclaimer')}</p>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { openComposer('message'); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.NewConversation.Title')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'settings' }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser', context: activeThread()?.sandbox || !activeRoom() ? {} : { roomId: activeRoom()!.id } }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { setAddingContact(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Contacts.Add')}</Button>
-            <Show when={settings.devMode}><Button variant="ghost" class="ca-overflow-item" onClick={() => { setShowRuntimeInspector(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Developer.Title')}</Button></Show>
           </Popover>
         </div>
       </div>
@@ -2186,9 +2177,9 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
                     icon={<ChatIcon size={24} />}
                     title={t(hasActiveRoomSelection() ? isConnected() ? 'mlearn.ConversationAgent.Empty.ReadyTitle' : 'mlearn.ConversationAgent.Empty.SavedTitle' : 'mlearn.ConversationAgent.Empty.Title')}
                     description={hasActiveRoomSelection() ? isConnected() ? t('mlearn.ConversationAgent.Empty.ReadyHint') : t('mlearn.ConversationAgent.Empty.SavedUnavailableHint') : t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
-                    action={{
-                      label: hasActiveRoomSelection() ? t(isConnected() ? 'mlearn.ConversationAgent.Empty.StartConversation' : 'mlearn.ConversationAgent.Recovery.Settings') : t('mlearn.ConversationAgent.NewConversation.Title'),
-                      onClick: hasActiveRoomSelection() ? isConnected() ? handleStartConversation : () => openCapabilitySettings('llm') : () => openComposer('message'),
+                    action={hasActiveRoomSelection() && !isConnected() ? undefined : {
+                      label: hasActiveRoomSelection() ? t('mlearn.ConversationAgent.Empty.StartConversation') : t('mlearn.ConversationAgent.NewConversation.Title'),
+                      onClick: hasActiveRoomSelection() ? handleStartConversation : () => openComposer('message'),
                       variant: 'primary',
                     }}
                     class="ca-empty"
@@ -2273,9 +2264,9 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
               <Button size="sm" variant="ghost" onClick={() => { setAnnotationFailed(false); setAnnotationRetry(value => value + 1); }}>{t('mlearn.Global.Retry')}</Button>
             </div></Show>
             <Show when={!isCheckingConnection() && !isConnected()}>
-              <div class="ca-provider-notice" role="status">
+              <div class="ca-provider-notice" role="status" aria-live="polite">
                 <span>{connectionLabel()}</span>
-                <Show when={canActOnConnection()}><Button variant="ghost" size="sm" onClick={handleConnectionStatusClick}>{t('mlearn.ConversationAgent.Menu.Settings')}</Button></Show>
+                <Show when={canActOnConnection()}><Button variant="ghost" size="sm" onClick={handleConnectionStatusClick}>{connectionActionLabel()}</Button></Show>
               </div>
             </Show>
             {/* Input */}
@@ -2336,6 +2327,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
                   </Show>
                 </div>
               </div>
+              <p class="ca-ai-disclaimer">{t('mlearn.ConversationAgent.Disclaimer')}</p>
             </div>
             <Show when={isLowPowerActive()}>
               <div class="ca-lowpower-chip">{t('mlearn.LowPowerGate.StatusBarTooltip')}</div>
@@ -2468,11 +2460,6 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
           await getBridge().world.deleteParticipant(removed.id);
           setWorld(await getBridge().world.getWorldState()); setContactId(null);
         }} />}</Show>
-      <Show when={settings.devMode && showRuntimeInspector()}>
-        <Modal isOpen onClose={() => setShowRuntimeInspector(false)} title={t('mlearn.ConversationAgent.Developer.Title')} size="xl" fullHeight panelClass="ca-runtime-modal">
-          <RuntimeInspector initialRoomId={selection()?.roomId} />
-        </Modal>
-      </Show>
       <Show when={showDetailsDrawer()}>
         <Modal isOpen onClose={() => setShowDetailsDrawer(false)} title={t('mlearn.ConversationAgent.Menu.Details')} size="md">
           <ThreadInfoPanel generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} roomTitle={activeRoom()?.title}
