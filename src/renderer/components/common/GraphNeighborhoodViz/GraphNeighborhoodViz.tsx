@@ -198,7 +198,8 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
     observer.observe(svg);
     onCleanup(() => observer.disconnect());
   });
-  let pan: { pointer: number; x: number; y: number; view: View; moved: boolean } | undefined;
+  let pan: { pointer: number; x: number; y: number; view: View; moved: boolean; node: boolean } | undefined;
+  let suppressPointerClick = false;
 
   createEffect(() => {
     const center = props.neighborhood.center;
@@ -265,6 +266,13 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
       else setSelection(relation);
     }
   };
+  const ignoreDraggedClick = (event: MouseEvent): boolean => {
+    if (!suppressPointerClick || event.detail === 0) return false;
+    suppressPointerClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  };
 
   const SelectionDetails: Component = () => (<Show when={selection()}><aside class="graph-viz__detail" classList={{ 'graph-viz__detail--floating': compact() }} aria-live="polite" onKeyDown={(event) => { if (event.key === 'Escape') setSelection(undefined); }}>
             <Show when={selection()} fallback={<p class="graph-viz__note">{text('SelectHint')}</p>}>{(node) => <>
@@ -308,16 +316,18 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
               }}
               onPointerDown={(event) => {
                 if (compact() && event.pointerType === 'touch') return;
-                if (event.button !== 0 || (event.target as Element).closest('[data-node]')) return;
-                const at = point(event); pan = { pointer: event.pointerId, x: at.x, y: at.y, view: currentView(), moved: false };
+                if (event.button !== 0) return;
+                suppressPointerClick = false;
+                const node = Boolean((event.target as Element).closest('[data-node]'));
+                const at = point(event); pan = { pointer: event.pointerId, x: at.x, y: at.y, view: currentView(), moved: false, node };
                 event.currentTarget.setPointerCapture(event.pointerId);
               }}
               onPointerMove={(event) => {
                 if (!pan || pan.pointer !== event.pointerId) return;
                 const at = point(event); pan.moved ||= Math.hypot(at.x - pan.x, at.y - pan.y) > 3;
-                if (pan.moved) setView({ ...pan.view, tx: pan.view.tx + at.x - pan.x, ty: pan.view.ty + at.y - pan.y });
+                if (pan.moved && !pan.node) setView({ ...pan.view, tx: pan.view.tx + at.x - pan.x, ty: pan.view.ty + at.y - pan.y });
               }}
-              onPointerUp={(event) => { if (pan?.pointer === event.pointerId) { if (!pan.moved) setSelection(undefined); pan = undefined; event.currentTarget.releasePointerCapture(event.pointerId); } }}
+              onPointerUp={(event) => { if (pan?.pointer === event.pointerId) { if (pan.node && pan.moved) suppressPointerClick = true; else if (!pan.moved) setSelection(undefined); pan = undefined; event.currentTarget.releasePointerCapture(event.pointerId); } }}
               onPointerCancel={() => { pan = undefined; }} onLostPointerCapture={() => { pan = undefined; }}
               onKeyDown={(event) => {
                 if (event.target !== event.currentTarget) return;
@@ -339,14 +349,14 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
                   <text class="graph-viz__label graph-viz__label--center" x={layout().center.x - layout().center.w / 2 + 14} y={layout().center.y + 15}>{fitLabel(nodeLabel(props.neighborhood.center), layout().center.w - 28, 20)}</text>
                   <title>{nodeLabel(props.neighborhood.center)}</title>
                 </g>
-                <Show when={group()?.via}>{(via) => <g data-node="via" class="graph-viz__node graph-viz__via" role="button" tabindex={0} aria-label={nodeLabel(via())} onClick={() => setSelection(via())} onDblClick={() => navigate(via().id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelection(via()); } }}>
+                <Show when={group()?.via}>{(via) => <g data-node="via" class="graph-viz__node graph-viz__via" role="button" tabindex={0} aria-label={nodeLabel(via())} onClick={(event) => { if (!ignoreDraggedClick(event)) setSelection(via()); }} onDblClick={() => navigate(via().id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelection(via()); } }}>
                   <rect class="graph-viz__chip" x={viaBox().x} y={viaBox().y} width={viaBox().w} height={viaBox().h} rx="4" />
                   <text class="graph-viz__kind" x={viaBox().x + 12} y={viaBox().y + 20}>{t(kindLabelKey(via().kind))}</text>
                   <text class="graph-viz__label" x={viaBox().x + 12} y={viaBox().y + 44}>{fitLabel(nodeLabel(via()), viaBox().w - 24)}</text><title>{nodeLabel(via())}</title>
                 </g>}</Show>
                 <For each={layout().nodes}>{(node) => <g data-node={node.key} class={`graph-viz__node graph-viz__node--${group()!.category}`} classList={{ 'graph-viz__node--selected': selection() === node.relation }} role="button" tabindex={0}
                   aria-label={`${nodeLabel(node.relation!)} · ${t(kindLabelKey(node.relation!.kind))}`} aria-pressed={selection() === node.relation}
-                  onClick={() => setSelection(node.relation)} onDblClick={() => navigate(node.id)} onKeyDown={(event) => nodeKeyDown(event, node.relation!)}>
+                  onClick={(event) => { if (!ignoreDraggedClick(event)) setSelection(node.relation); }} onDblClick={() => navigate(node.id)} onKeyDown={(event) => nodeKeyDown(event, node.relation!)}>
                   <rect class="graph-viz__chip" x={node.x - node.w / 2} y={node.y - node.h / 2} width={node.w} height={node.h} rx={node.relation?.kind === 'pronunciation' ? 18 : 4} />
                   <text class="graph-viz__kind" x={node.x - node.w / 2 + 14} y={node.y - 8}>{relationLabel(node.relation!.relationType)}<Show when={node.relation?.order !== undefined}>{` · ${node.relation!.order! + 1}`}</Show></text>
                   <text class={`graph-viz__label ${node.relation?.kind === 'sense' ? 'graph-viz__label--sense' : ''}`} x={node.x - node.w / 2 + 14} y={node.y + 14}>{fitLabel(nodeLabel(node.relation!), node.w - 28, node.relation?.kind === 'sense' ? 14 : 15)}</text>
@@ -358,7 +368,7 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
                     return <path class="graph-viz__edge" classList={{ 'is-selected': selection()?.id === edge.to || selection()?.id === edge.from }} d={compact() ? `M ${from.x - from.w / 2} ${from.y} H ${edge.from === props.neighborhood.center.id ? 24 : 46} V ${to.y} H ${to.x - to.w / 2}` : from.x === to.x ? `M ${from.x + from.w / 2} ${from.y} H ${from.x + from.w / 2 + 20} V ${to.y} H ${to.x + to.w / 2}` : `M ${from.x + from.w / 2} ${from.y} C ${from.x + from.w / 2 + 40} ${from.y}, ${to.x - to.w / 2 - 40} ${to.y}, ${to.x - to.w / 2} ${to.y}`}><title>{relationLabel(edge.records[0].relationType)}</title></path>;
                   }}</For>
                   <For each={overview().nodes}>{(item) => <g data-node={item.node.id} class="graph-viz__node" classList={{ 'graph-viz__center': item.node.id === props.neighborhood.center.id, 'graph-viz__node--selected': selection()?.id === item.node.id }} role="button" tabindex={0} aria-label={overviewLabel(item)} aria-pressed={selection()?.id === item.node.id}
-                    onClick={() => pickOverview(item)} onDblClick={() => item.groupKey ? chooseGroup(item.groupKey) : navigate(item.node.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); pickOverview(item); } }}>
+                    onClick={(event) => { if (!ignoreDraggedClick(event)) pickOverview(item); }} onDblClick={() => item.groupKey ? chooseGroup(item.groupKey) : navigate(item.node.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); pickOverview(item); } }}>
                     <rect class={`graph-viz__chip ${item.node.id === props.neighborhood.center.id && props.centerState ? `graph-viz__center-ring--${props.centerState}` : ''}`} x={item.x - item.w / 2} y={item.y - item.h / 2} width={item.w} height={item.h} rx="12" />
                     <text class="graph-viz__kind" x={item.x - item.w / 2 + 14} y={item.y - 10}>{item.groupKey ? text('TapToSee') : item.node.id === props.neighborhood.center.id ? '' : item.records[0] ? relationLabel(item.records[0].relationType) : t(kindLabelKey(item.node.kind))}</text>
                     <text class="graph-viz__label" x={item.x - item.w / 2 + 14} y={item.y + 14}>{fitLabel(overviewLabel(item), item.w - 28)}</text><title>{overviewLabel(item)}</title>

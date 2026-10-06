@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show, onMount, onCleanup, type Component, type JSX } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, Show, onMount, onCleanup, type Component, type JSX } from 'solid-js';
 import { effectiveThresholds } from '../../../../shared/knowledge/effectiveKnowledge';
 import { KNOWLEDGE_SOURCE_DISPLAY_NAMES, SRS_EASE } from '../../../../shared/constants';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
@@ -16,9 +16,17 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
   const { settings } = useSettings();
   const thresholds = () => effectiveThresholds(settings);
   const history = useWordEaseHistory(() => props.surface, () => props.language);
-  const data = createMemo(() => wordEaseTrajectoryData(history.entries(), props.language, thresholds()));
+  const data = createMemo(() => wordEaseTrajectoryData(history.entries() ?? [], props.language, thresholds()));
   const [allTime, setAllTime] = createSignal(false);
-  const [inspected, setInspected] = createSignal<WordEasePoint>();
+  const [inspectedKey, setInspectedKey] = createSignal<string>();
+  let inspectedScope: string | undefined;
+  createEffect(() => {
+    const scope = JSON.stringify([props.language, props.surface]);
+    if (scope !== inspectedScope) {
+      inspectedScope = scope;
+      setInspectedKey(undefined);
+    }
+  });
   const [width, setWidth] = createSignal(640);
   let container: HTMLElement | undefined;
   onMount(() => {
@@ -28,6 +36,16 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
     onCleanup(() => observer.disconnect());
   });
   const points = createMemo(() => allTime() ? data().points : data().points.slice(-30));
+  const indexedPoints = createMemo(() => {
+    const occurrences = new Map<string, number>();
+    return points().map((point) => {
+      const identity = JSON.stringify([point.word, point.event.eventId ?? point.event]);
+      const occurrence = occurrences.get(identity) ?? 0;
+      occurrences.set(identity, occurrence + 1);
+      return { point, key: `${identity}:${occurrence}` };
+    });
+  });
+  const inspected = createMemo(() => indexedPoints().find((item) => item.key === inspectedKey())?.point);
   const compressed = () => allTime() || !points().length ? data().compressed : [];
   const times = () => [...points().map((point) => point.t), ...compressed().flatMap((range) => [range.from, range.to])];
   const start = () => Math.min(...times());
@@ -49,7 +67,7 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
   const y = (ease: number) => 174 - (ease - scale().low) / (scale().high - scale().low) * 150;
   const paths = createMemo(() => points().slice(1).flatMap((point, index) => {
     const previous = points()[index];
-    if (point.ease === undefined || previous.ease === undefined || data().compressed.some((range) => range.from < point.t && range.to > previous.t)) return [];
+    if (point.ease === undefined || previous.ease === undefined || point.t === previous.t || data().compressed.some((range) => range.from < point.t && range.to > previous.t)) return [];
     return [`M ${x(previous.t)} ${y(previous.ease)} H ${x(point.t)} V ${y(point.ease)}`];
   }));
   const indices = createMemo(() => new Map(data().points.map((point, index) => [point, index])));
@@ -80,7 +98,7 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
       <p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.EaseDescription')}</p>
       <Show when={props.currentEase !== undefined}><strong>{t('mlearn.Knowledge.Projection.EaseCurrent', { value: props.currentEase!.toFixed(2) })}</strong></Show>
     </div>
-    <Show when={!history.loading()} fallback={<SkeletonRows rows={3} />}>
+    <Show when={!history.loading() || history.entries() !== undefined} fallback={<SkeletonRows rows={3} />}>
       <Show when={!history.error()} fallback={<KnowledgeLoadError message={t('mlearn.Knowledge.Projection.TrajectoryUnavailable')} onRetry={history.retry} />}>
         <Show when={times().length} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.History.Empty')}</p>}>
           <svg class="knowledge-trajectory__svg knowledge-ease__svg" viewBox={`0 0 ${width()} 244`} role="group" aria-label={t('mlearn.Knowledge.Projection.EaseOverall')}>
@@ -99,10 +117,11 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
             <For each={compressed()}>{(range) => <rect class="knowledge-trajectory__compressed" x={x(range.from) - 2} y="199" width={Math.max(4, x(range.to) - x(range.from))} height="12">
               <title>{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(range.count) })} · {formatDate(range.from, settings.uiLanguage)} – {formatDate(range.to, settings.uiLanguage)}</title>
             </rect>}</For>
-            <For each={points()}>{(point) => <g classList={{ 'knowledge-trajectory__point': true, 'knowledge-trajectory__point--claim': point.event.kind === 'claim', 'knowledge-trajectory__point--passive': point.event.source === 'passiveTracking' }}>
-              <circle cx={x(point.t)} cy={point.ease === undefined ? 205 : y(point.ease)} r="4" tabindex="0" role="button" aria-label={label(point)}
-                onMouseEnter={() => setInspected(point)} onFocus={() => setInspected(point)} onClick={() => setInspected(point)}
-                onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspected(point); } }}><title>{label(point)}</title></circle>
+            <For each={indexedPoints()}>{({ point, key }) => <g classList={{ 'knowledge-trajectory__point': true, 'knowledge-trajectory__point--claim': point.event.kind === 'claim', 'knowledge-trajectory__point--passive': point.event.source === 'passiveTracking' }}>
+              <circle class="knowledge-trajectory__hit-target" cx={x(point.t)} cy={point.ease === undefined ? 205 : y(point.ease)} r="12" tabindex="0" role="button" aria-label={label(point)}
+                onMouseEnter={() => setInspectedKey(key)} onFocus={() => setInspectedKey(key)} onClick={() => setInspectedKey(key)}
+                onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspectedKey(key); } }}><title>{label(point)}</title></circle>
+              <circle class="knowledge-trajectory__mark" cx={x(point.t)} cy={point.ease === undefined ? 205 : y(point.ease)} r="4" aria-hidden="true" />
             </g>}</For>
             <text x="54" y="237">{formatDate(start(), settings.uiLanguage)}</text>
             <text x={right()} y="237" text-anchor="end">{formatDate(end(), settings.uiLanguage)}</text>
@@ -112,7 +131,7 @@ export const WordEaseTrajectory: Component<{ surface: string; language: string; 
             <span class="knowledge-trajectory__legend-claim">{t('mlearn.Knowledge.Basis.Claim')}</span>
             <Show when={points().some((point) => point.event.source === 'passiveTracking')}><span class="knowledge-trajectory__legend-passive">{t('mlearn.Knowledge.History.Source.PassiveTracking')}</span></Show>
           </div>
-          <p class="knowledge-trajectory__detail" aria-live="polite">{inspected() && points().includes(inspected()!) ? label(inspected()!) : t('mlearn.Knowledge.Projection.TrajectoryHint')}</p>
+          <p class="knowledge-trajectory__detail" aria-live="polite">{inspected() ? label(inspected()!) : t('mlearn.Knowledge.Projection.TrajectoryHint')}</p>
         </Show>
         <Show when={data().compressed.length}><p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(data().compressed.reduce((sum, range) => sum + range.count, 0)) })}</p></Show>
       </Show>

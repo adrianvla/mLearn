@@ -13,20 +13,36 @@ import { assembleWordKnowledgeModel } from './wordKnowledgeModel';
 export const KnowledgeInspectorHost: Component = () => {
   const { getComprehensiveWordStatusWithSourceSync, setWordClaim, setAccessClaim, clearAccessClaim } = useFlashcards();
   const { projection, retry } = useKnowledgeProjection(knowledgeInspection);
-  const [events, setEvents] = createSignal<KnowledgeEvent[]>();
-  const [historyFailed, setHistoryFailed] = createSignal(false);
+  const [historySnapshot, setHistorySnapshot] = createSignal<{ key: string; events: KnowledgeEvent[] }>();
+  const [historyFailureKey, setHistoryFailureKey] = createSignal<string>();
   const [historyRetry, setHistoryRetry] = createSignal(0);
+  const inspectionKey = () => {
+    const inspection = knowledgeInspection();
+    return inspection ? JSON.stringify([
+      inspection.language,
+      hashWordSync(inspection.surface),
+      inspection.target.kind,
+      inspection.target.id,
+    ]) : undefined;
+  };
+  const events = createMemo(() => {
+    const snapshot = historySnapshot();
+    return snapshot && snapshot.key === inspectionKey() ? snapshot.events : undefined;
+  });
+  const historyFailed = createMemo(() => {
+    const key = inspectionKey();
+    return key !== undefined && historyFailureKey() === key;
+  });
   createEffect(() => {
     const inspection = knowledgeInspection();
     eventsVersion();
     historyRetry();
-    setHistoryFailed(false);
-    setEvents(undefined);
     if (!inspection) return;
+    const key = inspectionKey()!;
     let disposed = false;
     void getEvents([`${inspection.language}:${hashWordSync(inspection.surface)}`]).then(
-      (value) => { if (!disposed) setEvents(value); },
-      () => { if (!disposed) setHistoryFailed(true); },
+      (value) => { if (!disposed) { setHistorySnapshot({ key, events: value }); setHistoryFailureKey(undefined); } },
+      () => { if (!disposed) setHistoryFailureKey(key); },
     );
     onCleanup(() => { disposed = true; });
   });

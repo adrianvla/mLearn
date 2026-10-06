@@ -262,7 +262,17 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
   const { installLanguageData, getLanguageDataStatus, langData } = useLanguage();
   const graph = useOptionalGraph();
   const [tab, setTab] = createSignal<InspectorTab>('overview');
-  const [lookup, setLookup] = createSignal<GraphWordLookup | null>(null);
+  const [lookupResult, setLookupResult] = createSignal<{ key: string; value: GraphWordLookup | null }>();
+  const lookupKey = () => JSON.stringify([
+    props.language ?? settings.language ?? '',
+    props.surface,
+    props.target?.kind ?? '',
+    props.target?.id ?? '',
+  ]);
+  const lookup = () => {
+    const result = lookupResult();
+    return result && result.key === lookupKey() ? result.value : null;
+  };
   const [neighborhood, setNeighborhood] = createSignal<{ center: GraphNode; relations: GraphRelatedNode[] } | null>(null);
   const [lookupState, setLookupState] = createSignal<'idle' | 'loading' | 'ready' | 'missing'>('idle');
   const [relationsState, setRelationsState] = createSignal<'idle' | 'loading' | 'ready'>('idle');
@@ -287,6 +297,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     const surface = props.surface;
     if (!surface || !props.open) return;
     let disposed = false;
+    const key = lookupKey();
     setFocusedId(undefined);
     setLookupState('loading');
     const target = props.target;
@@ -296,11 +307,11 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
       : graph.lookupWord(input);
     void request.then((result) => {
       if (disposed) return;
-      setLookup(result);
+      setLookupResult({ key, value: result });
       setLookupState(result ? 'ready' : 'missing');
     }).catch(() => {
       if (disposed) return;
-      setLookup(null);
+      setLookupResult({ key, value: null });
       setLookupState('missing');
     });
     onCleanup(() => { disposed = true; });
@@ -400,7 +411,14 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
 
   // Inspection has no sentence-level resolution: preserve every supported
   // pronunciation rather than presenting the first dictionary alternative as definitive.
-  const reading = createMemo(() => [...new Set((lookup()?.pronunciations ?? []).flatMap(entity => entity.label ? [entity.label] : []))].join(' / '));
+  const reading = createMemo(() => [...new Set((lookup()?.pronunciations ?? []).flatMap(entity => {
+    const label = entity.displayLabel?.trim() || entity.label?.trim();
+    return label ? [label] : [];
+  }))].join(' / '));
+  const gloss = createMemo(() => [...new Set((lookup()?.senses ?? []).flatMap(entity => {
+    const label = entity.displayLabel?.trim() || entity.label?.trim();
+    return label ? [label] : [];
+  }))].join('; '));
   const canAdjust = () => props.onWordClaim !== undefined || props.onAccessClaim !== undefined;
   const claimControlsFor = (card: CapabilityCard) => {
     if (card.isSense) {
@@ -629,6 +647,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
           <span class="knowledge-drawer__surface">{props.surface}</span>
           <Show when={reading()}><span class="knowledge-drawer__reading">{reading()}</span></Show>
         </div>
+        <Show when={gloss()}>{(value) => <p class="knowledge-drawer__gloss" data-testid="knowledge-drawer-gloss">{value()}</p>}</Show>
         <Show when={model().projection?.status === 'ready'} fallback={model().projection === undefined ? <KnowledgeSkeleton variant="pill" /> : <span>{t('mlearn.Knowledge.Unavailable')}</span>}>
         <div class={`knowledge-drawer__overall knowledge-state--${overallTone()}`}>
           <span class="knowledge-drawer__overall-label">{t('mlearn.Knowledge.Projection.WordFamiliarity')}</span>

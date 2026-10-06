@@ -18,6 +18,7 @@
 }
 
 .knowledge-drawer__word { display: flex; align-items: baseline; gap: var(--spacing-3); min-width: 0; }
+.knowledge-drawer__gloss { flex: 1 1 100%; min-width: 0; margin: calc(-1 * var(--spacing-2)) 0 0; color: var(--text-primary); font-size: var(--font-size-md); line-height: 1.4; overflow-wrap: anywhere; }
 .knowledge-drawer__surface {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
@@ -277,9 +278,10 @@
 .knowledge-trajectory__svg text { fill: var(--text-secondary); font-size: 12px; }
 .knowledge-trajectory__grid { stroke: var(--border-color); stroke-width: 1; }
 .knowledge-trajectory__line { fill: none; stroke: var(--text-secondary); stroke-width: 1.5; }
-.knowledge-trajectory__point circle { fill: var(--color-success); stroke: var(--bg-primary); stroke-width: 2; cursor: pointer; }
-.knowledge-trajectory__point--claim circle { fill: var(--bg-primary); stroke: var(--color-primary); }
-.knowledge-trajectory__point circle:focus { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.knowledge-trajectory__point .knowledge-trajectory__mark { fill: var(--color-success); stroke: var(--bg-primary); stroke-width: 2; pointer-events: none; }
+.knowledge-trajectory__point--claim .knowledge-trajectory__mark { fill: var(--bg-primary); stroke: var(--color-primary); }
+.knowledge-trajectory__point .knowledge-trajectory__hit-target { fill: transparent; stroke: transparent; cursor: pointer; pointer-events: all; }
+.knowledge-trajectory__point .knowledge-trajectory__hit-target:focus { stroke: var(--color-primary); stroke-width: 2; outline: none; }
 .knowledge-trajectory__compressed { fill: var(--border-color); stroke: var(--text-tertiary); stroke-dasharray: 3 2; }
 .knowledge-trajectory__legend { display: flex; gap: var(--spacing-4); font-size: var(--font-size-xs); color: var(--text-secondary); }
 .knowledge-trajectory__legend span { display: inline-flex; align-items: center; gap: var(--spacing-1); }
@@ -292,7 +294,7 @@
   .knowledge-drawer > .tab-container .tab-item { padding-inline: 6px; font-size: var(--font-size-xs); }
 }
 
-.knowledge-trajectory__point--passive circle { fill: var(--text-tertiary); }
+.knowledge-trajectory__point--passive .knowledge-trajectory__mark { fill: var(--text-tertiary); }
 .knowledge-trajectory__legend .knowledge-trajectory__legend-passive::before { background: var(--text-tertiary); }
 .knowledge-ease__summary { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--spacing-2); }
 .knowledge-ease__summary > p { flex: 1 1 18rem; }

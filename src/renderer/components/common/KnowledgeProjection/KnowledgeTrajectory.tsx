@@ -1,4 +1,4 @@
-import { createMemo, createSignal, For, Show, onMount, onCleanup, type Component, type JSX } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, Show, onMount, onCleanup, type Component, type JSX } from 'solid-js';
 import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
 import type { CapabilityKey } from '../../../../shared/graph/types';
@@ -47,11 +47,29 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
   });
   const right = () => width() - 16;
   const [allTime, setAllTime] = createSignal(false);
-  const [inspected, setInspected] = createSignal<TrajectoryPoint>();
   const capability = () => props.capability;
+  const [inspectedKey, setInspectedKey] = createSignal<string>();
+  let inspectedScope: string | undefined;
+  createEffect(() => {
+    const scope = JSON.stringify([props.language, props.surface, capability()]);
+    if (scope !== inspectedScope) {
+      inspectedScope = scope;
+      setInspectedKey(undefined);
+    }
+  });
   const history = useKnowledgeHistory(() => props.surface, capability, () => props.language);
   const data = createMemo(() => knowledgeTrajectoryData(history.events() ?? [], history.archives(), capability() ?? '', effectiveThresholds(settings)));
   const points = createMemo(() => allTime() ? data().points : data().points.slice(-30));
+  const indexedPoints = createMemo(() => {
+    const occurrences = new Map<string, number>();
+    return points().map((point) => {
+      const identity = point.event.eventId ?? JSON.stringify(point.event);
+      const occurrence = occurrences.get(identity) ?? 0;
+      occurrences.set(identity, occurrence + 1);
+      return { point, key: `${identity}:${occurrence}` };
+    });
+  });
+  const inspected = createMemo(() => indexedPoints().find((item) => item.key === inspectedKey())?.point);
   const compressed = () => allTime() || !points().length ? data().compressed : [];
   const times = () => [...points().map((point) => point.t), ...compressed().flatMap((range) => [range.from, range.to])];
   const start = () => Math.min(...times());
@@ -68,7 +86,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
   };
   const paths = createMemo(() => points().slice(1).flatMap((point, index) => {
     const previous = points()[index];
-    if (!point.state || !previous.state || data().compressed.some((range) => range.from < point.t && range.to > previous.t)) return [];
+    if (!point.state || !previous.state || point.t === previous.t || data().compressed.some((range) => range.from < point.t && range.to > previous.t)) return [];
     return [`M ${x(previous.t)} ${y(previous.state)} H ${x(point.t)} V ${y(point.state)}`];
   }));
   return <section class="knowledge-trajectory" ref={container}>
@@ -80,7 +98,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
       </div>
     </div>
     <p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.TrajectoryDescription')}</p>
-    <Show when={!history.loading()} fallback={<SkeletonRows rows={3} />}>
+    <Show when={!history.loading() || history.events() !== undefined} fallback={<SkeletonRows rows={3} />}>
       <Show when={!history.error()} fallback={<KnowledgeLoadError message={t('mlearn.Knowledge.Projection.TrajectoryUnavailable')} onRetry={history.retry} />}>
       <Show when={times().length} fallback={<p class="knowledge-drawer__empty">{t('mlearn.Knowledge.History.Empty')}</p>}>
         <svg class="knowledge-trajectory__svg" viewBox={`0 0 ${width()} 228`} role="group" aria-label={t('mlearn.Knowledge.Projection.Tabs.Graph')}>
@@ -95,12 +113,13 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
             </rect>
           </g>}</For>
           <Show when={compressed().length}><text x={LEFT - 12} y="191" text-anchor="end">{t('mlearn.Knowledge.Projection.TrajectoryArchive')}</text></Show>
-          <For each={points()}>{(point) => <g classList={{ 'knowledge-trajectory__point': true, 'knowledge-trajectory__point--claim': point.event.kind === 'claim', 'knowledge-trajectory__point--passive': point.event.source === 'passiveTracking' }}>
-            <circle cx={x(point.t)} cy={point.state ? y(point.state) : 187} r="5" tabindex="0" role="button" aria-label={label(point)}
-              onMouseEnter={() => setInspected(point)} onFocus={() => setInspected(point)} onClick={() => setInspected(point)}
-              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspected(point); } }}>
+          <For each={indexedPoints()}>{({ point, key }) => <g classList={{ 'knowledge-trajectory__point': true, 'knowledge-trajectory__point--claim': point.event.kind === 'claim', 'knowledge-trajectory__point--passive': point.event.source === 'passiveTracking' }}>
+            <circle class="knowledge-trajectory__hit-target" cx={x(point.t)} cy={point.state ? y(point.state) : 187} r="12" tabindex="0" role="button" aria-label={label(point)}
+              onMouseEnter={() => setInspectedKey(key)} onFocus={() => setInspectedKey(key)} onClick={() => setInspectedKey(key)}
+              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setInspectedKey(key); } }}>
               <title>{label(point)}</title>
             </circle>
+            <circle class="knowledge-trajectory__mark" cx={x(point.t)} cy={point.state ? y(point.state) : 187} r="4" aria-hidden="true" />
           </g>}</For>
           <text x={LEFT} y="221">{formatDate(start(), settings.uiLanguage)}</text>
           <text x={right()} y="221" text-anchor="end">{formatDate(end(), settings.uiLanguage)}</text>
@@ -110,7 +129,7 @@ const CapabilityTrajectory: Component<TrajectoryProps & { capability: Capability
           <span class="knowledge-trajectory__legend-claim">{t('mlearn.Knowledge.Basis.Claim')}</span>
           <Show when={points().some((point) => point.event.source === 'passiveTracking')}><span class="knowledge-trajectory__legend-passive">{t('mlearn.Knowledge.History.Source.PassiveTracking')}</span></Show>
         </div>
-        <p class="knowledge-trajectory__detail" aria-live="polite">{inspected() && points().includes(inspected()!) ? label(inspected()!) : t('mlearn.Knowledge.Projection.TrajectoryHint')}</p>
+        <p class="knowledge-trajectory__detail" aria-live="polite">{inspected() ? label(inspected()!) : t('mlearn.Knowledge.Projection.TrajectoryHint')}</p>
       </Show>
       <Show when={data().compressed.length > 0}>
         <p class="knowledge-prediction__caption">{t('mlearn.Knowledge.Projection.TrajectoryCompressed', { count: String(data().compressed.reduce((sum, range) => sum + range.count, 0)) })}</p>

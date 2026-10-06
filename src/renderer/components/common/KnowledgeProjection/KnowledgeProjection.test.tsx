@@ -1,21 +1,28 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import type { KnowledgeEvent } from '../../../../shared/knowledgeEvents';
 import { knowledgeTone, knowledgeWhyNarrative } from './KnowledgeProjection';
 import { assembleWordKnowledgeModel } from './wordKnowledgeModel';
-import type { KnowledgeProjection } from '../../../../shared/graph/ipc';
+import type { GraphWordLookup, KnowledgeProjection } from '../../../../shared/graph/ipc';
 
-const historyMock = vi.hoisted(() => ({ read: vi.fn() }));
+const historyMock = vi.hoisted(() => ({ read: vi.fn(), setWordEntries: vi.fn(), setWordLoading: vi.fn(), setCapabilityLoading: vi.fn() }));
 vi.mock('../../../hooks/useKnowledgeHistory', () => ({
   useWordEaseHistory: () => {
     historyMock.read();
-    return { entries: () => [{ word: '猫', key: 'test', events: [{ t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 2.6 }] }], loading: () => false, error: () => false, retry: () => {} };
+    const [entries, setEntries] = createSignal([{ word: '猫', key: 'test', events: [{ t: 1, kind: 'rating' as const, source: 'manual' as const, aspect: 'meaning' as const, easeAfter: 2.6 }] }]);
+    const [loading, setLoading] = createSignal(false);
+    historyMock.setWordEntries.mockImplementation(setEntries);
+    historyMock.setWordLoading.mockImplementation(setLoading);
+    return { entries, loading, error: () => false, retry: () => {} };
   },
   useKnowledgeHistory: () => {
     historyMock.read();
-    return { events: () => [{ t: 1, kind: 'claim', source: 'manual', targetRef: {kind: 'surface', id: 'ja:surface:hash', capability: 'surface-recognition'}, toStatus: 'known' }], archives: () => [], loading: () => false, error: () => false, retry: () => {}, archivedPoints: () => [{ t: 1, strength: 0.5, encounters: 3 }], replay: () => ({ points: [], bands: [] }) };
+    const [loading, setLoading] = createSignal(false);
+    historyMock.setCapabilityLoading.mockImplementation(setLoading);
+    return { events: () => [{ t: 1, kind: 'claim', source: 'manual', targetRef: {kind: 'surface', id: 'ja:surface:hash', capability: 'surface-recognition'}, toStatus: 'known' }], archives: () => [], loading, error: () => false, retry: () => {}, archivedPoints: () => [{ t: 1, strength: 0.5, encounters: 3 }], replay: () => ({ points: [], bands: [] }) };
   },
 }));
 
@@ -128,6 +135,7 @@ async function renderDrawer(overrides: Partial<{
   onSelectEntity: (entityId: string) => void;
   onGraph: (entityId: string) => void;
   onClose: () => void;
+  surface: string;
 }> = {}) {
   const { KnowledgeProjectionDrawer } = await import('./KnowledgeProjection');
   const host = document.createElement('div');
@@ -148,7 +156,7 @@ async function renderDrawer(overrides: Partial<{
       onClose={overrides.onClose ?? (() => undefined)}
       onGraph={overrides.onGraph}
       onSelectEntity={overrides.onSelectEntity}
-      surface="猫"
+      surface={overrides.surface ?? '猫'}
       language={overrides.language}
       initialTab={overrides.initialTab as 'overview' | 'relations' | 'history' | 'prediction' | undefined}
       onWordClaim={overrides.onWordClaim}
@@ -183,6 +191,69 @@ describe('KnowledgeProjectionDrawer overview', () => {
     document.body.innerHTML = '';
   });
 
+  it('keeps the package sense gloss with the inspected word and reading in Overview', async () => {
+    lookupWordMock.mockResolvedValue({
+      surfaceId: 'ja:surface:hash',
+      entries: [{ id: 'ja:dictionary-entry:au', kind: 'dictionary-entry', label: '会う' }],
+      lexemes: [],
+      senses: [{ id: 'ja:sense:au', kind: 'sense', label: 'to meet; to encounter' }],
+      pronunciations: [{ id: 'ja:pronunciation:au', kind: 'pronunciation', label: 'あう' }],
+    });
+    const { host, dispose } = await renderDrawer({ surface: '会う' });
+    expect(host.querySelector('.knowledge-drawer__word')?.textContent).toContain('会う');
+    expect(host.querySelector('.knowledge-drawer__word')?.textContent).toContain('あう');
+    expect(host.querySelector('.knowledge-drawer__gloss')?.textContent).toContain('to meet; to encounter');
+    dispose();
+  });
+
+  it('does not show the previous reading or gloss while a different surface lookup is pending', async () => {
+    const lookup = (surfaceId: string, surface: string, sense: string, pronunciation: string): GraphWordLookup => ({
+      surfaceId,
+      entries: [{ id: `${surfaceId}:entry`, kind: 'dictionary-entry', label: surface }],
+      lexemes: [],
+      senses: [{ id: `${surfaceId}:sense`, kind: 'sense', label: sense }],
+      pronunciations: [{ id: `${surfaceId}:pronunciation`, kind: 'pronunciation', label: pronunciation }],
+      compoundAnalysis: null,
+    });
+    const oldLookup = lookup('ja:surface:old', '猫', 'cat', 'ねこ');
+    const newLookup = lookup('ja:surface:new', '犬', 'dog', 'いぬ');
+    let finishLookup!: (value: GraphWordLookup) => void;
+    const pendingLookup = new Promise<GraphWordLookup>((resolve) => { finishLookup = resolve; });
+    lookupWordMock.mockImplementation((input: unknown) => (input as { hash?: string }).hash === 'old-hash'
+      ? Promise.resolve(oldLookup) : pendingLookup);
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const [surface, setSurface] = createSignal('猫');
+    const [target, setTarget] = createSignal({ kind: 'surface' as const, id: 'ja:surface:old-hash' });
+    const model = assembleWordKnowledgeModel({ comprehensive, projection: inspectorProjection, events: journal });
+    const { KnowledgeProjectionDrawer } = await import('./KnowledgeProjection');
+    const dispose = render(() => <KnowledgeProjectionDrawer
+      model={model}
+      open
+      onClose={() => undefined}
+      surface={surface()}
+      target={target()}
+      language="ja"
+    />, host);
+    await flushAsync();
+    await flushAsync();
+    expect(document.body.querySelector('.knowledge-drawer__reading')?.textContent).toBe('ねこ');
+    expect(document.body.querySelector('.knowledge-drawer__gloss')?.textContent).toBe('cat');
+
+    setSurface('犬');
+    setTarget({ kind: 'surface', id: 'ja:surface:new-hash' });
+    expect(document.body.querySelector('.knowledge-drawer__reading')).toBeNull();
+    expect(document.body.querySelector('.knowledge-drawer__gloss')).toBeNull();
+    finishLookup(newLookup);
+    await flushAsync();
+    await flushAsync();
+    expect(document.body.querySelector('.knowledge-drawer__reading')?.textContent).toBe('いぬ');
+    expect(document.body.querySelector('.knowledge-drawer__gloss')?.textContent).toBe('dog');
+    dispose();
+    host.remove();
+  });
+
   it('keeps history together and loads its chart only when requested', async () => {
     historyMock.read.mockClear();
     const { host, dispose } = await renderDrawer();
@@ -204,6 +275,58 @@ describe('KnowledgeProjectionDrawer overview', () => {
     expect(host.querySelector('.knowledge-ease__svg')).toBeNull();
     expect(host.querySelector('.knowledge-trajectory__svg')).not.toBeNull();
     expect(host.querySelector('.knowledge-history')).not.toBeNull();
+    dispose();
+  });
+
+  it('gives chart events a usable pointer target and keyboard-selectable detail', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'graph' });
+    const hitTarget = host.querySelector<SVGCircleElement>('.knowledge-trajectory__hit-target');
+    expect(hitTarget).not.toBeNull();
+    expect(hitTarget?.getAttribute('r')).toBe('12');
+    expect(hitTarget?.getAttribute('tabindex')).toBe('0');
+    expect(host.querySelector('.knowledge-trajectory__detail')?.textContent).toContain('mlearn.Knowledge.Projection.TrajectoryHint');
+
+    hitTarget?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(host.querySelector('.knowledge-trajectory__detail')?.textContent).not.toContain('mlearn.Knowledge.Projection.TrajectoryHint');
+    dispose();
+  });
+
+  it('keeps both same-target chart types visible while their history refreshes', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'graph' });
+    expect(host.querySelector('.knowledge-ease__svg')).not.toBeNull();
+    historyMock.setWordLoading(true);
+    expect(host.querySelector('.knowledge-ease__svg')).not.toBeNull();
+
+    const selector = host.querySelector('.knowledge-trajectory__select') as HTMLSelectElement;
+    selector.value = 'surface-recognition';
+    selector.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(host.querySelector('.knowledge-trajectory__svg')).not.toBeNull();
+    historyMock.setCapabilityLoading(true);
+    expect(host.querySelector('.knowledge-trajectory__svg')).not.toBeNull();
+    dispose();
+  });
+
+  it('keeps a selected ease event visible across a same-target history refresh', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'graph' });
+    const point = host.querySelector<SVGCircleElement>('.knowledge-ease__svg circle[role="button"]');
+    expect(point).not.toBeNull();
+    point?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    const detail = host.querySelector('.knowledge-trajectory__detail');
+    const selectedDetail = detail?.textContent;
+    expect(selectedDetail).not.toContain('mlearn.Knowledge.Projection.TrajectoryHint');
+
+    historyMock.setWordEntries([{ word: '猫', key: 'test', events: [{ t: 1, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 2.6 }] }]);
+    expect(detail?.textContent).toBe(selectedDetail);
+    dispose();
+  });
+
+  it('does not draw an ordered transition between events with the same timestamp', async () => {
+    const { host, dispose } = await renderDrawer({ initialTab: 'graph' });
+    historyMock.setWordEntries([{ word: '猫', key: 'test', events: [
+      { t: 10, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 1.3 },
+      { t: 10, kind: 'rating', source: 'manual', aspect: 'meaning', easeAfter: 2.6 },
+    ] }]);
+    expect(host.querySelectorAll('.knowledge-trajectory__line')).toHaveLength(0);
     dispose();
   });
 

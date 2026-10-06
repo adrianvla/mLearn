@@ -14,7 +14,10 @@ const mocks = vi.hoisted(() => ({
 }));
 let version = () => 0;
 let drawer: KnowledgeProjectionDrawerProps | undefined;
-vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ graph: { getKnowledgeProjection: mocks.projection } }) }));
+vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ graph: {
+  getKnowledgeProjectionCollection: (language: string, surfaces: string[], _evidenceKeys?: string[], thresholds?: object) =>
+    Promise.resolve(mocks.projection(language, surfaces[0], thresholds)).then((projection) => ({ language, projections: { [surfaces[0]]: projection } })),
+} }) }));
 vi.mock('../../../services/knowledgeEvents', () => ({ eventsVersion: () => version(), getEvents: mocks.history }));
 vi.mock('../../../services/openGraphInspector', () => ({ openGraphInspector: mocks.graph }));
 vi.mock('../../../context/SettingsContext', () => ({ useSettings: () => ({ settings: { easeThresholdLearning: 1.55, easeThresholdKnown: 1.8 } }) }));
@@ -89,6 +92,25 @@ describe('shared canonical inspector host', () => {
     await vi.waitFor(() => expect(drawer?.model.events).toEqual([]));
     expect(drawer?.historyFailed).toBe(false);
     expect(mocks.history).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the same-target history snapshot visible while a newer revision loads', async () => {
+    const [revision, setRevision] = createSignal(0);
+    version = revision;
+    const previous = [{ t: 1, kind: 'claim' as const, source: 'manual' as const, aspect: 'meaning' as const, toStatus: 'known' as const }];
+    const updated = [{ t: 2, kind: 'claim' as const, source: 'manual' as const, aspect: 'meaning' as const, toStatus: 'unknown' as const }];
+    let resolveRefresh: (events: typeof updated) => void = () => undefined;
+    mocks.history.mockResolvedValueOnce(previous).mockImplementationOnce(() => new Promise((resolve) => { resolveRefresh = resolve; }));
+    dispose = render(() => <KnowledgeInspectorHost />, container);
+    openKnowledgeInspector({ language: 'pkg', surface: 'word', target: { kind: 'entry', id: 'pkg:entry:word' } });
+    await vi.waitFor(() => expect(drawer?.model.events).toBe(previous));
+
+    setRevision(1);
+    await vi.waitFor(() => expect(mocks.history).toHaveBeenCalledTimes(2));
+    expect(drawer?.model.events).toBe(previous);
+
+    resolveRefresh(updated);
+    await vi.waitFor(() => expect(drawer?.model.events).toBe(updated));
   });
 
   it('ignores late history for a previous target when the inspected identity changes', async () => {

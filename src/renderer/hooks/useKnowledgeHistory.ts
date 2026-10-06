@@ -43,23 +43,32 @@ export function useKnowledgeHistory(word: () => string, capability: () => Capabi
     );
     return [...new Set([...forms, ...forms.flatMap(legacyCasingCandidates)].map((form) => `${language}:${hashWordSync(form)}`))];
   });
-  const source = () => [keys(), capability(), version()] as const;
-  const [events, { refetch: refetchEvents }] = createResource(
+  const scopeKey = createMemo(() => JSON.stringify([keys(), capability()]));
+  const source = () => ({ keys: keys(), capability: capability(), scopeKey: scopeKey(), version: version() });
+  const [eventSnapshot, { refetch: refetchEvents }] = createResource(
     source,
-    async ([keys, activeCapability]) => {
-      if (!keys.length || !activeCapability) return [];
+    async ({ keys, capability: activeCapability, scopeKey }) => {
+      if (!keys.length || !activeCapability) return { scopeKey, events: [] as KnowledgeEvent[] };
       const all = await getEvents(keys);
       // Canonical access addressing: legacy aspect-only events route through
       // ASPECT_CAPABILITY, capability-addressed events match directly.
-      return readActiveEvidence(all).filter((event) => eventAppliesToCapability(event, activeCapability)).sort((a, b) => a.t - b.t);
+      return { scopeKey, events: readActiveEvidence(all).filter((event) => eventAppliesToCapability(event, activeCapability)).sort((a, b) => a.t - b.t) };
     },
   );
 
-  const [archives, { refetch: refetchArchives }] = createResource(source, async ([keys]) => {
+  const [archiveSnapshot, { refetch: refetchArchives }] = createResource(source, async ({ keys, scopeKey }) => {
     const results = await Promise.all(keys.map((key) => getKnowledgeArchive(key)));
-    return results.flatMap(({ archive }) => archive ? [archive] : []);
+    return { scopeKey, archives: results.flatMap(({ archive }) => archive ? [archive] : []) };
   });
-  const archivedPoints = createMemo(() => (archives.error ? [] : archives() ?? []).flatMap((archive) => {
+  const events = () => {
+    const snapshot = eventSnapshot();
+    return !eventSnapshot.error && snapshot?.scopeKey === scopeKey() ? snapshot.events : undefined;
+  };
+  const archives = () => {
+    const snapshot = archiveSnapshot();
+    return !archiveSnapshot.error && snapshot?.scopeKey === scopeKey() ? snapshot.archives : [];
+  };
+  const archivedPoints = createMemo(() => archives().flatMap((archive) => {
     const weekPoints = archive.weekPoints.filter((point: WeekPoint) => {
       const representative = bucketRepresentative(point.b);
       return representative !== undefined && capability() !== undefined && eventAppliesToCapability(representative, capability()!);
@@ -67,13 +76,13 @@ export function useKnowledgeHistory(word: () => string, capability: () => Capabi
     return archivedCurvePoints(weekPoints, { now: Date.now() });
   }).sort((a, b) => a.t - b.t));
 
-  const replay = createMemo(() => replayKnowledgeHistory(events.error ? [] : events() ?? [], { now: Date.now() }));
+  const replay = createMemo(() => replayKnowledgeHistory(eventSnapshot.error ? [] : events() ?? [], { now: Date.now() }));
 
   return {
-    events: () => events.error ? undefined : events(), archivedPoints,
-    archives: () => archives.error ? [] : archives() ?? [],
-    loading: () => events.loading || archives.loading,
-    error: () => !!events.error || !!archives.error,
+    events, archivedPoints,
+    archives,
+    loading: () => eventSnapshot.loading || archiveSnapshot.loading,
+    error: () => !!eventSnapshot.error || !!archiveSnapshot.error,
     retry: () => { void refetchEvents(); void refetchArchives(); }, replay,
   };
 }
@@ -90,12 +99,21 @@ export function useWordEaseHistory(word: () => string, language: () => string) {
       (value) => getWordVariantsForLanguage(activeLanguage, value), { languageData, language: activeLanguage });
     return [...new Set([...candidates, ...candidates.flatMap(legacyCasingCandidates)])];
   });
-  const [entries, { refetch }] = createResource(() => [forms(), language(), eventsVersion()] as const, async ([forms, language]) =>
-    Promise.all(forms.map(async (word) => {
+  const scopeKey = createMemo(() => JSON.stringify([forms(), language()]));
+  const [entrySnapshot, { refetch }] = createResource(() => ({ forms: forms(), language: language(), scopeKey: scopeKey(), version: eventsVersion() }), async ({ forms, language, scopeKey }) =>
+    ({ scopeKey, entries: await Promise.all(forms.map(async (word) => {
       const key = `${language}:${hashWordSync(word)}`;
       const [events, { archive }] = await Promise.all([getEvents([key]), getKnowledgeArchive(key)]);
       return { word, key, events, archive };
-    })),
+    })) }),
   );
-  return { entries: () => entries.error ? [] : entries() ?? [], loading: () => entries.loading, error: () => !!entries.error, retry: () => { void refetch(); } };
+  return {
+    entries: () => {
+      const snapshot = entrySnapshot();
+      return snapshot?.scopeKey === scopeKey() ? snapshot.entries : undefined;
+    },
+    loading: () => entrySnapshot.loading,
+    error: () => !!entrySnapshot.error,
+    retry: () => { void refetch(); },
+  };
 }

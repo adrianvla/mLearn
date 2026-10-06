@@ -32,6 +32,11 @@ const selectGroup = (type: string) => {
   select.value = Array.from(select.options).find((option) => option.textContent?.includes(type))!.value;
   select.dispatchEvent(new Event('change', { bubbles: true }));
 };
+const pointerEvent = (type: string, x: number, y: number, pointerId = 1) => {
+  const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+  Object.defineProperty(event, 'pointerId', { value: pointerId });
+  return event;
+};
 
 describe('neighborhood presentation', () => {
   it('opens all connections by default without a sidebar or an empty detail panel', () => {
@@ -155,5 +160,24 @@ describe('neighborhood presentation', () => {
     canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     expect(canvas.firstElementChild?.getAttribute('transform')).not.toBe('translate(0 0) scale(1)');
     canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '0', bubbles: true })); expect(container.querySelector('.graph-viz__svg > g')?.getAttribute('transform')).toContain('scale(1)');
+  });
+  it('does not turn a node drag into a selection, while a click still selects the node', () => {
+    mount();
+    const canvas = container.querySelector('svg.graph-viz__svg')!;
+    const node = container.querySelector('.graph-viz__node')!;
+    Object.defineProperty(canvas, 'setPointerCapture', { value: vi.fn(), configurable: true });
+    Object.defineProperty(canvas, 'releasePointerCapture', { value: vi.fn(), configurable: true });
+
+    node.dispatchEvent(pointerEvent('pointerdown', 10, 10));
+    canvas.dispatchEvent(pointerEvent('pointermove', 40, 10));
+    canvas.dispatchEvent(pointerEvent('pointerup', 40, 10));
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    expect(container.querySelector('.graph-viz__detail')).toBeNull();
+    expect(canvas.firstElementChild?.getAttribute('transform')).toBe('translate(0 0) scale(1)');
+
+    node.dispatchEvent(pointerEvent('pointerdown', 10, 10));
+    canvas.dispatchEvent(pointerEvent('pointerup', 10, 10));
+    node.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    expect(container.querySelector('.graph-viz__detail')).not.toBeNull();
   });
 });
