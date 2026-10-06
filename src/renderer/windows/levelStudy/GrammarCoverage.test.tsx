@@ -253,7 +253,7 @@ function undoButton(container: HTMLElement, level: number) {
 }
 
 function promptedPattern(container: HTMLElement, level: number) {
-  return levelBlock(container, level).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+  return levelBlock(container, level).querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern');
 }
 
 describe('GrammarCoverage policy-selected practice session', () => {
@@ -334,12 +334,18 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const { container, dispose } = mount(onProbe);
     await startPass(container, 2);
 
+    const sharedEncounterCard = levelBlock(container, 2).querySelector('.study-encounter__card');
+    expect(sharedEncounterCard).not.toBeNull();
+    const prompt = sharedEncounterCard?.querySelector<HTMLElement>('[data-testid="grammar-pattern-prompt"]');
+    expect(prompt).not.toBeNull();
+    expect(prompt?.classList.contains('grammar-coverage__session-prompt')).toBe(false);
+
     const probeBtns = () => Array.from(
       levelBlock(container, 2).querySelectorAll('.study-encounter__response .rating-matrix__quality'),
     ) as HTMLButtonElement[];
     const seen = new Set<string>();
     for (let i = 0; i < 2; i += 1) {
-      const pattern = levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+      const pattern = levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern');
       expect(['のに', 'ば']).toContain(pattern);
       seen.add(pattern as string);
       expect(probeBtns().length).toBeGreaterThanOrEqual(3);
@@ -382,7 +388,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const onProbe = vi.fn().mockResolvedValue('attempt-1');
     const first = mount(onProbe);
     await startPass(first.container, 2);
-    const firstPrompt = levelBlock(first.container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+    const firstPrompt = levelBlock(first.container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern');
     expect(levelBlock(first.container, 2).querySelector<HTMLButtonElement>('.rating-matrix__quality:nth-child(3)')?.disabled).toBe(true);
     expect(levelBlock(first.container, 2).textContent).toContain('mlearn.LevelStudy.Grammar.SessionProgress');
     revealCurrent(first.container, 2);
@@ -399,7 +405,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(onProbe).toHaveBeenCalledTimes(1);
     expect((onProbe.mock.calls[0] as unknown[])[4]).toMatchObject({ taskType: 'grammar-self-assess', attemptId: expect.any(String) });
     expect(levelBlock(second.container, 2).querySelector('.grammar-coverage__session')).toBe(sessionNode);
-    expect(levelBlock(second.container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern')).not.toBe(firstPrompt);
+    expect(levelBlock(second.container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern')).not.toBe(firstPrompt);
     expect(second.container.querySelector('[aria-busy="true"]')).toBeNull();
     second.dispose();
     second.container.remove();
@@ -547,11 +553,11 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const missing = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, passThroughLocks, true, undefined, 'missing');
     await tick();
     expect(missing.container.textContent).toContain('mlearn.Product.ResumeUnavailable');
-    expect(missing.container.querySelector('.grammar-coverage__session-prompt')).toBeNull();
+    expect(missing.container.querySelector('[data-testid="grammar-pattern-prompt"]')).toBeNull();
     expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(saved);
     missing.dispose(); missing.container.remove();
     const resumed = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, passThroughLocks, true, undefined, saved.id);
-    await tick(); expect(resumed.container.querySelector('.grammar-coverage__session-prompt')).not.toBeNull();
+    await tick(); expect(resumed.container.querySelector('[data-testid="grammar-pattern-prompt"]')).not.toBeNull();
     expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!)).toEqual(saved);
     expect(onProbe).not.toHaveBeenCalled(); resumed.dispose(); resumed.container.remove();
   });
@@ -579,7 +585,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     setRepairRequest({ level: 3, requestedAt: 1 });
     await tick();
-    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')).toBeTruthy();
+    expect(levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')).toBeTruthy();
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__level-row')?.getAttribute('aria-expanded')).toBe('true');
 
     for (let index = 0; index < 2; index += 1) {
@@ -592,7 +598,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     }
 
     expect(levelBlock(container, 3).querySelector('.grammar-coverage__level-row')?.getAttribute('aria-expanded')).toBe('true');
-    expect(levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt')).toBeTruthy();
+    expect(levelBlock(container, 3).querySelector('[data-testid="grammar-pattern-prompt"]')).toBeTruthy();
     expect(onProbe).toHaveBeenCalledTimes(2);
     dispose();
     container.remove();
@@ -615,7 +621,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // walk resumes from storage and the owner still supplies the unhandled request.
     const second = mount(onProbe, undefined, undefined, undefined, undefined, repairRequest, onHandled);
     await expand(second.container, 2);
-    expect(levelBlock(second.container, 2).querySelector('.grammar-coverage__session-prompt')).toBeTruthy();
+    expect(levelBlock(second.container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')).toBeTruthy();
     expect(onHandled).not.toHaveBeenCalled();
 
     for (let index = 0; index < 2; index += 1) {
@@ -627,7 +633,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
       await beat();
     }
 
-    expect(levelBlock(second.container, 3).querySelector('.grammar-coverage__session-prompt')).toBeTruthy();
+    expect(levelBlock(second.container, 3).querySelector('[data-testid="grammar-pattern-prompt"]')).toBeTruthy();
     expect(onHandled).toHaveBeenCalledWith(42);
     expect(repairRequest()).toBeNull();
     second.dispose();
@@ -639,12 +645,12 @@ describe('GrammarCoverage policy-selected practice session', () => {
     const { container, dispose } = mount(onProbe);
     await startPass(container, 2);
 
-    const first = levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+    const first = levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern');
     (levelBlock(container, 2).querySelector('.grammar-coverage__session-skip, .study-encounter__skip') as HTMLElement).click();
     await beat();
     expect(onProbe).not.toHaveBeenCalled();
 
-    const second = levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+    const second = levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern');
     expect(second).not.toBe(first);
     expect(['のに', 'ば']).toContain(second);
     expect(container.querySelector('.grammar-coverage__session-done')).toBeNull();
@@ -672,7 +678,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // position within the platform double-click window) is the SAME gesture,
     // not a deliberate answer: it must not rate the unseen construction.
     await beat();
-    const pattern = levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+    const pattern = levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern');
     expect(pattern).toBeDefined();
     expect(pattern).not.toBe(onProbe.mock.calls[0][0]);
     const nextFluent = levelBlock(container, 2).querySelector(
@@ -869,7 +875,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     await expand(container, 3);
     const level3 = levelBlock(container, 3);
-    expect(level3.querySelector('.grammar-coverage__session-prompt')).toBeNull();
+    expect(level3.querySelector('[data-testid="grammar-pattern-prompt"]')).toBeNull();
     expect(level3.querySelector('.study-encounter__response')).toBeNull();
     const level3Practise = level3.querySelector('.grammar-coverage__session-btn') as HTMLButtonElement;
     expect(level3Practise).toBeTruthy();
@@ -878,7 +884,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     // Single-expansion collapsed level 2; reopening shows the pass intact.
     await expand(container, 2);
-    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')).toBeTruthy();
+    expect(levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')).toBeTruthy();
     expect(levelBlock(container, 2).querySelector('.study-encounter__response')).toBeTruthy();
     await expand(container, 3);
     levelBlock(container, 3).querySelector<HTMLButtonElement>('.grammar-coverage__session-btn')!.click(); await tick();
@@ -978,7 +984,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
 
     // The stored de cursor is ACTIVE on load (cursor 0 restored).
     await expand(container, 2);
-    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern')).toBe('weil');
+    expect(levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern')).toBe('weil');
 
     // Flip de → ja: the ja view has no stored pass, and the persistence effect
     // must NOT clobber the stored de cursor with the (different) ja context.
@@ -990,7 +996,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     // Flip back: the de cursor resumes exactly where it was.
     setActiveLanguage('de');
     await tick();
-    await vi.waitFor(() => expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern')).toBe('weil'));
+    await vi.waitFor(() => expect(levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern')).toBe('weil'));
 
     dispose();
     container.remove();
@@ -1266,7 +1272,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     await tick();
     expect(JSON.parse(globalThis.localStorage!.getItem('mlearn-study-grammar:ja')!).meta.level).toBe(2);
     expect(globalThis.localStorage?.getItem('mlearn-study-grammar:de')).toBeNull();
-    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')).toBeNull();
+    expect(levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')).toBeNull();
 
     dispose();
     container.remove();
@@ -1284,7 +1290,7 @@ describe('GrammarCoverage policy-selected practice session', () => {
     expect(container.querySelector('[data-testid="grammar-no-locks"]')).toBeTruthy();
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-btn')).toBeNull();
     expect(levelBlock(container, 2).querySelector('.grammar-coverage__contrast-btn')).toBeNull();
-    expect(levelBlock(container, 2).querySelector('.grammar-coverage__session-prompt')).toBeNull();
+    expect(levelBlock(container, 2).querySelector('[data-testid="grammar-pattern-prompt"]')).toBeNull();
     expect(onProbe).not.toHaveBeenCalled();
     dispose();
     container.remove();
@@ -1653,7 +1659,7 @@ describe('category-bottleneck pass order (R07 production reachability)', () => {
     try {
       const container = mount(vi.fn(), categorizedLanguageData, categorizedSummary, eventLog).container;
       await startPass(container, 2);
-      const prompt = container.querySelector('.grammar-coverage__session-prompt');
+      const prompt = container.querySelector('[data-testid="grammar-pattern-prompt"]');
       expect(prompt?.getAttribute('data-pattern')).toBe('のに');
       container.remove();
     } finally {

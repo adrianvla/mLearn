@@ -12,6 +12,7 @@ import type {
 } from '../../../shared/types';
 import type { AttemptId, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
 import type { MockJournalPayload } from '../../learning/mockExam';
+import type { LearningGoalRequirementEvaluation } from '../../../shared/learningRequirementEvaluation';
 
 let settingsUiLanguage = 'en';
 
@@ -137,6 +138,39 @@ const unreviewedLanguageData = (): LanguageData => ({
   languageData: { version: '2026.09.19-test' },
 } as unknown as LanguageData);
 
+const partialLanguageData = (): LanguageData => ({
+  grammar: [
+    { pattern: 'weil', meaning: 'because', level: 3, category: 'reasons', items: [weilA] },
+    { pattern: 'obwohl', meaning: 'although', level: 3, category: 'concession', items: [unreviewedItem('obwohl')] },
+  ],
+  grammarLevels: { names: { '3': 'B1' } },
+  languageData: { version: '2026.09.19-test' },
+} as unknown as LanguageData);
+
+const staleLanguageData = (): LanguageData => {
+  const staleSource = unreviewedItem('weil');
+  return {
+    grammar: [{ pattern: 'weil', meaning: 'because', level: 3, category: 'reasons', items: [{
+      ...staleSource,
+      validation: { semantic: semanticRecord(staleSource, { contentHash: 'older-content-version' }) },
+    }] }],
+    grammarLevels: { names: { '3': 'B1' } },
+    languageData: { version: '2026.09.19-test' },
+  } as unknown as LanguageData;
+};
+
+const rejectedLanguageData = (): LanguageData => {
+  const rejectedSource = unreviewedItem('weil');
+  return {
+    grammar: [{ pattern: 'weil', meaning: 'because', level: 3, category: 'reasons', items: [{
+      ...rejectedSource,
+      validation: { semantic: semanticRecord(rejectedSource, { status: 'rejected', reasons: ['ambiguous answer'] }) },
+    }] }],
+    grammarLevels: { names: { '3': 'B1' } },
+    languageData: { version: '2026.09.19-test' },
+  } as unknown as LanguageData;
+};
+
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 /** The presentation beat (150 ms lock) before the next prompt accepts input;
  *  gesture truth (click detail / key repeat) is the load-bearing guard. */
@@ -166,6 +200,8 @@ interface Harness {
   onAttempt: ReturnType<typeof vi.fn>;
   onRepair: ReturnType<typeof vi.fn>;
   onTargetedOutput: ReturnType<typeof vi.fn>;
+  onReviewQuestions: ReturnType<typeof vi.fn>;
+  onManagePackage: ReturnType<typeof vi.fn>;
 }
 
 function mount(
@@ -180,6 +216,8 @@ function mount(
      *  lock so single-window tests exercise the serialized path
      *  (shared study-session test convention). */
     locks?: StudySessionLocks | null;
+    packageOutdated?: boolean;
+    requirementEvaluations?: readonly LearningGoalRequirementEvaluation[];
   } = {},
 ): Harness {
   const locks = Object.prototype.hasOwnProperty.call(overrides, 'locks')
@@ -188,6 +226,8 @@ function mount(
   const onAttempt = vi.fn(async (_payload: MockJournalPayload): Promise<AttemptId> => `attempt-${onAttempt.mock.calls.length}`);
   const onRepair = vi.fn();
   const onTargetedOutput = vi.fn();
+  const onReviewQuestions = vi.fn();
+  const onManagePackage = vi.fn();
   const container = document.createElement('div');
   // Solid attaches delegated listeners on the document; container must be
   // connected for bubbled clicks to reach them (see DECISIONS D10).
@@ -201,6 +241,10 @@ function mount(
         onAttempt={onAttempt}
         onRepair={onRepair}
         onTargetedOutput={onTargetedOutput}
+        onReviewQuestions={onReviewQuestions}
+        onManagePackage={onManagePackage}
+        packageOutdated={overrides.packageOutdated}
+        requirementEvaluations={overrides.requirementEvaluations}
         locks={locks}
         requestedLevel={overrides.requestedLevel}
         workspaceAction={overrides.workspaceAction}
@@ -215,6 +259,8 @@ function mount(
     onAttempt: onAttempt as unknown as ReturnType<typeof vi.fn>,
     onRepair,
     onTargetedOutput,
+    onReviewQuestions,
+    onManagePackage,
   };
 }
 
@@ -259,10 +305,19 @@ describe('MockExam surface (R13/R14)', () => {
 
   it('does not advertise an unfinished checkpoint when the package declares none', () => {
     const harness = mount({ ...baseLanguageData(), grammar: [], grammarLevels: { names: {} } });
-    expect(harness.container.textContent).toContain('mlearn.Product.MockUnavailable');
-    expect(harness.container.querySelector('[data-testid="mock-exam"]')).toBeNull();
+    expect(harness.container.textContent).toContain('mlearn.LevelStudy.Mock.AvailabilityMissingSources');
+    expect(harness.container.querySelector('[data-testid="mock-availability-missing-sources"]')).toBeTruthy();
+    expect(harness.container.querySelector('[data-testid^="mock-start-"]')).toBeNull();
     harness.dispose();
     harness.container.remove();
+  });
+
+  it('distinguishes installed sources without a package-level blueprint', () => {
+    const data = { ...baseLanguageData(), grammar: [{ pattern: 'weil', items: [weilA] }], grammarLevels: { names: {} } } as unknown as LanguageData;
+    const harness = mount(data);
+    expect(harness.container.querySelector('[data-testid="mock-availability-missing-blueprint"]')).toBeTruthy();
+    expect(harness.container.querySelector('[data-testid^="mock-start-"]')).toBeNull();
+    harness.dispose(); harness.container.remove();
   });
 
   it('refuses a missing exact Resume identity and reports it without replacing saved work', async () => {
@@ -281,7 +336,8 @@ describe('MockExam surface (R13/R14)', () => {
 
   it('reports an unavailable requested checkpoint instead of exposing a different supported level', () => {
     const harness = mount(baseLanguageData(), { requestedLevel: 999, workspaceAction: 'start' });
-    expect(harness.container.textContent).toContain('mlearn.Product.MockUnavailable');
+    expect(harness.container.textContent).toContain('mlearn.LevelStudy.Mock.AvailabilityRequestedUnavailable');
+    expect(harness.container.querySelector('[data-testid="mock-availability-requested-blueprint-unavailable"]')).toBeTruthy();
     expect(harness.container.querySelector('[data-testid^="mock-start-"]')).toBeNull();
     expect(localStorage.getItem('mlearn-mock-session:de')).toBeNull();
     harness.dispose(); harness.container.remove();
@@ -386,7 +442,14 @@ describe('MockExam surface (R13/R14)', () => {
   it('runs the fixed queue end-to-end: every step writes one canonical attempt, results show provenance', async () => {
     const languageData = baseLanguageData();
     const gold = goldIndexById(languageData);
-    const harness = mount(languageData);
+    const requirementEvaluations: LearningGoalRequirementEvaluation[] = [{
+      goalId: 'goal-grammar', language: 'de', outcomeId: 'de:grammar', modelVersion: 'model-v1', evidenceVersion: 'events-v1', status: 'unknown',
+      requirements: [
+        { requirementId: 'review-floor', source: 'package', kind: 'canonical-capability-threshold', status: 'met', conditions: { label: 'Reviewed grammar groups' } },
+        { requirementId: 'official-assessment', source: 'assessment', kind: 'provider-assessment', status: 'unsupported', conditions: { label: 'Official exam sections' } },
+      ],
+    }];
+    const harness = mount(languageData, { requirementEvaluations });
     await startBlueprint(harness.container, 3);
 
     // No mid-session feedback: the session shows no correctness marking
@@ -417,6 +480,10 @@ describe('MockExam surface (R13/R14)', () => {
 
     const results = harness.container.querySelector('[data-testid="mock-results"]')!;
     expect(results.querySelector('[data-testid="mock-disclaimer"]')).toBeTruthy();
+    expect(results.querySelector('[data-testid="mock-checkpoint-scope"]')).toBeTruthy();
+    const requirements = results.querySelector('[data-testid="mock-learning-requirements"]')!;
+    expect(requirements.textContent).toContain('mlearn.Goals.RequirementStatus.met');
+    expect(requirements.textContent).toContain('mlearn.Goals.RequirementStatus.unsupported');
     const provenance = results.querySelector('[data-testid="mock-results-provenance"]')!;
     expect(provenance).toBeTruthy();
     const sections = results.querySelectorAll('tbody tr');
@@ -666,12 +733,52 @@ describe('MockExam surface (R13/R14)', () => {
 
   it('undeliverable items assemble honestly to nothing (G04): empty note, no fabricated session', async () => {
     const harness = mount(unreviewedLanguageData());
-    await startBlueprint(harness.container, 3);
-    expect(harness.container.querySelector('[data-testid="mock-assemble-empty"]')).toBeTruthy();
+    expect(harness.container.querySelector('[data-testid="mock-availability-3"]')?.getAttribute('data-state')).toBe('validation-required');
+    expect(harness.container.textContent).toContain('mlearn.LevelStudy.Mock.AvailabilityValidationRequired');
+    expect(harness.container.querySelector('[data-testid="mock-start-3"]')).toBeNull();
     expect(harness.container.querySelector('[data-testid="mock-session"]')).toBeNull();
     expect(harness.onAttempt).not.toHaveBeenCalled();
+    (harness.container.querySelector('[data-testid^="mock-availability-3"] button') as HTMLButtonElement).click();
+    expect(harness.onReviewQuestions).toHaveBeenCalledWith(3, ['weil', 'obwohl']);
     harness.dispose();
     harness.container.remove();
+  });
+
+  it('reports stale validation separately and keeps stale questions out of Start', () => {
+    const harness = mount(staleLanguageData());
+    expect(harness.container.querySelector('[data-testid="mock-availability-3"]')?.getAttribute('data-state')).toBe('validation-stale');
+    expect(harness.container.textContent).toContain('mlearn.LevelStudy.Mock.AvailabilityValidationStale');
+    expect(harness.container.querySelector('[data-testid="mock-start-3"]')).toBeNull();
+    harness.dispose(); harness.container.remove();
+  });
+
+  it('quarantines rejected questions and offers package settings recovery', () => {
+    const harness = mount(rejectedLanguageData());
+    expect(harness.container.querySelector('[data-testid="mock-availability-3"]')?.getAttribute('data-state')).toBe('validation-rejected');
+    expect(harness.container.textContent).toContain('mlearn.LevelStudy.Mock.AvailabilityValidationRejected');
+    expect(harness.container.querySelector('[data-testid="mock-start-3"]')).toBeNull();
+    (harness.container.querySelector('[data-testid="mock-availability-3"] button:last-child') as HTMLButtonElement).click();
+    expect(harness.onManagePackage).toHaveBeenCalledTimes(1);
+    harness.dispose(); harness.container.remove();
+  });
+
+  it('allows only the exact independently reviewed groups in a bounded partial checkpoint', async () => {
+    const harness = mount(partialLanguageData());
+    const status = harness.container.querySelector('[data-testid="mock-availability-3"]')!;
+    expect(status.getAttribute('data-state')).toBe('insufficient-coverage');
+    expect(status.textContent).toContain('available=1');
+    expect(status.textContent).toContain('requested=2');
+    await startBlueprint(harness.container, 3);
+    expect(harness.container.querySelectorAll('[data-testid="mock-session"] .mock-exam__context')).toHaveLength(1);
+    harness.dispose(); harness.container.remove();
+  });
+
+  it('separately reports an outdated installed package and opens package settings', () => {
+    const harness = mount(baseLanguageData(), { packageOutdated: true });
+    expect(harness.container.querySelector('[data-testid="mock-package-outdated"]')).toBeTruthy();
+    (harness.container.querySelector('[data-testid="mock-package-outdated"] button') as HTMLButtonElement).click();
+    expect(harness.onManagePackage).toHaveBeenCalledTimes(1);
+    harness.dispose(); harness.container.remove();
   });
 
   it('disables the session surface without a Web Lock (G04): honest note, no Start, nothing restored to act on', async () => {

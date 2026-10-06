@@ -34,14 +34,17 @@ export function useApplicationReturn() {
     const source = context?.sourceContext;
     if (isElectron() && applicationHostForPath(path) !== currentApplicationHost()) {
       getBridge().window.openWindow({ type: applicationHostForPath(path), context: {
-        applicationPath: path, applicationReturn: true, ...(source ? { sourceContext: source } : {}),
+        ...(context ?? {}), applicationPath: path, applicationReturn: true,
       } });
       return;
     }
     if ((path === '/reader' || path === '/video') && source && typeof source === 'object' && !Array.isArray(source)) {
       const actual = prepareMediaWorkspaceReturn(sessionStorage, source as Record<string, unknown>);
-      if (actual) { navigate(actual); return; }
+      if (actual) {
+        navigate(actual, context ? { state: { applicationRequestId: crypto.randomUUID(), applicationContext: context } } : undefined);
+        return;
+      }
     }
-    navigate(path);
+    navigate(path, context ? { state: { applicationRequestId: crypto.randomUUID(), applicationContext: context } } : undefined);
   };
 }

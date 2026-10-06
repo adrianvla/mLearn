@@ -2195,7 +2195,20 @@
         "BackToBlueprints": "Back to practice sets",
         "Summaries": "Recent results",
         "SummaryCounts": "{correct}/{answered} correct · {timedOut} unanswered",
-        "StorageUnavailable": "We could not save your answer. Check that storage is available, then try again."
+        "StorageUnavailable": "We could not save your answer. Check that storage is available, then try again.",
+        "AvailabilityMissingSources": "This language package contains no checkpoint question sources.",
+        "AvailabilityMissingBlueprint": "Question sources are installed, but none are assigned to a checkpoint level.",
+        "AvailabilityRequestedUnavailable": "This package has no checkpoint blueprint for the requested level. Other levels were not substituted.",
+        "AvailabilityValidationRequired": "{unreviewed} question sources need independent semantic review. Consistency checks alone do not make them eligible.",
+        "AvailabilityValidationStale": "{stale} validation records refer to older question content and need review again.",
+        "AvailabilityValidationRejected": "{rejected} question sources failed validation and are quarantined.",
+        "AvailabilityInsufficientCoverage": "{available} of {requested} planned question groups passed independent review. You can start this smaller checkpoint.",
+        "AvailabilityAvailable": "All {available} planned question groups passed independent review.",
+        "PackageOutdated": "A newer language package is available. Checkpoints use the currently installed package version.",
+        "PackageUnavailable": "The language package is not installed or available to this workspace.",
+        "PracticeGrammar": "Practice grammar",
+        "ManagePackage": "Open language package settings",
+        "CheckpointScope": "Only the listed grammar groups were sampled. Other goals and skill requirements remain unmeasured by this checkpoint; requirement statuses below summarize all current evidence, including work outside it."
       },
       "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app."
     },

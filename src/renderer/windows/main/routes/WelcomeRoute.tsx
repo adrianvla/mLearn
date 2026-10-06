@@ -150,7 +150,9 @@ export const WelcomeRoute: Component = () => {
             } })}>{t('mlearn.StudyEncounter.Resume')} · {t('mlearn.Product.WordPractice')}</Button>}</Show>
           </div>} />
         <WelcomeFeatureCard icon={<TargetIcon size={22} />} title={t('mlearn.Product.Evaluate')}
-          description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate')} />
+          description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate', { state: {
+            applicationRequestId: crypto.randomUUID(), applicationContext: { returnTo: 'home' },
+          } })} />
       </div>
       <Show when={recentItems().length > 0}>
         <section class="welcome-recent-items" aria-labelledby="welcome-recent-title">

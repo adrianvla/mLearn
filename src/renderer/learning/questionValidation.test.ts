@@ -5,8 +5,11 @@ import {
   QUESTION_VALIDATION_BATCH_LIMIT,
   languageDataWithStoredQuestionValidations,
   loadQuestionValidationRecords,
+  questionValidationFreshness,
+  questionValidationRecordKey,
   validateQuestionItemsWithLLM,
 } from './questionValidation';
+import { itemContentVersion } from './questionBank';
 
 const source = {
   id: 'de-obwohl-test',
@@ -40,6 +43,27 @@ function memoryStorage(): Pick<Storage, 'getItem' | 'setItem'> {
 }
 
 describe('question semantic validation pipeline', () => {
+  it('distinguishes missing, current, and stale content-bound semantic records', () => {
+    const currentHash = itemContentVersion(source);
+    const record = {
+      status: 'passed' as const,
+      validator: 'teacher-review@1',
+      at: '2026-10-01T00:00:00Z',
+      contentHash: currentHash,
+    };
+    const emptyStorage = memoryStorage();
+    expect(questionValidationFreshness('de', 'obwohl', source, emptyStorage)).toBe('missing');
+    expect(questionValidationFreshness('de', 'obwohl', { ...source, validation: { semantic: record } }, emptyStorage)).toBe('current');
+    expect(questionValidationFreshness('de', 'obwohl', { ...source, validation: { semantic: { ...record, contentHash: 'old-content' } } }, emptyStorage)).toBe('stale');
+
+    const oldStoredRecord = memoryStorage();
+    oldStoredRecord.setItem('mlearn-question-validations:de', JSON.stringify({
+      schemaVersion: 2,
+      records: { [questionValidationRecordKey(source.id, 'old-content', 'obwohl')]: { ...record, contentHash: 'old-content' } },
+    }));
+    expect(questionValidationFreshness('de', 'obwohl', source, oldStoredRecord)).toBe('stale');
+  });
+
   it('batches through an independent completion, persists the record, and overlays it on current content', async () => {
     const storage = memoryStorage();
     const completion = vi.fn().mockResolvedValue(JSON.stringify({

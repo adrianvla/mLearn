@@ -71,6 +71,30 @@ export function loadQuestionValidationRecords(
   return records;
 }
 
+export type QuestionValidationFreshness = 'missing' | 'current' | 'stale';
+
+/** Reports whether a package or locally stored semantic record exists for this exact item content. */
+export function questionValidationFreshness(
+  language: string,
+  pattern: string,
+  source: GrammarPracticeItemSource,
+  storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage,
+): QuestionValidationFreshness {
+  const currentHash = itemContentVersion(source);
+  const declared = source.validation?.semantic;
+  if (declared !== undefined) return declared.contentHash === currentHash ? 'current' : 'stale';
+
+  const stored = loadQuestionValidationRecords(language, storage);
+  if (stored.has(recordKey(source.id, currentHash, pattern))) {
+    return stored.get(recordKey(source.id, currentHash, pattern))?.contentHash === currentHash ? 'current' : 'stale';
+  }
+
+  const hasStaleRecord = [...stored.values()].some((record) =>
+    record.contentHash !== currentHash
+      && stored.has(recordKey(source.id, record.contentHash, pattern)));
+  return hasStaleRecord ? 'stale' : 'missing';
+}
+
 function saveQuestionValidationRecords(
   language: string,
   records: ReadonlyMap<string, GrammarItemSemanticValidation>,

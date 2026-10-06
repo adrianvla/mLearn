@@ -12,7 +12,7 @@ import { StatisticsContent } from '../statistics/App';
 import { SettingsContent } from '../settings/SettingsWindow';
 import { MobileSettingsView } from '../settings/MobileSettingsView';
 import { useLocalization } from '../../context';
-import { ActionCard, Button, TargetIcon, LearningWorkspace, TabContainer } from '../../components/common';
+import { ActionCard, ArrowLeftIcon, Button, TargetIcon, LearningWorkspace, TabContainer } from '../../components/common';
 import { WelcomeRoute } from './routes/WelcomeRoute';
 import { ReaderRoute } from './routes/ReaderRoute';
 import { VideoRoute } from './routes/VideoRoute';
@@ -81,25 +81,45 @@ const Grammar: Component<RequestedWorkspaceProps> = props => {
 const GrammarAssessment: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();
   return <LearningWorkspace><LevelStudyContent workspace="grammar-check" launchContext={props.launchContext}
-    onClose={() => navigate(props.launchContext?.returnTo === 'plan' ? '/plan' : '/evaluate')} /></LearningWorkspace>;
+    onClose={() => navigate(props.launchContext?.returnTo === 'plan' ? '/plan' : '/evaluate', props.launchContext)} /></LearningWorkspace>;
 };
 const GrammarMock: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();
   return <LearningWorkspace><LevelStudyContent workspace="mock" launchContext={props.launchContext}
-    onClose={() => navigate(props.launchContext?.returnTo === 'plan' ? '/plan' : '/evaluate')} /></LearningWorkspace>;
+    onClose={() => navigate(props.launchContext?.returnTo === 'plan' ? '/plan' : '/evaluate', props.launchContext)} /></LearningWorkspace>;
 };
-const Evaluate: Component = () => {
+const evaluationReturnPath = (context?: Record<string, unknown>): string => {
+  const destination = context?.returnTo === 'evaluate' ? context.evaluationReturnTo : context?.returnTo;
+  return destination === 'home' ? '/' : destination === 'plan' ? '/plan' : '/practise';
+};
+
+const Evaluate: Component<RequestedWorkspaceProps> = (props) => {
   const { t } = useLocalization();
   const navigate = useApplicationNavigate();
+  const sourceContext = () => props.launchContext ?? {};
+  const childContext = () => ({
+    ...sourceContext(),
+    returnTo: 'evaluate',
+    ...(sourceContext().returnTo === 'evaluate'
+      ? { evaluationReturnTo: sourceContext().evaluationReturnTo }
+      : sourceContext().returnTo !== undefined
+        ? { evaluationReturnTo: sourceContext().returnTo }
+        : {}),
+  });
   return <section class="product-workspace evaluation-chooser">
-    <header class="evaluation-chooser-header"><Button buttonType="nav" onClick={() => navigate('/practise')}>{t('mlearn.Flashcards.UI.Title')}</Button><h1>{t('mlearn.Product.Evaluate')}</h1></header>
+    <header class="evaluation-chooser-header"><Button buttonType="nav" icon={<ArrowLeftIcon size={16} />}
+      onClick={() => navigate(evaluationReturnPath(props.launchContext))}>{t('mlearn.Flashcards.UI.Title')}</Button><h1>{t('mlearn.Product.Evaluate')}</h1></header>
     <div class="study-chooser-alternatives"><ActionCard icon={<TargetIcon size={24} />} primary title={t('mlearn.Product.KnowledgeCheck')}
       description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate/words', { state: {
-        applicationRequestId: crypto.randomUUID(), applicationContext: { intent: 'start', returnTo: 'evaluate' },
+        applicationRequestId: crypto.randomUUID(), applicationContext: { ...childContext(), intent: 'start' },
       } })} />
       <ActionCard icon={<TargetIcon size={24} />} title={t('mlearn.Product.GrammarCheck')}
-        description={t('mlearn.Product.GrammarSelfCheckDescription')} onClick={() => navigate('/evaluate/grammar')} /></div>
-      <div class="product-workspace-actions"><Button variant="ghost" onClick={() => navigate('/evaluate/grammar/mock')}>{t('mlearn.LevelStudy.Mock.Title')}</Button></div>
+        description={t('mlearn.Product.GrammarSelfCheckDescription')} onClick={() => navigate('/evaluate/grammar', { state: {
+          applicationRequestId: crypto.randomUUID(), applicationContext: childContext(),
+        } })} /></div>
+      <div class="product-workspace-actions"><Button variant="ghost" onClick={() => navigate('/evaluate/grammar/mock', { state: {
+        applicationRequestId: crypto.randomUUID(), applicationContext: childContext(),
+      } })}>{t('mlearn.LevelStudy.Mock.Title')}</Button></div>
   </section>;
 };
 const returnToWorkspace = (navigate: ReturnType<typeof useApplicationReturn>, context: Record<string, unknown> | undefined) => (path: string, savedContext?: Record<string, unknown>) => navigate(path, savedContext ?? context);
@@ -139,7 +159,7 @@ export const ApplicationRoutes = () => <>
   <Route path="/practise/material" component={requested(Material)} />
   <Route path="/practise/words" component={requested(Words)} />
   <Route path="/practise/grammar" component={requested(Grammar)} />
-  <Route path="/evaluate" component={Evaluate} /><Route path="/evaluate/words" component={requested(Assessment)} />
+  <Route path="/evaluate" component={requested(Evaluate)} /><Route path="/evaluate/words" component={requested(Assessment)} />
   <Route path="/evaluate/grammar" component={requested(GrammarAssessment)} />
   <Route path="/evaluate/grammar/mock" component={requested(GrammarMock)} />
   <Route path="/plan" component={requested(Plan)} />

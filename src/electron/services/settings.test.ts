@@ -3,9 +3,10 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import * as tar from 'tar';
+import { pathToFileURL } from 'url';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
-import { DEFAULT_SETTINGS } from '../../shared/types';
+import { DEFAULT_SETTINGS, type LanguageDataMap } from '../../shared/types';
 import { DEFAULT_LANGUAGE_CATALOG_URL } from '../../shared/constants';
 
 const mockIpcListeners = new Map<string, ((event: MockIpcEvent, ...args: unknown[]) => void)[]>();
@@ -594,6 +595,76 @@ describe('loadLangData', () => {
     const langData = mod.loadLangData();
     expect(langData['en']).toBeDefined();
     expect(langData['en'].name).toBe('English');
+  });
+
+  it('builds, installs, and loads a real Japanese source package with authored question items', async () => {
+    const sourceMetadataPath = path.join(process.cwd(), 'scripts/language-data/source/root-of-app/languages/ja.json');
+    const authored = JSON.parse(fs.readFileSync(sourceMetadataPath, 'utf-8')) as {
+      grammar: Array<{ pattern: string; items?: unknown[] }>;
+      languageData: Record<string, unknown>;
+      [key: string]: unknown;
+    };
+    const authoredItems = authored.grammar.flatMap(point =>
+      (point.items ?? []).map(item => ({ pattern: point.pattern, item })),
+    );
+    expect(authoredItems.length).toBeGreaterThan(0);
+
+    // The source checkout is missing the separate Japanese dictionary payloads.
+    // Keep this test package focused on the real authored grammar metadata and
+    // exercise the production builder and installer without changing that source.
+    authored.languageData = { ...authored.languageData, assets: [], dictionaryPacks: {} };
+    const sourceRoot = path.join(tempDir.tmpDir, 'package-source');
+    const languagesDir = path.join(sourceRoot, 'languages');
+    const overridesDir = path.join(tempDir.tmpDir, 'empty-overrides');
+    const outputDir = path.join(tempDir.tmpDir, 'built-release');
+    const catalogPath = path.join(tempDir.tmpDir, 'language-catalog.json');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.mkdirSync(overridesDir, { recursive: true });
+    fs.writeFileSync(path.join(languagesDir, 'ja.json'), JSON.stringify(authored), 'utf-8');
+
+    const builderUrl = pathToFileURL(path.join(process.cwd(), 'scripts/language-data/package-language-data.mjs')).href;
+    const builder = await import(builderUrl) as unknown as {
+      createLanguageDataRelease: (options: Record<string, unknown>) => Promise<{ assetManifestPath: string }>;
+    };
+    const release = await builder.createLanguageDataRelease({
+      sourceRoot,
+      outputDir,
+      catalogPath,
+      overridesDir,
+      assetBaseUrl: 'https://package-test.invalid/language-data/',
+      generatedAt: '2026-10-07T00:00:00.000Z',
+      languages: ['ja'],
+    });
+    const builtCatalog = JSON.parse(fs.readFileSync(catalogPath, 'utf-8')) as {
+      languages: Record<string, {
+        name: string;
+        nameTranslated?: string;
+        version: string;
+        bundle: { url: string; sizeBytes: number; sha256: string };
+        files: Array<{ id: string; path: string; required?: boolean; sizeBytes?: number; sha256?: string }>;
+        dictionaryPacks: Record<string, unknown>;
+      }>;
+    };
+    const built = builtCatalog.languages.ja;
+    const installMap = {
+      ja: {
+        name: built.name,
+        name_translated: built.nameTranslated,
+        languageData: { version: built.version, bundle: built.bundle, assets: built.files, dictionaryPacks: built.dictionaryPacks },
+      },
+    } as unknown as LanguageDataMap;
+    const releaseManifest = JSON.parse(fs.readFileSync(release.assetManifestPath, 'utf-8')) as { bundles: Array<{ relativePath: string }> };
+    const archivePath = path.join(outputDir, releaseManifest.bundles[0]!.relativePath);
+    mockDownloadFileWithProgress.mockImplementation(async (_url: string, destination: string) => fs.copyFileSync(archivePath, destination));
+
+    const languageDataService = await import('./languageDataService');
+    const status = await languageDataService.ensureLanguageDataInstalled('ja', installMap);
+    expect(status.installed).toBe(true);
+    expect(mockDownloadFileWithProgress).toHaveBeenCalledWith(built.bundle.url, expect.any(String), undefined);
+
+    const loaded = mod.loadLangData().ja;
+    const loadedItems = (loaded?.grammar ?? []).flatMap(point => (point.items ?? []).map(item => ({ pattern: point.pattern, item })));
+    expect(loadedItems).toEqual(authoredItems);
   });
 
   it('normalizes legacy installed language metadata before exposing runtime data', () => {

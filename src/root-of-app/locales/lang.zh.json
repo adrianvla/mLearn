@@ -2195,7 +2195,20 @@
         "BackToBlueprints": "返回练习组",
         "Summaries": "最近的结果",
         "SummaryCounts": "{correct}/{answered} 正确 · {timedOut} 未答",
-        "StorageUnavailable": "无法保存你的答案。请检查存储空间是否可用，然后重试。"
+        "StorageUnavailable": "无法保存你的答案。请检查存储空间是否可用，然后重试。",
+        "AvailabilityMissingSources": "此语言包没有阶段检查题目来源。",
+        "AvailabilityMissingBlueprint": "题目来源已安装，但尚未分配到任何阶段检查级别。",
+        "AvailabilityRequestedUnavailable": "此语言包没有指定级别的阶段检查蓝图，系统没有替换成其他级别。",
+        "AvailabilityValidationRequired": "{unreviewed} 个题目来源需要独立语义审核。仅通过一致性检查还不能用于出题。",
+        "AvailabilityValidationStale": "{stale} 条审核记录对应旧题目内容，需要重新审核。",
+        "AvailabilityValidationRejected": "{rejected} 个题目来源未通过审核，已隔离。",
+        "AvailabilityInsufficientCoverage": "计划的 {requested} 组题目中有 {available} 组通过了独立审核。可以开始这个范围较小的阶段检查。",
+        "AvailabilityAvailable": "计划的 {available} 组题目均已通过独立审核。",
+        "PackageOutdated": "有更新的语言包可用。阶段检查使用当前已安装的语言包版本。",
+        "PackageUnavailable": "此工作区未安装语言包，或无法使用该语言包。",
+        "PracticeGrammar": "练习语法",
+        "ManagePackage": "打开语言包设置",
+        "CheckpointScope": "此检查仅抽查了列出的语法组。其他目标和技能要求均未测量；下方状态汇总所有当前证据，包括本阶段检查之外的学习记录。"
       },
       "NoLocks": "此浏览器无法安全保存练习。请在支持的浏览器或桌面应用中打开mLearn。"
     },

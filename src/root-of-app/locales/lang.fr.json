@@ -2195,7 +2195,20 @@
         "BackToBlueprints": "Retour aux séries",
         "Summaries": "Résultats récents",
         "SummaryCounts": "{correct}/{answered} justes · {timedOut} sans réponse",
-        "StorageUnavailable": "Votre réponse n’a pas pu être enregistrée. Vérifiez l’espace de stockage, puis réessayez."
+        "StorageUnavailable": "Votre réponse n’a pas pu être enregistrée. Vérifiez l’espace de stockage, puis réessayez.",
+        "AvailabilityMissingSources": "Ce paquet de langue ne contient aucune source de questions pour les bilans.",
+        "AvailabilityMissingBlueprint": "Des sources de questions sont installées, mais aucune n’est associée à un niveau de bilan.",
+        "AvailabilityRequestedUnavailable": "Ce paquet ne propose aucun bilan pour le niveau demandé. Aucun autre niveau n’a été substitué.",
+        "AvailabilityValidationRequired": "{unreviewed} sources de questions nécessitent une validation sémantique indépendante. Les contrôles de cohérence ne suffisent pas.",
+        "AvailabilityValidationStale": "{stale} validations concernent d’anciens contenus et doivent être renouvelées.",
+        "AvailabilityValidationRejected": "{rejected} sources de questions ont échoué à la validation et sont mises en quarantaine.",
+        "AvailabilityInsufficientCoverage": "{available} groupes de questions sur {requested} prévus ont passé la validation indépendante. Ce bilan plus court peut être lancé.",
+        "AvailabilityAvailable": "Les {available} groupes de questions prévus ont tous passé la validation indépendante.",
+        "PackageOutdated": "Un paquet de langue plus récent est disponible. Les bilans utilisent la version actuellement installée.",
+        "PackageUnavailable": "Le paquet de langue n’est pas installé ou disponible dans cet espace de travail.",
+        "PracticeGrammar": "Pratiquer la grammaire",
+        "ManagePackage": "Ouvrir les paramètres du paquet de langue",
+        "CheckpointScope": "Seuls les groupes grammaticaux listés ont été échantillonnés. Les autres objectifs et compétences ne sont pas mesurés ici ; les statuts ci-dessous résument toutes les preuves actuelles, y compris celles obtenues en dehors de ce bilan."
       },
       "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau."
     },

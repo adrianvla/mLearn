@@ -13,8 +13,9 @@ vi.mock('./components/LoadingOverlay', () => ({ LoadingOverlay: () => <span data
 vi.mock('../../components/common', () => ({
   LearningWorkspace: (props: { children?: import('solid-js').JSX.Element }) => props.children,
   TargetIcon: () => null,
+  ArrowLeftIcon: () => <svg data-testid="arrow-left-icon" aria-hidden="true" />,
   ActionCard: (props: { title: string; onClick?: () => void }) => <button onClick={props.onClick}>{props.title}</button>,
-  Button: (props: { children?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  Button: (props: { children?: import('solid-js').JSX.Element; icon?: import('solid-js').JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.icon}{props.children}</button>,
   TabContainer: (props: { tabs: Array<{ id: string; label: string }>; onTabChange: (tabId: string) => void }) => <div>
     {props.tabs.map(tab => <button onClick={() => props.onTabChange(tab.id)}>{tab.label}</button>)}
   </div>,
@@ -58,6 +59,20 @@ describe('application shell route ownership', () => {
       expect(count).toBe(path === '/practise' ? 3 : path === '/plan' ? 4 : 1);
     }
   });
+  it.each([['home', '/'], ['plan', '/plan'], ['flashcards', '/practise']])(
+    'returns Evaluate to its %s source with an explicit back affordance', async (returnTo, path) => {
+      mount();
+      fixture.listener!({ applicationNavigation: {
+        path: '/evaluate', requestId: `evaluate-${returnTo}`, context: { returnTo },
+      } });
+      await vi.waitFor(() => expect(window.location.hash).toBe('#/evaluate'));
+      const back = container.querySelector<HTMLButtonElement>('.evaluation-chooser-header button')!;
+      expect(back.querySelector('[data-testid="arrow-left-icon"]')).not.toBeNull();
+      expect(back.textContent).toContain('mlearn.Flashcards.UI.Title');
+      back.click();
+      await vi.waitFor(() => expect(window.location.hash).toBe(`#${path}`));
+    },
+  );
   it('Main desktop has no sitemap above an immersion activity', async () => {
     fixture.mobile = false; mount(); await navigate('/reader');
     expect(container.querySelector('nav')).toBeNull();

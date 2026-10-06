@@ -2195,7 +2195,20 @@
         "BackToBlueprints": "練習セットに戻る",
         "Summaries": "最近の結果",
         "SummaryCounts": "{correct}/{answered} 正解 · {timedOut} 無回答",
-        "StorageUnavailable": "回答を保存できませんでした。保存領域が利用できるか確認してから、もう一度お試しください。"
+        "StorageUnavailable": "回答を保存できませんでした。保存領域が利用できるか確認してから、もう一度お試しください。",
+        "AvailabilityMissingSources": "この言語パッケージにはチェックポイント用の問題ソースがありません。",
+        "AvailabilityMissingBlueprint": "問題ソースはインストールされていますが、チェックポイントのレベルに割り当てられていません。",
+        "AvailabilityRequestedUnavailable": "このパッケージには指定レベルのチェックポイントがありません。別のレベルへの置き換えは行っていません。",
+        "AvailabilityValidationRequired": "{unreviewed} 件の問題ソースに独立した意味検証が必要です。整合性チェックだけでは出題できません。",
+        "AvailabilityValidationStale": "{stale} 件の検証記録は古い問題内容に紐づいているため、再検証が必要です。",
+        "AvailabilityValidationRejected": "{rejected} 件の問題ソースは検証に不合格となり、隔離されています。",
+        "AvailabilityInsufficientCoverage": "独立検証済みの問題グループは、予定された {requested} 件中 {available} 件です。この範囲を絞ったチェックポイントを開始できます。",
+        "AvailabilityAvailable": "予定された {available} 件すべての問題グループが独立検証済みです。",
+        "PackageOutdated": "新しい言語パッケージがあります。チェックポイントは現在インストール済みのバージョンを使用します。",
+        "PackageUnavailable": "このワークスペースでは言語パッケージを利用できません。未インストールの可能性があります。",
+        "PracticeGrammar": "文法を練習",
+        "ManagePackage": "言語パッケージ設定を開く",
+        "CheckpointScope": "ここでは一覧にある文法グループのみを出題しました。他の目標や技能要件は未測定です。以下の要件ステータスは、このチェックポイント以外の学習も含む現在の証拠を示します。"
       },
       "NoLocks": "このブラウザーでは練習を安全に保存できません。対応ブラウザーまたはデスクトップアプリでmLearnを開いてください。"
     },

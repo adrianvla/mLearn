@@ -831,7 +831,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose: () => v
           
           <div class="flashcards-sidebar-actions">
             <Show when={props.workspace === 'flashcards'}>
-              <Button size="sm" variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'study', context: { applicationPath: '/evaluate' } })}>
+              <Button size="sm" variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'study', context: { applicationPath: '/evaluate', returnTo: 'flashcards' } })}>
                 {t('mlearn.Product.Evaluate')}
               </Button>
             </Show>

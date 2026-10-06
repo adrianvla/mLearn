@@ -107,7 +107,9 @@ describe('purpose-led Home', () => {
     await mount(); open('mlearn.Product.Messenger'); expect(fixture.navigate).toHaveBeenCalledWith('/messenger');
   });
   it('opens Evaluate without admitting practice', async () => {
-    await mount(); open('mlearn.Product.Evaluate'); expect(fixture.navigate).toHaveBeenCalledWith('/evaluate'); expect(fixture.openWindow).not.toHaveBeenCalled();
+    await mount(); open('mlearn.Product.Evaluate'); expect(fixture.navigate).toHaveBeenCalledWith('/evaluate', {
+      state: { applicationRequestId: expect.any(String), applicationContext: { returnTo: 'home' } },
+    }); expect(fixture.openWindow).not.toHaveBeenCalled();
   });
   it('resumes a continuous Review cursor by its exact identity without a finite boundary', async () => {
     fixture.presentation = { id: 'continuous-choice', cardId: 'card' }; await mount();

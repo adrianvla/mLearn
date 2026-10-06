@@ -15,6 +15,13 @@ describe('host-aware navigation', () => {
     expect(fixture.navigate).toHaveBeenCalledTimes(2);
     expect(fixture.openWindow).not.toHaveBeenCalled();
   });
+  it('keeps an activity return context when navigating within the same application host', () => {
+    const context = { returnTo: 'home', evaluationReturnTo: 'home' };
+    useApplicationReturn()('/evaluate', context);
+    expect(fixture.navigate).toHaveBeenCalledWith('/evaluate', {
+      state: { applicationRequestId: expect.any(String), applicationContext: context },
+    });
+  });
   it('transfers opaque media Return to its receiving renderer instead of writing Study storage', () => {
     const source = { workspace: 'reader', path: '/book.epub', page: 17, 'third-party:location': { segments: [1, 4] } };
     useApplicationReturn()('/reader', { sourceContext: source });
@@ -25,7 +32,9 @@ describe('host-aware navigation', () => {
     fixture.desktop = false;
     const source = { workspace: 'video', path: '/film.mp4', time: 12, subtitlePath: '/film.vtt', 'third-party:locator': { v: 9 } };
     useApplicationReturn()('/video', { sourceContext: source });
-    expect(fixture.navigate).toHaveBeenCalledWith('/video'); expect(fixture.openWindow).not.toHaveBeenCalled();
+    expect(fixture.navigate).toHaveBeenCalledWith('/video', {
+      state: { applicationRequestId: expect.any(String), applicationContext: { sourceContext: source } },
+    }); expect(fixture.openWindow).not.toHaveBeenCalled();
     expect(JSON.parse(sessionStorage.getItem('mlearn_media_return')!)).toEqual(source);
     expect(sessionStorage.getItem('mlearn_open_video_subtitles')).toBe('/film.vtt');
   });

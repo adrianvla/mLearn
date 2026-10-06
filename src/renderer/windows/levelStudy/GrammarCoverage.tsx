@@ -1636,7 +1636,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                 <StudyEncounter
                                   class="grammar-coverage__encounter"
                                   ratingAvailable={!referenceSupplied()}
-                                  prompt={<span class="grammar-coverage__session-prompt" data-pattern={presented}>{presented}</span>}
+                                  prompt={<span data-testid="grammar-pattern-prompt" data-pattern={presented}>{presented}</span>}
                                   answer={<span class="grammar-coverage__answer" data-testid="grammar-session-answer">
                                     {constructionsByLevel().get(level)?.find(row => row.pattern === presented)?.meaning
                                       ?? t('mlearn.LevelStudy.Grammar.AnswerUnavailable')}

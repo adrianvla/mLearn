@@ -2195,7 +2195,20 @@
         "BackToBlueprints": "Zurück zu den Übungssätzen",
         "Summaries": "Letzte Ergebnisse",
         "SummaryCounts": "{correct}/{answered} richtig · {timedOut} unbeantwortet",
-        "StorageUnavailable": "Deine Antwort konnte nicht gespeichert werden. Prüfe den verfügbaren Speicherplatz und versuche es erneut."
+        "StorageUnavailable": "Deine Antwort konnte nicht gespeichert werden. Prüfe den verfügbaren Speicherplatz und versuche es erneut.",
+        "AvailabilityMissingSources": "Dieses Sprachpaket enthält keine Fragenquellen für Kontrollpunkte.",
+        "AvailabilityMissingBlueprint": "Fragenquellen sind installiert, aber keiner Kontrollpunktstufe zugeordnet.",
+        "AvailabilityRequestedUnavailable": "Für die angeforderte Stufe enthält dieses Paket keinen Kontrollpunkt. Es wurde keine andere Stufe eingesetzt.",
+        "AvailabilityValidationRequired": "{unreviewed} Fragenquellen benötigen eine unabhängige Bedeutungsprüfung. Konsistenzprüfungen allein reichen nicht aus.",
+        "AvailabilityValidationStale": "{stale} Prüfvermerke beziehen sich auf ältere Frageninhalte und müssen erneuert werden.",
+        "AvailabilityValidationRejected": "{rejected} Fragenquellen sind bei der Prüfung durchgefallen und wurden gesperrt.",
+        "AvailabilityInsufficientCoverage": "{available} von {requested} geplanten Fragengruppen haben die unabhängige Prüfung bestanden. Dieser kleinere Kontrollpunkt kann gestartet werden.",
+        "AvailabilityAvailable": "Alle {available} geplanten Fragengruppen haben die unabhängige Prüfung bestanden.",
+        "PackageOutdated": "Ein neueres Sprachpaket ist verfügbar. Kontrollpunkte verwenden die derzeit installierte Paketversion.",
+        "PackageUnavailable": "Das Sprachpaket ist in diesem Arbeitsbereich nicht installiert oder verfügbar.",
+        "PracticeGrammar": "Grammatik üben",
+        "ManagePackage": "Sprachpaketeinstellungen öffnen",
+        "CheckpointScope": "Es wurden nur die aufgeführten Grammatikgruppen geprüft. Andere Lernziele und Kompetenzanforderungen bleiben hier ungemessen; die folgenden Statusangaben fassen alle bisherigen Nachweise zusammen, auch außerhalb dieses Kontrollpunkts."
       },
       "NoLocks": "Übungen können in diesem Browser nicht sicher gespeichert werden. Öffne mLearn in einem unterstützten Browser oder der Desktop-App."
     },

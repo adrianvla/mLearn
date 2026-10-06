@@ -63,7 +63,7 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; grammarResumeId?: string; grammarScopePatterns?: readonly string[]; mockAction?: 'open' | 'start' | 'resume'; mockResumeId?: string; mockLevel?: number; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
+export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; grammarResumeId?: string; grammarScopePatterns?: readonly string[]; mockAction?: 'open' | 'start' | 'resume'; mockResumeId?: string; mockLevel?: number; launchContext?: Record<string, unknown>; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
@@ -278,6 +278,17 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
     if (props.onEditPlan) props.onEditPlan();
     else getBridge().window.openWindow({ type: 'level-study', context: { activity: 'plan' } });
   };
+  const openLanguagePackageSettings = () => getBridge().window.openWindow({ type: 'settings', context: { section: 'components' } });
+  const openGrammarPractice = (level: number, patterns: readonly string[]) => getBridge().window.openWindow({
+    type: 'level-study',
+    context: {
+      ...props.launchContext,
+      activity: 'grammar',
+      level,
+      patterns: [...patterns],
+      returnTo: 'mock',
+    },
+  });
 
   // ─── Checkpoints & mocks (R13/R14) ──────────────
   /** Canonical journal write for a mock attempt: the SAME writer the
@@ -444,6 +455,12 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
         <Show when={view() !== 'plan' && !language.isLoading() && resolvedLanguageData().data && grammarLog() !== undefined && !requiresGrammar()}>
           <EmptyState title={t('mlearn.Product.GrammarUnavailable')} variant="card" size="md" />
         </Show>
+        <Show when={view() === 'mock' && !language.isLoading() && !resolvedLanguageData().data}>
+          <Panel class="mock-exam-panel" padding="md">
+            <p role="status">{t('mlearn.LevelStudy.Mock.PackageUnavailable')}</p>
+            <Button variant="ghost" onClick={openLanguagePackageSettings}>{t('mlearn.LevelStudy.Mock.ManagePackage')}</Button>
+          </Panel>
+        </Show>
         <Show when={grammarSummary() !== null && grammarSummary()!.total > 0 && grammarLog() !== undefined}>
           <Show when={view() === 'plan'}>
             <Panel class="level-study-grammar-summary" padding="md">
@@ -511,7 +528,8 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
             }}
           />
           </Show>
-          <Show when={view() === 'mock'}>
+        </Show>
+        <Show when={view() === 'mock' && grammarLog() !== undefined}>
           {/* Checkpoints & mocks (R13): fixed declared blueprints over the
               same journal, results through the canonical writer, repair via
               the SAME policy walk, targeted output via the SAME agent. */}
@@ -523,11 +541,19 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
             languageData={resolvedLanguageData().data!}
             eventLog={grammarLog()!}
             onAttempt={recordMockAttempt}
-            onRepair={(level) => getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', level, patterns: (resolvedLanguageData().data?.grammar ?? []).filter(point => point.level === level).map(point => point.pattern), returnTo: 'mock' } })}
+            packageOutdated={language.getLanguageDataStatus(resolvedLanguageData().language)?.outdated ?? false}
+            onManagePackage={openLanguagePackageSettings}
+            onReviewQuestions={openGrammarPractice}
+            requirementEvaluations={props.policyContext?.requirementEvaluations}
+            onRepair={(level) => openGrammarPractice(level, (resolvedLanguageData().data?.grammar ?? []).filter(point => point.level === level).map(point => point.pattern))}
             onTargetedOutput={openTargetedOutput}
           />
+        </Show>
+        <Show when={view() === 'mock' && grammarLog() === undefined}>
+          <Show when={grammarLogResource.state === 'errored'} fallback={<SkeletonRows rows={3} />}>
+            <KnowledgeLoadError onRetry={() => void retryGrammarLog()} />
           </Show>
-      </Show>
+        </Show>
       <Show when={view() === 'plan' && resolvedLanguageData().language !== ''}>
         <LearningBackgroundPanel language={resolvedLanguageData().language} />
       </Show>

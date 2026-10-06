@@ -304,6 +304,45 @@
   font-size: 0.78rem;
 }
 
+.mock-exam__availability {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-2);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.mock-exam__scope-note {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.mock-exam__requirements {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.mock-exam__requirements h4 {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.mock-exam__requirement {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.mock-exam__requirement strong {
+  color: var(--text-primary);
+}
+
 .mock-exam__empty {
   color: var(--text-secondary);
   font-size: 0.78rem;

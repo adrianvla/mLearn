@@ -103,7 +103,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
               mockAction={incomingContext().intent === 'start' ? 'start' : incomingContext().intent === 'resume' ? 'resume' : 'open'}
               mockResumeId={typeof incomingContext().sessionId === 'string' ? incomingContext().sessionId as string : undefined}
               mockLevel={typeof incomingContext().level === 'number' ? incomingContext().level as number : undefined}
-              view={props.workspace ?? 'plan'} onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
+              launchContext={props.launchContext} view={props.workspace ?? 'plan'} onEditPlan={editPlan} policyContext={policyContext()} grammarRequest={grammarRequest()} onGrammarRequestHandled={() => setGrammarRequestConsumed(true)} />
             </Show>
             </Show>
           </div>

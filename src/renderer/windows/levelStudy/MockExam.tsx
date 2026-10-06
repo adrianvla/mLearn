@@ -1,6 +1,6 @@
 import { Component, For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import { EmptyState, Panel } from '../../components/common';
+import { Button, Panel } from '../../components/common';
 import { formatDateTime } from '../../utils/timeFormatting';
 import {
   MOCK_PER_ITEM_SECONDS,
@@ -39,8 +39,10 @@ import {
   type MockSubmission,
 } from '../../learning/mockExam';
 import { questionBankFromLanguageData } from '../../learning/questionBank';
+import { inspectMockExamAvailability, type MockBlueprintAvailability, type MockAvailabilityState } from '../../learning/mockExamAvailability';
 import { grammarPointMeaning } from '../../../shared/languageFeatures';
 import type { AttemptId, KnowledgeEventLog } from '../../../shared/knowledgeEvents';
+import type { LearningGoalRequirementEvaluation } from '../../../shared/learningRequirementEvaluation';
 import type { LanguageData } from '../../../shared/types';
 import type { StudySessionLocks } from '../../learning/studySessionController';
 import './MockExam.css';
@@ -69,6 +71,12 @@ export interface MockExamProps {
    *  localized fallback (G04) instead of running an unserialized multi-
    *  window session — cursor reads are not atomic without a real lock. */
   locks?: StudySessionLocks | null;
+  /** Catalog status is shown separately from source and validation readiness. */
+  packageOutdated?: boolean;
+  onReviewQuestions?: (level: number, patterns: readonly string[]) => void;
+  onManagePackage?: () => void;
+  /** Current canonical requirement state; it is not an official checkpoint score. */
+  requirementEvaluations?: readonly LearningGoalRequirementEvaluation[];
 }
 
 const fmtSeconds = (ms: number): number => Math.round(ms / 1000);
@@ -126,6 +134,28 @@ export const MockExam: Component<MockExamProps> = (props) => {
   const bank = createMemo(() => questionBankFromLanguageData(props.language, props.languageData));
   const blueprints = createMemo(() => deriveMockBlueprints(props.language, props.languageData));
   const scopedBlueprints = createMemo(() => blueprints().filter(blueprint => props.requestedLevel === undefined || blueprint.level === props.requestedLevel));
+  const availability = createMemo(() => inspectMockExamAvailability(props.language, props.languageData, props.requestedLevel));
+  const blueprintAvailability = (blueprint: MockBlueprint): MockBlueprintAvailability | undefined =>
+    availability().blueprints.find(entry => entry.blueprint.id === blueprint.id);
+  const canStartBlueprint = (blueprint: MockBlueprint): boolean => {
+    const state = blueprintAvailability(blueprint)?.state;
+    return state === 'available' || state === 'insufficient-coverage';
+  };
+  const globalAvailability = (): MockAvailabilityState | null => {
+    const current = availability().state;
+    return current === 'missing-sources' || current === 'missing-blueprint' || current === 'requested-blueprint-unavailable'
+      ? current : null;
+  };
+  const availabilityKey = (state: MockAvailabilityState): string => ({
+    'missing-sources': 'mlearn.LevelStudy.Mock.AvailabilityMissingSources',
+    'missing-blueprint': 'mlearn.LevelStudy.Mock.AvailabilityMissingBlueprint',
+    'requested-blueprint-unavailable': 'mlearn.LevelStudy.Mock.AvailabilityRequestedUnavailable',
+    'validation-required': 'mlearn.LevelStudy.Mock.AvailabilityValidationRequired',
+    'validation-stale': 'mlearn.LevelStudy.Mock.AvailabilityValidationStale',
+    'validation-rejected': 'mlearn.LevelStudy.Mock.AvailabilityValidationRejected',
+    'insufficient-coverage': 'mlearn.LevelStudy.Mock.AvailabilityInsufficientCoverage',
+    'available': 'mlearn.LevelStudy.Mock.AvailabilityAvailable',
+  })[state];
 
   /** Language/package switch: swap in-memory state for the durable one of
    *  the new language (or none). The previous language's last persisted
@@ -415,7 +445,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
     if (action === 'resume' && id) resumeSaved(id);
     else if (action === 'start' && level !== undefined) {
       const blueprint = blueprints().find(candidate => candidate.level === level);
-      if (blueprint) start(blueprint);
+      if (blueprint && canStartBlueprint(blueprint)) start(blueprint);
     }
   }));
 
@@ -612,8 +642,6 @@ export const MockExam: Component<MockExamProps> = (props) => {
   };
 
   return (
-    <Show when={resumeUnavailable() || scopedBlueprints().length > 0 || savedSessions().length > 0 || summaries().length > 0 || live() || results() !== null}
-      fallback={<EmptyState title={t('mlearn.Product.MockUnavailable')} variant="card" size="md" />}>
     <Panel class="mock-exam-panel" padding="md">
     <section class="mock-exam" data-testid="mock-exam">
       <div class="mock-exam__header">
@@ -622,6 +650,14 @@ export const MockExam: Component<MockExamProps> = (props) => {
       </div>
 
       <Show when={resumeUnavailable()}><p role="status">{t('mlearn.Product.ResumeUnavailable')}</p></Show>
+      <Show when={props.packageOutdated}>
+        <div class="mock-exam__availability" role="status" data-testid="mock-package-outdated">
+          <span>{t('mlearn.LevelStudy.Mock.PackageOutdated')}</span>
+          <Show when={props.onManagePackage !== undefined}>
+            <Button variant="ghost" onClick={() => props.onManagePackage?.()}>{t('mlearn.LevelStudy.Mock.ManagePackage')}</Button>
+          </Show>
+        </div>
+      </Show>
 
       {/* ── Session view: the fixed queue, no mid-session feedback ── */}
       <Show when={locksAvailable() && live() && step() !== null}>
@@ -818,6 +854,34 @@ export const MockExam: Component<MockExamProps> = (props) => {
                 {t('mlearn.LevelStudy.Mock.AvailabilityGap')}
               </span>
             </Show>
+            <p class="mock-exam__scope-note" data-testid="mock-checkpoint-scope">
+              {t('mlearn.LevelStudy.Mock.CheckpointScope')}
+            </p>
+            <Show when={(props.requirementEvaluations?.length ?? 0) > 0}>
+              <section class="mock-exam__requirements" data-testid="mock-learning-requirements" aria-label={t('mlearn.Goals.RequirementEvidence')}>
+                <h4>{t('mlearn.Goals.RequirementEvidence')}</h4>
+                <For each={props.requirementEvaluations}>
+                  {(evaluation) => {
+                    const declaration = () => props.languageData.learning?.outcomes?.[evaluation.outcomeId];
+                    const requirementLabel = (condition: LearningGoalRequirementEvaluation['requirements'][number]): string => {
+                      const raw = condition.conditions;
+                      const label = raw && typeof raw === 'object' && !Array.isArray(raw)
+                        ? (raw as Record<string, unknown>).label : undefined;
+                      return typeof label === 'string' && label.trim() ? label : condition.requirementId;
+                    };
+                    return <div class="mock-exam__requirement" data-goal={evaluation.goalId} data-status={evaluation.status}>
+                      <strong>{declaration()?.label ?? evaluation.outcomeId}</strong>
+                      <span>{t(`mlearn.Goals.RequirementStatus.${evaluation.status}`)}</span>
+                      <For each={evaluation.requirements}>
+                        {(condition) => <span data-requirement={condition.requirementId} data-status={condition.status}>
+                          {requirementLabel(condition)} · {t(`mlearn.Goals.RequirementStatus.${condition.status}`)}
+                        </span>}
+                      </For>
+                    </div>;
+                  }}
+                </For>
+              </section>
+            </Show>
             <div class="mock-exam__patterns" data-testid="mock-missed-patterns">
               <span class="mock-exam__patterns-title">{t('mlearn.LevelStudy.Mock.MissedPatterns')}</span>
               <Show when={missedTargets().length > 0} fallback={
@@ -876,6 +940,14 @@ export const MockExam: Component<MockExamProps> = (props) => {
       {/* ── Idle view: declared blueprints + bounded summaries ── */}
       <Show when={results() === null && !live()}>
         <div class="mock-exam__blueprints" data-testid="mock-blueprints">
+          <Show when={globalAvailability()}>
+            {(state) => <div class="mock-exam__availability" role="status" data-testid={`mock-availability-${state()}`}>
+              <span>{t(availabilityKey(state()))}</span>
+              <Show when={props.onManagePackage !== undefined}>
+                <Button variant="ghost" onClick={() => props.onManagePackage?.()}>{t('mlearn.LevelStudy.Mock.ManagePackage')}</Button>
+              </Show>
+            </div>}
+          </Show>
           {/* Without a Web Lock the session surface is disabled (G04): an
               honest localized note replaces the Start affordances — never an
               unserialized multi-window session. */}
@@ -887,9 +959,7 @@ export const MockExam: Component<MockExamProps> = (props) => {
               {t('mlearn.WordSync.SessionStartFailed')}
             </button>
           </Show>
-          <Show when={blueprints().length > 0} fallback={
-            <span class="mock-exam__empty">{t('mlearn.LevelStudy.Mock.NoBlueprints')}</span>
-          }>
+          <Show when={scopedBlueprints().length > 0}>
             <For each={savedSessions()}>
               {(saved) => <button type="button" class="mock-exam__control-btn" data-testid={`mock-resume-${saved.sessionId}`} onClick={() => resumeSaved(saved.sessionId)}>{t('mlearn.LevelStudy.Mock.Resume')} {saved.instance.blueprint.levelLabel} · {formatDateTime(saved.startedAt, settings.uiLanguage)}</button>}
             </For>
@@ -905,15 +975,39 @@ export const MockExam: Component<MockExamProps> = (props) => {
                       seconds: String(blueprint.timing.perItemSeconds),
                     })}
                   </span>
-                  <button
-                    type="button"
-                    class="mock-exam__control-btn"
-                    data-testid={`mock-start-${blueprint.level}`}
-                    onClick={(click) => { if (click.detail > 1) return; start(blueprint); }}
-                    onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}
-                  >
-                    {t('mlearn.LevelStudy.Mock.Start')}
-                  </button>
+                  <Show when={blueprintAvailability(blueprint)}>
+                    {(readiness) => <>
+                      <div class="mock-exam__availability" role="status" data-testid={`mock-availability-${blueprint.level}`} data-state={readiness().state}>
+                        <span>{t(availabilityKey(readiness().state), {
+                          available: String(readiness().availableGroups),
+                          requested: String(readiness().requestedGroups),
+                          sources: String(readiness().sourceCount),
+                          unreviewed: String(readiness().unreviewedCount),
+                          stale: String(readiness().staleCount),
+                          rejected: String(readiness().rejectedCount),
+                        })}</span>
+                        <Show when={readiness().state !== 'available' && props.onReviewQuestions !== undefined}>
+                          <Button variant="ghost" onClick={() => props.onReviewQuestions?.(blueprint.level, readiness().patterns)}>
+                            {t('mlearn.LevelStudy.Mock.PracticeGrammar')}
+                          </Button>
+                        </Show>
+                        <Show when={readiness().state === 'validation-rejected' && props.onManagePackage !== undefined}>
+                          <Button variant="ghost" onClick={() => props.onManagePackage?.()}>{t('mlearn.LevelStudy.Mock.ManagePackage')}</Button>
+                        </Show>
+                      </div>
+                      <Show when={canStartBlueprint(blueprint)}>
+                        <button
+                          type="button"
+                          class="mock-exam__control-btn"
+                          data-testid={`mock-start-${blueprint.level}`}
+                          onClick={(click) => { if (click.detail > 1 || !canStartBlueprint(blueprint)) return; start(blueprint); }}
+                          onKeyDown={(key) => { if (key.repeat) key.preventDefault(); }}
+                        >
+                          {t('mlearn.LevelStudy.Mock.Start')}
+                        </button>
+                      </Show>
+                    </>}
+                  </Show>
                   <Show when={assembleEmpty() === blueprint.id}>
                     <span class="mock-exam__empty" data-testid="mock-assemble-empty">
                       {t('mlearn.LevelStudy.Mock.NoItems')}
@@ -951,7 +1045,6 @@ export const MockExam: Component<MockExamProps> = (props) => {
       </Show>
     </section>
     </Panel>
-    </Show>
   );
 };
 
