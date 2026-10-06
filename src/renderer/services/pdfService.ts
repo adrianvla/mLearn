@@ -24,6 +24,7 @@ interface PdfJsPage {
 interface PdfJsDocument {
   numPages: number;
   getPage: (pageNumber: number) => Promise<PdfJsPage>;
+  getMetadata?: () => Promise<{ info?: { Title?: unknown } }>;
   cleanup: () => void;
 }
 
@@ -55,6 +56,7 @@ export interface PageImage {
   blob: Blob;
   source: string;
   index: number;
+  documentTitle?: string;
 }
 
 export interface PageText {
@@ -63,6 +65,17 @@ export interface PageText {
   text: string;
   source: string;
   index: number;
+  documentTitle?: string;
+}
+
+async function pdfDocumentTitle(pdf: PdfJsDocument): Promise<string | undefined> {
+  try {
+    const title = (await pdf.getMetadata?.())?.info?.Title;
+    return typeof title === 'string' && title.trim() ? title.trim() : undefined;
+  } catch (error) {
+    log.warn('PDF metadata title could not be read', error);
+    return undefined;
+  }
 }
 
 // Flag to track if pdf.js has been configured
@@ -128,6 +141,7 @@ export async function pdfToImages(
     disableAutoFetch: true,
   });
   const pdf = await loadingTask.promise;
+  const documentTitle = await pdfDocumentTitle(pdf);
   
   const images: PageImage[] = [];
   
@@ -167,6 +181,7 @@ export async function pdfToImages(
       blob,
       source: sourceName,
       index: i - 1,
+      ...(documentTitle ? { documentTitle } : {}),
     });
   }
   
@@ -200,6 +215,7 @@ export async function pdfToTextPages(
     disableAutoFetch: true,
   });
   const pdf = await loadingTask.promise;
+  const documentTitle = await pdfDocumentTitle(pdf);
   const pages: PageText[] = [];
 
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -218,6 +234,7 @@ export async function pdfToTextPages(
       text,
       source: sourceName,
       index: i - 1,
+      ...(documentTitle ? { documentTitle } : {}),
     });
   }
 

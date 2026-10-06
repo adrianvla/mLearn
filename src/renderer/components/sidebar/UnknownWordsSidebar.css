@@ -130,12 +130,7 @@ body.reduce-transparency .unknown-words-item {
 
 .unknown-words-item-word:hover { text-decoration: underline; }
 .unknown-words-item-word:focus-visible { outline: 2px solid var(--color-primary); outline-offset: var(--spacing-1); }
-.unknown-words-sidebar-guidance { margin: 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
-.unknown-words-sidebar-tools { width: 100%; }
-.unknown-words-sidebar-tools > summary,
-.unknown-words-item-management > summary { cursor: pointer; color: var(--text-secondary); font-size: var(--font-size-xs); }
-.unknown-words-sidebar-tools[open] > * + * { margin-top: var(--spacing-2); }
-.unknown-words-item-management { margin-top: var(--spacing-2); }
+.unknown-words-sidebar-tools { display: flex; flex-direction: column; align-items: stretch; gap: var(--spacing-2); width: 100%; }
 .unknown-words-item-context { display: block; margin-top: var(--spacing-1); color: var(--text-secondary); font-size: var(--font-size-xs); }
 
 .unknown-words-item-meaning {
@@ -168,8 +163,17 @@ body.reduce-transparency .unknown-words-item {
   align-items: stretch;
 }
 
+.unknown-words-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+  align-items: center;
+}
+
 .unknown-words-item-pills .label-pill,
-.unknown-words-item-pills .btn-pill {
+.unknown-words-item-pills .btn-pill,
+.unknown-words-item-actions .btn-pill {
   font-size: 0.8em;
   padding: 5px 10px;
   border-radius: 10px;

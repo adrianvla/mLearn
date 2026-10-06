@@ -46,8 +46,8 @@ vi.mock('../common', () => ({
   ),
   CollapsibleStickyHeader: (props: { children?: JSX.Element; class?: string }) => <div class={props.class}>{props.children}</div>,
   PillLabel: (props: { children?: JSX.Element; class?: string }) => <span class={props.class}>{props.children}</span>,
-  Select: (props: { value: string; onChange?: (event: Event & { currentTarget: HTMLSelectElement }) => void; options: Array<{ value: string; label: string }> }) => (
-    <select value={props.value} onChange={props.onChange}>
+  Select: (props: { value: string; class?: string; onChange?: (event: Event & { currentTarget: HTMLSelectElement }) => void; options: Array<{ value: string; label: string }> }) => (
+    <select class={props.class} value={props.value} onChange={props.onChange}>
       {props.options.map((option) => (
         <option value={option.value}>{option.label}</option>
       ))}
@@ -93,7 +93,7 @@ vi.mock('../language-specific', async (importOriginal) => {
 });
 
 vi.mock('../common/Smart', () => ({
-  ResourcePill: (props: { word: string; language?: string }) => <span class="mock-resource-pill" data-language={props.language}>{`resource:${props.word}`}</span>,
+  ResourcePill: (props: { word: string; language?: string; onAdd?: () => void }) => <button type="button" class="mock-resource-pill" data-language={props.language} onClick={props.onAdd}>Save</button>,
 
 }));
 
@@ -228,6 +228,46 @@ describe('UnknownWordsSidebar', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('keeps word actions and filters directly visible without explanatory or per-word disclosure', async () => {
+    const onAddWord = vi.fn();
+    const onIgnoreWord = vi.fn();
+    const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
+    const dispose = render(() => (
+      <UnknownWordsSidebar
+        words={() => [{
+          key: 'word-1',
+          word: 'apple',
+          token: { word: 'apple', actual_word: 'apple', partOfSpeech: 'noun', type: 'word' },
+          contextPhrase: 'apple in context',
+        }]}
+        addingWordKeys={() => new Set<string>()}
+        isAddingAll={() => false}
+        onAddWord={onAddWord}
+        onIgnoreWord={onIgnoreWord}
+        sortOptions={() => [{ value: 'word', label: 'Word' }]}
+        defaultSort="word"
+        emptyMessage="No unknown words"
+        onAddAllClick={() => undefined}
+      />
+    ), container);
+
+    expect(container.querySelector('.unknown-words-sidebar-guidance')).toBeNull();
+    expect(container.querySelector('details.unknown-words-sidebar-tools')).toBeNull();
+    expect(container.querySelector('details.unknown-words-item-management')).toBeNull();
+    expect(container.querySelector('.unknown-words-sidebar-categories')).not.toBeNull();
+    expect(container.querySelector('.unknown-words-sort-select')).not.toBeNull();
+    expect(container.querySelector('.unknown-words-item-word')).not.toBeNull();
+
+    const rowButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('.unknown-words-item button'));
+    expect(rowButtons.map(button => button.textContent)).toContain('Save');
+    expect(rowButtons.map(button => button.textContent)).toContain('Ignore');
+    rowButtons.find(button => button.textContent === 'Save')?.click();
+    rowButtons.find(button => button.textContent === 'Ignore')?.click();
+    expect(onAddWord).toHaveBeenCalledOnce();
+    expect(onIgnoreWord).toHaveBeenCalledOnce();
+    dispose();
   });
 
   it('hides a zero count during an incomplete or blocked scan and restores it when settled', async () => {
@@ -410,7 +450,7 @@ describe('UnknownWordsSidebar', () => {
     expect(rendered[0]?.getAttribute('data-reading')).toBe('context-sound');
     expect(rendered[1]?.getAttribute('data-reading')).toBe('lemma-sound');
     expect(container.querySelector('.unknown-words-sidebar-tools')?.hasAttribute('open')).toBe(false);
-    expect(container.querySelector('.unknown-words-item-management')?.hasAttribute('open')).toBe(false);
+    expect(container.querySelector('details.unknown-words-item-management')).toBeNull();
     expect(container.querySelector('.unknown-words-item-word')?.closest('details')).toBeNull();
     dispose();
   });

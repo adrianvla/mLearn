@@ -15,6 +15,7 @@ import {
   formatWeekday,
   formatWeekdayLong,
   formatMonthShort,
+  formatRelativeLastOpened,
 } from '@renderer/utils/timeFormatting';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
@@ -23,6 +24,29 @@ const t: TranslateFn = (key, params) => {
   if (!params) return key;
   return `${key}:${JSON.stringify(params)}`;
 };
+
+describe('formatRelativeLastOpened', () => {
+  const now = Date.UTC(2026, 9, 7, 12);
+
+  it('uses localized relative labels for recent past timestamps', () => {
+    expect(formatRelativeLastOpened(now - 86_400_000, 'en', now)?.label).toBe('yesterday');
+  });
+
+  it('reports future timestamps in the future instead of calling them recent', () => {
+    expect(formatRelativeLastOpened(now + 2 * 3_600_000, 'en', now)?.label).toBe('in 2 hours');
+  });
+
+  it('uses a localized absolute date for older items and an exact-date tooltip', () => {
+    const result = formatRelativeLastOpened(now - 45 * 86_400_000, 'en', now);
+    expect(result?.label).toBe(formatDateMedium(now - 45 * 86_400_000, 'en'));
+    expect(result?.title).toBe(formatDateTime(now - 45 * 86_400_000, 'en'));
+  });
+
+  it('omits invalid timestamps', () => {
+    expect(formatRelativeLastOpened(Number.NaN, 'en', now)).toBeNull();
+    expect(formatRelativeLastOpened(Number.POSITIVE_INFINITY, 'en', now)).toBeNull();
+  });
+});
 
 describe('formatDurationShort', () => {
   it('returns ShortSecond key when under a minute', () => {

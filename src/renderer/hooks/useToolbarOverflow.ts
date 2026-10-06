@@ -31,9 +31,10 @@ export function useToolbarOverflow(
       required = panel.getBoundingClientRect().width + gap * children.length
         + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
       for (const child of children) {
-        if (child.classList.contains('reader-nav-title')) {
-          // The title is allowed to ellipsize, but it must retain useful space.
-          required += Math.min(child.scrollWidth, 96);
+        const titleMinimum = Number(child.dataset.toolbarMinWidth);
+        if (Number.isFinite(titleMinimum) && titleMinimum > 0) {
+          // Flexible labels can ellipsize so their text does not evict controls.
+          required += Math.min(child.scrollWidth, titleMinimum);
           continue;
         }
         measured.push([child, child.getAttribute('style')]);
@@ -57,14 +58,27 @@ export function useToolbarOverflow(
     const root = getRoot();
     if (!root) return;
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(schedule);
-    observer?.observe(root);
+    const observeToolbarParts = () => {
+      if (!observer) return;
+      observer.disconnect();
+      observer.observe(root);
+      for (const element of Array.from(root.querySelectorAll<HTMLElement>('*'))) {
+        observer.observe(element);
+      }
+    };
+    observeToolbarParts();
     const mutations = new MutationObserver(schedule);
     mutations.observe(root, { childList: true, subtree: true, characterData: true });
+    const refreshObservation = new MutationObserver(() => observeToolbarParts());
+    refreshObservation.observe(root, { childList: true, subtree: true });
     window.addEventListener('resize', schedule);
     document.fonts?.ready.then(schedule);
+    document.fonts?.addEventListener('loadingdone', schedule);
     schedule();
     onCleanup(() => {
-      observer?.disconnect(); mutations.disconnect(); window.removeEventListener('resize', schedule);
+      observer?.disconnect(); mutations.disconnect(); refreshObservation.disconnect();
+      window.removeEventListener('resize', schedule);
+      document.fonts?.removeEventListener('loadingdone', schedule);
       if (frame !== undefined) cancelAnimationFrame(frame);
     });
   });

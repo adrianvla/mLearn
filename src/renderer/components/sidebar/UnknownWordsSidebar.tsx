@@ -238,25 +238,22 @@ const UnknownWordRow: Component<{
           )}
         </Show>
       </div>
-      <details class="unknown-words-item-management">
-        <summary>{t('mlearn.Sidebar.SaveOrExclude')}</summary>
-        <div class="unknown-words-item-pills">
-          <Button buttonType="pill"
-            variant="gray"
-            label={t('mlearn.Sidebar.ExcludeFromStudy')}
-            onClick={() => props.onIgnoreWord(props.entry)}
-            disabled={props.isIgnored}
-          />
-          <ResourcePill
-            word={props.entry.word}
-            language={settings.language}
-            isAdding={props.isAdding}
-            isInAnki={isInAnki()}
-            ankiWord={ankiMatch()?.word ?? primaryWord()}
-            onAdd={() => props.onAddWord(props.entry)}
-          />
-        </div>
-      </details>
+      <div class="unknown-words-item-actions">
+        <Button buttonType="pill"
+          variant="gray"
+          label={t('mlearn.Sidebar.ExcludeFromStudy')}
+          onClick={() => props.onIgnoreWord(props.entry)}
+          disabled={props.isIgnored}
+        />
+        <ResourcePill
+          word={props.entry.word}
+          language={settings.language}
+          isAdding={props.isAdding}
+          isInAnki={isInAnki()}
+          ankiWord={ankiMatch()?.word ?? primaryWord()}
+          onAdd={() => props.onAddWord(props.entry)}
+        />
+      </div>
     </article>
   );
 };
@@ -454,17 +451,16 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
               </Show>
             </div>
           </div>
-          <p class="unknown-words-sidebar-guidance">{t('mlearn.Sidebar.InspectionHint')}</p>
           <Show when={props.onPracticeWords}>
             <Button variant="primary" size="sm"
               label={t('mlearn.Product.Practise')}
               disabled={visibleWords().length === 0}
               onClick={() => props.onPracticeWords?.(visibleWords())} />
           </Show>
-          <details class="unknown-words-sidebar-tools">
-            <summary>{t('mlearn.Sidebar.FilterAndSave')}</summary>
+          <div class="unknown-words-sidebar-tools">
             <Select
               class="unknown-words-sort-select"
+              aria-label={t('mlearn.Sidebar.FilterAndSave')}
               value={sortKey()}
               onChange={(e) => setSortKey(e.currentTarget.value)}
               options={props.sortOptions()}
@@ -503,7 +499,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
                 disabled={props.isAddingAll() || visibleAddableEntries().length === 0}
               />
             </div>
-          </details>
+          </div>
         </div>
       </CollapsibleStickyHeader>
       <Show

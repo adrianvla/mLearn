@@ -35,9 +35,10 @@ describe('ReaderNav', () => {
     document.body.appendChild(host);
     const openFolder = vi.fn();
     const openPdf = vi.fn();
+    const longTitle = 'A Very Long Series Name, Volume 12: The Reader Keeps the Full Accessible Book Title Without Losing Its Page and View Controls';
     const dispose = render(() => <ReaderNav
       hasPages={() => true}
-      bookTitle={() => 'A book'}
+      bookTitle={() => longTitle}
       progressString={() => '2/3'}
       fitMode={() => 'fit-height'}
       pageMode={() => 'single'}
@@ -61,6 +62,12 @@ describe('ReaderNav', () => {
 
     expect(host.querySelector('details.reader-nav-options > summary')?.textContent).toBe('View options');
     expect(host.querySelector('details.reader-nav-options')).not.toBeNull();
+    expect(host.querySelector<HTMLDetailsElement>('details.reader-nav-options')?.open).toBe(true);
+    const title = host.querySelector<HTMLElement>('.reader-nav-title');
+    expect(title?.getAttribute('title')).toBe(longTitle);
+    expect(title?.getAttribute('aria-label')).toBe(longTitle);
+    expect(title?.textContent).toBe(longTitle);
+    expect(title?.dataset.toolbarMinWidth).toBe('96');
     const buttons = Array.from(host.querySelectorAll('button'));
     const imageFolderButton = buttons.find(button => button.textContent === 'Open Image Folder');
     const pdfButton = buttons.find(button => button.textContent === 'Open PDF/EPUB');

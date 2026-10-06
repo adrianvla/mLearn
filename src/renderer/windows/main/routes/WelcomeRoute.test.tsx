@@ -1,22 +1,30 @@
 // @vitest-environment happy-dom
-import { type JSX } from 'solid-js';
+import { Show, type JSX } from 'solid-js';
 import { render } from 'solid-js/web';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RecentItem } from '../../../services/thumbnailService';
 const fixture = vi.hoisted(() => ({ navigate: vi.fn(), openWindow: vi.fn(), recent: [] as RecentItem[],
+  language: 'future', updateSetting: vi.fn(), toast: vi.fn(),
   grammarResume: null as { context: { activity: string; patterns: string[] } } | null,
   review: undefined as { id: string } | undefined,
   presentation: undefined as { id: string; cardId: string } | undefined,
 }));
 vi.mock('../applicationHost', () => ({ useApplicationNavigate: () => fixture.navigate }));
 vi.mock('../../../context', () => ({
-  useSettings: () => ({ settings: { language: 'future', uiLanguage: 'en' } }),
+  useSettings: () => ({ settings: { language: fixture.language, uiLanguage: 'en' }, updateSetting: fixture.updateSetting }),
   useLocalization: () => ({ t: (key: string) => key }),
-  useLanguage: () => ({ currentLangData: () => ({ name: 'Future language', flagEmoji: 'package-flag' }) }),
+  useLanguage: () => ({
+    currentLangData: () => ({ name: 'Future language', flagEmoji: 'package-flag' }),
+    langData: { future: { name: 'Future language' }, de: { name: 'German', name_translated: 'Deutsch' } },
+    supportedLanguages: () => ['future', 'de'],
+    languageDataCatalog: () => [{ language: 'future', compatible: true }, { language: 'de', compatible: true }],
+    getLanguageDataStatus: () => undefined,
+  }),
   useFlashcards: () => ({ store: { flashcards: { card: { language: 'future' } }, meta: { reviewSessions: { future: fixture.review }, reviewPresentations: { future: fixture.presentation } } } }),
 }));
 vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ window: { openWindow: fixture.openWindow } }) }));
 vi.mock('../../../services/thumbnailService', () => ({ getRecentItems: async () => fixture.recent }));
+vi.mock('../../../components/common/Feedback/Toast', () => ({ showToast: fixture.toast }));
 vi.mock('./homeGrammarResume', () => ({ homeGrammarResume: () => fixture.grammarResume }));
 vi.mock('./homePracticeResume', () => ({ homePracticeResume: () => null }));
 vi.mock('../../../../shared/reviewSession', () => ({ reviewSessionHasAvailableCards: () => true }));
@@ -28,7 +36,19 @@ vi.mock('./components', async () => ({
   WelcomeContinueRow: (await import('./components/WelcomeContinueRow')).WelcomeContinueRow,
 }));
 vi.mock('../../../components/common', () => ({
-  Button: (props: { children?: JSX.Element; onClick?: () => void }) => <button onClick={props.onClick}>{props.children}</button>,
+  Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; class?: string; 'aria-haspopup'?: 'dialog' | 'menu' | 'true' | 'false' | 'listbox' | 'tree' | 'grid' | boolean; 'aria-expanded'?: boolean }) => (
+    <button type="button" class={props.class} aria-haspopup={props['aria-haspopup']} aria-expanded={props['aria-expanded']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
+  ),
+  Select: (props: { value: string; onChange?: (event: Event & { currentTarget: HTMLSelectElement }) => void; options: Array<{ value: string; label: string; disabled?: boolean }> }) => (
+    <select value={props.value} onChange={props.onChange}>
+      {props.options.map(option => <option value={option.value} disabled={option.disabled}>{option.label}</option>)}
+    </select>
+  ),
+  Modal: (props: { isOpen: boolean; title?: JSX.Element | string; children?: JSX.Element; footer?: JSX.Element }) => (
+    <Show when={props.isOpen}>
+      <div role="dialog" aria-label={typeof props.title === 'string' ? props.title : undefined}>{props.children}<footer>{props.footer}</footer></div>
+    </Show>
+  ),
   BookIcon: () => null, VideoIcon: () => null, BotIcon: () => null, TargetIcon: () => null,
   LanguageVariantGate: () => null, LearningGoals: () => <span>no-target-filler</span>,
 }));
@@ -39,12 +59,32 @@ describe('purpose-led Home', () => {
   let dispose: () => void;
   const mount = async () => { dispose = render(() => <WelcomeRoute />, container); await Promise.resolve(); await Promise.resolve(); };
   const open = (title: string) => container.querySelector<HTMLButtonElement>(`button[aria-labelledby="${Array.from(container.querySelectorAll('h3')).find(h => h.textContent === title)?.id}"]`)!.click();
-  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.grammarResume = null; fixture.review = undefined; fixture.presentation = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
+  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.language = 'future'; fixture.grammarResume = null; fixture.review = undefined; fixture.presentation = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
   afterEach(() => { dispose?.(); container.remove(); });
-  it('retains the installed package badge and accessible language text', async () => {
-    await mount(); expect(container.querySelector('.welcome-language-flag')?.textContent).toBe('package-flag');
-    expect(container.querySelector('.welcome-subtitle')?.textContent).toContain('mlearn.Home.UI.LearningLanguage');
-    expect(container.querySelector('.welcome-language-flag')?.getAttribute('aria-hidden')).toBe('true');
+  it('shows the current learning language as an accessible quick-switch action', async () => {
+    await mount();
+    expect(container.querySelector('.welcome-language-switch')?.tagName).toBe('BUTTON');
+    expect(container.querySelector('.welcome-language-switch')?.textContent).toContain('mlearn.Home.UI.LearningLanguage');
+    expect(container.querySelector('.welcome-language-switch')?.getAttribute('aria-haspopup')).toBe('dialog');
+  });
+  it('opens a keyboard-accessible language switcher and leaves settings unchanged when cancelled', async () => {
+    await mount();
+    const switcher = container.querySelector<HTMLButtonElement>('.welcome-language-switch');
+    expect(switcher?.getAttribute('aria-haspopup')).toBe('dialog');
+    switcher!.click();
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.Cancel')!.click();
+    expect(fixture.updateSetting).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+  it('applies a selected learning language through the shared settings updater', async () => {
+    await mount();
+    container.querySelector<HTMLButtonElement>('.welcome-language-switch')!.click();
+    const select = container.querySelector<HTMLSelectElement>('select')!;
+    select.value = 'de';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(fixture.updateSetting).toHaveBeenCalledWith('language', 'de');
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
   it('keeps five recognizable activities with no raw next-answer recommendation', async () => {
     await mount();
@@ -124,5 +164,12 @@ describe('purpose-led Home', () => {
     sessionStorage.setItem('mlearn_open_video_subtitles', 'other');
     fixture.recent = [{ type: 'video', name: 'Film', path: '/film.mp4', progress: 0, lastWatched: 1 }]; await mount();
     container.querySelector<HTMLButtonElement>('.wfv-play')!.click(); expect(sessionStorage.getItem('mlearn_open_video_subtitles')).toBeNull();
+  });
+  it('recovers from a recent item without a usable path through the existing open flow', async () => {
+    fixture.recent = [{ type: 'book', name: 'Unavailable book', path: ' ', progress: 15, lastWatched: 1 }];
+    await mount();
+    container.querySelector<HTMLButtonElement>('.welcome-recent-list .welcome-continue-main')!.click();
+    expect(fixture.toast).toHaveBeenCalledWith({ message: 'mlearn.Home.Errors.UnableToOpen', variant: 'error' });
+    expect(fixture.navigate).toHaveBeenCalledWith('/reader');
   });
 });

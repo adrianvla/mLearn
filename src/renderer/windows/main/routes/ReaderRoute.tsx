@@ -37,6 +37,7 @@ import { epubToContentPages, isEpubFile, type EpubContent, type EpubReadingSpan 
 import { captureBlobThumbnail, getRecentProgressPercent, saveToRecentItems } from '../../../services/thumbnailService';
 import { captureReaderImageForOccurrence } from '../../../services/flashcardImageCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
+import { readerBookDisplayTitle } from '../../../utils/readerDisplayTitle';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
 import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../../utils/levelPercentages';
@@ -709,6 +710,7 @@ export const ReaderRoute: Component = () => {
   const showWordSidebar = () => settings.rightSidebarOpen ?? DEFAULT_SETTINGS.rightSidebarOpen;
   const setShowWordSidebar = (open: boolean) => updateSettings({ rightSidebarOpen: open });
   const [bookTitle, setBookTitle] = createSignal('');
+  const [bookDisplayTitle, setBookDisplayTitle] = createSignal('');
   const [ocrStatus, setOcrStatus] = createSignal('');
   const [bookLoadError, setBookLoadError] = createSignal<'open-failed' | 'no-images' | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -2136,6 +2138,7 @@ export const ReaderRoute: Component = () => {
       progressionDirection?: BookProgressionDirection;
       declaresVertical?: boolean;
       epubBlobUrls?: string[];
+      displayTitle?: string;
     },
   ) => {
     // invariant: URLs are created fresh per load into a LOCAL array and handed to commitLoadedPages; the previous generation is revoked only as its replacement is adopted — no live page ever references a dead URL.
@@ -2152,6 +2155,7 @@ export const ReaderRoute: Component = () => {
       setOcrBatchTotal(imagePageCount);
       setOcrCompletedIds(new Set<string>());
       setBookTitle(options.title);
+      setBookDisplayTitle(options.displayTitle ?? options.title);
       setCurrentBookId(options.bookId);
       setCurrentBookPath(options.path);
       setCurrentBookFormat(options.format);
@@ -2169,18 +2173,22 @@ export const ReaderRoute: Component = () => {
     const title = bookId || t('mlearn.Reader.Status.PdfDocument');
     const savedPageIndex = await loadSavedPageIndex(bookId);
     let newPages: PageImage[];
+    let documentTitle: string | undefined;
     let coverBlob: Blob | undefined;
     let textSourcePagesForBook: ReaderSourcePage[] | null = null;
 
     if (useOcr) {
       const pdfImages = await pdfToImages(file);
       newPages = imagePagesFromPdfImages(pdfImages);
+      documentTitle = pdfImages[0]?.documentTitle;
       coverBlob = newPages[0]?.blob;
     } else {
       const textPages = await pdfToTextPages(file);
+      documentTitle = textPages[0]?.documentTitle;
       if (textPages.length === 0) {
         const pdfImages = await pdfToImages(file);
         newPages = imagePagesFromPdfImages(pdfImages);
+        documentTitle = pdfImages[0]?.documentTitle;
         coverBlob = newPages[0]?.blob;
       } else {
         textSourcePagesForBook = textPages;
@@ -2194,6 +2202,7 @@ export const ReaderRoute: Component = () => {
     commitLoadedPages(newPages, {
       bookId,
       title,
+      displayTitle: readerBookDisplayTitle(documentTitle, file.name, langCtx.supportedLanguages()),
       path,
       format: 'pdf',
       startPage,
@@ -2219,6 +2228,7 @@ export const ReaderRoute: Component = () => {
     commitLoadedPages(prepared.pages, {
       bookId,
       title,
+      displayTitle: readerBookDisplayTitle(content.metadataTitle, file.name, langCtx.supportedLanguages()),
       path,
       format: 'epub',
       startPage: prepared.startPage,
@@ -2296,7 +2306,15 @@ export const ReaderRoute: Component = () => {
         });
 
         const title = bookId || t('mlearn.Reader.Status.ImportedBook');
-        commitLoadedPages(newPages, { bookId, title, path: bookPath, format: 'images', startPage, coverBlob: newPages[0]?.blob });
+        commitLoadedPages(newPages, {
+          bookId,
+          title,
+          displayTitle: readerBookDisplayTitle(undefined, folderName, langCtx.supportedLanguages()) || title,
+          path: bookPath,
+          format: 'images',
+          startPage,
+          coverBlob: newPages[0]?.blob,
+        });
 
         // Save to recent with the correct path
         saveToRecent(title, 'book', startPage, bookPath, newPages[0]?.blob);
@@ -2360,6 +2378,7 @@ export const ReaderRoute: Component = () => {
         setOcrBatchTotal(newPages.length);
         setOcrCompletedIds(new Set<string>());
         setBookTitle(bookId || t('mlearn.Reader.Status.ImportedBook'));
+        setBookDisplayTitle(readerBookDisplayTitle(undefined, folderName, langCtx.supportedLanguages()) || bookId || t('mlearn.Reader.Status.ImportedBook'));
         setCurrentBookFormat('images');
         setCurrentBookFile(null);
       });
@@ -2763,6 +2782,7 @@ export const ReaderRoute: Component = () => {
     // Determine title: use the folder name (stripped)
     const title = bookId || t('mlearn.Reader.Status.ImportedBook');
     setBookTitle(title);
+    setBookDisplayTitle(readerBookDisplayTitle(undefined, droppedFolderName || files[0].name, langCtx.supportedLanguages()) || title);
     void persistActiveBookPath(bookPath);
     saveToRecent(title, 'book', startPage, bookPath, newPages[0]?.blob);
   };
@@ -3102,7 +3122,7 @@ export const ReaderRoute: Component = () => {
         {/* Navigation Bar */}
         <ReaderNav
             hasPages={hasPages}
-            bookTitle={bookTitle}
+            bookTitle={bookDisplayTitle}
             progressString={progressString}
             fitMode={fitMode}
             pageMode={pageMode}

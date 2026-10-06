@@ -153,6 +153,45 @@ export function formatDateTime(value: Date | number | string, locale?: string): 
   return new Date(value).toLocaleString(locale);
 }
 
+export interface RelativeLastOpened {
+  label: string;
+  title: string;
+}
+
+/**
+ * Relative timestamp for recent material. Older items use a compact absolute
+ * date, while the title always retains the exact localized date and time.
+ * Invalid persisted timestamps are omitted instead of rendering "Invalid Date".
+ */
+export function formatRelativeLastOpened(
+  timestamp: number,
+  locale: string,
+  now = Date.now(),
+): RelativeLastOpened | null {
+  if (!Number.isFinite(timestamp) || !Number.isFinite(now)) return null;
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return null;
+
+  const difference = timestamp - now;
+  const absoluteDifference = Math.abs(difference);
+  const title = formatDateTime(timestamp, locale);
+  if (absoluteDifference >= 30 * DAY) {
+    return { label: formatDateMedium(timestamp, locale), title };
+  }
+
+  const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  if (absoluteDifference < MINUTE) {
+    return { label: relative.format(Math.round(difference / 1000), 'second'), title };
+  }
+  if (absoluteDifference < HOUR) {
+    return { label: relative.format(Math.round(difference / MINUTE), 'minute'), title };
+  }
+  if (absoluteDifference < DAY) {
+    return { label: relative.format(Math.round(difference / HOUR), 'hour'), title };
+  }
+  return { label: relative.format(Math.round(difference / DAY), 'day'), title };
+}
+
 /**
  * Day and month with a short month name — "Mar 14".
  */

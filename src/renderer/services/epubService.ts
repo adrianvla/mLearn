@@ -44,6 +44,8 @@ export interface EpubContent {
   items: EpubContentItem[];
   progressionDirection: EpubProgressionDirection;
   declaresVerticalWriting: boolean;
+  /** Book-level title from package metadata, when the EPUB provides one. */
+  metadataTitle?: string;
   coverImage?: EpubImageRef;
 }
 
@@ -397,7 +399,8 @@ async function epubToContentPagesInner(file: File): Promise<EpubContent> {
 
   const opfDoc = new DOMParser().parseFromString(readZipText(files, rootfilePath), 'application/xml');
   const opfBase = dirname(rootfilePath);
-  const bookTitle = queryText(opfDoc, ['metadata > title', 'dc:title', 'title']) || sourceName;
+  const metadataTitle = queryText(opfDoc, ['metadata > title', 'dc:title', 'title']).trim();
+  const bookTitle = metadataTitle || sourceName;
   const manifest = new Map<string, EpubManifestItem>();
   const manifestByPath = new Map<string, EpubManifestItem>();
   for (const element of Array.from(opfDoc.querySelectorAll('manifest > item'))) {
@@ -462,5 +465,11 @@ async function epubToContentPagesInner(file: File): Promise<EpubContent> {
   items.forEach((item, index) => {
     item.index = index;
   });
-  return { items, progressionDirection, declaresVerticalWriting, ...(coverImage ? { coverImage } : {}) };
+  return {
+    items,
+    progressionDirection,
+    declaresVerticalWriting,
+    ...(metadataTitle ? { metadataTitle } : {}),
+    ...(coverImage ? { coverImage } : {}),
+  };
 }

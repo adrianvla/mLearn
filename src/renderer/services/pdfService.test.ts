@@ -19,6 +19,7 @@ function makeMockPage(width = 100, height = 200) {
   return {
     getViewport: vi.fn().mockReturnValue({ width, height }),
     render: vi.fn().mockReturnValue({ promise: Promise.resolve() }),
+    getTextContent: vi.fn().mockResolvedValue({ items: [{ str: 'PDF text', hasEOL: true }] }),
   };
 }
 
@@ -26,6 +27,7 @@ function setupMockPdf(pages: ReturnType<typeof makeMockPage>[]) {
   const mockPdf = {
     numPages: pages.length,
     getPage: vi.fn().mockImplementation(async (i: number) => pages[i - 1]),
+    getMetadata: vi.fn().mockResolvedValue({ info: { Title: 'Trusted PDF title' } }),
     cleanup: vi.fn(),
   };
   mockGetDocument.mockReturnValue({ promise: Promise.resolve(mockPdf) });
@@ -121,6 +123,19 @@ describe('pdfService', () => {
   });
 
   describe('pdfToImages', () => {
+    it('carries trusted PDF metadata title in image and text page results', async () => {
+      const { pdfToImages, pdfToTextPages } = await import('./pdfService');
+      setupCanvas();
+      setupMockPdf([makeMockPage()]);
+      const file = new File(['%PDF'], 'hash_1234567890abcdef.pdf', { type: 'application/pdf' });
+      const images = await pdfToImages(file);
+      expect(images[0].documentTitle).toBe('Trusted PDF title');
+
+      setupMockPdf([makeMockPage()]);
+      const textPages = await pdfToTextPages(file);
+      expect(textPages[0].documentTitle).toBe('Trusted PDF title');
+    });
+
     it('returns one PageImage per page', async () => {
       const { pdfToImages } = await import('./pdfService');
       setupCanvas();

@@ -2,11 +2,13 @@ import { type Component, createEffect, createMemo, createSignal, onMount, onClea
 import { useApplicationNavigate } from '../applicationHost';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
-import { Button, BookIcon, VideoIcon, BotIcon, TargetIcon, LanguageVariantGate, LearningGoals } from '../../../components/common';
+import { Button, BookIcon, VideoIcon, BotIcon, TargetIcon, LanguageVariantGate, LearningGoals, Modal, Select } from '../../../components/common';
 import AppLogo from '../../../components/common/Misc/AppLogo';
 import { WelcomeFeatureCard, WelcomeReaderPreview, WelcomeVideoPreview, WelcomeContinueRow } from './components';
 import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
-import { getLocalizedLanguageName } from '../../../utils/languageDisplayName';
+import { getBilingualLanguageName, getLocalizedLanguageName } from '../../../utils/languageDisplayName';
+import { canonicalLanguage } from '../../../../shared/languageVariants';
+import { formatRelativeLastOpened } from '../../../utils/timeFormatting';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { homeGrammarResume } from './homeGrammarResume';
 import { homePracticeResume } from './homePracticeResume';
@@ -21,10 +23,11 @@ const log = getLogger('renderer.welcome');
 /** Home opens identifiable activities. Selection and mutation belong to the task workspace. */
 export const WelcomeRoute: Component = () => {
   const navigate = useApplicationNavigate();
-  const { settings } = useSettings();
+  const { settings, updateSetting } = useSettings();
   const { t } = useLocalization();
   const language = useLanguage();
   const flashcards = useFlashcards();
+  const [languagePickerOpen, setLanguagePickerOpen] = createSignal(false);
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
   const [grammarResume, setGrammarResume] = createSignal<ReturnType<typeof homeGrammarResume>>(null);
   const [practiceResume, setPracticeResume] = createSignal<ReturnType<typeof homePracticeResume>>(null);
@@ -58,6 +61,40 @@ export const WelcomeRoute: Component = () => {
     return card && !card.buried && !card.suspended && (card.language || settings.language) === settings.language ? { id: presentation!.id } : undefined;
   });
   const recent = (type: RecentItem['type']) => recentItems().find(item => item.type === type) ?? null;
+  const languageOptions = createMemo(() => {
+    const catalogCodes = language.languageDataCatalog().map(status => status.language);
+    const codes = [...new Set([...catalogCodes, ...language.supportedLanguages()]
+      .filter(Boolean).map(code => canonicalLanguage(code, language.langData)))];
+    return codes.map(code => {
+      const status = language.getLanguageDataStatus(code);
+      const nativeName = language.langData[code]?.name_translated ?? status?.nameTranslated ?? status?.name;
+      const name = getBilingualLanguageName(
+        code,
+        language.langData[code],
+        t,
+        settings.uiLanguage,
+        nativeName ?? code.toUpperCase(),
+        nativeName,
+      );
+      const label = status && !status.compatible
+        ? `${name} — ${t('mlearn.Settings.Language.LanguageData.RequiresAppVersion', { version: status.minimumAppVersion ?? '' })}`
+        : name;
+      return {
+        value: code,
+        label,
+        disabled: !settings.devMode && status?.compatible === false && code !== settings.language,
+      };
+    });
+  });
+  const openLanguagePicker = () => {
+    setLanguagePickerOpen(true);
+  };
+  const closeLanguagePicker = () => setLanguagePickerOpen(false);
+  const selectLanguage = (event: Event & { currentTarget: HTMLSelectElement }) => {
+    const selectedLanguage = event.currentTarget.value;
+    if (selectedLanguage !== settings.language) updateSetting('language', selectedLanguage);
+    closeLanguagePicker();
+  };
   const openRecent = (item: RecentItem) => {
     const route = item.type === 'video' ? '/video' : '/reader';
     if (!item.path?.trim()) { showToast({ message: t('mlearn.Home.Errors.UnableToOpen'), variant: 'error' }); navigate(route); return; }
@@ -72,13 +109,22 @@ export const WelcomeRoute: Component = () => {
   const resumeReview = () => getBridge().window.openWindow({ type: 'flashcards', context: {
     activity: 'review', intent: 'resume', sessionId: savedReview()?.id, returnTo: 'home',
   } });
+  const currentLanguageName = () => getLocalizedLanguageName(settings.language,
+    language.currentLangData(), t, t('mlearn.Common.Status.Unknown'), settings.uiLanguage);
   return <main class="welcome-container">
     <LanguageVariantGate />
     <div class="welcome-page">
       <header class="welcome-header">
         <div class="welcome-logo"><AppLogo size="1.75rem" /><h1>{t('mlearn.Global.AppName')}</h1></div>
-        <span class="welcome-subtitle"><Show when={language.currentLangData()?.flagEmoji}>{flag => <span class="welcome-language-flag" aria-hidden="true">{flag()}</span>}</Show>{t('mlearn.Home.UI.LearningLanguage', { language: getLocalizedLanguageName(settings.language,
-          language.currentLangData(), t, t('mlearn.Common.Status.Unknown'), settings.uiLanguage) })}</span>
+        <Button
+          variant="ghost"
+          class="welcome-subtitle welcome-language-switch"
+          aria-haspopup="dialog"
+          aria-expanded={languagePickerOpen()}
+          onClick={openLanguagePicker}
+        >
+          {t('mlearn.Home.UI.LearningLanguage', { language: currentLanguageName() })}
+        </Button>
       </header>
       <Show when={targetScope().selected}><LearningGoals compact onEdit={() => navigate('/plan')} /></Show>
       <div class="welcome-feature-grid">
@@ -112,7 +158,7 @@ export const WelcomeRoute: Component = () => {
           <div class="welcome-recent-list">
             <For each={recentItems()}>{item => <WelcomeContinueRow item={item}
               continueLabel={t('mlearn.Global.Continue')}
-              lastWatchedLabel={Number.isFinite(item.lastWatched) ? new Date(item.lastWatched).toLocaleDateString(settings.uiLanguage) : ''}
+              lastOpened={formatRelativeLastOpened(item.lastWatched, settings.uiLanguage)}
               onContinue={openRecent} />}</For>
           </div>
         </section>
@@ -124,5 +170,22 @@ export const WelcomeRoute: Component = () => {
         <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>{t('mlearn.Settings.UI.Title')}</Button>
       </footer>
     </div>
+    <Modal
+      isOpen={languagePickerOpen()}
+      onClose={closeLanguagePicker}
+      title={t('mlearn.Settings.Language.LearningLanguage.Label')}
+      panelClass="welcome-language-picker"
+      footer={<div class="welcome-language-picker-actions">
+        <Button variant="ghost" onClick={closeLanguagePicker}>{t('mlearn.Global.Cancel')}</Button>
+      </div>}
+    >
+      <Select
+        class="welcome-language-picker-select"
+        aria-label={t('mlearn.Settings.Language.LearningLanguage.Label')}
+        value={settings.language}
+        onChange={selectLanguage}
+        options={languageOptions()}
+      />
+    </Modal>
   </main>;
 };

@@ -34,7 +34,7 @@ describe('WelcomeContinueRow', () => {
         <WelcomeContinueRow
           item={item}
           continueLabel="Continue"
-          lastWatchedLabel="yesterday"
+          lastOpened={{ label: 'yesterday', title: 'October 6, 2026, 12:00 PM' }}
           onContinue={onContinue}
         />
       ),
@@ -43,6 +43,7 @@ describe('WelcomeContinueRow', () => {
 
     expect(container.querySelector('.welcome-continue-title')?.textContent).toBe('Clip');
     expect(container.querySelector('.welcome-continue-meta')?.textContent).toBe('yesterday');
+    expect(container.querySelector('.welcome-continue-meta')?.getAttribute('title')).toBe('October 6, 2026, 12:00 PM');
     expect(container.querySelector('.welcome-continue-pct')?.textContent).toBe('40%');
     expect(container.querySelector<HTMLProgressElement>('progress.welcome-continue-progress')?.value).toBe(40);
 
@@ -51,6 +52,8 @@ describe('WelcomeContinueRow', () => {
 
     expect(container.querySelectorAll('button')).toHaveLength(1);
     expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Clip, Continue');
+    expect(container.querySelector('.welcome-continue-action-label')).toBeNull();
+    expect(container.querySelector('button')?.textContent).not.toContain('Continue');
     expect(onContinue).toHaveBeenCalledTimes(1);
 
     dispose();
@@ -62,7 +65,7 @@ describe('WelcomeContinueRow', () => {
         <WelcomeContinueRow
           item={makeItem({ thumbnail: 'data:image/png;base64,AAAA' })}
           continueLabel="Continue"
-          lastWatchedLabel="yesterday"
+          lastOpened={{ label: 'yesterday', title: 'October 6, 2026, 12:00 PM' }}
           onContinue={() => {}}
         />
       ),
@@ -82,7 +85,7 @@ describe('WelcomeContinueRow', () => {
         <WelcomeContinueRow
           item={makeItem({ type: 'book', name: 'Book' })}
           continueLabel="Continue"
-          lastWatchedLabel="yesterday"
+          lastOpened={{ label: 'yesterday', title: 'October 6, 2026, 12:00 PM' }}
           onContinue={() => {}}
         />
       ),

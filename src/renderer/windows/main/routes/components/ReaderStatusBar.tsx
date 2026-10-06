@@ -284,7 +284,7 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
             <BatteryLowIcon size={14} />
           </button>
         </Show>
-        <div class="ocr-section">
+        <div class="ocr-section" data-toolbar-min-width="64">
         <span class={`statusbar-text ${displayStatus() !== t('mlearn.Reader.StatusBar.Ready') ? 'active' : ''}`}>
           {displayStatus()}
         </span>

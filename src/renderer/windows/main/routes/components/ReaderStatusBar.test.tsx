@@ -103,6 +103,7 @@ describe('ReaderStatusBar reading annotation controls', () => {
     expect(container.textContent).toContain('OCR reading filter: On');
     expect(container.textContent).not.toContain('Furigana');
     expect(container.querySelector('details.reader-status-tools > summary')?.textContent).toBe('More tools');
+    expect(container.querySelector<HTMLDetailsElement>('details.reader-status-tools')?.open).toBe(true);
     expect(container.querySelector('details.reader-status-tools .statusbar-toggle')?.textContent).toBe('Crop: Off');
 
     dispose();

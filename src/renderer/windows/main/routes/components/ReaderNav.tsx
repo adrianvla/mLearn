@@ -74,7 +74,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         </Button>
       </div>
       <Show when={props.hasPages()}>
-        <div class="nav-group reader-nav-title">
+        <div class="nav-group reader-nav-title" data-toolbar-min-width="96" role="group" aria-label={props.bookTitle()} title={props.bookTitle()}>
             <Tag class="book-title-nav label-secondary" headless size={"sm"}>{props.bookTitle()}</Tag>
         </div>
       

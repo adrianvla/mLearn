@@ -42,6 +42,12 @@ function makeEpub({ ppd, chapters, images = [], coverEpub3Href, coverEpub2Id }: 
 }
 
 describe('epubService', () => {
+  it('exposes trusted package metadata separately from the source filename', async () => {
+    const content = await epubToContentPages(makeEpub({ chapters: [{ href: 'chapter.xhtml', html: '<html><body><p>Text</p></body></html>' }] }));
+    expect(content.metadataTitle).toBe('Test Book');
+    expect(content.items[0]?.source).toBe('book');
+  });
+
   it('detects EPUB files', () => {
     expect(isEpubFile(new File([], 'novel.epub'))).toBe(true);
     expect(isEpubFile(new File([], 'novel.pdf', { type: 'application/pdf' }))).toBe(false);

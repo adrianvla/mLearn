@@ -4,10 +4,14 @@
 .welcome-header { justify-content: space-between; margin-bottom: var(--spacing-5); flex-wrap: wrap; -webkit-app-region: drag; }
 .welcome-logo h1 { margin: 0; font-size: var(--font-size-xl); }
 .welcome-subtitle { color: var(--text-secondary); font-size: var(--font-size-sm); }
+.welcome-language-switch { -webkit-app-region: no-drag; text-align: start; }
+.welcome-language-switch:hover { color: var(--text-primary); }
+.welcome-language-switch:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.welcome-language-picker-select { width: 100%; }
+.welcome-language-picker-actions { display: flex; justify-content: flex-end; gap: var(--spacing-2); }
 .welcome-feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-5); margin-top: var(--spacing-5); }
 .welcome-resume-actions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
 @media (max-width: 950px) { .welcome-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 550px) { .welcome-feature-grid { grid-template-columns: 1fr; } .welcome-container { padding: var(--spacing-4); } }
 
-.welcome-language-flag { margin-inline-end: var(--spacing-2); font-size: var(--font-size-lg); }
 .welcome-secondary-actions { display: flex; gap: var(--spacing-3); flex-wrap: wrap; margin-top: var(--spacing-5); }
