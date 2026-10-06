@@ -3,7 +3,7 @@
  * Displays the current subtitle with interactive words
  */
 
-import { Component, JSX, Show, For, createSignal, createMemo, createEffect, onCleanup } from 'solid-js';
+import { Component, JSX, Show, For, createSignal, createMemo, createEffect, onCleanup, onMount } from 'solid-js';
 import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationResponse } from '../../../shared/types';
 import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { tokenLookupContext } from '../../hooks/useTranslation';
@@ -20,6 +20,7 @@ import { sanitizeHtml } from '../../utils/sanitizeHtml';
 import { getLanguageCssDirection, getSubtitleFontFamily, getTokenJoinSeparator } from '../../../shared/languageFeatures';
 import { detectGrammarOccurrences, type GrammarOccurrence } from '../../../shared/grammar/occurrences';
 import { createGrammarEncounterRecorder, journalGrammarEncounters } from '../../../shared/grammar/encounters';
+import { hasUsefulWordHoverContent } from './wordHoverHelpers';
 import './SubtitleContainer.css';
 import { getLogger } from '../../../shared/utils/logger';
 
@@ -55,7 +56,15 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const { settings } = useSettings();
   const { isTokenTranslatable, detectGrammarInText, supportsGrammar, getCanonicalForm, getWordVariants, getReadingVariants, currentLangData, getLanguageFeatures } = useLanguage();
   const flashcardCtx = useFlashcards();
-  const { hoverData, isVisible, showHover, hideHover, cancelHide, forceHide } = useWordHover();
+  const [windowFocused, setWindowFocused] = createSignal(typeof document === 'undefined' || document.hasFocus());
+  const [windowVisible, setWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
+  const { hoverData, isVisible, showHover, hideHover, cancelHide, forceHide, admitVisibleReveal, isCurrentHover } = useWordHover({
+    onDismiss: (data) => {
+      if (data.lookupWord && data.language) {
+        flashcardCtx.cancelWordHover(data.lookupWord, data.language);
+      }
+    },
+  });
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { lookup } = useDictionary({ language: settings.language, ...lookupOptions });
@@ -80,6 +89,27 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   // Hardcore Mode: subtitles hidden by default, peek while the mouse is over the subtitle area
   const hardcoreMode = () => settings.hardcoreMode === true;
   const [hardcorePeek, setHardcorePeek] = createSignal(false);
+
+  onMount(() => {
+    const handleFocus = () => setWindowFocused(true);
+    const handleBlur = () => {
+      setWindowFocused(false);
+      forceHide();
+    };
+    const handleVisibilityChange = () => {
+      const visible = document.visibilityState === 'visible';
+      setWindowVisible(visible);
+      if (!visible) forceHide();
+    };
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    onCleanup(() => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    });
+  });
 
   // Initialize deep link bridge for mlearn://lookup
   const cleanupBridgeLookup = initWordLookupBridge();
@@ -117,13 +147,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       return;
     }
 
-    // Track hover (signals potential unknown word, debounced in FlashcardContext).
-    // Gated on knowledge readiness: writing passive evidence into the
-    // pre-hydration store would be discarded by the incoming reconcile.
     const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
-    if (flashcardCtx.isKnowledgeReady()) {
-      flashcardCtx.trackWordHovered(lookupWord, token.reading, settings.language);
-    }
     
     const requestId = ++hoverRequestId;
     const position = {
@@ -143,14 +167,29 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     setIsLoadingDict(false);
     setCurrentHoverToken(token);
     
-    showHover({ 
+    const openedHover = {
       word: displayWord,
       token, 
       translation: null,
       position,
       anchorRect: rect,
-      element: el 
-    });
+      element: el,
+      lookupWord,
+      language: settings.language,
+      trackPassiveHover: true,
+    };
+    showHover(openedHover);
+
+    let resolvedTranslation = cachedTranslation;
+    const maybeAdmitUsefulReveal = (response: TranslationResponse | null, entries: DictionaryEntry[]) => {
+      if (!windowFocused() || !windowVisible() || !isCurrentHover(openedHover)) return;
+      if (!hasUsefulWordHoverContent(token, response ?? undefined, entries, currentLangData())) return;
+      admitVisibleReveal((data) => {
+        if (!flashcardCtx.isKnowledgeReady() || !data.lookupWord) return;
+        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? settings.language);
+      });
+    };
+    maybeAdmitUsefulReveal(cachedTranslation, []);
 
     // If not cached, fetch translation
     if (!cachedTranslation) {
@@ -161,8 +200,11 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
         // Check if this request is still current (race condition protection)
         if (requestId !== hoverRequestId) return;
         if (currentHoverToken() !== token) return;
+        if (!isCurrentHover(openedHover)) return;
         
         setTranslationData(translation);
+        resolvedTranslation = translation;
+        maybeAdmitUsefulReveal(resolvedTranslation, dictionaryEntries());
       } catch (e) {
         log.error('Translation failed:', e);
       }
@@ -170,7 +212,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     
     // Live word translator
     {
-      const translation = translationData();
+      const translation = resolvedTranslation ?? translationData();
       const translator = typeof window !== 'undefined' ? window.mLearnLiveTranslator : undefined;
       if (settings.showLiveTranslator !== false && translator && translation) {
         const first = translation?.data?.[0] as { definitions?: string | string[] } | undefined;
@@ -197,7 +239,9 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
         // Check if this request is still current
         if (requestId !== hoverRequestId) return;
         if (currentHoverToken() !== token) return;
+        if (!isCurrentHover(openedHover)) return;
         setDictionaryEntries(entries);
+        maybeAdmitUsefulReveal(resolvedTranslation, entries);
       } catch (e) {
         log.error('Dictionary lookup failed:', e);
         if (requestId !== hoverRequestId) return;
@@ -212,12 +256,6 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   };
 
   const handleWordLeave = () => {
-    // Cancel hover timer for the currently hovered word
-    const token = currentHoverToken();
-    if (token) {
-      const word = getTokenLookupWord(token, tokenizerCapabilities());
-      flashcardCtx.cancelWordHover(word, settings.language);
-    }
     hideHover();
   };
 
@@ -288,6 +326,11 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   // Hide hover popup when subtitles change (words re-render, onMouseLeave never fires)
   createEffect(() => {
     props.tokens; // track token changes reactively
+    forceHide();
+  });
+
+  createEffect(() => {
+    settings.language;
     forceHide();
   });
 

@@ -49,7 +49,7 @@ import {
   getTokenJoinSeparator,
   resolveLanguageContentFontOption,
 } from '../../../../shared/languageFeatures';
-import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
+import { buildWordHoverFlashcardContent, hasUsefulWordHoverContent } from '../../../components/subtitle/wordHoverHelpers';
 import { addAllCapturedWords } from '../../../services/addAllCapturedWords';
 import { resolveCapturedWordEligibility } from '../../../services/wordCaptureEligibility';
 import { reportCaptureFailure } from '../../../services/wordCaptureFailure';
@@ -175,7 +175,7 @@ interface ReaderTextPageProps {
   page: PageImage;
   tokenizeMany: (texts: string[]) => Promise<Token[][]>;
   tokenJoinSeparator: string;
-  onWordHover: (token: Token, rect: DOMRect, contextPhrase: string) => void;
+  onWordHover: (token: Token, rect: DOMRect, contextPhrase: string, element: HTMLElement, trackPassiveHover: boolean) => void;
   onWordLeave: () => void;
   vertical?: boolean;
   onTokenized?: () => void;
@@ -360,9 +360,9 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
                         authoredReading={token.authoredReading}
                         authoredText={token.authoredText}
                         lookupContext={tokenLookupContext(token, bodyText())}
-                        onWordEnter={(hoverToken, event) => {
+                        onWordEnter={(hoverToken, event, trackPassiveHover) => {
                           const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-                          props.onWordHover(hoverToken, rect, bodyText());
+                          props.onWordHover(hoverToken, rect, bodyText(), event.currentTarget as HTMLElement, trackPassiveHover);
                         }}
                         onWordLeave={props.onWordLeave}
                         withReadingAnnotation
@@ -594,7 +594,22 @@ export const ReaderRoute: Component = () => {
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   const { tokenize, tokenizeMany } = useTokenizer({ language: settings.language, languageData: currentLangData });
   const { lookup } = useDictionary({ language: settings.language, ...wordLookupOptions });
-  const { hoverData: ocrHoverData, isVisible: isOcrHoverVisible, showHover: showOcrHover, hideHover: hideOcrHover, cancelHide: cancelOcrHide } = useWordHover();
+  const {
+    hoverData: ocrHoverData,
+    isVisible: isOcrHoverVisible,
+    showHover: showOcrHover,
+    hideHover: hideOcrHover,
+    cancelHide: cancelOcrHide,
+    forceHide: forceHideOcrHover,
+    admitVisibleReveal: admitOcrReveal,
+    isCurrentHover: isCurrentOcrHover,
+  } = useWordHover({
+    onDismiss: (data) => {
+      if (data.trackPassiveHover !== false && data.lookupWord && data.language) {
+        flashcardCtx.cancelWordHover(data.lookupWord, data.language);
+      }
+    },
+  });
   const parseCurrentWorkName = (name: string): string => parseWorkName(name, {
     languageCodes: langCtx.supportedLanguages(),
   });
@@ -832,6 +847,12 @@ export const ReaderRoute: Component = () => {
       setPageTokenGroups(reconcile({}));
       setOcrCompletedIds(new Set<string>());
     });
+  }));
+  createEffect(on(() => [settings.language, currentPage(), currentBookId()] as const, () => {
+    forceHideOcrHover();
+  }));
+  createEffect(on(() => [isWindowFocused(), isWindowVisible()] as const, ([focused, visible]) => {
+    if (!focused || !visible) forceHideOcrHover();
   }));
   const [addingSidebarWords, setAddingSidebarWords] = createSignal<Set<string>>(new Set());
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
@@ -2872,7 +2893,13 @@ export const ReaderRoute: Component = () => {
   const [ocrContextPhrase, setOcrContextPhrase] = createSignal('');
   const [ocrContextMenuPosition, setOcrContextMenuPosition] = createSignal<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  const handleOcrWordHover = async (token: Token, rect: DOMRect, contextPhrase: string = '') => {
+  const handleOcrWordHover = async (
+    token: Token,
+    rect: DOMRect,
+    contextPhrase = '',
+    element: HTMLElement | null = null,
+    trackPassiveHover = true,
+  ) => {
     const requestId = ++ocrHoverRequestId;
     // Use actual_word (dictionary form) for translation lookup, fallback to surface
     const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
@@ -2889,14 +2916,29 @@ export const ReaderRoute: Component = () => {
     setOcrTranslationData(cachedTranslation);
     setOcrDictionaryEntries([]);
 
-    showOcrHover({
+    const openedHover = {
       word: displayWord,
       token,
       translation: null,
       position: { x: rect.left + rect.width / 2, y: rect.top },
       anchorRect: rect,
-      element: null,
-    });
+      element,
+      lookupWord,
+      language: settings.language,
+      trackPassiveHover,
+    };
+    showOcrHover(openedHover);
+
+    let resolvedTranslation = cachedTranslation;
+    const maybeAdmitUsefulReveal = (response: TranslationResponse | null, entries: DictionaryEntry[]) => {
+      if (!trackPassiveHover || !isWindowFocused() || !isWindowVisible() || !isCurrentOcrHover(openedHover)) return;
+      if (!hasUsefulWordHoverContent(token, response ?? undefined, entries, currentLangData())) return;
+      admitOcrReveal((data) => {
+        if (!flashcardCtx.isKnowledgeReady() || !data.lookupWord) return;
+        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? settings.language);
+      });
+    };
+    maybeAdmitUsefulReveal(cachedTranslation, []);
 
     // If not cached, fetch translation
     if (!cachedTranslation) {
@@ -2904,7 +2946,10 @@ export const ReaderRoute: Component = () => {
         // Use dictionary form for translation lookup (handles conjugations like 屈して -> 屈する)
         const translation = await translateWord(lookupWord, tokenLookupContext(token, contextPhrase));
         if (requestId !== ocrHoverRequestId) return;
+        if (!isCurrentOcrHover(openedHover)) return;
         setOcrTranslationData(translation);
+        resolvedTranslation = translation;
+        maybeAdmitUsefulReveal(resolvedTranslation, ocrDictionaryEntries());
       } catch (_e) {
         log.error("error", _e);
         /* ignore */
@@ -2915,10 +2960,13 @@ export const ReaderRoute: Component = () => {
       try {
         const entries = await lookup(lookupWord, token.reading);
         if (requestId !== ocrHoverRequestId) return;
+        if (!isCurrentOcrHover(openedHover)) return;
         setOcrDictionaryEntries(entries);
+        maybeAdmitUsefulReveal(resolvedTranslation, entries);
       } catch (_e) {
         log.error("error", _e);
         if (requestId !== ocrHoverRequestId) return;
+        if (!isCurrentOcrHover(openedHover)) return;
         setOcrDictionaryEntries([]);
       }
     }

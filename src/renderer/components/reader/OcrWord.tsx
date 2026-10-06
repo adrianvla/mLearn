@@ -24,7 +24,7 @@ import './OcrOverlay.css';
 export interface OcrWordProps {
   token: Token;
   lookupContext?: WordLookupContext;
-  onWordEnter?: (token: Token, e: MouseEvent) => void;
+  onWordEnter?: (token: Token, e: MouseEvent, trackPassiveHover: boolean) => void;
   onWordLeave?: () => void;
   /** Disable passive tracking for temporary, untokenized OCR fallback text. */
   trackPassiveHover?: boolean;
@@ -55,6 +55,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   // For key-hover mode: track if key is held and mouse is over word
   const [isMouseOver, setIsMouseOver] = createSignal(false);
   const [isKeyHeld, setIsKeyHeld] = createSignal(false);
+  let hoverWasTriggered = false;
   
   const clearLongHoverTimeout = () => {
     if (longHoverTimeout) {
@@ -64,15 +65,15 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   };
 
   const displayWord = () => props.token.surface ?? props.token.word;
-  const occurrenceToken = () => {
+  const authoredReading = () => props.authoredReading || undefined;
+  const occurrenceToken = createMemo(() => {
     const reading = authoredReading();
     return reading && reading !== props.token.reading ? { ...props.token, reading } : props.token;
-  };
+  });
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   const lookupWord = createMemo(() => (
     getTokenLookupWord(props.token, tokenizerCapabilities()) || displayWord()
   ));
-  const authoredReading = () => props.authoredReading || undefined;
   const authoredText = () => props.authoredText || (authoredReading() ? displayWord() : undefined);
   const hasAuthoredReading = () => Boolean(authoredReading() && authoredText());
   const showReading = () => hasAuthoredReading() || (
@@ -148,28 +149,27 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
   
   // Trigger hover using the stable element reference
   // Creates a synthetic event-like object with the element as currentTarget
-  const triggerHoverFromElement = () => {
-    if (!wordRef) return;
+  const triggerHoverFromElement = (event?: MouseEvent) => {
+    if (!wordRef || !props.onWordEnter || hoverWasTriggered) return;
+    hoverWasTriggered = true;
     // Create a minimal event-like object with currentTarget set to our stable reference
     // We only need currentTarget for getBoundingClientRect() in the handler
     const syntheticEvent = {
       currentTarget: wordRef,
     } as unknown as MouseEvent;
-    props.onWordEnter?.(occurrenceToken(), syntheticEvent);
+    const triggerEvent = event?.currentTarget === wordRef ? event : syntheticEvent;
+    props.onWordEnter(occurrenceToken(), triggerEvent, props.trackPassiveHover !== false);
   };
   
   const handleMouseEnter = (e: MouseEvent) => {
     setIsMouseOver(true);
     
-    if (props.trackPassiveHover !== false && knowledgeReady()) {
-      flashcardCtx.trackWordHovered(lookupWord(), authoredReading() ?? props.token.reading, settings.language);
-    }
     const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     
     switch (triggerMode) {
       case 'hover':
         // Immediate hover - trigger right away using the live event
-        props.onWordEnter?.(occurrenceToken(), e);
+        triggerHoverFromElement(e);
         break;
         
       case 'long-hover':
@@ -185,7 +185,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       case 'key-hover':
         // Key hover - only trigger if key is already held
         if (isKeyHeld()) {
-          props.onWordEnter?.(occurrenceToken(), e);
+          triggerHoverFromElement(e);
         }
         break;
     }
@@ -195,17 +195,14 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     // In key-hover mode with key held, behave like normal hover
     const triggerMode = settings.readerWordHoverTrigger ?? DEFAULT_SETTINGS.readerWordHoverTrigger;
     if (triggerMode === 'key-hover' && isKeyHeld() && isMouseOver()) {
-      props.onWordEnter?.(occurrenceToken(), e);
+      triggerHoverFromElement(e);
     }
   };
   
   const handleMouseLeave = () => {
     setIsMouseOver(false);
     clearLongHoverTimeout();
-    
-    if (props.trackPassiveHover !== false) {
-      flashcardCtx.cancelWordHover(lookupWord(), settings.language);
-    }
+    hoverWasTriggered = false;
 
     props.onWordLeave?.();
   };
@@ -232,6 +229,7 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
     if (matchesKeybind(e, keybind)) {
       setIsKeyHeld(false);
       if (isMouseOver()) {
+        hoverWasTriggered = false;
         props.onWordLeave?.();
       }
     }
@@ -247,7 +245,10 @@ export const OcrWord: Component<OcrWordProps> = (props) => {
       window.removeEventListener('keyup', handleKeyUp);
     });
   });
-  onCleanup(clearLongHoverTimeout);
+  onCleanup(() => {
+    clearLongHoverTimeout();
+    if (hoverWasTriggered) props.onWordLeave?.();
+  });
   
   
   return (

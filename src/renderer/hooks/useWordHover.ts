@@ -14,22 +14,60 @@ export interface HoverData {
   position: { x: number; y: number };
   anchorRect?: DOMRect;
   element: HTMLElement | null;
+  /** Source occurrence that owns this lookup, used for once-per-open admission. */
+  lookupWord?: string;
+  language?: string;
+  trackPassiveHover?: boolean;
+}
+
+export interface WordHoverLifecycle {
+  /** Called when the owning popup actually closes, not when the pointer leaves its source word. */
+  onDismiss?: (data: HoverData) => void;
 }
 
 /**
  * Single hover element manager
  * Instead of creating hover elements for each word, we manage one global hover element
  */
-export function useWordHover() {
+export function useWordHover(lifecycle: WordHoverLifecycle = {}) {
   const [hoverData, setHoverData] = createSignal<HoverData | null>(null);
   const [isVisible, setIsVisible] = createSignal(false);
 
   let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
   let cleanupTimeout: ReturnType<typeof setTimeout> | null = null;
+  let activeHover: HoverData | null = null;
+  let dismissed = true;
+  let admitted = false;
+
+  const sameOccurrence = (left: HoverData, right: HoverData): boolean => (
+    left.element !== null
+    && left.element === right.element
+    && left.token === right.token
+    && left.lookupWord === right.lookupWord
+    && left.language === right.language
+  );
+
+  const dismissActiveHover = () => {
+    if (!activeHover || dismissed) return;
+    dismissed = true;
+    lifecycle.onDismiss?.(activeHover);
+  };
 
   const showHover = (data: HoverData) => {
     if (hoverTimeout) clearTimeout(hoverTimeout);
+    hoverTimeout = null;
     if (cleanupTimeout) clearTimeout(cleanupTimeout);
+
+    const isSameOpen = activeHover !== null && !dismissed && sameOccurrence(activeHover, data);
+    if (!isSameOpen) {
+      dismissActiveHover();
+      activeHover = data;
+      dismissed = false;
+      admitted = false;
+    } else {
+      activeHover = data;
+    }
+
     setHoverData(data);
     setIsVisible(true);
   };
@@ -38,11 +76,14 @@ export function useWordHover() {
     if (hoverTimeout) clearTimeout(hoverTimeout); // Ensure single timer
     
     hoverTimeout = setTimeout(() => {
+      hoverTimeout = null;
       setIsVisible(false);
+      dismissActiveHover();
       // Delay clearing data for smooth transitions
       cleanupTimeout = setTimeout(() => {
         if (!isVisible()) {
           setHoverData(null);
+          activeHover = null;
         }
       }, 200);
     }, 50);
@@ -65,13 +106,28 @@ export function useWordHover() {
     if (cleanupTimeout) clearTimeout(cleanupTimeout);
     hoverTimeout = null;
     cleanupTimeout = null;
+    dismissActiveHover();
+    activeHover = null;
     setIsVisible(false);
     setHoverData(null);
   };
 
+  const admitVisibleReveal = (onAdmit: (data: HoverData) => void): boolean => {
+    if (!activeHover || dismissed || !isVisible() || admitted || activeHover.trackPassiveHover === false) return false;
+    admitted = true;
+    onAdmit(activeHover);
+    return true;
+  };
+
+  const isCurrentHover = (data: HoverData): boolean => (
+    activeHover === data && !dismissed && isVisible() && hoverData() === data
+  );
+
   onCleanup(() => {
     if (hoverTimeout) clearTimeout(hoverTimeout);
     if (cleanupTimeout) clearTimeout(cleanupTimeout);
+    dismissActiveHover();
+    activeHover = null;
   });
 
   return {
@@ -81,6 +137,8 @@ export function useWordHover() {
     hideHover,
     cancelHide,
     forceHide,
+    admitVisibleReveal,
+    isCurrentHover,
   };
 }
 
@@ -124,6 +182,7 @@ export function useWordHoverTarget(
       },
       anchorRect: rect,
       element: target,
+      lookupWord: wordGetter(),
     });
   };
 

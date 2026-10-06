@@ -58,6 +58,19 @@ export function resolveWordHoverContent(
   };
 }
 
+/** True only when the popup can show a reading or definition, not merely a headword shell. */
+export function hasUsefulWordHoverContent(
+  token: Token,
+  translationData: WordHoverTranslationData | undefined,
+  dictionaryEntries: DictionaryEntry[] | undefined,
+  languageData?: LanguageData | null,
+): boolean {
+  const word = token.word ?? token.surface ?? '';
+  const surface = token.surface ?? token.word ?? '';
+  const content = resolveWordHoverContent(token.reading, translationData, dictionaryEntries, languageData, { word, surface });
+  return Boolean(content.reading || content.shortDefinitionHtml || content.dictionaryHtml.some(Boolean));
+}
+
 export interface BuildWordHoverFlashcardContentParams {
   token: Token;
   word: string;

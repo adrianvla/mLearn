@@ -5237,6 +5237,9 @@ describe('FlashcardProvider', () => {
 
     expect(ctx.store.wordKnowledge[lk]?.timesHovered).toBe(3);
     expect(ctx.store.wordKnowledge[lk]?.ease).toBe(SRS.MIN_EASE);
+    expect(ctx.store.wordKnowledge[lk]?.timesSeen).toBe(0);
+    expect(ctx.store.wordKnowledge[lk]?.claim).toBeUndefined();
+    expect(ctx.store.wordKnowledge[lk]?.hasActiveEvidence).not.toBe(true);
     expect(mockAppendEvents).not.toHaveBeenCalled();
 
     mockSettings.passiveHoverFailAction = prevAction;

@@ -4,6 +4,7 @@ import {
   getEaseFromWordStatus,
   extractReadingFromEntries,
   resolveWordHoverContent,
+  hasUsefulWordHoverContent,
   resolveProsodyForHover,
   buildWordHoverFlashcardContent,
 } from './wordHoverHelpers';
@@ -12,7 +13,7 @@ import {
   normalizeDictionaryReading,
 } from '../../utils/readingProsody';
 import { WORD_STATUS } from '../../../shared/constants';
-import type { LanguageData } from '../../../shared/types';
+import type { LanguageData, Token } from '../../../shared/types';
 
 const pinyinLanguage: LanguageData = {
   name: 'Chinese',
@@ -57,6 +58,14 @@ const toneLanguage: LanguageData = {
 };
 
 describe('compact word hover content', () => {
+  it('admits only content the popup can actually show', () => {
+    const token: Token = { word: 'lernen', surface: 'lernt' };
+    expect(hasUsefulWordHoverContent(token, undefined, [])).toBe(false);
+    expect(hasUsefulWordHoverContent(token, { data: [{ definitions: 'to learn' }] }, [])).toBe(true);
+    expect(hasUsefulWordHoverContent(token, undefined, [{ word: 'lernen', reading: 'lernt', meanings: ['to learn'] }])).toBe(true);
+    expect(hasUsefulWordHoverContent({ ...token, word: 'lernen', surface: 'lernen', reading: 'lernen' }, undefined, [])).toBe(true);
+  });
+
   it('keeps the compact gloss and detailed dictionary HTML as separate content', () => {
     expect(resolveWordHoverContent(undefined, {
       data: [

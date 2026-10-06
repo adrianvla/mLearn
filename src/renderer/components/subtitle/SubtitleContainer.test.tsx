@@ -9,6 +9,7 @@ import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import { SubtitleContainer } from './SubtitleContainer';
 import type { CapabilityKey, LanguageData, Token } from '../../../shared/types';
+import type { HoverData } from '../../hooks/useWordHover';
 
 const mockSettings: Record<string, unknown> = {
   showSubtitles: true,
@@ -35,6 +36,7 @@ const mockGetAccessStatus = vi.fn((_word: string, capability: CapabilityKey, lan
 }));
 const mockIsWordSettledSync = vi.fn((word: string, language?: string) => mockIsWordKnownComprehensiveSync(word, language));
 const mockTrackWordSeen = vi.fn();
+const mockTrackWordHovered = vi.fn();
 const mockCancelWordHover = vi.fn();
 const mockSupportsGrammar = vi.fn(() => false);
 const mockTrackGrammarFailed = vi.fn();
@@ -42,6 +44,13 @@ const mockTrackGrammarEncountered = vi.fn();
 const mockTranslateWord = vi.fn().mockResolvedValue({
   data: [{ definitions: ['test definition'], reading: 'test reading' }],
 });
+const mockHoverState: {
+  data: HoverData | null;
+  visible: boolean;
+  admitted: boolean;
+  onDismiss: ((data: HoverData) => void) | null;
+} = { data: null, visible: false, admitted: false, onDismiss: null };
+const mockLookup = vi.fn().mockResolvedValue([]);
 
 vi.mock('../../context', () => ({
   useSettings: () => ({ settings: mockSettings }),
@@ -67,7 +76,7 @@ vi.mock('../../context', () => ({
       timesSeen: 0,
     }),
     getComprehensiveWordStatusSync: () => 'unknown',
-    trackWordHovered: vi.fn(),
+    trackWordHovered: mockTrackWordHovered,
     cancelWordHover: mockCancelWordHover,
     trackWordSeen: mockTrackWordSeen,
     trackGrammarFailed: mockTrackGrammarFailed,
@@ -86,16 +95,36 @@ vi.mock('../../context', () => ({
 const mockForceHide = vi.fn();
 
 vi.mock('../../hooks', () => ({
-  useWordHover: () => ({
-    hoverData: () => null,
-    isVisible: () => false,
-    showHover: vi.fn(),
-    hideHover: vi.fn(),
-    cancelHide: vi.fn(),
-    forceHide: mockForceHide,
-  }),
+  useWordHover: (lifecycle?: { onDismiss?: (data: HoverData) => void }) => {
+    mockHoverState.onDismiss = lifecycle?.onDismiss ?? null;
+    return {
+      hoverData: () => mockHoverState.data,
+      isVisible: () => mockHoverState.visible,
+      showHover: (data: HoverData) => {
+        mockHoverState.data = data;
+        mockHoverState.visible = true;
+        mockHoverState.admitted = false;
+      },
+      hideHover: vi.fn(),
+      cancelHide: vi.fn(),
+      forceHide: (...args: unknown[]) => {
+        mockForceHide(...args);
+        if (mockHoverState.data) mockHoverState.onDismiss?.(mockHoverState.data);
+        mockHoverState.data = null;
+        mockHoverState.visible = false;
+        mockHoverState.admitted = false;
+      },
+      admitVisibleReveal: (onAdmit: (data: HoverData) => void) => {
+        if (!mockHoverState.visible || !mockHoverState.data || mockHoverState.admitted) return false;
+        mockHoverState.admitted = true;
+        onAdmit(mockHoverState.data);
+        return true;
+      },
+      isCurrentHover: (data: HoverData) => mockHoverState.visible && mockHoverState.data === data,
+    };
+  },
   useDictionary: () => ({
-    lookup: vi.fn().mockResolvedValue([]),
+    lookup: mockLookup,
   }),
   useTranslation: () => ({
     translateWord: mockTranslateWord,
@@ -111,18 +140,29 @@ describe('SubtitleContainer', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     container = document.createElement('div');
     document.body.appendChild(container);
     mockSettings.showSubtitles = true;
+    mockSettings.showDictionary = false;
     mockSettings.blur_known_subtitles = false;
     mockSettings.showLiveTranslator = false;
     mockSettings.language = 'ja';
+    mockSettings.readerWordHoverTrigger = 'hover';
+    mockSettings.readerWordHoverKey = 'Alt';
     mockLanguageData = null;
     mockGetCanonicalForm.mockImplementation((word: string) => word);
     mockIsWordKnownComprehensiveSync.mockClear();
     mockGetAccessStatus.mockClear();
     mockTrackWordSeen.mockClear();
+    mockTrackWordHovered.mockClear();
     mockCancelWordHover.mockClear();
+    mockHoverState.data = null;
+    mockHoverState.visible = false;
+    mockHoverState.admitted = false;
+    mockHoverState.onDismiss = null;
+    mockLookup.mockReset();
+    mockLookup.mockResolvedValue([]);
     mockTrackGrammarFailed.mockClear();
     mockTrackGrammarEncountered.mockClear();
     mockSupportsGrammar.mockReturnValue(false);
@@ -134,12 +174,100 @@ describe('SubtitleContainer', () => {
 
   afterEach(() => {
     container.remove();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   const mockTokens: Token[] = [
     { word: 'hello', surface: 'hello', actual_word: 'hello', type: 'noun', partOfSpeech: 'noun' },
     { word: 'world', surface: 'world', actual_word: 'world', type: 'noun', partOfSpeech: 'noun' },
   ];
+
+  it('waits for useful lookup content before starting familiarity tracking', async () => {
+    let resolveTranslation!: (value: { data: Array<{ definitions: string[]; reading: string }> }) => void;
+    mockTranslateWord.mockReturnValueOnce(new Promise((resolve) => { resolveTranslation = resolve; }));
+    const token: Token = { word: 'hello', surface: 'hello', actual_word: 'hello', type: 'noun' };
+    const dispose = render(() => (
+      <SubtitleContainer tokens={[token]} originalText="hello" isLoading={false} />
+    ), container);
+
+    container.querySelector('.subtitle-word')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    expect(mockTrackWordHovered).not.toHaveBeenCalled();
+
+    resolveTranslation({ data: [{ definitions: ['hello: greeting'], reading: '' }] });
+    await vi.waitFor(() => expect(mockTrackWordHovered).toHaveBeenCalledWith('hello', undefined, 'ja'));
+
+    dispose();
+  });
+
+  it('does not admit a useful response after the window blurs', async () => {
+    let resolveTranslation!: (value: { data: Array<{ definitions: string[]; reading: string }> }) => void;
+    mockTranslateWord.mockReturnValueOnce(new Promise((resolve) => { resolveTranslation = resolve; }));
+    const token: Token = { word: 'hello', surface: 'hello', actual_word: 'hello', type: 'noun' };
+    const dispose = render(() => (
+      <SubtitleContainer tokens={[token]} originalText="hello" isLoading={false} />
+    ), container);
+
+    container.querySelector('.subtitle-word')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    window.dispatchEvent(new Event('blur'));
+    resolveTranslation({ data: [{ definitions: ['hello: greeting'], reading: '' }] });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockTrackWordHovered).not.toHaveBeenCalled();
+    dispose();
+  });
+
+  it('does not admit a subtitle long-hover cancelled at 400 ms before the reveal', () => {
+    vi.useFakeTimers();
+    mockSettings.readerWordHoverTrigger = 'long-hover';
+    const token: Token = { word: 'hello', surface: 'hello', actual_word: 'hello', type: 'noun' };
+    const dispose = render(() => (
+      <SubtitleContainer tokens={[token]} originalText="hello" isLoading={false} />
+    ), container);
+
+    const word = container.querySelector('.subtitle-word')!;
+    word.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    vi.advanceTimersByTime(400);
+    word.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    vi.advanceTimersByTime(200);
+
+    expect(mockTrackWordHovered).not.toHaveBeenCalled();
+    expect(mockCancelWordHover).not.toHaveBeenCalled();
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('does not admit key-hover while its key is not held, even past the reveal delay', () => {
+    vi.useFakeTimers();
+    mockSettings.readerWordHoverTrigger = 'key-hover';
+    const token: Token = { word: 'hello', surface: 'hello', actual_word: 'hello', type: 'noun' };
+    const dispose = render(() => (
+      <SubtitleContainer tokens={[token]} originalText="hello" isLoading={false} />
+    ), container);
+
+    container.querySelector('.subtitle-word')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    vi.advanceTimersByTime(700);
+
+    expect(mockTrackWordHovered).not.toHaveBeenCalled();
+    dispose();
+    vi.useRealTimers();
+  });
+
+  it('admits only one familiarity record when translation and dictionary both provide content', async () => {
+    mockSettings.showDictionary = true;
+    mockLookup.mockResolvedValueOnce([{ word: 'hello', reading: '', meanings: ['dictionary meaning'] }]);
+    const token: Token = { word: 'hello', surface: 'hello', actual_word: 'hello', type: 'noun' };
+    const dispose = render(() => (
+      <SubtitleContainer tokens={[token]} originalText="hello" isLoading={false} />
+    ), container);
+
+    container.querySelector('.subtitle-word')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await vi.waitFor(() => expect(mockTrackWordHovered).toHaveBeenCalledOnce());
+
+    expect(mockTrackWordHovered).toHaveBeenCalledWith('hello', undefined, 'ja');
+    dispose();
+  });
 
   it('records only eligible cue encounters and accepts a repeated line at a new cue', () => {
     const [cue, setCue] = createSignal('video:pass1:cue1');
@@ -378,7 +506,7 @@ describe('SubtitleContainer', () => {
     dispose();
   });
 
-  it('cancels hover tracking with the raw lookup word instead of pre-canonicalizing it', () => {
+  it('uses the raw lookup word when the owning hover is dismissed', () => {
     mockGetCanonicalForm.mockImplementation((word: string) => word === 'يكتب' ? 'كتب' : word);
     const arabicTokens: Token[] = [
       { word: 'يكتب', surface: 'يكتب', actual_word: 'يكتب', type: 'noun', partOfSpeech: 'noun' },
@@ -400,6 +528,8 @@ describe('SubtitleContainer', () => {
 
     wordEl!.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     wordEl!.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    expect(mockCancelWordHover).not.toHaveBeenCalled();
+    mockHoverState.onDismiss?.(mockHoverState.data!);
 
     expect(mockCancelWordHover).toHaveBeenCalledWith('يكتب', 'ja');
     dispose();

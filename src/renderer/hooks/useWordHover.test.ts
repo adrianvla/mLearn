@@ -257,3 +257,88 @@ describe('useWordHoverTarget', () => {
     });
   });
 });
+
+describe('useWordHover lookup admission lifecycle', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('admits once across source-to-popup transit and dismisses only when the popup closes', () => {
+    const source = document.createElement('span');
+    const onDismiss = vi.fn();
+    const onAdmit = vi.fn();
+    let hover!: ReturnType<typeof useWordHover>;
+    let dispose!: () => void;
+    createRoot((disposeRoot) => {
+      hover = useWordHover({ onDismiss });
+      dispose = disposeRoot;
+    });
+
+    const opened = makeHoverData({ element: source, trackPassiveHover: true });
+    hover.showHover(opened);
+    expect(hover.admitVisibleReveal(onAdmit)).toBe(true);
+    expect(hover.admitVisibleReveal(onAdmit)).toBe(false);
+    expect(onAdmit).toHaveBeenCalledOnce();
+
+    hover.hideHover();
+    vi.advanceTimersByTime(25);
+    hover.cancelHide();
+    hover.showHover(opened);
+    expect(hover.isCurrentHover(opened)).toBe(true);
+    expect(hover.admitVisibleReveal(onAdmit)).toBe(false);
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    hover.hideHover();
+    vi.advanceTimersByTime(50);
+    expect(hover.isVisible()).toBe(false);
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(onDismiss).toHaveBeenCalledWith(opened);
+    dispose();
+  });
+
+  it('treats another occurrence and a deliberate reopen as separate interactions', () => {
+    const firstSource = document.createElement('span');
+    const secondSource = document.createElement('span');
+    const onDismiss = vi.fn();
+    const onAdmit = vi.fn();
+    let hover!: ReturnType<typeof useWordHover>;
+    let dispose!: () => void;
+    createRoot((disposeRoot) => {
+      hover = useWordHover({ onDismiss });
+      dispose = disposeRoot;
+    });
+
+    const first = makeHoverData({ element: firstSource, trackPassiveHover: true });
+    const second = makeHoverData({ element: secondSource, trackPassiveHover: true });
+    hover.showHover(first);
+    expect(hover.admitVisibleReveal(onAdmit)).toBe(true);
+
+    hover.showHover(second);
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(onDismiss).toHaveBeenCalledWith(first);
+    expect(hover.admitVisibleReveal(onAdmit)).toBe(true);
+    expect(onAdmit).toHaveBeenCalledTimes(2);
+
+    hover.forceHide();
+    expect(onDismiss).toHaveBeenCalledTimes(2);
+    hover.showHover(second);
+    expect(hover.admitVisibleReveal(onAdmit)).toBe(true);
+    expect(onAdmit).toHaveBeenCalledTimes(3);
+    dispose();
+  });
+
+  it('does not admit a source marked ineligible for passive tracking', () => {
+    const source = document.createElement('span');
+    const onAdmit = vi.fn();
+    let hover!: ReturnType<typeof useWordHover>;
+    let dispose!: () => void;
+    createRoot((disposeRoot) => {
+      hover = useWordHover();
+      dispose = disposeRoot;
+    });
+
+    hover.showHover(makeHoverData({ element: source, trackPassiveHover: false }));
+    expect(hover.admitVisibleReveal(onAdmit)).toBe(false);
+    expect(onAdmit).not.toHaveBeenCalled();
+    dispose();
+  });
+});

@@ -84,6 +84,8 @@ describe('OcrWord', () => {
     mockGetAccessStatus.mockReset();
     mockGetAccessStatus.mockReturnValue({ status: 'unknown', ease: 0, source: 'None', untracked: true });
     mockSettings.showReadingAnnotations = true;
+    mockSettings.readerWordHoverTrigger = 'hover';
+    mockSettings.readerWordHoverKey = 'Alt';
     mockTrackWordHovered.mockClear();
     mockCancelWordHover.mockClear();
     mockGetCanonicalForm.mockClear();
@@ -115,24 +117,60 @@ describe('OcrWord', () => {
     dispose();
   });
 
-  it('tracks hover with the tokenizer lookup word instead of pre-canonicalizing in the UI', () => {
-    const dispose = render(() => <OcrWord token={token} />, container);
+  it('does not admit a lookup when key-hover has no key held, even past the passive dwell delay', () => {
+    vi.useFakeTimers();
+    mockSettings.readerWordHoverTrigger = 'key-hover';
+    const onWordEnter = vi.fn();
+    const dispose = render(() => <OcrWord token={token} onWordEnter={onWordEnter} />, container);
 
-    container.querySelector('.ocr-word')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    const word = container.querySelector('.ocr-word')!;
+    word.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    vi.advanceTimersByTime(500);
 
-    expect(mockTrackWordHovered).toHaveBeenCalledWith('يكتب', 'yaktub', 'ar');
+    expect(onWordEnter).not.toHaveBeenCalled();
+    expect(mockTrackWordHovered).not.toHaveBeenCalled();
+    expect(mockCancelWordHover).not.toHaveBeenCalled();
     dispose();
+    vi.useRealTimers();
   });
 
-  it('cancels hover with the tokenizer lookup word instead of pre-canonicalizing in the UI', () => {
-    const dispose = render(() => <OcrWord token={token} />, container);
+  it('does not admit a long-hover cancelled at 400 ms before the 500 ms reveal', () => {
+    vi.useFakeTimers();
+    mockSettings.readerWordHoverTrigger = 'long-hover';
+    const onWordEnter = vi.fn();
+    const dispose = render(() => <OcrWord token={token} onWordEnter={onWordEnter} />, container);
 
-    const word = container.querySelector('.ocr-word');
-    word?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-    word?.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    const word = container.querySelector('.ocr-word')!;
+    word.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    vi.advanceTimersByTime(400);
+    word.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    vi.advanceTimersByTime(200);
 
-    expect(mockCancelWordHover).toHaveBeenCalledWith('يكتب', 'ar');
+    expect(onWordEnter).not.toHaveBeenCalled();
+    expect(mockTrackWordHovered).not.toHaveBeenCalled();
+    expect(mockCancelWordHover).not.toHaveBeenCalled();
     dispose();
+    vi.useRealTimers();
+  });
+
+  it('opens a qualified long-hover once and passes tracking eligibility to the owner', () => {
+    vi.useFakeTimers();
+    mockSettings.readerWordHoverTrigger = 'long-hover';
+    const onWordEnter = vi.fn();
+    const dispose = render(() => <OcrWord token={token} onWordEnter={onWordEnter} />, container);
+
+    const word = container.querySelector('.ocr-word')!;
+    word.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    vi.advanceTimersByTime(500);
+    word.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+    word.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+
+    expect(onWordEnter).toHaveBeenCalledOnce();
+    expect(onWordEnter.mock.calls[0]?.[0].surface).toBe('يكتب');
+    expect(onWordEnter.mock.calls[0]?.[2]).toBe(true);
+    expect(mockTrackWordHovered).not.toHaveBeenCalled();
+    dispose();
+    vi.useRealTimers();
   });
 
   it('can provide immediate hover without passively tracking an untokenized fallback', () => {
@@ -148,6 +186,7 @@ describe('OcrWord', () => {
     container.querySelector('.ocr-word')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
 
     expect(onWordEnter).toHaveBeenCalledOnce();
+    expect(onWordEnter.mock.calls[0]?.[2]).toBe(false);
     expect(mockTrackWordHovered).not.toHaveBeenCalled();
     dispose();
   });
@@ -213,8 +252,9 @@ describe('OcrWord', () => {
       const word = container.querySelector('.ocr-word')!;
       expect(container.querySelector('rt')?.textContent).toBe('ば');
       word.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-      expect(mockTrackWordHovered).toHaveBeenCalledWith('端', 'ば', 'ar');
+      expect(mockTrackWordHovered).not.toHaveBeenCalled();
       expect(onWordEnter.mock.calls[0]?.[0].reading).toBe('ば');
+      expect(onWordEnter.mock.calls[0]?.[2]).toBe(true);
 
       mockGetCachedTranslation.mockReturnValue({
         data: [{ word: '端', reading: 'はし' }],

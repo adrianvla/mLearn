@@ -64,7 +64,7 @@ export interface OcrOverlayProps {
   zoneDeltaThreshold?: number;
   onBoxClick?: (box: OcrBox, rect: DOMRect) => void;
   /** Called when hovering over a word. Includes context phrase from neighboring boxes. */
-  onWordHover?: (token: Token, rect: DOMRect, contextPhrase: string) => void;
+  onWordHover?: (token: Token, rect: DOMRect, contextPhrase: string, element: HTMLElement, trackPassiveHover: boolean) => void;
   onWordLeave?: () => void;
   /** Called on right-click with context phrase for the clicked area */
   onContextMenu?: (contextPhrase: string, boxIndex: number, position: { x: number; y: number }) => void;
@@ -392,7 +392,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
     // Get context phrase from context map (stitched from neighboring boxes)
     // boxIndex is the index in filteredBoxes array
     const context = contextMap().get(boxIndex) || '';
-    props.onWordHover?.(token, target.getBoundingClientRect(), context);
+    props.onWordHover?.(token, target.getBoundingClientRect(), context, target, !untokenizedFallback);
   };
 
   // Handle right-click context menu on OCR boxes
