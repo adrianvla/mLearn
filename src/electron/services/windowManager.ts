@@ -9,7 +9,8 @@ import fs from 'fs';
 import { pathToFileURL } from 'url';
 import { IPC_CHANNELS, WINDOW_TYPES, WindowType } from '../../shared/constants';
 import { DEFAULT_SETTINGS, type WindowSize, type OpenWindowPayload, type OverlayVideoScreenshot } from '../../shared/types';
-import { isDarkColorScheme } from '../../shared/constants';
+import { isDarkColorScheme, isOpaqueColorScheme } from '../../shared/constants';
+import { encodeInitialWindowTheme, WINDOW_THEME_QUERY_PARAM } from '../../shared/windowTheme';
 import { isMac, isLinux, isWindows, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
 import { registerWindowFirstPaint, showWindowAfterFirstPaint, showWindowAfterLoadFailure, initialWindowBackground, loadRecoveryHtml } from './windowFirstPaint';
@@ -59,6 +60,11 @@ export function getCurrentWindow(): BrowserWindow | null {
   return currentWindow;
 }
 
+/** Request presentation through the first-paint gate for the main window. */
+export function showMainWindowAfterFirstPaint(window: BrowserWindow): void {
+  showWindowAfterFirstPaint(window);
+}
+
 function focusWindow(window: BrowserWindow): void {
   if (window.isDestroyed()) return;
   window.focus();
@@ -69,17 +75,27 @@ function getInitialWindowBackground(): string {
   return initialWindowBackground(settings.colorScheme ?? DEFAULT_SETTINGS.colorScheme, settings.customColors ?? DEFAULT_SETTINGS.customColors);
 }
 
+function getInitialWindowTheme(): string {
+  const settings = loadSettings();
+  return encodeInitialWindowTheme({
+    uiType: settings.uiType ?? DEFAULT_SETTINGS.uiType,
+    colorScheme: settings.colorScheme ?? DEFAULT_SETTINGS.colorScheme,
+    customColors: settings.customColors ?? DEFAULT_SETTINGS.customColors,
+  });
+}
+
 function loadWindowHtml(window: BrowserWindow, type: WindowType, host?: ApplicationHost, initialPath?: string): void {
   startupMark(`renderer load requested type=${type} id=${window.id}`);
   const isDev = process.env.NODE_ENV === 'development';
 
   const filePath = getWindowHtmlPath(type);
-  const url = isDev ? `http://localhost:3000/src/html/${type}.html${host ? `?host=${host}#${initialPath ?? '/'}` : ''}` : (() => {
-    const fileUrl = pathToFileURL(filePath);
-    if (host) fileUrl.searchParams.set('host', host);
-    if (initialPath) fileUrl.hash = initialPath;
-    return fileUrl.toString();
-  })();
+  const rendererUrl = isDev
+    ? new URL(`http://localhost:3000/src/html/${type}.html`)
+    : pathToFileURL(filePath);
+  if (host) rendererUrl.searchParams.set('host', host);
+  if (initialPath) rendererUrl.hash = initialPath;
+  rendererUrl.searchParams.set(WINDOW_THEME_QUERY_PARAM, getInitialWindowTheme());
+  const url = rendererUrl.toString();
   let retryCount = 0;
   let retryTimer: NodeJS.Timeout | null = null;
   let recoveryPageRequested = false;
@@ -363,8 +379,9 @@ export function createMainWindow(options: { show?: boolean } = {}): BrowserWindo
       sandbox: true,
     },
 
-    ...(isMac ? getMacWindowSurfaceOptions() : {}),
-    backgroundColor: getInitialWindowBackground(),
+    ...(isMac
+      ? getMacWindowSurfaceOptions()
+      : { backgroundColor: getInitialWindowBackground() }),
   };
 
   if (isWindows) {
@@ -443,8 +460,9 @@ export function createWelcomeWindow(options: { show?: boolean } = {}): BrowserWi
       sandbox: true,
     },
     autoHideMenuBar: !isMac,
-    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true }),
-    backgroundColor: getInitialWindowBackground(),
+    ...(isMac
+      ? getMacWindowSurfaceOptions()
+      : { frame: true, backgroundColor: getInitialWindowBackground() }),
   });
   registerWindowFirstPaint(welcomeWindow);
   startupMark(`BrowserWindow constructor complete type=welcome id=${welcomeWindow.id}`, constructionStart);
@@ -517,8 +535,9 @@ function createApplicationHost(host: Exclude<ApplicationHost, 'main'>, path: str
     title: host === 'study' ? 'mLearn — Flashcards' : host === 'my-learning' ? 'mLearn — My Learning' : host === 'messenger' ? 'mLearn — Messenger' : 'mLearn — Settings',
     webPreferences: { preload: getPreloadPath(), contextIsolation: true, nodeIntegration: false, sandbox: true },
     autoHideMenuBar: !isMac,
-    ...(isMac ? getMacWindowSurfaceOptions() : { frame: true }),
-    backgroundColor: getInitialWindowBackground(),
+    ...(isMac
+      ? getMacWindowSurfaceOptions()
+      : { frame: true, backgroundColor: getInitialWindowBackground() }),
   });
   registerWindowFirstPaint(window);
   childWindows.set(host, window);
@@ -820,6 +839,9 @@ function getTitleBarOverlaySymbolColor(dark: boolean): string {
 // full-bleed renderer with real traffic lights punched into the web UI, and
 // native vibrancy visible underneath transparent renderer regions.
 function getMacWindowSurfaceOptions(): Partial<Electron.BrowserWindowConstructorOptions> {
+  const settings = loadSettings();
+  const colorScheme = settings.colorScheme ?? DEFAULT_SETTINGS.colorScheme;
+  const reduceTransparency = isOpaqueColorScheme(colorScheme);
   return {
     // Hides the native titlebar for a full-bleed renderer while KEEPING the
     // native traffic lights visible (frame:false strips the buttons).
@@ -834,10 +856,16 @@ function getMacWindowSurfaceOptions(): Partial<Electron.BrowserWindowConstructor
       y: 10,
     },
 
-    // Native material underneath our web scene.
-    transparent: true,
-    vibrancy: 'under-window',
-    visualEffectState: 'followWindow',
+    // Opaque palettes keep an opaque native fallback; translucent palettes
+    // leave the native backing clear so the selected material reaches the page.
+    transparent: !reduceTransparency,
+    ...(reduceTransparency ? {} : {
+      vibrancy: 'under-window' as const,
+      visualEffectState: 'followWindow' as const,
+    }),
+    backgroundColor: reduceTransparency
+      ? initialWindowBackground(colorScheme, settings.customColors ?? DEFAULT_SETTINGS.customColors)
+      : '#00000000',
   };
 }
 

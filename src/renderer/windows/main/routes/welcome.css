@@ -1,7 +1,7 @@
 .welcome-container { height: 100%; box-sizing: border-box; overflow: auto; background: var(--app-shell-bg); color: var(--text-primary); padding: max(var(--spacing-6), var(--window-controls-block-start-inset)) var(--spacing-6) var(--spacing-6); }
 .welcome-page { max-width: 74rem; margin: 0 auto; }
 .welcome-header, .welcome-logo { display: flex; align-items: center; gap: var(--spacing-3); }
-.welcome-header { justify-content: space-between; margin-bottom: var(--spacing-5); flex-wrap: wrap; }
+.welcome-header { justify-content: space-between; margin-bottom: var(--spacing-5); flex-wrap: wrap; -webkit-app-region: drag; }
 .welcome-logo h1 { margin: 0; font-size: var(--font-size-xl); }
 .welcome-subtitle { color: var(--text-secondary); font-size: var(--font-size-sm); }
 .welcome-feature-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-5); margin-top: var(--spacing-5); }

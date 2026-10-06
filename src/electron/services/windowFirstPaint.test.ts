@@ -54,6 +54,7 @@ describe('first frame, not a white native window', () => {
     expect(initialWindowBackground('dark-quartz')).toBe('#2b2c2a');
     expect(initialWindowBackground('quartz')).toBe('#f3f5f7');
     expect(initialWindowBackground('chalk')).toBe('#f5f5f5');
+    expect(initialWindowBackground('slate')).toBe('#000000');
     expect(initialWindowBackground('oled')).toBe('#000000');
     expect(initialWindowBackground('custom', { 'bg-opaque': '#223344' })).toBe('#223344');
     expect(initialWindowBackground('custom', { bg: 'rgba(10, 20, 30, 0.8)' })).toBe('rgba(10, 20, 30, 0.8)');

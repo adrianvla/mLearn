@@ -28,6 +28,10 @@ if (!root) {
   throw new Error('Root element not found');
 }
 
+// The preceding HTML module applies the persisted theme before this bundle.
+// Reveal the native shell without waiting for learner data or optional tools.
+if (isElectron()) getBridge().window.reportStartupState('theme-ready');
+
 installPerfObserverCounters();
 
 const MainRoutes = () => <HashRouter root={ApplicationShell}><ApplicationRoutes /></HashRouter>;

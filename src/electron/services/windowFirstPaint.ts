@@ -88,7 +88,7 @@ export function initialWindowBackground(scheme: string, customColors?: { 'bg-opa
     case 'quartz': return '#f3f5f7';
     case 'chalk': return '#f5f5f5';
     case 'light-high-contrast': return '#ffffff';
-    case 'oled': case 'dark-high-contrast': return '#000000';
+    case 'slate': case 'oled': case 'dark-high-contrast': return '#000000';
     default: return '#2b2c2a';
   }
 }

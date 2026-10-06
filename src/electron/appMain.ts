@@ -14,7 +14,7 @@ import { setupFlashcardVideoIPC, setupFlashcardVideoProtocol } from './services/
 import { hasExistingProfile, setupSettingsIPC } from './services/settings';
 import { setupLoggingService } from './services/loggingService';
 import { setupLocalizationIPC } from './services/localization';
-import { setupWindowIPC, createMainWindow, createWelcomeWindow, createDiagnosticsWindow, getCurrentWindow, getMainWindow } from './services/windowManager';
+import { setupWindowIPC, createMainWindow, createWelcomeWindow, createDiagnosticsWindow, getCurrentWindow, getMainWindow, showMainWindowAfterFirstPaint } from './services/windowManager';
 import { initOverlaySiteState, registerOverlaySiteStateIPC } from './services/overlaySiteState';
 import { getExtensionDistDir } from './utils/platform';
 import { setupFileOperationsIPC } from './services/fileOperations';
@@ -451,7 +451,7 @@ async function createAppWindows(startup = false): Promise<void> {
     else if (rendererState === 'library') reportStartupPhase('preparation', 0.65, 'Loading library');
     else if (rendererState === 'library-error') reportStartupPhase('preparation', 0.95, 'Opening library recovery');
     else if (rendererState === 'backend') reportStartupPhase('preparation', 0.8, 'Waiting for Python tools');
-    else if (rendererState === 'ready') reportStartupPhase('preparation', 0.95, 'Launching mLearn');
+    else if (rendererState === 'ready' || rendererState === 'theme-ready') reportStartupPhase('preparation', 0.95, 'Launching mLearn');
     else reportStartupPhase('preparation', 0, 'Loading settings');
   };
   if (hasExistingProfile()) {
@@ -460,6 +460,7 @@ async function createAppWindows(startup = false): Promise<void> {
     if (startup) {
       windowReady = waitForMainWindowStartup(window, (state) => {
         rendererState = state;
+        if (state === 'theme-ready') showMainWindowAfterFirstPaint(window);
         reportRendererState();
       });
       // The Python lookup is awaited first; observe an early window failure now.

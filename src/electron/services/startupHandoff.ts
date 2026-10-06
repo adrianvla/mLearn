@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 
-export type StartupWindowState = 'language' | 'library' | 'library-error' | 'backend' | 'ready';
+export type StartupWindowState = 'theme-ready' | 'language' | 'library' | 'library-error' | 'backend' | 'ready';
 
 /** Accept readiness only from the window being revealed. */
 export function waitForMainWindowStartup(
@@ -9,18 +9,29 @@ export function waitForMainWindowStartup(
   onState: (state: StartupWindowState) => void,
 ): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const onClosed = (): void => {
+    let settled = false;
+    const cleanup = (): void => {
       ipcMain.removeListener(IPC_CHANNELS.STARTUP_RENDERER_READY, onReady);
-      reject(new Error('Main window closed during startup'));
+      window.removeListener('closed', onClosed);
+    };
+    const onClosed = (): void => {
+      cleanup();
+      if (!settled) reject(new Error('Main window closed during startup'));
     };
     const onReady = (event: Electron.IpcMainEvent, state: unknown): void => {
       if (event.sender !== window.webContents) return;
-      if (state !== 'language' && state !== 'library' && state !== 'library-error' && state !== 'backend' && state !== 'ready') return;
+      if (state !== 'theme-ready' && state !== 'language' && state !== 'library' && state !== 'library-error' && state !== 'backend' && state !== 'ready') return;
       onState(state);
-      if (state === 'ready' || state === 'library-error') {
-        ipcMain.removeListener(IPC_CHANNELS.STARTUP_RENDERER_READY, onReady);
-        window.removeListener('closed', onClosed);
+      if (state === 'theme-ready' && !settled) {
+        settled = true;
         resolve();
+      }
+      if (state === 'ready' || state === 'library-error') {
+        cleanup();
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
       }
     };
     ipcMain.on(IPC_CHANNELS.STARTUP_RENDERER_READY, onReady);

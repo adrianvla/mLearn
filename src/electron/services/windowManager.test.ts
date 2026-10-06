@@ -315,8 +315,11 @@ function makeSenderEvent() {
 }
 
 describe('windowManager', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
+    delete process.env.NODE_ENV;
+    const settings = await import('./settings');
+    vi.mocked(settings.loadSettings).mockReset().mockReturnValue({ devMode: false, colorScheme: 'quartz', customColors: {} } as never);
     ipcOnHandlers.clear();
     ipcHandleHandlers.clear();
     createdWindows.length = 0;
@@ -369,7 +372,9 @@ describe('windowManager', () => {
       process.env.NODE_ENV = 'development';
       const { createMainWindow } = await import('./windowManager');
       const win = createMainWindow();
-      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html');
+      const loadedUrl = new URL(String(win.loadURL.mock.calls[0]?.[0]));
+      expect(loadedUrl.pathname).toBe('/src/html/main.html');
+      expect(loadedUrl.searchParams.has('mlearnTheme')).toBe(true);
       expect(win.loadFile).not.toHaveBeenCalled();
       delete process.env.NODE_ENV;
     });
@@ -488,7 +493,7 @@ describe('windowManager', () => {
       process.env.NODE_ENV = 'development';
       const { createWelcomeWindow } = await import('./windowManager');
       const win = createWelcomeWindow();
-      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/welcome.html');
+      expect(new URL(String(win.loadURL.mock.calls[0]?.[0])).pathname).toBe('/src/html/welcome.html');
       delete process.env.NODE_ENV;
     });
 
@@ -546,7 +551,73 @@ describe('windowManager', () => {
       expect(opts.transparent).toBe(true);
       expect(opts.visualEffectState).toBe('followWindow');
       expect(opts.titleBarStyle).toBe('hidden');
-      expect(opts.backgroundColor).toBe('#f3f5f7');
+      expect(opts.backgroundColor).toBe('#00000000');
+    });
+
+    it('uses an opaque native backing for the Slate reduced-transparency palette', async () => {
+      vi.doMock('../utils/platform', () => ({
+        isMac: true,
+        isLinux: false,
+        isWindows: false,
+        isPackaged: false,
+        getAppPath: vi.fn(() => '/tmp/appPath'),
+      }));
+      const settings = await import('./settings');
+      vi.mocked(settings.loadSettings).mockReturnValue({ colorScheme: 'slate' } as never);
+      const { createMainWindow } = await import('./windowManager');
+      createMainWindow();
+
+      expect(lastWindowOptions().transparent).toBe(false);
+      expect(lastWindowOptions().vibrancy).toBeUndefined();
+      expect(lastWindowOptions().backgroundColor).toBe('#000000');
+    });
+
+    it('uses a transparent native backing for Dark Quartz so vibrancy can reach the renderer', async () => {
+      vi.doMock('../utils/platform', () => ({
+        isMac: true,
+        isLinux: false,
+        isWindows: false,
+        isPackaged: false,
+        getAppPath: vi.fn(() => '/tmp/appPath'),
+      }));
+      const settings = await import('./settings');
+      vi.mocked(settings.loadSettings).mockReturnValue({ colorScheme: 'dark-quartz' } as never);
+      const { createMainWindow } = await import('./windowManager');
+      createMainWindow();
+
+      expect(lastWindowOptions().transparent).toBe(true);
+      expect(lastWindowOptions().vibrancy).toBe('under-window');
+      expect(lastWindowOptions().backgroundColor).toBe('#00000000');
+    });
+
+    it('bootstraps the persisted two-axis theme before the renderer entry loads', async () => {
+      vi.doMock('../utils/platform', () => ({
+        isMac: true,
+        isLinux: false,
+        isWindows: false,
+        isPackaged: false,
+        getAppPath: vi.fn(() => '/tmp/appPath'),
+      }));
+      const settings = await import('./settings');
+      vi.mocked(settings.loadSettings).mockReturnValue({
+        uiType: 'glass',
+        colorScheme: 'custom',
+        customColors: { 'bg-opaque': '#223344', 'text-primary': '#f4f4f4' },
+      } as never);
+      process.env.NODE_ENV = 'development';
+      const { createMainWindow } = await import('./windowManager');
+      const window = createMainWindow();
+      const url = new URL(String(vi.mocked(window.loadURL).mock.calls[0]?.[0]));
+
+      expect(JSON.parse(url.searchParams.get('mlearnTheme') ?? 'null')).toEqual({
+        uiType: 'glass',
+        colorScheme: 'custom',
+        customColors: { 'bg-opaque': '#223344', 'text-primary': '#f4f4f4' },
+      });
+      expect(lastWindowOptions().transparent).toBe(true);
+      expect(lastWindowOptions().vibrancy).toBe('under-window');
+      expect(lastWindowOptions().backgroundColor).toBe('#00000000');
+      delete process.env.NODE_ENV;
     });
 
     it('gives ordinary child windows the app-window surface on macOS', async () => {
@@ -568,7 +639,7 @@ describe('windowManager', () => {
       expect(opts.transparent).toBe(true);
       expect(opts.visualEffectState).toBe('followWindow');
       expect(opts.titleBarStyle).toBe('hidden');
-      expect(opts.backgroundColor).toBe('#f3f5f7');
+      expect(opts.backgroundColor).toBe('#00000000');
     });
 
     it('keeps explicit frame:false overlay children free of vibrancy and overlay controls', async () => {
@@ -601,11 +672,18 @@ describe('windowManager', () => {
         getAppPath: vi.fn(() => '/tmp/appPath'),
       }));
       const { createChildWindow } = await import('./windowManager');
-      createChildWindow('diagnostics' as never, { titleBarOverlay: false, backgroundColor: '#111111' });
+      createChildWindow('diagnostics' as never, {
+        titleBarOverlay: false,
+        backgroundColor: '#111111',
+        transparent: false,
+        vibrancy: 'none',
+      });
 
       const opts = lastWindowOptions();
       expect(opts.titleBarOverlay).toBe(false);
       expect(opts.backgroundColor).toBe('#111111');
+      expect(opts.transparent).toBe(false);
+      expect(opts.vibrancy).toBe('none');
     });
   });
 
@@ -614,7 +692,7 @@ describe('windowManager', () => {
       const { createChildWindow } = await import('./windowManager');
       const win = createChildWindow('diagnostics' as never);
       expect(lastWindowOptions().show).toBe(false);
-      expect(lastWindowOptions().backgroundColor).toBe('#f3f5f7');
+      expect(lastWindowOptions().backgroundColor).toBe('#00000000');
       expect(win.once).toHaveBeenCalledWith('ready-to-show', expect.any(Function));
     });
 
@@ -643,7 +721,7 @@ describe('windowManager', () => {
       process.env.NODE_ENV = 'development';
       const { createChildWindow } = await import('./windowManager');
       const win = createChildWindow('diagnostics' as never);
-      expect(win.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/diagnostics.html');
+      expect(new URL(String(win.loadURL.mock.calls[0]?.[0])).pathname).toBe('/src/html/diagnostics.html');
       delete process.env.NODE_ENV;
     });
 
@@ -656,7 +734,11 @@ describe('windowManager', () => {
       expect('KANJI_GRID' in WINDOW_TYPES).toBe(false);
 
       const win = createChildWindow(WINDOW_TYPES.CHARACTER_GRID);
-      expect(win.loadURL).toHaveBeenCalledWith(expect.stringContaining('main.html?host=my-learning#'));
+      const url = new URL(String(win.loadURL.mock.calls[0]?.[0]));
+      expect(url.pathname).toBe('/src/html/main.html');
+      expect(url.searchParams.get('host')).toBe('my-learning');
+      expect(url.searchParams.has('mlearnTheme')).toBe(true);
+      expect(url.hash).toBe('#/knowledge/characters');
       expect(win.webContents.send).not.toHaveBeenCalled();
       delete process.env.NODE_ENV;
     });
@@ -670,7 +752,11 @@ describe('windowManager', () => {
       expect('EXAM_CENTRIC_STUDY' in WINDOW_TYPES).toBe(false);
 
       const win = createChildWindow(WINDOW_TYPES.LEVEL_STUDY);
-      expect(win.loadURL).toHaveBeenCalledWith(expect.stringContaining('main.html?host=my-learning#'));
+      const url = new URL(String(win.loadURL.mock.calls[0]?.[0]));
+      expect(url.pathname).toBe('/src/html/main.html');
+      expect(url.searchParams.get('host')).toBe('my-learning');
+      expect(url.searchParams.has('mlearnTheme')).toBe(true);
+      expect(url.hash).toBe('#/plan');
       expect(win.webContents.send).not.toHaveBeenCalled();
       delete process.env.NODE_ENV;
     });
@@ -1072,8 +1158,8 @@ describe('windowManager', () => {
       const first = createdWindows[createdWindows.length - 1];
       fireOn(IPC_CHANNELS.OPEN_WINDOW, {}, { type: WINDOW_TYPES.WELCOME, options: {} });
 
-      expect(first.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/welcome.html');
-      expect(createdWindows.filter(win => win.loadURL.mock.calls.some(call => call[0] === 'http://localhost:3000/src/html/welcome.html'))).toHaveLength(1);
+      expect(new URL(String(first.loadURL.mock.calls[0]?.[0])).pathname).toBe('/src/html/welcome.html');
+      expect(createdWindows.filter(win => win.loadURL.mock.calls.some(call => new URL(String(call[0])).pathname === '/src/html/welcome.html'))).toHaveLength(1);
       expect(first.focus).toHaveBeenCalled();
       delete process.env.NODE_ENV;
     });
@@ -1240,7 +1326,11 @@ describe('windowManager', () => {
 
       expect(createdWindows.length).toBe(countBefore + 1);
       const lastWin = createdWindows[createdWindows.length - 1];
-      expect(lastWin.loadURL).toHaveBeenCalledWith('http://localhost:3000/src/html/main.html?host=settings#/settings');
+      const loadUrl = new URL(String(lastWin.loadURL.mock.calls[0]?.[0]));
+      expect(loadUrl.pathname).toBe('/src/html/main.html');
+      expect(loadUrl.searchParams.get('host')).toBe('settings');
+      expect(loadUrl.searchParams.has('mlearnTheme')).toBe(true);
+      expect(loadUrl.hash).toBe('#/settings');
       expect(lastWin.webContents.send).not.toHaveBeenCalled();
       const reply = vi.fn();
       fireOn(IPC_CHANNELS.GET_WINDOW_CONTEXT, { sender: lastWin.webContents, reply }, 'settings');

@@ -48,4 +48,22 @@ describe('startup window handoff', () => {
     expect(onState.mock.calls.map(([state]) => state)).toEqual(['language', 'ready']);
     expect(ipc.listenerCount(IPC_CHANNELS.STARTUP_RENDERER_READY)).toBe(0);
   });
+
+  it('reveals the themed shell before slow startup services settle and keeps progress reporting alive', async () => {
+    const sender = {} as Electron.WebContents;
+    const window = Object.assign(new EventEmitter(), { webContents: sender }) as Electron.BrowserWindow;
+    const onState = vi.fn();
+    const ready = waitForMainWindowStartup(window, onState);
+
+    ipc.emit(IPC_CHANNELS.STARTUP_RENDERER_READY, { sender }, 'theme-ready');
+    await expect(ready).resolves.toBeUndefined();
+    expect(onState).toHaveBeenCalledWith('theme-ready');
+    expect(ipc.listenerCount(IPC_CHANNELS.STARTUP_RENDERER_READY)).toBe(1);
+
+    ipc.emit(IPC_CHANNELS.STARTUP_RENDERER_READY, { sender }, 'library');
+    expect(onState).toHaveBeenLastCalledWith('library');
+    ipc.emit(IPC_CHANNELS.STARTUP_RENDERER_READY, { sender }, 'ready');
+    expect(ipc.listenerCount(IPC_CHANNELS.STARTUP_RENDERER_READY)).toBe(0);
+    expect(window.listenerCount('closed')).toBe(0);
+  });
 });
