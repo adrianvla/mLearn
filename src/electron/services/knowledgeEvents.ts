@@ -64,6 +64,7 @@ export function whenKnowledgeEventsReady(): Promise<void> {
 /** Internal persistence ownership; these records are not learner evidence. */
 export const reserveRatingCommand = (command: FlashcardRatingCommand, validateAdmission?: () => void) => ensureStore().reserveRatingCommand(command, validateAdmission);
 export const ratingLedgerId = (): string => ensureStore().ratingLedgerId;
+export const getKnowledgeSequence = (): number => ensureStore().sequenceCounter;
 export const pendingRatingCommands = () => ensureStore().pendingRatingCommands();
 export const isRatingCommandCommitted = (attemptId: string): boolean => ensureStore().isRatingCommandCommitted(attemptId);
 export const completeRatingCommands = (throughSequence: number, revision: number): void => ensureStore().completeRatingCommands(throughSequence, revision);

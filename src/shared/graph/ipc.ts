@@ -170,3 +170,16 @@ export interface KnowledgeProjection {
   /** Graph-relative lexical-object summary, retaining exact authored evidence even for graph-unmapped surfaces. */
   lexical?: KnowledgeLexicalSummary;
 }
+
+export interface KnowledgeProjectionRevision {
+  packageRevision: number;
+  journalSequence: number;
+  libraryRevision: number;
+}
+
+/** Complete collection materialized from one authoritative source revision. */
+export interface KnowledgeProjectionCollection {
+  projections: Record<string, KnowledgeProjection>;
+  /** Unavailable on platforms that do not expose an authoritative revision boundary. */
+  revision?: KnowledgeProjectionRevision;
+}

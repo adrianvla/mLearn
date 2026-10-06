@@ -104,6 +104,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.GRAPH_GET_EVIDENCE_LINKED_SURFACES, language, surfaces, keys),
   getKnowledgeProjection: (language: string, surface: string, thresholds?: EffectiveThresholds): Promise<KnowledgeProjection> =>
     ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION, language, surface, thresholds),
+  getKnowledgeProjectionCollection: (language: string, surfaces: string[], evidenceKeys?: string[], thresholds?: EffectiveThresholds) =>
+    ipcRenderer.invoke(IPC_CHANNELS.KNOWLEDGE_GET_PROJECTION_COLLECTION, language, surfaces, evidenceKeys, thresholds),
 
   // ========== Localization ==========
   getLocalization: () => ipcRenderer.send(IPC_CHANNELS.GET_LOCALIZATION),

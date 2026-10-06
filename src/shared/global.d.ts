@@ -123,6 +123,12 @@ export interface MLearnIPC {
   getGraphNeighborhood: (language: string, query: GraphNeighborhoodQuery) => Promise<GraphNeighborhood | null>;
   getEvidenceLinkedSurfaces: (language: string, surfaces: string[], keys: string[]) => Promise<string[]>;
   getKnowledgeProjection: (language: string, surface: string, thresholds?: EffectiveThresholds) => Promise<KnowledgeProjection>;
+  getKnowledgeProjectionCollection: (
+    language: string,
+    surfaces: string[],
+    evidenceKeys?: string[],
+    thresholds?: EffectiveThresholds,
+  ) => Promise<import('./graph/ipc').KnowledgeProjectionCollection>;
   
   // Localization
   getLocalization: () => void;

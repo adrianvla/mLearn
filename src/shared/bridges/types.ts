@@ -148,6 +148,12 @@ export interface GraphBridge {
   getGraphNeighborhood: (language: string, query: import('../graph/ipc').GraphNeighborhoodQuery) => Promise<import('../graph/ipc').GraphNeighborhood | null>;
   getEvidenceLinkedSurfaces: (language: string, surfaces: string[], keys: string[]) => Promise<string[]>;
   getKnowledgeProjection: (language: string, surface: string, thresholds?: EffectiveThresholds) => Promise<import('../graph/ipc').KnowledgeProjection>;
+  getKnowledgeProjectionCollection: (
+    language: string,
+    surfaces: string[],
+    evidenceKeys?: string[],
+    thresholds?: EffectiveThresholds,
+  ) => Promise<import('../graph/ipc').KnowledgeProjectionCollection>;
 }
 
 export interface FileBridge {

@@ -2000,6 +2000,23 @@ describe('canonical projections without mobile graph distribution', () => {
     expect(await bridge.graph.getEvidenceLinkedSurfaces('future', ['authored', 'unseen'], [key])).toEqual(['authored']);
     expect(await bridge.graph.getGraphMeta('future')).toMatchObject({ status: 'unavailable', ready: false });
   });
+
+  it('returns the mobile projection collection without claiming an authoritative revision', async () => {
+    vi.resetModules();
+    localStorage.clear();
+    const { createCapacitorBridge } = await import('./capacitorBridge');
+    const { hashWordSync } = await import('../utils/wordHash');
+    const bridge = createCapacitorBridge();
+    const key = `future:${hashWordSync('authored')}`;
+    const id = `future:surface:${hashWordSync('authored')}`;
+    await bridge.knowledgeEvents.appendKnowledgeEvents({ [key]: [{ t: 1, kind: 'claim', source: 'manual',
+      targetRef: { kind: 'surface', id, capability: 'future::unknown-access' }, toStatus: 'known' }] });
+
+    const result = await bridge.graph.getKnowledgeProjectionCollection('future', ['authored', 'unseen'], [key]);
+    expect(Object.keys(result.projections)).toEqual(['authored']);
+    expect(result.projections.authored.targets[0].states[0].classification).toBe('known');
+    expect(result).not.toHaveProperty('revision');
+  });
 });
 
 describe('concurrent mobile projection history reads', () => {

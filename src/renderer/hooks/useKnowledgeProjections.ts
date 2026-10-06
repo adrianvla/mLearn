@@ -2,9 +2,14 @@ import { batch, createEffect, createSignal, onCleanup, type Accessor } from 'sol
 import { getBridge } from '../../shared/bridges';
 import type { KnowledgeProjection } from '../../shared/graph/ipc';
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
+import type { KnowledgeProjectionRevision } from '../../shared/graph/ipc';
+import { hashWordSync } from '../../shared/utils/wordHash';
+import { getLogger } from '../../shared/utils/logger';
 import { wordEventsVersion } from '../services/knowledgeEvents';
 import { useSettings } from '../context/SettingsContext';
 import { useWindowActivity } from './useWindowActivity';
+
+const log = getLogger('renderer.hooks.useKnowledgeProjections');
 
 /** Collection view of the canonical projection; stores payloads, never reinterprets evidence. */
 export function useKnowledgeProjections(query: Accessor<{
@@ -19,11 +24,13 @@ export function useKnowledgeProjections(query: Accessor<{
   const [loading, setLoading] = createSignal(false);
   const [ready, setReady] = createSignal(false);
   const [failed, setFailed] = createSignal(false);
+  const [completedRevision, setCompletedRevision] = createSignal<KnowledgeProjectionRevision>();
+  const [completedLanguage, setCompletedLanguage] = createSignal<string>();
   const [retryVersion, setRetryVersion] = createSignal(0);
   let settledKey: string | undefined;
   createEffect(() => {
-    // On blur, effect cleanup cancels the remaining projection fan-out. Keep
-    // the last result; focus consumes changed inputs, not a new invalidation.
+    // Work admitted by the main-process collection service is allowed to
+    // finish after blur. Focus consumes coalesced revisions and cache hits.
     if (!active()) { setLoading(false); return; }
     const input = query();
     const version = wordEventsVersion();
@@ -31,53 +38,66 @@ export function useKnowledgeProjections(query: Accessor<{
     const thresholds = effectiveThresholds(settings);
     const requestKey = JSON.stringify([input, version, retry, thresholds]);
     if (requestKey === settledKey) return;
+    if (input && completedLanguage() !== undefined && completedLanguage() !== input.language) {
+      setProjections(new Map());
+      setCompletedRevision(undefined);
+    }
     setReady(false);
     setFailed(false);
-    setProjections(new Map());
     if (!input) { settledKey = requestKey; setLoading(false); return; }
+    if (input.surfaces.length === 0) {
+      settledKey = requestKey;
+      batch(() => { setProjections(new Map()); setCompletedLanguage(input.language); setCompletedRevision(undefined); setLoading(false); setReady(true); });
+      return;
+    }
     let disposed = false;
     onCleanup(() => { disposed = true; });
     setLoading(true);
     const requested = [...new Set(input.surfaces)];
+    const requestId = hashWordSync(requestKey).slice(0, 12);
+    const startedAt = performance.now();
+    log.debug(`projection request started id=${requestId} surfaces=${requested.length} evidenceKeys=${input.evidenceKeys?.length ?? 0}`);
     void (async () => {
       try {
-        const linked = input.evidenceKeys === undefined
-          ? requested
-          : await getBridge().graph.getEvidenceLinkedSurfaces(input.language, requested, [...input.evidenceKeys]);
-        if (disposed) return;
-        // Do not trust a bridge to add a surface the caller did not request.
-        const selected = new Set(linked);
-        const surfaces = requested.filter((surface) => selected.has(surface));
+        const collection = await getBridge().graph.getKnowledgeProjectionCollection(
+          input.language,
+          requested,
+          input.evidenceKeys === undefined ? undefined : [...input.evidenceKeys],
+          thresholds,
+        );
         const result = new Map<string, KnowledgeProjection>();
-        let cursor = 0;
-        const worker = async () => {
-          while (!disposed && cursor < surfaces.length) {
-            const surface = surfaces[cursor++];
-            try {
-              result.set(surface, await getBridge().graph.getKnowledgeProjection(input.language, surface, thresholds));
-            } catch {
-              result.set(surface, { status: 'error', targets: [] });
-            }
-          }
-        };
-        await Promise.all(Array.from({ length: Math.min(8, surfaces.length) }, worker));
-        if (!disposed) batch(() => {
+        for (const surface of requested) {
+          const projection = collection.projections[surface];
+          if (projection) result.set(surface, projection);
+        }
+        if (disposed) {
+          log.debug(`projection request discarded id=${requestId} reason=subscriber-disposed durationMs=${Math.round(performance.now() - startedAt)}`);
+          return;
+        }
+        batch(() => {
           settledKey = requestKey;
           setProjections(result);
+          setCompletedLanguage(input.language);
+          setCompletedRevision(collection.revision);
           setLoading(false);
           setReady([...result.values()].every(projection => projection.status === 'ready'));
           setFailed([...result.values()].some(projection => projection.status !== 'ready'));
         });
+        log.debug(`projection request published id=${requestId} surfaces=${result.size} durationMs=${Math.round(performance.now() - startedAt)} revision=${collection.revision ? `${collection.revision.packageRevision}:${collection.revision.journalSequence}:${collection.revision.libraryRevision}` : 'platform-unknown'}`);
       } catch {
-        if (!disposed) batch(() => {
+        if (disposed) {
+          log.debug(`projection request discarded id=${requestId} reason=subscriber-disposed durationMs=${Math.round(performance.now() - startedAt)}`);
+          return;
+        }
+        batch(() => {
           settledKey = requestKey;
-          setProjections(new Map());
           setLoading(false);
           setReady(false);
           setFailed(true);
         });
+        log.debug(`projection request failed id=${requestId} durationMs=${Math.round(performance.now() - startedAt)}`);
       }
     })();
   });
-  return { projections, loading, ready, failed, retry: () => setRetryVersion((value) => value + 1) };
+  return { projections, loading, ready, failed, completedRevision, retry: () => setRetryVersion((value) => value + 1) };
 }

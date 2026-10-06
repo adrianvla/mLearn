@@ -8,7 +8,7 @@ import { buildKnowledgeProjection } from './knowledgeProjection';
 import { advanceLanguagePackageRevision } from './languagePackageRevision';
 
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
-vi.mock('electron', () => ({ ipcMain: { handle: vi.fn((channel, handler) => handlers.set(channel, handler)) } }));
+vi.mock('electron', () => ({ app: { isPackaged: false, getPath: () => '/profile' }, ipcMain: { handle: vi.fn((channel, handler) => handlers.set(channel, handler)) } }));
 vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => ({ easeThresholdLearning: 1.7, easeThresholdKnown: 2.2 })),
   loadLangData: vi.fn(() => ({ ja: { learning: { capabilities: {} } } })),
@@ -19,8 +19,12 @@ vi.mock('./knowledgeProjection', async importOriginal => ({
   ...await importOriginal<typeof import('./knowledgeProjection')>(),
   buildKnowledgeProjection: vi.fn(() => ({ status: 'ready', targets: [] })),
 }));
-vi.mock('./flashcardStorage', () => ({ loadFlashcards: vi.fn(async () => ({ meta: {} })) }));
+vi.mock('./flashcardStorage', () => ({ loadFlashcards: vi.fn(async () => ({ rev: 0, meta: {
+  learningSteps: [1, 10], relearnSteps: [10], graduatingInterval: 1, easyInterval: 4, reviewIntervalModifier: 100, maxInterval: 365,
+} })) }));
 vi.mock('./knowledgeEvents', () => ({
+  getKnowledgeSequence: vi.fn(() => 0),
+  ratingLedgerId: vi.fn(() => '/test-ledger'),
   getKnowledgeRows: vi.fn((keys: readonly string[]) => Object.fromEntries(keys.map((key) => [key, []]))),
   getAddressedKnowledgeKeys: vi.fn(() => []),
   getAddressedKnowledgeIds: vi.fn(() => []),
@@ -379,8 +383,106 @@ describe('LinguisticGraphService', () => {
     await expect(new LinguisticGraphService(directory).getKnowledgeProjection('ja', '猫')).resolves.toMatchObject({ status: 'ready', graphStatus: 'not-installed', surfaceKnown: false, targets: [] });
     setupLinguisticGraphIPC();
     expect([...handlers.keys()]).toEqual(expect.arrayContaining([
-      'graph-get-meta', 'graph-lookup-word', 'graph-get-related', 'graph-get-targets-for-surfaces', 'graph-get-neighborhood', 'knowledge-get-projection',
+      'graph-get-meta', 'graph-lookup-word', 'graph-get-related', 'graph-get-targets-for-surfaces', 'graph-get-neighborhood', 'knowledge-get-projection', 'knowledge-get-projection-collection',
     ]));
+  });
+
+  it('coalesces identical projection collections across callers and reuses the settled snapshot', async () => {
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(directory, '/profile-a');
+    const build = vi.mocked(buildKnowledgeProjection);
+    build.mockClear();
+    const request = () => service.getKnowledgeProjectionCollection('future', ['novel'], undefined, { learning: 1.7, known: 2.2 });
+
+    const [first, joined] = await Promise.all([request(), request()]);
+    expect(first).toEqual(joined);
+    expect(first.revision).toEqual({ packageRevision: 0, journalSequence: 0, libraryRevision: 0 });
+    expect(Object.keys(first.projections)).toEqual(['novel']);
+    expect(build).toHaveBeenCalledTimes(1);
+
+    const cached = await request();
+    expect(cached).toBe(first);
+    expect(build).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards a mixed-revision collection and retries once against the latest journal', async () => {
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const journal = await import('./knowledgeEvents');
+    let sequence = 0;
+    vi.mocked(journal.getKnowledgeSequence).mockImplementation(() => sequence);
+    const build = vi.mocked(buildKnowledgeProjection);
+    build.mockImplementation(() => {
+      sequence = 1;
+      return { status: 'ready', targets: [] };
+    });
+    try {
+      const result = await new LinguisticGraphService(directory, '/profile-a')
+        .getKnowledgeProjectionCollection('future', ['novel'], undefined, { learning: 1.7, known: 2.2 });
+      expect(result.revision?.journalSequence).toBe(1);
+      expect(build).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.mocked(journal.getKnowledgeSequence).mockImplementation(() => 0);
+      build.mockImplementation(() => ({ status: 'ready', targets: [] }));
+    }
+  });
+
+  it('limits admitted projection workers across simultaneous clients to four', async () => {
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(directory, '/profile-workers');
+    const internal = service as unknown as { projectionFor: (...args: unknown[]) => Promise<unknown> };
+    let active = 0;
+    let maximum = 0;
+    let started = 0;
+    let announce!: () => void;
+    const fourWorkersStarted = new Promise<void>(resolve => { announce = resolve; });
+    let release!: () => void;
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    vi.spyOn(internal, 'projectionFor').mockImplementation(async () => {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      started += 1;
+      if (started === 4) announce();
+      try { await hold; }
+      finally { active -= 1; }
+      return { status: 'ready', targets: [] };
+    });
+
+    const first = service.getKnowledgeProjectionCollection('future', ['a1', 'a2', 'a3', 'a4', 'a5', 'a6']);
+    await fourWorkersStarted;
+    const second = service.getKnowledgeProjectionCollection('future', ['b1', 'b2', 'b3', 'b4', 'b5', 'b6']);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    release();
+    await Promise.all([first, second]);
+    expect(maximum).toBe(4);
+    expect(started).toBe(12);
+  });
+
+  it('bounds settled collection cache size and expires entries on access', async () => {
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const build = vi.mocked(buildKnowledgeProjection);
+    build.mockClear();
+    build.mockImplementation(() => ({ status: 'ready', targets: [] }));
+    const service = new LinguisticGraphService(directory, '/profile-cache');
+    for (const surface of ['a', 'b', 'c', 'd', 'e']) {
+      await service.getKnowledgeProjectionCollection('future', [surface]);
+    }
+    expect(build).toHaveBeenCalledTimes(5);
+    await service.getKnowledgeProjectionCollection('future', ['a']);
+    expect(build).toHaveBeenCalledTimes(6);
+
+    let now = 1_000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    try {
+      const timed = new LinguisticGraphService(directory, '/profile-ttl');
+      await timed.getKnowledgeProjectionCollection('future', ['ttl']);
+      await timed.getKnowledgeProjectionCollection('future', ['ttl']);
+      expect(build).toHaveBeenCalledTimes(7);
+      now += 15_001;
+      await timed.getKnowledgeProjectionCollection('future', ['ttl']);
+      expect(build).toHaveBeenCalledTimes(8);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('projects canonical journal knowledge without an optional graph and bounds evidence-linked surfaces', async () => {
@@ -449,7 +551,7 @@ describe('LinguisticGraphService', () => {
     expect(settings.loadLangData).toHaveBeenCalledTimes(1);
   });
 
-  it('serves repeated projections from one cached compact view and rebuilds it after a reload', async () => {
+  it('serves repeated projections from the settled collection and rebuilds it after a package revision', async () => {
     fs.writeFileSync(path.join(directory, 'languages', 'ja.graph.json'), JSON.stringify(compact('ja', '猫', 'old')));
     fs.writeFileSync(path.join(directory, 'languages', 'ru.graph.json'), JSON.stringify(compact('ru', 'кот')));
     const { LinguisticGraphService } = await import('./linguisticGraph'); // dynamic: file convention, module loads after vi.mock registration
@@ -460,15 +562,14 @@ describe('LinguisticGraphService', () => {
     await service.getKnowledgeProjection('ja', '猫');
     await service.getKnowledgeProjection('ja', '猫');
     const projectionCalls = buildProjection.mock.calls.slice(projectionCallsBefore);
-    expect(projectionCalls).toHaveLength(2);
-    // Both projections share the same cached view instance.
-    expect(projectionCalls[0][0]).toBe(projectionCalls[1][0]);
+    expect(projectionCalls).toHaveLength(1);
 
     // Switching languages evicts the view; returning rebuilds it from the reloaded asset.
     await service.getMeta('ru');
     fs.writeFileSync(path.join(directory, 'languages', 'ja.graph.json'), JSON.stringify(compact('ja', '猫', 'rewritten')));
+    advanceLanguagePackageRevision(directory, 'ja');
     await service.getKnowledgeProjection('ja', '猫');
-    expect(buildProjection.mock.calls.length).toBe(projectionCallsBefore + 3);
+    expect(buildProjection.mock.calls.length).toBe(projectionCallsBefore + 2);
     const finalGraph = buildProjection.mock.calls.at(-1)?.[0];
     expect(finalGraph).not.toBe(projectionCalls[0][0]);
     // Reload freshness: the stable sense id's label comes from the REWRITTEN

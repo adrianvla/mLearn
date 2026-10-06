@@ -28,6 +28,7 @@ function createMockIPC() {
     batchGenerateFlashcardTts: vi.fn(),
     getFlashcardTtsMeta: vi.fn(),
     deleteFlashcardTts: vi.fn(),
+    getKnowledgeProjectionCollection: vi.fn(),
     getLocalization: vi.fn(),
     onLocalization: vi.fn(),
     changeUILanguage: vi.fn(),
@@ -194,6 +195,15 @@ afterEach(() => {
 import { createElectronBridge } from './electronBridge';
 
 describe('createElectronBridge', () => {
+  it('forwards collection projection requests with graph-relative evidence and thresholds', async () => {
+    const bridge = createElectronBridge();
+    const result = { projections: { surface: { status: 'ready', targets: [] } } } as never;
+    const thresholds = { learning: 1.6, known: 2.1 };
+    mockIPC.getKnowledgeProjectionCollection.mockResolvedValueOnce(result);
+    await expect(bridge.graph.getKnowledgeProjectionCollection('future', ['surface'], ['future:key'], thresholds)).resolves.toBe(result);
+    expect(mockIPC.getKnowledgeProjectionCollection).toHaveBeenCalledWith('future', ['surface'], ['future:key'], thresholds);
+  });
+
   it('waits for immutable choice persistence and exposes its separate technical audit', async () => {
     const bridge = createElectronBridge();
     const decision = { id: 'choice' } as never;

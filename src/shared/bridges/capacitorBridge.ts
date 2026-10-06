@@ -85,6 +85,22 @@ import { getLogger } from '../utils/logger';
 import eulaMd from '../../../EULA.md?raw';
 
 const log = getLogger("shared.bridges.capacitor");
+const MAX_ACTIVE_MOBILE_PROJECTION_WORKERS = 4;
+let activeMobileProjectionWorkers = 0;
+const mobileProjectionWorkerQueue: Array<() => void> = [];
+
+async function withMobileProjectionWorker<T>(work: () => Promise<T>): Promise<T> {
+  if (activeMobileProjectionWorkers >= MAX_ACTIVE_MOBILE_PROJECTION_WORKERS) {
+    await new Promise<void>(resolve => mobileProjectionWorkerQueue.push(resolve));
+  }
+  activeMobileProjectionWorkers += 1;
+  try {
+    return await work();
+  } finally {
+    activeMobileProjectionWorkers -= 1;
+    mobileProjectionWorkerQueue.shift()?.();
+  }
+}
 
 // ============================================================================
 // Simple Event Emitter for local pub/sub
@@ -2356,6 +2372,28 @@ const graphBridge: GraphBridge = {
       return { ...projection, graphStatus: 'unavailable', surfaceKnown: false, querySurface: surface };
     } catch {
       return { status: 'error', graphStatus: 'unavailable', targets: [] };
+    }
+  },
+  async getKnowledgeProjectionCollection(language, requestedSurfaces, evidenceKeys, requestedThresholds) {
+    const requested = [...new Set(requestedSurfaces)];
+    try {
+      const selected = evidenceKeys === undefined
+        ? requested
+        : await graphBridge.getEvidenceLinkedSurfaces(language, requested, evidenceKeys);
+      const linked = new Set(selected);
+      const surfaces = requested.filter(surface => linked.has(surface));
+      const projections = new Map<string, import('../graph/ipc').KnowledgeProjection>();
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < surfaces.length) {
+          const surface = surfaces[cursor++];
+          projections.set(surface, await withMobileProjectionWorker(() => graphBridge.getKnowledgeProjection(language, surface, requestedThresholds)));
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, surfaces.length) }, worker));
+      return { projections: Object.fromEntries(surfaces.map(surface => [surface, projections.get(surface)!])) };
+    } catch {
+      return { projections: Object.fromEntries(requested.map(surface => [surface, { status: 'error', graphStatus: 'unavailable', targets: [], querySurface: surface }])) };
     }
   },
 };

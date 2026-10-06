@@ -125,6 +125,8 @@ const graphBridge: GraphBridge = {
   getGraphNeighborhood: (language, query) => getIPC().getGraphNeighborhood(language, query),
   getEvidenceLinkedSurfaces: (language, surfaces, keys) => getIPC().getEvidenceLinkedSurfaces(language, surfaces, keys),
   getKnowledgeProjection: (language, surface, thresholds) => getIPC().getKnowledgeProjection(language, surface, thresholds),
+  getKnowledgeProjectionCollection: (language, surfaces, evidenceKeys, thresholds) =>
+    getIPC().getKnowledgeProjectionCollection(language, surfaces, evidenceKeys, thresholds),
 };
 
 const fileBridge: FileBridge = {
