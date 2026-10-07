@@ -1092,7 +1092,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
           pattern: point.pattern,
           contentVersion: bank().contentVersion,
         });
-        if (!isDeliverableItem(item) && !records.has(questionValidationRecordKey(source.id, item.version, point.pattern))) {
+        if (!isDeliverableItem(item) && !records.has(questionValidationRecordKey(source.id, item.version, point.pattern, bank().contentVersion))) {
           pending.set(point.level, true);
           break;
         }
@@ -1704,6 +1704,9 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
                                 {/* The delivered item only: context with the removed span,
                                     seeded options WITHOUT any correctness flag (G02 — the
                                     answering surface never holds the gold answer). */}
+                                <Show when={step.source.register}>
+                                  <p class="grammar-contrast__register">{step.source.register}</p>
+                                </Show>
                                 <p class="grammar-contrast__context" data-item-id={step.item.id}>
                                   {step.item.prompt.slice(0, step.item.gap.start)}
                                   <mark class="grammar-contrast__gap" aria-hidden="true" />

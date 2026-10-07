@@ -49,7 +49,7 @@
     "derivation": "builder"
   },
   "languageData": {
-    "version": "de-package-2026.09.19-r3",
+    "version": "de-package-2026.10.07-reviewed-checkpoint-r1",
     "sourceVersions": {
       "dictionary": "freedict-deu-eng-2024.04.21",
       "frequency": "frequencywords-2018-525f9b560de4",
@@ -234,9 +234,31 @@
           ],
           "register": "informal spoken German; present tense; the cause supports the main clause",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:2664ed5d70d6edc9",
+              "scope": {
+                "language": "de",
+                "pattern": "weil",
+                "packageVersion": "de-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "weil"
+              ],
+              "reasons": [
+                "The completed sentence is natural: fever gives a reason for staying in bed.",
+                "weil both expresses the declared cause and licenses ich Fieber habe. obwohl would express concession; deshalb would require different main-clause word order.",
+                "The distractors test distinct semantic or syntactic contrasts. Only weil meets the delivered constraints; coverage is MCQ recognition only."
+              ]
+            }
+          }
         },
         {
           "id": "de-weil-studium-2",
@@ -264,9 +286,31 @@
           ],
           "register": "informal spoken German; present tense; the reason supports the main clause",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:f1619d848245d3c8",
+              "scope": {
+                "language": "de",
+                "pattern": "weil",
+                "packageVersion": "de-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "weil"
+              ],
+              "reasons": [
+                "The completed sentence naturally gives the desire to study in Germany next year as the reason for daily German study.",
+                "weil licenses the subordinate clause with möchte at the end and expresses the declared cause. obwohl conflicts with that reading; deshalb does not license the supplied word order.",
+                "Only weil satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
+              ]
+            }
+          }
         }
       ]
     },
@@ -283,7 +327,7 @@
       "items": [
         {
           "id": "de-obwohl-regen-1",
-          "context": "Wir gehen spazieren, obwohl es regnet.",
+          "context": "Wir gehen spazieren, obwohl es seit Stunden stark regnet.",
           "answerSpan": "obwohl",
           "conditions": [
             "concessive-reading",
@@ -308,9 +352,31 @@
           ],
           "register": "informal spoken German; present tense; the subordinate clause opposes the main clause",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:58a162079e97361b",
+              "scope": {
+                "language": "de",
+                "pattern": "obwohl",
+                "packageVersion": "de-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "obwohl"
+              ],
+              "reasons": [
+                "The completed sentence naturally presents heavy ongoing rain as an obstacle despite which the walk occurs.",
+                "obwohl expresses the declared concession and licenses regnet at the end. weil changes the relation to a cause; deshalb requires different main-clause word order.",
+                "Only obwohl satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
+              ]
+            }
+          }
         },
         {
           "id": "de-obwohl-krank-2",
@@ -339,9 +405,31 @@
           ],
           "register": "informal spoken German; past tense; the subordinate clause opposes the main clause",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:67804cdb9ea0628f",
+              "scope": {
+                "language": "de",
+                "pattern": "obwohl",
+                "packageVersion": "de-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "obwohl"
+              ],
+              "reasons": [
+                "The completed sentence naturally contrasts going to work with being ill.",
+                "obwohl expresses the declared concession and licenses war at the end. weil instead gives a cause; deshalb does not fit the supplied subordinate-clause word order.",
+                "Only obwohl satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
+              ]
+            }
+          }
         }
       ]
     },
@@ -383,9 +471,31 @@
           ],
           "register": "informal spoken German; present tense; the cause precedes the consequence",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:82bc0bfddc977d81",
+              "scope": {
+                "language": "de",
+                "pattern": "deshalb",
+                "packageVersion": "de-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "deshalb"
+              ],
+              "reasons": [
+                "The completed sentence naturally states studying all day as a consequence of the upcoming examination.",
+                "deshalb fits the declared causal relation and the inversion lerne ich. trotzdem would express concession, while weil does not fit the supplied clause order.",
+                "Only deshalb satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
+              ]
+            }
+          }
         },
         {
           "id": "de-deshalb-hause-2",
@@ -413,9 +523,31 @@
           ],
           "register": "informal spoken German; past tense; the cause precedes the consequence",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:b4c0bdf0b5c1437c",
+              "scope": {
+                "language": "de",
+                "pattern": "deshalb",
+                "packageVersion": "de-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "deshalb"
+              ],
+              "reasons": [
+                "The completed sentence naturally gives the late hour as the reason for going home quickly.",
+                "deshalb expresses the declared consequence and fits bin ich. trotzdem would reverse the intended discourse relation; weil cannot license this clause order.",
+                "Only deshalb satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
+              ]
+            }
+          }
         }
       ]
     },

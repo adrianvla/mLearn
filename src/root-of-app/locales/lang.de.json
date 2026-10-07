@@ -2196,6 +2196,7 @@
         "Summaries": "Letzte Ergebnisse",
         "SummaryCounts": "{correct}/{answered} richtig · {timedOut} unbeantwortet",
         "StorageUnavailable": "Deine Antwort konnte nicht gespeichert werden. Prüfe den verfügbaren Speicherplatz und versuche es erneut.",
+        "ResultsStorageUnavailable": "Die Ergebnisse konnten nicht gespeichert werden. Prüfe den Speicher und versuche es erneut.",
         "AvailabilityMissingSources": "Dieses Sprachpaket enthält keine Fragenquellen für Kontrollpunkte.",
         "AvailabilityMissingBlueprint": "Fragenquellen sind installiert, aber keiner Kontrollpunktstufe zugeordnet.",
         "AvailabilityRequestedUnavailable": "Für die angeforderte Stufe enthält dieses Paket keinen Kontrollpunkt. Es wurde keine andere Stufe eingesetzt.",

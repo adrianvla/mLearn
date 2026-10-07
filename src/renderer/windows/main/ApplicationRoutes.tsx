@@ -88,15 +88,20 @@ const GrammarMock: Component<RequestedWorkspaceProps> = props => {
   return <LearningWorkspace><LevelStudyContent workspace="mock" launchContext={props.launchContext}
     onClose={() => navigate(props.launchContext?.returnTo === 'plan' ? '/plan' : '/evaluate', props.launchContext)} /></LearningWorkspace>;
 };
-const evaluationReturnPath = (context?: Record<string, unknown>): string => {
+const evaluationReturnDestination = (context?: Record<string, unknown>): { path: string; label: string } => {
   const destination = context?.returnTo === 'evaluate' ? context.evaluationReturnTo : context?.returnTo;
-  return destination === 'home' ? '/' : destination === 'plan' ? '/plan' : '/practise';
+  return destination === 'home'
+    ? { path: '/', label: 'mlearn.Tabs.Home' }
+    : destination === 'plan'
+      ? { path: '/plan', label: 'mlearn.Product.Plan' }
+      : { path: '/practise', label: 'mlearn.Flashcards.UI.Title' };
 };
 
 const Evaluate: Component<RequestedWorkspaceProps> = (props) => {
   const { t } = useLocalization();
   const navigate = useApplicationNavigate();
   const sourceContext = () => props.launchContext ?? {};
+  const returnDestination = () => evaluationReturnDestination(props.launchContext);
   const childContext = () => ({
     ...sourceContext(),
     returnTo: 'evaluate',
@@ -108,7 +113,7 @@ const Evaluate: Component<RequestedWorkspaceProps> = (props) => {
   });
   return <section class="product-workspace evaluation-chooser">
     <header class="evaluation-chooser-header"><Button buttonType="nav" icon={<ArrowLeftIcon size={16} />}
-      onClick={() => navigate(evaluationReturnPath(props.launchContext))}>{t('mlearn.Flashcards.UI.Title')}</Button><h1>{t('mlearn.Product.Evaluate')}</h1></header>
+      onClick={() => navigate(returnDestination().path)}>{t(returnDestination().label)}</Button><h1>{t('mlearn.Product.Evaluate')}</h1></header>
     <div class="study-chooser-alternatives"><ActionCard icon={<TargetIcon size={24} />} primary title={t('mlearn.Product.KnowledgeCheck')}
       description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate/words', { state: {
         applicationRequestId: crypto.randomUUID(), applicationContext: { ...childContext(), intent: 'start' },

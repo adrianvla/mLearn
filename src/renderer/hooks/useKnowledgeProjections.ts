@@ -1,4 +1,4 @@
-import { batch, createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
+import { batch, createEffect, createMemo, createSignal, onCleanup, type Accessor } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
 import type { KnowledgeProjection } from '../../shared/graph/ipc';
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
@@ -27,6 +27,13 @@ export function useKnowledgeProjections(query: Accessor<{
   const [completedRevision, setCompletedRevision] = createSignal<KnowledgeProjectionRevision>();
   const [completedLanguage, setCompletedLanguage] = createSignal<string>();
   const [retryVersion, setRetryVersion] = createSignal(0);
+  const requestedScope = createMemo(() => {
+    const input = query();
+    return input ? JSON.stringify([input.language, [...new Set(input.surfaces)].sort(),
+      input.evidenceKeys === undefined ? undefined : [...new Set(input.evidenceKeys)].sort()]) : undefined;
+  });
+  const [completedScope, setCompletedScope] = createSignal<string>();
+  const scopeMatches = () => requestedScope() !== undefined && requestedScope() === completedScope();
   let settledKey: string | undefined;
   createEffect(() => {
     // Work admitted by the main-process collection service is allowed to
@@ -47,12 +54,13 @@ export function useKnowledgeProjections(query: Accessor<{
     if (!input) { settledKey = requestKey; setLoading(false); return; }
     if (input.surfaces.length === 0) {
       settledKey = requestKey;
-      batch(() => { setProjections(new Map()); setCompletedLanguage(input.language); setCompletedRevision(undefined); setLoading(false); setReady(true); });
+      batch(() => { setProjections(new Map()); setCompletedLanguage(input.language); setCompletedScope(requestedScope()); setCompletedRevision(undefined); setLoading(false); setReady(true); });
       return;
     }
     let disposed = false;
     onCleanup(() => { disposed = true; });
     setLoading(true);
+    const admittedScope = requestedScope();
     const requested = [...new Set(input.surfaces)];
     const requestId = hashWordSync(requestKey).slice(0, 12);
     const startedAt = performance.now();
@@ -78,6 +86,7 @@ export function useKnowledgeProjections(query: Accessor<{
           settledKey = requestKey;
           setProjections(result);
           setCompletedLanguage(input.language);
+          setCompletedScope(admittedScope);
           setCompletedRevision(collection.revision);
           setLoading(false);
           setReady([...result.values()].every(projection => projection.status === 'ready'));
@@ -99,5 +108,7 @@ export function useKnowledgeProjections(query: Accessor<{
       }
     })();
   });
-  return { projections, loading, ready, failed, completedRevision, retry: () => setRetryVersion((value) => value + 1) };
+  const visibleProjections = createMemo(() => scopeMatches() ? projections() : new Map<string, KnowledgeProjection>());
+  return { projections: visibleProjections, loading, ready: () => scopeMatches() && ready(), failed,
+    completedRevision: () => scopeMatches() ? completedRevision() : undefined, retry: () => setRetryVersion((value) => value + 1) };
 }

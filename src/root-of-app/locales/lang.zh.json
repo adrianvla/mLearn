@@ -2196,6 +2196,7 @@
         "Summaries": "最近的结果",
         "SummaryCounts": "{correct}/{answered} 正确 · {timedOut} 未答",
         "StorageUnavailable": "无法保存你的答案。请检查存储空间是否可用，然后重试。",
+        "ResultsStorageUnavailable": "无法保存检查点结果。请检查存储空间后重试。",
         "AvailabilityMissingSources": "此语言包没有阶段检查题目来源。",
         "AvailabilityMissingBlueprint": "题目来源已安装，但尚未分配到任何阶段检查级别。",
         "AvailabilityRequestedUnavailable": "此语言包没有指定级别的阶段检查蓝图，系统没有替换成其他级别。",

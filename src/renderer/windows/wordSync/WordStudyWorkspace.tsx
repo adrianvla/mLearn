@@ -35,7 +35,8 @@ export const WordStudyWorkspace: Component<{
       encounterLimit={limit()} sessionRequestId={requestId()}
       launchIntent={props.launchContext?.intent === 'start' || props.launchContext?.intent === 'resume' ? props.launchContext.intent : requestId() || material() ? 'start' : 'open'}
       resumeSessionId={typeof props.launchContext?.sessionId === 'string' ? props.launchContext.sessionId : undefined}
-      returnContext={{ returnTo: props.launchContext?.returnTo ?? (material() ? 'material' : undefined), sourceContext: props.launchContext?.sourceContext }}
+      returnContext={{ returnTo: props.launchContext?.returnTo ?? (material() ? 'material' : undefined),
+        evaluationReturnTo: props.launchContext?.evaluationReturnTo, sourceContext: props.launchContext?.sourceContext }}
       onClose={context => props.onReturn(returnPath(context), context)} onAssessmentApplied={() => props.onReturn('/plan')} />
   </Show></Show>;
 };

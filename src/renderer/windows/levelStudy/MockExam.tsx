@@ -256,7 +256,9 @@ export const MockExam: Component<MockExamProps> = (props) => {
         return;
       }
       const bound = bindMockAttempt(current, pending.attemptId);
-      if (!persistSession(language, bound)) {
+      // Retain the durable pending receipt until the terminal result is saved.
+      // Restart may replay that same id; the canonical writer deduplicates it.
+      if (bound.finishedAt === undefined && !persistSession(language, bound)) {
         if (props.language === language) setState(current);
         setStorageUnavailable(true);
         return;
@@ -277,8 +279,11 @@ export const MockExam: Component<MockExamProps> = (props) => {
   const finishBookkeeping = (language: string, final: MockSessionState): void => {
     const summary = summarizeMockResults(final);
     setResults(summary);
-    saveMockSummary(language, summary);
-    savePendingMockResults(language, summary);
+    if (!saveMockSummary(language, summary) || !savePendingMockResults(language, summary)) {
+      setStorageUnavailable(true);
+      return;
+    }
+    setStorageUnavailable(false);
     persistClear(language);
   };
 
@@ -586,7 +591,8 @@ export const MockExam: Component<MockExamProps> = (props) => {
   onCleanup(() => globalThis.removeEventListener('storage', onStorage));
 
   const closeResults = () => {
-    savePendingMockResults(props.language, null);
+    if (storageUnavailable()) return;
+    if (!savePendingMockResults(props.language, null)) { setStorageUnavailable(true); return; }
     setState((current) => current !== null && (current.finishedAt !== undefined || current.abandoned === true) ? null : current);
     setResults(null);
     setSummaries(loadMockSummaries(props.language));
@@ -691,6 +697,9 @@ export const MockExam: Component<MockExamProps> = (props) => {
           </div>
           {/* The delivered item only: context with the removed span. No
               correctness flag, no feedback — fixed exam conditions. */}
+          <Show when={step()!.source.register}>
+            <p class="mock-exam__subtitle" data-testid="mock-question-register">{step()!.source.register}</p>
+          </Show>
           <p class="mock-exam__context" data-item-id={step()!.item.id}>
             {step()!.item.prompt.slice(0, step()!.item.gap.start)}
             <mark class="mock-exam__gap" aria-hidden="true" />
@@ -794,6 +803,14 @@ export const MockExam: Component<MockExamProps> = (props) => {
       </Show>
 
       {/* ── Results view: provenance, never an official score ── */}
+      <Show when={results() && storageUnavailable()}>
+        <p class="mock-exam__empty" role="alert">{t('mlearn.LevelStudy.Mock.ResultsStorageUnavailable')}</p>
+        <Button data-testid="mock-result-storage-retry" onClick={() => {
+          const final = state();
+          if (final) finishBookkeeping(props.language, final);
+          else if (results() && savePendingMockResults(props.language, results())) setStorageUnavailable(false);
+        }}>{t('mlearn.Global.Retry')}</Button>
+      </Show>
       <Show when={results()} keyed>
         {(summary) => (
           <div class="mock-exam__results" data-testid="mock-results">

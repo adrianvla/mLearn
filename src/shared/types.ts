@@ -981,6 +981,11 @@ export interface GrammarItemSemanticValidation {
   at: string;
   /** Item content version the validator assessed (binding). */
   contentHash: string;
+  /** Versioned independent-review protocol and exact owning objective/package. */
+  protocol?: string;
+  scope?: { language: string; pattern: string; packageVersion: string };
+  /** Retained independent answer set, before comparison with the declared key. */
+  legitimateAnswers?: readonly string[];
   /** Validator reasons/notes (audit provenance). */
   reasons?: readonly string[];
 }

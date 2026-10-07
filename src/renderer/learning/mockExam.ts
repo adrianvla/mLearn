@@ -744,6 +744,11 @@ export interface MockSectionResult {
 }
 
 export interface MockResults {
+  /** Original physical session identity; absent only on retained older summaries. */
+  sessionId?: string;
+  /** Frozen references to actual responses, never regraded against a later package. */
+  attempts?: ReadonlyArray<{ attemptId?: string; itemRef: { id: string; version: string }; pattern: string;
+    conditions: readonly string[]; correct: boolean; timedOut: boolean; answeredAt: number }>;
   blueprintId: string;
   blueprintVersion: string;
   language: string;
@@ -801,6 +806,13 @@ export function summarizeMockResults(state: MockSessionState): MockResults {
     patternTotals.set(step.pattern, totals);
   }
   const results: MockResults = {
+    sessionId: state.sessionId,
+    attempts: state.answers.flatMap(answer => {
+      const step = instance.steps[answer.stepIndex];
+      return step ? [{ ...(answer.attemptId ? { attemptId: answer.attemptId } : {}),
+        itemRef: { id: step.item.id, version: step.item.version }, pattern: step.pattern,
+        conditions: step.source.conditions, correct: answer.correct, timedOut: answer.timedOut, answeredAt: answer.answeredAt }] : [];
+    }),
     blueprintId: instance.blueprint.id,
     blueprintVersion: instance.blueprint.version,
     language: instance.blueprint.language,
@@ -1101,13 +1113,20 @@ function mockInterruptionBoundary(language: string, state: MockSessionState & { 
   return state.persistedAt;
 }
 
-export function saveMockSummary(language: string, results: MockResults): void {
+export function saveMockSummary(language: string, results: MockResults): boolean {
   try {
     const existing = loadMockSummaries(language);
-    const next = [results, ...existing].slice(0, MOCK_SUMMARY_LIMIT);
-    storage()?.setItem(summaryStorageKey(language), JSON.stringify(next));
+    const sameResult = (row: MockResults) => results.sessionId && row.sessionId
+      ? row.sessionId === results.sessionId
+      : row.blueprintId === results.blueprintId && row.blueprintVersion === results.blueprintVersion
+        && row.seed === results.seed && row.startedAt === results.startedAt && row.finishedAt === results.finishedAt;
+    const next = [results, ...existing.filter(row => !sameResult(row))].slice(0, MOCK_SUMMARY_LIMIT);
+    const store = storage();
+    if (!store) return false;
+    store.setItem(summaryStorageKey(language), JSON.stringify(next));
+    return true;
   } catch {
-    // Storage unavailable: history is simply not shown.
+    return false;
   }
 }
 
@@ -1116,12 +1135,15 @@ export function saveMockSummary(language: string, results: MockResults): void {
  * Level Study temporarily unmounts this surface while canonical projections
  * refresh after an attempt, so component memory alone cannot own the result.
  */
-export function savePendingMockResults(language: string, results: MockResults | null): void {
+export function savePendingMockResults(language: string, results: MockResults | null): boolean {
   try {
-    if (results === null) storage()?.removeItem(pendingResultsStorageKey(language));
-    else storage()?.setItem(pendingResultsStorageKey(language), JSON.stringify(results));
+    const store = storage();
+    if (!store) return false;
+    if (results === null) store.removeItem(pendingResultsStorageKey(language));
+    else store.setItem(pendingResultsStorageKey(language), JSON.stringify(results));
+    return true;
   } catch {
-    // Storage unavailable: the current mounted view remains usable.
+    return false;
   }
 }
 

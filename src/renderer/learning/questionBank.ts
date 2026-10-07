@@ -250,6 +250,8 @@ export function assembleContrastItem(
   // is never applied — the item is unreviewed again, never half-validated.
   const declaredSemantic = source.validation?.semantic;
   const semantic = declaredSemantic !== undefined && declaredSemantic.contentHash === version
+    && (declaredSemantic.scope === undefined || (declaredSemantic.scope.language === language
+      && declaredSemantic.scope.pattern === pattern && declaredSemantic.scope.packageVersion === contentVersion))
     ? declaredSemantic
     : undefined;
   item.validation = {
@@ -515,7 +517,7 @@ export class QuestionBankCache {
     const validationKey = semantic === undefined
       ? 'unreviewed'
       : `${semantic.status}:${semantic.contentHash}:${semantic.validator}:${semantic.validatorVersion ?? ''}:${semantic.at}`;
-    const key = `${options.language}\u0000${source.id}\u0000${options.contentVersion ?? ''}\u0000${itemContentVersion(source)}\u0000${validationKey}`;
+    const key = `${options.language}\u0000${options.pattern}\u0000${source.id}\u0000${options.contentVersion ?? ''}\u0000${itemContentVersion(source)}\u0000${validationKey}`;
     const cached = this.entries.get(key);
     if (cached) {
       this.entries.delete(key);

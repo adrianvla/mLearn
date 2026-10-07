@@ -267,6 +267,23 @@ describe('LinguisticGraphService', () => {
     await expect(service.getNeighborhood('ja', { entityId: id, depth: 2 })).resolves.toBeNull();
   });
 
+  it('preserves authored edge direction through neighborhood payloads without guessing legacy direction', async () => {
+    const asset = { schemaVersion: 1 as const, language: 'future', generatedAt: '', sourceVersions: {},
+      entities: [{ id: 'center', kind: 'surface' }, { id: 'other', kind: 'surface' }],
+      relations: [{ from: 'other', to: 'center', type: 'future::direction', provenance: 'package' }] };
+    const encoded = encodeCompact(asset);
+    const file = path.join(directory, 'languages', 'future.graph.json');
+    fs.writeFileSync(file, JSON.stringify(encoded));
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const service = new LinguisticGraphService(directory);
+    expect((await service.getNeighborhood('future', { entityId: 'center' }))?.relations[0]).toMatchObject({ direction: 2, provenance: 'package' });
+    expect((await service.getNeighborhood('future', { entityId: 'other' }))?.relations[0]).toMatchObject({ direction: 1 });
+    delete encoded.relations.directions;
+    fs.writeFileSync(file, JSON.stringify(encoded));
+    advanceLanguagePackageRevision(directory, 'future');
+    expect((await service.getNeighborhood('future', { entityId: 'center' }))?.relations[0]).not.toHaveProperty('direction');
+  });
+
   it('includes lexical properties of a surface without traversing related surfaces', async () => {
     const id = `xx:surface:${crypto.createHash('sha256').update('word').digest('hex')}`;
     fs.writeFileSync(path.join(directory, 'languages', 'xx.graph.json'), JSON.stringify(encodeCompact({
@@ -477,12 +494,37 @@ describe('LinguisticGraphService', () => {
       await timed.getKnowledgeProjectionCollection('future', ['ttl']);
       await timed.getKnowledgeProjectionCollection('future', ['ttl']);
       expect(build).toHaveBeenCalledTimes(7);
-      now += 15_001;
+      now += 60_001;
       await timed.getKnowledgeProjectionCollection('future', ['ttl']);
       expect(build).toHaveBeenCalledTimes(8);
     } finally {
       clock.mockRestore();
     }
+  });
+
+  it('keeps a broad warm collection through churn from narrow surface requests', async () => {
+    const { LinguisticGraphService } = await import('./linguisticGraph');
+    const build = vi.mocked(buildKnowledgeProjection);
+    build.mockClear();
+    build.mockImplementation(() => ({ status: 'ready', targets: [] }));
+    const service = new LinguisticGraphService(directory, '/profile-bulk-cache');
+    const surfaces = Array.from({ length: 65 }, (_, index) => `surface-${index}`);
+
+    const warm = await service.getKnowledgeProjectionCollection('future', surfaces);
+    for (const surface of ['narrow-a', 'narrow-b', 'narrow-c', 'narrow-d', 'narrow-e']) {
+      await service.getKnowledgeProjectionCollection('future', [surface]);
+    }
+    const callsAfterChurn = build.mock.calls.length;
+    const cached = await service.getKnowledgeProjectionCollection('future', surfaces);
+
+    expect(build).toHaveBeenCalledTimes(callsAfterChurn);
+    expect(cached).toBe(warm);
+
+    const nextBroadQuery = surfaces.map(surface => `next-${surface}`);
+    await service.getKnowledgeProjectionCollection('future', nextBroadQuery);
+    const afterSecondBroadQuery = build.mock.calls.length;
+    await service.getKnowledgeProjectionCollection('future', surfaces);
+    expect(build).toHaveBeenCalledTimes(afterSecondBroadQuery + surfaces.length);
   });
 
   it('projects canonical journal knowledge without an optional graph and bounds evidence-linked surfaces', async () => {

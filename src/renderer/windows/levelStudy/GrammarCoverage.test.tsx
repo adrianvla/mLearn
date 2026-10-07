@@ -2365,7 +2365,7 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
     settingsLlmProvider = 'builtin';
   });
 
-  const spanForId = (id: string): string => (id.startsWith('ja-test-ba') ? 'ば' : 'のに');
+  const spanForId = (id: string): string => (id === 'item-3' ? 'ば' : 'のに');
   const fakeValidatorReply = async (messages: readonly unknown[]): Promise<string> => {
     const user = messages[1];
     if (user === null || typeof user !== 'object' || !('content' in user) || typeof user.content !== 'string') {

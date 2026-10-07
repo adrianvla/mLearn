@@ -165,3 +165,30 @@ describe('canonical projection collections', () => {
     root.dispose();
   });
 });
+
+it('does not publish a retained collection under a different same-language query scope, even while inactive', async () => {
+  query.mockResolvedValueOnce(collection('a')).mockImplementation(() => new Promise(() => {}));
+  const [surfaces, setSurfaces] = createSignal(['a']);
+  const root = createRoot(dispose => ({ dispose, state: useKnowledgeProjections(() => ({ language: 'test', surfaces: surfaces() })) }));
+  await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+  setActive(false);
+  setSurfaces(['b']);
+  expect(root.state.projections().size).toBe(0);
+  expect(root.state.ready()).toBe(false);
+  expect(root.state.completedRevision()).toBeUndefined();
+  setActive(true);
+  expect(root.state.projections().size).toBe(0);
+  root.dispose();
+});
+
+it('binds retained collections to the actual evidence-key scope', async () => {
+  query.mockResolvedValueOnce(collection('a'));
+  const [evidenceKeys, setEvidenceKeys] = createSignal(['test:old-source']);
+  const root = createRoot(dispose => ({ dispose, state: useKnowledgeProjections(() => ({ language: 'test', surfaces: ['a'], evidenceKeys: evidenceKeys() })) }));
+  await vi.waitFor(() => expect(root.state.ready()).toBe(true));
+  setActive(false);
+  setEvidenceKeys(['test:new-source']);
+  expect(root.state.projections().size).toBe(0);
+  expect(root.state.completedRevision()).toBeUndefined();
+  root.dispose();
+});

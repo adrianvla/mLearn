@@ -163,6 +163,12 @@ function evaluateCondition(
     return unsupportedCondition(goal, source, requirementId, kind, raw, packageVersion);
   }
 
+  // This evaluator models only its declared technical threshold. Unknown
+  // qualifiers survive intact, but cannot be silently treated as satisfied.
+  if (Object.keys(raw).some(key => !['id', 'kind', 'groupIds', 'capability', 'minimum'].includes(key))) {
+    return unsupportedCondition(goal, source, requirementId, kind, raw, packageVersion, 'requirement-qualifiers-unsupported');
+  }
+
   const selectedGroups = groups.filter(group => raw.groupIds.includes(group.id));
   if (selectedGroups.length !== new Set(raw.groupIds).size) {
     return unsupportedCondition(goal, source, requirementId, kind, raw, packageVersion, 'requirement-group-unavailable');
@@ -277,7 +283,7 @@ export function evaluateLearningRequirements(
         for (const raw of packageConditions) {
           conditions.push(evaluateCondition(goal, 'package', raw, resolved.groups, model, events, nowMs, packageVersion));
         }
-        if (isRecord(packageRequirements)) {
+        if (isRecord(packageRequirements) && Array.isArray(packageRequirements.conditions)) {
           const extensions = Object.fromEntries(Object.entries(packageRequirements).filter(([key]) => key !== 'conditions'));
           if (Object.keys(extensions).length) conditions.push(unsupportedCondition(goal, 'package', 'package-requirements-extension',
             'opaque', extensions, packageVersion));
@@ -298,6 +304,11 @@ export function evaluateLearningRequirements(
       if (userConditions) {
         for (const raw of userConditions) {
           conditions.push(evaluateCondition(goal, 'user', raw, resolved.groups, model, events, nowMs, packageVersion));
+        }
+        if (isRecord(userRequirements) && Array.isArray(userRequirements.conditions)) {
+          const extensions = Object.fromEntries(Object.entries(userRequirements).filter(([key]) => key !== 'conditions'));
+          if (Object.keys(extensions).length) conditions.push(unsupportedCondition(goal, 'user', 'user-requirements-extension',
+            'opaque', extensions, packageVersion));
         }
       } else {
         conditions.push(unsupportedCondition(goal, 'user', 'user-requirements', 'opaque', userRequirements, packageVersion));

@@ -354,25 +354,47 @@
           ],
           "distractors": [
             {
-              "span": "即使",
+              "span": "因为",
               "violates": [
                 "realized-concession"
               ],
-              "rationale": "即使 introduces a hypothetical concession and pairs with 也; the clause states a realized past event (昨天…了), and 即使…但是 is not the correct pair."
+              "rationale": "A causal accepted premise would motivate the result; the declared relation instead contrasts the actual circumstance with what happened."
             },
             {
-              "span": "如果",
+              "span": "既然",
               "violates": [
                 "realized-concession"
               ],
-              "rationale": "如果 introduces a hypothetical condition (paired with 就); the clause is a realized fact, not a hypothesis."
+              "rationale": "A causal accepted premise would motivate the result; the declared relation instead contrasts the actual circumstance with what happened."
             }
           ],
           "register": "neutral narrative; the concession is a realized past event",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:a981c5827e301c56",
+              "scope": {
+                "language": "zh",
+                "pattern": "虽然 ... 但是",
+                "packageVersion": "zh-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "虽然"
+              ],
+              "reasons": [
+                "The completed sentence naturally reports that he came to work despite having become ill yesterday.",
+                "虽然 expresses the realized concession. 因为 would assert causation and 既然 would present a premise for an inference; neither expresses the declared concession here.",
+                "但是 and 还是 reinforce the concession, but this judgment is semantic rather than a rigid requirement to pair connectors. Only 虽然 meets the declared reading among the offered alternatives; coverage is MCQ recognition only."
+              ]
+            }
+          }
         },
         {
           "id": "zh-suiran-tianqi-2",
@@ -383,25 +405,47 @@
           ],
           "distractors": [
             {
-              "span": "即使",
+              "span": "因为",
               "violates": [
                 "realized-concession"
               ],
-              "rationale": "即使 frames an unrealized hypothesis paired with 也; the cold weather here is a realized fact the speaker concedes, so the plain concessive 虽然 is required."
+              "rationale": "A causal accepted premise would motivate the result; the declared relation instead contrasts the actual circumstance with what happened."
             },
             {
-              "span": "如果",
+              "span": "既然",
               "violates": [
                 "realized-concession"
               ],
-              "rationale": "如果 states a plain condition paired with 就; the sentence concedes a fact and reports what actually happened, it does not posit a condition."
+              "rationale": "A causal accepted premise would motivate the result; the declared relation instead contrasts the actual circumstance with what happened."
             }
           ],
           "register": "neutral narrative; the concession is a realized fact and the second clause reports what happened",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:de500c3e1a1f115a",
+              "scope": {
+                "language": "zh",
+                "pattern": "虽然 ... 但是",
+                "packageVersion": "zh-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "虽然"
+              ],
+              "reasons": [
+                "The completed sentence naturally reports swimming despite the realized fact of cold weather.",
+                "虽然 expresses the declared realized concession. 既然 and 因为 present reasons or premises instead, so they do not meet that reading.",
+                "还是 supports the concessive meaning without establishing an exclusive connector pairing rule. Only 虽然 meets the delivered constraints among the offered alternatives; coverage is MCQ recognition only."
+              ]
+            }
+          }
         }
       ]
     },
@@ -652,25 +696,47 @@
           ],
           "distractors": [
             {
-              "span": "虽然",
+              "span": "因为",
               "violates": [
                 "hypothetical-concession"
               ],
-              "rationale": "虽然 marks a realized concession paired with 但是; the clause is a hypothesis about tomorrow, and 虽然…也 is not the correct pair."
+              "rationale": "This causal connector asserts or accepts the first clause as a reason; it does not itself express concession to an unconfirmed possibility."
             },
             {
-              "span": "如果",
+              "span": "既然",
               "violates": [
                 "hypothetical-concession"
               ],
-              "rationale": "如果 states a plain conditional (paired with 就); the 也 in the second clause needs the concessive 即使, not a plain condition."
+              "rationale": "This causal connector asserts or accepts the first clause as a reason; it does not itself express concession to an unconfirmed possibility."
             }
           ],
-          "register": "spoken determination; an unrealized hypothesis about tomorrow",
+          "register": "spoken determination; the first clause is an unconfirmed possibility, not an asserted fact or accepted cause; the connector itself must express that the outcome holds despite that possibility",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:1b0f36a59ea7e839",
+              "scope": {
+                "language": "zh",
+                "pattern": "即使 ... 也",
+                "packageVersion": "zh-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "即使"
+              ],
+              "reasons": [
+                "The completed sentence naturally expresses determination to hold the competition even in the unconfirmed event of rain tomorrow.",
+                "即使 itself expresses the hypothetical concession. 既然 presupposes an accepted premise and 因为 asserts a cause; neither meets the explicitly unconfirmed concessive reading.",
+                "也 alone does not make arbitrary connectors hypothetical concessives. Only 即使 meets the delivered constraints among the offered alternatives; coverage is MCQ recognition only."
+              ]
+            }
+          }
         },
         {
           "id": "zh-jishi-shibai-2",
@@ -681,25 +747,47 @@
           ],
           "distractors": [
             {
-              "span": "虽然",
+              "span": "因为",
               "violates": [
                 "hypothetical-concession"
               ],
-              "rationale": "虽然 concedes a realized fact paired with 但是/可是; the failure here is a hypothetical the speaker anticipates, so the hypothetical concessive 即使 is required."
+              "rationale": "This causal connector asserts or accepts the first clause as a reason; it does not itself express concession to an unconfirmed possibility."
             },
             {
-              "span": "如果",
+              "span": "既然",
               "violates": [
                 "hypothetical-concession"
               ],
-              "rationale": "如果 states a plain condition without the concessive force; the 也 in the second clause marks determination despite the hypothesis, which is the 即使…也 frame."
+              "rationale": "This causal connector asserts or accepts the first clause as a reason; it does not itself express concession to an unconfirmed possibility."
             }
           ],
-          "register": "spoken determination; an unrealized hypothesis about this attempt",
+          "register": "spoken determination; the first clause is an unconfirmed possibility, not an asserted fact or accepted cause; the connector itself must express that the outcome holds despite that possibility",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:76ad8bd2f0c565c6",
+              "scope": {
+                "language": "zh",
+                "pattern": "即使 ... 也",
+                "packageVersion": "zh-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "即使"
+              ],
+              "reasons": [
+                "The completed sentence naturally expresses determination not to give up even if this attempt fails. 了 is compatible with a hypothetical completed failure and does not by itself assert that failure occurred.",
+                "即使 expresses the required hypothetical concession. 既然 presupposes an accepted premise and 因为 asserts causation, contrary to the declared reading.",
+                "Only 即使 meets the delivered constraints among the offered alternatives; this does not claim exclusivity across all possible Chinese expressions. Coverage is MCQ recognition only."
+              ]
+            }
+          }
         }
       ]
     },
@@ -733,25 +821,47 @@
           ],
           "distractors": [
             {
-              "span": "因为",
+              "span": "即使",
               "violates": [
                 "presupposed-reason"
               ],
-              "rationale": "因为 introduces new information as the cause and pairs with 所以; the 吧 suggestion takes the reason as already accepted by both speaker and hearer (既然…就)."
+              "rationale": "This concessive connector presents an obstacle despite which the result holds, rather than the accepted premise motivating the response."
             },
             {
               "span": "虽然",
               "violates": [
                 "presupposed-reason"
               ],
-              "rationale": "虽然 frames the first clause as a concession contrary to the result (paired with 但是); the clause here is the accepted premise the suggestion builds on (既然…就), not a contrast."
+              "rationale": "This concessive connector presents an obstacle despite which the result holds, rather than the accepted premise motivating the response."
             }
           ],
           "register": "spoken; the reason is presupposed and the predicate is a suggestion",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:cbb0551a5a4f56d6",
+              "scope": {
+                "language": "zh",
+                "pattern": "既然 ... 就",
+                "packageVersion": "zh-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "既然"
+              ],
+              "reasons": [
+                "The completed sentence is natural spoken Chinese: everyone having arrived is accepted as the basis for suggesting that the group begin.",
+                "既然 expresses the presupposed reason. 即使 changes it to a hypothetical concession; 虽然 changes it to a realized concession, neither of which satisfies the declared relation.",
+                "就 supports an inference here but is not treated as an exclusive pairing rule. Only 既然 meets the constraints among the offered alternatives; coverage is MCQ recognition only."
+              ]
+            }
+          }
         },
         {
           "id": "zh-jiran-jueding-2",
@@ -762,25 +872,47 @@
           ],
           "distractors": [
             {
-              "span": "因为",
+              "span": "即使",
               "violates": [
                 "presupposed-reason"
               ],
-              "rationale": "因为 introduces new information as the cause and pairs with 所以; the decision here is already accepted by both speaker and hearer (既然…就), not newly reported."
+              "rationale": "This concessive connector presents an obstacle despite which the result holds, rather than the accepted premise motivating the response."
             },
             {
               "span": "虽然",
               "violates": [
                 "presupposed-reason"
               ],
-              "rationale": "虽然 frames the first clause as a concession contrary to the result (paired with 但是); the clause here is the accepted premise the response builds on, not a contrast."
+              "rationale": "This concessive connector presents an obstacle despite which the result holds, rather than the accepted premise motivating the response."
             }
           ],
           "register": "spoken; the reason is presupposed and the predicate is the speaker's response",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:14edf7d255c8cd96",
+              "scope": {
+                "language": "zh",
+                "pattern": "既然 ... 就",
+                "packageVersion": "zh-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "既然"
+              ],
+              "reasons": [
+                "The completed sentence naturally treats the decision as an accepted premise for the speaker ceasing opposition.",
+                "既然 expresses the declared presupposed reason. 即使 gives a hypothetical concession; 虽然 gives a concessive relation rather than the required premise-to-response relation.",
+                "就 does not establish a rigid connector pairing. Only 既然 meets the delivered constraints among the offered alternatives; coverage is MCQ recognition only."
+              ]
+            }
+          }
         }
       ]
     },
@@ -1405,7 +1537,7 @@
     }
   },
   "languageData": {
-    "version": "zh-package-2026.09.19-r2",
+    "version": "zh-package-2026.10.07-reviewed-checkpoint-r1",
     "minimumAppVersion": "2.8.0",
     "sourceVersions": {
       "ccCedict": "20260403",

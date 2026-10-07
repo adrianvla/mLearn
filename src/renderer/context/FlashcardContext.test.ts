@@ -7814,7 +7814,7 @@ describe('acknowledged rating command semantics', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
 
       // Rate the presented pattern (written-form only; no meaning cue in the pass).
-      const presented = block().querySelector('.grammar-coverage__session-prompt')?.getAttribute('data-pattern');
+      const presented = block().querySelector('[data-testid="grammar-pattern-prompt"]')?.getAttribute('data-pattern');
       expect(presented).toBeTruthy();
       (block().querySelector('.study-encounter__reveal') as HTMLElement).click();
       (block().querySelector('.grammar-coverage__encounter .rating-matrix__quality:nth-child(3)') as HTMLElement).click();
@@ -7919,7 +7919,7 @@ describe('acknowledged rating command semantics', () => {
 
     (container.querySelector(`[data-level="${level}"] .grammar-coverage__session-btn`) as HTMLElement).click();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const presented = container.querySelector(`[data-level="${level}"] .grammar-coverage__session-prompt`)?.getAttribute('data-pattern');
+    const presented = container.querySelector(`[data-level="${level}"] [data-testid="grammar-pattern-prompt"]`)?.getAttribute('data-pattern');
     expect(presented).toBeTruthy();
     (container.querySelector(`[data-level="${level}"] .study-encounter__reveal`) as HTMLElement).click();
     (container.querySelector(`[data-level="${level}"] .grammar-coverage__encounter .rating-matrix__quality:nth-child(3)`) as HTMLElement).click();

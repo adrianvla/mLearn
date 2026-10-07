@@ -584,7 +584,7 @@ describe('persistence (G01/G04)', () => {
     const mockedInstance = assembleMockInstance(blueprint3(), bank(), {}, 42, 1000);
     const state = startMockSession(mockedInstance, 1_000_000);
     for (let index = 0; index < MOCK_SUMMARY_LIMIT + 1; index += 1) {
-      saveMockSummary('de', { ...summarizeMockResults(state), startedAt: 1_000_000 + index });
+      saveMockSummary('de', { ...summarizeMockResults(state), sessionId: `distinct-${index}`, startedAt: 1_000_000 + index });
     }
     const summaries = loadMockSummaries('de');
     expect(summaries).toHaveLength(MOCK_SUMMARY_LIMIT);
@@ -766,4 +766,14 @@ describe('explicit fixed mock switching', () => {
     expect(loadSavedMockSessions('de', data).map(s => s.sessionId)).toEqual([first.sessionId, second.sessionId]);
     globalThis.localStorage?.clear();
   });
+});
+
+
+it('keeps one attributable result for repeated terminal bookkeeping', () => {
+  const state = startMockSession(assembleMockInstance(blueprint3(), bank(), {}, 42, 1000), 1_000_000);
+  const summary = summarizeMockResults(state);
+  saveMockSummary('de', summary);
+  saveMockSummary('de', summary);
+  expect(loadMockSummaries('de').filter(row => row.startedAt === summary.startedAt)).toHaveLength(1);
+  expect(summary).toHaveProperty('sessionId', state.sessionId);
 });

@@ -2196,6 +2196,7 @@
         "Summaries": "Recent results",
         "SummaryCounts": "{correct}/{answered} correct · {timedOut} unanswered",
         "StorageUnavailable": "We could not save your answer. Check that storage is available, then try again.",
+        "ResultsStorageUnavailable": "Checkpoint results could not be saved. Check storage and try again.",
         "AvailabilityMissingSources": "This language package contains no checkpoint question sources.",
         "AvailabilityMissingBlueprint": "Question sources are installed, but none are assigned to a checkpoint level.",
         "AvailabilityRequestedUnavailable": "This package has no checkpoint blueprint for the requested level. Other levels were not substituted.",

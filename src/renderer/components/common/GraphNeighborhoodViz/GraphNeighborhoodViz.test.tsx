@@ -95,11 +95,27 @@ describe('neighborhood presentation', () => {
     expect(container.querySelector('.graph-viz__detail-heading')?.textContent).toContain('Package-defined class description');
     expect(container.querySelector('details')?.textContent).toContain('v5u');
   });
-  it('distinguishes same-label nodes by kind, and uses undirected connectors', () => {
+  it('distinguishes same-label nodes by kind, and leaves legacy unknown-direction connectors undirected', () => {
     mount(); expect(container.querySelector('.graph-viz__node')?.getAttribute('aria-label')).toContain('DictionaryEntry');
     expect(container.querySelector('[marker-end]')).toBeNull();
     expect(container.querySelectorAll('.graph-viz__edge')).toHaveLength(1);
     selectGroup('LemmaOf'); expect(container.querySelector('.graph-viz__node')?.getAttribute('aria-label')).toContain('Lexeme');
+  });
+  it('renders only package-authored orientations in grouped and overview connections', () => {
+    const data = { ...neighborhood, relations: [
+      { ...neighborhood.relations[0], direction: 1 as const },
+      { ...neighborhood.relations[1], direction: 2 as const },
+      { ...neighborhood.relations[2], direction: 3 as const },
+    ] };
+    mount(data, vi.fn(), true);
+    expect(container.querySelectorAll('.graph-viz__edge[marker-end]')).toHaveLength(2);
+    expect(container.querySelectorAll('.graph-viz__edge[marker-start]')).toHaveLength(2);
+    selectGroup('Realizes');
+    expect(container.querySelector('.graph-viz__edge[marker-end]')).not.toBeNull();
+    expect(container.querySelector('.graph-viz__edge[marker-start]')).toBeNull();
+    selectGroup('LemmaOf');
+    expect(container.querySelector('.graph-viz__edge[marker-start]')).not.toBeNull();
+    expect(container.querySelector('.graph-viz__edge[marker-end]')).toBeNull();
   });
   it('preserves a lexical intermediary instead of implying a direct property edge', () => {
     mount({ ...neighborhood, relations: [{ ...dense.relations[0], via: neighborhood.relations[0] }] });
@@ -107,6 +123,14 @@ describe('neighborhood presentation', () => {
     expect(container.querySelectorAll('.graph-viz__edge')).toHaveLength(2);
     container.querySelector('[data-node="via"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(container.querySelector('.graph-viz__detail-heading')?.textContent).toContain('殖える');
+  });
+  it('keeps each authored direction on an indirect lexical path', () => {
+    const via = { ...neighborhood.relations[0], direction: 1 as const };
+    mount({ ...neighborhood, relations: [{ ...dense.relations[0], direction: 2 as const, via }] });
+    expect(container.querySelectorAll('.graph-viz__edge[marker-start]')).toHaveLength(1);
+    expect(container.querySelectorAll('.graph-viz__edge[marker-end]')).toHaveLength(1);
+    container.querySelector('[data-node]:not([data-node="center"]):not([data-node="via"])')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(container.querySelector('.graph-viz__detail')?.textContent).toContain('Meaning 0 with a complete long description → 殖える');
   });
   it('pages dense groups, searches all loaded labels, and exposes full labels on selection', () => {
     mount(dense); expect(container.querySelectorAll('.graph-viz__node')).toHaveLength(8);
@@ -158,7 +182,7 @@ describe('neighborhood presentation', () => {
     mount(); const canvas = container.querySelector('svg.graph-viz__svg')!;
     canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true })); expect(container.querySelector('.graph-viz__svg > g')?.getAttribute('transform')).toContain('scale(1.2)');
     canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
-    expect(canvas.firstElementChild?.getAttribute('transform')).not.toBe('translate(0 0) scale(1)');
+    expect(canvas.querySelector('g[transform]')?.getAttribute('transform')).not.toBe('translate(0 0) scale(1)');
     canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '0', bubbles: true })); expect(container.querySelector('.graph-viz__svg > g')?.getAttribute('transform')).toContain('scale(1)');
   });
   it('does not turn a node drag into a selection, while a click still selects the node', () => {
@@ -173,7 +197,7 @@ describe('neighborhood presentation', () => {
     canvas.dispatchEvent(pointerEvent('pointerup', 40, 10));
     node.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
     expect(container.querySelector('.graph-viz__detail')).toBeNull();
-    expect(canvas.firstElementChild?.getAttribute('transform')).toBe('translate(0 0) scale(1)');
+    expect(canvas.querySelector('g[transform]')?.getAttribute('transform')).toBe('translate(0 0) scale(1)');
 
     node.dispatchEvent(pointerEvent('pointerdown', 10, 10));
     canvas.dispatchEvent(pointerEvent('pointerup', 10, 10));

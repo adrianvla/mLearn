@@ -44,7 +44,11 @@ type LoadedGraph = {
 const notInstalledMeta = (): GraphMeta => ({ entityCount: 0, relationCount: 0, ready: false, status: 'not-installed' });
 const errorMeta = (): GraphMeta => ({ entityCount: 0, relationCount: 0, ready: false, status: 'error' });
 const PROJECTION_COLLECTION_CACHE_SIZE = 4;
-const PROJECTION_COLLECTION_CACHE_TTL_MS = 15_000;
+// Reserve a separate slot so high-churn single-surface lookups cannot evict
+// the reusable whole-library collection shown by Knowledge/Progress.
+const PROJECTION_COLLECTION_BROAD_QUERY_THRESHOLD = 64;
+const PROJECTION_COLLECTION_BROAD_CACHE_SIZE = 1;
+const PROJECTION_COLLECTION_CACHE_TTL_MS = 60_000;
 const MAX_ACTIVE_PROJECTION_WORKERS = 4;
 const PROJECTION_REVISION_ATTEMPTS = 3;
 
@@ -68,6 +72,7 @@ export class LinguisticGraphService {
   private loading: { language: string; revision: number; promise: Promise<LoadedGraph | undefined> } | undefined;
   private readonly inFlightProjectionCollections = new Map<string, Promise<KnowledgeProjectionCollection | undefined>>();
   private readonly projectionCollectionCache = new Map<string, { expiresAt: number; collection: KnowledgeProjectionCollection }>();
+  private readonly broadProjectionCollectionCache = new Map<string, { expiresAt: number; collection: KnowledgeProjectionCollection }>();
   private activeProjectionWorkers = 0;
   private readonly projectionWorkerQueue: Array<() => void> = [];
   private projectionModulesPromise: Promise<ProjectionModules> | undefined;
@@ -165,6 +170,7 @@ export class LinguisticGraphService {
       if (node) related.push({
         ...node,
         relationType,
+        ...(graph.relationDirections ? { direction: graph.relationDirections[edge] as 1 | 2 | 3 } : {}),
         ...(graph.relationOrders?.[edge] !== undefined ? { order: graph.relationOrders[edge] } : {}),
         ...(graph.relationRoles?.[edge] !== undefined ? { role: graph.relationRoles[edge] } : {}),
         ...(graph.relationConfidence && graph.relationConfidence[edge] >= 0 ? { confidence: graph.relationConfidence[edge] } : {}),
@@ -376,13 +382,23 @@ export class LinguisticGraphService {
     ]);
   }
 
-  private cacheProjectionCollection(key: string, collection: KnowledgeProjectionCollection): void {
-    this.projectionCollectionCache.delete(key);
-    this.projectionCollectionCache.set(key, { expiresAt: Date.now() + PROJECTION_COLLECTION_CACHE_TTL_MS, collection });
-    while (this.projectionCollectionCache.size > PROJECTION_COLLECTION_CACHE_SIZE) {
-      const oldest = this.projectionCollectionCache.keys().next().value as string | undefined;
+  private projectionCollectionCacheFor(requestedSurfaceCount: number): Map<string, { expiresAt: number; collection: KnowledgeProjectionCollection }> {
+    return requestedSurfaceCount > PROJECTION_COLLECTION_BROAD_QUERY_THRESHOLD
+      ? this.broadProjectionCollectionCache
+      : this.projectionCollectionCache;
+  }
+
+  private cacheProjectionCollection(key: string, collection: KnowledgeProjectionCollection, requestedSurfaceCount: number): void {
+    const cache = this.projectionCollectionCacheFor(requestedSurfaceCount);
+    cache.delete(key);
+    cache.set(key, { expiresAt: Date.now() + PROJECTION_COLLECTION_CACHE_TTL_MS, collection });
+    const maxSize = cache === this.broadProjectionCollectionCache
+      ? PROJECTION_COLLECTION_BROAD_CACHE_SIZE
+      : PROJECTION_COLLECTION_CACHE_SIZE;
+    while (cache.size > maxSize) {
+      const oldest = cache.keys().next().value as string | undefined;
       if (oldest === undefined) break;
-      this.projectionCollectionCache.delete(oldest);
+      cache.delete(oldest);
     }
   }
 
@@ -465,14 +481,15 @@ export class LinguisticGraphService {
       if (loaded.revision !== snapshot.revision.packageRevision) continue;
       const key = this.projectionCollectionKey(language, requested, evidenceKeys, snapshot);
       const requestId = crypto.createHash('sha256').update(key).digest('hex').slice(0, 12);
-      const cached = this.projectionCollectionCache.get(key);
+      const cache = this.projectionCollectionCacheFor(requested.length);
+      const cached = cache.get(key);
       if (cached && cached.expiresAt > Date.now()) {
-        this.projectionCollectionCache.delete(key);
-        this.projectionCollectionCache.set(key, cached);
+        cache.delete(key);
+        cache.set(key, cached);
         log.debug(`projection collection cache-hit request=${requestId} surfaces=${Object.keys(cached.collection.projections).length}`);
         return this.orderProjectionCollection(cached.collection, requested);
       }
-      if (cached) this.projectionCollectionCache.delete(key);
+      if (cached) cache.delete(key);
       const existing = this.inFlightProjectionCollections.get(key);
       if (existing) {
         log.debug(`projection collection joined request=${requestId} surfaces=${requested.length}`);
@@ -486,7 +503,7 @@ export class LinguisticGraphService {
       try {
         const result = await work;
         if (result) {
-          if (Object.values(result.projections).every(projection => projection.status !== 'error')) this.cacheProjectionCollection(key, result);
+          if (Object.values(result.projections).every(projection => projection.status !== 'error')) this.cacheProjectionCollection(key, result, requested.length);
           log.debug(`projection collection published request=${requestId} surfaces=${Object.keys(result.projections).length}`);
           return result;
         }

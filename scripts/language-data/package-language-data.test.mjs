@@ -330,7 +330,7 @@ describe('package-language-data', () => {
       'scripts/language-data/language-overrides/ja.metadata.json',
     ));
 
-    assert.equal(metadata.languageData?.version, 'ja-package-2026.10.06-compound-tokenization-r1');
+    assert.equal(metadata.languageData?.version, 'ja-package-2026.10.07-reviewed-checkpoint-r1');
     assert.deepEqual(metadata.runtime?.nlp?.tokenizer?.dictionaryBackedCompounds, {
       partOfSpeechSequences: [['名詞', '接尾辞']],
       componentsFeatureId: 'ja::sudachi-components',

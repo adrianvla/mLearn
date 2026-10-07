@@ -27,6 +27,8 @@ export interface GraphNode {
 
 export interface GraphRelatedNode extends GraphNode {
   relationType: GraphRelationType;
+  /** Authored adjacency orientation: 1 outward, 2 inward, 3 both; absent means unknown. */
+  direction?: 1 | 2 | 3;
   /** Intermediate lexical entity for properties exposed through a surface. */
   via?: GraphNode;
   order?: number;

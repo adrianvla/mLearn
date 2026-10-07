@@ -11,14 +11,14 @@ import { streamChat } from '../services/llmProvider';
 import { assembleContrastItem, itemContentVersion, validateAssembledItem } from './questionBank';
 
 export const QUESTION_VALIDATION_BATCH_LIMIT = 32;
-const STORE_SCHEMA_VERSION = 2;
+const STORE_SCHEMA_VERSION = 3;
 const storageKey = (language: string): string => `mlearn-question-validations:${language}`;
-/** Store key for one validation record: item id NUL item content version NUL owning pattern. */
-export const questionValidationRecordKey = (id: string, contentHash: string, pattern: string): string => `${id}\u0000${contentHash}\u0000${pattern}`;
+/** Store key binds item content, owning objective and installed package revision. */
+export const questionValidationRecordKey = (id: string, contentHash: string, pattern: string, packageVersion?: string): string => `${id}\u0000${contentHash}\u0000${pattern}\u0000${packageVersion ?? ""}`;
 const recordKey = questionValidationRecordKey;
 
 interface StoredValidationEnvelope {
-  schemaVersion: typeof STORE_SCHEMA_VERSION;
+  schemaVersion: 2 | typeof STORE_SCHEMA_VERSION;
   records: Record<string, GrammarItemSemanticValidation>;
 }
 
@@ -61,7 +61,7 @@ export function loadQuestionValidationRecords(
     const raw = storage?.getItem(storageKey(language));
     if (!raw) return records;
     const parsed = JSON.parse(raw) as Partial<StoredValidationEnvelope>;
-    if (parsed.schemaVersion !== STORE_SCHEMA_VERSION || !parsed.records || typeof parsed.records !== 'object') return records;
+    if ((parsed.schemaVersion !== STORE_SCHEMA_VERSION && parsed.schemaVersion !== 2) || !parsed.records || typeof parsed.records !== 'object') return records;
     for (const [key, value] of Object.entries(parsed.records)) {
       if (isSemanticRecord(value)) records.set(key, value);
     }
@@ -79,19 +79,23 @@ export function questionValidationFreshness(
   pattern: string,
   source: GrammarPracticeItemSource,
   storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage,
+  packageVersion?: string,
 ): QuestionValidationFreshness {
   const currentHash = itemContentVersion(source);
   const declared = source.validation?.semantic;
-  if (declared !== undefined) return declared.contentHash === currentHash ? 'current' : 'stale';
+  if (declared !== undefined) return declared.contentHash === currentHash
+    && (declared.scope === undefined || (declared.scope.language === language && declared.scope.pattern === pattern
+      && declared.scope.packageVersion === (packageVersion ?? ''))) ? 'current' : 'stale';
 
   const stored = loadQuestionValidationRecords(language, storage);
-  if (stored.has(recordKey(source.id, currentHash, pattern))) {
-    return stored.get(recordKey(source.id, currentHash, pattern))?.contentHash === currentHash ? 'current' : 'stale';
+  if (stored.has(recordKey(source.id, currentHash, pattern, packageVersion))) {
+    return stored.get(recordKey(source.id, currentHash, pattern, packageVersion))?.contentHash === currentHash ? 'current' : 'stale';
   }
 
-  const hasStaleRecord = [...stored.values()].some((record) =>
-    record.contentHash !== currentHash
-      && stored.has(recordKey(source.id, record.contentHash, pattern)));
+  const hasStaleRecord = [...stored.keys()].some((key) => {
+    const [id, , owner] = key.split('\u0000');
+    return id === source.id && owner === pattern;
+  });
   return hasStaleRecord ? 'stale' : 'missing';
 }
 
@@ -123,7 +127,7 @@ export function languageDataWithStoredQuestionValidations(
       ...(point.items === undefined ? {} : {
         items: point.items.map((source) => {
           const contentHash = itemContentVersion(source);
-          const semantic = records.get(recordKey(source.id, contentHash, point.pattern));
+          const semantic = records.get(recordKey(source.id, contentHash, point.pattern, data.languageData?.version));
           return semantic === undefined ? source : { ...source, validation: { semantic } };
         }),
       }),
@@ -199,7 +203,7 @@ export async function validateQuestionItemsWithLLM(
   for (const point of data.grammar ?? []) {
     for (const source of point.items ?? []) {
       const contentHash = itemContentVersion(source);
-      if (stored.has(recordKey(source.id, contentHash, point.pattern))) {
+      if (stored.has(recordKey(source.id, contentHash, point.pattern, data.languageData?.version))) {
         cached += 1;
         continue;
       }
@@ -223,7 +227,7 @@ export async function validateQuestionItemsWithLLM(
       : settings.llmProvider === 'openai-compatible' ? settings.compatibleModel : undefined;
   for (let start = 0; start < pending.length; start += QUESTION_VALIDATION_BATCH_LIMIT) {
     const batch = pending.slice(start, start + QUESTION_VALIDATION_BATCH_LIMIT);
-    const payload = batch.map(({ pattern, source }) => {
+    const payload = batch.map(({ pattern, source }, index) => {
       const assembled = assembleContrastItem(source, { language, pattern, contentVersion: data.languageData?.version });
       // Gold-blind view (R12): the validator sees ONLY the delivered item —
       // the seeded alternatives WITHOUT any gold flag and WITHOUT the
@@ -231,9 +235,11 @@ export async function validateQuestionItemsWithLLM(
       // the proposed gold). It derives the legitimate answer set independently;
       // the code compares that derived set against the declared span + accepts.
       return {
-        id: source.id,
+        id: `item-${start + index + 1}`,
         target: { language, conditions: source.conditions, register: source.register },
         deliveredPrompt: assembled.prompt,
+        gap: assembled.gap,
+        formats: source.formats ?? ['mcq'],
         alternatives: assembled.options.map((option) => option.text),
       };
     });
@@ -256,8 +262,8 @@ export async function validateQuestionItemsWithLLM(
       continue;
     }
     const byId = new Map(parsed.map((item) => [item.id, item]));
-    for (const { pattern, source } of batch) {
-      const result = byId.get(source.id);
+    for (const [index, { pattern, source }] of batch.entries()) {
+      const result = byId.get(`item-${start + index + 1}`);
       if (result === undefined) {
         errors.push(`missing-validator-result:${source.id}`);
         continue;
@@ -274,9 +280,12 @@ export async function validateQuestionItemsWithLLM(
         ...(validatorVersion ? { validatorVersion } : {}),
         at: options.now?.() ?? new Date().toISOString(),
         contentHash: itemContentVersion(source),
+        protocol: 'mlearn-blind-review@1',
+        scope: { language, pattern, packageVersion: data.languageData?.version ?? '' },
+        legitimateAnswers: result.legitimateAnswers,
         reasons: result.reasons,
       };
-      stored.set(recordKey(source.id, record.contentHash, pattern), record);
+      stored.set(recordKey(source.id, record.contentHash, pattern, data.languageData?.version), record);
       produced.push(record);
     }
     try {

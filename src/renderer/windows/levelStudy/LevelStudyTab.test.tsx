@@ -131,6 +131,7 @@ vi.mock('../../context', () => ({
     getWordVariantsForLanguage: (_language: string, word: string) => wordVariantsForWordMock(word),
     isLoading: () => false,
     refreshLanguageData: refreshLanguageDataMock,
+    getLanguageDataStatus: () => ({ status: "installed" }),
   }),
 }));
 
@@ -268,7 +269,7 @@ describe('LevelStudyTab', () => {
     first();
     learningGoalsMock = [{ id: 'chosen', language: 'de', outcome: 'Selected curriculum', outcomeRef: { id: 'selected', groupIds: [group] }, status: 'active', priority: 1, createdAt: 1 }];
     const resumed = render(() => <LevelStudyTab view="grammar" grammarResumeId={saved.id} />, container);
-    await waitFor(() => container.querySelector('.grammar-coverage__session[data-level="2"] .grammar-coverage__session-prompt[data-pattern="trotzdem"]') !== null);
+    await waitFor(() => container.querySelector('.grammar-coverage__session[data-level="2"] [data-testid="grammar-pattern-prompt"][data-pattern="trotzdem"]') !== null);
     expect(JSON.parse(localStorage.getItem('mlearn-study-grammar:de')!)).toEqual(saved);
     expect(recordGrammarAttemptMock).not.toHaveBeenCalled();
     expect(updateSettingsMock).not.toHaveBeenCalled();
@@ -638,7 +639,7 @@ describe('LevelStudyTab', () => {
     expect(practiseBtn!.disabled).toBe(false);
     practiseBtn!.click();
     await tick();
-    await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
+    await waitFor(() => levelBlock(container, 3).querySelector('[data-testid="grammar-pattern-prompt"]') !== null);
     const walkProbe = () => levelBlock(container, 3).querySelector('.study-encounter__response .rating-matrix__quality:nth-child(3)') as HTMLButtonElement;
     (levelBlock(container, 3).querySelector('.study-encounter__reveal') as HTMLButtonElement).click();
     walkProbe().click();
@@ -652,16 +653,16 @@ describe('LevelStudyTab', () => {
         targets: [{ kind: 'grammar-pattern', id: `de:grammar:${pattern}`, capability: 'grammar-recognition' }],
         task: { taskTemplateId: 'grammar-self-assess', responseModality: 'recall' },
       } } });
-    await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt[data-pattern]') !== null);
+    await waitFor(() => levelBlock(container, 3).querySelector('[data-testid="grammar-pattern-prompt"][data-pattern]') !== null);
 
     setProjectionLoading(true);
     await tick();
     expect(container.querySelector('.level-study-boot')).toBeNull();
-    expect(levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt')).not.toBeNull();
+    expect(levelBlock(container, 3).querySelector('[data-testid="grammar-pattern-prompt"]')).not.toBeNull();
     setProjectionLoading(false);
     await tick();
     // The coverage retains the active level and durable cursor.
-    await waitFor(() => levelBlock(container, 3).querySelector('.grammar-coverage__session-prompt') !== null);
+    await waitFor(() => levelBlock(container, 3).querySelector('[data-testid="grammar-pattern-prompt"]') !== null);
     expect(levelBlock(container, 3).querySelector('.grammar-contrast')).toBeNull();
 
     expect(recordGrammarAttemptMock.mock.calls.filter(([, , options]) => (options as { taskType?: string }).taskType === 'grammar-self-assess')).toHaveLength(1);

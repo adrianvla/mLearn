@@ -15,6 +15,7 @@
 .graph-viz__stage { position: relative; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; }
 .graph-viz__svg { display: block; width: 100%; max-height: 38rem; touch-action: none; cursor: grab; user-select: none; }
 .graph-viz__svg:active { cursor: grabbing; }
+.graph-viz__arrow { fill: var(--text-tertiary); }
 .graph-viz__edge { stroke: var(--text-tertiary); stroke-width: 1; fill: none; pointer-events: none; }
 .graph-viz__edge--identity { stroke-width: 2; }
 .graph-viz__edge--support, .graph-viz__edge--extension { stroke-dasharray: 4 4; }

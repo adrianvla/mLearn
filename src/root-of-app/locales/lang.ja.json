@@ -2196,6 +2196,7 @@
         "Summaries": "最近の結果",
         "SummaryCounts": "{correct}/{answered} 正解 · {timedOut} 無回答",
         "StorageUnavailable": "回答を保存できませんでした。保存領域が利用できるか確認してから、もう一度お試しください。",
+        "ResultsStorageUnavailable": "チェックポイントの結果を保存できませんでした。ストレージを確認して、もう一度試してください。",
         "AvailabilityMissingSources": "この言語パッケージにはチェックポイント用の問題ソースがありません。",
         "AvailabilityMissingBlueprint": "問題ソースはインストールされていますが、チェックポイントのレベルに割り当てられていません。",
         "AvailabilityRequestedUnavailable": "このパッケージには指定レベルのチェックポイントがありません。別のレベルへの置き換えは行っていません。",

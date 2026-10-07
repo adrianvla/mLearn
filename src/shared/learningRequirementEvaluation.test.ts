@@ -207,3 +207,22 @@ describe('derived goal requirement evaluation', () => {
     ] });
   });
 });
+
+it('does not silently satisfy a supported threshold with unknown required qualifiers', () => {
+  const events = [successEvent(100, 'actual')];
+  const model = fitLearningModel(events, 1000);
+  const qualified = { ...data, learning: { ...data.learning, outcomes: { objective: {
+    ...data.learning!.outcomes!.objective,
+    requirements: { conditions: [{ ...packageCondition, 'future:required-context': { participants: ['speaker', 'elder'], modality: 'unheard-of' } }] },
+  } } } };
+  const evaluated = evaluateLearningRequirements([goal], 'future', model, events, qualified, 1000)[0];
+  expect(evaluated.requirements.find(row => row.requirementId === packageCondition.id)).toMatchObject({ status: 'unsupported', reason: 'requirement-qualifiers-unsupported' });
+});
+
+it('keeps unknown user requirement siblings conjunctive rather than dropping them', () => {
+  const events = [successEvent(100, 'actual')];
+  const model = fitLearningModel(events, 1000);
+  const refined = { ...goal, scope: { ...goal.scope!, requirements: { conditions: [packageCondition], 'future:discourse': { hierarchy: [7, 9] } } } };
+  const evaluated = evaluateLearningRequirements([refined], 'future', model, events, data, 1000)[0];
+  expect(evaluated.requirements.find(row => row.requirementId === 'user-requirements-extension')).toMatchObject({ status: 'unsupported', conditions: { 'future:discourse': { hierarchy: [7, 9] } } });
+});

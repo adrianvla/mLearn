@@ -1,3 +1,4 @@
+import { KnowledgeLoadError } from '../Feedback/KnowledgeLoadError';
 import { projectedWordStatus } from '../../../../shared/graph/targets';
 import { Show, createMemo, createSignal, type Component } from 'solid-js';
 import { useFlashcards, useLocalization, useSettings } from '../../../context';
@@ -96,8 +97,7 @@ export const WordStatusPillKnowledge: Component<WordStatusPillKnowledgeProps> = 
       <small class="word-status-knowledge__updating" role="status" aria-live="polite">{t('mlearn.Knowledge.Updating')}</small>
     </Show>
     <Show when={knowledge.projection()?.status === 'error'}>
-      <small class="word-status-knowledge__source" role="alert">{t('mlearn.Knowledge.LoadError')}</small>
-      <Button variant="ghost" size="sm" onClick={knowledge.retry}>{t('mlearn.Knowledge.Retry')}</Button>
+      <KnowledgeLoadError onRetry={knowledge.retry} />
     </Show>
     <KnowledgeCapabilitySummary word={props.word} language={language()} projection={knowledge.projection()} />
     <Show when={props.statusSourceLabel}><small class="word-status-knowledge__source">{props.statusSourceLabel}</small></Show>

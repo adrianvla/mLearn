@@ -1,8 +1,8 @@
 /** Relationship-led, bounded exploration of canonical graph neighborhoods.
- * The compact asset is mirrored adjacency: connectors intentionally have no
- * arrowheads. A lexical intermediary is shown when a property is reached via it.
+ * Authored directions survive mirrored adjacency; legacy absent direction is
+ * never guessed. A lexical intermediary is shown when a property is reached via it.
  */
-import { type Component, For, Show, createEffect, createMemo, createSignal, untrack, onMount, onCleanup } from 'solid-js';
+import { type Component, For, Show, createEffect, createMemo, createSignal, createUniqueId, untrack, onMount, onCleanup } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { GraphNeighborhood, GraphNode, GraphRelatedNode } from '../../../../shared/graph/ipc';
 import { relationCategory } from '../../../../shared/graph/types';
@@ -134,6 +134,17 @@ interface Visit { id: string; label: string; group?: string; page: number; query
 
 export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props) => {
   const { t } = useLocalization();
+  const arrowId = `graph-arrow-${createUniqueId()}`;
+  const marker = (direction: GraphRelatedNode['direction'], flag: number) => direction !== undefined && (direction & flag) ? `url(#${arrowId})` : undefined;
+  const sharedDirection = (records: readonly GraphRelatedNode[]) => records.length && records.every(record => record.direction === records[0].direction) ? records[0].direction : undefined;
+  const viaDirection = () => (group()?.via as Partial<GraphRelatedNode> | undefined)?.direction;
+  const nodeDirection = (node: NeighborhoodVizNode) => sharedDirection(group()?.relations.filter(record => record.id === node.id) ?? []);
+  const recordPath = (record: GraphRelatedNode) => {
+    const origin = nodeLabel(record.via ?? props.neighborhood.center);
+    const destination = nodeLabel(record);
+    return record.direction === 1 ? `${origin} → ${destination}` : record.direction === 2 ? `${destination} → ${origin}`
+      : record.direction === 3 ? `${origin} ↔ ${destination}` : `${origin} · ${destination}`;
+  };
   const text = (key: string, params?: Record<string, string | number>) => t(`mlearn.GraphInspector.Explore.${key}`, params);
   const nodeLabel = (node: GraphNode) => labelOf(node) || t(kindLabelKey(node.kind));
   const relationLabel = (type: string) => RELATION_PHRASE_KEYS[type]
@@ -277,7 +288,7 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
   const SelectionDetails: Component = () => (<Show when={selection()}><aside class="graph-viz__detail" classList={{ 'graph-viz__detail--floating': compact() }} aria-live="polite" onKeyDown={(event) => { if (event.key === 'Escape') setSelection(undefined); }}>
             <Show when={selection()} fallback={<p class="graph-viz__note">{text('SelectHint')}</p>}>{(node) => <>
               <div class="graph-viz__detail-heading"><Show when={compact()}><Button buttonType="icon" icon="cross" size="sm" variant="ghost" aria-label={t('mlearn.Global.Close')} onClick={() => setSelection(undefined)} /></Show><strong>{nodeLabel(node())}</strong><Show when={props.onSelect}><Button size="sm" variant="secondary" onClick={() => navigate(node().id)}>{text('Explore')}</Button></Show></div>
-              <For each={[...new Map(allRecords().map((record) => [JSON.stringify([record.relationType, record.via?.id]), record])).values()]}>{(record) => <p>{relationLabel(record.relationType)} · {text('ConnectedTo', { label: nodeLabel(record.via ?? props.neighborhood.center) })}</p>}</For>
+              <For each={[...new Map(allRecords().map((record) => [JSON.stringify([record.relationType, record.via?.id, record.direction]), record])).values()]}>{(record) => <p>{relationLabel(record.relationType)} · {recordPath(record)}</p>}</For>
 
               <details><summary>{t('mlearn.GraphInspector.Details')}</summary><dl><dt>{text('Identifier')}</dt><dd>{node().id}</dd><Show when={node().relationType}><dt>{text('Relationship')}</dt><dd>{node().relationType}</dd></Show><Show when={node().provenance}><dt>{t('mlearn.GraphInspector.Provenance')}</dt><dd>{node().provenance}</dd></Show><Show when={node().label !== node().displayLabel && node().displayLabel}><dt>{text('SourceLabel')}</dt><dd>{node().label}</dd></Show><Show when={node().role}><dt>{text('Role')}</dt><dd>{node().role}</dd></Show></dl><For each={allRecords()}>{(record) => <p>{[record.relationType, record.provenance, record.confidence, record.order, record.role].filter((value) => value !== undefined).join(' · ')}</p>}</For></details>
             </>}</Show>
@@ -340,9 +351,10 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
                 } else return;
                 event.preventDefault();
               }}>
+              <defs><marker id={arrowId} viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="graph-viz__arrow" d="M 0 0 L 8 4 L 0 8 Z" /></marker></defs>
               <g transform={`translate(${currentView().tx} ${currentView().ty}) scale(${currentView().scale})`}>
-                <Show when={isOverview()} fallback={<>                <Show when={group()?.via}><path class="graph-viz__edge" d={compact() ? "M 180 84 V 103" : `M 206 ${viewportHeight() / 2} H 224`} /></Show>
-                <For each={layout().nodes}>{(node) => <path class={`graph-viz__edge graph-viz__edge--${group()!.category}`} classList={{ 'is-selected': selection() === node.relation }} d={edgePath(node)} />}</For>
+                <Show when={isOverview()} fallback={<>                <Show when={group()?.via}><path class="graph-viz__edge" marker-start={marker(viaDirection(), 2)} marker-end={marker(viaDirection(), 1)} d={compact() ? "M 180 84 V 103" : `M 206 ${viewportHeight() / 2} H 224`} /></Show>
+                <For each={layout().nodes}>{(node) => <path class={`graph-viz__edge graph-viz__edge--${group()!.category}`} classList={{ 'is-selected': selection() === node.relation }} marker-start={marker(nodeDirection(node), 2)} marker-end={marker(nodeDirection(node), 1)} d={edgePath(node)} />}</For>
                 <g data-node="center" class="graph-viz__center">
                   <rect class={`graph-viz__chip ${props.centerState ? `graph-viz__center-ring--${props.centerState}` : ''}`} x={layout().center.x - layout().center.w / 2} y={layout().center.y - layout().center.h / 2} width={layout().center.w} height={layout().center.h} rx="6" />
                   <text class="graph-viz__kind" x={layout().center.x - layout().center.w / 2 + 14} y={layout().center.y - 15}>{t(kindLabelKey(props.neighborhood.center.kind))}</text>
@@ -365,7 +377,7 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
                   <For each={overview().edges}>{(edge) => {
                     const from = overview().nodes.find((item) => item.node.id === edge.from)!;
                     const to = overview().nodes.find((item) => item.node.id === edge.to)!;
-                    return <path class="graph-viz__edge" classList={{ 'is-selected': selection()?.id === edge.to || selection()?.id === edge.from }} d={compact() ? `M ${from.x - from.w / 2} ${from.y} H ${edge.from === props.neighborhood.center.id ? 24 : 46} V ${to.y} H ${to.x - to.w / 2}` : from.x === to.x ? `M ${from.x + from.w / 2} ${from.y} H ${from.x + from.w / 2 + 20} V ${to.y} H ${to.x + to.w / 2}` : `M ${from.x + from.w / 2} ${from.y} C ${from.x + from.w / 2 + 40} ${from.y}, ${to.x - to.w / 2 - 40} ${to.y}, ${to.x - to.w / 2} ${to.y}`}><title>{relationLabel(edge.records[0].relationType)}</title></path>;
+                    return <path class="graph-viz__edge" marker-start={marker(sharedDirection(edge.records), 2)} marker-end={marker(sharedDirection(edge.records), 1)} classList={{ 'is-selected': selection()?.id === edge.to || selection()?.id === edge.from }} d={compact() ? `M ${from.x - from.w / 2} ${from.y} H ${edge.from === props.neighborhood.center.id ? 24 : 46} V ${to.y} H ${to.x - to.w / 2}` : from.x === to.x ? `M ${from.x + from.w / 2} ${from.y} H ${from.x + from.w / 2 + 20} V ${to.y} H ${to.x + to.w / 2}` : `M ${from.x + from.w / 2} ${from.y} C ${from.x + from.w / 2 + 40} ${from.y}, ${to.x - to.w / 2 - 40} ${to.y}, ${to.x - to.w / 2} ${to.y}`}><title>{edge.records.map(record => `${relationLabel(record.relationType)} · ${recordPath(record)}`).join("; ")}</title></path>;
                   }}</For>
                   <For each={overview().nodes}>{(item) => <g data-node={item.node.id} class="graph-viz__node" classList={{ 'graph-viz__center': item.node.id === props.neighborhood.center.id, 'graph-viz__node--selected': selection()?.id === item.node.id }} role="button" tabindex={0} aria-label={overviewLabel(item)} aria-pressed={selection()?.id === item.node.id}
                     onClick={(event) => { if (!ignoreDraggedClick(event)) pickOverview(item); }} onDblClick={() => item.groupKey ? chooseGroup(item.groupKey) : navigate(item.node.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); pickOverview(item); } }}>

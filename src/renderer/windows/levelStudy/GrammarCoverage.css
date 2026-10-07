@@ -396,3 +396,9 @@
 }
 .grammar-coverage__session-prompt { flex-basis: 100%; font-size: 1rem; line-height: 1.6; }
 .grammar-coverage__construction { flex-wrap: wrap; }
+
+.grammar-contrast__register {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}

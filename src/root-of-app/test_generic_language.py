@@ -1514,6 +1514,8 @@ def test_generic_simple_dictionary_uses_declared_spacy_lemma_before_tokenizer_is
     conn.close()
 
     module = GenericLanguageModule("ru")
+    # Keep this regression cold even when the optional model is installed locally.
+    module._initialize_tokenizer = lambda: None
     module.LOAD_MODULE(str(tmp_path), str(data_root))
     module._lemma_spacy = lambda word: "идти" if word == "иду" else ""
 
@@ -2240,6 +2242,8 @@ def test_generic_headword_reading_dictionary_uses_declared_spacy_lemma_before_to
     conn.close()
 
     module = GenericLanguageModule("ruhr")
+    # Keep this regression cold even when the optional model is installed locally.
+    module._initialize_tokenizer = lambda: None
     module.LOAD_MODULE(str(tmp_path), str(data_root))
     module._lemma_spacy = lambda word: "идти" if word == "иду" else ""
 

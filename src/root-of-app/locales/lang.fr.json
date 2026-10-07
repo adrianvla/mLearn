@@ -2196,6 +2196,7 @@
         "Summaries": "Résultats récents",
         "SummaryCounts": "{correct}/{answered} justes · {timedOut} sans réponse",
         "StorageUnavailable": "Votre réponse n’a pas pu être enregistrée. Vérifiez l’espace de stockage, puis réessayez.",
+        "ResultsStorageUnavailable": "Les résultats n’ont pas pu être enregistrés. Vérifiez le stockage, puis réessayez.",
         "AvailabilityMissingSources": "Ce paquet de langue ne contient aucune source de questions pour les bilans.",
         "AvailabilityMissingBlueprint": "Des sources de questions sont installées, mais aucune n’est associée à un niveau de bilan.",
         "AvailabilityRequestedUnavailable": "Ce paquet ne propose aucun bilan pour le niveau demandé. Aucun autre niveau n’a été substitué.",

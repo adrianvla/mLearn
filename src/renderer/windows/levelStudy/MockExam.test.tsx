@@ -1061,6 +1061,48 @@ describe('MockExam surface (R13/R14)', () => {
     second.container.remove();
   });
 
+  it('retains a final acknowledged attempt until result storage succeeds, then retries without duplicate history', async () => {
+    const data = baseLanguageData();
+    const gold = goldIndexById(data);
+    const first = mount(data);
+    await startBlueprint(first.container, 2);
+    const originalSet = localStorage.setItem.bind(localStorage);
+    const failResults = vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === 'mlearn-mock-results:de') throw new Error('disk quota');
+      originalSet(key, value);
+    });
+    const id = first.container.querySelector('.mock-exam__context')!.getAttribute('data-item-id')!;
+    (first.container.querySelectorAll('.mock-exam__option')[gold.get(id)!] as HTMLButtonElement).click();
+    await beat();
+    expect(first.onAttempt).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('mlearn-mock-session:de')).not.toBeNull();
+    expect(first.container.querySelector('[data-testid="mock-result-storage-retry"]')).not.toBeNull();
+    failResults.mockRestore();
+    (first.container.querySelector('[data-testid="mock-result-storage-retry"]') as HTMLButtonElement).click();
+    await tick();
+    expect(first.onAttempt).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('mlearn-mock-session:de')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('mlearn-mock-results:de')!)).toHaveLength(1);
+    first.dispose(); first.container.remove();
+    const second = mount(data);
+    expect(second.container.querySelector('[data-testid="mock-results"]')).not.toBeNull();
+    expect(second.onAttempt).not.toHaveBeenCalled();
+    second.dispose(); second.container.remove();
+  });
+
+  it('shows the same package-owned register/condition context that the blind reviewer judged', async () => {
+    const data = baseLanguageData();
+    for (const point of data.grammar ?? []) for (const source of point.items ?? []) {
+      source.register = 'An accepted reason motivates the response; choose from the offered alternatives.';
+      source.validation!.semantic!.contentHash = itemContentVersion(source);
+    }
+    const first = mount(data);
+    await startBlueprint(first.container, 2);
+    expect(first.container.querySelector('[data-testid="mock-question-register"]')?.textContent)
+      .toBe('An accepted reason motivates the response; choose from the offered alternatives.');
+    first.dispose(); first.container.remove();
+  });
+
   it('a start whose durable write fails never starts a cursorless session (G01/G04)', async () => {
     const languageData = baseLanguageData();
     const harness = mount(languageData);

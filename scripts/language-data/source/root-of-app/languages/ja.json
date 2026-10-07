@@ -28,7 +28,7 @@
   },
   "fixed_settings": {},
   "languageData": {
-    "version": "ja-package-2026.09.26-frequency-r1",
+    "version": "ja-package-2026.10.07-reviewed-checkpoint-r1",
     "sourceVersions": {
       "dictionary": "jitendex-2024.10.07.0",
       "pitchAccent": "pitch1",
@@ -470,9 +470,31 @@
           ],
           "register": "plain polite speech; an outcome that contradicts the effort stated in the first clause",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:7f0f693f423f3993",
+              "scope": {
+                "language": "ja",
+                "pattern": "のに",
+                "packageVersion": "ja-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "のに"
+              ],
+              "reasons": [
+                "The completed sentence is natural polite speech: extended study sets an expectation that the poor test performance contradicts.",
+                "のに expresses the declared contrary-to-expectation relation. ので and から instead give a cause; they do not satisfy that relation.",
+                "This is a unique answer among the three supplied alternatives under the declared reading. The review covers MCQ recognition only, not unrestricted production."
+              ]
+            }
+          }
         },
         {
           "id": "ja-noni-neru-2",
@@ -499,9 +521,31 @@
           ],
           "register": "plain polite speech; today's state is the opposite of what yesterday's rest implies",
           "formats": [
-            "mcq",
-            "typed"
-          ]
+            "mcq"
+          ],
+          "validation": {
+            "semantic": {
+              "status": "passed",
+              "validator": "Codex fresh subagent /root/repaired_blind_review",
+              "validatorVersion": "inherited model (model ID not independently observable)",
+              "at": "2026-10-07T08:52:05Z",
+              "protocol": "mlearn-blind-review@1",
+              "contentHash": "item-v3:40ffc41257053816",
+              "scope": {
+                "language": "ja",
+                "pattern": "のに",
+                "packageVersion": "ja-package-2026.10.07-reviewed-checkpoint-r1"
+              },
+              "legitimateAnswers": [
+                "のに"
+              ],
+              "reasons": [
+                "The completed sentence naturally contrasts adequate sleep yesterday with inability to concentrate today.",
+                "のに satisfies the declared contrary-to-expectation relation; ので and から would assert a causal relation instead.",
+                "This is a unique answer among the three supplied alternatives under the declared reading. The review covers MCQ recognition only, not unrestricted production."
+              ]
+            }
+          }
         }
       ]
     },

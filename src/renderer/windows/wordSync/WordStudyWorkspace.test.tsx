@@ -39,6 +39,16 @@ describe('routed Word task ownership', () => {
     (fixture.task.onClose as (context: Record<string, unknown>) => void)({});
     expect(onReturn).toHaveBeenLastCalledWith('/practise', {});
   });
+  it.each(['home', 'plan', 'flashcards'])('preserves the %s destination when returning from Evaluate', async destination => {
+    const onReturn = vi.fn();
+    const { WordStudyWorkspace } = await import('./WordStudyWorkspace');
+    dispose = render(() => <WordStudyWorkspace mode="assessment"
+      launchContext={{ returnTo: 'evaluate', evaluationReturnTo: destination }} onReturn={onReturn} />, host);
+    const returnContext = fixture.task.returnContext as Record<string, unknown>;
+    expect(returnContext).toMatchObject({ returnTo: 'evaluate', evaluationReturnTo: destination });
+    (fixture.task.onClose as (context: Record<string, unknown>) => void)(returnContext);
+    expect(onReturn).toHaveBeenCalledWith('/evaluate', returnContext);
+  });
   it('refuses a stale language selection instead of starting unscoped study', async () => {
     const { WordStudyWorkspace } = await import('./WordStudyWorkspace');
     dispose = render(() => <WordStudyWorkspace mode="study" launchContext={{ activity: 'practice', material: { language: 'other', words: ['wrong'] } }} onReturn={vi.fn()} />, host);

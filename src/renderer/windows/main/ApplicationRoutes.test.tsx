@@ -59,8 +59,11 @@ describe('application shell route ownership', () => {
       expect(count).toBe(path === '/practise' ? 3 : path === '/plan' ? 4 : 1);
     }
   });
-  it.each([['home', '/'], ['plan', '/plan'], ['flashcards', '/practise']])(
-    'returns Evaluate to its %s source with an explicit back affordance', async (returnTo, path) => {
+  it.each([
+    ['home', '/', 'mlearn.Tabs.Home'],
+    ['plan', '/plan', 'mlearn.Product.Plan'],
+    ['flashcards', '/practise', 'mlearn.Flashcards.UI.Title'],
+  ])('returns Evaluate to its %s source with a matching back label', async (returnTo, path, labelKey) => {
       mount();
       fixture.listener!({ applicationNavigation: {
         path: '/evaluate', requestId: `evaluate-${returnTo}`, context: { returnTo },
@@ -68,7 +71,7 @@ describe('application shell route ownership', () => {
       await vi.waitFor(() => expect(window.location.hash).toBe('#/evaluate'));
       const back = container.querySelector<HTMLButtonElement>('.evaluation-chooser-header button')!;
       expect(back.querySelector('[data-testid="arrow-left-icon"]')).not.toBeNull();
-      expect(back.textContent).toContain('mlearn.Flashcards.UI.Title');
+      expect(back.textContent).toContain(labelKey);
       back.click();
       await vi.waitFor(() => expect(window.location.hash).toBe(`#${path}`));
     },

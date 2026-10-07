@@ -621,13 +621,11 @@ describe('real DE/JA/ZH package item banks', () => {
       // reported pending — never dropped.
       expect(result.items.length + result.rejected.length + result.pending.length, `${language} coverage`).toBe(declaredCount);
       expect(result.rejected, `${language} rejections`).toEqual([]);
-      // Real packages ship WITHOUT semantic records until an authorized
-      // independent validator actually runs — every item is honestly
-      // unreviewed (named external dependency; never fabricated, R12).
-      expect(result.pending, `${language} unreviewed items`).toEqual(
-        expect.arrayContaining(result.pending.map(({ id }) => expect.objectContaining({ id, reason: 'unreviewed' }))),
-      );
-      expect(result.pending.every(({ reason }) => reason === 'unreviewed')).toBe(true);
+      // Records are from retained independent blind reviews, never the fixtures
+      // below. Current packages must deliver all of their declared bounded MCQs.
+      expect(result.pending, `${language} pending items`).toEqual([]);
+      expect(result.items).toHaveLength(declaredCount);
+      expect(result.items.every(item => item.validation.semantic?.protocol === 'mlearn-blind-review@1')).toBe(true);
       // Whole-item deterministic validation still covers every declared item.
       for (const sources of bank.itemsByPattern.values()) {
         for (const source of sources) {
@@ -688,5 +686,19 @@ describe('real DE/JA/ZH package item banks', () => {
         expect(control.uncontrolled.length, `${source.id} CJK tokens reported uncontrolled`).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+
+describe('question assembly objective isolation', () => {
+  it('does not return an assembly belonging to another objective with the same source', () => {
+    const cache = new QuestionBankCache();
+    const source = { id: 'same-id', context: 'a b c', answerSpan: 'b', conditions: ['future:condition'],
+      distractors: [{ span: 'd', violates: ['future:condition'], rationale: 'different' },
+        { span: 'e', violates: ['future:condition'], rationale: 'different' }] };
+    const first = cache.getOrAssemble(source, { language: 'future', pattern: 'first', contentVersion: 'pkg@1' });
+    const second = cache.getOrAssemble(source, { language: 'future', pattern: 'second', contentVersion: 'pkg@1' });
+    expect(second.targetRef.id).not.toBe(first.targetRef.id);
+    expect(second.pattern).toBe('second');
   });
 });

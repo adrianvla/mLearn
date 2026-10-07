@@ -58,7 +58,7 @@ describe('question semantic validation pipeline', () => {
 
     const oldStoredRecord = memoryStorage();
     oldStoredRecord.setItem('mlearn-question-validations:de', JSON.stringify({
-      schemaVersion: 2,
+      schemaVersion: 3,
       records: { [questionValidationRecordKey(source.id, 'old-content', 'obwohl')]: { ...record, contentHash: 'old-content' } },
     }));
     expect(questionValidationFreshness('de', 'obwohl', source, oldStoredRecord)).toBe('stale');
@@ -68,7 +68,7 @@ describe('question semantic validation pipeline', () => {
     const storage = memoryStorage();
     const completion = vi.fn().mockResolvedValue(JSON.stringify({
       items: [{
-        id: source.id,
+        id: 'item-1',
         natural: true,
         objectiveAligned: true,
         legitimateAnswers: ['obwohl'],
@@ -109,7 +109,7 @@ describe('question semantic validation pipeline', () => {
     const storage = memoryStorage();
     const completion = vi.fn().mockResolvedValue(JSON.stringify({
       items: [{
-        id: 'de-obwohl-test',
+        id: 'item-1',
         natural: true,
         objectiveAligned: true,
         legitimateAnswers: ['obwohl'],
@@ -142,7 +142,7 @@ describe('question semantic validation pipeline', () => {
       storage,
       completion: async () => JSON.stringify({
         items: [{
-          id: source.id,
+          id: 'item-1',
           natural: true,
           objectiveAligned: true,
           legitimateAnswers: ['obwohl', 'weil'],
@@ -222,7 +222,7 @@ describe('question semantic validation pipeline', () => {
     } as unknown as LanguageData;
     const completion = vi.fn(async () => JSON.stringify({
       items: [{
-        id: source.id,
+        id: 'item-1',
         natural: true,
         objectiveAligned: true,
         legitimateAnswers: ['obwohl'],
@@ -244,7 +244,7 @@ describe('question semantic validation pipeline', () => {
       sent = messages.map((message) => message.content).join('\n');
       return JSON.stringify({
         items: [{
-          id: source.id,
+          id: 'item-1',
           natural: true,
           objectiveAligned: true,
           legitimateAnswers: ['obwohl'],
@@ -260,6 +260,7 @@ describe('question semantic validation pipeline', () => {
     expect(sent).not.toContain('distractorRationales');
     expect(sent).not.toContain('rationale');
     expect(sent).not.toContain('answerSpan');
+    expect(sent).not.toContain(source.id);
     expect(sent).not.toContain('originalContext');
     expect(sent).not.toContain(source.context);
     const payload = JSON.parse(sent.split('\n').at(-1)!) as Array<{ target: Record<string, unknown> }>;
@@ -270,13 +271,37 @@ describe('question semantic validation pipeline', () => {
     expect(sent).toContain('deshalb');
   });
 
+  it('delivers the actual gap position without leaking the original sentence', async () => {
+    let payload: Array<{ deliveredPrompt: string; gap: { start: number; end: number } }> = [];
+    await validateQuestionItemsWithLLM('de', data, settings, {
+      storage: memoryStorage(),
+      completion: async messages => {
+        payload = JSON.parse(messages[1].content.split('\n')[1]);
+        return '{"items":[]}';
+      },
+    });
+    expect(payload[0].gap).toEqual({ start: 21, end: 21 });
+    expect(payload[0].deliveredPrompt.slice(0, payload[0].gap.start)).toBe('Wir gehen spazieren, ');
+  });
+
+  it('does not reuse a local approval after changing package identity/version', async () => {
+    const storage = memoryStorage();
+    await validateQuestionItemsWithLLM('de', data, settings, {
+      storage,
+      completion: async () => JSON.stringify({ items: [{ id: 'item-1', natural: true, objectiveAligned: true,
+        legitimateAnswers: ['obwohl'], distractorsMeaningful: true, accidentalClues: false, reasons: ['reviewed'] }] }),
+    });
+    const other = { ...data, languageData: { ...data.languageData, version: 'other-package-v1' } } as LanguageData;
+    expect(languageDataWithStoredQuestionValidations('de', other, storage).grammar?.[0].items?.[0].validation).toBeUndefined();
+  });
+
   it('accepts independently derived lowercase answers for every shipped German item', async () => {
     const germanData = germanPackage as unknown as LanguageData;
     const answers = new Map<string, string>();
     for (const point of germanData.grammar ?? []) {
       for (const item of point.items ?? []) {
         expect(item.accepts, item.id).toBeUndefined();
-        answers.set(item.id, item.answerSpan);
+        answers.set(`item-${answers.size + 1}`, item.answerSpan);
       }
     }
     const result = await validateQuestionItemsWithLLM('de', germanData, settings, {
@@ -301,4 +326,32 @@ describe('question semantic validation pipeline', () => {
     expect(result.records).toHaveLength(6);
     expect(result.records.every((record) => record.status === 'passed')).toBe(true);
   });
+});
+
+
+it('retains previously executed unbound records for audit without admitting them into a new package', async () => {
+  const storage = memoryStorage();
+  const legacyKey = `${source.id}\u0000${itemContentVersion(source)}\u0000obwohl`;
+  const legacyRecord = { status: 'rejected', validator: 'actual-old-reviewer', at: '2026-09-01T00:00:00Z', contentHash: itemContentVersion(source), reasons: ['retained rejection'] };
+  storage.setItem('mlearn-question-validations:de', JSON.stringify({ schemaVersion: 2, records: { [legacyKey]: legacyRecord } }));
+  expect(loadQuestionValidationRecords('de', storage).get(legacyKey)).toEqual(legacyRecord);
+  expect(languageDataWithStoredQuestionValidations('de', data, storage)).toEqual(data);
+  await validateQuestionItemsWithLLM('de', data, settings, { storage,
+    completion: async () => JSON.stringify({ items: [{ id: 'item-1', natural: true, objectiveAligned: true, legitimateAnswers: ['obwohl'], distractorsMeaningful: true, accidentalClues: false, reasons: ['new actual review'] }] }),
+  });
+  expect(loadQuestionValidationRecords('de', storage).get(legacyKey)).toEqual(legacyRecord);
+  expect(loadQuestionValidationRecords('de', storage).size).toBe(2);
+});
+
+it('reports approval from another objective or package revision as stale', () => {
+  const record = { status: 'passed' as const, validator: 'executed-review', at: '2026-10-01T00:00:00Z',
+    contentHash: itemContentVersion(source), scope: { language: 'de', pattern: 'obwohl', packageVersion: 'old-package' } };
+  const reviewed = { ...source, validation: { semantic: record } };
+  expect(questionValidationFreshness('de', 'obwohl', reviewed, memoryStorage(), 'new-package')).toBe('stale');
+  expect(questionValidationFreshness('de', 'another-objective', reviewed, memoryStorage(), 'old-package')).toBe('stale');
+  expect(questionValidationFreshness('future', 'obwohl', reviewed, memoryStorage(), 'old-package')).toBe('stale');
+  const storage = memoryStorage();
+  storage.setItem('mlearn-question-validations:de', JSON.stringify({ schemaVersion: 3,
+    records: { [questionValidationRecordKey(source.id, record.contentHash, 'obwohl', 'old-package')]: record } }));
+  expect(questionValidationFreshness('de', 'obwohl', source, storage, 'new-package')).toBe('stale');
 });

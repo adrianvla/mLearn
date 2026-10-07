@@ -37,9 +37,9 @@ export interface MockExamAvailability {
 
 type SourceState = 'deliverable' | 'missing' | 'stale' | 'rejected';
 
-function sourceState(language: string, pattern: string, source: GrammarPracticeItemSource): SourceState {
-  if (questionValidationFreshness(language, pattern, source) === 'stale') return 'stale';
-  const item = assembleContrastItem(source, { language, pattern });
+function sourceState(language: string, pattern: string, source: GrammarPracticeItemSource, packageVersion?: string): SourceState {
+  if (questionValidationFreshness(language, pattern, source, undefined, packageVersion) === 'stale') return 'stale';
+  const item = assembleContrastItem(source, { language, pattern, contentVersion: packageVersion });
   if (item.validation.deterministic.status === 'rejected' || item.validation.semantic?.status === 'rejected') return 'rejected';
   if (isDeliverableItem(item)) return 'deliverable';
   return 'missing';
@@ -58,7 +58,7 @@ function blueprintAvailability(language: string, data: LanguageData, blueprint: 
     let sectionAvailableGroups = 0;
     for (const pattern of section.patterns) {
       const sources = bank.itemsByPattern.get(pattern) ?? [];
-      const states = sources.map(source => sourceState(language, pattern, source));
+      const states = sources.map(source => sourceState(language, pattern, source, data.languageData?.version));
       sourceCount += sources.length;
       deliverableCount += states.filter(state => state === 'deliverable').length;
       unreviewedCount += states.filter(state => state === 'missing').length;

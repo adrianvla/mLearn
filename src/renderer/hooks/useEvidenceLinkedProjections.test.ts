@@ -9,7 +9,11 @@ const linked = vi.hoisted(() => vi.fn());
 const project = vi.hoisted(() => vi.fn());
 vi.mock('../context/SettingsContext', () => ({ useSettings: () => ({ settings: { easeThresholdKnown: 1.8, easeThresholdLearning: 1.55 } }) }));
 vi.mock('../services/knowledgeEvents', () => ({ queryLanguageKeys: keys, wordEventsVersion: () => version() }));
-vi.mock('../../shared/bridges', () => ({ getBridge: () => ({ graph: { getEvidenceLinkedSurfaces: linked, getKnowledgeProjection: project } }) }));
+vi.mock('../../shared/bridges', () => ({ getBridge: () => ({ graph: { getEvidenceLinkedSurfaces: linked, getKnowledgeProjectionCollection: async (language: string, surfaces: string[], evidenceKeys: string[], thresholds: unknown) => {
+  const selected: string[] = await linked(language, surfaces, evidenceKeys);
+  const projections = Object.fromEntries(await Promise.all(selected.map(async surface => [surface, await project(language, surface, thresholds)])));
+  return { projections, revision: undefined };
+} } }) }));
 
 describe('evidence-linked summary contract', () => {
   beforeEach(() => { setActive(true); setVersion(0); });
