@@ -871,6 +871,10 @@ export const FlashcardProvider: ParentComponent = (props) => {
   // process and a multi-megabyte store transfer, short enough that a lost
   // answer surfaces to the learner instead of stalling their next action.
   const AUTHORITY_REBASE_TIMEOUT_MS = 5_000;
+  // Several windows can finish writes while a large store is moving through
+  // IPC. Refresh a few times after stale replies, then report a real conflict
+  // instead of holding this window's write queue indefinitely.
+  const MAX_AUTHORITY_REBASE_ATTEMPTS = 3;
   const ipcCleanups: Array<() => void> = [];
 
   // Queue counts memo
@@ -1460,42 +1464,49 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     // window going away ends the wait too — a rebase is a repair for a live
     // surface, not something to finish for one that is already gone.
     markSuperseded();
-    const current = await requestAuthorityStore();
-    if (!current) return null;
-    const rebased = ensureStoreFields(current as Partial<FlashcardStore>);
-    const pending = readPendingRetraction(rebased.pendingRetraction);
-    const recorded = intent.pendingRetraction as { attemptId?: unknown } | undefined;
-    if (pending && recorded?.attemptId && recorded.attemptId !== pending.attemptId) {
-      return null;
+    for (let attempt = 0; attempt < MAX_AUTHORITY_REBASE_ATTEMPTS; attempt++) {
+      const current = await requestAuthorityStore();
+      if (!current) return null;
+      const rebased = ensureStoreFields(current as Partial<FlashcardStore>);
+      const pending = readPendingRetraction(rebased.pendingRetraction);
+      const recorded = intent.pendingRetraction as { attemptId?: unknown } | undefined;
+      if (pending && recorded?.attemptId && recorded.attemptId !== pending.attemptId) {
+        return null;
+      }
+      if (intent.retractionCompleted) {
+        if (pending && pending.attemptId !== intent.retractionCompleted) return null;
+        // The authority only clears this record when it accepts a matching
+        // completion claim. A stale duplicate therefore already succeeded in
+        // another window; acknowledge that state without replaying its old
+        // projection over any newer peer edit.
+        if (!pending) return rebased;
+      }
+      // The intent is a delta, not a snapshot: it names the keys this window
+      // changed and their new values, and says nothing about the keys it never
+      // looked at. Merging it as "the next store" would replace every collection
+      // it merely touched with a fragment of itself, so the replay walks the
+      // intent's own branches against what the authority already holds.
+      if (recompute) {
+        if (!recompute(rebased)) return null;
+      } else mergeIntentOnto(rebased as unknown as Record<string, unknown>, intent);
+      try {
+        const revision = await getBridge().flashcards.saveFlashcards(rebased, removals, resetReviewProgress, authorization);
+        // The main process owns the revision it accepted; mirror it so this
+        // window writes against what is durable rather than what it sent.
+        const committed = cloneFlashcardStore(rebased);
+        committed.rev = typeof revision === 'number' ? revision : (rebased.rev ?? 0) + 1;
+        return committed;
+      } catch (retryError) {
+        // A peer can commit after each authority read while a large store is
+        // moving through IPC. Only stale-revision refusals are safe to retry:
+        // the authority rejected the whole snapshot before writing it. Every
+        // pass re-reads and revalidates the decision against the new store.
+        if (isStaleFlashcardRevision(retryError) && attempt + 1 < MAX_AUTHORITY_REBASE_ATTEMPTS) continue;
+        log.warn('Rebased flashcard write was refused:', retryError);
+        return null;
+      }
     }
-    if (intent.retractionCompleted && pending?.attemptId !== intent.retractionCompleted) {
-      return null;
-    }
-    // The intent is a delta, not a snapshot: it names the keys this window
-    // changed and their new values, and says nothing about the keys it never
-    // looked at. Merging it as "the next store" would replace every collection
-    // it merely touched with a fragment of itself, so the replay walks the
-    // intent's own branches against what the authority already holds.
-    if (recompute) {
-      if (!recompute(rebased)) return null;
-    } else mergeIntentOnto(rebased as unknown as Record<string, unknown>, intent);
-    try {
-      const revision = await getBridge().flashcards.saveFlashcards(rebased, removals, resetReviewProgress, authorization);
-      // The main process owns the revision it accepted; mirror it so this
-      // window writes against what is durable rather than what it sent.
-      const committed = cloneFlashcardStore(rebased);
-      committed.rev = typeof revision === 'number' ? revision : (rebased.rev ?? 0) + 1;
-      return committed;
-    } catch (retryError) {
-      // The retry can be refused too - another window can commit between the
-      // read and the write, and the store is large enough that this is not
-      // hypothetical. Handled here rather than allowed to escape: the caller
-      // is already holding the original refusal and reports that, and a
-      // rejection escaping this call would reach the window's write queue as
-      // an error with nothing waiting on it.
-      log.warn('Rebased flashcard write was refused too:', retryError);
-      return null;
-    }
+    return null;
   };
 
   /**
@@ -4974,6 +4985,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (!restore?.restoreCard) throw new Error('The pending review Undo has no card to restore');
     if (restore.expectedCard) restoreReviewResponse(target, restore);
     else target.flashcards[restore.cardId] = { ...restore.restoreCard, content: { ...restore.restoreCard.content } };
+    const restoredCard = target.flashcards[restore.cardId];
+    const statsLanguage = restoredCard.language || record.language;
+    const statsKey = langKey(statsLanguage,
+      SRS.hashWordSync(getPrimaryWordFormForLanguage(restoredCard.content.front, statsLanguage)));
+    const cardIds = target.wordToCardMap[statsKey] ?? [];
+    const cards = cardIds.map(cardId => target.flashcards[cardId]).filter(Boolean);
+    if (cards.length > 0) target.wordStatsMap[statsKey] = calculateWordStats(cards);
+    else delete target.wordStatsMap[statsKey];
     (target.meta.reviewPresentations ??= {})[record.language] = {
       id: restore.correction?.decision.id ?? record.attemptId, cardId: restore.cardId,
       scaffolds: { ...restore.scaffolds, 'prior-cue-exposure': true },

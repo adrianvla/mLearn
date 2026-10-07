@@ -2205,6 +2205,139 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('retries an Undo rebase when a second window advances the authority before the replay write', async () => {
+    const attemptId = 'undo-double-rebase-attempt' as AttemptId;
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'undo-double-rebase', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000 });
+    const peer = makeCard({ id: 'undo-double-rebase-peer' });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card, [peer.id]: peer } }));
+    await ctx.submitRating(card.content.front, [], { attemptId, scheduler: { cardId: card.id, rating: 'good' } });
+    answerProbesFromAuthority();
+
+    const originalAppend = mockAppendEvents.getMockImplementation()!;
+    mockAppendEvents.mockImplementationOnce(async events => {
+      const result = await originalAppend(events);
+      committed!.flashcards[peer.id].content.back = 'peer edit before Undo rebase';
+      committed!.rev = ++revision;
+      return result;
+    });
+    const originalSave = mockBridge.flashcards.saveFlashcards.getMockImplementation()!;
+    let racedRebaseSave = false;
+    mockBridge.flashcards.saveFlashcards.mockImplementation((saved, removed, reset, authorization) => {
+      const completion = (saved as FlashcardStore & { retractionCompleted?: string }).retractionCompleted;
+      if (!racedRebaseSave && completion === attemptId && (saved.rev ?? 0) === revision) {
+        racedRebaseSave = true;
+        committed!.flashcards[peer.id].content.back = 'peer edit during Undo rebase';
+        committed!.rev = ++revision;
+      }
+      return originalSave(saved, removed, reset, authorization);
+    });
+
+    try {
+      await expect(ctx.undoLastAction()).resolves.toBe('answer');
+      expect(racedRebaseSave).toBe(true);
+      expect(committed!.flashcards[card.id].reviews).toBe(3);
+      expect(committed!.flashcards[peer.id].content.back).toBe('peer edit during Undo rebase');
+      expect(committed!.pendingRetraction).toBeUndefined();
+      const retractions = Object.values(knowledgeJournal.allRows()).flat()
+        .filter(row => row.kind === 'retraction' && row.retracts === attemptId);
+      expect(retractions).toHaveLength(1);
+    } finally {
+      dispose();
+    }
+  });
+
+  it('treats an Undo completed by a peer as successful after its stale write is refused', async () => {
+    const attemptId = 'undo-peer-completion-attempt' as AttemptId;
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'undo-peer-completion', state: 'review', reviews: 3,
+      interval: 86_400_000, dueDate: Date.now() - 1000 });
+    const peer = makeCard({ id: 'undo-peer-completion-peer' });
+    seed(makeEmptyStore({ flashcards: { [card.id]: card, [peer.id]: peer } }));
+    await ctx.submitRating(card.content.front, [], { attemptId, scheduler: { cardId: card.id, rating: 'good' } });
+    answerProbesFromAuthority();
+
+    const originalSave = mockBridge.flashcards.saveFlashcards.getMockImplementation()!;
+    let peerCompletedUndo = false;
+    mockBridge.flashcards.saveFlashcards.mockImplementation((saved, removed, reset, authorization) => {
+      const completion = (saved as FlashcardStore & { retractionCompleted?: string }).retractionCompleted;
+      if (completion === attemptId) {
+        peerCompletedUndo = true;
+        const peerStore = structuredClone(saved);
+        delete (peerStore as FlashcardStore & { retractionCompleted?: string }).retractionCompleted;
+        // A later response for the same card lands before this renderer
+        // rereads the authority; the stale Undo must not replay over it.
+        peerStore.flashcards[card.id].reviews += 1;
+        peerStore.flashcards[peer.id].content.back = 'peer edit after completing Undo';
+        peerStore.rev = ++revision;
+        committed = peerStore;
+        acceptedSaves.push(structuredClone(peerStore));
+        return Promise.reject(new Error(staleFlashcardRevisionMessage(revision, saved.rev ?? 0)));
+      }
+      return originalSave(saved, removed, reset, authorization);
+    });
+
+    try {
+      await expect(ctx.undoLastAction()).resolves.toBe('answer');
+      expect(peerCompletedUndo).toBe(true);
+      expect(committed!.flashcards[card.id].reviews).toBe(4);
+      expect(committed!.flashcards[peer.id].content.back).toBe('peer edit after completing Undo');
+      expect(committed!.pendingRetraction).toBeUndefined();
+      expect(ctx.store.flashcards[card.id].reviews).toBe(4);
+      expect(ctx.store.flashcards[peer.id].content.back).toBe('peer edit after completing Undo');
+      const retractions = Object.values(knowledgeJournal.allRows()).flat()
+        .filter(row => row.kind === 'retraction' && row.retracts === attemptId);
+      expect(retractions).toHaveLength(1);
+    } finally {
+      dispose();
+    }
+  });
+
+  it('restores aggregate word statistics when a scheduler rating is undone', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const SRS = await import('../services/srsAlgorithm');
+    const card = makeCard({
+      id: 'undo-word-stats',
+      language: 'ja',
+      content: { type: 'word', front: '昨日', back: 'yesterday' },
+      state: 'review',
+      reviews: 3,
+      lapses: 0,
+      interval: 86_400_000,
+      dueDate: Date.now() - 1000,
+      lastReviewed: 1,
+    });
+    const wordKey = `ja:${SRS.hashWordSync(card.content.front)}`;
+    const originalStats = {
+      cardCount: 1,
+      bestEase: card.ease,
+      totalReviews: 3,
+      totalLapses: 0,
+      lastReviewed: 1,
+      bestInterval: card.interval,
+      bestState: 'review' as const,
+    };
+    seed(makeEmptyStore({
+      flashcards: { [card.id]: card },
+      wordToCardMap: { [wordKey]: [card.id] },
+      wordStatsMap: { [wordKey]: originalStats },
+    }));
+
+    await ctx.submitRating(card.content.front, [], {
+      attemptId: 'undo-word-stats-attempt' as AttemptId,
+      scheduler: { cardId: card.id, rating: 'good' },
+    });
+    await vi.waitFor(() => expect(ctx.store.wordStatsMap[wordKey]?.totalReviews).toBe(4));
+
+    await ctx.undoLastAction();
+
+    expect(ctx.store.flashcards[card.id].state).toBe('review');
+    expect(ctx.store.wordStatsMap[wordKey]).toEqual(originalStats);
+    expect(committed?.wordStatsMap[wordKey]).toEqual(originalStats);
+    dispose();
+  });
+
   it('persists rating Undo through navigation and a provider restart', async () => {
     mockSettings.language = 'ja2';
     let persistedStore: FlashcardStore | null = null;
