@@ -2176,7 +2176,9 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
                   <EmptyState
                     icon={<ChatIcon size={24} />}
                     title={t(hasActiveRoomSelection() ? isConnected() ? 'mlearn.ConversationAgent.Empty.ReadyTitle' : 'mlearn.ConversationAgent.Empty.SavedTitle' : 'mlearn.ConversationAgent.Empty.Title')}
-                    description={hasActiveRoomSelection() ? isConnected() ? t('mlearn.ConversationAgent.Empty.ReadyHint') : t('mlearn.ConversationAgent.Empty.SavedUnavailableHint') : t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
+                    description={hasActiveRoomSelection()
+                      ? isConnected() ? t('mlearn.ConversationAgent.Empty.ReadyHint') : undefined
+                      : t('mlearn.ConversationAgent.Empty.Hint', { lang: langName() })}
                     action={hasActiveRoomSelection() && !isConnected() ? undefined : {
                       label: hasActiveRoomSelection() ? t('mlearn.ConversationAgent.Empty.StartConversation') : t('mlearn.ConversationAgent.NewConversation.Title'),
                       onClick: hasActiveRoomSelection() ? handleStartConversation : () => openComposer('message'),

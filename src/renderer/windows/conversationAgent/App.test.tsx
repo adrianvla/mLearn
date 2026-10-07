@@ -680,7 +680,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(recovery).toBeDefined();
     expect(recovery?.textContent).toBe('mlearn.CapabilityUnavailable.OpenSettings');
     expect(chatText(container)).toContain('mlearn.ConversationAgent.Empty.SavedTitle');
-    expect(chatText(container)).toContain('mlearn.ConversationAgent.Empty.SavedUnavailableHint');
+    expect(chatText(container)).not.toContain('mlearn.ConversationAgent.Empty.SavedUnavailableHint');
     expect(chatText(container)).not.toContain('mlearn.ConversationAgent.Empty.StartConversation');
     recovery!.click();
     expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'settings', context: { section: 'ai' } });
