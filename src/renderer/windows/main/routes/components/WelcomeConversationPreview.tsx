@@ -53,7 +53,7 @@ export const WelcomeConversationPreview: Component<{ onOpen: (context?: Record<s
   return <div class="welcome-conversation-preview">
     <Show when={!error() && !previews.error()} fallback={<div role="alert"><p>{t('mlearn.Home.Summary.ConversationUnavailable')}</p>
       <Button variant="ghost" onClick={() => { void refresh(); previews.refresh(); }}>{t('mlearn.Knowledge.Retry')}</Button></div>}>
-      <Show when={continuation()} keyed fallback={<Show when={!loading()} fallback={<p role="status">{t('mlearn.Common.Status.Loading')}</p>}>
+      <Show when={continuation()} keyed fallback={<Show when={!loading()} fallback={<p role="status">{t('mlearn.Global.Loading')}</p>}>
         <p>{t('mlearn.Home.Summary.NoConversation')}</p><Button variant="ghost" onClick={() => props.onOpen()}>{t('mlearn.ConversationAgent.NewConversation.Title')}</Button>
       </Show>}>{entry => <><strong class="welcome-conversation-title">{entry.title}</strong>
         <p class="welcome-conversation-message">{previews.previews()[entry.key]?.text}</p>

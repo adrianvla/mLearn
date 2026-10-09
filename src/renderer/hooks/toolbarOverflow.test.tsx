@@ -34,11 +34,11 @@ describe('reader toolbar overflow', () => {
         Object.defineProperty(element, 'clientWidth', { get: () => available });
       }}>
         <span ref={element => { element.getBoundingClientRect = () => ({ width: 100 } as DOMRect); }}>Book</span>
-        <Show when={loaded()}><details ref={menu} open={controls.open()} data-overflow={String(controls.overflow())}>
-          <summary onClick={controls.toggle}>Options</summary>
-          <div data-overflow-panel ref={element => { element.getBoundingClientRect = () => ({ width: 400 } as DOMRect); }}>
+        <Show when={loaded()}><div data-overflow-inline /><details ref={menu} open={controls.open()} data-overflow={String(controls.overflow())}>
+          <summary ref={element => { element.getBoundingClientRect = () => ({ width: 40 } as DOMRect); }} onClick={controls.toggle}>Options</summary>
+          <div data-overflow-panel><div data-overflow-priority="0" ref={element => { element.getBoundingClientRect = () => ({ width: 400 } as DOMRect); }}>
             <input aria-label="existing control" value="retained" />
-          </div>
+          </div></div>
         </details></Show>
       </nav>;
     };

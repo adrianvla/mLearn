@@ -343,6 +343,7 @@ vi.mock('../services/knowledgeRollup', () => ({
 
 vi.mock('../../shared/platform', () => ({
   isElectron: mockIsElectron,
+  getOS: () => 'mac',
   isCapacitor: () => false,
   isMobile: () => false,
   isDesktop: () => true,

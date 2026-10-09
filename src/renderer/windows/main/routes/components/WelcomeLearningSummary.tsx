@@ -19,7 +19,7 @@ export const WelcomeLearningSummary: Component<{ onPlan: () => void }> = props =
     <Show when={settings.language} fallback={<p role="status">{t('mlearn.Settings.Language.LearningLanguage.Label')}</p>}>
     <LearningGoals summaryOnly compact requirementEvaluations={requirements()} />
     <Show when={!flashcards.libraryLoadError()} fallback={<div role="alert"><p>{flashcards.libraryLoadError()}</p><Button onClick={flashcards.retryLibraryLoad}>{t('mlearn.Knowledge.Retry')}</Button></div>}>
-      <Show when={!flashcards.isLoading()} fallback={<p role="status">{t('mlearn.Common.Status.Loading')}</p>}>
+      <Show when={!flashcards.isLoading()} fallback={<p role="status">{t('mlearn.Global.Loading')}</p>}>
         <dl class="welcome-lifetime-totals"><div><dt>{t('mlearn.Home.Summary.AllTimeReviews')}</dt><dd>{totals().reviews.toLocaleString(settings.uiLanguage)}</dd></div>
           <div><dt>{t('mlearn.Home.Summary.NewCardResponses')}</dt><dd>{totals().newCardResponses.toLocaleString(settings.uiLanguage)}</dd></div></dl>
         <p class="welcome-summary-definition">{t('mlearn.Home.Summary.RecordDefinition')}</p>
