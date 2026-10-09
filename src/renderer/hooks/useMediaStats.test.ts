@@ -300,18 +300,24 @@ describe('useMediaStats', () => {
   });
 
   it('rejects an old request after switching away and back to the same media', () => {
-    createRoot((dispose) => {
-      const hook = createHook();
-      hook.setMedia('first.mp4');
-      const firstHash = hook.mediaHash();
-      const staleResponse = onMediaStatsCallback!;
-      hook.setMedia('second.mp4');
-      hook.setMedia('first.mp4');
-      onMediaStatsCallback!(makeStats({ mediaHash: firstHash, mediaName: 'first.mp4', totalTimeSpent: 12 }));
-      staleResponse(makeStats({ mediaHash: firstHash, mediaName: 'first.mp4', totalTimeSpent: 3 }));
-      expect(hook.stats().totalTimeSpent).toBe(12);
-      dispose();
-    });
+    // This assertion isolates reply identity, not elapsed engagement. A real
+    // clock can add a millisecond to the new session during these operations.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(10000);
+    let dispose: (() => void) | undefined;
+    try {
+      createRoot((cleanup) => {
+        dispose = cleanup;
+        const hook = createHook();
+        hook.setMedia('first.mp4');
+        const firstHash = hook.mediaHash();
+        const staleResponse = onMediaStatsCallback!;
+        hook.setMedia('second.mp4');
+        hook.setMedia('first.mp4');
+        onMediaStatsCallback!(makeStats({ mediaHash: firstHash, mediaName: 'first.mp4', totalTimeSpent: 12 }));
+        staleResponse(makeStats({ mediaHash: firstHash, mediaName: 'first.mp4', totalTimeSpent: 3 }));
+        expect(hook.stats().totalTimeSpent).toBe(12);
+      });
+    } finally { dispose?.(); clock.mockRestore(); }
   });
 
   it('subscribes before requesting stats so immediate bridge responses are retained', () => {
