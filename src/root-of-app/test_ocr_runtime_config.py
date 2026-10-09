@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import io
+import json
 import sys
 from types import SimpleNamespace
 
@@ -26,68 +27,45 @@ def test_missing_ocr_runtime_metadata_does_not_enable_runtime_ocr(monkeypatch):
     assert ocr.config.language_supports_vertical_text_for_language("ja") is False
 
 
-def test_explicit_ocr_runtime_metadata_controls_runtime_ocr(monkeypatch):
-    monkeypatch.setattr(ocr.config, "LANGUAGE", "sample")
-    monkeypatch.setattr(ocr.config, "LANGUAGE_METADATA", {
-        "runtime": {
-            "ocr": {
-                "recognitionEngine": "rapidocr",
-                "rapidLangType": "CYRILLIC",
-            },
-        },
-    })
+def _install_runtime_metadata(tmp_path, monkeypatch, metadata):
+    root = tmp_path / "language-data"
+    directory = root / "languages"
+    directory.mkdir(parents=True)
+    path = directory / "sample.json"
+    path.write_text(json.dumps(metadata), encoding="utf-8")
+    monkeypatch.setattr(ocr.config, "LANGUAGE_DATA_PATH", str(root))
+    monkeypatch.setattr(ocr.config, "LANGUAGE", "unrelated-active-package")
+    monkeypatch.setattr(ocr.config, "LANGUAGE_METADATA", {"runtime": {"ocr": {"supportsVerticalText": False}}})
+    return path
 
+
+def test_explicit_ocr_runtime_metadata_controls_runtime_ocr(tmp_path, monkeypatch):
+    _install_runtime_metadata(tmp_path, monkeypatch, {
+        "runtime": {"ocr": {"recognitionEngine": "rapidocr", "rapidLangType": "CYRILLIC"}},
+    })
     assert ocr.config.language_runtime_config_for_language("sample", "ocr") == {
-        "recognitionEngine": "rapidocr",
-        "rapidLangType": "CYRILLIC",
+        "recognitionEngine": "rapidocr", "rapidLangType": "CYRILLIC",
     }
     assert ocr._uses_manga_ocr_recognition("sample") is False
+    assert ocr.config.language_runtime_config_for_language("uninstalled-package", "ocr") == {}
 
 
-def test_vertical_text_support_comes_from_ocr_runtime_metadata(monkeypatch):
-    monkeypatch.setattr(ocr.config, "LANGUAGE", "sample")
-    monkeypatch.setattr(ocr.config, "LANGUAGE_METADATA", {
-        "runtime": {
-            "ocr": {
-                "supportsVerticalText": False,
-            },
-        },
+def test_vertical_text_support_comes_from_ocr_runtime_metadata(tmp_path, monkeypatch):
+    metadata_path = _install_runtime_metadata(tmp_path, monkeypatch, {
+        "runtime": {"ocr": {"supportsVerticalText": False}},
     })
-
     assert ocr.config.language_supports_vertical_text_for_language("sample") is False
-
-    monkeypatch.setattr(ocr.config, "LANGUAGE_METADATA", {
-        "runtime": {
-            "ocr": {
-                "supportsVerticalText": True,
-            },
-        },
-    })
-
+    metadata_path.write_text(json.dumps({"runtime": {"ocr": {"supportsVerticalText": True}}}), encoding="utf-8")
     assert ocr.config.language_supports_vertical_text_for_language("sample") is True
+    assert ocr.config.language_supports_vertical_text_for_language("uninstalled-package") is False
 
 
-def test_ocr_ram_saver_support_can_be_disabled_by_runtime_metadata(monkeypatch):
-    monkeypatch.setattr(ocr.config, "LANGUAGE", "sample")
-    monkeypatch.setattr(ocr.config, "LANGUAGE_METADATA", {
-        "runtime": {
-            "ocr": {
-                "recognitionEngine": "mangaocr",
-                "supportsRamSaver": False,
-            },
-        },
+def test_ocr_ram_saver_support_can_be_disabled_by_runtime_metadata(tmp_path, monkeypatch):
+    metadata_path = _install_runtime_metadata(tmp_path, monkeypatch, {
+        "runtime": {"ocr": {"recognitionEngine": "mangaocr", "supportsRamSaver": False}},
     })
-
     assert ocr.config.language_supports_ocr_ram_saver_for_language("sample") is False
-
-    monkeypatch.setattr(ocr.config, "LANGUAGE_METADATA", {
-        "runtime": {
-            "ocr": {
-                "recognitionEngine": "mangaocr",
-            },
-        },
-    })
-
+    metadata_path.write_text(json.dumps({"runtime": {"ocr": {"recognitionEngine": "mangaocr"}}}), encoding="utf-8")
     assert ocr.config.language_supports_ocr_ram_saver_for_language("sample") is False
 
 

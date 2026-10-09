@@ -104,15 +104,19 @@ def test_config_init_without_variant_preserves_base_metadata(tmp_path, monkeypat
     assert "config" not in config.LANGUAGE_METADATA["runtime"]["adapter"]
 
 
-def test_generic_language_module_uses_active_variant_adapter_config(tmp_path, monkeypatch):
+def test_generic_language_module_uses_admitted_variant_metadata_not_ambient_preference(tmp_path, monkeypatch):
     data_root = tmp_path / "language-data"
     _install_zh_metadata(data_root)
-    monkeypatch.setattr(config, "ACTIVE_VARIANT", "zh-Hant")
-
+    monkeypatch.setattr(config, "ACTIVE_VARIANT", "unrelated-preference")
+    base = json.loads((data_root / "languages" / "zh.json").read_text(encoding="utf-8"))
+    admitted = apply_variant_overlay(base, "zh-Hant")
     module = GenericLanguageModule("zh")
-    module.LOAD_MODULE(str(tmp_path), str(data_root))
-
+    config._load_language_module(module, str(tmp_path), str(data_root), admitted)
     assert module.metadata["runtime"]["adapter"]["config"]["pinyinInputConversion"] == "t2s"
+    assert "config" not in base["runtime"]["adapter"]
+    unscoped = GenericLanguageModule("zh")
+    unscoped.LOAD_MODULE(str(tmp_path), str(data_root))
+    assert "config" not in unscoped.metadata["runtime"]["adapter"]
 
 
 async def _post_convert(payload: dict[str, object]) -> httpx.Response:
