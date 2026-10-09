@@ -104,7 +104,7 @@ export interface GrammarCoverageProps {
    *  policy walk this section already offers for that level. A live walk is
    *  never silently replaced (G01) — the level merely expands so the learner
    *  can return to it. */
-  repairRequest?: { level: number; requestedAt: number; patterns?: readonly string[]; handoffDecision?: LearningDecision } | null;
+  repairRequest?: { level: number; requestedAt: number; patterns?: readonly string[]; taskTemplateId?: string; handoffDecision?: LearningDecision } | null;
   /** Clears the owner-held request only once its policy walk has started. */
   onRepairRequestHandled?: (requestedAt: number) => void;
   /** Web Locks DI seam (shared study-session convention). Production
@@ -1234,10 +1234,13 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   const [requestedStartFailed, setRequestedStartFailed] = createSignal(false);
   let retryRequestedStart: (() => void) | undefined;
   const requestStart = (request: NonNullable<GrammarCoverageProps['repairRequest']>) => {
+    if (request.taskTemplateId !== undefined && (request.taskTemplateId !== GRAMMAR_SELF_ASSESS_TASK.taskTemplateId || props.purpose === 'check')) {
+      setRequestedStartFailed(true); setPracticePaused(true); return;
+    }
     setExpandedLevel(request.level);
     retryRequestedStart = () => {
       const crossLevel = request.patterns && new Set((props.languageData.grammar ?? []).filter(point => request.patterns!.includes(point.pattern)).map(point => point.level)).size > 1;
-      const start = request.handoffDecision || crossLevel ? startSession(request.level, undefined, request.handoffDecision, false, true, request.patterns)
+      const start = request.handoffDecision || request.taskTemplateId === GRAMMAR_SELF_ASSESS_TASK.taskTemplateId || crossLevel ? startSession(request.level, undefined, request.handoffDecision, false, true, request.patterns)
         : contrastAvailableByLevel().get(request.level) === true ? startContrastSession(request.level, true)
         : startSession(request.level, undefined, undefined, false, true, request.patterns);
       void start.then(accepted => {
@@ -1250,7 +1253,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   };
   createEffect(on(() => props.repairRequest, (request) => {
     if (request === null || request === undefined) return;
-    if (request.patterns) { requestStart(request); return; }
+    if (request.patterns || request.taskTemplateId !== undefined) { requestStart(request); return; }
     if (sessionLive()) {
       setPendingRepair(request);
       return;

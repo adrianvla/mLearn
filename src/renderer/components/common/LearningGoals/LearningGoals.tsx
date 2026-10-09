@@ -146,7 +146,8 @@ const PersonalRecallConditions: Component<{ goal: LearningGoal; data: LanguageDa
       <Show when={!supported(condition)}><span role="status">{t('mlearn.Goals.RecallUnavailable')}</span></Show>
       <Button variant="ghost" size="sm" onClick={() => { const next = withoutPersonalRecallCondition(props.goal, condition.id); if (next) props.onChange(next); }}>{t('mlearn.Goals.RemoveRecallCondition')}</Button>
     </div>}</For>
-    <Show when={availableOptions().length && writable()} fallback={<span>{t('mlearn.Goals.RecallUnavailable')}</span>}>
+    <Show when={!options().length || !writable()}><span>{t('mlearn.Goals.RecallUnavailable')}</span></Show>
+    <Show when={availableOptions().length && writable()}>
       <div class="learning-goals__personal-add">
         <label>{t('mlearn.Goals.RecallMaterial')}<Select name="learning-recall-task" value={choice()} onChange={event => setChoice(event.currentTarget.value)}>
           <option value="">{t('mlearn.Goals.RecallChoose')}</option>

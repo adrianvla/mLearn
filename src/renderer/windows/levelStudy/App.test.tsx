@@ -1,3 +1,5 @@
+import { learningGoalSemanticBasis } from '../../../shared/learningGoalCompatibility';
+import type { LanguageData } from '../../../shared/types';
 import { fitLearningModel } from '../../../shared/learningModel';
 // @vitest-environment happy-dom
 
@@ -161,6 +163,32 @@ describe('LevelStudyContent', () => {
   afterEach(() => {
     vi.clearAllMocks();
     container.remove();
+  });
+
+  it.each(['grammar-self-assess', 'future-unknown-task'])('validates the explicitly requested %s producer before scoped admission', async taskTemplateId => {
+    currentLangDataMock = { grammar: [{ pattern: 'package-defined', level: 2 }] };
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent workspace="grammar" launchContext={{ activity: 'grammar', patterns: ['package-defined'], taskTemplateId }} />, container);
+    if (taskTemplateId === 'grammar-self-assess') expect(JSON.parse(container.querySelector('[data-grammar-request]')!.getAttribute('data-grammar-request')!)).toMatchObject({ taskTemplateId });
+    else expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.Product.GrammarSelectionUnavailable');
+    dispose();
+  });
+
+  it('launches grammar-only Plan recall with an explicit actual producer identity', async () => {
+    currentLangDataMock = { name: 'Future', grammar: [{ pattern: 'package-defined', meaning: 'Meaning', level: 2 }], learning: { outcomes: { 'test:material': { label: 'Declared', provenance: 'package', groups: [{ id: 'declared', selectors: [{ source: 'grammar', patterns: ['package-defined'] }] }] } } } };
+    currentSettingsMock.learningGoals = [{ id: 'goal', language: 'test', outcome: 'Declared', status: 'active', priority: 1, createdAt: 1, outcomeRef: { id: 'test:material', semanticBasis: learningGoalSemanticBasis(currentLangDataMock as unknown as LanguageData, { id: 'test:material' }) } }];
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent workspace="plan" />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Home.Today.PracticeAction')!.click();
+    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'grammar', taskTemplateId: 'grammar-self-assess', patterns: ['package-defined'], returnTo: 'plan' } });
+    dispose();
+  });
+  it('refuses a producer request with no explicit admitted material rather than opening generic contrast', async () => {
+    currentLangDataMock = { grammar: [{ pattern: 'package-defined', level: 2 }] };
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent workspace="grammar" launchContext={{ activity: 'grammar', taskTemplateId: 'grammar-self-assess' }} />, container);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('mlearn.Product.GrammarSelectionUnavailable');
+    dispose();
   });
 
   it('keeps a routed Plan passive even when transport carries an old task intention', async () => {

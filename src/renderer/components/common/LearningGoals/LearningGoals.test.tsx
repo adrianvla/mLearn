@@ -53,6 +53,7 @@ describe('semantic learning outcome controls', () => {
     ]);
     const conditions = settings.learningGoals![0].scope!.requirements!.conditions as Array<Record<string, unknown>>;
     expect(conditions).toHaveLength(2);
+    expect(document.body.textContent).not.toContain('mlearn.Goals.RecallUnavailable');
     expect(conditions[0]).toEqual(opaque);
     expect(conditions[1]).toEqual({ id: expect.any(String), kind: 'canonical-capability-threshold', groupIds: ['construction-set'], capability: 'grammar-recognition', minimum: 0.7 });
     expect(settings.learningGoals![0]).toMatchObject({ id: 'earlier', deadline: '2027-01-01', priority: 2, outcomeRef: { semanticBasis: basis, groupIds: ['construction-set'] } });

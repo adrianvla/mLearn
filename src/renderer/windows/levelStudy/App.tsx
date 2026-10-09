@@ -8,7 +8,7 @@ import { LevelStudyTab } from './LevelStudyTab';
 import { LearningPlanSettings } from './LearningPlanSettings';
 import { activeLearningGoals, learningGoalsForSettings } from '../../../shared/learningGoals';
 import { getBridge } from '../../../shared/bridges';
-import { grammarSelfAssessmentHandoffMatches } from './grammarSelfAssessmentDecision';
+import { GRAMMAR_SELF_ASSESS_TASK, grammarSelfAssessmentHandoffMatches } from './grammarSelfAssessmentDecision';
 import './LevelStudy.css';
 
 export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; launchContext?: Record<string, unknown> }> = (props) => {
@@ -36,7 +36,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
     const scope = targetScope();
     if (scope.selected && !scope.goals.length) { editPlan(); return; }
     if (scope.selected && !scope.words.length && scope.patterns.length) {
-      getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', patterns: scope.patterns, returnTo: 'plan' } }); return;
+      getBridge().window.openWindow({ type: 'level-study', context: { activity: 'grammar', taskTemplateId: GRAMMAR_SELF_ASSESS_TASK.taskTemplateId, patterns: scope.patterns, returnTo: 'plan' } }); return;
     }
     getBridge().window.openWindow({ type: 'level-study', context: { activity: 'practice', intent: 'start', returnTo: 'plan',
       ...(scope.selected ? { material: { language: settings.language, label: scope.goals.map(goal => goal.outcome).join(' · '), words: scope.words } } : {}) } });
@@ -44,10 +44,11 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
   const incomingContext = () => props.launchContext ?? {};
   const [grammarRequestConsumed, setGrammarRequestConsumed] = createSignal(false);
   const hasGrammarSelection = () => incomingContext().intent !== 'resume' && incomingContext().activity === 'grammar'
-    && Object.prototype.hasOwnProperty.call(incomingContext(), 'patterns');
+    && (Object.prototype.hasOwnProperty.call(incomingContext(), 'patterns') || incomingContext().taskTemplateId !== undefined);
   const grammarSelection = createMemo(() => {
     const context = incomingContext();
     if (!hasGrammarSelection() || !learning.ready() || !currentLangData()) return undefined;
+    if (context.taskTemplateId !== undefined && (context.taskTemplateId !== GRAMMAR_SELF_ASSESS_TASK.taskTemplateId || props.workspace === 'grammar-check')) return null;
     if (!Array.isArray(context.patterns) || !context.patterns.length
       || context.patterns.some(value => typeof value !== 'string' || !currentLangData()?.grammar?.some(point => point.pattern === value && typeof point.level === 'number'))) return null;
     const patterns = [...new Set(context.patterns as string[])];
@@ -56,6 +57,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
     const handoff = session?.decision;
     if (handoff !== undefined && !grammarSelfAssessmentHandoffMatches(handoff, session?.requestId, settings.language, patterns)) return null;
     return patterns.length && level !== undefined ? { level, patterns, requestedAt: 0,
+      ...(context.taskTemplateId !== undefined ? { taskTemplateId: GRAMMAR_SELF_ASSESS_TASK.taskTemplateId } : {}),
       ...(handoff !== undefined ? { handoffDecision: handoff } : {}) } : null;
   });
   const grammarRequest = () => grammarRequestConsumed() ? undefined : grammarSelection() ?? undefined;

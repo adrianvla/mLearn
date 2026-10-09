@@ -181,7 +181,7 @@ function mount(
   summaryOverride?: CurriculumComponentSummary,
   eventLogOverride?: KnowledgeEventLog,
   onValidated?: () => void,
-  repairRequest?: () => { level: number; requestedAt: number; patterns?: string[]; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } | null,
+  repairRequest?: () => { level: number; requestedAt: number; patterns?: string[]; taskTemplateId?: string; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } | null,
   onRepairRequestHandled?: (requestedAt: number) => void,
   locks: StudySessionLocks | null = passThroughLocks,
   initiallyPaused = false,
@@ -1771,6 +1771,23 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
       { pattern: 'たびに', meaning: 'every time', meanings: { de: 'jedes Mal' }, level: 3 },
     ],
   } as unknown as LanguageData;
+  it('admits the explicitly requested recall producer even when validated contrast material exists', async () => {
+    const onProbe = vi.fn();
+    const mounted = mount(onProbe, contrastData, undefined, undefined, undefined,
+      () => ({ level: 2, requestedAt: 0, patterns: ['ば'], taskTemplateId: 'grammar-self-assess' }), undefined, passThroughLocks, false, ['ば']);
+    try {
+      await tick();
+      expect(mounted.container.querySelector('.grammar-contrast')).toBeNull();
+      expect(promptedPattern(mounted.container, 2)).toBe('ば');
+      const stored = JSON.parse(localStorage.getItem('mlearn-study-grammar:ja')!);
+      expect(stored.queue[0].decision.selected.task).toMatchObject({ taskTemplateId: 'grammar-self-assess', responseModality: 'recall' });
+      revealCurrent(mounted.container, 2);
+      (mounted.container.querySelector('.study-encounter__response .rating-matrix__quality:nth-child(3)') as HTMLButtonElement).click();
+      await tick();
+      expect(onProbe.mock.calls[0][4]).toMatchObject({ taskType: 'grammar-self-assess', method: 'recall' });
+    } finally { mounted.dispose(); mounted.container.remove(); }
+  });
+
   it('preserves Home recall admission when a validated contrast item is also available', async () => {
     const handoff = { id: 'saved-home-recall', at: 1, policyVersion: 'home-test', selected: {
       key: 'grammar:ば', action: 'grammar', targets: [{ kind: 'grammar-pattern', id: 'ja:grammar:ば', capability: 'grammar-recognition' }],

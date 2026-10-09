@@ -1,3 +1,4 @@
+import { GRAMMAR_SELF_ASSESS_TASK } from './grammarSelfAssessmentDecision';
 import { learningScopeForSettings } from '../../../shared/learningScope';
 import type { PolicyContext } from '../../learning/types';
 import { useEvidenceLinkedProjections } from '../../hooks/useEvidenceLinkedProjections';
@@ -63,7 +64,7 @@ function resolveLevelStudyLanguageData(
   };
 }
 
-export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; grammarResumeId?: string; grammarScopePatterns?: readonly string[]; mockAction?: 'open' | 'start' | 'resume'; mockResumeId?: string; mockLevel?: number; launchContext?: Record<string, unknown>; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
+export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-check' | 'mock'; grammarResumeId?: string; grammarScopePatterns?: readonly string[]; mockAction?: 'open' | 'start' | 'resume'; mockResumeId?: string; mockLevel?: number; launchContext?: Record<string, unknown>; onEditPlan?: () => void; policyContext?: PolicyContext; onGrammarRequestHandled?: () => void; grammarRequest?: { level: number; patterns: string[]; requestedAt: number; taskTemplateId?: string; handoffDecision?: import('../../../shared/learningDecision').LearningDecision } }> = (props) => {
   const { t } = useLocalization();
   const flashcards = useFlashcards();
   const language = useLanguage();
@@ -283,6 +284,9 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
     type: 'level-study',
     context: {
       ...props.launchContext,
+      // Checkpoint repair selects its reviewed contrast producer independently.
+      taskTemplateId: undefined,
+      session: undefined,
       activity: 'grammar',
       level,
       patterns: [...patterns],
@@ -484,7 +488,7 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
               </Disclosure>
               <div class="level-study-grammar-actions">
                 <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
-                  activity: 'grammar', returnTo: 'plan', patterns: scopedGrammarData()?.grammar?.map(point => point.pattern) ?? [],
+                  activity: 'grammar', taskTemplateId: GRAMMAR_SELF_ASSESS_TASK.taskTemplateId, returnTo: 'plan', patterns: scopedGrammarData()?.grammar?.map(point => point.pattern) ?? [],
                 } })}>{t('mlearn.LevelStudy.Grammar.Practise')}</Button>
                 <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
                   activity: 'grammar', purpose: 'evaluate', returnTo: 'plan', patterns: scopedGrammarData()?.grammar?.map(point => point.pattern) ?? [],

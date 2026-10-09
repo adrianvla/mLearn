@@ -249,7 +249,7 @@ describe('LevelStudyTab', () => {
     const practise = summary.querySelector('.level-study-grammar-actions button') as HTMLButtonElement;
     practise.click();
     expect(openWindowMock).toHaveBeenCalledWith(expect.objectContaining({ type: 'level-study', context: expect.objectContaining({
-      activity: 'grammar', returnTo: 'plan', patterns: ['weil', 'deshalb', 'obwohl', 'trotzdem'],
+      activity: 'grammar', taskTemplateId: 'grammar-self-assess', returnTo: 'plan', patterns: ['weil', 'deshalb', 'obwohl', 'trotzdem'],
     }) }));
     const check = summary.querySelectorAll('.level-study-grammar-actions button')[1] as HTMLButtonElement;
     check.click();
