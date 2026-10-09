@@ -55,6 +55,11 @@ export function learningGoalCompatibility(goal: LearningGoal, data: LanguageData
 export function revalidateLearningGoal(goal: LearningGoal, data: LanguageData | null | undefined, at = Date.now()): LearningGoal | undefined {
   if (!goal.outcomeRef) return undefined;
   const basis = learningGoalSemanticBasis(data, goal.outcomeRef); if (!basis) return undefined;
-  return { ...goal, outcomeRef: { ...goal.outcomeRef, packageVersion: data?.languageData?.version, semanticBasis: basis,
-    bindingHistory: [...(goal.outcomeRef.bindingHistory ?? []), { at, previous: goal.outcomeRef.semanticBasis ?? null, requestedVersion: goal.outcomeRef.packageVersion, basis }] } };
+  // Settings reconciles reactive objects before serializing them. A retained
+  // store reference would rewrite the historical basis as the new one lands.
+  // Intent is JSON-persisted; snapshot it before constructing the new binding.
+  const snapshot = JSON.parse(JSON.stringify(goal)) as LearningGoal;
+  const previousRef = snapshot.outcomeRef!;
+  return { ...snapshot, outcomeRef: { ...previousRef, packageVersion: data?.languageData?.version, semanticBasis: basis,
+    bindingHistory: [...(previousRef.bindingHistory ?? []), { at, previous: previousRef.semanticBasis ?? null, requestedVersion: previousRef.packageVersion, basis }] } };
 }

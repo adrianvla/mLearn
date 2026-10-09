@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { render } from 'solid-js/web';
-import { createStore } from 'solid-js/store';
+import { createStore, reconcile } from 'solid-js/store';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type LanguageData, type Settings } from '../../../../shared/types';
 import type { LearningGoalRequirementEvaluation } from '../../../../shared/learningRequirementEvaluation';
@@ -284,4 +284,78 @@ it('requires explicit revalidation of a legacy same-version goal and preserves i
   expect(settings.learningGoals![0]).toMatchObject({ id: original.id, deadline: original.deadline, priority: 7, scope: original.scope });
   expect(settings.learningGoals![0].outcomeRef!.bindingHistory).toHaveLength(1);
   expect(learningScopeForSettings(settings, loaded).unavailable).toEqual([]);
+});
+
+
+it('keeps historical semantic bindings immutable through Settings reconciliation and saved snapshots', () => {
+  const baseline = JSON.parse(JSON.stringify(loaded)) as LanguageData;
+  const originalBasis = learningGoalSemanticBasis(baseline, { id: 'future:curriculum' });
+  const earlier = { id: 'earlier-binding', language: 'future', outcome: 'Original scope', status: 'active' as const,
+    priority: 7, createdAt: 1, deadline: '2027-01-02',
+    outcomeRef: { id: 'future:curriculum', packageVersion: 'future-v1', semanticBasis: originalBasis },
+    scope: { provenance: 'user' as const, requirements: { 'future::unknown': { nested: [1, true] } } } };
+  const later = JSON.parse(JSON.stringify({ ...earlier, id: 'later-binding', deadline: '2027-02-03' }));
+  const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: JSON.parse(JSON.stringify([earlier, later])) });
+  const laterBefore = JSON.stringify(settings.learningGoals![1]);
+  let persisted = '';
+  // Production Settings updateSetting reconciles nextSettings before its save snapshot.
+  fixture.context = { settings, updateSetting: (key: string, value: unknown) => {
+    const next = { ...JSON.parse(JSON.stringify(settings)), [key]: value } as Settings;
+    setSettings(reconcile(next));
+    persisted = JSON.stringify(next);
+  } };
+  const first = JSON.parse(JSON.stringify(baseline)) as LanguageData;
+  first.languageData!.version = 'future-v2'; first.freq!.push(['first-new-member', '', 1]);
+  fixture.data = first;
+  dispose = render(() => <LearningGoals />, document.body);
+  const revalidate = () => document.querySelector<HTMLButtonElement>('[data-goal-id="earlier-binding"] button')!.click();
+  expect(document.querySelector('[data-goal-id="earlier-binding"] [role="status"]')).not.toBeNull();
+  revalidate();
+  const firstSaved = JSON.parse(persisted) as Settings;
+  expect(firstSaved.learningGoals![0].outcomeRef!.bindingHistory![0]).toMatchObject({
+    requestedVersion: 'future-v1', previous: originalBasis, basis: learningGoalSemanticBasis(first, { id: 'future:curriculum' }),
+  });
+  expect(JSON.stringify(settings.learningGoals![1])).toBe(laterBefore);
+  expect(firstSaved.learningGoals![0]).toMatchObject({ id: earlier.id, priority: 7, deadline: earlier.deadline, scope: earlier.scope });
+  dispose!(); document.body.replaceChildren();
+  const second = JSON.parse(JSON.stringify(first)) as LanguageData;
+  second.languageData!.version = 'future-v3'; second.freq!.push(['second-new-member', '', 1]);
+  fixture.data = second;
+  dispose = render(() => <LearningGoals />, document.body);
+  revalidate();
+  const secondSaved = JSON.parse(persisted) as Settings;
+  expect(secondSaved.learningGoals![0].outcomeRef!.bindingHistory![0]).toEqual(firstSaved.learningGoals![0].outcomeRef!.bindingHistory![0]);
+  expect(secondSaved.learningGoals![0].outcomeRef!.bindingHistory![1]).toMatchObject({
+    requestedVersion: 'future-v2', previous: firstSaved.learningGoals![0].outcomeRef!.semanticBasis,
+    basis: learningGoalSemanticBasis(second, { id: 'future:curriculum' }),
+  });
+  expect(JSON.stringify(settings.learningGoals![1])).toBe(laterBefore);
+});
+
+
+it('keeps a legacy first binding distinct from current semantics during subsequent reconciliation', () => {
+  const legacy = { id: 'legacy-bind-history', language: 'future', outcome: 'Original scope', status: 'active' as const,
+    priority: 7, createdAt: 1, deadline: '2027-01-02', outcomeRef: { id: 'future:curriculum', packageVersion: 'future-v1' } };
+  const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [legacy] });
+  let persisted = '';
+  fixture.context = { settings, updateSetting: (key: string, value: unknown) => {
+    const next = { ...JSON.parse(JSON.stringify(settings)), [key]: value } as Settings;
+    setSettings(reconcile(next)); persisted = JSON.stringify(next);
+  } };
+  fixture.data = loaded;
+  dispose = render(() => <LearningGoals />, document.body);
+  const bind = () => document.querySelector<HTMLButtonElement>('[data-goal-id="legacy-bind-history"] button')!.click();
+  bind();
+  const initial = JSON.parse(persisted) as Settings;
+  expect(initial.learningGoals![0].outcomeRef!.bindingHistory![0]).toMatchObject({ previous: null,
+    basis: learningGoalSemanticBasis(loaded, { id: 'future:curriculum' }) });
+  dispose!(); document.body.replaceChildren();
+  const changed = JSON.parse(JSON.stringify(loaded)) as LanguageData;
+  changed.languageData!.version = 'future-v2'; changed.freq!.push(['new-member', '', 1]);
+  fixture.data = changed; dispose = render(() => <LearningGoals />, document.body); bind();
+  const rebound = JSON.parse(persisted) as Settings;
+  expect(rebound.learningGoals![0].outcomeRef!.semanticBasis).toEqual(learningGoalSemanticBasis(changed, { id: 'future:curriculum' }));
+  expect(rebound.learningGoals![0].outcomeRef!.bindingHistory![0]).toEqual(initial.learningGoals![0].outcomeRef!.bindingHistory![0]);
+  expect(rebound.learningGoals![0].outcomeRef!.bindingHistory![1]).toMatchObject({ previous: initial.learningGoals![0].outcomeRef!.semanticBasis,
+    basis: learningGoalSemanticBasis(changed, { id: 'future:curriculum' }) });
 });
