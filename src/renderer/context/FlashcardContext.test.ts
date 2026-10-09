@@ -2,7 +2,7 @@ import { reviewPresentationPatch, type ReviewPresentationWrite } from '../../sha
 import { RatingAdmissionRefusal, type FlashcardRatingCommand } from '../../shared/flashcardRating';
 import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
 import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewPresentation, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
 import { DEFAULT_SETTINGS, type FlashcardAudioPreset } from '../../shared/types';
 import { selectFlashcardReviewDecision, flashcardReviewPolicyEntry } from '../components/flashcard/flashcardReviewDecision';
@@ -7792,6 +7792,10 @@ describe('acknowledged rating command semantics', () => {
       'utf8',
     )) as LanguageData;
     const routePoint = (languagePackage.grammar ?? []).find((candidate) => typeof candidate.level === 'number');
+    // Initialize the production UI module before timing the interaction contract.
+    // Cold module/paint responsiveness is measured separately by the campaign.
+    let GrammarCoverage: typeof import('../windows/levelStudy/GrammarCoverage')['GrammarCoverage'];
+    beforeAll(async () => { ({ GrammarCoverage } = await import('../windows/levelStudy/GrammarCoverage')); });
 
     it('package UI pass → provider writer → canonical journal → rendered progress', async () => {
       expect(routePoint).toBeDefined();
@@ -7805,7 +7809,6 @@ describe('acknowledged rating command semantics', () => {
       document.body.appendChild(container);
       const { createComponent, createSignal } = await import('solid-js');
       const { render } = await import('solid-js/web');
-      const { GrammarCoverage } = await import('../windows/levelStudy/GrammarCoverage');
       const [journalSignal, setJournalSignal] = createSignal<KnowledgeEventLog>({});
       // Production path: the journal is written, the bridge folds it into the
       // recognition read model, and coverage reads THAT (never the raw log).
@@ -7817,9 +7820,17 @@ describe('acknowledged rating command semantics', () => {
         get projections() { return projectionsSignal(); },
         get summary() { return summarizeGrammarCurriculum(language, languagePackage, projectionsSignal(), effectiveThresholds()); },
         // LevelStudyTab's real onProbe wiring: component → provider writer.
-        onProbe: (pattern, quality, level) => {
-          ctx.recordGrammarAttempt(pattern, quality, { language, level });
-        },
+        onProbe: (pattern, quality, level, scaffolds, attempt) => ctx.recordGrammarAttemptAcknowledged(pattern, quality, {
+          language, level,
+          ...(scaffolds ? { scaffolds } : {}),
+          ...(attempt?.itemRef ? { itemRef: attempt.itemRef } : {}),
+          ...(attempt?.validationRef ? { validationRef: attempt.validationRef } : {}),
+          ...(attempt?.method !== undefined ? { method: attempt.method } : {}),
+          ...(attempt?.taskType !== undefined ? { taskType: attempt.taskType } : {}),
+          ...(attempt?.attemptId !== undefined ? { attemptId: attempt.attemptId } : {}),
+          ...(attempt?.decision ? { decision: attempt.decision } : {}),
+          ...(attempt?.correctsAttemptId ? { correctsAttemptId: attempt.correctsAttemptId } : {}),
+        }),
         // LevelStudyTab's real wiring: the drill hands the provider's shared
         // durable Undo lifecycle to the component.
         undoLifecycle: {
@@ -7830,6 +7841,7 @@ describe('acknowledged rating command semantics', () => {
         },
       }), container);
 
+      try {
       // Expand the chosen construction's level and start the policy pass.
       const block = () => container.querySelector(`[data-level="${routePoint!.level}"]`) as HTMLElement;
       (container.querySelector(`.grammar-coverage__level-row[data-level="${routePoint!.level}"]`) as HTMLElement).click();
@@ -7846,22 +7858,14 @@ describe('acknowledged rating command semantics', () => {
       // The provider mutation must settle (materialization) before teardown.
       await vi.waitFor(() => expect(ctx.getGrammarKnowledge(presented as string, language)).toBeDefined());
 
-      // End the live pass (skips record nothing) so coverage rows render again.
-      // The sanctioned 150ms beat locks ALL session controls after a rating:
-      // wait for an enabled skip (or pass completion) before each click.
-      for (let guard = 0; guard < 120; guard += 1) {
-        const skip = block().querySelector('.study-encounter__skip') as HTMLButtonElement | null;
-        if (!skip) break; // pass complete
-        if (skip.disabled) {
-          await vi.waitFor(() => {
-            const current = block().querySelector('.study-encounter__skip') as HTMLButtonElement | null;
-            if (current) expect(current.disabled).toBe(false);
-          });
-        }
-        (block().querySelector('.study-encounter__skip') as HTMLButtonElement).click();
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-      await vi.waitFor(() => expect(block().querySelector('.grammar-coverage__session-done')).toBeTruthy());
+      // Pause through the production control to expose coverage after the
+      // acknowledged answer. The admitted full-package pass remains resumable.
+      const pause = Array.from(container.querySelectorAll('button')).find(button =>
+        button.textContent === 'mlearn.LevelStudy.Mock.Pause');
+      expect(pause).toBeDefined();
+      pause!.click();
+      await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).some(button =>
+        button.textContent === 'mlearn.StudyEncounter.Resume')).toBe(true));
 
       // Feed the persisted journal back through the same fold the bridge
       // applies: the rated construction renders as known (rendered progress,
@@ -7880,10 +7884,12 @@ describe('acknowledged rating command semantics', () => {
       // Flush the provider's debounced flashcards save BEFORE teardown so the
       // pending BroadcastChannel postMessage cannot race disposal.
       await new Promise((resolve) => setTimeout(resolve, SAVE_FLUSH_MS));
-      disposeUi();
-      container.remove();
-      disposeProvider();
-      mockSettings.language = 'ja';
+      } finally {
+        disposeUi();
+        container.remove();
+        disposeProvider();
+        mockSettings.language = 'ja';
+      }
     });
   });
 

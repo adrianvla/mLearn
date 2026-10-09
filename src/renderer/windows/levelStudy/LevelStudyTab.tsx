@@ -25,7 +25,7 @@ import {
   getLevelStudyFrequency,
   getLevelStudyLevelNames,
 } from '../../utils/wordLevelStats';
-import { Button, EmptyState, KnowledgeLoadError, Panel, TargetIcon, SkeletonCard, SkeletonRows } from '../../components/common';
+import { Button, Disclosure, EmptyState, KnowledgeLoadError, Panel, TargetIcon, SkeletonCard, SkeletonRows } from '../../components/common';
 import type { LevelStats } from '../../utils/wordLevelStats';
 import {
   getFrequencyLevelLabel,
@@ -471,16 +471,15 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
                 <span>{t('mlearn.LevelStudy.Grammar.State.Unknown')}: {grammarSummary()!.unknown}</span>
                 <span>{t('mlearn.LevelStudy.Grammar.State.Unmeasured')}: {grammarSummary()!.unmeasured}</span>
               </p>
-              <details class="level-study-grammar-summary__detail">
-                <summary>{t('mlearn.LearningPlan.CurriculumDetails')}</summary>
-                <For each={grammarSummary()!.buckets}>{bucket => <div class="level-study-grammar-summary-row">
+              <Disclosure title={t('mlearn.LearningPlan.CurriculumDetails')} class="level-study-grammar-summary__detail">
+                        <For each={grammarSummary()!.buckets}>{bucket => <div class="level-study-grammar-summary-row">
                   <span>{grammarLevelName(Number(bucket.level), resolvedLanguageData().data!)}</span>
                   <span>{t('mlearn.LevelStudy.Grammar.State.Known')}: {bucket.known}</span>
                   <span>{t('mlearn.LevelStudy.Grammar.State.Learning')}: {bucket.learning}</span>
                   <span>{t('mlearn.LevelStudy.Grammar.State.Unknown')}: {bucket.unknown}</span>
                   <span>{t('mlearn.LevelStudy.Grammar.State.Unmeasured')}: {bucket.unmeasured}</span>
                 </div>}</For>
-              </details>
+              </Disclosure>
               <div class="level-study-grammar-actions">
                 <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
                   activity: 'grammar', returnTo: 'plan', patterns: scopedGrammarData()?.grammar?.map(point => point.pattern) ?? [],

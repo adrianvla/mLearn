@@ -60,6 +60,8 @@ describe('shared canonical inspector host', () => {
     expect(drawer?.target).toBe(target);
     expect(drawer?.language).toBe('pkg');
     expect(drawer?.surface).toBe('alias');
+    drawer?.onGraph?.(target.id);
+    expect(mocks.graph).toHaveBeenCalledExactlyOnceWith({ entityId: target.id, language: 'pkg' });
     expect(mocks.projection).toHaveBeenCalledExactlyOnceWith('pkg', 'alias', { learning: 1.55, known: 1.8 });
     expect(mocks.history).toHaveBeenCalledExactlyOnceWith([`pkg:${hashWordSync('alias')}`]);
 

@@ -75,6 +75,9 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
+  const [translationFailed, setTranslationFailed] = createSignal(false);
+  const [translationPending, setTranslationPending] = createSignal(false);
+  const [retryTranslation, setRetryTranslation] = createSignal<(() => void)>();
   const [translationData, setTranslationData] = createSignal<TranslationResponse | null>(null);
   const [currentHoverToken, setCurrentHoverToken] = createSignal<Token | null>(null);
   const [grammarOccurrences, setGrammarOccurrences] = createSignal<GrammarOccurrence[]>([]);
@@ -180,6 +183,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (!showHover(openedHover)) return;
     const requestId = ++hoverRequestId;
 
+    setTranslationFailed(false); setTranslationPending(!cachedTranslation); setRetryTranslation(undefined);
     setTranslationData(cachedTranslation ?? null);
     setDictionaryEntries([]);
     setIsLoadingDict(false);
@@ -196,25 +200,26 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     };
     maybeAdmitUsefulReveal(cachedTranslation, []);
 
-    // If not cached, fetch translation
     if (!cachedTranslation) {
-      try {
-        // Use dictionary form (actual_word) for translation lookup
-        const translation = await translateWord(lookupWord, tokenLookupContext(token, contextPhrase));
-        
-        // Check if this request is still current (race condition protection)
-        if (requestId !== hoverRequestId) return;
-        if (currentHoverToken() !== token) return;
+      const loadTranslation = async () => {
         if (!isCurrentHover(openedHover)) return;
-        
-        setTranslationData(translation);
-        resolvedTranslation = translation;
-        maybeAdmitUsefulReveal(resolvedTranslation, dictionaryEntries());
-      } catch (e) {
-        log.error('Translation failed:', e);
-      }
+        setTranslationFailed(false); setTranslationPending(true);
+        try {
+          const translation = await translateWord(lookupWord, tokenLookupContext(token, contextPhrase));
+          if (requestId !== hoverRequestId || !isCurrentHover(openedHover)) return;
+          setTranslationData(translation); resolvedTranslation = translation;
+          maybeAdmitUsefulReveal(resolvedTranslation, dictionaryEntries());
+        } catch (error) {
+          if (requestId === hoverRequestId && isCurrentHover(openedHover)) setTranslationFailed(true);
+          log.error('Translation failed:', error);
+        } finally {
+          if (requestId === hoverRequestId && isCurrentHover(openedHover)) setTranslationPending(false);
+        }
+      };
+      setRetryTranslation(() => () => { void loadTranslation(); });
+      await loadTranslation();
     }
-    
+
     // Live word translator
     {
       const translation = resolvedTranslation ?? translationData();
@@ -548,7 +553,8 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
             anchorRect={data().anchorRect}
             dictionaryEntries={dictionaryEntries()}
             translationData={translationData() || undefined}
-            isLoading={isLoadingDict()}
+            isLoading={isLoadingDict() || translationPending()}
+            lookupFailed={translationFailed()} onRetryLookup={retryTranslation()}
             headwordFontFamily={subtitleStyle()['font-family']}
             lookupContext={tokenLookupContext(data().token!, props.originalText || tokensToPlainText(props.tokens, currentLangData()))}
             contextPhrase={props.originalText || tokensToPlainText(props.tokens, currentLangData())}

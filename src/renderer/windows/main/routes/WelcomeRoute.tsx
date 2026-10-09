@@ -2,7 +2,7 @@ import { type Component, createEffect, createMemo, createSignal, onMount, onClea
 import { useApplicationNavigate } from '../applicationHost';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
-import { Button, BookIcon, VideoIcon, BotIcon, TargetIcon, LanguageVariantGate, Select } from '../../../components/common';
+import { Button, BookIcon, VideoIcon, BotIcon, TargetIcon, LanguageVariantGate, Select, KnowledgeLoadError } from '../../../components/common';
 import AppLogo from '../../../components/common/Misc/AppLogo';
 import { WelcomeFeatureCard, WelcomeReaderPreview, WelcomeVideoPreview, WelcomeContinueRow } from './components';
 import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
@@ -31,6 +31,8 @@ export const WelcomeRoute: Component = () => {
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
   const [grammarResume, setGrammarResume] = createSignal<ReturnType<typeof homeGrammarResume>>(null);
   const [practiceResume, setPracticeResume] = createSignal<ReturnType<typeof homePracticeResume>>(null);
+  const [recentFailed, setRecentFailed] = createSignal(false);
+  let recentRevision = 0;
   let disposed = false;
   const refreshResume = () => {
     setGrammarResume(homeGrammarResume(localStorage, settings.language, language.currentLangData()));
@@ -38,15 +40,19 @@ export const WelcomeRoute: Component = () => {
       provider: settings.frequencyProviderSelections?.[settings.language], packageVersion: language.currentLangData()?.languageData?.version }));
   };
   createEffect(refreshResume);
+  const refreshHome = () => {
+    refreshResume();
+    const requested = ++recentRevision;
+    setRecentFailed(false);
+    void getRecentItems().then(items => {
+      if (!disposed && requested === recentRevision) setRecentItems(items);
+    }).catch(error => {
+      if (disposed || requested !== recentRevision) return;
+      log.error('Recent material could not be loaded', error);
+      setRecentFailed(true);
+    });
+  };
   onMount(() => {
-    let revision = 0;
-    const refreshHome = () => {
-      refreshResume();
-      const requested = ++revision;
-      void getRecentItems().then(items => {
-        if (!disposed && requested === revision) setRecentItems(items);
-      }).catch(error => log.error('Recent material could not be loaded', error));
-    };
     refreshHome();
     window.addEventListener('focus', refreshHome);
     window.addEventListener('storage', refreshHome);
@@ -151,6 +157,7 @@ export const WelcomeRoute: Component = () => {
             applicationRequestId: crypto.randomUUID(), applicationContext: { returnTo: 'home' },
           } })} />
       </div>
+      <Show when={recentFailed()}><KnowledgeLoadError message={t('mlearn.Home.UI.RecentLoadFailed')} onRetry={refreshHome} /></Show>
       <Show when={recentItems().length > 0}>
         <section class="welcome-recent-items" aria-labelledby="welcome-recent-title">
           <h2 id="welcome-recent-title">{t('mlearn.Home.UI.ContinueLearning')}</h2>

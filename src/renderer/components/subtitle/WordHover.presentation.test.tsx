@@ -59,6 +59,15 @@ describe('shared popup presentation', () => {
   });
   afterEach(() => { dispose?.(); host.remove(); });
 
+  it('distinguishes unavailable lookup from a successful empty definition and retries explicitly', () => {
+    const retry = vi.fn();
+    dispose = render(() => <WordHover word="form" token={{ word: 'form', actual_word: 'form', type: 'noun' }} position={{ x: 200, y: 200 }} lookupFailed onRetryLookup={retry} />, host);
+    expect(host.querySelector('[role="alert"]')).not.toBeNull();
+    expect(host.textContent).not.toContain('mlearn.WordHover.NoTranslation');
+    Array.from(host.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('mlearn.Knowledge.Retry'))!.click();
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
   it('retains dictionary alternatives and updates an open popup from shared preferences', () => {
     dispose = render(() => <WordHover word="form" token={{ word: 'form', actual_word: 'form', type: 'noun' }} position={{ x: 200, y: 200 }}
       translationData={{ data: [{ definitions: 'short meaning' }] }}

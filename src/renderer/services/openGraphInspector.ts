@@ -3,6 +3,7 @@ import { getBridge } from '../../shared/bridges';
 
 export interface GraphInspectorEntityRef {
   entityId: string;
+  language?: string;
 }
 
 /** Open the singleton inspector centered on a persistent linguistic graph entity id. */
@@ -10,6 +11,6 @@ export function openGraphInspector(entity: GraphInspectorEntityRef): void {
   getBridge().window.openWindow({
     type: WINDOW_TYPES.GRAPH_INSPECTOR,
     options: { width: 860, height: 760 },
-    context: { entityId: entity.entityId },
+    context: { entityId: entity.entityId, language: entity.language },
   });
 }

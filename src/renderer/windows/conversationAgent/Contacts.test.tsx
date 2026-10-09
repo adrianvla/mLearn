@@ -40,7 +40,7 @@ describe('Contacts are independent from conversations', () => {
       threads: [{ id: 'scenario', title: 'Deadline negotiation', state: 'active', interactionMode: 'scenario', createdAt: 3,
         sandbox: { operationId: 'scenario', requestHash: 'hash', bindings: [], baselineHeads: {} } }] }}
       roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
-      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onAddContact={vi.fn()} onSelectContact={vi.fn()} />);
     expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Deadline negotiation');
     expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Agreed feedback');
     expect(el.querySelectorAll('[role="tab"]')).toHaveLength(2);
@@ -63,7 +63,7 @@ describe('Contacts are independent from conversations', () => {
       { id: 'social', title: 'Ordinary chat', participantIds: [], createdAt: 1 },
       { id: 'practice', title: 'Agreed feedback', participantIds: [], interactionMode: 'practice', createdAt: 2 }] }}
       roomId={selected()} selectionRevision={revision()} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
-      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onAddContact={vi.fn()} onSelectContact={vi.fn()} />);
     const filter = el.querySelector('.room-sidebar-filter select') as HTMLSelectElement;
     filter.value = 'practice'; filter.dispatchEvent(new Event('change', { bubbles: true }));
     expect(el.querySelector('.room-sidebar-list')?.textContent).not.toContain('Ordinary chat');
@@ -80,7 +80,7 @@ describe('Contacts are independent from conversations', () => {
     const normal = vi.fn(); const practice = vi.fn();
     const el = mount(() => <RoomSidebar world={{ rooms: [], threads: [], participants: [] }} roomId={null} threadId={null}
       onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={normal} onPractice={practice}
-      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onAddContact={vi.fn()} onSelectContact={vi.fn()} />);
     click(el, 'mlearn.ConversationAgent.NewConversation.Title'); expect(normal).toHaveBeenCalledOnce();
     const filter = el.querySelector('.room-sidebar-filter select') as HTMLSelectElement;
     filter.value = 'practice'; filter.dispatchEvent(new Event('change', { bubbles: true }));
@@ -97,7 +97,7 @@ describe('Contacts are independent from conversations', () => {
       roomId="mixed" threadId="coached" previews={{ 'mixed/coached': { text: 'Earlier exercise', timestamp: 4, actorId: 'user', eventId: 'e1', threadId: 'coached' },
         'mixed/social': { text: 'Later chat', timestamp: 10, actorId: 'user', eventId: 'e2', threadId: 'social' } }}
       onSelectRoom={vi.fn()} onSelectThread={selectThread} onNewConversation={vi.fn()} onPractice={vi.fn()}
-      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onAddContact={vi.fn()} onSelectContact={vi.fn()} />);
     expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('mlearn.ConversationAgent.NewConversation.CoachedPractice');
     expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('Earlier exercise');
     const filter = el.querySelector('.room-sidebar-filter select') as HTMLSelectElement;
@@ -119,7 +119,7 @@ describe('Contacts are independent from conversations', () => {
       roomId="mixed" threadId={null} previews={{ mixed: { text: 'Open conversation', timestamp: 4, actorId: 'user', eventId: 'e1' },
         'mixed/coached': { text: 'Newer exercise', timestamp: 10, actorId: 'user', eventId: 'e2', threadId: 'coached' } }}
       onSelectRoom={selectRoom} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
-      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onAddContact={vi.fn()} onSelectContact={vi.fn()} />);
     expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('Open conversation');
     expect(el.querySelector('.room-sidebar-room')?.textContent).not.toContain('mlearn.ConversationAgent.NewConversation.CoachedPractice');
     expect(el.querySelector('.room-sidebar-room')?.getAttribute('aria-current')).toBe('true');
@@ -137,7 +137,7 @@ describe('Contacts are independent from conversations', () => {
       previews={{ 'room-a': { text: 'Latest Sea message', timestamp: 10, actorId: 'user', eventId: 'sea-1' },
         'room-a/thread-a': { text: 'Earlier thread message', timestamp: 5, actorId: 'user', eventId: 'thread-1', threadId: 'thread-a' } }}
       onSelectRoom={selectRoom} onSelectThread={selectThread} onNewConversation={vi.fn()} onPractice={vi.fn()}
-      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onAddContact={vi.fn()} onSelectContact={vi.fn()} />);
     const row = el.querySelector('.room-sidebar-room') as HTMLButtonElement;
     expect(row.textContent).toContain('Latest Sea message');
     expect(row.textContent).toContain('2');
@@ -151,7 +151,7 @@ describe('Contacts are independent from conversations', () => {
     const el = mount(() => <RoomSidebar world={{ participants: [], rooms: [], threads: [{ id: 'separate', state: 'active', createdAt: 1,
       sandbox: { operationId: 'op', requestHash: 'hash', baselineHeads: {}, bindings: people.map(baseline => ({ baseline })), participantIds: ['Sam'] } }] }}
       roomId="separate" threadId="separate" onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
-      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onAddContact={vi.fn()} onSelectContact={vi.fn()} />);
     expect(el.querySelector('.room-sidebar-list')?.textContent).toContain('Sam');
     expect(el.querySelector('.room-sidebar-list')?.textContent).not.toContain('Rin');
   });
@@ -165,7 +165,7 @@ describe('Contacts are independent from conversations', () => {
       threads: [{ id: 'old-session', roomId: 'legacy', title: 'Old conversation', state: 'archived', createdAt: 2 }] }}
       roomId="current" threadId={null} previews={{ current: { text: 'Latest reply', timestamp: 20, actorId: person.id, eventId: 'latest' } }}
       onSelectRoom={selectRoom} onSelectThread={selectThread} onNewConversation={vi.fn()} onPractice={vi.fn()}
-      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onAddContact={vi.fn()} onSelectContact={vi.fn()} />);
     expect(el.querySelectorAll('.room-sidebar-room')).toHaveLength(1);
     expect(el.querySelector('.room-sidebar-room')?.textContent).toContain('Latest reply');
     (el.querySelector('.room-sidebar-room') as HTMLButtonElement).click();
@@ -181,14 +181,14 @@ describe('Contacts are independent from conversations', () => {
     const people: Participant[] = ['p1', 'p2'].map(id => ({ id, displayName: 'Same name', kind: 'persistent', personaText: '', setupComplete: true }));
     const el = mount(() => <RoomSidebar world={{ participants: people, rooms: people.map(person => ({ id: person.id, title: person.displayName, participantIds: [person.id], createdAt: 1 })), threads: [] }}
       roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()}
-      onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onAddContact={vi.fn()} onSelectContact={vi.fn()} />);
     expect(el.querySelectorAll('.room-sidebar-room')).toHaveLength(2);
   });
 
   it('offers Add contact from an empty messenger and a Contacts tab', () => {
     const add = vi.fn();
     const el = mount(() => <RoomSidebar world={{ rooms: [], threads: [], participants: [] }} roomId={null} threadId={null}
-      onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()} onAddContact={add} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />);
+      onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()} onAddContact={add} onSelectContact={vi.fn()} />);
     click(el, 'mlearn.ConversationAgent.Contacts.Tab');
     click(el, 'mlearn.ConversationAgent.Contacts.Add');
     expect(add).toHaveBeenCalledOnce();
@@ -197,7 +197,7 @@ describe('Contacts are independent from conversations', () => {
     const person: Participant = { id: 'person-a', displayName: 'Mara', kind: 'temporary', personaText: 'Loves films.', setupComplete: true };
     const selected = vi.fn();
     const el = mount(() => <RoomSidebar world={{ rooms: [], threads: [], participants: [person] }} roomId={null} threadId={null}
-      onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()} onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={selected} />);
+      onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={vi.fn()} onPractice={vi.fn()} onAddContact={vi.fn()} onSelectContact={selected} />);
     click(el, 'mlearn.ConversationAgent.Contacts.Tab');
     const row = Array.from(el.querySelectorAll('button')).find(node => node.textContent?.includes('Mara'))!;
     expect(row).toBeDefined(); row.click(); expect(selected).toHaveBeenCalledWith(person);

@@ -160,13 +160,18 @@ export async function saveToRecentItems(
  * Get all recent items
  */
 export async function getRecentItems(): Promise<RecentItem[]> {
-  try {
-    const stored = await getBridge().kvStore.kvGet(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch (e) {
-    log.error('Failed to get recent items:', e);
-    return [];
+  const stored = await getBridge().kvStore.kvGet(STORAGE_KEY);
+  if (stored === null) return [];
+  const items: unknown = JSON.parse(stored);
+  if (!Array.isArray(items) || items.some(item => !item || typeof item !== 'object'
+    || (item.type !== 'book' && item.type !== 'video') || typeof item.name !== 'string' || typeof item.path !== 'string')) {
+    throw new Error('Invalid recent material history');
   }
+  return items as RecentItem[];
+}
+
+export function recentProgressPercent(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : null;
 }
 
 /**
@@ -175,6 +180,7 @@ export async function getRecentItems(): Promise<RecentItem[]> {
 export async function updateRecentItemThumbnail(name: string, thumbnail: string): Promise<void> {
   try {
     await updateRecentItems((items) => {
+      if (items.filter(item => item.name === name).length !== 1) return null;
       const index = items.findIndex((item) => item.name === name);
       if (index === -1) return null;
       items[index].thumbnail = thumbnail;
@@ -191,6 +197,7 @@ export async function updateRecentItemThumbnail(name: string, thumbnail: string)
 export async function updateRecentItemProgress(name: string, progress: number): Promise<void> {
   try {
     await updateRecentItems((items) => {
+      if (items.filter(item => item.name === name).length !== 1) return null;
       const index = items.findIndex((item) => item.name === name);
       if (index === -1) return null;
       items[index].progress = progress;
@@ -205,6 +212,7 @@ export async function updateRecentItemProgress(name: string, progress: number): 
 export async function updateRecentItemSubtitlePath(name: string, subtitlePath: string): Promise<void> {
   try {
     await updateRecentItems((items) => {
+      if (items.filter(item => item.name === name).length !== 1) return null;
       const index = items.findIndex((item) => item.name === name);
       if (index === -1) return null;
       items[index].subtitlePath = subtitlePath;
@@ -260,6 +268,7 @@ export async function updateRecentItemSubtitlePathByPath(path: string, subtitleP
 export async function updateRecentItemPlaybackTime(name: string, playbackTime: number): Promise<void> {
   try {
     await updateRecentItems((items) => {
+      if (items.filter(item => item.name === name).length !== 1) return null;
       const index = items.findIndex((item) => item.name === name);
       if (index === -1) return null;
       items[index].playbackTime = playbackTime;

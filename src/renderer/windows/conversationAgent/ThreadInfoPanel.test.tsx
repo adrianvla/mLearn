@@ -89,6 +89,16 @@ describe('ThreadInfoPanel', () => {
   const buttonWithText = (text: string): HTMLButtonElement =>
     Array.from(container.querySelectorAll('button')).find((button) => button.textContent === text)!;
 
+  it('opens work progress from conversation details using the participant’s stable track identity', () => {
+    const onStoryProgress = vi.fn();
+    renderPanel({ participants: [{ ...participant, canon: { trackId: 'edition-track', workTitle: 'Voyage', fandomBaseUrl: 'https://example.org', characterPageTitle: 'Rin', coordinate: { kind: 'chapter', value: '1' }, baseline: { lore: '', quotes: [], context: '', notYetHappened: [], provenance: [], generatedFill: [] } } }], onStoryProgress });
+    const story = buttonWithText('mlearn.ConversationAgent.Story.Title');
+    expect(story).toBeDefined();
+    story.click();
+    expect(onStoryProgress).toHaveBeenCalledWith('edition-track');
+    expect(onUpdateParticipant).not.toHaveBeenCalled();
+  });
+
   it('renders the thread and its participants', () => {
     renderPanel();
     expect(container.textContent).toContain('Coffee practice');

@@ -4,7 +4,7 @@ import { render } from 'solid-js/web';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RecentItem } from '../../../services/thumbnailService';
 const fixture = vi.hoisted(() => ({ navigate: vi.fn(), openWindow: vi.fn(), recent: [] as RecentItem[],
-  language: 'future', updateSetting: vi.fn(), toast: vi.fn(),
+  recentFailure: false, language: 'future', updateSetting: vi.fn(), toast: vi.fn(),
   grammarResume: null as { context: { activity: string; patterns: string[] } } | null,
   review: undefined as { id: string } | undefined,
   presentation: undefined as { id: string; cardId: string } | undefined,
@@ -23,7 +23,7 @@ vi.mock('../../../context', () => ({
   useFlashcards: () => ({ store: { flashcards: { card: { language: 'future' } }, meta: { reviewSessions: { future: fixture.review }, reviewPresentations: { future: fixture.presentation } } } }),
 }));
 vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ window: { openWindow: fixture.openWindow } }) }));
-vi.mock('../../../services/thumbnailService', () => ({ getRecentItems: async () => fixture.recent }));
+vi.mock('../../../services/thumbnailService', async (original) => ({ ...(await original<typeof import('../../../services/thumbnailService')>()), getRecentItems: async () => { if (fixture.recentFailure) throw new Error('offline recent material'); return fixture.recent; } }));
 vi.mock('../../../components/common/Feedback/Toast', () => ({ showToast: fixture.toast }));
 vi.mock('./homeGrammarResume', () => ({ homeGrammarResume: () => fixture.grammarResume }));
 vi.mock('./homePracticeResume', () => ({ homePracticeResume: () => null }));
@@ -36,6 +36,7 @@ vi.mock('./components', async () => ({
   WelcomeContinueRow: (await import('./components/WelcomeContinueRow')).WelcomeContinueRow,
 }));
 vi.mock('../../../components/common', () => ({
+  KnowledgeLoadError: (props: { onRetry?: () => void }) => <div role="alert"><button onClick={props.onRetry}>mlearn.Knowledge.Retry</button></div>,
   Button: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; class?: string; 'aria-haspopup'?: 'dialog' | 'menu' | 'true' | 'false' | 'listbox' | 'tree' | 'grid' | boolean; 'aria-expanded'?: boolean }) => (
     <button type="button" class={props.class} aria-haspopup={props['aria-haspopup']} aria-expanded={props['aria-expanded']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
@@ -61,7 +62,18 @@ describe('purpose-led Home', () => {
   let dispose: () => void;
   const mount = async () => { dispose = render(() => <WelcomeRoute />, container); await Promise.resolve(); await Promise.resolve(); };
   const open = (title: string) => container.querySelector<HTMLButtonElement>(`button[aria-labelledby="${Array.from(container.querySelectorAll('h3')).find(h => h.textContent === title)?.id}"]`)!.click();
-  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.language = 'future'; fixture.grammarResume = null; fixture.review = undefined; fixture.presentation = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
+  it('reports a failed recent-history read and explicitly retries without clearing known activity', async () => {
+    fixture.recentFailure = true;
+    await mount(); await Promise.resolve();
+    expect(container.querySelector('[role="alert"]')).not.toBeNull();
+    fixture.recentFailure = false;
+    fixture.recent = [{ type: 'book', path: '/recovered.epub', name: 'Recovered', progress: 0, lastWatched: 1 }];
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('mlearn.Knowledge.Retry'))!.click();
+    await Promise.resolve(); await Promise.resolve();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector('.welcome-continue-title')?.textContent).toBe('Recovered');
+  });
+  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.recentFailure = false; fixture.language = 'future'; fixture.grammarResume = null; fixture.review = undefined; fixture.presentation = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
   afterEach(() => { dispose?.(); container.remove(); });
   it('shows a direct native language select with package-owned presentation', async () => {
     await mount();

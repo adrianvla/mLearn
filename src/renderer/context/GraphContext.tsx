@@ -1,5 +1,5 @@
 import { effectiveThresholds } from '../../shared/knowledge/effectiveKnowledge';
-import { createContext, createEffect, createSignal, onCleanup, useContext, type ParentComponent } from 'solid-js';
+import { createContext, createEffect, createSignal, onCleanup, useContext, type ParentComponent, type Accessor } from 'solid-js';
 import { getBridge } from '../../shared/bridges';
 import type { GraphLookupInput, GraphMeta, GraphNeighborhood, GraphNeighborhoodQuery, GraphRelatedNode, GraphSurfaceTargets, GraphWordLookup } from '../../shared/graph/ipc';
 import type { GraphRelationType } from '../../shared/graph/types';
@@ -31,17 +31,18 @@ const unavailableGraph: GraphContextValue = {
   getNeighborhood: async () => null,
 };
 
-export const GraphProvider: ParentComponent = (props) => {
+export const GraphProvider: ParentComponent<{ language?: Accessor<string> }> = (props) => {
   const { settings } = useSettings();
+  const language = () => props.language?.() ?? settings.language;
   const [meta, setMeta] = createSignal<GraphMeta>(unavailableMeta);
   const [metaLoading, setMetaLoading] = createSignal(true);
   let request = 0;
 
   createEffect(() => {
-    const language = settings.language;
+    const sourceLanguage = language();
     const currentRequest = ++request;
     setMetaLoading(true);
-    void getBridge().graph.getGraphMeta(language).then((nextMeta) => {
+    void getBridge().graph.getGraphMeta(sourceLanguage).then((nextMeta) => {
       if (currentRequest === request) {
         setMeta(nextMeta);
         setMetaLoading(false);
@@ -69,7 +70,7 @@ export const GraphProvider: ParentComponent = (props) => {
   // probe is in flight, and unavailable/failed keep the explicit no-query
   // fallback: only settled readiness routes through to the bridge.
   const active = <T,>(query: (language: string) => Promise<T>, fallback: T): Promise<T> => (
-    isSettledReadiness(readiness()) ? query(settings.language) : Promise.resolve(fallback)
+    isSettledReadiness(readiness()) ? query(language()) : Promise.resolve(fallback)
   );
 
   return (

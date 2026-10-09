@@ -12,6 +12,7 @@ import { formatDate, formatDateTime } from '../../utils/timeFormatting';
 import { useGraphNeighborhood } from '../../hooks/useGraphNeighborhood';
 import { CAPABILITY_LABEL_KEYS } from '../../../shared/graph/access';
 import { GraphNeighborhoodViz, KnowledgeLoadError, SkeletonText } from '../../components/common';
+import { GraphProvider } from '../../context/GraphContext';
 import './GraphInspector.css';
 
 const targetStates: Record<TargetState, string> = {
@@ -25,12 +26,13 @@ const targetStates: Record<TargetState, string> = {
   unmeasured: 'Unmeasured',
 };
 
-export const GraphInspectorContent: Component = () => {
+export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; initialEntity?: () => string | undefined }> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const { store } = useFlashcards();
   const graph = useGraph();
   const [entityId, setEntityId] = createSignal<string>();
+  createEffect(() => { if (props.initialEntity) setEntityId(props.initialEntity()); });
   const { neighborhood, pending, failed, loadingMore, loadMore, retry } = useGraphNeighborhood(graph, entityId);
   const [selectedCapability, setSelectedCapability] = createSignal<CapabilityKey>();
   const [events, setEvents] = createSignal<import('../../../shared/graph/explanations').JournalRow[]>([]);
@@ -38,6 +40,7 @@ export const GraphInspectorContent: Component = () => {
   const [details, setDetails] = createSignal(false);
 
   onMount(() => {
+    if (props.initialEntity) return;
     const bridge = getBridge();
     const cleanup = bridge.window.onWindowContext((context) => {
       if (typeof context?.entityId === 'string') setEntityId(context.entityId);
@@ -62,7 +65,7 @@ export const GraphInspectorContent: Component = () => {
       setArchive(undefined);
       return;
     }
-    const journalKey = `${settings.language}:${hash}`;
+    const journalKey = `${props.sourceLanguage?.() ?? settings.language}:${hash}`;
     // Archived evidence participates in the explanation view: coarse old
     // attempts resolve through the same address matcher as exact rows.
     setEvents([]);
@@ -116,7 +119,22 @@ export const GraphInspectorContent: Component = () => {
   </div>;
 };
 
-export const GraphInspectorApp: Component = () => <WindowWrapper showDragRegion><GraphInspectorContent /></WindowWrapper>;
+const ScopedGraphInspector: Component = () => {
+  const { settings } = useSettings();
+  const [context, setContext] = createSignal<{ language?: string; entityId?: string }>({});
+  onMount(() => {
+    const bridge = getBridge();
+    const cleanup = bridge.window.onWindowContext((value) => {
+      setContext({ language: typeof value?.language === 'string' ? value.language : undefined,
+        entityId: typeof value?.entityId === 'string' ? value.entityId : undefined });
+    });
+    bridge.window.getWindowContext(WINDOW_TYPES.GRAPH_INSPECTOR);
+    if (cleanup) onCleanup(cleanup);
+  });
+  const language = () => context().language ?? settings.language;
+  return <GraphProvider language={language}><GraphInspectorContent sourceLanguage={language} initialEntity={() => context().entityId} /></GraphProvider>;
+};
+export const GraphInspectorApp: Component = () => <WindowWrapper showDragRegion><ScopedGraphInspector /></WindowWrapper>;
 
 function capabilitiesFor(neighborhood: GraphNeighborhood): CapabilityKey[] {
   if (neighborhood.center.kind !== 'surface') return [];

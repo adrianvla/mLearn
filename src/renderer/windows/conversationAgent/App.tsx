@@ -332,6 +332,8 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   const [sidebarView, setSidebarView] = createSignal<'chats' | 'contacts'>('chats');
   const [conversationEntry, setConversationEntry] = createSignal(0);
   const [addingContact, setAddingContact] = createSignal(false);
+  const [storyProgressTrackId, setStoryProgressTrackId] = createSignal<string>();
+  const openStoryProgress = (trackId?: string): void => { setStoryProgressTrackId(trackId); setShowStoryProgress(true); };
   const [showStoryProgress, setShowStoryProgress] = createSignal(false);
   const [contactId, setContactId] = createSignal<string | null>(null);
   const selectedContact = () => world()?.participants.find(person => person.id === contactId());
@@ -2167,7 +2169,6 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
               onSelectRoom={roomId => { void selectRoom(roomId).catch(error => setContactIngressError(String(error))); }}
               onSelectThread={threadId => { const thread = world()?.threads.find(item => item.id === threadId); if (thread) void selectRoom(threadContextId(thread), threadId).catch(error => setContactIngressError(String(error))); }}
               onNewConversation={() => openComposer('message')} onPractice={() => openComposer('practice')} onAddContact={() => setAddingContact(true)}
-              onStoryProgress={() => setShowStoryProgress(true)}
               onViewChange={setSidebarView}
               onSelectContact={person => setContactId(person.id)} />
           </ResponsiveSidebar>
@@ -2471,10 +2472,10 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
         const person = await getBridge().world.createParticipant(input);
         publishContact(person); setAddingContact(false); setContactId(person.id);
       }} storyTracks={world()?.storyTracks ?? []} /></Show>
-      <Show when={showStoryProgress() && world()}>{snapshot => <StoryProgressModal generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} world={snapshot()!}
+      <Show when={showStoryProgress() && world()}>{snapshot => <StoryProgressModal initialTrackId={storyProgressTrackId()} generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} world={snapshot()!}
         onClose={() => setShowStoryProgress(false)} onRefresh={async () => { setWorld(await getBridge().world.getWorldState()); }} />}</Show>
       <Show when={selectedContact()}>{person => <ContactProfileModal generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} person={person()}
-        onClose={() => setContactId(null)} onMessage={messageContact}
+        onClose={() => setContactId(null)} onStoryProgress={trackId => { setContactId(null); openStoryProgress(trackId); }} onMessage={messageContact}
         rooms={world()?.rooms.filter(room => room.participantIds.includes(person().id))}
         onOpenRoom={roomId => { void selectRoom(roomId).catch(error => setContactIngressError(String(error))); }}
         muted={(settings.proactiveOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveOptOutParticipantIds).includes(person().id)}
@@ -2499,7 +2500,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
         }} />}</Show>
       <Show when={showDetailsDrawer()}>
         <Modal isOpen onClose={() => setShowDetailsDrawer(false)} title={t('mlearn.ConversationAgent.Menu.Details')} size="md">
-          <ThreadInfoPanel generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} roomTitle={activeRoom()?.title}
+          <ThreadInfoPanel onStoryProgress={trackId => { setShowDetailsDrawer(false); openStoryProgress(trackId); }} generationAvailable={isConnected() && !isCheckingConnection()} onRequestGenerationAccess={() => requestGenerationAccess(false)} roomTitle={activeRoom()?.title}
             roomId={activeThread()?.sandbox ? activeThread()?.id : activeRoom()?.id}
             thread={activeThread()}
             roomScenario={activeRoom()?.scenario}

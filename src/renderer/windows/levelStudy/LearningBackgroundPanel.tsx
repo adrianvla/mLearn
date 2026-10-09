@@ -1,6 +1,6 @@
 import { Component, For, Show, createMemo, createSignal } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
-import { Button } from '../../components/common';
+import { Button, Disclosure } from '../../components/common';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import {
   parseHistoricalBackgroundRecords,
@@ -98,8 +98,7 @@ export const LearningBackgroundPanel: Component<{ language: string }> = (props) 
   };
 
   return (
-      <details class="learning-background-panel" data-testid="learning-background-panel">
-        <summary>{t('mlearn.LevelStudy.Placement.BackgroundTitle')}</summary>
+      <Disclosure title={t('mlearn.LevelStudy.Placement.BackgroundTitle')} class="learning-background-panel" data-testid="learning-background-panel">
         <p class="learning-background-panel__note">{t('mlearn.LevelStudy.Placement.BackgroundNote')}</p>
         <Show when={records().length === 0}>
           <p class="learning-background-panel__empty">{t('mlearn.LevelStudy.Placement.BackgroundEmpty')}</p>
@@ -189,7 +188,7 @@ export const LearningBackgroundPanel: Component<{ language: string }> = (props) 
         }>
           <Button variant="secondary" onClick={() => setFormOpen(true)}>{t('mlearn.LevelStudy.Placement.AddRecord')}</Button>
         </Show>
-      </details>
+      </Disclosure>
   );
 };
 

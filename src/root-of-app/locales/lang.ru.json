@@ -1686,7 +1686,8 @@
         "ChangeLanguage": "Сменить язык",
         "ContinueLearning": "Продолжить обучение",
         "LearningLanguage": "Изучаю {language}",
-        "TitleDescription": "Выберите пункт ниже, чтобы начать"
+        "TitleDescription": "Выберите пункт ниже, чтобы начать",
+        "RecentLoadFailed": "Не удалось загрузить недавние материалы. Попробуйте ещё раз."
       },
       "Today": {
         "Title": "Сегодня",
@@ -3792,7 +3793,8 @@
       "AnkiUpdateSuccess": "Обновлено {count} карточек Anki",
       "AnkiUpdateRepositioned": "Обновлено {count} карточек, перемещено {repositioned} новых",
       "AnkiUpdateFailed": "Не удалось обновить карточки Anki",
-      "CardScheduling": "Расписание карточки"
+      "CardScheduling": "Расписание карточки",
+      "LookupFailed": "Поиск в словаре недоступен. Попробуйте ещё раз."
     },
     "ConnectionStatus": {
       "Connected": "Подключено",

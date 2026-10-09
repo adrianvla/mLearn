@@ -1,6 +1,7 @@
-import { Component, For, Show, Accessor, createEffect, createMemo, createSignal, JSX } from 'solid-js';
-import { createStore } from 'solid-js/store';
+import { Component, For, Show, Accessor, createEffect, createMemo, createSignal, onCleanup, untrack, JSX } from 'solid-js';
+import { createStore, reconcile } from 'solid-js/store';
 import type { Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
+import { KnowledgeLoadError } from '../common/Feedback/KnowledgeLoadError';
 import { Button, CloseIcon, CollapsibleStickyHeader, PillLabel, Select } from '../common';
 import { WordWithReading } from '../language-specific';
 import { ResourcePill } from '../common/Smart';
@@ -18,7 +19,7 @@ import { ankiCacheVersion, findAnkiWordMatchInCache, isAnkiCacheFetched } from '
 import { getWordFormCandidates } from '../../utils/wordForms';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import type { WordProsodyOverlayData, WordRenderTextContext } from '../../utils/wordRenderText';
-import { compareFrequencyLevelsForDisplay, getFrequencyLevelVisualRank, getPartOfSpeechColor } from '../../../shared/languageFeatures';
+import { getTokenizerCacheNamespace, compareFrequencyLevelsForDisplay, getFrequencyLevelVisualRank, getPartOfSpeechColor } from '../../../shared/languageFeatures';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import './UnknownWordsSidebar.css';
 
@@ -274,6 +275,22 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   });
   const [translations, setTranslations] = createStore<Record<string, TranslationResponse | null | undefined>>({});
   const requestedWords = new Set<string>();
+  const [failedLookups, setFailedLookups] = createSignal<ReadonlySet<string>>(new Set());
+  const [lookupRetry, setLookupRetry] = createSignal(0);
+  const lookupScope = () => JSON.stringify([processingLanguage(), currentSourceKey?.(), dictionaryTargetLanguage(), getTokenizerCacheNamespace(currentLangData())]);
+  let disposed = false;
+  onCleanup(() => { disposed = true; });
+  createEffect(() => {
+    lookupScope();
+    requestedWords.clear();
+    setTranslations(reconcile({}));
+    setFailedLookups(new Set<string>());
+  });
+  const retryLookups = () => {
+    for (const word of untrack(failedLookups)) requestedWords.delete(word);
+    setFailedLookups(new Set<string>());
+    setLookupRetry(value => value + 1);
+  };
   const [sortKey, setSortKey] = createSignal(props.defaultSort);
   const [category, setCategory] = createSignal<SidebarCategory>('all');
   const ankiCacheOptions = createMemo(() => ({
@@ -292,6 +309,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   });
 
   createEffect(() => {
+    const scope = lookupScope(); lookupRetry();
     for (const entry of props.words()) {
       if (translations[entry.word] !== undefined || requestedWords.has(entry.word)) continue;
       const cached = getCachedTranslation(entry.word, processingLanguage(), wordLookupOptions);
@@ -301,8 +319,8 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
       }
       requestedWords.add(entry.word);
       void translateWord(entry.word)
-        .then((translation) => setTranslations(entry.word, translation))
-        .catch(() => setTranslations(entry.word, null));
+        .then((translation) => { if (!disposed && scope === lookupScope()) setTranslations(entry.word, translation); })
+        .catch(() => { if (!disposed && scope === lookupScope()) setFailedLookups(previous => new Set([...previous, entry.word])); });
     }
   });
 
@@ -504,6 +522,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
           </div>
         </div>
       </CollapsibleStickyHeader>
+      <Show when={failedLookups().size > 0}><KnowledgeLoadError message={t('mlearn.WordHover.LookupFailed')} onRetry={retryLookups} /></Show>
       <Show
         when={visibleWords().length > 0}
         fallback={<div class="unknown-words-empty">{emptyStateMessage()}</div>}

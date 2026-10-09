@@ -795,12 +795,16 @@ async def voice_tts_status(language: Optional[str] = None, variant: Optional[str
 
 
 def ensure_language_voice_ready(language: str) -> None:
-    _ensure_stt_loaded()
-    engine = _resolve_tts_engine(language)
-    if engine == 'qwen3': _ensure_qwen3_tts_loaded()
-    elif engine == 'qwen3-torch': _ensure_qwen3_torch_loaded()
-    elif engine == 'kokoro': _ensure_tts_loaded(language)
-    else: raise RuntimeError(f'Voice runtime is unavailable for {language}')
+    stt, tts = _stt_runtime(language), _tts_runtime(language)
+    if not stt and not tts:
+        raise RuntimeError(f'Voice runtime is not declared for {language}')
+    if stt: _ensure_stt_loaded()
+    if tts:
+        engine = _resolve_tts_engine(language)
+        if engine == 'qwen3': _ensure_qwen3_tts_loaded()
+        elif engine == 'qwen3-torch': _ensure_qwen3_torch_loaded()
+        elif engine == 'kokoro': _ensure_tts_loaded(language)
+        else: raise RuntimeError(f'Voice runtime is unavailable for {language}')
 
 
 @router.post("/voice/models/download")

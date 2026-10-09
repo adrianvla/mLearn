@@ -2,7 +2,7 @@ import { For, Show, batch, createEffect, createMemo, createSignal, onCleanup, on
 import { getBridge } from '../../../shared/bridges';
 import type { RuntimeTraceEntry, RuntimeTraceList } from '../../../shared/runtimeInspection';
 import { WORLD_CONTINUITY_ID, threadContextId, type JournalEvent, type WorldSnapshot } from '../../../shared/world';
-import { Button, Disclosure, EmptyState, HintText, Input, ListRow, Select, TabContainer, Tag } from '../../components/common';
+import { Button, Disclosure, EmptyState, HintText, Input, ListRow, Select, SkeletonRows, TabContainer, Tag } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import { formatClockTime, formatDateTime } from '../../utils/timeFormatting';
 import './RuntimeInspector.css';
@@ -27,6 +27,11 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
   const [events, setEvents] = createSignal<JournalEvent[]>([]);
   const [query, setQuery] = createSignal('');
   const [errors, setErrors] = createSignal<Record<string, string>>({});
+  const [eventsLoading, setEventsLoading] = createSignal(false);
+  const [eventsScope, setEventsScope] = createSignal('');
+  const [callsLoading, setCallsLoading] = createSignal(true);
+  const [worldLoading, setWorldLoading] = createSignal(true);
+  const [detailLoading, setDetailLoading] = createSignal(false);
   const [revision, setRevision] = createSignal(0);
   let disposed = false, frame: number | undefined, listVersion = 0, worldVersion = 0, refreshWorld = false;
   const fail = (key: string, error?: unknown): void => { setErrors(previous => ({ ...previous, [key]: error === undefined ? '' : String(error instanceof Error ? error.message : error) })); };
@@ -60,16 +65,18 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
   const refresh = async (includeWorld = true): Promise<void> => {
     if (!settings.devMode || disposed) return;
     const listRequest = ++listVersion, worldRequest = includeWorld ? ++worldVersion : worldVersion;
+    setCallsLoading(true);
+    if (includeWorld) setWorldLoading(true);
     await Promise.all([
       bridge.diagnostics.getRuntimeTraces().then(value => {
         if (disposed || listRequest !== listVersion || !settings.devMode) return;
-        setTraceList(value); fail('calls');
+        setTraceList(value); setCallsLoading(false); fail('calls');
 
-      }).catch(error => { if (!disposed && listRequest === listVersion) fail('calls', error); }),
+      }).catch(error => { if (!disposed && listRequest === listVersion) { setCallsLoading(false); fail('calls', error); } }),
       includeWorld ? bridge.diagnostics.getRuntimeWorld().then(value => {
         if (disposed || worldRequest !== worldVersion || !settings.devMode) return;
-        setWorld(value); fail('world');
-      }).catch(error => { if (!disposed && worldRequest === worldVersion) fail('world', error); }) : Promise.resolve(),
+        setWorld(value); setWorldLoading(false); fail('world');
+      }).catch(error => { if (!disposed && worldRequest === worldVersion) { setWorldLoading(false); fail('world', error); } }) : Promise.resolve(),
     ]);
   };
   const scheduleRefresh = (includeWorld = false): void => {
@@ -89,22 +96,26 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
   });
   createEffect(() => {
     const id = traceId(); traceList()?.revision;
-    if (!settings.devMode || !id) { setTrace(null); return; }
+    if (!settings.devMode || !id) { setTrace(null); setDetailLoading(false); return; }
     let cancelled = false;
     // Keep the selected turn visible as chunks arrive, but never show another
     // turn's output while the new selection is loading.
+    setDetailLoading(true); fail('detail');
     if (untrack(trace)?.id !== id) setTrace(null);
-    void bridge.diagnostics.getRuntimeTrace(id).then(value => { if (!cancelled && settings.devMode) { setTrace(value); fail('detail'); } })
-      .catch(error => { if (!cancelled) fail('detail', error); });
+    void bridge.diagnostics.getRuntimeTrace(id).then(value => { if (!cancelled && settings.devMode) { setTrace(value); setDetailLoading(false); fail('detail'); } })
+      .catch(error => { if (!cancelled) { setDetailLoading(false); fail('detail', error); } });
     onCleanup(() => { cancelled = true; });
   });
   createEffect(() => {
     const contextId = roomId(), selectedThread = threadId(), currentTab = tab(); revision();
-    if (!settings.devMode || !contextId || (currentTab !== 'sea' && currentTab !== 'memories')) { setEvents([]); return; }
+    if (!settings.devMode || !contextId || (currentTab !== 'sea' && currentTab !== 'memories')) { setEvents([]); setEventsLoading(false); return; }
     let cancelled = false;
+    const scope = JSON.stringify([contextId, selectedThread]);
+    if (untrack(eventsScope) !== scope) { setEvents([]); setEventsScope(scope); }
+    setEventsLoading(true); fail('events');
     const read = selectedThread ? bridge.journal.readThread(contextId, selectedThread) : bridge.journal.readSeaProjection(contextId);
-    void read.then(value => { if (!cancelled && settings.devMode) { setEvents(value); fail('events'); } })
-      .catch(error => { if (!cancelled) { setEvents([]); fail('events', error); } });
+    void read.then(value => { if (!cancelled && settings.devMode) { setEvents(value); setEventsLoading(false); fail('events'); } })
+      .catch(error => { if (!cancelled) { setEventsLoading(false); fail('events', error); } });
     onCleanup(() => { cancelled = true; });
   });
   const copy = async (value: unknown): Promise<void> => {
@@ -146,10 +157,11 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
                   <For each={visibleTraces()}>{entry => <ListRow selected={entry.id === traceId()} headline={entry.context.source}
                     description={`${entry.kind} · ${entry.provider ?? ''} ${entry.model ?? entry.tier ?? ''} · ${formatClockTime(entry.startedAt, settings.uiLanguage)}`}
                     trailing={<Tag size="sm">{entry.status}</Tag>} onClick={() => setTraceId(entry.id)} />}</For>
-                  <Show when={visibleTraces().length === 0}><HintText>{label('NoCalls')}</HintText></Show>
+                  <Show when={callsLoading() && !traceList()}><SkeletonRows rows={3} /></Show>
+                  <Show when={!callsLoading() && !errors().calls && visibleTraces().length === 0}><HintText>{label('NoCalls')}</HintText></Show>
                 </div>
                 <div class="runtime-inspector-detail">
-                  <Show when={trace()} fallback={<HintText>{label('SelectCall')}</HintText>}>{selected => <>
+                  <Show when={trace()} fallback={<Show when={detailLoading()} fallback={<Show when={!errors().detail}><HintText>{label('SelectCall')}</HintText></Show>}><SkeletonRows rows={3} /></Show>}>{selected => <>
                     <div class="runtime-inspector-detail-heading"><strong>{selected().context.source}</strong><Tag>{selected().status}</Tag><Button variant="ghost" size="sm" onClick={() => void copy(selected())}>{label('Copy')}</Button></div>
                     <Disclosure title={label('Context')}><pre class="runtime-inspector-meta">{json({ id: selected().id, ...selected().context, provider: selected().provider, model: selected().model, tier: selected().tier, startedAt: selected().startedAt, providerStartedAt: selected().providerStartedAt, firstTokenAt: selected().firstTokenAt, timeToFirstTokenMs: selected().timeToFirstTokenMs, finishedAt: selected().finishedAt })}</pre></Disclosure>
                     <Show when={selected().truncated}><HintText>{label('Truncated')}</HintText></Show>
@@ -168,7 +180,7 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
             </Disclosure>}</For>
           </Show>
           <Show when={tab() === 'world'}><HintText>{label('WorldNotice')}</HintText>
-            <p class="runtime-inspector-summary">{worldSummary()}</p>
+            <Show when={worldLoading() && !world()} fallback={<Show when={world()}><p class="runtime-inspector-summary">{worldSummary()}</p></Show>}><SkeletonRows rows={3} /></Show>
             <Disclosure title={label('RawData')}><pre>{json(world())}</pre></Disclosure>
             <Button size="sm" variant="ghost" onClick={() => void copy(world())}>{label('Copy')}</Button>
           </Show>
@@ -178,7 +190,8 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
               <Select aria-label={label('Scope')} value={threadId()} onChange={event => { setThreadId(event.currentTarget.value); setEvents([]); }} options={[
                 { value: '', label: 'Sea' }, ...threads().map(thread => ({ value: thread.id, label: thread.title || thread.id })),
               ]} />
-              <Show when={visibleEvents().length === 0}><EmptyState title={label('NoEvents')} /></Show>
+              <Show when={eventsLoading() && events().length === 0}><SkeletonRows rows={3} /></Show>
+              <Show when={!eventsLoading() && !errors().events && visibleEvents().length === 0}><EmptyState title={label('NoEvents')} /></Show>
               <For each={visibleEvents()}>{event => <Disclosure title={`${event.seq} · ${event.type} · ${event.actorId} · ${formatDateTime(event.createdAt, settings.uiLanguage)}`}>
                 <pre>{json(event)}</pre><Button size="sm" variant="ghost" onClick={() => void copy(event)}>{label('Copy')}</Button>
               </Disclosure>}</For>

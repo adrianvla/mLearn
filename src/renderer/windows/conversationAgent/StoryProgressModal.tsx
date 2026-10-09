@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onCleanup, type Component } from 'solid-js';
+import { For, Show, createSignal, onCleanup, onMount, type Component } from 'solid-js';
 import { getBridge } from '../../../shared/bridges';
 import { progressSummary, type StoryAdvanceRecord, type StorySource, type StoryTrack, type StoryTrackDraft } from '../../../shared/story';
 import type { WorldSnapshot } from '../../../shared/world';
@@ -8,7 +8,7 @@ import './StoryProgressModal.css';
 
 const blank = (): StoryTrackDraft => ({ title: '', edition: '', unitLabel: '', completed: [], sources: [], relations: [], autoAdvance: false });
 
-export const StoryProgressModal: Component<{ generationAvailable?: boolean; onRequestGenerationAccess?: () => boolean; world: WorldSnapshot; onClose: () => void; onRefresh: () => Promise<void> }> = (props) => {
+export const StoryProgressModal: Component<{ initialTrackId?: string; generationAvailable?: boolean; onRequestGenerationAccess?: () => boolean; world: WorldSnapshot; onClose: () => void; onRefresh: () => Promise<void> }> = (props) => {
   const { t } = useLocalization();
   const [selectedId, setSelectedId] = createSignal('');
   const [draft, setDraft] = createSignal<StoryTrackDraft>(blank());
@@ -37,6 +37,7 @@ export const StoryProgressModal: Component<{ generationAvailable?: boolean; onRe
       archived: track.archived } : blank());
     setAdvance(undefined); setError(''); setDirty(false);
   };
+  onMount(() => { if (props.initialTrackId) choose(props.world.storyTracks?.find(track => track.id === props.initialTrackId)); });
   const change = <K extends keyof StoryTrackDraft>(key: K, value: StoryTrackDraft[K]): void => { setDraft(previous => ({ ...previous, [key]: value })); setDirty(true); };
   const run = async (work: () => Promise<void>): Promise<void> => {
     if (busy()) return;

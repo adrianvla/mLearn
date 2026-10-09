@@ -12,6 +12,8 @@ import { IPC_CHANNELS } from '../../shared/constants';
 import { probeMirrorCatalog } from './catalogMirrors';
 import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDataInstallProgress, LanguageDictionaryPack, LanguagePythonRequirementComponent, normalizeCloudLLMTier } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
+import { languageActivationComponents } from './languageActivationCapabilities';
+import { resolveEffectiveLanguageData } from '../../shared/languageVariants';
 import { resolveLanguageDataRoot } from './languageGeneration';
 import { isLanguageMetadataFileName } from '../utils/languageCode';
 import { migrateLegacyThemeSettings } from '../../shared/constants';
@@ -924,7 +926,10 @@ export function setupSettingsIPC(): void {
           const generation = path.basename(candidate);
           progress('waiting-for-backend', undefined, generation);
           const { ensureLanguageGenerationReady } = await import('./pythonBackend');
-          await ensureLanguageGenerationReady(language, generation, resolvedDictionaryTarget, components, (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[language] ?? null);
+          const metadata = loadLangData(candidate)[language];
+          if (!metadata) throw new Error('The candidate language metadata is unavailable');
+          const runtimeComponents = languageActivationComponents(resolveEffectiveLanguageData(metadata, settings, language), components);
+          await ensureLanguageGenerationReady(language, generation, resolvedDictionaryTarget, runtimeComponents, (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[language] ?? null);
           acknowledgedRoot = candidate;
         },
       });

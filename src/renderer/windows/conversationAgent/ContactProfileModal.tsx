@@ -10,6 +10,7 @@ export const ContactProfileModal: Component<{
   onRequestGenerationAccess?: () => boolean;
   person: Participant;
   onClose: () => void;
+  onStoryProgress?: (trackId: string) => void;
   onMessage: (person: Participant) => Promise<void>;
   onSave: (person: Participant) => Promise<void>;
   onRemove: (person: Participant) => Promise<void>;
@@ -55,6 +56,7 @@ export const ContactProfileModal: Component<{
             <Button variant="secondary" disabled={busy()} onClick={() => setEditing(true)}>{t('mlearn.ConversationAgent.Details.Edit')}</Button>
           </Show>
         </div>
+        <Show when={props.person.canon?.trackId && props.onStoryProgress}><Button variant="secondary" disabled={busy()} onClick={() => props.onStoryProgress?.(props.person.canon!.trackId!)}>{t('mlearn.ConversationAgent.Story.Title')} · {props.person.canon?.workTitle}</Button></Show>
         <Show when={error()}><p class="contact-profile-error" role="alert">{error()}</p></Show>
         <Show when={!props.person.archivedAt && props.onMutedChange}>
           <ToggleSwitch label={t('mlearn.ConversationAgent.Contacts.Notifications')} checked={!props.muted} onChange={enabled => props.onMutedChange?.(!enabled)} />

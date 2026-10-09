@@ -544,6 +544,33 @@ describe('KnowledgeProjectionDrawer relations', () => {
     document.body.innerHTML = '';
   });
 
+  it('reports a failed graph lookup as unavailable and retries instead of claiming the word is absent', async () => {
+    lookupWordMock.mockRejectedValueOnce(new Error('offline'));
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
+    try {
+      expect(host.querySelector('[role="alert"]')).not.toBeNull();
+      expect(host.textContent).not.toContain('mlearn.Knowledge.Projection.Identity.NoGraph');
+      const retry = Array.from(host.querySelectorAll('button')).find(button => button.textContent?.includes('mlearn.Knowledge.Retry'));
+      expect(retry).toBeDefined();
+      (retry as HTMLButtonElement).click();
+      await flushAsync(); await flushAsync();
+      expect(host.querySelector('[role="alert"]')).toBeNull();
+      expect(host.querySelector('.knowledge-relations__list')).not.toBeNull();
+    } finally { dispose(); }
+  });
+
+  it('keeps a failed neighborhood read distinct from a missing graph entity', async () => {
+    getNeighborhoodMock.mockRejectedValueOnce(new Error('offline'));
+    const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
+    try {
+      expect(host.querySelector('[role="alert"]')).not.toBeNull();
+      expect(host.textContent).not.toContain('mlearn.Knowledge.Projection.Identity.NotInGraph');
+      (Array.from(host.querySelectorAll('button')).find(button => button.textContent?.includes('mlearn.Knowledge.Retry')) as HTMLButtonElement).click();
+      await flushAsync(); await flushAsync();
+      expect(host.querySelector('.knowledge-relations__list')).not.toBeNull();
+    } finally { dispose(); }
+  });
+
   it('groups relations as human concepts without leaking raw ontology names', async () => {
     const { host, dispose } = await renderDrawer({ initialTab: 'relations' });
     expect(host.textContent).toContain('mlearn.Knowledge.Projection.Identity.Sections.Pronunciations');

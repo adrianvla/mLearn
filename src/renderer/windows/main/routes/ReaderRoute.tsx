@@ -39,7 +39,7 @@ import { ReaderNav, ReaderSidebar, ReaderUnknownWordsSidebar, ReaderWelcomeCard,
 import { ProgressRing } from '../../../components/common';
 import { isPdfFile, pdfToImages, pdfToTextPages } from '../../../services/pdfService';
 import { epubToContentPages, isEpubFile, type EpubContent, type EpubReadingSpan } from '../../../services/epubService';
-import { captureBlobThumbnail, getRecentProgressPercent, saveToRecentItems } from '../../../services/thumbnailService';
+import { captureBlobThumbnail, getRecentItems, getRecentProgressPercent, saveToRecentItems } from '../../../services/thumbnailService';
 import { captureReaderImageForOccurrence } from '../../../services/flashcardImageCapture';
 import { parseWorkName } from '../../../utils/subtitleParsing';
 import { readerBookDisplayTitle } from '../../../utils/readerDisplayTitle';
@@ -449,7 +449,7 @@ export const adoptEpubBlobUrls = (newBlobUrls: string[]) => {
 // Per-book page memory (like old app's sequencer.js)
 const STORAGE_KEY_PREFIX = 'reader:last-page:';
 const ACTIVE_BOOK_STORAGE_KEY = 'reader:active-book-path';
-const makeStorageKey = (bookId: string) => `${STORAGE_KEY_PREFIX}${bookId}`;
+const makeStorageKey = (resourceId: string) => `reader:source-location:${hashWordSync(resourceId)}`;
 
 const imagePagesFromPdfImages = (images: Array<{ name: string; url: string; blob: Blob }>): PageImage[] => (
   images.map((img, index) => ({
@@ -494,23 +494,21 @@ export async function prepareEpubReaderLoad(
   }
 }
 
-const loadSavedPageIndex = async (bookId: string | null): Promise<number | null> => {
-  if (!bookId) return null;
-  try {
-    const raw = await getBridge().kvStore.kvGet(makeStorageKey(bookId));
-    if (raw === null) return null;
-    const val = parseSavedReaderLocation(raw);
-    return typeof val === 'number' ? val : null;
-  } catch (err) {
-    log.warn('[Reader] Failed to read saved page index', err);
-    return null;
-  }
+export const loadSavedReaderLocation = async (resourceId: string | null, legacyBookId?: string): Promise<ReaderSourceLocation | number | null> => {
+  if (!resourceId) return null;
+  const scoped = await getBridge().kvStore.kvGet(makeStorageKey(resourceId));
+  if (scoped !== null) return parseSavedReaderLocation(scoped);
+  if (!legacyBookId) return null;
+  // A title alone cannot identify a resource. Retain ambiguous legacy records
+  // untouched; only the existing history's unique exact association permits reuse.
+  const matches = (await getRecentItems()).filter(item => item.type === 'book' && item.name === legacyBookId);
+  if (matches.length !== 1 || matches[0].path !== resourceId) return null;
+  return parseSavedReaderLocation(await getBridge().kvStore.kvGet(`${STORAGE_KEY_PREFIX}${legacyBookId}`));
 };
 
-const loadSavedReaderLocation = async (bookId: string | null): Promise<ReaderSourceLocation | number | null> => {
-  if (!bookId) return null;
-  try { return parseSavedReaderLocation(await getBridge().kvStore.kvGet(makeStorageKey(bookId))); }
-  catch (error) { log.warn('[Reader] Failed to read saved source location', error); return null; }
+const loadSavedPageIndex = async (resourceId: string | null, legacyBookId?: string): Promise<number | null> => {
+  const location = await loadSavedReaderLocation(resourceId, legacyBookId);
+  return typeof location === 'number' ? location : null;
 };
 
 const persistSourceLocation = (bookId: string | null, location: ReaderSourceLocation | null): void => {
@@ -657,6 +655,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
   const [sourceLocation, setSourceLocation] = createSignal<ReaderSourceLocation | null>(null);
   const [isWindowFocused, setIsWindowFocused] = createSignal(typeof document !== 'undefined' ? document.hasFocus() : false);
   const [isWindowVisible, setIsWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
+  const [currentBookResumeId, setCurrentBookResumeId] = createSignal<string | null>(null);
   const [currentBookId, setCurrentBookId] = createSignal<string | null>(null);
   // Track the filesystem path of the current book (PDF file or directory)
   // Used for persisting to recent items so users can click to re-open
@@ -745,6 +744,9 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
   const [_currentOcrResult, _setCurrentOcrResult] = createSignal<OcrResult | null>(null);
   const [showOcrOverlay, setShowOcrOverlay] = createSignal(true);
   const [ocrDictionaryEntries, setOcrDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
+  const [ocrTranslationFailed, setOcrTranslationFailed] = createSignal(false);
+  const [ocrTranslationPending, setOcrTranslationPending] = createSignal(false);
+  const [retryOcrTranslation, setRetryOcrTranslation] = createSignal<(() => void)>();
   const [ocrTranslationData, setOcrTranslationData] = createSignal<TranslationResponse | null>(null);
 
   // Explainer popup state
@@ -2211,6 +2213,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
       setBookTitle(options.title);
       setBookDisplayTitle(options.displayTitle ?? options.title);
       setCurrentBookId(options.bookId);
+      setCurrentBookResumeId(options.preparedSource?.source.resourceId ?? (options.path || null));
       setCurrentBookPath(options.path);
       setCurrentBookFormat(options.format);
       setCurrentBookFile(options.file ?? null);
@@ -2228,7 +2231,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     const bookId = parseCurrentWorkName(file.name);
     const useOcr = documentOcrOverride ?? settings.readerDocumentOcr ?? DEFAULT_SETTINGS.readerDocumentOcr ?? false;
     const title = bookId || t('mlearn.Reader.Status.PdfDocument');
-    const savedPageIndex = await loadSavedPageIndex(bookId);
+    const savedPageIndex = await loadSavedPageIndex(preparedSource.source.resourceId, bookId);
     let newPages: PageImage[];
     let documentTitle: string | undefined;
     let coverBlob: Blob | undefined;
@@ -2289,7 +2292,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     if (content.authoredLanguages?.length) preparedSource = await props.scope.prepare({ kind: 'book', resourceId }, content.authoredLanguages);
     if (!preparedSource || admittedLoad !== readerLoadRevision) return;
     perfCount('reader.loadEpub.parse.ms', performance.now() - epubT0);
-    const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedReaderLocation(bookId), requestedLocation);
+    const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedReaderLocation(resourceId, bookId), requestedLocation);
     if (admittedLoad !== readerLoadRevision) { discardUnpublishedReaderPages(prepared.pages, prepared.newBlobUrls); return; }
     if (!commitLoadedPages(prepared.pages, {
       bookId,
@@ -2310,7 +2313,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     if (path) {
       void persistActiveBookPath(path);
     }
-    persistSourceLocation(bookId, prepared.startLocation);
+    persistSourceLocation(resourceId, prepared.startLocation);
     saveToRecent(title, 'book', prepared.startPage, path, prepared.coverBlob);
     setOcrStatus(t('mlearn.Reader.Status.Ready'));
     perfCount('reader.loadEpub.ms.total', performance.now() - epubT0);
@@ -2361,7 +2364,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
         const folderName = bookPath.split('/').filter(Boolean).pop() || '';
         const bookId = parseCurrentWorkName(folderName);
 
-        const savedPageIndex = await loadSavedPageIndex(bookId);
+        const savedPageIndex = await loadSavedPageIndex(preparedSource.source.resourceId, bookId);
         const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < result.files.length
             ? savedPageIndex : 0;
 
@@ -2433,7 +2436,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
       const preparedSource = await props.scope.prepare({ kind: 'book', resourceId: await mediaFileResourceId('', files) });
       if (!preparedSource) return;
 
-      const savedPageIndex = await loadSavedPageIndex(bookId);
+      const savedPageIndex = await loadSavedPageIndex(preparedSource.source.resourceId, bookId);
       const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < files.length ? savedPageIndex : 0;
 
       const newPages: PageImage[] = files.map((file, index) => ({
@@ -2813,7 +2816,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     if (!preparedSource) return;
 
     // Check for saved page position using the per-book storage key
-    const savedPageIndex = await loadSavedPageIndex(bookId);
+    const savedPageIndex = await loadSavedPageIndex(preparedSource.source.resourceId, bookId);
     let startPage = 0;
 
     if (savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < files.length) {
@@ -2890,8 +2893,8 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     });
     if (pageChanged) scrollReaderToPageStart(readerMainRef);
 
-    // Persist per-book page position
-    const bookId = currentBookId();
+    // Persist the admitted resource position, independently of its display title.
+    const bookId = currentBookResumeId();
     if (currentBookFormat() === 'epub') {
       const location = locationForPage(pages(), newPage);
       setSourceLocation(location);
@@ -3003,6 +3006,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     // Store context phrase for LLM explain and flashcard example
     setOcrContextPhrase(contextPhrase);
     // Preserve settled data for repeated movement; reset only for a new open.
+    setOcrTranslationFailed(false); setOcrTranslationPending(!cachedTranslation); setRetryOcrTranslation(undefined);
     setOcrTranslationData(cachedTranslation);
     setOcrDictionaryEntries([]);
 
@@ -3017,20 +3021,24 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     };
     maybeAdmitUsefulReveal(cachedTranslation, []);
 
-    // If not cached, fetch translation
     if (!cachedTranslation) {
-      try {
-        // Use dictionary form for translation lookup (handles conjugations like 屈して -> 屈する)
-        const translation = await translateWord(lookupWord, tokenLookupContext(token, contextPhrase));
-        if (requestId !== ocrHoverRequestId) return;
+      const loadTranslation = async () => {
         if (!isCurrentOcrHover(openedHover)) return;
-        setOcrTranslationData(translation);
-        resolvedTranslation = translation;
-        maybeAdmitUsefulReveal(resolvedTranslation, ocrDictionaryEntries());
-      } catch (_e) {
-        log.error("error", _e);
-        /* ignore */
-      }
+        setOcrTranslationFailed(false); setOcrTranslationPending(true);
+        try {
+          const translation = await translateWord(lookupWord, tokenLookupContext(token, contextPhrase));
+          if (requestId !== ocrHoverRequestId || !isCurrentOcrHover(openedHover)) return;
+          setOcrTranslationData(translation); resolvedTranslation = translation;
+          maybeAdmitUsefulReveal(resolvedTranslation, ocrDictionaryEntries());
+        } catch (error) {
+          if (requestId === ocrHoverRequestId && isCurrentOcrHover(openedHover)) setOcrTranslationFailed(true);
+          log.error('Reader translation failed:', error);
+        } finally {
+          if (requestId === ocrHoverRequestId && isCurrentOcrHover(openedHover)) setOcrTranslationPending(false);
+        }
+      };
+      setRetryOcrTranslation(() => () => { void loadTranslation(); });
+      await loadTranslation();
     }
 
     if (settings.showDictionary) {
@@ -3515,6 +3523,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
               anchorRect={hoverData().anchorRect}
               dictionaryEntries={ocrDictionaryEntries()}
               translationData={ocrTranslationData() || undefined}
+              isLoading={ocrTranslationPending()} lookupFailed={ocrTranslationFailed()} onRetryLookup={retryOcrTranslation()}
               isOCR={true}
               headwordFontFamily={readerTextFontFamily()} /*this is tech debt but idc*/
               lookupContext={tokenLookupContext(hoverData().token!, ocrContextPhrase())}

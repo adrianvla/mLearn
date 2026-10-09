@@ -330,9 +330,9 @@ describe('thumbnailService', () => {
       expect(await getRecentItems()).toEqual([]);
     });
 
-    it('returns empty array when storage throws', async () => {
+    it('preserves storage failure rather than turning it into an authoritative empty history', async () => {
       mockKvGet.mockRejectedValue(new Error('storage failure'));
-      expect(await getRecentItems()).toEqual([]);
+      await expect(getRecentItems()).rejects.toThrow('storage failure');
     });
   });
 

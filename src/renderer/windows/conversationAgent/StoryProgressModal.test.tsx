@@ -76,3 +76,12 @@ describe('Story progress review', () => {
     expect(button(el, 'mlearn.ConversationAgent.Story.ReviewUpdate').disabled).toBe(false);
   });
 });
+
+ it('opens the explicitly referenced edition without selecting a similarly named track', () => {
+  const el = document.createElement('div'); document.body.append(el);
+  const other = { ...track, id: 'other-edition', edition: 'Second' };
+  const dispose = render(() => <StoryProgressModal initialTrackId={track.id} world={{ storyTracks: [other, track] } as never} onClose={() => {}} onRefresh={async () => {}} />, el);
+  cleanups.push(() => { dispose(); el.remove(); });
+  expect(el.querySelector<HTMLSelectElement>('select[aria-label="mlearn.ConversationAgent.Story.Track"]')?.value).toBe(track.id);
+  expect(el.querySelector<HTMLInputElement>('input')?.value).toBe(track.title);
+});

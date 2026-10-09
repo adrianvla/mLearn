@@ -723,3 +723,31 @@ def test_fast_torch_preset_collects_the_voice_call_iterator(monkeypatch):
     audio, sample_rate = sf.read(io.BytesIO(response.body))
     np.testing.assert_allclose(audio, [0.0, 0.25, -0.25, 0.0])
     assert sample_rate == 24000
+
+
+def test_activation_validates_only_declared_voice_capabilities(monkeypatch):
+    calls = []
+    monkeypatch.setattr(voice, '_stt_runtime', lambda language: {'whisperLanguage': 'auto'})
+    monkeypatch.setattr(voice, '_tts_runtime', lambda language: {})
+    monkeypatch.setattr(voice, '_ensure_stt_loaded', lambda: calls.append('stt'))
+    monkeypatch.setattr(voice, '_resolve_tts_engine', lambda language: (_ for _ in ()).throw(AssertionError('Absent optional TTS must not be requested')))
+    voice.ensure_language_voice_ready('future-package')
+    assert calls == ['stt']
+
+
+def test_explicit_unsupported_voice_activation_still_fails(monkeypatch):
+    import pytest
+    monkeypatch.setattr(voice, '_stt_runtime', lambda language: {})
+    monkeypatch.setattr(voice, '_tts_runtime', lambda language: {})
+    with pytest.raises(RuntimeError, match='not declared'):
+        voice.ensure_language_voice_ready('future-package')
+
+
+def test_declared_voice_activation_rejects_missing_engine_dependency(monkeypatch):
+    import pytest
+    monkeypatch.setattr(voice, '_stt_runtime', lambda language: {})
+    monkeypatch.setattr(voice, '_tts_runtime', lambda language: {'engine': 'kokoro'})
+    monkeypatch.setattr(voice, '_resolve_tts_engine', lambda language: 'kokoro')
+    monkeypatch.setattr(voice, '_ensure_tts_loaded', lambda language: (_ for _ in ()).throw(ImportError('missing declared engine')))
+    with pytest.raises(ImportError, match='missing declared engine'):
+        voice.ensure_language_voice_ready('future-package')

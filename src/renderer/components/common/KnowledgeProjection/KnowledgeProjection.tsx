@@ -274,8 +274,10 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     return result && result.key === lookupKey() ? result.value : null;
   };
   const [neighborhood, setNeighborhood] = createSignal<{ center: GraphNode; relations: GraphRelatedNode[] } | null>(null);
-  const [lookupState, setLookupState] = createSignal<'idle' | 'loading' | 'ready' | 'missing'>('idle');
-  const [relationsState, setRelationsState] = createSignal<'idle' | 'loading' | 'ready'>('idle');
+  const [lookupState, setLookupState] = createSignal<'idle' | 'loading' | 'ready' | 'missing' | 'failed'>('idle');
+  const [relationsState, setRelationsState] = createSignal<'idle' | 'loading' | 'ready' | 'failed'>('idle');
+  const [graphRetry, setGraphRetry] = createSignal(0);
+  let neighborhoodKey: string | undefined;
   /** Relation navigation target; undefined = the word's own surface is the center. */
   const [focusedId, setFocusedId] = createSignal<string | undefined>();
   /** Capability whose claim controls are expanded (Adjust disclosure). */
@@ -298,6 +300,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     if (!surface || !props.open) return;
     let disposed = false;
     const key = lookupKey();
+    graphRetry();
     setFocusedId(undefined);
     setLookupState('loading');
     const target = props.target;
@@ -311,8 +314,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
       setLookupState(result ? 'ready' : 'missing');
     }).catch(() => {
       if (disposed) return;
-      setLookupResult({ key, value: null });
-      setLookupState('missing');
+      setLookupState('failed');
     });
     onCleanup(() => { disposed = true; });
   });
@@ -323,6 +325,9 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
     if (!props.open || !(props.language ? model().projection?.status === 'ready' : graph.meta().ready)) return;
     const target = focusedId() ?? props.target?.id ?? lookup()?.surfaceId;
     if (!target) return;
+    graphRetry();
+    const key = JSON.stringify([props.language ?? settings.language, target]);
+    if (neighborhoodKey !== key) { setNeighborhood(null); neighborhoodKey = key; }
     let disposed = false;
     setRelationsState('loading');
     const request = props.language
@@ -334,8 +339,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
       setRelationsState('ready');
     }).catch(() => {
       if (disposed) return;
-      setNeighborhood(null);
-      setRelationsState('ready');
+      setRelationsState('failed');
     });
     onCleanup(() => { disposed = true; });
   });
@@ -726,6 +730,7 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
                   </Show>
                 </div>
               }>
+                <Show when={lookupState() === 'failed' || relationsState() === 'failed'}><KnowledgeLoadError onRetry={() => setGraphRetry(value => value + 1)} /></Show>
                 <Show when={lookupState() === 'missing'} fallback={
                   <Show when={relationsState() !== 'idle'}>
                     <Show when={focusedId()}>
@@ -734,10 +739,10 @@ export const KnowledgeProjectionDrawer: Component<KnowledgeProjectionDrawerProps
                         <button type="button" class="knowledge-drawer__focus-close" onClick={exitFocus} aria-label={t('mlearn.Knowledge.Projection.Identity.BackToWord', { word: props.surface })}>×</button>
                       </div>}
                     </Show>
-                    <Show when={relationsState() === 'loading'}>
+                    <Show when={relationsState() === 'loading' && !neighborhood()}>
                       <SkeletonRows rows={2} />
                     </Show>
-                    <Show when={relationsState() === 'ready'}>
+                    <Show when={relationsState() === 'ready' || Boolean(neighborhood())}>
                       <Show when={neighborhood()} fallback={
                         <Show when={focusedId()}>
                           <div class="knowledge-drawer__degraded">

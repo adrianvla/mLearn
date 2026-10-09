@@ -604,7 +604,7 @@ describe('RoomSidebar', () => {
     const onNewConversation = vi.fn();
     const onPractice = vi.fn();
     const dispose = render(() => (
-      <RoomSidebar world={world([])} roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={onNewConversation} onPractice={onPractice} onAddContact={vi.fn()} onStoryProgress={vi.fn()} onSelectContact={vi.fn()} />
+      <RoomSidebar world={world([])} roomId={null} threadId={null} onSelectRoom={vi.fn()} onSelectThread={vi.fn()} onNewConversation={onNewConversation} onPractice={onPractice} onAddContact={vi.fn()} onSelectContact={vi.fn()} />
     ), container);
 
     Array.from(container.querySelectorAll('button')).find((button) => button.getAttribute('aria-label') === 'mlearn.ConversationAgent.NewConversation.Title')!.click();

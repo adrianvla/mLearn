@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
 import { epubToContentPages } from '../../../services/epubService';
-import { adoptEpubBlobUrls, prepareEpubReaderLoad, revokeEpubBlobUrls } from './ReaderRoute';
+import { adoptEpubBlobUrls, prepareEpubReaderLoad, revokeEpubBlobUrls, loadSavedReaderLocation } from './ReaderRoute';
 import { resolveBookSpreadDirection, resolveReaderVerticalLayout } from './readerPageLayout';
 
 function makeEpub(ppd: 'ltr' | 'rtl', vertical: boolean, declaresCover = true): File {
@@ -19,6 +19,31 @@ function makeEpub(ppd: 'ltr' | 'rtl', vertical: boolean, declaresCover = true): 
 }
 
 describe('ReaderRoute EPUB flow wiring', () => {
+  it('does not share a title-keyed resume anchor between different source resources', async () => {
+    const { getBridge } = await import('../../../../shared/bridges');
+    const records = new Map<string, string>([['reader:last-page:Same title', JSON.stringify({ kind: 'text', sourceIndex: 4, offset: 99 })],
+      ['mlearn_recent_items', JSON.stringify([{ type: 'book', name: 'Same title', path: '/first.epub' }, { type: 'book', name: 'Same title', path: '/second.epub' }])]]);
+    const read = vi.spyOn(getBridge().kvStore, 'kvGet').mockImplementation(async key => records.get(key) ?? null);
+    expect(await loadSavedReaderLocation('/first.epub', 'Same title')).toBeNull();
+    expect(await loadSavedReaderLocation('/second.epub', 'Same title')).toBeNull();
+    expect(read).not.toHaveBeenCalledWith('reader:last-page:Same title');
+  });
+
+  it('reuses only an unambiguous legacy file association and reads independently stored source locations', async () => {
+    const { getBridge } = await import('../../../../shared/bridges');
+    const { hashWordSync } = await import('../../../services/srsAlgorithm');
+    const first = { kind: 'text', sourceIndex: 4, offset: 99 };
+    const second = { kind: 'text', sourceIndex: 8, offset: 21 };
+    const records = new Map<string, string>([['reader:last-page:Same title', JSON.stringify(first)],
+      ['mlearn_recent_items', JSON.stringify([{ type: 'book', name: 'Same title', path: '/first.epub' }])]]);
+    vi.spyOn(getBridge().kvStore, 'kvGet').mockImplementation(async key => records.get(key) ?? null);
+    expect(await loadSavedReaderLocation('/first.epub', 'Same title')).toEqual(first);
+    expect(await loadSavedReaderLocation('/second.epub', 'Same title')).toBeNull();
+    records.set(`reader:source-location:${hashWordSync('/second.epub')}`, JSON.stringify(second));
+    expect(await loadSavedReaderLocation('/second.epub', 'Same title')).toEqual(second);
+    expect(await loadSavedReaderLocation('/first.epub', 'Same title')).toEqual(first);
+  });
+
   it('gives an explicit source Return priority over the later saved reading position', async () => {
     const content = await epubToContentPages(makeEpub('ltr', false));
     const location = { kind: 'text' as const, sourceIndex: 0, offset: 5 };

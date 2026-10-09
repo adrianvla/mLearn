@@ -1686,7 +1686,8 @@
         "ChangeLanguage": "更改语言",
         "ContinueLearning": "继续学习",
         "LearningLanguage": "正在学习{language}",
-        "TitleDescription": "选择下方选项开始学习"
+        "TitleDescription": "选择下方选项开始学习",
+        "RecentLoadFailed": "无法加载最近使用的材料。请重试。"
       },
       "Today": {
         "Title": "今天",
@@ -3792,7 +3793,8 @@
       "AnkiUpdateSuccess": "已更新 {count} 张 Anki 卡片",
       "AnkiUpdateRepositioned": "已更新 {count} 张卡片，重新定位了 {repositioned} 张新卡片",
       "AnkiUpdateFailed": "更新 Anki 卡片失败",
-      "CardScheduling": "卡片调度"
+      "CardScheduling": "卡片调度",
+      "LookupFailed": "词典查询暂不可用。请重试。"
     },
     "ConnectionStatus": {
       "Connected": "已连接",

@@ -22,7 +22,6 @@ interface RoomSidebarProps {
   onSelectThread: (threadId: string) => void;
   onNewConversation: () => void;
   onPractice: () => void;
-  onStoryProgress: () => void;
   onAddContact: () => void;
   onSelectContact: (person: Participant) => void;
   onViewChange?: (view: 'chats' | 'contacts') => void;
@@ -184,7 +183,6 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
             </Button></Show>
           </div></Show>
         </>}>
-          <div class="room-sidebar-story-action"><Button variant="ghost" size="sm" onClick={props.onStoryProgress}>{t('mlearn.ConversationAgent.Story.Title')}</Button></div>
           <For each={people()}>{person => <ListRow title={person.displayName} leading={<Avatar name={person.displayName} src={person.profilePhoto} />}
             headline={person.displayName} description={t(person.kind === 'persistent' ? 'mlearn.ConversationAgent.Contacts.InWorld' : 'mlearn.ConversationAgent.Contacts.PracticeOnly')}
             onClick={() => props.onSelectContact(person)} />}</For>

@@ -50,7 +50,7 @@ vi.mock('../../context', () => ({
     queueCounts: () => ({ new: 0, learning: 0, review: 0, relearning: 0, total: 0 }),
     isKnowledgeReady: () => true,
   }),
-  useDictionaryTargetLanguage: () => ({}),
+  useDictionaryTargetLanguage: () => () => 'en',
 }));
 
 vi.mock('../../hooks/useTranslation', () => ({
@@ -64,7 +64,7 @@ vi.mock('../../services/ankiWordsCache', () => ({
   findAnkiWordMatchInCache: () => null,
   isAnkiCacheFetched: () => false,
 }));
-vi.mock('../../hooks/useDictionaryTargetLanguage', () => ({ useDictionaryTargetLanguage: () => ({}) }));
+vi.mock('../../hooks/useDictionaryTargetLanguage', () => ({ useDictionaryTargetLanguage: () => () => 'en' }));
 vi.mock('../language-specific', () => ({ WordWithReading: (p: Record<string, unknown>) => <span>{p?.word as never}</span> }));
 vi.mock('../subtitle/wordHoverHelpers', async (importOriginal) => ({
   ...await importOriginal<typeof import('../subtitle/wordHoverHelpers')>(),

@@ -6,7 +6,7 @@
 
 import { Component, createEffect, createSignal, For, Show } from 'solid-js';
 import type { Flashcard } from '../../../../../shared/types';
-import type { RecentItem } from '../../../../services/thumbnailService';
+import { recentProgressPercent, type RecentItem } from '../../../../services/thumbnailService';
 import { progressPct, type LevelProgressSummary, type LevelStats } from '../../../../utils/wordLevelStats';
 import { RatingMatrix, SkeletonLine, SkeletonPill, WriteStatusBanner } from '../../../../components/common';
 import type { RecentWordRow, WeekStatDay } from '../welcomeSelectors';
@@ -42,7 +42,7 @@ export const WelcomeVideoPreview: Component<WelcomeMediaPreviewProps> = (props) 
             </Show>
             <div class="wfv-media-title">
               <span>{item().name}</span>
-              <progress class="wfv-progress" max="100" value={item().progress} />
+              <Show when={recentProgressPercent(item().progress) !== null} fallback={<progress class="wfv-progress" max="100" />}><progress class="wfv-progress" max="100" value={recentProgressPercent(item().progress)!} /></Show>
             </div>
             <button
               type="button"
@@ -83,7 +83,7 @@ export const WelcomeReaderPreview: Component<WelcomeMediaPreviewProps> = (props)
             </Show>
             <div class="wfv-media-title">
               <span>{item().name}</span>
-              <progress class="wfv-progress" max="100" value={item().progress} />
+              <Show when={recentProgressPercent(item().progress) !== null} fallback={<progress class="wfv-progress" max="100" />}><progress class="wfv-progress" max="100" value={recentProgressPercent(item().progress)!} /></Show>
             </div>
           </button>
         )}

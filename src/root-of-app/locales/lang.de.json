@@ -1686,7 +1686,8 @@
         "ChangeLanguage": "Sprache wechseln",
         "ContinueLearning": "Weiterlernen",
         "LearningLanguage": "{language} lernen",
-        "TitleDescription": "Wähle eine Option unten aus, um zu beginnen"
+        "TitleDescription": "Wähle eine Option unten aus, um zu beginnen",
+        "RecentLoadFailed": "Die zuletzt verwendeten Medien konnten nicht geladen werden. Versuche es erneut."
       },
       "Today": {
         "Title": "Heute",
@@ -3792,7 +3793,8 @@
       "AnkiUpdateSuccess": "{count} Anki-Karte(n) aktualisiert",
       "AnkiUpdateRepositioned": "{count} Karte(n) aktualisiert, {repositioned} neue Karte(n) umpositioniert",
       "AnkiUpdateFailed": "Anki-Karten konnten nicht aktualisiert werden",
-      "CardScheduling": "Kartenplanung"
+      "CardScheduling": "Kartenplanung",
+      "LookupFailed": "Die Wörterbuchabfrage ist nicht verfügbar. Versuche es erneut."
     },
     "ConnectionStatus": {
       "Connected": "Verbunden",

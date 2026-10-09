@@ -1,3 +1,4 @@
+import { KnowledgeLoadError } from '../common/Feedback/KnowledgeLoadError';
 import { placeWordHover, wordHoverBoundsFromChrome, wordHoverAvailableSize } from './wordHoverPlacement';
 /**
  * Word Hover Component
@@ -164,6 +165,8 @@ export interface WordHoverProps {
   translationData?: WordHoverTranslationData;
   lookupContext?: WordLookupContext;
   isLoading?: boolean;
+  lookupFailed?: boolean;
+  onRetryLookup?: () => void;
   level?: number;
   contextPhrase?: string; // The subtitle text for context
   isOCR?: boolean; // Whether in OCR mode (reader) vs video mode
@@ -732,6 +735,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
               </div>
             </Show>
 
+            <Show when={props.lookupFailed}><KnowledgeLoadError message={t('mlearn.WordHover.LookupFailed')} onRetry={props.onRetryLookup} /></Show>
             <Show when={!props.isLoading}>
               <DictionaryAlternatives resolution={selectedTranslationData()?.resolution} languageData={currentLangData()}
                 saving={selectingCandidate()} failed={selectionFailed()} onChoose={id => void chooseCandidate(id)} t={t} />
@@ -748,7 +752,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
                   </For>
                 </div>
               </Show>
-              <Show when={!hoverContent().shortDefinitionHtml && hoverContent().dictionaryHtml.length === 0}>
+              <Show when={!props.lookupFailed && !hoverContent().shortDefinitionHtml && hoverContent().dictionaryHtml.length === 0}>
                 <div class="hover_translation">{t('mlearn.WordHover.NoTranslation')}</div>
               </Show>
             </Show>

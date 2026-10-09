@@ -65,7 +65,7 @@ export const KnowledgeInspectorHost: Component = () => {
     onRetryHistory={() => setHistoryRetry(value => value + 1)}
     policyTrace={inspection().policyTrace}
     policyBrief={inspection().policyBrief}
-    onGraph={(entityId) => openGraphInspector({ entityId })}
+    onGraph={(entityId) => openGraphInspector({ entityId, language: inspection().language })}
     onWordClaim={(claim) => setWordClaim(inspection().surface, claim, inspection().language)}
     onAccessClaim={(capability, claim) => {
       if (claim === null) return clearAccessClaim(inspection().surface, capability, inspection().language);

@@ -11,6 +11,7 @@ const translationByWord = new Map<string, TranslationResponse | null | undefined
 const trackedWords = new Set<string>();
 const flashcardsByWord = new Map<string, { ease: number }>();
 const ankiMatchesByWord = new Map<string, { word: string; cards: Array<{ factor?: number; queue?: number; type?: number }> }>();
+const mockTranslateWord = vi.fn();
 const openKnowledgeInspectorMock = vi.fn();
 const mockHasWordSync = vi.fn((word: string) => trackedWords.has(word));
 const mockGetCardByWordSync = vi.fn((word: string, _language?: string) => flashcardsByWord.get(word) ?? null);
@@ -154,7 +155,7 @@ vi.mock('../../context', () => ({
 
 vi.mock('../../hooks/useTranslation', () => ({
   useTranslation: () => ({
-    translateWord: vi.fn(async (word: string) => translationByWord.get(word) ?? null),
+    translateWord: mockTranslateWord,
   }),
   getCachedTranslation: (word: string) => translationByWord.get(word),
 }));
@@ -196,6 +197,7 @@ describe('UnknownWordsSidebar', () => {
 
   beforeEach(() => {
     translationByWord.clear();
+    mockTranslateWord.mockReset().mockImplementation(async (word: string) => translationByWord.get(word) ?? null);
     trackedWords.clear();
     flashcardsByWord.clear();
     ankiMatchesByWord.clear();
@@ -416,6 +418,23 @@ describe('UnknownWordsSidebar', () => {
     expect(renderedWord?.getAttribute('data-reading')).toBe('かんじ');
 
     dispose();
+  });
+
+  it('offers an explicit retry after failed lookup without caching failure as an empty dictionary entry', async () => {
+    const { UnknownWordsSidebar } = await import('./UnknownWordsSidebar');
+    const words = [{ key: 'one', word: 'one', token: { word: 'one', actual_word: 'one', type: 'word' }, contextPhrase: 'context' }];
+    mockTranslateWord.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ data: [{ definitions: ['Recovered meaning'] }] });
+    const dispose = render(() => <UnknownWordsSidebar words={() => words} addingWordKeys={() => new Set<string>()} isAddingAll={() => false}
+      onAddWord={() => undefined} onIgnoreWord={() => undefined} sortOptions={() => []} defaultSort="word" emptyMessage="Empty" onAddAllClick={() => undefined} />, container);
+    try {
+      await Promise.resolve(); await Promise.resolve();
+      expect(container.querySelector('[role="alert"]')).not.toBeNull();
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('mlearn.Knowledge.Retry'))!.click();
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+      expect(mockTranslateWord).toHaveBeenCalledTimes(2);
+      expect(container.querySelector('[role="alert"]')).toBeNull();
+      expect(container.textContent).toContain('Recovered meaning');
+    } finally { dispose(); }
   });
 
   it('hands the visible material scope to policy without promising an exhaustive recall queue', async () => {

@@ -45,6 +45,7 @@ interface ThreadInfoPanelProps {
   onUpdateParticipant: (participant: Participant) => Promise<void> | void;
   onDeleteThread: () => Promise<void> | void;
   onIntegrate?: () => void | Promise<void>;
+  onStoryProgress?: (trackId?: string) => void;
   onUpdateStoryBranch?: (input: UpdateStoryBranchInput) => Promise<void>;
   onRetryMaintenance?: (reflectionId: string) => Promise<void> | void;
   onSetAutonomyEnabled?: (enabled: boolean) => Promise<void> | void;
@@ -400,6 +401,15 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
           <For each={scenario.scene.sharedFacts}>{fact => <p>{fact}</p>}</For>
           <For each={scenario.scene.socialConstraints}>{constraint => <p>{constraint}</p>}</For>
         </Disclosure>}
+      </Show>
+
+      <Show when={props.onStoryProgress}>
+        <Disclosure title={t('mlearn.ConversationAgent.Story.Title')}>
+          <For each={props.participants.filter(person => person.canon?.trackId)}>{person =>
+            <p><strong>{person.displayName}</strong> · {person.canon!.workTitle}</p>
+          }</For>
+          <Button variant="secondary" onClick={() => { const tracks = [...new Set(props.participants.flatMap(person => person.canon?.trackId ? [person.canon.trackId] : []))]; props.onStoryProgress?.(tracks.length === 1 ? tracks[0] : undefined); }}>{t('mlearn.ConversationAgent.Story.Title')}</Button>
+        </Disclosure>
       </Show>
 
       <Show when={(props.thread || props.roomId) && props.onChangeMediaReference}>

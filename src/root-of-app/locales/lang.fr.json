@@ -1686,7 +1686,8 @@
         "ChangeLanguage": "Changer de langue",
         "ContinueLearning": "Continuer l'apprentissage",
         "LearningLanguage": "J'apprends le {language}",
-        "TitleDescription": "Sélectionnez une option ci-dessous pour commencer"
+        "TitleDescription": "Sélectionnez une option ci-dessous pour commencer",
+        "RecentLoadFailed": "Les contenus récents n’ont pas pu être chargés. Réessayez."
       },
       "Today": {
         "Title": "Aujourd’hui",
@@ -3792,7 +3793,8 @@
       "AnkiUpdateSuccess": "{count} carte(s) Anki mise(s) à jour",
       "AnkiUpdateRepositioned": "{count} carte(s) mise(s) à jour, {repositioned} nouvelle(s) carte(s) repositionnée(s)",
       "AnkiUpdateFailed": "Échec de la mise à jour des cartes Anki",
-      "CardScheduling": "Planification de la carte"
+      "CardScheduling": "Planification de la carte",
+      "LookupFailed": "La recherche dans le dictionnaire est indisponible. Réessayez."
     },
     "ConnectionStatus": {
       "Connected": "Connecté",

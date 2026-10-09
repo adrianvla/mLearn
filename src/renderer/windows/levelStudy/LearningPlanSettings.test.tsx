@@ -73,7 +73,8 @@ vi.mock('../../context', () => ({
   }),
 }));
 
-vi.mock('../../components/common', () => ({
+vi.mock('../../components/common', async () => ({
+  Disclosure: (await import('../../components/common/Disclosure/Disclosure')).Disclosure,
   SettingRow: (props: { children?: JSX.Element; settingKey?: string }) => <div data-setting-key={props.settingKey}>{props.children}</div>,
   SettingGroup: (props: { children?: JSX.Element }) => <section>{props.children}</section>,
   ToggleSwitch: () => <div />,

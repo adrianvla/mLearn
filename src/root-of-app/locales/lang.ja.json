@@ -1686,7 +1686,8 @@
         "ChangeLanguage": "言語を変更",
         "ContinueLearning": "学習を続ける",
         "LearningLanguage": "{language}を学習中",
-        "TitleDescription": "下の項目を選択して始めましょう"
+        "TitleDescription": "下の項目を選択して始めましょう",
+        "RecentLoadFailed": "最近の教材を読み込めませんでした。もう一度お試しください。"
       },
       "Today": {
         "Title": "今日",
@@ -3792,7 +3793,8 @@
       "AnkiUpdateSuccess": "{count}枚のAnkiカードを更新しました",
       "AnkiUpdateRepositioned": "{count}枚のカードを更新、{repositioned}枚の新しいカードを再配置しました",
       "AnkiUpdateFailed": "Ankiカードの更新に失敗しました",
-      "CardScheduling": "カードのスケジュール"
+      "CardScheduling": "カードのスケジュール",
+      "LookupFailed": "辞書の検索が利用できません。もう一度お試しください。"
     },
     "ConnectionStatus": {
       "Connected": "接続済み",

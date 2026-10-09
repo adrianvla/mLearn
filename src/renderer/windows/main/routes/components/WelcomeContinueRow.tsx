@@ -5,7 +5,7 @@
 
 import { Component, Show } from 'solid-js';
 import { BookIcon, VideoIcon } from '../../../../components/common';
-import type { RecentItem } from '../../../../services/thumbnailService';
+import { recentProgressPercent, type RecentItem } from '../../../../services/thumbnailService';
 import type { RelativeLastOpened } from '../../../../utils/timeFormatting';
 import './WelcomeContinueRow.css';
 
@@ -19,6 +19,7 @@ export interface WelcomeContinueRowProps {
 }
 
 export const WelcomeContinueRow: Component<WelcomeContinueRowProps> = (props) => {
+  const progress = () => recentProgressPercent(props.item.progress);
   const typeIcon = () => (props.item.type === 'video' ? <VideoIcon size={20} /> : <BookIcon size={20} />);
 
   return (
@@ -42,9 +43,9 @@ export const WelcomeContinueRow: Component<WelcomeContinueRowProps> = (props) =>
           <Show when={props.lastOpened?.label}>
             <span class="welcome-continue-meta" title={props.lastOpened?.title}>{props.lastOpened?.label}</span>
           </Show>
-          <progress class="welcome-continue-progress" max="100" value={props.item.progress} />
+          <Show when={progress() !== null} fallback={<progress class="welcome-continue-progress" max="100" />}><progress class="welcome-continue-progress" max="100" value={progress()!} /></Show>
         </span>
-        <span class="welcome-continue-pct">{Math.round(props.item.progress)}%</span>
+        <span class="welcome-continue-pct">{progress() === null ? '—' : `${Math.round(progress()!)}%`}</span>
       </button>
     </div>
   );

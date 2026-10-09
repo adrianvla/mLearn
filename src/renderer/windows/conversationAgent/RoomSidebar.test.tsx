@@ -21,7 +21,6 @@ const emptyProps = (world: WorldSnapshot) => ({
   onSelectThread: vi.fn(),
   onNewConversation: vi.fn(),
   onPractice: vi.fn(),
-  onStoryProgress: vi.fn(),
   onAddContact: vi.fn(),
   onSelectContact: vi.fn(),
 });
@@ -45,6 +44,7 @@ describe('RoomSidebar action placement and roster identity', () => {
     expect(props.onNewConversation).toHaveBeenCalledOnce();
 
     root.querySelector<HTMLButtonElement>('[role="tab"][id$="-tab-contacts"]')!.click();
+    expect(root.querySelector('.room-sidebar-story-action')).toBeNull();
     const addContact = Array.from(root.querySelectorAll<HTMLButtonElement>('.room-sidebar-header button'))
       .find(button => button.textContent?.includes('mlearn.ConversationAgent.Contacts.Add'));
     expect(addContact).not.toBeUndefined();

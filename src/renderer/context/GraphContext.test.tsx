@@ -32,6 +32,19 @@ describe('GraphContext', () => {
     dispose();
   });
 
+  it('routes an explicitly scoped inspector through its source package instead of the study language', async () => {
+    mockBridge.graph.getGraphMeta.mockResolvedValue({ entityCount: 1, relationCount: 0, ready: true, status: 'ready' });
+    mockBridge.graph.lookupGraphWord.mockResolvedValue(null);
+    let graph: GraphContextValue | undefined;
+    const dispose = render(() => <GraphProvider language={() => 'future-package'}><Probe onReady={(value) => { graph = value; }} /></GraphProvider>, document.body);
+    try {
+      await vi.waitFor(() => expect(graph?.readiness()).toBe('ready'));
+      await graph!.lookupWord({ surface: 'source' });
+      expect(mockBridge.graph.getGraphMeta).toHaveBeenCalledWith('future-package');
+      expect(mockBridge.graph.lookupGraphWord).toHaveBeenCalledWith('future-package', { surface: 'source' });
+    } finally { dispose(); }
+  });
+
   it('makes the unavailable capability an explicit no-query fallback', async () => {
     mockBridge.graph.getGraphMeta.mockResolvedValue({ entityCount: 0, relationCount: 0, ready: false, status: 'unavailable' });
     let graph: GraphContextValue | undefined;

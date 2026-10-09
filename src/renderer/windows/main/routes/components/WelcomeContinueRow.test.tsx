@@ -59,6 +59,16 @@ describe('WelcomeContinueRow', () => {
     dispose();
   });
 
+  it.each([[-10, '0%'], [101, '100%'], [NaN, '—'], [undefined, '—']])('keeps progress geometry truthful for %s', (progress, expected) => {
+    const dispose = render(() => <WelcomeContinueRow item={makeItem({ progress: progress as number })} continueLabel="Continue" lastOpened={null} onContinue={() => {}} />, container);
+    try {
+      expect(container.querySelector('.welcome-continue-pct')?.textContent).toBe(expected);
+      const bar = container.querySelector('progress')!;
+      if (expected === '—') expect(bar.hasAttribute('value')).toBe(false);
+      else expect(Number(bar.getAttribute('value'))).toBe(Number(expected.slice(0, -1)));
+    } finally { dispose(); }
+  });
+
   it('renders the thumbnail image with a decorative empty alt when present', () => {
     const dispose = render(
       () => (
