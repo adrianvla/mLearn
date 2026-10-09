@@ -7,7 +7,7 @@ import { hashWordSync } from '../../../services/srsAlgorithm';
 
 vi.mock('../../../context', () => ({
   useSettings: () => ({ settings: { ...DEFAULT_SETTINGS, coloredProsodyEnabled: false } }),
-  useLanguage: () => ({ currentLangData: () => null, getLanguageFeatures: () => ({}), supportsGrammar: () => false }),
+  useLanguage: () => ({ currentLangData: () => null, currentLanguage: () => 'ja', currentSourceKey: () => 'epub-resource', getLanguageFeatures: () => ({}), supportsGrammar: () => false }),
   useFlashcards: () => ({}),
 }));
 vi.mock('../../../components/reader/OcrWord', () => ({ OcrWord: (props: { token: Token }) => <span>{props.token.word}</span> }));

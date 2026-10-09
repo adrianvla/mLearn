@@ -250,7 +250,7 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const [tokenParagraphs, setTokenParagraphs] = createSignal<ReaderSourceToken[][]>([]);
   const [tokenizeFailed, setTokenizeFailed] = createSignal(false);
   const { settings } = useSettings();
-  const { currentLangData, getLanguageFeatures } = useLanguage();
+  const { currentLangData, getLanguageFeatures, currentLanguage, currentSourceKey } = useLanguage();
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const text = () => props.page.text ?? '';
@@ -279,6 +279,16 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
   const hasTokenParagraphs = () => tokenParagraphs().some((paragraph) => paragraph.length > 0);
   createEffect(() => {
     const paragraphs = bodyBlocksWithOffsets();
+    const admittedLanguage = currentLanguage();
+    const admittedSource = currentSourceKey?.();
+    const admittedData = currentLangData();
+    const languageData = admittedData ? JSON.parse(JSON.stringify(admittedData)) as LanguageData : null;
+    const targetLanguage = dictionaryTargetLanguage();
+    const admittedCapabilities = tokenizerCapabilities();
+    const warmSettings = {
+      coloredProsodyEnabled: settings.coloredProsodyEnabled,
+      coloredProsodyRelevantOnly: settings.coloredProsodyRelevantOnly,
+    };
     props.onTokenDataChange?.([]);
     if (!paragraphs.length) {
       setTokenParagraphs([]);
@@ -319,10 +329,12 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
           reportInFlightDone();
           props.onTokenized?.();
           warmReaderPageTranslations(warmKey, nextTokenParagraphs, {
-            settings,
-            languageData: currentLangData(),
-            dictionaryTargetLanguage: dictionaryTargetLanguage(),
-            tokenizerCapabilities: tokenizerCapabilities(),
+            settings: warmSettings,
+            sourceLanguage: admittedLanguage,
+            sourceKey: admittedSource,
+            languageData,
+            dictionaryTargetLanguage: targetLanguage,
+            tokenizerCapabilities: admittedCapabilities,
           });
         }
       })
@@ -397,12 +409,16 @@ export const ReaderTextPage: Component<ReaderTextPageProps> = (props) => {
 
 // Once-per-page guard so re-tokenization of the same page does not re-warm the cache.
 const warmedPageTranslationIds = new Set<string>();
+const warmingPageTranslationIds = new Set<string>();
+const MAX_WARMED_READER_PAGES = 256;
 
 export function warmReaderPageTranslations(
   pageId: string,
   paragraphTokens: Token[][],
   options: {
-    settings: Settings;
+    settings: Pick<Settings, 'coloredProsodyEnabled' | 'coloredProsodyRelevantOnly'>;
+    sourceLanguage: string;
+    sourceKey?: string;
     languageData: LanguageData | null;
     dictionaryTargetLanguage?: string;
     tokenizerCapabilities?: { providesLemmas: boolean };
@@ -412,20 +428,32 @@ export function warmReaderPageTranslations(
   const enabled = options.settings.coloredProsodyEnabled ?? DEFAULT_SETTINGS.coloredProsodyEnabled;
   if (!config || !enabled || !coloredProsodyAllowedOnSurface(options.settings, 'other')) return;
   if (!coloredProsodyNeedsDictionaryLookup(config)) return;
-  if (warmedPageTranslationIds.has(pageId)) return;
-  warmedPageTranslationIds.add(pageId);
+  const warmId = JSON.stringify([pageId, options.sourceKey, options.sourceLanguage,
+    options.dictionaryTargetLanguage, hashWordSync(JSON.stringify(options.languageData))]);
+  if (warmedPageTranslationIds.has(warmId) || warmingPageTranslationIds.has(warmId)) return;
   const uniquePageWords = [...new Set(
     paragraphTokens.flat().map((token) => getTokenLookupWord(token, options.tokenizerCapabilities) || token.surface || token.word),
   )].filter(Boolean);
   if (uniquePageWords.length === 0) return;
-  void warmTranslationCache(
+  warmingPageTranslationIds.add(warmId);
+  void Promise.resolve(warmTranslationCache(
     uniquePageWords,
     undefined,
     undefined,
-    options.settings.language,
+    options.sourceLanguage,
     options.dictionaryTargetLanguage,
     options.languageData,
-  );
+    { throwOnFailure: true },
+  )).then(() => {
+    warmedPageTranslationIds.add(warmId);
+    while (warmedPageTranslationIds.size > MAX_WARMED_READER_PAGES) {
+      warmedPageTranslationIds.delete(warmedPageTranslationIds.values().next().value!);
+    }
+  }).catch(() => {
+    // Optional warming cannot manufacture an empty result or poison retries.
+    // The visible lookup owner reports and retries its own failed request.
+    warmedPageTranslationIds.delete(warmId);
+  }).finally(() => warmingPageTranslationIds.delete(warmId));
 }
 
 // Queue system for OCR to ensure serial processing (1 at a time)

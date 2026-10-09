@@ -51,6 +51,7 @@ const pageTokens: Token[] = [
 describe('warmReaderPageTranslations', () => {
   it('does not warm the translation cache for a tone-marked renderer (no dictionary lookup needed)', () => {
     warmReaderPageTranslations('tone-page', [pageTokens], {
+      sourceLanguage: 'ja',
       settings: makeSettings({ coloredProsodyEnabled: true }),
       languageData: toneLanguage,
       tokenizerCapabilities: { providesLemmas: true },
@@ -61,6 +62,7 @@ describe('warmReaderPageTranslations', () => {
 
   it('does not warm when colored prosody is disabled', () => {
     warmReaderPageTranslations('disabled-page', [pageTokens], {
+      sourceLanguage: 'ja',
       settings: makeSettings({ coloredProsodyEnabled: false }),
       languageData: pitchAccentLanguage,
       tokenizerCapabilities: { providesLemmas: true },
@@ -71,6 +73,7 @@ describe('warmReaderPageTranslations', () => {
 
   it('does not warm when relevant-only is on', () => {
     warmReaderPageTranslations('relevant-page', [pageTokens], {
+      sourceLanguage: 'ja',
       settings: makeSettings({ coloredProsodyEnabled: true, coloredProsodyRelevantOnly: true }),
       languageData: pitchAccentLanguage,
       tokenizerCapabilities: { providesLemmas: true },
@@ -81,6 +84,7 @@ describe('warmReaderPageTranslations', () => {
 
   it('warms the deduplicated page words for a pitch-accent renderer', () => {
     warmReaderPageTranslations('pitch-page', [pageTokens], {
+      sourceLanguage: 'ja',
       settings: makeSettings({ coloredProsodyEnabled: true, language: 'ja' }),
       languageData: pitchAccentLanguage,
       dictionaryTargetLanguage: 'en',
@@ -95,11 +99,13 @@ describe('warmReaderPageTranslations', () => {
 
   it('warms only once per page id', () => {
     warmReaderPageTranslations('once-page', [pageTokens], {
+      sourceLanguage: 'ja',
       settings: makeSettings({ coloredProsodyEnabled: true }),
       languageData: pitchAccentLanguage,
       tokenizerCapabilities: { providesLemmas: true },
     });
     warmReaderPageTranslations('once-page', [pageTokens], {
+      sourceLanguage: 'ja',
       settings: makeSettings({ coloredProsodyEnabled: true }),
       languageData: pitchAccentLanguage,
       tokenizerCapabilities: { providesLemmas: true },
@@ -107,4 +113,28 @@ describe('warmReaderPageTranslations', () => {
 
     expect(mockWarmTranslationCache).toHaveBeenCalledTimes(1);
   });
+  it('does not reuse a successful guard across source, target or package revisions', async () => {
+    mockWarmTranslationCache.mockResolvedValue(undefined);
+    const options = { sourceLanguage: 'ja', sourceKey: 'resource-one', settings: makeSettings({ coloredProsodyEnabled: true }),
+      languageData: pitchAccentLanguage, dictionaryTargetLanguage: 'en' };
+    warmReaderPageTranslations('scoped-page', [pageTokens], options);
+    await Promise.resolve(); await Promise.resolve();
+    warmReaderPageTranslations('scoped-page', [pageTokens], options);
+    expect(mockWarmTranslationCache).toHaveBeenCalledTimes(1);
+    warmReaderPageTranslations('scoped-page', [pageTokens], { ...options, sourceLanguage: 'future-package' });
+    warmReaderPageTranslations('scoped-page', [pageTokens], { ...options, dictionaryTargetLanguage: 'fr' });
+    warmReaderPageTranslations('scoped-page', [pageTokens], { ...options, languageData: { ...pitchAccentLanguage, resolvedVariantId: 'new-revision' } });
+    expect(mockWarmTranslationCache).toHaveBeenCalledTimes(4);
+  });
+
+  it('permits a later retry after failed optional warming', async () => {
+    mockWarmTranslationCache.mockRejectedValueOnce(new Error('dictionary unavailable')).mockResolvedValue(undefined);
+    const options = { sourceLanguage: 'ja', settings: makeSettings({ coloredProsodyEnabled: true }), languageData: pitchAccentLanguage };
+    warmReaderPageTranslations('retry-page', [pageTokens], options);
+    await vi.waitFor(() => expect(mockWarmTranslationCache).toHaveBeenCalledOnce());
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    warmReaderPageTranslations('retry-page', [pageTokens], options);
+    expect(mockWarmTranslationCache).toHaveBeenCalledTimes(2);
+  });
+
 });

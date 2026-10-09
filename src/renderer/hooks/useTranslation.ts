@@ -345,17 +345,31 @@ function assertNlpContext(key: string, options: WordLookupCandidateOptions): voi
   if (key !== nlpExecutionKey(options)) throw new NlpContextChangedError();
 }
 
+const translationFlights = new WeakMap<BackendAdapter, Map<string, Promise<TranslationResponse>>>();
+
 function translateWithDictionaryTarget(
   backend: BackendAdapter,
   word: string,
   language?: string,
   dictionaryTargetLanguage?: string,
   variant?: string | null,
+  cacheScope?: string,
 ): Promise<TranslationResponse> {
-  if (variant !== undefined) return backend.translate(word, language, { variant, ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
-  return dictionaryTargetLanguage
-    ? backend.translate(word, language, { dictionaryTargetLanguage })
-    : backend.translate(word, language);
+  let flights = translationFlights.get(backend);
+  if (!flights) { flights = new Map(); translationFlights.set(backend, flights); }
+  const key = JSON.stringify([word, language, dictionaryTargetLanguage, variant, cacheScope]);
+  const admitted = flights.get(key);
+  if (admitted) return admitted;
+  const flight = (() => {
+    if (variant !== undefined) return backend.translate(word, language, { variant, ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
+    return dictionaryTargetLanguage
+      ? backend.translate(word, language, { dictionaryTargetLanguage })
+      : backend.translate(word, language);
+  })();
+  flights.set(key, flight);
+  const release = () => { if (flights.get(key) === flight) flights.delete(key); };
+  void flight.then(release, release);
+  return flight;
 }
 
 function identityWordForm(word: string): string {
@@ -483,7 +497,7 @@ export async function fetchTranslation(
       continue;
     }
 
-    const data = await translateWithDictionaryTarget(getBackend(), candidate, language, dictionaryTargetLanguage, languageData?.resolvedVariantId);
+    const data = await translateWithDictionaryTarget(getBackend(), candidate, language, dictionaryTargetLanguage, languageData?.resolvedVariantId, cacheLanguage);
     setTranslationCache(cacheKey, data);
     setCacheVersion((v) => v + 1);
     void setCachedTranslationScopedDB(candidate, data, cacheLanguage, dictionaryTargetLanguage);
@@ -626,7 +640,7 @@ export async function warmTranslationCache(
       let chunkHits = 0;
       const chunk = wordsToWarm.slice(i, i + TRANSLATION_WARM_CONCURRENCY).map(async (word) => {
         try {
-          const data = await translateWithDictionaryTarget(backend, word, language, dictionaryTargetLanguage, variant);
+          const data = await translateWithDictionaryTarget(backend, word, language, dictionaryTargetLanguage, variant, cacheLanguage);
           setTranslationCache(buildTranslationCacheKey(word, cacheLanguage, dictionaryTargetLanguage), data);
           chunkHits += 1;
           batchEntries.push({ word, data });
