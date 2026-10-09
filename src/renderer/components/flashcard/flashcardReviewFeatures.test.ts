@@ -9,6 +9,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DEFAULT_SETTINGS } from '@shared/types';
 
+const getAnkiWordStatuses = vi.hoisted(() => vi.fn());
+vi.mock('@shared/backends', () => ({ getBackend: () => ({ getAnkiWordStatuses }) }));
+
 // ---- Settings defaults ----
 
 describe('Flashcard review settings defaults', () => {
@@ -30,15 +33,23 @@ describe('Flashcard review settings defaults', () => {
 describe('Anki words cache', () => {
   beforeEach(() => {
     vi.resetModules();
+    getAnkiWordStatuses.mockReset().mockResolvedValue([]);
   });
 
   it('isWordInAnkiCache returns false when cache is empty', async () => {
-    const { isWordInAnkiCache } = await import('@renderer/services/ankiWordsCache');
+    const { isWordInAnkiCache, fetchAnkiWordsCache, isAnkiCacheFetched } = await import('@renderer/services/ankiWordsCache');
+    // The synchronous negative is unmeasured until the owned fetch completes.
+    expect(isWordInAnkiCache('test')).toBe(false);
+    expect(isAnkiCacheFetched()).toBe(false);
+    await fetchAnkiWordsCache();
+    expect(getAnkiWordStatuses).toHaveBeenCalledOnce();
+    expect(isAnkiCacheFetched()).toBe(true);
     expect(isWordInAnkiCache('test')).toBe(false);
   });
 
   it('isAnkiCacheFetched returns false initially', async () => {
     const { isAnkiCacheFetched } = await import('@renderer/services/ankiWordsCache');
     expect(isAnkiCacheFetched()).toBe(false);
+    expect(getAnkiWordStatuses).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { sanitizeHtml } from './sanitizeHtml';
+import type { Window as HappyWindow } from 'happy-dom';
 
 const pocWindow = window as unknown as Record<string, unknown>;
 
@@ -21,10 +22,17 @@ describe('sanitizeHtml', () => {
   });
 
   it('strips iframes', () => {
-    const out = sanitizeHtml('<iframe src="https://evil.example"></iframe><p>safe</p>');
-    expect(out).not.toContain('<iframe');
-    expect(out).not.toContain('evil.example');
-    expect(out).toContain('safe');
+    const browserSettings = (window as unknown as HappyWindow).happyDOM.settings;
+    const previous = browserSettings.disableIframePageLoading;
+    // HTML parsed for sanitization is inert in browsers. Happy DOM otherwise
+    // starts a synthetic iframe navigation before DOMPurify removes it.
+    browserSettings.disableIframePageLoading = true;
+    try {
+      const out = sanitizeHtml('<iframe src="https://evil.example"></iframe><p>safe</p>');
+      expect(out).not.toContain('<iframe');
+      expect(out).not.toContain('evil.example');
+      expect(out).toContain('safe');
+    } finally { browserSettings.disableIframePageLoading = previous; }
   });
 
   it('strips javascript: hrefs but keeps link text', () => {

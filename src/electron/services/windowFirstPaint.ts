@@ -78,11 +78,9 @@ function recoveryBackgroundIsLight(background: string): boolean {
 
 /** Native backing colour before renderer theme hydration. Never infer theme from the OS. */
 export function initialWindowBackground(scheme: string, customColors?: { 'bg-opaque'?: string; bg?: string }): string {
-  if (scheme === 'custom') {
-    const customBackground = customColors?.['bg-opaque'] ?? customColors?.bg;
-    if (customBackground && /^(#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})|rgba?\([\d.,%\s]+\))$/i.test(customBackground.trim())) {
-      return customBackground.trim();
-    }
+  const customBackground = customColors?.['bg-opaque'] ?? customColors?.bg;
+  if (customBackground && /^(#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})|rgba?\([\d.,%\s]+\))$/i.test(customBackground.trim())) {
+    return customBackground.trim();
   }
   switch (scheme) {
     case 'quartz': return '#f3f5f7';

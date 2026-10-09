@@ -8,11 +8,12 @@ import path from 'path';
 import fs from 'fs';
 import { pathToFileURL } from 'url';
 import { IPC_CHANNELS, WINDOW_TYPES, WindowType } from '../../shared/constants';
-import { DEFAULT_SETTINGS, type WindowSize, type OpenWindowPayload, type OverlayVideoScreenshot } from '../../shared/types';
+import { DEFAULT_SETTINGS, type WindowSize, type OpenWindowPayload, type OverlayVideoScreenshot, type Settings } from '../../shared/types';
 import { isDarkColorScheme, isOpaqueColorScheme } from '../../shared/constants';
 import { encodeInitialWindowTheme, WINDOW_THEME_QUERY_PARAM } from '../../shared/windowTheme';
 import { isMac, isLinux, isWindows, isPackaged, getAppPath } from '../utils/platform';
 import { loadSettings } from './settings';
+import { subscribeSettingsCommitted } from './settingsChanges';
 import { registerWindowFirstPaint, showWindowAfterFirstPaint, showWindowAfterLoadFailure, initialWindowBackground, loadRecoveryHtml } from './windowFirstPaint';
 import { getCurrentLocaleData } from './localization';
 import { queueCommand } from './webServer';
@@ -30,6 +31,17 @@ let welcomeWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let currentWindow: BrowserWindow | null = null;
 const childWindows: Map<string, BrowserWindow> = new Map();
+const nativeSurfaceWindows = new Set<BrowserWindow>();
+
+subscribeSettingsCommitted(settings => {
+  if (!isMac) return;
+  const surface = getMacWindowSurfaceOptions(settings);
+  for (const window of nativeSurfaceWindows) {
+    if (window.isDestroyed()) { nativeSurfaceWindows.delete(window); continue; }
+    window.setVibrancy(surface.vibrancy ? 'under-window' : null);
+    window.setBackgroundColor(surface.backgroundColor!);
+  }
+});
 const DEV_WINDOW_LOAD_RETRY_LIMIT = 20;
 const DEV_WINDOW_LOAD_RETRY_DELAY_MS = 250;
 const log = getLogger('electron.windowManager');
@@ -84,8 +96,12 @@ function getInitialWindowTheme(): string {
   });
 }
 
-function loadWindowHtml(window: BrowserWindow, type: WindowType, host?: ApplicationHost, initialPath?: string): void {
+function loadWindowHtml(window: BrowserWindow, type: WindowType, host?: ApplicationHost, initialPath?: string, nativeSurface = true): void {
   startupMark(`renderer load requested type=${type} id=${window.id}`);
+  if (nativeSurface && isMac) {
+    nativeSurfaceWindows.add(window);
+    window.on('closed', () => nativeSurfaceWindows.delete(window));
+  }
   const isDev = process.env.NODE_ENV === 'development';
 
   const filePath = getWindowHtmlPath(type);
@@ -121,7 +137,10 @@ function loadWindowHtml(window: BrowserWindow, type: WindowType, host?: Applicat
   };
 
   if (!isDev) {
-    const load = host ? window.loadFile(filePath, { query: { host }, hash: initialPath }) : window.loadFile(filePath);
+    const load = window.loadFile(filePath, {
+      query: Object.fromEntries(rendererUrl.searchParams),
+      ...(initialPath ? { hash: initialPath } : {}),
+    });
     void load.catch((error) => showLoadRecovery(error instanceof Error ? error.message : String(error)));
     return;
   }
@@ -612,7 +631,7 @@ export function createChildWindow(
   childWindows.set(type, window);
   if (firstPaintManaged) registerWindowFirstPaint(window);
 
-  loadWindowHtml(window, type);
+  loadWindowHtml(window, type, undefined, undefined, firstPaintManaged);
   if (firstPaintManaged && shouldShow) showWindowAfterFirstPaint(window);
 
   window.on('closed', () => {
@@ -838,8 +857,7 @@ function getTitleBarOverlaySymbolColor(dark: boolean): string {
 // Shared macOS surface for ordinary application windows: no native titlebar,
 // full-bleed renderer with real traffic lights punched into the web UI, and
 // native vibrancy visible underneath transparent renderer regions.
-function getMacWindowSurfaceOptions(): Partial<Electron.BrowserWindowConstructorOptions> {
-  const settings = loadSettings();
+function getMacWindowSurfaceOptions(settings: Settings = loadSettings()): Partial<Electron.BrowserWindowConstructorOptions> {
   const colorScheme = settings.colorScheme ?? DEFAULT_SETTINGS.colorScheme;
   const reduceTransparency = isOpaqueColorScheme(colorScheme);
   return {
@@ -858,7 +876,9 @@ function getMacWindowSurfaceOptions(): Partial<Electron.BrowserWindowConstructor
 
     // Opaque palettes keep an opaque native fallback; translucent palettes
     // leave the native backing clear so the selected material reaches the page.
-    transparent: !reduceTransparency,
+    // Native transparency is a construction capability. Opaque palettes use
+    // an opaque backing while retaining the ability to change material live.
+    transparent: true,
     ...(reduceTransparency ? {} : {
       vibrancy: 'under-window' as const,
       visualEffectState: 'followWindow' as const,

@@ -42,6 +42,7 @@ import {
 } from '../services/managementPolicyCache';
 import { getLogger } from '../../shared/utils/logger';
 import { canonicalLanguage } from '../../shared/languageVariants';
+import { encodeInitialWindowTheme, WINDOW_THEME_QUERY_PARAM } from '../../shared/windowTheme';
 
 const log = getLogger("renderer.context.settings");
 
@@ -355,6 +356,9 @@ export const SettingsProvider: ParentComponent = (props) => {
   // Apply settings to DOM (CSS variables, classes)
   const applySettingsToDOM = (s: Settings) => {
     const root = document.documentElement;
+    const reloadUrl = new URL(window.location.href);
+    reloadUrl.searchParams.set(WINDOW_THEME_QUERY_PARAM, encodeInitialWindowTheme(s));
+    window.history.replaceState(window.history.state, '', reloadUrl);
 
     // Subtitle settings
     root.style.setProperty('--subtitle-font-size', `${s.subtitle_font_size}px`);

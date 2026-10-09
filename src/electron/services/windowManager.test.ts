@@ -27,6 +27,8 @@ type MockWindow = {
   setWindowButtonVisibility: ReturnType<typeof vi.fn>;
   removeMenu: ReturnType<typeof vi.fn>;
   setTitleBarOverlay: ReturnType<typeof vi.fn>;
+  setVibrancy: ReturnType<typeof vi.fn>;
+  setBackgroundColor: ReturnType<typeof vi.fn>;
   isDestroyed: ReturnType<typeof vi.fn>;
   focus: ReturnType<typeof vi.fn>;
   isMinimized: ReturnType<typeof vi.fn>;
@@ -88,6 +90,8 @@ function makeMockWindow(): MockWindow {
     setFullScreenable: vi.fn(),
     setWindowButtonVisibility: vi.fn(),
     setTitleBarOverlay: vi.fn(),
+    setVibrancy: vi.fn(),
+    setBackgroundColor: vi.fn(),
     isDestroyed: vi.fn(() => false),
     focus: vi.fn(),
     isMinimized: vi.fn(() => false),
@@ -130,6 +134,8 @@ class MockBrowserWindow {
   setWindowButtonVisibility: ReturnType<typeof vi.fn>;
   removeMenu: ReturnType<typeof vi.fn>;
   setTitleBarOverlay: ReturnType<typeof vi.fn>;
+  setVibrancy: ReturnType<typeof vi.fn>;
+  setBackgroundColor: ReturnType<typeof vi.fn>;
   isDestroyed: ReturnType<typeof vi.fn>;
   focus: ReturnType<typeof vi.fn>;
   isMinimized: ReturnType<typeof vi.fn>;
@@ -166,6 +172,8 @@ class MockBrowserWindow {
     this.setFullScreenable = w.setFullScreenable;
     this.setWindowButtonVisibility = w.setWindowButtonVisibility;
     this.setTitleBarOverlay = w.setTitleBarOverlay;
+    this.setVibrancy = w.setVibrancy;
+    this.setBackgroundColor = w.setBackgroundColor;
     this.isDestroyed = w.isDestroyed;
     this.focus = w.focus;
     this.isMinimized = w.isMinimized;
@@ -567,9 +575,48 @@ describe('windowManager', () => {
       const { createMainWindow } = await import('./windowManager');
       createMainWindow();
 
-      expect(lastWindowOptions().transparent).toBe(false);
+      expect(lastWindowOptions().transparent).toBe(true);
       expect(lastWindowOptions().vibrancy).toBeUndefined();
       expect(lastWindowOptions().backgroundColor).toBe('#000000');
+    });
+
+    it('updates every existing ordinary native host only after a settings commit', async () => {
+      vi.doMock('../utils/platform', () => ({ isMac: true, isLinux: false, isWindows: false,
+        isPackaged: false, getAppPath: vi.fn(() => '/tmp/appPath') }));
+      const settings = await import('./settings');
+      vi.mocked(settings.loadSettings).mockReturnValue({ colorScheme: 'slate' } as never);
+      const { createMainWindow, createChildWindow } = await import('./windowManager');
+      const main = createMainWindow();
+      const child = createChildWindow('diagnostics' as never, { show: false });
+      const overlay = createChildWindow('launch-overlay' as never, { frame: false });
+      const { notifySettingsCommitted } = await import('./settingsChanges');
+      expect(vi.mocked(main.setVibrancy)).not.toHaveBeenCalled();
+      notifySettingsCommitted({ colorScheme: 'dark-quartz', customColors: {} } as never, '/profile');
+      for (const window of [main, child]) {
+        expect(vi.mocked(window.setVibrancy)).toHaveBeenLastCalledWith('under-window');
+        expect(vi.mocked(window.setBackgroundColor)).toHaveBeenLastCalledWith('#00000000');
+      }
+      expect(vi.mocked(overlay.setVibrancy)).not.toHaveBeenCalled();
+      notifySettingsCommitted({ colorScheme: 'slate', customColors: { 'bg-opaque': '#123456' } } as never, '/profile');
+      for (const window of [main, child]) {
+        expect(vi.mocked(window.setVibrancy)).toHaveBeenLastCalledWith(null);
+        expect(vi.mocked(window.setBackgroundColor)).toHaveBeenLastCalledWith('#123456');
+      }
+      vi.mocked(child.isDestroyed).mockReturnValue(true);
+      vi.mocked(child.setVibrancy).mockClear();
+      notifySettingsCommitted({ colorScheme: 'quartz', customColors: {} } as never, '/profile');
+      expect(vi.mocked(child.setVibrancy)).not.toHaveBeenCalled();
+    });
+
+    it('includes the current theme in production main and managed child first paint', async () => {
+      process.env.NODE_ENV = 'production';
+      const settings = await import('./settings');
+      vi.mocked(settings.loadSettings).mockReturnValue({ uiType: 'flat', colorScheme: 'chalk', customColors: {} } as never);
+      const { createMainWindow, createChildWindow } = await import('./windowManager');
+      for (const window of [createMainWindow(), createChildWindow('settings' as never)]) {
+        const options = vi.mocked(window.loadFile).mock.calls[0]?.[1];
+        expect(JSON.parse(options?.query?.mlearnTheme ?? 'null')).toEqual({ uiType: 'flat', colorScheme: 'chalk', customColors: {} });
+      }
     });
 
     it('uses a transparent native backing for Dark Quartz so vibrancy can reach the renderer', async () => {
@@ -774,7 +821,7 @@ describe('windowManager', () => {
       process.env.NODE_ENV = 'production';
       const { createMainWindow } = await import('./windowManager');
       const window = createMainWindow();
-      expect(window.loadFile).toHaveBeenCalledWith('/tmp/checkout/dist/src/html/main.html');
+      expect(window.loadFile).toHaveBeenCalledWith('/tmp/checkout/dist/src/html/main.html', { query: { mlearnTheme: expect.any(String) } });
       delete process.env.NODE_ENV;
     });
 

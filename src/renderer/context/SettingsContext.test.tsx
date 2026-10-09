@@ -474,6 +474,27 @@ describe('SettingsProvider', () => {
     dispose();
   });
 
+  it('refreshes the reload bootstrap without losing the host, route or history state', async () => {
+    const originalUrl = window.location.href;
+    const originalState = window.history.state;
+    window.history.replaceState({ retained: true }, '', '/src/html/main.html?host=settings#/settings/appearance');
+    const { ctx, dispose } = await mountProvider();
+    try {
+      settingsCb(makeSettings());
+      ctx.updateSettings({ uiType: 'glass', colorScheme: 'chalk', customColors: { 'bg-opaque': '#223344' } });
+      const url = new URL(window.location.href);
+      expect(url.searchParams.get('host')).toBe('settings');
+      expect(url.hash).toBe('#/settings/appearance');
+      expect(window.history.state).toEqual({ retained: true });
+      expect(JSON.parse(url.searchParams.get('mlearnTheme') ?? 'null')).toEqual({
+        uiType: 'glass', colorScheme: 'chalk', customColors: { 'bg-opaque': '#223344' },
+      });
+    } finally {
+      dispose();
+      window.history.replaceState(originalState, '', originalUrl);
+    }
+  });
+
   it('updateSettings: merges partial and saves', async () => {
     const { ctx, dispose } = await mountProvider();
     settingsCb(makeSettings());
