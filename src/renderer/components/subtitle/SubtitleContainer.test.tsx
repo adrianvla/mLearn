@@ -39,6 +39,7 @@ const mockTrackWordSeen = vi.fn();
 const mockTrackWordHovered = vi.fn();
 const mockCancelWordHover = vi.fn();
 const mockSupportsGrammar = vi.fn(() => false);
+const mockDetectGrammar = vi.fn(() => [] as { pattern: string; level: number }[]);
 const mockTrackGrammarFailed = vi.fn();
 const mockTrackGrammarEncountered = vi.fn();
 const mockTranslateWord = vi.fn().mockResolvedValue({
@@ -57,7 +58,7 @@ vi.mock('../../context', () => ({
   useLanguage: () => ({
     isTranslatable: () => true,
     isTokenTranslatable: () => true,
-    detectGrammarInText: () => [],
+    detectGrammarInText: mockDetectGrammar,
     supportsGrammar: () => mockSupportsGrammar(),
     currentLangData: () => mockLanguageData,
     getCanonicalForm: mockGetCanonicalForm,
@@ -138,6 +139,11 @@ vi.mock('../../hooks', () => ({
   getCachedTranslation: () => null,
 }));
 
+vi.mock('./WordHover', () => ({
+  WordHover: (props: { word?: string; onOpenExplainer?: (word: string, context: string, position: { x: number; y: number }) => void }) =>
+    <button data-testid="explanation-request" onClick={() => props.onOpenExplainer?.(props.word ?? '', 'context', { x: 0, y: 0 })}>Explain</button>,
+}));
+
 vi.mock('../../services/wordLookupService', () => ({
   initWordLookupBridge: () => () => {},
 }));
@@ -169,6 +175,7 @@ describe('SubtitleContainer', () => {
     mockHoverState.onDismiss = null;
     mockLookup.mockReset();
     mockLookup.mockResolvedValue([]);
+    mockDetectGrammar.mockReturnValue([]);
     mockTrackGrammarFailed.mockClear();
     mockTrackGrammarEncountered.mockClear();
     mockSupportsGrammar.mockReturnValue(false);
@@ -485,6 +492,21 @@ describe('SubtitleContainer', () => {
     const subtitlesEl = container.querySelector('.subtitles');
     expect(subtitlesEl!.classList.contains('not-shown')).toBe(true);
     dispose();
+  });
+
+  it('an explanation request does not invent a failed grammar recall', () => {
+    mockSupportsGrammar.mockReturnValue(true);
+    mockDetectGrammar.mockReturnValue([{ pattern: 'package:construction', level: 1 }]);
+    mockHoverState.data = { word: 'hello', token: mockTokens[0], translation: null,
+      position: { x: 0, y: 0 }, element: container, language: 'ja' };
+    mockHoverState.visible = true;
+    const dispose = render(() => <SubtitleContainer tokens={mockTokens} originalText="hello world" isLoading={false} />, container);
+    try {
+      const explain = container.querySelector('[data-testid="explanation-request"]') as HTMLButtonElement;
+      expect(explain).toBeTruthy();
+      explain.click();
+      expect(mockTrackGrammarFailed).not.toHaveBeenCalled();
+    } finally { dispose(); }
   });
 
   it('checks known subtitle words using the current learning language', () => {

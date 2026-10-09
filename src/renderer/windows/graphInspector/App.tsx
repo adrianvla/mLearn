@@ -38,6 +38,11 @@ export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; i
   const [events, setEvents] = createSignal<import('../../../shared/graph/explanations').JournalRow[]>([]);
   const [archive, setArchive] = createSignal<KeyArchive | undefined>(undefined);
   const [details, setDetails] = createSignal(false);
+  const [journalPending, setJournalPending] = createSignal(false);
+  const [journalFailed, setJournalFailed] = createSignal(false);
+  const [journalLoaded, setJournalLoaded] = createSignal(false);
+  const [journalRevision, setJournalRevision] = createSignal(0);
+  let admittedJournalKey: string | undefined;
 
   onMount(() => {
     if (props.initialEntity) return;
@@ -58,27 +63,41 @@ export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; i
     graph.readiness();
     let disposed = false;
     onCleanup(() => { disposed = true; });
-    setSelectedCapability(undefined);
+    journalRevision();
     const hash = id.match(/:surface:([a-f0-9]{64})$/i)?.[1];
     if (!hash) {
       setEvents([]);
       setArchive(undefined);
+      setJournalLoaded(false);
+      setJournalPending(false);
+      setJournalFailed(false);
+      admittedJournalKey = undefined;
       return;
     }
     const journalKey = `${props.sourceLanguage?.() ?? settings.language}:${hash}`;
     // Archived evidence participates in the explanation view: coarse old
     // attempts resolve through the same address matcher as exact rows.
-    setEvents([]);
-    setArchive(undefined);
-    void getBridge().knowledgeEvents.getKnowledgeRows([journalKey]).then((log) => {
-      if (!disposed) setEvents(log[journalKey] ?? []);
-    }).catch(() => {});
-    void getBridge().knowledgeEvents.getKnowledgeArchive(journalKey).then((envelope) => {
-      if (!disposed) setArchive(envelope.archive);
-    }).catch(() => {});
+    if (admittedJournalKey !== journalKey) {
+      admittedJournalKey = journalKey;
+      setSelectedCapability(undefined);
+      setEvents([]);
+      setArchive(undefined);
+      setJournalLoaded(false);
+    }
+    setJournalPending(true);
+    setJournalFailed(false);
+    const owner = getBridge().knowledgeEvents;
+    void Promise.all([owner.getKnowledgeRows([journalKey]), owner.getKnowledgeArchive(journalKey)])
+      .then(([log, envelope]) => {
+        if (disposed) return;
+        setEvents(log[journalKey] ?? []);
+        setArchive(envelope.archive);
+        setJournalLoaded(true);
+      }).catch(() => { if (!disposed) setJournalFailed(true); })
+      .finally(() => { if (!disposed) setJournalPending(false); });
   });
 
-  const explanation = createMemo(() => selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta, Date.now(), undefined, undefined, archive() ? [archive() as KeyArchive] : undefined, effectiveThresholds(settings)) : undefined);
+  const explanation = createMemo(() => journalLoaded() && selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta, Date.now(), undefined, undefined, archive() ? [archive() as KeyArchive] : undefined, effectiveThresholds(settings)) : undefined);
 
   return <div class="graph-inspector">
     <Show when={graph.readiness() === 'pending'}><div class="graph-inspector__empty" aria-busy="true"><SkeletonText lines={4} /></div></Show>
@@ -108,6 +127,8 @@ export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; i
       <button type="button" class="graph-inspector__details" onClick={() => setDetails(!details())}>{t('mlearn.GraphInspector.Details')}</button>
       <Show when={details()}><pre>{`${neighborhood()!.center.id}\ndense: ${neighborhood()!.centerDenseId}\nrelations: ${neighborhood()!.relationCount}`}</pre></Show>
     </Show>
+    <Show when={details() && journalPending()}><SkeletonText lines={3} /></Show>
+    <Show when={details() && journalFailed()}><KnowledgeLoadError onRetry={() => setJournalRevision(value => value + 1)} /></Show>
     <Show when={details() && explanation()}>{(value) => <section class="graph-inspector__target">
       <h2>{t('mlearn.GraphInspector.Target')}</h2><p>{t(CAPABILITY_LABEL_KEYS[selectedCapability()!] ?? selectedCapability()!)} · <strong>{t(`mlearn.GraphInspector.State.${targetStates[value().state]}`)}</strong></p>
       <p>{value().projection ? `${t('mlearn.GraphInspector.Projection')}: ${value().projection!.ease.toFixed(2)}` : t('mlearn.GraphInspector.NoDirectEvidence')}</p>

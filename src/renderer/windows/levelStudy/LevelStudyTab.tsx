@@ -465,12 +465,14 @@ export const LevelStudyTab: Component<{ view?: 'plan' | 'grammar' | 'grammar-che
           <Show when={view() === 'plan'}>
             <Panel class="level-study-grammar-summary" padding="md">
               <h3>{t('mlearn.LevelStudy.Grammar.Title')}</h3>
-              <p class="level-study-grammar-summary__counts">
-                <span>{t('mlearn.LevelStudy.Grammar.State.Known')}: {grammarSummary()!.known}</span>
-                <span>{t('mlearn.LevelStudy.Grammar.State.Learning')}: {grammarSummary()!.learning}</span>
-                <span>{t('mlearn.LevelStudy.Grammar.State.Unknown')}: {grammarSummary()!.unknown}</span>
-                <span>{t('mlearn.LevelStudy.Grammar.State.Unmeasured')}: {grammarSummary()!.unmeasured}</span>
-              </p>
+              <progress class="level-study-grammar-summary__progress" value={grammarSummary()!.known}
+                max={grammarSummary()!.total} aria-label={t('mlearn.LevelStudy.Grammar.State.Known')} />
+              <dl class="level-study-grammar-summary__counts">
+                <div><dt>{t('mlearn.LevelStudy.Grammar.State.Known')}</dt><dd>{grammarSummary()!.known}</dd></div>
+                <div><dt>{t('mlearn.LevelStudy.Grammar.State.Learning')}</dt><dd>{grammarSummary()!.learning}</dd></div>
+                <div><dt>{t('mlearn.LevelStudy.Grammar.State.Unknown')}</dt><dd>{grammarSummary()!.unknown}</dd></div>
+                <div><dt>{t('mlearn.LevelStudy.Grammar.State.Unmeasured')}</dt><dd>{grammarSummary()!.unmeasured}</dd></div>
+              </dl>
               <Disclosure title={t('mlearn.LearningPlan.CurriculumDetails')} class="level-study-grammar-summary__detail">
                         <For each={grammarSummary()!.buckets}>{bucket => <div class="level-study-grammar-summary-row">
                   <span>{grammarLevelName(Number(bucket.level), resolvedLanguageData().data!)}</span>

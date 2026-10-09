@@ -487,7 +487,11 @@ body .learning-plan-page .grammar-coverage-panel:has(.grammar-coverage--studying
 
 .level-study-grammar-summary-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-3); margin-block: var(--spacing-3); }
 .level-study-grammar-summary-row > span:first-child { flex: 1; }
-.level-study-grammar-summary__counts { display: flex; flex-wrap: wrap; gap: var(--spacing-2) var(--spacing-4); margin-block: var(--spacing-2); color: var(--text-secondary); }
+.level-study-grammar-summary__progress { display: block; width: 100%; height: var(--spacing-2); margin-block: var(--spacing-3); accent-color: var(--color-success); }
+.level-study-grammar-summary__counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--spacing-3); margin-block: var(--spacing-4); }
+.level-study-grammar-summary__counts dt { color: var(--text-secondary); font-size: var(--font-size-sm); }
+.level-study-grammar-summary__counts dd { margin: var(--spacing-1) 0 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) { .level-study-grammar-summary__counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .level-study-grammar-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-2); margin-top: var(--spacing-3); }
 
 .learning-plan-scope-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-2); margin-block: var(--spacing-3); }

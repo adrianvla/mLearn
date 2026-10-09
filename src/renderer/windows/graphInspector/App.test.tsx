@@ -14,6 +14,7 @@ const neighborhood = {
 
 // Shared controls so tests can drive entity switches and fetch races.
 let contextCallback: ((context: { entityId: string }) => void) | null = null;
+const journalMocks = vi.hoisted(() => ({ rows: vi.fn(), archive: vi.fn() }));
 const getNeighborhoodMock = vi.fn();
 getNeighborhoodMock.mockResolvedValue(neighborhood);
 
@@ -28,12 +29,8 @@ vi.mock('../../../shared/bridges', () => ({
   getBridge: () => ({
     window: { onWindowContext: (callback: (context: { entityId: string }) => void) => { contextCallback = callback; callback({ entityId }); return () => {}; }, getWindowContext: vi.fn(), openWindow: vi.fn() },
     knowledgeEvents: {
-      getKnowledgeRows: vi.fn().mockResolvedValue({ [`ja:${hash}`]: [
-        { t: 1, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'good', easeAfter: 2.8, attemptId: 'active' },
-        { t: 2, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'easy', easeAfter: 3, attemptId: 'undo' },
-        { t: 3, kind: 'retraction', source: 'srs', aspect: 'reading', retracts: 'undo' },
-      ].map((event, seq) => ({ event, seq })) }),
-      getKnowledgeArchive: vi.fn().mockResolvedValue({ key: `ja:${hash}` }),
+      getKnowledgeRows: journalMocks.rows,
+      getKnowledgeArchive: journalMocks.archive,
     },
   }),
 }));
@@ -47,6 +44,12 @@ describe('GraphInspectorContent', () => {
     contextCallback = null;
     getNeighborhoodMock.mockReset();
     getNeighborhoodMock.mockResolvedValue(neighborhood);
+    journalMocks.rows.mockReset().mockResolvedValue({ [`ja:${hash}`]: [
+      { t: 1, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'good', easeAfter: 2.8, attemptId: 'active' },
+      { t: 2, kind: 'rating', source: 'srs', aspect: 'reading', rating: 'easy', easeAfter: 3, attemptId: 'undo' },
+      { t: 3, kind: 'retraction', source: 'srs', aspect: 'reading', retracts: 'undo' },
+    ].map((event, seq) => ({ event, seq })) });
+    journalMocks.archive.mockReset().mockResolvedValue({ key: `ja:${hash}` });
   });
 
   it('groups support separately and renders active evidence for target states', async () => {
@@ -62,6 +65,26 @@ describe('GraphInspectorContent', () => {
     expect(container.textContent).toContain('good');
     dispose();
     container.remove();
+  });
+
+  it.each(['rows', 'archive'] as const)('withholds no-evidence conclusions after %s failure and retries the same scope', async (owner) => {
+    journalMocks[owner].mockRejectedValueOnce(new Error('journal unavailable'));
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const dispose = render(() => <GraphInspectorContent />, container);
+    try {
+      await flush(); await flush();
+      (container.querySelector('.graph-inspector__details') as HTMLButtonElement).click();
+      (container.querySelectorAll('.graph-inspector__chip')[1] as HTMLButtonElement).click();
+      await flush();
+      expect(container.querySelector('[role="alert"]')).toBeTruthy();
+      expect(container.textContent).not.toContain('mlearn.GraphInspector.NoDirectEvidence');
+      (container.querySelector('[role="alert"] button') as HTMLButtonElement).click();
+      await flush(); await flush();
+      expect(journalMocks.rows).toHaveBeenCalledTimes(2);
+      expect(container.querySelector('[role="alert"]')).toBeNull();
+      expect(container.textContent).toContain('mlearn.GraphInspector.State.Known');
+    } finally { dispose(); container.remove(); }
   });
 
   it('ignores a superseded neighborhood resolution after the entity changes', async () => {

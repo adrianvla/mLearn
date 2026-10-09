@@ -56,7 +56,7 @@ export interface SubtitleContainerProps {
 
 export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const { settings } = useSettings();
-  const { isTokenTranslatable, detectGrammarInText, supportsGrammar, getCanonicalForm, getWordVariants, getReadingVariants, currentLangData, getLanguageFeatures, currentLanguage, currentSourceKey } = useLanguage();
+  const { isTokenTranslatable, supportsGrammar, getCanonicalForm, getWordVariants, getReadingVariants, currentLangData, getLanguageFeatures, currentLanguage, currentSourceKey } = useLanguage();
   const processingLanguage = currentLanguage ?? (() => settings.language);
   const flashcardCtx = useFlashcards();
   const [windowFocused, setWindowFocused] = createSignal(typeof document === 'undefined' || document.hasFocus());
@@ -133,14 +133,8 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     setExplainerPosition(position);
     setExplainerOpen(true);
 
-    // Grammar failure tracking: using explainer = user didn't understand the phrase
-    if (supportsGrammar()) {
-      const tokens = props.tokens || [];
-      const matched = detectGrammarInText(tokens);
-      for (const g of matched) {
-        flashcardCtx.trackGrammarFailed(g.pattern, g.level, processingLanguage());
-      }
-    }
+    // Help requests are engagement, not a failed recall assessment.
+
   };
   
   const handleCloseExplainer = () => {

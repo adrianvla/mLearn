@@ -603,7 +603,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
   const flashcardCtx = useFlashcards();
   const langCtx = useLanguage();
   const sourceLanguage = props.scope.language;
-  const { detectGrammarInText, supportsGrammar, isTokenTranslatable, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants, getLanguageFeatures } = langCtx;
+  const { supportsGrammar, isTokenTranslatable, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants, getLanguageFeatures } = langCtx;
   const ocrEnabled = () => settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled;
   createEffect(() => {
     if (settings.ocrProvider !== 'cloud' || hasSignedInCloudSession(settings)) {
@@ -2946,13 +2946,8 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     setExplainerPosition(position);
     setExplainerOpen(true);
 
-    // Track grammar failure for the word being explained
-    if (supportsGrammar()) {
-      const detectedPatterns = detectGrammarInText([{ word, surface: word, actual_word: word } as Token]);
-      for (const pattern of detectedPatterns) {
-        flashcardCtx.trackGrammarFailed(pattern.pattern, pattern.level, sourceLanguage());
-      }
-    }
+    // Help requests are engagement, not a failed recall assessment.
+
   };
 
   const handleOpenPhraseExplainer = (context: string, position: { x: number; y: number }) => {

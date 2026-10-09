@@ -241,6 +241,8 @@ describe('LevelStudyTab', () => {
     expect(container.querySelector('.grammar-coverage')).toBeNull();
     expect(container.querySelector('[data-testid="mock-blueprints"]')).toBeNull();
     const summary = container.querySelector('.level-study-grammar-summary')!;
+    expect(summary.querySelectorAll('.level-study-grammar-summary__counts dt')).toHaveLength(4);
+    expect(summary.querySelectorAll('.level-study-grammar-summary__counts dd')).toHaveLength(4);
     expect(summary.textContent).toContain('mlearn.LevelStudy.Grammar.State.Known');
     expect(summary.textContent).toContain('mlearn.LevelStudy.Grammar.State.Unmeasured');
     expect(summary.querySelectorAll('.level-study-grammar-summary-row button')).toHaveLength(0);
