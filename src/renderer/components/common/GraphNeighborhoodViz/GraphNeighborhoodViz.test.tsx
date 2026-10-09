@@ -37,6 +37,26 @@ const pointerEvent = (type: string, x: number, y: number, pointerId = 1) => {
   Object.defineProperty(event, 'pointerId', { value: pointerId });
   return event;
 };
+// Mirror the observed browser click routing: pointer capture determines the
+// pointerup target; click goes to the common ancestor of down/up targets.
+// Manually dispatching click on the original node would hide SVG retargeting.
+const capturedGesture = (canvas: SVGSVGElement, hit: Element, delta = [0, 0]) => {
+  let owner: Element | undefined;
+  let released: Element | undefined;
+  for (const element of [canvas, ...Array.from(canvas.querySelectorAll('[data-node]'))]) {
+    Object.defineProperty(element, 'setPointerCapture', { configurable: true, value: () => { owner = element; } });
+    Object.defineProperty(element, 'releasePointerCapture', { configurable: true, value: () => { released = element; owner = undefined; } });
+  }
+  hit.dispatchEvent(pointerEvent('pointerdown', 20, 20));
+  const captured = owner;
+  (owner ?? hit).dispatchEvent(pointerEvent('pointermove', 20 + delta[0], 20 + delta[1]));
+  const upTarget = owner ?? hit;
+  upTarget.dispatchEvent(pointerEvent('pointerup', 20 + delta[0], 20 + delta[1]));
+  let clickTarget = hit;
+  while (!clickTarget.contains(upTarget)) clickTarget = clickTarget.parentElement!;
+  clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+  return { captured, released, clickTarget };
+};
 // happy-dom's WheelEvent omits MouseEvent coordinates; retain the browser
 // event envelope the coordinate conversion actually consumes.
 const wheelEvent = (deltaY: number, deltaMode = 0) => {
@@ -204,6 +224,8 @@ describe('neighborhood presentation', () => {
     canvas.dispatchEvent(pointerEvent('pointerup', 10, 10));
     focus.mockClear();
     const node = container.querySelector('.graph-viz__node')!;
+    Object.defineProperty(node, 'setPointerCapture', { value: vi.fn(), configurable: true });
+    Object.defineProperty(node, 'releasePointerCapture', { value: vi.fn(), configurable: true });
     node.dispatchEvent(pointerEvent('pointerdown', 10, 10));
     expect(focus).not.toHaveBeenCalled();
     node.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -244,23 +266,40 @@ describe('neighborhood presentation', () => {
     expect(routeWheel.defaultPrevented).toBe(false);
     expect(embedded.querySelector('g[transform]')?.getAttribute('transform')).toBe('translate(0 0) scale(1)');
   });
-  it('does not turn a node drag into a selection, while a click still selects the node', () => {
+  it('retains native pointer click routing on the interactive node capture owner', () => {
     mount();
-    const canvas = container.querySelector('svg.graph-viz__svg')!;
+    const canvas = container.querySelector<SVGSVGElement>('.graph-viz__svg')!;
     const node = container.querySelector('.graph-viz__node')!;
-    Object.defineProperty(canvas, 'setPointerCapture', { value: vi.fn(), configurable: true });
-    Object.defineProperty(canvas, 'releasePointerCapture', { value: vi.fn(), configurable: true });
-
-    node.dispatchEvent(pointerEvent('pointerdown', 10, 10));
-    canvas.dispatchEvent(pointerEvent('pointermove', 40, 10));
-    canvas.dispatchEvent(pointerEvent('pointerup', 40, 10));
-    node.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    const gesture = capturedGesture(canvas, node.querySelector('text')!);
+    expect(container.querySelector('.graph-viz__detail')).not.toBeNull();
+    expect(gesture.clickTarget).toBe(node);
+    expect(gesture.captured).toBe(node);
+    expect(gesture.released).toBe(node);
+    expect(node.getAttribute('aria-pressed')).toBe('true');
+  });
+  it.each([1, 0.25, 0.125])('keeps a small client-pixel node jitter clickable at fitted scale %s', scale => {
+    mount();
+    const canvas = container.querySelector<SVGSVGElement>('.graph-viz__svg')!;
+    const node = container.querySelector('.graph-viz__node')!;
+    const [, , width, height] = canvas.getAttribute('viewBox')!.split(' ').map(Number);
+    Object.defineProperty(canvas, 'getScreenCTM', { value: () => null, configurable: true });
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, width * scale, height * scale));
+    capturedGesture(canvas, node.querySelector('text')!, [1, 1]);
+    expect(container.querySelector('.graph-viz__detail')).not.toBeNull();
+    expect(canvas.querySelector('g[transform]')?.getAttribute('transform')).toBe('translate(0 0) scale(1)');
+  });
+  it('suppresses captured node drags and keeps stationary background taps as selection dismissal', () => {
+    mount();
+    const canvas = container.querySelector<SVGSVGElement>('.graph-viz__svg')!;
+    const node = container.querySelector('.graph-viz__node')!;
+    const drag = capturedGesture(canvas, node.querySelector('text')!, [30, 0]);
+    expect(drag.captured).toBe(node); expect(drag.released).toBe(node);
     expect(container.querySelector('.graph-viz__detail')).toBeNull();
     expect(canvas.querySelector('g[transform]')?.getAttribute('transform')).toBe('translate(0 0) scale(1)');
-
-    node.dispatchEvent(pointerEvent('pointerdown', 10, 10));
-    canvas.dispatchEvent(pointerEvent('pointerup', 10, 10));
-    node.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    capturedGesture(canvas, node.querySelector('text')!);
     expect(container.querySelector('.graph-viz__detail')).not.toBeNull();
+    const background = capturedGesture(canvas, canvas);
+    expect(background.captured).toBe(canvas); expect(background.released).toBe(canvas);
+    expect(container.querySelector('.graph-viz__detail')).toBeNull();
   });
 });

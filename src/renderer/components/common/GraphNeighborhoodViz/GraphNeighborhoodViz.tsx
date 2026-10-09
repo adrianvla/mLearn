@@ -211,7 +211,8 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
     observer.observe(svg);
     onCleanup(() => observer.disconnect());
   });
-  let pan: { pointer: number; x: number; y: number; view: View; moved: boolean; node: boolean } | undefined;
+  let pan: { pointer: number; x: number; y: number; clientX: number; clientY: number;
+    view: View; moved: boolean; node: boolean; captureOwner: Element } | undefined;
   let suppressPointerClick = false;
 
   createEffect(() => {
@@ -339,17 +340,27 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
                 if (compact() && !props.fillViewport && event.pointerType === 'touch') return;
                 if (event.button !== 0) return;
                 suppressPointerClick = false;
-                const node = Boolean((event.target as Element).closest('[data-node]'));
+                // Capture on the interactive node itself: capturing on the SVG
+                // retargets its eventual click to the background in Chromium.
+                const captureOwner = (event.target as Element).closest('[data-node]') ?? event.currentTarget;
+                const node = captureOwner !== event.currentTarget;
                 if (!node) event.currentTarget.focus({ preventScroll: true });
-                const at = point(event); pan = { pointer: event.pointerId, x: at.x, y: at.y, view: currentView(), moved: false, node };
-                event.currentTarget.setPointerCapture(event.pointerId);
+                const at = point(event); pan = { pointer: event.pointerId, x: at.x, y: at.y,
+                  clientX: event.clientX, clientY: event.clientY, view: currentView(), moved: false, node, captureOwner };
+                captureOwner.setPointerCapture(event.pointerId);
               }}
               onPointerMove={(event) => {
                 if (!pan || pan.pointer !== event.pointerId) return;
-                const at = point(event); pan.moved ||= Math.hypot(at.x - pan.x, at.y - pan.y) > 3;
+                const at = point(event); pan.moved ||= Math.hypot(event.clientX - pan.clientX, event.clientY - pan.clientY) > 3;
                 if (pan.moved && !pan.node) setView({ ...pan.view, tx: pan.view.tx + at.x - pan.x, ty: pan.view.ty + at.y - pan.y });
               }}
-              onPointerUp={(event) => { if (pan?.pointer === event.pointerId) { if (pan.node && pan.moved) suppressPointerClick = true; else if (!pan.moved) setSelection(undefined); pan = undefined; event.currentTarget.releasePointerCapture(event.pointerId); } }}
+              onPointerUp={(event) => { if (pan?.pointer === event.pointerId) {
+                const gesture = pan;
+                if (gesture.node && gesture.moved) suppressPointerClick = true;
+                else if (!gesture.node && !gesture.moved) setSelection(undefined);
+                pan = undefined;
+                gesture.captureOwner.releasePointerCapture(event.pointerId);
+              } }}
               onPointerCancel={() => { pan = undefined; }} onLostPointerCapture={() => { pan = undefined; }}
               onKeyDown={(event) => {
                 if (event.target !== event.currentTarget) return;
