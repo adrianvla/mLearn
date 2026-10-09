@@ -1458,7 +1458,14 @@ export const WordSyncContent: Component<WordSyncContentProps> = (props) => {
       retrySessionStart = () => {
         const activeController = sessionController();
         if (!activeController) return;
-        if (pools.length === 0 || entries.length === 0) return;
+        if (pools.length === 0 || entries.length === 0) {
+          // Empty eligibility is a settled result, not an unfinished admission.
+          // Keep the explicit empty-pool explanation visible without starting
+          // a durable task or implying that a placement was measured.
+          setSessionAdmissionPending(false);
+          setWorkspaceOpen(true);
+          return;
+        }
         const state: WordSyncAssessmentState = { pools, draws: [] };
         const index = firstWordSyncAssessmentIndex(entries, state);
         setSessionAdmissionPending(true);

@@ -831,6 +831,19 @@ beforeEach(() => {
     expect(JSON.parse(localStorage.getItem('mlearn-study-word-sync:ja')!).queue).toHaveLength(4);
   });
 
+  it('finishes automatic assessment admission when the selected material has no unassessed words', async () => {
+    mockWordSyncState.wordFrequency = { measured: { reading: 'measured', raw_level: 5, level: 'N5' } };
+    mockWordSyncState.projectionByWord.set('measured', projectionFixture('known', 'evidence'));
+    const { WordSyncContent } = await import('./App');
+    mountContent(() => <WordSyncContent mode="assessment" launchIntent="start" words={['measured']} />);
+    await settle(); await settle(); await settle();
+    expect(container.textContent).toContain('mlearn.LevelStudy.Placement.EmptyPools');
+    expect(buttonByText('mlearn.LevelStudy.Mock.Start').disabled).toBe(true);
+    expect(container.querySelector('.knowledge-skeleton')).toBeNull();
+    expect(localStorage.getItem('mlearn-study-word-sync-assessment:ja')).toBeNull();
+    expect(mockSubmitRating).not.toHaveBeenCalled();
+  });
+
   it('Open prepares the workspace without creating or presenting a task; Start admits it explicitly', async () => {
     const { WordSyncContent } = await import('./App');
     mountContent(() => <WordSyncContent encounterLimit={120} launchIntent="open" />);
