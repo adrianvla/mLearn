@@ -84,7 +84,9 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
   const roomParticipants = createMemo<Participant[]>(() => {
     const room = selectedRoom();
     if (!room) return [];
-    const byId = new Map(participants().map((p) => [p.id, p]));
+    const separate = scopeKinds()[room.id] === 'thread' ? threads().find(thread => thread.id === room.id) : undefined;
+    const profiles = separate?.sandbox ? separate.sandbox.bindings.map(binding => binding.localOverride ?? binding.baseline) : participants();
+    const byId = new Map(profiles.map((p) => [p.id, p]));
     const relevantIds = new Set([...room.participantIds, ...events().flatMap(event => event.witnesses)]);
     return [...relevantIds]
       .map((id) => byId.get(id))
@@ -133,7 +135,9 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
   const [loadFailed, setLoadFailed] = createSignal<'world' | 'room' | null>(null);
   let roomRequest = 0;
   let worldRequest = 0;
-  onCleanup(() => { roomRequest++; worldRequest++; });
+  let selectionRevision = 0;
+  let selectionWrite = Promise.resolve();
+  onCleanup(() => { roomRequest++; worldRequest++; selectionRevision++; });
   const contentPending = () => isLoading() || roomLoading();
 
   const loadRoom = async (roomId: string): Promise<void> => {
@@ -165,7 +169,7 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
 
   const loadWorld = async () => {
     const request = ++worldRequest;
-    roomRequest++;
+    roomRequest++; selectionRevision++;
     setIsLoading(true);
     setLoadFailed(null);
     setEvents([]);
@@ -180,7 +184,7 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
       setScopeKinds(Object.fromEntries([...snapshot.rooms.map(room => [room.id, 'room']), ...separate.map(thread => [thread.id, 'thread']), [WORLD_CONTINUITY_ID, 'world']]));
       const contexts = [...snapshot.rooms, ...separate.map(thread => ({ id: thread.id, title: thread.title ?? t('mlearn.ConversationAgent.Details.UntitledThread'), participantIds: thread.sandbox!.bindings.map(binding => binding.baseline.id), createdAt: thread.createdAt })), { id: WORLD_CONTINUITY_ID, title: t('mlearn.ConversationAgent.Integration.WorldDestination'), participantIds: snapshot.participants.map(person => person.id), createdAt: 0 }];
       setRooms(contexts);
-      setParticipants([...snapshot.participants, ...separate.flatMap(thread => thread.sandbox!.bindings.map(binding => binding.baseline))]);
+      setParticipants(snapshot.participants);
       const retained = selectionKey ? await getBridge().kvStore.kvGet(selectionKey) : null;
       if (request !== worldRequest) return;
       const decoded: unknown = retained ? JSON.parse(retained) : requestedScope;
@@ -198,10 +202,16 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
   const chooseScope = async (id: string): Promise<void> => {
     const kind = scopeKinds()[id];
     if (!kind) return;
+    const revision = ++selectionRevision;
     await loadRoom(id);
-    if (!selectionKey) return;
-    try { await getBridge().kvStore.kvSet(selectionKey, JSON.stringify({ kind, id })); }
-    catch (error) { log.error('Unable to retain memory selection', error); setLoadFailed('room'); }
+    if (revision !== selectionRevision) return;
+    const save = async (): Promise<void> => {
+      if (revision !== selectionRevision) return;
+      await getBridge().kvStore.kvSet(selectionKey, JSON.stringify({ kind, id }));
+    };
+    selectionWrite = selectionWrite.then(save, save);
+    try { await selectionWrite; }
+    catch (error) { if (revision === selectionRevision) { log.error('Unable to retain memory selection', error); setLoadFailed('room'); } }
   };
   onMount(() => { void loadWorld(); });
 

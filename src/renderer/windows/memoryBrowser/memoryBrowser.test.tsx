@@ -103,7 +103,7 @@ const mockBridge = {
   },
   kvStore: { kvGet: vi.fn(async (_key: string): Promise<string | null> => null), kvSet: vi.fn(async (_key: string, _value: string) => {}) },
   journal: {
-    readSeaProjection: vi.fn(async () => seaEvents),
+    readSeaProjection: vi.fn(async (_roomId: string) => seaEvents),
     readThread: vi.fn(async (_contextId: string, _threadId: string): Promise<JournalEvent[]> => []),
   },
 };
@@ -231,6 +231,33 @@ describe('memory browser content', () => {
     await vi.waitFor(() => expect(container.querySelector('.memory-browser-loading')).toBeNull());
     expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledWith(WORLD_CONTINUITY_ID);
     expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalledWith('room-1');
+  });
+
+  it.each(['room', 'thread'] as const)('uses only the selected %s participant identity and override', async kind => {
+    const separate = { id: 'separate', state: 'active' as const, createdAt: 1, sandbox: { operationId: 'op', requestHash: 'hash', baselineHeads: {},
+      bindings: [{ baseline: { ...p1, displayName: 'Unrelated frozen name' }, localOverride: { ...p1, displayName: 'Selected local name' } }] } };
+    mockBridge.world.getWorldState.mockResolvedValue({ rooms: [roomFixture], participants: [p1, p2], threads: [separate] } as never);
+    dispose = render(() => <MemoryBrowserContent launchContext={{ memoryScope: { kind, id: kind === 'room' ? roomFixture.id : separate.id } }} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.memory-browser-loading')).toBeNull());
+    const labels = Array.from(container.querySelectorAll('.memory-browser-tab')).map(tab => tab.textContent);
+    expect(labels).toContain(kind === 'room' ? 'Alice' : 'Selected local name');
+    expect(labels).not.toContain('Unrelated frozen name');
+  });
+
+  it('retains the last deliberate memory selection when an older fetch finishes late', async () => {
+    mockBridge.world.getWorldState.mockResolvedValue({ rooms: [roomFixture, { ...roomFixture, id: 'slow' }, { ...roomFixture, id: 'fast' }], threads: [], participants: [p1, p2] });
+    let finishSlow!: (events: JournalEvent[]) => void;
+    mockBridge.journal.readSeaProjection.mockImplementation(async id => id === 'slow' ? new Promise<JournalEvent[]>(resolve => { finishSlow = resolve; }) : []);
+    dispose = render(() => <MemoryBrowserContent launchContext={{ memoryScope: { kind: 'room', id: 'room-1' } }} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.memory-browser-loading')).toBeNull());
+    const selector = container.querySelector('select') as HTMLSelectElement;
+    selector.value = 'slow'; selector.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(finishSlow).toBeDefined());
+    selector.value = 'fast'; selector.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(mockBridge.kvStore.kvSet).toHaveBeenCalled());
+    finishSlow([]); for (let turn = 0; turn < 12; turn++) await Promise.resolve();
+    expect(JSON.parse(mockBridge.kvStore.kvSet.mock.calls.at(-1)![1])).toEqual({ kind: 'room', id: 'fast' });
+    expect(selector.value).toBe('fast');
   });
 
   it('renders per-participant projections with perspective redaction and no editing affordances', async () => {

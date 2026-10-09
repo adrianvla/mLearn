@@ -61,6 +61,18 @@ describe('projectMessages', () => {
 });
 
 describe('renderCompiledContext', () => {
+  it('carries attached source boundaries into the actual model context without treating title knowledge as permission', () => {
+    const ctx: CompiledContext = { persona: { text: 'Helpful', facets: {} }, negativeKnowledge: [], memories: [], relationships: [], openLoops: [],
+      intentions: [], witnessedOccurrences: [], recentThreadEvents: [],
+      threadMedia: { mediaHash: 'a'.repeat(64), mediaName: 'Story', mediaType: 'book',
+        sourceContext: { path: '/private/books/a.epub', page: 7, 'future:story-coordinate': { node: 'section-a' } },
+        learningContext: { language: 'future', failedWords: [], failedGrammar: [] } } };
+    const prompt = renderCompiledContext(ctx, [p1], 'You');
+    expect(prompt).toContain('"page":7'); expect(prompt).toContain('"future:story-coordinate":{"node":"section-a"}');
+    expect(prompt).toContain('Do not reveal later events'); expect(prompt).toContain('Source language: future');
+    expect(prompt).not.toContain('/private/books/a.epub');
+  });
+
   it('renders persona, memories, and recent thread with display names', () => {
     const ctx: CompiledContext = {
       persona: { text: 'Cheerful barista', facets: {} },
