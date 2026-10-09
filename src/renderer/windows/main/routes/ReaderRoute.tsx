@@ -1,6 +1,10 @@
+import { LanguageProvider } from '../../../context/LanguageContext';
+import { useMediaSourceLanguage, type MediaSourceLanguageScope, type PreparedMediaSource } from '../../../hooks/useMediaSourceLanguage';
+import { mediaFileResourceId } from '../../../services/mediaSourceLanguage';
+import { SourceLanguageSelect } from '../../../components/common';
 import { setActiveMediaSource } from '../applicationHost';
 import { consumeMediaWorkspaceReturn } from './mediaWorkspaceReturn';
-import { tokenLookupContext } from '../../../hooks/useTranslation';
+import { tokenLookupContext, fetchTranslation } from '../../../hooks/useTranslation';
 import { hasSignedInCloudSession, withCloudAuth } from '../../../services/cloudSessionManager';
 import { classifyProviderFailure } from '../../../services/providerFailure';
 /**
@@ -49,6 +53,7 @@ import {
   resolveCloudOcrEngine,
   getOcrRuntimeConfig,
   getTokenJoinSeparator,
+  getTokenizerCacheNamespace,
   resolveLanguageContentFontOption,
 } from '../../../../shared/languageFeatures';
 import { buildWordHoverFlashcardContent, hasUsefulWordHoverContent } from '../../../components/subtitle/wordHoverHelpers';
@@ -562,6 +567,18 @@ const extractFolderName = (filePath: string): string => {
 };
 
 export const ReaderRoute: Component = () => {
+  const { settings } = useSettings();
+  const scope = useMediaSourceLanguage(() => settings.language,
+    () => (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[settings.language]);
+  return <LanguageProvider language={scope.language()} sourceKey={scope.sourceKey()}
+    languageVariants={{ ...(settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants), [scope.language()]: scope.variantId() ?? '' }}
+    frequencyProviderSelections={settings.frequencyProviderSelections}
+    frequencyLevelSystemSelections={settings.frequencyLevelSystemSelections}>
+    <ReaderRouteContent scope={scope} />
+  </LanguageProvider>;
+};
+
+const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props => {
   const ocrState = createReaderOcrState();
   const ocrResults = ocrState.results;
   const [ocrQueue, setOcrQueue] = createSignal<OcrTask[]>([]);
@@ -581,6 +598,7 @@ export const ReaderRoute: Component = () => {
   const { t } = useLocalization();
   const flashcardCtx = useFlashcards();
   const langCtx = useLanguage();
+  const sourceLanguage = props.scope.language;
   const { detectGrammarInText, supportsGrammar, isTokenTranslatable, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants, getLanguageFeatures } = langCtx;
   const ocrEnabled = () => settings.ocrEnabled ?? DEFAULT_SETTINGS.ocrEnabled;
   createEffect(() => {
@@ -588,19 +606,19 @@ export const ReaderRoute: Component = () => {
       setCloudOcrAuthCancelled(false);
     }
   });
-  const dictionaryTargetLanguage = useDictionaryTargetLanguage();
-  const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage(sourceLanguage);
+  const wordLookupOptions = { sourceKey: props.scope.sourceKey, getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,
-    language: () => settings.language,
+    language: () => sourceLanguage(),
     ...wordLookupOptions,
   });
   const getWordForms = (word: string): string[] => (
     getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: currentLangData() })
   );
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
-  const { tokenize, tokenizeMany } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
-  const { lookup } = useDictionary({ language: () => settings.language, ...wordLookupOptions });
+  const { tokenizeMany } = useTokenizer({ sourceKey: props.scope.sourceKey, language: sourceLanguage, languageData: currentLangData });
+  const { lookup } = useDictionary({ language: () => sourceLanguage(), ...wordLookupOptions });
   const {
     hoverData: ocrHoverData,
     isVisible: isOcrHoverVisible,
@@ -624,7 +642,7 @@ export const ReaderRoute: Component = () => {
   let settingRequirementWarningsChecked = false;
 
   // Media stats for this reader session
-  const mediaStats = useMediaStats({ mediaType: 'book', language: settings.language });
+  const mediaStats = useMediaStats({ mediaType: 'book', language: sourceLanguage() });
 
   const [pages, setPages] = createSignal<PageImage[]>([]);
   const [textSourcePages, setTextSourcePages] = createSignal<ReaderSourcePage[] | null>(null);
@@ -661,8 +679,8 @@ export const ReaderRoute: Component = () => {
   onCleanup(revokeEpubBlobUrls);
   const readerTextFontStyle = () => settings.readerTextFontStyle ?? DEFAULT_SETTINGS.readerTextFontStyle!;
   const selectedLanguageFontId = () => (
-    settings.readerContentFontSelections?.[settings.language]
-    ?? DEFAULT_SETTINGS.readerContentFontSelections[settings.language]
+    settings.readerContentFontSelections?.[sourceLanguage()]
+    ?? DEFAULT_SETTINGS.readerContentFontSelections[sourceLanguage()]
   );
   const readerTextFontFamily = () => {
     return resolveReaderTextFontFamily(readerTextFontStyle(), currentLangData(), selectedLanguageFontId(), settings.readerTextFontFamily ?? '');
@@ -753,7 +771,7 @@ export const ReaderRoute: Component = () => {
     isFocused: isWindowFocused,
     isVisible: isWindowVisible,
     contentId: () => opaqueActivityContentId('reader', currentBookId() ?? currentBookPath()),
-    language: () => settings.language,
+    language: () => sourceLanguage(),
   });
 
   // OCR debug overlay (dev mode only)
@@ -837,17 +855,19 @@ export const ReaderRoute: Component = () => {
 
   const captureOcrRequest = (page: PageImage) => {
     const request = ocrState.capture();
-    const language = settings.language;
-    const languageData = currentLangData();
+    const language = sourceLanguage();
+    const sourceKey = props.scope.sourceKey();
+    const generation = getTokenizerCacheNamespace(currentLangData());
     return {
       ...request,
       isCurrent: () => !readerDisposed && request.isCurrent()
-        && language === settings.language && languageData === currentLangData()
+        && language === sourceLanguage() && sourceKey === props.scope.sourceKey()
+        && generation === getTokenizerCacheNamespace(currentLangData())
         && pages().includes(page),
     };
   };
 
-  createEffect(on(() => [settings.language, currentLangData(), settings.ocrProvider] as const, () => {
+  createEffect(on(() => [sourceLanguage(), props.scope.sourceKey(), getTokenizerCacheNamespace(currentLangData()), settings.ocrProvider] as const, () => {
     batch(() => {
       ocrState.reset();
       setOcrQueue([]);
@@ -857,7 +877,7 @@ export const ReaderRoute: Component = () => {
       setOcrCompletedIds(new Set<string>());
     });
   }));
-  createEffect(on(() => [settings.language, currentPage(), currentBookId()] as const, () => {
+  createEffect(on(() => [sourceLanguage(), currentPage(), currentBookId()] as const, () => {
     forceHideOcrHover();
   }));
   createEffect(on(() => [isWindowFocused(), isWindowVisible()] as const, ([focused, visible]) => {
@@ -1017,7 +1037,7 @@ export const ReaderRoute: Component = () => {
           ? readerTextTokenEncounterId(passageId, source, source.tokenStart)
           : `${passageId}:${entry.boxIndex}:${word}:${occurrence}`;
         flashcardCtx.trackWordSeen(
-          word, entry.token.reading, undefined, settings.language,
+          word, entry.token.reading, undefined, sourceLanguage(),
           encounterId,
         );
       }
@@ -1030,7 +1050,7 @@ export const ReaderRoute: Component = () => {
           if (page.kind === 'image') {
             journalGrammarEncountersForTokenGroups(flashcardCtx, grammarEncounterRecorder, passageId,
               groups.map((group) => group.tokens), {
-                language: settings.language, grammar, languageData,
+                language: sourceLanguage(), grammar, languageData,
               }, passageId);
           } else {
             for (const group of groups) {
@@ -1039,7 +1059,7 @@ export const ReaderRoute: Component = () => {
                 ? readerTextBlockEncounterId(passageId, source)
                 : `${passageId}:box:${group.boxIndex}`;
               journalGrammarEncountersForTokenGroups(flashcardCtx, grammarEncounterRecorder, encounterId, [group.tokens], {
-                language: settings.language, grammar, languageData,
+                language: sourceLanguage(), grammar, languageData,
               }, encounterId);
             }
           }
@@ -1142,7 +1162,7 @@ export const ReaderRoute: Component = () => {
     pageMode();
     readerBookVertical();
     settings.readerTextFontStyle;
-    settings.readerContentFontSelections?.[settings.language];
+    settings.readerContentFontSelections?.[sourceLanguage()];
     settings.readerTextSize;
     settings.readerTextLineHeight;
     settings.readerTextWidth;
@@ -1386,11 +1406,11 @@ export const ReaderRoute: Component = () => {
       await showSettingRequirementWarningsOnce();
       if (!request.isCurrent()) return;
       const languageData = currentLangData();
-      assertOcrLanguageDataReady(settings.language, languageData);
+      assertOcrLanguageDataReady(sourceLanguage(), languageData);
 
       let result: OcrResult;
       if (settings.ocrProvider === 'cloud') {
-        const language = settings.language;
+        const language = sourceLanguage();
         const engine = resolveCloudOcrEngine(languageData);
         const cloudApiUrl = resolveCloudApiUrl(settings);
         const cloudResult = await withCloudAuth(async (cloudToken) => {
@@ -1402,7 +1422,7 @@ export const ReaderRoute: Component = () => {
         result = normalizeReaderOcrResult(await sendImageForOCR(
           crop.blob,
           {
-            language: settings.language,
+            language: sourceLanguage(),
             devMode: settings.devMode ? true : undefined,
             singleRegion: true,
             detectionScale: settings.devMode ? ocrDetectionScale() : undefined,
@@ -1508,15 +1528,15 @@ export const ReaderRoute: Component = () => {
           continue;
         }
 
-        if (flashcardCtx.isWordIgnoredSync(entry.word, settings.language)) {
+        if (flashcardCtx.isWordIgnoredSync(entry.word, sourceLanguage())) {
           continue;
         }
 
-        if (flashcardCtx.isWordKnownWhenWrittenSync(entry.word, entry.token.surface ?? entry.token.word, settings.language)) {
+        if (flashcardCtx.isWordKnownWhenWrittenSync(entry.word, entry.token.surface ?? entry.token.word, sourceLanguage())) {
           continue;
         }
 
-        if (!isWordInLanguageScript(entry.word, settings.language, langCtx.currentLangData())) {
+        if (!isWordInLanguageScript(entry.word, sourceLanguage(), langCtx.currentLangData())) {
           continue;
         }
 
@@ -1541,6 +1561,13 @@ export const ReaderRoute: Component = () => {
     const unknown = visibleUnknownWords();
     const mediaHash = mediaStats.stats().mediaHash;
     const bookId = currentBookId();
+    const captureLanguage = sourceLanguage();
+    const captureData = currentLangData();
+    const captureTarget = dictionaryTargetLanguage();
+    const captureSource = props.scope.sourceKey();
+    const captureGeneration = getTokenizerCacheNamespace(captureData);
+    const captureIsCurrent = () => captureLanguage === sourceLanguage() && captureSource === props.scope.sourceKey()
+      && captureGeneration === getTokenizerCacheNamespace(currentLangData());
 
     void (async () => {
       // A suggestion's image belongs to ONE word occurrence, so there is no
@@ -1559,12 +1586,13 @@ export const ReaderRoute: Component = () => {
       }
       const allowedWords = await filterSuggestedWords(
         unknown.map(entry => entry.word),
-        settings.language,
+        captureLanguage,
         settings,
-        currentLangData(),
-        { getWordForms, dictionaryTargetLanguage: dictionaryTargetLanguage() },
+        captureData,
+        { getWordForms, dictionaryTargetLanguage: captureTarget },
         { mediaRecurrence },
       );
+      if (!captureIsCurrent()) return;
       for (const entry of unknown) {
         if (capturedSuggestionWords.has(entry.word)) continue;
         const freq = langCtx.getFrequency(entry.word);
@@ -1578,13 +1606,15 @@ export const ReaderRoute: Component = () => {
         const image = pageImage && anchorRect
           ? await captureReaderImageForOccurrence(pageImage, anchorRect, { cropPadding: settings.ocr_crop_padding })
           : null;
+        if (!captureIsCurrent()) return;
         void flashcardCtx.captureSuggestedFlashcard({
+          language: captureLanguage,
           word: entry.word,
           reading: freq?.reading,
           pos: entry.token.type,
           level: freq?.raw_level ?? null,
-          dictionaryTargetLanguage: dictionaryTargetLanguage(),
-          contextPhrase: cleanContextPhrase(entry.contextPhrase, langCtx.currentLangData()),
+          dictionaryTargetLanguage: captureTarget,
+          contextPhrase: cleanContextPhrase(entry.contextPhrase, captureData),
           imageUrl: image || undefined,
           source: bookId || undefined,
           sourceMediaHash: mediaHash || undefined,
@@ -1610,6 +1640,14 @@ export const ReaderRoute: Component = () => {
   });
 
   const addReaderWordFlashcard = async (entry: ReaderPageWordSource) => {
+    const admittedLanguage = sourceLanguage();
+    const admittedData = currentLangData();
+    const admittedTarget = dictionaryTargetLanguage();
+    const admittedFrequency = langCtx.getFrequency(entry.word);
+    const admittedStatus = flashcardCtx.getComprehensiveWordStatusSync(entry.word, admittedLanguage);
+    const image = imageRefs()[entry.pageId] || null;
+    const anchorRect = getAnchorRectForWord(entry);
+    const admittedTokenizer = useTokenizer({ language: admittedLanguage, languageData: admittedData }).tokenize;
     setAddingSidebarWords((prev) => {
       const next = new Set(prev);
       next.add(entry.key);
@@ -1617,12 +1655,9 @@ export const ReaderRoute: Component = () => {
     });
 
     try {
-      const translationData = getCachedTranslation(entry.word, settings.language, wordLookupOptions)
-        ?? await translateWord(entry.word);
-      const image = imageRefs()[entry.pageId] || null;
-      const anchorRect = getAnchorRectForWord(entry);
-      const wordStatus = flashcardCtx.getComprehensiveWordStatusSync(entry.word, settings.language);
-      const frequency = langCtx.getFrequency(entry.word);
+      const translationData = getCachedTranslation(entry.word, admittedLanguage, wordLookupOptions)
+        ?? await fetchTranslation(entry.word, admittedLanguage, { ...wordLookupOptions, languageData: admittedData, dictionaryTargetLanguage: admittedTarget });
+
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,
         word: entry.word,
@@ -1631,16 +1666,16 @@ export const ReaderRoute: Component = () => {
         isOcr: true,
         ocrImageElement: image,
         anchorRect: anchorRect || undefined,
-        level: frequency?.raw_level,
-        wordStatus,
+        level: admittedFrequency?.raw_level,
+        wordStatus: admittedStatus,
         colourCodes: settings.colour_codes || {},
-        languageData: currentLangData(),
+        languageData: admittedData,
         ocrCropPadding: settings.ocr_crop_padding,
-        tokenize,
+        tokenize: admittedTokenizer,
         srsLearningEase: settings.srsLearningThreshold / 1000,
         srsKnownEase: settings.known_ease_threshold / 1000,
       });
-      await flashcardCtx.addFlashcard(content, ease, undefined, settings.language);
+      await flashcardCtx.addFlashcard(content, ease, undefined, admittedLanguage);
     } finally {
       setAddingSidebarWords((prev) => {
         const next = new Set(prev);
@@ -1660,9 +1695,9 @@ export const ReaderRoute: Component = () => {
   const isReaderCaptureEligible = (entry: ReaderUnknownWordEntry): boolean =>
     resolveCapturedWordEligibility(
       entry.word,
-      settings.language,
-      Boolean(flashcardCtx.getCardByWordSync(entry.word, settings.language)),
-      flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).excluded === true,
+      sourceLanguage(),
+      Boolean(flashcardCtx.getCardByWordSync(entry.word, sourceLanguage())),
+      flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, sourceLanguage()).excluded === true,
     ).eligible;
 
   /**
@@ -1709,7 +1744,7 @@ export const ReaderRoute: Component = () => {
 
   const handleIgnoreSidebarWord = async (entry: ReaderUnknownWordEntry) => {
     await excludeWordFromStudy(
-      { word: entry.word, reading: entry.token.reading, language: settings.language },
+      { word: entry.word, reading: entry.token.reading, language: sourceLanguage() },
       {
         ignoreWordForLanguage: flashcardCtx.ignoreWordForLanguage,
         t,
@@ -1717,7 +1752,7 @@ export const ReaderRoute: Component = () => {
     );
   };
 
-  const currentOcrReadinessError = () => getOcrLanguageDataReadinessError(settings.language, currentLangData());
+  const currentOcrReadinessError = () => getOcrLanguageDataReadinessError(sourceLanguage(), currentLangData());
 
   const currentOcrAutomationState = () => resolveReaderOcrAutomationState({
     ocrEnabled: Boolean(ocrEnabled()) && !cropMode(),
@@ -1922,14 +1957,14 @@ export const ReaderRoute: Component = () => {
         imageBlob = await (await fetch(page.src)).blob();
       }
       if (!request.isCurrent()) return null;
-      assertOcrLanguageDataReady(settings.language, languageData);
+      assertOcrLanguageDataReady(sourceLanguage(), languageData);
 
       let result: OcrResult;
 
       if (settings.ocrProvider === 'cloud') {
         const prepared = await prepareBlobForOCR(imageBlob);
         // Cloud OCR via HATEOAS job flow
-        const language = settings.language;
+        const language = sourceLanguage();
         const engine = resolveCloudOcrEngine(languageData);
         const cloudApiUrl = resolveCloudApiUrl(settings);
         const cloudResult = await withCloudAuth(async (cloudToken) => {
@@ -1948,7 +1983,7 @@ export const ReaderRoute: Component = () => {
         result = normalizeReaderOcrResult(await sendImageForOCR(
           imageBlob,
           {
-            language: settings.language,
+            language: sourceLanguage(),
             devMode: settings.devMode ? true : undefined,
             detectionScale: settings.devMode ? ocrDetectionScale() : undefined,
           },
@@ -2122,12 +2157,14 @@ export const ReaderRoute: Component = () => {
     processQueue();
   };
 
+  let readerLoadRevision = 0;
   const commitLoadedPages = (
     newPages: PageImage[],
     options: {
       bookId: string;
       title: string;
       path: string;
+      preparedSource?: PreparedMediaSource;
       format: 'images' | 'pdf' | 'epub';
       startPage: number;
       sourceLocation?: ReaderSourceLocation | null;
@@ -2141,10 +2178,15 @@ export const ReaderRoute: Component = () => {
       displayTitle?: string;
     },
   ) => {
+    if (options.preparedSource && !props.scope.isCurrent(options.preparedSource)) {
+      for (const url of new Set([...(options.epubBlobUrls ?? []), ...newPages.map(page => page.src).filter((src): src is string => typeof src === 'string' && src.startsWith('blob:'))])) URL.revokeObjectURL(url);
+      return false;
+    }
     // invariant: URLs are created fresh per load into a LOCAL array and handed to commitLoadedPages; the previous generation is revoked only as its replacement is adopted — no live page ever references a dead URL.
     adoptEpubBlobUrls(options.epubBlobUrls ?? []);
     const imagePageCount = newPages.filter((page) => page.kind === 'image').length;
     batch(() => {
+      if (options.preparedSource) props.scope.adopt(options.preparedSource);
       ocrState.reset();
       setCroppedRegions({});
       setTextSourcePages(options.textSourcePages ?? null);
@@ -2164,9 +2206,12 @@ export const ReaderRoute: Component = () => {
       setBookProgressionDirection(options.progressionDirection ?? null);
       setBookDeclaresVertical(options.declaresVertical ?? false);
     });
+    return true;
   };
 
-  const loadPdfFileIntoReader = async (file: File, path: string = '', documentOcrOverride?: boolean) => {
+  const loadPdfFileIntoReader = async (file: File, path: string = '', documentOcrOverride?: boolean, admittedLoad = ++readerLoadRevision) => {
+    const preparedSource = await props.scope.prepare({ kind: 'book', resourceId: await mediaFileResourceId(path, [file]) });
+    if (!preparedSource || admittedLoad !== readerLoadRevision) return;
     setOcrStatus(t('mlearn.Reader.Status.LoadingPdf'));
     const bookId = parseCurrentWorkName(file.name);
     const useOcr = documentOcrOverride ?? settings.readerDocumentOcr ?? DEFAULT_SETTINGS.readerDocumentOcr ?? false;
@@ -2199,9 +2244,11 @@ export const ReaderRoute: Component = () => {
     const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < newPages.length
       ? savedPageIndex
       : 0;
-    commitLoadedPages(newPages, {
+    if (admittedLoad !== readerLoadRevision) return;
+    if (!commitLoadedPages(newPages, {
       bookId,
       title,
+      preparedSource,
       displayTitle: readerBookDisplayTitle(documentTitle, file.name, langCtx.supportedLanguages()),
       path,
       format: 'pdf',
@@ -2209,7 +2256,7 @@ export const ReaderRoute: Component = () => {
       coverBlob,
       file,
       textSourcePages: textSourcePagesForBook,
-    });
+    })) return;
     if (path) {
       void persistActiveBookPath(path);
     }
@@ -2217,17 +2264,25 @@ export const ReaderRoute: Component = () => {
     setOcrStatus(t('mlearn.Reader.Status.Ready'));
   };
 
-  const loadEpubFileIntoReader = async (file: File, path: string = '', requestedLocation?: ReaderSourceLocation) => {
+  const loadEpubFileIntoReader = async (file: File, path: string = '', requestedLocation?: ReaderSourceLocation, admittedLoad = ++readerLoadRevision) => {
+    const resourceId = await mediaFileResourceId(path, [file]);
+    let preparedSource = await props.scope.prepare({ kind: 'book', resourceId });
+    if (!preparedSource || admittedLoad !== readerLoadRevision) return;
     const epubT0 = performance.now();
     setOcrStatus(t('mlearn.Reader.Status.LoadingBook'));
     const bookId = parseCurrentWorkName(file.name);
     const title = bookId || t('mlearn.Reader.Status.EpubDocument');
     const content = await epubToContentPages(file);
+    if (admittedLoad !== readerLoadRevision) return;
+    if (content.authoredLanguages?.length) preparedSource = await props.scope.prepare({ kind: 'book', resourceId }, content.authoredLanguages);
+    if (!preparedSource || admittedLoad !== readerLoadRevision) return;
     perfCount('reader.loadEpub.parse.ms', performance.now() - epubT0);
     const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedReaderLocation(bookId), requestedLocation);
-    commitLoadedPages(prepared.pages, {
+    if (admittedLoad !== readerLoadRevision) return;
+    if (!commitLoadedPages(prepared.pages, {
       bookId,
       title,
+      preparedSource,
       displayTitle: readerBookDisplayTitle(content.metadataTitle, file.name, langCtx.supportedLanguages()),
       path,
       format: 'epub',
@@ -2239,7 +2294,7 @@ export const ReaderRoute: Component = () => {
       progressionDirection: content.progressionDirection,
       declaresVertical: content.declaresVerticalWriting,
       epubBlobUrls: prepared.newBlobUrls,
-    });
+    })) return;
     if (path) {
       void persistActiveBookPath(path);
     }
@@ -2251,6 +2306,9 @@ export const ReaderRoute: Component = () => {
 
   // Load book from filesystem path (for recent items)
   const loadBookFromPath = async (bookPath: string, documentOcrOverride?: boolean, requestedLocation?: ReaderSourceLocation) => {
+    const admittedLoad = ++readerLoadRevision;
+    const preparedSource = await props.scope.prepare({ kind: 'book', resourceId: bookPath });
+    if (!preparedSource || admittedLoad !== readerLoadRevision) return;
     const loadT0 = performance.now();
     setBookLoadError(null);
     setOcrStatus(t('mlearn.Reader.Status.Loading'));
@@ -2265,7 +2323,8 @@ export const ReaderRoute: Component = () => {
         const blob = new Blob([result.data], { type: 'application/pdf' });
         const fileName = bookPath.split('/').pop() || 'document.pdf';
         const file = new File([blob], fileName, { type: 'application/pdf' });
-        await loadPdfFileIntoReader(file, bookPath, documentOcrOverride);
+        if (admittedLoad !== readerLoadRevision) return;
+        await loadPdfFileIntoReader(file, bookPath, documentOcrOverride, admittedLoad);
       } else if (isEpub) {
         const readT0 = performance.now();
         const data = await getBridge().files.readMediaFile(bookPath);
@@ -2273,7 +2332,8 @@ export const ReaderRoute: Component = () => {
         if (!data) throw new Error('Failed to read EPUB file');
         const fileName = bookPath.split('/').pop() || 'book.epub';
         const file = new File([new Blob([data])], fileName, { type: 'application/epub+zip' });
-        await loadEpubFileIntoReader(file, bookPath, requestedLocation);
+        if (admittedLoad !== readerLoadRevision) return;
+        await loadEpubFileIntoReader(file, bookPath, requestedLocation, admittedLoad);
       } else {
         // Load directory of images
         const result = await getBridge().files.readDirectoryImages(bookPath);
@@ -2306,7 +2366,9 @@ export const ReaderRoute: Component = () => {
         });
 
         const title = bookId || t('mlearn.Reader.Status.ImportedBook');
-        commitLoadedPages(newPages, {
+        if (admittedLoad !== readerLoadRevision) return;
+        if (!commitLoadedPages(newPages, {
+          preparedSource,
           bookId,
           title,
           displayTitle: readerBookDisplayTitle(undefined, folderName, langCtx.supportedLanguages()) || title,
@@ -2314,12 +2376,13 @@ export const ReaderRoute: Component = () => {
           format: 'images',
           startPage,
           coverBlob: newPages[0]?.blob,
-        });
+        })) return;
 
         // Save to recent with the correct path
         saveToRecent(title, 'book', startPage, bookPath, newPages[0]?.blob);
       }
 
+      if (admittedLoad !== readerLoadRevision) return;
       void persistActiveBookPath(bookPath);
       perfCount('reader.loadBookFromPath.ms', performance.now() - loadT0);
       setOcrStatus(t('mlearn.Reader.Status.Ready'));
@@ -2354,8 +2417,8 @@ export const ReaderRoute: Component = () => {
       files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
       const folderName = (files[0] as File & { webkitRelativePath: string }).webkitRelativePath?.split('/')[0] || 'Book';
       const bookId = parseCurrentWorkName(folderName);
-      setCurrentBookId(bookId);
-      setCurrentBookPath('');
+      const preparedSource = await props.scope.prepare({ kind: 'book', resourceId: await mediaFileResourceId('', files) });
+      if (!preparedSource) return;
 
       const savedPageIndex = await loadSavedPageIndex(bookId);
       const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < files.length ? savedPageIndex : 0;
@@ -2369,19 +2432,9 @@ export const ReaderRoute: Component = () => {
         blob: file,
       }));
 
-      batch(() => {
-        ocrState.reset();
-        setCroppedRegions({});
-        setTextSourcePages(null);
-        setCurrentPage(startPage);
-        setPages(newPages);
-        setOcrBatchTotal(newPages.length);
-        setOcrCompletedIds(new Set<string>());
-        setBookTitle(bookId || t('mlearn.Reader.Status.ImportedBook'));
-        setBookDisplayTitle(readerBookDisplayTitle(undefined, folderName, langCtx.supportedLanguages()) || bookId || t('mlearn.Reader.Status.ImportedBook'));
-        setCurrentBookFormat('images');
-        setCurrentBookFile(null);
-      });
+      const title = bookId || t('mlearn.Reader.Status.ImportedBook');
+      if (!commitLoadedPages(newPages, { bookId, title, path: '', format: 'images', startPage, preparedSource,
+        displayTitle: readerBookDisplayTitle(undefined, folderName, langCtx.supportedLanguages()) || title })) return;
       setOcrStatus(t('mlearn.Reader.Status.Ready'));
     };
     input.click();
@@ -2458,7 +2511,7 @@ export const ReaderRoute: Component = () => {
   });
 
   createEffect(on(
-    () => [settings.ocrEnabled, settings.language, langCtx.isLoading(), currentLangData()] as const,
+    () => [settings.ocrEnabled, sourceLanguage(), langCtx.isLoading(), currentLangData()] as const,
     ([ocrEnabledSetting, language, languageLoading, languageData]) => {
       // Trigger lazy warmup of OCR transformers only after the learning
       // language package metadata has loaded. Blank/missing metadata would use
@@ -2736,7 +2789,6 @@ export const ReaderRoute: Component = () => {
           : files[0].name;
       bookId = parseCurrentWorkName(rawFolderName);
     }
-    setCurrentBookId(bookId);
 
     // Use droppedFolderPath or extract from first file's path
     // rawFilePaths is populated using webUtils.getPathForFile (Electron 32+)
@@ -2744,7 +2796,8 @@ export const ReaderRoute: Component = () => {
     const bookPath = droppedFolderPath || (firstFilePath
         ? firstFilePath.split('/').slice(0, -1).join('/')
         : '');
-    setCurrentBookPath(bookPath);
+    const preparedSource = await props.scope.prepare({ kind: 'book', resourceId: await mediaFileResourceId(bookPath, files) });
+    if (!preparedSource) return;
 
     // Check for saved page position using the per-book storage key
     const savedPageIndex = await loadSavedPageIndex(bookId);
@@ -2764,25 +2817,9 @@ export const ReaderRoute: Component = () => {
       blob: file,
     }));
 
-    // Use batch to ensure currentPage and pages update atomically
-    // This prevents the createEffect from running with stale currentPage
-    batch(() => {
-      ocrState.reset();
-      setCroppedRegions({});
-      setTextSourcePages(null);
-      setCurrentPage(startPage);
-      setPages(newPages);
-      // Initialize OCR batch tracking for the new book
-      setOcrBatchTotal(newPages.length);
-      setOcrCompletedIds(new Set<string>());
-      setCurrentBookFormat('images');
-      setCurrentBookFile(null);
-    });
-
-    // Determine title: use the folder name (stripped)
     const title = bookId || t('mlearn.Reader.Status.ImportedBook');
-    setBookTitle(title);
-    setBookDisplayTitle(readerBookDisplayTitle(undefined, droppedFolderName || files[0].name, langCtx.supportedLanguages()) || title);
+    if (!commitLoadedPages(newPages, { bookId, title, path: bookPath, format: 'images', startPage, preparedSource,
+      displayTitle: readerBookDisplayTitle(undefined, droppedFolderName || files[0].name, langCtx.supportedLanguages()) || title })) return;
     void persistActiveBookPath(bookPath);
     saveToRecent(title, 'book', startPage, bookPath, newPages[0]?.blob);
   };
@@ -2897,7 +2934,7 @@ export const ReaderRoute: Component = () => {
     if (supportsGrammar()) {
       const detectedPatterns = detectGrammarInText([{ word, surface: word, actual_word: word } as Token]);
       for (const pattern of detectedPatterns) {
-        flashcardCtx.trackGrammarFailed(pattern.pattern, pattern.level, settings.language);
+        flashcardCtx.trackGrammarFailed(pattern.pattern, pattern.level, sourceLanguage());
       }
     }
   };
@@ -2933,7 +2970,7 @@ export const ReaderRoute: Component = () => {
 
     // Check if translation is already cached (from pre-warm)
     // This ensures the prosody pill shows immediately on first hover
-    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, { ...wordLookupOptions, context: tokenLookupContext(token, contextPhrase) });
+    const cachedTranslation = getCachedTranslation(lookupWord, sourceLanguage(), { ...wordLookupOptions, context: tokenLookupContext(token, contextPhrase) });
 
     const openedHover = {
       word: displayWord,
@@ -2943,7 +2980,7 @@ export const ReaderRoute: Component = () => {
       anchorRect: rect,
       element,
       lookupWord,
-      language: settings.language,
+      language: sourceLanguage(),
       trackPassiveHover,
       contextIdentity: contextPhrase,
     };
@@ -2962,7 +2999,7 @@ export const ReaderRoute: Component = () => {
       if (!hasUsefulWordHoverContent(token, response ?? undefined, entries, currentLangData())) return;
       admitOcrReveal((data) => {
         if (!flashcardCtx.isKnowledgeReady() || !data.lookupWord) return;
-        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? settings.language);
+        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? sourceLanguage());
       });
     };
     maybeAdmitUsefulReveal(cachedTranslation, []);
@@ -3015,7 +3052,7 @@ export const ReaderRoute: Component = () => {
       anchorRect: rect,
       element,
       lookupWord,
-      language: settings.language,
+      language: sourceLanguage(),
       trackPassiveHover,
       contextIdentity: contextPhrase,
     };
@@ -3033,7 +3070,7 @@ export const ReaderRoute: Component = () => {
   const openConversationAgent = () => {
     const s = mediaStats.stats();
     const name = bookTitle();
-    const lang = settings.language;
+    const lang = sourceLanguage();
 
     const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };
     const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
@@ -3051,7 +3088,7 @@ export const ReaderRoute: Component = () => {
     const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
 
     for (const entry of Object.values(s.wordsEncountered)) {
-      const resolved = flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, settings.language);
+      const resolved = flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, sourceLanguage());
       mediaWords.set(entry.word, {
         word: entry.word,
         ease: resolved.ease !== undefined ? Math.min(entry.ease, resolved.ease) : entry.ease,
@@ -3065,7 +3102,7 @@ export const ReaderRoute: Component = () => {
     // Exposure-ranked practice candidates: repeatedly encountered in the
     // canonical knowledge store without any failure. Unmeasured signals only —
     // failed patterns stay in failedGrammar above.
-    const grammarExposure = buildGrammarExposure(s.grammarEncountered, (pattern) => flashcardCtx.getGrammarKnowledge(pattern, settings.language));
+    const grammarExposure = buildGrammarExposure(s.grammarEncountered, (pattern) => flashcardCtx.getGrammarKnowledge(pattern, sourceLanguage()));
 
     const context: ConversationAgentContext = {
       mediaName: name,
@@ -3121,6 +3158,7 @@ export const ReaderRoute: Component = () => {
 
         {/* Navigation Bar */}
         <ReaderNav
+            sourceLanguageControl={<SourceLanguageSelect scope={props.scope} />}
             hasPages={hasPages}
             bookTitle={bookDisplayTitle}
             progressString={progressString}
@@ -3419,7 +3457,7 @@ export const ReaderRoute: Component = () => {
               onPracticeWords={entries => getBridge().window.openWindow({ type: 'level-study', context: {
                 activity: 'practice', returnTo: 'reader',
                 sourceContext: { workspace: 'reader', path: currentBookPath(), page: currentPage(), location: sourceLocation() },
-                material: { language: settings.language, words: entries.map(entry => entry.word), label: bookTitle() },
+                material: { language: sourceLanguage(), words: entries.map(entry => entry.word), label: bookTitle() },
               } })}
           />
         </Show>

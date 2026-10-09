@@ -18,9 +18,9 @@ import { getDictionaryTargetLanguageForSettings, installedDictionaryTargetLangua
  */
 export function useDictionaryTargetLanguage(language?: Accessor<string> | string): Accessor<string | undefined> {
   const { settings } = useSettings();
-  const { languageDataCatalog } = useLanguage();
+  const { languageDataCatalog, currentLanguage } = useLanguage();
   return createMemo(() => {
-    const learningLanguage = typeof language === 'function' ? language() : language ?? settings.language;
+    const learningLanguage = typeof language === 'function' ? language() : language ?? currentLanguage?.() ?? settings.language;
     return getDictionaryTargetLanguageForSettings(
       settings,
       learningLanguage,

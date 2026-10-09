@@ -4251,6 +4251,13 @@
       "GrammarSelectionUnavailable": "Diese Grammatikauswahl ist nicht verfügbar. Kehre zurück und wähle sie erneut.",
       "ResumeUnavailable": "Diese gespeicherte Aufgabe ist nicht verfügbar. Die aktuelle Arbeit wurde beibehalten.",
       "Return": "Zurück"
+    },
+    "Media": {
+      "SourceLanguage": "Quellsprache",
+      "SourceLanguageFallback": "Lernsprache als Ersatz — Quellsprache wählen",
+      "MixedSourceLanguage": "Mehrsprachige Quelle",
+      "SourceLanguageSaveFailed": "Die Quellsprache konnte nicht gespeichert werden.",
+      "RetrySourceLanguage": "Erneut versuchen"
     }
   }
 }

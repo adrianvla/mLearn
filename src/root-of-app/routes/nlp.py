@@ -14,7 +14,7 @@ from typing import List, Optional
 
 import plugin_registry
 import config
-from generic_language import dictionary_target_language_override
+from generic_language import dictionary_target_language_override, DictionaryUnavailableError
 from logging_utils import get_logger
 
 log = get_logger("nlp")
@@ -74,11 +74,14 @@ def get_translation(req: TranslationRequest):
     def resolve():
         resolver = getattr(mod, "LANGUAGE_RESOLVE", None)
         return resolver(req.word, req.context) if callable(resolver) else mod.LANGUAGE_TRANSLATE(req.word)
-    if target_language:
-        language = req.language or getattr(mod, "language", None)
-        with dictionary_target_language_override(language, target_language):
-            return resolve()
-    return resolve()
+    try:
+        if target_language:
+            language = req.language or getattr(mod, "language", None)
+            with dictionary_target_language_override(language, target_language):
+                return resolve()
+        return resolve()
+    except DictionaryUnavailableError as error:
+        raise HTTPException(status_code=503, detail={"code": "dictionary_unavailable"}) from error
 
 
 class DictionaryWordsRequest(BaseModel):
@@ -100,4 +103,7 @@ def dictionary_words(req: DictionaryWordsRequest):
     """
     log.info(f"requested dictionary words:  {req.language or 'active'}")
     mod = _resolve_module(req.language)
-    return mod.LANGUAGE_DICTIONARY_WORDS()
+    try:
+        return mod.LANGUAGE_DICTIONARY_WORDS()
+    except DictionaryUnavailableError as error:
+        raise HTTPException(status_code=503, detail={"code": "dictionary_unavailable"}) from error

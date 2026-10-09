@@ -86,7 +86,7 @@ function toolCallsToParsedExplainer(toolCalls: LLMToolCall[], rawText: string): 
 export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
   const { t } = useLocalization();
   const { settings } = useSettings();
-  const { currentLangData } = useLanguage();
+  const { currentLangData, currentLanguage } = useLanguage();
   const { requestAccess } = useLowPowerGate();
   const explainerMode = createMemo<ExplainerMode>(() => props.mode ?? 'word');
   let activeStreamRequestId = 0;
@@ -177,7 +177,7 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     // Snapshot reactive settings values so reads below don't leak into any
     // outer tracking context (the calling createEffect uses untrack, but
     // this is an extra safety measure for the synchronous path).
-    const currentSettings = settings;
+    const currentSettings = { ...settings, language: currentLanguage?.() ?? settings.language };
     const currentWord = props.word;
     const currentContextPhrase = props.contextPhrase;
     const currentMode = explainerMode();

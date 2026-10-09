@@ -134,8 +134,9 @@ function estimateFontSize(text: string, width: number, height: number, vertical:
 export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const [hoveredBox, setHoveredBox] = createSignal<OcrBox | null>(null);
   const { settings } = useSettings();
-  const { isTokenTranslatable, getLanguageFeatures, currentLangData } = useLanguage();
-  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
+  const { isTokenTranslatable, getLanguageFeatures, currentLangData, currentLanguage, currentSourceKey } = useLanguage();
+  const processingLanguage = currentLanguage ?? (() => settings.language);
+  const { tokenize } = useTokenizer({ sourceKey: currentSourceKey, language: processingLanguage, languageData: currentLangData });
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
@@ -287,7 +288,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   // Persistent cache: box text → Token[] (survives across reactive recalculations)
   const ocrTokenCache = new Map<string, Token[]>();
   const ocrTokenCacheKey = (text: string): string => (
-    `${settings.language}\0${getTokenizerCacheNamespace(currentLangData()) ?? 'default'}\0${text}`
+    `${processingLanguage()}\0${getTokenizerCacheNamespace(currentLangData()) ?? 'default'}\0${text}`
   );
   const tokenSeparator = createMemo(() => getTokenJoinSeparator(currentLangData()));
 
@@ -341,7 +342,7 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
               translatableWords,
               undefined,
               undefined,
-              settings.language,
+              processingLanguage(),
               dictionaryTargetLanguage(),
               currentLangData(),
             );

@@ -4251,6 +4251,13 @@
       "GrammarSelectionUnavailable": "This grammar selection is unavailable. Return and choose it again.",
       "ResumeUnavailable": "This saved task is unavailable. Your current work has been kept.",
       "Return": "Return"
+    },
+    "Media": {
+      "SourceLanguage": "Source language",
+      "SourceLanguageFallback": "Study language fallback — choose the source language",
+      "MixedSourceLanguage": "Mixed language source",
+      "SourceLanguageSaveFailed": "Could not save the source language.",
+      "RetrySourceLanguage": "Retry"
     }
   }
 }

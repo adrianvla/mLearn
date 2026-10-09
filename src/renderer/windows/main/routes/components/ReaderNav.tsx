@@ -13,6 +13,7 @@ import { ReaderThemePopover } from './ReaderThemePopover';
 import { useToolbarOverflow } from '../../../../hooks/useToolbarOverflow';
 
 interface ReaderNavProps {
+  sourceLanguageControl?: import('solid-js').JSX.Element;
   hasPages: Accessor<boolean>;
   bookTitle: Accessor<string>;
   progressString: Accessor<string>;
@@ -63,6 +64,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       <Show when={isElectron()}>
         <div class="reader-nav-drag-region" />
       </Show>
+      {props.sourceLanguageControl}
       <div class="nav-group">
         <Show when={props.hasPages()}>
           <Button buttonType="nav" class="sidebar-btn" onClick={props.onToggleSidebar} aria-label={t('mlearn.Reader.Toolbar.ToggleContents')}>

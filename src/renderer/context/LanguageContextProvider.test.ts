@@ -1943,3 +1943,42 @@ describe('LanguageContext - provider behavior', () => {
     expect(langDataCleanup).toHaveBeenCalledOnce();
   });
 });
+
+
+describe('scoped language derivation shares acquisition', () => {
+  beforeEach(() => { vi.clearAllMocks(); setupMockImplementations(); });
+  it('derives unknown source metadata without another load/listener and keeps study scope independent', async () => {
+    const { createRoot, createComponent, createSignal } = await import('solid-js');
+    const { LanguageProvider, useLanguage } = await import('./LanguageContext');
+    const [study, setStudy] = createSignal('study');
+    let parent!: ReturnType<typeof useLanguage>;
+    let child!: ReturnType<typeof useLanguage>;
+    let dispose!: () => void;
+    createRoot(done => {
+      dispose = done;
+      createComponent(LanguageProvider, {
+        get language() { return study(); },
+        get children() {
+          parent = useLanguage();
+          return createComponent(LanguageProvider, {
+            language: 'future-source',
+            get children() { child = useLanguage(); return null; },
+          });
+        },
+      });
+    });
+    try {
+      await Promise.resolve();
+      expect(mockBridge.localization.getLangData).toHaveBeenCalledTimes(1);
+      expect(mockBridge.localization.onLangData).toHaveBeenCalledTimes(1);
+      expect(mockBridge.localization.getLanguageDataCatalog).toHaveBeenCalledTimes(1);
+      langDataCb({ study: { name: 'Study', colour_codes: {}, settings: { fixed: {} } },
+        'future-source': { name: 'Future Source', colour_codes: {}, settings: { fixed: {} }, 'future::dimension': { values: [{ unheard: true }] } } });
+      expect(child.currentLangData()).toMatchObject({ name: 'Future Source', 'future::dimension': { values: [{ unheard: true }] } });
+      expect(parent.currentLangData()).toMatchObject({ name: 'Study' });
+      setStudy('different');
+      expect(child.currentLangData()).toMatchObject({ name: 'Future Source' });
+      expect(child.isLoading()).toBe(false);
+    } finally { dispose(); }
+  });
+});

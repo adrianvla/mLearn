@@ -14,6 +14,7 @@ function makeFile(entries: Record<string, string | Uint8Array>, name = 'book.epu
 }
 
 interface EpubFixture {
+  languages?: string[];
   ppd?: 'ltr' | 'rtl';
   chapters: Array<{ href: string; html: string }>;
   images?: Array<{ zipPath: string; bytes: Uint8Array; mediaType?: string; manifestHref?: string }>;
@@ -21,7 +22,7 @@ interface EpubFixture {
   coverEpub2Id?: string;
 }
 
-function makeEpub({ ppd, chapters, images = [], coverEpub3Href, coverEpub2Id }: EpubFixture): File {
+function makeEpub({ languages, ppd, chapters, images = [], coverEpub3Href, coverEpub2Id }: EpubFixture): File {
   const chapterItems = chapters.map((chapter, index) =>
     `<item id="chapter-${index}" href="${chapter.href}" media-type="application/xhtml+xml" />`,
   );
@@ -34,7 +35,7 @@ function makeEpub({ ppd, chapters, images = [], coverEpub3Href, coverEpub2Id }: 
   const coverMeta = coverEpub2Id ? `<meta name="cover" content="${coverEpub2Id}" />` : '';
   const entries: Record<string, string | Uint8Array> = {
     'META-INF/container.xml': `<?xml version="1.0"?><container><rootfiles><rootfile full-path="OEBPS/content.opf" /></rootfiles></container>`,
-    'OEBPS/content.opf': `<?xml version="1.0"?><package xmlns:dc="http://purl.org/dc/elements/1.1/"><metadata><dc:title>Test Book</dc:title>${coverMeta}</metadata><manifest>${chapterItems.join('')}${imageItems.join('')}</manifest><spine${ppd ? ` page-progression-direction="${ppd}"` : ''}>${chapters.map((_, index) => `<itemref idref="chapter-${index}" />`).join('')}</spine></package>`,
+    'OEBPS/content.opf': `<?xml version="1.0"?><package xmlns:dc="http://purl.org/dc/elements/1.1/"><metadata><dc:title>Test Book</dc:title>${(languages ?? []).map(language => `<dc:language>${language}</dc:language>`).join('')}${coverMeta}</metadata><manifest>${chapterItems.join('')}${imageItems.join('')}</manifest><spine${ppd ? ` page-progression-direction="${ppd}"` : ''}>${chapters.map((_, index) => `<itemref idref="chapter-${index}" />`).join('')}</spine></package>`,
   };
   for (const chapter of chapters) entries[`OEBPS/${chapter.href}`] = chapter.html;
   for (const image of images) entries[image.zipPath] = image.bytes;
@@ -343,4 +344,12 @@ describe('epubService', () => {
     const [item] = content.items;
     expect(item.kind === 'text' ? item.pageBreakOffsets : undefined).toBeUndefined();
   });
+});
+
+
+it('preserves authored language identifiers, including mixed and unfamiliar metadata', async () => {
+  const chapter = { href: 'chapter.xhtml', html: '<html><body><p>Text</p></body></html>' };
+  expect((await epubToContentPages(makeEpub({ languages: ['ja'], chapters: [chapter] }))).authoredLanguages).toEqual(['ja']);
+  expect((await epubToContentPages(makeEpub({ languages: ['future-x', 'future-y'], chapters: [chapter] }))).authoredLanguages).toEqual(['future-x', 'future-y']);
+  expect((await epubToContentPages(makeEpub({ chapters: [chapter] }))).authoredLanguages).toEqual([]);
 });

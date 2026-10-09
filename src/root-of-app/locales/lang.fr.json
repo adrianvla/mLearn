@@ -4251,6 +4251,13 @@
       "GrammarSelectionUnavailable": "Cette sélection de grammaire est indisponible. Revenez en arrière et sélectionnez-la à nouveau.",
       "ResumeUnavailable": "Cette tâche enregistrée est indisponible. Votre travail actuel a été conservé.",
       "Return": "Retour"
+    },
+    "Media": {
+      "SourceLanguage": "Langue de la source",
+      "SourceLanguageFallback": "Langue étudiée par défaut — choisissez la langue de la source",
+      "MixedSourceLanguage": "Source multilingue",
+      "SourceLanguageSaveFailed": "Impossible d’enregistrer la langue de la source.",
+      "RetrySourceLanguage": "Réessayer"
     }
   }
 }

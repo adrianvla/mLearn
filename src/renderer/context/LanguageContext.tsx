@@ -101,6 +101,10 @@ export interface LanguageFeatures {
 
 // Context interface
 interface LanguageContextValue {
+  /** Acquisition stays at the root; nested source scopes derive from these bytes. */
+  rawLangData: () => LanguageDataMap;
+  currentLanguage: () => string;
+  currentSourceKey: () => string | undefined;
   langData: LanguageDataMap;
   supportedLanguages: () => string[];
   currentLangData: () => LanguageData | null;
@@ -159,11 +163,14 @@ const LanguageContext = createContext<LanguageContextValue>();
 
 interface LanguageProviderProps {
   language?: string;
+  sourceKey?: string;
+  languageVariants?: Record<string, string>;
   frequencyProviderSelections?: Record<string, string>;
   frequencyLevelSystemSelections?: Record<string, string>;
 }
 
 export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) => {
+  const parent = useContext(LanguageContext);
   const { settings } = useSettings();
   const [baseLangData, setBaseLangData] = createStore<LanguageDataMap>({});
   const [langData, setLangData] = createStore<LanguageDataMap>({});
@@ -525,22 +532,25 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
   };
 
   onMount(() => {
+    if (parent) return;
     loadLangData();
     loadLanguageDataCatalog();
   });
 
+  const rawLangData = () => parent ? parent.rawLangData() : baseLangData;
+  const variantSettings = () => props.languageVariants ? { languageVariants: props.languageVariants } : settings;
   const effectiveLanguageData = createMemo<LanguageDataMap>(() => Object.fromEntries(
-    Object.entries(baseLangData).map(([language, data]) => [
+    Object.entries(rawLangData()).map(([language, data]) => [
       language,
-      resolveEffectiveLanguageData(data, settings, language),
+      resolveEffectiveLanguageData(data, variantSettings(), language),
     ]),
   ));
 
   createEffect(() => {
     const data = effectiveLanguageData();
     const lang = currentLang();
-    const variantId = resolveActiveVariantId(settings, lang);
-    const mappingAsset = variantId ? baseLangData[lang]?.variants?.[variantId]?.scriptConversion?.mappingAsset : undefined;
+    const variantId = resolveActiveVariantId(variantSettings(), lang);
+    const mappingAsset = variantId ? rawLangData()[lang]?.variants?.[variantId]?.scriptConversion?.mappingAsset : undefined;
 
     // Package metadata can change on reinstall: identity-keyed derivations
     // (lexeme normalization config) must be dropped before the reconciled
@@ -571,6 +581,9 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
   });
 
   const value: LanguageContextValue = {
+    rawLangData,
+    currentLanguage: currentLang,
+    currentSourceKey: () => props.sourceKey,
     langData,
     supportedLanguages,
     currentLangData,
@@ -582,13 +595,13 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     getFrequencyForLanguage,
     getLevelName,
     getFreqLevelNames,
-    isLoading,
-    languageDataCatalog,
-    getLanguageDataStatus,
-    installLanguageData,
-    isLanguageDataInstalling,
-    refreshLanguageData,
-    languageDataInstallError,
+    isLoading: parent?.isLoading ?? isLoading,
+    languageDataCatalog: parent?.languageDataCatalog ?? languageDataCatalog,
+    getLanguageDataStatus: parent?.getLanguageDataStatus ?? getLanguageDataStatus,
+    installLanguageData: parent?.installLanguageData ?? installLanguageData,
+    isLanguageDataInstalling: parent?.isLanguageDataInstalling ?? isLanguageDataInstalling,
+    refreshLanguageData: parent?.refreshLanguageData ?? refreshLanguageData,
+    languageDataInstallError: parent?.languageDataInstallError ?? languageDataInstallError,
     isTranslatable,
     isTokenTranslatable: isTokenTranslatableForCurrentLanguage,
     translatableTypes,

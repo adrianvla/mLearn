@@ -1762,3 +1762,14 @@ describe('admitted NLP context publication', () => {
     } finally { dispose(); }
   });
 });
+
+it('keeps tokenizer caches distinct across changed package bytes with an unchanged advertised version', async () => {
+  vi.resetModules(); vi.clearAllMocks(); mockGetCachedTokensByLanguageDB.mockResolvedValue(null);
+  const { useTokenizer } = await import('./useTranslation');
+  const data = (hash: string) => ({ languageData: { version: 'same-version', assets: [], bundle: { sha256: hash } } }) as LanguageData;
+  mockTokenize.mockResolvedValueOnce([{ word: 'old', actual_word: 'old', type: 'unknown' }]);
+  mockTokenize.mockResolvedValueOnce([{ word: 'new', actual_word: 'new', type: 'unknown' }]);
+  expect((await useTokenizer({ language: 'future', languageData: data('old-bytes') }).tokenize('same-text'))[0].word).toBe('old');
+  expect((await useTokenizer({ language: 'future', languageData: data('new-bytes') }).tokenize('same-text'))[0].word).toBe('new');
+  expect(mockTokenize).toHaveBeenCalledTimes(2);
+});

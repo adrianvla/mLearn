@@ -1,0 +1,28 @@
+.source-language-control {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 20rem;
+  -webkit-app-region: no-drag;
+  font-size: var(--font-size-sm);
+}
+.source-language-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-width: 0;
+}
+.source-language-label select {
+  min-width: 0;
+  max-width: 12rem;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  font: inherit;
+}
+.source-language-control small {
+  display: block;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}

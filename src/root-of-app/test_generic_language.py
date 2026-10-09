@@ -363,7 +363,8 @@ def test_generic_dictionary_metadata_cannot_escape_language_data_root(tmp_path):
     module = GenericLanguageModule("xx")
     module.LOAD_MODULE(str(tmp_path), str(data_root))
 
-    assert module.LANGUAGE_TRANSLATE("secret") == {"data": []}
+    with pytest.raises(RuntimeError, match="Dictionary"):
+        module.LANGUAGE_TRANSLATE("secret")
     assert module._active_dictionary_path is None
 
 
@@ -1873,7 +1874,8 @@ def test_requested_dictionary_target_does_not_fall_back_to_default_language(tmp_
 
     assert module.LANGUAGE_TRANSLATE("字")["data"][0]["definitions"] == "english gloss"
     with dictionary_target_language_override("xx", "fr"):
-        assert module.LANGUAGE_TRANSLATE("字") == {"data": []}
+        with pytest.raises(RuntimeError, match="Dictionary"):
+            module.LANGUAGE_TRANSLATE("字")
 
 
 def test_generic_headword_reading_dictionary_can_lookup_non_kana_readings(tmp_path):

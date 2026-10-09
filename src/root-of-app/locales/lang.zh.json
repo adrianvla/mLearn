@@ -4251,6 +4251,13 @@
       "GrammarSelectionUnavailable": "此语法选择不可用。请返回并重新选择。",
       "ResumeUnavailable": "此已保存任务不可用。当前任务已保留。",
       "Return": "返回"
+    },
+    "Media": {
+      "SourceLanguage": "素材语言",
+      "SourceLanguageFallback": "暂用学习语言 — 请选择素材语言",
+      "MixedSourceLanguage": "多语言素材",
+      "SourceLanguageSaveFailed": "无法保存素材语言。",
+      "RetrySourceLanguage": "重试"
     }
   }
 }

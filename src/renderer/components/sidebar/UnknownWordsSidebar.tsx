@@ -81,13 +81,14 @@ const UnknownWordRow: Component<{
 }> = (props) => {
   const { settings } = useSettings();
   const { t } = useLocalization();
-  const { getFrequency, getLevelName, getFreqLevelNames, getCanonicalForm, getWordVariants, currentLangData } = useLanguage();
+  const { getFrequency, getLevelName, getFreqLevelNames, getCanonicalForm, getWordVariants, currentLangData, currentLanguage } = useLanguage();
+  const processingLanguage = currentLanguage ?? (() => settings.language);
   const { getComprehensiveWordStatusWithSourceSync, getAccessStatus, isKnowledgeReady } = useFlashcards();
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const encounteredSurface = () => props.entry.token.surface ?? props.entry.token.word;
 
   const comprehensiveKnowledge = createMemo(() => (
-    getComprehensiveWordStatusWithSourceSync(props.entry.word, settings.language)
+    getComprehensiveWordStatusWithSourceSync(props.entry.word, processingLanguage())
   ));
   const wordIsKnown = createMemo(() => isKnowledgeReady() && comprehensiveKnowledge().status === 'known');
   const getWordColor = createMemo((): string | undefined => {
@@ -104,7 +105,7 @@ const UnknownWordRow: Component<{
   const coloredProsodyCtx: WordRenderTextContext = {
     languageData: currentLangData,
     prosodyPosition: () => rowProsody()?.position ?? null,
-    prosodyKnowledge: () => getAccessStatus(props.entry.word, 'prosodic-pattern', settings.language),
+    prosodyKnowledge: () => getAccessStatus(props.entry.word, 'prosodic-pattern', processingLanguage()),
     partOfSpeechColor: getWordColor,
     surface: 'other',
     settings: () => settings,
@@ -113,12 +114,12 @@ const UnknownWordRow: Component<{
   const wordForms = createMemo(() => (
     getWordFormCandidates(props.entry.word, getCanonicalForm, getWordVariants, {
       languageData: currentLangData(),
-      language: settings.language,
+      language: processingLanguage(),
     })
   ));
   const primaryWord = createMemo(() => wordForms()[0] ?? props.entry.word);
   const ankiCacheOptions = createMemo(() => ({
-    language: settings.language,
+    language: processingLanguage(),
     languageData: currentLangData(),
   }));
 
@@ -149,7 +150,7 @@ const UnknownWordRow: Component<{
       getCanonicalForm,
       getWordVariants,
       getCachedTranslation,
-      language: settings.language,
+      language: processingLanguage(),
       languageData: currentLangData(),
       dictionaryTargetLanguage,
       fallbackLabel: t('mlearn.CardEditor.Fields.ProsodyPosition'),
@@ -202,7 +203,7 @@ const UnknownWordRow: Component<{
         <button type="button" class="unknown-words-item-word"
           aria-label={t('mlearn.Sidebar.InspectWord', { word: props.entry.word })}
           onClick={() => {
-            openKnowledgeInspector(surfaceKnowledgeInspection(settings.language, props.entry.word));
+            openKnowledgeInspector(surfaceKnowledgeInspection(processingLanguage(), props.entry.word));
           }}>
           <WordWithReading
             word={props.entry.word}
@@ -247,7 +248,7 @@ const UnknownWordRow: Component<{
         />
         <ResourcePill
           word={props.entry.word}
-          language={settings.language}
+          language={processingLanguage()}
           isAdding={props.isAdding}
           isInAnki={isInAnki()}
           ankiWord={ankiMatch()?.word ?? primaryWord()}
@@ -262,12 +263,13 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   const { t } = useLocalization();
   const { settings } = useSettings();
   const { getCardByWordSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
-  const { currentLangData, getFrequency, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
+  const { currentLangData, getFrequency, getCanonicalForm, getWordVariants, getReadingVariants, currentLanguage, currentSourceKey } = useLanguage();
+  const processingLanguage = currentLanguage ?? (() => settings.language);
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
-  const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
+  const wordLookupOptions = { sourceKey: currentSourceKey, getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,
-    language: () => settings.language,
+    language: () => processingLanguage(),
     ...wordLookupOptions,
   });
   const [translations, setTranslations] = createStore<Record<string, TranslationResponse | null | undefined>>({});
@@ -275,7 +277,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   const [sortKey, setSortKey] = createSignal(props.defaultSort);
   const [category, setCategory] = createSignal<SidebarCategory>('all');
   const ankiCacheOptions = createMemo(() => ({
-    language: settings.language,
+    language: processingLanguage(),
     languageData: currentLangData(),
   }));
   const ankiCacheReady = createMemo(() => {
@@ -292,7 +294,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   createEffect(() => {
     for (const entry of props.words()) {
       if (translations[entry.word] !== undefined || requestedWords.has(entry.word)) continue;
-      const cached = getCachedTranslation(entry.word, settings.language, wordLookupOptions);
+      const cached = getCachedTranslation(entry.word, processingLanguage(), wordLookupOptions);
       if (cached) {
         setTranslations(entry.word, cached);
         continue;
@@ -317,9 +319,9 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
     for (const entry of props.words()) {
       const resolved = resolveCapturedWordEligibility(
         entry.word,
-        settings.language,
-        Boolean(getCardByWordSync(entry.word, settings.language)),
-        getComprehensiveWordStatusWithSourceSync(entry.word, settings.language).excluded === true,
+        processingLanguage(),
+        Boolean(getCardByWordSync(entry.word, processingLanguage())),
+        getComprehensiveWordStatusWithSourceSync(entry.word, processingLanguage()).excluded === true,
       );
       if (!resolved.eligible && resolved.reason) ineligibility.set(entry.word, resolved.reason);
     }

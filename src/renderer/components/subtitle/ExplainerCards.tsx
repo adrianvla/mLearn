@@ -76,8 +76,9 @@ export interface GrammarCardProps {
  */
 const ColoredPhrase: Component<{ phrase: string; targetWord?: string }> = (props) => {
   const { settings } = useSettings();
-  const { currentLangData } = useLanguage();
-  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
+  const { currentLangData, currentLanguage, currentSourceKey } = useLanguage();
+  const processingLanguage = currentLanguage ?? (() => settings.language);
+  const { tokenize } = useTokenizer({ sourceKey: currentSourceKey, language: processingLanguage, languageData: currentLangData });
   
   const colourCodes = createMemo(() => {
     return settings.colour_codes || {};

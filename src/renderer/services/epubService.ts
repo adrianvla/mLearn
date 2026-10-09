@@ -41,6 +41,8 @@ export interface EpubImageItem extends EpubImageRef {
 export type EpubContentItem = EpubTextItem | EpubImageItem;
 
 export interface EpubContent {
+  /** Authored identifiers, retained verbatim; mixed/unknown content is not guessed. */
+  authoredLanguages?: string[];
   items: EpubContentItem[];
   progressionDirection: EpubProgressionDirection;
   declaresVerticalWriting: boolean;
@@ -400,6 +402,9 @@ async function epubToContentPagesInner(file: File): Promise<EpubContent> {
   const opfDoc = new DOMParser().parseFromString(readZipText(files, rootfilePath), 'application/xml');
   const opfBase = dirname(rootfilePath);
   const metadataTitle = queryText(opfDoc, ['metadata > title', 'dc:title', 'title']).trim();
+  const authoredLanguages = [...new Set(Array.from(opfDoc.getElementsByTagName('*'))
+    .filter(element => element.localName === 'language' && element.parentElement?.localName === 'metadata')
+    .map(element => element.textContent?.trim() ?? '').filter(Boolean))];
   const bookTitle = metadataTitle || sourceName;
   const manifest = new Map<string, EpubManifestItem>();
   const manifestByPath = new Map<string, EpubManifestItem>();
@@ -470,6 +475,7 @@ async function epubToContentPagesInner(file: File): Promise<EpubContent> {
     progressionDirection,
     declaresVerticalWriting,
     ...(metadataTitle ? { metadataTitle } : {}),
+    authoredLanguages,
     ...(coverImage ? { coverImage } : {}),
   };
 }

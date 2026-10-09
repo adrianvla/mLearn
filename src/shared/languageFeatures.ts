@@ -1492,8 +1492,10 @@ export function getTokenizerRuntimeConfig(data?: LanguageData | null): LanguageT
 export function getTokenizerCacheNamespace(data?: LanguageData | null): string | undefined {
   if (!data) return undefined;
   const version = data.languageData?.version ?? 'no-package-version';
+  const generation = data.languageData?.bundle?.sha256
+    || data.languageData?.assets?.map(asset => asset.sha256).filter(Boolean).join(',');
   const tokenizer = data.runtime?.nlp?.tokenizer ?? {};
-  return `${version}:${JSON.stringify(tokenizer)}`;
+  return `${version}${generation ? `@${generation}` : ''}:${JSON.stringify(tokenizer)}`;
 }
 
 export function containsLanguageScript(text: string, language: string, data?: LanguageData | null): boolean {

@@ -470,3 +470,5 @@ export { StudyEncounter, StudySessionHUD, type StudyEncounterProps } from './Stu
 
 export { LearningGoals } from './LearningGoals/LearningGoals';
 export { LearningWorkspace } from './LearningWorkspace/LearningWorkspace';
+
+export { SourceLanguageSelect } from './SourceLanguageSelect/SourceLanguageSelect';

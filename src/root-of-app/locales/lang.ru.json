@@ -4251,6 +4251,13 @@
       "GrammarSelectionUnavailable": "Этот выбор грамматики недоступен. Вернитесь и выберите его заново.",
       "ResumeUnavailable": "Сохранённое задание недоступно. Текущая работа сохранена.",
       "Return": "Вернуться"
+    },
+    "Media": {
+      "SourceLanguage": "Язык источника",
+      "SourceLanguageFallback": "Временно выбран изучаемый язык — выберите язык источника",
+      "MixedSourceLanguage": "Многоязычный источник",
+      "SourceLanguageSaveFailed": "Не удалось сохранить язык источника.",
+      "RetrySourceLanguage": "Повторить"
     }
   }
 }

@@ -32,7 +32,7 @@ import { showToast } from '../common/Feedback/Toast';
 import { reportCaptureFailure } from '../../services/wordCaptureFailure';
 import { getTokenDisplayForms, getTokenWordFormCandidates } from '../../utils/wordForms';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
-import { compoundSplitterConfig, getContentFontFamily, getFrequencyLevelVisualRank } from '../../../shared/languageFeatures';
+import { compoundSplitterConfig, getContentFontFamily, getFrequencyLevelVisualRank, getTokenizerCacheNamespace } from '../../../shared/languageFeatures';
 import type { LanguageCompoundSplittingConfig } from '../../../shared/types';
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import { wordHoverScale } from '../../../shared/wordHoverSettings';
@@ -199,8 +199,8 @@ export interface WordHoverProps {
 export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { addFlashcard, getCardByWordSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
-  const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
-  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
+  const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants, currentLanguage, currentSourceKey } = useLanguage();
+  const processingLanguage = currentLanguage ?? (() => settings.language);
   const { t } = useLocalization();
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const [wordUuid, setWordUuid] = createSignal<string>('');
@@ -226,12 +226,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const [selectedResponse, setSelectedResponse] = createSignal<TranslationResponse>();
   const [selectingCandidate, setSelectingCandidate] = createSignal(false);
   const [selectionFailed, setSelectionFailed] = createSignal(false);
-  const selectedTranslationData = () => (props.lookupContext ? getCachedTranslation(actualWord(), settings.language, {
+  const selectedTranslationData = () => (props.lookupContext ? getCachedTranslation(actualWord(), processingLanguage(), {
     context: props.lookupContext, dictionaryTargetLanguage, languageData: currentLangData,
   }) : null) ?? selectedResponse() ?? props.translationData;
   let selectionRequest = 0;
   createEffect(() => {
-    void props.token; void props.translationData; void props.lookupContext; void settings.language;
+    void props.token; void props.translationData; void props.lookupContext; void processingLanguage(); void currentSourceKey?.(); void dictionaryTargetLanguage(); void getTokenizerCacheNamespace(currentLangData());
     selectionRequest++;
     setSelectedResponse(undefined); setSelectionFailed(false); setSelectingCandidate(false);
   });
@@ -240,7 +240,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const request = ++selectionRequest;
     setSelectingCandidate(true); setSelectionFailed(false);
     try {
-      const result = await selectTranslationCandidate(actualWord(), id, settings.language, {
+      const result = await selectTranslationCandidate(actualWord(), id, processingLanguage(), {
         dictionaryTargetLanguage, languageData: currentLangData,
         context: props.lookupContext ?? tokenLookupContext(props.token),
       });
@@ -259,7 +259,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const currentFlashcard = createMemo(() => {
     const word = actualWord();
     if (!word) return null;
-    return getCardByWordSync(word, settings.language);
+    return getCardByWordSync(word, processingLanguage());
   });
 
   const wordForms = createMemo(() => getTokenWordFormCandidates({
@@ -268,7 +268,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   }, getCanonicalForm, getWordVariants, {
     tokenizerCapabilities: tokenizerCapabilities(),
     languageData: currentLangData(),
-    language: settings.language,
+    language: processingLanguage(),
   }));
 
   // Generate the UUID used for example extraction when the hovered word changes.
@@ -418,6 +418,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     
     const word = actualWord();
     const isOcr = isOcrMode();
+    const admittedLanguage = processingLanguage();
+    const admittedTokenizer = useTokenizer({ language: admittedLanguage, languageData: currentLangData() }).tokenize;
+    const admittedVideo = props.videoSrc;
+    const admittedStart = props.subtitleStart;
+    const admittedEnd = props.subtitleEnd;
+    const admittedMargin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
     
     if (props.onAddFlashcard) {
       props.onAddFlashcard(props.token, entry);
@@ -426,7 +432,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     } else {
       try {
         const freq = wordFreqEntry();
-        const isVideoMode = settings.flashcardMediaType === 'video' && !!props.videoSrc;
+        const isVideoMode = settings.flashcardMediaType === 'video' && !!admittedVideo;
         const { content, ease } = await buildWordHoverFlashcardContent({
           token: props.token,
           word,
@@ -442,7 +448,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
           colourCodes: settings.colour_codes || {},
           languageData: currentLangData(),
           ocrCropPadding: settings.ocr_crop_padding,
-          tokenize,
+          tokenize: admittedTokenizer,
           flashcardMediaType: isVideoMode ? 'video' : 'image',
           srsLearningEase: settings.srsLearningThreshold / 1000,
           srsKnownEase: settings.known_ease_threshold / 1000,
@@ -454,17 +460,16 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         // it here under a word-derived id created files that no delete path
         // could reach, so they survived the card they belonged to.
         let videoClip: Uint8Array | null = null;
-        if (isVideoMode && props.videoSrc && props.subtitleStart != null && props.subtitleEnd != null) {
-          const margin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
-          const start = Math.max(0, props.subtitleStart - margin);
-          const end = props.subtitleEnd + margin;
-          videoClip = await clipVideo(props.videoSrc, start, end);
+        if (isVideoMode && admittedVideo && admittedStart != null && admittedEnd != null) {
+          const start = Math.max(0, admittedStart - admittedMargin);
+          const end = admittedEnd + admittedMargin;
+          videoClip = await clipVideo(admittedVideo, start, end);
           if (!videoClip) {
             showToast({ message: t('mlearn.Video.VideoClipFailed'), variant: 'warning' });
           }
         }
 
-        await addFlashcard(content, ease, undefined, settings.language, videoClip);
+        await addFlashcard(content, ease, undefined, admittedLanguage, videoClip);
           // when the flashcard is added to the store via BroadcastChannel sync
       } catch (err) {
         // One announcement owner for every capture surface, so "did my card get
@@ -525,7 +530,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
       getCanonicalForm,
       getWordVariants,
       getCachedTranslation,
-      language: settings.language,
+      language: processingLanguage(),
       languageData: currentLangData(),
       dictionaryTargetLanguage,
       fallbackLabel: t('mlearn.CardEditor.Fields.ProsodyPosition'),
@@ -534,7 +539,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   const posType = createMemo(() => props.token.partOfSpeech || props.token.type || '');
   const ankiCacheOptions = createMemo(() => ({
-    language: settings.language,
+    language: processingLanguage(),
     languageData: currentLangData(),
   }));
 
@@ -564,7 +569,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     return findAnkiWordMatchInCache(wordForms(), ankiCacheOptions());
   });
 
-  const effectiveStatus = createMemo(() => getComprehensiveWordStatusWithSourceSync(actualWord(), settings.language).status);
+  const effectiveStatus = createMemo(() => getComprehensiveWordStatusWithSourceSync(actualWord(), processingLanguage()).status);
   // Level pill showing the language-defined frequency/proficiency level.
   // Must reactively update when word changes - use createMemo for full reactivity
   const levelPillData = createMemo(() => {
@@ -697,7 +702,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         <div class="subtitle_hover_relative">
           <div class="word-hover-toolbar">
             <button type="button" class="word-hover-inspect" onClick={() => openKnowledgeInspector(
-              surfaceKnowledgeInspection(settings.language, actualWord()),
+              surfaceKnowledgeInspection(processingLanguage(), actualWord()),
             )}>{t('mlearn.Knowledge.Popup.Inspect')}</button>
 
           </div>
@@ -781,12 +786,12 @@ export const WordHover: Component<WordHoverProps> = (props) => {
             <div class="pills">
               <WordStatusPill
                 word={actualWord()}
-                language={settings.language}
+                language={processingLanguage()}
                 onModalOpenChange={setStatusInteractionOpen}
               />
               <ResourcePill
                 word={actualWord()}
-                language={settings.language}
+                language={processingLanguage()}
                 isAdding={isAddingFlashcard()}
                 isInAnki={wordInAnki()}
                 ankiWord={ankiMatch()?.word ?? actualWord()}

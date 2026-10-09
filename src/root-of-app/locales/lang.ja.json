@@ -4251,6 +4251,13 @@
       "GrammarSelectionUnavailable": "この文法の選択は利用できません。戻ってもう一度選択してください。",
       "ResumeUnavailable": "この保存済みの課題は利用できません。現在の課題は保持されています。",
       "Return": "戻る"
+    },
+    "Media": {
+      "SourceLanguage": "素材の言語",
+      "SourceLanguageFallback": "学習言語を仮に使用 — 素材の言語を選択してください",
+      "MixedSourceLanguage": "複数言語の素材",
+      "SourceLanguageSaveFailed": "素材の言語を保存できませんでした。",
+      "RetrySourceLanguage": "再試行"
     }
   }
 }

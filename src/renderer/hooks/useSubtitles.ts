@@ -213,8 +213,9 @@ function parseASS(content: string): Subtitle[] {
 
 export function useSubtitles() {
   const { settings } = useSettings();
-  const { currentLangData } = useLanguage();
-  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
+  const { currentLangData, currentLanguage, currentSourceKey } = useLanguage();
+  const processingLanguage = currentLanguage ?? (() => settings.language);
+  const { tokenize } = useTokenizer({ sourceKey: currentSourceKey, language: processingLanguage, languageData: currentLangData });
 
   const [subtitles, setSubtitles] = createSignal<Subtitle[]>([]);
   const [currentIndex, setCurrentIndex] = createSignal(-1);
@@ -225,7 +226,7 @@ export function useSubtitles() {
 
   // Generation counter to prevent race conditions during rapid seeking
   let tokenizationGen = 0;
-  createEffect(on(() => [settings.language, getTokenizerCacheNamespace(currentLangData())], () => {
+  createEffect(on(() => [currentSourceKey?.(), processingLanguage(), getTokenizerCacheNamespace(currentLangData())], () => {
     tokenizationGen++;
     setCurrentIndex(-1);
     setTokens([]);
@@ -345,7 +346,7 @@ export function useSubtitles() {
 
     const buildFallbackTokens = (text: string): Token[] => {
       if (!tokenizerAllowsFallback(currentLangData())) return [];
-      return createRoughTokenizerTokens(text, currentLangData(), settings.language);
+      return createRoughTokenizerTokens(text, currentLangData(), processingLanguage());
     };
     const applyFallbackTokens = (text: string): boolean => {
       const fallbackTokens = buildFallbackTokens(text);
@@ -354,6 +355,7 @@ export function useSubtitles() {
       return true;
     };
     let fallbackTokenText = sub.text;
+    let authoritativeTokens = false;
 
     const safetyTimeout = setTimeout(() => {
       if (myGen === tokenizationGen) {
@@ -370,10 +372,10 @@ export function useSubtitles() {
       let rawText = sub.text;
 
       if (settings.removeSpeakerNames) {
-        rawText = stripSpeakerNamePrefixes(rawText, settings.language, currentLangData());
+        rawText = stripSpeakerNamePrefixes(rawText, processingLanguage(), currentLangData());
       }
 
-      const { text: cleanedText, readingOverrides } = parseSubtitle(rawText, settings.language, currentLangData());
+      const { text: cleanedText, readingOverrides } = parseSubtitle(rawText, processingLanguage(), currentLangData());
       fallbackTokenText = cleanedText;
 
       if (myGen !== tokenizationGen) return;
@@ -383,6 +385,7 @@ export function useSubtitles() {
       if (myGen !== tokenizationGen) return;
 
       if (Array.isArray(newTokens) && newTokens.length > 0) {
+        authoritativeTokens = true;
         if (readingOverrides.length > 0) {
           for (const token of newTokens) {
             const override = readingOverrides.find(o =>
@@ -411,7 +414,7 @@ export function useSubtitles() {
       clearTimeout(safetyTimeout);
       if (myGen === tokenizationGen) {
         setIsTokenizing(false);
-        setObservationReady(true);
+        setObservationReady(authoritativeTokens);
       }
     }
   };

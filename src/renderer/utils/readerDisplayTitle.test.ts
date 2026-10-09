@@ -17,3 +17,10 @@ describe('readerBookDisplayTitle', () => {
     expect(readerBookDisplayTitle(undefined, '0000000000000000.pdf')).toBe('0000000000000000');
   });
 });
+
+it('removes a duplicated metadata title while retaining volume and edition', () => {
+  expect(readerBookDisplayTitle('R e : ゼロから始める異世界生活 1<R e : ゼロから始める異世界生活> (MF文庫J)', 'unrelated.epub'))
+    .toBe('R e : ゼロから始める異世界生活 1 (MF文庫J)');
+  expect(readerBookDisplayTitle('An authored title <A different subtitle> — Volume 2', 'file.epub'))
+    .toBe('An authored title <A different subtitle> — Volume 2');
+});

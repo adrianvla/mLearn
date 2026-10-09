@@ -11,6 +11,8 @@ import { useWordHover, type HoverData } from '../../hooks/useWordHover';
 import { surfaceKnowledgeInspection } from '../../services/surfaceKnowledgeInspection';
 
 const inspect = vi.hoisted(() => vi.fn());
+const savedCard = vi.hoisted(() => vi.fn().mockResolvedValue('card-id'));
+const tokenizeContent = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 vi.mock('../../services/openKnowledgeInspector', async original => ({
   ...await original<typeof import('../../services/openKnowledgeInspector')>(), openKnowledgeInspector: inspect,
 }));
@@ -21,7 +23,7 @@ vi.mock('../../context', () => ({
   useSettings: () => ({ settings, updateSettings: (next: object) => setSettings(next) }),
   useLocalization: () => ({ t: (key: string) => key }),
   useFlashcards: () => ({
-    addFlashcard: vi.fn(), getCardByWordSync: () => null,
+    addFlashcard: savedCard, getCardByWordSync: () => null,
     getComprehensiveWordStatusWithSourceSync: () => ({ status: 'unknown' }),
     isKnowledgeReady: () => true,
     getAccessStatus: () => ({ status: 'unknown', ease: 0, source: 'None', untracked: true }),
@@ -37,9 +39,9 @@ vi.mock('../../context', () => ({
 }));
 vi.mock('../../hooks/useDictionaryTargetLanguage', () => ({ useDictionaryTargetLanguage: () => () => 'en' }));
 vi.mock('../../hooks/useTranslation', () => ({ cacheVersion: () => 0, getCachedReading: () => null,
-  useTokenizer: () => ({ tokenize: vi.fn() }), getCachedTranslation: () => null }));
+  useTokenizer: () => ({ tokenize: tokenizeContent }), getCachedTranslation: () => null }));
 vi.mock('../../services/llmProvider', () => ({ getCachedExplanation: () => null }));
-vi.mock('../common/Smart', () => ({ ResourcePill: () => null,
+vi.mock('../common/Smart', () => ({ ResourcePill: (props: { onAdd?: () => void }) => <button data-testid="save-card" onClick={props.onAdd}>Save</button>,
   WordStatusPill: (props: { onInspect?: () => void; onModalOpenChange?: (open: boolean) => void; cycleClaims?: boolean; suppressKnowledgePopover?: boolean }) =>
     <button data-testid="status-record" data-cycle-claims={String(props.cycleClaims === true)}
       data-nested-popover={String(!props.suppressKnowledgePopover)} onMouseEnter={() => props.onModalOpenChange?.(true)}
@@ -197,4 +199,25 @@ describe('shared popup presentation', () => {
     host.querySelector<HTMLButtonElement>('[data-testid="status-record"]')!.dispatchEvent(new MouseEvent('mouseleave'));
     expect(onLeave).toHaveBeenCalledOnce();
   });
+});
+
+
+it('keeps an admitted save in its original language across a delayed content capture', async () => {
+  const host = document.createElement('div'); document.body.appendChild(host);
+  setSettings({ ...DEFAULT_SETTINGS, language: 'original-source' });
+  let resolve!: (tokens: Token[]) => void;
+  tokenizeContent.mockImplementationOnce(() => new Promise<Token[]>(done => { resolve = done; }));
+  savedCard.mockClear();
+  const dispose = render(() => <WordHover word="original-word" token={{ word: 'original-word', actual_word: 'original-word', type: 'unknown' }}
+    position={{ x: 20, y: 20 }} isOCR={true} contextPhrase="original context" lastScreenshot="data:image/png;base64,eA=="
+    translationData={{ data: [{ definitions: ['original meaning'] }] }} />, host);
+  try {
+    host.querySelector<HTMLButtonElement>('[data-testid="save-card"]')!.click();
+    await vi.waitFor(() => expect(tokenizeContent).toHaveBeenCalledWith('original context'));
+    setSettings({ language: 'new-source' });
+    resolve([{ word: 'original', actual_word: 'original', type: 'unknown' }]);
+    await vi.waitFor(() => expect(savedCard).toHaveBeenCalled());
+    expect(savedCard.mock.calls[0][0]).toMatchObject({ front: 'original-word', back: 'original meaning' });
+    expect(savedCard.mock.calls[0][3]).toBe('original-source');
+  } finally { dispose(); host.remove(); tokenizeContent.mockReset().mockResolvedValue([]); }
 });

@@ -55,7 +55,8 @@ export interface SubtitleContainerProps {
 
 export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const { settings } = useSettings();
-  const { isTokenTranslatable, detectGrammarInText, supportsGrammar, getCanonicalForm, getWordVariants, getReadingVariants, currentLangData, getLanguageFeatures } = useLanguage();
+  const { isTokenTranslatable, detectGrammarInText, supportsGrammar, getCanonicalForm, getWordVariants, getReadingVariants, currentLangData, getLanguageFeatures, currentLanguage, currentSourceKey } = useLanguage();
+  const processingLanguage = currentLanguage ?? (() => settings.language);
   const flashcardCtx = useFlashcards();
   const [windowFocused, setWindowFocused] = createSignal(typeof document === 'undefined' || document.hasFocus());
   const [windowVisible, setWindowVisible] = createSignal(typeof document === 'undefined' || document.visibilityState === 'visible');
@@ -67,9 +68,9 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     },
   });
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
-  const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
-  const { lookup } = useDictionary({ language: () => settings.language, ...lookupOptions });
-  const { translateWord } = useTranslation({ immediate: true, language: () => settings.language, ...lookupOptions });
+  const lookupOptions = { sourceKey: currentSourceKey, getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
+  const { lookup } = useDictionary({ language: () => processingLanguage(), ...lookupOptions });
+  const { translateWord } = useTranslation({ immediate: true, language: () => processingLanguage(), ...lookupOptions });
 
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);
@@ -133,7 +134,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       const tokens = props.tokens || [];
       const matched = detectGrammarInText(tokens);
       for (const g of matched) {
-        flashcardCtx.trackGrammarFailed(g.pattern, g.level, settings.language);
+        flashcardCtx.trackGrammarFailed(g.pattern, g.level, processingLanguage());
       }
     }
   };
@@ -161,7 +162,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     
     // Check if translation is already cached (from pre-fetch)
     // This ensures prosody and level metadata show immediately on first hover
-    const cachedTranslation = getCachedTranslation(lookupWord, settings.language, { ...lookupOptions, context: tokenLookupContext(token, contextPhrase) });
+    const cachedTranslation = getCachedTranslation(lookupWord, processingLanguage(), { ...lookupOptions, context: tokenLookupContext(token, contextPhrase) });
     
     const openedHover = {
       word: displayWord,
@@ -171,7 +172,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       anchorRect: rect,
       element: el,
       lookupWord,
-      language: settings.language,
+      language: processingLanguage(),
       trackPassiveHover: true,
       contextIdentity: contextPhrase,
     };
@@ -189,7 +190,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       if (!hasUsefulWordHoverContent(token, response ?? undefined, entries, currentLangData())) return;
       admitVisibleReveal((data) => {
         if (!flashcardCtx.isKnowledgeReady() || !data.lookupWord) return;
-        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? settings.language);
+        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? processingLanguage());
       });
     };
     maybeAdmitUsefulReveal(cachedTranslation, []);
@@ -270,7 +271,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   const subtitleStyle = createMemo((): JSX.CSSProperties => ({
     'font-size': `${settings.subtitle_font_size}px`,
     'font-family': getSubtitleFontFamily(currentLangData()),
-    direction: getLanguageCssDirection(currentLangData(), settings.language),
+    direction: getLanguageCssDirection(currentLangData(), processingLanguage()),
     'unicode-bidi': 'isolate',
     'text-align': 'center',
     'line-height': '1.6',
@@ -304,7 +305,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       // Non-translatable tokens (particles, punctuation) don't affect known status
       if (!isTokenTranslatable(t)) return true;
       const word = getTokenLookupWord(t, tokenizerCapabilities());
-      return flashcardCtx.isWordSettledSync(word, settings.language);
+      return flashcardCtx.isWordSettledSync(word, processingLanguage());
     });
   });
 
@@ -333,7 +334,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   });
 
   createEffect(() => {
-    settings.language;
+    processingLanguage();
     forceHide();
   });
 
@@ -346,7 +347,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       return;
     }
     const grammar = languageData.grammar;
-    const language = settings.language;
+    const language = processingLanguage();
     const eligible = shouldShow() && props.passiveObservationEligible !== false && flashcardCtx.isKnowledgeReady();
     const encounterId = props.encounterId;
     let active = true;
@@ -383,7 +384,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
       if (!lookupWord) return;
       flashcardCtx.trackWordSeen(
-        lookupWord, token.reading, PASSIVE_SUBTITLE_EASE_BUMP, settings.language,
+        lookupWord, token.reading, PASSIVE_SUBTITLE_EASE_BUMP, processingLanguage(),
         props.encounterId ? `${props.encounterId}:${index}` : undefined,
       );
     });
@@ -438,7 +439,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
 
       // Skip settled words (known or explicitly excluded) unless liveTranslatorIncludeKnown is enabled
       if (!settings.liveTranslatorIncludeKnown) {
-        if (flashcardCtx.isWordSettledSync(lookupWord, settings.language)) continue;
+        if (flashcardCtx.isWordSettledSync(lookupWord, processingLanguage())) continue;
       }
 
       // Deduplicate within this subtitle to avoid double-translating the same word

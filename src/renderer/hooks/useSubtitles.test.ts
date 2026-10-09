@@ -848,6 +848,23 @@ Speaker: Hello world
     }
   });
 
+  it('keeps failed tokenizer display fallback out of learner observations', async () => {
+    const { useLanguage } = await import('../context');
+    vi.mocked(useLanguage).mockReturnValueOnce({ currentLangData: () => ({
+      name: 'Fallback source', textProcessing: { scriptProfile: { acceptedScripts: ['Latn'] } },
+      runtime: { nlp: { tokenizer: { type: 'unicode-word' } } },
+    }) } as never);
+    mockTokenize.mockRejectedValueOnce(new Error('backend unavailable'));
+    await createRoot(async (dispose) => {
+      const hook = useSubtitles();
+      hook.loadSubtitles(SRT_CONTENT, 'srt');
+      await hook.updateTime(2);
+      expect(hook.tokens().length).toBeGreaterThan(0);
+      expect(hook.observationReady()).toBe(false);
+      dispose();
+    });
+  });
+
   it('updateTime clears tokens when moving to gap between subtitles', async () => {
     const fakeTokens = [
       { word: 'Hello', actual_word: 'Hello', type: 'noun', surface: 'Hello' },

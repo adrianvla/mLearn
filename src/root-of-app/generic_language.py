@@ -674,6 +674,10 @@ def _is_rough_inner_token_character(
     return _is_rough_token_character(next_char, tokenizer_config, False, token_scripts, script_ranges)
 
 
+class DictionaryUnavailableError(RuntimeError):
+    """The selected dictionary has no usable installed database."""
+
+
 class GenericLanguageModule:
     def __init__(self, language: str):
         self.language = language
@@ -735,8 +739,7 @@ class GenericLanguageModule:
         if not self._dictionary_schema:
             return {"data": []}
         self._ensure_dictionary_connection()
-        if not self._db_conn:
-            return {"data": []}
+        self._require_db_conn()
         if self._dictionary_schema == "headword-reading-zlib-json":
             return self._translate_headword_reading(word)
         if self._dictionary_schema == "simple-headword-zlib-json":
@@ -747,8 +750,7 @@ class GenericLanguageModule:
         if self._dictionary_schema != "headword-reading-zlib-json":
             return self.LANGUAGE_TRANSLATE(word)
         self._ensure_dictionary_connection()
-        if not self._db_conn:
-            return {"data": []}
+        self._require_db_conn()
         return self._translate_headword_reading(word, context)
 
     def LANGUAGE_DICTIONARY_WORDS(self):
@@ -985,7 +987,7 @@ class GenericLanguageModule:
 
     def _require_db_conn(self) -> sqlite3.Connection:
         if self._db_conn is None:
-            raise RuntimeError("Dictionary database is not loaded")
+            raise DictionaryUnavailableError("Dictionary database is not loaded")
         return self._db_conn
 
     @functools.lru_cache(maxsize=ENTRY_CACHE_SIZE)
