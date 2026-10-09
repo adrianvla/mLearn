@@ -1856,7 +1856,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
 
     expect(fs.existsSync(path.join(resolveLanguageDataRoot(path.join(tempDir.tmpDir, 'language-data')), 'languages', 'aa.json'))).toBe(true);
     const { ensureLanguageGenerationReady } = await import('./pythonBackend');
-    expect(ensureLanguageGenerationReady).toHaveBeenCalledWith('aa', expect.any(String), undefined, expect.any(Array));
+    expect(ensureLanguageGenerationReady).toHaveBeenCalledWith('aa', expect.any(String), undefined, expect.any(Array), null);
     expect(mockRestartPythonBackend).not.toHaveBeenCalled();
   });
 

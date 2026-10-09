@@ -30,6 +30,8 @@ from starlette.responses import Response
 from typing import Literal, Optional
 
 import config
+from contextvars import copy_context
+from language_scope import scoped_language_request, language_variant_override, run_in_executor_scoped
 from logging_utils import get_logger
 
 log = get_logger("voice")
@@ -657,6 +659,7 @@ def _normalize_stt_hallucination_text(text: str, language: str | None = None) ->
 class TTSRequest(BaseModel):
     text: str
     language: str = ""
+    variant: Optional[str] = None
     voiceSamplePath: Optional[str] = None
     speed: float = 1.0
     provider: Optional[str] = None
@@ -671,7 +674,8 @@ def _requested_tts_language(req: TTSRequest) -> str:
 
 
 @router.get("/voice/stt/status")
-async def voice_stt_status(language: Optional[str] = None):
+@scoped_language_request
+async def voice_stt_status(language: Optional[str] = None, variant: Optional[str] = None):
     requested_language = language or config.LANGUAGE
     whisper_language = _stt_language_hint(requested_language) if requested_language else None
     engine = _get_stt_engine()
@@ -701,7 +705,8 @@ async def voice_stt_status(language: Optional[str] = None):
 
 
 @router.get("/voice/tts/status")
-async def voice_tts_status(language: Optional[str] = None):
+@scoped_language_request
+async def voice_tts_status(language: Optional[str] = None, variant: Optional[str] = None):
     _reload_tts_settings()
     requested_language = language or config.LANGUAGE
     try:
@@ -799,7 +804,8 @@ def ensure_language_voice_ready(language: str) -> None:
 
 
 @router.post("/voice/models/download")
-async def voice_download_models(language: Optional[str] = None):
+@scoped_language_request
+async def voice_download_models(language: Optional[str] = None, variant: Optional[str] = None):
     global _voice_stt_downloading, _voice_tts_downloading
     global _voice_stt_progress, _voice_tts_progress
 
@@ -830,10 +836,10 @@ async def voice_download_models(language: Optional[str] = None):
             log.info("Pre-downloading TTS model...")
             if tts_engine == "qwen3":
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_tts_loaded)
+                await run_in_executor_scoped(loop, _qwen3_tts_executor, _ensure_qwen3_tts_loaded)
             elif tts_engine == "qwen3-torch":
                 loop = asyncio.get_running_loop()
-                await loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_torch_loaded)
+                await run_in_executor_scoped(loop, _qwen3_tts_executor, _ensure_qwen3_torch_loaded)
             else:
                 _ensure_tts_loaded(requested_language)
             _voice_tts_progress = 1.0
@@ -851,6 +857,7 @@ async def voice_download_models(language: Optional[str] = None):
 
 
 @router.post("/voice/tts")
+@scoped_language_request
 async def voice_tts_generate(req: TTSRequest):
     """Generate TTS audio. Returns binary WAV with sentence boundary metadata."""
     _reload_tts_settings()
@@ -993,7 +1000,7 @@ async def _generate_tts_kokoro(req: TTSRequest, language: str):
         return buf.read(), sentence_boundaries, sr
 
     loop = asyncio.get_running_loop()
-    content, sentence_boundaries, sr = await loop.run_in_executor(_qwen3_tts_executor, _run_sync)
+    content, sentence_boundaries, sr = await run_in_executor_scoped(loop, _qwen3_tts_executor, _run_sync)
 
     return Response(
         content=content,
@@ -1193,7 +1200,7 @@ async def _generate_tts_qwen3(req: TTSRequest, language: str):
         return buf.read(), sentence_boundaries, sr
 
     loop = asyncio.get_running_loop()
-    content, sentence_boundaries, sr = await loop.run_in_executor(_qwen3_tts_executor, _run_sync)
+    content, sentence_boundaries, sr = await run_in_executor_scoped(loop, _qwen3_tts_executor, _run_sync)
 
     return Response(
         content=content,
@@ -1415,7 +1422,7 @@ async def _generate_tts_qwen3_torch(req: TTSRequest, language: str):
         return buf.read(), sentence_boundaries, sr
 
     loop = asyncio.get_running_loop()
-    content, sentence_boundaries, sr = await loop.run_in_executor(_qwen3_tts_executor, _run_sync)
+    content, sentence_boundaries, sr = await run_in_executor_scoped(loop, _qwen3_tts_executor, _run_sync)
 
     return Response(
         content=content,
@@ -1487,10 +1494,16 @@ async def voice_tts_stream_ws(websocket: WebSocket):
     """Stream local provider float32 PCM chunks to Electron."""
     await websocket.accept()
     cancel = threading.Event()
+    scope = None
+    generation = None
     try:
         payload = await websocket.receive_json()
         req = TTSRequest(**payload)
         requested_language = _requested_tts_language(req)
+        from language_generation import admit_language_generation, release_language_generation
+        generation = admit_language_generation(config.LANGUAGE_DATA_PATH) if config.LANGUAGE_DATA_PATH else None
+        variant = req.variant if req.language or 'variant' in req.model_fields_set else config.ACTIVE_VARIANT
+        scope = language_variant_override(requested_language, variant); scope.__enter__()
         provider = req.provider or _tts_provider
         log.info(
             "TTS stream request: provider=%s language=%s chars=%d voiceSample=%s",
@@ -1577,7 +1590,7 @@ async def voice_tts_stream_ws(websocket: WebSocket):
             finally:
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
-        worker_future = _qwen3_tts_executor.submit(_worker)
+        worker_future = _qwen3_tts_executor.submit(copy_context().run, _worker)
 
         while True:
             item = await queue.get()
@@ -1603,6 +1616,8 @@ async def voice_tts_stream_ws(websocket: WebSocket):
         except Exception:
             pass
     finally:
+        if scope is not None: scope.__exit__(None, None, None)
+        if generation is not None: release_language_generation(generation)
         cancel.set()
         try:
             await websocket.close()
@@ -1616,9 +1631,11 @@ async def voice_tts_stream_ws(websocket: WebSocket):
 class TranscribeRequest(BaseModel):
     voiceSamplePath: str
     language: Optional[str] = None
+    variant: Optional[str] = None
 
 
 @router.post("/voice/transcribe")
+@scoped_language_request
 async def voice_transcribe(req: TranscribeRequest):
     """Transcribe an audio file using STT. Used to generate transcripts for voice samples."""
     audio_path = _validate_voice_sample_path(req.voiceSamplePath)
@@ -1668,6 +1685,8 @@ async def voice_stream_ws(websocket: WebSocket):
 
     from language_generation import admit_language_generation, release_language_generation
     admission = admit_language_generation(config.LANGUAGE_DATA_PATH)
+    variant = websocket.query_params.get('variant') or None if 'variant' in websocket.query_params else (config.ACTIVE_VARIANT if language == config.LANGUAGE else None)
+    scope = language_variant_override(language, variant); scope.__enter__()
     try:
         _reload_tts_settings()
         loop = asyncio.get_running_loop()
@@ -1696,8 +1715,8 @@ async def voice_stream_ws(websocket: WebSocket):
             "progress": 0.04,
         })
         log.info("Voice stream warmup starting")
-        vad_future = loop.run_in_executor(None, _ensure_vad_loaded)
-        stt_future = loop.run_in_executor(None, _ensure_stt_loaded)
+        vad_future = run_in_executor_scoped(loop, None, _ensure_vad_loaded)
+        stt_future = run_in_executor_scoped(loop, None, _ensure_stt_loaded)
 
         futures = [vad_future, stt_future]
         try:
@@ -1709,11 +1728,11 @@ async def voice_stream_ws(websocket: WebSocket):
             log.warning("Skipping TTS warmup for %s: %s", language, exc)
             tts_engine = "unavailable"
         if tts_engine == "kokoro":
-            futures.append(loop.run_in_executor(None, _ensure_tts_loaded, language))
+            futures.append(run_in_executor_scoped(loop, None, _ensure_tts_loaded, language))
         elif tts_engine == "qwen3":
-            futures.append(loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_tts_loaded))
+            futures.append(run_in_executor_scoped(loop, _qwen3_tts_executor, _ensure_qwen3_tts_loaded))
         elif tts_engine == "qwen3-torch":
-            futures.append(loop.run_in_executor(_qwen3_tts_executor, _ensure_qwen3_torch_loaded))
+            futures.append(run_in_executor_scoped(loop, _qwen3_tts_executor, _ensure_qwen3_torch_loaded))
 
         log.info("Voice stream warmup tasks queued: tts_engine=%s", tts_engine)
         try:
@@ -1978,6 +1997,7 @@ async def voice_stream_ws(websocket: WebSocket):
         except Exception:
             pass
     finally:
+        scope.__exit__(None, None, None)
         release_language_generation(admission)
         try:
             await websocket.close()

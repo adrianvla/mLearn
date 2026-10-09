@@ -42,6 +42,7 @@ export interface OCRResult {
 }
 
 export interface OCRRequestOptions {
+  variant?: string | null;
   language?: string;
   devMode?: boolean;
   /** The submitted image is already a user-selected text crop; skip page-level detection when possible. */
@@ -89,7 +90,7 @@ export interface BackendAdapter {
   /** Run OCR on image data */
   ocr(imageData: string | Blob, options?: OCRRequestOptions): Promise<OCRResult>;
   /** Warm up local OCR models when supported */
-  warmupOcr(language?: string): Promise<OCRWarmupResult>;
+  warmupOcr(language?: string, variant?: string | null): Promise<OCRWarmupResult>;
   /** Get Anki-compatible card data */
   getCard(params: Record<string, unknown>): Promise<unknown>;
   /** Get the list of all expression values from the Anki cache */

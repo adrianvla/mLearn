@@ -24,6 +24,7 @@ from PIL import Image
 from typing import List
 
 import config
+from language_scope import scoped_language_request
 from logging_utils import get_logger, _process_stats
 
 log = get_logger("ocr")
@@ -134,13 +135,18 @@ def _ocr_unload_inner():
 # ── Engine initialisation ──
 
 
+def _ocr_scope_key(language: str):
+    from language_generation import resolve_language_data_root
+    return (language, resolve_language_data_root(config.LANGUAGE_DATA_PATH) if config.LANGUAGE_DATA_PATH else '', config._language_metadata_fingerprint(config._metadata_for_language(language)))
+
+
 def _get_rapid_ocr(language: str):
     global _rapid_ocr
     if not config.OCR_ALLOWED:
         log_init.info("OCR disabled; RapidOCR not initialised")
         return None
     with _ocr_model_lock:
-        if _rapid_ocr is not None and _rapid_ocr_language == language:
+        if _rapid_ocr is not None and _rapid_ocr_language == _ocr_scope_key(language):
             return _rapid_ocr
         return _init_rapid_ocr(language)
 
@@ -176,7 +182,7 @@ def _init_rapid_ocr(language: str):
         params["Det.limit_side_len"] = 960
         params["Det.unclip_ratio"] = 1.5
     _rapid_ocr = RapidOCR(params=params)
-    _rapid_ocr_language = language
+    _rapid_ocr_language = _ocr_scope_key(language)
     t1 = time.perf_counter()
     log_init.info(f"RapidOCR initialized in {t1 - t0:.2f}s")
     _process_stats("rapid_ocr_init")
@@ -189,7 +195,7 @@ def _get_paddle_ocr(language: str):
         log_init.info("OCR disabled; PaddleOCR not initialised")
         return None
     with _ocr_model_lock:
-        if _paddle_ocr is not None and _paddle_ocr_language == language:
+        if _paddle_ocr is not None and _paddle_ocr_language == _ocr_scope_key(language):
             return _paddle_ocr
         return _init_paddle_ocr(language)
 
@@ -221,7 +227,7 @@ def _init_paddle_ocr(language: str):
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
     )
-    _paddle_ocr_language = language
+    _paddle_ocr_language = _ocr_scope_key(language)
     t1 = time.perf_counter()
     log_init.info(f"PaddleOCR initialized in {t1 - t0:.2f}s")
     _process_stats("paddle_init")
@@ -743,7 +749,8 @@ def _ensure_warmup_started():
 
 
 @router.post("/ocr/warmup")
-async def ocr_warmup(language: str | None = Query(None)):
+@scoped_language_request
+async def ocr_warmup(language: str | None = Query(None), variant: str | None = Query(None)):
     """Trigger lazy pre-import of transformers for MangaOCR.
 
     Called when the reader is first opened for a language whose OCR runtime
@@ -772,10 +779,12 @@ async def ocr_warmup(language: str | None = Query(None)):
 
 
 @router.post("/ocr", response_model=OcrResponse)
+@scoped_language_request
 async def ocr_endpoint(
     file: UploadFile | None = File(None),
     image_base64: str | None = Form(None),
     language: str | None = Form(None),
+    variant: str | None = Form(None),
     dev_mode: str | None = Form(None),
     single_region: str | None = Form(None),
     detection_max_width: str | None = Form(None),

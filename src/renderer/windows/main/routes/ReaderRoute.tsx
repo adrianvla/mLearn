@@ -1433,6 +1433,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
           crop.blob,
           {
             language: sourceLanguage(),
+            variant: languageData?.resolvedVariantId,
             devMode: settings.devMode ? true : undefined,
             singleRegion: true,
             detectionScale: settings.devMode ? ocrDetectionScale() : undefined,
@@ -1994,6 +1995,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
           imageBlob,
           {
             language: sourceLanguage(),
+            variant: languageData?.resolvedVariantId,
             devMode: settings.devMode ? true : undefined,
             detectionScale: settings.devMode ? ocrDetectionScale() : undefined,
           },
@@ -2528,7 +2530,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
       // language package metadata has loaded. Blank/missing metadata would use
       // generic OCR defaults and hide missing package installs.
       if ((ocrEnabledSetting ?? DEFAULT_SETTINGS.ocrEnabled) && language && !languageLoading && languageData) {
-        getBackend().warmupOcr(language).catch(() => {/* non-fatal */});
+        getBackend().warmupOcr(language, languageData.resolvedVariantId).catch(() => {/* non-fatal */});
       }
     },
     { defer: true },

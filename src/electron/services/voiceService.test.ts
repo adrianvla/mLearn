@@ -1810,6 +1810,20 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
     complete?.();
   });
 
+  it('carries an admitted variant through TTS ownership and the actual stream payload', async () => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true, downloading: false, progress: 1 }));
+    existsSyncFn.mockReturnValue(false); readFileSyncFn.mockReturnValue('[]');
+    const request = { sessionId: 'variant-call', requestId: 'variant-utterance', variant: 'future-register' };
+    onHandlers.get('voice-tts-generate')?.(event, 'Source phrase', 'future', 1, undefined, 'qwen3', undefined, request);
+    await flushMicrotasks();
+    expect(lastCreatedWebSocket).not.toBeNull();
+    lastCreatedWebSocket!._emit('open');
+    expect(JSON.parse(lastCreatedWebSocket!.send.mock.calls[0][0])).toMatchObject({ language: 'future', variant: 'future-register' });
+    onHandlers.get('voice-tts-stop')?.(event, request);
+  });
+
   it('opens the local TTS stream websocket and sends the generation payload', async () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
@@ -1826,6 +1840,7 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
     expect(lastCreatedWebSocket?.send).toHaveBeenCalledWith(JSON.stringify({
       text: 'Hello',
       language: 'en',
+      variant: null,
       speed: 1.25,
       provider: 'qwen3',
     }));

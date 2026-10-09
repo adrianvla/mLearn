@@ -457,3 +457,24 @@ def test_ocr_endpoint_keeps_mangaocr_crop_recognition_as_single_image_pass(monke
     assert result["boxes"][0]["text"] == "日本語"
     assert result["processing_times"]["detection_engine"] == "Crop"
     assert result["processing_times"]["recognition_engine"] == "MangaOCR"
+
+
+def test_paddle_engine_cache_distinguishes_admitted_variant_configuration(tmp_path, monkeypatch):
+    import json
+    from language_scope import language_variant_override
+    (tmp_path / 'languages').mkdir()
+    metadata = {'runtime': {'ocr': {'recognitionEngine': 'paddleocr', 'paddleLang': 'base'}}, 'variants': {
+        key: {'overrides': {'runtime.ocr.paddleLang': key}} for key in ['future-first', 'future-second']}}
+    (tmp_path / 'languages/qo.json').write_text(json.dumps(metadata))
+    monkeypatch.setattr(ocr.config, 'LANGUAGE_DATA_PATH', str(tmp_path))
+    monkeypatch.setattr(ocr.config, 'OCR_ALLOWED', True)
+    monkeypatch.setattr(ocr, '_paddle_ocr', None)
+    instances = []
+    class FakePaddle:
+        def __init__(self, **kwargs):
+            self.language = kwargs['lang']; instances.append(self)
+    monkeypatch.setitem(sys.modules, 'paddleocr', SimpleNamespace(PaddleOCR=FakePaddle))
+    with language_variant_override('qo', 'future-first'): first = ocr._get_paddle_ocr('qo')
+    with language_variant_override('qo', 'future-second'): second = ocr._get_paddle_ocr('qo')
+    assert [first.language, second.language] == ['future-first', 'future-second']
+    assert first is not second

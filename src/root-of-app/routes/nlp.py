@@ -14,6 +14,7 @@ from typing import List, Optional
 
 import plugin_registry
 import config
+from language_scope import language_variant_override
 from generic_language import dictionary_target_language_override, DictionaryUnavailableError
 from logging_utils import get_logger
 
@@ -38,7 +39,7 @@ def language_ready(req: LanguageReadyRequest):
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail={'code': 'generation_changed'}) from exc
     try:
-        with dictionary_target_language_override(req.language, req.dictionaryTargetLanguage):
+        with language_variant_override(req.language, req.variant), dictionary_target_language_override(req.language, req.dictionaryTargetLanguage):
             module = _resolve_module(req.language, req.variant)
             metadata = config._read_language_metadata(req.language)
             tokenizer = metadata.get('runtime', {}).get('nlp', {}).get('tokenizer', {})
@@ -52,7 +53,7 @@ def language_ready(req: LanguageReadyRequest):
                 ensure_language_voice_ready(req.language)
             ready_adapter = getattr(module, 'LANGUAGE_RUNTIME_READY', None)
             if callable(ready_adapter): ready_adapter(req.components)
-        return {'language': req.language, 'generation': req.generation, 'components': req.components, 'ready': True}
+        return {'language': req.language, 'generation': req.generation, 'components': req.components, 'variant': req.variant, 'ready': True}
     except HTTPException:
         raise
     except Exception as exc:

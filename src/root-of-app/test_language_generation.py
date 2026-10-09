@@ -83,6 +83,7 @@ def test_explicit_source_variants_are_independent_of_ambient_and_each_other(tmp_
     base = config.get_or_load_language('qv', variant=None)
     assert [module.metadata['name'] for module in [first, second, base]] == ['future-first', 'future-second', 'Base']
     assert len({module.__mlearn_metadata_fingerprint for module in [first, second, base]}) == 3
+    assert config.get_or_load_language('qv', variant='future-first') is first
     assert config.get_or_load_language('qv', variant='unknown-declared-nowhere') is None
 
 
@@ -107,3 +108,22 @@ def test_nlp_http_admits_explicit_base_and_package_variant(tmp_path, monkeypatch
         assert response.json()['tokens'][0]['word'] == expected
     response = client.post('/tokenize', json={'text': 'term', 'language': 'qh', 'variant': 'unknown'})
     assert response.status_code == 503
+
+
+def test_runtime_source_scope_survives_ambient_changes_and_worker_handoff(tmp_path, monkeypatch):
+    import asyncio
+    from language_scope import scoped_language_request, run_in_executor_scoped
+    (tmp_path / 'languages').mkdir()
+    metadata = {'runtime': {'adapter': {'config': {'label': 'base'}}}, 'variants': {
+        key: {'overrides': {'runtime.adapter.config': {'label': key}}} for key in ['first', 'second']}}
+    (tmp_path / 'languages/qs.json').write_text(json.dumps(metadata))
+    monkeypatch.setattr(config, 'LANGUAGE_DATA_PATH', str(tmp_path))
+    monkeypatch.setattr(config, 'LANGUAGE', 'qs'); monkeypatch.setattr(config, 'ACTIVE_VARIANT', 'second')
+    @scoped_language_request
+    async def operation(language=None, variant=None):
+        config.ACTIVE_VARIANT = 'second'
+        return await run_in_executor_scoped(asyncio.get_running_loop(), None,
+            lambda: config._metadata_for_language(language)['runtime']['adapter']['config']['label'])
+    assert asyncio.run(operation(language='qs', variant='first')) == 'first'
+    assert asyncio.run(operation(language='qs', variant=None)) == 'base'
+    assert config._metadata_for_language('qs')['runtime']['adapter']['config']['label'] == 'second'

@@ -169,6 +169,7 @@ export class HttpBackend implements BackendAdapter {
       form.append('file', imageData, 'image.png');
     }
 
+    if (options?.variant !== undefined) form.append('variant', options.variant ?? '');
     if (options?.language) {
       form.append('language', options.language);
     }
@@ -196,11 +197,12 @@ export class HttpBackend implements BackendAdapter {
     return (await res.json()) as OCRResult;
   }
 
-  async warmupOcr(language?: string): Promise<OCRWarmupResult> {
+  async warmupOcr(language?: string, variant?: string | null): Promise<OCRWarmupResult> {
     const warmupUrl = this.buildUrl(API_PATHS.ocrWarmup);
-    const url = language
+    let url = language
       ? `${warmupUrl}${warmupUrl.includes('?') ? '&' : '?'}language=${encodeURIComponent(language)}`
       : warmupUrl;
+    if (variant !== undefined) url += `${url.includes('?') ? '&' : '?'}variant=${encodeURIComponent(variant ?? '')}`;
 
     const res = await fetch(url, {
       method: 'POST',

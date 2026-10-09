@@ -975,6 +975,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     ttsGenerationActive = true;
     const message = activeSpeech;
     const request: VoiceTtsRequestIdentity = {
+      variant: microphoneRequest ? microphoneRequest.variant : (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[props.language] ?? null,
       sessionId: callSessionId,
       requestId: crypto.randomUUID(),
       utteranceId: message.eventId,
@@ -1365,7 +1366,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       return;
     }
     callSessionId = crypto.randomUUID();
-    microphoneRequest = { sessionId: callSessionId, requestId: crypto.randomUUID() };
+    microphoneRequest = { variant: (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[props.language] ?? null, sessionId: callSessionId, requestId: crypto.randomUUID() };
     greetingRequested = false;
     seenSpeechEventIds = new Set((props.speechMessages ?? []).map(message => message.eventId));
     activeSpeech = null;
@@ -1495,7 +1496,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       (mode, prevMode) => {
         if (mode !== prevMode && isCallActive()) {
           const previous = microphoneRequest;
-          microphoneRequest = { sessionId: callSessionId, requestId: crypto.randomUUID() };
+          microphoneRequest = { variant: (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[props.language] ?? null, sessionId: callSessionId, requestId: crypto.randomUUID() };
           setIsInitializing(true);
           keyboardPttHeld = false;
           setPttActive(false);

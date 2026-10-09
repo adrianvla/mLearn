@@ -924,7 +924,7 @@ export function setupSettingsIPC(): void {
           const generation = path.basename(candidate);
           progress('waiting-for-backend', undefined, generation);
           const { ensureLanguageGenerationReady } = await import('./pythonBackend');
-          await ensureLanguageGenerationReady(language, generation, resolvedDictionaryTarget, components);
+          await ensureLanguageGenerationReady(language, generation, resolvedDictionaryTarget, components, (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[language] ?? null);
           acknowledgedRoot = candidate;
         },
       });

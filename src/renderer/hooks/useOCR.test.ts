@@ -422,6 +422,22 @@ describe('useOCR', () => {
     };
   });
 
+  it('does not publish an old source result after the permission gate resolves in another scope', async () => {
+    let allow!: (allowed: boolean) => void;
+    mockRequestAccess.mockImplementation(() => new Promise(resolve => { allow = resolve; }));
+    setupBackendOCRResponse({ text: 'old source', boxes: [] });
+    await createRoot(async dispose => {
+      try {
+        const ocr = useOCR();
+        const pending = ocr.recognize(makePngBlob());
+        mockSettings.language = 'future-new';
+        allow(true);
+        expect(await pending).toBeNull();
+        expect(ocr.lastResult()).toBeNull();
+      } finally { dispose(); }
+    });
+  });
+
   it('initial state: not processing, no result, no error', () => {
     createRoot((dispose) => {
       const ocr = useOCR();

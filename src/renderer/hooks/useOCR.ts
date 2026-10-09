@@ -4,7 +4,7 @@
  * With proper image compression and FormData support
  */
 
-import { createSignal } from 'solid-js';
+import { createSignal, onCleanup } from 'solid-js';
 import { useServer, useLowPowerGate, useLanguage } from '../context';
 import { useSettings } from '../context/SettingsContext';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../shared/backends';
@@ -361,6 +361,7 @@ async function sendImageForOCR(
   const detectionScale = options.detectionScale;
   const requestOptions: OCRRequestOptions = {
     language: options.language,
+    ...(options.variant !== undefined ? { variant: options.variant } : {}),
     devMode: options.devMode,
     singleRegion: options.singleRegion,
   };
@@ -384,7 +385,7 @@ async function sendImageForOCR(
 export function useOCR() {
   const { isConnected } = useServer();
   const { settings } = useSettings();
-  const { currentLangData } = useLanguage();
+  const { currentLangData, currentLanguage } = useLanguage();
   const { requestAccess } = useLowPowerGate();
   const [isProcessing, setIsProcessing] = createSignal(false);
   const [lastResult, setLastResult] = createSignal<OCRResult | null>(null);
@@ -393,10 +394,8 @@ export function useOCR() {
   const isCloudOCR = () => settings.ocrProvider === 'cloud';
 
   /** Run OCR via the cloud HATEOAS job flow (CloudOCRAdapter) */
-  const recognizeViaCloud = async (imageBlob: Blob): Promise<OCRResult> => {
+  const recognizeViaCloud = async (imageBlob: Blob, language: string, languageData: LanguageData | null): Promise<OCRResult> => {
     const cloudApiUrl = resolveCloudApiUrl(settings);
-    const language = settings.language;
-    const languageData = currentLangData();
     assertOcrLanguageDataReady(language, languageData);
     const engine = resolveCloudOcrEngine(languageData);
     const result = await withCloudAuth(async (cloudToken) => {
@@ -410,11 +409,23 @@ export function useOCR() {
     };
   };
 
+  let requestRevision = 0;
+  let disposed = false;
+  onCleanup(() => { disposed = true; requestRevision += 1; });
+  const scopeKey = () => JSON.stringify([currentLanguage?.() ?? settings.language, currentLangData()]);
+
   // Perform OCR on various input types
   const recognize = async (
     input: Blob | HTMLCanvasElement | HTMLImageElement | string
   ): Promise<OCRResult | null> => {
-    if (!isCloudOCR() && !isConnected()) {
+    const revision = ++requestRevision;
+    const admittedKey = scopeKey();
+    const language = currentLanguage?.() ?? settings.language;
+    const data = currentLangData();
+    const languageData = data ? JSON.parse(JSON.stringify(data)) as LanguageData : null;
+    const cloud = isCloudOCR();
+    const isCurrent = () => !disposed && revision === requestRevision && admittedKey === scopeKey();
+    if (!cloud && !isConnected()) {
       setError('Backend not connected');
       return null;
     }
@@ -422,27 +433,22 @@ export function useOCR() {
     setIsProcessing(true);
     setError(null);
 
-    // Low power gate: prompt before using local neural network for OCR
-    if (!isCloudOCR()) {
-      const allowed = await requestAccess('ocr');
-      if (!allowed) {
-        setIsProcessing(false);
-        return null;
-      }
-    }
-
     try {
-      const languageData = currentLangData();
-      assertOcrLanguageDataReady(settings.language, languageData);
+      if (!cloud) {
+        const allowed = await requestAccess('ocr');
+        if (!allowed || !isCurrent()) return null;
+      }
+      assertOcrLanguageDataReady(language, languageData);
 
-      if (isCloudOCR()) {
+      if (cloud) {
         // Prepare the blob, then send via CloudOCRAdapter
         const prepared = await inputToBlobForOCR(input);
-        const result = await recognizeViaCloud(prepared.blob);
+        const result = await recognizeViaCloud(prepared.blob, language, languageData);
         result.client_scale = prepared.clientScale;
         result.downscale_factor = prepared.clientScale > 0 ? 1 / prepared.clientScale : 1;
         result.original_size = { width: prepared.originalW, height: prepared.originalH };
         result.sent_size = { width: prepared.sentW, height: prepared.sentH };
+        if (!isCurrent()) return null;
         setLastResult(result);
         return result;
       }
@@ -450,19 +456,21 @@ export function useOCR() {
       const result = await sendImageForOCR(
         input,
         {
-          language: settings.language,
+          language,
+          variant: languageData?.resolvedVariantId,
           devMode: settings.devMode ? true : undefined,
         },
       );
+      if (!isCurrent()) return null;
       setLastResult(result);
       return result;
     } catch (e) {
       log.error("error", e);
       const message = e instanceof Error ? e.message : 'OCR failed';
-      setError(message);
+      if (isCurrent()) setError(message);
       return null;
     } finally {
-      setIsProcessing(false);
+      if (!disposed && revision === requestRevision) setIsProcessing(false);
     }
   };
 

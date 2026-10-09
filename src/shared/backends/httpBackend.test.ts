@@ -43,6 +43,15 @@ describe('HttpBackend', () => {
     });
   });
 
+  it('retains source variant in OCR multipart and warmup admission', async () => {
+    const backend = new HttpBackend('http://127.0.0.1:7752');
+    mockFetch.mockResolvedValue(makeOkResponse({ boxes: [] }));
+    await backend.ocr(new Blob(['image']), { language: 'future', variant: 'first' });
+    expect((mockFetch.mock.calls.at(-1)![1].body as FormData).get('variant')).toBe('first');
+    await backend.warmupOcr('future', 'first');
+    expect(mockFetch.mock.calls.at(-1)![0]).toContain('variant=first');
+  });
+
   describe('tokenize', () => {
     it('serializes an explicit source variant and explicit base selection without ambient substitution', async () => {
       const backend = new HttpBackend('http://127.0.0.1:7752');

@@ -15,6 +15,9 @@ import platform
 
 from language_generation import resolve_language_data_root
 import plugin_registry
+import threading
+from collections import OrderedDict
+from language_scope import selected_variant, has_language_scope, UNSPECIFIED, LanguageScopeUnavailableError
 from generic_language import GenericLanguageModule
 from logging_utils import get_logger
 from variants import apply_variant_overlay  # pyright: ignore[reportImplicitRelativeImport]
@@ -139,13 +142,13 @@ def _read_language_metadata(language: str) -> dict:
 
 def _metadata_for_language(language: str) -> dict:
     installed_metadata = _read_language_metadata(language)
+    variant = selected_variant(language)
+    if variant is UNSPECIFIED: variant = ACTIVE_VARIANT if language == LANGUAGE else None
     if installed_metadata:
-        if language == LANGUAGE:
-            installed_metadata = apply_variant_overlay(installed_metadata, ACTIVE_VARIANT)
-            global LANGUAGE_METADATA
-            LANGUAGE_METADATA = installed_metadata
-        return installed_metadata
-    return LANGUAGE_METADATA if language == LANGUAGE else {}
+        if variant and variant not in installed_metadata.get('variants', {}):
+            raise LanguageScopeUnavailableError(f'Variant {variant!r} is not installed for {language}')
+        return apply_variant_overlay(installed_metadata, variant)
+    return LANGUAGE_METADATA if not LANGUAGE_DATA_PATH and language == LANGUAGE else {}
 
 
 def _language_metadata_fingerprint(metadata: dict) -> str:
@@ -194,9 +197,16 @@ def _import_language_module(language: str, language_data_path: str, metadata: di
 
 
 _UNSPECIFIED_VARIANT = object()
+_language_module_lock = threading.RLock()
+_language_scope_modules = OrderedDict()
 
 
 def get_or_load_language(language: str, variant=_UNSPECIFIED_VARIANT):
+    with _language_module_lock:
+        return _get_or_load_language(language, variant)
+
+
+def _get_or_load_language(language: str, variant=_UNSPECIFIED_VARIANT):
     """Resolve an exact installed source scope. Legacy omitted scope uses the active preference only for its own language."""
     if not language or not _is_safe_language_id(language) or not LANGUAGE_DATA_PATH:
         return None
@@ -205,11 +215,17 @@ def get_or_load_language(language: str, variant=_UNSPECIFIED_VARIANT):
     if not os.path.isfile(metadata_path):
         return None
     metadata = _read_language_metadata_from_path(generation_root, language)
-    selected_variant = (ACTIVE_VARIANT if language == LANGUAGE else None) if variant is _UNSPECIFIED_VARIANT else variant
-    if selected_variant and selected_variant not in metadata.get('variants', {}):
+    scope_variant = selected_variant(language)
+    resolved_variant = ((ACTIVE_VARIANT if language == LANGUAGE else None) if scope_variant is UNSPECIFIED else scope_variant) if variant is _UNSPECIFIED_VARIANT else variant
+    if resolved_variant and resolved_variant not in metadata.get('variants', {}):
         return None
-    metadata = apply_variant_overlay(metadata, selected_variant)
+    metadata = apply_variant_overlay(metadata, resolved_variant)
     fingerprint = generation_root + ":" + _language_metadata_fingerprint(metadata)
+    scope_key = (language, fingerprint)
+    cached = _language_scope_modules.get(scope_key)
+    if cached is not None:
+        _language_scope_modules.move_to_end(scope_key)
+        return cached
     existing = plugin_registry.get_language(language)
     if existing is not None and getattr(existing, "__mlearn_metadata_fingerprint", None) == fingerprint:
         return existing
@@ -217,7 +233,9 @@ def get_or_load_language(language: str, variant=_UNSPECIFIED_VARIANT):
     _load_language_module(lang_mod, ROOT_OF_APP_DIR, generation_root, metadata)
     setattr(lang_mod, "__mlearn_metadata_fingerprint", fingerprint)
     plugin_registry.register_language(language, lang_mod)
-    if language == LANGUAGE and variant is _UNSPECIFIED_VARIANT:
+    _language_scope_modules[scope_key] = lang_mod
+    if len(_language_scope_modules) > 64: _language_scope_modules.popitem(last=False)
+    if language == LANGUAGE and variant is _UNSPECIFIED_VARIANT and not has_language_scope(language):
         global LANGUAGE_METADATA
         LANGUAGE_METADATA = metadata
     return lang_mod

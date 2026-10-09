@@ -15,6 +15,7 @@ import { Button } from '../Button/Button';
 import { ProgressBar } from '../Feedback/ProgressBar';
 import { ConfirmDialog } from '../Modal/ConfirmDialog';
 import { PlayIcon, PauseIcon, TrashIcon } from '../Misc';
+import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import type { VoiceSample, VoiceTtsAudio, VoiceTtsRequestIdentity } from '../../../../shared/types';
 import { matchesVoiceTtsRequest } from '../../../../shared/utils/voiceTtsOwnership';
 import './VoiceSamplePicker.css';
@@ -304,7 +305,8 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
 
     ttsQueue = [];
     ttsQueueIndex = 0;
-    const request: VoiceTtsRequestIdentity = { sessionId: previewSessionId, requestId: crypto.randomUUID() };
+    const language = settings.language;
+    const request: VoiceTtsRequestIdentity = { variant: (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[language] ?? null, sessionId: previewSessionId, requestId: crypto.randomUUID() };
     previewRequest = request;
     setTtsError('');
     setTtsGenerating(true);
@@ -313,7 +315,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
     if (props.ttsProvider === 'cloud') {
       void withCloudAuth(async (token) => {
         if (previewRequest !== request) return;
-        getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider, token, request);
+        getBridge().voice.voiceTtsGenerate(text, language, 1.0, voiceSampleId, props.ttsProvider, token, request);
       }).catch((error) => {
         if (previewRequest !== request) return;
         log.error("error", error);
@@ -323,7 +325,7 @@ export const VoiceSamplePicker: Component<VoiceSamplePickerProps> = (props) => {
       return;
     }
 
-    getBridge().voice.voiceTtsGenerate(text, settings.language, 1.0, voiceSampleId, props.ttsProvider, undefined, request);
+    getBridge().voice.voiceTtsGenerate(text, language, 1.0, voiceSampleId, props.ttsProvider, undefined, request);
   }
 
   async function handleDelete() {
