@@ -97,7 +97,7 @@ function buildVersionedLanguageCacheId(
     : undefined;
   const packageAssetHash = packageManifest?.assets?.map((asset) => asset.sha256).filter(Boolean).join(',');
   const dictionaryAssetHash = dictionaryPack?.assets?.map((asset) => asset.sha256).filter(Boolean).join(',');
-  const packageVersion = packageManifest?.bundle?.sha256 || packageAssetHash || packageManifest?.version;
+  const packageVersion = packageManifest?.activationGeneration || packageManifest?.bundle?.sha256 || packageAssetHash || packageManifest?.version;
   const dictionaryVersion = dictionaryPack?.bundle?.sha256 || dictionaryAssetHash || dictionaryPack?.version;
 
   if (!packageVersion && !dictionaryVersion) {
@@ -645,6 +645,7 @@ export async function warmTranslationCache(
 }
 
 export interface UseTokenizerOptions {
+  dictionaryTargetLanguage?: WordLookupCandidateOptions['dictionaryTargetLanguage'];
   sourceKey?: WordLookupCandidateOptions['sourceKey'];
   language?: string | (() => string);
   languageData?: LanguageData | null | (() => LanguageData | null);
@@ -665,6 +666,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     cacheKey: string,
     persist: boolean,
     language: string | undefined,
+    target?: string,
   ): Promise<{ tokens: Token[]; fresh: boolean }> => {
     const dbCached = await getCachedTokensByLanguageDB(key, language, namespace);
     if (dbCached) {
@@ -672,7 +674,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
       return { tokens: dbCached, fresh: false };
     }
 
-    const tokens = await getBackend().tokenize(key, language);
+    const tokens = target ? await getBackend().tokenize(key, language, target) : await getBackend().tokenize(key, language);
     tokenCache.set(cacheKey, { tokens, ts: Date.now() });
     pruneMapFIFO(tokenCache, TOKEN_CACHE_MAX);
     if (persist) {
@@ -687,8 +689,9 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     cacheKey: string,
     persist: boolean,
     language: string | undefined,
+    target?: string,
   ): Promise<{ tokens: Token[]; fresh: boolean }> => {
-    const p = resolveUncached(key, namespace, cacheKey, persist, language);
+    const p = resolveUncached(key, namespace, cacheKey, persist, language, target);
     tokenInFlight.set(cacheKey, p);
     try {
       return await p;
@@ -706,7 +709,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     if (fallbackTokens.length === 0) {
       throw error;
     }
-    return fallbackTokens;
+    return fallbackTokens.map(token => ({ ...token, analysisAuthority: 'display-only' as const }));
   };
 
   const cachedOrFlight = (key: string, namespace: string | undefined, language: string | undefined): Promise<Token[]> | undefined => {
@@ -721,13 +724,14 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     const key = typeof text === 'string' ? text : String(text);
     if (!key.trim()) return createEmptyFallbackToken(key);
     const languageData = resolveTokenizerLanguageData(options.languageData);
-    const namespace = getTokenizerCacheNamespace(languageData);
+    const target = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
+    const namespace = [getTokenizerCacheNamespace(languageData), target].filter(Boolean).join('::') || undefined;
     const fast = cachedOrFlight(key, namespace, language);
     perfCount(fast ? 'tokenize.cacheHit' : 'tokenize.miss');
     if (fast) return fast;
     const cacheKey = buildTokenCacheKey(key, language, namespace);
     try {
-      const { tokens } = await tokenizeUncached(key, namespace, cacheKey, true, language);
+      const { tokens } = await tokenizeUncached(key, namespace, cacheKey, true, language, target);
       return tokens;
     } catch (e) {
       return roughFallbackOrThrow(key, languageData, e, language);
@@ -742,7 +746,8 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     perfCount('tokenizeMany.texts', texts.length);
     const tmStart = performance.now();
     const languageData = resolveTokenizerLanguageData(options.languageData);
-    const namespace = getTokenizerCacheNamespace(languageData);
+    const target = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
+    const namespace = [getTokenizerCacheNamespace(languageData), target].filter(Boolean).join('::') || undefined;
     const fresh: Array<{ text: string; tokens: Token[] }> = [];
     const results = await Promise.all(texts.map(async (text) => {
       const key = typeof text === 'string' ? text : String(text);
@@ -752,7 +757,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
       const cacheKey = buildTokenCacheKey(key, language, namespace);
       let result: { tokens: Token[]; fresh: boolean };
       try {
-        result = await tokenizeUncached(key, namespace, cacheKey, false, language);
+        result = await tokenizeUncached(key, namespace, cacheKey, false, language, target);
       } catch (e) {
         // Rough fallbacks are display-only and never persisted (same as `tokenize`).
         return roughFallbackOrThrow(key, languageData, e, language);

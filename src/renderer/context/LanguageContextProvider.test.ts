@@ -435,7 +435,7 @@ describe('LanguageContext - provider behavior', () => {
     ctx.installLanguageData('ja', 'fr');
 
     expect(ctx.languageDataInstallError()).toBeNull();
-    expect(mockBridge.localization.installLanguageData).toHaveBeenCalledWith('ja', 'fr', undefined);
+    expect(mockBridge.localization.installLanguageData).toHaveBeenCalledWith('ja', 'fr', undefined, expect.any(String));
     expect(ctx.isLanguageDataInstalling('ja', 'fr')).toBe(true);
     dispose();
   });

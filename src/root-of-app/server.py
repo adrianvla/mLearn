@@ -117,6 +117,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    from language_generation import admit_language_generation, release_language_generation
+    admission = admit_language_generation(config.LANGUAGE_DATA_PATH)
     log.info(f"HTTP {request.method} {request.url}")
     try:
         response = await call_next(request)
@@ -125,6 +127,8 @@ async def log_requests(request: Request, call_next):
     except Exception:
         log.error("HTTP Exception during handling:", exc_info=True)
         raise
+    finally:
+        release_language_generation(admission)
 
 
 app.add_middleware(

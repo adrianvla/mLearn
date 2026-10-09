@@ -25,6 +25,7 @@ import { RatingWriteQueue } from './ratingWriteQueue';
 import { calculateWordStats } from '../../shared/utils/wordStats';
 import { createWordFormDeriver } from '../../shared/utils/wordForms';
 import { getUserDataPath } from '../utils/platform';
+import { resolveLanguageDataRoot } from './languageGeneration';
 import { extractBase64Images } from './flashcardImageStorage';
 import { loadLangData, loadSettings } from './settings';
 import { getLogger } from '../../shared/utils/logger';
@@ -224,14 +225,15 @@ function getInstalledLanguageProsodyType(language: string | undefined): NonNulla
   const normalizedLanguage = language?.trim();
   if (!normalizedLanguage) return null;
 
-  const cached = languageProsodyMigrationCache.get(normalizedLanguage);
+  const cacheKey = JSON.stringify([resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data')), normalizedLanguage]);
+  const cached = languageProsodyMigrationCache.get(cacheKey);
   if (cached !== undefined) return cached;
 
   try {
-    const languagePath = path.join(getUserDataPath(), 'language-data', 'languages', `${normalizedLanguage}.json`);
+    const languagePath = path.join(resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data')), 'languages', `${normalizedLanguage}.json`);
     const data = JSON.parse(fs.readFileSync(languagePath, 'utf-8')) as LanguageData;
     const result = getLanguageProsodyType(data) ?? null;
-    languageProsodyMigrationCache.set(normalizedLanguage, result);
+    languageProsodyMigrationCache.set(cacheKey, result);
     return result;
   } catch {
     return null;
@@ -362,7 +364,7 @@ function containsLegacyZhData(store: FlashcardStore): boolean {
 
 function loadZhMigrationPackage(): LanguageData | null {
   try {
-    const languagesDir = path.join(getUserDataPath(), 'language-data', 'languages');
+    const languagesDir = path.join(resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data')), 'languages');
     const metadata = JSON.parse(fs.readFileSync(path.join(languagesDir, 'zh.json'), 'utf-8')) as LanguageData;
     const table = JSON.parse(fs.readFileSync(path.join(languagesDir, 'zh.t2s.json'), 'utf-8')) as ZhMappingTable;
     registerMappingTable('zh', { words: table.words ?? {}, chars: table.chars ?? {} });

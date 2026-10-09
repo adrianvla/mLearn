@@ -472,3 +472,5 @@ export { LearningGoals } from './LearningGoals/LearningGoals';
 export { LearningWorkspace } from './LearningWorkspace/LearningWorkspace';
 
 export { SourceLanguageSelect } from './SourceLanguageSelect/SourceLanguageSelect';
+
+export { LanguageDataJobProgress } from './LanguageDataJobProgress/LanguageDataJobProgress';

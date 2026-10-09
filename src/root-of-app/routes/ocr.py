@@ -275,6 +275,19 @@ def _is_builtin_ocr_recognition_engine(recognition_engine: str) -> bool:
     return recognition_engine in _SUPPORTED_OCR_RECOGNITION_ENGINES
 
 
+def ensure_language_ocr_ready(language: str) -> None:
+    runtime = _require_ocr_runtime_config(language)
+    engine = _require_ocr_recognition_engine(language, runtime)
+    if engine == 'rapidocr': ready = _get_rapid_ocr(language)
+    elif engine == 'paddleocr': ready = _get_paddle_ocr(language)
+    elif engine == 'mangaocr':
+        ready = _get_rapid_ocr(language) is not None and _get_manga_ocr() is not None
+    else:
+        module = config.get_or_load_language(language)
+        ready = module is not None and callable(getattr(module, 'LANGUAGE_OCR', None))
+    if not ready: raise RuntimeError(f'OCR runtime is unavailable for {language}')
+
+
 def _paddle_run_ocr(paddle_inst, img):
     try:
         res = paddle_inst.ocr(img, cls=False)

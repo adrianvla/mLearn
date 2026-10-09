@@ -13,6 +13,7 @@ import importlib.util
 import inspect
 import platform
 
+from language_generation import resolve_language_data_root
 import plugin_registry
 from generic_language import GenericLanguageModule
 from logging_utils import get_logger
@@ -131,7 +132,7 @@ def _read_language_metadata_from_path(language_data_path: str, language: str) ->
 
 
 def _read_language_metadata(language: str) -> dict:
-    return _read_language_metadata_from_path(LANGUAGE_DATA_PATH, language)
+    return _read_language_metadata_from_path(resolve_language_data_root(LANGUAGE_DATA_PATH), language)
 
 
 def _metadata_for_language(language: str) -> dict:
@@ -196,18 +197,19 @@ def get_or_load_language(language: str):
         return None
     if not LANGUAGE_DATA_PATH:
         return None
-    metadata_path = _language_metadata_path(LANGUAGE_DATA_PATH, language)
+    generation_root = resolve_language_data_root(LANGUAGE_DATA_PATH)
+    metadata_path = _language_metadata_path(generation_root, language)
     if not os.path.isfile(metadata_path):
         return None
-    metadata = _read_language_metadata(language)
+    metadata = _read_language_metadata_from_path(generation_root, language)
     if language == LANGUAGE:
         metadata = apply_variant_overlay(metadata, ACTIVE_VARIANT)
-    fingerprint = _language_metadata_fingerprint(metadata)
+    fingerprint = generation_root + ":" + _language_metadata_fingerprint(metadata)
     existing = plugin_registry.get_language(language)
     if existing is not None and getattr(existing, "__mlearn_metadata_fingerprint", None) == fingerprint:
         return existing
-    lang_mod = _import_language_module(language, LANGUAGE_DATA_PATH, metadata)
-    _load_language_module(lang_mod, ROOT_OF_APP_DIR, LANGUAGE_DATA_PATH)
+    lang_mod = _import_language_module(language, generation_root, metadata)
+    _load_language_module(lang_mod, ROOT_OF_APP_DIR, generation_root)
     setattr(lang_mod, "__mlearn_metadata_fingerprint", fingerprint)
     plugin_registry.register_language(language, lang_mod)
     if language == LANGUAGE:
@@ -316,7 +318,7 @@ def init():
     log.info(f"LLM allowed: {LLM_ALLOWED}")
     log.info(f"OCR allowed: {OCR_ALLOWED}")
 
-    LANGUAGE_DIR_PATH = os.path.join(LANGUAGE_DATA_PATH, "languages")
+    LANGUAGE_DIR_PATH = os.path.join(resolve_language_data_root(LANGUAGE_DATA_PATH), "languages")
 
     # Read language-specific config from installed on-demand language data.
     LANGUAGE_METADATA = apply_variant_overlay(_read_language_metadata(LANGUAGE), ACTIVE_VARIANT)

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
+import { resolveLanguageDataRoot } from './languageGeneration';
 import path from 'path';
 import crypto from 'crypto';
 import * as tar from 'tar';
@@ -56,6 +57,7 @@ vi.mock('./pythonRuntimeRequirements', () => ({
 
 vi.mock('./pythonBackend', () => ({
   restartPythonBackend: mockRestartPythonBackend,
+  ensureLanguageGenerationReady: vi.fn().mockResolvedValue(undefined),
 }));
 
 let tempDir: TempDir;
@@ -1771,7 +1773,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     const event = makeEvent();
     for (const h of handlers) await h(event, 'aa');
 
-    expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'aa.freq.json'))).toBe(true);
+    expect(fs.existsSync(path.join(resolveLanguageDataRoot(path.join(tempDir.tmpDir, 'language-data')), 'languages', 'aa.freq.json'))).toBe(true);
     expect(mockBroadcastSend).toHaveBeenCalledWith('language-data-installed', expect.objectContaining({
       language: 'aa',
       installed: true,
@@ -1789,7 +1791,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     expect(mockRestartPythonBackend).not.toHaveBeenCalled();
   });
 
-  it('restarts the Python backend when the active learning language is installed', async () => {
+  it('acknowledges the runtime generation when the active learning language is installed', async () => {
     const archiveSourceDir = path.join(tempDir.tmpDir, 'archive-source');
     const archivePath = path.join(tempDir.tmpDir, 'aa.tar.gz');
     const metadataBytes = JSON.stringify({
@@ -1852,8 +1854,10 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     const event = makeEvent();
     for (const h of handlers) await h(event, 'aa');
 
-    expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'aa.json'))).toBe(true);
-    expect(mockRestartPythonBackend).toHaveBeenCalledOnce();
+    expect(fs.existsSync(path.join(resolveLanguageDataRoot(path.join(tempDir.tmpDir, 'language-data')), 'languages', 'aa.json'))).toBe(true);
+    const { ensureLanguageGenerationReady } = await import('./pythonBackend');
+    expect(ensureLanguageGenerationReady).toHaveBeenCalledWith('aa', expect.any(String), undefined, expect.any(Array));
+    expect(mockRestartPythonBackend).not.toHaveBeenCalled();
   });
 
   it('ensures installed language-declared Python requirements for enabled components', async () => {

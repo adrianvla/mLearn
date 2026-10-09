@@ -183,7 +183,17 @@
       "UpdateNow": "Update Now",
       "UpdateTitle": "Language Data Update Available",
       "Updating": "Updating…",
-      "UpdatingMessage": "Downloading and installing the latest language data."
+      "UpdatingMessage": "Downloading and installing the latest language data.",
+      "Phases": {
+        "downloading": "Downloading",
+        "verifying": "Verifying",
+        "extracting": "Extracting",
+        "activating": "Activating",
+        "waiting-for-backend": "Waiting for backend",
+        "ready": "Ready",
+        "error": "Failed"
+      },
+      "Bytes": "bytes"
     },
     "RuntimeRestart": {
       "Message": "Your settings are saved. Restart mLearn to apply the changes safely.",

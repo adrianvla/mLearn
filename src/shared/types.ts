@@ -1036,6 +1036,8 @@ export interface LanguageDictionaryPack {
 }
 
 export interface LanguageDataManifest {
+  /** Locally activated immutable runtime snapshot; independent of advertised version. */
+  activationGeneration?: string;
   /** Data payload version independent from app version. */
   version?: string;
   /** Oldest semantic mLearn app version that can use this language package. */
@@ -1807,6 +1809,9 @@ export interface RuntimeCatalog {
 }
 
 export interface LanguageDataCatalogStatus {
+  operationId?: string;
+  dictionaryTargetLanguage?: string;
+  activationGeneration?: string;
   language: string;
   name: string;
   nameTranslated?: string;
@@ -1846,7 +1851,20 @@ export interface LanguageDataCatalogStatus {
   }>;
 }
 
+export interface LanguageDataInstallProgress {
+  operationId: string;
+  language: string;
+  dictionaryTargetLanguage?: string;
+  components: readonly string[];
+  phase: 'downloading' | 'verifying' | 'extracting' | 'activating' | 'waiting-for-backend' | 'ready' | 'error';
+  downloadedBytes?: number;
+  expectedBytes?: number;
+  generation?: string;
+  error?: string;
+}
+
 export interface LanguageDataInstallError {
+  operationId?: string;
   language: string;
   dictionaryTargetLanguage?: string;
   error: string;
@@ -1857,6 +1875,8 @@ export interface LanguageDataInstallError {
 // ============================================================================
 
 export interface Token {
+  /** Local fallback output may render, but cannot establish learner evidence. */
+  analysisAuthority?: 'display-only';
   word: string;        // The display form
   actual_word: string; // The dictionary form
   type: string;        // Part of speech (動詞, 名詞, etc.)

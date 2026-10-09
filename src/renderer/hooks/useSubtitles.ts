@@ -7,6 +7,7 @@ import { perfCount } from '../utils/perfCounters';
 import { createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
 import type { Subtitle, Token } from '../../shared/types';
 import { useLanguage, useSettings } from '../context';
+import { useDictionaryTargetLanguage } from './useDictionaryTargetLanguage';
 import { useTokenizer } from './useTranslation';
 import { parseSubtitle, stripSpeakerNamePrefixes } from '../utils/subtitleParsing';
 import { createRoughTokenizerTokens, getTokenizerCacheNamespace, tokenizerAllowsFallback } from '../../shared/languageFeatures';
@@ -215,7 +216,8 @@ export function useSubtitles() {
   const { settings } = useSettings();
   const { currentLangData, currentLanguage, currentSourceKey } = useLanguage();
   const processingLanguage = currentLanguage ?? (() => settings.language);
-  const { tokenize } = useTokenizer({ sourceKey: currentSourceKey, language: processingLanguage, languageData: currentLangData });
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage(processingLanguage);
+  const { tokenize } = useTokenizer({ dictionaryTargetLanguage, sourceKey: currentSourceKey, language: processingLanguage, languageData: currentLangData });
 
   const [subtitles, setSubtitles] = createSignal<Subtitle[]>([]);
   const [currentIndex, setCurrentIndex] = createSignal(-1);
@@ -385,7 +387,7 @@ export function useSubtitles() {
       if (myGen !== tokenizationGen) return;
 
       if (Array.isArray(newTokens) && newTokens.length > 0) {
-        authoritativeTokens = true;
+        authoritativeTokens = newTokens.every(token => token.analysisAuthority !== 'display-only');
         if (readingOverrides.length > 0) {
           for (const token of newTokens) {
             const override = readingOverrides.find(o =>

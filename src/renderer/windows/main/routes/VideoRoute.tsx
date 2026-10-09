@@ -686,14 +686,14 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
 
   const addVideoWordFlashcard = async (entry: VideoWordEntry) => {
     const admittedLanguage = sourceLanguage();
-    const admittedData = langCtx.currentLangData();
+    const admittedData = JSON.parse(JSON.stringify(langCtx.currentLangData()));
     const admittedTarget = dictionaryTargetLanguage();
     const admittedFrequency = langCtx.getFrequency(entry.word);
     const admittedStatus = flashcardCtx.getComprehensiveWordStatusSync(entry.word, admittedLanguage);
     const admittedVideo = videoSrc();
     const admittedMediaType = settings.flashcardMediaType;
     const admittedMargin = (settings.flashcardVideoMargin ?? DEFAULT_SETTINGS.flashcardVideoMargin) / 1000;
-    const admittedTokenizer = useTokenizer({ language: admittedLanguage, languageData: admittedData }).tokenize;
+    const admittedTokenizer = useTokenizer({ language: admittedLanguage, languageData: admittedData, dictionaryTargetLanguage: admittedTarget }).tokenize;
     setAddingSidebarWords(prev => {
       const next = new Set(prev);
       next.add(entry.key);

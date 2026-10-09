@@ -772,6 +772,10 @@ const localizationBridge: LocalizationBridge = {
     return emitter.on('language-data-installed', callback as Listener);
   },
 
+  onLanguageDataInstallProgress(callback) {
+    return emitter.on('language-data-install-progress', callback as Listener);
+  },
+
   onLanguageDataInstallError(callback) {
     return emitter.on('language-data-install-error', callback as Listener);
   },

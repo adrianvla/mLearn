@@ -136,8 +136,8 @@ export const OcrOverlay: Component<OcrOverlayProps> = (props) => {
   const { settings } = useSettings();
   const { isTokenTranslatable, getLanguageFeatures, currentLangData, currentLanguage, currentSourceKey } = useLanguage();
   const processingLanguage = currentLanguage ?? (() => settings.language);
-  const { tokenize } = useTokenizer({ sourceKey: currentSourceKey, language: processingLanguage, languageData: currentLangData });
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
+  const { tokenize } = useTokenizer({ dictionaryTargetLanguage, sourceKey: currentSourceKey, language: processingLanguage, languageData: currentLangData });
   const [tokenMap, setTokenMap] = createSignal<Map<number, Token[]>>(new Map());
   const [observedWidth, setObservedWidth] = createSignal(0);
   const [observedHeight, setObservedHeight] = createSignal(0);

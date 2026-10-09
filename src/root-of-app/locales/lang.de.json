@@ -183,7 +183,17 @@
       "UpdateNow": "Jetzt aktualisieren",
       "UpdateTitle": "Aktualisierung der Sprachdaten verfügbar",
       "Updating": "Wird aktualisiert…",
-      "UpdatingMessage": "Die neuesten Sprachdaten werden heruntergeladen und installiert."
+      "UpdatingMessage": "Die neuesten Sprachdaten werden heruntergeladen und installiert.",
+      "Phases": {
+        "downloading": "Herunterladen",
+        "verifying": "Prüfen",
+        "extracting": "Entpacken",
+        "activating": "Aktivieren",
+        "waiting-for-backend": "Warten auf Backend",
+        "ready": "Bereit",
+        "error": "Fehlgeschlagen"
+      },
+      "Bytes": "Bytes"
     },
     "RuntimeRestart": {
       "Message": "Die Einstellungen sind gespeichert. Starte mLearn neu, um die Änderungen sicher anzuwenden.",

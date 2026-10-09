@@ -952,8 +952,8 @@ describe('useTokenizer', () => {
     });
     const result = await tokenize('fail text');
     expect(result).toEqual([
-      { actual_word: 'fail', word: 'fail', type: 'WORD', surface: 'fail' },
-      { actual_word: 'text', word: 'text', type: 'WORD', surface: 'text' },
+      { actual_word: 'fail', word: 'fail', type: 'WORD', surface: 'fail', analysisAuthority: 'display-only' },
+      { actual_word: 'text', word: 'text', type: 'WORD', surface: 'text', analysisAuthority: 'display-only' },
     ]);
   });
 

@@ -1,0 +1,12 @@
+.language-data-jobs, .language-data-job {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+.language-data-job {
+  padding: var(--spacing-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+.language-data-job progress { width: 100%; }

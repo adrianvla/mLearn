@@ -76,6 +76,7 @@ export const IPC_CHANNELS = {
   INSTALL_LANGUAGE_DATA: 'install-language-data',
   LANGUAGE_DATA_INSTALLED: 'language-data-installed',
   LANGUAGE_DATA_INSTALL_ERROR: 'language-data-install-error',
+  LANGUAGE_DATA_INSTALL_PROGRESS: 'language-data-install-progress',
 
   // Linguistic graph
   GRAPH_GET_META: 'graph-get-meta',

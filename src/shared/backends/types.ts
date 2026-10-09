@@ -80,7 +80,7 @@ export interface AnkiWordStatusRecord {
 
 export interface BackendAdapter {
   /** Tokenize text into language tokens */
-  tokenize(text: string, language?: string): Promise<Token[]>;
+  tokenize(text: string, language?: string, dictionaryTargetLanguage?: string): Promise<Token[]>;
   /** Translate/look up a word */
   translate(word: string, language?: string, options?: TranslateRequestOptions): Promise<TranslationResponse>;
   /** Enumerate all dictionary headwords as (word, reading) pairs */

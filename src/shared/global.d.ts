@@ -111,8 +111,9 @@ export interface MLearnIPC {
   onLangData: (callback: (data: LanguageDataMap) => void) => () => void;
   getLanguageDataCatalog: () => void;
   onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) => () => void;
-  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, operationId?: string) => void;
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
+  onLanguageDataInstallProgress: (callback: (payload: import('./types').LanguageDataInstallProgress) => void) => () => void;
   onLanguageDataInstallError: (callback: (payload: import('./types').LanguageDataInstallError) => void) => () => void;
 
   // Linguistic Graph

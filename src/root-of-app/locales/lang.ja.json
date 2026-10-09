@@ -183,7 +183,17 @@
       "UpdateNow": "今すぐ更新",
       "UpdateTitle": "言語データの更新があります",
       "Updating": "更新中…",
-      "UpdatingMessage": "最新の言語データをダウンロードしてインストールしています。"
+      "UpdatingMessage": "最新の言語データをダウンロードしてインストールしています。",
+      "Phases": {
+        "downloading": "ダウンロード中",
+        "verifying": "検証中",
+        "extracting": "展開中",
+        "activating": "有効化中",
+        "waiting-for-backend": "バックエンドを待機中",
+        "ready": "準備完了",
+        "error": "失敗"
+      },
+      "Bytes": "バイト"
     },
     "RuntimeRestart": {
       "Message": "設定は保存されました。変更を安全に適用するため、mLearnを再起動してください。",

@@ -19,6 +19,7 @@ import { getLanguageDataRoot } from './languageDataService';
 import { getLogger } from '../../shared/utils/logger';
 import type { LanguageData, LanguageDataMap } from '../../shared/types';
 import { languagePackageRevision } from './languagePackageRevision';
+import { resolveLanguageDataRoot } from './languageGeneration';
 import type { RetentionPolicy } from '../../shared/srs/retentionScheduler';
 
 const log = getLogger('electron.linguisticGraph');
@@ -80,7 +81,7 @@ export class LinguisticGraphService {
   constructor(private readonly dataRoot = getLanguageDataRoot(), private readonly profilePath = path.resolve(dataRoot, '..')) {}
 
   private graphPath(language: string): string {
-    return path.join(this.dataRoot, 'languages', `${language}.graph.json`);
+    return path.join(resolveLanguageDataRoot(this.dataRoot), 'languages', `${language}.graph.json`);
   }
 
   private async load(language: string): Promise<LoadedGraph | undefined> {

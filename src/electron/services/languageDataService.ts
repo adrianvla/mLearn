@@ -5,6 +5,7 @@ import * as tar from 'tar';
 import { getUserDataPath } from '../utils/platform';
 import { downloadFileWithProgress, type ProgressCallback } from '../utils/downloadManager';
 import type {
+  LanguageDataInstallProgress,
   LanguageDataAsset,
   LanguageDataBundle,
   LanguageDataCatalogStatus,
@@ -18,6 +19,7 @@ import { diffCompactGraphAssets } from '../../shared/graph/diff';
 import type { CompactAssetJSON } from '../../shared/graph/compact';
 import { invalidateFlashcardsCache } from './flashcardStorage';
 import { advanceLanguagePackageRevision } from './languagePackageRevision';
+import { activateLanguageGeneration, resolveLanguageDataRoot } from './languageGeneration';
 
 const log = getLogger('electron.languageData');
 const inFlightInstalls = new Map<string, Promise<void>>();
@@ -49,6 +51,9 @@ export interface LanguageDataStatus {
 }
 
 export interface LanguageDataInstallOptions {
+  includeCore?: boolean;
+  beforeActivate?: (candidateRoot: string) => Promise<void>;
+  onPhase?: (phase: LanguageDataInstallProgress['phase']) => void;
   components?: readonly LanguagePythonRequirementComponent[];
   currentAppVersion?: string;
   allowIncompatibleAppVersion?: boolean;
@@ -176,16 +181,16 @@ function isIgnoredArchiveMetadataPath(relativePath: string): boolean {
 
 export function getInstalledLanguageAssetPath(asset: LanguageDataAsset): string {
   assertSafeRelativePath(asset.path);
-  return path.join(getLanguageDataRoot(), asset.path);
+  return path.join(resolveLanguageDataRoot(getLanguageDataRoot()), asset.path);
 }
 
 function getInstallKey(language: string, dictionaryTargetLanguage?: string): string {
   return dictionaryTargetLanguage ? `${language}:${dictionaryTargetLanguage}` : language;
 }
 
-function getInstallReceiptPath(installKey: string): string {
+function getInstallReceiptPath(installKey: string, root = resolveLanguageDataRoot(getLanguageDataRoot())): string {
   const safeKey = installKey.replace(/[^a-zA-Z0-9._-]/g, '_');
-  return path.join(getLanguageDataRoot(), '.install-receipts', `${safeKey}.json`);
+  return path.join(root, '.install-receipts', `${safeKey}.json`);
 }
 
 function readInstallReceiptVersion(installKey: string): string | undefined {
@@ -234,9 +239,9 @@ function installedVersionSatisfiesExpected(installedVersion: string, expectedVer
   return comparison !== undefined && comparison >= 0;
 }
 
-function writeInstallReceipt(installKey: string, version?: string): void {
+function writeInstallReceipt(installKey: string, version?: string, root?: string): void {
   if (!version) return;
-  const receiptPath = getInstallReceiptPath(installKey);
+  const receiptPath = getInstallReceiptPath(installKey, root);
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
   fs.writeFileSync(
     receiptPath,
@@ -249,13 +254,14 @@ function syncInstalledDictionaryPackMetadata(
   language: string,
   langData: LanguageDataMap,
   dictionaryTargetLanguage: string,
+  root = resolveLanguageDataRoot(getLanguageDataRoot()),
 ): void {
   const languageManifest = langData[language]?.languageData;
   const dictionaryPack = languageManifest?.dictionaryPacks?.[dictionaryTargetLanguage];
   const metadataAsset = languageManifest?.assets.find(isLanguageMetadataAsset);
   if (!dictionaryPack || !metadataAsset) return;
 
-  const metadataPath = getInstalledLanguageAssetPath(metadataAsset);
+  const metadataPath = path.join(root, metadataAsset.path);
   const parsed = JSON.parse(fs.readFileSync(metadataPath, 'utf-8')) as unknown;
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(`Installed language metadata is invalid for ${language}`);
@@ -285,7 +291,6 @@ function syncInstalledDictionaryPackMetadata(
   const temporaryPath = `${metadataPath}.installing`;
   fs.writeFileSync(temporaryPath, `${JSON.stringify(updatedMetadata, null, 2)}\n`, 'utf-8');
   fs.renameSync(temporaryPath, metadataPath);
-  advanceLanguagePackageRevision(getLanguageDataRoot(), language);
 }
 
 function installReceiptVersionMatches(installKey: string, expectedVersion?: string): boolean {
@@ -624,6 +629,12 @@ async function installBundle(
   workKey: string = language,
   dictionaryTargetLanguage?: string,
   expectedAssets?: LanguageDataAsset[],
+  langData?: LanguageDataMap,
+  expectedVersion?: string,
+  onPhase?: (phase: LanguageDataInstallProgress['phase']) => void,
+  candidateRoot?: string,
+  additional?: { bundle: LanguageDataBundle; target: string; assets: LanguageDataAsset[]; version?: string },
+  beforeActivate?: (root: string) => Promise<void>,
 ): Promise<void> {
   const bundleUrl = bundle.url ?? bundle.href;
   if (!bundleUrl) {
@@ -631,7 +642,7 @@ async function installBundle(
   }
 
   const dataRoot = getLanguageDataRoot();
-  const workRoot = path.join(dataRoot, '.downloads', workKey);
+  const workRoot = path.join(dataRoot, '.downloads', `${workKey}-${crypto.randomUUID()}`);
   const archivePath = path.join(workRoot, `${workKey}.tar.gz`);
   const extractDir = path.join(workRoot, 'extract');
   fs.rmSync(workRoot, { recursive: true, force: true });
@@ -639,9 +650,12 @@ async function installBundle(
 
   try {
     log.info(`Downloading language data bundle ${language} from ${bundleUrl}`);
+    onPhase?.('downloading');
     await downloadFileWithProgress(bundleUrl, archivePath, onProgress);
+    onPhase?.('verifying');
     verifyBundleChecksum(bundle, archivePath, `${workKey} (${bundleUrl})`);
 
+    onPhase?.('extracting');
     await tar.x({
       file: archivePath,
       cwd: extractDir,
@@ -659,37 +673,48 @@ async function installBundle(
     });
 
     const manifest = parseBundleManifest(extractDir, language, dictionaryTargetLanguage);
-    // Identity guard runs BEFORE any file is replaced: an ambiguous graph
-    // package update must leave the previous assets untouched (REQ56).
-    for (const file of manifest.files) {
-      if (GRAPH_ASSET_PATH.test(file.path)) {
-        assertGraphUpdateIdentitySafe(language, file, path.join(extractDir, 'files', file.path));
+    onPhase?.('verifying');
+    const prepare = async (candidateRoot: string): Promise<void> => {
+      // Verify all selected bytes and graph identities before copying any overlay.
+      const selected = selectBundleFiles(manifest.files, expectedAssets);
+      for (const file of selected) {
+        const extractedPath = path.join(extractDir, 'files', file.path);
+        if (!fs.existsSync(extractedPath)) throw new Error(`Language data bundle is missing file: ${file.path}`);
+        if (file.sizeBytes !== undefined && fs.statSync(extractedPath).size !== file.sizeBytes) {
+          throw new Error(`Size mismatch for language data bundle file ${file.path}`);
+        }
+        verifyChecksum(file, extractedPath);
+        if (GRAPH_ASSET_PATH.test(file.path)) assertGraphUpdateIdentitySafe(language, file, extractedPath);
       }
-    }
-    for (const file of selectBundleFiles(manifest.files, expectedAssets)) {
-      const extractedPath = path.join(extractDir, 'files', file.path);
-      if (!fs.existsSync(extractedPath)) {
-        throw new Error(`Language data bundle is missing file: ${file.path}`);
+      for (const file of selected) {
+        const destination = path.join(candidateRoot, file.path);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.copyFileSync(path.join(extractDir, 'files', file.path), destination);
       }
-      if (file.sizeBytes !== undefined && fs.statSync(extractedPath).size !== file.sizeBytes) {
-        throw new Error(`Size mismatch for language data bundle file ${file.path}`);
+      if (dictionaryTargetLanguage && langData) syncInstalledDictionaryPackMetadata(language, langData, dictionaryTargetLanguage, candidateRoot);
+      writeInstallReceipt(getInstallKey(language, dictionaryTargetLanguage), expectedVersion, candidateRoot);
+      if (additional) await installBundle(language, additional.bundle, onProgress, `${language}-${additional.target}-dictionary`, additional.target,
+        additional.assets, langData, additional.version, onPhase, candidateRoot);
+      // Every advertised retained component must remain compatible with the new
+      // package. Excluded optional components may be absent; stale bytes may not
+      // silently stay available under a changed runtime declaration.
+      for (const asset of langData?.[language]?.languageData?.assets ?? []) {
+        const file = path.join(candidateRoot, asset.path);
+        if (!fs.existsSync(file)) continue;
+        if (isLanguageMetadataAsset(asset)) continue; // merged metadata was verified before editing pack receipt
+        verifyChecksum(asset, file);
+        if (asset.sizeBytes !== undefined && fs.statSync(file).size !== asset.sizeBytes) throw new Error(`Retained asset is incompatible: ${asset.path}`);
       }
-      verifyChecksum(file, extractedPath);
-
-      const installedPath = getInstalledLanguageAssetPath(file);
-      fs.mkdirSync(path.dirname(installedPath), { recursive: true });
-      const tmpInstalledPath = `${installedPath}.installing`;
-      fs.copyFileSync(extractedPath, tmpInstalledPath);
-      fs.renameSync(tmpInstalledPath, installedPath);
-      // Also retire cached authority if a later file fails: any replaced
-      // asset means the previous in-memory package generation is stale.
-      advanceLanguagePackageRevision(dataRoot, language);
-    }
+      if (beforeActivate) await beforeActivate(candidateRoot);
+    };
+    if (candidateRoot) await prepare(candidateRoot);
+    else await activateLanguageGeneration(dataRoot, async root => { await prepare(root); onPhase?.('activating'); });
+    if (!candidateRoot) advanceLanguagePackageRevision(dataRoot, language);
     // A newly installed package can unblock deferred flashcard-store
     // migrations (e.g. normalization rebuilds that need package-declared
     // word-form derivation). The mutation-owned store cache must re-read so
     // the next load retries the deferred migration.
-    invalidateFlashcardsCache();
+    if (!candidateRoot) invalidateFlashcardsCache();
   } finally {
     fs.rmSync(workRoot, { recursive: true, force: true });
   }
@@ -713,25 +738,28 @@ export async function ensureLanguageDataInstalled(
   // ones (Tier-2 linguistic graphs). `required` gates COMPLETENESS signaling
   // (status/missing-assets), never whether the file is installed: a package
   // that advertises a graph must deliver it.
-  const assets = getAssets(language, langData, dictionaryTargetLanguage, options);
-  const bundle = getBundle(language, langData, dictionaryTargetLanguage);
-  const expectedVersion = getInstallManifest(language, langData, dictionaryTargetLanguage)?.version;
+  const combined = Boolean(dictionaryTargetLanguage && options?.includeCore);
+  const mainTarget = combined ? undefined : dictionaryTargetLanguage;
+  const assets = getAssets(language, langData, mainTarget, options);
+  const bundle = getBundle(language, langData, mainTarget);
+  const expectedVersion = getInstallManifest(language, langData, mainTarget)?.version;
   const currentStatus = getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
   // An existing install is only "done" when no in-scope advertised asset is
   // missing locally — otherwise an install that predates a newly advertised
   // optional asset (e.g. a graph published after the first install) would
   // never backfill it.
-  if (currentStatus.installed && currentStatus.assets.every((asset) => asset.installed)) {
-    if (dictionaryTargetLanguage) {
-      syncInstalledDictionaryPackMetadata(language, langData, dictionaryTargetLanguage);
-    }
+  const coreStatus = combined ? getLanguageDataStatus(language, langData, undefined, options) : currentStatus;
+  if (currentStatus.installed && currentStatus.assets.every(asset => asset.installed)
+    && coreStatus.installed && coreStatus.assets.every(asset => asset.installed)) {
+    if (options?.beforeActivate) await options.beforeActivate(resolveLanguageDataRoot(getLanguageDataRoot()));
     return currentStatus;
   }
   if (!bundle) {
     throw new Error(`No language data bundle is available for ${language}${dictionaryTargetLanguage ? `:${dictionaryTargetLanguage}` : ''}`);
   }
   const installKey = getInstallKey(language, dictionaryTargetLanguage);
-  const existingInstall = inFlightInstalls.get(installKey);
+  const jobKey = JSON.stringify([installKey, assets.map(asset => [asset.path, asset.sha256]), options?.components, combined, bundle.sha256, expectedVersion, dictionaryTargetLanguage ? getBundle(language, langData, dictionaryTargetLanguage)?.sha256 : undefined]);
+  const existingInstall = inFlightInstalls.get(jobKey);
   if (existingInstall) {
     await existingInstall;
     return getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);
@@ -742,19 +770,27 @@ export async function ensureLanguageDataInstalled(
     bundle,
     onProgress,
     dictionaryTargetLanguage ? `${language}-${dictionaryTargetLanguage}-dictionary` : language,
-    dictionaryTargetLanguage,
+    mainTarget,
     assets,
+    langData,
+    expectedVersion,
+    options?.onPhase,
+    undefined,
+    combined && dictionaryTargetLanguage ? (() => {
+      const dictionaryBundle = getBundle(language, langData, dictionaryTargetLanguage);
+      if (!dictionaryBundle) throw new Error(`No dictionary bundle for ${language}->${dictionaryTargetLanguage}`);
+      return { bundle: dictionaryBundle, target: dictionaryTargetLanguage, assets: getAssets(language, langData, dictionaryTargetLanguage, options),
+        version: getInstallManifest(language, langData, dictionaryTargetLanguage)?.version };
+    })() : undefined,
+    options?.beforeActivate,
   );
-  inFlightInstalls.set(installKey, installPromise);
+  inFlightInstalls.set(jobKey, installPromise);
   try {
     await installPromise;
-    if (dictionaryTargetLanguage) {
-      syncInstalledDictionaryPackMetadata(language, langData, dictionaryTargetLanguage);
-    }
-    writeInstallReceipt(installKey, expectedVersion);
+
   } finally {
-    if (inFlightInstalls.get(installKey) === installPromise) {
-      inFlightInstalls.delete(installKey);
+    if (inFlightInstalls.get(jobKey) === installPromise) {
+      inFlightInstalls.delete(jobKey);
     }
   }
   return getLanguageDataStatus(language, langData, dictionaryTargetLanguage, options);

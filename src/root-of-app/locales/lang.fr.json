@@ -183,7 +183,17 @@
       "UpdateNow": "Mettre à jour",
       "UpdateTitle": "Mise à jour des données linguistiques disponible",
       "Updating": "Mise à jour…",
-      "UpdatingMessage": "Téléchargement et installation des dernières données linguistiques."
+      "UpdatingMessage": "Téléchargement et installation des dernières données linguistiques.",
+      "Phases": {
+        "downloading": "Téléchargement",
+        "verifying": "Vérification",
+        "extracting": "Extraction",
+        "activating": "Activation",
+        "waiting-for-backend": "En attente du serveur",
+        "ready": "Prêt",
+        "error": "Échec"
+      },
+      "Bytes": "octets"
     },
     "RuntimeRestart": {
       "Message": "Vos paramètres sont enregistrés. Redémarrez mLearn pour appliquer les changements en toute sécurité.",

@@ -848,6 +848,14 @@ Speaker: Hello world
     }
   });
 
+  it('does not observe display-only tokens returned by the shared tokenizer', async () => {
+    mockTokenize.mockResolvedValueOnce([{ word: 'Hello', actual_word: 'Hello', type: 'WORD', analysisAuthority: 'display-only' }]);
+    await createRoot(async dispose => {
+      const hook = useSubtitles(); hook.loadSubtitles(SRT_CONTENT, 'srt'); await hook.updateTime(2);
+      expect(hook.tokens()).toHaveLength(1); expect(hook.observationReady()).toBe(false); dispose();
+    });
+  });
+
   it('keeps failed tokenizer display fallback out of learner observations', async () => {
     const { useLanguage } = await import('../context');
     vi.mocked(useLanguage).mockReturnValueOnce({ currentLangData: () => ({

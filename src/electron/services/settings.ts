@@ -5,12 +5,14 @@ import { notifySettingsCommitted } from './settingsChanges';
  */
 
 import fs from 'fs';
+import crypto from 'crypto';
 import path from 'path';
 import { app, ipcMain, webContents } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import { probeMirrorCatalog } from './catalogMirrors';
-import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDictionaryPack, LanguagePythonRequirementComponent, normalizeCloudLLMTier } from '../../shared/types';
+import { Settings, DEFAULT_SETTINGS, InstallOptions, LanguageCatalogEntry, LanguageData, LanguageDataAsset, LanguageDataBundle, LanguageDataMap, LanguageDataInstallProgress, LanguageDictionaryPack, LanguagePythonRequirementComponent, normalizeCloudLLMTier } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
+import { resolveLanguageDataRoot } from './languageGeneration';
 import { isLanguageMetadataFileName } from '../utils/languageCode';
 import { migrateLegacyThemeSettings } from '../../shared/constants';
 import { setUILanguage } from './localization';
@@ -83,7 +85,7 @@ export function hasSettingsFile(): boolean {
 }
 
 function getInstalledLanguageCodes(): string[] {
-  const languagesDir = path.join(getUserDataPath(), 'language-data', 'languages');
+  const languagesDir = path.join(resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data')), 'languages');
   if (!fs.existsSync(languagesDir)) {
     return [];
   }
@@ -281,10 +283,10 @@ function hydrateLanguageFontAssets(languageData: LanguageData, dataRoot: string)
   };
 }
 
-export function loadLangData(): LanguageDataMap {
+export function loadLangData(admittedRoot = resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data'))): LanguageDataMap {
   const langData: LanguageDataMap = {};
   const candidateDirs = [
-    path.join(getUserDataPath(), 'language-data', 'languages'),
+    path.join(admittedRoot, 'languages'),
   ];
   const languagesDirs = candidateDirs.filter((dir, index, dirs) => fs.existsSync(dir) && dirs.indexOf(dir) === index);
 
@@ -343,7 +345,9 @@ export function loadLangData(): LanguageDataMap {
       }
     }
 
-    for (const [langCode, installedLanguageData] of Object.entries(langData)) {
+    for (const [langCode, loadedLanguageData] of Object.entries(langData)) {
+      const installedLanguageData = { ...loadedLanguageData, languageData: loadedLanguageData.languageData
+        ? { ...loadedLanguageData.languageData, activationGeneration: path.basename(path.dirname(languagesDirs[0])) } : undefined };
       const dataRoot = path.dirname(languagesDirs[0]);
       const languageData = hydrateLanguageFontAssets(installedLanguageData, dataRoot);
       const providers = languageData.frequencyProviders;
@@ -883,24 +887,21 @@ export function setupSettingsIPC(): void {
     );
   });
 
-  ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => {
+  ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, requestedOperationId?: string) => {
+    const operationId = requestedOperationId ?? crypto.randomUUID();
+    let components: readonly LanguagePythonRequirementComponent[] = [];
+    const progress = (phase: LanguageDataInstallProgress['phase'], bytes?: { downloadedBytes: number; expectedBytes: number }, generation?: string, error?: string): void => {
+      event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALL_PROGRESS, { operationId, language, dictionaryTargetLanguage, components, phase, ...bytes, generation, error });
+    };
     try {
       const settings = loadSettings();
       const langData = await loadLanguagePackageCatalog();
       const effectiveInstallOptions = installOptions ?? getInstallOptionsFromSettings(settings);
-      const components = installOptions
+      components = installOptions
         ? getLanguageDataComponentsFromInstallOptions(effectiveInstallOptions)
         : getEnabledLanguageDataComponents(settings);
       const currentAppVersion = app.getVersion();
       const allowIncompatibleAppVersion = allowsIncompatibleLanguageData(settings);
-      await ensureLanguageDataInstalled(language, langData, undefined, undefined, {
-        components,
-        currentAppVersion,
-        allowIncompatibleAppVersion,
-      });
-      await ensureLanguagePythonRequirementsInstalled(language, loadLangData(), effectiveInstallOptions, {
-        onStatus: (message) => event.reply(IPC_CHANNELS.SERVER_STATUS_UPDATE, message),
-      });
       const resolvedDictionaryTarget = dictionaryTargetLanguage
         ? resolveDictionaryTargetLanguage(language, langData, dictionaryTargetLanguage)
         : undefined;
@@ -912,38 +913,39 @@ export function setupSettingsIPC(): void {
           `No dictionary pack is available for ${language}->${requestedDictionaryTarget}. Available: ${availableTargets.join(', ') || 'none'}`,
         );
       }
-      if (resolvedDictionaryTarget) {
-        await ensureLanguageDataInstalled(language, langData, undefined, resolvedDictionaryTarget, {
-          currentAppVersion,
-          allowIncompatibleAppVersion,
-        });
+      let acknowledgedRoot: string | undefined;
+      await ensureLanguageDataInstalled(language, langData, bytes => progress('downloading', bytes), resolvedDictionaryTarget, {
+        includeCore: true, components, currentAppVersion, allowIncompatibleAppVersion,
+        onPhase: phase => progress(phase),
+        beforeActivate: async candidate => {
+          await ensureLanguagePythonRequirementsInstalled(language, loadLangData(candidate), effectiveInstallOptions, {
+            onStatus: message => event.reply(IPC_CHANNELS.SERVER_STATUS_UPDATE, message),
+          });
+          const generation = path.basename(candidate);
+          progress('waiting-for-backend', undefined, generation);
+          const { ensureLanguageGenerationReady } = await import('./pythonBackend');
+          await ensureLanguageGenerationReady(language, generation, resolvedDictionaryTarget, components);
+          acknowledgedRoot = candidate;
+        },
+      });
+      const admittedRoot = acknowledgedRoot;
+      if (!admittedRoot || resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data')) !== admittedRoot) {
+        throw new Error('The selected language generation changed before publication; retry');
       }
-      const catalog = getLanguageDataCatalogStatus(
-        await loadLanguagePackageCatalog(),
-        currentAppVersion,
-        allowIncompatibleAppVersion,
-      );
-      const installedStatus = catalog.find((status) => status.language === language);
-      // Catalog state is global; reply-only would leave other windows stale (bug).
-      // Always push catalog + lang data so a transient catalog failure (installedStatus
-      // undefined) cannot leave the home screen stuck on "language data is not installed".
+      const generation = path.basename(admittedRoot);
+      const catalog = getLanguageDataCatalogStatus(langData, currentAppVersion, allowIncompatibleAppVersion);
+      const installedStatus = catalog.find(status => status.language === language);
+      const admittedMetadata = loadLangData(admittedRoot);
       for (const target of webContents.getAllWebContents()) {
-        if (installedStatus) {
-          target.send(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, installedStatus);
-        }
+        if (installedStatus) target.send(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, { ...installedStatus, operationId, dictionaryTargetLanguage, activationGeneration: generation });
         target.send(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);
-        target.send(IPC_CHANNELS.LANG_DATA, loadLangData());
+        target.send(IPC_CHANNELS.LANG_DATA, admittedMetadata);
       }
-
-      // The Python backend caches the active language at startup; installing the
-      // selected learning language must restart it or the backend never loads it.
-      const installedSettings = loadSettings();
-      if (installedSettings.language === language) {
-        const { restartPythonBackend } = await import('./pythonBackend');
-        restartPythonBackend();
-      }
+      progress('ready', undefined, generation);
     } catch (error) {
+      progress('error', undefined, undefined, error instanceof Error ? error.message : String(error));
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALL_ERROR, {
+        operationId,
         language,
         dictionaryTargetLanguage,
         error: error instanceof Error ? error.message : String(error),

@@ -789,6 +789,15 @@ async def voice_tts_status(language: Optional[str] = None):
 # ── Download trigger ──
 
 
+def ensure_language_voice_ready(language: str) -> None:
+    _ensure_stt_loaded()
+    engine = _resolve_tts_engine(language)
+    if engine == 'qwen3': _ensure_qwen3_tts_loaded()
+    elif engine == 'qwen3-torch': _ensure_qwen3_torch_loaded()
+    elif engine == 'kokoro': _ensure_tts_loaded(language)
+    else: raise RuntimeError(f'Voice runtime is unavailable for {language}')
+
+
 @router.post("/voice/models/download")
 async def voice_download_models(language: Optional[str] = None):
     global _voice_stt_downloading, _voice_tts_downloading
@@ -1657,6 +1666,8 @@ async def voice_stream_ws(websocket: WebSocket):
         tts_provider,
     )
 
+    from language_generation import admit_language_generation, release_language_generation
+    admission = admit_language_generation(config.LANGUAGE_DATA_PATH)
     try:
         _reload_tts_settings()
         loop = asyncio.get_running_loop()
@@ -1967,6 +1978,7 @@ async def voice_stream_ws(websocket: WebSocket):
         except Exception:
             pass
     finally:
+        release_language_generation(admission)
         try:
             await websocket.close()
         except Exception:

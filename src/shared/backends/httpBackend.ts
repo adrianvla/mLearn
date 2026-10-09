@@ -101,9 +101,10 @@ export class HttpBackend implements BackendAdapter {
     throw new HttpBackendStatusError(res.status, `${label} failed: ${res.status}${text ? ` - ${text}` : ''}`);
   }
 
-  async tokenize(text: string, language?: string): Promise<Token[]> {
+  async tokenize(text: string, language?: string, dictionaryTargetLanguage?: string): Promise<Token[]> {
     const body: Record<string, string> = { text };
     if (language) body.language = language;
+    if (dictionaryTargetLanguage) body.dictionaryTargetLanguage = dictionaryTargetLanguage;
 
     const res = await fetch(this.buildUrl(API_PATHS.tokenize), {
       method: 'POST',

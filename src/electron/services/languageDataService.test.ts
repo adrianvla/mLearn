@@ -4,6 +4,7 @@ import path from 'path';
 import crypto from 'crypto';
 import * as tar from 'tar';
 import { createTempDir, type TempDir } from '../../../test/helpers/tempDir';
+import { resolveLanguageDataRoot } from './languageGeneration';
 import type { LanguageDataMap } from '../../shared/types';
 
 const mockDownloadFileWithProgress = vi.fn();
@@ -18,6 +19,15 @@ vi.mock('../utils/platform', () => ({
   getUserDataPath: vi.fn(() => tempDir.tmpDir),
   getResourcePath: vi.fn(() => path.join(tempDir.tmpDir, 'resources')),
 }));
+
+// Reads exercise the published runtime resolver; fixtures still seed legacy roots.
+const readInstalled: typeof fs.readFileSync = ((file: fs.PathOrFileDescriptor, options: unknown) => {
+  if (typeof file === 'string') {
+    const controller = path.join(tempDir.tmpDir, 'language-data');
+    if (file.startsWith(controller + path.sep)) file = path.join(resolveLanguageDataRoot(controller), path.relative(controller, file));
+  }
+  return fs.readFileSync(file, options as never);
+}) as typeof fs.readFileSync;
 
 function makeLangData(overrides: Partial<LanguageDataMap[string]> = {}): LanguageDataMap {
   return {
@@ -100,7 +110,7 @@ async function makeGraphBundleLangData(
       bundle: {
         url: 'https://example.com/language-data/zz.tar.gz',
         sizeBytes: fs.statSync(archivePath).size,
-        sha256: sha256(fs.readFileSync(archivePath)),
+        sha256: sha256(readInstalled(archivePath)),
       },
       assets: manifest.files,
     },
@@ -121,6 +131,29 @@ describe('languageDataService', () => {
     mockDownloadFileWithProgress.mockReset();
     vi.resetModules();
     mod = await import('./languageDataService');
+  });
+
+  it('keeps the complete old generation selected when the actual runtime activation callback fails', async () => {
+    const firstBytes = makeGraphAssetBytes([{ id: 'qx:original', kindId: GRAPH_KIND.LEXEME }]);
+    const old = await makeGraphBundleLangData(tempDir.tmpDir, 'bundle-v1', firstBytes);
+    mockDownloadServesLatestArchive(tempDir.tmpDir);
+    await mod.ensureLanguageDataInstalled('zz', old);
+    const controller = path.join(tempDir.tmpDir, 'language-data');
+    const admitted = resolveLanguageDataRoot(controller);
+    const nextBytes = makeGraphAssetBytes([{ id: 'qx:original', kindId: GRAPH_KIND.LEXEME }, { id: 'qx:new', kindId: GRAPH_KIND.SENSE }]);
+    const next = await makeGraphBundleLangData(tempDir.tmpDir, 'bundle-v2', nextBytes);
+    await expect(mod.ensureLanguageDataInstalled('zz', next, undefined, undefined, {
+      beforeActivate: async candidate => {
+        expect(resolveLanguageDataRoot(controller)).toBe(admitted);
+        expect(fs.readFileSync(path.join(candidate, 'languages/zz.graph.json'), 'utf8')).toBe(nextBytes);
+        throw new Error('runtime not ready');
+      },
+    })).rejects.toThrow('runtime not ready');
+    expect(resolveLanguageDataRoot(controller)).toBe(admitted);
+    expect(readInstalled(path.join(controller, 'languages/zz.graph.json'), 'utf8')).toBe(firstBytes);
+    await mod.ensureLanguageDataInstalled('zz', next, undefined, undefined, { beforeActivate: async () => {} });
+    expect(resolveLanguageDataRoot(controller)).not.toBe(admitted);
+    expect(readInstalled(path.join(controller, 'languages/zz.graph.json'), 'utf8')).toBe(nextBytes);
   });
 
   it('reports missing required assets when language data is not installed', () => {
@@ -222,7 +255,7 @@ describe('languageDataService', () => {
         bundle: {
           url: 'https://example.com/language-data/zz.tar.gz',
           sizeBytes: fs.statSync(archivePath).size,
-          sha256: sha256(fs.readFileSync(archivePath)),
+          sha256: sha256(readInstalled(archivePath)),
         },
         assets: manifest.files,
       },
@@ -240,7 +273,7 @@ describe('languageDataService', () => {
 
     await mod.ensureLanguageDataInstalled('zz', langData);
 
-    expect(JSON.parse(fs.readFileSync(installedMetadataPath, 'utf-8')).runtime.ocr.recognitionEngine).toBe('mangaocr');
+    expect(JSON.parse(readInstalled(installedMetadataPath, 'utf-8')).runtime.ocr.recognitionEngine).toBe('mangaocr');
     expect(mockDownloadFileWithProgress).toHaveBeenCalledWith(
       'https://example.com/language-data/zz.tar.gz',
       expect.stringContaining('zz.tar.gz'),
@@ -674,7 +707,7 @@ describe('languageDataService', () => {
         bundle: {
           url: 'https://example.com/language-data/zz.tar.gz',
           sizeBytes: fs.statSync(archivePath).size,
-          sha256: sha256(fs.readFileSync(archivePath)),
+          sha256: sha256(readInstalled(archivePath)),
         },
         assets: manifest.files,
       },
@@ -685,8 +718,8 @@ describe('languageDataService', () => {
       expect.stringContaining('zz.tar.gz'),
       undefined,
     );
-    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
-    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.freq.json'), 'utf-8')).toBe(frequencyBytes);
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.freq.json'), 'utf-8')).toBe(frequencyBytes);
     expect(languagePackageRevision(path.join(tempDir.tmpDir, 'language-data'), 'zz')).toBeGreaterThan(revision);
   });
 
@@ -745,7 +778,7 @@ describe('languageDataService', () => {
         bundle: {
           url: 'https://example.com/language-data/zz-components.tar.gz',
           sizeBytes: fs.statSync(archivePath).size,
-          sha256: sha256(fs.readFileSync(archivePath)),
+          sha256: sha256(readInstalled(archivePath)),
         },
         assets: manifest.files,
       },
@@ -753,13 +786,13 @@ describe('languageDataService', () => {
 
     await mod.ensureLanguageDataInstalled('zz', langData);
 
-    expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json'))).toBe(true);
-    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'models', 'zz', 'segmenter.bin'), 'utf-8')).toBe(segmentationBytes);
+    expect(fs.existsSync(mod.getInstalledLanguageAssetPath({id:'language-metadata',path:'languages/zz.json'}))).toBe(true);
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', 'models', 'zz', 'segmenter.bin'), 'utf-8')).toBe(segmentationBytes);
     expect(fs.existsSync(path.join(tempDir.tmpDir, 'language-data', 'models', 'zz', 'ocr.bin'))).toBe(false);
 
     await mod.ensureLanguageDataInstalled('zz', langData, undefined, undefined, { components: ['core', 'ocr'] });
 
-    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'models', 'zz', 'ocr.bin'), 'utf-8')).toBe(ocrBytes);
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', 'models', 'zz', 'ocr.bin'), 'utf-8')).toBe(ocrBytes);
   });
 
   it('installs optional advertised graph assets on fresh install', async () => {
@@ -804,7 +837,7 @@ describe('languageDataService', () => {
         bundle: {
           url: 'https://example.com/language-data/zz-graph-optional.tar.gz',
           sizeBytes: fs.statSync(archivePath).size,
-          sha256: sha256(fs.readFileSync(archivePath)),
+          sha256: sha256(readInstalled(archivePath)),
         },
         assets: manifest.files,
       },
@@ -813,7 +846,7 @@ describe('languageDataService', () => {
     const status = await mod.ensureLanguageDataInstalled('zz', langData);
 
     expect(status.installed).toBe(true);
-    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.graph.json'), 'utf-8')).toBe(graphBytes);
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.graph.json'), 'utf-8')).toBe(graphBytes);
   });
 
   it('backfills a newly advertised optional graph into an already-installed language', async () => {
@@ -851,7 +884,7 @@ describe('languageDataService', () => {
         bundle: {
           url: 'https://example.com/language-data/zz-core.tar.gz',
           sizeBytes: fs.statSync(coreArchivePath).size,
-          sha256: sha256(fs.readFileSync(coreArchivePath)),
+          sha256: sha256(readInstalled(coreArchivePath)),
         },
         assets: coreManifest.files,
       },
@@ -897,7 +930,7 @@ describe('languageDataService', () => {
         bundle: {
           url: 'https://example.com/language-data/zz-with-graph.tar.gz',
           sizeBytes: fs.statSync(graphArchivePath).size,
-          sha256: sha256(fs.readFileSync(graphArchivePath)),
+          sha256: sha256(readInstalled(graphArchivePath)),
         },
         assets: graphManifest.files,
       },
@@ -907,7 +940,7 @@ describe('languageDataService', () => {
 
     expect(downloadCount()).toBe(downloadsBefore + 1);
     expect(status.installed).toBe(true);
-    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.graph.json'), 'utf-8')).toBe(graphBytes);
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.graph.json'), 'utf-8')).toBe(graphBytes);
   });
 
   it('ignores macOS metadata entries in language bundle archives', async () => {
@@ -953,13 +986,13 @@ describe('languageDataService', () => {
         bundle: {
           url: 'https://example.com/language-data/zz.tar.gz',
           sizeBytes: fs.statSync(archivePath).size,
-          sha256: sha256(fs.readFileSync(archivePath)),
+          sha256: sha256(readInstalled(archivePath)),
         },
         assets: manifest.files,
       },
     }));
 
-    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
   });
 
   it('downloads a selected dictionary pack separately from the core language bundle', async () => {
@@ -1034,7 +1067,7 @@ describe('languageDataService', () => {
             bundle: {
               url: 'https://example.com/language-data/zz-fr-dictionary.tar.gz',
               sizeBytes: fs.statSync(archivePath).size,
-              sha256: sha256(fs.readFileSync(archivePath)),
+              sha256: sha256(readInstalled(archivePath)),
             },
             assets: manifest.files,
           },
@@ -1053,13 +1086,13 @@ describe('languageDataService', () => {
       expect.stringContaining('zz-fr-dictionary.tar.gz'),
       undefined,
     );
-    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
-    const installedMetadata = JSON.parse(fs.readFileSync(installedMetadataPath, 'utf-8')) as {
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+    const installedMetadata = JSON.parse(readInstalled(installedMetadataPath, 'utf-8')) as {
       languageData?: { dictionaryPacks?: { fr?: { version?: string; bundle?: { sha256?: string } } } };
     };
     expect(installedMetadata.languageData?.dictionaryPacks?.fr).toMatchObject({
       version: 'zz-fr-dictionary-v1',
-      bundle: { sha256: sha256(fs.readFileSync(archivePath)) },
+      bundle: { sha256: sha256(readInstalled(archivePath)) },
     });
   });
 
@@ -1103,7 +1136,7 @@ describe('languageDataService', () => {
             bundle: {
               url: 'https://example.com/language-data/zz-fr-dictionary.tar.gz',
               sizeBytes: fs.statSync(archivePath).size,
-              sha256: sha256(fs.readFileSync(archivePath)),
+              sha256: sha256(readInstalled(archivePath)),
             },
             assets: manifest.files,
           },
@@ -1214,7 +1247,7 @@ describe('languageDataService', () => {
             bundle: {
               url: 'https://example.com/language-data/zz-fr-dictionary.tar.gz',
               sizeBytes: fs.statSync(archivePath).size,
-              sha256: sha256(fs.readFileSync(archivePath)),
+              sha256: sha256(readInstalled(archivePath)),
             },
             assets: manifest.files,
           },
@@ -1229,7 +1262,7 @@ describe('languageDataService', () => {
     await Promise.all([firstInstall, secondInstall]);
 
     expect(mockDownloadFileWithProgress).toHaveBeenCalledTimes(1);
-    expect(fs.readFileSync(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'fr', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', 'dictionaries', 'zz', 'fr', 'dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
   });
 
   it('does not delete undeclared stale language adapter files during a core bundle install', async () => {
@@ -1278,14 +1311,14 @@ describe('languageDataService', () => {
         bundle: {
           url: 'https://example.com/language-data/zz-metadata-only.tar.gz',
           sizeBytes: fs.statSync(archivePath).size,
-          sha256: sha256(fs.readFileSync(archivePath)),
+          sha256: sha256(readInstalled(archivePath)),
         },
         assets: manifest.files,
       },
     }));
 
-    expect(fs.readFileSync(staleAdapterPath, 'utf-8')).toBe(staleAdapterBytes);
-    expect(fs.readFileSync(path.join(installedLanguageDir, 'zz.json'), 'utf-8')).toBe(metadataBytes);
+    expect(readInstalled(staleAdapterPath, 'utf-8')).toBe(staleAdapterBytes);
+    expect(readInstalled(path.join(installedLanguageDir, 'zz.json'), 'utf-8')).toBe(metadataBytes);
   });
 
   it('rejects language asset paths that escape the language data root', async () => {
@@ -1338,7 +1371,7 @@ describe('languageDataService', () => {
       const repairedStatus = await mod.ensureLanguageDataInstalled('zz', langDataV1);
 
       expect(repairedStatus.installed).toBe(true);
-      expect(fs.readFileSync(installedGraphPath(), 'utf-8')).toBe(graphV1);
+      expect(readInstalled(installedGraphPath(), 'utf-8')).toBe(graphV1);
       expect(mockDownloadFileWithProgress).toHaveBeenCalledTimes(1);
     });
 
@@ -1350,7 +1383,7 @@ describe('languageDataService', () => {
       const status = await mod.ensureLanguageDataInstalled('zz', langDataV1);
 
       expect(status.installed).toBe(true);
-      expect(fs.readFileSync(installedGraphPath(), 'utf-8')).toBe(graphV1);
+      expect(readInstalled(installedGraphPath(), 'utf-8')).toBe(graphV1);
     });
 
     it('fails conservative when an update remaps an entity id to a different kind', async () => {
@@ -1372,8 +1405,8 @@ describe('languageDataService', () => {
       await expect(mod.ensureLanguageDataInstalled('zz', langDataV2)).rejects.toThrow(/changed kind/);
 
       // The installed graph and the install receipt are untouched: old asset stays loadable.
-      expect(fs.readFileSync(installedGraphPath(), 'utf-8')).toBe(graphV1);
-      const receipt = JSON.parse(fs.readFileSync(
+      expect(readInstalled(installedGraphPath(), 'utf-8')).toBe(graphV1);
+      const receipt = JSON.parse(readInstalled(
         path.join(tempDir.tmpDir, 'language-data', '.install-receipts', 'zz.json'),
         'utf-8',
       )) as { version?: string };
@@ -1395,7 +1428,7 @@ describe('languageDataService', () => {
       const status = await mod.ensureLanguageDataInstalled('zz', langDataV2);
 
       expect(status.installed).toBe(true);
-      expect(fs.readFileSync(installedGraphPath(), 'utf-8')).toBe(graphV2);
+      expect(readInstalled(installedGraphPath(), 'utf-8')).toBe(graphV2);
     });
   });
 });

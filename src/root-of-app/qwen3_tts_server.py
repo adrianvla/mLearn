@@ -218,7 +218,8 @@ async def tts_status():
 
 
 def _read_language_metadata(language: str) -> dict:
-    language_file = LANGUAGE_DATA_PATH / "languages" / f"{language}.json"
+    from language_generation import resolve_language_data_root
+    language_file = Path(resolve_language_data_root(str(LANGUAGE_DATA_PATH))) / "languages" / f"{language}.json"
     if not language_file.is_file():
         return {}
     try:

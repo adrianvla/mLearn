@@ -22,18 +22,57 @@ log = get_logger("nlp")
 router = APIRouter()
 
 
+class LanguageReadyRequest(BaseModel):
+    language: str = Field(..., max_length=32)
+    generation: str = Field(..., max_length=64)
+    dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
+    components: List[str] = Field(default_factory=lambda: ['core'], max_length=32)
+
+
+@router.post('/language-ready')
+def language_ready(req: LanguageReadyRequest):
+    from language_generation import admit_language_generation, release_language_generation
+    try:
+        admission = admit_language_generation(config.LANGUAGE_DATA_PATH, req.generation)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail={'code': 'generation_changed'}) from exc
+    try:
+        with dictionary_target_language_override(req.language, req.dictionaryTargetLanguage):
+            module = _resolve_module(req.language)
+            metadata = config._read_language_metadata(req.language)
+            tokenizer = metadata.get('runtime', {}).get('nlp', {}).get('tokenizer', {})
+            if tokenizer.get('required') is True: module.LANGUAGE_TOKENIZE('')
+            if req.dictionaryTargetLanguage: module.LANGUAGE_TRANSLATE('')
+            if 'ocr' in req.components:
+                from routes.ocr import ensure_language_ocr_ready
+                ensure_language_ocr_ready(req.language)
+            if 'voice' in req.components:
+                from routes.voice import ensure_language_voice_ready
+                ensure_language_voice_ready(req.language)
+            ready_adapter = getattr(module, 'LANGUAGE_RUNTIME_READY', None)
+            if callable(ready_adapter): ready_adapter(req.components)
+        return {'language': req.language, 'generation': req.generation, 'components': req.components, 'ready': True}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail={'code': 'language_runtime_unavailable', 'message': str(exc)}) from exc
+    finally:
+        release_language_generation(admission)
+
+
 def _resolve_module(language: Optional[str]):
     """Resolve exactly the requested package, or the active package if unspecified."""
     if language:
         module = config.get_or_load_language(language)
     else:
-        module = plugin_registry.get_active()
+        module = config.get_or_load_language(config.LANGUAGE) if config.LANGUAGE else plugin_registry.get_active()
     if module is None:
         raise HTTPException(status_code=503, detail={"code": "language_unavailable"})
     return module
 
 
 class TokenizeRequest(BaseModel):
+    dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
     text: str = Field(..., max_length=50000)
     language: Optional[str] = Field(default=None, max_length=32)
 
@@ -62,7 +101,8 @@ class TranslationResponse(BaseModel):
 def tokenize(req: TokenizeRequest):
     log.info("requested tokenization: characters=%d", len(req.text))
     mod = _resolve_module(req.language)
-    tokens = mod.LANGUAGE_TOKENIZE(req.text)
+    with dictionary_target_language_override(req.language or getattr(mod, "language", None), req.dictionaryTargetLanguage):
+        tokens = mod.LANGUAGE_TOKENIZE(req.text)
     return {"tokens": tokens}
 
 

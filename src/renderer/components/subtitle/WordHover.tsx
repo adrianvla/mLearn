@@ -419,7 +419,9 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const word = actualWord();
     const isOcr = isOcrMode();
     const admittedLanguage = processingLanguage();
-    const admittedTokenizer = useTokenizer({ language: admittedLanguage, languageData: currentLangData() }).tokenize;
+    const admittedTarget = dictionaryTargetLanguage();
+    const admittedData = JSON.parse(JSON.stringify(currentLangData()));
+    const admittedTokenizer = useTokenizer({ language: admittedLanguage, languageData: admittedData, dictionaryTargetLanguage: admittedTarget }).tokenize;
     const admittedVideo = props.videoSrc;
     const admittedStart = props.subtitleStart;
     const admittedEnd = props.subtitleEnd;

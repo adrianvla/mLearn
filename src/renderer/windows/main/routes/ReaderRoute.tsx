@@ -578,6 +578,11 @@ export const ReaderRoute: Component = () => {
   </LanguageProvider>;
 };
 
+const discardUnpublishedReaderPages = (pages: PageImage[], extraUrls: string[] = []): void => {
+  const urls = new Set([...extraUrls, ...pages.map(page => page.src).filter((src): src is string => typeof src === 'string' && src.startsWith('blob:'))]);
+  for (const url of urls) URL.revokeObjectURL(url);
+};
+
 const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props => {
   const ocrState = createReaderOcrState();
   const ocrResults = ocrState.results;
@@ -617,7 +622,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: currentLangData() })
   );
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
-  const { tokenizeMany } = useTokenizer({ sourceKey: props.scope.sourceKey, language: sourceLanguage, languageData: currentLangData });
+  const { tokenizeMany } = useTokenizer({ dictionaryTargetLanguage, sourceKey: props.scope.sourceKey, language: sourceLanguage, languageData: currentLangData });
   const { lookup } = useDictionary({ language: () => sourceLanguage(), ...wordLookupOptions });
   const {
     hoverData: ocrHoverData,
@@ -809,7 +814,10 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     }
     const file = currentBookFile();
     if (currentBookFormat() === 'pdf' && file) {
-      void loadPdfFileIntoReader(file, '', next);
+      void loadPdfFileIntoReader(file, '', next).catch(error => {
+        log.error('[Reader] Failed to reload document:', error);
+        setBookLoadError('open-failed'); setOcrStatus(t('mlearn.Reader.Status.FailedToLoad'));
+      });
     }
   };
 
@@ -1641,13 +1649,13 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
 
   const addReaderWordFlashcard = async (entry: ReaderPageWordSource) => {
     const admittedLanguage = sourceLanguage();
-    const admittedData = currentLangData();
+    const admittedData = JSON.parse(JSON.stringify(currentLangData()));
     const admittedTarget = dictionaryTargetLanguage();
     const admittedFrequency = langCtx.getFrequency(entry.word);
     const admittedStatus = flashcardCtx.getComprehensiveWordStatusSync(entry.word, admittedLanguage);
     const image = imageRefs()[entry.pageId] || null;
     const anchorRect = getAnchorRectForWord(entry);
-    const admittedTokenizer = useTokenizer({ language: admittedLanguage, languageData: admittedData }).tokenize;
+    const admittedTokenizer = useTokenizer({ language: admittedLanguage, languageData: admittedData, dictionaryTargetLanguage: admittedTarget }).tokenize;
     setAddingSidebarWords((prev) => {
       const next = new Set(prev);
       next.add(entry.key);
@@ -2179,11 +2187,11 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     },
   ) => {
     if (options.preparedSource && !props.scope.isCurrent(options.preparedSource)) {
-      for (const url of new Set([...(options.epubBlobUrls ?? []), ...newPages.map(page => page.src).filter((src): src is string => typeof src === 'string' && src.startsWith('blob:'))])) URL.revokeObjectURL(url);
+      discardUnpublishedReaderPages(newPages, options.epubBlobUrls);
       return false;
     }
     // invariant: URLs are created fresh per load into a LOCAL array and handed to commitLoadedPages; the previous generation is revoked only as its replacement is adopted — no live page ever references a dead URL.
-    adoptEpubBlobUrls(options.epubBlobUrls ?? []);
+    adoptEpubBlobUrls([...new Set([...(options.epubBlobUrls ?? []), ...newPages.map(page => page.src).filter((src): src is string => typeof src === 'string' && src.startsWith('blob:'))])]);
     const imagePageCount = newPages.filter((page) => page.kind === 'image').length;
     batch(() => {
       if (options.preparedSource) props.scope.adopt(options.preparedSource);
@@ -2244,7 +2252,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     const startPage = savedPageIndex !== null && savedPageIndex >= 0 && savedPageIndex < newPages.length
       ? savedPageIndex
       : 0;
-    if (admittedLoad !== readerLoadRevision) return;
+    if (admittedLoad !== readerLoadRevision) { discardUnpublishedReaderPages(newPages); return; }
     if (!commitLoadedPages(newPages, {
       bookId,
       title,
@@ -2278,7 +2286,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     if (!preparedSource || admittedLoad !== readerLoadRevision) return;
     perfCount('reader.loadEpub.parse.ms', performance.now() - epubT0);
     const prepared = await prepareEpubReaderLoad(content, title, textPageCapacity(), () => loadSavedReaderLocation(bookId), requestedLocation);
-    if (admittedLoad !== readerLoadRevision) return;
+    if (admittedLoad !== readerLoadRevision) { discardUnpublishedReaderPages(prepared.pages, prepared.newBlobUrls); return; }
     if (!commitLoadedPages(prepared.pages, {
       bookId,
       title,
@@ -2307,13 +2315,13 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
   // Load book from filesystem path (for recent items)
   const loadBookFromPath = async (bookPath: string, documentOcrOverride?: boolean, requestedLocation?: ReaderSourceLocation) => {
     const admittedLoad = ++readerLoadRevision;
-    const preparedSource = await props.scope.prepare({ kind: 'book', resourceId: bookPath });
-    if (!preparedSource || admittedLoad !== readerLoadRevision) return;
     const loadT0 = performance.now();
     setBookLoadError(null);
     setOcrStatus(t('mlearn.Reader.Status.Loading'));
 
     try {
+      const preparedSource = await props.scope.prepare({ kind: 'book', resourceId: bookPath });
+      if (!preparedSource || admittedLoad !== readerLoadRevision) return;
       // Check if it's a document file or a directory
       const isPdf = /\.pdf$/i.test(bookPath);
       const isEpub = /\.epub$/i.test(bookPath);
@@ -2366,7 +2374,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
         });
 
         const title = bookId || t('mlearn.Reader.Status.ImportedBook');
-        if (admittedLoad !== readerLoadRevision) return;
+        if (admittedLoad !== readerLoadRevision) { discardUnpublishedReaderPages(newPages); return; }
         if (!commitLoadedPages(newPages, {
           preparedSource,
           bookId,
@@ -2388,6 +2396,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
       setOcrStatus(t('mlearn.Reader.Status.Ready'));
     } catch (error) {
       log.error('[Reader] Failed to load from path:', error);
+      if (admittedLoad !== readerLoadRevision) return;
       void clearActiveBookPath();
       setBookLoadError('open-failed');
       setOcrStatus(t('mlearn.Reader.Status.FailedToLoad'));

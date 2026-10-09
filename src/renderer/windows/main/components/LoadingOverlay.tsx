@@ -8,6 +8,7 @@ import { Component, createMemo, createSignal, onMount, onCleanup, Show } from 's
 import { useServer, useSettings, useLanguage, useLocalization } from '../../../context';
 import { ErrorModal } from '../../../components/common/Modal/ErrorModal';
 import { Modal } from '../../../components/common/Modal/Modal';
+import { LanguageDataJobProgress } from '../../../components/common/LanguageDataJobProgress/LanguageDataJobProgress';
 import { Button } from '../../../components/common/Button/Button';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { getBridge } from '../../../../shared/bridges';
@@ -325,6 +326,7 @@ export const LoadingOverlay: Component = () => {
           >
             <div class="language-data-update-modal__body">
               <p class="language-data-update-modal__message">{languageDataUpdateMessage()}</p>
+              <LanguageDataJobProgress jobs={Object.values(language.languageDataInstallJobs?.() ?? {}).filter(job => job.phase !== 'ready')} />
               <Show when={languageDataUpdateError()}>
                 {(error) => <details><summary>{t('mlearn.Knowledge.Projection.Relations.Advanced')}</summary><p class="language-data-update-modal__error">{error()}</p></details>}
               </Show>

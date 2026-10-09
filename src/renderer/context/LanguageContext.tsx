@@ -5,7 +5,7 @@
 
 import { createContext, useContext, ParentComponent, onMount, onCleanup, createMemo, createEffect, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import type { FlashcardProsody, InstallOptions, LanguageDataCatalogStatus, LanguageDataInstallError, LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
+import type { FlashcardProsody, InstallOptions, LanguageDataCatalogStatus, LanguageDataInstallError, LanguageDataInstallProgress, LanguageDataMap, LanguageData, WordFrequencyMap, WordFrequencyEntry, Settings, GrammarPoint, Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import {
   createEmptyLexemeIndex,
@@ -122,6 +122,7 @@ interface LanguageContextValue {
   isLanguageDataInstalling: (language: string, dictionaryTargetLanguage?: string) => boolean;
   refreshLanguageData: () => void;
   languageDataInstallError: () => LanguageDataInstallError | null;
+  languageDataInstallJobs: () => Record<string, LanguageDataInstallProgress>;
   isTranslatable: (pos: string) => boolean;
   isTokenTranslatable: (token: Pick<Token, 'word'> & Partial<Pick<Token, 'surface' | 'actual_word' | 'type' | 'partOfSpeech'>>) => boolean;
   translatableTypes: () => string[];
@@ -178,7 +179,9 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
   const [isLoading, setIsLoading] = createSignal(true);
   const [languageDataCatalog, setLanguageDataCatalog] = createSignal<LanguageDataCatalogStatus[]>([]);
   const [languageDataInstallError, setLanguageDataInstallError] = createSignal<LanguageDataInstallError | null>(null);
-  const [languageDataInstalls, setLanguageDataInstalls] = createSignal<Record<string, boolean>>({});
+  const [languageDataInstallJobs, setLanguageDataInstallJobs] = createSignal<Record<string, LanguageDataInstallProgress>>({});
+  const [languageDataInstalls, setLanguageDataInstalls] = createSignal<Record<string, string>>({});
+  const latestInstallOperations = new Map<string, string>();
   let lexemeIndex: LanguageLexemeIndex = createEmptyLexemeIndex();
   const perLanguageFrequencyState = new Map<string, {
     data: LanguageData | null;
@@ -217,11 +220,8 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
       if (!status) return;
       setLanguageDataInstalls((previous) => {
         const next = { ...previous };
-        for (const key of Object.keys(next)) {
-          if (key === status.language || key.startsWith(`${status.language}:`)) {
-            delete next[key];
-          }
-        }
+        const key = getLanguageDataInstallKey(status.language, status.dictionaryTargetLanguage);
+        if (!status.operationId || next[key] === status.operationId) delete next[key];
         return next;
       });
       setLanguageDataCatalog((previous) => {
@@ -235,10 +235,21 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     ipcCleanups.push(bridge.localization.onLanguageDataInstallError((payload) => {
       setLanguageDataInstalls((previous) => {
         const next = { ...previous };
-        delete next[getLanguageDataInstallKey(payload.language, payload.dictionaryTargetLanguage)];
+        const key = getLanguageDataInstallKey(payload.language, payload.dictionaryTargetLanguage);
+        if (!payload.operationId || next[key] === payload.operationId) delete next[key];
         return next;
       });
-      setLanguageDataInstallError(payload);
+      const key = getLanguageDataInstallKey(payload.language, payload.dictionaryTargetLanguage);
+      const latest = latestInstallOperations.get(key);
+      if (!payload.operationId || !latest || latest === payload.operationId) setLanguageDataInstallError(payload);
+    }));
+    if (bridge.localization.onLanguageDataInstallProgress) ipcCleanups.push(bridge.localization.onLanguageDataInstallProgress(payload => {
+      setLanguageDataInstallJobs(previous => ({ ...previous, [payload.operationId]: payload }));
+      if (payload.phase === 'ready' || payload.phase === 'error') setLanguageDataInstalls(previous => {
+        const next = { ...previous }; const key = getLanguageDataInstallKey(payload.language, payload.dictionaryTargetLanguage);
+        if (next[key] === payload.operationId) delete next[key];
+        return next;
+      });
     }));
     bridge.localization.getLanguageDataCatalog();
   };
@@ -266,15 +277,17 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
 
   const installLanguageData = (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions): void => {
     setLanguageDataInstallError(null);
+    const operationId = crypto.randomUUID();
+    latestInstallOperations.set(getLanguageDataInstallKey(language, dictionaryTargetLanguage), operationId);
     setLanguageDataInstalls((previous) => ({
       ...previous,
-      [getLanguageDataInstallKey(language, dictionaryTargetLanguage)]: true,
+      [getLanguageDataInstallKey(language, dictionaryTargetLanguage)]: operationId,
     }));
-    getBridge().localization.installLanguageData(language, dictionaryTargetLanguage, installOptions);
+    getBridge().localization.installLanguageData(language, dictionaryTargetLanguage, installOptions, operationId);
   };
 
   const isLanguageDataInstalling = (language: string, dictionaryTargetLanguage?: string): boolean =>
-    languageDataInstalls()[getLanguageDataInstallKey(language, dictionaryTargetLanguage)] === true;
+    Boolean(languageDataInstalls()[getLanguageDataInstallKey(language, dictionaryTargetLanguage)]);
 
   const refreshLanguageData = (): void => {
     getBridge().localization.getLangData();
@@ -561,9 +574,11 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     parseGrammarData(data);
 
     if (!mappingAsset) return;
-    void fetch(mappingAsset)
+    const controller = new AbortController();
+    onCleanup(() => controller.abort());
+    void fetch(mappingAsset, { signal: controller.signal })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error(`Failed to load ${mappingAsset}`)))
-      .then((table) => registerMappingTable(lang, table))
+      .then((table) => { if (!controller.signal.aborted) registerMappingTable(lang, table); })
       .catch((error: unknown) => log.warn('[LanguageContext] Failed to load mapping table:', error));
   });
 
@@ -602,6 +617,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     isLanguageDataInstalling: parent?.isLanguageDataInstalling ?? isLanguageDataInstalling,
     refreshLanguageData: parent?.refreshLanguageData ?? refreshLanguageData,
     languageDataInstallError: parent?.languageDataInstallError ?? languageDataInstallError,
+    languageDataInstallJobs: parent?.languageDataInstallJobs ?? languageDataInstallJobs,
     isTranslatable,
     isTokenTranslatable: isTokenTranslatableForCurrentLanguage,
     translatableTypes,
