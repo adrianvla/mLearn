@@ -7,6 +7,8 @@ import { isSettledReadiness, type Readiness } from '../components/common/Readine
 import { useSettings } from './SettingsContext';
 
 export interface GraphContextValue {
+  language?: Accessor<string>;
+  retry?: () => void;
   meta: () => GraphMeta;
   /**
    * Shared readiness contract for the active-language graph: `pending` while
@@ -37,6 +39,7 @@ export const GraphProvider: ParentComponent<{ language?: Accessor<string> }> = (
   const [meta, setMeta] = createSignal<GraphMeta>(unavailableMeta);
   const [metaLoading, setMetaLoading] = createSignal(true);
   let request = 0;
+  const [probeVersion, setProbeVersion] = createSignal(0);
   const [packageScope, setPackageScope] = createSignal('');
   const stopPackageUpdates = getBridge().localization.onLangData(data => {
     const manifest = data[language()]?.languageData;
@@ -47,6 +50,7 @@ export const GraphProvider: ParentComponent<{ language?: Accessor<string> }> = (
   createEffect(() => {
     const sourceLanguage = language();
     packageScope();
+    probeVersion();
     const currentRequest = ++request;
     setMetaLoading(true);
     void getBridge().graph.getGraphMeta(sourceLanguage).then((nextMeta) => {
@@ -82,6 +86,8 @@ export const GraphProvider: ParentComponent<{ language?: Accessor<string> }> = (
 
   return (
     <GraphContext.Provider value={{
+      language,
+      retry: () => setProbeVersion(value => value + 1),
       meta,
       readiness,
       lookupWord: (input) => active((language) => getBridge().graph.lookupGraphWord(language, input), null),

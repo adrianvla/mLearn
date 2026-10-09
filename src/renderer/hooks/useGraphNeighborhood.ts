@@ -12,9 +12,12 @@ export function useGraphNeighborhood(graph: GraphContextValue, entityId: Accesso
   const [failed, setFailed] = createSignal(false);
   const [retryVersion, setRetryVersion] = createSignal(0);
   let generation = 0;
+  let admittedLanguage: string | undefined;
   // Remember only the loaded extent, never a stale graph/projection payload.
   const extents = new Map<string, { count: number; revision?: number }>();
   createEffect(() => {
+    const language = graph.language?.();
+    if (admittedLanguage !== language) { extents.clear(); setNeighborhood(null); admittedLanguage = language; }
     const id = entityId();
     const active = enabled();
     const ready = graph.readiness();
@@ -22,7 +25,8 @@ export function useGraphNeighborhood(graph: GraphContextValue, entityId: Accesso
     const request = ++generation;
     onCleanup(() => { generation++; });
     setFailed(false); setLoadingMore(false);
-    if (!active || !id || ready !== 'ready') { extents.clear(); setNeighborhood(null); setPending(false); return; }
+    if (!active || !id || ready === 'unavailable') { extents.clear(); setNeighborhood(null); setPending(false); return; }
+    if (ready !== 'ready') { setPending(ready === 'pending'); setFailed(ready === 'failed'); return; }
     setPending(true);
     const previousExtent = extents.get(id);
     let extent = previousExtent?.count;
@@ -59,5 +63,5 @@ export function useGraphNeighborhood(graph: GraphContextValue, entityId: Accesso
     } catch { if (request === generation) setFailed(true); }
     finally { if (request === generation) setLoadingMore(false); }
   };
-  return { neighborhood, pending, failed, loadingMore, loadMore, retry: () => setRetryVersion((value) => value + 1) };
+  return { neighborhood, pending, failed, loadingMore, loadMore, retry: () => { if (graph.readiness() === 'failed') graph.retry?.(); setRetryVersion(value => value + 1); } };
 }

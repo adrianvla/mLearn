@@ -92,11 +92,14 @@ describe('GraphContext', () => {
   });
 
   it('reports a failed probe as failed readiness, not as a permanent pending', async () => {
-    mockBridge.graph.getGraphMeta.mockRejectedValue(new Error('probe failed'));
+    mockBridge.graph.getGraphMeta.mockReset().mockRejectedValueOnce(new Error('probe failed')).mockResolvedValueOnce({ entityCount: 4, relationCount: 4, ready: true, status: 'ready' });
     let graph: GraphContextValue | undefined;
     const dispose = render(() => <GraphProvider><Probe onReady={(value) => { graph = value; }} /></GraphProvider>, document.body);
 
     await vi.waitFor(() => expect(graph?.readiness()).toBe('failed'));
+    graph!.retry!();
+    await vi.waitFor(() => expect(graph?.readiness()).toBe('ready'));
+    expect(mockBridge.graph.getGraphMeta).toHaveBeenCalledTimes(2);
     dispose();
   });
 });

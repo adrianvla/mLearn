@@ -100,8 +100,8 @@ export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; i
   const explanation = createMemo(() => journalLoaded() && selectedCapability() ? assembleTargetExplanation(selectedCapability()!, events(), store.meta, Date.now(), undefined, undefined, archive() ? [archive() as KeyArchive] : undefined, effectiveThresholds(settings)) : undefined);
 
   return <div class="graph-inspector">
-    <Show when={graph.readiness() === 'pending'}><div class="graph-inspector__empty" aria-busy="true"><SkeletonText lines={4} /></div></Show>
-    <Show when={graph.readiness() !== 'pending'}>
+    <Show when={graph.readiness() === 'pending' && !neighborhood()}><div class="graph-inspector__empty" aria-busy="true"><SkeletonText lines={4} /></div></Show>
+    <Show when={graph.readiness() !== 'pending' || neighborhood()}>
     <Show when={!graph.meta().ready}>
       <div class="graph-inspector__degraded">
         <p class="graph-inspector__empty">{t('mlearn.GraphInspector.Unavailable')}</p>

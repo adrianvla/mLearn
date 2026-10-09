@@ -46,12 +46,17 @@ describe('graph neighborhood request ownership', () => {
     dispose();
   });
 
-  it('clears the old language when graph readiness changes', async () => {
+  it('retains completed same-language data during refresh and clears it on source change', async () => {
     const [readiness, setReadiness] = createSignal<'ready' | 'pending'>('ready');
+    const [language, setLanguage] = createSignal('source-a');
     const getNeighborhood = vi.fn().mockResolvedValue(value('a'));
     let dispose!: () => void;
-    const result = createRoot((cleanup) => { dispose = cleanup; return useGraphNeighborhood({ readiness, getNeighborhood } as GraphContextValue, () => 'a'); });
-    await flush(); setReadiness('pending'); expect(result.neighborhood()).toBeNull(); expect(getNeighborhood).toHaveBeenCalledTimes(1); dispose();
+    const result = createRoot((cleanup) => { dispose = cleanup; return useGraphNeighborhood({ language, readiness, getNeighborhood } as GraphContextValue, () => 'a'); });
+    try {
+      await flush(); setReadiness('pending'); expect(result.neighborhood()?.center.id).toBe('a'); expect(result.pending()).toBe(true);
+      expect(getNeighborhood).toHaveBeenCalledTimes(1);
+      setLanguage('source-b'); expect(result.neighborhood()).toBeNull();
+    } finally { dispose(); }
   });
 });
 
