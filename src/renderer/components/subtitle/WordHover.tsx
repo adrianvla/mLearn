@@ -200,7 +200,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
   const { settings, updateSettings } = useSettings();
   const { addFlashcard, getCardByWordSync, getComprehensiveWordStatusWithSourceSync } = useFlashcards();
   const { getFrequency, getLevelName, getFreqLevelNames, getLanguageFeatures, currentLangData, getCanonicalForm, getWordVariants } = useLanguage();
-  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
+  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
   const { t } = useLocalization();
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const [wordUuid, setWordUuid] = createSignal<string>('');

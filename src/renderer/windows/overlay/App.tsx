@@ -103,7 +103,7 @@ export const App: Component = () => {
   const { settings, updateSettings, updateSetting } = useSettings();
   const langCtx = useLanguage();
   const flashcardCtx = useFlashcards();
-  const { tokenize } = useTokenizer({ language: settings.language, languageData: langCtx.currentLangData });
+  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: langCtx.currentLangData });
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = {
     getCanonicalForm: langCtx.getCanonicalForm,
@@ -114,7 +114,7 @@ export const App: Component = () => {
   };
   const { translateWord } = useTranslation({
     immediate: true,
-    language: settings.language,
+    language: () => settings.language,
     ...wordLookupOptions,
   });
 

@@ -295,6 +295,8 @@ function writeOverrides(map: Record<string, TranslationResponse>): void {
 }
 
 export interface WordLookupCandidateOptions {
+  /** Publication lifetime of the source occurrence, independent of reusable NLP caches. */
+  sourceKey?: string | (() => string | undefined);
   context?: WordLookupContext;
   getCanonicalForm?: (word: string) => string;
   getWordVariants?: (word: string) => string[];
@@ -315,6 +317,26 @@ function resolveDictionaryTargetLanguage(value: WordLookupCandidateOptions['dict
 
 function resolveLanguageData(value: WordLookupCandidateOptions['languageData']): LanguageData | null {
   return typeof value === 'function' ? value() : value ?? null;
+}
+
+export class NlpContextChangedError extends Error {
+  constructor() {
+    super('The source or language processing context changed.');
+    this.name = 'NlpContextChangedError';
+  }
+}
+
+function nlpExecutionKey(options: WordLookupCandidateOptions): string {
+  const language = resolveLanguage(options.language);
+  const languageData = resolveLanguageData(options.languageData);
+  const target = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
+  const source = typeof options.sourceKey === 'function' ? options.sourceKey() : options.sourceKey;
+  return JSON.stringify([source, language, target,
+    buildVersionedLanguageCacheId(language, languageData, target), getTokenizerCacheNamespace(languageData)]);
+}
+
+function assertNlpContext(key: string, options: WordLookupCandidateOptions): void {
+  if (key !== nlpExecutionKey(options)) throw new NlpContextChangedError();
 }
 
 function translateWithDictionaryTarget(
@@ -473,12 +495,12 @@ export async function fetchTranslation(
 export async function selectTranslationCandidate(word: string, selectionId: string, language: string,
   options: WordLookupCandidateOptions): Promise<TranslationResponse> {
   const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
+  const cacheLanguage = buildVersionedLanguageCacheId(language, resolveLanguageData(options.languageData), dictionaryTargetLanguage);
   const context = options.context ?? {};
   const result = await getBackend().translate(word, language, { context: { ...context, selectionId },
     ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
   if (result.resolution?.selectedId !== selectionId || result.resolution.selectionUnavailable) throw new Error('Dictionary selection unavailable');
   const selectionKey = lookupSelectionKey(word, context, language, dictionaryTargetLanguage);
-  const cacheLanguage = buildVersionedLanguageCacheId(language, resolveLanguageData(options.languageData), dictionaryTargetLanguage);
   const scopedWord = contextualLookupWord(word, context);
   const cacheKey = buildTranslationCacheKey(scopedWord, cacheLanguage, dictionaryTargetLanguage);
   const record = JSON.stringify({ version: 1, selectionId, packageCacheId: cacheLanguage, cacheKey, response: result });
@@ -494,6 +516,7 @@ export async function selectTranslationCandidate(word: string, selectionId: stri
 }
 
 export interface UseTranslationOptions {
+  sourceKey?: WordLookupCandidateOptions['sourceKey'];
   immediate?: boolean;
   language?: string | (() => string);
   getCanonicalForm?: (word: string) => string;
@@ -507,10 +530,15 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   const [currentWord, setCurrentWord] = createSignal<string | null>(null);
 
   const [translation, { refetch }] = createResource(
-    () => currentWord(),
-    async (word) => {
+    () => {
+      const word = currentWord();
+      return word ? { word, key: nlpExecutionKey(options) } : null;
+    },
+    async ({ word, key }) => {
       if (!word) return null;
-      return fetchTranslation(word, resolveLanguage(options.language), options);
+      const result = await fetchTranslation(word, resolveLanguage(options.language), options);
+      assertNlpContext(key, options);
+      return result;
     },
   );
 
@@ -523,7 +551,10 @@ export function useTranslation(options: UseTranslationOptions = {}) {
   };
 
   const translateWord = async (word: string, context?: WordLookupContext): Promise<TranslationResponse> => {
-    return fetchTranslation(word, resolveLanguage(options.language), { ...options, ...(context ? { context } : {}) });
+    const key = nlpExecutionKey(options);
+    const result = await fetchTranslation(word, resolveLanguage(options.language), { ...options, ...(context ? { context } : {}) });
+    assertNlpContext(key, options);
+    return result;
   };
 
   const setOverride = async (word: string, value: TranslationResponse | null) => {
@@ -614,6 +645,7 @@ export async function warmTranslationCache(
 }
 
 export interface UseTokenizerOptions {
+  sourceKey?: WordLookupCandidateOptions['sourceKey'];
   language?: string | (() => string);
   languageData?: LanguageData | null | (() => LanguageData | null);
 }
@@ -684,7 +716,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     return undefined;
   };
 
-  const tokenize = async (text: string): Promise<Token[]> => {
+  const tokenizeAdmitted = async (text: string): Promise<Token[]> => {
     const language = typeof options.language === 'function' ? options.language() : options.language;
     const key = typeof text === 'string' ? text : String(text);
     if (!key.trim()) return createEmptyFallbackToken(key);
@@ -704,7 +736,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
 
   // Page-level entry: identical per-text semantics (memory cache, in-flight
   // dedupe, DB cache, rough fallback), but fresh backend results persist in
-  const tokenizeMany = async (texts: string[]): Promise<Token[][]> => {
+  const tokenizeManyAdmitted = async (texts: string[]): Promise<Token[][]> => {
     const language = typeof options.language === 'function' ? options.language() : options.language;
     perfCount('tokenizeMany.calls', 1);
     perfCount('tokenizeMany.texts', texts.length);
@@ -739,10 +771,23 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     return results;
   };
 
+  const tokenize = async (text: string): Promise<Token[]> => {
+    const key = nlpExecutionKey(options);
+    const result = await tokenizeAdmitted(text);
+    assertNlpContext(key, options);
+    return result;
+  };
+  const tokenizeMany = async (texts: string[]): Promise<Token[][]> => {
+    const key = nlpExecutionKey(options);
+    const result = await tokenizeManyAdmitted(texts);
+    assertNlpContext(key, options);
+    return result;
+  };
   return { tokenize, tokenizeMany };
 }
 
 export interface UseDictionaryOptions {
+  sourceKey?: WordLookupCandidateOptions['sourceKey'];
   language?: string | (() => string);
   getCanonicalForm?: (word: string) => string;
   getWordVariants?: (word: string) => string[];
@@ -783,7 +828,7 @@ export function buildDictionaryReadingCandidates(
 }
 
 export function useDictionary(options: UseDictionaryOptions = {}) {
-  const lookup = async (word: string, reading?: string): Promise<DictionaryEntry[]> => {
+  const lookupAdmitted = async (word: string, reading?: string): Promise<DictionaryEntry[]> => {
     try {
       const language = resolveLanguage(options.language);
       const readingKey = reading || '';
@@ -907,5 +952,11 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
     }
   };
 
+  const lookup = async (word: string, reading?: string): Promise<DictionaryEntry[]> => {
+    const key = nlpExecutionKey(options);
+    const result = await lookupAdmitted(word, reading);
+    assertNlpContext(key, options);
+    return result;
+  };
   return { lookup };
 }

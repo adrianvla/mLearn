@@ -267,7 +267,7 @@ export const UnknownWordsSidebar: Component<UnknownWordsSidebarProps> = (props) 
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,
-    language: settings.language,
+    language: () => settings.language,
     ...wordLookupOptions,
   });
   const [translations, setTranslations] = createStore<Record<string, TranslationResponse | null | undefined>>({});

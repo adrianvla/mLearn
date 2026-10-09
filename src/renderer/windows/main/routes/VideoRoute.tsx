@@ -175,7 +175,7 @@ export const VideoRoute: Component = () => {
   const [isAddingAllSidebarWords, setIsAddingAllSidebarWords] = createSignal(false);
 
 
-  const { tokenize } = useTokenizer({ language: settings.language, languageData: langCtx.currentLangData });
+  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: langCtx.currentLangData });
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = {
     getCanonicalForm: langCtx.getCanonicalForm,
@@ -186,7 +186,7 @@ export const VideoRoute: Component = () => {
   };
   const { translateWord } = useTranslation({
     immediate: true,
-    language: settings.language,
+    language: () => settings.language,
     ...wordLookupOptions,
   });
 

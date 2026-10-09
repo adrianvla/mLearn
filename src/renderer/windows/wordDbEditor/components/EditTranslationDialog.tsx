@@ -51,7 +51,7 @@ export const EditTranslationDialog: Component<EditTranslationDialogProps> = (pro
   const { getCanonicalForm, getWordVariants, getReadingVariants, currentLangData } = useLanguage();
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const { translateWord, setOverride } = useTranslation({
-    language: settings.language,
+    language: () => settings.language,
     getCanonicalForm,
     getWordVariants,
     getReadingVariants,

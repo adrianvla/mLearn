@@ -592,15 +592,15 @@ export const ReaderRoute: Component = () => {
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const { translateWord } = useTranslation({
     immediate: true,
-    language: settings.language,
+    language: () => settings.language,
     ...wordLookupOptions,
   });
   const getWordForms = (word: string): string[] => (
     getWordFormCandidates(word, getCanonicalForm, getWordVariants, { languageData: currentLangData() })
   );
   const tokenizerCapabilities = createMemo(() => getLanguageFeatures().tokenizerCapabilities);
-  const { tokenize, tokenizeMany } = useTokenizer({ language: settings.language, languageData: currentLangData });
-  const { lookup } = useDictionary({ language: settings.language, ...wordLookupOptions });
+  const { tokenize, tokenizeMany } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
+  const { lookup } = useDictionary({ language: () => settings.language, ...wordLookupOptions });
   const {
     hoverData: ocrHoverData,
     isVisible: isOcrHoverVisible,

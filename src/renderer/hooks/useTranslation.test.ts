@@ -1,4 +1,4 @@
-import { createRoot } from 'solid-js';
+import { createRoot, createSignal } from 'solid-js';
 import type { TranslationResponse, DictionaryEntry, LanguageData, Token } from '../../shared/types';
 
 type MockTranslateOptions = { dictionaryTargetLanguage?: string; context?: import('../../shared/types').WordLookupContext };
@@ -1717,4 +1717,48 @@ describe('resolution broadcast version review',()=>{
      expect(getCachedTranslation('X','zz',{context,languageData:oldData})?.resolution?.selectedId).not.toBe('new-id');
    }finally{vi.unstubAllGlobals();}
  });
+});
+
+
+describe('admitted NLP context publication', () => {
+  beforeEach(() => {
+    vi.clearAllMocks(); vi.resetModules();
+    mockKvGet.mockResolvedValue(null);
+    mockGetCachedTokensByLanguageDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
+  });
+  it('rejects an old tokenizer delivery after language and package change while retaining its original cache lane', async () => {
+    const { useTokenizer } = await import('./useTranslation');
+    const [language, setLanguage] = createSignal('ru');
+    const data = () => ({ languageData: { version: language() + '-v1', assets: [] }, runtime: { nlp: { tokenizer: { type: 'none' } } } }) as unknown as LanguageData;
+    let resolve!: (tokens: Token[]) => void;
+    mockTokenize.mockImplementationOnce(() => new Promise<Token[]>(done => { resolve = done; }));
+    const tokenizer = useTokenizer({ language, languageData: data });
+    const pending = tokenizer.tokenize('same-source');
+    await vi.waitFor(() => expect(mockTokenize).toHaveBeenCalledWith('same-source', 'ru'));
+    setLanguage('ja');
+    const oldTokens = [{ word: 'old', actual_word: 'old', type: 'unknown' }];
+    resolve(oldTokens);
+    await expect(pending).rejects.toMatchObject({ name: 'NlpContextChangedError' });
+    expect(mockSetCachedTokensByLanguageDB).toHaveBeenCalledWith('same-source', oldTokens, 'ru', expect.stringContaining('ru-v1'));
+    mockTokenize.mockResolvedValueOnce([{ word: 'new', actual_word: 'new', type: 'unknown' }]);
+    expect(await tokenizer.tokenize('same-source')).toEqual([{ word: 'new', actual_word: 'new', type: 'unknown' }]);
+    expect(mockTokenize).toHaveBeenLastCalledWith('same-source', 'ja');
+  });
+  it('rejects late translation delivery when dictionary target changes under the same language', async () => {
+    const { useTranslation, getCachedTranslation } = await import('./useTranslation');
+    const [target, setTarget] = createSignal('en');
+    let resolve!: (response: TranslationResponse) => void;
+    mockTranslate.mockImplementationOnce(() => new Promise<TranslationResponse>(done => { resolve = done; }));
+    let dispose!: () => void;
+    const hook = createRoot(done => { dispose = done; return useTranslation({ language: 'future', dictionaryTargetLanguage: target }); });
+    try {
+      const pending = hook.translateWord('opaque');
+      await vi.waitFor(() => expect(mockTranslate).toHaveBeenCalled());
+      setTarget('fr'); resolve(makeTranslationResponse('old-target'));
+      await expect(pending).rejects.toMatchObject({ name: 'NlpContextChangedError' });
+      expect(getCachedTranslation('opaque', 'future', { dictionaryTargetLanguage: 'fr' })).toBeNull();
+      expect(getCachedTranslation('opaque', 'future', { dictionaryTargetLanguage: 'en' })).toEqual(makeTranslationResponse('old-target'));
+    } finally { dispose(); }
+  });
 });

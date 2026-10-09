@@ -68,8 +68,8 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
   });
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const lookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
-  const { lookup } = useDictionary({ language: settings.language, ...lookupOptions });
-  const { translateWord } = useTranslation({ immediate: true, language: settings.language, ...lookupOptions });
+  const { lookup } = useDictionary({ language: () => settings.language, ...lookupOptions });
+  const { translateWord } = useTranslation({ immediate: true, language: () => settings.language, ...lookupOptions });
 
   const [dictionaryEntries, setDictionaryEntries] = createSignal<DictionaryEntry[]>([]);
   const [isLoadingDict, setIsLoadingDict] = createSignal(false);

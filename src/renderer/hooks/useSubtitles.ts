@@ -4,12 +4,12 @@
  */
 
 import { perfCount } from '../utils/perfCounters';
-import { createSignal, createMemo } from 'solid-js';
+import { createSignal, createMemo, createEffect, on, onCleanup } from 'solid-js';
 import type { Subtitle, Token } from '../../shared/types';
 import { useLanguage, useSettings } from '../context';
 import { useTokenizer } from './useTranslation';
 import { parseSubtitle, stripSpeakerNamePrefixes } from '../utils/subtitleParsing';
-import { createRoughTokenizerTokens, tokenizerAllowsFallback } from '../../shared/languageFeatures';
+import { createRoughTokenizerTokens, getTokenizerCacheNamespace, tokenizerAllowsFallback } from '../../shared/languageFeatures';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger("renderer.hooks.useSubtitles");
@@ -214,7 +214,7 @@ function parseASS(content: string): Subtitle[] {
 export function useSubtitles() {
   const { settings } = useSettings();
   const { currentLangData } = useLanguage();
-  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
+  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
 
   const [subtitles, setSubtitles] = createSignal<Subtitle[]>([]);
   const [currentIndex, setCurrentIndex] = createSignal(-1);
@@ -225,6 +225,15 @@ export function useSubtitles() {
 
   // Generation counter to prevent race conditions during rapid seeking
   let tokenizationGen = 0;
+  createEffect(on(() => [settings.language, getTokenizerCacheNamespace(currentLangData())], () => {
+    tokenizationGen++;
+    setCurrentIndex(-1);
+    setTokens([]);
+    setError(null);
+    setIsTokenizing(false);
+    setObservationReady(false);
+  }, { defer: true }));
+  onCleanup(() => { tokenizationGen++; });
 
   // Load subtitles from text content
   const loadSubtitles = (content: string, format?: 'srt' | 'vtt' | 'ass') => {

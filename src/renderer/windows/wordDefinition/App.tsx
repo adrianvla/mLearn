@@ -32,7 +32,7 @@ const WordDefinitionContent: Component = () => {
   const { settings } = useSettings();
   const { addFlashcard, hasWordSync, getCardByWordSync, getComprehensiveWordStatusSync } = useFlashcards();
   const { getFrequency, getFreqLevelNames, currentLangData, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
-  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
+  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
   const { t } = useLocalization();
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };

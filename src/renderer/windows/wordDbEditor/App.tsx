@@ -38,7 +38,7 @@ export const WordDbEditorContent: Component = () => {
   const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const { settings } = useSettings();
   const dictionaryTargetLanguage = useDictionaryTargetLanguage();
-  const { tokenize } = useTokenizer({ language: settings.language, languageData: currentLangData });
+  const { tokenize } = useTokenizer({ language: () => settings.language, languageData: currentLangData });
   const wordLookupOptions = { getCanonicalForm, getWordVariants, getReadingVariants, dictionaryTargetLanguage, languageData: currentLangData };
   const anki = useAnki();
   const [searchQuery, setSearchQuery] = createSignal('');
