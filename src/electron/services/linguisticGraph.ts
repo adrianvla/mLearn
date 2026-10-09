@@ -123,7 +123,7 @@ export class LinguisticGraphService {
       const loaded = await this.ensure(language);
       if (loaded && loaded.revision !== languagePackageRevision(this.dataRoot, language)) return this.getMeta(language);
       return loaded
-        ? { entityCount: loaded.graph.persistentOf.length, relationCount: loaded.relationCount, ready: true, status: 'ready' }
+        ? { revision: loaded.revision, entityCount: loaded.graph.persistentOf.length, relationCount: loaded.relationCount, ready: true, status: 'ready' }
         : notInstalledMeta();
     } catch {
       return errorMeta();
@@ -212,6 +212,7 @@ export class LinguisticGraphService {
   async getNeighborhood(language: string, query: GraphNeighborhoodQuery): Promise<GraphNeighborhood | null> {
     const loaded = await this.ensure(language);
     if (!loaded || query.depth === 2) return null;
+    if (query.revision !== undefined && query.revision !== loaded.revision) throw new Error('Graph package revision changed; reload the neighborhood');
     const center = this.node(loaded.graph, query.entityId);
     const dense = loaded.graph.denseOf.get(query.entityId);
     if (!center || dense === undefined) return null;
@@ -237,7 +238,7 @@ export class LinguisticGraphService {
     }
     const centerStates = center.kind === 'surface' ? await this.centerStates(loaded, language, query.entityId, query.thresholds) : undefined;
     if (loaded.revision !== languagePackageRevision(this.dataRoot, language)) return this.getNeighborhood(language, query);
-    return { center, centerDenseId: dense, relationCount: relations.length, relations: relations.slice(offset, offset + limit), ...(centerStates?.length ? { centerStates } : {}) };
+    return { revision: loaded.revision, center, centerDenseId: dense, relationCount: relations.length, relations: relations.slice(offset, offset + limit), ...(centerStates?.length ? { centerStates } : {}) };
   }
 
   /**

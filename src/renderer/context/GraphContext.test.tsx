@@ -1,9 +1,12 @@
 import { render } from 'solid-js/web';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GraphProvider, useGraph, type GraphContextValue } from './GraphContext';
+import type { LanguageDataMap } from '../../shared/types';
 import type { GraphMeta } from '../../shared/graph/ipc';
 
+let packageUpdate: ((data: LanguageDataMap) => void) | undefined;
 const mockBridge = {
+  localization: { onLangData: vi.fn((callback: (data: LanguageDataMap) => void) => { packageUpdate = callback; return () => { packageUpdate = undefined; }; }) },
   graph: {
     getGraphMeta: vi.fn(),
     getGraphNeighborhood: vi.fn().mockResolvedValue(null),
@@ -42,6 +45,23 @@ describe('GraphContext', () => {
       await graph!.lookupWord({ surface: 'source' });
       expect(mockBridge.graph.getGraphMeta).toHaveBeenCalledWith('future-package');
       expect(mockBridge.graph.lookupGraphWord).toHaveBeenCalledWith('future-package', { surface: 'source' });
+    } finally { dispose(); }
+  });
+
+  it('invalidates same-language readiness on package activation and admits the new graph revision', async () => {
+    mockBridge.graph.getGraphMeta.mockResolvedValueOnce({ entityCount: 4, relationCount: 4, revision: 1, ready: true, status: 'ready' });
+    let resolveMeta!: (meta: GraphMeta) => void;
+    mockBridge.graph.getGraphMeta.mockImplementationOnce(() => new Promise<GraphMeta>(resolve => { resolveMeta = resolve; }));
+    let graph!: GraphContextValue;
+    const dispose = render(() => <GraphProvider><Probe onReady={value => { graph = value; }} /></GraphProvider>, document.body);
+    try {
+      await vi.waitFor(() => expect(graph.readiness()).toBe('ready'));
+      packageUpdate!({ ja: { name: 'Source', settings: { fixed: {} }, languageData: { activationGeneration: 'new-generation', assets: [] } } });
+      expect(graph.readiness()).toBe('pending');
+      resolveMeta({ entityCount: 5, relationCount: 5, revision: 2, ready: true, status: 'ready' });
+      await vi.waitFor(() => expect(graph.readiness()).toBe('ready'));
+      await graph.getNeighborhood({ entityId: 'center' });
+      expect(mockBridge.graph.getGraphNeighborhood).toHaveBeenLastCalledWith('ja', expect.objectContaining({ revision: 2 }));
     } finally { dispose(); }
   });
 

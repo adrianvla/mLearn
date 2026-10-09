@@ -329,6 +329,17 @@ describe('LinguisticGraphService', () => {
     expect(last?.relations[12]).toMatchObject({ id: 'class', order: 212, role: 'x-future::participant', label: 'q7', displayLabel: 'Package-authored description', relationType: 'x-future::contextual-role' });
     expect(new Set([...first!.relations, ...last!.relations].map((row) => row.order)).size).toBe(213);
     expect((await service.getNeighborhood('xx', { entityId: 'center', relationClasses: ['support'] }))?.relations).toEqual([]);
+    fs.writeFileSync(path.join(directory, 'languages', 'xx.graph.json'), JSON.stringify(encodeCompact({
+      schemaVersion: 1, language: 'xx', generatedAt: '2026-02-01', sourceVersions: {},
+      entities: [{ ...entities[0], label: 'Updated utterance' }, entities[1]], relations,
+    })));
+    advanceLanguagePackageRevision(directory, 'xx');
+    await expect(service.getNeighborhood('xx', { entityId: 'center', offset: 200, revision: first!.revision })).rejects.toThrow('Graph package revision changed');
+    const replacement = await service.getNeighborhood('xx', { entityId: 'center' });
+    expect(replacement?.revision).not.toBe(first!.revision);
+    expect(replacement?.center.label).toBe('Updated utterance');
+    expect((await service.getMeta('xx')).revision).toBe(replacement?.revision);
+
   });
 
   it.skipIf(!process.env.MLEARN_GRAPH_ASSETS_DIR)('exercises installed sparse and dense neighborhoods without modifying their assets', async () => {

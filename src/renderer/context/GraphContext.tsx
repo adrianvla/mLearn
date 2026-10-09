@@ -37,9 +37,16 @@ export const GraphProvider: ParentComponent<{ language?: Accessor<string> }> = (
   const [meta, setMeta] = createSignal<GraphMeta>(unavailableMeta);
   const [metaLoading, setMetaLoading] = createSignal(true);
   let request = 0;
+  const [packageScope, setPackageScope] = createSignal('');
+  const stopPackageUpdates = getBridge().localization.onLangData(data => {
+    const manifest = data[language()]?.languageData;
+    setPackageScope(JSON.stringify([manifest?.activationGeneration, manifest?.bundle?.sha256, manifest?.version]));
+  });
+  onCleanup(stopPackageUpdates);
 
   createEffect(() => {
     const sourceLanguage = language();
+    packageScope();
     const currentRequest = ++request;
     setMetaLoading(true);
     void getBridge().graph.getGraphMeta(sourceLanguage).then((nextMeta) => {
@@ -85,7 +92,7 @@ export const GraphProvider: ParentComponent<{ language?: Accessor<string> }> = (
         (language) => getBridge().graph.getGraphTargetsForSurfaces(language, inputs), [],
       ),
       getNeighborhood: (query) => active(
-        (language) => getBridge().graph.getGraphNeighborhood(language, { ...query, thresholds: effectiveThresholds(settings) }), null,
+        (language) => getBridge().graph.getGraphNeighborhood(language, { ...query, ...(query.revision !== undefined || meta().revision !== undefined ? { revision: query.revision ?? meta().revision } : {}), thresholds: effectiveThresholds(settings) }), null,
       ),
     }}>
       {props.children}

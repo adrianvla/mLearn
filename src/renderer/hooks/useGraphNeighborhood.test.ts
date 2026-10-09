@@ -54,3 +54,19 @@ describe('graph neighborhood request ownership', () => {
     await flush(); setReadiness('pending'); expect(result.neighborhood()).toBeNull(); expect(getNeighborhood).toHaveBeenCalledTimes(1); dispose();
   });
 });
+
+it('rejects a new-generation page and restarts the neighborhood without mixing retained relations', async () => {
+  const first = { ...value('a'), revision: 1 };
+  const second = { ...value('a'), revision: 2, relations: [{ id: 'new:1', kind: 'sense' as const, relationType: 'has-sense' as const }] };
+  const getNeighborhood = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second).mockResolvedValueOnce(second);
+  let dispose!: () => void;
+  const result = createRoot(cleanup => { dispose = cleanup; return useGraphNeighborhood({ readiness: () => 'ready', getNeighborhood } as GraphContextValue, () => 'a'); });
+  try {
+    await flush(); await result.loadMore();
+    expect(result.failed()).toBe(true);
+    expect(result.neighborhood()?.relations).toEqual(first.relations);
+    result.retry(); await flush();
+    expect(result.neighborhood()?.relations).toEqual(second.relations);
+    expect(result.failed()).toBe(false);
+  } finally { dispose(); }
+});

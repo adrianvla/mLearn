@@ -6,6 +6,8 @@ import type { CapabilityKey, GraphDomain, GraphEntityKind, GraphRelationType, Re
 export type GraphAvailability = 'ready' | 'not-installed' | 'unavailable' | 'error';
 
 export interface GraphMeta {
+  /** Main-owned installed package revision for query admission. */
+  revision?: number;
   entityCount: number;
   relationCount: number;
   ready: boolean;
@@ -40,6 +42,8 @@ export interface GraphRelatedNode extends GraphNode {
 }
 
 export interface GraphNeighborhood {
+  /** Every page belongs to this admitted package revision. */
+  revision?: number;
   center: GraphNode;
   /** Dense runtime ids are diagnostic-only; persistent ids remain the public identity. */
   centerDenseId: number;
@@ -61,6 +65,8 @@ export interface GraphNeighborhoodCenterState {
 }
 
 export interface GraphNeighborhoodQuery {
+  /** Reject a page if this admitted revision is no longer available. */
+  revision?: number;
   /** Effective-state thresholds of the requesting renderer. */
   thresholds?: EffectiveThresholds;
   entityId: string;

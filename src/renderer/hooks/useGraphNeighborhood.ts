@@ -13,7 +13,7 @@ export function useGraphNeighborhood(graph: GraphContextValue, entityId: Accesso
   const [retryVersion, setRetryVersion] = createSignal(0);
   let generation = 0;
   // Remember only the loaded extent, never a stale graph/projection payload.
-  const extents = new Map<string, number>();
+  const extents = new Map<string, { count: number; revision?: number }>();
   createEffect(() => {
     const id = entityId();
     const active = enabled();
@@ -24,17 +24,20 @@ export function useGraphNeighborhood(graph: GraphContextValue, entityId: Accesso
     setFailed(false); setLoadingMore(false);
     if (!active || !id || ready !== 'ready') { extents.clear(); setNeighborhood(null); setPending(false); return; }
     setPending(true);
-    const extent = extents.get(id);
+    const previousExtent = extents.get(id);
+    let extent = previousExtent?.count;
     void graph.getNeighborhood({ entityId: id, depth: 1, ...(extent !== undefined && extent > 80 ? { limit: Math.min(extent, 200) } : {}) }).then(async (next) => {
       if (request !== generation || !next) { if (request === generation) setNeighborhood(next); return; }
+      if (previousExtent && previousExtent.revision !== next.revision) { extents.clear(); extent = undefined; }
       const relations = [...next.relations];
       while (request === generation && relations.length < Math.min(extent ?? next.relations.length, next.relationCount)) {
-        const page = await graph.getNeighborhood({ entityId: id, depth: 1, offset: relations.length });
-        if (!page || page.center.id !== id || !page.relations.length) throw new Error('Graph page unavailable');
+        const page = await graph.getNeighborhood({ entityId: id, depth: 1, offset: relations.length, ...(next.revision !== undefined ? { revision: next.revision } : {}) });
+        if (!page || page.center.id !== id || page.revision !== next.revision || !page.relations.length) throw new Error('Graph page unavailable');
         relations.push(...page.relations);
       }
       if (request === generation) {
-        extents.set(id, relations.length);
+        extents.set(id, { count: relations.length, revision: next.revision });
+        while (extents.size > 256) extents.delete(extents.keys().next().value!);
         setNeighborhood({ ...next, relations });
       }
     }).catch(() => { if (request === generation) setFailed(true); })
@@ -46,11 +49,11 @@ export function useGraphNeighborhood(graph: GraphContextValue, entityId: Accesso
     const request = generation;
     setLoadingMore(true); setFailed(false);
     try {
-      const next = await graph.getNeighborhood({ entityId: previous.center.id, depth: 1, offset: previous.relations.length });
+      const next = await graph.getNeighborhood({ entityId: previous.center.id, depth: 1, offset: previous.relations.length, ...(previous.revision !== undefined ? { revision: previous.revision } : {}) });
       if (request === generation) {
-        if (!next || next.center.id !== previous.center.id || !next.relations.length) throw new Error('Graph page unavailable');
+        if (!next || next.center.id !== previous.center.id || next.revision !== previous.revision || !next.relations.length) throw new Error('Graph page unavailable');
         const relations = [...previous.relations, ...next.relations];
-        extents.set(previous.center.id, relations.length);
+        extents.set(previous.center.id, { count: relations.length, revision: next.revision });
         setNeighborhood({ ...next, relations });
       }
     } catch { if (request === generation) setFailed(true); }
