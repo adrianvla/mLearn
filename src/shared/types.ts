@@ -1039,7 +1039,7 @@ export interface LanguageDictionaryPack {
 }
 
 export interface LanguageDataManifest {
-  /** Locally activated immutable runtime snapshot; independent of advertised version. */
+  /** Admitted runtime snapshot: an activation UUID, or "legacy" for the retained pre-generation root. */
   activationGeneration?: string;
   /** Data payload version independent from app version. */
   version?: string;

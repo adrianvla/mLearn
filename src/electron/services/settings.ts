@@ -348,9 +348,11 @@ export function loadLangData(admittedRoot = resolveLanguageDataRoot(path.join(ge
     }
 
     for (const [langCode, loadedLanguageData] of Object.entries(langData)) {
-      const installedLanguageData = { ...loadedLanguageData, languageData: loadedLanguageData.languageData
-        ? { ...loadedLanguageData.languageData, activationGeneration: path.basename(path.dirname(languagesDirs[0])) } : undefined };
       const dataRoot = path.dirname(languagesDirs[0]);
+      const activationGeneration = path.basename(path.dirname(dataRoot)) === '.generations' ? path.basename(dataRoot) : 'legacy';
+      const installedLanguageData = { ...loadedLanguageData, languageData: {
+        ...loadedLanguageData.languageData, assets: loadedLanguageData.languageData?.assets ?? [], activationGeneration,
+      } };
       const languageData = hydrateLanguageFontAssets(installedLanguageData, dataRoot);
       const providers = languageData.frequencyProviders;
       const assets = languageData.languageData?.assets ?? [];

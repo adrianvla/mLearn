@@ -154,3 +154,21 @@ def test_normal_nlp_http_honors_retained_generation_after_publication(tmp_path, 
         unavailable = client.post('/' + route, json={**payload, 'language': 'qg', 'generation': 'cccccccc-cccc-cccc-cccc-cccccccccccc'})
         assert unavailable.status_code == 409
     assert resolve_language_data_root(str(tmp_path)).endswith(new)
+
+
+
+def test_explicit_legacy_admission_survives_first_generation_publication(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from routes import nlp
+    for root, label in [(tmp_path, 'legacy'), (tmp_path / '.generations/bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'published')]:
+        (root / 'languages').mkdir(parents=True)
+        (root / 'adapters').mkdir()
+        (root / 'languages/ql.json').write_text(json.dumps({'runtime': {'adapter': {'type': 'python-module', 'path': 'adapters/source.py'}}}))
+        (root / 'adapters/source.py').write_text(f"def LOAD_MODULE(*args, **kwargs): pass\ndef LANGUAGE_TRANSLATE(word): return {{'data': [{{'definitions': '{label}'}}]}}\n")
+    monkeypatch.setattr(config, 'LANGUAGE_DATA_PATH', str(tmp_path))
+    app = FastAPI(); app.include_router(nlp.router); client = TestClient(app)
+    assert client.post('/translate', json={'word': 'term', 'language': 'ql', 'generation': 'legacy'}).json()['data'][0]['definitions'] == 'legacy'
+    (tmp_path / '.active-generation.json').write_text(json.dumps({'generation': 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'}))
+    assert client.post('/translate', json={'word': 'term', 'language': 'ql', 'generation': 'legacy'}).json()['data'][0]['definitions'] == 'legacy'
+    assert client.post('/translate', json={'word': 'term', 'language': 'ql'}).json()['data'][0]['definitions'] == 'published'

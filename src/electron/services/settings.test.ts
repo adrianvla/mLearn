@@ -114,6 +114,15 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+describe('legacy package admission identity', () => {
+  it.each([true, false])('loads existing metadata (manifest=%s) with an explicit legacy generation', withManifest => {
+    const directory = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(path.join(directory, 'qx.json'), JSON.stringify({ name: 'Future source', settings: { fixed: {} }, ...(withManifest ? { languageData: { assets: [] } } : {}) }));
+    expect(mod.loadLangData().qx.languageData?.activationGeneration).toBe('legacy');
+  });
+});
+
 describe('loadSettings', () => {
   it('reports whether the settings file exists', () => {
     expect(mod.hasSettingsFile()).toBe(false);
@@ -1020,7 +1029,8 @@ describe('loadLanguageCatalogData', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(langData['ja']?.name).toBe('Japanese');
     expect(langData['ja']?.textProcessing?.partOfSpeech?.translatable).toEqual(['名詞']);
-    expect(langData['ja']?.languageData).toBeUndefined();
+    expect(langData['ja']?.languageData).toEqual({ assets: [], activationGeneration: 'legacy' });
+    expect(langData['ja']?.languageData?.bundle).toBeUndefined();
   });
 });
 

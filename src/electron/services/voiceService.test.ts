@@ -1010,6 +1010,17 @@ describe('VOICE_START_SESSION and VOICE_STOP_SESSION', () => {
     expect(second.sender.send).not.toHaveBeenCalled();
   });
 
+  it.each(['legacy', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'])('starts a microphone with admitted generation %s', generation => {
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    const request = { sessionId: 'admitted-call', requestId: 'admitted-microphone', generation };
+    onHandlers.get('voice-start-session')?.(event, 'en', 'vad', 1.5, undefined, request);
+    expect(lastCreatedWebSocket?.url).toContain(`generation=${generation}`);
+    lastCreatedWebSocket!._emit('message', JSON.stringify({ type: 'ready' }));
+    expect(event.sender.send).toHaveBeenCalledWith('voice-session-ready', expect.objectContaining({ generation }));
+    onHandlers.get('voice-stop-session')?.(event, request);
+  });
+
   it('uses default silence threshold of 0.8 when not provided', () => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
@@ -1810,12 +1821,12 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
     complete?.();
   });
 
-  it('carries an admitted variant through TTS ownership and the actual stream payload', async () => {
+  it.each(['aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'legacy'])('carries an admitted variant and generation %s through TTS ownership and the actual stream payload', async generation => {
     mod.setupVoiceIPC();
     const event = createFakeEvent();
     httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true, downloading: false, progress: 1 }));
     existsSyncFn.mockReturnValue(false); readFileSyncFn.mockReturnValue('[]');
-    const request = { sessionId: 'variant-call', requestId: 'variant-utterance', variant: 'future-register', generation: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' };
+    const request = { sessionId: 'variant-call', requestId: 'variant-utterance', variant: 'future-register', generation };
     onHandlers.get('voice-tts-generate')?.(event, 'Source phrase', 'future', 1, undefined, 'qwen3', undefined, request);
     await flushMicrotasks();
     expect(lastCreatedWebSocket).not.toBeNull();

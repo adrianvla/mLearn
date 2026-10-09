@@ -22,6 +22,7 @@ describe('durable runtime generation activation', () => {
     const old = await activateLanguageGeneration(root, async () => undefined);
     await activateLanguageGeneration(root, async candidate => { fs.writeFileSync(path.join(candidate, 'languages/source.json'), 'new metadata'); });
     expect(resolveLanguageDataRoot(root, path.basename(old))).toBe(old);
+    expect(resolveLanguageDataRoot(root, 'legacy')).toBe(root);
     expect(resolveLanguageDataRoot(root)).not.toBe(old);
     expect(() => resolveLanguageDataRoot(root, '../escape')).toThrow('Invalid admitted');
     expect(() => resolveLanguageDataRoot(root, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')).toThrow();

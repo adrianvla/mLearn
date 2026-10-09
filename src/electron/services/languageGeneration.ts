@@ -8,6 +8,10 @@ const GENERATIONS = '.generations';
 
 /** Resolve once at admission. Previously returned roots remain available. */
 export function resolveLanguageDataRoot(controllerRoot: string, admittedGeneration?: string): string {
+  if (admittedGeneration === 'legacy') {
+    if (!fs.statSync(controllerRoot).isDirectory()) throw new Error('Legacy language root is missing');
+    return controllerRoot;
+  }
   if (admittedGeneration !== undefined) {
     if (!/^[a-f0-9-]{36}$/u.test(admittedGeneration)) throw new Error('Invalid admitted language generation');
     const admitted = path.join(controllerRoot, GENERATIONS, admittedGeneration);

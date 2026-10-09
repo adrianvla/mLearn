@@ -27,6 +27,10 @@ def resolve_language_data_root(controller_root: str) -> str:
 
 def admit_language_generation(controller_root: str, generation: str | None = None):
     root = resolve_language_data_root(controller_root)
+    if generation == 'legacy':
+        if not os.path.isdir(controller_root):
+            raise RuntimeError('Legacy language root is missing')
+        return _admitted_root.set(controller_root)
     if generation is not None and generation != os.path.basename(root):
         if not re.fullmatch(r"[a-f0-9-]{36}", generation):
             raise RuntimeError("Invalid candidate language generation")

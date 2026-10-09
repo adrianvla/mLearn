@@ -541,7 +541,7 @@ function normalizeTtsRequest(value: unknown): VoiceTtsRequestIdentity | undefine
   if (!validId(request.sessionId) || !validId(request.requestId)
     || (request.utteranceId !== undefined && !validId(request.utteranceId))
     || (request.actorId !== undefined && !validId(request.actorId))
-    || (request.generation !== undefined && (typeof request.generation !== 'string' || !/^[a-f0-9-]{36}$/u.test(request.generation)))
+    || (request.generation !== undefined && (typeof request.generation !== 'string' || (request.generation !== 'legacy' && !/^[a-f0-9-]{36}$/u.test(request.generation))))
     || (request.variant !== undefined && request.variant !== null && (!validId(request.variant) || request.variant.length > 128))) throw new Error('Invalid TTS request identity');
   return { sessionId: request.sessionId, requestId: request.requestId,
     ...(request.generation !== undefined ? { generation: request.generation as string } : {}),

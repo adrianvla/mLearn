@@ -518,7 +518,7 @@ export async function fetchTranslation(
 export async function selectTranslationCandidate(word: string, selectionId: string, language: string,
   options: WordLookupCandidateOptions): Promise<TranslationResponse> {
   const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
-  const languageData = resolveLanguageData(options.languageData);
+  const languageData = snapshotLanguageData(options.languageData);
   const cacheLanguage = buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage);
   const context = options.context ?? {};
   const result = await getBackend().translate(word, language, { generation: languageData?.languageData?.activationGeneration, variant: languageData?.resolvedVariantId, context: { ...context, selectionId },
