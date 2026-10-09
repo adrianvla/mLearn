@@ -7,7 +7,13 @@ const POINTER = '.active-generation.json';
 const GENERATIONS = '.generations';
 
 /** Resolve once at admission. Previously returned roots remain available. */
-export function resolveLanguageDataRoot(controllerRoot: string): string {
+export function resolveLanguageDataRoot(controllerRoot: string, admittedGeneration?: string): string {
+  if (admittedGeneration !== undefined) {
+    if (!/^[a-f0-9-]{36}$/u.test(admittedGeneration)) throw new Error('Invalid admitted language generation');
+    const admitted = path.join(controllerRoot, GENERATIONS, admittedGeneration);
+    if (!fs.statSync(admitted).isDirectory()) throw new Error('Admitted language generation is missing');
+    return admitted;
+  }
   const pointer = path.join(controllerRoot, POINTER);
   if (!fs.existsSync(pointer)) return controllerRoot;
   const parsed: unknown = JSON.parse(fs.readFileSync(pointer, 'utf8'));

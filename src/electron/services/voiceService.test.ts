@@ -1815,12 +1815,12 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
     const event = createFakeEvent();
     httpGetFn.mockImplementation(makeJsonHttpGetMock({ loaded: true, downloading: false, progress: 1 }));
     existsSyncFn.mockReturnValue(false); readFileSyncFn.mockReturnValue('[]');
-    const request = { sessionId: 'variant-call', requestId: 'variant-utterance', variant: 'future-register' };
+    const request = { sessionId: 'variant-call', requestId: 'variant-utterance', variant: 'future-register', generation: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' };
     onHandlers.get('voice-tts-generate')?.(event, 'Source phrase', 'future', 1, undefined, 'qwen3', undefined, request);
     await flushMicrotasks();
     expect(lastCreatedWebSocket).not.toBeNull();
     lastCreatedWebSocket!._emit('open');
-    expect(JSON.parse(lastCreatedWebSocket!.send.mock.calls[0][0])).toMatchObject({ language: 'future', variant: 'future-register' });
+    expect(JSON.parse(lastCreatedWebSocket!.send.mock.calls[0][0])).toMatchObject({ language: 'future', variant: 'future-register', generation: request.generation });
     onHandlers.get('voice-tts-stop')?.(event, request);
   });
 

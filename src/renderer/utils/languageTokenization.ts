@@ -20,9 +20,12 @@ export async function tokenizeTextWithSettings(
   text: string,
   language: string,
   _settings: BackendSettings,
+  languageData?: LanguageData | null,
 ): Promise<Token[]> {
   if (!text.trim()) return [];
-  return getConfiguredBackend().tokenize(text, language);
+  return languageData?.languageData?.activationGeneration || languageData?.resolvedVariantId !== undefined
+    ? getConfiguredBackend().tokenize(text, language, undefined, languageData.resolvedVariantId, languageData.languageData?.activationGeneration)
+    : getConfiguredBackend().tokenize(text, language);
 }
 
 function colorizeWithRoughTokenizerFallback(params: {
@@ -65,7 +68,7 @@ export async function colorizeTokenizedText(params: {
   targetWord: string;
 }): Promise<string> {
   try {
-    const tokens = await tokenizeTextWithSettings(params.text, params.language, params.settings);
+    const tokens = await tokenizeTextWithSettings(params.text, params.language, params.settings, params.languageData);
     return tokens.length > 0
       ? tokensToColoredHtml(tokens, params.colourCodes, params.targetWord, params.languageData)
       : colorizeWithRoughTokenizerFallback(params) ?? params.text;
@@ -87,7 +90,7 @@ export async function textToReadingText(params: {
   };
 
   try {
-    const tokens = await tokenizeTextWithSettings(params.text, params.language, params.settings);
+    const tokens = await tokenizeTextWithSettings(params.text, params.language, params.settings, params.languageData);
     if (tokens.length > 0) return tokensToReadingText(tokens, params.languageData);
     const fallback = roughReadingFallback();
     if (fallback !== null) return fallback;

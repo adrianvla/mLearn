@@ -455,16 +455,17 @@ describe('VoiceTab CPU warning banner', () => {
     const { VoiceTab } = await import('./VoiceTab');
     const [speech, setSpeech] = createSignal<VoiceSpeechMessage[]>([{ eventId: 'historical', actorId: 'actor-a', voiceSessionId: 'old-call', content: 'Old history.' }]);
     let sessionId = '';
-    const dispose = render(() => <VoiceTab autoStartCall messages={[{ role: 'assistant', content: 'Raw candidate.', timestamp: 1 }]}
+    const dispose = render(() => <VoiceTab languageGeneration="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" autoStartCall messages={[{ role: 'assistant', content: 'Raw candidate.', timestamp: 1 }]}
       speechMessages={speech()} isStreaming onSendMessage={vi.fn()} onAbort={vi.fn()} isConnected language="test-language" onRequestGreeting={vi.fn()}
       onCallStateChange={(active, _reason, _error, id) => { if (active) sessionId = id!; }} />, container);
     await vi.waitFor(() => expect(sessionReadyHandler).toBeDefined());
+    expect(mockStartSession.mock.calls.at(-1)?.[4]).toMatchObject({ generation: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' });
     setSpeech(previous => [...previous, { eventId: 'admitted', actorId: 'actor-a', voiceSessionId: sessionId, content: 'Reviewed reply.' }]);
     await Promise.resolve(); expect(mockTtsGenerate).not.toHaveBeenCalled();
     readySession();
     await vi.waitFor(() => expect(mockTtsGenerate).toHaveBeenCalledTimes(1));
     expect(mockTtsGenerate.mock.calls[0][0]).toBe('Reviewed reply.');
-    expect(mockTtsGenerate.mock.calls[0][6]).toEqual(expect.objectContaining({ sessionId, utteranceId: 'admitted', actorId: 'actor-a' }));
+    expect(mockTtsGenerate.mock.calls[0][6]).toEqual(expect.objectContaining({ sessionId, utteranceId: 'admitted', actorId: 'actor-a', generation: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' }));
     ttsStatusHandler!({ ...mockTtsGenerate.mock.calls[0][6], generating: false });
     setSpeech(previous => [...previous, { eventId: 'late-history', actorId: 'actor-b', voiceSessionId: 'old-call', content: 'Late history.' }]);
     await Promise.resolve(); expect(mockTtsGenerate).toHaveBeenCalledTimes(1);

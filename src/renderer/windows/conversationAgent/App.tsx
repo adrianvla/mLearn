@@ -2396,6 +2396,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
       <Show when={voiceOverlayRequested() || isVoiceCallActive() || voiceAftermath()}>
         <div class="ca-voice-overlay">
           <Show when={voiceAftermath()} fallback={<VoiceTab
+              languageGeneration={currentLangData()?.languageData?.activationGeneration}
               autoStartCall={voiceOverlayRequested()}
               participants={voiceParticipants()}
               onDismiss={() => batch(() => { setVoiceOverlayRequested(false); setVoiceContactParticipantId(null); })}

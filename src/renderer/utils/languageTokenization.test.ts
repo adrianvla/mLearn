@@ -287,3 +287,13 @@ describe('language tokenization helpers', () => {
     })).rejects.toThrow('backend unavailable');
   });
 });
+
+
+it('sends the same admitted generation used to render generated text', async () => {
+  const { colorizeTokenizedText } = await import('./languageTokenization');
+  mockTokenize.mockResolvedValue([{ word: 'term', actual_word: 'term', type: 'package-category' }]);
+  const generation = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+  await colorizeTokenizedText({ text: 'term', language: 'future', settings: backendSettings, colourCodes: {}, targetWord: 'term',
+    languageData: { name: 'Future', settings: { fixed: {} }, languageData: { activationGeneration: generation, assets: [] } } });
+  expect(mockTokenize).toHaveBeenLastCalledWith('term', 'future', undefined, undefined, generation);
+});

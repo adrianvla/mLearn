@@ -3248,6 +3248,8 @@ export interface VoiceModelStatus {
 
 /** A microphone stream can be replaced inside one logical call. */
 export interface VoiceSessionRequestIdentity {
+  /** Immutable installed package snapshot admitted by the caller. */
+  generation?: string;
   /** Admitted package variant; null explicitly selects the base. */
   variant?: string | null;
   sessionId: string;

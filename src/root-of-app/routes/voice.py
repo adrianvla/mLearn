@@ -657,6 +657,7 @@ class TTSRequest(BaseModel):
     text: str
     language: str = ""
     variant: Optional[str] = None
+    generation: Optional[str] = None
     voiceSamplePath: Optional[str] = None
     speed: float = 1.0
     provider: Optional[str] = None
@@ -672,7 +673,7 @@ def _requested_tts_language(req: TTSRequest) -> str:
 
 @router.get("/voice/stt/status")
 @scoped_language_request
-async def voice_stt_status(language: Optional[str] = None, variant: Optional[str] = None):
+async def voice_stt_status(language: Optional[str] = None, variant: Optional[str] = None, generation: Optional[str] = None):
     requested_language = language or config.LANGUAGE
     whisper_language = _stt_language_hint(requested_language) if requested_language else None
     engine = _get_stt_engine()
@@ -703,7 +704,7 @@ async def voice_stt_status(language: Optional[str] = None, variant: Optional[str
 
 @router.get("/voice/tts/status")
 @scoped_language_request
-async def voice_tts_status(language: Optional[str] = None, variant: Optional[str] = None):
+async def voice_tts_status(language: Optional[str] = None, variant: Optional[str] = None, generation: Optional[str] = None):
     _reload_tts_settings()
     requested_language = language or config.LANGUAGE
     try:
@@ -807,7 +808,7 @@ def ensure_language_voice_ready(language: str, provider: str | None = None) -> N
 
 @router.post("/voice/models/download")
 @scoped_language_request
-async def voice_download_models(language: Optional[str] = None, variant: Optional[str] = None):
+async def voice_download_models(language: Optional[str] = None, variant: Optional[str] = None, generation: Optional[str] = None):
     global _voice_stt_downloading, _voice_tts_downloading
     global _voice_stt_progress, _voice_tts_progress
 
@@ -1503,7 +1504,7 @@ async def voice_tts_stream_ws(websocket: WebSocket):
         req = TTSRequest(**payload)
         requested_language = _requested_tts_language(req)
         from language_generation import admit_language_generation, release_language_generation
-        generation = admit_language_generation(config.LANGUAGE_DATA_PATH) if config.LANGUAGE_DATA_PATH else None
+        generation = admit_language_generation(config.LANGUAGE_DATA_PATH, req.generation) if config.LANGUAGE_DATA_PATH else None
         variant = req.variant if req.language or 'variant' in req.model_fields_set else config.ACTIVE_VARIANT
         scope = language_variant_override(requested_language, variant); scope.__enter__()
         provider = req.provider or _tts_provider
@@ -1634,6 +1635,7 @@ class TranscribeRequest(BaseModel):
     voiceSamplePath: str
     language: Optional[str] = None
     variant: Optional[str] = None
+    generation: Optional[str] = None
 
 
 @router.post("/voice/transcribe")
@@ -1686,7 +1688,12 @@ async def voice_stream_ws(websocket: WebSocket):
     )
 
     from language_generation import admit_language_generation, release_language_generation
-    admission = admit_language_generation(config.LANGUAGE_DATA_PATH)
+    try:
+        admission = admit_language_generation(config.LANGUAGE_DATA_PATH, websocket.query_params.get('generation'))
+    except RuntimeError:
+        await websocket.send_json({'type': 'error', 'message': 'Admitted language generation unavailable'})
+        await websocket.close(code=1008)
+        return
     variant = websocket.query_params.get('variant') or None if 'variant' in websocket.query_params else (config.ACTIVE_VARIANT if language == config.LANGUAGE else None)
     scope = language_variant_override(language, variant); scope.__enter__()
     try:

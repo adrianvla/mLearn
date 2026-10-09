@@ -17,6 +17,15 @@ function fixture() {
   return root;
 }
 describe('durable runtime generation activation', () => {
+  it('resolves an explicit retained generation after publication and rejects missing or malformed identities', async () => {
+    const root = fixture();
+    const old = await activateLanguageGeneration(root, async () => undefined);
+    await activateLanguageGeneration(root, async candidate => { fs.writeFileSync(path.join(candidate, 'languages/source.json'), 'new metadata'); });
+    expect(resolveLanguageDataRoot(root, path.basename(old))).toBe(old);
+    expect(resolveLanguageDataRoot(root)).not.toBe(old);
+    expect(() => resolveLanguageDataRoot(root, '../escape')).toThrow('Invalid admitted');
+    expect(() => resolveLanguageDataRoot(root, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa')).toThrow();
+  });
   it('publishes complete generations once and keeps admitted old readers usable', async () => {
     const root = fixture(); const admitted = resolveLanguageDataRoot(root);
     await activateLanguageGeneration(root, async candidate => {

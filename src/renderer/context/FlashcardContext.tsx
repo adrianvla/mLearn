@@ -3408,10 +3408,11 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         if (!suggestion) continue;
         try {
           const dictionaryTargetLanguage = dictionaryTargetFor(suggestion.language);
+          const admittedData = languageDataFor(suggestion.language);
           const translationResponse = await backend.translate(
             suggestion.word,
             suggestion.language,
-            dictionaryTargetLanguage ? { dictionaryTargetLanguage } : undefined,
+            { generation: admittedData?.languageData?.activationGeneration, variant: admittedData?.resolvedVariantId, ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) },
           );
           const firstEntry = translationResponse?.data?.[0] as TranslationEntry | undefined;
           const backText = firstEntry?.definitions

@@ -26,12 +26,14 @@ import type {
 } from '../../shared/types';
 import {
   getResourcePath,
+  getUserDataPath,
   getPipExecutablePath,
   getPythonExecutablePath,
   isLinux,
   isMac,
   isWindows,
 } from '../utils/platform';
+import { resolveLanguageDataRoot } from './languageGeneration';
 import { loadLangData, loadSettings } from './settings';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { applyVariantOverlay } from '../../shared/languageVariants';
@@ -475,6 +477,7 @@ let pendingAudioChunks: Float32Array[] = [];
 let pendingTokenCleanup: (() => void) | null = null;
 let sessionGeneration = 0;
 interface VoiceSessionOwner {
+  generation?: string;
   variant?: string | null;
   sender: Electron.WebContents;
   identity?: VoiceSessionRequestIdentity;
@@ -505,6 +508,7 @@ let activeTtsWs: WebSocket | null = null;
 let activeSystemTtsProcess: ChildProcess | null = null;
 
 interface TtsRequestOwner {
+  generation?: string;
   variant?: string | null;
   runtime: NonNullable<import('../../shared/types').LanguageRuntimeConfig['tts']>;
   sender: Electron.WebContents;
@@ -537,8 +541,10 @@ function normalizeTtsRequest(value: unknown): VoiceTtsRequestIdentity | undefine
   if (!validId(request.sessionId) || !validId(request.requestId)
     || (request.utteranceId !== undefined && !validId(request.utteranceId))
     || (request.actorId !== undefined && !validId(request.actorId))
+    || (request.generation !== undefined && (typeof request.generation !== 'string' || !/^[a-f0-9-]{36}$/u.test(request.generation)))
     || (request.variant !== undefined && request.variant !== null && (!validId(request.variant) || request.variant.length > 128))) throw new Error('Invalid TTS request identity');
   return { sessionId: request.sessionId, requestId: request.requestId,
+    ...(request.generation !== undefined ? { generation: request.generation as string } : {}),
     ...(request.variant !== undefined ? { variant: request.variant as string | null } : {}),
     ...(request.utteranceId !== undefined ? { utteranceId: request.utteranceId } : {}),
     ...(request.actorId !== undefined ? { actorId: request.actorId } : {}) };
@@ -548,8 +554,8 @@ function configuredVariant(language: string): string | null {
   return (loadSettings()?.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[language] ?? null;
 }
 
-function getLanguageTtsRuntime(language: string, variant: string | null) {
-  const data = loadLangData()[language];
+function getLanguageTtsRuntime(language: string, variant: string | null, generation?: string) {
+  const data = generation ? loadLangData(resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data'), generation))[language] : loadLangData()[language];
   if (data && variant && !data.variants?.[variant]) throw new Error(`Voice variant ${variant} is unavailable for ${language}`);
   return data ? JSON.parse(JSON.stringify(applyVariantOverlay(data, variant ?? undefined).runtime?.tts ?? {})) as NonNullable<import('../../shared/types').LanguageRuntimeConfig['tts']> : {};
 }
@@ -703,7 +709,7 @@ function startSession(
   let identity: VoiceSessionRequestIdentity | undefined;
   try {
     const normalized = normalizeTtsRequest(request);
-    if (normalized) identity = { sessionId: normalized.sessionId, requestId: normalized.requestId, ...(normalized.variant !== undefined ? { variant: normalized.variant } : {}) };
+    if (normalized) identity = { sessionId: normalized.sessionId, requestId: normalized.requestId, ...(normalized.generation ? { generation: normalized.generation } : {}), ...(normalized.variant !== undefined ? { variant: normalized.variant } : {}) };
   } catch (error) { log.warn('[VoiceService] Invalid microphone request', error); return; }
   log.info('[VoiceService] Starting voice session', { language, mode, silenceThreshold, ttsProvider });
   const previous = activeVoiceRequest;
@@ -712,7 +718,7 @@ function startSession(
   stopSession();
   if (previous && !previous.sender.isDestroyed()) previous.sender.send(IPC_CHANNELS.VOICE_SESSION_ERROR,
     { error: 'This call ended because another voice session started.', ...previous.identity });
-  const owner: VoiceSessionOwner = { sender, identity, variant: identity?.variant !== undefined ? identity.variant : configuredVariant(language) };
+  const owner: VoiceSessionOwner = { sender, identity, generation: identity?.generation ?? loadLangData()[language]?.languageData?.activationGeneration, variant: identity?.variant !== undefined ? identity.variant : configuredVariant(language) };
   activeVoiceRequest = owner;
   activeSender = sender;
   const onDestroyed = () => { if (activeVoiceRequest === owner) stopSession(); };
@@ -776,7 +782,7 @@ function doStartSession(
   if (!ownsVoiceSession(owner)) return;
   const sender = owner.sender;
   const ttsProviderQuery = ttsProvider ? `&tts_provider=${encodeURIComponent(ttsProvider)}` : '';
-  const wsUrl = `${API_ENDPOINTS.voiceStream}?variant=${encodeURIComponent(owner.variant ?? '')}&language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}${ttsProviderQuery}`;
+  const wsUrl = `${API_ENDPOINTS.voiceStream}?variant=${encodeURIComponent(owner.variant ?? '')}${owner.generation ? `&generation=${encodeURIComponent(owner.generation)}` : ''}&language=${encodeURIComponent(language)}&silence=${silenceThreshold}&mode=${encodeURIComponent(mode)}${ttsProviderQuery}`;
 
   try {
     sendSessionStatus(owner, {
@@ -981,7 +987,7 @@ async function generateTTS(
   stopTTS();
   const abortController = new AbortController();
   const variant = identity?.variant !== undefined ? identity.variant : configuredVariant(language);
-  const owner: TtsRequestOwner = { sender, identity, variant, runtime: {}, controller: abortController };
+  const owner: TtsRequestOwner = { sender, identity, generation: identity?.generation ?? loadLangData()[language]?.languageData?.activationGeneration, variant, runtime: {}, controller: abortController };
   activeTtsRequest = owner;
   ttsAbortController = abortController;
   const onDestroyed = () => { if (activeTtsRequest === owner) stopTTS(); };
@@ -1002,7 +1008,7 @@ async function generateTTS(
   }
 
   if (provider === 'system') {
-    try { owner.runtime = getLanguageTtsRuntime(language, variant); }
+    try { owner.runtime = getLanguageTtsRuntime(language, variant, owner.generation); }
     catch (error) { sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false, error: error instanceof Error ? error.message : String(error) }); return; }
     await generateSystemTTS(sanitizedText, owner);
     return;
@@ -1021,7 +1027,7 @@ async function generateTTS(
   try {
     const [sttStatus, ttsStatus] = await Promise.all([
       fetchJson(API_ENDPOINTS.voiceSttStatus),
-      fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language, variant: owner.variant ?? '' })),
+      fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language, variant: owner.variant ?? '', ...(owner.generation ? { generation: owner.generation } : {}) })),
     ]);
     modelLoading = !(ttsStatus.loaded as boolean);
     deviceHints = deriveDeviceHints(sttStatus, ttsStatus);
@@ -1050,7 +1056,7 @@ async function generateTTS(
       try {
         const [sttStatus, s] = await Promise.all([
           fetchJson(API_ENDPOINTS.voiceSttStatus),
-          fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language, variant: owner.variant ?? '' })),
+          fetchJson(withQuery(API_ENDPOINTS.voiceTtsStatus, { language, variant: owner.variant ?? '', ...(owner.generation ? { generation: owner.generation } : {}) })),
         ]);
         const hints = deriveDeviceHints(sttStatus, s);
         sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, {
@@ -1088,6 +1094,7 @@ async function generateTTS(
       text: sanitizedText,
       language,
       variant: owner.variant,
+      ...(owner.generation ? { generation: owner.generation } : {}),
       speed,
       provider: requestedProvider,
     };

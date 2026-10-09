@@ -142,6 +142,7 @@ function providerFromVoiceTtsChoice(choice: VoiceTtsChoice): LocalVoiceTtsProvid
 }
 
 export interface VoiceTabProps {
+  languageGeneration?: string;
   participants?: readonly CallParticipant[];
   contextLabel?: string;
   onDismiss?: () => void;
@@ -975,6 +976,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
     ttsGenerationActive = true;
     const message = activeSpeech;
     const request: VoiceTtsRequestIdentity = {
+      generation: microphoneRequest?.generation ?? props.languageGeneration,
       variant: microphoneRequest ? microphoneRequest.variant : (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[props.language] ?? null,
       sessionId: callSessionId,
       requestId: crypto.randomUUID(),
@@ -1366,7 +1368,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       return;
     }
     callSessionId = crypto.randomUUID();
-    microphoneRequest = { variant: (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[props.language] ?? null, sessionId: callSessionId, requestId: crypto.randomUUID() };
+    microphoneRequest = { generation: props.languageGeneration, variant: (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[props.language] ?? null, sessionId: callSessionId, requestId: crypto.randomUUID() };
     greetingRequested = false;
     seenSpeechEventIds = new Set((props.speechMessages ?? []).map(message => message.eventId));
     activeSpeech = null;
@@ -1496,7 +1498,7 @@ export const VoiceTab: Component<VoiceTabProps> = (props) => {
       (mode, prevMode) => {
         if (mode !== prevMode && isCallActive()) {
           const previous = microphoneRequest;
-          microphoneRequest = { variant: (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[props.language] ?? null, sessionId: callSessionId, requestId: crypto.randomUUID() };
+          microphoneRequest = { generation: props.languageGeneration, variant: (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[props.language] ?? null, sessionId: callSessionId, requestId: crypto.randomUUID() };
           setIsInitializing(true);
           keyboardPttHeld = false;
           setPttActive(false);
