@@ -167,6 +167,16 @@ describe('epubService', () => {
     expect(epub2.coverImage).toMatchObject({ zipPath: 'OEBPS/img/cover image.png', data: new Uint8Array([13]) });
   });
 
+  it('preserves mixed block and break-delimited body text without duplicating nested paragraphs', async () => {
+    const content = await epubToContentPages(makeEpub({ chapters: [{ href: 'chapter.xhtml', html:
+      '<html><body><header><h1>Title</h1></header><div>Before<br/><ruby>base<rt>reading</rt></ruby> middle<section><p>Nested</p></section>After</div><blockquote><p>Quoted once</p></blockquote><nav>Navigation only</nav></body></html>' }] }));
+    const item = content.items[0];
+    expect(item.kind).toBe('text');
+    if (item.kind !== 'text') throw new Error('Expected authored text');
+    expect(item.text).toBe('Title\n\nBefore\n\nbase middle\n\nNested\n\nAfter\n\nQuoted once');
+    expect(item.readingSpans).toEqual([{ start: item.text.indexOf('base'), end: item.text.indexOf('base') + 4, reading: 'reading' }]);
+  });
+
   it('ruby markup keeps base text and records book-defined readings as spans', async () => {
     const content = await epubToContentPages(makeEpub({
       chapters: [{

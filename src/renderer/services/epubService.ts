@@ -261,9 +261,10 @@ function nearestBreakElement(
   return null;
 }
 
-function walkCleanedText(root: Element): RawExtraction {
+function walkCleanedText(root: Element, nodes?: readonly Node[]): RawExtraction {
   const raw: RawExtraction = { text: '', spans: [] };
-  walkExtractableText(root, raw);
+  if (nodes) for (const node of nodes) walkExtractableText(node, raw);
+  else walkExtractableText(root, raw);
   const source = raw.text;
   const rawToClean = new Int32Array(source.length).fill(-1);
   let text = '';
@@ -308,12 +309,36 @@ function chapterContentAndImageRefs(html: string): { content: EpubChapterContent
   const breakMarkers = Array.from(body.querySelectorAll('*')).filter((el) => (
     !(el.textContent ?? '').trim() && nearestBreakElement(el, breakBeforeClasses, breakAfterClasses) !== null
   ));
-  const blocks = Array.from(body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre'))
-    .map((element) => ({
-      element,
-      ...walkCleanedText(element),
-      breakSignal: nearestBreakElement(element, breakBeforeClasses, breakAfterClasses),
-    }));
+  // Traverse the complete authored body. A checklist of paragraph elements
+  // loses mixed text when even one heading/p element exists elsewhere, and
+  // selecting both a container and its paragraphs duplicates nested content.
+  const blockSelector = 'h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,div,section,article,main,header,footer,aside,figure,figcaption,table,thead,tbody,tfoot,tr,td,th,dl,dt,dd,address,hr,br';
+  const blocks: Array<RawExtraction & { element: Element; anchor: Node; breakSignal: ReturnType<typeof nearestBreakElement> }> = [];
+  const collect = (element: Element): void => {
+    let inline: Node[] = [];
+    const flush = () => {
+      if (!inline.length) return;
+      const value = walkCleanedText(element, inline);
+      if (value.text) blocks.push({ element, anchor: inline[0], ...value,
+        breakSignal: nearestBreakElement(element, breakBeforeClasses, breakAfterClasses) });
+      inline = [];
+    };
+    for (const node of Array.from(element.childNodes)) {
+      if (node.nodeType === 1) {
+        const child = node as Element;
+        if (['script', 'style', 'nav', 'rt', 'rp', 'rtc'].includes(child.localName)) continue;
+        if (child.localName === 'br' || child.localName === 'hr') { flush(); continue; }
+        if (child.matches(blockSelector) || child.querySelector(blockSelector)) {
+          flush();
+          collect(child);
+          continue;
+        }
+      }
+      inline.push(node);
+    }
+    flush();
+  };
+  collect(body);
   const heading = ['h1', 'h2']
     .map((tag) => blocks.find((block) => block.element.localName === tag && block.text))
     .find((block) => block !== undefined);
@@ -329,7 +354,7 @@ function chapterContentAndImageRefs(html: string): { content: EpubChapterContent
     const consumedMarkersBefore = markerIndex;
     while (
       markerIndex < breakMarkers.length
-      && (breakMarkers[markerIndex].compareDocumentPosition(block.element) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+      && (breakMarkers[markerIndex].compareDocumentPosition(block.anchor) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
     ) {
       markerIndex += 1;
     }
@@ -339,7 +364,7 @@ function chapterContentAndImageRefs(html: string): { content: EpubChapterContent
         seenBeforeAncestors.add(block.breakSignal.element);
         startsPage = true;
       }
-    } else if (prevAfterElement !== null && !prevAfterElement.contains(block.element)) {
+    } else if (prevAfterElement !== null && !prevAfterElement.contains(block.anchor)) {
       startsPage = true;
     }
     if (block.breakSignal?.direction === 'after') prevAfterElement = block.breakSignal.element;
