@@ -612,7 +612,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
     (container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
     Array.from(document.querySelectorAll<HTMLButtonElement>('.ca-overflow-menu button')).find(button => button.textContent === 'mlearn.ConversationAgent.Menu.MemoryBrowser')!.click();
-    expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'memory-browser', context: { roomId: 'room-a' } });
+    expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'memory-browser', context: { memoryScope: { kind: 'room', id: 'room-a' }, returnContext: { roomId: 'room-a', threadId: 'thread-a' } } });
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
   });
 
@@ -1581,7 +1581,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(currentWorld.rooms).toEqual([]);
   });
 
-  it('translates arriving media context into the active thread and renders it in Thread', async () => {
+  it('offers arriving media context and attaches only after deliberate choice', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
@@ -1601,6 +1601,10 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
     });
 
+    await vi.waitFor(() => expect(container.textContent).toContain('Episode One'));
+    expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Details.AttachMedia')!.click();
     await vi.waitFor(() => expect(mockBridge.world.updateThread).toHaveBeenCalledWith(expect.objectContaining({
       id: 'thread-a',
       mediaRef: expect.objectContaining({ mediaHash: 'video-1', mediaName: 'Episode One', mediaType: 'video' }),
@@ -1618,6 +1622,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       assessedLevel: null, assessedLevelName: '', language: 'xx', failedWords: [], failedGrammar: [],
       wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
       grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 }, sourceContext: source });
+    await vi.waitFor(() => expect(container.textContent).toContain('Story'));
+    expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Details.AttachMedia')!.click();
     await vi.waitFor(() => expect(mockBridge.world.updateThread).toHaveBeenCalledWith(expect.objectContaining({ mediaRef: expect.objectContaining({ sourceContext: source }) })));
     Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Product.Return')!.click();
     expect(onReturn).toHaveBeenCalledWith(source);
@@ -1638,9 +1645,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       assessedLevel: null, assessedLevelName: '', language: 'xx', failedWords: [], failedGrammar: [],
       wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
       grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 }, sourceContext: source });
-    await vi.waitFor(() => expect(Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')).toBeDefined());
-    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.AgeVerification.ContinueButton')!.click();
-    await vi.waitFor(() => expect(container.querySelector('.new-conversation-media-context')).not.toBeNull());
+    await vi.waitFor(() => expect(container.textContent).toContain('Current'));
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
     Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Product.Return')!.click();
     expect(onReturn).toHaveBeenCalledWith(source);
     expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
@@ -1655,7 +1661,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(journalEvents).toEqual([]);
   });
 
-  it('starts a distinct conversation for a media-only launch', async () => {
+  it('preserves the selected ordinary conversation for a media-only launch', async () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
@@ -1667,8 +1673,11 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
       grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
     });
-    await vi.waitFor(() => expect(container.querySelector('.new-conversation-form')).not.toBeNull());
+    await vi.waitFor(() => expect(container.textContent).toContain('Episode Two'));
+    expect(container.querySelector('.new-conversation-form')).toBeNull();
     expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+    expect(journalEvents).toEqual([]);
   });
 
   it('carries tutor purpose and selections into a newly created conversation', async () => {
@@ -1710,7 +1719,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     expect(messages[0].content).toContain('て-form');
   });
 
-  it('filters journal-settled words out of media failures in the learner projection', async () => {
+  it.each(['ja', 'future'])('keeps admitted media failure hints scoped to the learner language %s', async language => {
+    testSettings.language = language;
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
@@ -1729,6 +1739,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
       grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 },
     });
+    await vi.waitFor(() => expect(container.querySelector('.ca-media-reference-offer')).not.toBeNull());
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Details.AttachMedia')!.click();
+    await vi.waitFor(() => expect(mockBridge.world.updateThread).toHaveBeenCalled());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea).toBeTruthy());
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));
@@ -1740,7 +1753,8 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(mockBridge.llm.llmStream).toHaveBeenCalled());
     const [messages] = mockBridge.llm.llmStream.mock.calls.at(-1) as [{ content: string }[]];
     // 消える is an unsettled failure and reaches the tutor; 犬 is journal-settled and must not.
-    expect(messages[0].content).toContain('消える');
+    if (language === 'ja') expect(messages[0].content).toContain('消える');
+    else expect(messages[0].content).not.toContain('消える');
     expect(messages[0].content).not.toContain('犬');
   });
 

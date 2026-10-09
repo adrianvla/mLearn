@@ -1040,7 +1040,17 @@
         "MutePersonContact": "Mute person",
         "UnmutePersonContact": "Unmute person",
         "MuteCalls": "Mute calls",
-        "AllowCalls": "Allow calls"
+        "AllowCalls": "Allow calls",
+        "MediaOffer": "Media reference offered:",
+        "AttachMedia": "Attach to this conversation",
+        "DismissMedia": "Dismiss offer",
+        "ChangeMedia": "Change media reference",
+        "NoMedia": "No attached media",
+        "RemoveMedia": "Remove media reference",
+        "MediaReferenceHint": "Choose a reference for this conversation. This does not change its participants, mode or memory scope. Open a book or video to offer another reference.",
+        "MediaProvenance": "Source identity: {id}",
+        "MediaSpoilerScope": "The source position captured when attached bounds the supplied context. This is not permission to reveal later story events.",
+        "SourceProgress": "Captured source progress: {progress}%"
       },
       "Recovery": {
         "Model": "The AI model is not ready. Open AI settings to select or repair the model, then try again.",
@@ -1091,7 +1101,8 @@
         "SourceQuotes": "Source quotes",
         "Unknowns": "Uncertain or missing",
         "UseDraft": "Use this draft",
-        "ResearchAccepted": "Draft selected"
+        "ResearchAccepted": "Draft selected",
+        "DiscardDraft": "Discard research draft"
       },
       "Contacts": {
         "Archive": "Archive contact",
@@ -2289,7 +2300,14 @@
       "Tabs": {
         "Room": "Shared view"
       },
-      "LoadError": "Could not load memories. Try again."
+      "LoadError": "Could not load memories. Try again.",
+      "ChooseScope": "Choose a memory scope to inspect.",
+      "NoRetainedThreadMemory": "This separate-history conversation has no retained memory. Other Room and world memories are not included.",
+      "Scope": {
+        "room": "Room",
+        "thread": "Separate-history conversation",
+        "world": "World"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "Anki flashcards loaded from cache (Anki appears offline)",

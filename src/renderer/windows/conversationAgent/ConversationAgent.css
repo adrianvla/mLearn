@@ -549,3 +549,5 @@ textarea.ca-chat-textarea,
   .ca-provider-notice > span { flex: 1 1 12rem; }
   .ca-provider-notice > button { margin-inline-start: auto; }
 }
+
+.ca-media-reference-offer { display: flex; align-items: center; gap: var(--spacing-2); flex-wrap: wrap; min-width: 0; }

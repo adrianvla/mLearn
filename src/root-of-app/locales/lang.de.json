@@ -1040,7 +1040,17 @@
         "MutePersonContact": "Person stummschalten",
         "UnmutePersonContact": "Person nicht mehr stummschalten",
         "MuteCalls": "Anrufe stummschalten",
-        "AllowCalls": "Anrufe erlauben"
+        "AllowCalls": "Anrufe erlauben",
+        "MediaOffer": "Medienreferenz angeboten:",
+        "AttachMedia": "An dieses Gespräch anhängen",
+        "DismissMedia": "Angebot schließen",
+        "ChangeMedia": "Medienreferenz ändern",
+        "NoMedia": "Kein Medium angehängt",
+        "RemoveMedia": "Medienreferenz entfernen",
+        "MediaReferenceHint": "Wähle eine Referenz für dieses Gespräch. Teilnehmer, Modus und Gedächtnisbereich bleiben erhalten. Öffne ein Buch oder Video, um eine andere Referenz anzubieten.",
+        "MediaProvenance": "Quellidentität: {id}",
+        "MediaSpoilerScope": "Die beim Anhängen erfasste Position begrenzt den bereitgestellten Kontext. Spätere Ereignisse dürfen dadurch nicht verraten werden.",
+        "SourceProgress": "Erfasster Fortschritt in der Quelle: {progress}%"
       },
       "Recovery": {
         "Model": "Das KI-Modell ist nicht bereit. Wähle oder repariere das Modell in den KI-Einstellungen und versuche es erneut.",
@@ -1091,7 +1101,8 @@
         "SourceQuotes": "Quellenzitate",
         "Unknowns": "Unklar oder fehlend",
         "UseDraft": "Diesen Entwurf verwenden",
-        "ResearchAccepted": "Entwurf ausgewählt"
+        "ResearchAccepted": "Entwurf ausgewählt",
+        "DiscardDraft": "Rechercheentwurf verwerfen"
       },
       "Contacts": {
         "Archive": "Kontakt archivieren",
@@ -2289,7 +2300,14 @@
       "Tabs": {
         "Room": "Gemeinsame Ansicht"
       },
-      "LoadError": "Erinnerungen konnten nicht geladen werden. Versuche es erneut."
+      "LoadError": "Erinnerungen konnten nicht geladen werden. Versuche es erneut.",
+      "ChooseScope": "Gedächtnisbereich auswählen.",
+      "NoRetainedThreadMemory": "Dieses Gespräch mit getrenntem Verlauf hat keine gespeicherten Erinnerungen. Erinnerungen anderer Räume und der Welt werden nicht einbezogen.",
+      "Scope": {
+        "room": "Raum",
+        "thread": "Gespräch mit getrenntem Verlauf",
+        "world": "Welt"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "Anki-Lernkarten aus dem Cache geladen (Anki scheint offline zu sein)",

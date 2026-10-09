@@ -8,7 +8,7 @@
 import { Component, For, Show, createSignal } from 'solid-js';
 import type { StoryFollowMode, UpdateStoryBranchInput } from '../../../shared/story';
 import type { ConversationAgentContext } from '../../../shared/types';
-import type { AutonomyJobRecord, ContactRecord, Participant, Thread, ScenarioSpec, ReflectionRunRecord } from '../../../shared/world';
+import type { ThreadMediaRef, AutonomyJobRecord, ContactRecord, Participant, Thread, ScenarioSpec, ReflectionRunRecord } from '../../../shared/world';
 import { Avatar, Button, Disclosure, FormField, Input, Select, Tag, Textarea } from '../../components/common';
 import { useLocalization, useSettings } from '../../context';
 import { ParticipantEditorModal } from './ParticipantEditorModal';
@@ -22,6 +22,10 @@ interface ThreadInfoPanelProps {
   roomScenario?: ScenarioSpec;
   thread: Thread | null;
   context: ConversationAgentContext | null;
+  mediaReferences?: ThreadMediaRef[];
+  mediaReferenceSaving?: boolean;
+  mediaReferenceError?: string;
+  onChangeMediaReference?: (reference?: ThreadMediaRef) => Promise<void>;
   participants: Participant[];
   availableParticipants?: Participant[];
   membershipDisabled?: boolean;
@@ -397,12 +401,30 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
         </Disclosure>}
       </Show>
 
+      <Show when={props.thread && props.onChangeMediaReference}>
+        <section class="ca-thread-section">
+          <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ContextLabel')}</span>
+          <p>{t('mlearn.ConversationAgent.Details.MediaReferenceHint')}</p>
+          <Select aria-label={t('mlearn.ConversationAgent.Details.ChangeMedia')} value={mediaRef()?.mediaHash ?? ''}
+            disabled={props.mediaReferenceSaving}
+            options={[{ value: '', label: t('mlearn.ConversationAgent.Details.NoMedia') },
+              ...(props.mediaReferences ?? []).map(ref => ({ value: ref.mediaHash, label: `${ref.mediaName} · ${ref.mediaType} · ${ref.mediaHash.slice(0, 8)}` }))]}
+            onChange={event => { const ref = props.mediaReferences?.find(item => item.mediaHash === event.currentTarget.value); void props.onChangeMediaReference?.(ref); }} />
+          <Show when={mediaRef()}><Button variant="ghost" disabled={props.mediaReferenceSaving}
+            onClick={() => void props.onChangeMediaReference?.()}>{t('mlearn.ConversationAgent.Details.RemoveMedia')}</Button></Show>
+          <Show when={props.mediaReferenceError}><p role="alert">{props.mediaReferenceError}</p></Show>
+        </section>
+      </Show>
       <Show when={mediaRef()}>
         {(media) => (
           <section class="ca-thread-section">
             <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ContextLabel')}</span>
             <div class="ca-thread-media-card">
               <span class="ca-thread-media-name">{media().mediaName}</span>
+              <span>{t('mlearn.ConversationAgent.Details.MediaProvenance', { id: media().mediaHash })}</span>
+              <Show when={media().learningContext?.language}><p>{media().learningContext!.language}</p></Show>
+              <Show when={typeof media().sourceContext?.progress === 'number'}><p>{t('mlearn.ConversationAgent.Details.SourceProgress', { progress: String(media().sourceContext!.progress) })}</p></Show>
+              <Show when={media().sourceContext}><p>{t('mlearn.ConversationAgent.Details.MediaSpoilerScope')}</p></Show>
               <span class="ca-thread-media-meta">
                 {media().mediaType}{media().assessedLevelName ? ` · ${media().assessedLevelName}` : ''}
               </span>

@@ -18,15 +18,8 @@ export interface CloudLLMCallbacks {
 
 export type CloudLLMUsageScope = 'foreground' | 'internal';
 
-export function validCompatibleApiBaseUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' || (url.protocol === 'http:'
-      && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname));
-  } catch {
-    return false;
-  }
-}
+export { validCompatibleApiBaseUrl } from '../llmReadiness';
+import { validCompatibleApiBaseUrl } from '../llmReadiness';
 
 class CloudLLMStatusError extends Error {
   readonly status: number;

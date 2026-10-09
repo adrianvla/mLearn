@@ -15,7 +15,7 @@ import { getBridge } from '../../../shared/bridges';
 import { EmptyState, SkeletonRows, Select } from '../../components/common';
 import { getLogger } from '../../../shared/utils/logger';
 import { projectionForCaller, type RoomMemoryProjection } from '@shared/memoryProjection';
-import { WORLD_CONTINUITY_ID, USER_ACTOR, type JournalEvent, type Participant, type Room } from '@shared/world';
+import { WORLD_CONTINUITY_ID, USER_ACTOR, type JournalEvent, type Participant, type Room, type Thread } from '@shared/world';
 import './MemoryBrowser.css';
 
 const log = getLogger('renderer.memoryBrowser.app');
@@ -58,12 +58,20 @@ function callerCutoff(participantId: string, events: JournalEvent[]): number | u
   return firstAdded?.seq;
 }
 
-export const MemoryBrowserContent: Component<{ launchContext?: Record<string, unknown>; onReturn?: () => void }> = (props) => {
-  const hasRequestedRoom = Object.prototype.hasOwnProperty.call(props.launchContext ?? {}, 'roomId');
-  const requestedRoomId = typeof props.launchContext?.roomId === 'string' ? props.launchContext.roomId : null;
+export const MemoryBrowserContent: Component<{ launchContext?: Record<string, unknown>; onReturn?: (context?: Record<string, unknown>) => void }> = (props) => {
+  const envelope = props.launchContext?.memoryScope;
+  const explicit = envelope && typeof envelope === 'object' && !Array.isArray(envelope) ? envelope as Record<string, unknown> : undefined;
+  const requestedScope = explicit && ['room', 'thread', 'world'].includes(String(explicit.kind)) && typeof explicit.id === 'string'
+    ? { kind: explicit.kind as 'room' | 'thread' | 'world', id: explicit.id }
+    : typeof props.launchContext?.roomId === 'string' ? { kind: 'room' as const, id: props.launchContext.roomId } : undefined;
+  const returnContext = props.launchContext?.returnContext;
+  const returning = returnContext && typeof returnContext === 'object' && !Array.isArray(returnContext) ? returnContext as Record<string, unknown> : undefined;
+  const selectionKey = `memory-browser-scope:${JSON.stringify(returning ?? requestedScope ?? { entry: 'explicit-browser' })}`;
   const { t } = useLocalization();
 
   const [rooms, setRooms] = createSignal<Room[]>([]);
+  const [threads, setThreads] = createSignal<Thread[]>([]);
+  const [scopeKinds, setScopeKinds] = createSignal<Record<string, 'room' | 'thread' | 'world'>>({});
   const [participants, setParticipants] = createSignal<Participant[]>([]);
   const [selectedRoomId, setSelectedRoomId] = createSignal('');
   const [events, setEvents] = createSignal<JournalEvent[]>([]);
@@ -84,7 +92,7 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
   });
 
   const tabs = createMemo(() => [
-    ...roomParticipants().map((p) => ({ id: p.id, label: p.displayName })),
+    ...roomParticipants().map((p) => ({ id: p.id, label: roomParticipants().filter(other => other.displayName === p.displayName).length > 1 ? `${p.displayName} · ${p.id}` : p.displayName })),
     { id: ROOM_TAB, label: t('mlearn.MemoryBrowser.Tabs.Room') },
   ]);
 
@@ -142,7 +150,10 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
     }
     setRoomLoading(true);
     try {
-      const seaEvents = await getBridge().journal.readSeaProjection(roomId);
+      const thread = threads().find(item => item.id === roomId);
+      const seaEvents = scopeKinds()[roomId] === 'thread' && thread
+        ? await getBridge().journal.readThread(thread.id, thread.id)
+        : await getBridge().journal.readSeaProjection(roomId);
       if (request === roomRequest) setEvents(seaEvents);
     } catch (err) {
       log.error('error', err);
@@ -164,12 +175,19 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
     try {
       const snapshot = await getBridge().world.getWorldState();
       if (request !== worldRequest) return;
-      const contexts = [...snapshot.rooms, { id: WORLD_CONTINUITY_ID, title: t('mlearn.ConversationAgent.Integration.WorldDestination'), participantIds: snapshot.participants.map(person => person.id), createdAt: 0 }];
+      const separate = snapshot.threads.filter(thread => thread.sandbox);
+      setThreads(separate);
+      setScopeKinds(Object.fromEntries([...snapshot.rooms.map(room => [room.id, 'room']), ...separate.map(thread => [thread.id, 'thread']), [WORLD_CONTINUITY_ID, 'world']]));
+      const contexts = [...snapshot.rooms, ...separate.map(thread => ({ id: thread.id, title: thread.title ?? t('mlearn.ConversationAgent.Details.UntitledThread'), participantIds: thread.sandbox!.bindings.map(binding => binding.baseline.id), createdAt: thread.createdAt })), { id: WORLD_CONTINUITY_ID, title: t('mlearn.ConversationAgent.Integration.WorldDestination'), participantIds: snapshot.participants.map(person => person.id), createdAt: 0 }];
       setRooms(contexts);
-      setParticipants(snapshot.participants);
-      const requested = hasRequestedRoom ? contexts.find(room => room.id === requestedRoomId) : contexts[0];
+      setParticipants([...snapshot.participants, ...separate.flatMap(thread => thread.sandbox!.bindings.map(binding => binding.baseline))]);
+      const retained = selectionKey ? await getBridge().kvStore.kvGet(selectionKey) : null;
+      if (request !== worldRequest) return;
+      const decoded: unknown = retained ? JSON.parse(retained) : requestedScope;
+      const scope = decoded && typeof decoded === 'object' && !Array.isArray(decoded) ? decoded as Record<string, unknown> : undefined;
+      const requested = scope ? contexts.find(room => room.id === scope.id && scopeKinds()[room.id] === scope.kind) : undefined;
       if (requested) await loadRoom(requested.id);
-      else setRoomUnavailable(true);
+      else if (requestedScope || props.launchContext?.memoryScope !== undefined || props.launchContext?.roomId !== undefined) setRoomUnavailable(true);
     } catch (err) {
       log.error('error', err);
       if (request === worldRequest) setLoadFailed('world');
@@ -177,12 +195,20 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
       if (request === worldRequest) setIsLoading(false);
     }
   };
+  const chooseScope = async (id: string): Promise<void> => {
+    const kind = scopeKinds()[id];
+    if (!kind) return;
+    await loadRoom(id);
+    if (!selectionKey) return;
+    try { await getBridge().kvStore.kvSet(selectionKey, JSON.stringify({ kind, id })); }
+    catch (error) { log.error('Unable to retain memory selection', error); setLoadFailed('room'); }
+  };
   onMount(() => { void loadWorld(); });
 
   return (
       <div class="memory-browser">
         <header class="memory-browser-header">
-          <Show when={props.onReturn}><button type="button" class="memory-browser-retry" onClick={() => props.onReturn?.()}>{t('mlearn.Global.Back')}</button></Show>
+          <Show when={props.onReturn}><button type="button" class="memory-browser-retry" onClick={() => props.onReturn?.(returning)}>{t('mlearn.Global.Back')}</button></Show>
           <span class="memory-browser-title">{t('mlearn.MemoryBrowser.Title')}</span>
           <Select
             aria-label={t('mlearn.MemoryBrowser.Tabs.Room')}
@@ -190,10 +216,10 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
             value={selectedRoomId()}
             disabled={isLoading() || rooms().length === 0}
             options={[
-              ...(roomUnavailable() ? [{ value: '', label: t('mlearn.Home.Cards.Room.RoomNotFound'), disabled: true }] : []),
-              ...rooms().map(room => ({ value: room.id, label: room.title })),
+              { value: '', label: t(roomUnavailable() ? 'mlearn.Home.Cards.Room.RoomNotFound' : 'mlearn.MemoryBrowser.ChooseScope'), disabled: true },
+              ...rooms().map(room => ({ value: room.id, label: `${room.title} · ${t(`mlearn.MemoryBrowser.Scope.${scopeKinds()[room.id]}`)} · ${room.id}` })),
             ]}
-            onChange={event => void loadRoom(event.currentTarget.value)}
+            onChange={event => void chooseScope(event.currentTarget.value)}
           />
         </header>
         <div class="memory-browser-body">
@@ -212,7 +238,7 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
             }>
             <Show
               when={selectedRoom()}
-              fallback={<div class="memory-browser-empty">{t('mlearn.MemoryBrowser.Empty')}</div>}
+              fallback={<div class="memory-browser-empty">{t('mlearn.MemoryBrowser.ChooseScope')}</div>}
             >
               <nav class="memory-browser-tabs">
                 <For each={tabs()}>
@@ -229,7 +255,7 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
                 </For>
               </nav>
               <main class="memory-browser-content">
-                <Show when={visibleSections().length > 0} fallback={<EmptyState title={t('mlearn.MemoryBrowser.Empty')} variant="minimal" class="memory-browser-empty" />}>
+                <Show when={visibleSections().length > 0} fallback={<EmptyState title={t(scopeKinds()[selectedRoomId()] === 'thread' ? 'mlearn.MemoryBrowser.NoRetainedThreadMemory' : 'mlearn.MemoryBrowser.Empty')} variant="minimal" class="memory-browser-empty" />}>
                   <For each={visibleSections()}>{(section) => <MemorySection title={section.title} entries={section.entries} />}</For>
                 </Show>
               </main>

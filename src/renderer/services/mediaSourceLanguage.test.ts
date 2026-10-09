@@ -62,3 +62,14 @@ it('retains an authored source context when a resume caller has no metadata yet'
   expect(await service.loadMediaSourceLanguage(source, { authoredLanguages: ['future'], fallbackLanguage: 'other' })).toMatchObject({ language: 'future', basis: 'authored' });
   expect(await service.loadMediaSourceLanguage(source, { fallbackLanguage: 'other' })).toMatchObject({ language: 'future', basis: 'authored' });
 });
+
+it('reads established media preferences for Messenger without inventing or writing a fallback', async () => {
+  const service = await import('./mediaSourceLanguage');
+  const source = { kind: 'book' as const, resourceId: '/offered.epub' };
+  expect(await service.getEstablishedMediaSourceLanguage(source)).toBeUndefined();
+  expect(kv.set).not.toHaveBeenCalled();
+  await service.saveMediaSourceLanguage(source, { language: 'future', variantId: 'future:variant' });
+  kv.set.mockClear();
+  expect(await service.getEstablishedMediaSourceLanguage(source)).toEqual({ language: 'future', variantId: 'future:variant' });
+  expect(kv.set).not.toHaveBeenCalled();
+});

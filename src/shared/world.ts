@@ -330,6 +330,8 @@ export interface Room {
 
 /** Media a thread was launched from — thread-scoped context, not a global signal. */
 export interface ThreadMediaRef {
+  /** Source-scoped observed hints; never canonical learner evidence. */
+  learningContext?: Pick<import('./types').ConversationAgentContext, 'language' | 'failedWords' | 'failedGrammar' | 'grammarExposure'>;
   /** Opaque source-owned position and identity, preserved for contextual return. */
   sourceContext?: Record<string, unknown>;
   mediaHash: string;

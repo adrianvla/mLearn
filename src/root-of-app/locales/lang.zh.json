@@ -1040,7 +1040,17 @@
         "MutePersonContact": "将此人静音",
         "UnmutePersonContact": "取消此人静音",
         "MuteCalls": "将来电静音",
-        "AllowCalls": "允许来电"
+        "AllowCalls": "允许来电",
+        "MediaOffer": "已提供媒体参考：",
+        "AttachMedia": "附加到此对话",
+        "DismissMedia": "关闭建议",
+        "ChangeMedia": "更改媒体参考",
+        "NoMedia": "未附加媒体",
+        "RemoveMedia": "移除媒体参考",
+        "MediaReferenceHint": "为此对话选择参考资料。参与者、模式和记忆范围保持不变。打开书籍或视频可提供其他参考资料。",
+        "MediaProvenance": "来源标识：{id}",
+        "MediaSpoilerScope": "附加时记录的位置限定所提供的上下文。这并不允许透露后续情节。",
+        "SourceProgress": "记录的来源进度：{progress}%"
       },
       "Recovery": {
         "Model": "AI模型尚未准备好。请在AI设置中选择或修复模型，然后重试。",
@@ -1091,7 +1101,8 @@
         "SourceQuotes": "来源引文",
         "Unknowns": "不确定或缺失",
         "UseDraft": "使用此草稿",
-        "ResearchAccepted": "已选择草稿"
+        "ResearchAccepted": "已选择草稿",
+        "DiscardDraft": "丢弃研究草稿"
       },
       "Contacts": {
         "Archive": "归档联系人",
@@ -2289,7 +2300,14 @@
       "Tabs": {
         "Room": "共享视角"
       },
-      "LoadError": "无法加载记忆，请重试。"
+      "LoadError": "无法加载记忆，请重试。",
+      "ChooseScope": "选择要查看的记忆范围。",
+      "NoRetainedThreadMemory": "此独立历史对话没有保留的记忆。不包含其他房间或世界的记忆。",
+      "Scope": {
+        "room": "房间",
+        "thread": "独立历史对话",
+        "world": "世界"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "从缓存加载了 Anki 闪卡（Anki 似乎离线）",

@@ -1040,7 +1040,17 @@
         "MutePersonContact": "Mettre la personne en sourdine",
         "UnmutePersonContact": "Réactiver la personne",
         "MuteCalls": "Couper les appels",
-        "AllowCalls": "Autoriser les appels"
+        "AllowCalls": "Autoriser les appels",
+        "MediaOffer": "Référence proposée :",
+        "AttachMedia": "Joindre à cette conversation",
+        "DismissMedia": "Ignorer la proposition",
+        "ChangeMedia": "Changer la référence",
+        "NoMedia": "Aucun média joint",
+        "RemoveMedia": "Retirer la référence",
+        "MediaReferenceHint": "Choisissez une référence pour cette conversation. Ses participants, son mode et la portée de ses souvenirs sont conservés. Ouvrez un livre ou une vidéo pour proposer une autre référence.",
+        "MediaProvenance": "Identité de la source : {id}",
+        "MediaSpoilerScope": "La position enregistrée au moment de joindre la référence limite le contexte fourni. Elle ne permet pas de révéler les événements suivants.",
+        "SourceProgress": "Progression enregistrée dans la source : {progress}%"
       },
       "Recovery": {
         "Model": "Le modèle IA n’est pas prêt. Sélectionnez-le ou réparez-le dans les paramètres IA, puis réessayez.",
@@ -1091,7 +1101,8 @@
         "SourceQuotes": "Citations de la source",
         "Unknowns": "Incertain ou manquant",
         "UseDraft": "Utiliser ce brouillon",
-        "ResearchAccepted": "Brouillon sélectionné"
+        "ResearchAccepted": "Brouillon sélectionné",
+        "DiscardDraft": "Abandonner le brouillon"
       },
       "Contacts": {
         "Archive": "Archiver le contact",
@@ -2289,7 +2300,14 @@
       "Tabs": {
         "Room": "Vue partagée"
       },
-      "LoadError": "Impossible de charger les souvenirs. Réessayez."
+      "LoadError": "Impossible de charger les souvenirs. Réessayez.",
+      "ChooseScope": "Choisissez la portée des souvenirs.",
+      "NoRetainedThreadMemory": "Cette conversation à historique séparé ne contient aucun souvenir conservé. Les souvenirs des autres espaces et du monde ne sont pas inclus.",
+      "Scope": {
+        "room": "Espace",
+        "thread": "Conversation à historique séparé",
+        "world": "Monde"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "Cartes Anki chargées depuis le cache (Anki semble hors ligne)",

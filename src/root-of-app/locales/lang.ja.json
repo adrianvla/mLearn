@@ -1040,7 +1040,17 @@
         "MutePersonContact": "この人をミュート",
         "UnmutePersonContact": "この人のミュートを解除",
         "MuteCalls": "通話をミュート",
-        "AllowCalls": "通話を許可"
+        "AllowCalls": "通話を許可",
+        "MediaOffer": "メディア参照の提案：",
+        "AttachMedia": "この会話に添付",
+        "DismissMedia": "提案を閉じる",
+        "ChangeMedia": "メディア参照を変更",
+        "NoMedia": "添付されたメディアなし",
+        "RemoveMedia": "メディア参照を削除",
+        "MediaReferenceHint": "この会話の参照を選択します。参加者、モード、記憶の範囲は維持されます。別の参照を提案するには本や動画を開いてください。",
+        "MediaProvenance": "ソースの識別子：{id}",
+        "MediaSpoilerScope": "添付時に記録した位置が提供される文脈の範囲です。それ以降の出来事を明かす許可にはなりません。",
+        "SourceProgress": "記録したソースの進捗：{progress}%"
       },
       "Recovery": {
         "Model": "AIモデルの準備ができていません。AI設定でモデルを選択または修復してから再試行してください。",
@@ -1091,7 +1101,8 @@
         "SourceQuotes": "出典の引用",
         "Unknowns": "不明・未確認",
         "UseDraft": "この下書きを使用",
-        "ResearchAccepted": "下書きを選択済み"
+        "ResearchAccepted": "下書きを選択済み",
+        "DiscardDraft": "調査の下書きを破棄"
       },
       "Contacts": {
         "Archive": "連絡先をアーカイブ",
@@ -2289,7 +2300,14 @@
       "Tabs": {
         "Room": "共有の視点"
       },
-      "LoadError": "記憶を読み込めませんでした。再試行してください。"
+      "LoadError": "記憶を読み込めませんでした。再試行してください。",
+      "ChooseScope": "閲覧する記憶の範囲を選択してください。",
+      "NoRetainedThreadMemory": "この独立した履歴の会話には保存された記憶がありません。他のルームや世界の記憶は含まれません。",
+      "Scope": {
+        "room": "ルーム",
+        "thread": "独立した履歴の会話",
+        "world": "世界"
+      }
     },
     "Notifications": {
       "AnkiCacheLoaded": "Ankiフラッシュカードをキャッシュから読み込みました（Ankiはオフラインのようです）",

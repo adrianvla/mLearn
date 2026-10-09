@@ -33,7 +33,7 @@ const RequestedContent: Component<{ content: Component<RequestedWorkspaceProps> 
 
 const Memory: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationNavigate();
-  return <MemoryBrowserContent launchContext={props.launchContext} onReturn={() => navigate('/messenger')} />;
+  return <MemoryBrowserContent launchContext={props.launchContext} onReturn={context => navigate('/messenger', { state: { applicationRequestId: crypto.randomUUID(), applicationContext: context ?? {} } })} />;
 };
 const Messenger: Component<RequestedWorkspaceProps> = props => {
   const navigate = useApplicationReturn();

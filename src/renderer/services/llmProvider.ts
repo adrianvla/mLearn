@@ -1,3 +1,4 @@
+import { llmConfigurationFailure } from '../../shared/llmReadiness';
 /**
  * Unified LLM Provider Service
  * Single abstraction for all LLM interactions (Explainer + Conversation Agent).
@@ -8,7 +9,7 @@ import { applicationTaskMessage } from '../../shared/llmTask';
 import type { LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMToolCall, Settings, CloudLLMTier, LanguageData } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { isMobile } from '../../shared/platform';
-import { CloudLLMAdapter, OpenAICompatibleLLMAdapter, validCompatibleApiBaseUrl } from '../../shared/backends/cloudLLMAdapter';
+import { CloudLLMAdapter, OpenAICompatibleLLMAdapter } from '../../shared/backends/cloudLLMAdapter';
 import { getLanguagePromptName } from '../../shared/languageFeatures';
 import {
   getCloudSessionSettings,
@@ -372,21 +373,7 @@ export async function checkAvailability(settings: Settings): Promise<{ available
  * For ollama/builtin, requires llmEnabled (the local component install flag).
  */
 export function isLLMReady(settings: Settings): boolean {
-  if (settings.llmProvider === 'openai-compatible') {
-    return validCompatibleApiBaseUrl(settings.compatibleApiBaseUrl) && !!settings.compatibleModel.trim();
-  }
-  if (settings.llmProvider === 'cloud') {
-    return settings.cloudAuthStatus === 'signed-in';
-  }
-  if (!settings.llmEnabled) return false;
-  switch (settings.llmProvider) {
-    case 'ollama':
-      return true;
-    case 'builtin':
-      return builtinModelReady();
-    default:
-      return false;
-  }
+  return !llmConfigurationFailure(settings) && (settings.llmProvider !== 'builtin' || builtinModelReady());
 }
 
 /**

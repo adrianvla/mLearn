@@ -1,3 +1,6 @@
+import { getRecentItems } from '../../services/thumbnailService';
+import { getEstablishedMediaSourceLanguage } from '../../services/mediaSourceLanguage';
+import { mediaUsageIdentity } from '../../../shared/mediaUsage';
 import { conversationStreamMessages } from '../../../shared/conversationMessageShape';
 import { streamingMessages, type ConversationOverlay } from './conversationStreaming';
 import { followsTailAfterScroll, type MessageScrollMetrics } from './messageScroll';
@@ -80,6 +83,7 @@ const mediaRefFromContext = (context: ConversationAgentContext): ThreadMediaRef 
   subtitleHistory: context.subtitleHistory,
   characterContext: context.characterContext,
   sourceContext: context.sourceContext,
+  learningContext: { language: context.language, failedWords: context.failedWords, failedGrammar: context.failedGrammar, grammarExposure: context.grammarExposure },
 });
 
 type EventMessage = ConversationMessage & { eventId: string; actorId?: string };
@@ -213,6 +217,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   };
 
   const [mediaContext, setMediaContext] = createSignal<ConversationAgentContext | null>(null);
+  const [mediaReturnSource, setMediaReturnSource] = createSignal<Record<string, unknown> | undefined>();
   let translatedInstructions: string | null = null;
   const [pendingTutorConfig, setPendingTutorConfig] = createSignal<TutorSessionConfig>();
   const [pendingLaunchDraft, setPendingLaunchDraft] = createSignal<string | null>(null);
@@ -248,7 +253,8 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
     setNoticeScope(null);
   };
   const requestGenerationAccess = (mutateCurrentConversation = true): boolean => {
-    if (isLoading() || isCheckingConnection() || !isConnected() || conversationsLoading() || conversationLoadError() || isSafetyLockedState()) return false;
+    if (isLoading() || isCheckingConnection() || conversationsLoading() || conversationLoadError() || isSafetyLockedState()) return false;
+    if (!isConnected()) { handleConnectionStatusClick(); return false; }
     const scope = isRemoteLLMProvider(settings.llmProvider) ? 'remote' : 'local';
     const accepted = scope === 'remote'
       ? settings.agentRemoteNoticeAcceptedVersion ?? DEFAULT_SETTINGS.agentRemoteNoticeAcceptedVersion
@@ -453,7 +459,8 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   // Current canonical knowledge reconciles stale media suggestions. A chosen
   // learning target directs practice; it must never become an ability estimate.
   const learnerProjection = (): LearnerProjection => {
-    const media = mediaContext();
+    const observed = activeThread()?.mediaRef?.learningContext;
+    const media = observed?.language === settings.language ? observed : undefined;
     const level = getLearningLanguageLevelForLanguage(settings, settings.language);
     const notSettled = (word: string): boolean => !flashcardCtx.isWordSettledSync(word, settings.language);
     const mediaFailures = [...(media?.failedWords ?? [])]
@@ -477,6 +484,11 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   };
   const activeRoom = () => world()?.rooms.find((room) => room.id === selection()?.roomId) ?? (activeThread() ? sandboxContext(activeThread()!) : undefined) ?? null;
   const activeThread = () => world()?.threads.find((thread) => thread.id === selection()?.threadId) ?? null;
+  const memoryLaunchContext = (): Record<string, unknown> => ({
+    memoryScope: activeThread()?.sandbox ? { kind: 'thread', id: activeThread()!.id }
+      : activeRoom() ? { kind: 'room', id: activeRoom()!.id } : undefined,
+    returnContext: { roomId: selection()?.roomId, threadId: selection()?.threadId },
+  });
   const rosterParticipants = () => {
     const room = activeRoom();
     if (!room) return [];
@@ -501,7 +513,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
       if (!participant) throw new Error('Conversation participant is unavailable');
       return compileContext({ room: activeRoom() ?? undefined, thread: activeThread() ?? undefined, participant, participants: rosterParticipants(),
         seaEvents: journal.seaEvents(), threadEvents: journal.threadEvents(),
-        learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined),
+        learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef,
         threadIntent: activeThread()?.intent, turn: { text: turnText } });
     },
     () => {
@@ -697,7 +709,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
         learnerProjection: learnerProjection(),
-        threadMedia: activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined), threadIntent: activeThread()?.intent,
+        threadMedia: activeThread()?.mediaRef, threadIntent: activeThread()?.intent,
         ...(turnText ? { turn: { text: turnText } } : {}),
       }),
       rosterParticipants(),
@@ -995,21 +1007,9 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   // legacy Room-linked createThread entry is gone. Existing room-linked
   // threads (including legacy-migrated ones) remain listed and selectable.
   const handleScenarioCreated = async (result: { roomId: string; threadId: string | null; intent?: string }): Promise<void> => {
-    const launchMedia = mediaContext();
     const snapshot = await getBridge().world.getWorldState();
     setWorld(snapshot);
     await selectRoom(result.roomId, result.threadId ?? undefined);
-    if (launchMedia) {
-      setMediaContext(launchMedia);
-      const thread = activeThread();
-      if (result.threadId && thread?.id === result.threadId) {
-        const updatedThread = await getBridge().world.updateThread({ ...thread, mediaRef: mediaRefFromContext(launchMedia) });
-        setWorld((current) => current ? {
-          ...current,
-          threads: current.threads.map((item) => item.id === updatedThread.id ? updatedThread : item),
-        } : current);
-      }
-    }
     const tutor = pendingTutorConfig();
     if (tutor) {
       translatedInstructions = tutor.customInstructions || null;
@@ -1132,15 +1132,42 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
     onCleanup(cleanupStatus);
   });
 
+  const [recentMediaReferences, setRecentMediaReferences] = createSignal<ThreadMediaRef[]>([]);
+  const [recentMediaError, setRecentMediaError] = createSignal('');
+  onMount(() => {
+    let disposed = false;
+    onCleanup(() => { disposed = true; });
+    void getRecentItems().then(async items => {
+      const references: ThreadMediaRef[] = [];
+      for (const item of items) {
+        if (!item.path.trim()) continue;
+        const source = await getEstablishedMediaSourceLanguage({ kind: item.type, resourceId: item.path });
+        if (!source) continue;
+        references.push({ mediaHash: mediaUsageIdentity(item.type, item.path, source.language), mediaName: item.name, mediaType: item.type,
+          sourceContext: { workspace: item.type === 'book' ? 'reader' : 'video', path: item.path, progress: item.progress,
+            ...(item.type === 'video' ? { time: item.playbackTime, subtitlePath: item.subtitlePath } : {}), ...source },
+          learningContext: { language: source.language, failedWords: [], failedGrammar: [] } });
+      }
+      if (!disposed) setRecentMediaReferences(references);
+    }).catch(error => { if (!disposed) setRecentMediaError(error instanceof Error ? error.message : String(error)); });
+  });
+  const [mediaReferenceSaving, setMediaReferenceSaving] = createSignal(false);
+  const [mediaReferenceError, setMediaReferenceError] = createSignal('');
+  const changeMediaReference = async (reference?: ThreadMediaRef): Promise<void> => {
+    const thread = activeThread();
+    if (!thread || mediaReferenceSaving() || isStreaming() || isWaiting() || callSurfaceOpen()) return;
+    setMediaReferenceSaving(true); setMediaReferenceError('');
+    try {
+      const saved = await getBridge().world.updateThread({ ...thread, mediaRef: reference });
+      setWorld(current => current ? { ...current, threads: current.threads.map(item => item.id === saved.id ? saved : item) } : current);
+      if (reference?.mediaHash === mediaContext()?.mediaHash) setMediaContext(null);
+    } catch (error) { setMediaReferenceError(error instanceof Error ? error.message : String(error)); }
+    finally { setMediaReferenceSaving(false); }
+  };
+
   // Retrieve media context passed from the parent window
   onMount(() => {
     const bridge = getBridge();
-    const updateActiveThread = async (update: (thread: NonNullable<ReturnType<typeof activeThread>>) => NonNullable<ReturnType<typeof activeThread>>) => {
-      const thread = activeThread();
-      if (!thread) return;
-      const updatedThread = await bridge.world.updateThread(update(thread));
-      setWorld((current) => current ? { ...current, threads: current.threads.map((item) => item.id === updatedThread.id ? updatedThread : item) } : current);
-    };
     const receiveContext = async (rawCtx: Record<string, unknown>) => {
         await initialSelection;
         if (typeof rawCtx.roomId === 'string') {
@@ -1152,14 +1179,9 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
         if (rawCtx.initialTab === 'stats') setShowDetailsDrawer(true);
         if (isConversationAgentContext(rawCtx)) {
           setMediaContext(rawCtx);
-          // A media-only launch must not relabel the previously selected
-          // conversation. Attach context only when the caller names a thread;
-          // otherwise let the learner create a distinct conversation.
-          if (typeof rawCtx.threadId === 'string' && activeThread()?.id === rawCtx.threadId) {
-            await updateActiveThread((thread) => ({ ...thread, mediaRef: mediaRefFromContext(rawCtx) }));
-          } else {
-            openComposer('practice');
-          }
+          setMediaReturnSource(rawCtx.sourceContext);
+          // Source offers never change conversation mode, membership or persistence.
+
         }
         if (isTutorSessionConfig(rawCtx.tutorConfig)) {
           const config = rawCtx.tutorConfig;
@@ -1513,7 +1535,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
         participants: modality === 'voice' ? voiceParticipants() : rosterParticipants(),
         seaEvents: journal.seaEvents(),
         threadEvents: journal.threadEvents(),
-        compileContextFn: (input) => modality === 'voice' ? voiceContextPrefetch.resolveFinal(text, input.participant.id) : compileContext({ ...input, thread: activeThread() ?? undefined, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined), threadIntent: activeThread()?.intent, turn: { text } }),
+        compileContextFn: (input) => modality === 'voice' ? voiceContextPrefetch.resolveFinal(text, input.participant.id) : compileContext({ ...input, thread: activeThread() ?? undefined, learnerProjection: learnerProjection(), threadMedia: activeThread()?.mediaRef, threadIntent: activeThread()?.intent, turn: { text } }),
         runAgentTurn: async (participantId, context) => {
           const participant = rosterParticipants().find((candidate) => candidate.id === participantId);
           if (!participant) return { text: '' };
@@ -1990,7 +2012,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
 
   const ConversationHeader: Component = () => (
     <div class="ca-header">
-        <Show when={props.onReturn}><Button variant="ghost" onClick={() => props.onReturn?.(mediaContext()?.sourceContext ?? activeThread()?.mediaRef?.sourceContext)}>{t((mediaContext()?.sourceContext ?? activeThread()?.mediaRef?.sourceContext ?? props.launchContext?.returnTo) ? 'mlearn.Product.Return' : 'mlearn.Tabs.Home')}</Button></Show>
+        <Show when={props.onReturn}><Button variant="ghost" onClick={() => props.onReturn?.(mediaReturnSource() ?? activeThread()?.mediaRef?.sourceContext)}>{t((mediaReturnSource() ?? activeThread()?.mediaRef?.sourceContext ?? props.launchContext?.returnTo) ? 'mlearn.Product.Return' : 'mlearn.Tabs.Home')}</Button></Show>
         <Show when={!callSurfaceOpen()}><Button buttonType="icon"
           variant="ghost"
           class="ca-sidebar-toggle"
@@ -2014,7 +2036,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
                 ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}</span>
             </Show>
           </div>
-          <Show when={!callSurfaceOpen() && (activeThread()?.mediaRef ?? (mediaContext() ? mediaRefFromContext(mediaContext()!) : undefined))} keyed>
+          <Show when={!callSurfaceOpen() && (activeThread()?.mediaRef)} keyed>
             {(media) => (
               <Button variant="ghost" class="ca-media-chip" onClick={openDetails}>
                 {media.mediaName}
@@ -2022,6 +2044,13 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
             )}
           </Show>
         </div>
+        <Show when={mediaContext()} keyed>{offer => <div class="ca-media-reference-offer" role="status">
+          <span>{t('mlearn.ConversationAgent.Details.MediaOffer')}</span><strong>{offer.mediaName}</strong>
+          <Button variant="ghost" disabled={!activeThread() || mediaReferenceSaving() || isStreaming() || isWaiting() || callSurfaceOpen()}
+            onClick={() => void changeMediaReference(mediaRefFromContext(offer))}>{t('mlearn.ConversationAgent.Details.AttachMedia')}</Button>
+          <Button variant="ghost" onClick={() => setMediaContext(null)}>{t('mlearn.ConversationAgent.Details.DismissMedia')}</Button>
+        </div>}</Show>
+        <Show when={mediaReferenceError()}><div role="alert">{mediaReferenceError()}</div></Show>
         <Show when={!callSurfaceOpen()}><ConnectionInfo /></Show>
         <Show when={!callSurfaceOpen()}><Button buttonType="icon"
           variant="ghost"
@@ -2045,7 +2074,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
             class="ca-overflow-menu"
           >
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
-            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser', context: activeThread()?.sandbox || !activeRoom() ? {} : { roomId: activeRoom()!.id } }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
+            <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser', context: memoryLaunchContext() }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
           </Popover>
         </div>
       </div>
@@ -2116,7 +2145,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
             <Button variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>
               {t('mlearn.ConversationAgent.Banner.SettingsLink')}
             </Button>
-            <Button variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'memory-browser', context: activeThread()?.sandbox || !activeRoom() ? {} : { roomId: activeRoom()!.id } })}>
+            <Button variant="default" size="sm" onClick={() => getBridge().window.openWindow({ type: 'memory-browser', context: memoryLaunchContext() })}>
               {t('mlearn.MemoryBrowser.OpenInAgent')}
             </Button>
           </div>
@@ -2480,6 +2509,10 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
             mutedParticipantIds={settings.proactiveOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveOptOutParticipantIds}
             callMutedParticipantIds={settings.proactiveCallOptOutParticipantIds ?? DEFAULT_SETTINGS.proactiveCallOptOutParticipantIds}
             context={mediaContext()}
+            mediaReferences={[...new Map([...(world()?.threads ?? []).flatMap(thread => thread.mediaRef ? [[thread.mediaRef.mediaHash, thread.mediaRef] as const] : []), ...recentMediaReferences().map(ref => [ref.mediaHash, ref] as const)]).values()]}
+            mediaReferenceSaving={mediaReferenceSaving() || isStreaming() || isWaiting() || callSurfaceOpen()}
+            mediaReferenceError={mediaReferenceError() || recentMediaError()}
+            onChangeMediaReference={changeMediaReference}
             participants={rosterParticipants()}
             availableParticipants={[...new Map([...(world()?.participants ?? []), ...conversationPeople()].map(person => [person.id, person])).values()]}
             membershipDisabled={isStreaming() || isWaiting() || isCompactingContext() || callSurfaceOpen()}

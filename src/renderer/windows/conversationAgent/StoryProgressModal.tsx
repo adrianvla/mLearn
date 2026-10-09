@@ -63,7 +63,7 @@ export const StoryProgressModal: Component<{ generationAvailable?: boolean; onRe
     change('sources', [...draft().sources, source]); setSourceUrl(''); setSourceFrom(''); setSourceTo(''); setError('');
   };
   const prepare = (): void => {
-    if (props.generationAvailable === false || props.onRequestGenerationAccess?.() === false) return;
+    if (props.onRequestGenerationAccess?.() === false || props.generationAvailable === false) return;
     void run(async () => {
       const track = current();
       if (!track) return;
@@ -120,7 +120,7 @@ export const StoryProgressModal: Component<{ generationAvailable?: boolean; onRe
           <h3>{t('mlearn.ConversationAgent.Story.UpdatePeople')}</h3>
           <For each={(props.world.storyAdvances ?? []).filter(item => item.trackId === track().id).slice(-3).reverse()}>{record =>
             <p class="story-progress-note">{record.status}{record.error ? ` · ${record.error}` : ''}</p>}</For>
-          <Button disabled={busy() || dirty() || !track().sources.length || props.generationAvailable === false} onClick={prepare}>{t('mlearn.ConversationAgent.Story.ReviewUpdate')}</Button>
+          <Button disabled={busy() || dirty() || !track().sources.length} onClick={prepare}>{t('mlearn.ConversationAgent.Story.ReviewUpdate')}</Button>
           <Show when={advance()}>{record => <div class="story-progress-review" role="status">
             <p>{record().status === 'ready' ? t('mlearn.ConversationAgent.Story.Ready') : record().error ?? record().status}</p>
             <For each={record().proposals}>{proposal => <div class="story-progress-proposal">

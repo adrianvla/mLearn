@@ -46,7 +46,7 @@ export const ParticipantEditorModal: Component<ParticipantEditorModalProps> = (p
     stopConsentWait?.(); props.onClose();
   };
   const research = async (): Promise<void> => {
-    if (researching() || !displayName().trim() || !sourceUrl().trim() || props.generationAvailable === false || props.onRequestGenerationAccess?.() === false) return;
+    if (researching() || !displayName().trim() || !sourceUrl().trim() || props.onRequestGenerationAccess?.() === false || props.generationAvailable === false) return;
     setResearching(true); setError(''); setResearchDraft(undefined); setAcceptedResearch(undefined);
     const track = props.storyTracks?.find(item => item.id === trackId());
     researchOperationId = crypto.randomUUID();
@@ -158,12 +158,16 @@ export const ParticipantEditorModal: Component<ParticipantEditorModalProps> = (p
             <FormField label={t('mlearn.ConversationAgent.Story.Track')}><Select value={trackId()} disabled={researching()}
               onChange={event => { setTrackId(event.currentTarget.value); setResearchDraft(undefined); setAcceptedResearch(undefined); }}
               options={[{ value: '', label: t('mlearn.ConversationAgent.Story.NoTrack') }, ...(props.storyTracks ?? []).filter(track => !track.archived).map(track => ({ value: track.id, label: `${track.title} · ${track.edition}` }))]} /></FormField>
-            <Button disabled={!sourceUrl().trim() || !displayName().trim() || researching() || props.generationAvailable === false} loading={researching()} onClick={() => { void research(); }}>{t('mlearn.ConversationAgent.Story.Research')}</Button>
+            <Button disabled={!sourceUrl().trim() || !displayName().trim() || researching()} loading={researching()} onClick={() => { void research(); }}>{t('mlearn.ConversationAgent.Story.Research')}</Button>
             <Show when={researchDraft()}>{result => <div class="participant-editor-research-draft">
               <p>{result().baseline.lore}</p>
               <Show when={result().baseline.context}><h3>{t('mlearn.ConversationAgent.Story.ScopedContext')}</h3><p>{result().baseline.context}</p></Show>
               <Show when={result().baseline.quotes.length}><h3>{t('mlearn.ConversationAgent.Story.SourceQuotes')}</h3><For each={result().baseline.quotes}>{quote => <blockquote>{quote}</blockquote>}</For></Show>
               <Show when={result().unknowns.length}><h3>{t('mlearn.ConversationAgent.Story.Unknowns')}</h3><For each={result().unknowns}>{unknown => <p>{unknown}</p>}</For></Show>
+              <Button variant="ghost" onClick={() => {
+                if (acceptedResearch() && personaText() === acceptedResearch()!.baseline.lore) setPersonaText('');
+                setResearchDraft(undefined); setAcceptedResearch(undefined);
+              }}>{t('mlearn.ConversationAgent.Story.DiscardDraft')}</Button>
               <Button variant={acceptedResearch() ? 'secondary' : 'primary'} onClick={acceptResearch}>{t(acceptedResearch() ? 'mlearn.ConversationAgent.Story.ResearchAccepted' : 'mlearn.ConversationAgent.Story.UseDraft')}</Button>
             </div>}</Show>
           </div>

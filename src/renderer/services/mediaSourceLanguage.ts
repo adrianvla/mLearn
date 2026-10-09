@@ -36,6 +36,12 @@ async function readSourceRecord(key: string): Promise<SourceRecord> {
   return record as SourceRecord;
 }
 
+/** Read an established source preference without admitting an ambient fallback. */
+export async function getEstablishedMediaSourceLanguage(source: MediaSourceIdentity): Promise<MediaLanguagePreference | undefined> {
+  const record = await readSourceRecord(mediaSourceLanguageKey(source));
+  return record.override ?? record.resolved;
+}
+
 export async function loadMediaSourceLanguage(source: MediaSourceIdentity, input: {
   authoredLanguages?: readonly string[];
   fallbackLanguage: string;

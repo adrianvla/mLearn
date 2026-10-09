@@ -230,7 +230,7 @@ describe('Contacts are independent from conversations', () => {
   });
   it('keeps contact editing usable while research requires provider availability and consent', async () => {
     const requestAccess = vi.fn(() => false);
-    const el = mount(() => <ParticipantEditorModal generationAvailable onRequestGenerationAccess={requestAccess} onCreate={vi.fn()} onClose={vi.fn()} />);
+    const el = mount(() => <ParticipantEditorModal generationAvailable={false} onRequestGenerationAccess={requestAccess} onCreate={vi.fn()} onClose={vi.fn()} />);
     const name = el.querySelector('input[type="text"]') as HTMLInputElement;
     name.value = 'Mara'; name.dispatchEvent(new Event('input', { bubbles: true }));
     const source = el.querySelector('input[type="url"]') as HTMLInputElement;
@@ -240,6 +240,24 @@ describe('Contacts are independent from conversations', () => {
     expect(researchCharacter).not.toHaveBeenCalled();
     expect(name.disabled).toBe(false);
     expect(source.value).toBe('https://example.org/wiki/Mara');
+  });
+
+  it('discards research without creating a contact or granting persistence', async () => {
+    researchCharacter.mockResolvedValue({ name: 'Mara', evidence: { pageUrl: 'https://example.org/wiki/Mara', wikiUrl: 'https://example.org', pageTitle: 'Mara', coverage: [], sources: [] },
+      baseline: { lore: 'Discardable researched profile.', context: '', quotes: [], notYetHappened: [], provenance: [], generatedFill: [] }, generatedExamples: [], unknowns: [] });
+    const create = vi.fn();
+    const el = mount(() => <ParticipantEditorModal onCreate={create} onClose={vi.fn()} />);
+    const name = el.querySelector('input[type="text"]') as HTMLInputElement;
+    name.value = 'Mara'; name.dispatchEvent(new Event('input', { bubbles: true }));
+    const source = el.querySelector('input[type="url"]') as HTMLInputElement;
+    source.value = 'https://example.org/wiki/Mara'; source.dispatchEvent(new Event('input', { bubbles: true }));
+    click(el, 'mlearn.ConversationAgent.Story.Research');
+    await vi.waitFor(() => expect(el.textContent).toContain('Discardable researched profile.'));
+    click(el, 'mlearn.ConversationAgent.Story.UseDraft');
+    click(el, 'mlearn.ConversationAgent.Story.DiscardDraft');
+    expect(el.textContent).not.toContain('Discardable researched profile.');
+    expect((el.querySelector('textarea') as HTMLTextAreaElement).value).toBe('');
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('keeps source research as a draft until the owner accepts and creates the contact', async () => {

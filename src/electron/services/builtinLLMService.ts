@@ -151,7 +151,7 @@ async function ensureLlamaRuntime(): Promise<any> {
   }
 }
 
-async function checkModelStatus(modelFile?: string): Promise<LLMModelStatus> {
+export async function checkBuiltinModelStatus(modelFile?: string): Promise<LLMModelStatus> {
   if (isModelDownloaded(modelFile)) {
     try {
       await withModelLifecycle(async () => {
@@ -486,7 +486,7 @@ async function streamLoadedChat(
 export function setupBuiltinLLMIPC(): void {
   // Check model status
   ipcMain.handle(IPC_CHANNELS.LLM_CHECK_MODEL, (_event, modelFile?: string) => {
-    return checkModelStatus(modelFile);
+    return checkBuiltinModelStatus(modelFile);
   });
 
   // Download model
@@ -500,7 +500,7 @@ export function setupBuiltinLLMIPC(): void {
         resolvedModelFile,
         event.sender
       );
-      const status = await checkModelStatus(resolvedModelFile);
+      const status = await checkBuiltinModelStatus(resolvedModelFile);
       if (!event.sender.isDestroyed()) event.sender.send(IPC_CHANNELS.LLM_MODEL_STATUS, status);
     } catch (err) {
       log.error('Model download IPC handler failed', err as Error);

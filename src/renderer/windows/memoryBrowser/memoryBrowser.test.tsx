@@ -16,6 +16,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { MemoryBrowserContent } from './App';
+import { WORLD_CONTINUITY_ID } from '../../../shared/world';
 import type { JournalEvent, Participant, Room } from '../../../shared/world';
 
 const p1: Participant = {
@@ -100,8 +101,10 @@ const mockBridge = {
       participants: [p1, p2],
     })),
   },
+  kvStore: { kvGet: vi.fn(async (_key: string): Promise<string | null> => null), kvSet: vi.fn(async (_key: string, _value: string) => {}) },
   journal: {
     readSeaProjection: vi.fn(async () => seaEvents),
+    readThread: vi.fn(async (_contextId: string, _threadId: string): Promise<JournalEvent[]> => []),
   },
 };
 
@@ -116,7 +119,7 @@ describe('memory browser content', () => {
   beforeEach(() => {
     container = document.createElement('div');
     document.body.appendChild(container);
-    vi.clearAllMocks();
+    vi.clearAllMocks(); mockBridge.kvStore.kvGet.mockReset().mockResolvedValue(null);
     mockBridge.world.getWorldState.mockResolvedValue({ rooms: [roomFixture], threads: [], participants: [p1, p2] });
     mockBridge.journal.readSeaProjection.mockResolvedValue(seaEvents);
   });
@@ -175,7 +178,7 @@ describe('memory browser content', () => {
 
   it('keeps a failed memory read distinct from no memories and retries', async () => {
     mockBridge.journal.readSeaProjection.mockRejectedValueOnce(new Error('offline'));
-    dispose = render(() => <MemoryBrowserContent />, container);
+    dispose = render(() => <MemoryBrowserContent launchContext={{ roomId: 'room-1' }} />, container);
     await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
     expect(container.textContent).not.toContain('mlearn.MemoryBrowser.Empty');
     (container.querySelector('[role="alert"] button') as HTMLButtonElement).click();
@@ -183,8 +186,55 @@ describe('memory browser content', () => {
     expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledTimes(2);
   });
 
-  it('renders per-participant projections with perspective redaction and no editing affordances', async () => {
+  it('never borrows a Room when the caller omitted a scope', async () => {
     dispose = render(() => <MemoryBrowserContent />, container);
+    await vi.waitFor(() => expect(container.querySelector('.memory-browser-loading')).toBeNull());
+    expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('Room culture entry');
+  });
+
+  it('reads only a separate-history thread and returns its exact selection', async () => {
+    const thread = { id: 'thread-separate', state: 'active' as const, createdAt: 1,
+      sandbox: { operationId: 'op', requestHash: 'hash', baselineHeads: {}, bindings: [{ baseline: p1 }] } };
+    mockBridge.world.getWorldState.mockResolvedValue({ rooms: [roomFixture], threads: [thread], participants: [p1, p2] } as never);
+    const onReturn = vi.fn();
+    const returnContext = { roomId: thread.id, threadId: thread.id };
+    dispose = render(() => <MemoryBrowserContent launchContext={{ memoryScope: { kind: 'thread', id: thread.id }, returnContext }} onReturn={onReturn} />, container);
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith(thread.id, thread.id));
+    expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain('Room culture entry');
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Global.Back')!.click();
+    expect(onReturn).toHaveBeenCalledWith(returnContext);
+  });
+
+  it('disambiguates same-named Rooms and retains the chosen exact scope across reload', async () => {
+    mockBridge.world.getWorldState.mockResolvedValue({ rooms: [roomFixture, { ...roomFixture, id: 'room-2' }], threads: [], participants: [p1, p2] });
+    const context = { memoryScope: { kind: 'room', id: 'room-1' }, returnContext: { roomId: 'room-1', threadId: 'thread-1' } };
+    dispose = render(() => <MemoryBrowserContent launchContext={context} />, container);
+    await vi.waitFor(() => expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledWith('room-1'));
+    const selector = container.querySelector('select') as HTMLSelectElement;
+    expect(Array.from(selector.options).filter(option => option.text.includes('Cafe')).map(option => option.text)).toEqual([
+      'Cafe · mlearn.MemoryBrowser.Scope.room · room-1', 'Cafe · mlearn.MemoryBrowser.Scope.room · room-2']);
+    selector.value = 'room-2'; selector.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => expect(mockBridge.kvStore.kvSet).toHaveBeenCalled());
+    const [key, value] = mockBridge.kvStore.kvSet.mock.calls.at(-1)!;
+    expect(JSON.parse(value)).toEqual({ kind: 'room', id: 'room-2' });
+    mockBridge.kvStore.kvGet.mockImplementation(async requested => requested === key ? value : null);
+    dispose(); mockBridge.journal.readSeaProjection.mockClear();
+    dispose = render(() => <MemoryBrowserContent launchContext={context} />, container);
+    await vi.waitFor(() => expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledWith('room-2'));
+    expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalledWith('room-1');
+  });
+
+  it('opens world memory only from an explicit world entry', async () => {
+    dispose = render(() => <MemoryBrowserContent launchContext={{ memoryScope: { kind: 'world', id: WORLD_CONTINUITY_ID } }} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.memory-browser-loading')).toBeNull());
+    expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledWith(WORLD_CONTINUITY_ID);
+    expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalledWith('room-1');
+  });
+
+  it('renders per-participant projections with perspective redaction and no editing affordances', async () => {
+    dispose = render(() => <MemoryBrowserContent launchContext={{ roomId: 'room-1' }} />, container);
 
     await vi.waitFor(() => expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledWith('room-1'));
 
@@ -212,7 +262,7 @@ describe('memory browser content', () => {
 
   it('shows one empty state and omits empty categories', async () => {
     mockBridge.journal.readSeaProjection.mockResolvedValueOnce([]);
-    dispose = render(() => <MemoryBrowserContent />, container);
+    dispose = render(() => <MemoryBrowserContent launchContext={{ roomId: 'room-1' }} />, container);
     await vi.waitFor(() => expect(container.querySelector('.memory-browser-empty')).not.toBeNull());
     expect(container.querySelectorAll('.memory-browser-empty')).toHaveLength(1);
     expect(container.querySelectorAll('.memory-browser-section')).toHaveLength(0);

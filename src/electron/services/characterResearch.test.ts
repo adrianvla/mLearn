@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_SETTINGS } from '../../shared/types';
 import type { CharacterEvidence } from '../../shared/characterIdentity';
 
 let profile = '/profile-a';
@@ -7,7 +8,10 @@ const readCharacterEvidence = vi.fn();
 const loadWorld = vi.fn();
 const reviewWorldMaterial = vi.fn(async () => {});
 vi.mock('../utils/platform', () => ({ getUserDataPath: () => profile }));
-vi.mock('./settings', () => ({ loadSettings: () => ({ llmEnabled: true }) }));
+let researchSettings = { ...DEFAULT_SETTINGS, llmEnabled: true };
+vi.mock('./settings', () => ({ loadSettings: () => researchSettings }));
+const checkBuiltinModelStatus = vi.fn(async () => ({ ready: true }));
+vi.mock('./builtinLLMService', () => ({ checkBuiltinModelStatus }));
 vi.mock('./worldStore', () => ({ loadWorld }));
 vi.mock('./wikiSources', () => ({ readCharacterEvidence }));
 vi.mock('./llmRouter', () => ({ completeJob }));
@@ -21,7 +25,8 @@ const draft = JSON.stringify({ lore: 'Observant.', quoteIndices: [], context: ''
 
 describe('character research lifecycle', () => {
   beforeEach(() => {
-    profile = '/profile-a';
+    profile = '/profile-a'; researchSettings = { ...DEFAULT_SETTINGS, llmEnabled: true };
+    checkBuiltinModelStatus.mockReset().mockResolvedValue({ ready: true });
     completeJob.mockReset(); readCharacterEvidence.mockReset(); loadWorld.mockReset(); reviewWorldMaterial.mockClear();
     loadWorld.mockResolvedValue({ storyTracks: [] });
     readCharacterEvidence.mockResolvedValue(evidence());
@@ -34,6 +39,26 @@ describe('character research lifecycle', () => {
     expect(result.baseline.lore).toBe('Observant.');
     expect(loadWorld).toHaveBeenCalledOnce();
     expect(completeJob.mock.calls[0][0][1].content).toContain('"partialEvidence":false');
+  });
+
+  it.each(['cloud', 'openai-compatible'] as const)('allows configured %s research without local installation', async provider => {
+    researchSettings = { ...DEFAULT_SETTINGS, llmEnabled: false, llmProvider: provider, cloudAuthStatus: 'signed-in', compatibleApiBaseUrl: 'https://example.org/v1', compatibleModel: 'controlled-model' };
+    const { researchCharacter } = await import('./characterResearch');
+    await expect(researchCharacter(request(`remote-${provider}`))).resolves.toMatchObject({ baseline: { lore: 'Observant.' } });
+  });
+
+  it('rejects expired cloud before fetching source or invoking the controlled provider', async () => {
+    researchSettings = { ...DEFAULT_SETTINGS, llmProvider: 'cloud', cloudAuthStatus: 'signed-out' };
+    const { researchCharacter } = await import('./characterResearch');
+    await expect(researchCharacter(request('expired-cloud'))).rejects.toThrow(/cloud-auth-required/);
+    expect(readCharacterEvidence).not.toHaveBeenCalled(); expect(completeJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing local model before reading public sources', async () => {
+    checkBuiltinModelStatus.mockResolvedValue({ ready: false });
+    const { researchCharacter } = await import('./characterResearch');
+    await expect(researchCharacter(request('missing-model'))).rejects.toThrow('local-model-required');
+    expect(readCharacterEvidence).not.toHaveBeenCalled(); expect(completeJob).not.toHaveBeenCalled();
   });
 
   it('aborts a pending source read when the owner cancels research', async () => {

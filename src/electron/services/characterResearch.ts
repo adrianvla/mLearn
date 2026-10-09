@@ -1,3 +1,5 @@
+import { llmConfigurationFailure } from '../../shared/llmReadiness';
+import { checkBuiltinModelStatus } from './builtinLLMService';
 import { applicationTaskMessage } from '../../shared/llmTask';
 import { sanitizeModelSpeech } from '../../shared/modelContent';
 import {
@@ -57,7 +59,10 @@ export async function synthesizeCharacter(evidence: CharacterEvidence, language:
 export async function researchCharacter(input: CharacterResearchRequest): Promise<CharacterResearchResult> {
   const request = structuredClone(input);
   validateCharacterResearchRequest(request);
-  if (!loadSettings().llmEnabled) throw new Error('Enable a model before researching an identity, or create the contact manually.');
+  const settings = loadSettings();
+  const configurationFailure = llmConfigurationFailure(settings);
+  if (configurationFailure) throw new Error(configurationFailure);
+  if (settings.llmProvider === 'builtin' && !(await checkBuiltinModelStatus(settings.builtinModel)).ready) throw new Error('local-model-required');
   const profile = getUserDataPath(), key = keyFor(request.operationId);
   if (running.has(key)) throw new Error('This research operation is already running');
   const controller = new AbortController(); running.set(key, controller);
