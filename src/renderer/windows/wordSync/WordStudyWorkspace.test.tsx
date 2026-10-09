@@ -49,6 +49,25 @@ describe('routed Word task ownership', () => {
     (fixture.task.onClose as (context: Record<string, unknown>) => void)(returnContext);
     expect(onReturn).toHaveBeenCalledWith('/evaluate', returnContext);
   });
+  it.each(['plan', 'evaluate'])('returns rejected empty assessment material to its explicit %s origin', async origin => {
+    const onReturn = vi.fn();
+    const { WordStudyWorkspace } = await import('./WordStudyWorkspace');
+    dispose = render(() => <WordStudyWorkspace mode="assessment" launchContext={{ returnTo: origin,
+      material: { language: 'future', label: 'Actual empty selection', words: [] } }} onReturn={onReturn} />, host);
+    expect(host.textContent).not.toContain('Actual task owner');
+    expect(fixture.task).toEqual({});
+    host.querySelector<HTMLButtonElement>('button')!.click();
+    expect(onReturn).toHaveBeenCalledWith(`/${origin}`);
+  });
+  it.each(['plan', 'evaluate'])('honors explicit %s return before valid material fallback', async origin => {
+    const onReturn = vi.fn();
+    const { WordStudyWorkspace } = await import('./WordStudyWorkspace');
+    dispose = render(() => <WordStudyWorkspace mode="assessment" launchContext={{ returnTo: origin,
+      material: { language: 'future', label: 'Actual selection', words: ['actual-selected-word'] } }} onReturn={onReturn} />, host);
+    expect(fixture.task.words).toEqual(['actual-selected-word']);
+    (fixture.task.onClose as () => void)();
+    expect(onReturn).toHaveBeenCalledWith(`/${origin}`, undefined);
+  });
   it('refuses a stale language selection instead of starting unscoped study', async () => {
     const { WordStudyWorkspace } = await import('./WordStudyWorkspace');
     dispose = render(() => <WordStudyWorkspace mode="study" launchContext={{ activity: 'practice', material: { language: 'other', words: ['wrong'] } }} onReturn={vi.fn()} />, host);

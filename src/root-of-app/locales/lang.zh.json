@@ -4303,7 +4303,7 @@
       "KnowledgeCheck": "知识检查",
       "KnowledgeCheckDescription": "检查你知道什么。",
       "GrammarCheck": "语法检查",
-      "GrammarSelfCheckDescription": "报告你能回忆起哪些语法结构。此检查记录你的自我评估，并不认证语言等级。",
+      "GrammarSelfCheckDescription": "回答可用的语法问题，或自行评估你的理解程度。这些活动并不认证语言等级。",
       "GrammarPractice": "语法练习",
       "WordPractice": "词汇练习",
       "SavedMaterial": "已保存的材料",

@@ -23,8 +23,10 @@ export const WordStudyWorkspace: Component<{
   const returnPath = (context = props.launchContext) => context?.returnTo === 'reader' ? '/reader'
     : context?.returnTo === 'video' ? '/video'
     : context?.returnTo === 'home' ? '/'
+    : context?.returnTo === 'plan' ? '/plan'
+    : context?.returnTo === 'evaluate' ? '/evaluate'
     : context?.material || context?.returnTo === 'material' ? '/knowledge/material'
-    : context?.returnTo === 'plan' ? '/plan' : props.mode === 'assessment' ? '/evaluate' : '/practise';
+    : props.mode === 'assessment' ? '/evaluate' : '/practise';
   return <Show when={!isLoading()}><Show when={valid()} fallback={
     <section class="product-workspace"><p>{t('mlearn.Goals.Unavailable')}</p>
       <Button onClick={() => props.onReturn(returnPath())}>{t('mlearn.LearningPlan.Back')}</Button></section>

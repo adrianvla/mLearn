@@ -4303,7 +4303,7 @@
       "KnowledgeCheck": "知識チェック",
       "KnowledgeCheckDescription": "知っていることを確認します。",
       "GrammarCheck": "文法チェック",
-      "GrammarSelfCheckDescription": "思い出せる文法項目を自己評価します。このチェックは自己評価を記録するもので、レベルを認定するものではありません。",
+      "GrammarSelfCheckDescription": "利用できる文法問題に答えるか、自分の理解度を評価します。これらの活動はレベルを認定するものではありません。",
       "GrammarPractice": "文法練習",
       "WordPractice": "語彙練習",
       "SavedMaterial": "保存した教材",

@@ -183,6 +183,49 @@ describe('LevelStudyContent', () => {
     expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'grammar', taskTemplateId: 'grammar-self-assess', patterns: ['package-defined'], returnTo: 'plan' } });
     dispose();
   });
+  it('assesses the exact grammar-only Plan scope through the grammar check owner', async () => {
+    currentLangDataMock = { name: 'Future', grammar: [{ pattern: 'package-defined', meaning: 'Meaning', level: 2 },
+      { pattern: 'unselected', meaning: 'Other meaning', level: 2 }], learning: { outcomes: {
+      'test:material': { label: 'Declared', provenance: 'package', groups: [{ id: 'declared', selectors: [{ source: 'grammar', patterns: ['package-defined'] }] }] },
+    } } };
+    currentSettingsMock.learningGoals = [{ id: 'goal', language: 'test', outcome: 'Declared', status: 'active', priority: 1, createdAt: 1,
+      outcomeRef: { id: 'test:material', semanticBasis: learningGoalSemanticBasis(currentLangDataMock as unknown as LanguageData, { id: 'test:material' }) } }];
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent workspace="plan" />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.LearningPlan.Assess')!.click();
+    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'grammar', purpose: 'evaluate', patterns: ['package-defined'], returnTo: 'plan' } });
+    dispose();
+  });
+  it('retains exact word assessment for a mixed Plan scope without claiming grammar coverage', async () => {
+    currentLangDataMock = { name: 'Future', freq: [['selected-word', '', 1], ['other-word', '', 2]], frequencyLevels: { rowLevelIndex: 2 },
+      grammar: [{ pattern: 'package-defined', meaning: 'Meaning', level: 2 }], learning: { outcomes: {
+      'test:material': { label: 'Declared', provenance: 'package', groups: [
+        { id: 'words', selectors: [{ source: 'frequency', levels: [1] }] },
+        { id: 'constructions', selectors: [{ source: 'grammar', patterns: ['package-defined'] }] },
+      ] },
+    } } };
+    currentSettingsMock.learningGoals = [{ id: 'goal', language: 'test', outcome: 'Declared', status: 'active', priority: 1, createdAt: 1,
+      outcomeRef: { id: 'test:material', semanticBasis: learningGoalSemanticBasis(currentLangDataMock as unknown as LanguageData, { id: 'test:material' }) } }];
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent workspace="plan" />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.LearningPlan.Assess')!.click();
+    expect(ingress.open).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'assessment', intent: 'start', returnTo: 'plan',
+      material: { language: 'test', label: 'Declared', words: ['selected-word'] } } });
+    dispose();
+  });
+  it.each(['unbound', 'empty'])('opens Plan repair controls instead of assessing a selected %s scope', async kind => {
+    currentLangDataMock = { name: 'Future', freq: [], frequencyLevels: { rowLevelIndex: 2 }, learning: { outcomes: {
+      'test:material': { label: 'Declared', provenance: 'package', groups: [{ id: 'words', selectors: [{ source: 'frequency', levels: [1] }] }] },
+    } } };
+    currentSettingsMock.learningGoals = [{ id: 'goal', language: 'test', outcome: 'Declared', status: 'active', priority: 1, createdAt: 1,
+      outcomeRef: { id: 'test:material', ...(kind === 'empty' ? { semanticBasis: learningGoalSemanticBasis(currentLangDataMock as unknown as LanguageData, { id: 'test:material' }) } : {}) } }];
+    const { LevelStudyContent } = await import('./App');
+    const dispose = render(() => <LevelStudyContent workspace="plan" />, container);
+    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.LearningPlan.Assess')!.click();
+    expect(ingress.open).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLDetailsElement>('.learning-plan-configuration')!.open).toBe(true);
+    dispose();
+  });
   it('refuses a producer request with no explicit admitted material rather than opening generic contrast', async () => {
     currentLangDataMock = { grammar: [{ pattern: 'package-defined', level: 2 }] };
     const { LevelStudyContent } = await import('./App');

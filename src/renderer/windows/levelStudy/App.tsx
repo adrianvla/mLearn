@@ -6,7 +6,6 @@ import { useLanguage, useLocalization, useSettings } from '../../context';
 import { Button, ArrowLeftIcon, TargetIcon, LearningGoals } from '../../components/common';
 import { LevelStudyTab } from './LevelStudyTab';
 import { LearningPlanSettings } from './LearningPlanSettings';
-import { activeLearningGoals, learningGoalsForSettings } from '../../../shared/learningGoals';
 import { getBridge } from '../../../shared/bridges';
 import { GRAMMAR_SELF_ASSESS_TASK, grammarSelfAssessmentHandoffMatches } from './grammarSelfAssessmentDecision';
 import './LevelStudy.css';
@@ -41,6 +40,19 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
     getBridge().window.openWindow({ type: 'level-study', context: { activity: 'practice', intent: 'start', returnTo: 'plan',
       ...(scope.selected ? { material: { language: settings.language, label: scope.goals.map(goal => goal.outcome).join(' · '), words: scope.words } } : {}) } });
   };
+  const openAssessment = () => {
+    const scope = targetScope();
+    if (scope.selected && (!scope.goals.length || (!scope.words.length && !scope.patterns.length))) { editPlan(); return; }
+    if (scope.selected && !scope.words.length) {
+      getBridge().window.openWindow({ type: 'level-study', context: {
+        activity: 'grammar', purpose: 'evaluate', patterns: scope.patterns, returnTo: 'plan',
+      } }); return;
+    }
+    getBridge().window.openWindow({ type: 'level-study', context: {
+      activity: 'assessment', intent: 'start', returnTo: 'plan',
+      ...(scope.selected ? { material: { language: settings.language, label: scope.goals.map(goal => goal.outcome).join(' · '), words: scope.words } } : {}),
+    } });
+  };
   const incomingContext = () => props.launchContext ?? {};
   const [grammarRequestConsumed, setGrammarRequestConsumed] = createSignal(false);
   const hasGrammarSelection = () => incomingContext().intent !== 'resume' && incomingContext().activity === 'grammar'
@@ -63,12 +75,6 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
   const grammarRequest = () => grammarRequestConsumed() ? undefined : grammarSelection() ?? undefined;
 
   createEffect(() => { setGrammarRequestConsumed(false); if (props.workspace === 'plan' && props.launchContext?.edit === true) editPlan(); });
-  const planSummary = () => {
-    const goals = activeLearningGoals(learningGoalsForSettings(settings), settings.language);
-    if (!goals.length) return t('mlearn.Goals.Explore');
-    const resolved = new Map(targetScope().goals.map(goal => [goal.id, goal.outcome]));
-    return goals.map(goal => resolved.get(goal.id) ?? goal.outcome).join(' · ');
-  };
   const title = () => props.workspace === 'grammar-check' ? t('mlearn.Product.GrammarCheck') : props.workspace === 'grammar' ? t('mlearn.LevelStudy.Grammar.Title')
     : props.workspace === 'mock' ? t('mlearn.Product.Evaluate') : t('mlearn.LevelStudy.Title');
 
@@ -93,10 +99,7 @@ export const LevelStudyContent: Component<{ onClose?: () => void; workspace?: 'p
                 <LearningPlanSettings />
               </details>
               <div class="learning-plan-scope-actions"><Button onClick={openStudy}>{t('mlearn.Home.Today.PracticeAction')}</Button>
-                <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
-                  activity: 'assessment', intent: 'start', returnTo: 'plan',
-                  ...(targetScope().selected ? { material: { language: settings.language, label: planSummary(), words: targetScope().words } } : {}),
-                } })}>{t('mlearn.LearningPlan.Assess')}</Button></div>
+                <Button variant="ghost" onClick={openAssessment}>{t('mlearn.LearningPlan.Assess')}</Button></div>
               <h2 class="learning-plan-progress-heading">{t('mlearn.LearningPlan.Progress')}</h2>
             </Show>
             <Show when={!hasGrammarSelection() || grammarSelection() !== undefined} fallback={<p role="status">{t('mlearn.Global.Loading')}</p>}>
