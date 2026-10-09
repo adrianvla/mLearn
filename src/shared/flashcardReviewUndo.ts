@@ -15,6 +15,7 @@ export function isReviewCorrection(value: unknown): value is ReviewCorrection {
 }
 
 export interface ReviewUndoProjection {
+  materialSnapshot?: import('./types').ReviewMaterialSnapshot;
   /** Immutable original elicitation conditions for retrospective correction. Older receipts lack these. */
   correction?: ReviewCorrection;
   reviewSessionId?: string;

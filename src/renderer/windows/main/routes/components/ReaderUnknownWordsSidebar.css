@@ -1,4 +1,5 @@
 .reader-unknown-words-sidebar {
+  position: absolute;
   top: 48px;
   bottom: 30px;
   height: auto;

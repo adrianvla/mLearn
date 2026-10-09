@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { wordHoverAvailableSize, placeWordHover } from './wordHoverPlacement';
+import { wordHoverAvailableSize, placeWordHover, wordHoverBoundsFromChrome } from './wordHoverPlacement';
 
 describe('word popup safe content bounds', () => {
+  it('uses actual shifted chrome edges rather than heights at the viewport origin', () => {
+    const bounds = wordHoverBoundsFromChrome({ width: 800, height: 600 }, {
+      top: [{ left: 0, right: 800, top: 0, bottom: 28 }, { left: 0, right: 800, top: 28, bottom: 88 }],
+      left: [{ left: 0, right: 160, top: 88, bottom: 560 }],
+      right: [{ left: 480, right: 800, top: 88, bottom: 560 }],
+      bottom: [{ left: 0, right: 800, top: 560, bottom: 600 }],
+    }, 12);
+    expect(bounds).toEqual({ minX: 172, maxX: 468, minY: 100, maxY: 548 });
+    expect(wordHoverBoundsFromChrome({ width: 640, height: 480 }, {
+      top: [{ left: 0, right: 0, top: 0, bottom: 28 }],
+    }, 12)).toEqual({ minX: 12, maxX: 628, minY: 12, maxY: 468 });
+  });
+
   it('fits a large popup beside a reader sidebar', () => {
     const bounds = { minX: 172, maxX: 988, minY: 60, maxY: 978 };
     const available = wordHoverAvailableSize(bounds);

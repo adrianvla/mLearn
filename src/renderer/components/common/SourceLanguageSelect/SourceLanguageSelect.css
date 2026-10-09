@@ -11,6 +11,9 @@
   gap: var(--spacing-2);
   min-width: 0;
 }
+.source-language-label > span {
+  white-space: nowrap;
+}
 .source-language-label select {
   min-width: 0;
   max-width: 12rem;

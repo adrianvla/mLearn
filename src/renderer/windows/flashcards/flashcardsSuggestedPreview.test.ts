@@ -136,6 +136,16 @@ describe('buildSuggestedFlashcardPreviewContent', () => {
     expect(options.dictionaryTargetLanguage?.()).toBeUndefined();
   });
 
+  it('reads a package-declared structured definition path', () => {
+    const metadata: LanguageData = { name: 'Future', settings: { fixed: {} },
+      runtime: { nlp: { dictionary: { definitionsPath: ['future', 'senses'] } } } };
+    const content = buildSuggestedFlashcardPreviewContent(makeSuggestion(), {}, {
+      getCachedTranslation: () => ({ data: [{ future: { senses: ['package meaning'] } }] }),
+      getCachedReading: () => null, getLanguageData: () => metadata,
+    });
+    expect(content.back).toBe('package meaning');
+  });
+
   it('uses the suggestion language for cache lookup and metadata extraction', () => {
     const arabicToneLanguage: LanguageData = {
       name: 'Arabic tone test',

@@ -220,6 +220,22 @@ describe('FlashcardWordTitle', () => {
     dispose();
   });
 
+  it('reuses the admitted dictionary payload after remount despite later cache data', async () => {
+    mockSettings = { language: 'tl' };
+    mockLanguageMap = { tl: { name: 'Future', settings: { fixed: {} }, prosody: { type: 'stress-position' } } };
+    const { FlashcardWordTitle } = await import('./FlashcardWordTitle');
+    const owner = {};
+    const admitted: import('../../../shared/types').TranslationResponse = { data: [undefined, undefined, { position: 2 }] };
+    const mount = () => render(() => <FlashcardWordTitle language="tl" content={{ type: 'word', front: 'ma', back: '' }}
+      presentationOwner={owner} presentationLookup={admitted} />, container);
+    let dispose = mount();
+    expect(wordWithReadingProps.at(-1)?.prosodyPosition?.()).toBe(2);
+    dispose(); mockCachedTranslation = { data: [{ position: 4 }] };
+    dispose = mount();
+    expect(wordWithReadingProps.at(-1)?.prosodyPosition?.()).toBe(2);
+    dispose();
+  });
+
   it('uses the language metadata captured at review admission', async () => {
     mockSettings = { language: 'de' };
     const admittedMetadata: LanguageData = {

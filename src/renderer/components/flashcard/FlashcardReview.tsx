@@ -8,6 +8,8 @@ import { beginReviewSession, reviewSessionRemaining, reviewSessionHasAvailableCa
 
 import { Component, JSX, Show, createSignal, createMemo, onCleanup, createEffect, batch, on, untrack } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../context';
+import { getCachedTranslation } from '../../hooks/useTranslation';
+import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import type { FlashcardPresentationKnowledge } from './FlashcardWordTitle';
 import { FlashcardDisplay } from './FlashcardDisplay';
 import type { LearningDecision } from '../../../shared/learningDecision';
@@ -53,7 +55,7 @@ import { useLearningInput } from '../common/LearningWorkspace/LearningWorkspace'
 
 const log = getLogger("renderer.components.flashcardReview");
 
-type ReviewEncounter = { session?: ReviewSession; carriedScaffolds?: AttemptScaffolds; activity: ReviewActivity; knowledge: FlashcardPresentationKnowledge; languageData: LanguageData | null; tested: readonly CapabilityKey[]; card: Flashcard; decision: PolicyDecision | null; provenance: LearningDecision; cursor?: ReviewPresentation };
+type ReviewEncounter = { materialSnapshot: import('../../../shared/types').ReviewMaterialSnapshot; session?: ReviewSession; carriedScaffolds?: AttemptScaffolds; activity: ReviewActivity; knowledge: FlashcardPresentationKnowledge; languageData: LanguageData | null; tested: readonly CapabilityKey[]; card: Flashcard; decision: PolicyDecision | null; provenance: LearningDecision; cursor?: ReviewPresentation };
 
 interface ReviewRatingWrite {
   encounter: ReviewEncounter;
@@ -180,6 +182,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     return langData[language] ?? (language === settings.language ? currentLangData() : null);
   };
 
+  const dictionaryTargetLanguage = useDictionaryTargetLanguage(() => settings.language);
+
   const [sessionEpoch, setSessionEpoch] = createSignal(0);
   const [releasedRequest, setReleasedRequest] = createSignal<string>();
   const [releaseWrite, setReleaseWrite] = createSignal<{ command: import('../../../shared/reviewPresentationWrite').ReviewPositionRelease; phase: 'pending' | 'failed'; stale?: boolean }>();
@@ -256,10 +260,17 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     setAudioResourceEpoch(epoch => epoch + 1);
   };
 
-  const snapshotEncounter = (encounter: Omit<ReviewEncounter, 'knowledge' | 'languageData' | 'tested'>): ReviewEncounter => untrack(() => {
+  const snapshotEncounter = (encounter: Omit<ReviewEncounter, 'knowledge' | 'languageData' | 'tested' | 'materialSnapshot'>): ReviewEncounter => untrack(() => {
     const card = encounter.card;
     const language = languageForCard(card);
-    const data = languageDataForCard(card);
+    const priorMaterial = encounter.cursor?.cardId === card.id ? encounter.cursor.materialSnapshot : undefined;
+    const materialSnapshot = JSON.parse(JSON.stringify(priorMaterial ?? {
+      languageData: languageDataForCard(card) ?? null,
+      lookup: getCachedTranslation(card.content.front, language, {
+        dictionaryTargetLanguage, languageData: () => languageDataForCard(card),
+      }) ?? null,
+    })) as import('../../../shared/types').ReviewMaterialSnapshot;
+    const data = materialSnapshot.languageData;
     const tested = encounter.provenance.selected.task.requested;
     const accesses = Object.fromEntries([...new Set([...tested, ...Object.keys(data?.learning?.capabilities ?? {}), 'prosodic-pattern'])]
       .map(capability => [capability, { ...getAccessStatus(card.content.front, capability, language) }]));
@@ -288,7 +299,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
         exposed = true; // Undo returns consulted material, including across an activity change.
       }
     }
-    return { ...encounter, session: finiteSession(), languageData: data ?? null, ...(exposed ? { carriedScaffolds: { ...providedAccessScaffolds(tested), 'prior-cue-exposure': true } } : {}),
+    return { ...encounter, session: finiteSession(), materialSnapshot, languageData: data ?? null, ...(exposed ? { carriedScaffolds: { ...providedAccessScaffolds(tested), 'prior-cue-exposure': true } } : {}),
       tested, knowledge: { ready: isKnowledgeReady(),
       wordKnown: getComprehensiveWordStatusWithSourceSync(card.content.front, language).status === 'known', accesses } };
   });
@@ -533,7 +544,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     };
     report('pending');
     try {
-      await saveReviewPresentation(languageForCard(encounter.card), { id, cardId: encounter.card.id,
+      await saveReviewPresentation(languageForCard(encounter.card), { id, cardId: encounter.card.id, materialSnapshot: encounter.materialSnapshot,
         ...(encounter.cursor?.correction ? { correction: encounter.cursor.correction } : {}),
         ...((encounter.cursor?.cardId === encounter.card.id && encounter.cursor.scaffolds) || encounter.carriedScaffolds
           ? { scaffolds: { ...encounter.cursor?.scaffolds, ...encounter.carriedScaffolds } } : {}),
@@ -1491,6 +1502,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
                   flashcard={card()}
                   knowledge={currentEncounter()?.knowledge}
                   presentationLanguageData={currentEncounter()?.languageData}
+                  presentationLookup={currentEncounter()?.materialSnapshot.lookup}
                   showAnswer={showAnswer()}
                   onFlip={handleFlip}
                   onPlayTts={handlePlayTts}

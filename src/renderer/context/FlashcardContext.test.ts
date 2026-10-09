@@ -868,8 +868,10 @@ describe('FlashcardProvider', () => {
     seed(makeEmptyStore({ rev: revision, flashcards: { [card.id]: card } }));
     const decision = selectFlashcardReviewDecision({ id: 'retained-choice', at: 20,
       entries: [flashcardReviewPolicyEntry(card, 'ja')], rng: () => 0.7 })!.provenance;
-    const presentation = { id: decision.id, cardId: card.id, decision };
+    const materialSnapshot = { languageData: { name: 'Unknown package', settings: { fixed: {} }, future: { relation: ['opaque', { scope: 'clause' }] } }, lookup: { data: [{ future: { gloss: ['meaning'] } }] } } as unknown as NonNullable<ReviewPresentation['materialSnapshot']>;
+    const presentation = { id: decision.id, cardId: card.id, decision, materialSnapshot };
     await ctx.saveReviewPresentation('ja', presentation, null);
+    await expect(ctx.saveReviewPresentation('ja', { ...presentation, materialSnapshot: { languageData: null, lookup: null } }, decision.id)).rejects.toThrow('material');
     expect(committed!.meta.reviewPresentations?.ja).toEqual(presentation);
     expect(ctx.store.meta.reviewPresentations?.ja).toEqual(presentation);
     const saved = structuredClone(committed!);
@@ -1383,14 +1385,17 @@ describe('FlashcardProvider', () => {
       entries: [flashcardReviewPolicyEntry(card, 'ja')], rng: () => 0.7 })!.provenance;
     const scaffolds = { 'unknown-package:cue': true };
     const timing = { wallLatencyMs: 2100, activeLatencyMs: 1800, interruptionCount: 1, interrupted: true, stalled: false };
-    flashcardsCb(makeEmptyStore({ flashcards: { [card.id]: card } }));
+    const materialSnapshot = { languageData: { name: 'Admitted package', settings: { fixed: {} } }, lookup: null };
+    const initial = makeEmptyStore({ flashcards: { [card.id]: card } });
+    initial.meta.reviewPresentations = { ja: { id: decision.id, cardId: card.id, decision, materialSnapshot } };
+    flashcardsCb(initial);
     try {
       await ctx.submitRating(card.content.front, [{ capability: 'sense-recognition', quality: 'fluent' }], {
         language: 'ja', attemptId: 'original-response', decision, scaffolds, timing,
         scheduler: { cardId: card.id, rating: 'good', tested: ['sense-recognition'] },
       });
       await ctx.undoLastAction();
-      expect(ctx.store.meta.reviewPresentations?.ja).toMatchObject({ decision,
+      expect(ctx.store.meta.reviewPresentations?.ja).toMatchObject({ decision, materialSnapshot,
         correction: { attemptId: 'original-response', scaffolds, timing } });
       const saved = JSON.parse(JSON.stringify(ctx.store)) as FlashcardStore;
       flashcardsCb(saved);

@@ -1,4 +1,4 @@
-import { placeWordHover, wordHoverAvailableSize } from './wordHoverPlacement';
+import { placeWordHover, wordHoverBoundsFromChrome, wordHoverAvailableSize } from './wordHoverPlacement';
 /**
  * Word Hover Component
  * Popup that appears when hovering over a word
@@ -58,9 +58,6 @@ export function grammarOccurrencesForToken(
 const ICON_BOT = 'bot';
 
 // UI element dimensions for boundary calculations (actual CSS values from reader components)
-const UI_NAVBAR_HEIGHT = 48;  // .reader-nav height: 48px
-const UI_SIDEBAR_WIDTH = 160; // .reader-sidebar width: 160px
-const UI_STATUSBAR_HEIGHT = 30; // .reader-status height: 30px
 const UI_BOUNDARY_PADDING = 12; // Small padding from UI elements
 
 // ============ Compound decomposition (REQ42) ============
@@ -309,39 +306,13 @@ export const WordHover: Component<WordHoverProps> = (props) => {
 
   // Detect UI elements present in the DOM to calculate safe boundaries
   // Returns the actual pixel boundaries of the content area
-  const getUIBounds = (): { 
-    minX: number; maxX: number; minY: number; maxY: number; 
-    vw: number; vh: number; 
-    hasNavbar: boolean; hasSidebar: boolean; hasStatusbar: boolean;
-    sidebarWidth: number; navbarHeight: number; statusbarHeight: number;
-  } => {
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
-    const vh = typeof window !== 'undefined' ? window.innerHeight : 600;
-    
-    // Check for navbar - look for actual reader-nav element
-    const navbarEl = document.querySelector('.reader-nav, .video-nav');
-    const hasNavbar = !!navbarEl;
-    const navbarHeight = navbarEl ? (navbarEl as HTMLElement).offsetHeight || UI_NAVBAR_HEIGHT : 0;
-    
-    // Check for left page sidebar and right unknown-words sidebar.
-    const sidebarEl = document.querySelector('.reader-sidebar');
-    const rightSidebarEl = document.querySelector('.reader-unknown-words-sidebar');
-    const hasSidebar = !!sidebarEl;
-    const sidebarWidth = sidebarEl ? (sidebarEl as HTMLElement).offsetWidth || UI_SIDEBAR_WIDTH : 0;
-    const rightSidebarWidth = rightSidebarEl ? (rightSidebarEl as HTMLElement).offsetWidth : 0;
-    
-    // Check for statusbar - look for actual reader-status element
-    const statusbarEl = document.querySelector('.reader-status, .reader-status-bar');
-    const hasStatusbar = !!statusbarEl;
-    const statusbarHeight = statusbarEl ? (statusbarEl as HTMLElement).offsetHeight || UI_STATUSBAR_HEIGHT : 0;
-    
-    // Calculate safe bounds with small padding
-    const minX = (hasSidebar ? sidebarWidth : 0) + UI_BOUNDARY_PADDING;
-    const maxX = vw - rightSidebarWidth - UI_BOUNDARY_PADDING;
-    const minY = (hasNavbar ? navbarHeight : 0) + UI_BOUNDARY_PADDING;
-    const maxY = vh - (hasStatusbar ? statusbarHeight : 0) - UI_BOUNDARY_PADDING;
-    
-    return { minX, maxX, minY, maxY, vw, vh, hasNavbar, hasSidebar, hasStatusbar, sidebarWidth, navbarHeight, statusbarHeight };
+  const getUIBounds = () => {
+    const rects = (selector: string) => Array.from(document.querySelectorAll(selector), element => element.getBoundingClientRect());
+    return wordHoverBoundsFromChrome({ width: window.innerWidth, height: window.innerHeight }, {
+      top: rects('.application-native-chrome, .reader-nav, .video-nav'),
+      left: rects('.reader-sidebar'), right: rects('.reader-unknown-words-sidebar'),
+      bottom: rects('.reader-status, .reader-status-bar, .reader-route > .statusbar'),
+    }, UI_BOUNDARY_PADDING);
   };
 
   const [availableSize, setAvailableSize] = createSignal(wordHoverAvailableSize(getUIBounds()));

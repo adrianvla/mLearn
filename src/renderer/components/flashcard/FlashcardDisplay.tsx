@@ -11,7 +11,7 @@
  */
 
 import { Component, JSX, Show, createMemo, createSignal, createEffect, createComputed, on, onCleanup } from 'solid-js';
-import type { Flashcard, LanguageData } from '../../../shared/types';
+import type { Flashcard, LanguageData, TranslationResponse } from '../../../shared/types';
 import { Button, Panel, PillLabel, HoverReveal, AnkiIcon, SafeHtml } from '../common';
 import { useSettings, useLanguage, useLocalization } from '../../context';
 import { formatDate } from '../../utils/timeFormatting';
@@ -30,6 +30,7 @@ export interface FlashcardDisplayProps {
   knowledge?: FlashcardPresentationKnowledge;
   /** Language rendering metadata frozen at review admission, when provided. */
   presentationLanguageData?: LanguageData | null;
+  presentationLookup?: TranslationResponse | null;
   showAnswer?: boolean;
   onFlip?: () => void;
   onPlayTts?: (cardId: string, text: string, field: 'word' | 'example') => void;
@@ -68,7 +69,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
   const content = () => props.flashcard.content;
   const cardLanguage = () => props.flashcard.language || settings.language;
   const cardLanguageData = createMemo(() => (
-    langData[cardLanguage()] ?? (cardLanguage() === settings.language ? currentLangData() : null)
+    props.presentationLanguageData !== undefined ? props.presentationLanguageData : langData[cardLanguage()] ?? (cardLanguage() === settings.language ? currentLangData() : null)
   ));
   const displayWord = () => content().front;
   const meaning = () => content().back;
@@ -373,7 +374,7 @@ export const FlashcardDisplay: Component<FlashcardDisplayProps> = (props) => {
           <div class="flashcard-word-header">
             <FlashcardWordTitle knowledge={props.knowledge} content={content()} language={props.flashcard.language}
               readingAnswer={isFlipped()} presentationOwner={props.promptMediaOwner}
-              presentationLanguageData={props.presentationLanguageData}/>
+              presentationLookup={props.presentationLookup} presentationLanguageData={props.presentationLanguageData}/>
             <Show when={props.onPlayTts}>
               <Button buttonType="icon"
                 icon="volume"

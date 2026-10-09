@@ -2146,7 +2146,14 @@ export interface PerLanguageMeta {
 }
 
 /** A restored review encounter, persisted with its scheduler restoration. */
+/** Data available when a retrieval cue was admitted; never learner evidence. */
+export interface ReviewMaterialSnapshot {
+  languageData: LanguageData | null;
+  lookup: TranslationResponse | null;
+}
+
 export interface ReviewPresentation {
+  materialSnapshot?: ReviewMaterialSnapshot;
   /** Correct the withdrawn report of this elicitation; answer exposure is not a new retrieval. */
   correction?: ReviewCorrection;
   /** Last durably admitted cue stage; answers remain hidden until comparison. */

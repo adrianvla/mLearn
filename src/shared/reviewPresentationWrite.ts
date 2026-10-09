@@ -110,6 +110,18 @@ export function reviewPresentationPatch(store: FlashcardStore, command: ReviewPo
   // A late cursor for a rated/edited/removed card is obsolete, not a failed encounter.
   if (card.suspended || card.buried || JSON.stringify({ ...store.flashcards[card.id], retentionCache: undefined }) !== JSON.stringify({ ...card, retentionCache: undefined })) return null;
   const existing = store.meta.reviewPresentations?.[language];
+  if (presentation.materialSnapshot !== undefined) {
+    const material = presentation.materialSnapshot;
+    if (!material || typeof material !== 'object' || Array.isArray(material)
+      || !(material.languageData === null || (!!material.languageData && typeof material.languageData === 'object' && !Array.isArray(material.languageData)))
+      || !(material.lookup === null || (!!material.lookup && typeof material.lookup === 'object' && Array.isArray(material.lookup.data)))) {
+      throw new Error('Invalid review material snapshot');
+    }
+  }
+  if (existing?.id === presentation.id && existing.materialSnapshot !== undefined
+    && JSON.stringify(existing.materialSnapshot) !== JSON.stringify(presentation.materialSnapshot)) {
+    throw new Error('Admitted review material cannot be replaced');
+  }
   if ((existing?.correction || presentation.correction) && (!existing?.correction
     || !isReviewCorrection(existing.correction)
     || !samePosition(existing.correction, presentation.correction)

@@ -15,6 +15,7 @@ import { useFlashcards } from '../../context';
 import { FlashcardReview, FlashcardEditModal, FlashcardSyncModal, FlashcardWordTitle } from '../../components/flashcard';
 import { Button, Modal, Input, Badge, useConfirmDialog, EmptyState, SearchIcon, TabContainer, Select, BookIcon, SparklesIcon, PlusIcon, ProgressBar, ResponsiveSidebar, MicrophoneIcon, VoiceSamplePicker, CollapsibleStickyHeader, FilterBuilder, SelectableCard, TrashIcon, buildFlashcardBrowseFields, buildEmptyPreset, evaluateAst, parseTokens, validateTokens, type ExprNode, type FieldConfig, type FieldResolver, type FilterToken, type PaletteItem, type ValidationError } from '../../components/common';
 import { showToast, updateToast, removeToast } from '../../components/common/Feedback/Toast';
+import { buildSuggestedFilterLanguageNames } from './flashcardsSuggestedPreview';
 import { getLanguageDisplayName, stripHtmlForTts } from '../../../shared/utils/textUtils';
 import { getBridge } from '../../../shared/bridges';
 import { resolveCloudApiUrl } from '../../../shared/backends';
@@ -76,6 +77,7 @@ const formatEta = (ms: number): string => {
 
 export const FlashcardsContent: Component<{ initialTab?: TabId; onClose: () => void; workspace: 'review' | 'material' | 'flashcards'; launchContext?: Record<string, unknown> }> = (props) => {
   const {
+    store,
     getAllCards,
     getCardById,
     removeFlashcard,
@@ -407,11 +409,12 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose: () => v
   const selected = selection.selected;
 
   const filterFields = createMemo<{ fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] }>(() => {
-    const languageNames: Record<string, string> = {};
-    for (const [code, data] of Object.entries(langData)) {
-      if (!data) continue;
-      languageNames[code] = getLanguageDisplayName(code, data, settings.uiLanguage);
-    }
+    const selectedLanguages = filterTokens()
+      .filter((token): token is Extract<FilterToken, { kind: 'operand' }> => token.kind === 'operand' && token.field === 'language')
+      .map(token => token.value);
+    const languageNames = buildSuggestedFilterLanguageNames(store,
+      { ...langData, [settings.language]: langData[settings.language] ?? currentLangData() },
+      settings.uiLanguage, selectedLanguages, settings.language);
 
     // The Level filter only enumerates one language's level system, so it is
     // gated on the browse being scoped to exactly one language via `eq`.

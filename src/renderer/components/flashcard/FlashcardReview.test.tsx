@@ -6,7 +6,7 @@ import { createReviewAssistanceStore } from '../../learning/reviewAssistance';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal, type Accessor } from 'solid-js';
-import { createStore } from 'solid-js/store';
+import { createStore, reconcile } from 'solid-js/store';
 import type { JSX } from 'solid-js';
 import type { Flashcard, LanguageData, ReviewPresentation, ReviewQueue, Settings } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
@@ -550,6 +550,22 @@ describe('FlashcardReview', () => {
     await flushEffects();
     expect(mockSaveReviewPresentation.mock.calls[0][1].session).toMatchObject({ id: 'resume-boundary', encounterLimit: 1 });
     dispose();
+  });
+
+  it('persists a detached package presentation through reconciled metadata delivery', async () => {
+    const [catalog, setCatalog] = createStore({ ja: JSON.parse(JSON.stringify(jaLanguageData)) as LanguageData });
+    mockLangMap = catalog; mockLanguageData = catalog.ja;
+    const dispose = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    try {
+    const saved = mockSaveReviewPresentation.mock.calls[0][1];
+    expect(saved.materialSnapshot?.languageData).toEqual(jaLanguageData);
+    expect(saved.materialSnapshot?.lookup).toBeNull();
+    setCatalog('ja', reconcile({ ...jaLanguageData, name: 'Replacement package', prosody: { type: 'future::contour', positionLabel: 'Late label' } }));
+    await flushEffects();
+    expect(saved.materialSnapshot?.languageData?.name).toBe(jaLanguageData.name);
+    expect(saved.materialSnapshot?.languageData?.prosody).toEqual(jaLanguageData.prosody);
+    } finally { dispose(); }
   });
 
   it('preserves an admitted session when a later Home request names another card', async () => {

@@ -241,7 +241,7 @@ export function buildSuggestedFlashcardPreviewContent(
     ? extractProsodyFromTranslationData(cachedTranslation, languageData, suggestion.reading || cachedReading)
     : undefined;
   const translation = cachedTranslation?.data
-    ? extractFirstDefinition(cachedTranslation.data) || ''
+    ? extractFirstDefinition(cachedTranslation.data, languageData) || ''
     : '';
 
   return {

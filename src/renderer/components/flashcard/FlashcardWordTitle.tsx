@@ -15,7 +15,7 @@ import {
   getProsodyPositionLabel,
   getReadingAnnotationScripts,
 } from '../../../shared/languageFeatures';
-import type { FlashcardContent, LanguageData } from '../../../shared/types';
+import type { FlashcardContent, LanguageData, TranslationResponse } from '../../../shared/types';
 import {
   canRenderStoredProsodyWithoutMetadata,
   getProsodyOverlayRenderer,
@@ -40,6 +40,8 @@ export interface FlashcardWordTitleProps {
   language?: string;
   /** Optional language metadata captured when a review encounter was admitted. */
   presentationLanguageData?: LanguageData | null;
+  /** Lookup payload captured by the encounter owner, including an admitted absence. */
+  presentationLookup?: TranslationResponse | null;
   /** Revealed task answer; ordinary titles respect optional reading preferences. */
   readingAnswer?: boolean;
   /** Stable owner for one admitted review encounter; freezes cache-derived annotation data. */
@@ -73,6 +75,7 @@ export const FlashcardWordTitle: Component<FlashcardWordTitleProps> = (props) =>
     languageData,
   };
   const cachedTranslation = createMemo(() => {
+    if (props.presentationLookup !== undefined) return props.presentationLookup;
     cacheVersion();
     const w = word();
     if (!w) return null;

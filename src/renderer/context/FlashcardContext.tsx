@@ -2661,6 +2661,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       ),
     };
     Object.assign(undo.reviewUndo!.restore as ReviewUndoProjection, {
+      ...(restored?.cardId === card.id && restored.id === choiceId && restored.materialSnapshot
+        ? { materialSnapshot: JSON.parse(JSON.stringify(restored.materialSnapshot)) } : {}),
       ...(options.decision ? { correction: {
         attemptId, at: now, decision: options.decision,
         ...(options.scaffolds ? { scaffolds: options.scaffolds } : {}),
@@ -4998,6 +5000,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     else delete target.wordStatsMap[statsKey];
     (target.meta.reviewPresentations ??= {})[record.language] = {
       id: restore.correction?.decision.id ?? record.attemptId, cardId: restore.cardId,
+      ...(restore.materialSnapshot ? { materialSnapshot: restore.materialSnapshot } : {}),
       scaffolds: { ...restore.scaffolds, 'prior-cue-exposure': true },
       ...(restore.correction ? { correction: restore.correction, decision: restore.correction.decision,
         ...(restore.correction.decision.selected.task.stages ? {
