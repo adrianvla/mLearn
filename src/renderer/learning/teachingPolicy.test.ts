@@ -112,6 +112,59 @@ describe('model-driven TeachingPolicy', () => {
     expect(run(lowEvaluation).candidate.key).toBe('beta');
     expect(run(highEvaluation).candidate.key).toBe('alpha');
   });
+
+  it('keeps overlapping goal deadlines in selection when only the later requirement changes', () => {
+    const now = Date.parse('2026-10-04');
+    const capability = 'future-language::recall';
+    const ids = Object.fromEntries(['alpha', 'beta'].map(word => [word, surfaceEntityId('future', hashWordSync(word))]));
+    const events: KnowledgeEvent[] = ['alpha', 'beta'].map((word, index) => ({
+      t: now, kind: 'rating', source: 'srs', rating: index === 0 ? 'easy' : 'again', quality: index === 0 ? 'easy' : 'failed',
+      attemptId: `${word}-attempt`, eventId: `${word}-event`, taskType: 'srs-review', method: 'recall',
+      targetRef: { kind: 'surface', id: ids[word], capability },
+    }));
+    const model = fitLearningModel(events, now);
+    const packageData = (laterMinimum: number): LanguageData => ({
+      name: 'Future', languageData: { version: 'future-v2', assets: [] },
+      freq: [['alpha', '', 1], ['beta', '', 1]], frequencyLevels: { rowLevelIndex: 2 },
+      learning: { outcomes: Object.fromEntries([
+        ['early', ['alpha'], 0.99], ['later', ['beta'], laterMinimum],
+      ].map(([id, words, minimum]) => [id, {
+        label: String(id), provenance: 'package', groups: [
+          ...(id === 'later' ? [{ id: 'overlap', selectors: [{ source: 'frequency', words: ['alpha'] }] }] : []),
+          { id: 'selected', selectors: [{ source: 'frequency', words }] },
+        ],
+        requirements: { conditions: [{ id: `${id}-floor`, kind: 'canonical-capability-threshold', groupIds: ['selected'], capability, minimum }] },
+      }])) },
+    });
+    const goalsFor = (data: LanguageData): LearningGoal[] => ['early', 'later'].map((id, index) => ({
+      id, language: 'future', outcome: id, status: 'active', priority: index + 1, createdAt: now,
+      deadline: index === 0 ? '2026-10-14' : '2026-10-24',
+      outcomeRef: { id, packageVersion: 'future-v2', groupIds: index === 0 ? ['selected'] : ['overlap', 'selected'],
+        semanticBasis: learningGoalSemanticBasis(data, { id, groupIds: index === 0 ? ['selected'] : ['overlap', 'selected'] }) },
+    }));
+    const evaluate = (data: LanguageData) => evaluateLearningRequirements(goalsFor(data), 'future', model, events, data, now);
+    const low = evaluate(packageData(0));
+    const high = evaluate(packageData(0.99));
+    const run = (requirements: typeof high) => selectNext(['alpha', 'beta'].map(word => ({
+      ...candidate(word), word, targets: [{ entityId: ids[word], capability }],
+      task: { ...task, taskTemplateId: 'future-intervention' },
+    })), { ...config(), nowMs: now, context: {
+      learning: { model, horizonDays: 30, deferDays: 3, availableSeconds: [120], continuationValue: 0, targetWeights: {} },
+      requirementEvaluations: requirements,
+    } })!;
+    expect(goalsFor(packageData(0.99)).map(goal => [goal.id, goal.priority, goal.deadline, goal.outcomeRef?.groupIds]))
+      .toEqual([['early', 1, '2026-10-14', ['selected']], ['later', 2, '2026-10-24', ['overlap', 'selected']]]);
+    expect(low.find(goal => goal.goalId === 'early')).toEqual(high.find(goal => goal.goalId === 'early'));
+    expect(low.find(goal => goal.goalId === 'later')!.requirements[0].status).toBe('met');
+    expect(high.find(goal => goal.goalId === 'later')!.requirements[0].status).toBe('unmet');
+    expect(run(low).candidate.key).toBe('alpha');
+    const decision = run(high);
+    expect(decision.candidate.key).toBe('beta');
+    expect(decision.trace!.model!.requirementEvaluations).toEqual(expect.arrayContaining([
+      expect.objectContaining({ goalId: 'early', assessmentAt: Date.parse('2026-10-14'), horizonDays: 10 }),
+      expect.objectContaining({ goalId: 'later', assessmentAt: Date.parse('2026-10-24'), horizonDays: 20 }),
+    ]));
+  });
   it('keeps the actual package task and scaffolds frozen in the decision', () => {
     const custom = { ...task, taskTemplateId: 'future::task', requested: ['future::other'] };
     const selected = selectNext([{ ...candidate('a'), task: custom }], { ...config(), scaffolds: [{ id: 'cue', supplied: ['text'] }] })!;
