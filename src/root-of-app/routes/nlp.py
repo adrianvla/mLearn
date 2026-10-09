@@ -8,7 +8,7 @@ been switched (e.g. cross-language flashcard rendering, batched migrations,
 or clients that key their caches by language).
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
@@ -23,10 +23,14 @@ router = APIRouter()
 
 
 def _resolve_module(language: Optional[str]):
-    """Return the requested language module, falling back to the active one."""
+    """Resolve exactly the requested package, or the active package if unspecified."""
     if language:
-        return config.get_or_load_language(language)
-    return plugin_registry.get_active()
+        module = config.get_or_load_language(language)
+    else:
+        module = plugin_registry.get_active()
+    if module is None:
+        raise HTTPException(status_code=503, detail={"code": "language_unavailable"})
+    return module
 
 
 class TokenizeRequest(BaseModel):
@@ -58,8 +62,6 @@ class TranslationResponse(BaseModel):
 def tokenize(req: TokenizeRequest):
     log.info("requested tokenization: characters=%d", len(req.text))
     mod = _resolve_module(req.language)
-    if mod is None:
-        return {"tokens": []}
     tokens = mod.LANGUAGE_TOKENIZE(req.text)
     return {"tokens": tokens}
 
@@ -68,8 +70,6 @@ def tokenize(req: TokenizeRequest):
 def get_translation(req: TranslationRequest):
     log.info("requested translation: characters=%d", len(req.word))
     mod = _resolve_module(req.language)
-    if mod is None:
-        return {"data": []}
     target_language = req.requested_dictionary_target_language()
     def resolve():
         resolver = getattr(mod, "LANGUAGE_RESOLVE", None)
@@ -100,6 +100,4 @@ def dictionary_words(req: DictionaryWordsRequest):
     """
     log.info(f"requested dictionary words:  {req.language or 'active'}")
     mod = _resolve_module(req.language)
-    if mod is None:
-        return {"words": []}
     return mod.LANGUAGE_DICTIONARY_WORDS()

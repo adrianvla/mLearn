@@ -66,7 +66,7 @@ describe('resolveReaderVerticalLayout', () => {
     for (const supportsVerticalText of [false, true]) {
       for (const declaresVerticalWriting of [false, true]) {
         for (const progressionDirection of [null, 'rtl'] as const) {
-          const expected = isEpubBook && supportsVerticalText && (declaresVerticalWriting || progressionDirection === 'rtl');
+          const expected = isEpubBook && declaresVerticalWriting;
           it(`returns ${expected} for epub=${isEpubBook}, support=${supportsVerticalText}, declaration=${declaresVerticalWriting}, direction=${progressionDirection}`, () => {
             expect(resolveReaderVerticalLayout({
               isEpubBook,

@@ -1,4 +1,7 @@
 import logging
+import pytest
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 import sys
 from pathlib import Path
 
@@ -71,9 +74,9 @@ def test_tokenize_route_does_not_fall_back_to_active_module_for_missing_requeste
     monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language: None)
     monkeypatch.setattr(nlp.plugin_registry, "get_active", lambda: ActiveModule())
 
-    response = nlp.tokenize(nlp.TokenizeRequest(text="مرحبا", language="ar"))
-
-    assert response == {"tokens": []}
+    with pytest.raises(HTTPException) as error:
+        nlp.tokenize(nlp.TokenizeRequest(text="مرحبا", language="ar"))
+    assert error.value.status_code == 503
 
 
 def test_translate_route_does_not_fall_back_to_active_module_for_missing_requested_language(monkeypatch):
@@ -84,9 +87,9 @@ def test_translate_route_does_not_fall_back_to_active_module_for_missing_request
     monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language: None)
     monkeypatch.setattr(nlp.plugin_registry, "get_active", lambda: ActiveModule())
 
-    response = nlp.get_translation(nlp.TranslationRequest(word="سلام", language="fa"))
-
-    assert response == {"data": []}
+    with pytest.raises(HTTPException) as error:
+        nlp.get_translation(nlp.TranslationRequest(word="سلام", language="fa"))
+    assert error.value.status_code == 503
 
 
 def test_translate_route_invokes_optional_resolver_and_preserves_unknown_candidate_data(monkeypatch):
@@ -103,3 +106,29 @@ def test_translate_route_invokes_optional_resolver_and_preserves_unknown_candida
     result = nlp.get_translation(nlp.TranslationRequest(word="X", language="zz", dictionaryTargetLanguage="fr", context=context))
     assert result == expected
     assert nlp.TranslationResponse(**result).model_dump()["resolution"] == expected["resolution"]
+
+
+@pytest.mark.parametrize("endpoint,payload,empty", [
+    ("/tokenize", {"text": ".", "language": "future-package"}, {"tokens": []}),
+    ("/translate", {"word": "no-match", "language": "future-package"}, {"data": [], "resolution": None}),
+    ("/dictionary-words", {"language": "future-package"}, {"words": []}),
+])
+def test_http_unavailable_then_ready_preserves_legitimate_empty(monkeypatch, endpoint, payload, empty):
+    class Module:
+        def LANGUAGE_TOKENIZE(self, text):
+            return []
+        def LANGUAGE_TRANSLATE(self, word):
+            return {"data": []}
+        def LANGUAGE_DICTIONARY_WORDS(self):
+            return {"words": []}
+    app = FastAPI()
+    app.include_router(nlp.router)
+    with TestClient(app) as client:
+        monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language: None)
+        unavailable = client.post(endpoint, json=payload)
+        assert unavailable.status_code == 503
+        assert unavailable.json()["detail"]["code"] == "language_unavailable"
+        monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language: Module())
+        ready = client.post(endpoint, json=payload)
+        assert ready.status_code == 200
+        assert ready.json() == empty

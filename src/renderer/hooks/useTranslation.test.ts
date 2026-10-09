@@ -1219,12 +1219,11 @@ describe('useDictionary', () => {
     expect(mockSetCachedDictionaryByLanguageDB).toHaveBeenCalled();
   });
 
-  it('lookup returns empty array on backend error', async () => {
+  it('lookup exposes backend failure instead of authoritative empty data', async () => {
     mockTranslate.mockRejectedValue(new Error('backend error'));
     const { useDictionary } = await import('./useTranslation');
     const { lookup } = useDictionary();
-    const result = await lookup('error');
-    expect(result).toEqual([]);
+    await expect(lookup('error')).rejects.toThrow('backend error');
   });
 
   it('lookup returns empty array when backend data has no definitions', async () => {

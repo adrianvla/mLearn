@@ -903,7 +903,7 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
       return [];
     } catch (e) {
       log.error('Dictionary lookup error:', e);
-      return [];
+      throw e;
     }
   };
 

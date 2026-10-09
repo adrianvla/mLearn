@@ -24,6 +24,16 @@ const DB_VERSION = 1;
 const STORE_TRANSLATIONS = 'translations';
 const STORE_DICTIONARY = 'dictionary';
 const STORE_TOKENS = 'tokens';
+// Legacy empty replies could mean an unavailable service. Keep populated
+// offline data, but require a truthful boundary for reusable negative results.
+const NLP_RESULT_PROTOCOL = 2;
+
+function isEmptyNlpResult(value: unknown): boolean {
+  return Array.isArray(value) ? value.length === 0
+    : value !== null && typeof value === 'object'
+      && Array.isArray((value as TranslationResponse).data)
+      && (value as TranslationResponse).data.length === 0;
+}
 
 function buildLookupScope(language?: string, dictionaryTargetLanguage?: string): string {
   const base = language || 'default';
@@ -81,8 +91,8 @@ async function idbGet<T>(storeName: string, key: string): Promise<T | null> {
       const store = tx.objectStore(storeName);
       const req = store.get(key);
       req.onsuccess = () => {
-        const row = req.result as { key: string; value: T; updatedAt: number } | undefined;
-        resolve(row ? row.value : null);
+        const row = req.result as { key: string; value: T; updatedAt: number; nlpProtocol?: number } | undefined;
+        resolve(row && (row.nlpProtocol === NLP_RESULT_PROTOCOL || !isEmptyNlpResult(row.value)) ? row.value : null);
       };
       req.onerror = () => reject(req.error);
     });
@@ -98,7 +108,7 @@ async function idbPut<T>(storeName: string, key: string, value: T): Promise<void
     return new Promise((resolve, reject) => {
       const tx = db.transaction(storeName, 'readwrite');
       const store = tx.objectStore(storeName);
-      store.put({ key, value, updatedAt: Date.now() });
+      store.put({ key, value, updatedAt: Date.now(), nlpProtocol: NLP_RESULT_PROTOCOL });
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -116,7 +126,7 @@ async function idbPutBatch<T>(storeName: string, entries: Array<{ key: string; v
       const store = tx.objectStore(storeName);
       const now = Date.now();
       for (const { key, value } of entries) {
-        store.put({ key, value, updatedAt: now });
+        store.put({ key, value, updatedAt: now, nlpProtocol: NLP_RESULT_PROTOCOL });
       }
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);

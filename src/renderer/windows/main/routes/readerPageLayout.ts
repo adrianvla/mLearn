@@ -49,9 +49,9 @@ export function resolveReaderVerticalLayout(opts: {
   progressionDirection: BookProgressionDirection;
   supportsVerticalText: boolean;
 }): boolean {
-  return opts.isEpubBook
-    && opts.supportsVerticalText
-    && (opts.declaresVerticalWriting || opts.progressionDirection === 'rtl');
+  // Page progression chooses spread order; only authored writing mode chooses
+  // vertical text. A study package's capabilities cannot reinterpret a book.
+  return opts.isEpubBook && opts.declaresVerticalWriting;
 }
 
 export function getVisiblePageIndices(
