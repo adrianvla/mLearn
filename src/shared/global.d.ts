@@ -367,6 +367,7 @@ sendLogRecord: (record: unknown) => void;
   createSandbox: (input: import('./world').CreateCastInput) => Promise<import('./world').Thread>;
   createPersistentRoom: (input: import('./world').CreateCastInput) => Promise<import('./world').Room>;
   updateThread: (thread: import('./world').Thread) => Promise<import('./world').Thread>;
+  updateConversationMediaReference: (context: { roomId: string; threadId?: string }, reference?: import('./world').ThreadMediaRef) => Promise<import('./world').WorldSnapshot>;
   deleteThread: (roomId: string, threadId: string) => Promise<void>;
   rememberThis: (input: import('./world').RememberThisInput) => Promise<import('./world').JournalEvent>;
   triggerReflection: (input: { roomId?: string; threadId?: string }) => Promise<boolean>;

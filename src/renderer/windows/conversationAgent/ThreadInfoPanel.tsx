@@ -22,6 +22,7 @@ interface ThreadInfoPanelProps {
   roomScenario?: ScenarioSpec;
   thread: Thread | null;
   context: ConversationAgentContext | null;
+  roomMediaRef?: ThreadMediaRef;
   mediaReferences?: ThreadMediaRef[];
   mediaReferenceSaving?: boolean;
   mediaReferenceError?: string;
@@ -98,7 +99,7 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
     catch (failure) { setStoryError(failure instanceof Error ? failure.message : String(failure)); }
     finally { setStorySaving(false); }
   };
-  const mediaRef = () => props.thread?.mediaRef;
+  const mediaRef = () => props.thread ? props.thread.mediaRef : props.roomMediaRef;
   // Maintenance runs for THIS context: a sandbox Thread has its own journal;
   // Room turns use the Room's Sea stream (including world continuity for the
   // integration trigger). Only pending/failed runs surface here — committed
@@ -401,7 +402,7 @@ export const ThreadInfoPanel: Component<ThreadInfoPanelProps> = (props) => {
         </Disclosure>}
       </Show>
 
-      <Show when={props.thread && props.onChangeMediaReference}>
+      <Show when={(props.thread || props.roomId) && props.onChangeMediaReference}>
         <section class="ca-thread-section">
           <span class="ca-thread-info-label">{t('mlearn.ConversationAgent.Details.ContextLabel')}</span>
           <p>{t('mlearn.ConversationAgent.Details.MediaReferenceHint')}</p>

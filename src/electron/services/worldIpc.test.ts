@@ -79,6 +79,31 @@ describe('worldIpc', () => {
     expect((await mod.getWorldState()).rooms.map(room => room.title).sort()).toEqual(['First', 'Second']);
   });
 
+  it('attaches, changes and removes a reference for a Room without converting or changing its journal', async () => {
+    seedWorld([room('room-a', ['person-a'])], [], [participant('person-a', 'Same name')]);
+    const reference = { mediaHash: 'a'.repeat(64), mediaName: 'Same title', mediaType: 'book' as const,
+      learningContext: { language: 'future', failedWords: [], failedGrammar: [] },
+      sourceContext: { path: '/books/a.epub', page: 7, 'future:position': { values: ['preserved'] } } };
+    const before = await mod.getWorldState();
+    await mod.updateConversationMediaReference({ roomId: 'room-a' }, reference);
+    vi.resetModules(); const restarted = await import('./worldIpc');
+    expect((await restarted.getWorldState()).rooms[0]).toEqual({ ...before.rooms[0], mediaRef: reference });
+    await restarted.updateConversationMediaReference({ roomId: 'room-a' }, { ...reference, mediaHash: 'b'.repeat(64) });
+    expect((await restarted.getWorldState()).rooms[0].mediaRef?.mediaHash).toBe('b'.repeat(64));
+    await restarted.updateConversationMediaReference({ roomId: 'room-a' });
+    const after = await restarted.getWorldState();
+    expect(after.rooms[0]).toEqual(before.rooms[0]); expect(after.threads).toEqual([]); expect(after.participants).toEqual(before.participants);
+    expect(await journal.readSeaProjection('room-a')).toEqual([]);
+  });
+
+  it('rejects a mismatched reference destination without modifying either conversation', async () => {
+    seedWorld([room('a', []), room('b', [])], [thread('thread-a', 'a')]);
+    const before = await mod.getWorldState();
+    await expect(mod.updateConversationMediaReference({ roomId: 'b', threadId: 'thread-a' },
+      { mediaHash: 'a'.repeat(64), mediaName: 'Offered', mediaType: 'video' })).rejects.toThrow(/context/);
+    expect(await mod.getWorldState()).toEqual(before);
+  });
+
   it('persists explicit practice independently of disposable retention and conflicts on changed mode', async () => {
     const person = await mod.createParticipant({ displayName: 'Sam', kind: 'persistent', personaText: 'Keeps a garden' });
     const request = { operationId: 'mode-test', participantIds: [person.id], interactionMode: 'practice' as const };

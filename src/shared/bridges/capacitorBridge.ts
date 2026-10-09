@@ -2290,6 +2290,9 @@ const worldBridge: WorldBridge = {
   async createPersistentRoom(): Promise<Room> {
     throw new Error('Not supported on mobile');
   },
+  async updateConversationMediaReference(): Promise<WorldSnapshot> {
+    throw new Error('Not supported on mobile');
+  },
   async updateThread(): Promise<Thread> {
     throw new Error('Not supported on mobile');
   },

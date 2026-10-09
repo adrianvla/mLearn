@@ -312,6 +312,8 @@ import { resolveStoryCanon, type StoryBranch, type UnitRange, type StoryTrack, t
 export type ConversationInteractionMode = 'social' | 'practice' | 'scenario';
 
 export interface Room {
+  /** Explicit reference for the Room conversation when no separate Thread is selected. */
+  mediaRef?: ThreadMediaRef;
   /** Activity semantics, independent of retention. Absent legacy mode is social. */
   interactionMode?: ConversationInteractionMode;
   /** Persistent situation; survives individual encounters and Room return. */

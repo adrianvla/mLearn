@@ -487,6 +487,7 @@ export interface WorldBridge {
   createSandbox: (input: import('../world').CreateCastInput) => Promise<Thread>;
   createPersistentRoom: (input: import('../world').CreateCastInput) => Promise<Room>;
   updateThread: (thread: Thread) => Promise<Thread>;
+  updateConversationMediaReference: (context: { roomId: string; threadId?: string }, reference?: import('../world').ThreadMediaRef) => Promise<WorldSnapshot>;
   deleteThread: (roomId: string, threadId: string) => Promise<void>;
   rememberThis: (input: RememberThisInput) => Promise<JournalEvent>;
   /** Fire-and-forget automatic reflection/evolution trigger for a context. */

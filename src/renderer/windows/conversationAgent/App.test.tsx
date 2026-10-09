@@ -108,6 +108,10 @@ const mockBridge = {
     cancelScenario: vi.fn(async () => {}),
     createPersistentRoom: vi.fn(async (input: { operationId: string; participantIds: string[] }) => ({ id: 'room-new', title: 'New room', participantIds: input.participantIds, createdByOperation: input.operationId, createdAt: Date.now() })),
     updateThread: vi.fn(async (thread: WorldSnapshot['threads'][number]) => thread),
+    updateConversationMediaReference: vi.fn(async (context: { roomId: string; threadId?: string }, reference?: import('../../../shared/world').ThreadMediaRef) => ({ ...currentWorld,
+      rooms: currentWorld.rooms.map(room => !context.threadId && room.id === context.roomId ? { ...room, mediaRef: reference } : room),
+      threads: currentWorld.threads.map(thread => thread.id === context.threadId ? { ...thread, mediaRef: reference } : thread),
+    })),
     applyMembership: vi.fn(async (contextId: string, participantId: string, _kind: 'add' | 'remove') => {
       const separate = currentWorld.threads.find(thread => thread.id === contextId && thread.sandbox);
       if (separate?.sandbox) {
@@ -1603,12 +1607,27 @@ describe('conversationAgent window golden path (parity baseline)', () => {
 
     await vi.waitFor(() => expect(container.textContent).toContain('Episode One'));
     expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
+    expect(mockBridge.world.updateConversationMediaReference).not.toHaveBeenCalled();
     expect(container.querySelector('.new-conversation-form')).toBeNull();
     Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Details.AttachMedia')!.click();
-    await vi.waitFor(() => expect(mockBridge.world.updateThread).toHaveBeenCalledWith(expect.objectContaining({
-      id: 'thread-a',
-      mediaRef: expect.objectContaining({ mediaHash: 'video-1', mediaName: 'Episode One', mediaType: 'video' }),
-    })));
+    await vi.waitFor(() => expect(mockBridge.world.updateConversationMediaReference).toHaveBeenCalledWith({ roomId: 'room-a', threadId: 'thread-a' }, expect.objectContaining({ mediaHash: 'video-1', mediaName: 'Episode One', mediaType: 'video' })));
+  });
+
+  it('attaches an offered reference to the selected Room without creating a Thread', async () => {
+    currentWorld = { ...worldFixture, threads: [] };
+    const { ConversationContent } = await import('./App');
+    receiveLaunchContext({ roomId: 'room-a' });
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    receiveLaunchContext({ mediaHash: 'room-media', mediaName: 'Room reference', mediaType: 'book', assessedLevel: null,
+      assessedLevelName: '', language: 'future', failedWords: [], failedGrammar: [],
+      wordLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 }, grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 } });
+    await vi.waitFor(() => expect(container.querySelector('.ca-media-reference-offer')).not.toBeNull());
+    const attach = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Details.AttachMedia')!;
+    expect(attach.disabled).toBe(false); attach.click();
+    await vi.waitFor(() => expect(mockBridge.world.updateConversationMediaReference).toHaveBeenCalledWith({ roomId: 'room-a' }, expect.objectContaining({ mediaName: 'Room reference' })));
+    expect(mockBridge.world.activateScenario).not.toHaveBeenCalled(); expect(mockBridge.world.createPersistentRoom).not.toHaveBeenCalled();
+    expect(mockBridge.llm.llmStream).not.toHaveBeenCalled(); expect(journalEvents).toEqual([]);
   });
 
   it('retains the exact opaque source envelope and returns it without generation', async () => {
@@ -1624,8 +1643,9 @@ describe('conversationAgent window golden path (parity baseline)', () => {
       grammarLevelPercentages: { entries: [], totalUnique: 0, totalOccurrences: 0 }, sourceContext: source });
     await vi.waitFor(() => expect(container.textContent).toContain('Story'));
     expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
+    expect(mockBridge.world.updateConversationMediaReference).not.toHaveBeenCalled();
     Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Details.AttachMedia')!.click();
-    await vi.waitFor(() => expect(mockBridge.world.updateThread).toHaveBeenCalledWith(expect.objectContaining({ mediaRef: expect.objectContaining({ sourceContext: source }) })));
+    await vi.waitFor(() => expect(mockBridge.world.updateConversationMediaReference).toHaveBeenCalledWith({ roomId: 'room-a', threadId: 'thread-a' }, expect.objectContaining({ sourceContext: source })));
     Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Product.Return')!.click();
     expect(onReturn).toHaveBeenCalledWith(source);
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
@@ -1650,6 +1670,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Product.Return')!.click();
     expect(onReturn).toHaveBeenCalledWith(source);
     expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
+    expect(mockBridge.world.updateConversationMediaReference).not.toHaveBeenCalled();
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
   });
 
@@ -1676,6 +1697,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.textContent).toContain('Episode Two'));
     expect(container.querySelector('.new-conversation-form')).toBeNull();
     expect(mockBridge.world.updateThread).not.toHaveBeenCalled();
+    expect(mockBridge.world.updateConversationMediaReference).not.toHaveBeenCalled();
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
     expect(journalEvents).toEqual([]);
   });
@@ -1741,7 +1763,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     });
     await vi.waitFor(() => expect(container.querySelector('.ca-media-reference-offer')).not.toBeNull());
     Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Details.AttachMedia')!.click();
-    await vi.waitFor(() => expect(mockBridge.world.updateThread).toHaveBeenCalled());
+    await vi.waitFor(() => expect(mockBridge.world.updateConversationMediaReference).toHaveBeenCalled());
     const textarea = container.querySelector('textarea.ca-chat-textarea') as HTMLTextAreaElement;
     await vi.waitFor(() => expect(textarea).toBeTruthy());
     await vi.waitFor(() => expect(textarea.disabled).toBe(false));

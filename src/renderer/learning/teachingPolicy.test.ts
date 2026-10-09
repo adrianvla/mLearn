@@ -1,3 +1,4 @@
+import { learningGoalSemanticBasis } from '../../shared/learningGoalCompatibility';
 import { describe, expect, it, vi } from 'vitest';
 import { selectNext, replayFromTrace, POLICY_TRACE_VERSION, POLICY_RANKING_CAP, POLICY_TRACE_DETAIL_CAP } from './teachingPolicy';
 import type { Candidate, EncounterTask } from './types';
@@ -93,9 +94,10 @@ describe('model-driven TeachingPolicy', () => {
         label: 'Alpha objective', provenance: 'package', groups: [{ id: 'alpha', selectors: [{ source: 'frequency', words: ['alpha'] }] }],
         requirements: { conditions: [{ id: 'alpha-floor', kind: 'canonical-capability-threshold', groupIds: ['alpha'], capability, minimum }] },
       } } } });
-    const highEvaluation = evaluateLearningRequirements([goal], 'future', model, events, packageData(0.99), now)[0];
+    const evaluate = (data: LanguageData) => evaluateLearningRequirements([{ ...goal, outcomeRef: { ...goal.outcomeRef!, semanticBasis: learningGoalSemanticBasis(data, goal.outcomeRef!) } }], 'future', model, events, data, now)[0];
+    const highEvaluation = evaluate(packageData(0.99));
     const predicted = highEvaluation.requirements[0].targets![0].mean!;
-    const lowEvaluation = evaluateLearningRequirements([goal], 'future', model, events, packageData(predicted), now)[0];
+    const lowEvaluation = evaluate(packageData(predicted));
     const toWordCandidate = (word: string, entityId: string) => ({ ...candidate(word), word,
       targets: [{ entityId, capability }], task: { ...task, taskTemplateId: 'future-intervention' } });
     const run = (evaluation: typeof highEvaluation) => selectNext([

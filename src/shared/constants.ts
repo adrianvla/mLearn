@@ -392,6 +392,7 @@ export const IPC_CHANNELS = {
   WORLD_ACTIVATE_SCENARIO: 'world-activate-scenario',
   WORLD_CANCEL_SCENARIO: 'world-cancel-scenario',
   WORLD_UPDATE_THREAD: 'world-update-thread',
+  WORLD_UPDATE_MEDIA_REFERENCE: 'world-update-media-reference',
   WORLD_DELETE_THREAD: 'world-delete-thread',
   WORLD_REMEMBER_THIS: 'world-remember-this',
   WORLD_INTEGRATE: 'world-integrate',

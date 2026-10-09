@@ -659,6 +659,8 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_SANDBOX, input),
   createPersistentRoom: (input: import('../shared/world').CreateCastInput): Promise<import('../shared/world').Room> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_CREATE_PERSISTENT_ROOM, input),
+  updateConversationMediaReference: (context: { roomId: string; threadId?: string }, reference?: import('../shared/world').ThreadMediaRef): Promise<import('../shared/world').WorldSnapshot> =>
+    ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_MEDIA_REFERENCE, context, reference),
   updateThread: (thread: import('../shared/world').Thread): Promise<import('../shared/world').Thread> =>
     ipcRenderer.invoke(IPC_CHANNELS.WORLD_UPDATE_THREAD, thread),
   deleteThread: (roomId: string, threadId: string): Promise<void> =>

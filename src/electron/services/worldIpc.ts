@@ -31,6 +31,7 @@ import type {
   RememberThisInput,
   Room,
   Thread,
+  ThreadMediaRef,
   WorldSnapshot,
 } from '../../shared/world';
 import { loadWorld, saveWorld, withWorldMutation } from './worldStore';
@@ -244,6 +245,25 @@ export async function createPersistentRoom(input: CreateCastInput): Promise<Room
   });
 }
 
+/** Changes only reference metadata; no conversation creation, mode or consent mutation. */
+export async function updateConversationMediaReference(context: { roomId: string; threadId?: string }, reference?: ThreadMediaRef): Promise<WorldSnapshot> {
+  if (!context || typeof context.roomId !== 'string' || !context.roomId.trim()
+    || (context.threadId !== undefined && typeof context.threadId !== 'string')) throw new Error('Invalid conversation reference context');
+  if (reference !== undefined && (!reference || typeof reference.mediaHash !== 'string' || !/^[a-f0-9]{64}$/.test(reference.mediaHash)
+    || typeof reference.mediaName !== 'string' || !reference.mediaName.trim() || !['book', 'video'].includes(reference.mediaType))) throw new Error('Invalid media reference');
+  const admitted = reference === undefined ? undefined : structuredClone(reference);
+  return withWorldMutation(async () => {
+    const world = await loadWorld();
+    const target = context.threadId ? world.threads.find(thread => thread.id === context.threadId)
+      : world.rooms.find(room => room.id === context.roomId);
+    if (!target || (context.threadId && threadContextId(target as Thread) !== context.roomId)) throw new Error('Conversation reference context unavailable');
+    if (admitted === undefined) delete target.mediaRef;
+    else target.mediaRef = admitted;
+    await saveWorld(world);
+    return world;
+  });
+}
+
 export async function updateThread(thread: Thread): Promise<Thread> {
   return withWorldMutation(async () => {
     const state = await loadWorld();
@@ -364,6 +384,10 @@ export function setupWorldIPC(): void {
   ipcMain.handle(IPC_CHANNELS.WORLD_CREATE_PERSISTENT_ROOM, async (_event, input: CreateCastInput): Promise<Room> =>
     createPersistentRoom(input)
   );
+
+  ipcMain.handle(IPC_CHANNELS.WORLD_UPDATE_MEDIA_REFERENCE,
+    async (_event, context: { roomId: string; threadId?: string }, reference?: ThreadMediaRef): Promise<WorldSnapshot> =>
+      updateConversationMediaReference(context, reference));
 
   ipcMain.handle(
     IPC_CHANNELS.WORLD_UPDATE_THREAD,

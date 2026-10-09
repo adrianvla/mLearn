@@ -411,6 +411,7 @@ const worldBridge: WorldBridge = {
   cancelScenario: (id) => getIPC().cancelScenario(id),
   createSandbox: (input) => getIPC().createSandbox(input),
   createPersistentRoom: (input) => getIPC().createPersistentRoom(input),
+  updateConversationMediaReference: (context, reference) => getIPC().updateConversationMediaReference(context, reference),
   updateThread: (thread) => getIPC().updateThread(thread),
   deleteThread: (roomId, threadId) => getIPC().deleteThread(roomId, threadId),
   rememberThis: (input) => getIPC().rememberThis(input),
