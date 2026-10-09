@@ -98,3 +98,23 @@
 .library-recovery-notice p {
   margin-block: 8px;
 }
+
+/* Standalone content opts in when it does not already reserve native chrome. */
+.window-layout-with-native-controls {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.window-native-controls-strip {
+  flex: 0 0 var(--window-controls-block-start-inset);
+  -webkit-app-region: drag;
+}
+
+.window-content-below-native-controls {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}

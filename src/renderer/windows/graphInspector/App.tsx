@@ -155,7 +155,7 @@ const ScopedGraphInspector: Component = () => {
   const language = () => context().language ?? settings.language;
   return <GraphProvider language={language}><GraphInspectorContent sourceLanguage={language} initialEntity={() => context().entityId} /></GraphProvider>;
 };
-export const GraphInspectorApp: Component = () => <WindowWrapper showDragRegion><ScopedGraphInspector /></WindowWrapper>;
+export const GraphInspectorApp: Component = () => <WindowWrapper showDragRegion reserveNativeControls><ScopedGraphInspector /></WindowWrapper>;
 
 function capabilitiesFor(neighborhood: GraphNeighborhood): CapabilityKey[] {
   if (neighborhood.center.kind !== 'surface') return [];

@@ -15,6 +15,7 @@ const testSettings = {
   builtinModel: 'selected.gguf',
 };
 let settingsLoading = false;
+let desktopEnvironment = false;
 let libraryError: string | null = null;
 const retryLibraryLoad = vi.fn();
 
@@ -111,7 +112,8 @@ vi.mock('./windowWrapperNotifications', () => ({
 }));
 
 vi.mock('../../shared/platform', () => ({
-  isElectron: () => false,
+  isElectron: () => desktopEnvironment,
+  getOS: () => 'mac',
   getPlatform: () => 'web',
 }));
 
@@ -135,6 +137,7 @@ describe('WindowWrapper', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     settingsLoading = false;
+    desktopEnvironment = false;
     libraryError = null;
     retryLibraryLoad.mockClear();
     testSettings.llmProvider = 'cloud';
@@ -146,6 +149,30 @@ describe('WindowWrapper', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('reserves a separate native-controls strip before the bounded standalone content', async () => {
+    desktopEnvironment = true;
+    const { WindowWrapper } = await import('./WindowWrapper');
+    const dispose = render(() => <WindowWrapper {...{ reserveNativeControls: true }}><main data-testid="standalone-content">Graph</main></WindowWrapper>, container);
+    try {
+      const layout = container.querySelector('.window-layout-with-native-controls');
+      const strip = layout?.querySelector('.window-native-controls-strip');
+      const content = layout?.querySelector('.window-content-below-native-controls');
+      expect(layout).not.toBeNull();
+      expect(strip).toBeDefined();
+      expect(strip).not.toBeNull();
+      expect(content?.querySelector('[data-testid="standalone-content"]')).not.toBeNull();
+      expect(strip?.nextElementSibling).toBe(content);
+      expect(container.querySelector('.window-chrome-inset-provider')?.getAttribute('style')).toContain('--window-controls-block-start-inset: 28px');
+    } finally { dispose(); }
+  });
+
+  it('leaves content that already owns its chrome outside the optional reserved layout', async () => {
+    const { WindowWrapper } = await import('./WindowWrapper');
+    const dispose = render(() => <WindowWrapper><main>Shell</main></WindowWrapper>, container);
+    try { expect(container.querySelector('.window-layout-with-native-controls')).toBeNull(); }
+    finally { dispose(); }
   });
 
   it('shows a protected-library recovery dialog with one working retry action', async () => {

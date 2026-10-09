@@ -193,17 +193,29 @@ function getInstallReceiptPath(installKey: string, root = resolveLanguageDataRoo
   return path.join(root, '.install-receipts', `${safeKey}.json`);
 }
 
-function readInstallReceiptVersion(installKey: string): string | undefined {
+function readInstallReceipt(installKey: string, root?: string): Record<string, unknown> | undefined {
   try {
-    const parsed = JSON.parse(fs.readFileSync(getInstallReceiptPath(installKey), 'utf-8')) as unknown;
+    const parsed = JSON.parse(fs.readFileSync(getInstallReceiptPath(installKey, root), 'utf-8')) as unknown;
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
       return undefined;
     }
-    const version = (parsed as { version?: unknown }).version;
-    return typeof version === 'string' ? version : undefined;
+    return parsed as Record<string, unknown>;
   } catch {
     return undefined;
   }
+}
+
+interface AssetContentBinding { sourceSha256: string; installedSha256: string }
+
+function readAssetContentBinding(receipt: Record<string, unknown> | undefined, assetPath: string): AssetContentBinding | undefined {
+  const bindings = receipt?.assetContent;
+  if (typeof bindings !== 'object' || bindings === null || Array.isArray(bindings)) return undefined;
+  const binding = (bindings as Record<string, unknown>)[assetPath];
+  if (typeof binding !== 'object' || binding === null || Array.isArray(binding)) return undefined;
+  const { sourceSha256, installedSha256 } = binding as Record<string, unknown>;
+  return typeof sourceSha256 === 'string' && /^[a-f0-9]{64}$/.test(sourceSha256)
+    && typeof installedSha256 === 'string' && /^[a-f0-9]{64}$/.test(installedSha256)
+    ? { sourceSha256, installedSha256 } : undefined;
 }
 
 function compareStructuredVersions(left: string, right: string): number | undefined {
@@ -239,13 +251,15 @@ function installedVersionSatisfiesExpected(installedVersion: string, expectedVer
   return comparison !== undefined && comparison >= 0;
 }
 
-function writeInstallReceipt(installKey: string, version?: string, root?: string): void {
-  if (!version) return;
+function writeInstallReceipt(installKey: string, version?: string, root?: string, assets: readonly LanguageDataAsset[] = []): void {
   const receiptPath = getInstallReceiptPath(installKey, root);
   fs.mkdirSync(path.dirname(receiptPath), { recursive: true });
+  const installedRoot = root ?? resolveLanguageDataRoot(getLanguageDataRoot());
+  const assetContent = Object.fromEntries(assets.filter(asset => asset.sha256)
+    .map(asset => [asset.path, { sourceSha256: asset.sha256, installedSha256: computeSha256(path.join(installedRoot, asset.path)) }]));
   fs.writeFileSync(
     receiptPath,
-    JSON.stringify({ version, installedAt: new Date().toISOString() }, null, 2),
+    JSON.stringify({ version, installedAt: new Date().toISOString(), assetContent }, null, 2),
     'utf-8',
   );
 }
@@ -262,6 +276,10 @@ function syncInstalledDictionaryPackMetadata(
   if (!dictionaryPack || !metadataAsset) return;
 
   const metadataPath = path.join(root, metadataAsset.path);
+  const coreInstallKey = getInstallKey(language);
+  const coreReceipt = readInstallReceipt(coreInstallKey, root);
+  const binding = readAssetContentBinding(coreReceipt, metadataAsset.path);
+  const trustedBeforeMerge = binding?.installedSha256 === computeSha256(metadataPath);
   const parsed = JSON.parse(fs.readFileSync(metadataPath, 'utf-8')) as unknown;
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new Error(`Installed language metadata is invalid for ${language}`);
@@ -291,11 +309,21 @@ function syncInstalledDictionaryPackMetadata(
   const temporaryPath = `${metadataPath}.installing`;
   fs.writeFileSync(temporaryPath, `${JSON.stringify(updatedMetadata, null, 2)}\n`, 'utf-8');
   fs.renameSync(temporaryPath, metadataPath);
+  // Only an acknowledged derivation may extend an existing content binding.
+  // Preserve its source identity; dictionary transport cannot bless core drift.
+  if (coreReceipt && binding && trustedBeforeMerge) {
+    const priorBindings = coreReceipt.assetContent as Record<string, unknown>;
+    coreReceipt.assetContent = { ...priorBindings, [metadataAsset.path]: {
+      sourceSha256: binding.sourceSha256, installedSha256: computeSha256(metadataPath),
+    } };
+    fs.writeFileSync(getInstallReceiptPath(coreInstallKey, root), JSON.stringify(coreReceipt, null, 2), 'utf-8');
+  }
 }
 
 function installReceiptVersionMatches(installKey: string, expectedVersion?: string): boolean {
   if (!expectedVersion) return true;
-  const installedVersion = readInstallReceiptVersion(installKey);
+  const rawVersion = readInstallReceipt(installKey)?.version;
+  const installedVersion = typeof rawVersion === 'string' ? rawVersion : undefined;
   return installedVersion === undefined || installedVersionSatisfiesExpected(installedVersion, expectedVersion);
 }
 
@@ -363,7 +391,7 @@ function readInstalledLanguageMetadataVersion(asset: LanguageDataAsset, filePath
   }
 }
 
-function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string): LanguageDataAssetStatus {
+function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string, receipt?: Record<string, unknown>): LanguageDataAssetStatus {
   const installedPath = getInstalledLanguageAssetPath(asset);
   if (!fs.existsSync(installedPath)) {
     return {
@@ -386,9 +414,25 @@ function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string): Lan
         validationIssue: 'not-a-file',
       };
     }
+    const binding = readAssetContentBinding(receipt, asset.path);
+    if (asset.sha256 && binding && binding.sourceSha256 !== asset.sha256) {
+      const installedVersion = expectedVersion ? readInstalledLanguageMetadataVersion(asset, installedPath) : undefined;
+      if (!installedVersion || installedVersion === expectedVersion || !installedVersionSatisfiesExpected(installedVersion, expectedVersion!)) {
+        return { id: asset.id, path: installedPath, installed: false, outdated: true,
+          sizeBytes: asset.sizeBytes, validationIssue: `source-checksum-mismatch:${binding.sourceSha256}` };
+      }
+    }
+    if (isLanguageMetadataAsset(asset) && asset.sha256 && binding?.sourceSha256 === asset.sha256
+      && binding.installedSha256 === computeSha256(installedPath)) {
+      return { id: asset.id, path: installedPath, installed: true, sizeBytes: asset.sizeBytes };
+    }
     if (expectedVersion && isLanguageMetadataAsset(asset)) {
       const installedVersion = readInstalledLanguageMetadataVersion(asset, installedPath);
-      if (installedVersion !== undefined && installedVersionSatisfiesExpected(installedVersion, expectedVersion)) {
+      const contentVerified = !asset.sha256;
+      // A catalog lag must not downgrade a newer package. Equal version labels
+      // need content proof; otherwise the normal size/SHA validation applies.
+      if (installedVersion !== undefined && installedVersionSatisfiesExpected(installedVersion, expectedVersion)
+        && (installedVersion !== expectedVersion || contentVerified)) {
         return {
           id: asset.id,
           path: installedPath,
@@ -396,7 +440,7 @@ function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string): Lan
           sizeBytes: asset.sizeBytes,
         };
       }
-      if (installedVersion !== undefined) {
+      if (installedVersion !== undefined && !installedVersionSatisfiesExpected(installedVersion, expectedVersion)) {
         return {
           id: asset.id,
           path: installedPath,
@@ -417,7 +461,7 @@ function getAssetStatus(asset: LanguageDataAsset, expectedVersion?: string): Lan
         validationIssue: `size-mismatch:${stat.size}`,
       };
     }
-    if (shouldVerifyExistingChecksum(asset)) {
+    if (shouldVerifyExistingChecksum(asset) || (asset.sha256 && !binding)) {
       const actual = computeSha256(installedPath);
       if (actual !== asset.sha256) {
         return {
@@ -513,8 +557,9 @@ function selectBundleFiles(
   });
 }
 
-function getAssetStatuses(assets: LanguageDataAsset[], expectedVersion?: string) {
-  return assets.map((asset) => getAssetStatus(asset, expectedVersion));
+function getAssetStatuses(assets: LanguageDataAsset[], expectedVersion?: string, installKey?: string) {
+  const receipt = installKey ? readInstallReceipt(installKey) : undefined;
+  return assets.map((asset) => getAssetStatus(asset, expectedVersion, receipt));
 }
 
 function getMissingRequiredAssets(assets: LanguageDataAsset[], assetStatuses: ReturnType<typeof getAssetStatuses>): string[] {
@@ -545,7 +590,7 @@ export function getLanguageDataStatus(
 ): LanguageDataStatus {
   const assets = getAssets(language, langData, dictionaryTargetLanguage, options);
   const expectedVersion = getInstallManifest(language, langData, dictionaryTargetLanguage)?.version;
-  const assetStatuses = getAssetStatuses(assets, expectedVersion);
+  const assetStatuses = getAssetStatuses(assets, expectedVersion, getInstallKey(language, dictionaryTargetLanguage));
   const missingAssets = assets
     .filter((asset, index) => asset.required !== false && !assetStatuses[index]?.installed)
     .map((asset) => asset.id);
@@ -586,7 +631,7 @@ export function getLanguageDataCatalogStatus(
           .sort((left, right) => left.targetLanguage.localeCompare(right.targetLanguage))
           .map((pack) => {
             const packAssets = pack.assets;
-            const packAssetStatuses = getAssetStatuses(packAssets, pack.version);
+            const packAssetStatuses = getAssetStatuses(packAssets, pack.version, getInstallKey(language, pack.targetLanguage));
             const missingRequiredAssets = getMissingRequiredAssets(packAssets, packAssetStatuses);
             const outdated = hasOutdatedAssets(packAssetStatuses)
               || (missingRequiredAssets.length === 0 && !installReceiptVersionMatches(getInstallKey(language, pack.targetLanguage), pack.version));
@@ -692,7 +737,7 @@ async function installBundle(
         fs.copyFileSync(path.join(extractDir, 'files', file.path), destination);
       }
       if (dictionaryTargetLanguage && langData) syncInstalledDictionaryPackMetadata(language, langData, dictionaryTargetLanguage, candidateRoot);
-      writeInstallReceipt(getInstallKey(language, dictionaryTargetLanguage), expectedVersion, candidateRoot);
+      writeInstallReceipt(getInstallKey(language, dictionaryTargetLanguage), expectedVersion, candidateRoot, selected);
       if (additional) await installBundle(language, additional.bundle, onProgress, `${language}-${additional.target}-dictionary`, additional.target,
         additional.assets, langData, additional.version, onPhase, candidateRoot);
       // Every advertised retained component must remain compatible with the new

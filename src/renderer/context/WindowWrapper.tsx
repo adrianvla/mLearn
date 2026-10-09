@@ -384,10 +384,11 @@ export const LibraryLoadGuard: Component<{ recoveryAccess?: boolean }> = (props)
  * IMPORTANT: MigrationHandler is placed BEFORE FlashcardProvider so that
  * the migration event listener is registered before flashcards are loaded
  */
-const isMacOS = isElectron() && getOS() === 'mac';
 
-export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean; showWindowLoadingScreen?: boolean; libraryRecoveryAccess?: boolean; libraryGuard?: boolean }> = (props) => {
+export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; reserveNativeControls?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean; showWindowLoadingScreen?: boolean; libraryRecoveryAccess?: boolean; libraryGuard?: boolean }> = (props) => {
+  const isMacOS = isElectron() && getOS() === 'mac';
   const needsDragRegion = (props.showDragRegion !== false) && !props.showTitleBar && isElectron();
+  const reservesNativeControls = props.reserveNativeControls && isMacOS && !props.showTitleBar;
   const needsTitleBar = props.showTitleBar && isElectron();
   const windowControlsInsets = getWindowControlsInsets({
     isElectron: isElectron(),
@@ -423,12 +424,17 @@ export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitl
                 <FlashcardProvider>
                   <Show when={props.libraryGuard !== false}><LibraryLoadGuard recoveryAccess={props.libraryRecoveryAccess} /></Show>
                   <Show when={needsTitleBar} fallback={
-                    <>
-                      <Show when={needsDragRegion}>
-                        <WindowDragRegion />
-                      </Show>
-                      {props.children}
-                    </>
+                    <Show when={reservesNativeControls} fallback={
+                      <>
+                        <Show when={needsDragRegion}><WindowDragRegion /></Show>
+                        {props.children}
+                      </>
+                    }>
+                      <div class="window-layout-with-native-controls">
+                        <div class="window-native-controls-strip" />
+                        <div class="window-content-below-native-controls">{props.children}</div>
+                      </div>
+                    </Show>
                   }>
                     <div class="window-layout-with-titlebar">
                       <Show when={isMacOS} fallback={<TitleBar />}>

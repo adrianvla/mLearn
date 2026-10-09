@@ -281,7 +281,7 @@ describe('languageDataService', () => {
     );
   });
 
-  it('accepts same-version language metadata even when local normalized bytes differ from the catalog', () => {
+  it('rejects same-version language metadata without verified content identity', () => {
     const installedMetadataPath = path.join(tempDir.tmpDir, 'language-data', 'languages', 'zz.json');
     fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
     fs.writeFileSync(
@@ -324,9 +324,78 @@ describe('languageDataService', () => {
 
     const status = mod.getLanguageDataStatus('zz', langData);
 
-    expect(status.installed).toBe(true);
-    expect(status.outdated).toBe(false);
-    expect(status.missingAssets).toEqual([]);
+    expect(status.installed).toBe(false);
+    expect(status.outdated).toBe(true);
+    expect(status.missingAssets).toEqual(['language-metadata']);
+  });
+
+  it.each(['bundle-v2', undefined])('binds source metadata with version %s through archive activation, dictionary derivation, reuse and same-version repair', async (packageVersion) => {
+    const metadataPath = 'languages/zz.json';
+    const metadata = { name: 'Future language', languageData: { version: packageVersion, dictionaryPacks: {} },
+      'future::unknown': { nested: ['arbitrary', { value: 37 }] } };
+    const coreBytes = JSON.stringify(metadata);
+    const dictionaryBytes = 'a'.repeat(5 * 1024 * 1024 + 1);
+    const archives = new Map<string, string>();
+    const buildBundle = async (label: string, assetPath: string, bytes: string, version: string | undefined) => {
+      const source = path.join(tempDir.tmpDir, label);
+      const archive = path.join(tempDir.tmpDir, `${label}.tar.gz`);
+      const asset = { id: assetPath === metadataPath ? 'language-metadata' : 'dictionary-fr',
+        path: assetPath, sizeBytes: Buffer.byteLength(bytes), sha256: sha256(bytes), required: true };
+      fs.mkdirSync(path.dirname(path.join(source, 'files', assetPath)), { recursive: true });
+      fs.writeFileSync(path.join(source, 'files', assetPath), bytes);
+      fs.writeFileSync(path.join(source, 'manifest.json'), JSON.stringify({ schemaVersion: 1, language: 'zz', version, files: [asset] }));
+      await tar.c({ gzip: true, file: archive, cwd: source }, ['manifest.json', 'files']);
+      const url = `https://example.com/${label}.tar.gz`;
+      archives.set(url, archive);
+      return { asset, bundle: { url, sizeBytes: fs.statSync(archive).size, sha256: sha256(fs.readFileSync(archive)) } };
+    };
+    const core = await buildBundle('bound-core', metadataPath, coreBytes, packageVersion);
+    const dictionary = await buildBundle('bound-dictionary', 'dictionaries/zz/fr/dictionary.db', dictionaryBytes, 'dict-v1');
+    const langData = makeLangData({ languageData: { version: packageVersion, assets: [core.asset], bundle: core.bundle,
+      dictionaryPacks: { fr: { targetLanguage: 'fr', name: 'French', version: 'dict-v1', assets: [dictionary.asset], bundle: dictionary.bundle } } } });
+    mockDownloadFileWithProgress.mockImplementation(async (url: string, destination: string) => {
+      const archive = archives.get(url);
+      if (!archive) throw new Error(`Unexpected archive ${url}`);
+      fs.copyFileSync(archive, destination);
+    });
+    expect((await mod.ensureLanguageDataInstalled('zz', langData)).installed).toBe(true);
+    const receiptPath = path.join(tempDir.tmpDir, 'language-data', '.install-receipts', 'zz.json');
+    expect(JSON.parse(readInstalled(receiptPath, 'utf-8')).assetContent[metadataPath]).toEqual({
+      sourceSha256: sha256(coreBytes), installedSha256: sha256(coreBytes),
+    });
+    await mod.ensureLanguageDataInstalled('zz', langData);
+    expect(mockDownloadFileWithProgress).toHaveBeenCalledTimes(1);
+
+    await mod.ensureLanguageDataInstalled('zz', langData, undefined, 'fr');
+    const installedPath = mod.getInstalledLanguageAssetPath(core.asset);
+    const derivedBytes = fs.readFileSync(installedPath, 'utf-8');
+    expect(derivedBytes).not.toBe(coreBytes);
+    expect(JSON.parse(derivedBytes)['future::unknown']).toEqual(metadata['future::unknown']);
+    expect(JSON.parse(readInstalled(receiptPath, 'utf-8')).assetContent[metadataPath]).toEqual({
+      sourceSha256: sha256(coreBytes), installedSha256: sha256(derivedBytes),
+    });
+    expect(mod.getLanguageDataStatus('zz', langData).installed).toBe(true);
+    await mod.ensureLanguageDataInstalled('zz', langData);
+    expect(mockDownloadFileWithProgress).toHaveBeenCalledTimes(2);
+    const changedDictionary = await buildBundle('same-version-large-dictionary', dictionary.asset.path,
+      'b'.repeat(dictionaryBytes.length), 'dict-v1');
+    const changedDictionaryData = makeLangData({ languageData: { ...langData.zz.languageData!,
+      dictionaryPacks: { fr: { ...langData.zz.languageData!.dictionaryPacks!.fr,
+        assets: [changedDictionary.asset], bundle: changedDictionary.bundle } } } });
+    expect(mod.getLanguageDataStatus('zz', changedDictionaryData, 'fr')).toMatchObject({ installed: false, outdated: true });
+
+    const changedBytes = JSON.stringify({ ...metadata, 'future::unknown': { nested: ['arbitrary', { value: 38 }] } });
+    const changed = await buildBundle('changed-same-version-core', metadataPath, changedBytes, packageVersion);
+    const changedData = makeLangData({ languageData: { ...langData.zz.languageData!, assets: [changed.asset], bundle: changed.bundle } });
+    expect(mod.getLanguageDataStatus('zz', changedData)).toMatchObject({ installed: false, outdated: true });
+    expect((await mod.ensureLanguageDataInstalled('zz', changedData)).installed).toBe(true);
+    expect(readInstalled(path.join(tempDir.tmpDir, 'language-data', metadataPath), 'utf-8')).toBe(changedBytes);
+    expect(JSON.parse(readInstalled(receiptPath, 'utf-8')).assetContent[metadataPath]).toEqual({
+      sourceSha256: sha256(changedBytes), installedSha256: sha256(changedBytes),
+    });
+    const activePath = mod.getInstalledLanguageAssetPath(changed.asset);
+    fs.writeFileSync(activePath, changedBytes.replace('38', '39'));
+    expect(mod.getLanguageDataStatus('zz', changedData)).toMatchObject({ installed: false, outdated: true });
   });
 
   it('reports installed language metadata with an older embedded package version as outdated', () => {
