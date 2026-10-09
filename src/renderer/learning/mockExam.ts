@@ -1,3 +1,4 @@
+import { questionObjectiveHash } from '../../shared/questionReviewCompatibility';
 /**
  * Checkpoints and mock tests (R13) — pure core.
  *
@@ -35,7 +36,7 @@
  */
 
 import type { AttemptQuality } from '../../shared/constants';
-import { nextAttemptId, type
+import { collectRetractedAttemptIds, nextAttemptId, type
   AttemptScaffolds,
   AttemptId,
   KnowledgeEventLog,
@@ -45,6 +46,7 @@ import type { GrammarPracticeItemSource, LanguageData } from '../../shared/types
 import { createSeededRng } from './teachingPolicy';
 import {
   assembleContrastItem,
+  itemContentVersion,
   gradeContrastAnswer,
   isDeliverableItem,
   itemAttemptCounts,
@@ -151,7 +153,7 @@ export function deriveMockBlueprints(
     const blueprint: MockBlueprint = {
       id: mockBlueprintId(language, level),
       language,
-      version: blueprintVersion(language, level, sections, languageData.languageData?.version),
+      version: blueprintVersion(language, level, sections, languageData),
       ...(languageData.languageData?.version !== undefined ? { contentVersion: languageData.languageData.version } : {}),
       level,
       levelLabel: grammarLevelName(level, languageData),
@@ -178,7 +180,7 @@ function blueprintVersion(
   language: string,
   level: number,
   sections: readonly MockSectionPlan[],
-  contentVersion: string | undefined,
+  data: LanguageData,
 ): string {
   const canonical = JSON.stringify({
     id: mockBlueprintId(language, level),
@@ -188,7 +190,10 @@ function blueprintVersion(
       patterns: [...section.patterns],
       requestedCount: section.requestedCount,
     })),
-    contentVersion: contentVersion ?? null,
+    objectives: (data.grammar ?? []).filter(point => sections.some(section => section.patterns.includes(point.pattern)))
+      .map(point => ({ objective: questionObjectiveHash(point), items: point.items?.map(itemContentVersion) ?? [] })),
+    timing: { perItemSeconds: MOCK_PER_ITEM_SECONDS, pauses: 'allowed-and-recorded', timeout: 'unanswered-not-scored' },
+    assistance: 'closed-book',
   });
   let hash = 0x811c9dc5;
   for (let index = 0; index < canonical.length; index += 1) {
@@ -280,6 +285,7 @@ export function assembleMockInstance(
           language: bank.language,
           pattern,
           contentVersion: bank.contentVersion,
+          objectiveHash: bank.objectiveHashes?.get(pattern), requireOwnedReview: bank.objectiveHashes !== undefined,
         });
         if (isDeliverableItem(item)) candidates.push({ source, item, pattern });
       }
@@ -950,7 +956,7 @@ export function rebuildStoredMockSession(
     const steps: MockStepPlan[] = parsed.instance.steps.map((step) => {
       const source = itemsForPattern(bank, step.pattern).find((candidate) => candidate.id === step.item.id);
       if (source === undefined) throw new Error('stored step item retired');
-      const item = assembleContrastItem(source, { language, pattern: step.pattern, contentVersion: bank.contentVersion });
+      const item = assembleContrastItem(source, { language, pattern: step.pattern, contentVersion: bank.contentVersion, seed: step.item.seed, objectiveHash: bank.objectiveHashes?.get(step.pattern), requireOwnedReview: bank.objectiveHashes !== undefined });
       if (item.version !== step.item.version || !isDeliverableItem(item)) throw new Error('stored step item changed');
       return { ...step, source, item };
     });
@@ -1180,4 +1186,23 @@ export function loadMockSummaries(language: string): MockResults[] {
   } catch {
     return [];
   }
+}
+
+
+/** Historical scores stand as dated observations, never silently regraded as current proof. */
+export function mockResultCompatibility(summary: MockResults, languageData: LanguageData, events: KnowledgeEventLog): 'current' | 'changed' | 'retracted' | 'unverified' {
+  if (!summary.attempts) return 'unverified';
+  const retracted = collectRetractedAttemptIds(Object.values(events).flat());
+  if (summary.attempts.some(attempt => attempt.attemptId && retracted.has(attempt.attemptId))) return 'retracted';
+  const blueprint = deriveMockBlueprints(summary.language, languageData).find(candidate => candidate.id === summary.blueprintId);
+  if (!blueprint || blueprint.version !== summary.blueprintVersion) return 'changed';
+  const bank = questionBankFromLanguageData(summary.language, languageData);
+  for (const attempt of summary.attempts) {
+    const source = itemsForPattern(bank, attempt.pattern).find(candidate => candidate.id === attempt.itemRef.id);
+    if (!source || itemContentVersion(source) !== attempt.itemRef.version) return 'changed';
+    const item = assembleContrastItem(source, { language: summary.language, pattern: attempt.pattern,
+      contentVersion: bank.contentVersion, objectiveHash: bank.objectiveHashes?.get(attempt.pattern), requireOwnedReview: true });
+    if (!isDeliverableItem(item)) return 'changed';
+  }
+  return 'current';
 }

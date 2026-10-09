@@ -40,6 +40,14 @@
         "unmet": "需要练习",
         "unknown": "暂时无法测量",
         "unsupported": "此语言包无法测量"
+      },
+      "Revalidate": "重新确认目标",
+      "RevalidateDescription": "已安装的要求或材料范围已改变。请查看范围后重新确认。截止日期和学习记录将保留。",
+      "CompatibilityChanges": {
+        "declarationHash": "要求或选择规则已更改",
+        "membershipHash": "目标材料组成已更改",
+        "contentHash": "练习内容或学习目标已更改",
+        "unverified": "原始语义绑定不可用"
       }
     },
     "LibraryRecovery": {
@@ -2219,7 +2227,12 @@
         "PackageUnavailable": "此工作区未安装语言包，或无法使用该语言包。",
         "PracticeGrammar": "练习语法",
         "ManagePackage": "打开语言包设置",
-        "CheckpointScope": "此检查仅抽查了列出的语法组。其他目标和技能要求均未测量；下方状态汇总所有当前证据，包括本阶段检查之外的学习记录。"
+        "CheckpointScope": "此检查仅抽查了列出的语法组。其他目标和技能要求均未测量；下方状态汇总所有当前证据，包括本阶段检查之外的学习记录。",
+        "HistoricalResult": {
+          "changed": "此历史结果使用已更改或移除的内容，不能证明当前目标要求。",
+          "retracted": "此结果的证据已撤回，历史分数仍然可见。",
+          "unverified": "此历史结果缺少完整的题目引用，无法验证当前兼容性。"
+        }
       },
       "NoLocks": "此浏览器无法安全保存练习。请在支持的浏览器或桌面应用中打开mLearn。"
     },

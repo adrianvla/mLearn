@@ -40,6 +40,14 @@
         "unmet": "Needs work",
         "unknown": "Not yet measurable",
         "unsupported": "Not measured by this language package"
+      },
+      "Revalidate": "Revalidate goal",
+      "RevalidateDescription": "The installed requirements or membership changed. Review this scope, then revalidate to use it. Your deadline and learner evidence are preserved.",
+      "CompatibilityChanges": {
+        "declarationHash": "Requirements or selectors changed",
+        "membershipHash": "Selected material membership changed",
+        "contentHash": "Practice content or objective semantics changed",
+        "unverified": "The original semantic binding is unavailable"
       }
     },
     "LibraryRecovery": {
@@ -2219,7 +2227,12 @@
         "PackageUnavailable": "The language package is not installed or available to this workspace.",
         "PracticeGrammar": "Practice grammar",
         "ManagePackage": "Open language package settings",
-        "CheckpointScope": "Only the listed grammar groups were sampled. Other goals and skill requirements remain unmeasured by this checkpoint; requirement statuses below summarize all current evidence, including work outside it."
+        "CheckpointScope": "Only the listed grammar groups were sampled. Other goals and skill requirements remain unmeasured by this checkpoint; requirement statuses below summarize all current evidence, including work outside it.",
+        "HistoricalResult": {
+          "changed": "This dated result uses changed or retired content. It does not establish the current goal requirements.",
+          "retracted": "Evidence from this dated result was retracted. The historical score remains visible.",
+          "unverified": "This historical result has no complete item references, so current compatibility cannot be verified."
+        }
       },
       "NoLocks": "We cannot safely save practice in this browser. Open mLearn in a supported browser or the desktop app."
     },

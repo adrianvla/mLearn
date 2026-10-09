@@ -392,7 +392,16 @@
                 "The completed sentence naturally reports that he came to work despite having become ill yesterday.",
                 "虽然 expresses the realized concession. 因为 would assert causation and 既然 would present a premise for an inference; neither expresses the declared concession here.",
                 "但是 and 还是 reinforce the concession, but this judgment is semantic rather than a rigid requirement to pair connectors. Only 虽然 meets the declared reading among the offered alternatives; coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:a981c5827e301c56",
+                "taskHash": "9e01632c0a847514185f3e7ef35ec55abbc799c94b39fb22ccfda59eebe0b21b",
+                "objectiveHash": "b34d2e5ed301e869a77e8f5e2fcf7b33da1eca1b9c17da8ca5522d6c1a4b4244",
+                "reviewPayloadHash": "3a9b05c862c7ebee1e04e47afabfc69edd504107c7f76ae375a24303e6e20201",
+                "reviewResultHash": "1aa5502719ec6a68bbdc5fa771a5b540636d7c0414029e5d316370f0ea19d7a0"
+              }
             }
           }
         },
@@ -443,7 +452,16 @@
                 "The completed sentence naturally reports swimming despite the realized fact of cold weather.",
                 "虽然 expresses the declared realized concession. 既然 and 因为 present reasons or premises instead, so they do not meet that reading.",
                 "还是 supports the concessive meaning without establishing an exclusive connector pairing rule. Only 虽然 meets the delivered constraints among the offered alternatives; coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:de500c3e1a1f115a",
+                "taskHash": "b61c8fbff6918ea0bc52753bad14e55a93c0e26841fcb5a6507d63fbbfe22b07",
+                "objectiveHash": "b34d2e5ed301e869a77e8f5e2fcf7b33da1eca1b9c17da8ca5522d6c1a4b4244",
+                "reviewPayloadHash": "3a9b05c862c7ebee1e04e47afabfc69edd504107c7f76ae375a24303e6e20201",
+                "reviewResultHash": "1aa5502719ec6a68bbdc5fa771a5b540636d7c0414029e5d316370f0ea19d7a0"
+              }
             }
           }
         }
@@ -734,7 +752,16 @@
                 "The completed sentence naturally expresses determination to hold the competition even in the unconfirmed event of rain tomorrow.",
                 "即使 itself expresses the hypothetical concession. 既然 presupposes an accepted premise and 因为 asserts a cause; neither meets the explicitly unconfirmed concessive reading.",
                 "也 alone does not make arbitrary connectors hypothetical concessives. Only 即使 meets the delivered constraints among the offered alternatives; coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:1b0f36a59ea7e839",
+                "taskHash": "2c85f33f37aee85113ff790a03529eae9922ab40b1313bf4c536b2f5eb1446f7",
+                "objectiveHash": "262306eb32e40016c3baefae28c9d42666dd087ccec451bf1e4f35cdbd3a2719",
+                "reviewPayloadHash": "3a9b05c862c7ebee1e04e47afabfc69edd504107c7f76ae375a24303e6e20201",
+                "reviewResultHash": "1aa5502719ec6a68bbdc5fa771a5b540636d7c0414029e5d316370f0ea19d7a0"
+              }
             }
           }
         },
@@ -785,7 +812,16 @@
                 "The completed sentence naturally expresses determination not to give up even if this attempt fails. 了 is compatible with a hypothetical completed failure and does not by itself assert that failure occurred.",
                 "即使 expresses the required hypothetical concession. 既然 presupposes an accepted premise and 因为 asserts causation, contrary to the declared reading.",
                 "Only 即使 meets the delivered constraints among the offered alternatives; this does not claim exclusivity across all possible Chinese expressions. Coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:76ad8bd2f0c565c6",
+                "taskHash": "d66cbf250655de27482761e9801ad1717bc1d734af780f98282536e17668777f",
+                "objectiveHash": "262306eb32e40016c3baefae28c9d42666dd087ccec451bf1e4f35cdbd3a2719",
+                "reviewPayloadHash": "3a9b05c862c7ebee1e04e47afabfc69edd504107c7f76ae375a24303e6e20201",
+                "reviewResultHash": "1aa5502719ec6a68bbdc5fa771a5b540636d7c0414029e5d316370f0ea19d7a0"
+              }
             }
           }
         }
@@ -859,7 +895,16 @@
                 "The completed sentence is natural spoken Chinese: everyone having arrived is accepted as the basis for suggesting that the group begin.",
                 "既然 expresses the presupposed reason. 即使 changes it to a hypothetical concession; 虽然 changes it to a realized concession, neither of which satisfies the declared relation.",
                 "就 supports an inference here but is not treated as an exclusive pairing rule. Only 既然 meets the constraints among the offered alternatives; coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:cbb0551a5a4f56d6",
+                "taskHash": "a105eddbcdc70774c85ae0eb2d46f21983796813bd9907d19965b18f862618ae",
+                "objectiveHash": "6d9cae2226618aff96383986228ec8a784ffe109d1109cfd4a0b8b2c322ee045",
+                "reviewPayloadHash": "3a9b05c862c7ebee1e04e47afabfc69edd504107c7f76ae375a24303e6e20201",
+                "reviewResultHash": "1aa5502719ec6a68bbdc5fa771a5b540636d7c0414029e5d316370f0ea19d7a0"
+              }
             }
           }
         },
@@ -910,7 +955,16 @@
                 "The completed sentence naturally treats the decision as an accepted premise for the speaker ceasing opposition.",
                 "既然 expresses the declared presupposed reason. 即使 gives a hypothetical concession; 虽然 gives a concessive relation rather than the required premise-to-response relation.",
                 "就 does not establish a rigid connector pairing. Only 既然 meets the delivered constraints among the offered alternatives; coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:14edf7d255c8cd96",
+                "taskHash": "4f8901ce7111a7196801d61f982097086cdee55d9a253f6c4bbe2dce2d25d6c7",
+                "objectiveHash": "6d9cae2226618aff96383986228ec8a784ffe109d1109cfd4a0b8b2c322ee045",
+                "reviewPayloadHash": "3a9b05c862c7ebee1e04e47afabfc69edd504107c7f76ae375a24303e6e20201",
+                "reviewResultHash": "1aa5502719ec6a68bbdc5fa771a5b540636d7c0414029e5d316370f0ea19d7a0"
+              }
             }
           }
         }

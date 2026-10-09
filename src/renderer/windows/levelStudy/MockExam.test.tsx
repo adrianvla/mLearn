@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+import { questionObjectiveHash, questionSourceHash } from '../../../shared/questionReviewCompatibility';
+import { hashWordSync } from '../../../shared/utils/wordHash';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
@@ -78,12 +80,27 @@ const CONTRAST: Record<PatternName, {
 };
 
 let itemCounter = 0;
+
+// Controlled test-only bindings: these hashes are fixture provenance, not semantic review evidence.
+const fixtureCompatibility = (source: GrammarPracticeItemSource, point: object) => ({
+  protocol: 'question-review-continuity@1' as const,
+  reviewProtocol: 'test-only-question-review@1',
+  contentHash: itemContentVersion(source),
+  taskHash: questionSourceHash(source),
+  objectiveHash: questionObjectiveHash(point),
+  reviewPayloadHash: hashWordSync('test-only fixture payload'),
+  reviewResultHash: hashWordSync('test-only fixture result'),
+});
+
 const semanticRecord = (source: GrammarPracticeItemSource, overrides: Partial<GrammarItemSemanticValidation> = {}): GrammarItemSemanticValidation => ({
   status: 'passed',
   validator: 'fixture-independent-validator@1',
   at: '2026-09-19T00:00:00Z',
   contentHash: itemContentVersion(source),
   reasons: ['fixture record'],
+  protocol: 'test-only-question-review@1',
+  compatibility: fixtureCompatibility(source, { pattern: source.answerSpan, level: source.answerSpan === 'trotzdem' ? 2 : 3, ...(source.answerSpan === 'trotzdem' ? {} : { category: source.answerSpan === 'obwohl' ? 'concession' : 'reasons' }), meaning: ({ weil: 'because', deshalb: 'therefore', obwohl: 'although', trotzdem: 'nevertheless' } as Record<string, string>)[source.answerSpan] }),
+  scope: { language: 'de', pattern: source.answerSpan, packageVersion: '2026.09.19-test' },
   ...overrides,
 });
 const reviewedItem = (pattern: PatternName): GrammarPracticeItemSource => {
@@ -1092,10 +1109,12 @@ describe('MockExam surface (R13/R14)', () => {
 
   it('shows the same package-owned register/condition context that the blind reviewer judged', async () => {
     const data = baseLanguageData();
-    for (const point of data.grammar ?? []) for (const source of point.items ?? []) {
-      source.register = 'An accepted reason motivates the response; choose from the offered alternatives.';
-      source.validation!.semantic!.contentHash = itemContentVersion(source);
-    }
+    // Declare a separate positive fixture up front; this is not a revalidation of production evidence.
+    data.grammar = data.grammar?.map(point => ({ ...point, items: point.items?.map(source => {
+      const contextualSource = { ...source,
+        register: 'An accepted reason motivates the response; choose from the offered alternatives.' };
+      return { ...contextualSource, validation: { semantic: semanticRecord(contextualSource) } };
+    }) }));
     const first = mount(data);
     await startBlueprint(first.container, 2);
     expect(first.container.querySelector('[data-testid="mock-question-register"]')?.textContent)

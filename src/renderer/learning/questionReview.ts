@@ -1,6 +1,7 @@
 import type { GrammarItemSemanticValidation, LanguageData } from '../../shared/types';
+import { questionObjectiveHash, questionSourceHash } from '../../shared/questionReviewCompatibility';
 import { hashWordSync } from '../../shared/utils/wordHash';
-import { assembleContrastItem, itemContentVersion, validateAssembledItem } from './questionBank';
+import { assembleContrastItem, itemContentVersion, validateAssembledItem, legacyQuestionReviewSeed } from './questionBank';
 
 export const QUESTION_REVIEW_PROTOCOL = 'mlearn-blind-review@1';
 
@@ -33,7 +34,7 @@ export function exportQuestionReview(language: string, data: LanguageData): Ques
     protocol: QUESTION_REVIEW_PROTOCOL,
     binding: hashWordSync(JSON.stringify([language, data.languageData?.version, sources.map(({ pattern, source }) => [pattern, itemContentVersion(source)])])),
     items: sources.map(({ pattern, source }, index) => {
-      const item = assembleContrastItem(source, { language, pattern, contentVersion: data.languageData?.version });
+      const item = assembleContrastItem(source, { language, pattern, contentVersion: data.languageData?.version, seed: legacyQuestionReviewSeed(language, source.id, data.languageData?.version ?? '') });
       if (validateAssembledItem(item, source).status !== 'passed') throw new Error(`invalid-review-source:${index}`);
       return { id: `item-${index + 1}`, language, conditions: source.conditions,
         ...(source.register === undefined ? {} : { register: source.register }),
@@ -80,6 +81,9 @@ export function importQuestionReview(language: string, data: LanguageData, froze
       protocol: QUESTION_REVIEW_PROTOCOL, contentHash: itemContentVersion(source),
       scope: { language, pattern: point.pattern, packageVersion: data.languageData?.version ?? '' },
       legitimateAnswers: judgment.legitimateAnswers, reasons: judgment.reasons,
+      compatibility: { protocol: 'question-review-continuity@1', reviewProtocol: QUESTION_REVIEW_PROTOCOL,
+        contentHash: itemContentVersion(source), taskHash: questionSourceHash(source), objectiveHash: questionObjectiveHash(point),
+        reviewPayloadHash: hashWordSync(JSON.stringify(frozen)), reviewResultHash: hashWordSync(JSON.stringify(raw)) },
     };
     return { ...source, validation: { ...source.validation, semantic } };
   }) })) };

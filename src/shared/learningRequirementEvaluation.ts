@@ -3,6 +3,7 @@ import { eventCapability, eventIsMeasurable, readActiveEvidence } from './knowle
 import { grammarEntityId, surfaceEntityId } from './graph/load';
 import type { LearnableTarget } from './graph/types';
 import { isLearningModelRecallEvidence, learningAddress, predictRecall, type LearningModel } from './learningModel';
+import { learningGoalCompatibility, type LearningGoalCompatibility } from './learningGoalCompatibility';
 import { activeLearningGoals, type LearningGoal } from './learningGoals';
 import { resolveLearningOutcome, type ResolvedLearningOutcome } from './learningOutcomes';
 import { hashWordSync } from './utils/wordHash';
@@ -57,6 +58,7 @@ export interface LearningRequirementConditionEvaluation {
 }
 
 export interface LearningGoalRequirementEvaluation {
+  compatibility?: LearningGoalCompatibility;
   goalId: string;
   language: string;
   outcomeId: string;
@@ -237,9 +239,10 @@ export function evaluateLearningRequirements(
 ): LearningGoalRequirementEvaluation[] {
   return activeLearningGoals(goals, language).map(goal => {
     const packageVersion = data?.languageData?.version;
+    const compatibility = learningGoalCompatibility(goal, data);
     const conditions: LearningRequirementConditionEvaluation[] = [];
     const finish = (outcomeId: string): LearningGoalRequirementEvaluation => ({ goalId: goal.id, language: goal.language,
-      outcomeId, ...(goal.outcomeRef?.packageVersion ? { requestedPackageVersion: goal.outcomeRef.packageVersion } : {}),
+      outcomeId, compatibility, ...(goal.outcomeRef?.packageVersion ? { requestedPackageVersion: goal.outcomeRef.packageVersion } : {}),
       ...(packageVersion ? { packageVersion } : {}), ...(goal.outcomeRef?.groupIds ? { selectedGroupIds: [...goal.outcomeRef.groupIds] } : {}),
       ...(goal.scope?.provenance ? { scopeProvenance: goal.scope.provenance } : {}),
       ...(goal.scope?.reference ? { scopeReference: goal.scope.reference } : {}),
@@ -257,10 +260,10 @@ export function evaluateLearningRequirements(
         packageVersion, 'package-unavailable'));
       return finish(goal.outcomeRef?.id ?? '');
     }
-    if (goal.outcomeRef.packageVersion && goal.outcomeRef.packageVersion !== packageVersion) {
+    if (!compatibility.supported) {
       conditions.push(unsupportedCondition(goal, 'availability', 'package-version', 'package-version', {
         requested: goal.outcomeRef.packageVersion, installed: packageVersion,
-      }, packageVersion, 'package-version-unavailable'));
+      }, packageVersion, compatibility.status === 'changed' ? 'goal-semantics-changed' : compatibility.status === 'unbound' ? 'goal-binding-unverified' : compatibility.status === 'unavailable' ? 'outcome-unavailable' : 'package-version-unavailable'));
       return finish(goal.outcomeRef.id);
     }
 

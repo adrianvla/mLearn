@@ -1,6 +1,7 @@
 import { createMemo, For, Show, type Component } from 'solid-js';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { activeLearningGoals, learningGoalsForSettings, type LearningGoal } from '../../../../shared/learningGoals';
+import { learningGoalCompatibility, learningGoalSemanticBasis, revalidateLearningGoal } from '../../../../shared/learningGoalCompatibility';
 import { learningOutcomeOptions, resolveLearningOutcome } from '../../../../shared/learningOutcomes';
 import { Button } from '../Button';
 import { Input } from '../Input';
@@ -18,11 +19,16 @@ export const LearningGoals: Component<{ compact?: boolean; summaryOnly?: boolean
   const goals = createMemo(() => learningGoalsForSettings(settings));
   const active = createMemo(() => activeLearningGoals(goals(), settings.language));
   const options = createMemo(() => learningOutcomeOptions(currentLangData()).filter(option => !active().some(goal => goal.outcomeRef?.id === option.id)));
-  const outcomeUnavailable = (goal: LearningGoal) => {
-    const data = currentLangData();
-    return !goal.outcomeRef || !data
-      || (!!goal.outcomeRef.packageVersion && goal.outcomeRef.packageVersion !== data.languageData?.version)
-      || !resolveLearningOutcome(data, goal.outcomeRef.id, goal.outcomeRef.groupIds)?.complete;
+  const changedParts = (goal: LearningGoal) => {
+    const current = learningGoalCompatibility(goal, currentLangData()).basis;
+    const previous = goal.outcomeRef?.semanticBasis;
+    if (!current || !previous) return ['unverified'];
+    return (['declarationHash', 'membershipHash', 'contentHash'] as const).filter(key => current[key] !== previous[key]);
+  };
+  const outcomeUnavailable = (goal: LearningGoal) => !learningGoalCompatibility(goal, currentLangData()).supported;
+  const revalidate = (goal: LearningGoal) => {
+    const rebound = revalidateLearningGoal(goal, currentLangData());
+    if (rebound) updateSetting('learningGoals', goals().map(item => item.id === goal.id ? rebound : item));
   };
   const evaluationFor = (goal: LearningGoal) => props.requirementEvaluations?.find(evaluation => evaluation.goalId === goal.id);
   const conditionLabel = (condition: LearningRequirementConditionEvaluation) => {
@@ -35,7 +41,7 @@ export const LearningGoals: Component<{ compact?: boolean; summaryOnly?: boolean
     const outcome = resolveLearningOutcome(currentLangData(), id);
     if (!outcome?.complete || active().some(goal => goal.outcomeRef?.id === id)) return;
     updateSetting('learningGoals', [...goals(), { id: crypto.randomUUID(), language: settings.language,
-      outcome: outcome.declaration.label, outcomeRef: { id, packageVersion: currentLangData()?.languageData?.version },
+      outcome: outcome.declaration.label, outcomeRef: { id, packageVersion: currentLangData()?.languageData?.version, semanticBasis: learningGoalSemanticBasis(currentLangData(), { id }) },
       status: 'active', priority: 1, createdAt: Date.now(), scope: { provenance: outcome.declaration.provenance,
         reference: outcome.declaration.reference, words: outcome.words } }]);
   };
@@ -50,10 +56,14 @@ export const LearningGoals: Component<{ compact?: boolean; summaryOnly?: boolean
     <For each={active()}>{goal => <div class="learning-goals__constraints">
       <span class="learning-goals__outcome">{outcomeUnavailable(goal) ? goal.outcome
         : currentLangData()?.learning?.outcomes?.[goal.outcomeRef!.id]?.label ?? goal.outcome}</span>
-      <Show when={outcomeUnavailable(goal)}><span role="status">{t('mlearn.Goals.Unavailable')}</span></Show>
+      <Show when={outcomeUnavailable(goal)}><span role="status">{t('mlearn.Goals.Unavailable')}</span>
+        <Show when={!props.summaryOnly && !props.compact && learningGoalSemanticBasis(currentLangData(), goal.outcomeRef!)}>
+          <span>{t('mlearn.Goals.RevalidateDescription')}</span><For each={changedParts(goal)}>{part => <span>{t(`mlearn.Goals.CompatibilityChanges.${part}`)}</span>}</For><Button size="sm" onClick={() => revalidate(goal)}>{t('mlearn.Goals.Revalidate')}</Button>
+        </Show>
+      </Show>
       <Show when={!props.summaryOnly && !props.compact}>
         <Show when={resolveLearningOutcome(currentLangData(), goal.outcomeRef!.id)?.groups.length! > 1}>
-        <label>{t('mlearn.Goals.Scope')}<Select name="learning-subset" value={goal.outcomeRef?.groupIds?.[0] ?? ''} onChange={event => patch(goal.id, { outcomeRef: { ...goal.outcomeRef!, groupIds: event.currentTarget.value ? [event.currentTarget.value] : undefined } })}>
+        <label>{t('mlearn.Goals.Scope')}<Select name="learning-subset" value={goal.outcomeRef?.groupIds?.[0] ?? ''} onChange={event => { const ref = { ...goal.outcomeRef!, groupIds: event.currentTarget.value ? [event.currentTarget.value] : undefined }; patch(goal.id, { outcomeRef: { ...ref, packageVersion: currentLangData()?.languageData?.version, semanticBasis: learningGoalSemanticBasis(currentLangData(), ref) } }); }}>
           <option value="">{t('mlearn.Goals.AllMaterial')}</option>
           <For each={resolveLearningOutcome(currentLangData(), goal.outcomeRef!.id)?.groups}>{group => <option value={group.id}>{group.label ?? group.id}</option>}</For>
         </Select></label>

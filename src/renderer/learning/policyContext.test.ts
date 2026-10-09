@@ -1,3 +1,4 @@
+import { learningGoalSemanticBasis } from '../../shared/learningGoalCompatibility';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { policyContextFromSettings } from './policyContext';
@@ -11,7 +12,7 @@ describe('policyContextFromSettings', () => {
     const day = 86_400_000;
     const now = Date.parse('2026-10-04');
     const events: KnowledgeEvent[] = [now - 30 * day, now - 20 * day].map((t, i) => ({ t, kind: 'rating', source: 'srs', attemptId: `episode-${i}`, activeLatencyMs: 10_000 }));
-    const settings = { ...DEFAULT_SETTINGS, learningGoals: [{ id: 'future-outcome', language: 'future', outcome: 'Package assessment', outcomeRef: { id: 'scope' }, status: 'active' as const,
+    const settings = { ...DEFAULT_SETTINGS, learningGoals: [{ id: 'future-outcome', language: 'future', outcome: 'Package assessment', outcomeRef: { id: 'scope', semanticBasis: learningGoalSemanticBasis(data, { id: 'scope' }) }, status: 'active' as const,
       priority: 1, createdAt: now, deadline: '2026-10-14' }] };
     const sparse = policyContextFromSettings(settings, 'future', { model: fitLearningModel([], now), events: [], data }).learning!;
     const missed = policyContextFromSettings(settings, 'future', { model: fitLearningModel(events, now), events, data }).learning!;
@@ -26,7 +27,7 @@ describe('policyContextFromSettings', () => {
     const day = 86400000;
     const fitAt = Date.parse('2026-10-04');
     const model = fitLearningModel([], fitAt);
-    const settings = { ...DEFAULT_SETTINGS, learningGoals: [{ id: 'scope', language: 'future', outcome: 'Scope', outcomeRef: { id: 'scope' },
+    const settings = { ...DEFAULT_SETTINGS, learningGoals: [{ id: 'scope', language: 'future', outcome: 'Scope', outcomeRef: { id: 'scope', semanticBasis: learningGoalSemanticBasis(data, { id: 'scope' }) },
       status: 'active' as const, priority: 1, createdAt: fitAt, deadline: '2026-10-14' }] };
     const before = policyContextFromSettings(settings, 'future', { model, events: [], data, nowMs: fitAt }).learning!;
     const later = policyContextFromSettings(settings, 'future', { model, events: [], data, nowMs: fitAt + 11 * day }).learning!;
@@ -46,7 +47,7 @@ describe('policyContextFromSettings', () => {
     expect(settings.examGoal.target).toBe('Arbitrary title');
   });
   it('refuses unresolved identities and scopes structured requirements to their recorded language', () => {
-    const goal = { id: 'scope', language: 'future', outcome: 'Old label', outcomeRef: { id: 'scope' }, status: 'active' as const, priority: 1, createdAt: 1, deadline: '2026-10-11' };
+    const goal = { id: 'scope', language: 'future', outcome: 'Old label', outcomeRef: { id: 'scope', semanticBasis: learningGoalSemanticBasis(data, { id: 'scope' }) }, status: 'active' as const, priority: 1, createdAt: 1, deadline: '2026-10-11' };
     const settings = { ...DEFAULT_SETTINGS, learningGoals: [goal] };
     const runtime = { model: fitLearningModel([], 1), events: [], data };
     expect(policyContextFromSettings(settings, 'future', runtime).goal).toEqual({ kind: 'outcome', target: 'Package assessment', language: 'future', deadlineMs: Date.parse('2026-10-11') });
@@ -64,7 +65,7 @@ describe('policyContextFromSettings', () => {
     } } };
     const deadline = '2026-10-14';
     const settings = { ...DEFAULT_SETTINGS, learningGoals: [{ id: 'scope', language: 'future', outcome: 'Package assessment',
-      outcomeRef: { id: 'scope', packageVersion: 'future-v3' }, status: 'active' as const, priority: 1,
+      outcomeRef: { id: 'scope', packageVersion: 'future-v3', semanticBasis: learningGoalSemanticBasis(requirementData, { id: 'scope' }) }, status: 'active' as const, priority: 1,
       createdAt: Date.parse('2026-10-04'), deadline }] };
     const context = policyContextFromSettings(settings, 'future', { model: fitLearningModel([], Date.parse('2026-10-04')),
       events: [], data: requirementData, nowMs: Date.parse('2026-10-04') });

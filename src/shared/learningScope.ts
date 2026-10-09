@@ -1,3 +1,4 @@
+import { learningGoalCompatibility, type LearningGoalCompatibility } from './learningGoalCompatibility';
 import { activeLearningGoals, learningGoalsForSettings, type LearningGoal } from './learningGoals';
 import { resolveLearningOutcome, type ResolvedLearningOutcome } from './learningOutcomes';
 import { buildWordFrequencyMapFromLanguageData, resolveLanguageFrequencyPayload } from './languageFeatures';
@@ -6,6 +7,7 @@ import { DEFAULT_SETTINGS, type WordFrequencyMap, type LanguageData, type Settin
 export interface ResolvedLearningGoal extends LearningGoal {
   /** Derived package snapshot. Settings-owned scope/provenance/conditions stay untouched. */
   resolvedOutcome: ResolvedLearningOutcome;
+  compatibility: LearningGoalCompatibility;
 }
 
 /** One package-resolved target boundary for Home, Plan and activity policy. */
@@ -18,14 +20,14 @@ export function learningScopeForSettings(settings: Pick<Settings, 'learningGoals
   const unavailable: string[] = [];
   const frequency: WordFrequencyMap = {};
   for (const goal of selected) {
-    const packageVersion = data?.languageData?.version;
-    if (goal.outcomeRef?.packageVersion && goal.outcomeRef.packageVersion !== packageVersion) {
+    const compatibility = learningGoalCompatibility(goal, data);
+    if (!compatibility.supported) {
       unavailable.push(goal.id);
       continue;
     }
     const resolved = resolveLearningOutcome(data, goal.outcomeRef!.id, goal.outcomeRef!.groupIds);
     if (!resolved?.complete) { unavailable.push(goal.id); continue; }
-    goals.push({ ...goal, outcome: resolved.declaration.label, resolvedOutcome: resolved });
+    goals.push({ ...goal, outcome: resolved.declaration.label, resolvedOutcome: resolved, compatibility });
     const membership = new Set(resolved.words);
     for (const group of resolved.declaration.groups.filter(group => !goal.outcomeRef?.groupIds || goal.outcomeRef.groupIds.includes(group.id))) {
       for (const selector of group.selectors.filter(selector => selector.source === 'frequency')) {

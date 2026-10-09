@@ -1,3 +1,5 @@
+import { questionObjectiveHash, questionReviewCompatible, questionSourceHash } from '../../shared/questionReviewCompatibility';
+import { hashWordSync } from '../../shared/utils/wordHash';
 import { applicationTaskMessage } from '../../shared/llmTask';
 import type {
   GrammarItemSemanticValidation,
@@ -14,7 +16,7 @@ export const QUESTION_VALIDATION_BATCH_LIMIT = 32;
 const STORE_SCHEMA_VERSION = 3;
 const storageKey = (language: string): string => `mlearn-question-validations:${language}`;
 /** Store key binds item content, owning objective and installed package revision. */
-export const questionValidationRecordKey = (id: string, contentHash: string, pattern: string, packageVersion?: string): string => `${id}\u0000${contentHash}\u0000${pattern}\u0000${packageVersion ?? ""}`;
+export const questionValidationRecordKey = (id: string, contentHash: string, pattern: string, packageVersion?: string, objectiveHash?: string): string => `${id}\u0000${contentHash}\u0000${pattern}\u0000${objectiveHash ? `objective:${objectiveHash}` : packageVersion ?? ""}`;
 const recordKey = questionValidationRecordKey;
 
 interface StoredValidationEnvelope {
@@ -80,16 +82,15 @@ export function questionValidationFreshness(
   source: GrammarPracticeItemSource,
   storage: Pick<Storage, 'getItem'> | undefined = globalThis.localStorage,
   packageVersion?: string,
+  objectiveHash?: string,
 ): QuestionValidationFreshness {
   const currentHash = itemContentVersion(source);
   const declared = source.validation?.semantic;
-  if (declared !== undefined) return declared.contentHash === currentHash
-    && (declared.scope === undefined || (declared.scope.language === language && declared.scope.pattern === pattern
-      && declared.scope.packageVersion === (packageVersion ?? ''))) ? 'current' : 'stale';
+  if (declared !== undefined) return questionReviewCompatible(declared, language, pattern, packageVersion, currentHash, objectiveHash, objectiveHash !== undefined, source) ? 'current' : 'stale';
 
   const stored = loadQuestionValidationRecords(language, storage);
-  if (stored.has(recordKey(source.id, currentHash, pattern, packageVersion))) {
-    return stored.get(recordKey(source.id, currentHash, pattern, packageVersion))?.contentHash === currentHash ? 'current' : 'stale';
+  if (stored.has(recordKey(source.id, currentHash, pattern, packageVersion, objectiveHash))) {
+    return questionReviewCompatible(stored.get(recordKey(source.id, currentHash, pattern, packageVersion, objectiveHash)), language, pattern, packageVersion, currentHash, objectiveHash, objectiveHash !== undefined, source) ? 'current' : 'stale';
   }
 
   const hasStaleRecord = [...stored.keys()].some((key) => {
@@ -127,8 +128,9 @@ export function languageDataWithStoredQuestionValidations(
       ...(point.items === undefined ? {} : {
         items: point.items.map((source) => {
           const contentHash = itemContentVersion(source);
-          const semantic = records.get(recordKey(source.id, contentHash, point.pattern, data.languageData?.version));
-          return semantic === undefined ? source : { ...source, validation: { semantic } };
+          const semantic = records.get(recordKey(source.id, contentHash, point.pattern, data.languageData?.version, questionObjectiveHash(point)))
+            ?? records.get(recordKey(source.id, contentHash, point.pattern, data.languageData?.version));
+          return !questionReviewCompatible(semantic, language, point.pattern, data.languageData?.version, contentHash, questionObjectiveHash(point), true, source) ? source : { ...source, validation: { ...source.validation, semantic } };
         }),
       }),
     })),
@@ -197,13 +199,13 @@ export async function validateQuestionItemsWithLLM(
   }
   const storage = options.storage ?? globalThis.localStorage;
   const stored = new Map(loadQuestionValidationRecords(language, storage));
-  const pending: Array<{ pattern: string; source: GrammarPracticeItemSource }> = [];
+  const pending: Array<{ pattern: string; source: GrammarPracticeItemSource; objectiveHash: string }> = [];
   const rejectedBeforeLLM: string[] = [];
   let cached = 0;
   for (const point of data.grammar ?? []) {
     for (const source of point.items ?? []) {
       const contentHash = itemContentVersion(source);
-      if (stored.has(recordKey(source.id, contentHash, point.pattern, data.languageData?.version))) {
+      if (questionReviewCompatible(stored.get(recordKey(source.id, contentHash, point.pattern, data.languageData?.version, questionObjectiveHash(point))), language, point.pattern, data.languageData?.version, contentHash, questionObjectiveHash(point), true, source)) {
         cached += 1;
         continue;
       }
@@ -212,7 +214,7 @@ export async function validateQuestionItemsWithLLM(
         rejectedBeforeLLM.push(source.id);
         continue;
       }
-      pending.push({ pattern: point.pattern, source });
+      pending.push({ pattern: point.pattern, source, objectiveHash: questionObjectiveHash(point) });
     }
   }
 
@@ -262,7 +264,7 @@ export async function validateQuestionItemsWithLLM(
       continue;
     }
     const byId = new Map(parsed.map((item) => [item.id, item]));
-    for (const [index, { pattern, source }] of batch.entries()) {
+    for (const [index, { pattern, source, objectiveHash }] of batch.entries()) {
       const result = byId.get(`item-${start + index + 1}`);
       if (result === undefined) {
         errors.push(`missing-validator-result:${source.id}`);
@@ -282,10 +284,12 @@ export async function validateQuestionItemsWithLLM(
         contentHash: itemContentVersion(source),
         protocol: 'mlearn-blind-review@1',
         scope: { language, pattern, packageVersion: data.languageData?.version ?? '' },
+        compatibility: { protocol: 'question-review-continuity@1', reviewProtocol: 'mlearn-blind-review@1',
+          contentHash: itemContentVersion(source), taskHash: questionSourceHash(source), objectiveHash, reviewPayloadHash: hashWordSync(JSON.stringify(payload)), reviewResultHash: hashWordSync(JSON.stringify(parsed)) },
         legitimateAnswers: result.legitimateAnswers,
         reasons: result.reasons,
       };
-      stored.set(recordKey(source.id, record.contentHash, pattern, data.languageData?.version), record);
+      stored.set(recordKey(source.id, record.contentHash, pattern, data.languageData?.version, objectiveHash), record);
       produced.push(record);
     }
     try {

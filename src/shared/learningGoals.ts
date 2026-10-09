@@ -10,7 +10,12 @@ export interface LearningGoal {
   deadline?: string;
   createdAt: number;
   /** Stable installed-package outcome identity. A display label never defines membership. */
-  outcomeRef?: { id: string; packageVersion?: string; groupIds?: string[] };
+  outcomeRef?: { id: string; packageVersion?: string; groupIds?: string[];
+    semanticBasis?: import('./learningGoalCompatibility').LearningGoalSemanticBasis;
+    bindingHistory?: Array<{ at: number; previous: import('./learningGoalCompatibility').LearningGoalSemanticBasis | null;
+      requestedVersion?: string; basis: import('./learningGoalCompatibility').LearningGoalSemanticBasis }>;
+    [key: string]: unknown;
+  };
   /** Outcome requirement, not an algorithm weight; only meaningful with a calibrated outcome model. */
   requiredReliability?: number;
   /** Coverage origin must survive storage; user scope is not an official syllabus. */

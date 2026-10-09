@@ -984,6 +984,9 @@ export interface GrammarItemSemanticValidation {
   /** Versioned independent-review protocol and exact owning objective/package. */
   protocol?: string;
   scope?: { language: string; pattern: string; packageVersion: string };
+  /** Verified continuity of a retained review; original review provenance stays unchanged. */
+  compatibility?: { protocol: 'question-review-continuity@1'; reviewProtocol: string;
+    contentHash: string; taskHash: string; objectiveHash: string; reviewPayloadHash: string; reviewResultHash: string };
   /** Retained independent answer set, before comparison with the declared key. */
   legitimateAnswers?: readonly string[];
   /** Validator reasons/notes (audit provenance). */

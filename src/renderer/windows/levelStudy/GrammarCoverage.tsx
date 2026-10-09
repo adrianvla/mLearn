@@ -1,3 +1,4 @@
+import { questionReviewCompatible } from '../../../shared/questionReviewCompatibility';
 import type { PolicyContext } from '../../learning/types';
 import { Component, For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { useLocalization, useSettings } from '../../context';
@@ -221,7 +222,7 @@ function contrastAdmissionMatches(value: GrammarContrastAdmission, pattern: stri
   if (!value || typeof value !== 'object' || !value.itemRef || !value.decisions || typeof value.decisions !== 'object') return false;
   const source = itemsForPattern(bank, pattern).find(candidate => candidate.id === value.itemRef.id);
   if (!source) return false;
-  const item = questionItemCache.getOrAssemble(source, { language: bank.language, pattern, contentVersion: bank.contentVersion });
+  const item = questionItemCache.getOrAssemble(source, { seed: value.itemRef.seed, language: bank.language, pattern, objectiveHash: bank.objectiveHashes?.get(pattern), requireOwnedReview: bank.objectiveHashes !== undefined, contentVersion: bank.contentVersion });
   const formats = declaredFormats(source);
   return isDeliverableItem(item) && formats.length > 0
     && JSON.stringify(value.itemRef) === JSON.stringify({ id: item.id, version: item.version, seed: item.seed })
@@ -279,9 +280,9 @@ function validStoredAnswer(
   const source = itemsForPattern(bank, pattern).find((candidate) => candidate.id === answered.itemRef.id);
   if (source === undefined) return false;
   const item = questionItemCache.getOrAssemble(source, {
-    language: bank.language,
+    seed: answered.itemRef.seed, language: bank.language,
     pattern,
-    contentVersion: bank.contentVersion,
+    objectiveHash: bank.objectiveHashes?.get(pattern), requireOwnedReview: bank.objectiveHashes !== undefined, contentVersion: bank.contentVersion,
   });
   return isDeliverableItem(item)
     && item.version === answered.itemRef.version
@@ -327,7 +328,7 @@ function deliverablePatterns(
       const item = questionItemCache.getOrAssemble(source, {
         language: bank.language,
         pattern: point.pattern,
-        contentVersion: bank.contentVersion,
+        objectiveHash: bank.objectiveHashes?.get(point.pattern), requireOwnedReview: bank.objectiveHashes !== undefined, contentVersion: bank.contentVersion,
       });
       if (isDeliverableItem(item)) {
         patterns.add(point.pattern);
@@ -976,6 +977,7 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
       const item = questionItemCache.getOrAssemble(source, {
         language: props.language,
         pattern,
+        objectiveHash: bank().objectiveHashes?.get(pattern), requireOwnedReview: true,
         contentVersion: bank().contentVersion,
       });
       if (isDeliverableItem(item)) deliverable.push({ source, item });
@@ -1090,9 +1092,10 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
         const item = questionItemCache.getOrAssemble(source, {
           language: props.language,
           pattern: point.pattern,
+          objectiveHash: bank().objectiveHashes?.get(point.pattern), requireOwnedReview: true,
           contentVersion: bank().contentVersion,
         });
-        if (!isDeliverableItem(item) && !records.has(questionValidationRecordKey(source.id, item.version, point.pattern, bank().contentVersion))) {
+        if (!isDeliverableItem(item) && !questionReviewCompatible(records.get(questionValidationRecordKey(source.id, item.version, point.pattern, bank().contentVersion, bank().objectiveHashes?.get(point.pattern))), props.language, point.pattern, bank().contentVersion, item.version, bank().objectiveHashes?.get(point.pattern), true, source)) {
           pending.set(point.level, true);
           break;
         }

@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS, type LanguageData, type Settings } from '../../../../shared/types';
 import type { LearningGoalRequirementEvaluation } from '../../../../shared/learningRequirementEvaluation';
 import { evaluateLearningRequirements } from '../../../../shared/learningRequirementEvaluation';
+import { learningGoalSemanticBasis, revalidateLearningGoal } from '../../../../shared/learningGoalCompatibility';
+import { learningScopeForSettings } from '../../../../shared/learningScope';
+import { policyContextFromSettings } from '../../../learning/policyContext';
 import { fitLearningModel } from '../../../../shared/learningModel';
 const fixture = vi.hoisted(() => ({ context: {} as Record<string, unknown>, data: null as LanguageData | null,
   translate: (key: string, params?: Record<string, string>) => params ? `${key} ${Object.values(params).join(' ')}` : key }));
@@ -33,7 +36,7 @@ describe('semantic learning outcome controls', () => {
   });
   it('shows only the supplied workload risk without changing the requirement or implying readiness', () => {
     const [settings, setSettings] = createStore({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [{
-      id: 'scope', language: 'future', outcome: 'Defined curriculum', outcomeRef: { id: 'future:curriculum' },
+      id: 'scope', language: 'future', outcome: 'Defined curriculum', outcomeRef: { id: 'future:curriculum', semanticBasis: learningGoalSemanticBasis(loaded, { id: 'future:curriculum' }) },
       status: 'active' as const, priority: 1, createdAt: 1, deadline: '2027-01-01',
     }] });
     fixture.data = loaded;
@@ -147,6 +150,7 @@ describe('semantic learning outcome controls', () => {
       'future:independent': { label: 'Independent package path', provenance: 'package', groups: [{ id: 'open', selectors: [{ source: 'frequency', words: ['chosen'] }] }] },
     } } };
     fixture.context = { settings, updateSetting: (key: string, value: unknown) => setSettings(key as never, value as never) };
+    setSettings('learningGoals', settings.learningGoals!.map(goal => revalidateLearningGoal(goal, fixture.data)!));
     dispose = render(() => <LearningGoals compact summaryOnly onEdit={() => {}} />, document.body);
 
     expect(document.querySelectorAll('.learning-goals__constraints')).toHaveLength(2);
@@ -195,4 +199,40 @@ describe('semantic learning outcome controls', () => {
     expect(document.body.textContent).toContain('future::recall-condition');
     expect(document.body.textContent).toContain('mlearn.Goals.RequirementStatus.unknown');
   });
+});
+
+it('retains edited intent through a dictionary-only package update in the actual resolver and policy consumer', () => {
+  const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future' });
+  fixture.data = loaded;
+  fixture.context = { settings, updateSetting: (key: string, value: unknown) => setSettings(key as never, value as never) };
+  dispose = render(() => <LearningGoals />, document.body);
+  const selector = document.querySelector<HTMLSelectElement>('select[name="learning-outcome"]')!;
+  selector.value = 'future:curriculum'; selector.dispatchEvent(new Event('change', { bubbles: true }));
+  const date = document.querySelector<HTMLInputElement>('input[type="date"]')!;
+  date.value = '2027-04-05'; date.dispatchEvent(new Event('change', { bubbles: true }));
+  const before = JSON.parse(JSON.stringify(settings.learningGoals![0]));
+  const updated = { ...loaded, languageData: { ...loaded.languageData!, version: 'future-v2', bundleSha256: 'changed-dictionary-bytes' } };
+  const model = fitLearningModel([], 1000);
+  const scope = learningScopeForSettings(settings, updated, 'future');
+  expect(scope.unavailable).toEqual([]); expect(scope.goals).toHaveLength(1);
+  const policy = policyContextFromSettings(settings, 'future', { model, events: [], data: updated, nowMs: 1000 });
+  expect(policy.goals?.[0]).toMatchObject({ id: before.id, deadline: before.deadline, priority: before.priority });
+  expect(policy.requirementEvaluations?.[0].requirements).not.toEqual(expect.arrayContaining([expect.objectContaining({ reason: 'package-version-unavailable' })]));
+  expect(JSON.parse(JSON.stringify(settings.learningGoals![0]))).toEqual(before);
+  expect(model).toEqual(fitLearningModel([], 1000));
+});
+
+it('requires explicit revalidation of a legacy same-version goal and preserves intent and its history', () => {
+  const original = { id: 'legacy-same-version', language: 'future', outcome: 'Original scope', status: 'active' as const, priority: 7,
+    createdAt: 1, deadline: '2027-01-02', outcomeRef: { id: 'future:curriculum', packageVersion: 'future-v1' },
+    scope: { provenance: 'user' as const, requirements: { arbitrary: { future: [1, 2] } } } };
+  const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [original] });
+  fixture.data = loaded; fixture.context = { settings, updateSetting: (key: string, value: unknown) => setSettings(key as never, value as never) };
+  dispose = render(() => <LearningGoals />, document.body);
+  expect(learningScopeForSettings(settings, loaded).unavailable).toEqual([original.id]);
+  const button = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Goals.Revalidate')!;
+  expect(button).toBeDefined(); button.click();
+  expect(settings.learningGoals![0]).toMatchObject({ id: original.id, deadline: original.deadline, priority: 7, scope: original.scope });
+  expect(settings.learningGoals![0].outcomeRef!.bindingHistory).toHaveLength(1);
+  expect(learningScopeForSettings(settings, loaded).unavailable).toEqual([]);
 });

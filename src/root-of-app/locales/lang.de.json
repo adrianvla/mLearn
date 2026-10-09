@@ -40,6 +40,14 @@
         "unmet": "Noch zu üben",
         "unknown": "Noch nicht messbar",
         "unsupported": "Von diesem Sprachpaket nicht messbar"
+      },
+      "Revalidate": "Ziel erneut prüfen",
+      "RevalidateDescription": "Die installierten Anforderungen oder Inhalte haben sich geändert. Prüfe diesen Umfang und bestätige ihn erneut. Termin und Lernnachweise bleiben erhalten.",
+      "CompatibilityChanges": {
+        "declarationHash": "Anforderungen oder Auswahlregeln geändert",
+        "membershipHash": "Zusammensetzung der Materialien geändert",
+        "contentHash": "Übungsinhalte oder Lernziel geändert",
+        "unverified": "Die ursprüngliche semantische Bindung fehlt"
       }
     },
     "LibraryRecovery": {
@@ -2219,7 +2227,12 @@
         "PackageUnavailable": "Das Sprachpaket ist in diesem Arbeitsbereich nicht installiert oder verfügbar.",
         "PracticeGrammar": "Grammatik üben",
         "ManagePackage": "Sprachpaketeinstellungen öffnen",
-        "CheckpointScope": "Es wurden nur die aufgeführten Grammatikgruppen geprüft. Andere Lernziele und Kompetenzanforderungen bleiben hier ungemessen; die folgenden Statusangaben fassen alle bisherigen Nachweise zusammen, auch außerhalb dieses Kontrollpunkts."
+        "CheckpointScope": "Es wurden nur die aufgeführten Grammatikgruppen geprüft. Andere Lernziele und Kompetenzanforderungen bleiben hier ungemessen; die folgenden Statusangaben fassen alle bisherigen Nachweise zusammen, auch außerhalb dieses Kontrollpunkts.",
+        "HistoricalResult": {
+          "changed": "Dieses Ergebnis beruht auf geänderten oder entfernten Inhalten und belegt die aktuellen Zielanforderungen nicht.",
+          "retracted": "Nachweise dieses Ergebnisses wurden zurückgezogen. Der historische Wert bleibt sichtbar.",
+          "unverified": "Diesem historischen Ergebnis fehlen vollständige Aufgabenreferenzen. Die aktuelle Kompatibilität ist nicht überprüfbar."
+        }
       },
       "NoLocks": "Übungen können in diesem Browser nicht sicher gespeichert werden. Öffne mLearn in einem unterstützten Browser oder der Desktop-App."
     },

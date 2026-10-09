@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+import { questionObjectiveHash, questionSourceHash } from '../../../shared/questionReviewCompatibility';
+import { hashWordSync } from '../../../shared/utils/wordHash';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LevelStudyTab } from './LevelStudyTab';
@@ -673,6 +675,18 @@ describe('LevelStudyTab', () => {
 
 // ─── Fixtures + drivers for the mock lifecycle integration tests ─────────
 
+
+// Controlled test-only bindings: these hashes are fixture provenance, not semantic review evidence.
+const fixtureCompatibility = (source: GrammarPracticeItemSource, point: object) => ({
+  protocol: 'question-review-continuity@1' as const,
+  reviewProtocol: 'test-only-question-review@1',
+  contentHash: itemContentVersion(source),
+  taskHash: questionSourceHash(source),
+  objectiveHash: questionObjectiveHash(point),
+  reviewPayloadHash: hashWordSync('test-only fixture payload'),
+  reviewResultHash: hashWordSync('test-only fixture result'),
+});
+
 let fixtureItemCounter = 0;
 
 /** German-like package mirror of the MockExam suite fixture: level-3
@@ -743,6 +757,9 @@ const reviewedFixtureItem = (pattern: FixturePattern): GrammarPracticeItemSource
     at: '2026-09-19T00:00:00Z',
     contentHash: itemContentVersion(base),
     reasons: ['fixture record'],
+    protocol: 'test-only-question-review@1',
+    compatibility: fixtureCompatibility(base, { pattern: base.answerSpan, level: base.answerSpan === 'trotzdem' ? 2 : 3, ...(base.answerSpan === 'trotzdem' ? {} : { category: base.answerSpan === 'obwohl' ? 'concession' : 'reasons' }), meaning: ({ weil: 'because', deshalb: 'therefore', obwohl: 'although', trotzdem: 'nevertheless' } as Record<string, string>)[base.answerSpan] }),
+    scope: { language: 'de', pattern, packageVersion: '2026.09.19-test' },
   };
   return { ...base, validation: { semantic } };
 };

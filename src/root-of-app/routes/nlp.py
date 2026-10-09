@@ -62,10 +62,13 @@ def language_ready(req: LanguageReadyRequest):
 
 def _resolve_module(language: Optional[str]):
     """Resolve exactly the requested package, or the active package if unspecified."""
-    if language:
-        module = config.get_or_load_language(language)
-    else:
-        module = config.get_or_load_language(config.LANGUAGE) if config.LANGUAGE else plugin_registry.get_active()
+    try:
+        if language:
+            module = config.get_or_load_language(language)
+        else:
+            module = config.get_or_load_language(config.LANGUAGE) if config.LANGUAGE else plugin_registry.get_active()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail={"code": "language_unavailable", "message": str(exc)}) from exc
     if module is None:
         raise HTTPException(status_code=503, detail={"code": "language_unavailable"})
     return module

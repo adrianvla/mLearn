@@ -492,7 +492,16 @@
                 "The completed sentence is natural polite speech: extended study sets an expectation that the poor test performance contradicts.",
                 "のに expresses the declared contrary-to-expectation relation. ので and から instead give a cause; they do not satisfy that relation.",
                 "This is a unique answer among the three supplied alternatives under the declared reading. The review covers MCQ recognition only, not unrestricted production."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:7f0f693f423f3993",
+                "taskHash": "1be41f3afa36be042e4cde52021e2910392f569bbfc686e83561dd67895e82f5",
+                "objectiveHash": "7b0fd376a34b6b3d557a9c225c4710180d950ac4d986737ad24285816e074022",
+                "reviewPayloadHash": "b93608188c0dd6a0ee54123951cee3166b4c86a06d5844cf824a9b1d18e285e0",
+                "reviewResultHash": "db70b0d19f42946f9df3ba581a962eb6f7e3906b5a27eaebbf04958db1254c03"
+              }
             }
           }
         },
@@ -543,7 +552,16 @@
                 "The completed sentence naturally contrasts adequate sleep yesterday with inability to concentrate today.",
                 "のに satisfies the declared contrary-to-expectation relation; ので and から would assert a causal relation instead.",
                 "This is a unique answer among the three supplied alternatives under the declared reading. The review covers MCQ recognition only, not unrestricted production."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:40ffc41257053816",
+                "taskHash": "00025c358ba77118ecfb84198ceac1a1cc7a67ecd49c0cd8713ac3a53cd6a249",
+                "objectiveHash": "7b0fd376a34b6b3d557a9c225c4710180d950ac4d986737ad24285816e074022",
+                "reviewPayloadHash": "b93608188c0dd6a0ee54123951cee3166b4c86a06d5844cf824a9b1d18e285e0",
+                "reviewResultHash": "db70b0d19f42946f9df3ba581a962eb6f7e3906b5a27eaebbf04958db1254c03"
+              }
             }
           }
         }

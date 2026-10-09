@@ -284,7 +284,7 @@ describe('question semantic validation pipeline', () => {
     expect(payload[0].deliveredPrompt.slice(0, payload[0].gap.start)).toBe('Wir gehen spazieren, ');
   });
 
-  it('does not reuse a local approval after changing package identity/version', async () => {
+  it('preserves a scoped actual validation on dictionary-only revision but rejects objective drift', async () => {
     const storage = memoryStorage();
     await validateQuestionItemsWithLLM('de', data, settings, {
       storage,
@@ -292,7 +292,9 @@ describe('question semantic validation pipeline', () => {
         legitimateAnswers: ['obwohl'], distractorsMeaningful: true, accidentalClues: false, reasons: ['reviewed'] }] }),
     });
     const other = { ...data, languageData: { ...data.languageData, version: 'other-package-v1' } } as LanguageData;
-    expect(languageDataWithStoredQuestionValidations('de', other, storage).grammar?.[0].items?.[0].validation).toBeUndefined();
+    expect(languageDataWithStoredQuestionValidations('de', other, storage).grammar?.[0].items?.[0].validation?.semantic?.scope?.packageVersion).toBe(data.languageData?.version);
+    const changed = { ...other, grammar: other.grammar!.map(point => ({ ...point, meaning: 'Different objective' })) };
+    expect(languageDataWithStoredQuestionValidations('de', changed, storage).grammar?.[0].items?.[0].validation).toBeUndefined();
   });
 
   it('accepts independently derived lowercase answers for every shipped German item', async () => {

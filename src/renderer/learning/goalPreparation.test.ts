@@ -1,3 +1,4 @@
+import { revalidateLearningGoal } from '../../shared/learningGoalCompatibility';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 import { policyContextFromSettings } from './policyContext';
@@ -9,7 +10,7 @@ const runtime = (goals: typeof goal[]) => ({ model: fitLearningModel([], 100), e
 const pick = (goals: typeof goal[]) => selectNextEncounter({ preset: 'CURRICULUM', nowMs: 100, levelStudyItems: [
   { key: 'other-key', word: 'other', language: 'future' },
   { key: 'chosen-key', word: 'chosen', language: 'future' },
-], context: policyContextFromSettings({ ...DEFAULT_SETTINGS, learningGoals: goals }, 'future', runtime(goals)), config: { selection: 'ranked' } });
+], context: policyContextFromSettings({ ...DEFAULT_SETTINGS, learningGoals: goals.map(goal => revalidateLearningGoal(goal, runtime(goals).data)!) }, 'future', runtime(goals)), config: { selection: 'ranked' } });
 describe('goals drive shared preparation', () => {
   it('changes actual selection for user scope and keeps overlap one encounter', () => {
     expect(pick([])?.candidate.word).toBe('other');
@@ -27,6 +28,6 @@ describe('goals drive shared preparation', () => {
   it('does not weight paused goals or another language and keeps deadlines optional', () => {
     expect(policyContextFromSettings({ ...DEFAULT_SETTINGS, learningGoals: [{ ...goal, status: 'paused' }] }, 'future').goals).toEqual([]);
     expect(policyContextFromSettings({ ...DEFAULT_SETTINGS, learningGoals: [goal] }, 'other').goals).toEqual([]);
-    expect(policyContextFromSettings({ ...DEFAULT_SETTINGS, learningGoals: [goal] }, 'future', runtime([goal])).goal).toMatchObject({ target: goal.outcome });
+    expect(policyContextFromSettings({ ...DEFAULT_SETTINGS, learningGoals: [revalidateLearningGoal(goal, runtime([goal]).data)!] }, 'future', runtime([goal])).goal).toMatchObject({ target: goal.outcome });
   });
 });

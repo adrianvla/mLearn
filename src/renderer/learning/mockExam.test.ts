@@ -1,3 +1,5 @@
+import { questionObjectiveHash, questionSourceHash } from '../../shared/questionReviewCompatibility';
+import { hashWordSync } from '../../shared/utils/wordHash';
 import { describe, expect, it, vi } from 'vitest';
 import type { GrammarItemSemanticValidation, GrammarPracticeItemSource, LanguageData } from '../../shared/types';
 import type { AttemptId, KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
@@ -87,12 +89,27 @@ const CONTRAST: Record<PatternName, {
 };
 
 let itemCounter = 0;
+
+// Controlled test-only bindings: these hashes are fixture provenance, not semantic review evidence.
+const fixtureCompatibility = (source: GrammarPracticeItemSource, point: object) => ({
+  protocol: 'question-review-continuity@1' as const,
+  reviewProtocol: 'test-only-question-review@1',
+  contentHash: itemContentVersion(source),
+  taskHash: questionSourceHash(source),
+  objectiveHash: questionObjectiveHash(point),
+  reviewPayloadHash: hashWordSync('test-only fixture payload'),
+  reviewResultHash: hashWordSync('test-only fixture result'),
+});
+
 const semanticRecord = (source: GrammarPracticeItemSource, overrides: Partial<GrammarItemSemanticValidation> = {}): GrammarItemSemanticValidation => ({
   status: 'passed',
   validator: 'fixture-independent-validator@1',
   at: '2026-09-19T00:00:00Z',
   contentHash: itemContentVersion(source),
   reasons: ['fixture record'],
+  protocol: 'test-only-question-review@1',
+  compatibility: fixtureCompatibility(source, { pattern: source.answerSpan, level: source.answerSpan === 'trotzdem' ? 2 : 3, ...(source.answerSpan === 'trotzdem' ? {} : { category: source.answerSpan === 'obwohl' ? 'concession' : 'reasons' }) }),
+  scope: { language: 'de', pattern: source.answerSpan, packageVersion: '2026.09.19-test' },
   ...overrides,
 });
 const reviewedItem = (pattern: PatternName, overrides: Partial<GrammarPracticeItemSource> = {}): GrammarPracticeItemSource => {
@@ -205,7 +222,7 @@ describe('blueprint derivation (R13/R19)', () => {
     expect(deriveMockBlueprints('de', baseLanguageData()).some((candidate) => candidate.level === 1)).toBe(false);
   });
 
-  it('version binds structure AND content version; deliverability never moves the denominator', () => {
+  it('version binds actual structure and content, independently of dictionary transport revisions', () => {
     const first = blueprint3();
     const second = blueprint3();
     expect(second.version).toBe(first.version);
@@ -213,13 +230,13 @@ describe('blueprint derivation (R13/R19)', () => {
     const otherVersion = baseLanguageData();
     (otherVersion.languageData as { version?: string }).version = '2026.09.20-test';
     expect(deriveMockBlueprints('de', otherVersion).find((candidate) => candidate.level === 3)!.version)
-      .not.toBe(first.version);
+      .toBe(first.version);
 
     // A semantically REJECTED family is still declared: requestedCount (and
     // therefore the blueprint identity) stays; assembly reports the gap.
     const withRejected = baseLanguageData();
     const reasons = withRejected.grammar!.find((point) => point.pattern === 'weil')!;
-    reasons.items = [rejectedItem('weil', 'de-weil-rejected'), ...reasons.items.filter((entry) => entry.id !== weilA.id)];
+    reasons.items = reasons.items.map(entry => entry.id === weilA.id ? { ...entry, validation: { semantic: { ...entry.validation!.semantic!, status: 'rejected' as const } } } : entry);
     const rederived = deriveMockBlueprints('de', withRejected).find((candidate) => candidate.level === 3)!;
     expect(rederived.version).toBe(first.version);
     expect(rederived.sections[0].requestedCount).toBe(2);
@@ -555,7 +572,7 @@ describe('persistence (G01/G04)', () => {
     expect(loadStoredMockSession('de', languageData)).toBeNull();
   });
 
-  it('discards the stored session when the package changed: content or blueprint drift, no silent replan', () => {
+  it('preserves stored sessions across transport updates and discards content or objective drift without replanning', () => {
     const languageData = baseLanguageData();
     const mockedInstance = assembleMockInstance(blueprint3(), questionBankFromLanguageData('de', languageData), {}, 42, 1000);
     saveStoredMockSession('de', startMockSession(mockedInstance, 1_000_000));
@@ -563,7 +580,10 @@ describe('persistence (G01/G04)', () => {
 
     const driftVersion = baseLanguageData();
     (driftVersion.languageData as { version?: string }).version = '2026.09.20-test';
-    expect(loadStoredMockSession('de', driftVersion)).toBeNull();
+    expect(loadStoredMockSession('de', driftVersion)).not.toBeNull();
+    const driftObjective = baseLanguageData();
+    driftObjective.grammar![0].meaning = 'A different fixture objective';
+    expect(loadStoredMockSession('de', driftObjective)).toBeNull();
 
     const driftContent = baseLanguageData();
     const reasons = driftContent.grammar!.find((point) => point.pattern === 'weil')!;

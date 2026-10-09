@@ -40,6 +40,14 @@
         "unmet": "À travailler",
         "unknown": "Pas encore mesurable",
         "unsupported": "Non mesuré par ce paquet linguistique"
+      },
+      "Revalidate": "Revalider l’objectif",
+      "RevalidateDescription": "Les exigences ou les contenus installés ont changé. Vérifiez ce périmètre, puis revalidez-le. Votre échéance et vos preuves d’apprentissage sont conservées.",
+      "CompatibilityChanges": {
+        "declarationHash": "Exigences ou règles de sélection modifiées",
+        "membershipHash": "Composition des matériaux modifiée",
+        "contentHash": "Contenu des exercices ou objectif modifié",
+        "unverified": "La référence sémantique originale est indisponible"
       }
     },
     "LibraryRecovery": {
@@ -2219,7 +2227,12 @@
         "PackageUnavailable": "Le paquet de langue n’est pas installé ou disponible dans cet espace de travail.",
         "PracticeGrammar": "Pratiquer la grammaire",
         "ManagePackage": "Ouvrir les paramètres du paquet de langue",
-        "CheckpointScope": "Seuls les groupes grammaticaux listés ont été échantillonnés. Les autres objectifs et compétences ne sont pas mesurés ici ; les statuts ci-dessous résument toutes les preuves actuelles, y compris celles obtenues en dehors de ce bilan."
+        "CheckpointScope": "Seuls les groupes grammaticaux listés ont été échantillonnés. Les autres objectifs et compétences ne sont pas mesurés ici ; les statuts ci-dessous résument toutes les preuves actuelles, y compris celles obtenues en dehors de ce bilan.",
+        "HistoricalResult": {
+          "changed": "Ce résultat daté utilise des contenus modifiés ou retirés. Il ne prouve pas les exigences actuelles.",
+          "retracted": "Des preuves de ce résultat ont été rétractées. Le score historique reste visible.",
+          "unverified": "Ce résultat historique ne contient pas toutes les références des questions. Sa compatibilité actuelle est invérifiable."
+        }
       },
       "NoLocks": "Les exercices ne peuvent pas être enregistrés de façon sûre dans ce navigateur. Ouvrez mLearn dans un navigateur compatible ou dans l’application de bureau."
     },

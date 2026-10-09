@@ -256,7 +256,16 @@
                 "The completed sentence is natural: fever gives a reason for staying in bed.",
                 "weil both expresses the declared cause and licenses ich Fieber habe. obwohl would express concession; deshalb would require different main-clause word order.",
                 "The distractors test distinct semantic or syntactic contrasts. Only weil meets the delivered constraints; coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:2664ed5d70d6edc9",
+                "taskHash": "2c4d5917f1a967613539c8ee5887f54d5abf9349c820cb6f65627e4989f5953f",
+                "objectiveHash": "295e99440ac506b2af44db21ca3cfa808bd1dc3b2d3b1267e513cdfafc4590a9",
+                "reviewPayloadHash": "4cddaa5c68089b060b5e1a8bd6fc461944e9a30c11eea34678e192107f46780c",
+                "reviewResultHash": "965e2e08e903fec90cf32f653863f11cdbbc41ba8cef70b5f711614f8b58e2f2"
+              }
             }
           }
         },
@@ -308,7 +317,16 @@
                 "The completed sentence naturally gives the desire to study in Germany next year as the reason for daily German study.",
                 "weil licenses the subordinate clause with möchte at the end and expresses the declared cause. obwohl conflicts with that reading; deshalb does not license the supplied word order.",
                 "Only weil satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:f1619d848245d3c8",
+                "taskHash": "6f07781c33b05533627d6ae54681199709884d6c25eb38298d9c5871db2a4c90",
+                "objectiveHash": "295e99440ac506b2af44db21ca3cfa808bd1dc3b2d3b1267e513cdfafc4590a9",
+                "reviewPayloadHash": "4cddaa5c68089b060b5e1a8bd6fc461944e9a30c11eea34678e192107f46780c",
+                "reviewResultHash": "965e2e08e903fec90cf32f653863f11cdbbc41ba8cef70b5f711614f8b58e2f2"
+              }
             }
           }
         }
@@ -374,7 +392,16 @@
                 "The completed sentence naturally presents heavy ongoing rain as an obstacle despite which the walk occurs.",
                 "obwohl expresses the declared concession and licenses regnet at the end. weil changes the relation to a cause; deshalb requires different main-clause word order.",
                 "Only obwohl satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:58a162079e97361b",
+                "taskHash": "aa61e0526696ddbd53904973f90778a5512281f86fc18ccc7457eecbd3770a9a",
+                "objectiveHash": "b86cea71269b71611759b4993420b8eb63be68041ee1fa89763eba11a79ef9c5",
+                "reviewPayloadHash": "4cddaa5c68089b060b5e1a8bd6fc461944e9a30c11eea34678e192107f46780c",
+                "reviewResultHash": "965e2e08e903fec90cf32f653863f11cdbbc41ba8cef70b5f711614f8b58e2f2"
+              }
             }
           }
         },
@@ -427,7 +454,16 @@
                 "The completed sentence naturally contrasts going to work with being ill.",
                 "obwohl expresses the declared concession and licenses war at the end. weil instead gives a cause; deshalb does not fit the supplied subordinate-clause word order.",
                 "Only obwohl satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:67804cdb9ea0628f",
+                "taskHash": "94f66171360ee427cdec554344faf47dcf9e20c74057907244a0b59b8db8591a",
+                "objectiveHash": "b86cea71269b71611759b4993420b8eb63be68041ee1fa89763eba11a79ef9c5",
+                "reviewPayloadHash": "4cddaa5c68089b060b5e1a8bd6fc461944e9a30c11eea34678e192107f46780c",
+                "reviewResultHash": "965e2e08e903fec90cf32f653863f11cdbbc41ba8cef70b5f711614f8b58e2f2"
+              }
             }
           }
         }
@@ -493,7 +529,16 @@
                 "The completed sentence naturally states studying all day as a consequence of the upcoming examination.",
                 "deshalb fits the declared causal relation and the inversion lerne ich. trotzdem would express concession, while weil does not fit the supplied clause order.",
                 "Only deshalb satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:82bc0bfddc977d81",
+                "taskHash": "ba12980697478efd5c1787041655c380d1d94a9e34f69dd3a2a242fb3a94597c",
+                "objectiveHash": "7736f147fece913bc7185509bb1b3c1fe0a415b671be05c8eaf1cd649f03f9b3",
+                "reviewPayloadHash": "4cddaa5c68089b060b5e1a8bd6fc461944e9a30c11eea34678e192107f46780c",
+                "reviewResultHash": "965e2e08e903fec90cf32f653863f11cdbbc41ba8cef70b5f711614f8b58e2f2"
+              }
             }
           }
         },
@@ -545,7 +590,16 @@
                 "The completed sentence naturally gives the late hour as the reason for going home quickly.",
                 "deshalb expresses the declared consequence and fits bin ich. trotzdem would reverse the intended discourse relation; weil cannot license this clause order.",
                 "Only deshalb satisfies the supplied alternatives and constraints. Coverage is MCQ recognition only."
-              ]
+              ],
+              "compatibility": {
+                "protocol": "question-review-continuity@1",
+                "reviewProtocol": "mlearn-blind-review@1",
+                "contentHash": "item-v3:b4c0bdf0b5c1437c",
+                "taskHash": "a4d8d7986d064d52c0f25dfa6b254710b23ee11845d41c9dc88fe09885951f29",
+                "objectiveHash": "7736f147fece913bc7185509bb1b3c1fe0a415b671be05c8eaf1cd649f03f9b3",
+                "reviewPayloadHash": "4cddaa5c68089b060b5e1a8bd6fc461944e9a30c11eea34678e192107f46780c",
+                "reviewResultHash": "965e2e08e903fec90cf32f653863f11cdbbc41ba8cef70b5f711614f8b58e2f2"
+              }
             }
           }
         }

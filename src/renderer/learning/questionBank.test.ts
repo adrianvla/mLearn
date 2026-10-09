@@ -1,3 +1,5 @@
+import { questionObjectiveHash, questionSourceHash } from '../../shared/questionReviewCompatibility';
+import { hashWordSync } from '../../shared/utils/wordHash';
 import { describe, expect, it } from 'vitest';
 import fs from 'fs';
 import path from 'path';
@@ -40,7 +42,7 @@ const item = (overrides: Partial<GrammarPracticeItemSource> = {}): GrammarPracti
 });
 
 const assemble = (source: GrammarPracticeItemSource, seed?: number): QuestionItem =>
-  assembleContrastItem(source, { language: 'de', pattern: 'obwohl', contentVersion: 'de-package-test', ...(seed !== undefined ? { seed } : {}) });
+  assembleContrastItem(source, { language: 'de', pattern: 'obwohl', contentVersion: 'de-package-test', objectiveHash: questionObjectiveHash({ pattern: 'obwohl' }), ...(seed !== undefined ? { seed } : {}) });
 
 /**
  * A semantic record produced by the FIXTURE validator — a test stand-in for
@@ -48,17 +50,32 @@ const assemble = (source: GrammarPracticeItemSource, seed?: number): QuestionIte
  * content). Production packages carry no such record until a real
  * independent validator runs; the app never fabricates one (R12).
  */
+
+// Controlled test-only bindings: these hashes are fixture provenance, not semantic review evidence.
+const fixtureCompatibility = (source: GrammarPracticeItemSource, point: object) => ({
+  protocol: 'question-review-continuity@1' as const,
+  reviewProtocol: 'test-only-question-review@1',
+  contentHash: itemContentVersion(source),
+  taskHash: questionSourceHash(source),
+  objectiveHash: questionObjectiveHash(point),
+  reviewPayloadHash: hashWordSync('test-only fixture payload'),
+  reviewResultHash: hashWordSync('test-only fixture result'),
+});
+
 const semanticRecord = (source: GrammarPracticeItemSource, overrides: Partial<GrammarItemSemanticValidation> = {}): GrammarItemSemanticValidation => ({
   status: 'passed',
   validator: 'fixture-independent-validator@1',
   at: '2026-09-19T00:00:00Z',
   contentHash: itemContentVersion(source),
   reasons: ['fixture record'],
+  scope: { language: 'de', pattern: 'obwohl', packageVersion: 'de-package-test' },
+  protocol: 'test-only-question-review@1',
+  compatibility: fixtureCompatibility(source, { pattern: 'obwohl' }),
   ...overrides,
 });
-const reviewed = (overrides: Partial<GrammarPracticeItemSource> = {}): GrammarPracticeItemSource => {
+const reviewed = (overrides: Partial<GrammarPracticeItemSource> = {}, scope = { language: 'de', pattern: 'obwohl', packageVersion: 'de-package-test' }): GrammarPracticeItemSource => {
   const source = item(overrides);
-  return { ...source, validation: { semantic: semanticRecord(source) } };
+  return { ...source, validation: { semantic: semanticRecord(source, { scope, protocol: 'test-only-question-review@1', compatibility: fixtureCompatibility(source, { pattern: scope.pattern }) }) } };
 };
 const declared = (entries: ReadonlyArray<readonly [id: string, version: string, invalid?: boolean]>): ReadonlyMap<string, DeclaredItemState> =>
   new Map(entries.map(([id, version, invalid]) => [id, { version, invalid: invalid ?? false }]));
@@ -288,7 +305,7 @@ describe('batch + cache off the fast path (R12/R17)', () => {
   it('assembles a bounded batch and reports deterministic rejections with reasons', () => {
     const bank = questionBankFromLanguageData('de', {
       grammar: [
-        { pattern: 'obwohl', items: [reviewed()] },
+        { pattern: 'obwohl', items: [reviewed({}, { language: 'de', pattern: 'obwohl', packageVersion: 'v9' })] },
         { pattern: 'weil', items: [item({ id: 'broken-1', answerSpan: 'missing' })] },
         { pattern: 'trotzdem', items: [item({ id: 'pending-1', context: 'Es war spät, trotzdem bin ich geblieben.' , answerSpan: 'trotzdem' })] },
       ],
@@ -310,7 +327,7 @@ describe('batch + cache off the fast path (R12/R17)', () => {
     const bank = questionBankFromLanguageData('de', {
       grammar: [1, 2, 3, 4, 5].map((n) => ({
         pattern: `p${n}`,
-        items: [reviewed({ id: `item-${n}`, context: `Satz ${n}, obwohl es regnet.`, answerSpan: 'obwohl' })],
+        items: [reviewed({ id: `item-${n}`, context: `Satz ${n}, obwohl es regnet.`, answerSpan: 'obwohl' }, { language: 'de', pattern: `p${n}`, packageVersion: '' })],
       })),
     });
     const result = assembleQuestionBatch(bank, 3);
@@ -321,13 +338,30 @@ describe('batch + cache off the fast path (R12/R17)', () => {
   it('serves repeated encounters from the cache; version change assembles anew', () => {
     const cache = new QuestionBankCache(8);
     const source = item();
-    const first = cache.getOrAssemble(source, { language: 'de', pattern: 'obwohl', contentVersion: 'v1' });
-    expect(cache.getOrAssemble(source, { language: 'de', pattern: 'obwohl', contentVersion: 'v1' })).toBe(first);
+    const first = cache.getOrAssemble(source, { language: 'de', pattern: 'obwohl', contentVersion: 'v1', objectiveHash: questionObjectiveHash({ pattern: 'obwohl' }) });
+    expect(cache.getOrAssemble(source, { language: 'de', pattern: 'obwohl', contentVersion: 'v1', objectiveHash: questionObjectiveHash({ pattern: 'obwohl' }) })).toBe(first);
     const next = cache.getOrAssemble(source, { language: 'de', pattern: 'obwohl', contentVersion: 'v2' });
     expect(next).not.toBe(first);
     expect(next.version).toBe(itemContentVersion(source));
     cache.invalidate((cached) => cached.provenance.contentVersion === 'v2');
     expect(cache.size).toBe(1);
+  });
+
+  it('invalidates cached delivery when unknown source semantics change without changing the legacy item hash', () => {
+    const cache = new QuestionBankCache(4);
+    const source = reviewed();
+    const options = { language: 'de', pattern: 'obwohl', contentVersion: 'de-package-test',
+      objectiveHash: questionObjectiveHash({ pattern: 'obwohl' }), requireOwnedReview: true };
+    const first = cache.getOrAssemble(source, options);
+    expect(isDeliverableItem(first)).toBe(true);
+    const changed = { ...source, 'future::rubric': { relation: ['unknown', { contextual: true }] } };
+    expect(itemContentVersion(changed)).toBe(itemContentVersion(source));
+    expect(questionSourceHash(changed)).not.toBe(questionSourceHash(source));
+    expect(isDeliverableItem(assembleContrastItem(changed, options))).toBe(false);
+    const cachedChanged = cache.getOrAssemble(changed, options);
+    expect(cachedChanged).not.toBe(first);
+    expect(isDeliverableItem(cachedChanged)).toBe(false);
+    expect(cachedChanged.validation.semantic).toBeUndefined();
   });
 
   it('evicts least-recently-used entries at capacity', () => {
@@ -349,14 +383,14 @@ describe('batch + cache off the fast path (R12/R17)', () => {
     // cache entry across records (same id/content, different validator)
     // would attribute an attempt to the wrong validator.
     const cache = new QuestionBankCache(4);
-    const withA = reviewed();
+    const withA = reviewed({}, { language: 'de', pattern: 'obwohl', packageVersion: 'v1' });
     const withB = { ...item(), validation: { semantic: semanticRecord(item(), { validator: 'fixture-independent-validator@2' }) } };
-    const first = cache.getOrAssemble(withA, { language: 'de', pattern: 'obwohl', contentVersion: 'v1' });
-    const second = cache.getOrAssemble(withB, { language: 'de', pattern: 'obwohl', contentVersion: 'v1' });
+    const first = cache.getOrAssemble(withA, { language: 'de', pattern: 'obwohl', contentVersion: 'v1', objectiveHash: questionObjectiveHash({ pattern: 'obwohl' }) });
+    const second = cache.getOrAssemble(withB, { language: 'de', pattern: 'obwohl', contentVersion: 'v1', objectiveHash: questionObjectiveHash({ pattern: 'obwohl' }) });
     expect(second).not.toBe(first);
     expect(first.validation.semantic?.validator).toBe('fixture-independent-validator@1');
     expect(second.validation.semantic?.validator).toBe('fixture-independent-validator@2');
-    expect(cache.getOrAssemble(withA, { language: 'de', pattern: 'obwohl', contentVersion: 'v1' })).toBe(first);
+    expect(cache.getOrAssemble(withA, { language: 'de', pattern: 'obwohl', contentVersion: 'v1', objectiveHash: questionObjectiveHash({ pattern: 'obwohl' }) })).toBe(first);
   });
 });
 
@@ -648,7 +682,7 @@ describe('real DE/JA/ZH package item banks', () => {
       const [source] = [...bank.itemsByPattern.values()][0];
       const reviewedSource: GrammarPracticeItemSource = {
         ...source,
-        validation: { semantic: semanticRecord(source) },
+        validation: { semantic: semanticRecord(source, { scope: { language, pattern: [...bank.itemsByPattern.keys()][0], packageVersion: data.languageData?.version ?? '' }, protocol: 'test-only-question-review@1', compatibility: fixtureCompatibility(source, { pattern: [...bank.itemsByPattern.keys()][0] }) }) },
       };
       const reviewedBank = questionBankFromLanguageData(language, {
         ...data,

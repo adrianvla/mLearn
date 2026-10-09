@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+import { questionObjectiveHash, questionSourceHash } from '../../../shared/questionReviewCompatibility';
+import { hashWordSync } from '../../../shared/utils/wordHash';
 
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { render } from 'solid-js/web';
@@ -1694,11 +1696,28 @@ describe('GrammarCoverage contrast pass (R12 validated question pipeline)', () =
    * never fabricates one (R12). Unreviewed fixture data (no records) drives
    * the honest-availability test below.
    */
+
+  // Controlled test-only bindings: these hashes are fixture provenance, not semantic review evidence.
+  const fixtureCompatibility = (source: GrammarPracticeItemSource, point: object) => ({
+    protocol: 'question-review-continuity@1' as const,
+    reviewProtocol: 'test-only-question-review@1',
+    contentHash: itemContentVersion(source),
+    taskHash: questionSourceHash(source),
+    objectiveHash: questionObjectiveHash(point),
+    reviewPayloadHash: hashWordSync('test-only fixture payload'),
+    reviewResultHash: hashWordSync('test-only fixture result'),
+  });
+
   const semanticFor = (source: GrammarPracticeItemSource): GrammarItemSemanticValidation => ({
     status: 'passed',
     validator: 'fixture-independent-validator@1',
     at: '2026-09-19T00:00:00Z',
     contentHash: itemContentVersion(source),
+    protocol: 'test-only-question-review@1',
+    compatibility: fixtureCompatibility(source, source.answerSpan === 'のに'
+      ? { pattern: 'のに', meaning: 'even though', level: 2 }
+      : { pattern: 'ば', meaning: 'conditional "if"', level: 2 }),
+    scope: { language: 'ja', pattern: source.answerSpan, packageVersion: '' },
   });
   const withRecord = (source: GrammarPracticeItemSource): GrammarPracticeItemSource => {
     // Bind the record to the EXACT source shape the component assembles —

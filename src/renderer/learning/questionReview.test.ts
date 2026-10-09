@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LanguageData } from '../../shared/types';
+import { assembleMockInstance, deriveMockBlueprints, startMockSession, rebuildStoredMockSession, gradeMockSubmission, applyMockAnswer, summarizeMockResults, saveMockSummary, loadMockSummaries, mockResultCompatibility } from './mockExam';
+import { assembleQuestionBatch, questionBankFromLanguageData } from './questionBank';
 import { exportQuestionReview, importQuestionReview } from './questionReview';
 
 const source = { id: 'answer-bearing-id', context: 'a b c', answerSpan: 'b', conditions: ['future:conditional'],
@@ -39,4 +41,35 @@ describe('auditable independent question review import', () => {
     expect(() => importQuestionReview('future', data, frozen, { ...result(), at: 'not-a-date' })).toThrow();
     expect(() => importQuestionReview('future', data, frozen, { ...result(), reviewer: '' })).toThrow();
   });
+});
+
+it('preserves an actual imported judgment across dictionary-only package revisions but rejects changed objective semantics', () => {
+  const imported = importQuestionReview('future', data, exportQuestionReview('future', data), result());
+  const updated = { ...imported, languageData: { ...imported.languageData!, version: 'future@2' } };
+  expect(assembleQuestionBatch(questionBankFromLanguageData('future', updated), 8).items).toHaveLength(1);
+  const changed = { ...updated, grammar: updated.grammar!.map(point => ({ ...point, meaning: 'A different objective' })) };
+  expect(assembleQuestionBatch(questionBankFromLanguageData('future', changed), 8).items).toHaveLength(0);
+});
+
+it('retains admitted option seed on resume, durable result identity, and historical incompatibility', () => {
+  const declared = { ...data, grammar: data.grammar!.map(point => ({ ...point, level: 1, meaning: 'Package-owned arbitrary objective' })) };
+  const imported = importQuestionReview('future', declared, exportQuestionReview('future', declared), { ...result(), payloadBinding: exportQuestionReview('future', declared).binding });
+  const blueprint = deriveMockBlueprints('future', imported)[0];
+  const instance = assembleMockInstance(blueprint, questionBankFromLanguageData('future', imported), {}, 7, 1000);
+  const admitted = startMockSession(instance, 1000);
+  const updated = { ...imported, languageData: { ...imported.languageData!, version: 'future@2' } };
+  const restored = rebuildStoredMockSession('future', updated, { ...admitted, persistedAt: 1000 });
+  expect(restored?.instance.steps[0].item.seed).toBe(admitted.instance.steps[0].item.seed);
+  expect(restored?.instance.steps[0].item.options).toEqual(admitted.instance.steps[0].item.options);
+  const step = admitted.instance.steps[0];
+  const gold = step.item.options.findIndex(option => option.text === step.source.answerSpan);
+  expect(gradeMockSubmission(step, { kind: 'mcq', index: gold })?.quality).toBe('struggled');
+  const answered = applyMockAnswer(admitted, { kind: 'mcq', index: gold }, 'attempt-kept', 1100);
+  const summary = summarizeMockResults(answered);
+  expect(saveMockSummary('future', summary)).toBe(true);
+  expect(loadMockSummaries('future').some(result => result.sessionId === summary.sessionId)).toBe(true);
+  expect(mockResultCompatibility(summary, updated, {})).toBe('current');
+  const changed = { ...updated, grammar: updated.grammar!.map(point => ({ ...point, meaning: 'Changed owner meaning' })) };
+  expect(mockResultCompatibility(summary, changed, {})).toBe('changed');
+  expect(summary.attempts?.[0].attemptId).toBe('attempt-kept');
 });

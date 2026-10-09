@@ -12,6 +12,7 @@ import {
   isMockPaused,
   isMockStepTimedOut,
   loadMockSummaries,
+  mockResultCompatibility,
   loadPendingMockResults,
   loadSavedMockSessions,
   switchStoredMockSession,
@@ -814,6 +815,9 @@ export const MockExam: Component<MockExamProps> = (props) => {
       <Show when={results()} keyed>
         {(summary) => (
           <div class="mock-exam__results" data-testid="mock-results">
+            <Show when={mockResultCompatibility(summary, props.languageData, props.eventLog) !== 'current'}>
+              <p role="status">{t(`mlearn.LevelStudy.Mock.HistoricalResult.${mockResultCompatibility(summary, props.languageData, props.eventLog)}`)}</p>
+            </Show>
             <div class="mock-exam__results-header">
               <span class="mock-exam__results-title">
                 {t('mlearn.LevelStudy.Mock.ResultsTitle', { level: summary.levelLabel })}

@@ -328,7 +328,13 @@ def init():
 
     # Load and register the installed language adapter. Packages may either
     # provide a Python module or rely entirely on metadata-driven bricks.
-    _lang_mod = get_or_load_language(LANGUAGE)
+    try:
+        _lang_mod = get_or_load_language(LANGUAGE)
+    except Exception as exc:
+        # Package repair remains reachable. The failed package is never registered
+        # or substituted; explicit consumers receive scoped unavailability.
+        log.error('Selected language runtime is unavailable: %s', exc)
+        _lang_mod = None
     if _lang_mod is None:
         log.warning(
             "Language data is not installed for %s; backend will start without an active language",

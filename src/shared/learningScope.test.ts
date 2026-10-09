@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { learningGoalSemanticBasis } from './learningGoalCompatibility';
 import { learningScopeForSettings, learningTargetSettingsUpdate } from './learningScope';
 import { DEFAULT_SETTINGS, type LanguageData } from './types';
 const data: LanguageData = { name: 'Future', freq: [['alpha', '', 1], ['beta', '', 2]], frequencyLevels: { rowLevelIndex: 2 },
@@ -8,7 +9,7 @@ const data: LanguageData = { name: 'Future', freq: [['alpha', '', 1], ['beta', '
       { id: 'grammar', selectors: [{ source: 'grammar' }] },
     ],
   } } } };
-const goal = { id: 'target', language: 'future', outcome: 'Old label', outcomeRef: { id: 'scope', groupIds: ['grammar'] }, status: 'active' as const, priority: 1, createdAt: 1, scope: { provenance: 'user' as const, words: ['stale'] } };
+const goal = { id: 'target', language: 'future', outcome: 'Old label', outcomeRef: { id: 'scope', groupIds: ['grammar'], semanticBasis: learningGoalSemanticBasis(data, { id: 'scope', groupIds: ['grammar'] }) }, status: 'active' as const, priority: 1, createdAt: 1, scope: { provenance: 'user' as const, words: ['stale'] } };
 describe('shared supported learning scope', () => {
   it('shares declared subset membership, deduplicates overlap and preserves legacy storage', () => {
     const settings = { ...DEFAULT_SETTINGS, language: 'future', learningGoals: [goal, { ...goal, id: 'overlap' }, { ...goal, id: 'legacy', outcomeRef: undefined }] };
@@ -33,7 +34,7 @@ describe('shared supported learning scope', () => {
       learning: { outcomes: { scope: { ...data.learning!.outcomes!.scope, requirements: packageRequirements, assessment } } },
     };
     const userScope = { provenance: 'user' as const, reference: 'my own source', words: ['personal'], requirements: userRequirements };
-    const settings = { ...DEFAULT_SETTINGS, language: 'future', learningGoals: [{ ...goal, outcomeRef: { id: 'scope' }, scope: userScope }] };
+    const settings = { ...DEFAULT_SETTINGS, language: 'future', learningGoals: [{ ...goal, outcomeRef: { id: 'scope', semanticBasis: learningGoalSemanticBasis(packageData, { id: 'scope' }) }, scope: userScope }] };
 
     const resolved = learningScopeForSettings(settings, packageData).goals[0];
 

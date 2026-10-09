@@ -1,3 +1,4 @@
+import { questionObjectiveHash, questionReviewCompatible, questionSourceHash } from '../../shared/questionReviewCompatibility';
 import { createSeededRng } from './teachingPolicy';
 import { grammarEntityId } from '../../shared/graph/load';
 import {
@@ -135,11 +136,14 @@ export interface LanguageQuestionBank {
   language: string;
   contentVersion?: string;
   /** Active item sources per pattern, in package order. */
+  objectiveHashes?: ReadonlyMap<string, string>;
   itemsByPattern: ReadonlyMap<string, readonly GrammarPracticeItemSource[]>;
 }
 const nfc = (value: string): string => value.normalize('NFC');
 
 /** Stable FNV-1a 32-bit seed derivation from identity + content version. */
+export const legacyQuestionReviewSeed = (language: string, id: string, packageVersion: string): number => stableSeed(language, id, packageVersion);
+
 function stableSeed(...parts: readonly string[]): number {
   let hash = 0x811c9dc5;
   for (const part of parts) {
@@ -199,12 +203,12 @@ export function itemContentVersion(source: GrammarPracticeItemSource): string {
  */
 export function assembleContrastItem(
   source: GrammarPracticeItemSource,
-  options: { language: string; pattern: string; contentVersion?: string; seed?: number },
+  options: { language: string; pattern: string; contentVersion?: string; seed?: number; objectiveHash?: string; requireOwnedReview?: boolean },
 ): QuestionItem {
   const { language, pattern } = options;
   const contentVersion = options.contentVersion ?? '';
   const version = itemContentVersion(source);
-  const seed = options.seed ?? stableSeed(language, source.id, contentVersion);
+  const seed = options.seed ?? stableSeed(language, source.id, version);
   const context = nfc(source.context);
   const span = nfc(source.answerSpan);
 
@@ -249,11 +253,8 @@ export function assembleContrastItem(
   // current item content; a stale record (content changed after validation)
   // is never applied — the item is unreviewed again, never half-validated.
   const declaredSemantic = source.validation?.semantic;
-  const semantic = declaredSemantic !== undefined && declaredSemantic.contentHash === version
-    && (declaredSemantic.scope === undefined || (declaredSemantic.scope.language === language
-      && declaredSemantic.scope.pattern === pattern && declaredSemantic.scope.packageVersion === contentVersion))
-    ? declaredSemantic
-    : undefined;
+  const semantic = questionReviewCompatible(declaredSemantic, language, pattern, contentVersion, version,
+    options.objectiveHash, options.requireOwnedReview, source) ? declaredSemantic : undefined;
   item.validation = {
     deterministic: validateAssembledItem(item, source),
     ...(semantic !== undefined ? { semantic } : {}),
@@ -483,6 +484,7 @@ export function assembleQuestionBatch(
         language: bank.language,
         pattern,
         contentVersion: bank.contentVersion,
+        objectiveHash: bank.objectiveHashes?.get(pattern), requireOwnedReview: bank.objectiveHashes !== undefined,
       });
       if (item.validation.deterministic.status !== 'passed') {
         rejected.push({ id: source.id, reasons: item.validation.deterministic.reasons });
@@ -507,7 +509,7 @@ export class QuestionBankCache {
 
   getOrAssemble(
     source: GrammarPracticeItemSource,
-    options: { language: string; pattern: string; contentVersion?: string },
+    options: { language: string; pattern: string; contentVersion?: string; objectiveHash?: string; requireOwnedReview?: boolean; seed?: number },
   ): QuestionItem {
     // Keyed by language, id, package version, item content version AND the
     // declared validation state: two packages that share item ids must never
@@ -516,8 +518,8 @@ export class QuestionBankCache {
     const semantic = source.validation?.semantic;
     const validationKey = semantic === undefined
       ? 'unreviewed'
-      : `${semantic.status}:${semantic.contentHash}:${semantic.validator}:${semantic.validatorVersion ?? ''}:${semantic.at}`;
-    const key = `${options.language}\u0000${options.pattern}\u0000${source.id}\u0000${options.contentVersion ?? ''}\u0000${itemContentVersion(source)}\u0000${validationKey}`;
+      : JSON.stringify(semantic);
+    const key = `${options.language}\u0000${options.pattern}\u0000${source.id}\u0000${options.contentVersion ?? ''}\u0000${options.objectiveHash ?? ''}\u0000${options.requireOwnedReview ?? false}\u0000${options.seed ?? 'default'}\u0000${itemContentVersion(source)}\u0000${questionSourceHash(source)}\u0000${validationKey}`;
     const cached = this.entries.get(key);
     if (cached) {
       this.entries.delete(key);
@@ -562,8 +564,10 @@ export function questionBankFromLanguageData(
   },
 ): LanguageQuestionBank {
   const itemsByPattern = new Map<string, GrammarPracticeItemSource[]>();
+  const objectiveHashes = new Map<string, string>();
   for (const point of languageData.grammar ?? []) {
     if (typeof point.pattern !== 'string') continue;
+    objectiveHashes.set(point.pattern, questionObjectiveHash(point));
     for (const source of point.items ?? []) {
       const list = itemsByPattern.get(point.pattern) ?? [];
       list.push(source);
@@ -573,7 +577,7 @@ export function questionBankFromLanguageData(
   return {
     language,
     ...(languageData.languageData?.version !== undefined ? { contentVersion: languageData.languageData.version } : {}),
-    itemsByPattern,
+    itemsByPattern, objectiveHashes,
   };
 }
 
@@ -663,6 +667,7 @@ export function declaredItemStates(bank: LanguageQuestionBank): ReadonlyMap<stri
         language: bank.language,
         pattern,
         contentVersion: bank.contentVersion,
+        objectiveHash: bank.objectiveHashes?.get(pattern), requireOwnedReview: bank.objectiveHashes !== undefined,
       });
       states.set(source.id, { version: item.version, invalid: isInvalidatedItem(item) });
     }

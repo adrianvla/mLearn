@@ -1,3 +1,4 @@
+import { learningGoalSemanticBasis, revalidateLearningGoal } from './learningGoalCompatibility';
 import { describe, expect, it } from 'vitest';
 import { grammarEntityId, surfaceEntityId } from './graph/load';
 import { fitLearningModel, learningAddress } from './learningModel';
@@ -51,7 +52,7 @@ const goal: LearningGoal = {
   id: 'goal-one',
   language: 'future',
   outcome: 'Old display label',
-  outcomeRef: { id: 'objective', packageVersion: 'future-v2' },
+  outcomeRef: { id: 'objective', packageVersion: 'future-v2', semanticBasis: learningGoalSemanticBasis(data, { id: 'objective' }) },
   status: 'active',
   priority: 1,
   createdAt: 1,
@@ -140,7 +141,7 @@ describe('derived goal requirement evaluation', () => {
     const opaqueData: LanguageData = { ...data, learning: { outcomes: { objective: {
       ...data.learning!.outcomes!.objective, requirements: opaque,
     } } } };
-    const evaluation = evaluateLearningRequirements([goal], 'future', fitLearningModel([], 1000), [], opaqueData, 1000)[0];
+    const evaluation = evaluateLearningRequirements([revalidateLearningGoal(goal, opaqueData)!], 'future', fitLearningModel([], 1000), [], opaqueData, 1000)[0];
 
     expect(evaluation.requirements).toContainEqual(expect.objectContaining({ source: 'package', status: 'unsupported', conditions: opaque }));
   });
@@ -161,7 +162,7 @@ describe('derived goal requirement evaluation', () => {
       grammar: [{ pattern: 'N5 grammar item', meaning: 'meaning', level: 5 }],
       learning: { outcomes: { 'ja:jlpt-n5': outcome } } };
     const goal: LearningGoal = { id: 'jlpt-n5', language: 'ja', outcome: 'JLPT N5',
-      outcomeRef: { id: 'ja:jlpt-n5' }, status: 'active', priority: 1, createdAt: 1 };
+      outcomeRef: { id: 'ja:jlpt-n5', semanticBasis: learningGoalSemanticBasis(data, { id: 'ja:jlpt-n5' }) }, status: 'active', priority: 1, createdAt: 1 };
     const evaluation = evaluateLearningRequirements([goal], 'ja', fitLearningModel([], 1000), [], data, 1000)[0];
     const currentOfficialConditions = outcome.assessment.conditions;
 
@@ -177,7 +178,7 @@ describe('derived goal requirement evaluation', () => {
 
   it('keeps different goal deadlines and selected group requirements independent', () => {
     const laterGoal: LearningGoal = { ...goal, id: 'goal-two', deadline: '1970-01-04',
-      outcomeRef: { id: 'objective', packageVersion: 'future-v2', groupIds: ['construction'] } };
+      outcomeRef: { id: 'objective', packageVersion: 'future-v2', groupIds: ['construction'], semanticBasis: learningGoalSemanticBasis(data, { id: 'objective', groupIds: ['construction'] }) } };
     const later = Date.parse('1970-01-04');
     const events = [successEvent(100, 'observed-alpha')];
     const evaluations = evaluateLearningRequirements([goal, laterGoal], 'future', fitLearningModel(events, later), events, data, later - 2 * 86_400_000);
@@ -215,7 +216,7 @@ it('does not silently satisfy a supported threshold with unknown required qualif
     ...data.learning!.outcomes!.objective,
     requirements: { conditions: [{ ...packageCondition, 'future:required-context': { participants: ['speaker', 'elder'], modality: 'unheard-of' } }] },
   } } } };
-  const evaluated = evaluateLearningRequirements([goal], 'future', model, events, qualified, 1000)[0];
+  const evaluated = evaluateLearningRequirements([revalidateLearningGoal(goal, qualified)!], 'future', model, events, qualified, 1000)[0];
   expect(evaluated.requirements.find(row => row.requirementId === packageCondition.id)).toMatchObject({ status: 'unsupported', reason: 'requirement-qualifiers-unsupported' });
 });
 
