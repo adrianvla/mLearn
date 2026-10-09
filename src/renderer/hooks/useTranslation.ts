@@ -100,11 +100,12 @@ function buildVersionedLanguageCacheId(
   const packageVersion = packageManifest?.activationGeneration || packageManifest?.bundle?.sha256 || packageAssetHash || packageManifest?.version;
   const dictionaryVersion = dictionaryPack?.bundle?.sha256 || dictionaryAssetHash || dictionaryPack?.version;
 
-  if (!packageVersion && !dictionaryVersion) {
+  if (!packageVersion && !dictionaryVersion && languageData?.resolvedVariantId === undefined) {
     return language;
   }
 
   const parts = [base];
+  if (languageData?.resolvedVariantId !== undefined) parts.push(`variant:${JSON.stringify(languageData.resolvedVariantId)}`);
   if (packageVersion) {
     parts.push(`language:${packageVersion}`);
   }
@@ -319,6 +320,11 @@ function resolveLanguageData(value: WordLookupCandidateOptions['languageData']):
   return typeof value === 'function' ? value() : value ?? null;
 }
 
+function snapshotLanguageData(value: WordLookupCandidateOptions['languageData']): LanguageData | null {
+  const data = resolveLanguageData(value);
+  return data ? JSON.parse(JSON.stringify(data)) as LanguageData : null;
+}
+
 export class NlpContextChangedError extends Error {
   constructor() {
     super('The source or language processing context changed.');
@@ -344,7 +350,9 @@ function translateWithDictionaryTarget(
   word: string,
   language?: string,
   dictionaryTargetLanguage?: string,
+  variant?: string | null,
 ): Promise<TranslationResponse> {
+  if (variant !== undefined) return backend.translate(word, language, { variant, ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
   return dictionaryTargetLanguage
     ? backend.translate(word, language, { dictionaryTargetLanguage })
     : backend.translate(word, language);
@@ -397,7 +405,7 @@ export async function fetchTranslation(
   language?: string,
   lookupOptions: WordLookupCandidateOptions = {},
 ): Promise<TranslationResponse> {
-  const languageData = resolveLanguageData(lookupOptions.languageData);
+  const languageData = snapshotLanguageData(lookupOptions.languageData);
   const candidates = buildTranslationLookupCandidates(
     word,
     lookupOptions.getCanonicalForm ?? identityWordForm,
@@ -425,7 +433,7 @@ export async function fetchTranslation(
     if (translationCache.has(key) && agreesWithSelection(translationCache.get(key)!)) return translationCache.get(key)!;
     const cached = await getCachedTranslationScopedDB(scopedWord, cacheLanguage, dictionaryTargetLanguage);
     if (cached && agreesWithSelection(cached)) { setTranslationCache(key, cached); setCacheVersion(value => value + 1); return cached; }
-    const result = await getBackend().translate(word, language, { context: { ...lookupOptions.context, ...(selectionId ? { selectionId } : {}) },
+    const result = await getBackend().translate(word, language, { variant: languageData?.resolvedVariantId, context: { ...lookupOptions.context, ...(selectionId ? { selectionId } : {}) },
       ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
     if ((await readLookupSelection(selectionKey))?.raw !== selection?.raw) {
       return fetchTranslation(word, language, lookupOptions);
@@ -475,7 +483,7 @@ export async function fetchTranslation(
       continue;
     }
 
-    const data = await translateWithDictionaryTarget(getBackend(), candidate, language, dictionaryTargetLanguage);
+    const data = await translateWithDictionaryTarget(getBackend(), candidate, language, dictionaryTargetLanguage, languageData?.resolvedVariantId);
     setTranslationCache(cacheKey, data);
     setCacheVersion((v) => v + 1);
     void setCachedTranslationScopedDB(candidate, data, cacheLanguage, dictionaryTargetLanguage);
@@ -497,7 +505,7 @@ export async function selectTranslationCandidate(word: string, selectionId: stri
   const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
   const cacheLanguage = buildVersionedLanguageCacheId(language, resolveLanguageData(options.languageData), dictionaryTargetLanguage);
   const context = options.context ?? {};
-  const result = await getBackend().translate(word, language, { context: { ...context, selectionId },
+  const result = await getBackend().translate(word, language, { variant: resolveLanguageData(options.languageData)?.resolvedVariantId, context: { ...context, selectionId },
     ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
   if (result.resolution?.selectedId !== selectionId || result.resolution.selectionUnavailable) throw new Error('Dictionary selection unavailable');
   const selectionKey = lookupSelectionKey(word, context, language, dictionaryTargetLanguage);
@@ -602,6 +610,7 @@ export async function warmTranslationCache(
   options?: { throwOnFailure?: boolean },
 ): Promise<void> {
   const backend = getBackend();
+  const variant = languageData?.resolvedVariantId;
   const unique = [...new Set(words)];
   const cacheLanguage = buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage);
   const failures: unknown[] = [];
@@ -617,7 +626,7 @@ export async function warmTranslationCache(
       let chunkHits = 0;
       const chunk = wordsToWarm.slice(i, i + TRANSLATION_WARM_CONCURRENCY).map(async (word) => {
         try {
-          const data = await translateWithDictionaryTarget(backend, word, language, dictionaryTargetLanguage);
+          const data = await translateWithDictionaryTarget(backend, word, language, dictionaryTargetLanguage, variant);
           setTranslationCache(buildTranslationCacheKey(word, cacheLanguage, dictionaryTargetLanguage), data);
           chunkHits += 1;
           batchEntries.push({ word, data });
@@ -667,6 +676,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     persist: boolean,
     language: string | undefined,
     target?: string,
+    variant?: string | null,
   ): Promise<{ tokens: Token[]; fresh: boolean }> => {
     const dbCached = await getCachedTokensByLanguageDB(key, language, namespace);
     if (dbCached) {
@@ -674,7 +684,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
       return { tokens: dbCached, fresh: false };
     }
 
-    const tokens = target ? await getBackend().tokenize(key, language, target) : await getBackend().tokenize(key, language);
+    const tokens = variant !== undefined ? await getBackend().tokenize(key, language, target, variant) : target ? await getBackend().tokenize(key, language, target) : await getBackend().tokenize(key, language);
     tokenCache.set(cacheKey, { tokens, ts: Date.now() });
     pruneMapFIFO(tokenCache, TOKEN_CACHE_MAX);
     if (persist) {
@@ -690,8 +700,9 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     persist: boolean,
     language: string | undefined,
     target?: string,
+    variant?: string | null,
   ): Promise<{ tokens: Token[]; fresh: boolean }> => {
-    const p = resolveUncached(key, namespace, cacheKey, persist, language, target);
+    const p = resolveUncached(key, namespace, cacheKey, persist, language, target, variant);
     tokenInFlight.set(cacheKey, p);
     try {
       return await p;
@@ -723,7 +734,8 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     const language = typeof options.language === 'function' ? options.language() : options.language;
     const key = typeof text === 'string' ? text : String(text);
     if (!key.trim()) return createEmptyFallbackToken(key);
-    const languageData = resolveTokenizerLanguageData(options.languageData);
+    const currentData = resolveTokenizerLanguageData(options.languageData);
+    const languageData = currentData ? JSON.parse(JSON.stringify(currentData)) as LanguageData : null;
     const target = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
     const namespace = [getTokenizerCacheNamespace(languageData), target].filter(Boolean).join('::') || undefined;
     const fast = cachedOrFlight(key, namespace, language);
@@ -731,7 +743,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     if (fast) return fast;
     const cacheKey = buildTokenCacheKey(key, language, namespace);
     try {
-      const { tokens } = await tokenizeUncached(key, namespace, cacheKey, true, language, target);
+      const { tokens } = await tokenizeUncached(key, namespace, cacheKey, true, language, target, languageData?.resolvedVariantId);
       return tokens;
     } catch (e) {
       return roughFallbackOrThrow(key, languageData, e, language);
@@ -745,7 +757,8 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     perfCount('tokenizeMany.calls', 1);
     perfCount('tokenizeMany.texts', texts.length);
     const tmStart = performance.now();
-    const languageData = resolveTokenizerLanguageData(options.languageData);
+    const currentData = resolveTokenizerLanguageData(options.languageData);
+    const languageData = currentData ? JSON.parse(JSON.stringify(currentData)) as LanguageData : null;
     const target = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
     const namespace = [getTokenizerCacheNamespace(languageData), target].filter(Boolean).join('::') || undefined;
     const fresh: Array<{ text: string; tokens: Token[] }> = [];
@@ -757,7 +770,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
       const cacheKey = buildTokenCacheKey(key, language, namespace);
       let result: { tokens: Token[]; fresh: boolean };
       try {
-        result = await tokenizeUncached(key, namespace, cacheKey, false, language, target);
+        result = await tokenizeUncached(key, namespace, cacheKey, false, language, target, languageData?.resolvedVariantId);
       } catch (e) {
         // Rough fallbacks are display-only and never persisted (same as `tokenize`).
         return roughFallbackOrThrow(key, languageData, e, language);
@@ -837,7 +850,7 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
     try {
       const language = resolveLanguage(options.language);
       const readingKey = reading || '';
-      const languageData = resolveLanguageData(options.languageData);
+      const languageData = snapshotLanguageData(options.languageData);
       const candidates = buildDictionaryLookupCandidates(
         word,
         options.getCanonicalForm ?? identityWordForm,
@@ -891,6 +904,7 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
           candidate,
           language,
           dictionaryTargetLanguage,
+          languageData?.resolvedVariantId,
         );
         if (data.data && Array.isArray(data.data)) {
           const entries: DictionaryEntry[] = [];

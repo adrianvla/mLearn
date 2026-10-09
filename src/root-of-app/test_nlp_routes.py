@@ -18,7 +18,7 @@ def test_tokenize_logs_counts_without_request_text(monkeypatch, caplog):
         def LANGUAGE_TOKENIZE(self, text):
             return [{"word": text}]
 
-    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language: Module())
+    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language, **_scope: Module())
     # The production logger owns its handlers instead of propagating to root.
     monkeypatch.setattr(logging.getLogger("mlearn"), "propagate", True)
     with caplog.at_level(logging.INFO, logger="mlearn.nlp"):
@@ -37,7 +37,7 @@ def test_translate_logs_counts_without_request_word(monkeypatch, caplog):
         def LANGUAGE_TRANSLATE(self, word):
             return {"data": [{"word": word}]}
 
-    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language: Module())
+    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language, **_scope: Module())
     monkeypatch.setattr(logging.getLogger("mlearn"), "propagate", True)
     with caplog.at_level(logging.INFO, logger="mlearn.nlp"):
         response = nlp.get_translation(nlp.TranslationRequest(word=secret, language="xx"))
@@ -56,7 +56,7 @@ def test_translate_route_applies_camel_case_dictionary_target(monkeypatch):
             return {"data": [{"word": word, "target": _dictionary_target_for_language("xx")}]}
 
     module = Module()
-    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language: module if language == "xx" else None)
+    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language, **_scope: module if language == "xx" else None)
 
     response = nlp.get_translation(
         nlp.TranslationRequest(word="字", language="xx", dictionaryTargetLanguage="fr")
@@ -71,7 +71,7 @@ def test_tokenize_route_does_not_fall_back_to_active_module_for_missing_requeste
         def LANGUAGE_TOKENIZE(self, _text):
             return [{"word": "active-language-token"}]
 
-    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language: None)
+    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language, **_scope: None)
     monkeypatch.setattr(nlp.plugin_registry, "get_active", lambda: ActiveModule())
 
     with pytest.raises(HTTPException) as error:
@@ -84,7 +84,7 @@ def test_translate_route_does_not_fall_back_to_active_module_for_missing_request
         def LANGUAGE_TRANSLATE(self, _word):
             return {"data": [{"word": "active-language-definition"}]}
 
-    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language: None)
+    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda _language, **_scope: None)
     monkeypatch.setattr(nlp.plugin_registry, "get_active", lambda: ActiveModule())
 
     with pytest.raises(HTTPException) as error:
@@ -102,7 +102,7 @@ def test_translate_route_invokes_optional_resolver_and_preserves_unknown_candida
             assert received == context
             assert _dictionary_target_for_language("zz") == "fr"
             return expected
-    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language: Module())
+    monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language, **_scope: Module())
     result = nlp.get_translation(nlp.TranslationRequest(word="X", language="zz", dictionaryTargetLanguage="fr", context=context))
     assert result == expected
     assert nlp.TranslationResponse(**result).model_dump()["resolution"] == expected["resolution"]
@@ -124,11 +124,11 @@ def test_http_unavailable_then_ready_preserves_legitimate_empty(monkeypatch, end
     app = FastAPI()
     app.include_router(nlp.router)
     with TestClient(app) as client:
-        monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language: None)
+        monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language, **_scope: None)
         unavailable = client.post(endpoint, json=payload)
         assert unavailable.status_code == 503
         assert unavailable.json()["detail"]["code"] == "language_unavailable"
-        monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language: Module())
+        monkeypatch.setattr(nlp.config, "get_or_load_language", lambda language, **_scope: Module())
         ready = client.post(endpoint, json=payload)
         assert ready.status_code == 200
         assert ready.json() == empty

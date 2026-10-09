@@ -118,7 +118,7 @@ describe('buildSuggestedFlashcardPreviewContent', () => {
   it('drops a configured dictionary target whose pack is not installed', () => {
     // A configured target the user never installed resolves to no target at
     // all: the backend honors an explicit target literally, so naming an
-    // uninstalled pack would answer every lookup with nothing.
+    // unavailable explicit pack must remain explicit so the owner can report recovery.
     const options = buildSuggestedWordLookupOptions({
       language: 'de',
       uiLanguage: 'en',
@@ -133,7 +133,7 @@ describe('buildSuggestedFlashcardPreviewContent', () => {
       { language: 'ar', dictionaryPacks: [{ targetLanguage: 'fr', installed: false }] },
     ] as unknown as LanguageDataCatalogStatus[]));
 
-    expect(options.dictionaryTargetLanguage?.()).toBeUndefined();
+    expect(options.dictionaryTargetLanguage?.()).toBe('fr');
   });
 
   it('reads a package-declared structured definition path', () => {

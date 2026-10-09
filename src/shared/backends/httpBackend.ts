@@ -101,8 +101,9 @@ export class HttpBackend implements BackendAdapter {
     throw new HttpBackendStatusError(res.status, `${label} failed: ${res.status}${text ? ` - ${text}` : ''}`);
   }
 
-  async tokenize(text: string, language?: string, dictionaryTargetLanguage?: string): Promise<Token[]> {
-    const body: Record<string, string> = { text };
+  async tokenize(text: string, language?: string, dictionaryTargetLanguage?: string, variant?: string | null): Promise<Token[]> {
+    const body: Record<string, unknown> = { text };
+    if (variant !== undefined) body.variant = variant;
     if (language) body.language = language;
     if (dictionaryTargetLanguage) body.dictionaryTargetLanguage = dictionaryTargetLanguage;
 
@@ -120,6 +121,7 @@ export class HttpBackend implements BackendAdapter {
 
   async translate(word: string, language?: string, options?: TranslateRequestOptions): Promise<TranslationResponse> {
     const body: Record<string, unknown> = { word };
+    if (options?.variant !== undefined) body.variant = options.variant;
     if (options?.context) body.context = options.context;
     if (language) body.language = language;
     if (options?.dictionaryTargetLanguage) {
@@ -137,8 +139,10 @@ export class HttpBackend implements BackendAdapter {
     return (await res.json()) as TranslationResponse;
   }
 
-  async enumerateDictionaryWords(language?: string): Promise<DictionaryWordPair[]> {
-    const body: Record<string, string> = {};
+  async enumerateDictionaryWords(language?: string, options?: TranslateRequestOptions): Promise<DictionaryWordPair[]> {
+    const body: Record<string, unknown> = {};
+    if (options?.variant !== undefined) body.variant = options.variant;
+    if (options?.dictionaryTargetLanguage) body.dictionaryTargetLanguage = options.dictionaryTargetLanguage;
     if (language) body.language = language;
 
     const res = await fetch(this.buildUrl(API_PATHS.dictionaryWords), {

@@ -66,13 +66,13 @@ def _contextual_readings(text: str) -> list[tuple[str, str]]:
     ]
 
 
-def LOAD_MODULE(resource_path: str, language_data_path: str | None = None) -> None:
+def LOAD_MODULE(resource_path: str, language_data_path: str | None = None, metadata: dict[str, Any] | None = None) -> None:
     global _backend, _pronunciations, _accentor
 
     language = _language_code()
     data_root = Path(language_data_path or resource_path)
     _backend = GenericLanguageModule(language)
-    _backend.LOAD_MODULE(resource_path, str(data_root))
+    _backend.LOAD_MODULE(resource_path, str(data_root), metadata=metadata)
     # Load before OCR can initialize Paddle in the same backend process. Loading
     # the packaged TorchScript accentor after Paddle can crash in native code.
     _accentor = load_accentor()

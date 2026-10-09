@@ -17,26 +17,15 @@ export function installedDictionaryTargetLanguages(
     .map((pack) => pack.targetLanguage);
 }
 
-/**
- * The dictionary target language a lookup should actually use.
- *
- * Only an INSTALLED pack is ever returned. A configured or UI-language target
- * with no pack on disk is dropped, because the backend honors an explicit
- * target literally and answers an uninstalled one with nothing — every
- * definition lookup would come back empty. With no target the backend applies
- * the package's own `defaultTargetLanguage`, which is the correct generic
- * default and never guesses from the UI locale.
- */
+/** Explicit user intent remains exact; only an unconfigured lookup may select an installed UI target. */
 export function getDictionaryTargetLanguageForSettings(
   settings: Pick<Settings, 'dictionaryTargetLanguages' | 'language' | 'uiLanguage'>,
   language: string = settings.language,
   installedTargetLanguages: readonly string[] = [],
 ): string | undefined {
   const configured = (settings.dictionaryTargetLanguages ?? DEFAULT_SETTINGS.dictionaryTargetLanguages)[language];
-  const candidates = [configured, settings.uiLanguage];
-  for (const candidate of candidates) {
-    if (candidate && installedTargetLanguages.includes(candidate)) return candidate;
-  }
+  if (configured) return configured;
+  if (installedTargetLanguages.includes(settings.uiLanguage)) return settings.uiLanguage;
   return undefined;
 }
 
@@ -45,8 +34,7 @@ export function getDictionaryTargetLanguageForSettings(
  *
  * A model can translate into any language, installed dictionary pack or not,
  * so this is a naming question rather than a lookup question: the configured
- * target wins, and the UI locale is the natural fallback. Only
- * `getDictionaryTargetLanguageForSettings` may gate on what is installed.
+ * target wins, and the UI locale is the natural fallback. Unconfigured lookups may prefer an installed UI target.
  */
 export function getDictionaryPromptTargetForSettings(
   settings: Pick<Settings, 'dictionaryTargetLanguages' | 'language' | 'uiLanguage'>,

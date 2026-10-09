@@ -290,20 +290,18 @@ describe('practice loop invariants across the three languages', () => {
       'ru',
       ['ja', 'en'],
     )).toBe('ja');
-    // Explicit per-learning-language override wins over the UI language, but
-    // only while its pack is installed.
+    // Explicit lookup intent remains exact regardless of installed alternatives.
     expect(getDictionaryTargetLanguageForSettings(
       { language: 'ja', uiLanguage: 'es', dictionaryTargetLanguages: { ja: 'en' } },
       'ja',
       ['de', 'en'],
     )).toBe('en');
-    // Configured but uninstalled: the backend honors the target literally and
-    // answers with nothing, so the uninstalled target must be dropped.
+    // Configured but uninstalled must reach the backend as scoped unavailability.
     expect(getDictionaryTargetLanguageForSettings(
       { language: 'ja', uiLanguage: 'es', dictionaryTargetLanguages: { ja: 'en' } },
       'ja',
       ['de'],
-    )).toBeUndefined();
+    )).toBe('en');
   });
 
   it('lists only installed dictionary packs for a learning language', () => {

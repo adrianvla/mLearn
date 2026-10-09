@@ -678,6 +678,15 @@ class DictionaryUnavailableError(RuntimeError):
     """The selected dictionary has no usable installed database."""
 
 
+def _with_dictionary_scope(operation):
+    """Hold target selection, schema, connection and derived cache reads as one admitted operation."""
+    @functools.wraps(operation)
+    def scoped(self, *args, **kwargs):
+        with self._db_lock:
+            return operation(self, *args, **kwargs)
+    return scoped
+
+
 class GenericLanguageModule:
     def __init__(self, language: str):
         self.language = language
@@ -696,22 +705,15 @@ class GenericLanguageModule:
         self._sudachi_mode = None
         self._tokenizer_lock = threading.Lock()
 
-    def LOAD_MODULE(self, resource_folder, language_data_folder=None):
+    def LOAD_MODULE(self, resource_folder, language_data_folder=None, metadata=None):
         self.language_data_dir = Path(language_data_folder) if language_data_folder else Path(resource_folder)
         metadata_path = self.language_data_dir / "languages" / f"{self.language}.json"
-        if metadata_path.is_file():
+        if isinstance(metadata, dict):
+            self.metadata = json.loads(json.dumps(metadata))
+        elif metadata_path.is_file():
             self.metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         else:
             self.metadata = {}
-
-        try:
-            import importlib
-
-            active_variant = getattr(importlib.import_module("config"), "ACTIVE_VARIANT", None)
-            apply_variant_overlay = importlib.import_module("variants").apply_variant_overlay
-            self.metadata = apply_variant_overlay(self.metadata, active_variant)
-        except ImportError:
-            pass
 
         runtime = self.metadata.get("runtime", {})
         nlp_config = runtime.get("nlp", {}) if isinstance(runtime, dict) else {}
@@ -722,6 +724,7 @@ class GenericLanguageModule:
         self._initialize_dictionary()
         self._initialize_tokenizer()
 
+    @_with_dictionary_scope
     def LANGUAGE_TOKENIZE(self, text):
         tokenizer_config = self._tokenizer_config()
         tokenizer_type = str(tokenizer_config.get("type") or "none")
@@ -735,6 +738,7 @@ class GenericLanguageModule:
             return self._tokenize_rough_unicode_word(text, tokenizer_config)
         raise RuntimeError(f"Unsupported tokenizer type for {self.language}: {tokenizer_type}")
 
+    @_with_dictionary_scope
     def LANGUAGE_TRANSLATE(self, word):
         if not self._dictionary_schema:
             return {"data": []}
@@ -746,6 +750,7 @@ class GenericLanguageModule:
             return self._translate_simple_headword(word)
         return {"data": []}
 
+    @_with_dictionary_scope
     def LANGUAGE_RESOLVE(self, word, context=None):
         if self._dictionary_schema != "headword-reading-zlib-json":
             return self.LANGUAGE_TRANSLATE(word)
@@ -753,6 +758,7 @@ class GenericLanguageModule:
         self._require_db_conn()
         return self._translate_headword_reading(word, context)
 
+    @_with_dictionary_scope
     def LANGUAGE_DICTIONARY_WORDS(self):
         """Enumerate dictionary headwords as (word, reading) pairs.
 
@@ -898,6 +904,7 @@ class GenericLanguageModule:
             self._entries_by_headword_cached.cache_clear()
             self._entries_by_reading_cached.cache_clear()
             self._prosody_entry_cached.cache_clear()
+            self._prosody_entries_by_headword_cached.cache_clear()
             if previous_conn is not None:
                 try:
                     previous_conn.close()
@@ -979,6 +986,7 @@ class GenericLanguageModule:
         self._entries_by_headword_cached.cache_clear()
         self._entries_by_reading_cached.cache_clear()
         self._prosody_entry_cached.cache_clear()
+        self._prosody_entries_by_headword_cached.cache_clear()
         if conn is not None:
             try:
                 conn.close()

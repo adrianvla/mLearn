@@ -311,6 +311,21 @@ describe('fetchTranslation', () => {
     expect(getCachedTranslation('開く', 'ja', { dictionaryTargetLanguage: 'en', languageData })).toEqual(makeTranslationResponse('開く'));
   });
 
+  it('keeps the admitted variant while metadata is reconciled during persistent cache lookup', async () => {
+    const metadata: LanguageData = { name: 'Future', resolvedVariantId: 'first', settings: { fixed: {} } };
+    let release!: (value: null) => void;
+    mockGetCachedTranslationByLanguageDB.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    mockTranslate.mockResolvedValue({ data: [{ definitions: ['first meaning'] }] });
+    const { fetchTranslation, getCachedTranslation } = await import('./useTranslation');
+    const pending = fetchTranslation('Same', 'future', { languageData: metadata });
+    while (!release) await Promise.resolve();
+    metadata.resolvedVariantId = 'second';
+    release(null);
+    await pending;
+    expect(mockTranslate).toHaveBeenCalledWith('Same', 'future', { variant: 'first' });
+    expect(getCachedTranslation('Same', 'future', { languageData: metadata })).toBeNull();
+  });
+
   it('invalidates translation cache lanes when bundle content hashes change without version changes', async () => {
     const makeLanguageData = (languageHash: string, dictionaryHash: string): LanguageData => ({
       name: 'Japanese',

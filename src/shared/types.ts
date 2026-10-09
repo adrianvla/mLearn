@@ -1746,6 +1746,8 @@ export interface LanguageData {
   typography?: LanguageTypographyConfig;
   /** Backend provider adapter hints for downloaded language modules. */
   runtime?: LanguageRuntimeConfig;
+  /** Runtime selection provenance for the resolved package; null explicitly selects its base. */
+  resolvedVariantId?: string | null;
   /** Heavy per-language payloads, installed into userData on demand. */
   languageData?: LanguageDataManifest;
 }

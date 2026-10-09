@@ -43,7 +43,7 @@ QUIT_TOKEN = ""
 torch = None  # type: ignore
 
 
-def _load_language_module(language_module, resource_path: str, language_data_path: str) -> None:
+def _load_language_module(language_module, resource_path: str, language_data_path: str, metadata: dict | None = None) -> None:
     """Load a language module, passing the per-user language data root when supported."""
     load_module = language_module.LOAD_MODULE
     signature = inspect.signature(load_module)
@@ -58,7 +58,9 @@ def _load_language_module(language_module, resource_path: str, language_data_pat
         in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
     ]
 
-    if accepts_varargs or len(positional_params) >= 2:
+    if "metadata" in signature.parameters:
+        load_module(resource_path, language_data_path, metadata=metadata)
+    elif accepts_varargs or len(positional_params) >= 2:
         load_module(resource_path, language_data_path)
     else:
         load_module(resource_path)
@@ -191,28 +193,31 @@ def _import_language_module(language: str, language_data_path: str, metadata: di
     return module
 
 
-def get_or_load_language(language: str):
-    """Return a registered language adapter, loading installed metadata/modules on demand."""
-    if not language or not _is_safe_language_id(language):
-        return None
-    if not LANGUAGE_DATA_PATH:
+_UNSPECIFIED_VARIANT = object()
+
+
+def get_or_load_language(language: str, variant=_UNSPECIFIED_VARIANT):
+    """Resolve an exact installed source scope. Legacy omitted scope uses the active preference only for its own language."""
+    if not language or not _is_safe_language_id(language) or not LANGUAGE_DATA_PATH:
         return None
     generation_root = resolve_language_data_root(LANGUAGE_DATA_PATH)
     metadata_path = _language_metadata_path(generation_root, language)
     if not os.path.isfile(metadata_path):
         return None
     metadata = _read_language_metadata_from_path(generation_root, language)
-    if language == LANGUAGE:
-        metadata = apply_variant_overlay(metadata, ACTIVE_VARIANT)
+    selected_variant = (ACTIVE_VARIANT if language == LANGUAGE else None) if variant is _UNSPECIFIED_VARIANT else variant
+    if selected_variant and selected_variant not in metadata.get('variants', {}):
+        return None
+    metadata = apply_variant_overlay(metadata, selected_variant)
     fingerprint = generation_root + ":" + _language_metadata_fingerprint(metadata)
     existing = plugin_registry.get_language(language)
     if existing is not None and getattr(existing, "__mlearn_metadata_fingerprint", None) == fingerprint:
         return existing
     lang_mod = _import_language_module(language, generation_root, metadata)
-    _load_language_module(lang_mod, ROOT_OF_APP_DIR, generation_root)
+    _load_language_module(lang_mod, ROOT_OF_APP_DIR, generation_root, metadata)
     setattr(lang_mod, "__mlearn_metadata_fingerprint", fingerprint)
     plugin_registry.register_language(language, lang_mod)
-    if language == LANGUAGE:
+    if language == LANGUAGE and variant is _UNSPECIFIED_VARIANT:
         global LANGUAGE_METADATA
         LANGUAGE_METADATA = metadata
     return lang_mod

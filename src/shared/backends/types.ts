@@ -60,6 +60,7 @@ export interface OCRWarmupResult {
 }
 
 export interface TranslateRequestOptions {
+  variant?: string | null;
   dictionaryTargetLanguage?: string;
   context?: import('../types').WordLookupContext;
 }
@@ -80,11 +81,11 @@ export interface AnkiWordStatusRecord {
 
 export interface BackendAdapter {
   /** Tokenize text into language tokens */
-  tokenize(text: string, language?: string, dictionaryTargetLanguage?: string): Promise<Token[]>;
+  tokenize(text: string, language?: string, dictionaryTargetLanguage?: string, variant?: string | null): Promise<Token[]>;
   /** Translate/look up a word */
   translate(word: string, language?: string, options?: TranslateRequestOptions): Promise<TranslationResponse>;
   /** Enumerate all dictionary headwords as (word, reading) pairs */
-  enumerateDictionaryWords(language?: string): Promise<DictionaryWordPair[]>;
+  enumerateDictionaryWords(language?: string, options?: TranslateRequestOptions): Promise<DictionaryWordPair[]>;
   /** Run OCR on image data */
   ocr(imageData: string | Blob, options?: OCRRequestOptions): Promise<OCRResult>;
   /** Warm up local OCR models when supported */

@@ -6,6 +6,7 @@ import {
   resolveActiveVariantId,
   resolveEffectiveLanguageData,
 } from './languageVariants';
+import { getTokenizerCacheNamespace } from './languageFeatures';
 import { DEFAULT_SETTINGS } from './types';
 import type { GrammarPoint, LanguageData, LanguageDataMap } from './types';
 
@@ -139,9 +140,9 @@ describe('resolveEffectiveLanguageData', () => {
     expect(result.grammar).toBe(variantGrammar);
   });
 
-  it('returns identity when no variant is active', () => {
+  it('retains base metadata while recording explicit base selection', () => {
     const base = makeBase();
-    expect(resolveEffectiveLanguageData(base, DEFAULT_SETTINGS, 'zh')).toBe(base);
+    expect(resolveEffectiveLanguageData(base, DEFAULT_SETTINGS, 'zh')).toEqual({ ...base, resolvedVariantId: null });
   });
 });
 
@@ -171,5 +172,18 @@ describe('canonicalLanguage', () => {
   it('returns the input for unknown codes or missing data', () => {
     expect(canonicalLanguage('ko', map)).toBe('ko');
     expect(canonicalLanguage('zh-Hans', undefined)).toBe('zh-Hans');
+  });
+});
+
+describe('admitted variant runtime identity', () => {
+  it('separates arbitrary variants even when their tokenizer declarations agree', () => {
+    const base = { name: 'Unknown package', settings: { fixed: {} }, variants: {
+      'future-one': { name: 'First', overrides: {} }, 'future-two': { name: 'Second', overrides: {} },
+    } } as LanguageData;
+    const first = resolveEffectiveLanguageData(base, { languageVariants: { qx: 'future-one' } }, 'qx');
+    const second = resolveEffectiveLanguageData(base, { languageVariants: { qx: 'future-two' } }, 'qx');
+    expect(first.resolvedVariantId).toBe('future-one');
+    expect(second.resolvedVariantId).toBe('future-two');
+    expect(getTokenizerCacheNamespace(first)).not.toBe(getTokenizerCacheNamespace(second));
   });
 });

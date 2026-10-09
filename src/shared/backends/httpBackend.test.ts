@@ -44,6 +44,15 @@ describe('HttpBackend', () => {
   });
 
   describe('tokenize', () => {
+    it('serializes an explicit source variant and explicit base selection without ambient substitution', async () => {
+      const backend = new HttpBackend('http://127.0.0.1:7752');
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ tokens: [] }) });
+      await backend.tokenize('same', 'future', undefined, 'future-register');
+      expect(JSON.parse(mockFetch.mock.calls.at(-1)![1].body as string)).toMatchObject({ language: 'future', variant: 'future-register' });
+      await backend.tokenize('same', 'future', undefined, null);
+      expect(JSON.parse(mockFetch.mock.calls.at(-1)![1].body as string)).toMatchObject({ language: 'future', variant: null });
+    });
+
     const backend = new HttpBackend('http://127.0.0.1:7752');
 
     it('returns tokens from data.tokens when present', async () => {

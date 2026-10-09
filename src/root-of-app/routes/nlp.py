@@ -24,6 +24,7 @@ router = APIRouter()
 
 class LanguageReadyRequest(BaseModel):
     language: str = Field(..., max_length=32)
+    variant: Optional[str] = Field(default=None, max_length=128)
     generation: str = Field(..., max_length=64)
     dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
     components: List[str] = Field(default_factory=lambda: ['core'], max_length=32)
@@ -38,7 +39,7 @@ def language_ready(req: LanguageReadyRequest):
         raise HTTPException(status_code=409, detail={'code': 'generation_changed'}) from exc
     try:
         with dictionary_target_language_override(req.language, req.dictionaryTargetLanguage):
-            module = _resolve_module(req.language)
+            module = _resolve_module(req.language, req.variant)
             metadata = config._read_language_metadata(req.language)
             tokenizer = metadata.get('runtime', {}).get('nlp', {}).get('tokenizer', {})
             if tokenizer.get('required') is True: module.LANGUAGE_TOKENIZE('')
@@ -60,11 +61,11 @@ def language_ready(req: LanguageReadyRequest):
         release_language_generation(admission)
 
 
-def _resolve_module(language: Optional[str]):
+def _resolve_module(language: Optional[str], variant=None):
     """Resolve exactly the requested package, or the active package if unspecified."""
     try:
         if language:
-            module = config.get_or_load_language(language)
+            module = config.get_or_load_language(language, variant=variant)
         else:
             module = config.get_or_load_language(config.LANGUAGE) if config.LANGUAGE else plugin_registry.get_active()
     except Exception as exc:
@@ -78,6 +79,7 @@ class TokenizeRequest(BaseModel):
     dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
     text: str = Field(..., max_length=50000)
     language: Optional[str] = Field(default=None, max_length=32)
+    variant: Optional[str] = Field(default=None, max_length=128)
 
 
 class TokenizeResponse(BaseModel):
@@ -87,6 +89,7 @@ class TokenizeResponse(BaseModel):
 class TranslationRequest(BaseModel):
     word: str = Field(..., max_length=1000)
     language: Optional[str] = Field(default=None, max_length=32)
+    variant: Optional[str] = Field(default=None, max_length=128)
     dictionary_target_language: Optional[str] = Field(default=None, max_length=32)
     dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
     context: Optional[dict] = None
@@ -103,7 +106,7 @@ class TranslationResponse(BaseModel):
 @router.post("/tokenize", response_model=TokenizeResponse)
 def tokenize(req: TokenizeRequest):
     log.info("requested tokenization: characters=%d", len(req.text))
-    mod = _resolve_module(req.language)
+    mod = _resolve_module(req.language, req.variant)
     with dictionary_target_language_override(req.language or getattr(mod, "language", None), req.dictionaryTargetLanguage):
         tokens = mod.LANGUAGE_TOKENIZE(req.text)
     return {"tokens": tokens}
@@ -112,7 +115,7 @@ def tokenize(req: TokenizeRequest):
 @router.post("/translate", response_model=TranslationResponse)
 def get_translation(req: TranslationRequest):
     log.info("requested translation: characters=%d", len(req.word))
-    mod = _resolve_module(req.language)
+    mod = _resolve_module(req.language, req.variant)
     target_language = req.requested_dictionary_target_language()
     def resolve():
         resolver = getattr(mod, "LANGUAGE_RESOLVE", None)
@@ -128,7 +131,9 @@ def get_translation(req: TranslationRequest):
 
 
 class DictionaryWordsRequest(BaseModel):
+    dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
     language: Optional[str] = Field(default=None, max_length=32)
+    variant: Optional[str] = Field(default=None, max_length=128)
 
 
 class DictionaryWordsResponse(BaseModel):
@@ -145,8 +150,9 @@ def dictionary_words(req: DictionaryWordsRequest):
     do not separate it (simple-headword).
     """
     log.info(f"requested dictionary words:  {req.language or 'active'}")
-    mod = _resolve_module(req.language)
+    mod = _resolve_module(req.language, req.variant)
     try:
-        return mod.LANGUAGE_DICTIONARY_WORDS()
+        with dictionary_target_language_override(req.language or getattr(mod, "language", None), req.dictionaryTargetLanguage):
+            return mod.LANGUAGE_DICTIONARY_WORDS()
     except DictionaryUnavailableError as error:
         raise HTTPException(status_code=503, detail={"code": "dictionary_unavailable"}) from error

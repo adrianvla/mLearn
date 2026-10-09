@@ -65,7 +65,8 @@ export function resolveEffectiveLanguageData(
   settings: VariantSettings,
   lang: string,
 ): LanguageData {
-  return applyVariantOverlay(data, resolveActiveVariantId(settings, lang));
+  const variantId = resolveActiveVariantId(settings, lang);
+  return { ...applyVariantOverlay(data, variantId), resolvedVariantId: variantId ?? null };
 }
 
 export function canonicalLanguage(lang: string, data: LanguageDataMap | undefined): string {

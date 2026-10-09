@@ -3440,3 +3440,61 @@ def test_headword_resolution_retains_alternatives_and_declares_selection_basis()
     first[1] = ""
     module._entries_by_headword_cached = lambda word: [first]
     assert module._translate_headword_reading("X")["data"][0]["reading"] == "X"
+
+
+def test_dictionary_target_cannot_switch_during_an_admitted_lookup(tmp_path):
+    root = tmp_path / 'scope-data'
+    _write_json(root / 'languages' / 'qx.json', {'runtime': {'nlp': {'dictionary': {
+        'type': 'sqlite-zlib-json', 'schema': 'headword-reading-zlib-json',
+        'targetPathTemplate': 'dictionaries/qx/{target}/dictionary.db', 'defaultTargetLanguage': 'en',
+        'schemaVersion': '1', 'renderer': 'raw-entry'}}}})
+    for target in ['en', 'fr']:
+        path = root / 'dictionaries' / 'qx' / target / 'dictionary.db'
+        path.parent.mkdir(parents=True)
+        with sqlite3.connect(path) as db:
+            db.execute('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)')
+            db.execute("INSERT INTO meta VALUES ('version', '1:test')")
+            db.execute('CREATE TABLE entries (headword TEXT, reading TEXT, data BLOB)')
+    module = GenericLanguageModule('qx'); module.LOAD_MODULE(str(tmp_path), str(root))
+    entered = threading.Event(); release = threading.Event(); second_entered = threading.Event()
+    def controlled_lookup(word, context=None):
+        if word == 'first':
+            entered.set(); assert release.wait(3)
+        else:
+            second_entered.set()
+        return {'data': [str(module._active_dictionary_path)]}
+    module._translate_headword_reading = controlled_lookup
+    def request(word, target):
+        with dictionary_target_language_override('qx', target): return module.LANGUAGE_TRANSLATE(word)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(request, 'first', 'fr'); assert entered.wait(3)
+        second = pool.submit(request, 'second', 'en')
+        try:
+            assert not second_entered.wait(0.05), 'Second scope entered while the first lookup owned the connection'
+        finally:
+            release.set()
+        assert '/fr/' in first.result()['data'][0]
+        assert '/en/' in second.result()['data'][0]
+
+
+def test_dictionary_target_switch_does_not_reuse_another_pack_prosody(tmp_path):
+    root = tmp_path / 'scope-data'
+    _write_json(root / 'languages' / 'qt.json', {'runtime': {'nlp': {'dictionary': {
+        'type': 'sqlite-zlib-json', 'schema': 'headword-reading-zlib-json',
+        'targetPathTemplate': 'dictionaries/qt/{target}/dictionary.db', 'defaultTargetLanguage': 'en',
+        'schemaVersion': '1', 'renderer': 'raw-entry',
+        'prosody': {'table': 'tones', 'headwordColumn': 'lexeme', 'readingColumn': 'reading', 'dataColumn': 'payload'}}}}})
+    for target, value in [('en', {'future-contour': [1, 2]}), ('fr', {'future-contour': [3, 4]})]:
+        path = root / 'dictionaries' / 'qt' / target / 'dictionary.db'; path.parent.mkdir(parents=True)
+        with sqlite3.connect(path) as db:
+            db.execute('CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)')
+            db.execute("INSERT INTO meta VALUES ('version', '1:test')")
+            db.execute('CREATE TABLE entries (headword TEXT, reading TEXT, data BLOB)')
+            db.execute('CREATE TABLE tones (lexeme TEXT, reading TEXT, payload BLOB)')
+            db.execute('INSERT INTO tones VALUES (?, ?, ?)', ('same', 'same', _zjson(value)))
+    module = GenericLanguageModule('qt'); module.LOAD_MODULE(str(tmp_path), str(root))
+    assert module._prosody_entries_by_headword_cached('same') == [{'future-contour': [1, 2]}]
+    with dictionary_target_language_override('qt', 'fr'):
+        module._ensure_dictionary_connection()
+        assert module._prosody_entries_by_headword_cached('same') == [{'future-contour': [3, 4]}]
+    module._close_db()

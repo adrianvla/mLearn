@@ -1495,7 +1495,7 @@ export function getTokenizerCacheNamespace(data?: LanguageData | null): string |
   const generation = data.languageData?.activationGeneration || data.languageData?.bundle?.sha256
     || data.languageData?.assets?.map(asset => asset.sha256).filter(Boolean).join(',');
   const tokenizer = data.runtime?.nlp?.tokenizer ?? {};
-  return `${version}${generation ? `@${generation}` : ''}:${JSON.stringify(tokenizer)}`;
+  return `${version}${generation ? `@${generation}` : ''}:${JSON.stringify([data.resolvedVariantId ?? null, tokenizer, data.runtime?.adapter?.config])}`;
 }
 
 export function containsLanguageScript(text: string, language: string, data?: LanguageData | null): boolean {

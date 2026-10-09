@@ -33,12 +33,12 @@ def _tone_marked_pinyin(text: str) -> str:
     return " ".join(part for part in syllables if part).strip()
 
 
-def LOAD_MODULE(resource_path: str, language_data_path: str | None = None) -> None:
+def LOAD_MODULE(resource_path: str, language_data_path: str | None = None, metadata: dict[str, Any] | None = None) -> None:
     global _backend, _pinyin_input_converter
 
     language = _language_code()
     _backend = GenericLanguageModule(language)
-    _backend.LOAD_MODULE(resource_path, language_data_path)
+    _backend.LOAD_MODULE(resource_path, language_data_path, metadata=metadata)
     adapter_config = _backend.metadata.get("runtime", {}).get("adapter", {}).get("config", {})
     conversion = adapter_config.get("pinyinInputConversion")
     _pinyin_input_converter = None
