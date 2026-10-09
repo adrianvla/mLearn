@@ -234,10 +234,7 @@ def _reload_tts_settings():
         with open(settings_path, "r", encoding="utf-8") as f:
             settings = json.load(f)
             provider = settings.get("ttsProvider", "kokoro")
-            if provider == "system":
-                _tts_provider = "kokoro"
-            else:
-                _tts_provider = "qwen3" if provider == "cloud" else provider
+            _tts_provider = "qwen3" if provider == "cloud" else provider
     except Exception:
         pass
 
@@ -794,13 +791,14 @@ async def voice_tts_status(language: Optional[str] = None, variant: Optional[str
 # ── Download trigger ──
 
 
-def ensure_language_voice_ready(language: str) -> None:
+def ensure_language_voice_ready(language: str, provider: str | None = None) -> None:
     stt, tts = _stt_runtime(language), _tts_runtime(language)
     if not stt and not tts:
         raise RuntimeError(f'Voice runtime is not declared for {language}')
     if stt: _ensure_stt_loaded()
-    if tts:
-        engine = _resolve_tts_engine(language)
+    # System TTS is validated by Electron against the same candidate metadata.
+    if tts and provider != 'system':
+        engine = _resolve_tts_engine(language) if provider is None else _resolve_tts_engine(language, provider)
         if engine == 'qwen3': _ensure_qwen3_tts_loaded()
         elif engine == 'qwen3-torch': _ensure_qwen3_torch_loaded()
         elif engine == 'kokoro': _ensure_tts_loaded(language)

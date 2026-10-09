@@ -176,7 +176,7 @@ vi.mock('../utils/platform', () => ({
 
 const loadSettingsFn = vi.fn();
 vi.mock('./settings', () => ({
-  loadLangData: vi.fn(() => ({})),
+  loadLangData: vi.fn(() => ({ en: { language: 'en', runtime: { tts: { macosVoice: 'Package Voice', espeakVoice: 'en', windowsVoice: 'Package Voice' } } } })),
   loadSettings: (...args: unknown[]) => loadSettingsFn(...args),
 }));
 
@@ -1974,6 +1974,20 @@ describe('VOICE_TTS_GENERATE handler — local TTS', () => {
       ]),
     );
     expect(lastCreatedWebSocket?.send).toHaveBeenCalledWith(expect.stringContaining('"voiceSamplePath"'));
+  });
+});
+
+describe('System TTS language capability admission', () => {
+  it('does not speak using an unrelated OS default when package voice is absent', async () => {
+    platformFlags.isMac = true;
+    mod.setupVoiceIPC();
+    const event = createFakeEvent();
+    onHandlers.get('voice-tts-generate')?.(event, 'Source content', 'future-package', 1.0, undefined, 'system');
+    await flushMicrotasks();
+    expect(execFileFn).not.toHaveBeenCalled();
+    expect(event.sender.send).toHaveBeenCalledWith('voice-tts-status', expect.objectContaining({
+      generating: false, playing: false, error: expect.stringContaining('System TTS voice'),
+    }));
   });
 });
 

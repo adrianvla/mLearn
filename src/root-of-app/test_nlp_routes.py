@@ -132,3 +132,17 @@ def test_http_unavailable_then_ready_preserves_legitimate_empty(monkeypatch, end
         ready = client.post(endpoint, json=payload)
         assert ready.status_code == 200
         assert ready.json() == empty
+
+
+def test_ready_route_acknowledges_exact_external_voice_provider(monkeypatch):
+    import language_generation
+    from routes import voice
+    calls = []
+    monkeypatch.setattr(language_generation, 'admit_language_generation', lambda *_args: object())
+    monkeypatch.setattr(language_generation, 'release_language_generation', lambda _token: calls.append('released'))
+    monkeypatch.setattr(nlp, '_resolve_module', lambda *_args: object())
+    monkeypatch.setattr(nlp.config, '_read_language_metadata', lambda _: {})
+    monkeypatch.setattr(voice, 'ensure_language_voice_ready', lambda language, provider=None: calls.append((language, provider)))
+    result = nlp.language_ready(nlp.LanguageReadyRequest(language='future-package', generation='candidate-generation', components=['core', 'voice'], variant='package-variant', ttsProvider='system'))
+    assert result == {'language': 'future-package', 'generation': 'candidate-generation', 'components': ['core', 'voice'], 'variant': 'package-variant', 'ttsProvider': 'system', 'ready': True}
+    assert calls == [('future-package', 'system'), 'released']

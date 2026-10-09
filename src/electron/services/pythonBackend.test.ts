@@ -322,7 +322,16 @@ describe('pythonBackend', () => {
   });
 
   describe('isServerLoaded', () => {
-    it('returns false initially', () => {
+    it.each([
+    { language: 'other' }, { generation: 'other' }, { components: ['core'] },
+    { variant: 'other' }, { ttsProvider: 'kokoro' }, { ttsProvider: undefined }, { ready: false },
+  ])('rejects a runtime ACK with mismatched scope %j', (mismatch) => {
+    const expected = { language: 'future-package', generation: 'generation-id', components: ['core', 'voice'], variant: null, ttsProvider: 'system' };
+    expect(() => mod.assertLanguageGenerationAcknowledged({ ...expected, ready: true }, expected)).not.toThrow();
+    expect(() => mod.assertLanguageGenerationAcknowledged({ ...expected, ready: true, ...mismatch }, expected)).toThrow('acknowledge');
+  });
+
+  it('returns false initially', () => {
       expect(mod.isServerLoaded()).toBe(false);
     });
   });

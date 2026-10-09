@@ -449,20 +449,30 @@ export function getQuitToken(): string | null {
   return quitToken;
 }
 
+/** Reject ACKs for another runtime scope, including an externally owned speech provider. */
+export function assertLanguageGenerationAcknowledged(payload: unknown, expected: {
+  language: string; generation: string; components: readonly string[]; variant?: string | null; ttsProvider?: string;
+}): void {
+  const value = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
+  if (value.language !== expected.language || value.generation !== expected.generation || value.ready !== true
+    || (expected.variant !== undefined && value.variant !== expected.variant)
+    || JSON.stringify(value.components) !== JSON.stringify(expected.components)
+    || (expected.ttsProvider !== undefined && value.ttsProvider !== expected.ttsProvider)) {
+    throw new Error('The backend did not acknowledge the selected language generation');
+  }
+}
+
 /** File activation is not runtime readiness. Require the backend's admitted ACK. */
-export async function ensureLanguageGenerationReady(language: string, generation: string, dictionaryTargetLanguage?: string, components: readonly string[] = ['core'], variant?: string | null): Promise<void> {
+export async function ensureLanguageGenerationReady(language: string, generation: string, dictionaryTargetLanguage?: string, components: readonly string[] = ['core'], variant?: string | null, ttsProvider?: string): Promise<void> {
   if (!serverLoaded || !quitToken) throw new Error('Language files are installed; start the local backend and retry activation');
   const response = await fetch(`http://127.0.0.1:${PYTHON_BACKEND_PORT}/language-ready`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${quitToken}` },
-    body: JSON.stringify({ language, generation, dictionaryTargetLanguage, components, ...(variant !== undefined ? { variant } : {}) }),
+    body: JSON.stringify({ language, generation, dictionaryTargetLanguage, components, ...(variant !== undefined ? { variant } : {}), ...(ttsProvider !== undefined ? { ttsProvider } : {}) }),
     signal: AbortSignal.timeout(120000),
   });
   if (!response.ok) throw new Error(`Language runtime activation failed (${response.status}): ${await response.text()}`);
-  const payload = await response.json() as { language?: string; generation?: string; ready?: boolean; variant?: string | null; components?: string[] };
-  if (payload.language !== language || payload.generation !== generation || payload.ready !== true || (variant !== undefined && payload.variant !== variant) || JSON.stringify(payload.components) !== JSON.stringify(components)) {
-    throw new Error('The backend did not acknowledge the selected language generation');
-  }
+  assertLanguageGenerationAcknowledged(await response.json(), { language, generation, components, variant, ttsProvider });
 }
 
 export function onQuitTokenAvailable(callback: (token: string) => void): () => void {

@@ -37,6 +37,7 @@ import { DEFAULT_SETTINGS } from '../../shared/types';
 import { applyVariantOverlay } from '../../shared/languageVariants';
 import { getQuitToken, onQuitTokenAvailable, readResourceFile } from './pythonBackend';
 import WebSocket from 'ws';
+import { systemVoiceForRuntime } from './systemTtsRuntime';
 import { getLogger } from '../../shared/utils/logger';
 
 const log = getLogger('electron.voiceService');
@@ -1003,7 +1004,7 @@ async function generateTTS(
   if (provider === 'system') {
     try { owner.runtime = getLanguageTtsRuntime(language, variant); }
     catch (error) { sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false, error: error instanceof Error ? error.message : String(error) }); return; }
-    await generateSystemTTS(sanitizedText, language, owner);
+    await generateSystemTTS(sanitizedText, owner);
     return;
   }
 
@@ -1115,7 +1116,6 @@ async function generateTTS(
 
 function generateSystemTTS(
   text: string,
-  language: string,
   owner: TtsRequestOwner,
 ): Promise<void> {
   stopSystemTTS();
@@ -1127,18 +1127,23 @@ function generateSystemTTS(
   }
 
   const runtime = owner.runtime;
+  let voice: string;
+  try { voice = systemVoiceForRuntime(runtime, isMac ? 'darwin' : isLinux ? 'linux' : 'win32'); }
+  catch (error) {
+    sendOwnedTts(owner, IPC_CHANNELS.VOICE_TTS_STATUS, { generating: false, playing: false, error: error instanceof Error ? error.message : String(error) });
+    return Promise.resolve();
+  }
   let commandChain: string[];
   let args: string[];
   if (isMac) {
     commandChain = ['say'];
-    args = runtime.macosVoice ? ['-v', runtime.macosVoice, sanitized] : [sanitized];
+    args = ['-v', voice, sanitized];
   } else if (isLinux) {
     // Probe espeak-ng first; older distros only ship the legacy espeak binary.
     commandChain = ['espeak-ng', 'espeak'];
-    args = ['-v', runtime.espeakVoice || language, sanitized];
+    args = ['-v', voice, sanitized];
   } else {
     commandChain = ['powershell'];
-    const voice = runtime.windowsVoice;
     const voiceCommand = typeof voice === 'string' && voice.trim()
       ? `$s.SelectVoice('${voice.replace(/'/g, "''")}'); `
       : '';

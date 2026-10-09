@@ -751,3 +751,21 @@ def test_declared_voice_activation_rejects_missing_engine_dependency(monkeypatch
     monkeypatch.setattr(voice, '_ensure_tts_loaded', lambda language: (_ for _ in ()).throw(ImportError('missing declared engine')))
     with pytest.raises(ImportError, match='missing declared engine'):
         voice.ensure_language_voice_ready('future-package')
+
+
+def test_system_provider_remains_externally_owned(tmp_path, monkeypatch):
+    (tmp_path / 'settings.json').write_text('{"ttsProvider":"system"}', encoding='utf-8')
+    monkeypatch.setattr(voice.config, 'USER_DATA_PATH', str(tmp_path))
+    monkeypatch.setattr(voice, '_tts_provider', 'kokoro')
+    voice._reload_tts_settings()
+    assert voice._tts_provider == 'system'
+
+
+def test_system_activation_validates_stt_without_loading_python_tts(monkeypatch):
+    monkeypatch.setattr(voice, '_stt_runtime', lambda _: {'whisperLanguage': 'auto'})
+    monkeypatch.setattr(voice, '_tts_runtime', lambda _: {'macosVoice': 'Package Voice'})
+    calls = []
+    monkeypatch.setattr(voice, '_ensure_stt_loaded', lambda: calls.append('stt'))
+    monkeypatch.setattr(voice, '_resolve_tts_engine', lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError('Python TTS must not initialize for system')))
+    voice.ensure_language_voice_ready('future-package', provider='system')
+    assert calls == ['stt']

@@ -46,6 +46,8 @@ vi.mock('./localization', () => ({
 const mockDownloadFileWithProgress = vi.fn();
 const mockEnsureLanguagePythonRequirementsInstalled = vi.hoisted(() => vi.fn());
 const mockRestartPythonBackend = vi.hoisted(() => vi.fn());
+const mockSystemReady = vi.hoisted(() => vi.fn());
+vi.mock('./systemTtsRuntime', () => ({ ensureSystemTtsRuntimeReady: mockSystemReady }));
 
 vi.mock('../utils/downloadManager', () => ({
   downloadFileWithProgress: mockDownloadFileWithProgress,
@@ -76,6 +78,7 @@ beforeEach(async () => {
   mockDownloadFileWithProgress.mockReset();
   mockEnsureLanguagePythonRequirementsInstalled.mockReset();
   mockRestartPythonBackend.mockReset();
+  mockSystemReady.mockReset().mockResolvedValue(undefined);
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
     ok: false,
     status: 404,
@@ -1791,11 +1794,13 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     expect(mockRestartPythonBackend).not.toHaveBeenCalled();
   });
 
-  it('acknowledges the runtime generation when the active learning language is installed', async () => {
+  it.each(['core-only', 'system-ready', 'system-unavailable'] as const)('acknowledges exactly the installed runtime capability: %s', async (mode) => {
+    if (mode === 'system-unavailable') mockSystemReady.mockRejectedValueOnce(new Error('Native voice unavailable'));
     const archiveSourceDir = path.join(tempDir.tmpDir, 'archive-source');
     const archivePath = path.join(tempDir.tmpDir, 'aa.tar.gz');
     const metadataBytes = JSON.stringify({
       name: 'Alpha',
+      ...(mode !== 'core-only' ? { runtime: { tts: { macosVoice: 'Package Candidate Voice' } } } : {}),
       textProcessing: {
         partOfSpeech: {
           translatable: ['NOUN'],
@@ -1829,6 +1834,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     const settingsPath = path.join(tempDir.tmpDir, 'settings.json');
     fs.writeFileSync(settingsPath, JSON.stringify({
       language: 'aa',
+      ...(mode !== 'core-only' ? { ttsProvider: 'system', voiceEnabled: true } : {}),
       languageCatalogUrl: 'https://pages.example.com/language-catalog.json',
     }), 'utf-8');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
@@ -1854,9 +1860,18 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     const event = makeEvent();
     for (const h of handlers) await h(event, 'aa');
 
-    expect(fs.existsSync(path.join(resolveLanguageDataRoot(path.join(tempDir.tmpDir, 'language-data')), 'languages', 'aa.json'))).toBe(true);
     const { ensureLanguageGenerationReady } = await import('./pythonBackend');
-    expect(ensureLanguageGenerationReady).toHaveBeenCalledWith('aa', expect.any(String), undefined, ['core'], null);
+    if (mode === 'system-unavailable') {
+      expect(fs.existsSync(path.join(resolveLanguageDataRoot(path.join(tempDir.tmpDir, 'language-data')), 'languages', 'aa.json'))).toBe(false);
+      expect(ensureLanguageGenerationReady).not.toHaveBeenCalled();
+      expect(event.reply).toHaveBeenCalledWith('language-data-install-error', expect.objectContaining({ error: 'Native voice unavailable' }));
+    } else {
+      expect(fs.existsSync(path.join(resolveLanguageDataRoot(path.join(tempDir.tmpDir, 'language-data')), 'languages', 'aa.json'))).toBe(true);
+      if (mode === 'system-ready') {
+        expect(mockSystemReady).toHaveBeenCalledWith({ macosVoice: 'Package Candidate Voice' });
+        expect(ensureLanguageGenerationReady).toHaveBeenCalledWith('aa', expect.any(String), undefined, ['core', 'voice'], null, 'system');
+      } else expect(ensureLanguageGenerationReady).toHaveBeenCalledWith('aa', expect.any(String), undefined, ['core'], null);
+    }
     expect(mockRestartPythonBackend).not.toHaveBeenCalled();
   });
 

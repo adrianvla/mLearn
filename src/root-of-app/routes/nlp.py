@@ -29,6 +29,7 @@ class LanguageReadyRequest(BaseModel):
     generation: str = Field(..., max_length=64)
     dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
     components: List[str] = Field(default_factory=lambda: ['core'], max_length=32)
+    ttsProvider: Optional[str] = Field(default=None, max_length=32)
 
 
 @router.post('/language-ready')
@@ -50,10 +51,10 @@ def language_ready(req: LanguageReadyRequest):
                 ensure_language_ocr_ready(req.language)
             if 'voice' in req.components:
                 from routes.voice import ensure_language_voice_ready
-                ensure_language_voice_ready(req.language)
+                ensure_language_voice_ready(req.language, provider=req.ttsProvider)
             ready_adapter = getattr(module, 'LANGUAGE_RUNTIME_READY', None)
             if callable(ready_adapter): ready_adapter(req.components)
-        return {'language': req.language, 'generation': req.generation, 'components': req.components, 'variant': req.variant, 'ready': True}
+        return {'language': req.language, 'generation': req.generation, 'components': req.components, 'variant': req.variant, 'ready': True, **({'ttsProvider': req.ttsProvider} if req.ttsProvider is not None else {})}
     except HTTPException:
         raise
     except Exception as exc:

@@ -928,8 +928,17 @@ export function setupSettingsIPC(): void {
           const { ensureLanguageGenerationReady } = await import('./pythonBackend');
           const metadata = loadLangData(candidate)[language];
           if (!metadata) throw new Error('The candidate language metadata is unavailable');
-          const runtimeComponents = languageActivationComponents(resolveEffectiveLanguageData(metadata, settings, language), components);
-          await ensureLanguageGenerationReady(language, generation, resolvedDictionaryTarget, runtimeComponents, (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[language] ?? null);
+          const resolvedMetadata = resolveEffectiveLanguageData(metadata, settings, language);
+          const runtimeComponents = languageActivationComponents(resolvedMetadata, components);
+          const variant = (settings.languageVariants ?? DEFAULT_SETTINGS.languageVariants)[language] ?? null;
+          if (runtimeComponents.includes('voice')) {
+            const provider = settings.ttsProvider ?? DEFAULT_SETTINGS.ttsProvider;
+            if (provider === 'system' && resolvedMetadata.runtime?.tts) {
+              const { ensureSystemTtsRuntimeReady } = await import('./systemTtsRuntime');
+              await ensureSystemTtsRuntimeReady(resolvedMetadata.runtime.tts);
+            }
+            await ensureLanguageGenerationReady(language, generation, resolvedDictionaryTarget, runtimeComponents, variant, provider);
+          } else await ensureLanguageGenerationReady(language, generation, resolvedDictionaryTarget, runtimeComponents, variant);
           acknowledgedRoot = candidate;
         },
       });
