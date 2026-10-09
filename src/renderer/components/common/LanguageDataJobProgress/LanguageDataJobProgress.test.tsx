@@ -17,3 +17,21 @@ it('renders distinct jobs with known byte progress and an indeterminate unknown-
   expect(container.textContent).toContain('qx → en');
   expect(container.textContent).toContain('qx → fr');
 });
+
+it('keeps indeterminate activity visible in phases that cannot report a byte total, without treating terminal jobs as active', () => {
+  const container = document.createElement('div'); document.body.append(container);
+  dispose = render(() => <LanguageDataJobProgress jobs={[
+    ...(['verifying', 'extracting', 'activating', 'waiting-for-backend'] as const).map(phase => ({ operationId: phase, language: 'qx', components: ['core'], phase })),
+    { operationId: 'ready', language: 'qx', components: ['core'], phase: 'ready' },
+    { operationId: 'error', language: 'qx', components: ['core'], phase: 'error', error: 'Download rejected' },
+  ]} />, container);
+  for (const phase of ['verifying', 'extracting', 'activating', 'waiting-for-backend']) {
+    const progress = container.querySelector(`[data-operation-id="${phase}"] progress`);
+    expect(progress).not.toBeNull();
+    expect(progress?.hasAttribute('value')).toBe(false);
+    expect(progress?.getAttribute('aria-label')).toBe(`mlearn.LanguageSetup.Phases.${phase}`);
+  }
+  expect(container.querySelector('[data-operation-id="ready"] progress')).toBeNull();
+  expect(container.querySelector('[data-operation-id="error"] progress')).toBeNull();
+  expect(container.querySelector('[role="alert"]')?.textContent).toBe('Download rejected');
+});

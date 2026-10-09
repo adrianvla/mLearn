@@ -19,6 +19,9 @@ export const LanguageDataJobProgress: Component<{ jobs: LanguageDataInstallProgr
           <span>{job.downloadedBytes?.toLocaleString()}{job.expectedBytes && job.expectedBytes > 0 ? ` / ${job.expectedBytes.toLocaleString()}` : ''} {t('mlearn.LanguageSetup.Bytes')}</span>
         </Show>
       </Show>
+      <Show when={job.phase !== 'downloading' && job.phase !== 'ready' && job.phase !== 'error'}>
+        <progress aria-label={t(`mlearn.LanguageSetup.Phases.${job.phase}`)} />
+      </Show>
       <Show when={job.error}><span role="alert">{job.error}</span></Show>
     </div>}</For>
   </div>;

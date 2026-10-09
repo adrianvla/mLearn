@@ -1,15 +1,17 @@
-/* This entry point mounts into #root (not the shared #app container). Give the
-   standalone window a bounded height so its content owns vertical scrolling
-   while the global body overflow lock remains intact. */
+/* The standalone canvas fills the host below native controls. Details own
+   a separate bounded scroller so they cannot push camera recovery offscreen. */
 #root { height: 100%; min-height: 0; }
-.graph-inspector { height: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: var(--spacing-4); color: var(--text-primary); background: var(--bg-primary); }
+.graph-inspector { height: 100%; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: var(--spacing-4); color: var(--text-primary); background: var(--bg-primary); }
+.graph-inspector__section { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.graph-inspector__details-panel { flex-shrink: 0; max-height: 35%; overflow-y: auto; margin-top: var(--spacing-2); }
+.graph-inspector__details-panel[hidden] { display: none; }
 .graph-inspector__header { margin-bottom: 20px; }
 .graph-inspector__header h1 { margin: 0 0 0.25rem; font-size: var(--font-size-xl); }
 .graph-inspector__header p { margin: 0; color: var(--text-secondary); }
 .graph-inspector__section, .graph-inspector__target, .graph-inspector__targets { margin-bottom: 20px; }
 .graph-inspector__section h1 { margin: 0 0 var(--spacing-4); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--text-secondary); -webkit-app-region: drag; }
 .graph-inspector__targets h2, .graph-inspector__target h2 { margin: 0 0 var(--spacing-2); font-size: var(--font-size-sm); color: var(--text-secondary); }
-.graph-inspector__details { border: 0; padding: 0; background: none; color: var(--text-secondary); font: inherit; font-size: var(--font-size-xs); cursor: pointer; }
+.graph-inspector__details { flex-shrink: 0; align-self: flex-start; border: 0; padding: 0; background: none; color: var(--text-secondary); font: inherit; font-size: var(--font-size-xs); cursor: pointer; }
 /* Capability chips are inline pills, deliberately not full-width rows. */
 .graph-inspector__chip { display: inline-block; width: auto; margin: 6px 8px 6px 0; padding: 4px 10px; color: inherit; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 999px; cursor: pointer; }
 .graph-inspector__chip.is-active { border-color: var(--accent-primary); color: var(--accent-primary); }

@@ -25,6 +25,8 @@ export interface GraphNeighborhoodVizProps {
   onLoadMore?: () => void;
   loadingMore?: boolean;
   busy?: boolean;
+  /** Let a bounded host allocate the canvas instead of using its intrinsic height. */
+  fillViewport?: boolean;
 }
 
 const labelOf = (node: GraphNode): string => node.displayLabel?.trim() || node.label?.trim() || '';
@@ -294,7 +296,7 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
             </>}</Show>
           </aside></Show>);
 
-  return <div class="graph-viz" classList={{ 'graph-viz--overview': isOverview(), 'graph-viz--compact': compact() }} aria-busy={props.busy}>
+  return <div class="graph-viz" classList={{ 'graph-viz--overview': isOverview(), 'graph-viz--compact': compact(), 'graph-viz--fill-viewport': props.fillViewport }} aria-busy={props.busy}>
     <header class="graph-viz__header">
       <nav class="graph-viz__history" aria-label={text('History')}>
         <Button buttonType="icon" icon="chevron" iconRotation={-90} size="sm" variant="ghost" aria-label={text('Back')} disabled={!props.onSelect || cursor() <= 0} onClick={() => travel(cursor() - 1)} />
@@ -318,18 +320,27 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
             <Show when={!isOverview()}><label class="graph-viz__search"><span class="graph-viz__sr-only">{text('Filter')}</span><input type="search" value={query()} placeholder={text('Filter')} onInput={(event) => { setQuery(event.currentTarget.value); setPage(0); setSelection(undefined); setView(undefined); }} /></label></Show>
           </div>
           <div class="graph-viz__stage">
-            <svg ref={svg} class="graph-viz__svg" style={{ height: `${viewportHeight()}px` }} viewBox={`0 0 ${viewportWidth()} ${viewportHeight()}`} role="group" tabindex={0} aria-label={text('Canvas')}
+            <svg ref={svg} class="graph-viz__svg" style={props.fillViewport ? undefined : { height: `${viewportHeight()}px` }} viewBox={`0 0 ${viewportWidth()} ${viewportHeight()}`} role="group" tabindex={0} aria-label={text('Canvas')}
               onWheel={(event) => {
-                if (compact() && !event.ctrlKey && !event.metaKey) return;
+                if (compact() && !props.fillViewport && !event.ctrlKey && !event.metaKey) return;
                 event.preventDefault();
                 if (event.ctrlKey || event.metaKey) { const at = point(event); zoom(Math.exp(-event.deltaY * 0.01), at.x, at.y); }
-                else { const old = currentView(); const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? HEIGHT : 1; setView({ ...old, tx: old.tx - event.deltaX * unit, ty: old.ty - event.deltaY * unit }); }
+                else {
+                  const old = currentView();
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const unitX = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.width : 1;
+                  const unitY = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1;
+                  const from = point(event);
+                  const to = point({ clientX: event.clientX + event.deltaX * unitX, clientY: event.clientY + event.deltaY * unitY });
+                  setView({ ...old, tx: old.tx - (to.x - from.x), ty: old.ty - (to.y - from.y) });
+                }
               }}
               onPointerDown={(event) => {
-                if (compact() && event.pointerType === 'touch') return;
+                if (compact() && !props.fillViewport && event.pointerType === 'touch') return;
                 if (event.button !== 0) return;
                 suppressPointerClick = false;
                 const node = Boolean((event.target as Element).closest('[data-node]'));
+                if (!node) event.currentTarget.focus({ preventScroll: true });
                 const at = point(event); pan = { pointer: event.pointerId, x: at.x, y: at.y, view: currentView(), moved: false, node };
                 event.currentTarget.setPointerCapture(event.pointerId);
               }}

@@ -115,6 +115,7 @@ export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; i
       <section class="graph-inspector__section">
         <h1>{t('mlearn.GraphInspector.Explore.Title')}</h1>
         <GraphNeighborhoodViz
+          fillViewport
           neighborhood={neighborhood()!}
           centerState={explanation()?.state}
           busy={pending()}
@@ -123,10 +124,10 @@ export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; i
           onSelect={(id) => { setSelectedCapability(undefined); setEntityId(id); }}
         />
       </section>
-      <Show when={details()}><section class="graph-inspector__targets"><h2>{t('mlearn.GraphInspector.Capabilities')}</h2><For each={capabilitiesFor(neighborhood()!)}>{(capability) => <button type="button" class="graph-inspector__chip" classList={{ 'is-active': selectedCapability() === capability }} onClick={() => setSelectedCapability(capability)}>{t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}</button>}</For></section></Show>
       <button type="button" class="graph-inspector__details" onClick={() => setDetails(!details())}>{t('mlearn.GraphInspector.Details')}</button>
+      <div class="graph-inspector__details-panel" hidden={!details()}>
+      <Show when={details()}><section class="graph-inspector__targets"><h2>{t('mlearn.GraphInspector.Capabilities')}</h2><For each={capabilitiesFor(neighborhood()!)}>{(capability) => <button type="button" class="graph-inspector__chip" classList={{ 'is-active': selectedCapability() === capability }} onClick={() => setSelectedCapability(capability)}>{t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}</button>}</For></section></Show>
       <Show when={details()}><pre>{`${neighborhood()!.center.id}\ndense: ${neighborhood()!.centerDenseId}\nrelations: ${neighborhood()!.relationCount}`}</pre></Show>
-    </Show>
     <Show when={details() && journalPending()}><SkeletonText lines={3} /></Show>
     <Show when={details() && journalFailed()}><KnowledgeLoadError onRetry={() => setJournalRevision(value => value + 1)} /></Show>
     <Show when={details() && explanation()}>{(value) => <section class="graph-inspector__target">
@@ -136,6 +137,8 @@ export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; i
       <h3>{t('mlearn.GraphInspector.Evidence')}</h3><For each={value().evidence}>{(event) => <p>{formatDate(event.t, settings.uiLanguage)} · {event.source} · {event.quality ?? event.rating ?? ''}{event.stalled ? ` · ${t('mlearn.GraphInspector.LatencyUnreliable')}` : attemptActiveLatencyMs(event) !== undefined ? ` · ${attemptActiveLatencyMs(event)}ms` : ''}</p>}</For>
       <Show when={value().state === 'predicted'}><p>{t('mlearn.GraphInspector.PredictionFirewall')}</p></Show>
     </section>}</Show>
+      </div>
+    </Show>
     </Show>
   </div>;
 };

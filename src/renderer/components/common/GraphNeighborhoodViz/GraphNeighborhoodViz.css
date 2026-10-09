@@ -15,6 +15,19 @@
 .graph-viz__stage { position: relative; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; }
 .graph-viz__svg { display: block; width: 100%; max-height: 38rem; touch-action: none; cursor: grab; user-select: none; }
 .graph-viz__svg:active { cursor: grabbing; }
+.graph-viz__svg:focus-visible { outline: 2px solid var(--color-primary); outline-offset: -2px; }
+/* Standalone hosts own available height; embedded/compact consumers retain
+   their intrinsic layout and route scrolling. Keep recovery inside the stage. */
+.graph-viz--fill-viewport { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.graph-viz--fill-viewport .graph-viz__header { flex-shrink: 0; }
+.graph-viz--fill-viewport .graph-viz__layout,
+.graph-viz--fill-viewport .graph-viz__workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.graph-viz--fill-viewport .graph-viz__toolbar,
+.graph-viz--fill-viewport .graph-viz__footer { flex-shrink: 0; }
+.graph-viz--fill-viewport .graph-viz__stage { flex: 1; min-height: 0; }
+.graph-viz--fill-viewport .graph-viz__svg { height: 100%; max-height: none; }
+.graph-viz--fill-viewport .graph-viz__detail { flex-shrink: 0; min-height: 0; max-height: 35%; overflow-y: auto; }
+.graph-viz--fill-viewport .graph-viz__note { flex-shrink: 0; }
 .graph-viz__arrow { fill: var(--text-tertiary); }
 .graph-viz__edge { stroke: var(--text-tertiary); stroke-width: 1; fill: none; pointer-events: none; }
 .graph-viz__edge--identity { stroke-width: 2; }
@@ -68,6 +81,7 @@
 .graph-viz__filter { min-width: 0; max-width: 100%; }
 .graph-viz--compact.graph-viz--overview .graph-viz__svg { max-height: none; }
 .graph-viz--compact .graph-viz__svg { touch-action: pan-y; }
+.graph-viz--fill-viewport.graph-viz--compact .graph-viz__svg { touch-action: none; }
 .graph-viz__detail details { margin-top: var(--spacing-2); }
 .graph-viz__stage { border-radius: var(--radius-lg); }
 .graph-viz__controls { border: 0; border-radius: var(--radius-md); }

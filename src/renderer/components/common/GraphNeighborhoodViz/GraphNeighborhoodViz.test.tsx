@@ -18,11 +18,11 @@ const neighborhood: GraphNeighborhood = {
 const dense: GraphNeighborhood = { ...neighborhood, relationCount: 213, relations: Array.from({ length: 213 }, (_, i) => ({ id: `node:${i}`, kind: 'sense', label: `Meaning ${i} with a complete long description`, relationType: 'has-sense' })) };
 let container: HTMLDivElement;
 let dispose: (() => void) | undefined;
-afterEach(() => { dispose?.(); container?.remove(); });
-function mount(data = neighborhood, onSelect = vi.fn(), all = false) {
+afterEach(() => { dispose?.(); container?.remove(); vi.unstubAllGlobals(); });
+function mount(data = neighborhood, onSelect = vi.fn(), all = false, fillViewport = false) {
   container = document.createElement('div'); document.body.appendChild(container);
   const [value, setValue] = createSignal(data);
-  dispose = render(() => <GraphNeighborhoodViz neighborhood={value()} onSelect={onSelect} />, container);
+  dispose = render(() => <GraphNeighborhoodViz neighborhood={value()} onSelect={onSelect} fillViewport={fillViewport} />, container);
   if (!all && data.relations.length) { const select = container.querySelector('select')!; select.selectedIndex = 1; select.dispatchEvent(new Event('change', { bubbles: true })); }
   return { setValue, onSelect };
 }
@@ -35,6 +35,13 @@ const selectGroup = (type: string) => {
 const pointerEvent = (type: string, x: number, y: number, pointerId = 1) => {
   const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
   Object.defineProperty(event, 'pointerId', { value: pointerId });
+  return event;
+};
+// happy-dom's WheelEvent omits MouseEvent coordinates; retain the browser
+// event envelope the coordinate conversion actually consumes.
+const wheelEvent = (deltaY: number, deltaMode = 0) => {
+  const event = new MouseEvent('wheel', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 });
+  Object.defineProperties(event, { deltaX: { value: 0 }, deltaY: { value: deltaY }, deltaMode: { value: deltaMode } });
   return event;
 };
 
@@ -184,6 +191,58 @@ describe('neighborhood presentation', () => {
     canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     expect(canvas.querySelector('g[transform]')?.getAttribute('transform')).not.toBe('translate(0 0) scale(1)');
     canvas.dispatchEvent(new KeyboardEvent('keydown', { key: '0', bubbles: true })); expect(container.querySelector('.graph-viz__svg > g')?.getAttribute('transform')).toContain('scale(1)');
+  });
+  it('gives background pointer interaction canvas keyboard ownership while preserving node ownership', () => {
+    mount();
+    const canvas = container.querySelector<SVGSVGElement>('svg.graph-viz__svg')!;
+    const focus = vi.fn();
+    Object.defineProperty(canvas, 'focus', { value: focus, configurable: true });
+    Object.defineProperty(canvas, 'setPointerCapture', { value: vi.fn(), configurable: true });
+    Object.defineProperty(canvas, 'releasePointerCapture', { value: vi.fn(), configurable: true });
+    canvas.dispatchEvent(pointerEvent('pointerdown', 10, 10));
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+    canvas.dispatchEvent(pointerEvent('pointerup', 10, 10));
+    focus.mockClear();
+    const node = container.querySelector('.graph-viz__node')!;
+    node.dispatchEvent(pointerEvent('pointerdown', 10, 10));
+    expect(focus).not.toHaveBeenCalled();
+    node.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(container.querySelector('.graph-viz__detail')).not.toBeNull();
+  });
+  it('converts wheel pixel, line and page distances into the fitted canvas coordinate system', () => {
+    mount();
+    const canvas = container.querySelector<SVGSVGElement>('.graph-viz__svg')!;
+    const [, , width, height] = canvas.getAttribute('viewBox')!.split(' ').map(Number);
+    Object.defineProperty(canvas, 'getScreenCTM', { value: () => null, configurable: true });
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, width / 2, height / 2));
+    for (const [deltaMode, deltaY, translated] of [[0, 100, 200], [1, 1, 32], [2, 1, height]]) {
+      button('Neighborhood.Fit').click();
+      canvas.dispatchEvent(wheelEvent(deltaY, deltaMode));
+      expect(canvas.querySelector('g[transform]')?.getAttribute('transform')).toBe(`translate(0 ${-translated}) scale(1)`);
+    }
+  });
+  it('pans a bounded narrow canvas while leaving intrinsic narrow consumers available for route scrolling', () => {
+    let resize: ((entries: { contentRect: { width: number } }[]) => void) | undefined;
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: typeof resize) { resize = callback; }
+      observe() {}
+      disconnect() {}
+    });
+    mount(neighborhood, vi.fn(), false, true);
+    resize!([{ contentRect: { width: 400 } }]);
+    const canvas = container.querySelector<SVGSVGElement>('.graph-viz__svg')!;
+    Object.defineProperty(canvas, 'getScreenCTM', { value: () => null, configurable: true });
+    const wheel = wheelEvent(40);
+    canvas.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(canvas.querySelector('g[transform]')?.getAttribute('transform')).toBe('translate(0 -40) scale(1)');
+    dispose!(); container.remove();
+    mount(); resize!([{ contentRect: { width: 400 } }]);
+    const embedded = container.querySelector<SVGSVGElement>('.graph-viz__svg')!;
+    const routeWheel = wheelEvent(40);
+    embedded.dispatchEvent(routeWheel);
+    expect(routeWheel.defaultPrevented).toBe(false);
+    expect(embedded.querySelector('g[transform]')?.getAttribute('transform')).toBe('translate(0 0) scale(1)');
   });
   it('does not turn a node drag into a selection, while a click still selects the node', () => {
     mount();
