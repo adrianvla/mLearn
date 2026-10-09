@@ -52,6 +52,18 @@ describe('HttpBackend', () => {
     expect(mockFetch.mock.calls.at(-1)![0]).toContain('variant=first');
   });
 
+  it('transmits the admitted immutable generation on every NLP route', async () => {
+    const backend = new HttpBackend('http://127.0.0.1:7752');
+    mockFetch.mockResolvedValue(makeOkResponse({ tokens: [], data: [], words: [] }));
+    const generation = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    await backend.tokenize('term', 'future', 'en', null, generation);
+    expect(JSON.parse(mockFetch.mock.calls.at(-1)![1].body as string)).toMatchObject({ generation });
+    await backend.translate('term', 'future', { generation });
+    expect(JSON.parse(mockFetch.mock.calls.at(-1)![1].body as string)).toMatchObject({ generation });
+    await backend.enumerateDictionaryWords('future', { generation });
+    expect(JSON.parse(mockFetch.mock.calls.at(-1)![1].body as string)).toMatchObject({ generation });
+  });
+
   describe('tokenize', () => {
     it('serializes an explicit source variant and explicit base selection without ambient substitution', async () => {
       const backend = new HttpBackend('http://127.0.0.1:7752');

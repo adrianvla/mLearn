@@ -75,7 +75,7 @@ vi.mock('../../context', () => ({
 }));
 
 vi.mock('../../hooks/useDictionaryTargetLanguage', () => ({
-  useDictionaryTargetLanguage: () => 'en',
+  useDictionaryTargetLanguage: () => () => 'en',
 }));
 
 vi.mock('../../hooks/useTranslation', () => ({

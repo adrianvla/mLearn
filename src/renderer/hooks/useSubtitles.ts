@@ -228,7 +228,7 @@ export function useSubtitles() {
 
   // Generation counter to prevent race conditions during rapid seeking
   let tokenizationGen = 0;
-  createEffect(on(() => [currentSourceKey?.(), processingLanguage(), getTokenizerCacheNamespace(currentLangData())], () => {
+  createEffect(on(() => [currentSourceKey?.(), processingLanguage(), getTokenizerCacheNamespace(currentLangData()), dictionaryTargetLanguage()], () => {
     tokenizationGen++;
     setCurrentIndex(-1);
     setTokens([]);

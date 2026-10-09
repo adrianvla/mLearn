@@ -750,7 +750,7 @@ def _ensure_warmup_started():
 
 @router.post("/ocr/warmup")
 @scoped_language_request
-async def ocr_warmup(language: str | None = Query(None), variant: str | None = Query(None)):
+async def ocr_warmup(language: str | None = Query(None), variant: str | None = Query(None), generation: str | None = Query(None)):
     """Trigger lazy pre-import of transformers for MangaOCR.
 
     Called when the reader is first opened for a language whose OCR runtime
@@ -785,6 +785,7 @@ async def ocr_endpoint(
     image_base64: str | None = Form(None),
     language: str | None = Form(None),
     variant: str | None = Form(None),
+    generation: str | None = Form(None),
     dev_mode: str | None = Form(None),
     single_region: str | None = Form(None),
     detection_max_width: str | None = Form(None),

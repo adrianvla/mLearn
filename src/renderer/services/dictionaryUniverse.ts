@@ -1,4 +1,4 @@
-import type { DictionaryWordPair } from '../../shared/backends/types';
+import type { DictionaryWordPair, TranslateRequestOptions } from '../../shared/backends/types';
 import { getBackend } from '../../shared/backends';
 
 /**
@@ -11,20 +11,24 @@ import { getBackend } from '../../shared/backends';
 const cache = new Map<string, DictionaryWordPair[]>();
 const inflight = new Map<string, Promise<DictionaryWordPair[]>>();
 
-export async function loadDictionaryUniverse(language: string): Promise<DictionaryWordPair[]> {
-  const cached = cache.get(language);
+export async function loadDictionaryUniverse(language: string, options: TranslateRequestOptions = {}): Promise<DictionaryWordPair[]> {
+  const key = JSON.stringify([language, options.variant, options.generation, options.dictionaryTargetLanguage]);
+  const cached = cache.get(key);
   if (cached) return cached;
-  const promise = Promise.resolve(getBackend().enumerateDictionaryWords(language))
+  const active = inflight.get(key);
+  if (active) return active;
+  const promise = Promise.resolve(getBackend().enumerateDictionaryWords(language, options))
     .then((pairs) => {
-      cache.set(language, pairs);
-      inflight.delete(language);
+      cache.set(key, pairs);
+      while (cache.size > 4) cache.delete(cache.keys().next().value!);
+      inflight.delete(key);
       return pairs;
     })
     .catch((error) => {
-      inflight.delete(language);
+      inflight.delete(key);
       throw error;
     });
-  inflight.set(language, promise);
+  inflight.set(key, promise);
   return promise;
 }
 

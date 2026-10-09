@@ -361,6 +361,7 @@ async function sendImageForOCR(
   const detectionScale = options.detectionScale;
   const requestOptions: OCRRequestOptions = {
     language: options.language,
+    generation: options.generation,
     ...(options.variant !== undefined ? { variant: options.variant } : {}),
     devMode: options.devMode,
     singleRegion: options.singleRegion,
@@ -458,6 +459,7 @@ export function useOCR() {
         {
           language,
           variant: languageData?.resolvedVariantId,
+          generation: languageData?.languageData?.activationGeneration,
           devMode: settings.devMode ? true : undefined,
         },
       );

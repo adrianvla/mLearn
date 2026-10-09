@@ -68,8 +68,8 @@ export const BulkAddModal: Component<BulkAddModalProps> = (props) => {
   const [addProgress, setAddProgress] = createSignal<{ current: number; total: number } | null>(null);
 
   const [dictionaryWords] = createResource(
-    () => props.language,
-    (language) => loadDictionaryUniverse(language),
+    () => ({ language: props.language, variant: props.languageData?.resolvedVariantId, generation: props.languageData?.languageData?.activationGeneration }),
+    ({ language, ...options }) => loadDictionaryUniverse(language, options),
   );
 
   const filterSetup = createMemo(() => (

@@ -354,14 +354,15 @@ function translateWithDictionaryTarget(
   dictionaryTargetLanguage?: string,
   variant?: string | null,
   cacheScope?: string,
+  generation?: string,
 ): Promise<TranslationResponse> {
   let flights = translationFlights.get(backend);
   if (!flights) { flights = new Map(); translationFlights.set(backend, flights); }
-  const key = JSON.stringify([word, language, dictionaryTargetLanguage, variant, cacheScope]);
+  const key = JSON.stringify([word, language, dictionaryTargetLanguage, variant, cacheScope, generation]);
   const admitted = flights.get(key);
   if (admitted) return admitted;
   const flight = (() => {
-    if (variant !== undefined) return backend.translate(word, language, { variant, ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
+    if (generation || variant !== undefined) return backend.translate(word, language, { ...(generation ? { generation } : {}), ...(variant !== undefined ? { variant } : {}), ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
     return dictionaryTargetLanguage
       ? backend.translate(word, language, { dictionaryTargetLanguage })
       : backend.translate(word, language);
@@ -447,7 +448,7 @@ export async function fetchTranslation(
     if (translationCache.has(key) && agreesWithSelection(translationCache.get(key)!)) return translationCache.get(key)!;
     const cached = await getCachedTranslationScopedDB(scopedWord, cacheLanguage, dictionaryTargetLanguage);
     if (cached && agreesWithSelection(cached)) { setTranslationCache(key, cached); setCacheVersion(value => value + 1); return cached; }
-    const result = await getBackend().translate(word, language, { variant: languageData?.resolvedVariantId, context: { ...lookupOptions.context, ...(selectionId ? { selectionId } : {}) },
+    const result = await getBackend().translate(word, language, { generation: languageData?.languageData?.activationGeneration, variant: languageData?.resolvedVariantId, context: { ...lookupOptions.context, ...(selectionId ? { selectionId } : {}) },
       ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
     if ((await readLookupSelection(selectionKey))?.raw !== selection?.raw) {
       return fetchTranslation(word, language, lookupOptions);
@@ -497,7 +498,7 @@ export async function fetchTranslation(
       continue;
     }
 
-    const data = await translateWithDictionaryTarget(getBackend(), candidate, language, dictionaryTargetLanguage, languageData?.resolvedVariantId, cacheLanguage);
+    const data = await translateWithDictionaryTarget(getBackend(), candidate, language, dictionaryTargetLanguage, languageData?.resolvedVariantId, cacheLanguage, languageData?.languageData?.activationGeneration);
     setTranslationCache(cacheKey, data);
     setCacheVersion((v) => v + 1);
     void setCachedTranslationScopedDB(candidate, data, cacheLanguage, dictionaryTargetLanguage);
@@ -517,9 +518,10 @@ export async function fetchTranslation(
 export async function selectTranslationCandidate(word: string, selectionId: string, language: string,
   options: WordLookupCandidateOptions): Promise<TranslationResponse> {
   const dictionaryTargetLanguage = resolveDictionaryTargetLanguage(options.dictionaryTargetLanguage);
-  const cacheLanguage = buildVersionedLanguageCacheId(language, resolveLanguageData(options.languageData), dictionaryTargetLanguage);
+  const languageData = resolveLanguageData(options.languageData);
+  const cacheLanguage = buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage);
   const context = options.context ?? {};
-  const result = await getBackend().translate(word, language, { variant: resolveLanguageData(options.languageData)?.resolvedVariantId, context: { ...context, selectionId },
+  const result = await getBackend().translate(word, language, { generation: languageData?.languageData?.activationGeneration, variant: languageData?.resolvedVariantId, context: { ...context, selectionId },
     ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}) });
   if (result.resolution?.selectedId !== selectionId || result.resolution.selectionUnavailable) throw new Error('Dictionary selection unavailable');
   const selectionKey = lookupSelectionKey(word, context, language, dictionaryTargetLanguage);
@@ -640,7 +642,7 @@ export async function warmTranslationCache(
       let chunkHits = 0;
       const chunk = wordsToWarm.slice(i, i + TRANSLATION_WARM_CONCURRENCY).map(async (word) => {
         try {
-          const data = await translateWithDictionaryTarget(backend, word, language, dictionaryTargetLanguage, variant, cacheLanguage);
+          const data = await translateWithDictionaryTarget(backend, word, language, dictionaryTargetLanguage, variant, cacheLanguage, languageData?.languageData?.activationGeneration);
           setTranslationCache(buildTranslationCacheKey(word, cacheLanguage, dictionaryTargetLanguage), data);
           chunkHits += 1;
           batchEntries.push({ word, data });
@@ -691,6 +693,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     language: string | undefined,
     target?: string,
     variant?: string | null,
+    generation?: string,
   ): Promise<{ tokens: Token[]; fresh: boolean }> => {
     const dbCached = await getCachedTokensByLanguageDB(key, language, namespace);
     if (dbCached) {
@@ -698,7 +701,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
       return { tokens: dbCached, fresh: false };
     }
 
-    const tokens = variant !== undefined ? await getBackend().tokenize(key, language, target, variant) : target ? await getBackend().tokenize(key, language, target) : await getBackend().tokenize(key, language);
+    const tokens = generation || variant !== undefined ? await getBackend().tokenize(key, language, target, variant, generation) : target ? await getBackend().tokenize(key, language, target) : await getBackend().tokenize(key, language);
     tokenCache.set(cacheKey, { tokens, ts: Date.now() });
     pruneMapFIFO(tokenCache, TOKEN_CACHE_MAX);
     if (persist) {
@@ -715,8 +718,9 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     language: string | undefined,
     target?: string,
     variant?: string | null,
+    generation?: string,
   ): Promise<{ tokens: Token[]; fresh: boolean }> => {
-    const p = resolveUncached(key, namespace, cacheKey, persist, language, target, variant);
+    const p = resolveUncached(key, namespace, cacheKey, persist, language, target, variant, generation);
     tokenInFlight.set(cacheKey, p);
     try {
       return await p;
@@ -757,7 +761,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
     if (fast) return fast;
     const cacheKey = buildTokenCacheKey(key, language, namespace);
     try {
-      const { tokens } = await tokenizeUncached(key, namespace, cacheKey, true, language, target, languageData?.resolvedVariantId);
+      const { tokens } = await tokenizeUncached(key, namespace, cacheKey, true, language, target, languageData?.resolvedVariantId, languageData?.languageData?.activationGeneration);
       return tokens;
     } catch (e) {
       return roughFallbackOrThrow(key, languageData, e, language);
@@ -784,7 +788,7 @@ export function useTokenizer(options: UseTokenizerOptions = {}) {
       const cacheKey = buildTokenCacheKey(key, language, namespace);
       let result: { tokens: Token[]; fresh: boolean };
       try {
-        result = await tokenizeUncached(key, namespace, cacheKey, false, language, target, languageData?.resolvedVariantId);
+        result = await tokenizeUncached(key, namespace, cacheKey, false, language, target, languageData?.resolvedVariantId, languageData?.languageData?.activationGeneration);
       } catch (e) {
         // Rough fallbacks are display-only and never persisted (same as `tokenize`).
         return roughFallbackOrThrow(key, languageData, e, language);
@@ -919,6 +923,8 @@ export function useDictionary(options: UseDictionaryOptions = {}) {
           language,
           dictionaryTargetLanguage,
           languageData?.resolvedVariantId,
+          buildVersionedLanguageCacheId(language, languageData, dictionaryTargetLanguage),
+          languageData?.languageData?.activationGeneration,
         );
         if (data.data && Array.isArray(data.data)) {
           const entries: DictionaryEntry[] = [];

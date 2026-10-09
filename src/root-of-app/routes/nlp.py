@@ -14,7 +14,7 @@ from typing import List, Optional
 
 import plugin_registry
 import config
-from language_scope import language_variant_override
+from language_scope import language_variant_override, scoped_language_request
 from generic_language import dictionary_target_language_override, DictionaryUnavailableError
 from logging_utils import get_logger
 
@@ -78,6 +78,7 @@ def _resolve_module(language: Optional[str], variant=None):
 
 
 class TokenizeRequest(BaseModel):
+    generation: Optional[str] = Field(default=None, max_length=64)
     dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
     text: str = Field(..., max_length=50000)
     language: Optional[str] = Field(default=None, max_length=32)
@@ -89,6 +90,7 @@ class TokenizeResponse(BaseModel):
 
 
 class TranslationRequest(BaseModel):
+    generation: Optional[str] = Field(default=None, max_length=64)
     word: str = Field(..., max_length=1000)
     language: Optional[str] = Field(default=None, max_length=32)
     variant: Optional[str] = Field(default=None, max_length=128)
@@ -106,6 +108,7 @@ class TranslationResponse(BaseModel):
 
 
 @router.post("/tokenize", response_model=TokenizeResponse)
+@scoped_language_request
 def tokenize(req: TokenizeRequest):
     log.info("requested tokenization: characters=%d", len(req.text))
     mod = _resolve_module(req.language, req.variant)
@@ -115,6 +118,7 @@ def tokenize(req: TokenizeRequest):
 
 
 @router.post("/translate", response_model=TranslationResponse)
+@scoped_language_request
 def get_translation(req: TranslationRequest):
     log.info("requested translation: characters=%d", len(req.word))
     mod = _resolve_module(req.language, req.variant)
@@ -133,6 +137,7 @@ def get_translation(req: TranslationRequest):
 
 
 class DictionaryWordsRequest(BaseModel):
+    generation: Optional[str] = Field(default=None, max_length=64)
     dictionaryTargetLanguage: Optional[str] = Field(default=None, max_length=32)
     language: Optional[str] = Field(default=None, max_length=32)
     variant: Optional[str] = Field(default=None, max_length=128)
@@ -143,6 +148,7 @@ class DictionaryWordsResponse(BaseModel):
 
 
 @router.post("/dictionary-words", response_model=DictionaryWordsResponse)
+@scoped_language_request
 def dictionary_words(req: DictionaryWordsRequest):
     """Enumerate all dictionary headwords for a language.
 

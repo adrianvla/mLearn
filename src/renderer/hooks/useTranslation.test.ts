@@ -1788,3 +1788,29 @@ it('keeps tokenizer caches distinct across changed package bytes with an unchang
   expect((await useTokenizer({ language: 'future', languageData: data('new-bytes') }).tokenize('same-text'))[0].word).toBe('new');
   expect(mockTokenize).toHaveBeenCalledTimes(2);
 });
+
+
+describe('immutable generation request admission', () => {
+  it('sends captured package generation through tokenization, warming, contextual lookup and correction', async () => {
+    vi.resetModules(); vi.clearAllMocks();
+    mockKvGet.mockResolvedValue(null);
+    mockGetCachedTokensByLanguageDB.mockResolvedValue(null);
+    mockGetCachedTranslationByLanguageDB.mockResolvedValue(null);
+    const generation = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    const data = { languageData: { activationGeneration: generation, assets: [] } } as unknown as LanguageData;
+    mockTokenize.mockResolvedValue([]);
+    mockTranslate.mockImplementation(async (word, _language, options) => ({ ...makeTranslationResponse(word), resolution: { selectedId: options?.context?.selectionId ?? 'entry', basis: 'dictionary-order', candidates: [] } }));
+    const { useTokenizer, warmTranslationCache, fetchTranslation, selectTranslationCandidate } = await import('./useTranslation');
+    await useTokenizer({ language: 'future', languageData: data }).tokenize('generation-token');
+    expect(mockTokenize).toHaveBeenLastCalledWith('generation-token', 'future', undefined, undefined, generation);
+    await warmTranslationCache(['generation-warm'], undefined, undefined, 'future', undefined, data);
+    expect(mockTranslate).toHaveBeenLastCalledWith('generation-warm', 'future', { generation });
+    await fetchTranslation('generation-context', 'future', { languageData: data, context: { surface: 'opaque' } });
+    expect(mockTranslate.mock.calls.at(-1)?.[2]).toMatchObject({ generation });
+    const durable = new Map<string, string>();
+    mockKvGet.mockImplementation(async key => durable.get(key) ?? null);
+    mockKvSet.mockImplementation(async (key, value) => { durable.set(key, value); });
+    await selectTranslationCandidate('generation-correction', 'chosen', 'future', { languageData: data, context: { surface: 'opaque' } });
+    expect(mockTranslate.mock.calls.at(-1)?.[2]).toMatchObject({ generation, context: { selectionId: 'chosen' } });
+  });
+});

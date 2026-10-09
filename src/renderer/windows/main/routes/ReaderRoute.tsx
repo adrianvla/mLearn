@@ -2561,7 +2561,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
       // language package metadata has loaded. Blank/missing metadata would use
       // generic OCR defaults and hide missing package installs.
       if ((ocrEnabledSetting ?? DEFAULT_SETTINGS.ocrEnabled) && language && !languageLoading && languageData) {
-        getBackend().warmupOcr(language, languageData.resolvedVariantId).catch(() => {/* non-fatal */});
+        getBackend().warmupOcr(language, languageData.resolvedVariantId, languageData.languageData?.activationGeneration).catch(() => {/* non-fatal */});
       }
     },
     { defer: true },

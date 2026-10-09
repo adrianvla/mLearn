@@ -101,9 +101,10 @@ export class HttpBackend implements BackendAdapter {
     throw new HttpBackendStatusError(res.status, `${label} failed: ${res.status}${text ? ` - ${text}` : ''}`);
   }
 
-  async tokenize(text: string, language?: string, dictionaryTargetLanguage?: string, variant?: string | null): Promise<Token[]> {
+  async tokenize(text: string, language?: string, dictionaryTargetLanguage?: string, variant?: string | null, generation?: string): Promise<Token[]> {
     const body: Record<string, unknown> = { text };
     if (variant !== undefined) body.variant = variant;
+    if (generation) body.generation = generation;
     if (language) body.language = language;
     if (dictionaryTargetLanguage) body.dictionaryTargetLanguage = dictionaryTargetLanguage;
 
@@ -122,6 +123,7 @@ export class HttpBackend implements BackendAdapter {
   async translate(word: string, language?: string, options?: TranslateRequestOptions): Promise<TranslationResponse> {
     const body: Record<string, unknown> = { word };
     if (options?.variant !== undefined) body.variant = options.variant;
+    if (options?.generation) body.generation = options.generation;
     if (options?.context) body.context = options.context;
     if (language) body.language = language;
     if (options?.dictionaryTargetLanguage) {
@@ -142,6 +144,7 @@ export class HttpBackend implements BackendAdapter {
   async enumerateDictionaryWords(language?: string, options?: TranslateRequestOptions): Promise<DictionaryWordPair[]> {
     const body: Record<string, unknown> = {};
     if (options?.variant !== undefined) body.variant = options.variant;
+    if (options?.generation) body.generation = options.generation;
     if (options?.dictionaryTargetLanguage) body.dictionaryTargetLanguage = options.dictionaryTargetLanguage;
     if (language) body.language = language;
 
@@ -170,6 +173,7 @@ export class HttpBackend implements BackendAdapter {
     }
 
     if (options?.variant !== undefined) form.append('variant', options.variant ?? '');
+    if (options?.generation) form.append('generation', options.generation);
     if (options?.language) {
       form.append('language', options.language);
     }
@@ -197,11 +201,12 @@ export class HttpBackend implements BackendAdapter {
     return (await res.json()) as OCRResult;
   }
 
-  async warmupOcr(language?: string, variant?: string | null): Promise<OCRWarmupResult> {
+  async warmupOcr(language?: string, variant?: string | null, generation?: string): Promise<OCRWarmupResult> {
     const warmupUrl = this.buildUrl(API_PATHS.ocrWarmup);
     let url = language
       ? `${warmupUrl}${warmupUrl.includes('?') ? '&' : '?'}language=${encodeURIComponent(language)}`
       : warmupUrl;
+    if (generation) url += `${url.includes('?') ? '&' : '?'}generation=${encodeURIComponent(generation)}`;
     if (variant !== undefined) url += `${url.includes('?') ? '&' : '?'}variant=${encodeURIComponent(variant ?? '')}`;
 
     const res = await fetch(url, {

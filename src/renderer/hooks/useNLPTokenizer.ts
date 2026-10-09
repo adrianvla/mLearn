@@ -24,6 +24,7 @@ export interface TokenizationResult {
 }
 
 export interface TokenizationCacheOptions {
+  generation?: string;
   /** Namespace for installed language-data/tokenizer version. Prevents stale tokens after package updates. */
   cacheNamespace?: string;
   variant?: string | null;
@@ -121,7 +122,7 @@ async function tokenizeTextInternal(
   
   // Create new tokenization request
   const promise = (async () => {
-    const tokens = options.variant !== undefined ? await getBackend().tokenize(text, language, undefined, options.variant) : await getBackend().tokenize(text, language);
+    const tokens = options.generation || options.variant !== undefined ? await getBackend().tokenize(text, language, undefined, options.variant, options.generation) : await getBackend().tokenize(text, language);
     const result: TokenizationResult = {
       text,
       language,
@@ -193,6 +194,7 @@ export function useNLPTokenizer(options: UseNLPTokenizerOptions = {}) {
         return await tokenizeTextInternal(textToTokenize, lang, {
           cacheNamespace: getTokenizerCacheNamespace(resolveLanguageData(options.languageData)),
           variant: resolveLanguageData(options.languageData)?.resolvedVariantId,
+          generation: resolveLanguageData(options.languageData)?.languageData?.activationGeneration,
         });
       } catch (err) {
         const errorObj = err instanceof Error ? err : new Error(String(err));
@@ -213,6 +215,7 @@ export function useNLPTokenizer(options: UseNLPTokenizerOptions = {}) {
       return getCachedNLPTokenization(textToTokenize, lang, {
         cacheNamespace: getTokenizerCacheNamespace(resolveLanguageData(options.languageData)),
           variant: resolveLanguageData(options.languageData)?.resolvedVariantId,
+          generation: resolveLanguageData(options.languageData)?.languageData?.activationGeneration,
       });
     },
     

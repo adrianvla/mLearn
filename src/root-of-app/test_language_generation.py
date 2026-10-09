@@ -127,3 +127,30 @@ def test_runtime_source_scope_survives_ambient_changes_and_worker_handoff(tmp_pa
     assert asyncio.run(operation(language='qs', variant='first')) == 'first'
     assert asyncio.run(operation(language='qs', variant=None)) == 'base'
     assert config._metadata_for_language('qs')['runtime']['adapter']['config']['label'] == 'second'
+
+
+def test_normal_nlp_http_honors_retained_generation_after_publication(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from routes import nlp
+    old = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+    new = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    for generation, label in [(old, 'old'), (new, 'new')]:
+        root = tmp_path / '.generations' / generation
+        (root / 'languages').mkdir(parents=True)
+        (root / 'adapters').mkdir()
+        (root / 'languages/qg.json').write_text(json.dumps({'runtime': {'adapter': {'type': 'python-module', 'path': 'adapters/source.py'}}}))
+        (root / 'adapters/source.py').write_text(
+            f"def LOAD_MODULE(*args, **kwargs): pass\ndef LANGUAGE_TOKENIZE(text): return [{{'word': '{label}'}}]\ndef LANGUAGE_TRANSLATE(word): return {{'data': [{{'definitions': '{label}'}}]}}\ndef LANGUAGE_DICTIONARY_WORDS(): return {{'words': [['{label}', '']]}}\n")
+    (tmp_path / '.active-generation.json').write_text(json.dumps({'generation': new}))
+    monkeypatch.setattr(config, 'LANGUAGE_DATA_PATH', str(tmp_path))
+    app = FastAPI(); app.include_router(nlp.router)
+    client = TestClient(app)
+    for route, payload, field in [('tokenize', {'text': 'term'}, 'tokens'), ('translate', {'word': 'term'}, 'data'), ('dictionary-words', {}, 'words')]:
+        response = client.post('/' + route, json={**payload, 'language': 'qg', 'generation': old})
+        assert response.status_code == 200, response.text
+        assert 'old' in json.dumps(response.json()[field])
+        assert 'new' not in json.dumps(response.json()[field])
+        unavailable = client.post('/' + route, json={**payload, 'language': 'qg', 'generation': 'cccccccc-cccc-cccc-cccc-cccccccccccc'})
+        assert unavailable.status_code == 409
+    assert resolve_language_data_root(str(tmp_path)).endswith(new)

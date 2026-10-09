@@ -11,7 +11,7 @@ import { consumeMediaWorkspaceReturn } from './mediaWorkspaceReturn';
  * Video player with subtitle display and all video-related functionality
  */
 
-import { Component, Show, createSignal, createEffect, onMount, onCleanup, createMemo } from 'solid-js';
+import { Component, Show, createSignal, createEffect, onMount, onCleanup, createMemo, on } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useSubtitles, useWatchTogether, useMediaStats } from '../../../hooks';
 import { isElectron as isElectronPlatform } from '../../../../shared/platform';
@@ -186,7 +186,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
   const [accumulatedWords, setAccumulatedWords] = createSignal<VideoWordEntry[]>([]);
   // Sidebar dedupe + recurrence-retry/in-flight bookkeeping for
   // current-content suggestion capture (R21).
-  const subtitleCaptureState: SubtitleCaptureState = {
+  let subtitleCaptureState: SubtitleCaptureState = {
     seenWords: new Set<string>(),
     inFlight: new Set<string>(),
     attemptedRecurrence: new Map<string, number>(),
@@ -196,6 +196,20 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
 
 
   const dictionaryTargetLanguage = useDictionaryTargetLanguage(sourceLanguage);
+  // Rows and capture bookkeeping belong to one admitted media/package context.
+  const vocabularyScope = createMemo(() => JSON.stringify([
+    props.scope.sourceKey(), currentVideoPath(), sourceLanguage(),
+    langCtx.currentLangData(), dictionaryTargetLanguage(),
+  ]));
+  const rowScopes = new WeakMap<VideoWordEntry, string>();
+  createEffect(on(vocabularyScope, () => {
+    setAccumulatedWords([]);
+    subtitleCaptureState = { seenWords: new Set(), inFlight: new Set(), attemptedRecurrence: new Map() };
+    setAddingSidebarWords(new Set<string>());
+    setIsAddingAllSidebarWords(false);
+  }));
+  const rowIsCurrent = (entry: VideoWordEntry) => rowScopes.get(entry) === vocabularyScope();
+
   const wordLookupOptions = { sourceKey: props.scope.sourceKey,
     getCanonicalForm: langCtx.getCanonicalForm,
     getWordVariants: langCtx.getWordVariants,
@@ -546,6 +560,8 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
 
   // Accumulate unknown words from subtitle tokens as they appear
   createEffect(() => {
+    const admittedScope = vocabularyScope();
+    const captureState = subtitleCaptureState;
     const tokens = subtitles.tokens();
     const idx = subtitles.currentIndex();
     if (!tokens.length || idx < 0) return;
@@ -587,7 +603,8 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
     // earlier-rejected word retries only when its recorded recurrence grew
     // (R21) — continuous playback promotes a recurring off-list term without
     // remounting, and a one-off is not re-filtered on every subtitle.
-    const { fresh: newEntries, retry: retryEntries } = planSubtitleCapture(gated, subtitleCaptureState, mediaRecurrence);
+    for (const entry of gated) rowScopes.set(entry, admittedScope);
+    const { fresh: newEntries, retry: retryEntries } = planSubtitleCapture(gated, captureState, mediaRecurrence);
 
     if (newEntries.length > 0) {
       setAccumulatedWords(prev => [...prev, ...newEntries]);
@@ -599,7 +616,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
       // context only (no translation/LLM/TTS). The user reviews them later
       // from the Flashcards → Suggested tab.
       const captureEntries = [...newEntries, ...retryEntries];
-      for (const entry of captureEntries) subtitleCaptureState.inFlight.add(entry.word);
+      for (const entry of captureEntries) captureState.inFlight.add(entry.word);
       const colourCodes = settings.colour_codes || {};
       const contextHtml = tokens.length > 0
         ? tokensToColoredHtml(tokens, colourCodes, undefined, langCtx.currentLangData())
@@ -611,7 +628,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
       const captureData = langCtx.currentLangData();
       const captureTarget = dictionaryTargetLanguage();
       const captureSource = props.scope.sourceKey();
-      const captureIsCurrent = () => captureLanguage === sourceLanguage() && captureSource === props.scope.sourceKey();
+      const captureIsCurrent = () => admittedScope === vocabularyScope() && captureLanguage === sourceLanguage() && captureSource === props.scope.sourceKey();
       void (async () => {
         try {
           // Capture the frame as PREPARED bytes. This batch may admit any
@@ -635,7 +652,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
             const freq = langCtx.getFrequency(entry.word);
             const recurrence = mediaRecurrence.get(entry.word) ?? 0;
             if (!allowedWords.has(entry.word)) {
-              recordCaptureAttempt(subtitleCaptureState, entry.word, false, recurrence);
+              recordCaptureAttempt(captureState, entry.word, false, recurrence);
               continue;
             }
             await flashcardCtx.captureSuggestedFlashcard({
@@ -655,10 +672,11 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
             // Mark success only after persistence completes. Disabled capture
             // and rejected/failed promises leave no terminal marker, so a
             // later settings change or subtitle recurrence can retry (G04).
-            recordCaptureAttempt(subtitleCaptureState, entry.word, true, recurrence);
+            if (!captureIsCurrent()) return;
+            recordCaptureAttempt(captureState, entry.word, true, recurrence);
           }
         } catch (error) {
-          for (const entry of captureEntries) subtitleCaptureState.inFlight.delete(entry.word);
+          for (const entry of captureEntries) captureState.inFlight.delete(entry.word);
           log.warn('Suggested flashcard capture failed; leaving words retryable:', error);
         }
       })();
@@ -668,6 +686,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
   // Visible unknown words: filter out words that became known/ignored since accumulation
   const visibleUnknownWords = createMemo<VideoWordEntry[]>(() => {
     return accumulatedWords().filter(entry => {
+      if (!rowIsCurrent(entry)) return false;
       if (flashcardCtx.isWordIgnoredSync(entry.word, sourceLanguage())) return false;
       return !flashcardCtx.isWordKnownWhenWrittenSync(
         entry.word, entry.token.surface ?? entry.token.word, sourceLanguage(),
@@ -688,6 +707,9 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
   });
 
   const addVideoWordFlashcard = async (entry: VideoWordEntry) => {
+    if (!rowIsCurrent(entry)) return;
+    const admittedScope = vocabularyScope();
+    const isCurrent = () => admittedScope === vocabularyScope() && rowIsCurrent(entry);
     const admittedLanguage = sourceLanguage();
     const admittedData = JSON.parse(JSON.stringify(langCtx.currentLangData()));
     const admittedTarget = dictionaryTargetLanguage();
@@ -752,7 +774,9 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
         log.info('[VideoRoute] addVideoWordFlashcard: skipping video clip — condition not met');
       }
 
+      if (!isCurrent()) return;
       const imageUrl = await captureVideoFrameForFlashcard();
+      if (!isCurrent()) return;
       if (imageUrl) {
         content.imageUrl = imageUrl;
       }
@@ -761,7 +785,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
       // the prepared frame and clip under the id it assigns.
       await flashcardCtx.addFlashcard(content, ease, undefined, admittedLanguage, videoClip);
     } finally {
-      setAddingSidebarWords(prev => {
+      if (isCurrent()) setAddingSidebarWords(prev => {
         const next = new Set(prev);
         next.delete(entry.key);
         return next;
@@ -781,16 +805,18 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
    * surface supplies what it knows: how to build one card, whether that word
    * may still become one, and its logger.
    */
-  const addAllVideoWords = (entries: VideoWordEntry[]) =>
-    addAllCapturedWords({
+  const addAllVideoWords = (entries: VideoWordEntry[]) => {
+    const admittedScope = vocabularyScope();
+    return addAllCapturedWords({
       entries,
       addFlashcard: addVideoWordFlashcard,
       isEligible: isVideoCaptureEligible,
       isInFlight: isAddingAllSidebarWords,
-      setInFlight: setIsAddingAllSidebarWords,
+      setInFlight: value => { if (admittedScope === vocabularyScope()) setIsAddingAllSidebarWords(value); },
       translate: t,
       logEntryError: (entry, err) => log.error(`Failed to add flashcard for "${entry.word}":`, err),
     });
+  };
 
   /**
    * A single sidebar capture, reporting its own failure.
@@ -822,7 +848,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
    * would have refused.
    */
   const isVideoCaptureEligible = (entry: VideoWordEntry): boolean =>
-    resolveCapturedWordEligibility(
+    rowIsCurrent(entry) && resolveCapturedWordEligibility(
       entry.word,
       sourceLanguage(),
       Boolean(flashcardCtx.getCardByWordSync(entry.word, sourceLanguage())),
@@ -830,6 +856,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
     ).eligible;
 
   const ignoreVideoWord = async (entry: VideoWordEntry) => {
+    if (!rowIsCurrent(entry)) return;
     await excludeWordFromStudy(
       { word: entry.word, language: sourceLanguage() },
       {
@@ -1651,6 +1678,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
           onIgnoreWord={ignoreVideoWord}
           onClose={() => setShowWordSidebar(false)}
           onPracticeWords={async entries => {
+            if (!entries.every(rowIsCurrent)) return;
             const video = getCurrentVideoElement();
             video?.pause();
             const sourceContext = { workspace: 'video', path: currentVideoPath(),

@@ -42,6 +42,7 @@ export interface OCRResult {
 }
 
 export interface OCRRequestOptions {
+  generation?: string;
   variant?: string | null;
   language?: string;
   devMode?: boolean;
@@ -61,6 +62,7 @@ export interface OCRWarmupResult {
 }
 
 export interface TranslateRequestOptions {
+  generation?: string;
   variant?: string | null;
   dictionaryTargetLanguage?: string;
   context?: import('../types').WordLookupContext;
@@ -82,7 +84,7 @@ export interface AnkiWordStatusRecord {
 
 export interface BackendAdapter {
   /** Tokenize text into language tokens */
-  tokenize(text: string, language?: string, dictionaryTargetLanguage?: string, variant?: string | null): Promise<Token[]>;
+  tokenize(text: string, language?: string, dictionaryTargetLanguage?: string, variant?: string | null, generation?: string): Promise<Token[]>;
   /** Translate/look up a word */
   translate(word: string, language?: string, options?: TranslateRequestOptions): Promise<TranslationResponse>;
   /** Enumerate all dictionary headwords as (word, reading) pairs */
@@ -90,7 +92,7 @@ export interface BackendAdapter {
   /** Run OCR on image data */
   ocr(imageData: string | Blob, options?: OCRRequestOptions): Promise<OCRResult>;
   /** Warm up local OCR models when supported */
-  warmupOcr(language?: string, variant?: string | null): Promise<OCRWarmupResult>;
+  warmupOcr(language?: string, variant?: string | null, generation?: string): Promise<OCRWarmupResult>;
   /** Get Anki-compatible card data */
   getCard(params: Record<string, unknown>): Promise<unknown>;
   /** Get the list of all expression values from the Anki cache */

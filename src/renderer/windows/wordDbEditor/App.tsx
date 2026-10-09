@@ -303,6 +303,8 @@ export const WordDbEditorContent: Component = () => {
   const loadAllWords = async () => {
     const generation = ++loadGeneration;
     const language = settings.language;
+    const admittedData = currentLangData();
+    const admittedTarget = dictionaryTargetLanguage();
     setLoadFailed(false);
     setDictionaryUnavailable(false);
     setIsLoading(true);
@@ -345,7 +347,7 @@ export const WordDbEditorContent: Component = () => {
       // Dictionary universe: every headword the dictionary serves, beyond the
       // frequency file. Translations lazy-load when rows scroll into view.
       try {
-        const dictionaryPairs = await loadDictionaryUniverse(language);
+        const dictionaryPairs = await loadDictionaryUniverse(language, { variant: admittedData?.resolvedVariantId, generation: admittedData?.languageData?.activationGeneration, dictionaryTargetLanguage: admittedTarget });
         if (generation !== loadGeneration) return;
         const CHUNK = 5000;
         for (let i = 0; i < dictionaryPairs.length; i += 1) {

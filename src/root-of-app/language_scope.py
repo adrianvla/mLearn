@@ -48,19 +48,37 @@ def scoped_language_request(operation):
         if not explicit_language and (req is None or 'variant' not in getattr(req, 'model_fields_set', set())):
             variant = config.ACTIVE_VARIANT if language == config.LANGUAGE else None
         return language, variant
-    @functools.wraps(operation)
-    async def admitted(*args, **kwargs):
+    @contextmanager
+    def admission(args, kwargs):
         import config
         from fastapi import HTTPException
         from language_generation import admit_language_generation, release_language_generation
         language, variant = scope(args, kwargs)
-        generation = admit_language_generation(config.LANGUAGE_DATA_PATH) if config.LANGUAGE_DATA_PATH else None
+        bound = signature.bind_partial(*args, **kwargs).arguments
+        req = bound.get('req')
+        requested_generation = getattr(req, 'generation', None) if req is not None else bound.get('generation')
+        try:
+            if requested_generation and not config.LANGUAGE_DATA_PATH:
+                raise RuntimeError('Language generation controller unavailable')
+            generation = admit_language_generation(config.LANGUAGE_DATA_PATH, requested_generation) if config.LANGUAGE_DATA_PATH else None
+        except RuntimeError as error:
+            raise HTTPException(status_code=409, detail={'code': 'generation_unavailable'}) from error
         try:
             with language_variant_override(language, variant):
-                return await operation(*args, **kwargs)
+                yield
         except LanguageScopeUnavailableError as error:
             raise HTTPException(status_code=503, detail={'code': 'language_variant_unavailable', 'message': str(error)}) from error
         finally:
             if generation is not None: release_language_generation(generation)
+    if inspect.iscoroutinefunction(operation):
+        @functools.wraps(operation)
+        async def admitted(*args, **kwargs):
+            with admission(args, kwargs):
+                return await operation(*args, **kwargs)
+    else:
+        @functools.wraps(operation)
+        def admitted(*args, **kwargs):
+            with admission(args, kwargs):
+                return operation(*args, **kwargs)
     admitted.__signature__ = signature
     return admitted

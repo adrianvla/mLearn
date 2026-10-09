@@ -200,7 +200,7 @@ vi.mock('../../hooks/useTranslation', () => ({
 }));
 
 vi.mock('../../hooks/useDictionaryTargetLanguage', () => ({
-  useDictionaryTargetLanguage: () => 'en',
+  useDictionaryTargetLanguage: () => () => 'en',
 }));
 
 vi.mock('./components', async () => {
