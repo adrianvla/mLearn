@@ -7,7 +7,9 @@ import fs from 'fs';
 import path from 'path';
 import { ipcMain, IpcMainEvent } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
-import type { MediaStats } from '../../shared/types';
+import { mergeMediaUsage } from '../../shared/mediaUsage';
+import crypto from 'crypto';
+import type { MediaStats, MediaStatsSaveAck } from '../../shared/types';
 import { getUserDataPath } from '../utils/platform';
 import { getLogger } from '../../shared/utils/logger';
 
@@ -25,6 +27,7 @@ function ensureDir(): void {
 }
 
 function getStatsFilePath(mediaHash: string): string {
+  if (!/^[A-Za-z0-9_-]{1,128}$/u.test(mediaHash)) throw new Error('Invalid media usage identity');
   return path.join(getMediaStatsDir(), `${mediaHash}.json`);
 }
 
@@ -56,17 +59,19 @@ export function pruneMediaStats(maxEntries: number = MAX_MEDIA_STATS_ENTRIES): v
     try {
       const raw = fs.readFileSync(fullPath, 'utf-8');
       const parsed = JSON.parse(raw) as Partial<MediaStats>;
+      if (!parsed.sourceId || !parsed.usageSessions) continue;
       if (typeof parsed.lastAccessed === 'number' && Number.isFinite(parsed.lastAccessed)) {
         lastAccessed = parsed.lastAccessed;
       }
     } catch (e) {
       log.error("error", e);
+      continue; // preserve unreadable or unattributable history for explicit repair
     }
     entries.push({ file, lastAccessed });
   }
 
   entries.sort((a, b) => a.lastAccessed - b.lastAccessed);
-  const toDelete = entries.slice(0, entries.length - maxEntries);
+  const toDelete = entries.slice(0, Math.max(0, entries.length - maxEntries));
   for (const { file } of toDelete) {
     try {
       fs.unlinkSync(path.join(dir, file));
@@ -76,15 +81,27 @@ export function pruneMediaStats(maxEntries: number = MAX_MEDIA_STATS_ENTRIES): v
   }
 }
 
-export function saveMediaStats(mediaHash: string, stats: MediaStats): void {
+/** Main-process synchronous transaction serializes all callers and acknowledges durable rename. */
+export function saveMediaStats(mediaHash: string, stats: MediaStats): MediaStatsSaveAck {
+  ensureDir();
+  if (stats.mediaHash !== mediaHash) throw new Error('Media usage identity mismatch');
+  const previous = getMediaStats(mediaHash);
+  const merged = mergeMediaUsage(previous, stats);
+  merged.storageRevision = (previous?.storageRevision ?? 0) + 1;
+  const filePath = getStatsFilePath(mediaHash);
+  const temporary = `${filePath}.${crypto.randomUUID()}.tmp`;
   try {
-    ensureDir();
-    const filePath = getStatsFilePath(mediaHash);
-    fs.writeFileSync(filePath, JSON.stringify(stats, null, 2), 'utf-8');
-    pruneMediaStats();
-  } catch (error) {
-    log.error('Failed to save media stats:', error);
-  }
+    const fd = fs.openSync(temporary, 'wx');
+    try { fs.writeFileSync(fd, JSON.stringify(merged, null, 2), 'utf8'); fs.fsyncSync(fd); }
+    finally { fs.closeSync(fd); }
+    fs.renameSync(temporary, filePath);
+    if (process.platform !== 'win32') {
+      const directory = fs.openSync(getMediaStatsDir(), 'r');
+      try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
+    }
+  } finally { fs.rmSync(temporary, { force: true }); }
+  pruneMediaStats();
+  return { mediaHash, revision: merged.storageRevision, sessionSequences: Object.fromEntries(Object.entries(merged.usageSessions ?? {}).map(([id, session]) => [id, session.sequence])) };
 }
 
 export function getMediaStats(mediaHash: string): MediaStats | null {
@@ -96,6 +113,7 @@ export function getMediaStats(mediaHash: string): MediaStats | null {
     }
   } catch (error) {
     log.error('Failed to load media stats:', error);
+    throw error;
   }
   return null;
 }
@@ -125,13 +143,13 @@ export function listMediaStats(): MediaStats[] {
 }
 
 export function setupMediaStatsIPC(): void {
-  ipcMain.on(IPC_CHANNELS.SAVE_MEDIA_STATS, (_event: IpcMainEvent, mediaHash: string, stats: MediaStats) => {
-    saveMediaStats(mediaHash, stats);
-  });
+  ipcMain.handle(IPC_CHANNELS.SAVE_MEDIA_STATS, (_event, mediaHash: string, stats: MediaStats) => saveMediaStats(mediaHash, stats));
+  ipcMain.handle(IPC_CHANNELS.GET_MEDIA_STATS, (_event, mediaHash: string) => getMediaStats(mediaHash));
 
   ipcMain.on(IPC_CHANNELS.GET_MEDIA_STATS, (event: IpcMainEvent, mediaHash: string) => {
-    const stats = getMediaStats(mediaHash);
-    event.reply(IPC_CHANNELS.GET_MEDIA_STATS, stats);
+    // Retained legacy event clients receive no false empty record on read failure.
+    try { event.reply(IPC_CHANNELS.GET_MEDIA_STATS, getMediaStats(mediaHash)); }
+    catch (error) { log.error('Legacy media stats read failed; invoke clients receive the rejection:', error); }
   });
 
   ipcMain.on(IPC_CHANNELS.LIST_MEDIA_STATS, (event: IpcMainEvent) => {

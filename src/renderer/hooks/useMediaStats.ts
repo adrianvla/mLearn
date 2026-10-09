@@ -1,281 +1,208 @@
-/**
- * useMediaStats Hook
- * Tracks per-media word/grammar encounters and syncs to disk via IPC.
- * Supports deferred initialization: call setMedia() once the media identity is known.
- */
-
-import { createSignal, onMount, onCleanup } from 'solid-js';
-import type { MediaStats, MediaSession, Token } from '../../shared/types';
+/** Source-scoped usage. Learner competence remains in the canonical evidence owner. */
+import { createSignal, createEffect, onMount, onCleanup, untrack, type Accessor } from 'solid-js';
+import type { MediaStats, MediaUsageSession, MediaUsageEventContext, MediaStatsSaveAck, Token } from '../../shared/types';
 import { getBridge } from '../../shared/bridges';
 import { SRS_EASE } from '../../shared/constants';
+import { mediaUsageIdentity, mergeMediaUsage } from '../../shared/mediaUsage';
 
 interface UseMediaStatsOptions {
   mediaType: 'video' | 'book';
-  language: string;
+  language: string | Accessor<string>;
+  engaged?: Accessor<boolean>;
 }
-
-function hashString(s: string): string {
-  let hash = 5381;
-  for (let i = 0; i < s.length; i++) {
-    hash = ((hash << 5) + hash) ^ s.charCodeAt(i);
-  }
-  return 'mh_' + Math.abs(hash).toString(16);
+const PENDING_PREFIX = 'mlearn-pending-media-usage::';
+function emptyStats(mediaType: MediaStats['mediaType'], language: string): MediaStats {
+  return { mediaHash: '', mediaName: '', mediaType, language, wordsEncountered: {}, grammarEncountered: {},
+    assessedLevel: null, sessions: [], usageSessions: {}, totalTimeSpent: 0, lastAccessed: Date.now() };
 }
-
-function emptyStats(mediaType: 'video' | 'book', language: string): MediaStats {
-  return {
-    mediaHash: '',
-    mediaName: '',
-    mediaType,
-    language,
-    wordsEncountered: {},
-    grammarEncountered: {},
-    assessedLevel: null,
-    sessions: [],
-    totalTimeSpent: 0,
-    lastAccessed: Date.now(),
-  };
-}
-
 export function useMediaStats(options: UseMediaStatsOptions) {
-  const [mediaName, setMediaNameSignal] = createSignal('');
-  const [mediaHash, setMediaHash] = createSignal('');
-  const [stats, setStats] = createSignal<MediaStats>(emptyStats(options.mediaType, options.language));
+  const language = () => typeof options.language === 'function' ? options.language() : options.language;
+  const [stats, setStats] = createSignal(emptyStats(options.mediaType, language()));
   const [isActive, setIsActive] = createSignal(false);
-
-  let saveInterval: ReturnType<typeof setInterval> | null = null;
-  // Use a signal-like ref for session start that persists across setMedia calls
-  // but we track it per-media to avoid rapid-switch corruption
-  const sessionStartRef = { current: 0 };
-  let mediaStatsCleanup: (() => void) | undefined;
-  let loadGeneration = 0;
-
-  // Save stats to disk
-  const saveStats = async () => {
-    const hash = mediaHash();
-    if (!hash) return;
+  const [saveErrors, setSaveErrors] = createSignal<Record<string, unknown>>({});
+  const saveError = () => Object.values(saveErrors())[0] ?? null;
+  const setFailure = (key: string, error: unknown): void => { setSaveErrors(previous => ({ ...previous, [key]: error })); };
+  const clearFailure = (key: string): void => { setSaveErrors(previous => { const next = { ...previous }; delete next[key]; return next; }); };
+  const acknowledged = (ack: MediaStatsSaveAck, snapshot: MediaStats): boolean => Boolean(ack && ack.mediaHash === snapshot.mediaHash
+    && ack.sessionSequences && Object.entries(snapshot.usageSessions ?? {}).every(([id, session]) =>
+      Number.isSafeInteger(ack.sessionSequences[id]) && ack.sessionSequences[id] >= session.sequence));
+  const [sessionId, setSessionId] = createSignal('');
+  const seenEvents = new Set<string>();
+  const lastAcknowledged = new Map<string, number>();
+  let lastTick = Date.now(); let wasEngaged = false;
+  let saveInterval: ReturnType<typeof setInterval> | undefined;
+  let loadGeneration = 0; let mediaStatsCleanup: (() => void) | undefined;
+  const mediaHash = () => stats().mediaHash;
+  const eventContext = (): MediaUsageEventContext | undefined => {
     const current = stats();
-    try {
-      await getBridge().mediaStats.saveMediaStats(hash, {
-        ...current,
-        lastAccessed: Date.now(),
-      });
-    } catch (e) {
-      // Silently ignore save errors; will retry on next interval
+    return isActive() ? { mediaHash: current.mediaHash, sourceId: current.sourceId!, sessionId: sessionId(), language: current.language } : undefined;
+  };
+  const accepts = (context?: MediaUsageEventContext): boolean => {
+    const admitted = eventContext();
+    return Boolean(admitted && (!context || (admitted.mediaHash === context.mediaHash && admitted.sourceId === context.sourceId
+      && admitted.sessionId === context.sessionId && admitted.language === context.language)));
+  };
+  const updateSession = (mutate: (session: MediaUsageSession) => MediaUsageSession): void => {
+    if (!isActive()) return;
+    const current = stats(); const id = sessionId(); const previous = current.usageSessions?.[id];
+    if (!previous || previous.finalized) return;
+    const next = { ...mutate(previous), sequence: previous.sequence + 1 };
+    setStats(mergeMediaUsage(current, { ...current, usageSessions: { [id]: next }, lastAccessed: Date.now() }));
+  };
+  const refreshEngagement = (requested = options.engaged?.() ?? true): void => {
+    const now = Date.now(); const elapsed = Math.max(0, now - lastTick);
+    if (isActive() && wasEngaged && elapsed > 0) updateSession(session => {
+      const intervals = [...(session.engagedIntervals ?? [])];
+      const last = intervals.at(-1);
+      if (last?.endTime === lastTick) intervals[intervals.length - 1] = { ...last, endTime: now };
+      else intervals.push({ startTime: lastTick, endTime: now });
+      return { ...session, duration: session.duration + elapsed, engagedIntervals: intervals };
+    });
+    lastTick = now;
+    wasEngaged = isActive() && requested && document.visibilityState !== 'hidden' && document.hasFocus();
+  };
+  createEffect(() => { const requested = options.engaged?.(); untrack(() => refreshEngagement(requested)); });
+
+  const retryPending = async (hash?: string): Promise<void> => {
+    const keys: string[] = [];
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index); if (key?.startsWith(hash ? `${PENDING_PREFIX}${hash}::` : PENDING_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) {
+      const raw = localStorage.getItem(key); if (!raw) continue;
+      const snapshot: MediaStats = JSON.parse(raw);
+      const acknowledgement = await getBridge().mediaStats.saveMediaStats(snapshot.mediaHash, snapshot);
+      if (!acknowledged(acknowledgement, snapshot)) {
+        throw new Error('Recovered media usage was not acknowledged');
+      }
+      if (localStorage.getItem(key) === raw) localStorage.removeItem(key);
+      clearFailure(key);
     }
   };
-
-  // Load existing stats from disk
-  const loadStats = (hash: string) => {
+  const saveStats = async (): Promise<void> => {
+    refreshEngagement();
+    const current = stats(); const id = sessionId(); const own = current.usageSessions?.[id];
+    if (!current.mediaHash || !own) return;
+    if (lastAcknowledged.get(id) === own.sequence) { await retryPending(current.mediaHash); return; }
+    const snapshot = { ...current, usageSessions: { [id]: own } };
+    const key = `${PENDING_PREFIX}${current.mediaHash}::${id}`;
+    try {
+      localStorage.setItem(key, JSON.stringify(snapshot));
+      const acknowledgement = await getBridge().mediaStats.saveMediaStats(current.mediaHash, snapshot);
+      if (!acknowledged(acknowledgement, snapshot)) {
+        throw new Error('Media usage was not acknowledged');
+      }
+      lastAcknowledged.set(id, Math.max(lastAcknowledged.get(id) ?? -1, acknowledgement.sessionSequences[id]));
+      const pending = localStorage.getItem(key);
+      if (pending && JSON.parse(pending).usageSessions?.[id]?.sequence <= acknowledgement.sessionSequences[id]) localStorage.removeItem(key);
+      await retryPending(current.mediaHash);
+      clearFailure(key);
+    } catch (error) {
+      setFailure(key, error);
+      throw error;
+    }
+  };
+  const flush = (): void => { void saveStats().catch(() => { /* Visible error and retained intent own retry. */ }); };
+  const endSession = (): void => {
+    if (!isActive()) return;
+    refreshEngagement();
+    updateSession(session => ({ ...session, finalized: true, endTime: Date.now(), wordsEncounteredCount: Object.keys(session.wordsEncountered).length }));
+    setIsActive(false); wasEngaged = false;
+    flush();
+  };
+  const loadStats = (hash: string): void => {
     const generation = ++loadGeneration;
     mediaStatsCleanup?.();
     const bridge = getBridge();
-    mediaStatsCleanup = bridge.mediaStats.onMediaStats((loaded) => {
-      if (generation === loadGeneration && mediaHash() === hash && loaded?.mediaHash === hash) {
-        setStats(loaded);
+    const receive = (loaded: MediaStats | null): void => {
+      if (generation !== loadGeneration || mediaHash() !== hash) return;
+      clearFailure(`${hash}::load`);
+      if (!loaded || loaded.mediaHash !== hash) return;
+      // New interactions admitted during load win by session sequence.
+      setStats(mergeMediaUsage(loaded, stats()));
+    };
+    mediaStatsCleanup = bridge.mediaStats.onMediaStats(receive);
+    const pending = bridge.mediaStats.getMediaStats(hash);
+    if (pending && typeof pending.then === 'function') void pending.then(receive).catch(error => { if (generation === loadGeneration && mediaHash() === hash) setFailure(`${hash}::load`, error); });
+    // The event subscription remains solely for retained legacy callers.
+  };
+  const setMedia = (name: string, source: { resourceId: string; language?: string }): void => {
+    if (!name.trim()) return;
+    const admittedLanguage = source.language ?? language();
+    const hash = mediaUsageIdentity(options.mediaType, source.resourceId, admittedLanguage);
+    if (mediaHash() === hash) { if (stats().mediaName !== name) setStats(previous => ({ ...previous, mediaName: name })); return; }
+    endSession(); seenEvents.clear();
+    const id = crypto.randomUUID(); const now = Date.now();
+    let initial: MediaStats = { ...emptyStats(options.mediaType, admittedLanguage), mediaHash: hash, mediaName: name, sourceId: source.resourceId };
+    try {
+      for (let index = 0; index < localStorage.length; index++) {
+        const key = localStorage.key(index);
+        if (key?.startsWith(`${PENDING_PREFIX}${hash}::`)) initial = mergeMediaUsage(initial, JSON.parse(localStorage.getItem(key)!));
       }
-    });
-    bridge.mediaStats.getMediaStats(hash);
+    } catch (error) { setFailure(`${hash}::pending`, error); }
+    const session: MediaUsageSession = { id, sequence: 0, finalized: false, date: new Date(now).toISOString().split('T')[0],
+      duration: 0, wordsLearned: 0, startTime: now, wordsEncountered: {}, grammarEncountered: {} };
+    setSessionId(id); setStats(mergeMediaUsage(initial, { ...initial, usageSessions: { [id]: session } }));
+    setIsActive(true); lastTick = now; wasEngaged = false; refreshEngagement(); loadStats(hash);
+    void retryPending(hash).catch(error => { setFailure(`${PENDING_PREFIX}${hash}::recovery`, error); });
   };
-
-  // End the current session
-  const endSession = () => {
-    if (!isActive()) return;
-    const endTime = Date.now();
-    const duration = endTime - sessionStartRef.current;
-
-    setStats((prev) => {
-      const session: MediaSession = {
-        date: new Date().toISOString().split('T')[0],
-        duration,
-        wordsLearned: Object.keys(prev.wordsEncountered).length,
-        startTime: sessionStartRef.current,
-        endTime,
-      };
-      return {
-        ...prev,
-        sessions: [...prev.sessions, session],
-        totalTimeSpent: prev.totalTimeSpent + duration,
-      };
+  const recordWord = (word: string, ease: number, context?: MediaUsageEventContext): void => {
+    if (!accepts(context)) return;
+    updateSession(session => {
+      const existing = session.wordsEncountered[word] ?? { word, ease: SRS_EASE.MIN, timesSeen: 0, timesHovered: 0 };
+      return { ...session, wordsEncountered: { ...session.wordsEncountered, [word]: { ...existing, ease, timesSeen: existing.timesSeen + 1 } } };
     });
-    // Use void to avoid unhandled promise warning; errors handled internally
-    void saveStats();
   };
-
-  /** Set or change the media identity. Saves previous media, loads new one. */
-  const setMedia = (name: string) => {
-    if (!name || name === mediaName()) return;
-
-    // Save stats for the previous media if active
-    if (isActive()) {
-      endSession();
+  const recordWordHover = (word: string, ease: number, context?: MediaUsageEventContext): void => {
+    if (!accepts(context)) return;
+    updateSession(session => {
+      const existing = session.wordsEncountered[word] ?? { word, ease: SRS_EASE.MIN, timesSeen: 0, timesHovered: 0 };
+      return { ...session, wordsEncountered: { ...session.wordsEncountered, [word]: { ...existing, ease, timesHovered: existing.timesHovered + 1 } } };
+    });
+  };
+  const grammar = (pattern: string, ease: number, failed: boolean): void => updateSession(session => {
+    const existing = session.grammarEncountered[pattern] ?? { pattern, ease: SRS_EASE.MIN, timesFailed: 0 };
+    return { ...session, grammarEncountered: { ...session.grammarEncountered, [pattern]: { ...existing, ease, timesFailed: existing.timesFailed + (failed ? 1 : 0) } } };
+  });
+  const cacheOcrPage = (pageNum: number, tokens: Token[]): void => {
+    if (!isActive() || tokens.some(token => token.analysisAuthority === 'display-only')) return;
+    updateSession(session => ({ ...session, ocrCache: { ...session.ocrCache, [pageNum]: tokens } }));
+  };
+  const receiveEvent = (event: Event, hovered: boolean): void => {
+    const detail = (event as CustomEvent<MediaUsageEventContext & { word: string; ease: number; encounterId?: string }>).detail;
+    if (!detail?.mediaHash || !detail.sessionId || !detail.sourceId || !accepts(detail)) return;
+    if (!hovered && detail.encounterId) {
+      const key = JSON.stringify([detail.sessionId, detail.encounterId, detail.word]);
+      if (seenEvents.has(key)) return; seenEvents.add(key);
     }
-
-    const hash = hashString(name);
-    setMediaNameSignal(name);
-    setMediaHash(hash);
-    setStats({
-      ...emptyStats(options.mediaType, options.language),
-      mediaHash: hash,
-      mediaName: name,
-    });
-    setIsActive(true);
-    sessionStartRef.current = Date.now();
-
-    // Load saved stats
-    loadStats(hash);
+    if (hovered) recordWordHover(detail.word, detail.ease, detail); else recordWord(detail.word, detail.ease, detail);
   };
-
-  // Record a word encounter
-  const recordWord = (word: string, ease: number) => {
-    if (!isActive()) return;
-    setStats((prev) => {
-      const existing = prev.wordsEncountered[word] || { word, ease: SRS_EASE.MIN, timesSeen: 0, timesHovered: 0 };
-      return {
-        ...prev,
-        wordsEncountered: {
-          ...prev.wordsEncountered,
-          [word]: {
-            ...existing,
-            timesSeen: existing.timesSeen + 1,
-            ease,
-          },
-        },
-      };
-    });
-  };
-
-  // Record a word hover
-  const recordWordHover = (word: string, ease: number) => {
-    if (!isActive()) return;
-    setStats((prev) => {
-      const existing = prev.wordsEncountered[word] || { word, ease: SRS_EASE.MIN, timesSeen: 0, timesHovered: 0 };
-      return {
-        ...prev,
-        wordsEncountered: {
-          ...prev.wordsEncountered,
-          [word]: {
-            ...existing,
-            timesHovered: existing.timesHovered + 1,
-            ease,
-          },
-        },
-      };
-    });
-  };
-
-  // Record a grammar encounter
-  const recordGrammar = (pattern: string, ease: number) => {
-    if (!isActive()) return;
-    setStats((prev) => {
-      const existing = prev.grammarEncountered[pattern] || { pattern, ease: SRS_EASE.MIN, timesFailed: 0 };
-      return {
-        ...prev,
-        grammarEncountered: {
-          ...prev.grammarEncountered,
-          [pattern]: {
-            ...existing,
-            ease,
-          },
-        },
-      };
-    });
-  };
-
-  // Record a grammar failure
-  const recordGrammarFailed = (pattern: string, ease: number) => {
-    if (!isActive()) return;
-    setStats((prev) => {
-      const existing = prev.grammarEncountered[pattern] || { pattern, ease: SRS_EASE.MIN, timesFailed: 0 };
-      return {
-        ...prev,
-        grammarEncountered: {
-          ...prev.grammarEncountered,
-          [pattern]: {
-            ...existing,
-            timesFailed: existing.timesFailed + 1,
-            ease,
-          },
-        },
-      };
-    });
-  };
-
-  // Cache OCR tokens for a page (books)
-  const cacheOcrPage = (pageNum: number, tokens: Token[]) => {
-    if (!isActive()) return;
-    setStats((prev) => ({
-      ...prev,
-      ocrCache: {
-        ...(prev.ocrCache || {}),
-        [pageNum]: tokens,
-      },
-    }));
-  };
-
-  // Get cached OCR tokens for a page
-  const getCachedOcrPage = (pageNum: number): Token[] | null => {
-    return stats().ocrCache?.[pageNum] || null;
-  };
-
-  // Set assessed difficulty level
-  const setAssessedLevel = (level: number) => {
-    if (!isActive()) return;
-    setStats((prev) => ({ ...prev, assessedLevel: level }));
-  };
-
-  // Listen for word-seen / word-hovered events dispatched by FlashcardContext
-  const handleWordSeenEvent = (e: Event) => {
-    const { word, ease } = (e as CustomEvent<{ word: string; ease: number }>).detail;
-    recordWord(word, ease);
-  };
-
-  const handleWordHoveredEvent = (e: Event) => {
-    const { word, ease } = (e as CustomEvent<{ word: string; ease: number }>).detail;
-    recordWordHover(word, ease);
-  };
-
-  // Emergency save handler for page unload / app close
-  const handleBeforeUnload = () => {
-    if (isActive()) {
-      endSession();
-    }
-  };
-
+  const seen = (event: Event) => receiveEvent(event, false);
+  const hovered = (event: Event) => receiveEvent(event, true);
+  const engagementChanged = () => refreshEngagement();
   onMount(() => {
-    // Auto-save every 30 seconds
-    saveInterval = setInterval(() => {
-      if (isActive()) void saveStats();
-    }, 30_000);
-
-    window.addEventListener('mlearn:word-seen', handleWordSeenEvent);
-    window.addEventListener('mlearn:word-hovered', handleWordHoveredEvent);
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    saveInterval = setInterval(() => { if (isActive()) flush(); }, 30000);
+    window.addEventListener('mlearn:word-seen', seen); window.addEventListener('mlearn:word-hovered', hovered);
+    window.addEventListener('beforeunload', endSession); window.addEventListener('focus', engagementChanged); window.addEventListener('blur', engagementChanged);
+    document.addEventListener('visibilitychange', engagementChanged);
   });
-
   onCleanup(() => {
-    if (saveInterval) clearInterval(saveInterval);
-    loadGeneration += 1;
-    mediaStatsCleanup?.();
-    mediaStatsCleanup = undefined;
-    endSession();
-    window.removeEventListener('mlearn:word-seen', handleWordSeenEvent);
-    window.removeEventListener('mlearn:word-hovered', handleWordHoveredEvent);
-    window.removeEventListener('beforeunload', handleBeforeUnload);
+    if (saveInterval) clearInterval(saveInterval); loadGeneration++; mediaStatsCleanup?.(); endSession();
+    window.removeEventListener('mlearn:word-seen', seen); window.removeEventListener('mlearn:word-hovered', hovered);
+    window.removeEventListener('beforeunload', endSession); window.removeEventListener('focus', engagementChanged); window.removeEventListener('blur', engagementChanged);
+    document.removeEventListener('visibilitychange', engagementChanged);
   });
-
-  return {
-    stats,
-    mediaHash,
-    isActive,
-    setMedia,
-    recordWord,
-    recordWordHover,
-    recordGrammar,
-    recordGrammarFailed,
-    cacheOcrPage,
-    getCachedOcrPage,
-    setAssessedLevel,
-    saveStats,
-  };
+  return { stats, mediaHash, isActive, sessionId, eventContext, setMedia, recordWord, recordWordHover,
+    recordGrammar: (pattern: string, ease: number) => grammar(pattern, ease, false),
+    recordGrammarFailed: (pattern: string, ease: number) => grammar(pattern, ease, true), cacheOcrPage,
+    getCachedOcrPage: (pageNum: number) => stats().ocrCache?.[pageNum] ?? null,
+    setAssessedLevel: (level: number) => { if (Number.isFinite(level)) updateSession(session => ({ ...session, assessedLevel: level })); },
+    saveStats, retrySaveStats: async () => {
+      lastAcknowledged.delete(sessionId());
+      await retryPending();
+      // Only clear recovered write failures; reload errors stay visible until a successful read.
+      setSaveErrors(previous => Object.fromEntries(Object.entries(previous).filter(([key]) => key.endsWith('::load'))));
+      loadStats(mediaHash());
+      await saveStats();
+    }, saveError, endSession };
 }

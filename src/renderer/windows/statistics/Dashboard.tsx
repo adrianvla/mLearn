@@ -33,7 +33,7 @@ import {
   computeDueForecast,
 } from '../../services/flashcardStats';
 import './Dashboard.css';
-import { progressCards, progressMedia, progressDailyStats, recordedMediaDuration } from './progressScope';
+import { progressCards, progressMedia, progressDailyStats, recordedMediaDuration, recordedMediaSessions, mediaSessionsByDate } from './progressScope';
 import { effectiveThresholds } from '../../../shared/knowledge/effectiveKnowledge';
 
 export const Dashboard: Component = () => {
@@ -67,41 +67,17 @@ export const Dashboard: Component = () => {
 
   const mediaTimeStats = createMemo(() => {
     const all = scopedMedia();
-    let watchTime = 0;
-    let readTime = 0;
-    for (const ms of all) {
-      if (ms.mediaType === 'video') watchTime += ms.totalTimeSpent;
-      else if (ms.mediaType === 'book') readTime += ms.totalTimeSpent;
-    }
-    return { watchTime, readTime, totalImmersion: watchTime + readTime };
+    const watchTime = recordedMediaDuration(all.filter(ms => ms.mediaType === 'video').flatMap(recordedMediaSessions));
+    const readTime = recordedMediaDuration(all.filter(ms => ms.mediaType === 'book').flatMap(recordedMediaSessions));
+    return { watchTime, readTime, totalImmersion: recordedMediaDuration(all.flatMap(recordedMediaSessions)) };
   });
 
-  // ── Immersion heatmap (scanline per day) ──
   const immersionHeatmap = createMemo(() => {
-    const all = scopedMedia();
-    const byDate = new Map<string, { legacy: number; intervals: Array<{ start: number; end: number }> }>();
-
-    for (const ms of all) {
-      for (const session of ms.sessions) {
-        if (!byDate.has(session.date)) {
-          byDate.set(session.date, { legacy: 0, intervals: [] });
-        }
-        const bucket = byDate.get(session.date)!;
-        if (session.startTime !== undefined && session.endTime !== undefined) {
-          bucket.intervals.push({ start: session.startTime, end: session.endTime });
-        } else {
-          bucket.legacy += session.duration;
-        }
-      }
+    const byDate: Record<string, import('../../../shared/types').MediaSession[]> = {};
+    for (const media of scopedMedia()) {
+      for (const [date, sessions] of Object.entries(mediaSessionsByDate(media))) (byDate[date] ??= []).push(...sessions);
     }
-
-    const result: Record<string, number> = {};
-    for (const [date, { legacy, intervals }] of byDate) {
-      const merged = recordedMediaDuration(intervals.map(interval => ({ startTime: interval.start, endTime: interval.end, duration: interval.end - interval.start })));
-      const totalMinutes = Math.round((legacy + merged) / 60000);
-      if (totalMinutes > 0) result[date] = totalMinutes;
-    }
-    return result;
+    return Object.fromEntries(Object.entries(byDate).map(([date, sessions]) => [date, Math.round(recordedMediaDuration(sessions) / 60000)]).filter(([, minutes]) => Number(minutes) > 0));
   });
 
   // ── Flashcard aggregate stats ──
@@ -219,8 +195,8 @@ export const Dashboard: Component = () => {
 
   const todaySessionStats = createMemo(() => {
     const today = new Date().toISOString().split('T')[0];
-    const videoSessions = scopedMedia().filter(ms => ms.mediaType === 'video').flatMap(ms => ms.sessions.filter(session => session.date === today));
-    const readSessions = scopedMedia().filter(ms => ms.mediaType === 'book').flatMap(ms => ms.sessions.filter(session => session.date === today));
+    const videoSessions = scopedMedia().filter(ms => ms.mediaType === 'video').flatMap(ms => mediaSessionsByDate(ms)[today] ?? []);
+    const readSessions = scopedMedia().filter(ms => ms.mediaType === 'book').flatMap(ms => mediaSessionsByDate(ms)[today] ?? []);
     return { videoTime: recordedMediaDuration(videoSessions), readTime: recordedMediaDuration(readSessions), flashcardTime: dailyStatsData().todayTime };
   });
 

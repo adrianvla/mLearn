@@ -4267,7 +4267,9 @@
       "SourceLanguageFallback": "Langue étudiée par défaut — choisissez la langue de la source",
       "MixedSourceLanguage": "Source multilingue",
       "SourceLanguageSaveFailed": "Impossible d’enregistrer la langue de la source.",
-      "RetrySourceLanguage": "Réessayer"
+      "RetrySourceLanguage": "Réessayer",
+      "UsageSaveFailed": "L’utilisation du média n’a pas pu être enregistrée. Les données en attente sont conservées pour réessayer.",
+      "RetryUsageSave": "Réessayer"
     }
   }
 }

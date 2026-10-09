@@ -4267,7 +4267,9 @@
       "SourceLanguageFallback": "Временно выбран изучаемый язык — выберите язык источника",
       "MixedSourceLanguage": "Многоязычный источник",
       "SourceLanguageSaveFailed": "Не удалось сохранить язык источника.",
-      "RetrySourceLanguage": "Повторить"
+      "RetrySourceLanguage": "Повторить",
+      "UsageSaveFailed": "Не удалось сохранить использование материала. Данные сохранены для повторной попытки.",
+      "RetryUsageSave": "Повторить сохранение"
     }
   }
 }

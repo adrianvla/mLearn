@@ -201,7 +201,7 @@ describe('SubtitleContainer', () => {
     expect(mockTrackWordHovered).not.toHaveBeenCalled();
 
     resolveTranslation({ data: [{ definitions: ['hello: greeting'], reading: '' }] });
-    await vi.waitFor(() => expect(mockTrackWordHovered).toHaveBeenCalledWith('hello', undefined, 'ja'));
+    await vi.waitFor(() => expect(mockTrackWordHovered).toHaveBeenCalledWith('hello', undefined, 'ja', undefined));
 
     dispose();
   });
@@ -271,7 +271,7 @@ describe('SubtitleContainer', () => {
     container.querySelector('.subtitle-word')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     await vi.waitFor(() => expect(mockTrackWordHovered).toHaveBeenCalledOnce());
 
-    expect(mockTrackWordHovered).toHaveBeenCalledWith('hello', undefined, 'ja');
+    expect(mockTrackWordHovered).toHaveBeenCalledWith('hello', undefined, 'ja', undefined);
     dispose();
   });
 

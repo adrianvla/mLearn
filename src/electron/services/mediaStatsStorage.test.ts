@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
+import { mediaUsageIdentity } from '../../shared/mediaUsage';
 import type { MediaStats } from '../../shared/types';
 
 const mockIpcListeners = new Map<string, ((event: MockIpcEvent, ...args: unknown[]) => void)[]>();
@@ -18,7 +19,7 @@ vi.mock('electron', () => ({
       existing.push(handler);
       mockIpcListeners.set(channel, existing);
     }),
-    handle: vi.fn(),
+    handle: vi.fn((channel: string, handler: (event: MockIpcEvent, ...args: unknown[]) => void) => { if (channel === 'save-media-stats') mockIpcListeners.set(channel, [handler]); }),
     removeHandler: vi.fn(),
   },
   app: {
@@ -68,6 +69,12 @@ function makeStats(hash: string): MediaStats {
   };
 }
 
+function makeScopedStats(name: string): MediaStats {
+  const sourceId = `fixture:${name}`;
+  const hash = mediaUsageIdentity('video', sourceId, 'ja');
+  return { ...makeStats(hash), mediaName: name, sourceId, usageSessions: {} };
+}
+
 describe('saveMediaStats', () => {
   it('creates the media-stats directory if it does not exist', () => {
     mod.saveMediaStats('hash1', makeStats('hash1'));
@@ -113,6 +120,36 @@ describe('saveMediaStats', () => {
   });
 });
 
+describe('source-scoped acknowledged usage owner', () => {
+  function contribution(id: string, sequence: number, count: number): MediaStats {
+    const stats = makeScopedStats('Shared title');
+    stats.usageSessions = { [id]: { id, sequence, finalized: false, date: '2026-10-09', duration: count * 100, wordsLearned: 0,
+      wordsEncountered: { term: { word: 'term', ease: 2, timesSeen: count, timesHovered: 0 } }, grammarEncountered: {} } };
+    return stats;
+  }
+  it('merges two callers and rejects stale snapshots across a real disk restart', async () => {
+    const first = contribution('first', 1, 1);
+    const ack = mod.saveMediaStats(first.mediaHash, first);
+    expect(ack.sessionSequences.first).toBe(1);
+    mod.saveMediaStats(first.mediaHash, contribution('first', 2, 3));
+    mod.saveMediaStats(first.mediaHash, contribution('second', 1, 2));
+    mod.saveMediaStats(first.mediaHash, first);
+    vi.resetModules(); const restarted = await import('./mediaStatsStorage');
+    const recovered = restarted.getMediaStats(first.mediaHash)!;
+    expect(recovered.wordsEncountered.term.timesSeen).toBe(5);
+    expect(recovered.storageRevision).toBe(4);
+  });
+  it.each(['write', 'rename'])('does not acknowledge a %s failure and keeps the previous readable file', phase => {
+    const first = contribution('first', 1, 1); mod.saveMediaStats(first.mediaHash, first);
+    const spy = phase === 'write' ? vi.spyOn(fs, 'writeFileSync') : vi.spyOn(fs, 'renameSync');
+    spy.mockImplementationOnce(() => { throw new Error('disk failed'); });
+    expect(() => mod.saveMediaStats(first.mediaHash, contribution('first', 2, 9))).toThrow('disk failed');
+    spy.mockRestore();
+    expect(mod.getMediaStats(first.mediaHash)?.wordsEncountered.term.timesSeen).toBe(1);
+    expect(fs.readdirSync(path.join(tempDir.tmpDir, 'media-stats')).filter(file => file.endsWith('.tmp'))).toEqual([]);
+  });
+});
+
 describe('getMediaStats', () => {
   it('returns null when no file exists for the given hash', () => {
     const result = mod.getMediaStats('nonexistent');
@@ -137,12 +174,11 @@ describe('getMediaStats', () => {
     expect(result?.language).toBe('de');
   });
 
-  it('returns null when the file contains corrupt JSON', () => {
+  it('rejects corrupt JSON without advertising an absent media record', () => {
     const dir = path.join(tempDir.tmpDir, 'media-stats');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'corrupt.json'), '{ invalid', 'utf-8');
-    const result = mod.getMediaStats('corrupt');
-    expect(result).toBeNull();
+    expect(() => mod.getMediaStats('corrupt')).toThrow();
   });
 });
 
@@ -285,26 +321,26 @@ describe('pruneMediaStats', () => {
   });
 
   it('removes least-recently-accessed entries until at most maxEntries remain', () => {
-    const oldest = makeStats('old');
+    const oldest = makeScopedStats('old');
     oldest.lastAccessed = 1000;
-    mod.saveMediaStats('old', oldest);
+    mod.saveMediaStats(oldest.mediaHash, oldest);
 
-    const middle = makeStats('mid');
+    const middle = makeScopedStats('mid');
     middle.lastAccessed = 5000;
-    mod.saveMediaStats('mid', middle);
+    mod.saveMediaStats(middle.mediaHash, middle);
 
-    const newest = makeStats('new');
+    const newest = makeScopedStats('new');
     newest.lastAccessed = 9000;
-    mod.saveMediaStats('new', newest);
+    mod.saveMediaStats(newest.mediaHash, newest);
 
     mod.pruneMediaStats(2);
 
     const dir = path.join(tempDir.tmpDir, 'media-stats');
     const remaining = fs.readdirSync(dir).sort();
-    expect(remaining).toEqual(['mid.json', 'new.json']);
+    expect(remaining).toEqual([`${middle.mediaHash}.json`, `${newest.mediaHash}.json`].sort());
   });
 
-  it('treats files with corrupt JSON as oldest (epoch 0) and prunes them first', () => {
+  it('preserves unreadable historical records instead of guessing their usage identity', () => {
     const dir = path.join(tempDir.tmpDir, 'media-stats');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'corrupt.json'), '{ bad', 'utf-8');
@@ -316,21 +352,22 @@ describe('pruneMediaStats', () => {
     mod.pruneMediaStats(1);
 
     const remaining = fs.readdirSync(dir).sort();
-    expect(remaining).toEqual(['recent.json']);
+    expect(remaining).toEqual(['corrupt.json', 'recent.json']);
   });
 
   it('saveMediaStats triggers prune when over the default cap', () => {
     const baseTime = 1_000_000;
+    const identities: string[] = [];
     for (let i = 0; i < 502; i++) {
-      const s = makeStats(`h${i}`);
+      const s = makeScopedStats(`h${i}`); identities.push(s.mediaHash);
       s.lastAccessed = baseTime + i;
-      mod.saveMediaStats(`h${i}`, s);
+      mod.saveMediaStats(s.mediaHash, s);
     }
     const dir = path.join(tempDir.tmpDir, 'media-stats');
     const files = fs.readdirSync(dir);
     expect(files.length).toBe(500);
-    expect(files).toContain('h501.json');
-    expect(files).not.toContain('h0.json');
-    expect(files).not.toContain('h1.json');
+    expect(files).toContain(`${identities[501]}.json`);
+    expect(files).not.toContain(`${identities[0]}.json`);
+    expect(files).not.toContain(`${identities[1]}.json`);
   });
 });

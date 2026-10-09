@@ -4,7 +4,7 @@
  */
 
 import { Component, JSX, Show, For, createSignal, createMemo, createEffect, onCleanup, onMount } from 'solid-js';
-import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationResponse } from '../../../shared/types';
+import { DEFAULT_SETTINGS, type Token, type DictionaryEntry, type TranslationResponse, type MediaUsageEventContext } from '../../../shared/types';
 import { useSettings, useLanguage, useFlashcards } from '../../context';
 import { tokenLookupContext } from '../../hooks/useTranslation';
 import { useWordHover, useDictionary, useTranslation, getCachedTranslation } from '../../hooks';
@@ -30,6 +30,7 @@ const log = getLogger("renderer.components.subtitleContainer");
 const PASSIVE_SUBTITLE_EASE_BUMP = 0.01;
 
 export interface SubtitleContainerProps {
+  mediaUsageContext?: MediaUsageEventContext;
   tokens: Token[];
   originalText?: string;
   remoteHtml?: string | null;
@@ -190,7 +191,7 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
       if (!hasUsefulWordHoverContent(token, response ?? undefined, entries, currentLangData())) return;
       admitVisibleReveal((data) => {
         if (!flashcardCtx.isKnowledgeReady() || !data.lookupWord) return;
-        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? processingLanguage());
+        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? processingLanguage(), props.mediaUsageContext);
       });
     };
     maybeAdmitUsefulReveal(cachedTranslation, []);
@@ -380,12 +381,12 @@ export const SubtitleContainer: Component<SubtitleContainerProps> = (props) => {
     if (observationKey === lastObservedSubtitleKey) return;
     lastObservedSubtitleKey = observationKey;
     tokens.forEach((token, index) => {
-      if (!isTokenTranslatable(token)) return;
+      if (!isTokenTranslatable(token) || token.analysisAuthority === 'display-only') return;
       const lookupWord = getTokenLookupWord(token, tokenizerCapabilities());
       if (!lookupWord) return;
       flashcardCtx.trackWordSeen(
         lookupWord, token.reading, PASSIVE_SUBTITLE_EASE_BUMP, processingLanguage(),
-        props.encounterId ? `${props.encounterId}:${index}` : undefined,
+        props.encounterId ? `${props.encounterId}:${index}` : undefined, props.mediaUsageContext,
       );
     });
   });

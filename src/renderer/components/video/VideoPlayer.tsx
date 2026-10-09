@@ -5,6 +5,7 @@
 
 import { Component, JSX, Show, createEffect, createMemo, createSignal, onMount, onCleanup } from 'solid-js';
 import { useVideo, useVideoKeyboard, useCursorVisibility } from '../../hooks';
+import type { MediaUsageEventContext } from '../../../shared/types';
 import type { useSubtitles } from '../../hooks';
 import { useVideoTouch } from '../../hooks/useVideoTouch';
 import { useLocalization, useSettings } from '../../context';
@@ -27,6 +28,8 @@ export interface DetectedTrack {
 }
 
 export interface VideoPlayerProps {
+  mediaUsageContext?: MediaUsageEventContext;
+  onPlaybackStateChange?: (playing: boolean) => void;
   /** Video source URL */
   src?: string;
   /** Subtitle file content (SRT/VTT/ASS) */
@@ -82,6 +85,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
     getFullscreenContainer: () => containerRef ?? null,
   });
   const subtitles = props.subtitles;
+  createEffect(() => props.onPlaybackStateChange?.(video.state.isPlaying));
 
   // Cursor visibility with 2s timeout - matches legacy behavior
   const { isVisible: controlsVisible } = useCursorVisibility({
@@ -246,6 +250,7 @@ export const VideoPlayer: Component<VideoPlayerProps> = (props) => {
 
         {/* Subtitle overlay */}
         <SubtitleContainer
+          mediaUsageContext={props.mediaUsageContext}
             tokens={subtitles.tokens()}
             isLoading={subtitles.isTokenizing()}
             originalText={subtitles.currentSubtitle()?.text}

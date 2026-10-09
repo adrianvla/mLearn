@@ -1,3 +1,4 @@
+import { MediaUsageSaveStatus } from '../../../components/common/MediaUsageSaveStatus/MediaUsageSaveStatus';
 import { LanguageProvider } from '../../../context/LanguageContext';
 import { useMediaSourceLanguage, type MediaSourceLanguageScope, type PreparedMediaSource } from '../../../hooks/useMediaSourceLanguage';
 import { mediaFileResourceId } from '../../../services/mediaSourceLanguage';
@@ -647,7 +648,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
   let settingRequirementWarningsChecked = false;
 
   // Media stats for this reader session
-  const mediaStats = useMediaStats({ mediaType: 'book', language: sourceLanguage() });
+  const mediaStats = useMediaStats({ mediaType: 'book', language: sourceLanguage, engaged: () => isWindowFocused() && isWindowVisible() });
 
   const [pages, setPages] = createSignal<PageImage[]>([]);
   const [textSourcePages, setTextSourcePages] = createSignal<ReaderSourcePage[] | null>(null);
@@ -766,7 +767,8 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
   // Activate media stats when a book is loaded
   createEffect(() => {
     const title = bookTitle();
-    if (title) mediaStats.setMedia(title);
+    const source = props.scope.active();
+    if (title && source) mediaStats.setMedia(title, { resourceId: source.source.resourceId, language: sourceLanguage() });
   });
 
   syncReaderPluginActivity({
@@ -1036,7 +1038,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
       for (const entry of ocrPageWords[page.id] ?? []) {
         if (pageContentId !== undefined && entry.pageContentId !== pageContentId) continue;
         const word = getReaderPassiveTrackingWord(entry.token, tokenizerCapabilities());
-        if (!word) continue;
+        if (!word || entry.token.analysisAuthority === 'display-only') continue;
         const position = `${entry.boxIndex}\0${word}`;
         const occurrence = (occurrencesByBoxAndWord.get(position) ?? 0) + 1;
         occurrencesByBoxAndWord.set(position, occurrence);
@@ -1046,7 +1048,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
           : `${passageId}:${entry.boxIndex}:${word}:${occurrence}`;
         flashcardCtx.trackWordSeen(
           word, entry.token.reading, undefined, sourceLanguage(),
-          encounterId,
+          encounterId, mediaStats.eventContext(),
         );
       }
       if (supportsGrammar()) {
@@ -3008,7 +3010,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
       if (!hasUsefulWordHoverContent(token, response ?? undefined, entries, currentLangData())) return;
       admitOcrReveal((data) => {
         if (!flashcardCtx.isKnowledgeReady() || !data.lookupWord) return;
-        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? sourceLanguage());
+        flashcardCtx.trackWordHovered(data.lookupWord, data.token?.reading, data.language ?? sourceLanguage(), mediaStats.eventContext());
       });
     };
     maybeAdmitUsefulReveal(cachedTranslation, []);
@@ -3164,6 +3166,7 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
       >
+      <MediaUsageSaveStatus error={mediaStats.saveError()} retry={mediaStats.retrySaveStats} />
 
         {/* Navigation Bar */}
         <ReaderNav

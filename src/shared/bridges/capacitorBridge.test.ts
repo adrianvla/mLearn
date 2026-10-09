@@ -1630,26 +1630,18 @@ describe('Media Stats Bridge', () => {
     expect(all['abc123']).toEqual(stats);
   });
 
-  it('getMediaStats emits stats for given hash', async () => {
+  it('getMediaStats resolves the correlated record for given hash', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
     const existingStats = { mediaHash: 'xyz789', sessions: [] as never[] };
     localStorage.setItem('mediaStats', JSON.stringify({ xyz789: existingStats }));
-    const cb = vi.fn();
-    bridge.mediaStats.onMediaStats(cb);
-    bridge.mediaStats.getMediaStats('xyz789');
-    await new Promise(r => setTimeout(r, 20));
-    expect(cb).toHaveBeenCalledWith(existingStats);
+    await expect(bridge.mediaStats.getMediaStats('xyz789')).resolves.toEqual(existingStats);
   });
 
-  it('getMediaStats emits null for unknown hash', async () => {
+  it('getMediaStats resolves null for unknown hash', async () => {
     const { createCapacitorBridge } = await import('./capacitorBridge');
     const bridge = createCapacitorBridge();
-    const cb = vi.fn();
-    bridge.mediaStats.onMediaStats(cb);
-    bridge.mediaStats.getMediaStats('unknown');
-    await new Promise(r => setTimeout(r, 20));
-    expect(cb).toHaveBeenCalledWith(null);
+    await expect(bridge.mediaStats.getMediaStats('unknown')).resolves.toBeNull();
   });
 
   it('listMediaStats emits all stored stats', async () => {

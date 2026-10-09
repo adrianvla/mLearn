@@ -4267,7 +4267,9 @@
       "SourceLanguageFallback": "Study language fallback — choose the source language",
       "MixedSourceLanguage": "Mixed language source",
       "SourceLanguageSaveFailed": "Could not save the source language.",
-      "RetrySourceLanguage": "Retry"
+      "RetrySourceLanguage": "Retry",
+      "UsageSaveFailed": "Media usage could not be saved. Your pending usage is retained for retry.",
+      "RetryUsageSave": "Retry save"
     }
   }
 }

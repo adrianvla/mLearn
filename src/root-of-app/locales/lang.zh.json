@@ -4267,7 +4267,9 @@
       "SourceLanguageFallback": "暂用学习语言 — 请选择素材语言",
       "MixedSourceLanguage": "多语言素材",
       "SourceLanguageSaveFailed": "无法保存素材语言。",
-      "RetrySourceLanguage": "重试"
+      "RetrySourceLanguage": "重试",
+      "UsageSaveFailed": "无法保存媒体使用记录。待保存的记录已保留，可重试。",
+      "RetryUsageSave": "重试保存"
     }
   }
 }

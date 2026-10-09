@@ -5521,6 +5521,24 @@ describe('FlashcardProvider', () => {
     vi.useRealTimers();
   });
 
+  it('retains admitted media context in exposure and delayed lookup usage without creating learner evidence when passive tracking is disabled', async () => {
+    vi.useFakeTimers(); const { ctx, dispose } = await mountProvider(); flashcardsCb(makeEmptyStore());
+    const enabled = mockSettings.passiveEaseEnabled; const delay = mockSettings.passiveHoverDelayMs;
+    mockSettings.passiveEaseEnabled = false; mockSettings.passiveHoverDelayMs = 300;
+    const context = { mediaHash: 'source-hash', sourceId: '/books/admitted.epub', sessionId: 'physical-session', language: 'ja' };
+    const seen = vi.fn(); const hovered = vi.fn();
+    window.addEventListener('mlearn:word-seen', seen); window.addEventListener('mlearn:word-hovered', hovered);
+    ctx.trackWordSeen('婚約者', undefined, 0.01, 'ja', 'occurrence', context);
+    ctx.trackWordHovered('婚約者', undefined, 'ja', context);
+    mockSettings.language = 'ru'; await vi.advanceTimersByTimeAsync(300);
+    expect((seen.mock.calls[0][0] as CustomEvent).detail).toMatchObject({ ...context, word: '婚約者', encounterId: 'occurrence' });
+    expect((hovered.mock.calls[0][0] as CustomEvent).detail).toMatchObject({ ...context, word: '婚約者' });
+    expect(ctx.store.wordKnowledge).toEqual({});
+    window.removeEventListener('mlearn:word-seen', seen); window.removeEventListener('mlearn:word-hovered', hovered);
+    mockSettings.passiveEaseEnabled = enabled; mockSettings.passiveHoverDelayMs = delay; mockSettings.language = 'ja';
+    dispose(); vi.useRealTimers();
+  });
+
   it('trackWordHovered does nothing when passiveEaseEnabled is false', async () => {
     vi.useFakeTimers();
     const { ctx, dispose } = await mountProvider();

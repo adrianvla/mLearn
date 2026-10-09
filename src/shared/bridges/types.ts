@@ -320,8 +320,8 @@ export interface VoiceBridge {
 }
 
 export interface MediaStatsBridge {
-  saveMediaStats: (mediaHash: string, stats: MediaStats) => void;
-  getMediaStats: (mediaHash: string) => void;
+  saveMediaStats: (mediaHash: string, stats: MediaStats) => Promise<import('../types').MediaStatsSaveAck>;
+  getMediaStats: (mediaHash: string) => Promise<MediaStats | null>;
   onMediaStats: (callback: (stats: MediaStats | null) => void) => () => void;
   listMediaStats: () => void;
   onMediaStatsList: (callback: (stats: MediaStats[]) => void) => () => void;

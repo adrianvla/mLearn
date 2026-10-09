@@ -1,3 +1,4 @@
+import { mergeMediaUsage } from '../mediaUsage';
 import { resolveApplicationDestination } from '../applicationNavigation';
 import { learningEvidenceFromEvents } from '../learningEvidence';
 import { reviewPresentationPatch } from '../reviewPresentationWrite';
@@ -1566,20 +1567,27 @@ const voiceBridge: VoiceBridge = {
 // Media Stats Bridge
 // ============================================================================
 
+let mediaStatsWriteQueue: Promise<unknown> = Promise.resolve();
 const mediaStatsBridge: MediaStatsBridge = {
   saveMediaStats(mediaHash: string, stats: MediaStats) {
-    storageGet('mediaStats').then(raw => {
+    const write = mediaStatsWriteQueue.catch(() => {}).then(async () => {
+      const raw = await storageGet('mediaStats', true);
       const all: Record<string, MediaStats> = raw ? JSON.parse(raw) : {};
-      all[mediaHash] = stats;
-      storageSet('mediaStats', JSON.stringify(all));
+      const previous = all[mediaHash];
+      const merged = mergeMediaUsage(previous ?? null, stats);
+      merged.storageRevision = (previous?.storageRevision ?? 0) + 1;
+      all[mediaHash] = merged;
+      await storageSet('mediaStats', JSON.stringify(all), true);
+      return { mediaHash, revision: merged.storageRevision, sessionSequences: Object.fromEntries(Object.entries(merged.usageSessions ?? {}).map(([id, session]) => [id, session.sequence])) };
     });
+    mediaStatsWriteQueue = write;
+    return write;
   },
 
-  getMediaStats(mediaHash: string) {
-    storageGet('mediaStats').then(raw => {
-      const all: Record<string, MediaStats> = raw ? JSON.parse(raw) : {};
-      emitter.emit('media-stats', all[mediaHash] || null);
-    });
+  async getMediaStats(mediaHash: string) {
+    const raw = await storageGet('mediaStats', true);
+    const all: Record<string, MediaStats> = raw ? JSON.parse(raw) : {};
+    return all[mediaHash] ?? null;
   },
 
   onMediaStats(callback) {
@@ -1587,7 +1595,7 @@ const mediaStatsBridge: MediaStatsBridge = {
   },
 
   listMediaStats() {
-    storageGet('mediaStats').then(raw => {
+    storageGet('mediaStats', true).then(raw => {
       const all: Record<string, MediaStats> = raw ? JSON.parse(raw) : {};
       emitter.emit('media-stats-list', Object.values(all));
     });

@@ -474,3 +474,5 @@ export { LearningWorkspace } from './LearningWorkspace/LearningWorkspace';
 export { SourceLanguageSelect } from './SourceLanguageSelect/SourceLanguageSelect';
 
 export { LanguageDataJobProgress } from './LanguageDataJobProgress/LanguageDataJobProgress';
+
+export { MediaUsageSaveStatus } from './MediaUsageSaveStatus/MediaUsageSaveStatus';

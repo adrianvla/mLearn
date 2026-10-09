@@ -19,18 +19,27 @@ export function progressDailyStats(
     .map(([date, entries]) => [date, { [language]: entries[language] }]));
 }
 
-/** Missing legacy interval timestamps cannot be reconstructed. Keep their recorded durations. */
-export function recordedMediaDuration(sessions: Array<{ duration: number; startTime?: number; endTime?: number }>): number {
-  const intervals = sessions.filter(session => session.startTime !== undefined && session.endTime !== undefined)
-    .map(session => ({ start: session.startTime!, end: session.endTime! })).sort((a, b) => a.start - b.start);
-  let total = sessions.filter(session => session.startTime === undefined || session.endTime === undefined)
-    .reduce((sum, session) => sum + session.duration, 0);
-  let start: number | undefined;
-  let end = 0;
-  for (const interval of intervals) {
-    if (start === undefined) { start = interval.start; end = interval.end; }
-    else if (interval.start <= end) end = Math.max(end, interval.end);
-    else { total += end - start; start = interval.start; end = interval.end; }
+export { recordedMediaDuration, recordedMediaSessions } from '../../../shared/mediaUsage';
+
+/** UTC reporting dates match the persisted daily study date convention. */
+export function mediaSessionsByDate(media: MediaStats): Record<string, import('../../../shared/types').MediaSession[]> {
+  const result: Record<string, import('../../../shared/types').MediaSession[]> = {};
+  const sessions = media.usageSessions ? Object.values(media.usageSessions) : media.sessions;
+  for (const session of sessions) {
+    const segments = session.engagedIntervals ?? (session.startTime !== undefined && session.endTime !== undefined
+      ? [{ startTime: session.startTime, endTime: session.endTime }] : undefined);
+    if (!segments) { (result[session.date] ??= []).push(session); continue; }
+    for (const segment of segments) {
+      if (!Number.isFinite(segment.startTime) || !Number.isFinite(segment.endTime)) continue;
+      let start = segment.startTime;
+      while (start < segment.endTime) {
+        const date = new Date(start).toISOString().split('T')[0];
+        const boundary = Date.parse(`${date}T00:00:00.000Z`) + 86400000;
+        const end = Math.min(boundary, segment.endTime);
+        (result[date] ??= []).push({ ...session, date, duration: end - start, engagedIntervals: [{ startTime: start, endTime: end }] });
+        start = end;
+      }
+    }
   }
-  return total + (start === undefined ? 0 : end - start);
+  return result;
 }

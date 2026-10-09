@@ -274,8 +274,8 @@ sendLogRecord: (record: unknown) => void;
   removeLegacyLanguageData: (paths: string[]) => Promise<void>;
 
   // Media Stats
-  saveMediaStats: (mediaHash: string, stats: MediaStats) => void;
-  getMediaStats: (mediaHash: string) => void;
+  saveMediaStats: (mediaHash: string, stats: MediaStats) => Promise<import('./types').MediaStatsSaveAck>;
+  getMediaStats: (mediaHash: string) => Promise<MediaStats | null>;
   onMediaStats: (callback: (stats: MediaStats | null) => void) => () => void;
   listMediaStats: () => void;
   onMediaStatsList: (callback: (stats: MediaStats[]) => void) => () => void;

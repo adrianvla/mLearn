@@ -15,7 +15,7 @@ import { isReviewCorrection, restoreReviewResponse, validateReviewResponseUndo, 
 import { perfCount } from '../utils/perfCounters';
 import { createStore, reconcile, produce, unwrap } from 'solid-js/store';
 import { canonicalize } from 'json-canonicalize';
-import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewPresentation, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PerLanguageMeta } from '../../shared/types';
+import { DEFAULT_SETTINGS, isRemoteLLMProvider, type CapabilityKey, type FlashcardStore, type Flashcard, type FlashcardContent, type FlashcardMeta, type ReviewPresentation, type FlashcardProsody, type ReviewQueue, type WordStats, type FlashcardState, type PassiveWordKnowledge, type GrammarKnowledgeEntry, type TranslationEntry, type IgnoredWordEntry, type SuggestedFlashcard, type DailyStudyStats, type WordCandidate, type LanguageData, type FlashcardWriteAuthorization, type PerLanguageMeta, type MediaUsageEventContext } from '../../shared/types';
 import { PROXY_SERVER_PORT, SRS_EASE, type AttemptQuality } from '../../shared/constants';
 import { isSurfaceScopedCapability } from '../../shared/graph/targets';
 import { surfaceEntityId } from '../../shared/graph/load';
@@ -387,11 +387,11 @@ interface FlashcardContextValue {
   ) => Promise<{ created: number; promoted: number; skipped: number }>;
 
   // Passive word knowledge tracking
-  trackWordSeen: (word: string, reading?: string, easeBump?: number, language?: string, encounterId?: string) => void;
+  trackWordSeen: (word: string, reading?: string, easeBump?: number, language?: string, encounterId?: string, usageContext?: MediaUsageEventContext) => void;
   /** Applies coalesced passive-seen observations to the store immediately. */
   flushPendingWordSeen: () => void;
   cancelWordHover: (word: string, language?: string) => void;
-  trackWordHovered: (word: string, reading?: string, language?: string) => void;
+  trackWordHovered: (word: string, reading?: string, language?: string, usageContext?: MediaUsageEventContext) => void;
   getAccessStatus: (word: string, capability: CapabilityKey, language?: string) => AccessStatusResult;
   getWordKnowledge: (wordHash: string) => PassiveWordKnowledge | undefined;
   isWordKnown: (wordHash: string) => boolean;
@@ -3895,7 +3895,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
   };
 
   // Track that a word was seen (displayed on screen)
-  const trackWordSeen = (word: string, reading?: string, easeBump = 0.01, language = settings.language, encounterId?: string) => {
+  const trackWordSeen = (word: string, reading?: string, easeBump = 0.01, language = settings.language, encounterId?: string, usageContext?: MediaUsageEventContext) => {
+    if (usageContext && usageContext.language === language) window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { ...usageContext, word, encounterId, ease: store.wordKnowledge[langKey(language, SRS.hashWordSync(getPrimaryWordFormForLanguage(word, language)))]?.ease ?? SRS.MIN_EASE } }));
     perfCount('knowledge.trackWordSeen.calls');
     if (!settings.passiveEaseEnabled) return;
     // Use the language's primary word form so inflections and alternate spellings track together.
@@ -3942,7 +3943,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     // itself lags until flushPendingSeen, by design. Computed BEFORE the
     // size-bound flush so the read cannot observe the just-applied batch.
     const newEase = Math.min(5, (existing?.ease ?? SRS.MIN_EASE) + entry.easeDelta);
-    window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word, language: lang, ease: newEase } }));
+    if (!usageContext && shouldCount) window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word, language: lang, ease: newEase } }));
     if (shouldCount) accumulateWordSeen(lk, newEase, 1, passiveEaseToStatus(newEase));
 
     if (pendingSeen.size >= PENDING_SEEN_FLUSH_BOUND) flushPendingSeen();
@@ -3950,21 +3951,23 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
   // Track that a word was hovered (user doesn't know it)
   // Debounce: call this on hover start, cancel on hover end
-  const trackWordHovered = (word: string, reading?: string, language = settings.language) => {
-    if (!settings.passiveEaseEnabled) return;
+  const trackWordHovered = (word: string, reading?: string, language = settings.language, usageContext?: MediaUsageEventContext) => {
+    if (!settings.passiveEaseEnabled && !usageContext) return;
     const storageWord = getPrimaryWordFormForLanguage(word, language);
     const wordHash = SRS.hashWordSync(storageWord);
     const lang = language;
     const lk = langKey(lang, wordHash);
-    if (isKnownClaimed(lk)) return;
+    if (isKnownClaimed(lk) && !usageContext) return;
 
     // Cancel existing timer if any
     const existing = hoverTimers.get(lk);
     if (existing) clearTimeout(existing);
 
     const timer = setTimeout(() => {
-      perfCount('knowledge.trackWordHovered.writes');
       hoverTimers.delete(lk);
+      if (usageContext && usageContext.language === lang) window.dispatchEvent(new CustomEvent('mlearn:word-hovered', { detail: { ...usageContext, word, ease: store.wordKnowledge[lk]?.ease ?? SRS.MIN_EASE } }));
+      if (!settings.passiveEaseEnabled || isKnownClaimed(lk)) return;
+      perfCount('knowledge.trackWordHovered.writes');
       const now = Date.now();
 
       setStore(produce((s) => {
@@ -3992,7 +3995,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       // so no interaction with a hover popup can create negative epistemic
       // evidence. The legacy media-stats event keeps its contract shape with
       // isFailed: false.
-      window.dispatchEvent(new CustomEvent('mlearn:word-hovered', {
+      if (!usageContext) window.dispatchEvent(new CustomEvent('mlearn:word-hovered', {
         detail: {
           word,
           language: lang,

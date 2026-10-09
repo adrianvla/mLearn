@@ -2855,6 +2855,34 @@ export interface MediaSession {
   startTime?: number;
   /** Epoch ms when the session ended (undefined for legacy sessions) */
   endTime?: number;
+  /** Usage count; this never asserts demonstrated learning. */
+  wordsEncounteredCount?: number;
+  /** Explicit focused/visible engagement segments, excluding pauses and background. */
+  engagedIntervals?: Array<{ startTime: number; endTime: number }>;
+}
+
+export interface MediaUsageEventContext {
+  mediaHash: string;
+  sourceId: string;
+  sessionId: string;
+  language: string;
+}
+
+export interface MediaUsageSession extends MediaSession {
+  id: string;
+  sequence: number;
+  finalized: boolean;
+  /** Annotation writes share the session sequence and durable merge owner. */
+  assessedLevel?: number;
+  ocrCache?: Record<number, Token[]>;
+  wordsEncountered: Record<string, MediaStatsWordEntry>;
+  grammarEncountered: Record<string, MediaStatsGrammarEntry>;
+}
+
+export interface MediaStatsSaveAck {
+  mediaHash: string;
+  revision: number;
+  sessionSequences: Record<string, number>;
 }
 
 export interface MediaStats {
@@ -2868,6 +2896,10 @@ export interface MediaStats {
   sessions: MediaSession[];
   totalTimeSpent: number;
   lastAccessed: number;
+  /** Admitted resource identity. Absent on ambiguous historical title records. */
+  sourceId?: string;
+  usageSessions?: Record<string, MediaUsageSession>;
+  storageRevision?: number;
   /** Cached OCR results per page for books */
   ocrCache?: Record<number, Token[]>;
 }

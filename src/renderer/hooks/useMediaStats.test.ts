@@ -1,4 +1,4 @@
-import { createRoot } from 'solid-js';
+import { createRoot, createSignal } from 'solid-js';
 import { useMediaStats } from './useMediaStats';
 import type { MediaStats } from '../../shared/types';
 
@@ -18,7 +18,7 @@ vi.mock('../../shared/bridges', () => ({
 }));
 
 function makeStats(overrides: Partial<MediaStats> = {}): MediaStats {
-  return {
+  const result: MediaStats = {
     mediaHash: '',
     mediaName: '',
     mediaType: 'video',
@@ -31,12 +31,17 @@ function makeStats(overrides: Partial<MediaStats> = {}): MediaStats {
     lastAccessed: Date.now(),
     ...overrides,
   };
+  result.sourceId = `fixture:${result.mediaName}`;
+  result.usageSessions = { loaded: { id: 'loaded', sequence: 1, finalized: true, date: '2026-10-01', duration: result.totalTimeSpent, wordsLearned: 0,
+    wordsEncountered: result.wordsEncountered, grammarEncountered: result.grammarEncountered } };
+  return result;
 }
 
 describe('useMediaStats', () => {
   beforeEach(() => {
     onMediaStatsCallback = null;
-    mockSaveMediaStats = vi.fn();
+    localStorage.clear(); vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    mockSaveMediaStats = vi.fn().mockImplementation(async (hash: string, stats: MediaStats) => ({ mediaHash: hash, revision: 1, sessionSequences: Object.fromEntries(Object.entries(stats.usageSessions ?? {}).map(([id, session]) => [id, session.sequence])) }));
     mockGetMediaStats = vi.fn();
     mockOnMediaStats = vi.fn((cb: (stats: MediaStats | null) => void) => {
       onMediaStatsCallback = cb;
@@ -45,8 +50,97 @@ describe('useMediaStats', () => {
   });
 
   const createHook = (opts = { mediaType: 'video' as const, language: 'ja' }) => {
-    return useMediaStats(opts);
+    const hook = useMediaStats(opts);
+    return { ...hook, setMedia: (name: string, source = { resourceId: `fixture:${name}` }) => hook.setMedia(name, source) };
   };
+
+  it('finalizes one physical session once across beforeunload and cleanup', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(10000);
+    let hook!: ReturnType<typeof useMediaStats>;
+    const dispose = createRoot(dispose => { hook = createHook(); return dispose; });
+    await Promise.resolve(); hook.setMedia('one'); vi.setSystemTime(11000);
+    window.dispatchEvent(new Event('beforeunload')); dispose();
+    const writes = mockSaveMediaStats.mock.calls.map(call => call[1] as MediaStats);
+    expect(writes.at(-1)?.sessions).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it('ignores explicit wrong-language and wrong-source events in the same renderer', async () => {
+    let hook!: ReturnType<typeof useMediaStats>;
+    const dispose = createRoot(dispose => { hook = createHook(); return dispose; });
+    await Promise.resolve(); hook.setMedia('one');
+    window.dispatchEvent(new CustomEvent('mlearn:word-seen', { detail: { word: 'foreign', ease: 2, language: 'ru', mediaHash: hook.mediaHash(), sessionId: 'other' } }));
+    window.dispatchEvent(new CustomEvent('mlearn:word-hovered', { detail: { word: 'wrong-source', ease: 2, language: 'ja', mediaHash: 'other', sessionId: 'other' } }));
+    expect(hook.stats().wordsEncountered).toEqual({}); dispose();
+  });
+
+  it('records only focused visible engagement and preserves explicit pause gaps', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(10000);
+    const [engaged, setEngaged] = createSignal(true);
+    let hook!: ReturnType<typeof useMediaStats>;
+    const dispose = createRoot(dispose => { hook = useMediaStats({ mediaType: 'video', language: 'qx', engaged }); return dispose; });
+    await Promise.resolve(); hook.setMedia('One title', { resourceId: '/videos/one.mp4' });
+    vi.setSystemTime(11000); setEngaged(false);
+    vi.setSystemTime(21000); setEngaged(true);
+    vi.setSystemTime(22000); hook.endSession();
+    expect(hook.stats().totalTimeSpent).toBe(2000);
+    expect(hook.stats().sessions[0].engagedIntervals).toEqual([{ startTime: 10000, endTime: 11000 }, { startTime: 21000, endTime: 22000 }]);
+    expect(hook.stats().sessions[0].wordsLearned).toBe(0);
+    dispose(); vi.useRealTimers();
+  });
+
+  it('merges interactions recorded before the correlated initial load resolves', async () => {
+    let resolve!: (stats: MediaStats | null) => void;
+    mockGetMediaStats.mockReturnValueOnce(new Promise<MediaStats | null>(done => { resolve = done; }));
+    let hook!: ReturnType<typeof useMediaStats>;
+    const dispose = createRoot(dispose => { hook = useMediaStats({ mediaType: 'book', language: 'qx' }); return dispose; });
+    hook.setMedia('Identical', { resourceId: '/books/one.epub' }); hook.recordWord('new', 2);
+    const existing = { ...hook.stats(), usageSessions: {} };
+    resolve(existing); await Promise.resolve();
+    expect(hook.stats().wordsEncountered.new.timesSeen).toBe(1);
+    dispose();
+  });
+
+  it('exposes an unacknowledged write and recovers its retained contribution after a remount', async () => {
+    let hook!: ReturnType<typeof useMediaStats>;
+    const dispose = createRoot(dispose => { hook = useMediaStats({ mediaType: 'book', language: 'qx' }); return dispose; });
+    hook.setMedia('One', { resourceId: '/books/one.epub' }); hook.recordWord('term', 2);
+    mockSaveMediaStats.mockRejectedValueOnce(new Error('disk failed'));
+    await expect(hook.saveStats()).rejects.toThrow('disk failed');
+    expect(hook.saveError()).toBeInstanceOf(Error);
+    const key = `mlearn-pending-media-usage::${hook.mediaHash()}::${hook.sessionId()}`;
+    expect(localStorage.getItem(key)).not.toBeNull();
+    mockSaveMediaStats.mockRejectedValueOnce(new Error('closing disk failed')); dispose(); await Promise.resolve();
+    const nextDispose = createRoot(dispose => { hook = useMediaStats({ mediaType: 'book', language: 'qx' }); return dispose; });
+    hook.setMedia('One', { resourceId: '/books/one.epub' }); await Promise.resolve(); await Promise.resolve();
+    expect(hook.stats().wordsEncountered.term.timesSeen).toBe(1);
+    expect(localStorage.getItem(key)).toBeNull(); nextDispose();
+  });
+
+  it('retains intent when an acknowledgement omits the submitted session sequence', async () => {
+    let hook!: ReturnType<typeof useMediaStats>;
+    const dispose = createRoot(dispose => { hook = createHook(); return dispose; });
+    hook.setMedia('One');
+    mockSaveMediaStats.mockImplementationOnce(async (hash: string) => ({ mediaHash: hash, revision: 1, sessionSequences: {} }));
+    await expect(hook.saveStats()).rejects.toThrow('not acknowledged');
+    expect(hook.saveError()).toBeInstanceOf(Error);
+    expect(localStorage.getItem(`mlearn-pending-media-usage::${hook.mediaHash()}::${hook.sessionId()}`)).not.toBeNull();
+    await hook.retrySaveStats(); expect(hook.saveError()).toBeNull(); dispose();
+  });
+
+  it('keeps a late failed old-source write visible and retries its original snapshot', async () => {
+    let hook!: ReturnType<typeof useMediaStats>;
+    const dispose = createRoot(dispose => { hook = createHook(); return dispose; });
+    hook.setMedia('Old'); const oldHash = hook.mediaHash();
+    let reject!: (error: Error) => void;
+    mockSaveMediaStats.mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail; }));
+    hook.setMedia('New'); await Promise.resolve();
+    reject(new Error('old source disk failure')); await Promise.resolve(); await Promise.resolve();
+    expect(hook.saveError()).toBeInstanceOf(Error);
+    await hook.retrySaveStats();
+    expect(mockSaveMediaStats.mock.calls.some(([hash, snapshot]) => hash === oldHash && snapshot.sourceId === 'fixture:Old')).toBe(true);
+    expect(hook.saveError()).toBeNull(); dispose();
+  });
 
   it('starts with empty stats and isActive false', () => {
     createRoot((dispose) => {
@@ -460,7 +554,8 @@ describe('useMediaStats', () => {
 
   it('respects mediaType book option', () => {
     createRoot((dispose) => {
-      const hook = useMediaStats({ mediaType: 'book', language: 'de' });
+      const real = useMediaStats({ mediaType: 'book', language: 'de' });
+      const hook = { ...real, setMedia: (name: string) => real.setMedia(name, { resourceId: `fixture:${name}` }) };
       expect(hook.stats().mediaType).toBe('book');
       expect(hook.stats().language).toBe('de');
       dispose();
@@ -520,7 +615,7 @@ describe('useMediaStats', () => {
     });
   });
 
-  it('produces consistent hash for same media name', () => {
+  it('produces consistent identity for the same admitted resource', () => {
     createRoot((dispose) => {
       const hook1 = createHook();
       hook1.setMedia('test-media.mp4');
@@ -531,12 +626,12 @@ describe('useMediaStats', () => {
       const hash2 = hook2.mediaHash();
 
       expect(hash1).toBe(hash2);
-      expect(hash1).toMatch(/^mh_[0-9a-f]+$/);
+      expect(hash1).toMatch(/^[0-9a-f]{64}$/);
       dispose();
     });
   });
 
-  it('produces different hashes for different media names', () => {
+  it('produces different identities for different admitted resources', () => {
     createRoot((dispose) => {
       const hook1 = createHook();
       hook1.setMedia('video1.mp4');

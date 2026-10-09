@@ -471,8 +471,8 @@ const mLearnIPC = {
 
   // ========== Media Stats ==========
   saveMediaStats: (mediaHash: string, stats: MediaStats) =>
-    ipcRenderer.send(IPC_CHANNELS.SAVE_MEDIA_STATS, mediaHash, stats),
-  getMediaStats: (mediaHash: string) => ipcRenderer.send(IPC_CHANNELS.GET_MEDIA_STATS, mediaHash),
+    ipcRenderer.invoke(IPC_CHANNELS.SAVE_MEDIA_STATS, mediaHash, stats),
+  getMediaStats: (mediaHash: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_MEDIA_STATS, mediaHash),
   onMediaStats: (callback: (stats: MediaStats | null) => void) =>
     ipcOn(IPC_CHANNELS.GET_MEDIA_STATS, (_event, stats) => callback(stats)),
   listMediaStats: () => ipcRenderer.send(IPC_CHANNELS.LIST_MEDIA_STATS),

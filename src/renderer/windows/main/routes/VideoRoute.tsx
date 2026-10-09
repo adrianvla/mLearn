@@ -1,3 +1,4 @@
+import { MediaUsageSaveStatus } from '../../../components/common/MediaUsageSaveStatus/MediaUsageSaveStatus';
 import { fetchTranslation } from '../../../hooks/useTranslation';
 import { LanguageProvider } from '../../../context/LanguageContext';
 import { useMediaSourceLanguage, type MediaSourceLanguageScope } from '../../../hooks/useMediaSourceLanguage';
@@ -159,6 +160,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
   const [currentVideoName, setCurrentVideoName] = createSignal('');
   const [currentVideoDuration, setCurrentVideoDuration] = createSignal<number | null>(null);
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
+  const [usagePlaying, setUsagePlaying] = createSignal(false);
   const [videoLoadState, setVideoLoadState] = createSignal<'idle' | 'loading' | 'ready' | 'error'>('idle');
   createEffect(() => setActiveMediaSource(currentVideoPath() ? { workspace: 'video', path: currentVideoPath() } : undefined));
   onCleanup(() => setActiveMediaSource(undefined));
@@ -204,7 +206,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
 
 
   // Media stats for this video session
-  const mediaStats = useMediaStats({ mediaType: 'video', language: sourceLanguage() });
+  const mediaStats = useMediaStats({ mediaType: 'video', language: sourceLanguage, engaged: () => usagePlaying() && isWindowFocused() && isWindowVisible() });
 
   let ownedVideoElement: HTMLVideoElement | null = null;
   const getCurrentVideoElement = (): HTMLVideoElement | null => ownedVideoElement;
@@ -477,7 +479,8 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
   // Activate media stats when a video name is available
   createEffect(() => {
     const name = currentVideoName();
-    if (name) mediaStats.setMedia(name);
+    const source = props.scope.active();
+    if (name && source) mediaStats.setMedia(name, { resourceId: source.source.resourceId, language: sourceLanguage() });
   });
 
   createEffect(() => {
@@ -1505,6 +1508,7 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
+      <MediaUsageSaveStatus error={mediaStats.saveError()} retry={mediaStats.retrySaveStats} />
       <WindowDragRegion />
 
       {/* Back button */}
@@ -1569,6 +1573,8 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
         <div class="video-player-container">
           <VideoPlayer
             src={videoSrc()}
+            mediaUsageContext={mediaStats.eventContext()}
+            onPlaybackStateChange={setUsagePlaying}
             onLoadStateChange={setVideoLoadState}
             onMediaElement={(element) => { ownedVideoElement = element; }}
             subtitleContent={subtitleContent()}

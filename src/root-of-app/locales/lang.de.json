@@ -4267,7 +4267,9 @@
       "SourceLanguageFallback": "Lernsprache als Ersatz — Quellsprache wählen",
       "MixedSourceLanguage": "Mehrsprachige Quelle",
       "SourceLanguageSaveFailed": "Die Quellsprache konnte nicht gespeichert werden.",
-      "RetrySourceLanguage": "Erneut versuchen"
+      "RetrySourceLanguage": "Erneut versuchen",
+      "UsageSaveFailed": "Die Mediennutzung konnte nicht gespeichert werden. Die ausstehenden Daten bleiben für einen erneuten Versuch erhalten.",
+      "RetryUsageSave": "Erneut speichern"
     }
   }
 }

@@ -4267,7 +4267,9 @@
       "SourceLanguageFallback": "学習言語を仮に使用 — 素材の言語を選択してください",
       "MixedSourceLanguage": "複数言語の素材",
       "SourceLanguageSaveFailed": "素材の言語を保存できませんでした。",
-      "RetrySourceLanguage": "再試行"
+      "RetrySourceLanguage": "再試行",
+      "UsageSaveFailed": "メディアの利用記録を保存できませんでした。未保存の記録は再試行用に保持されています。",
+      "RetryUsageSave": "保存を再試行"
     }
   }
 }
