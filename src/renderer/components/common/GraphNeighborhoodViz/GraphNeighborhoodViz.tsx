@@ -132,7 +132,7 @@ export function groupNeighborhood(neighborhood: GraphNeighborhood): RelationGrou
 }
 
 interface View { scale: number; tx: number; ty: number }
-interface Visit { id: string; label: string; group?: string; page: number; query?: string; view?: View }
+interface Visit { id: string; label: string; group?: string; page: number; query?: string; view?: View; selectionId?: string }
 
 export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props) => {
   const { t } = useLocalization();
@@ -176,7 +176,16 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
   const edgePath = (node: NeighborhoodVizNode) => compact()
     ? `M ${group()?.via ? 100 : 60} ${group()?.via ? 130 : 52} H 24 V ${node.y} H ${node.x - node.w / 2}`
     : `M ${group()?.via ? 384 : 206} ${viewportHeight() / 2} H 400 V ${node.y} H ${node.x - node.w / 2}`;
-  const [selection, setSelection] = createSignal<GraphNode & Partial<GraphRelatedNode>>();
+  const [selectionId, setSelectionId] = createSignal<string>();
+  // History owns only identity. Labels and qualified records must come from
+  // the currently admitted neighborhood, including after a package refresh.
+  const selection = createMemo<GraphNode & Partial<GraphRelatedNode> | undefined>(() => {
+    const id = selectionId();
+    if (!id) return undefined;
+    return props.neighborhood.relations.find(node => node.id === id)
+      ?? props.neighborhood.relations.find(node => node.via?.id === id)?.via;
+  });
+  const setSelection = (node: GraphNode | undefined) => setSelectionId(node?.id);
   const [measure, setMeasure] = createSignal<CanvasRenderingContext2D | null>(null);
   const fitLabel = (label: string, width: number, size = 15): string => {
     const context = measure();
@@ -219,16 +228,19 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
     const center = props.neighborhood.center;
     untrack(() => {
       if (visits()[cursor()]?.id === center.id) return;
-      const previous = visits().map((visit, index) => index === cursor() ? { ...visit, group: groupKey(), page: page(), query: query(), view: view() } : visit);
+      const previous = visits().map((visit, index) => index === cursor() ? { ...visit, group: groupKey(), page: page(), query: query(), view: view(), selectionId: selectionId() } : visit);
       const target = pendingCursor;
       pendingCursor = undefined;
       if (target !== undefined && previous[target]?.id === center.id) {
+        const saved = previous[target];
+        const groupAvailable = !saved.group || groups().some(group => group.key === saved.group);
         setVisits(previous);
         setCursor(target);
-        setGroupKey(previous[target].group);
-        setPage(previous[target].page);
-        setView(previous[target].view);
-        setQuery(previous[target].query ?? '');
+        setGroupKey(groupAvailable ? saved.group : undefined);
+        setPage(groupAvailable ? saved.page : 0);
+        setView(groupAvailable ? saved.view : undefined);
+        setQuery(groupAvailable ? saved.query ?? '' : '');
+        setSelectionId(saved.selectionId);
       } else {
         const next = [...previous.slice(0, cursor() + 1), { id: center.id, label: nodeLabel(center), page: 0 }];
         setVisits(next);
@@ -237,8 +249,8 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
         setPage(0);
         setView(undefined);
         setQuery('');
+        setSelectionId(undefined);
       }
-      setSelection(undefined);
     });
   });
 
@@ -376,7 +388,7 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
               <defs><marker id={arrowId} viewBox="0 0 8 8" refX="8" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="graph-viz__arrow" d="M 0 0 L 8 4 L 0 8 Z" /></marker></defs>
               <g transform={`translate(${currentView().tx} ${currentView().ty}) scale(${currentView().scale})`}>
                 <Show when={isOverview()} fallback={<>                <Show when={group()?.via}><path class="graph-viz__edge" marker-start={marker(viaDirection(), 2)} marker-end={marker(viaDirection(), 1)} d={compact() ? "M 180 84 V 103" : `M 206 ${viewportHeight() / 2} H 224`} /></Show>
-                <For each={layout().nodes}>{(node) => <path class={`graph-viz__edge graph-viz__edge--${group()!.category}`} classList={{ 'is-selected': selection() === node.relation }} marker-start={marker(nodeDirection(node), 2)} marker-end={marker(nodeDirection(node), 1)} d={edgePath(node)} />}</For>
+                <For each={layout().nodes}>{(node) => <path class={`graph-viz__edge graph-viz__edge--${group()!.category}`} classList={{ 'is-selected': selection()?.id === node.relation?.id }} marker-start={marker(nodeDirection(node), 2)} marker-end={marker(nodeDirection(node), 1)} d={edgePath(node)} />}</For>
                 <g data-node="center" class="graph-viz__center">
                   <rect class={`graph-viz__chip ${props.centerState ? `graph-viz__center-ring--${props.centerState}` : ''}`} x={layout().center.x - layout().center.w / 2} y={layout().center.y - layout().center.h / 2} width={layout().center.w} height={layout().center.h} rx="6" />
                   <text class="graph-viz__kind" x={layout().center.x - layout().center.w / 2 + 14} y={layout().center.y - 15}>{t(kindLabelKey(props.neighborhood.center.kind))}</text>
@@ -388,8 +400,8 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
                   <text class="graph-viz__kind" x={viaBox().x + 12} y={viaBox().y + 20}>{t(kindLabelKey(via().kind))}</text>
                   <text class="graph-viz__label" x={viaBox().x + 12} y={viaBox().y + 44}>{fitLabel(nodeLabel(via()), viaBox().w - 24)}</text><title>{nodeLabel(via())}</title>
                 </g>}</Show>
-                <For each={layout().nodes}>{(node) => <g data-node={node.key} class={`graph-viz__node graph-viz__node--${group()!.category}`} classList={{ 'graph-viz__node--selected': selection() === node.relation }} role="button" tabindex={0}
-                  aria-label={`${nodeLabel(node.relation!)} · ${t(kindLabelKey(node.relation!.kind))}`} aria-pressed={selection() === node.relation}
+                <For each={layout().nodes}>{(node) => <g data-node={node.key} class={`graph-viz__node graph-viz__node--${group()!.category}`} classList={{ 'graph-viz__node--selected': selection()?.id === node.relation?.id }} role="button" tabindex={0}
+                  aria-label={`${nodeLabel(node.relation!)} · ${t(kindLabelKey(node.relation!.kind))}`} aria-pressed={selection()?.id === node.relation?.id}
                   onClick={(event) => { if (!ignoreDraggedClick(event)) setSelection(node.relation); }} onDblClick={() => navigate(node.id)} onKeyDown={(event) => nodeKeyDown(event, node.relation!)}>
                   <rect class="graph-viz__chip" x={node.x - node.w / 2} y={node.y - node.h / 2} width={node.w} height={node.h} rx={node.relation?.kind === 'pronunciation' ? 18 : 4} />
                   <text class="graph-viz__kind" x={node.x - node.w / 2 + 14} y={node.y - 8}>{relationLabel(node.relation!.relationType)}<Show when={node.relation?.order !== undefined}>{` · ${node.relation!.order! + 1}`}</Show></text>

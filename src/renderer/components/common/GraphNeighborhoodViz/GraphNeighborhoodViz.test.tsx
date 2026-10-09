@@ -193,6 +193,53 @@ describe('neighborhood presentation', () => {
     expect(container.querySelectorAll('.graph-viz__node')).toHaveLength(1);
   });
 
+  it('restores selected entity context from current records on Back and Forward', () => {
+    const { setValue } = mount(neighborhood, vi.fn(), true);
+    container.querySelector('[data-node="sound"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    button('Explore.Explore').click();
+    const second = { ...neighborhood, center: { ...neighborhood.center, id: 'sound' }, relations: [neighborhood.relations[0]] };
+    setValue(second);
+    container.querySelector('[data-node="entry"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    button('Explore.Back').click();
+    setValue({ ...neighborhood, relations: neighborhood.relations.map(node => node.id === 'sound' ? { ...node, label: 'Updated pronunciation' } : node) });
+    expect(container.querySelector('[data-node="sound"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('.graph-viz__detail-heading')?.textContent).toContain('Updated pronunciation');
+    button('Explore.Forward').click(); setValue(second);
+    expect(container.querySelector('[data-node="entry"]')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('does not resurrect a removed selected entity or a different entity with the same label', () => {
+    const { setValue } = mount(neighborhood, vi.fn(), true);
+    container.querySelector('[data-node="sound"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    setValue({ ...neighborhood, center: { ...neighborhood.center, id: 'second' } });
+    button('Explore.Back').click();
+    setValue({ ...neighborhood, relations: neighborhood.relations.map(node => node.id === 'sound' ? { ...node, id: 'different-sound' } : node) });
+    expect(container.querySelector('.graph-viz__detail')).toBeNull();
+    expect(container.querySelector('[aria-pressed="true"]')).toBeNull();
+  });
+
+  it('refreshes selected details from the same neighborhood and hides removed records', () => {
+    const { setValue } = mount(neighborhood, vi.fn(), true);
+    container.querySelector('[data-node="sound"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    setValue({ ...neighborhood, relations: neighborhood.relations.map(node => node.id === 'sound' ? { ...node, label: 'Fresh pronunciation', provenance: 'updated package' } : node) });
+    expect(container.querySelector('.graph-viz__detail-heading')?.textContent).toContain('Fresh pronunciation');
+    expect(container.querySelector('.graph-viz__detail')?.textContent).toContain('updated package');
+    setValue({ ...neighborhood, relations: neighborhood.relations.filter(node => node.id !== 'sound') });
+    expect(container.querySelector('.graph-viz__detail')).toBeNull();
+    expect(container.querySelector('[aria-pressed="true"]')).toBeNull();
+  });
+
+  it('returns to the overview when the saved relationship group no longer exists', () => {
+    const { setValue } = mount(neighborhood);
+    button('Neighborhood.ZoomIn').click();
+    setValue({ ...neighborhood, center: { ...neighborhood.center, id: 'second' } });
+    button('Explore.Back').click();
+    setValue({ ...neighborhood, relations: neighborhood.relations.filter(node => node.relationType !== 'realizes') });
+    expect(container.querySelector('select')?.value).toBe('');
+    expect(container.querySelector('.graph-viz')?.classList.contains('graph-viz--overview')).toBe(true);
+    expect(container.querySelector('.graph-viz__svg > g')?.getAttribute('transform')).toBe('translate(0 0) scale(1)');
+  });
+
   it('shows a repeated entity once and preserves every qualified record in details', () => {
     mount({ ...dense, relations: [{ ...dense.relations[0], id: 'same', confidence: 0.2 }, { ...dense.relations[1], id: 'same', confidence: 0.9 }] });
     expect(container.querySelectorAll('.graph-viz__node')).toHaveLength(1);
