@@ -46,3 +46,11 @@ export function goalDeadlineDayDifference(deadline: string | undefined, now = Da
   if (!Number.isFinite(due) || new Date(due).toISOString().slice(0, 10) !== deadline) return undefined;
   return Math.floor(due / 86400000) - Math.floor(now / 86400000);
 }
+
+
+/** A second commitment copies serializable intent, not shared nested objects or learner evidence. */
+export function duplicateLearningGoalForDeadline(goal: LearningGoal, id: string, createdAt: number): LearningGoal {
+  const copy = JSON.parse(JSON.stringify(goal)) as LearningGoal;
+  delete copy.deadline;
+  return { ...copy, id, createdAt };
+}

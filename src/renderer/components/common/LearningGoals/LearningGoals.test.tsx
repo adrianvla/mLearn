@@ -19,6 +19,54 @@ const loaded: LanguageData = { name: 'Future', languageData: { version: 'future-
   'future:curriculum': { label: 'Defined curriculum', provenance: 'package', groups: [{ id: 'required', selectors: [{ source: 'frequency', levels: [1] }] }], requirements: { 'unknown:dimension': { a: [1, 2] } } },
 } } };
 describe('semantic learning outcome controls', () => {
+  it('edits a learner recall condition through Settings while preserving package requirements, unknown intent and other deadlines', () => {
+    fixture.data = { ...loaded, grammar: [{ pattern: 'construction', meaning: 'Meaning', level: 1 }], learning: { outcomes: {
+      'future:curriculum': { ...loaded.learning!.outcomes!['future:curriculum'], groups: [{ id: 'construction-set', label: 'Declared constructions', selectors: [{ source: 'grammar' }] }] },
+    } } };
+    const basis = learningGoalSemanticBasis(fixture.data, { id: 'future:curriculum', groupIds: ['construction-set'] });
+    const opaque = { id: 'future:discourse-rule', kind: 'future::discourse', value: { nested: [1, 2] } };
+    const [settings, setSettings] = createStore<Settings>({ ...DEFAULT_SETTINGS, language: 'future', learningGoals: [
+      { id: 'earlier', language: 'future', outcome: 'Defined curriculum', status: 'active', priority: 2, createdAt: 1, deadline: '2027-01-01',
+        outcomeRef: { id: 'future:curriculum', semanticBasis: basis, groupIds: ['construction-set'] },
+        scope: { provenance: 'user', requirements: { conditions: [opaque], 'future:qualified': { values: ['unseen'] } } } },
+      { id: 'later', language: 'future', outcome: 'Defined curriculum', status: 'active', priority: 1, createdAt: 2, deadline: '2027-02-01', outcomeRef: { id: 'future:curriculum', semanticBasis: learningGoalSemanticBasis(fixture.data, { id: 'future:curriculum' }) } },
+    ] });
+    const beforeOther = JSON.stringify(settings.learningGoals![1]);
+    const updateSetting = vi.fn((key: string, value: unknown) => setSettings(key as never, value as never));
+    fixture.context = { settings, updateSetting };
+    dispose = render(() => <LearningGoals />, document.body);
+    const editor = document.querySelector('.learning-goals__personal')!;
+    expect(editor).not.toBeNull();
+    expect(editor.closest('[data-goal-id]')?.getAttribute('data-goal-id')).toBe('earlier');
+    const task = editor.querySelector<HTMLSelectElement>('select[name="learning-recall-task"]')!;
+    task.value = task.options[1].value; task.dispatchEvent(new Event('change', { bubbles: true }));
+    const minimum = editor.querySelector<HTMLInputElement>('input[name="learning-recall-minimum"]')!;
+    minimum.value = '0.7'; minimum.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(task.value).toBe(JSON.stringify(['construction-set', 'grammar-recognition']));
+    expect(minimum.value).toBe('0.7');
+    expect(editor.querySelector<HTMLButtonElement>('button')!.disabled).toBe(false);
+    editor.querySelector<HTMLButtonElement>('button')!.click();
+    expect(updateSetting).toHaveBeenCalled();
+    expect((updateSetting.mock.lastCall![1] as Settings['learningGoals'])!.map(goal => ({ id: goal.id, conditions: goal.scope?.requirements?.conditions }))).toEqual([
+      { id: 'earlier', conditions: [opaque, expect.objectContaining({ kind: 'canonical-capability-threshold' })] },
+      { id: 'later', conditions: undefined },
+    ]);
+    const conditions = settings.learningGoals![0].scope!.requirements!.conditions as Array<Record<string, unknown>>;
+    expect(conditions).toHaveLength(2);
+    expect(conditions[0]).toEqual(opaque);
+    expect(conditions[1]).toEqual({ id: expect.any(String), kind: 'canonical-capability-threshold', groupIds: ['construction-set'], capability: 'grammar-recognition', minimum: 0.7 });
+    expect(settings.learningGoals![0]).toMatchObject({ id: 'earlier', deadline: '2027-01-01', priority: 2, outcomeRef: { semanticBasis: basis, groupIds: ['construction-set'] } });
+    expect(settings.learningGoals![0].scope!.requirements!['future:qualified']).toEqual({ values: ['unseen'] });
+    expect(JSON.stringify(settings.learningGoals![1])).toBe(beforeOther);
+    expect(fixture.data.learning!.outcomes!['future:curriculum'].requirements).toEqual({ 'unknown:dimension': { a: [1, 2] } });
+    dispose!(); document.body.replaceChildren();
+    dispose = render(() => <LearningGoals />, document.body);
+    const saved = document.querySelector<HTMLInputElement>('input[name="learning-recall-condition-minimum"]')!;
+    expect(saved.value).toBe('0.7');
+    saved.value = '0.6'; saved.dispatchEvent(new Event('change', { bubbles: true }));
+    expect((settings.learningGoals![0].scope!.requirements!.conditions as Array<Record<string, unknown>>)[1].minimum).toBe(0.6);
+    expect(JSON.stringify(settings.learningGoals![1])).toBe(beforeOther);
+  });
   it('selects normally loaded membership with no naming, time, status or priority forms', () => {
     const [settings, setSettings] = createStore({ ...DEFAULT_SETTINGS, language: 'future' });
     fixture.data = loaded;
@@ -196,7 +244,7 @@ describe('semantic learning outcome controls', () => {
     expect(evaluations()[0]?.requirements[0]).toMatchObject({ requirementId: 'future::recall-condition', status: 'unknown' });
     dispose(); document.body.replaceChildren();
     dispose = render(() => <LearningGoals compact summaryOnly requirementEvaluations={evaluations()} />, document.body);
-    expect(document.body.textContent).toContain('future::recall-condition');
+    expect(document.body.textContent).toContain('mlearn.Goals.RecallConditionSummary required future::arbitrary-recall 0.6');
     expect(document.body.textContent).toContain('mlearn.Goals.RequirementStatus.unknown');
   });
 });

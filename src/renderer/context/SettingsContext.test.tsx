@@ -199,6 +199,29 @@ describe('SettingsProvider', () => {
     }).toThrow('useSettings must be used within a SettingsProvider');
   });
 
+  it('persists independent deadline intent through reconciliation and cold settings hydration', async () => {
+    const { duplicateLearningGoalForDeadline } = await import('../../shared/learningGoals');
+    const { withPersonalRecallCondition } = await import('../learning/goalRecallConditions');
+    const condition = { id: 'personal', kind: 'canonical-capability-threshold' as const, groupIds: ['declared'], capability: 'future:recall', minimum: 0.7 };
+    const original = { id: 'earlier', language: 'qx', outcome: 'Package material', status: 'active' as const, priority: 2, createdAt: 1, deadline: '2027-01-01', outcomeRef: { id: 'qx:material', groupIds: ['declared'], 'future:binding': { nested: [1, 2] } }, scope: { provenance: 'user' as const, requirements: { conditions: [condition], 'future:opaque': { nested: ['preserved'] } } } };
+    const { ctx, dispose } = await mountProvider();
+    settingsCb(makeSettings({ learningGoals: [original] }));
+    const duplicate = duplicateLearningGoalForDeadline(ctx.settings.learningGoals![0], 'later', 2);
+    expect(duplicate.deadline).toBeUndefined();
+    expect(duplicate.scope?.requirements).not.toBe(ctx.settings.learningGoals![0].scope?.requirements);
+    ctx.updateSetting('learningGoals', [...ctx.settings.learningGoals!, { ...duplicate, deadline: '2027-02-01' }]);
+    const changed = withPersonalRecallCondition(ctx.settings.learningGoals![1], { ...condition, minimum: 0.6 })!;
+    ctx.updateSetting('learningGoals', [ctx.settings.learningGoals![0], changed]);
+    expect(JSON.parse(JSON.stringify(ctx.settings.learningGoals![0]))).toEqual(original);
+    expect((ctx.settings.learningGoals![1].scope!.requirements!.conditions as typeof condition[])[0].minimum).toBe(0.6);
+    const saved = JSON.parse(JSON.stringify(mockBridge.settings.saveSettings.mock.calls.at(-1)![0])) as Settings;
+    dispose();
+    const cold = await mountProvider();
+    settingsCb(saved);
+    expect(JSON.parse(JSON.stringify(cold.ctx.settings.learningGoals))).toEqual([original, { ...changed }]);
+    cold.dispose();
+  });
+
   it('initial state: isLoading=true, settings match DEFAULT_SETTINGS', async () => {
     const { ctx, dispose } = await mountProvider();
     expect(ctx.isLoading()).toBe(true);

@@ -75,7 +75,7 @@ export interface LearningGoalRequirementEvaluation {
   requirements: LearningRequirementConditionEvaluation[];
 }
 
-type CanonicalCapabilityThreshold = {
+export type CanonicalCapabilityThreshold = {
   id: string;
   kind: 'canonical-capability-threshold';
   groupIds: string[];
@@ -87,7 +87,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function isCanonicalThreshold(value: unknown): value is CanonicalCapabilityThreshold {
+export function isCanonicalThreshold(value: unknown): value is CanonicalCapabilityThreshold {
   return isRecord(value)
     && typeof value.id === 'string' && value.id.trim().length > 0
     && value.kind === 'canonical-capability-threshold'
@@ -96,6 +96,22 @@ function isCanonicalThreshold(value: unknown): value is CanonicalCapabilityThres
     && typeof value.capability === 'string' && value.capability.trim().length > 0
     && typeof value.minimum === 'number' && Number.isFinite(value.minimum)
     && value.minimum >= 0 && value.minimum <= 1;
+}
+
+/** The evaluator and task discovery share exactly the same target addresses. */
+export function canonicalRequirementGroupTargets(language: string, groups: ResolvedLearningOutcome['groups'], capability: string): LearnableTarget[] {
+  const targets = new Map<string, LearnableTarget>();
+  for (const group of groups) {
+    for (const word of group.words) {
+      const target = { entityId: surfaceEntityId(language, hashWordSync(word)), capability };
+      targets.set(learningAddress(target), target);
+    }
+    for (const pattern of group.patterns) {
+      const target = { entityId: grammarEntityId(language, pattern), capability };
+      targets.set(learningAddress(target), target);
+    }
+  }
+  return [...targets.values()];
 }
 
 function evidenceForTarget(events: readonly KnowledgeEvent[], target: LearnableTarget, nowMs: number): LearningRequirementEvidenceReference[] {
@@ -175,17 +191,8 @@ function evaluateCondition(
   if (selectedGroups.length !== new Set(raw.groupIds).size) {
     return unsupportedCondition(goal, source, requirementId, kind, raw, packageVersion, 'requirement-group-unavailable');
   }
-  const targets = new Map<string, LearnableTarget>();
-  for (const group of selectedGroups) {
-    for (const word of group.words) {
-      const target = { entityId: surfaceEntityId(goal.language, hashWordSync(word)), capability: raw.capability };
-      targets.set(learningAddress(target), target);
-    }
-    for (const pattern of group.patterns) {
-      const target = { entityId: grammarEntityId(goal.language, pattern), capability: raw.capability };
-      targets.set(learningAddress(target), target);
-    }
-  }
+  const targets = new Map(canonicalRequirementGroupTargets(goal.language, selectedGroups, raw.capability)
+    .map(target => [learningAddress(target), target]));
   if (targets.size === 0) {
     return { requirementId, source, kind, status: 'unknown', conditions: raw,
       ...(packageVersion ? { packageVersion } : {}), ...(goal.outcomeRef?.packageVersion ? { requestedPackageVersion: goal.outcomeRef.packageVersion } : {}),

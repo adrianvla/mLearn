@@ -1,6 +1,16 @@
 {
   "mlearn": {
     "Goals": {
+      "AnotherDeadline": "別の期限",
+      "PersonalRecall": "個人の想起条件",
+      "PersonalRecallDescription": "想起練習が利用できる学習範囲を選んでください。自己申告の想起記録を使います。公式試験の結果を示すものではありません。",
+      "RecallMinimum": "想起確率の下限（0〜1）",
+      "RecallUnavailable": "この学習範囲には編集可能な想起条件がありません。",
+      "RecallMaterial": "想起する学習範囲",
+      "RecallChoose": "学習範囲と能力を選択",
+      "AddRecallCondition": "想起条件を追加",
+      "RemoveRecallCondition": "想起条件を削除",
+      "RecallConditionSummary": "{material} · {capability} · 下限 {minimum}",
       "ScopeWorkloadRisk": "最近の学習ペースでは、{date}までにこの範囲の一部を確認しきれない可能性があります。試験結果の予測ではありません。",
       "Purpose": "学習目標",
       "Explore": "言語を探索する",

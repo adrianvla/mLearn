@@ -1,6 +1,16 @@
 {
   "mlearn": {
     "Goals": {
+      "AnotherDeadline": "另一个截止日期",
+      "PersonalRecall": "个人回忆要求",
+      "PersonalRecallDescription": "请选择有回忆练习的学习内容。此要求使用你自行报告的回忆记录，并不证明官方考试结果。",
+      "RecallMinimum": "最低回忆概率（0–1）",
+      "RecallUnavailable": "此学习内容没有可编辑的回忆要求。",
+      "RecallMaterial": "回忆内容",
+      "RecallChoose": "选择内容和能力",
+      "AddRecallCondition": "添加回忆要求",
+      "RemoveRecallCondition": "移除回忆要求",
+      "RecallConditionSummary": "{material} · {capability} · 最低 {minimum}",
       "ScopeWorkloadRisk": "按你最近的学习节奏，到 {date} 时可能仍有部分范围内的内容尚未评估。这并不是考试结果的预测。",
       "Purpose": "学习目标",
       "Explore": "探索语言",

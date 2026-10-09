@@ -1,6 +1,16 @@
 {
   "mlearn": {
     "Goals": {
+      "AnotherDeadline": "Weitere Frist",
+      "PersonalRecall": "Persönliche Abrufanforderung",
+      "PersonalRecallDescription": "Wähle Material mit einer verfügbaren Abrufaktivität. Grundlage ist deine Selbsteinschätzung; sie belegt kein offizielles Prüfungsergebnis.",
+      "RecallMinimum": "Mindestwahrscheinlichkeit für den Abruf (0–1)",
+      "RecallUnavailable": "Für dieses Material ist keine bearbeitbare Abrufanforderung verfügbar.",
+      "RecallMaterial": "Abrufmaterial",
+      "RecallChoose": "Material und Fähigkeit wählen",
+      "AddRecallCondition": "Abrufanforderung hinzufügen",
+      "RemoveRecallCondition": "Abrufanforderung entfernen",
+      "RecallConditionSummary": "{material} · {capability} · mindestens {minimum}",
       "ScopeWorkloadRisk": "Bei deinem bisherigen Tempo könnte am {date} noch Material in diesem Lernbereich ungeprüft sein. Das sagt kein Prüfungsergebnis voraus.",
       "Purpose": "Lernziel",
       "Explore": "Die Sprache entdecken",

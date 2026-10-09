@@ -1,6 +1,16 @@
 {
   "mlearn": {
     "Goals": {
+      "AnotherDeadline": "Another deadline",
+      "PersonalRecall": "Personal recall requirement",
+      "PersonalRecallDescription": "Choose material with an available recall activity. This uses your self-reported recall evidence; it does not establish an official assessment result.",
+      "RecallMinimum": "Minimum recall probability (0–1)",
+      "RecallUnavailable": "No editable recall requirement is available for this material.",
+      "RecallMaterial": "Recall material",
+      "RecallChoose": "Choose material and capability",
+      "AddRecallCondition": "Add recall requirement",
+      "RemoveRecallCondition": "Remove recall requirement",
+      "RecallConditionSummary": "{material} · {capability} · minimum {minimum}",
       "ScopeWorkloadRisk": "At your recent pace, some material in this scope may remain unassessed by {date}. This does not predict an exam result.",
       "Purpose": "Learning target",
       "Explore": "Explore the language",
