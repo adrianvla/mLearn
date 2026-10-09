@@ -2724,27 +2724,43 @@ describe('FlashcardReview rating latency', () => {
   it.each([true, false])('advances immediately with auto-TTS %s while the durable write is still in flight', async autoTts => {
     mockSettings.flashcardAutoTts = autoTts;
     useLargeQueue();
-    // The next card's durable cursor write also takes a disk round-trip.
+    // Hold the cursor ACK explicitly: a fixed disk delay can expire while a
+    // loaded worker is descheduled and would stop testing the in-flight case.
     let presentationSettled = false;
-    mockSaveReviewPresentation.mockImplementation(async (_language, presentation, _expectedId) => {
-      await new Promise<void>((resolve) => { setTimeout(resolve, DURABLE_WRITE_MS); });
-      await decisionBridge.record(presentation.decision);
-      presentationSettled = true;
+    let releasePresentation!: () => void;
+    const presentationBarrier = new Promise<void>(resolve => { releasePresentation = resolve; });
+    const presentationWrites: Promise<void>[] = [];
+    mockSaveReviewPresentation.mockImplementation((_language, presentation, _expectedId) => {
+      const write = (async () => {
+        await presentationBarrier;
+        await decisionBridge.record(presentation.decision);
+        presentationSettled = true;
+      })();
+      presentationWrites.push(write);
+      return write;
     });
     const dispose = render(() => <FlashcardReview />, container);
     try {
       await flushEffects();
       await clickShowAnswer(container);
+      const previousWord = container.querySelector('.flashcard-word')?.textContent;
       await rateAndAwaitNextCard();
       const shown = container.querySelector('.flashcard-word')?.textContent;
       expect(shown, 'a different card should be interactive').toBeTruthy();
+      expect(shown).not.toBe(previousWord);
+      expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
       expect(mockSubmitRating).toHaveBeenCalledWith(expect.any(String), expect.any(Array),
         expect.objectContaining({ persistence: 'background' }));
       // The user-visible transition must happen while the durable cursor write
       // is still unresolved. This directly guards the behavior without making
       // CI machine speed part of the product contract.
+      expect(presentationWrites.length).toBeGreaterThan(0);
       expect(presentationSettled).toBe(false);
-    } finally { dispose(); }
+    } finally {
+      releasePresentation();
+      await Promise.allSettled(presentationWrites);
+      dispose();
+    }
   });
 
   it('still attributes the automatic TTS cue to the attempt on the background route', async () => {
