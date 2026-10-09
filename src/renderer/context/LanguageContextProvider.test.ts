@@ -85,7 +85,7 @@ type LangCtx = {
   installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: unknown) => void;
   isLanguageDataInstalling: (language: string, dictionaryTargetLanguage?: string) => boolean;
   refreshLanguageData: () => void;
-  languageDataInstallError: () => { language: string; error: string } | null;
+  languageDataInstallError: (language?: string, dictionaryTargetLanguage?: string) => { language: string; dictionaryTargetLanguage?: string; operationId?: string; error: string } | null;
 };
 
 async function mountProvider(props?: {
@@ -438,6 +438,44 @@ describe('LanguageContext - provider behavior', () => {
     expect(mockBridge.localization.installLanguageData).toHaveBeenCalledWith('ja', 'fr', undefined, expect.any(String));
     expect(ctx.isLanguageDataInstalling('ja', 'fr')).toBe(true);
     dispose();
+  });
+
+  it('retains independent target failures when a different target completes', async () => {
+    const { ctx, dispose } = await mountProvider({ language: 'ja' });
+    try {
+      ctx.installLanguageData('ja', 'fr');
+      const frenchId = mockBridge.localization.installLanguageData.mock.calls.at(-1)![3];
+      ctx.installLanguageData('ja', 'de');
+      const germanId = mockBridge.localization.installLanguageData.mock.calls.at(-1)![3];
+      languageDataInstallErrorCb({ language: 'ja', dictionaryTargetLanguage: 'fr', operationId: frenchId, error: 'French checksum rejected' });
+      languageDataInstallErrorCb({ language: 'ja', dictionaryTargetLanguage: 'de', operationId: germanId, error: 'German backend unavailable' });
+      expect(ctx.languageDataInstallError('ja', 'fr')?.error).toBe('French checksum rejected');
+      expect(ctx.languageDataInstallError('ja', 'de')?.error).toBe('German backend unavailable');
+      languageDataInstalledCb({ language: 'ja', dictionaryTargetLanguage: 'de', operationId: germanId, installed: true });
+      expect(ctx.languageDataInstallError('ja', 'de')).toBeNull();
+      expect(ctx.languageDataInstallError('ja', 'fr')?.error).toBe('French checksum rejected');
+      expect(ctx.languageDataInstallError('ja')).toBeNull();
+    } finally { dispose(); }
+  });
+
+  it('clears only the retried target and rejects obsolete error and success replies', async () => {
+    const { ctx, dispose } = await mountProvider({ language: 'ja' });
+    try {
+      languageDataCatalogCb([{ language: 'ja', installed: false }]);
+      ctx.installLanguageData('ja', 'fr');
+      const firstId = mockBridge.localization.installLanguageData.mock.calls.at(-1)![3];
+      languageDataInstallErrorCb({ language: 'ja', dictionaryTargetLanguage: 'fr', operationId: firstId, error: 'first failure' });
+      languageDataInstallErrorCb({ language: 'de', error: 'unrelated core failure' });
+      ctx.installLanguageData('ja', 'fr');
+      const retryId = mockBridge.localization.installLanguageData.mock.calls.at(-1)![3];
+      expect(ctx.languageDataInstallError('ja', 'fr')).toBeNull();
+      expect(ctx.languageDataInstallError('de')?.error).toBe('unrelated core failure');
+      languageDataInstallErrorCb({ language: 'ja', dictionaryTargetLanguage: 'fr', operationId: retryId, error: 'retry failure' });
+      languageDataInstallErrorCb({ language: 'ja', dictionaryTargetLanguage: 'fr', operationId: firstId, error: 'obsolete failure' });
+      languageDataInstalledCb({ language: 'ja', dictionaryTargetLanguage: 'fr', operationId: firstId, installed: true });
+      expect(ctx.languageDataInstallError('ja', 'fr')?.error).toBe('retry failure');
+      expect(ctx.getLanguageDataStatus('ja')?.installed).toBe(false);
+    } finally { dispose(); }
   });
 
   it('language-data installed events update one catalog row', async () => {

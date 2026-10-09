@@ -3,13 +3,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal, type JSX } from 'solid-js';
-import type { LanguageDataMap, LanguageDataInstallProgress } from '../../../../shared/types';
+import type { LanguageDataMap, LanguageDataInstallError, LanguageDataInstallProgress } from '../../../../shared/types';
 
 const updateSettingsMock = vi.fn();
 const startInstallMock = vi.fn();
 const uninstallComponentsMock = vi.fn();
 const installLanguageDataMock = vi.fn();
 const [installJobs, setInstallJobs] = createSignal<Record<string, LanguageDataInstallProgress>>({});
+const [installingTargets, setInstallingTargets] = createSignal<string[]>([]);
+const [catalogRevision, setCatalogRevision] = createSignal(0);
+const [targetErrors, setTargetErrors] = createSignal<Record<string, LanguageDataInstallError>>({});
 let installStarted: (() => void) | null = null;
 let installStatus: ((status: string) => void) | null = null;
 let installAwaiting: (() => void) | null = null;
@@ -120,7 +123,9 @@ vi.mock('../../../context', () => ({
   }),
   useLanguage: () => ({
     langData: testLangData,
-    languageDataCatalog: () => [
+    languageDataCatalog: () => {
+      catalogRevision();
+      return [
       {
         language: 'ja',
         name: 'Japanese',
@@ -159,27 +164,28 @@ vi.mock('../../../context', () => ({
           {
             targetLanguage: 'fr',
             name: 'French',
-            installed: false,
+            installed: catalogRevision() === 2,
             outdated: false,
             totalBytes: 2048,
-            installedBytes: 0,
+            installedBytes: catalogRevision() === 2 ? 2048 : 0,
             missingRequiredAssets: ['dictionary'],
             assets: [
               {
                 id: 'dictionary-fr',
                 path: 'dictionaries/ja/fr/dictionary.db',
-                installed: false,
+                installed: catalogRevision() === 2,
                 sizeBytes: 2048,
               },
             ],
           },
         ],
       },
-    ],
+    ];
+    },
     installLanguageData: installLanguageDataMock,
     languageDataInstallJobs: installJobs,
-    isLanguageDataInstalling: () => false,
-    languageDataInstallError: () => languageDataInstallErrorMock,
+    isLanguageDataInstalling: (language: string, target?: string) => installingTargets().includes(`${language}:${target ?? ''}`),
+    languageDataInstallError: (language?: string, target?: string) => targetErrors()[`${language}:${target ?? ''}`] ?? languageDataInstallErrorMock,
   }),
 }));
 
@@ -236,6 +242,9 @@ describe('ComponentsTab', () => {
     installLanguageDataMock.mockReset();
     languageDataInstallErrorMock = null;
     setInstallJobs({});
+    setInstallingTargets([]);
+    setCatalogRevision(0);
+    setTargetErrors({});
     managedSettingKey = null;
     testSettings.llmEnabled = true;
     testSettings.ocrEnabled = true;
@@ -262,6 +271,62 @@ describe('ComponentsTab', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('retains the clicked package row through admission, catalog replacement and terminal state', async () => {
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+    try {
+      const findTarget = () => Array.from(container.querySelectorAll('.components-tab__language-pack'))
+        .find(row => row.textContent?.includes('Definitions for Japanese in FR.'))!;
+      const row = findTarget();
+      const button = row.querySelector('button')!;
+      const originalRows = Array.from(container.querySelectorAll('.components-tab__language-pack'));
+      expect(button.disabled).toBe(false);
+      setInstallingTargets(['ja:fr']);
+      expect(row.isConnected).toBe(true);
+      expect(findTarget()).toBe(row);
+      expect(row.querySelector('button')).toBe(button);
+      expect(button.disabled).toBe(true);
+      expect(button.textContent).toBe('Installing...');
+      setCatalogRevision(1); // the bridge republishes fresh catalog objects while work remains active
+      expect(findTarget()).toBe(row);
+      expect(originalRows.every(original => original.isConnected)).toBe(true);
+      setInstallingTargets([]);
+      expect(findTarget()).toBe(row);
+      expect(row.querySelector('button')).toBe(button);
+      expect(button.disabled).toBe(false);
+      expect(button.textContent).toBe('Install');
+      setCatalogRevision(2); // activated catalog updates the retained row, not only its identity
+      expect(findTarget()).toBe(row);
+      expect(row.querySelector('button')).toBeNull();
+      expect(row.textContent).toContain('Installed');
+    } finally { dispose(); }
+  });
+
+  it('updates independent failure and retry messages inside the retained target rows', async () => {
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+    try {
+      const row = Array.from(container.querySelectorAll('.components-tab__language-pack'))
+        .find(candidate => candidate.textContent?.includes('Definitions for Japanese in FR.'))!;
+      setTargetErrors({
+        'ja:fr': { language: 'ja', dictionaryTargetLanguage: 'fr', error: 'target checksum failed' },
+        'ja:': { language: 'ja', error: 'core activation failed' },
+      });
+      expect(row.isConnected).toBe(true);
+      expect(row.textContent).toContain('target checksum failed');
+      expect(row.textContent).not.toContain('core activation failed');
+      setTargetErrors(previous => ({ 'ja:fr': previous['ja:fr'] }));
+      expect(container.textContent).not.toContain('core activation failed');
+      expect(row.textContent).toContain('target checksum failed');
+      setInstallingTargets(['ja:fr']);
+      setTargetErrors({});
+      expect(row.isConnected).toBe(true);
+      expect(row.textContent).not.toContain('target checksum failed');
+      expect(row.querySelector('button')?.disabled).toBe(true);
+      expect(row.textContent).toContain('Installing...');
+    } finally { dispose(); }
   });
 
   it('joins correlated language jobs to their own rows and reacts to byte and readiness phases', async () => {

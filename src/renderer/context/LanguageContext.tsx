@@ -121,7 +121,7 @@ interface LanguageContextValue {
   installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => void;
   isLanguageDataInstalling: (language: string, dictionaryTargetLanguage?: string) => boolean;
   refreshLanguageData: () => void;
-  languageDataInstallError: () => LanguageDataInstallError | null;
+  languageDataInstallError: (language?: string, dictionaryTargetLanguage?: string) => LanguageDataInstallError | null;
   languageDataInstallJobs: () => Record<string, LanguageDataInstallProgress>;
   isTranslatable: (pos: string) => boolean;
   isTokenTranslatable: (token: Pick<Token, 'word'> & Partial<Pick<Token, 'surface' | 'actual_word' | 'type' | 'partOfSpeech'>>) => boolean;
@@ -178,7 +178,20 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
   const [wordFrequency, setWordFrequency] = createSignal<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
   const [languageDataCatalog, setLanguageDataCatalog] = createSignal<LanguageDataCatalogStatus[]>([]);
-  const [languageDataInstallError, setLanguageDataInstallError] = createSignal<LanguageDataInstallError | null>(null);
+  const [languageDataInstallErrors, setLanguageDataInstallErrors] = createSignal<Record<string, LanguageDataInstallError>>({});
+  const [latestInstallErrorKey, setLatestInstallErrorKey] = createSignal<string | null>(null);
+  const languageDataInstallError = (language?: string, dictionaryTargetLanguage?: string): LanguageDataInstallError | null => {
+    const key = language === undefined ? latestInstallErrorKey() : getLanguageDataInstallKey(language, dictionaryTargetLanguage);
+    return key ? languageDataInstallErrors()[key] ?? null : null;
+  };
+  const clearLanguageDataInstallError = (key: string): void => {
+    setLanguageDataInstallErrors(previous => {
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+    if (latestInstallErrorKey() === key) setLatestInstallErrorKey(null);
+  };
   const [languageDataInstallJobs, setLanguageDataInstallJobs] = createSignal<Record<string, LanguageDataInstallProgress>>({});
   const [languageDataInstalls, setLanguageDataInstalls] = createSignal<Record<string, string>>({});
   const latestInstallOperations = new Map<string, string>();
@@ -218,6 +231,9 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     }));
     ipcCleanups.push(bridge.localization.onLanguageDataInstalled((status) => {
       if (!status) return;
+      const key = getLanguageDataInstallKey(status.language, status.dictionaryTargetLanguage);
+      const latest = latestInstallOperations.get(key);
+      if (status.operationId && latest && latest !== status.operationId) return;
       setLanguageDataInstalls((previous) => {
         const next = { ...previous };
         const key = getLanguageDataInstallKey(status.language, status.dictionaryTargetLanguage);
@@ -229,7 +245,7 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
         next.push(status);
         return next.sort((left, right) => left.language.localeCompare(right.language));
       });
-      setLanguageDataInstallError(null);
+      clearLanguageDataInstallError(key);
       bridge.localization.getLangData();
     }));
     ipcCleanups.push(bridge.localization.onLanguageDataInstallError((payload) => {
@@ -241,7 +257,10 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
       });
       const key = getLanguageDataInstallKey(payload.language, payload.dictionaryTargetLanguage);
       const latest = latestInstallOperations.get(key);
-      if (!payload.operationId || !latest || latest === payload.operationId) setLanguageDataInstallError(payload);
+      if (!payload.operationId || !latest || latest === payload.operationId) {
+        setLanguageDataInstallErrors(previous => ({ ...previous, [key]: payload }));
+        setLatestInstallErrorKey(key);
+      }
     }));
     if (bridge.localization.onLanguageDataInstallProgress) ipcCleanups.push(bridge.localization.onLanguageDataInstallProgress(payload => {
       setLanguageDataInstallJobs(previous => ({ ...previous, [payload.operationId]: payload }));
@@ -276,7 +295,10 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     dictionaryTargetLanguage ? `${language}:${dictionaryTargetLanguage}` : language;
 
   const installLanguageData = (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions): void => {
-    setLanguageDataInstallError(null);
+    clearLanguageDataInstallError(getLanguageDataInstallKey(language, dictionaryTargetLanguage));
+    // The no-argument accessor retains its legacy transient latest-error view;
+    // scoped consumers keep every unrelated target failure until its own retry.
+    setLatestInstallErrorKey(null);
     const operationId = crypto.randomUUID();
     latestInstallOperations.set(getLanguageDataInstallKey(language, dictionaryTargetLanguage), operationId);
     setLanguageDataInstalls((previous) => ({

@@ -164,7 +164,7 @@ export const LoadingOverlay: Component = () => {
   });
   const languageDataUpdateError = createMemo(() => {
     const target = languageDataUpdateTarget();
-    const error = language.languageDataInstallError();
+    const error = target ? language.languageDataInstallError(target.language, target.dictionaryTargetLanguage) : null;
     if (!target || !error || error.language !== target.language) return null;
     if (error.dictionaryTargetLanguage !== target.dictionaryTargetLanguage) return null;
     return error.error;

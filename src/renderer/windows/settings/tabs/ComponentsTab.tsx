@@ -1,4 +1,5 @@
-import { Component, createMemo, createSignal, onCleanup, onMount, Show } from 'solid-js';
+import { Component, createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { createStore, reconcile } from 'solid-js/store';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
 import { getOcrRuntimeConfig } from '../../../../shared/languageFeatures';
@@ -298,7 +299,7 @@ export const ComponentsTab: Component = () => {
     return groups;
   });
 
-  const languagePackRows = createMemo<LanguagePackRow[]>(() => {
+  const languagePackRowValues = createMemo<LanguagePackRow[]>(() => {
     const rows: LanguagePackRow[] = [];
     for (const status of languageDataCatalog()) {
       rows.push({
@@ -336,6 +337,11 @@ export const ComponentsTab: Component = () => {
       return left.title.localeCompare(right.title);
     });
   });
+
+  // Catalog replies contain fresh objects. Keep each source/target row's DOM
+  // lifetime stable so an admitted job cannot discard focus or scroll anchors.
+  const [languagePackRows, setLanguagePackRows] = createStore<LanguagePackRow[]>([]);
+  createEffect(() => setLanguagePackRows(reconcile(languagePackRowValues(), { key: 'key' })));
 
   const handleRuntimeRepair = () => {
     setRuntimeInstalling(true);
@@ -375,11 +381,11 @@ export const ComponentsTab: Component = () => {
   };
 
   const renderLanguagePackRow = (row: LanguagePackRow) => {
-    const isInstalling = isLanguageDataInstalling(row.language, row.dictionaryTargetLanguage);
-    const installError = languageDataInstallError();
-    const hasInstallError = installError?.language === row.language
-      && installError.dictionaryTargetLanguage === row.dictionaryTargetLanguage;
-    const needsInstall = !row.installed || row.outdated;
+    const isInstalling = () => isLanguageDataInstalling(row.language, row.dictionaryTargetLanguage);
+    const installError = () => languageDataInstallError(row.language, row.dictionaryTargetLanguage);
+    const hasInstallError = () => installError()?.language === row.language
+      && installError()?.dictionaryTargetLanguage === row.dictionaryTargetLanguage;
+    const needsInstall = () => !row.installed || row.outdated;
     return (
       <section class="components-tab__language-pack">
         <div class="components-tab__language-pack-header">
@@ -396,14 +402,14 @@ export const ComponentsTab: Component = () => {
               })}
             </p>
           </div>
-          <Show when={needsInstall}>
+          <Show when={needsInstall()}>
             <Button
               variant="secondary"
               onClick={() => handleInstallLanguagePack(row)}
-              disabled={isInstalling}
+              disabled={isInstalling()}
               class="components-tab__pack-action"
             >
-              {isInstalling
+              {isInstalling()
                 ? t('mlearn.Installer.Buttons.Installing')
                 : row.outdated
                   ? t('mlearn.ComponentsTab.Actions.Update')
@@ -416,11 +422,11 @@ export const ComponentsTab: Component = () => {
           job.language === row.language && job.dictionaryTargetLanguage === row.dictionaryTargetLanguage
           && job.phase !== 'ready' && job.phase !== 'error')} />
 
-        <Show when={hasInstallError}>
+        <Show when={hasInstallError()}>
           <AlertBanner
             variant="error"
             title={t('mlearn.ComponentsTab.InstallErrorTitle')}
-            message={installError!.error}
+            message={installError()!.error}
             class="components-tab__alert"
           />
         </Show>
@@ -558,7 +564,7 @@ export const ComponentsTab: Component = () => {
             <p class="components-tab__section-desc">{t('mlearn.ComponentsTab.Sections.LanguageData.Description')}</p>
           </div>
           <div class="components-tab__language-packs">
-            {languagePackRows().map(renderLanguagePackRow)}
+            <For each={languagePackRows}>{renderLanguagePackRow}</For>
           </div>
         </section>
 

@@ -196,7 +196,8 @@ export const GeneralTab: Component = () => {
     return target ? isLanguageDataInstalling(settings.language, target) : false;
   });
   const selectedLanguageInstallError = createMemo(() => {
-    const error = languageDataInstallError();
+    const error = languageDataInstallError(settings.language)
+      ?? languageDataInstallError(settings.language, selectedDictionaryTargetLanguage());
     return error?.language === settings.language ? error.error : null;
   });
 

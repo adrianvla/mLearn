@@ -587,7 +587,7 @@ const WelcomeContent: Component = () => {
     const languageCode = pendingLanguageInstall();
     if (!languageCode) return;
 
-    const error = languageDataInstallError();
+    const error = languageDataInstallError(languageCode);
     if (error?.language === languageCode) {
       setNetworkErrorOffline(isOfflineStyleNetworkError(error.error));
       setNetworkError(error.error);
