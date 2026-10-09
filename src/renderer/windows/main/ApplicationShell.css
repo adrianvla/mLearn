@@ -15,3 +15,9 @@
 .evaluation-chooser-header { display: flex; align-items: center; gap: var(--spacing-4); margin-bottom: var(--spacing-4); }
 .evaluation-chooser-header h1 { margin: 0; }
 @media (max-width: 850px) { .application-navigation { padding-block: var(--spacing-2); } }
+
+/* A persistent childless strip owns native hit geometry outside route scrolling. */
+.application-native-chrome { flex: 0 0 var(--window-controls-block-start-inset); height: var(--window-controls-block-start-inset); width: 100%; -webkit-app-region: drag; }
+.application-shell-native-chrome > .application-outlet,
+.application-shell-native-chrome > .application-navigation { --window-controls-inline-start-inset: 0px; --window-controls-block-start-inset: 0px; }
+.application-shell :is(button, a, input, select, textarea, summary, [role="button"]) { -webkit-app-region: no-drag; }

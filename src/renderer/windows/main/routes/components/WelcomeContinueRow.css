@@ -194,3 +194,4 @@
 
 .welcome-continue-action-label { color: var(--accent-primary); font-size: var(--font-size-sm); }
 @media (max-width: 650px) { .welcome-continue-action-label { display: none; } .welcome-continue-media { width: 72px; } }
+.welcome-continue-pct { min-width: 4ch; text-align: end; font-variant-numeric: tabular-nums; }

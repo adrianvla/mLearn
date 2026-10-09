@@ -20,3 +20,6 @@ export {
   WelcomeTutorPreview,
 } from './WelcomeFeaturePreviews';
 export { WelcomeContinueRow, type WelcomeContinueRowProps } from './WelcomeContinueRow';
+
+export { WelcomeLearningSummary } from './WelcomeLearningSummary';
+export { WelcomeConversationPreview } from './WelcomeConversationPreview';

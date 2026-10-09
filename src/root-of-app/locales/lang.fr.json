@@ -48,7 +48,10 @@
         "membershipHash": "Composition des matériaux modifiée",
         "contentHash": "Contenu des exercices ou objectif modifié",
         "unverified": "La référence sémantique originale est indisponible"
-      }
+      },
+      "DaysRemaining": "{days} jours restants",
+      "DueToday": "Échéance aujourd’hui",
+      "DaysOverdue": "{days} jours de retard"
     },
     "LibraryRecovery": {
       "OpenProtection": "Protection et restauration des données",
@@ -1716,6 +1719,15 @@
         "WeekSummary": "{reviews} révisions · {newCards} nouvelles cartes",
         "DiscoverTitle": "Découvrez vos prochains mots",
         "DiscoverReason": "Découvrez une courte sélection de votre programme."
+      },
+      "Summary": {
+        "Title": "Progression de l’apprentissage",
+        "AllTimeReviews": "Révisions enregistrées, depuis le début",
+        "NewCardResponses": "Études de nouvelles cartes",
+        "RecordDefinition": "Pour la langue sélectionnée, sur tous les relevés quotidiens sauvegardés. Les réponses répétées comptent ; ce ne sont pas des mots appris ni de l’utilisation de médias.",
+        "EvidenceUnavailable": "Les preuves d’apprentissage sont indisponibles. Réessayez pour voir la progression des exigences.",
+        "ConversationUnavailable": "L’aperçu est indisponible. Vos conversations locales restent accessibles dans Messenger.",
+        "NoConversation": "Commencez une conversation avec une personne de vos contacts."
       }
     },
     "Installer": {

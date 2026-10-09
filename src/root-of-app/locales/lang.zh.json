@@ -48,7 +48,10 @@
         "membershipHash": "目标材料组成已更改",
         "contentHash": "练习内容或学习目标已更改",
         "unverified": "原始语义绑定不可用"
-      }
+      },
+      "DaysRemaining": "还剩{days}天",
+      "DueToday": "今天到期",
+      "DaysOverdue": "已逾期{days}天"
     },
     "LibraryRecovery": {
       "OpenProtection": "数据保护与恢复设置",
@@ -1716,6 +1719,15 @@
         "WeekSummary": "复习{reviews}次 · 新卡片{newCards}张",
         "DiscoverTitle": "发现接下来要学的词",
         "DiscoverReason": "学习课程中的一小部分内容。"
+      },
+      "Summary": {
+        "Title": "学习进度",
+        "AllTimeReviews": "累计记录的复习",
+        "NewCardResponses": "新卡学习记录",
+        "RecordDefinition": "所选学习语言的所有已保存每日记录合计。重复回答也计数；这些并非已掌握的单词或媒体使用量。",
+        "EvidenceUnavailable": "学习证据不可用。请重试以查看要求的进度。",
+        "ConversationUnavailable": "对话预览不可用。仍可在聊天中访问本地对话。",
+        "NoConversation": "与联系人中的某个人开始对话。"
       }
     },
     "Installer": {

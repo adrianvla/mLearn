@@ -2,7 +2,7 @@ import { type Component, createEffect, createMemo, createSignal, onMount, onClea
 import { useApplicationNavigate } from '../applicationHost';
 import { useSettings, useLocalization, useLanguage, useFlashcards } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
-import { Button, BookIcon, VideoIcon, BotIcon, TargetIcon, LanguageVariantGate, LearningGoals, Modal, Select } from '../../../components/common';
+import { Button, BookIcon, VideoIcon, BotIcon, TargetIcon, LanguageVariantGate, Select } from '../../../components/common';
 import AppLogo from '../../../components/common/Misc/AppLogo';
 import { WelcomeFeatureCard, WelcomeReaderPreview, WelcomeVideoPreview, WelcomeContinueRow } from './components';
 import { getRecentItems, type RecentItem } from '../../../services/thumbnailService';
@@ -12,7 +12,8 @@ import { formatRelativeLastOpened } from '../../../utils/timeFormatting';
 import { showToast } from '../../../components/common/Feedback/Toast';
 import { homeGrammarResume } from './homeGrammarResume';
 import { homePracticeResume } from './homePracticeResume';
-import { learningScopeForSettings } from '../../../../shared/learningScope';
+import { WelcomeLearningSummary } from './components/WelcomeLearningSummary';
+import { WelcomeConversationPreview } from './components/WelcomeConversationPreview';
 import { reviewSessionHasAvailableCards } from '../../../../shared/reviewSession';
 import { getLogger } from '../../../../shared/utils/logger';
 import './welcome.css';
@@ -27,7 +28,6 @@ export const WelcomeRoute: Component = () => {
   const { t } = useLocalization();
   const language = useLanguage();
   const flashcards = useFlashcards();
-  const [languagePickerOpen, setLanguagePickerOpen] = createSignal(false);
   const [recentItems, setRecentItems] = createSignal<RecentItem[]>([]);
   const [grammarResume, setGrammarResume] = createSignal<ReturnType<typeof homeGrammarResume>>(null);
   const [practiceResume, setPracticeResume] = createSignal<ReturnType<typeof homePracticeResume>>(null);
@@ -52,7 +52,6 @@ export const WelcomeRoute: Component = () => {
     window.addEventListener('storage', refreshHome);
     onCleanup(() => { disposed = true; window.removeEventListener('focus', refreshHome); window.removeEventListener('storage', refreshHome); });
   });
-  const targetScope = createMemo(() => learningScopeForSettings(settings, language.currentLangData()));
   const savedReview = createMemo(() => {
     const session = flashcards.store.meta?.reviewSessions?.[settings.language];
     if (session && reviewSessionHasAvailableCards(session, flashcards.store, settings.language)) return session;
@@ -86,14 +85,9 @@ export const WelcomeRoute: Component = () => {
       };
     });
   });
-  const openLanguagePicker = () => {
-    setLanguagePickerOpen(true);
-  };
-  const closeLanguagePicker = () => setLanguagePickerOpen(false);
   const selectLanguage = (event: Event & { currentTarget: HTMLSelectElement }) => {
     const selectedLanguage = event.currentTarget.value;
     if (selectedLanguage !== settings.language) updateSetting('language', selectedLanguage);
-    closeLanguagePicker();
   };
   const openRecent = (item: RecentItem) => {
     const route = item.type === 'video' ? '/video' : '/reader';
@@ -113,20 +107,22 @@ export const WelcomeRoute: Component = () => {
     language.currentLangData(), t, t('mlearn.Common.Status.Unknown'), settings.uiLanguage);
   return <main class="welcome-container">
     <LanguageVariantGate />
-    <div class="welcome-page">
       <header class="welcome-header">
         <div class="welcome-logo"><AppLogo size="1.75rem" /><h1>{t('mlearn.Global.AppName')}</h1></div>
-        <Button
-          variant="ghost"
-          class="welcome-subtitle welcome-language-switch"
-          aria-haspopup="dialog"
-          aria-expanded={languagePickerOpen()}
-          onClick={openLanguagePicker}
-        >
-          {t('mlearn.Home.UI.LearningLanguage', { language: currentLanguageName() })}
-        </Button>
+        <label class="welcome-language-switch">
+          <Show when={language.currentLangData()?.flagEmoji}><span class="welcome-language-presentation" aria-hidden="true">{language.currentLangData()?.flagEmoji}</span></Show>
+          <Select aria-label={t('mlearn.Home.UI.LearningLanguage', { language: currentLanguageName() })}
+            value={settings.language} onChange={selectLanguage} options={languageOptions()} />
+        </label>
       </header>
-      <Show when={targetScope().selected}><LearningGoals compact onEdit={() => navigate('/plan')} /></Show>
+      <nav class="welcome-secondary-actions" aria-label={t('mlearn.Product.Navigation')}>
+        <Button size="sm" variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'level-study' })}>{t('mlearn.LevelStudy.Title')}</Button>
+        <Button size="sm" variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'word-db-editor' })}>{t('mlearn.Home.Cards.WordDatabase.Title')}</Button>
+        <Button size="sm" variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'statistics' })}>{t('mlearn.Home.Cards.Statistics.Title')}</Button>
+        <Button size="sm" variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>{t('mlearn.Settings.UI.Title')}</Button>
+      </nav>
+      <div class="welcome-scroll"><div class="welcome-page">
+      <WelcomeLearningSummary onPlan={() => navigate('/plan')} />
       <div class="welcome-feature-grid">
         <WelcomeFeatureCard icon={<BookIcon size={22} />} title={t('mlearn.Home.Today.Read')}
           description={t('mlearn.Product.ReadDescription')} onClick={() => navigate('/reader')}
@@ -137,11 +133,12 @@ export const WelcomeRoute: Component = () => {
           preview={<WelcomeVideoPreview item={recent('video')} emptyLabel={t('mlearn.Product.OpenMaterial')}
             continueLabel={t('mlearn.Global.Continue')} onResume={openRecent} />} />
         <WelcomeFeatureCard icon={<BotIcon size={22} />} title={t('mlearn.Product.Messenger')}
-          description={t('mlearn.Product.MessengerDescription')} onClick={() => navigate('/messenger')} />
+          description={t('mlearn.Product.MessengerDescription')} onClick={() => navigate('/messenger')}
+          preview={<WelcomeConversationPreview onOpen={context => navigate('/messenger', context ? { state: { applicationRequestId: crypto.randomUUID(), applicationContext: context } } : undefined)} />} />
         <WelcomeFeatureCard icon={<BookIcon size={22} />} title={t('mlearn.Flashcards.UI.Title')}
           description={t('mlearn.Flashcards.UI.Tabs.Review')} onClick={startReview}
           preview={<div class="welcome-resume-actions">
-            <Button variant="primary" onClick={() => savedReview() ? resumeReview() : startReview()}>{t(savedReview() ? 'mlearn.StudyEncounter.Resume' : 'mlearn.LevelStudy.Mock.Start')} · {t('mlearn.Flashcards.UI.Tabs.Review')}</Button>
+            <Button variant="primary" onClick={() => savedReview() ? resumeReview() : startReview()}>{t(savedReview() ? 'mlearn.StudyEncounter.Resume' : 'mlearn.LevelStudy.Mock.Start')}</Button>
             <Show when={grammarResume()}>{saved => <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
               ...saved().context, intent: 'resume', returnTo: 'home',
             } })}>{t('mlearn.StudyEncounter.Resume')} · {t('mlearn.Product.GrammarPractice')}</Button>}</Show>
@@ -165,29 +162,6 @@ export const WelcomeRoute: Component = () => {
           </div>
         </section>
       </Show>
-      <footer class="welcome-secondary-actions">
-        <Button onClick={() => getBridge().window.openWindow({ type: 'level-study' })}>{t('mlearn.LevelStudy.Title')}</Button>
-        <Button onClick={() => getBridge().window.openWindow({ type: 'word-db-editor' })}>{t('mlearn.Home.Cards.WordDatabase.Title')}</Button>
-        <Button onClick={() => getBridge().window.openWindow({ type: 'statistics' })}>{t('mlearn.Home.Cards.Statistics.Title')}</Button>
-        <Button variant="ghost" onClick={() => getBridge().window.openWindow({ type: 'settings' })}>{t('mlearn.Settings.UI.Title')}</Button>
-      </footer>
-    </div>
-    <Modal
-      isOpen={languagePickerOpen()}
-      onClose={closeLanguagePicker}
-      title={t('mlearn.Settings.Language.LearningLanguage.Label')}
-      panelClass="welcome-language-picker"
-      footer={<div class="welcome-language-picker-actions">
-        <Button variant="ghost" onClick={closeLanguagePicker}>{t('mlearn.Global.Cancel')}</Button>
-      </div>}
-    >
-      <Select
-        class="welcome-language-picker-select"
-        aria-label={t('mlearn.Settings.Language.LearningLanguage.Label')}
-        value={settings.language}
-        onChange={selectLanguage}
-        options={languageOptions()}
-      />
-    </Modal>
+      </div></div>
   </main>;
 };

@@ -26,7 +26,7 @@ import { createAnkiCacheToastGate } from './windowWrapperNotifications';
 import { LowPowerGateProvider } from './LowPowerGateContext';
 import { GraphProvider } from './GraphContext';
 import { KnowledgeInspectorHost } from '../components/common/KnowledgeProjection/KnowledgeInspectorHost';
-import { isElectron } from '../../shared/platform';
+import { isElectron, getOS } from '../../shared/platform';
 import { getBridge } from '../../shared/bridges';
 import { installRendererLogSink } from '../utils/installLogSink';
 import { getWindowControlsInsets } from '../utils/windowChrome';
@@ -384,7 +384,7 @@ export const LibraryLoadGuard: Component<{ recoveryAccess?: boolean }> = (props)
  * IMPORTANT: MigrationHandler is placed BEFORE FlashcardProvider so that
  * the migration event listener is registered before flashcards are loaded
  */
-const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
+const isMacOS = isElectron() && getOS() === 'mac';
 
 export const WindowWrapper: ParentComponent<{ showDragRegion?: boolean; showTitleBar?: boolean; transparent?: boolean; showActiveGroupSwitch?: boolean; showWindowLoadingScreen?: boolean; libraryRecoveryAccess?: boolean; libraryGuard?: boolean }> = (props) => {
   const needsDragRegion = (props.showDragRegion !== false) && !props.showTitleBar && isElectron();

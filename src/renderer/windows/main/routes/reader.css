@@ -9,7 +9,7 @@
   height: 100%;
   min-height: 0;
   position: relative;
-  background: var(--bg-opaque);
+  background: var(--app-shell-bg);
   color: var(--text-primary);
 }
 .reader-route .panel{
@@ -17,7 +17,7 @@
 }
 .reader-route .reader-nav.panel,
 .reader-route .statusbar.panel {
-  background: var(--bg-nt-secondary);
+  background: var(--panel-bg);
 }
 body.reduce-transparency .reader-route .panel{
   background: var(--bg-opaque);

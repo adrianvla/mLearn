@@ -48,7 +48,10 @@
         "membershipHash": "Selected material membership changed",
         "contentHash": "Practice content or objective semantics changed",
         "unverified": "The original semantic binding is unavailable"
-      }
+      },
+      "DaysRemaining": "{days} days remaining",
+      "DueToday": "Due today",
+      "DaysOverdue": "{days} days overdue"
     },
     "LibraryRecovery": {
       "OpenProtection": "Data protection settings",
@@ -1716,6 +1719,15 @@
         "WeekSummary": "{reviews} reviews · {newCards} new cards",
         "DiscoverTitle": "Discover your next words",
         "DiscoverReason": "Meet a short selection from your curriculum."
+      },
+      "Summary": {
+        "Title": "Learning progress",
+        "AllTimeReviews": "All-time recorded reviews",
+        "NewCardResponses": "New-card study records",
+        "RecordDefinition": "For the selected learning language, over all saved daily records. Repeated responses count; these are not learned words or media usage.",
+        "EvidenceUnavailable": "Learning evidence is unavailable. Retry to see requirement progress.",
+        "ConversationUnavailable": "Conversation preview is unavailable. Your local chats remain accessible in Messenger.",
+        "NoConversation": "Start a conversation with someone in your contacts."
       }
     },
     "Installer": {

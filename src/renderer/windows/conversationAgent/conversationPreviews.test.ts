@@ -9,6 +9,11 @@ describe('messenger previews', () => {
     const result = latestConversationPreview([event('a', 'message.user', 1, 'Hello'), event('c', 'memory.belief', 3, 'Private memory'), event('b', 'message.character', 2, 'Hi\nthere')]);
     expect(result).toMatchObject({ eventId: 'b', threadId: 't', text: 'Hi there', timestamp: 2 });
   });
+  it('does not expose a newer character-private message as the learner conversation preview', () => {
+    expect(latestConversationPreview([event('public', 'message.character', 1, 'Shared message'),
+      { ...event('private', 'message.character', 2, 'Private dialogue'), witnesses: ['person', 'another-person'] }]))
+      .toMatchObject({ eventId: 'public', text: 'Shared message' });
+  });
   it('does not manufacture a preview for a chat with no messages', () => {
     expect(latestConversationPreview([event('a', 'memory.belief', 1, 'Memory')])).toBeUndefined();
   });

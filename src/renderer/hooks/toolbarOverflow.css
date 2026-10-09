@@ -34,3 +34,10 @@
 .reader-status-tools.is-overflowing:not([open]) > .reader-status-tools-panel { display: none; }
 .reader-nav-options.is-overflowing > .reader-nav-options-panel,
 .reader-status-tools.is-overflowing > .reader-status-tools-panel { max-height: min(70vh, 30rem); overflow-y: auto; }
+
+.toolbar-overflow-inline, .toolbar-control-group { display: flex; align-items: center; flex: 0 0 auto; gap: var(--spacing-2); min-width: 0; }
+.toolbar-control-group:empty { display: none; }
+.reader-nav .toolbar-overflow-inline:empty, .reader-status .toolbar-overflow-inline:empty { display: none; }
+.reader-nav .toolbar-overflow-layout[data-overflow-empty="true"], .reader-status .toolbar-overflow-layout[data-overflow-empty="true"] { display: none; }
+.toolbar-overflow-inline :is(button, select, input), .toolbar-control-group :is(button, select, input) { -webkit-app-region: no-drag; }
+.toolbar-overflow-layout.is-overflowing .toolbar-control-group { max-width: 100%; flex-wrap: wrap; }

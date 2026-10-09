@@ -48,7 +48,10 @@
         "membershipHash": "Zusammensetzung der Materialien geändert",
         "contentHash": "Übungsinhalte oder Lernziel geändert",
         "unverified": "Die ursprüngliche semantische Bindung fehlt"
-      }
+      },
+      "DaysRemaining": "Noch {days} Tage",
+      "DueToday": "Heute fällig",
+      "DaysOverdue": "Seit {days} Tagen überfällig"
     },
     "LibraryRecovery": {
       "OpenProtection": "Einstellungen zum Datenschutz und zur Wiederherstellung",
@@ -1716,6 +1719,15 @@
         "WeekSummary": "{reviews} Wiederholungen · {newCards} neue Karten",
         "DiscoverTitle": "Entdecke deine nächsten Wörter",
         "DiscoverReason": "Lerne eine kurze Auswahl aus deinem Lernstoff kennen."
+      },
+      "Summary": {
+        "Title": "Lernfortschritt",
+        "AllTimeReviews": "Aufgezeichnete Wiederholungen insgesamt",
+        "NewCardResponses": "Lernvorgänge mit neuen Karten",
+        "RecordDefinition": "Für die ausgewählte Lernsprache über alle gespeicherten Tagesaufzeichnungen. Wiederholte Antworten zählen mit; dies sind keine gelernten Wörter oder Mediennutzung.",
+        "EvidenceUnavailable": "Lernnachweise sind nicht verfügbar. Erneut versuchen, um den Fortschritt der Anforderungen zu sehen.",
+        "ConversationUnavailable": "Die Gesprächsvorschau ist nicht verfügbar. Lokale Chats bleiben im Messenger zugänglich.",
+        "NoConversation": "Beginne ein Gespräch mit einer Person aus deinen Kontakten."
       }
     },
     "Installer": {

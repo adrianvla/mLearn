@@ -1,7 +1,7 @@
-.welcome-container { height: 100%; box-sizing: border-box; overflow: auto; background: var(--app-shell-bg); color: var(--text-primary); padding: max(var(--spacing-6), var(--window-controls-block-start-inset)) var(--spacing-6) var(--spacing-6); }
+.welcome-container { height: 100%; min-height: 0; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; background: linear-gradient(180deg, var(--transparent) 0%, var(--transparent) 30%, var(--bg-opaque) 130%); color: var(--text-primary); }
 .welcome-page { max-width: 74rem; margin: 0 auto; }
 .welcome-header, .welcome-logo { display: flex; align-items: center; gap: var(--spacing-3); }
-.welcome-header { justify-content: space-between; margin-bottom: var(--spacing-5); flex-wrap: wrap; -webkit-app-region: drag; }
+.welcome-header { justify-content: space-between; padding: var(--spacing-4) var(--spacing-6); flex: 0 0 auto; flex-wrap: wrap; }
 .welcome-logo h1 { margin: 0; font-size: var(--font-size-xl); }
 .welcome-subtitle { color: var(--text-secondary); font-size: var(--font-size-sm); }
 .welcome-language-switch { -webkit-app-region: no-drag; text-align: start; }
@@ -14,4 +14,20 @@
 @media (max-width: 950px) { .welcome-feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 550px) { .welcome-feature-grid { grid-template-columns: 1fr; } .welcome-container { padding: var(--spacing-4); } }
 
-.welcome-secondary-actions { display: flex; gap: var(--spacing-3); flex-wrap: wrap; margin-top: var(--spacing-5); }
+.welcome-secondary-actions { display: flex; gap: var(--spacing-3); flex-wrap: wrap; flex: 0 0 auto; padding: 0 var(--spacing-6) var(--spacing-3); }
+
+.welcome-scroll { flex: 1 1 0; min-height: 0; overflow: auto; padding: var(--spacing-4) var(--spacing-6) var(--spacing-6); }
+.welcome-language-switch { display: flex; align-items: center; gap: var(--spacing-2); min-width: 0; max-width: 26rem; }
+.welcome-language-switch select { min-width: 0; max-width: 100%; }
+.welcome-language-presentation { flex: 0 0 auto; }
+body.reduce-transparency .welcome-container { background: var(--bg-opaque); }
+.welcome-learning-summary { padding: var(--spacing-4); border: 1px solid var(--panel-border); border-radius: var(--radius-lg); background: var(--panel-bg); }
+.welcome-summary-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); }
+.welcome-summary-heading h2 { margin: 0; font-size: var(--font-size-base); }
+.welcome-lifetime-totals { display: flex; flex-wrap: wrap; gap: var(--spacing-4); margin-block: var(--spacing-3); }
+.welcome-lifetime-totals > div { display: flex; align-items: baseline; gap: var(--spacing-2); }
+.welcome-lifetime-totals dt, .welcome-summary-definition { font-size: var(--font-size-xs); color: var(--text-secondary); }
+.welcome-lifetime-totals dd { font-size: var(--font-size-lg); font-variant-numeric: tabular-nums; }
+.welcome-conversation-preview { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
+.welcome-conversation-title { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.welcome-conversation-message { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; line-height: var(--line-height-normal); }

@@ -1,8 +1,8 @@
 import { Show } from 'solid-js';
-import { isElectron } from '@shared/platform';
+import { isElectron, getOS } from '@shared/platform';
 import './WindowDragRegion.css';
 
-const isMacOS = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform);
+const isMacOS = isElectron() && getOS() === 'mac';
 
 type Props = {
     hidden?: boolean;

@@ -152,16 +152,17 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
           {t('mlearn.Reader.StatusBar.OpenConversationAgent')}
         </button>
 
+        <div class="reader-status-tools-inline toolbar-overflow-inline" data-overflow-inline />
         <details
           ref={toolsMenuRef}
-          class="reader-status-tools"
+          class="reader-status-tools toolbar-overflow-layout"
           classList={{ 'is-overflowing': toolsOverflow.overflow() }}
           data-overflow={String(toolsOverflow.overflow())}
           open={toolsOverflow.open()}
         >
           <summary aria-label={t('mlearn.Reader.StatusBar.MoreTools')} onClick={toolsOverflow.toggle}>{t('mlearn.Reader.StatusBar.MoreTools')}</summary>
           <div class="reader-status-tools-panel statusbar-toggles" data-overflow-panel>
-          <Show when={showOcrControls()}>
+          <div class="toolbar-control-group" data-overflow-priority="2"><Show when={showOcrControls()}>
             <div class="crop-mode-controls">
               <button
                 class="statusbar-toggle"
@@ -192,8 +193,8 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 </button>
               </Show>
             </div>
-          </Show>
-          <Show when={props.showDocumentOcrToggle?.()}>
+          </Show></div>
+          <div class="toolbar-control-group" data-overflow-priority="2"><Show when={props.showDocumentOcrToggle?.()}>
             <button
               class="statusbar-toggle"
               classList={{ 'active': props.documentOcr?.() ?? false }}
@@ -204,8 +205,8 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 ? t('mlearn.Reader.StatusBar.DocumentOcrOn')
                 : t('mlearn.Reader.StatusBar.DocumentOcrOff')}
             </button>
-          </Show>
-          <Show when={props.hasPages() && supportsReadingDetection()}>
+          </Show></div>
+          <div class="toolbar-control-group" data-overflow-priority="0"><Show when={props.hasPages() && supportsReadingDetection()}>
             <button
               class="statusbar-toggle"
               classList={{ active: showReadingAnnotations() }}
@@ -218,8 +219,8 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 ? 'mlearn.Reader.StatusBar.ReadingAnnotationDisplayOn'
                 : 'mlearn.Reader.StatusBar.ReadingAnnotationDisplayOff')}
             </button>
-          </Show>
-          <Show when={showOcrControls() && supportsReadingDetection()}>
+          </Show></div>
+          <div class="toolbar-control-group" data-overflow-priority="2"><Show when={showOcrControls() && supportsReadingDetection()}>
             <button
               class="statusbar-toggle"
               classList={{ 'active': isReadingAnnotationDetection() }}
@@ -230,8 +231,8 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 ? t('mlearn.Reader.StatusBar.ReadingAnnotationDetectionOn')
                 : t('mlearn.Reader.StatusBar.ReadingAnnotationDetectionOff')}
             </button>
-          </Show>
-          <Show when={settings.devMode && showOcrControls() && props.debugOcr && props.onToggleDebugOcr}>
+          </Show></div>
+          <div class="toolbar-control-group" data-overflow-priority="3"><Show when={settings.devMode && showOcrControls() && props.debugOcr && props.onToggleDebugOcr}>
             <button
               class="statusbar-toggle"
               classList={{ 'active': props.debugOcr!() }}
@@ -242,8 +243,8 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 ? t('mlearn.Reader.StatusBar.DebugOverlayOn')
                 : t('mlearn.Reader.StatusBar.DebugOverlayOff')}
             </button>
-          </Show>
-          <Show when={settings.devMode && showOcrControls() && props.ocrDetectionScale && props.onOcrDetectionScaleChange}>
+          </Show></div>
+          <div class="toolbar-control-group" data-overflow-priority="2"><Show when={settings.devMode && showOcrControls() && props.ocrDetectionScale && props.onOcrDetectionScaleChange}>
             <div class="ocr-detection-scale-section" title={t('mlearn.Reader.StatusBar.DetectionScaleTitle')}>
               <span class="ocr-detection-scale-label">
                 {t('mlearn.Reader.StatusBar.DetectionScaleLabel', { value: String(props.ocrDetectionScale!()) })}
@@ -257,8 +258,8 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 class="ocr-detection-scale-slider"
               />
             </div>
-          </Show>
-          <Show when={settings.devMode && showOcrControls() && props.debugOcr?.() && props.zoneDeltaThreshold && props.onZoneDeltaThresholdChange}>
+          </Show></div>
+          <div class="toolbar-control-group" data-overflow-priority="2"><Show when={settings.devMode && showOcrControls() && props.debugOcr?.() && props.zoneDeltaThreshold && props.onZoneDeltaThresholdChange}>
             <div class="ocr-detection-scale-section" title={t('mlearn.Reader.StatusBar.ZoneDeltaTitle')}>
               <span class="ocr-detection-scale-label">
                 {t('mlearn.Reader.StatusBar.ZoneDeltaLabel', { value: props.zoneDeltaThreshold!().toFixed(0) })}
@@ -272,10 +273,10 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
                 class="ocr-detection-scale-slider"
               />
             </div>
-          </Show>
-            <span class="statusbar-hint">
+          </Show></div>
+            <div class="toolbar-control-group" data-overflow-priority="2"><span class="statusbar-hint">
               {t('mlearn.Reader.StatusBar.MagnifierHint', {key: formatKeybindDisplay(settings.readerMagnifierHotkey ?? DEFAULT_SETTINGS.readerMagnifierHotkey!, t)})}
-            </span>
+            </span></div>
           </div>
         </details>
 

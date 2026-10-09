@@ -84,22 +84,23 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
         <Tag class="progress label-secondary" headless size={"sm"}>{props.progressString()}</Tag>
       </div>
       
+      <div class="nav-group toolbar-overflow-inline" data-overflow-inline />
       <details
         ref={optionsRef}
-        class="nav-group reader-nav-options"
+        class="nav-group reader-nav-options toolbar-overflow-layout"
         classList={{ 'is-overflowing': toolbar.overflow() }}
         data-overflow={String(toolbar.overflow())}
         open={toolbar.open()}
       >
         <summary aria-label={t('mlearn.Reader.Toolbar.ViewOptions')} onClick={toolbar.toggle}>{t('mlearn.Reader.Toolbar.ViewOptions')}</summary>
         <div class="reader-nav-options-panel" data-overflow-panel>
-        <Button buttonType="nav" onClick={props.onOpenFolder}>
+        <div class="toolbar-control-group" data-overflow-priority="3"><Button buttonType="nav" onClick={props.onOpenFolder}>
           {t('mlearn.Reader.UI.WelcomeSplash.OpenFolder')}
-        </Button>
-        <Button buttonType="nav" onClick={props.onOpenPdf}>
+        </Button></div>
+        <div class="toolbar-control-group" data-overflow-priority="3"><Button buttonType="nav" onClick={props.onOpenPdf}>
           {t('mlearn.Reader.UI.WelcomeSplash.OpenPdf')}
-        </Button>
-        <Show when={props.showTextTheme}>
+        </Button></div>
+        <div class="toolbar-control-group" data-overflow-priority="1"><Show when={props.showTextTheme}>
           <Button buttonType="nav"
             onClick={handleThemeTriggerClick}
             active={themePopoverOpen()}
@@ -114,9 +115,9 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
             anchor={() => themeTriggerRef}
             onClose={closeThemePopover}
           />
-        </Show>
+        </Show></div>
 
-        <Select
+        <div class="toolbar-control-group" data-overflow-priority="0"><Select
           options={[
             { value: 'fit-height', label: t('mlearn.Reader.Toolbar.FitHeight') },
             { value: 'fit-width', label: t('mlearn.Reader.Toolbar.FitWidth') },
@@ -124,9 +125,9 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
           aria-label={t('mlearn.Reader.Toolbar.PageFit')}
           value={props.fitMode()}
           onChange={(e) => props.onFitModeChange(e.currentTarget.value)}
-        />
+        /></div>
         
-        <Select
+        <div class="toolbar-control-group" data-overflow-priority="0"><Select
           options={[
             { value: 'double', label: t('mlearn.Reader.Toolbar.DoublePage') },
             { value: 'single', label: t('mlearn.Reader.Toolbar.SinglePage') },
@@ -134,9 +135,9 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
           aria-label={t('mlearn.Reader.Toolbar.PageLayout')}
           value={props.pageMode()}
           onChange={(e) => props.onPageModeChange(e.currentTarget.value)}
-        />
+        /></div>
         
-        {props.pageMode() === 'double' && (
+        <div class="toolbar-control-group" data-overflow-priority="2">{props.pageMode() === 'double' && (
           <>
             <Select
               options={[
@@ -155,7 +156,7 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
               {props.firstPageSingle() ? t('mlearn.Reader.Toolbar.PageLayoutSingle') : t('mlearn.Reader.Toolbar.PageLayoutPaired')}
             </Button>
           </>
-        )}
+        )}</div>
         </div>
       </details>
 

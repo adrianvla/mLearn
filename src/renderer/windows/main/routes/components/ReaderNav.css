@@ -11,8 +11,9 @@
   padding: 0.5rem 1rem 0.5rem calc(1rem + var(--window-controls-inline-start-inset));
   height: 48px;
   border-bottom: 1px solid var(--border-color);
-  background: var(--bg-nt-secondary);
-  backdrop-filter: none;
+  background: var(--panel-bg);
+  backdrop-filter: var(--backdrop-filter);
+  -webkit-backdrop-filter: var(--backdrop-filter);
   z-index: 100;
   position: relative;
   flex-shrink: 0;

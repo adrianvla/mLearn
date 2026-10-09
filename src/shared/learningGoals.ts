@@ -38,3 +38,11 @@ export function activeLearningGoals(goals: readonly LearningGoal[], language: st
   return goals.filter(goal => goal.language === language && goal.status === 'active' && Boolean(goal.outcomeRef?.id))
     .sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt);
 }
+
+/** Goal dates use the assessment date's UTC day, independent of time-of-day. */
+export function goalDeadlineDayDifference(deadline: string | undefined, now = Date.now()): number | undefined {
+  if (!deadline || !/^\d{4}-\d{2}-\d{2}$/.test(deadline) || !Number.isFinite(now)) return undefined;
+  const due = Date.parse(deadline);
+  if (!Number.isFinite(due) || new Date(due).toISOString().slice(0, 10) !== deadline) return undefined;
+  return Math.floor(due / 86400000) - Math.floor(now / 86400000);
+}

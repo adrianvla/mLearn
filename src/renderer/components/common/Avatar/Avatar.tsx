@@ -1,3 +1,4 @@
+import { PeopleGroupIcon } from '../Misc/Icons';
 import { Show, createEffect, createSignal, type Component } from 'solid-js';
 import './Avatar.css';
 
@@ -19,7 +20,7 @@ export const Avatar: Component<AvatarProps> = (props) => {
       .map(part => Array.from(part)[0]).join('').toLocaleUpperCase();
   };
   return <span class={`avatar avatar--${props.size ?? 'md'} ${props.class ?? ''}`} aria-hidden="true">
-    <Show when={props.src && !failed()} fallback={initials()}>
+    <Show when={props.src && !failed()} fallback={<Show when={initials()} fallback={<PeopleGroupIcon size={20} />}>{initials()}</Show>}>
       <img src={props.src} alt="" onError={() => setFailed(true)} />
     </Show>
   </span>;

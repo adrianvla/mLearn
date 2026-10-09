@@ -10,46 +10,80 @@ export function useToolbarOverflow(
   const [overflow, setOverflow] = createSignal(false);
   const [expanded, setExpanded] = createSignal(false);
   let frame: number | undefined;
+  const groupOrder = new Map<HTMLElement, number>();
+  let nextGroupOrder = 0;
   const measure = () => {
     frame = undefined;
-    const menu = getMenu();
-    const root = getRoot();
+    const menu = getMenu(), root = getRoot();
     const panel = menu?.querySelector<HTMLElement>('[data-overflow-panel]');
-    if (!menu || !root || !panel || root.clientWidth === 0) return;
+    const inline = root?.querySelector<HTMLElement>('[data-overflow-inline]');
+    const summary = menu?.querySelector<HTMLElement>('summary');
+    if (!menu || !menu.isConnected || !root || !panel || !inline || !summary || root.clientWidth === 0) return;
+    for (const group of groupOrder.keys()) if (!group.isConnected || (group.parentElement !== panel && group.parentElement !== inline)) groupOrder.delete(group);
+    for (const group of [...Array.from(inline.children), ...Array.from(panel.children)]) {
+      if (group instanceof HTMLElement && !groupOrder.has(group)) groupOrder.set(group, nextGroupOrder++);
+    }
+    const groups = [...groupOrder.keys()].sort((a, b) => groupOrder.get(a)! - groupOrder.get(b)!);
     const wasOpen = menu.open;
-    const measured: Array<[HTMLElement, string | null]> = [];
-    let required = 0;
+    const styles: Array<[HTMLElement, string | null]> = [];
+    const widths = new Map<HTMLElement, number>();
+    let fixedWidth = 0, moreWidth = 0, gap = 0, fixedCount = 0;
     try {
-      // Measure the real controls, not duplicate inputs or a guessed breakpoint.
       menu.open = true;
       panel.classList.add('toolbar-overflow-measuring');
-      const children = Array.from(root.children).filter((child): child is HTMLElement => child instanceof HTMLElement
-        && child !== menu && getComputedStyle(child).position !== 'absolute'
-        && getComputedStyle(child).display !== 'none');
-      const style = getComputedStyle(root);
-      const gap = parseFloat(style.columnGap) || 0;
-      required = panel.getBoundingClientRect().width + gap * children.length
-        + (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
-      for (const child of children) {
-        const titleMinimum = Number(child.dataset.toolbarMinWidth);
-        if (Number.isFinite(titleMinimum) && titleMinimum > 0) {
-          // Flexible labels can ellipsize so their text does not evict controls.
-          required += Math.min(child.scrollWidth, titleMinimum);
-          continue;
-        }
-        measured.push([child, child.getAttribute('style')]);
-        child.style.flex = '0 0 auto';
-        child.style.width = 'max-content';
-        required += child.getBoundingClientRect().width;
+      menu.removeAttribute('data-overflow-empty');
+      for (const element of [summary, ...groups]) {
+        styles.push([element, element.getAttribute('style')]);
+        element.style.flex = '0 0 auto'; element.style.width = 'max-content';
       }
+      summary.style.display = 'block';
+      const rootStyle = getComputedStyle(root);
+      gap = parseFloat(rootStyle.columnGap) || 0;
+      fixedWidth = (parseFloat(rootStyle.paddingLeft) || 0) + (parseFloat(rootStyle.paddingRight) || 0);
+      const fixed = Array.from(root.children).filter((child): child is HTMLElement => child instanceof HTMLElement
+        && child !== menu && child !== inline && getComputedStyle(child).position !== 'absolute' && getComputedStyle(child).display !== 'none');
+      fixedCount = fixed.length;
+      for (const child of fixed) {
+        const minimum = Number(child.dataset.toolbarMinWidth);
+        if (Number.isFinite(minimum) && minimum > 0) { fixedWidth += Math.min(child.scrollWidth, minimum); continue; }
+        styles.push([child, child.getAttribute('style')]);
+        child.style.flex = '0 0 auto'; child.style.width = 'max-content';
+        fixedWidth += child.getBoundingClientRect().width;
+      }
+      moreWidth = summary.getBoundingClientRect().width;
+      for (const group of groups) widths.set(group, getComputedStyle(group).display === 'none' ? 0 : group.getBoundingClientRect().width);
     } finally {
-      for (const [child, original] of measured) {
-        if (original === null) child.removeAttribute('style'); else child.setAttribute('style', original);
-      }
-      panel.classList.remove('toolbar-overflow-measuring');
-      menu.open = wasOpen;
+      for (const [element, original] of styles) { if (original === null) element.removeAttribute('style'); else element.setAttribute('style', original); }
+      panel.classList.remove('toolbar-overflow-measuring'); menu.open = wasOpen;
     }
-    setOverflow(required > root.clientWidth);
+    const visible = groups.filter(group => widths.get(group)! > 0);
+    const allWidth = fixedWidth + visible.reduce((sum, group) => sum + widths.get(group)!, 0)
+      + Math.max(0, fixedCount + visible.length - 1) * gap;
+    const fits = new Set<HTMLElement>();
+    const overflowing = allWidth > root.clientWidth;
+    if (!overflowing) for (const group of groups) fits.add(group);
+    else {
+      let remaining = root.clientWidth - fixedWidth - moreWidth - fixedCount * gap;
+      const priorities = [...visible].sort((a, b) => Number(a.dataset.overflowPriority ?? 0) - Number(b.dataset.overflowPriority ?? 0)
+        || groupOrder.get(a)! - groupOrder.get(b)!);
+      for (const group of priorities) {
+        const cost = widths.get(group)! + gap;
+        if (cost <= remaining) { fits.add(group); remaining -= cost; }
+      }
+      for (const group of groups) if (widths.get(group) === 0) fits.add(group);
+    }
+    const focused = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    for (const target of [inline, panel]) {
+      const ordered = groups.filter(group => (fits.has(group) ? inline : panel) === target);
+      for (let index = 0; index < ordered.length; index++) {
+        const group = ordered[index];
+        if (target.children[index] !== group) target.insertBefore(group, target.children[index] ?? null);
+      }
+    }
+    menu.dataset.overflowEmpty = String(!overflowing);
+    setOverflow(overflowing);
+    if (overflowing && focused && panel.contains(focused)) setExpanded(true);
+    if (focused?.isConnected && document.activeElement !== focused) focused.focus({ preventScroll: true });
   };
   const schedule = () => {
     if (frame === undefined) frame = requestAnimationFrame(measure);

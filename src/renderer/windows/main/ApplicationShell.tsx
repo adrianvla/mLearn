@@ -44,7 +44,8 @@ export const ApplicationShell: ParentComponent = props => {
     if (isElectron()) bridge.window.getWindowContext(currentApplicationHost());
     onCleanup(() => cleanup?.());
   });
-  return <div class="application-shell" classList={{ 'application-shell-mobile': !isElectron(), 'application-shell-study': host() === 'study' }}>
+  return <div class="application-shell" classList={{ 'application-shell-mobile': !isElectron(), 'application-shell-study': host() === 'study', 'application-shell-native-chrome': isElectron() }}>
+    <Show when={isElectron()}><div class="application-native-chrome" aria-hidden="true" /></Show>
     <Show when={links().length || (!isElectron() && location.pathname !== '/')}>
       <nav class="application-navigation" aria-label={t('mlearn.Product.Navigation')}>
         <Show when={!isElectron()}><Button buttonType="nav" onClick={() => open('/')}>{t('mlearn.Tabs.Home')}</Button></Show>

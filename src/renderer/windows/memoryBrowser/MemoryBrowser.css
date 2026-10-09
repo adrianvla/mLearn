@@ -3,7 +3,8 @@
 .memory-browser {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   background: var(--bg);
   color: var(--text-primary);
   overflow: hidden;
@@ -152,3 +153,7 @@
 .memory-browser-retry { padding: 8px 16px; border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); background: var(--bg-intense); cursor: pointer; }
 .memory-browser-error { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--spacing-4); flex: 1; padding: var(--spacing-6); text-align: center; }
 .memory-browser-error p { margin: 0; color: var(--text-secondary); }
+
+.memory-browser-retry { -webkit-app-region: no-drag; }
+.memory-browser-header { padding-inline: var(--spacing-4); flex-wrap: wrap; }
+.memory-browser-title { margin-left: 0; }

@@ -52,6 +52,8 @@ vi.mock('../../../components/common', () => ({
   BookIcon: () => null, VideoIcon: () => null, BotIcon: () => null, TargetIcon: () => null,
   LanguageVariantGate: () => null, LearningGoals: () => <span>no-target-filler</span>,
 }));
+vi.mock('./components/WelcomeLearningSummary', () => ({ WelcomeLearningSummary: () => <span>local learning summary</span> }));
+vi.mock('./components/WelcomeConversationPreview', () => ({ WelcomeConversationPreview: () => <span>local conversation preview</span> }));
 import { WelcomeRoute } from './WelcomeRoute';
 
 describe('purpose-led Home', () => {
@@ -61,28 +63,22 @@ describe('purpose-led Home', () => {
   const open = (title: string) => container.querySelector<HTMLButtonElement>(`button[aria-labelledby="${Array.from(container.querySelectorAll('h3')).find(h => h.textContent === title)?.id}"]`)!.click();
   beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.language = 'future'; fixture.grammarResume = null; fixture.review = undefined; fixture.presentation = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
   afterEach(() => { dispose?.(); container.remove(); });
-  it('shows the current learning language as an accessible quick-switch action', async () => {
+  it('shows a direct native language select with package-owned presentation', async () => {
     await mount();
-    expect(container.querySelector('.welcome-language-switch')?.tagName).toBe('BUTTON');
-    expect(container.querySelector('.welcome-language-switch')?.textContent).toContain('mlearn.Home.UI.LearningLanguage');
-    expect(container.querySelector('.welcome-language-switch')?.getAttribute('aria-haspopup')).toBe('dialog');
-  });
-  it('opens a keyboard-accessible language switcher and leaves settings unchanged when cancelled', async () => {
-    await mount();
-    const switcher = container.querySelector<HTMLButtonElement>('.welcome-language-switch');
-    expect(switcher?.getAttribute('aria-haspopup')).toBe('dialog');
-    switcher!.click();
-    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
-    Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Global.Cancel')!.click();
-    expect(fixture.updateSetting).not.toHaveBeenCalled();
+    expect(container.querySelector('.welcome-language-switch select')).not.toBeNull();
+    expect(container.querySelector('.welcome-language-presentation')?.textContent).toBe('package-flag');
     expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+  it('leaves settings unchanged until a deliberate native selection', async () => {
+    await mount();
+    const selector = container.querySelector<HTMLSelectElement>('.welcome-language-switch select')!;
+    expect(selector).not.toBeNull(); selector.focus(); selector.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(fixture.updateSetting).not.toHaveBeenCalled();
   });
   it('applies a selected learning language through the shared settings updater', async () => {
     await mount();
-    container.querySelector<HTMLButtonElement>('.welcome-language-switch')!.click();
-    const select = container.querySelector<HTMLSelectElement>('select')!;
-    select.value = 'de';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const select = container.querySelector<HTMLSelectElement>('.welcome-language-switch select')!;
+    select.value = 'de'; select.dispatchEvent(new Event('change', { bubbles: true }));
     expect(fixture.updateSetting).toHaveBeenCalledWith('language', 'de');
     expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
@@ -113,12 +109,12 @@ describe('purpose-led Home', () => {
   });
   it('resumes a continuous Review cursor by its exact identity without a finite boundary', async () => {
     fixture.presentation = { id: 'continuous-choice', cardId: 'card' }; await mount();
-    Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('mlearn.Flashcards.UI.Tabs.Review'))!.click();
+    container.querySelector<HTMLButtonElement>('.welcome-resume-actions button')!.click();
     expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'flashcards', context: { activity: 'review', intent: 'resume', sessionId: 'continuous-choice', returnTo: 'home' } });
   });
   it('resumes an identified review separately from generic Open', async () => {
     fixture.review = { id: 'retained-review' }; await mount();
-    Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('mlearn.Flashcards.UI.Tabs.Review'))!.click();
+    container.querySelector<HTMLButtonElement>('.welcome-resume-actions button')!.click();
     expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'flashcards', context: { activity: 'review', intent: 'resume', sessionId: 'retained-review', returnTo: 'home' } });
   });
   it('continues actual source material with subtitle identity and keeps preview controls independent', async () => {

@@ -1,6 +1,6 @@
 import { createMemo, For, Show, type Component } from 'solid-js';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
-import { activeLearningGoals, learningGoalsForSettings, type LearningGoal } from '../../../../shared/learningGoals';
+import { activeLearningGoals, learningGoalsForSettings, goalDeadlineDayDifference, type LearningGoal } from '../../../../shared/learningGoals';
 import { learningGoalCompatibility, learningGoalSemanticBasis, revalidateLearningGoal } from '../../../../shared/learningGoalCompatibility';
 import { learningOutcomeOptions, resolveLearningOutcome } from '../../../../shared/learningOutcomes';
 import { Button } from '../Button';
@@ -76,10 +76,12 @@ export const LearningGoals: Component<{ compact?: boolean; summaryOnly?: boolean
         <Show when={goal.scope?.reference}><span class="learning-goals__scope-reference">
           {t(`mlearn.Goals.Source.${goal.scope!.provenance}`)} · {goal.scope!.reference}
         </span></Show>
-        <Show when={goal.deadline}><span class="learning-goals__deadline">{t('mlearn.Goals.DeadlineDate', { date: goal.deadline! })}</span></Show>
+        <Show when={goal.deadline}><span class="learning-goals__deadline">{t('mlearn.Goals.DeadlineDate', { date: goal.deadline! })}</span>
+          <Show when={goalDeadlineDayDifference(goal.deadline) !== undefined}><span>{t(goalDeadlineDayDifference(goal.deadline)! > 0 ? 'mlearn.Goals.DaysRemaining' : goalDeadlineDayDifference(goal.deadline) === 0 ? 'mlearn.Goals.DueToday' : 'mlearn.Goals.DaysOverdue', { days: Math.abs(goalDeadlineDayDifference(goal.deadline)!) })}</span></Show>
+        </Show>
       </Show>
       <Show when={props.compact && !props.summaryOnly && props.onEdit}><Button variant="ghost" size="sm" onClick={props.onEdit}>{t('mlearn.LearningPlan.Edit')}</Button></Show>
-      <Show when={goal.deadline && Date.parse(goal.deadline) < Date.now()}><span role="status">{t('mlearn.Goals.Passed')}</span></Show>
+      <Show when={goalDeadlineDayDifference(goal.deadline) !== undefined && goalDeadlineDayDifference(goal.deadline)! < 0}><span role="status">{t('mlearn.Goals.Passed')}</span></Show>
       <Show when={goal.deadline && props.deadlineWarnings?.[goal.id]}><span role="status">{t('mlearn.Goals.ScopeWorkloadRisk', { date: goal.deadline! })}</span></Show>
       <Show when={props.summaryOnly && evaluationFor(goal)}>{evaluation => <ul class="learning-goals__requirements" aria-label={t('mlearn.Goals.RequirementEvidence')}>
         <For each={evaluation().requirements}>{condition => <li class={`learning-goals__requirement learning-goals__requirement--${condition.status}`}>

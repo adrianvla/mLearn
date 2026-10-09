@@ -48,7 +48,10 @@
         "membershipHash": "対象教材の構成が変更されました",
         "contentHash": "練習内容または学習対象の意味が変更されました",
         "unverified": "元の意味的な参照を確認できません"
-      }
+      },
+      "DaysRemaining": "残り{days}日",
+      "DueToday": "期限は今日です",
+      "DaysOverdue": "期限から{days}日経過"
     },
     "LibraryRecovery": {
       "OpenProtection": "データ保護と復元の設定",
@@ -1716,6 +1719,15 @@
         "WeekSummary": "復習 {reviews}回 · 新しいカード {newCards}枚",
         "DiscoverTitle": "次に学ぶ単語を見つける",
         "DiscoverReason": "カリキュラムから少しずつ学びましょう。"
+      },
+      "Summary": {
+        "Title": "学習の進捗",
+        "AllTimeReviews": "記録された復習の累計",
+        "NewCardResponses": "新しいカードの学習記録",
+        "RecordDefinition": "選択した学習言語の、保存された全日次記録の合計です。繰り返しの回答も含みます。習得した単語数やメディア利用ではありません。",
+        "EvidenceUnavailable": "学習の証拠を利用できません。要件の進捗を見るには再試行してください。",
+        "ConversationUnavailable": "会話のプレビューを利用できません。ローカルのチャットはメッセンジャーで開けます。",
+        "NoConversation": "連絡先の相手と会話を始めてください。"
       }
     },
     "Installer": {

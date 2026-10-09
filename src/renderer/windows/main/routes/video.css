@@ -4,7 +4,7 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  background-color: var(--bg-opaque);
+  background-color: var(--app-shell-bg);
   position: relative;
 }
 
@@ -19,7 +19,7 @@
 .video-route > .video-nav{
   position: absolute;
   top: var(--spacing-2);
-  left: calc(100px + var(--spacing-2));
+  left: calc(var(--window-controls-inline-start-inset) + var(--spacing-2));
   z-index: var(--z-foreground);
   display:flex;
   gap: var(--spacing-2);
