@@ -727,7 +727,7 @@ describe('llmProvider', () => {
 
       expect(onDone).not.toHaveBeenCalled();
       expect(onToolCall).toHaveBeenCalledTimes(1);
-      expect(getCachedExplanation('hi', 'Hi there')).toBeNull();
+      expect(getCachedExplanation('hi', 'Hi there', 'word', { language: 'French' })).toBeNull();
     });
 
     it('does not cache partial output when repair attempts are exhausted', async () => {
@@ -756,7 +756,7 @@ describe('llmProvider', () => {
       expect(onDone).toHaveBeenCalledOnce();
       const [, finalToolCalls] = onDone.mock.calls[0] as [string, LLMToolCall[]];
       expect(finalToolCalls.map((toolCall) => toolCall.name)).toEqual(['show_translation']);
-      expect(getCachedExplanation('hi', 'Hi there')).toBeNull();
+      expect(getCachedExplanation('hi', 'Hi there', 'word', { language: 'French' })).toBeNull();
     });
 
     it('parses tolerant fallback tool-call syntax for explanation and grammar sections', async () => {
@@ -873,6 +873,27 @@ describe('llmProvider', () => {
       expect(onDone).toHaveBeenCalledWith('', [], expect.objectContaining({ totalTime: expect.any(Number) }));
     });
 
+    it('separates full case-sensitive explanation context and admitted package scope', async () => {
+      const { streamExplanation, getCachedExplanation } = await import('./llmProvider');
+      const metadata = { name: 'First label', resolvedVariantId: 'first', languageData: { version: 'same', assets: [], activationGeneration: 'old' } };
+      const scope = { language: 'future', languageData: metadata };
+      const context = 'x'.repeat(100) + ' first suffix';
+      streamExplanation('Case', context, 'future', { onChunk: vi.fn(), onDone: vi.fn(), onError: vi.fn(), onToolCall: vi.fn() }, { languageData: metadata });
+      metadata.resolvedVariantId = 'second'; metadata.languageData.activationGeneration = 'new';
+      const toolCalls: LLMToolCall[] = [
+        { id: 'one', name: 'show_translation', arguments: { phrase: 'Case', translation: 'meaning' } },
+        { id: 'two', name: 'show_explanation', arguments: { word: 'Case', explanation: 'Actual scoped explanation' } },
+        { id: 'three', name: 'show_grammar_points', arguments: { points: [{ term: 'Package relation', description: 'Actual description' }] } },
+      ];
+      streamCallback!({ toolCalls }); streamCallback!({ done: true });
+      const admitted = { language: 'future', languageData: { ...metadata, resolvedVariantId: 'first', languageData: { ...metadata.languageData, activationGeneration: 'old' } } };
+      expect(getCachedExplanation('Case', context, 'word', admitted)).not.toBeNull();
+      expect(getCachedExplanation('case', context, 'word', admitted)).toBeNull();
+      expect(getCachedExplanation('Case', 'x'.repeat(100) + ' second suffix', 'word', admitted)).toBeNull();
+      expect(getCachedExplanation('Case', context, 'word', { ...admitted, language: 'another-future' })).toBeNull();
+      expect(getCachedExplanation('Case', context, 'word', scope)).toBeNull();
+    });
+
     it('caches the result after onDone and returns it on second call', async () => {
       const { streamExplanation, getCachedExplanation } = await import('./llmProvider');
       const toolCalls: LLMToolCall[] = [
@@ -887,7 +908,7 @@ describe('llmProvider', () => {
       streamCallback!({ toolCalls });
       streamCallback!({ done: true });
 
-      const cached = getCachedExplanation('hi', 'Hi there');
+      const cached = getCachedExplanation('hi', 'Hi there', 'word', { language: 'French' });
       expect(cached).not.toBeNull();
       expect(cached!.toolCalls).toEqual(toolCalls);
     });
@@ -901,7 +922,7 @@ describe('llmProvider', () => {
       streamCallback!({ toolCalls: [toolCall] });
       streamCallback!({ done: true });
 
-      expect(getCachedExplanation('hi', 'Hi there')).toBeNull();
+      expect(getCachedExplanation('hi', 'Hi there', 'word', { language: 'French' })).toBeNull();
     });
 
     it('does not cache incomplete structured output with leftover fallback text', async () => {
@@ -913,7 +934,7 @@ describe('llmProvider', () => {
       streamCallback!({ content: '\nshow_explanation({"word":"hi","explanation":"A casual greeting."' });
       streamCallback!({ done: true });
 
-      expect(getCachedExplanation('hi', 'Hi there')).toBeNull();
+      expect(getCachedExplanation('hi', 'Hi there', 'word', { language: 'French' })).toBeNull();
     });
 
     it('returns null from getCachedExplanation when entry is missing', async () => {
@@ -929,7 +950,7 @@ describe('llmProvider', () => {
       streamCallback!({ done: true });
 
       vi.setSystemTime(Date.now() + 25 * 60 * 60 * 1000);
-      const cached = getCachedExplanation('word', 'context');
+      const cached = getCachedExplanation('word', 'context', 'word', { language: 'French' });
       expect(cached).toBeNull();
       vi.useRealTimers();
     });

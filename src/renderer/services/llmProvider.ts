@@ -1,3 +1,4 @@
+import { hashWordSync } from '../../shared/utils/wordHash';
 import { llmConfigurationFailure } from '../../shared/llmReadiness';
 /**
  * Unified LLM Provider Service
@@ -60,14 +61,22 @@ const explanationCache = new Map<string, CacheEntry>();
 const CACHE_MAX = 500;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-function getCacheKey(word: string, context: string, mode: ExplainerMode = 'word'): string {
-  const normalizedWord = word.toLowerCase().trim();
-  const normalizedContext = context.substring(0, 100).toLowerCase().trim();
-  return `${mode}|||${normalizedWord}|||${normalizedContext}`;
+export interface ExplanationScope {
+  language: string;
+  languageData?: LanguageData | null;
 }
 
-export function getCachedExplanation(word: string, context: string, mode: ExplainerMode = 'word'): CacheEntry | null {
-  const key = getCacheKey(word, context, mode);
+function explanationScopeKey(scope: ExplanationScope): string {
+  return hashWordSync(JSON.stringify([scope.language, scope.languageData ?? null]));
+}
+
+function getCacheKey(word: string, context: string, mode: ExplainerMode, scopeKey: string): string {
+  return JSON.stringify([scopeKey, mode, word, context]);
+}
+
+export function getCachedExplanation(word: string, context: string, mode: ExplainerMode = 'word', scope?: ExplanationScope): CacheEntry | null {
+  if (!scope) return null;
+  const key = getCacheKey(word, context, mode, explanationScopeKey(scope));
   const entry = explanationCache.get(key);
   if (!entry) return null;
   if (Date.now() - entry.timestamp > CACHE_TTL_MS) {
@@ -89,8 +98,9 @@ function setCachedExplanation(
   mode: ExplainerMode,
   toolCalls: LLMToolCall[],
   rawText: string,
+  scopeKey: string,
 ): void {
-  const key = getCacheKey(word, context, mode);
+  const key = getCacheKey(word, context, mode, scopeKey);
   if (explanationCache.size >= CACHE_MAX) {
     // Remove oldest 10%
     const entries = Array.from(explanationCache.entries());
@@ -446,6 +456,7 @@ export function streamExplanation(
   options: StreamExplanationOptions = {},
 ): { abort: () => void } {
   const mode = options.mode ?? 'word';
+  const scopeKey = explanationScopeKey({ language, languageData: options.languageData });
   const languagePromptName = getLanguagePromptName(language, options.languageData);
   const systemPrompt = buildExplainerSystemPrompt(languagePromptName, mode);
   const userPrompt = buildExplainerUserPrompt(word, contextPhrase, mode);
@@ -491,7 +502,7 @@ export function streamExplanation(
     const finalContent = cleanedContentParts.filter((part) => part.trim().length > 0).join('\n\n');
 
     if (hasCacheableExplainerOutput(finalContent, mergedToolCalls, mode)) {
-      setCachedExplanation(word, contextPhrase, mode, mergedToolCalls, finalContent);
+      setCachedExplanation(word, contextPhrase, mode, mergedToolCalls, finalContent, scopeKey);
     }
 
     callbacks.onDone(finalContent, mergedToolCalls, stats);

@@ -289,7 +289,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
     const context = props.contextPhrase || '';
     
     // Check if we have a cached explanation for this word+context
-    const cached = getCachedExplanation(word, context);
+    const cached = getCachedExplanation(word, context, 'word', { language: currentLanguage?.() ?? settings.language, languageData: currentLangData() });
     setHasCachedExplanation(!!cached);
   });
 

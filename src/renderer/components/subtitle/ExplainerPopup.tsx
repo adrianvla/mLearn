@@ -181,11 +181,13 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
     const currentWord = props.word;
     const currentContextPhrase = props.contextPhrase;
     const currentMode = explainerMode();
+    const data = currentLangData();
+    const languageData = data ? JSON.parse(JSON.stringify(data)) as typeof data : null;
 
     try {
       // Check cache first
       if (!options.skipCache) {
-        const cached = getCachedExplanation(currentWord, currentContextPhrase, currentMode);
+        const cached = getCachedExplanation(currentWord, currentContextPhrase, currentMode, { language: currentSettings.language, languageData });
         if (cached && hasExplainerGenerationOutput(cached.rawText, cached.toolCalls)) {
           setToolCalls(cached.toolCalls);
           setRawText(cached.rawText);
@@ -204,7 +206,6 @@ export const ExplainerPopup: Component<ExplainerPopupProps> = (props) => {
       }
 
       // Stream via unified provider
-      const languageData = currentLangData();
 
       // Low power gate: prompt before local LLM call
       if (!isRemoteLLMProvider(currentSettings.llmProvider)) {
