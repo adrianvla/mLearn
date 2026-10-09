@@ -7,6 +7,7 @@ import { showToast } from '../../../components/common/Feedback/Toast';
 import type { ComponentsUninstallResult, LanguageDataCatalogStatus, LanguageDataMap, PythonComponentId, PythonComponentInfo, Settings } from '../../../../shared/types';
 import type { PolicySettingKey } from '../../../../shared/managementPolicy';
 import { getLocalizedLanguageName, getBilingualLanguageName, getNativeLanguageName } from '../../../utils/languageDisplayName';
+import { LanguageDataJobProgress } from '../../../components/common/LanguageDataJobProgress/LanguageDataJobProgress';
 import './ComponentsTab.css';
 
 const KNOWN_OCR_ENGINE_LABEL_KEYS = {
@@ -117,6 +118,7 @@ export const ComponentsTab: Component = () => {
     installLanguageData,
     isLanguageDataInstalling,
     languageDataInstallError,
+    languageDataInstallJobs,
   } = useLanguage();
   const [runtimeInstalling, setRuntimeInstalling] = createSignal(false);
   const [runtimeInstallError, setRuntimeInstallError] = createSignal<string | null>(null);
@@ -409,6 +411,10 @@ export const ComponentsTab: Component = () => {
             </Button>
           </Show>
         </div>
+
+        <LanguageDataJobProgress jobs={Object.values(languageDataInstallJobs()).filter(job =>
+          job.language === row.language && job.dictionaryTargetLanguage === row.dictionaryTargetLanguage
+          && job.phase !== 'ready' && job.phase !== 'error')} />
 
         <Show when={hasInstallError}>
           <AlertBanner

@@ -2,13 +2,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
-import type { JSX } from 'solid-js';
-import type { LanguageDataMap } from '../../../../shared/types';
+import { createSignal, type JSX } from 'solid-js';
+import type { LanguageDataMap, LanguageDataInstallProgress } from '../../../../shared/types';
 
 const updateSettingsMock = vi.fn();
 const startInstallMock = vi.fn();
 const uninstallComponentsMock = vi.fn();
 const installLanguageDataMock = vi.fn();
+const [installJobs, setInstallJobs] = createSignal<Record<string, LanguageDataInstallProgress>>({});
 let installStarted: (() => void) | null = null;
 let installStatus: ((status: string) => void) | null = null;
 let installAwaiting: (() => void) | null = null;
@@ -176,6 +177,7 @@ vi.mock('../../../context', () => ({
       },
     ],
     installLanguageData: installLanguageDataMock,
+    languageDataInstallJobs: installJobs,
     isLanguageDataInstalling: () => false,
     languageDataInstallError: () => languageDataInstallErrorMock,
   }),
@@ -233,6 +235,7 @@ describe('ComponentsTab', () => {
     installSuccess = null;
     installLanguageDataMock.mockReset();
     languageDataInstallErrorMock = null;
+    setInstallJobs({});
     managedSettingKey = null;
     testSettings.llmEnabled = true;
     testSettings.ocrEnabled = true;
@@ -259,6 +262,33 @@ describe('ComponentsTab', () => {
 
   afterEach(() => {
     container.remove();
+  });
+
+  it('joins correlated language jobs to their own rows and reacts to byte and readiness phases', async () => {
+    setInstallJobs({
+      core: { operationId: 'core', language: 'ja', components: ['core'], phase: 'downloading', downloadedBytes: 42, expectedBytes: 100 },
+      target: { operationId: 'target', language: 'ja', dictionaryTargetLanguage: 'fr', components: ['dictionary'], phase: 'downloading', downloadedBytes: 17 },
+    });
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+    try {
+      const core = container.querySelector('[data-operation-id="core"]')!;
+      const target = container.querySelector('[data-operation-id="target"]')!;
+      expect(core).not.toBeNull();
+      expect(target).not.toBeNull();
+      expect(core.closest('.components-tab__language-pack')?.textContent).toContain('Core runtime');
+      expect(target.closest('.components-tab__language-pack')?.textContent).toContain('FR');
+      expect(core.querySelector('progress')?.value).toBe(42);
+      expect(core.querySelector('progress')?.max).toBe(100);
+      expect(target.querySelector('progress')?.hasAttribute('value')).toBe(false);
+      setInstallJobs(previous => ({ ...previous, core: { ...previous.core, phase: 'waiting-for-backend' } }));
+      expect(container.querySelector('[data-operation-id="core"]')?.textContent).toContain('waiting-for-backend');
+      expect(container.querySelector('[data-operation-id="core"] progress')).toBeNull();
+      expect(container.querySelector('[data-operation-id="target"] progress')).not.toBeNull();
+      setInstallJobs(previous => ({ ...previous, core: { ...previous.core, phase: 'ready' } }));
+      expect(container.querySelector('[data-operation-id="core"]')).toBeNull();
+      expect(container.querySelector('[data-operation-id="target"]')).not.toBeNull();
+    } finally { dispose(); }
   });
 
   it('lists individual runtime and language-data components without raw installer localization keys', async () => {
