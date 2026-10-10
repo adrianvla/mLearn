@@ -1165,6 +1165,101 @@ describe('languageDataService', () => {
     });
   });
 
+  it('does not redownload a ready core bundle when updating a dictionary pack', async () => {
+    const archiveSourceDir = path.join(tempDir.tmpDir, 'ready-core-dictionary-archive-source');
+    const archivePath = path.join(tempDir.tmpDir, 'zz-fr-dictionary.tar.gz');
+    const dictionaryBytes = 'ready core french dictionary bytes';
+    const coreMetadata = JSON.stringify({
+      name: 'Zulu Test',
+      languageData: {
+        version: 'core-v1',
+        dictionaryPacks: {
+          fr: { targetLanguage: 'fr', name: 'French', version: 'dict-v0', assets: [] },
+        },
+      },
+    });
+    const coreMetadataAsset = {
+      id: 'language-metadata',
+      path: 'languages/zz.json',
+      sizeBytes: Buffer.byteLength(coreMetadata),
+      sha256: sha256(coreMetadata),
+      required: true,
+    };
+    const dictionaryAsset = {
+      id: 'dictionary-fr',
+      path: 'dictionaries/zz/fr/dictionary.db',
+      sizeBytes: Buffer.byteLength(dictionaryBytes),
+      sha256: sha256(dictionaryBytes),
+      required: true,
+    };
+    const dictionaryManifest = {
+      schemaVersion: 1,
+      language: 'zz',
+      targetLanguage: 'fr',
+      version: 'dict-v1',
+      files: [dictionaryAsset],
+    };
+    fs.mkdirSync(path.join(archiveSourceDir, 'files', 'dictionaries', 'zz', 'fr'), { recursive: true });
+    fs.writeFileSync(path.join(archiveSourceDir, 'manifest.json'), JSON.stringify(dictionaryManifest), 'utf-8');
+    fs.writeFileSync(path.join(archiveSourceDir, 'files', 'dictionaries', 'zz', 'fr', 'dictionary.db'), dictionaryBytes, 'utf-8');
+    await tar.c({ gzip: true, file: archivePath, cwd: archiveSourceDir }, ['manifest.json', 'files']);
+
+    const languageDataRoot = path.join(tempDir.tmpDir, 'language-data');
+    const installedMetadataPath = path.join(languageDataRoot, coreMetadataAsset.path);
+    fs.mkdirSync(path.dirname(installedMetadataPath), { recursive: true });
+    fs.writeFileSync(installedMetadataPath, coreMetadata, 'utf-8');
+    const coreReceiptPath = path.join(languageDataRoot, '.install-receipts', 'zz.json');
+    fs.mkdirSync(path.dirname(coreReceiptPath), { recursive: true });
+    fs.writeFileSync(coreReceiptPath, JSON.stringify({
+      version: 'core-v1',
+      assetContent: {
+        [coreMetadataAsset.path]: {
+          sourceSha256: coreMetadataAsset.sha256,
+          installedSha256: coreMetadataAsset.sha256,
+        },
+      },
+    }), 'utf-8');
+
+    const dictionaryUrl = 'https://example.com/language-data/zz-fr-dictionary.tar.gz';
+    mockDownloadFileWithProgress.mockImplementation(async (url: string, destPath: string) => {
+      if (url !== dictionaryUrl) throw new Error(`Unexpected archive ${url}`);
+      fs.copyFileSync(archivePath, destPath);
+    });
+
+    const langData = makeLangData({
+      languageData: {
+        version: 'core-v1',
+        bundle: {
+          url: 'https://example.com/language-data/zz-core.tar.gz',
+          sizeBytes: 1,
+          sha256: sha256('core bundle'),
+        },
+        assets: [coreMetadataAsset],
+        dictionaryPacks: {
+          fr: {
+            targetLanguage: 'fr',
+            name: 'French',
+            version: 'dict-v1',
+            bundle: {
+              url: dictionaryUrl,
+              sizeBytes: fs.statSync(archivePath).size,
+              sha256: sha256(readInstalled(archivePath)),
+            },
+            assets: [dictionaryAsset],
+          },
+        },
+      },
+    });
+
+    const status = await mod.ensureLanguageDataInstalled('zz', langData, undefined, 'fr', { includeCore: true });
+
+    expect(mockDownloadFileWithProgress).toHaveBeenCalledTimes(1);
+    expect(mockDownloadFileWithProgress).toHaveBeenCalledWith(dictionaryUrl, expect.stringContaining('zz-fr-dictionary.tar.gz'), undefined);
+    expect(status).toMatchObject({ language: 'zz', dictionaryTargetLanguage: 'fr', installed: true, missingAssets: [] });
+    expect(JSON.parse(readInstalled(coreReceiptPath, 'utf-8'))).toMatchObject({ version: 'core-v1' });
+    expect(readInstalled(path.join(languageDataRoot, 'dictionaries/zz/fr/dictionary.db'), 'utf-8')).toBe(dictionaryBytes);
+  });
+
   it('rejects a dictionary pack archive that declares a different target language', async () => {
     const archiveSourceDir = path.join(tempDir.tmpDir, 'wrong-dictionary-target-source');
     const archivePath = path.join(tempDir.tmpDir, 'zz-fr-dictionary.tar.gz');

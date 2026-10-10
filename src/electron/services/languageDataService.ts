@@ -783,7 +783,15 @@ export async function ensureLanguageDataInstalled(
   // ones (Tier-2 linguistic graphs). `required` gates COMPLETENESS signaling
   // (status/missing-assets), never whether the file is installed: a package
   // that advertises a graph must deliver it.
-  const combined = Boolean(dictionaryTargetLanguage && options?.includeCore);
+  const includeCoreWithDictionary = Boolean(dictionaryTargetLanguage && options?.includeCore);
+  const coreStatus = includeCoreWithDictionary
+    ? getLanguageDataStatus(language, langData, undefined, options)
+    : undefined;
+  const coreIsReady = Boolean(coreStatus?.installed && coreStatus.assets.every(asset => asset.installed));
+  // A dictionary update only needs the core archive when the current core is
+  // incomplete or stale. Re-downloading a ready core wastes bandwidth and
+  // makes dictionary progress report the wrong bundle's byte total first.
+  const combined = includeCoreWithDictionary && !coreIsReady;
   const mainTarget = combined ? undefined : dictionaryTargetLanguage;
   const assets = getAssets(language, langData, mainTarget, options);
   const bundle = getBundle(language, langData, mainTarget);
@@ -793,9 +801,8 @@ export async function ensureLanguageDataInstalled(
   // missing locally — otherwise an install that predates a newly advertised
   // optional asset (e.g. a graph published after the first install) would
   // never backfill it.
-  const coreStatus = combined ? getLanguageDataStatus(language, langData, undefined, options) : currentStatus;
   if (currentStatus.installed && currentStatus.assets.every(asset => asset.installed)
-    && coreStatus.installed && coreStatus.assets.every(asset => asset.installed)) {
+    && (!includeCoreWithDictionary || coreIsReady)) {
     if (options?.beforeActivate) await options.beforeActivate(resolveLanguageDataRoot(getLanguageDataRoot()));
     return currentStatus;
   }
