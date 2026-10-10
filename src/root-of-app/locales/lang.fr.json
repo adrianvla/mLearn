@@ -1330,6 +1330,8 @@
         },
         "EditCard": {
           "Title": "Modifier la carte mémoire",
+          "Saving": "Enregistrement…",
+          "SaveFailed": "Impossible d’enregistrer cette modification. Vos modifications sont conservées ; réessayez.",
           "TabEditor": "Éditeur",
           "TabAdvanced": "Avancé",
           "AdvancedHint": "Modifier les données brutes de la carte. Les modifications sont appliquées lors de la sauvegarde.",
