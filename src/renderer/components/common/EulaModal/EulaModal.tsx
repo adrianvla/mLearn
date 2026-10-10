@@ -8,6 +8,11 @@ export interface EulaModalProps {
   onAccept: () => void;
 }
 
+export const getEulaVersion = (content: string): string => {
+  const match = /^\*\*Version\s+([0-9]+(?:\.[0-9]+)*)\b/m.exec(content);
+  return match?.[1] ?? '';
+};
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -119,7 +124,7 @@ export const EulaModal: Component<EulaModalProps> = (props) => {
   const handleAccept = () => {
     updateSettings({
       eulaAccepted: true,
-      eulaAcceptedVersion: '1.0',
+      eulaAcceptedVersion: getEulaVersion(props.content),
       eulaAcceptedAt: Date.now(),
     });
     props.onAccept();

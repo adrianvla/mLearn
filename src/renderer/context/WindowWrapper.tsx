@@ -16,6 +16,7 @@ import { LocalizationProvider, useLocalization } from './LocalizationContext';
 import { ResponsiveProvider } from './ResponsiveContext';
 import { ToastContainer, showToast } from '../components/common/Feedback/Toast';
 import { Button, ErrorModal, EulaModal, Modal, ProgressBar, Spinner } from '../components/common';
+import { getEulaVersion } from '../components/common/EulaModal/EulaModal';
 import { WindowDragRegion } from '../components/utils/WindowDragRegion';
 import { TitleBar } from '../components/common';
 import { CloudReLoginModal } from '../components/cloud/CloudReLoginModal';
@@ -231,7 +232,7 @@ const GlobalEulaModal: Component = () => {
   const handleAccept = () => {
     updateSettings({
       eulaAccepted: true,
-      eulaAcceptedVersion: '1.0',
+      eulaAcceptedVersion: getEulaVersion(eulaContent()),
       eulaAcceptedAt: Date.now(),
       eulaAcceptedHash: currentHash(),
     });
