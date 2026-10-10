@@ -57,11 +57,12 @@ export const Popover: Component<PopoverProps> = (props) => {
 
     updatePosition();
     focusPanel(panel);
-    // No scroll listener: the anchor lives in a fixed nav bar, so page
-    // scrolling cannot move it relative to the viewport the fixed panel
-    // is positioned against.
     window.addEventListener('resize', updatePosition);
-    onCleanup(() => window.removeEventListener('resize', updatePosition));
+    window.addEventListener('scroll', updatePosition, true);
+    onCleanup(() => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    });
   });
 
   // Escape and outside-pointer dismissal via the shared transient-surface

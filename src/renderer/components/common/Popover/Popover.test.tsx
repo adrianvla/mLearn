@@ -119,6 +119,36 @@ describe('Popover', () => {
     }
   });
 
+  it('keeps the panel anchored when its scrollable parent moves the trigger', () => {
+    const originalOffsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    const scrollRegion = document.createElement('div');
+    let rect = fixedRect(100, 340, 50, 78);
+    try {
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => 240 });
+      Object.defineProperty(anchorEl, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => rect,
+      });
+      container.appendChild(scrollRegion);
+      scrollRegion.appendChild(anchorEl);
+      mount();
+      setOpen(true);
+      const panel = document.body.querySelector('.popover-panel') as HTMLElement;
+      expect(panel.style.left).toBe('100px');
+      expect(panel.style.top).toBe('86px');
+
+      rect = fixedRect(180, 420, 120, 148);
+      scrollRegion.dispatchEvent(new Event('scroll', { bubbles: true }));
+
+      expect(panel.style.left).toBe('180px');
+      expect(panel.style.top).toBe('156px');
+    } finally {
+      if (originalOffsetWidth) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', originalOffsetWidth);
+      }
+    }
+  });
+
   it('calls onClose on Escape while open', () => {
     mount();
     setOpen(true);
