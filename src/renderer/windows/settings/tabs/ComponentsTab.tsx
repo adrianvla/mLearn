@@ -346,6 +346,19 @@ export const ComponentsTab: Component = () => {
   // lifetime stable so an admitted job cannot discard focus or scroll anchors.
   const [languagePackRows, setLanguagePackRows] = createStore<LanguagePackRow[]>([]);
   const [catalogRowsCurrent, setCatalogRowsCurrent] = createSignal(false);
+  const orphanedLanguageDataJobs = createMemo(() => {
+    const catalogRowKeys = new Set(languagePackRows.map(row => row.key));
+    return Object.values(languageDataInstallJobs())
+      .filter(job => job.phase !== 'ready' && !catalogRowKeys.has(
+        job.dictionaryTargetLanguage ? `${job.language}:${job.dictionaryTargetLanguage}` : job.language,
+      ))
+      .map(job => {
+        const error = languageDataInstallError(job.language, job.dictionaryTargetLanguage);
+        return error && (!error.operationId || error.operationId === job.operationId)
+          ? { ...job, error: job.error ?? error.error }
+          : job;
+      });
+  });
   createEffect(() => {
     const rows = languagePackRowValues();
     const refreshing = isLanguageDataCatalogLoading() || !!languageDataCatalogError();
@@ -597,6 +610,9 @@ export const ComponentsTab: Component = () => {
               <AlertBanner variant="error" title={t('mlearn.ComponentsTab.LanguageData.CatalogLoadError')} message={error()} />
               <Button onClick={refreshLanguageDataCatalog}>{t('mlearn.ComponentsTab.LanguageData.RetryCatalog')}</Button>
             </>}</Show>
+            <Show when={orphanedLanguageDataJobs().length > 0}>
+              <LanguageDataJobProgress jobs={orphanedLanguageDataJobs()} />
+            </Show>
             <For each={languagePackRows}>{renderLanguagePackRow}</For>
           </div>
         </section>

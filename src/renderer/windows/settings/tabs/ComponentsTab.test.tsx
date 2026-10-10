@@ -361,6 +361,44 @@ describe('ComponentsTab', () => {
     } finally { dispose(); }
   });
 
+  it('keeps active operation progress visible after remount when the refreshed catalog removes its package', async () => {
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const initialDispose = render(() => <ComponentsTab />, container);
+    expect(Array.from(container.querySelectorAll('.components-tab__language-pack'))
+      .some(row => row.textContent?.includes('Definitions for Japanese in FR.'))).toBe(true);
+    initialDispose();
+
+    setCatalogRevision(3);
+    setInstallingTargets(['ja:fr']);
+    setInstallJobs({ owned: {
+      operationId: 'owned',
+      language: 'ja',
+      dictionaryTargetLanguage: 'fr',
+      components: ['dictionary'],
+      phase: 'downloading',
+      downloadedBytes: 17,
+      expectedBytes: 100,
+    } });
+    const dispose = render(() => <ComponentsTab />, container);
+    try {
+      const operation = container.querySelector('[data-operation-id="owned"]');
+      expect(operation).not.toBeNull();
+      expect(operation?.textContent).toContain('17 / 100');
+      expect(operation?.querySelector('progress')?.value).toBe(17);
+
+      setInstallJobs({ owned: {
+        operationId: 'owned',
+        language: 'ja',
+        dictionaryTargetLanguage: 'fr',
+        components: ['dictionary'],
+        phase: 'error',
+        error: 'controlled source failure',
+      } });
+      expect(container.querySelector('[data-operation-id="owned"] [role="alert"]')?.textContent)
+        .toContain('controlled source failure');
+    } finally { dispose(); }
+  });
+
   it('retains disabled rows while a catalog refresh fails instead of reporting an empty success', async () => {
     const { ComponentsTab } = await import('./ComponentsTab');
     const dispose = render(() => <ComponentsTab />, container);
