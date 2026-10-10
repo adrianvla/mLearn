@@ -63,7 +63,7 @@ import type {
   Settings,
   FlashcardStore,
   LanguageData,
-  LanguageDataCatalogStatus,
+  LanguageDataCatalogPublication,
   MediaStats,
   LLMModelStatus,
   VoiceModelStatus,
@@ -754,12 +754,16 @@ const localizationBridge: LocalizationBridge = {
     return emitter.on('lang-data', callback as Listener);
   },
 
-  getLanguageDataCatalog() {
-    emitter.emit('language-data-catalog', [] satisfies LanguageDataCatalogStatus[]);
+  getLanguageDataCatalog(request) {
+    emitter.emit('language-data-catalog', { ...request, catalog: [] } satisfies LanguageDataCatalogPublication);
   },
 
   onLanguageDataCatalog(callback) {
     return emitter.on('language-data-catalog', callback as Listener);
+  },
+
+  onLanguageDataCatalogInvalidated(callback) {
+    return emitter.on('language-data-catalog-invalidated', callback as Listener);
   },
 
   installLanguageData(language: string, _dictionaryTargetLanguage?: string) {

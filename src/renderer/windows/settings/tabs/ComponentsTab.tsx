@@ -1,4 +1,4 @@
-import { Component, createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { Component, createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, untrack } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { useLanguage, useLocalization, useSettings } from '../../../context';
 import { getBridge } from '../../../../shared/bridges';
@@ -116,6 +116,10 @@ export const ComponentsTab: Component = () => {
   const {
     langData,
     languageDataCatalog,
+    isLanguageDataCatalogLoading,
+    languageDataCatalogError,
+    refreshLanguageDataCatalog,
+    getLanguageDataStatus,
     installLanguageData,
     isLanguageDataInstalling,
     languageDataInstallError,
@@ -341,7 +345,26 @@ export const ComponentsTab: Component = () => {
   // Catalog replies contain fresh objects. Keep each source/target row's DOM
   // lifetime stable so an admitted job cannot discard focus or scroll anchors.
   const [languagePackRows, setLanguagePackRows] = createStore<LanguagePackRow[]>([]);
-  createEffect(() => setLanguagePackRows(reconcile(languagePackRowValues(), { key: 'key' })));
+  const [catalogRowsCurrent, setCatalogRowsCurrent] = createSignal(false);
+  createEffect(() => {
+    const rows = languagePackRowValues();
+    const refreshing = isLanguageDataCatalogLoading() || !!languageDataCatalogError();
+    const previous = untrack(() => [...languagePackRows]);
+    const awaitingTerminalAck = Object.values(languageDataInstallJobs()).some(job =>
+      job.phase !== 'ready' && (job.phase !== 'error'
+        || languageDataInstallError(job.language, job.dictionaryTargetLanguage)?.operationId !== job.operationId));
+    const active = previous.some(row => isLanguageDataInstalling(row.language, row.dictionaryTargetLanguage)) || awaitingTerminalAck;
+    if (refreshing || (active && previous.length)) {
+      setCatalogRowsCurrent(false);
+      return;
+    }
+    // A source can remove a package while its admitted operation fails. Keep
+    // that failure visible until its own retry, without allowing stale installs.
+    const failedRows = previous.filter(row => !rows.some(next => next.key === row.key)
+      && !!languageDataInstallError(row.language, row.dictionaryTargetLanguage));
+    setLanguagePackRows(reconcile([...rows, ...failedRows], { key: 'key' }));
+    setCatalogRowsCurrent(true);
+  });
 
   const handleRuntimeRepair = () => {
     setRuntimeInstalling(true);
@@ -386,6 +409,11 @@ export const ComponentsTab: Component = () => {
     const hasInstallError = () => installError()?.language === row.language
       && installError()?.dictionaryTargetLanguage === row.dictionaryTargetLanguage;
     const needsInstall = () => !row.installed || row.outdated;
+    const canInstall = () => {
+      const status = getLanguageDataStatus(row.language);
+      return catalogRowsCurrent() && !!status && (!row.dictionaryTargetLanguage
+        || !!status.dictionaryPacks?.some(pack => pack.targetLanguage === row.dictionaryTargetLanguage));
+    };
     return (
       <section class="components-tab__language-pack">
         <div class="components-tab__language-pack-header">
@@ -406,7 +434,7 @@ export const ComponentsTab: Component = () => {
             <Button
               variant="secondary"
               onClick={() => handleInstallLanguagePack(row)}
-              disabled={isInstalling()}
+              disabled={isInstalling() || !canInstall()}
               class="components-tab__pack-action"
             >
               {isInstalling()
@@ -564,6 +592,11 @@ export const ComponentsTab: Component = () => {
             <p class="components-tab__section-desc">{t('mlearn.ComponentsTab.Sections.LanguageData.Description')}</p>
           </div>
           <div class="components-tab__language-packs">
+            <Show when={isLanguageDataCatalogLoading()}><p role="status">{t('mlearn.ComponentsTab.LanguageData.RefreshingCatalog')}</p></Show>
+            <Show when={languageDataCatalogError()}>{(error) => <>
+              <AlertBanner variant="error" title={t('mlearn.ComponentsTab.LanguageData.CatalogLoadError')} message={error()} />
+              <Button onClick={refreshLanguageDataCatalog}>{t('mlearn.ComponentsTab.LanguageData.RetryCatalog')}</Button>
+            </>}</Show>
             <For each={languagePackRows}>{renderLanguagePackRow}</For>
           </div>
         </section>

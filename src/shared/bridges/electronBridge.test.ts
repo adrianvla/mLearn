@@ -35,6 +35,7 @@ function createMockIPC() {
     getLangData: vi.fn(),
     onLangData: vi.fn(),
     getLanguageDataCatalog: vi.fn(),
+    onLanguageDataCatalogInvalidated: vi.fn(),
     onLanguageDataCatalog: vi.fn(),
     installLanguageData: vi.fn(),
     onLanguageDataInstalled: vi.fn(),
@@ -481,8 +482,8 @@ describe('localizationBridge', () => {
 
   it('getLanguageDataCatalog delegates to ipc.getLanguageDataCatalog', () => {
     const bridge = createElectronBridge();
-    bridge.localization.getLanguageDataCatalog();
-    expect(mockIPC.getLanguageDataCatalog).toHaveBeenCalledOnce();
+    bridge.localization.getLanguageDataCatalog({ requestId: 'catalog-request', sourceKey: 'source' });
+    expect(mockIPC.getLanguageDataCatalog).toHaveBeenCalledWith({ requestId: 'catalog-request', sourceKey: 'source' });
   });
 
   it('onLanguageDataCatalog passes callback to ipc.onLanguageDataCatalog', () => {
@@ -495,8 +496,8 @@ describe('localizationBridge', () => {
   it('installLanguageData passes language, dictionary target, and install options to ipc.installLanguageData', () => {
     const bridge = createElectronBridge();
     const installOptions = { includeLLM: false, includeOCR: true, includeVoice: false };
-    bridge.localization.installLanguageData('de', 'fr', installOptions);
-    expect(mockIPC.installLanguageData).toHaveBeenCalledWith('de', 'fr', installOptions);
+    bridge.localization.installLanguageData('de', 'fr', installOptions, 'operation', 'source');
+    expect(mockIPC.installLanguageData).toHaveBeenCalledWith('de', 'fr', installOptions, 'operation', 'source');
   });
 
   it('onLanguageDataInstalled passes callback to ipc.onLanguageDataInstalled', () => {

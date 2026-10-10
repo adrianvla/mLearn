@@ -377,7 +377,8 @@ export const ConnectionTab: Component = () => {
         >
           <Input
             value={settings.languageCatalogUrl ?? DEFAULT_SETTINGS.languageCatalogUrl}
-            onInput={(e) => updateSetting('languageCatalogUrl', e.currentTarget.value)}
+            onChange={(e) => updateSetting('languageCatalogUrl', e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
             placeholder={DEFAULT_SETTINGS.languageCatalogUrl}
           />
         </SettingRow>
@@ -403,7 +404,8 @@ export const ConnectionTab: Component = () => {
         >
           <Input
             value={settings.catalogMirrorDomain ?? DEFAULT_SETTINGS.catalogMirrorDomain}
-            onInput={(e) => updateSetting('catalogMirrorDomain', e.currentTarget.value)}
+            onChange={(e) => updateSetting('catalogMirrorDomain', e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
             placeholder={DEFAULT_SETTINGS.catalogMirrorDomain}
           />
         </SettingRow>

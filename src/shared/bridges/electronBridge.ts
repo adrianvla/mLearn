@@ -110,11 +110,11 @@ const localizationBridge: LocalizationBridge = {
   changeUILanguage: (code) => getIPC().changeUILanguage(code),
   getLangData: () => getIPC().getLangData(),
   onLangData: (cb) => getIPC().onLangData(cb),
-  getLanguageDataCatalog: () => getIPC().getLanguageDataCatalog(),
+  getLanguageDataCatalog: (request) => getIPC().getLanguageDataCatalog(request),
   onLanguageDataCatalog: (cb) => getIPC().onLanguageDataCatalog(cb),
-  installLanguageData: (language, dictionaryTargetLanguage, installOptions, operationId) => operationId === undefined
-    ? getIPC().installLanguageData(language, dictionaryTargetLanguage, installOptions)
-    : getIPC().installLanguageData(language, dictionaryTargetLanguage, installOptions, operationId),
+  onLanguageDataCatalogInvalidated: (cb) => getIPC().onLanguageDataCatalogInvalidated(cb),
+  installLanguageData: (language, dictionaryTargetLanguage, installOptions, operationId, catalogSourceKey) =>
+    getIPC().installLanguageData(language, dictionaryTargetLanguage, installOptions, operationId, catalogSourceKey),
   onLanguageDataInstalled: (cb) => getIPC().onLanguageDataInstalled(cb),
   onLanguageDataInstallProgress: (cb) => getIPC().onLanguageDataInstallProgress(cb),
   onLanguageDataInstallError: (cb) => getIPC().onLanguageDataInstallError(cb),

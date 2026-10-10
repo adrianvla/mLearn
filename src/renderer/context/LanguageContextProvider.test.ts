@@ -16,6 +16,7 @@ const mockBridge = {
     onLangData: vi.fn(),
     getLanguageDataCatalog: vi.fn(),
     onLanguageDataCatalog: vi.fn(),
+    onLanguageDataCatalogInvalidated: vi.fn(() => () => {}),
     installLanguageData: vi.fn(),
     onLanguageDataInstalled: vi.fn(),
     onLanguageDataInstallError: vi.fn(),
@@ -29,7 +30,7 @@ function setupMockImplementations() {
   });
   mockBridge.localization.getLangData.mockReturnValue(undefined);
   mockBridge.localization.onLanguageDataCatalog.mockImplementation((cb: (data: unknown) => void) => {
-    languageDataCatalogCb = cb;
+    languageDataCatalogCb = data => cb({ ...mockBridge.localization.getLanguageDataCatalog.mock.calls.at(-1)?.[0], catalog: data });
     return languageDataCatalogCleanup;
   });
   mockBridge.localization.getLanguageDataCatalog.mockReturnValue(undefined);
@@ -49,7 +50,7 @@ vi.mock('../../shared/bridges', () => ({
 }));
 
 vi.mock('./SettingsContext', () => ({
-  useSettings: () => ({ settings: mockSettings }),
+  useSettings: () => ({ settings: mockSettings, isLoading: () => false }),
 }));
 
 type LangCtx = {
@@ -312,7 +313,7 @@ describe('LanguageContext - provider behavior', () => {
   it('registers language-data catalog listeners before requesting catalog status', async () => {
     const callOrder: string[] = [];
     mockBridge.localization.onLanguageDataCatalog.mockImplementation((cb: (data: unknown) => void) => {
-      languageDataCatalogCb = cb;
+      languageDataCatalogCb = data => cb({ ...mockBridge.localization.getLanguageDataCatalog.mock.calls.at(-1)?.[0], catalog: data });
       callOrder.push('onLanguageDataCatalog');
       return languageDataCatalogCleanup;
     });
@@ -430,18 +431,20 @@ describe('LanguageContext - provider behavior', () => {
 
   it('installLanguageData delegates to the localization bridge and clears previous errors', async () => {
     const { ctx, dispose } = await mountProvider({ language: 'ja' });
+    languageDataCatalogCb([{ language: 'ja', installed: false, dictionaryPacks: [{ targetLanguage: 'fr' }] }]);
     languageDataInstallErrorCb({ language: 'de', error: 'previous failure' });
 
     ctx.installLanguageData('ja', 'fr');
 
     expect(ctx.languageDataInstallError()).toBeNull();
-    expect(mockBridge.localization.installLanguageData).toHaveBeenCalledWith('ja', 'fr', undefined, expect.any(String));
+    expect(mockBridge.localization.installLanguageData).toHaveBeenCalledWith('ja', 'fr', undefined, expect.any(String), expect.any(String));
     expect(ctx.isLanguageDataInstalling('ja', 'fr')).toBe(true);
     dispose();
   });
 
   it('retains independent target failures when a different target completes', async () => {
     const { ctx, dispose } = await mountProvider({ language: 'ja' });
+    languageDataCatalogCb([{ language: 'ja', installed: false, dictionaryPacks: [{ targetLanguage: 'fr' }, { targetLanguage: 'de' }] }]);
     try {
       ctx.installLanguageData('ja', 'fr');
       const frenchId = mockBridge.localization.installLanguageData.mock.calls.at(-1)![3];
@@ -461,7 +464,7 @@ describe('LanguageContext - provider behavior', () => {
   it('clears only the retried target and rejects obsolete error and success replies', async () => {
     const { ctx, dispose } = await mountProvider({ language: 'ja' });
     try {
-      languageDataCatalogCb([{ language: 'ja', installed: false }]);
+      languageDataCatalogCb([{ language: 'ja', installed: false, dictionaryPacks: [{ targetLanguage: 'fr' }] }]);
       ctx.installLanguageData('ja', 'fr');
       const firstId = mockBridge.localization.installLanguageData.mock.calls.at(-1)![3];
       languageDataInstallErrorCb({ language: 'ja', dictionaryTargetLanguage: 'fr', operationId: firstId, error: 'first failure' });
@@ -478,13 +481,15 @@ describe('LanguageContext - provider behavior', () => {
     } finally { dispose(); }
   });
 
-  it('language-data installed events update one catalog row', async () => {
+  it('installed ACK waits for a current catalog publication before updating its descriptor', async () => {
     const { ctx, dispose } = await mountProvider({ language: 'ja' });
     languageDataCatalogCb([
       { language: 'de', name: 'German', installed: false, missingRequiredAssets: ['dictionary'] },
     ]);
 
     languageDataInstalledCb({ language: 'de', name: 'German', installed: true, missingRequiredAssets: [] });
+    expect(ctx.getLanguageDataStatus('de')?.installed).toBe(false);
+    languageDataCatalogCb([{ language: 'de', name: 'German', installed: true, missingRequiredAssets: [] }]);
 
     expect(ctx.getLanguageDataStatus('de')).toEqual(expect.objectContaining({
       language: 'de',

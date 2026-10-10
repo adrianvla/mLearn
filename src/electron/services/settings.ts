@@ -1,4 +1,4 @@
-import { notifySettingsCommitted } from './settingsChanges';
+import { notifySettingsCommitted, subscribeSettingsCommitted } from './settingsChanges';
 /**
  * Settings Service
  * Handles loading, saving, and IPC for application settings
@@ -23,11 +23,21 @@ import { ensureLanguagePythonRequirementsInstalled } from './pythonRuntimeRequir
 import { getLogger } from '../../shared/utils/logger';
 import { compareSemanticVersions } from '../../shared/semanticVersion';
 import { isLegacyBuiltinModelFile } from '../../shared/builtinModels';
+import { languageCatalogSourceKey } from '../../shared/languageCatalogConfiguration';
+import type { LanguageDataCatalogRequest, LanguageDataCatalogPublication } from '../../shared/types';
 
 const log = getLogger('electron.settings');
 const LANGUAGE_CATALOG_FETCH_TIMEOUT_MS = 5000;
 
 let settingsSaveQueue: Promise<void> = Promise.resolve();
+let catalogRevision = 0;
+let catalogSettingsSubscription: (() => void) | undefined;
+const catalogLoads = new Map<string, Promise<{ catalog: LanguageDataMap; error?: string }>>();
+
+function invalidateLanguageCatalog(): void {
+  catalogRevision += 1;
+  for (const target of webContents.getAllWebContents()) target.send(IPC_CHANNELS.LANGUAGE_DATA_CATALOG_INVALIDATED);
+}
 
 type LoadedSettings = Partial<Settings>;
 
@@ -769,23 +779,27 @@ async function fetchRemoteLanguageCatalog(catalogUrl: string): Promise<LanguageD
   }
 }
 
-export async function loadLanguagePackageCatalog(settings: Settings = loadSettings()): Promise<LanguageDataMap> {
+async function loadLanguagePackageCatalogResult(settings: Settings): Promise<{ catalog: LanguageDataMap; error?: string }> {
   const catalogUrl = settings.languageCatalogUrl?.trim();
   if (!catalogUrl) {
-    return {};
+    return { catalog: {}, error: 'No language catalog URL configured' };
   }
 
   try {
-    return await fetchRemoteLanguageCatalog(catalogUrl);
+    return { catalog: await fetchRemoteLanguageCatalog(catalogUrl) };
   } catch (error) {
     log.warn(`Failed to load remote language catalog from ${catalogUrl}:`, error);
   }
   const mirrored = await probeMirrorCatalog(catalogUrl, settings.catalogMirrorDomain, fetchRemoteLanguageCatalog);
   if (mirrored) {
-    return mirrored;
+    return { catalog: mirrored };
   }
   log.warn('No catalog mirror reachable; returning empty language catalog.');
-  return {};
+  return { catalog: {}, error: 'Unable to load the configured language catalog' };
+}
+
+export async function loadLanguagePackageCatalog(settings: Settings = loadSettings()): Promise<LanguageDataMap> {
+  return (await loadLanguagePackageCatalogResult(settings)).catalog;
 }
 
 export async function loadLanguageCatalogData(_settings: Settings = loadSettings()): Promise<LanguageDataMap> {
@@ -845,6 +859,15 @@ function getLanguageDataComponentsFromInstallOptions(options: InstallOptions): L
 }
 
 export function setupSettingsIPC(): void {
+  catalogSettingsSubscription?.();
+  let committedSourceKey = languageCatalogSourceKey(loadSettings());
+  catalogSettingsSubscription = subscribeSettingsCommitted((settings, profile) => {
+    if (profile !== getUserDataPath()) return;
+    const key = languageCatalogSourceKey(settings);
+    if (key === committedSourceKey) return;
+    committedSourceKey = key;
+    invalidateLanguageCatalog();
+  });
   ipcMain.handle(IPC_CHANNELS.SETTINGS_SAVE_BARRIER, () => settingsSaveQueue);
   ipcMain.on(IPC_CHANNELS.GET_SETTINGS, (event) => {
     const settings = loadSettings();
@@ -882,24 +905,51 @@ export function setupSettingsIPC(): void {
     event.reply(IPC_CHANNELS.LANG_DATA, langData);
   });
 
-  ipcMain.on(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, async (event) => {
+  ipcMain.on(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, async (event, request: LanguageDataCatalogRequest) => {
+    if (!request || typeof request.requestId !== 'string' || typeof request.sourceKey !== 'string') return;
+    const saveFailure = (error: unknown): void => event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, {
+      ...request, catalog: [], error: error instanceof Error ? error.message : 'Settings could not be saved',
+    } satisfies LanguageDataCatalogPublication);
+    try { await settingsSaveQueue; } catch (error) { saveFailure(error); return; }
     const settings = loadSettings();
-    const langData = await loadLanguagePackageCatalog(settings);
-    event.reply(
-      IPC_CHANNELS.LANGUAGE_DATA_CATALOG,
-      getLanguageDataCatalogStatus(langData, app.getVersion(), allowsIncompatibleLanguageData(settings)),
-    );
+    const sourceKey = languageCatalogSourceKey(settings);
+    const revision = catalogRevision;
+    const root = resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data'));
+    const superseded = (): void => event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG,
+      { ...request, catalog: [], superseded: true } satisfies LanguageDataCatalogPublication);
+    if (request.sourceKey !== sourceKey) { superseded(); return; }
+    const loadKey = JSON.stringify([sourceKey, revision]);
+    let loading = catalogLoads.get(loadKey);
+    if (!loading) {
+      loading = loadLanguagePackageCatalogResult(settings);
+      catalogLoads.set(loadKey, loading);
+    }
+    let result: Awaited<typeof loading>;
+    try { result = await loading; }
+    finally { if (catalogLoads.get(loadKey) === loading) catalogLoads.delete(loadKey); }
+    try { await settingsSaveQueue; } catch (error) { saveFailure(error); return; }
+    if (revision !== catalogRevision || sourceKey !== languageCatalogSourceKey(loadSettings())
+      || root !== resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data'))) { superseded(); return; }
+    event.reply(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, {
+      ...request,
+      catalog: result.error ? [] : getLanguageDataCatalogStatus(result.catalog, app.getVersion(), allowsIncompatibleLanguageData(settings)),
+      ...(result.error ? { error: result.error } : {}),
+    } satisfies LanguageDataCatalogPublication);
   });
 
-  ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, requestedOperationId?: string) => {
+  ipcMain.on(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, async (event, language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, requestedOperationId?: string, requestedSourceKey?: string) => {
     const operationId = requestedOperationId ?? crypto.randomUUID();
     let components: readonly LanguagePythonRequirementComponent[] = [];
     const progress = (phase: LanguageDataInstallProgress['phase'], bytes?: { downloadedBytes: number; expectedBytes: number }, generation?: string, error?: string): void => {
       event.reply(IPC_CHANNELS.LANGUAGE_DATA_INSTALL_PROGRESS, { operationId, language, dictionaryTargetLanguage, components, phase, ...bytes, generation, error });
     };
     try {
+      await settingsSaveQueue;
       const settings = loadSettings();
-      const langData = await loadLanguagePackageCatalog();
+      if (requestedSourceKey !== languageCatalogSourceKey(settings)) throw new Error('Language catalog changed before installation; refresh and retry');
+      const langData = await loadLanguagePackageCatalog(settings);
+      await settingsSaveQueue;
+      if (requestedSourceKey !== languageCatalogSourceKey(loadSettings())) throw new Error('Language catalog changed before installation; refresh and retry');
       const effectiveInstallOptions = installOptions ?? getInstallOptionsFromSettings(settings);
       components = installOptions
         ? getLanguageDataComponentsFromInstallOptions(effectiveInstallOptions)
@@ -954,9 +1004,9 @@ export function setupSettingsIPC(): void {
       const admittedMetadata = loadLangData(admittedRoot);
       for (const target of webContents.getAllWebContents()) {
         if (installedStatus) target.send(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, { ...installedStatus, operationId, dictionaryTargetLanguage, activationGeneration: generation });
-        target.send(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, catalog);
         target.send(IPC_CHANNELS.LANG_DATA, admittedMetadata);
       }
+      invalidateLanguageCatalog();
       progress('ready', undefined, generation);
     } catch (error) {
       progress('error', undefined, undefined, error instanceof Error ? error.message : String(error));

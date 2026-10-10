@@ -9,7 +9,7 @@ import type { EffectiveThresholds } from '../shared/knowledge/effectiveKnowledge
 import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { IPC_CHANNELS } from '../shared/constants';
 import type { PluginBusEnvelope, PluginBusJSONValue } from '../shared/pluginBus';
-import type { Settings, FlashcardStore, FlashcardWriteAuthorization, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceTtsStopScope, VoiceSessionRequestIdentity, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
+import type { Settings, FlashcardStore, FlashcardWriteAuthorization, InstallOptions, WindowSize, PromptOptions, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceTtsStopScope, VoiceSessionRequestIdentity, VoiceTtsAudio, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, SystemMemoryInfo, OverlayVideoState, OverlayVideoScreenshot, OverlayGeometry, OverlayCommand, OverlaySubtitleTracks, LanguageDataCatalogStatus, LanguageDataCatalogRequest, LanguageDataCatalogPublication, LanguageDataInstallError, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from '../shared/types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from '../shared/plugins/types';
 import type { AppUpdateState } from '../shared/appUpdate';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../shared/knowledgeEvents';
@@ -79,11 +79,13 @@ const mLearnIPC = {
   getLangData: () => ipcRenderer.send(IPC_CHANNELS.GET_LANG_DATA),
   onLangData: (callback: (data: Record<string, unknown>) => void) =>
     ipcOn(IPC_CHANNELS.LANG_DATA, (_event, data) => callback(data)),
-  getLanguageDataCatalog: () => ipcRenderer.send(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG),
-  onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) =>
+  getLanguageDataCatalog: (request: LanguageDataCatalogRequest) => ipcRenderer.send(IPC_CHANNELS.GET_LANGUAGE_DATA_CATALOG, request),
+  onLanguageDataCatalog: (callback: (data: LanguageDataCatalogPublication) => void) =>
     ipcOn(IPC_CHANNELS.LANGUAGE_DATA_CATALOG, (_event, data) => callback(data)),
-  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, operationId?: string) =>
-    ipcRenderer.send(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, language, dictionaryTargetLanguage, installOptions, operationId),
+  onLanguageDataCatalogInvalidated: (callback: () => void) =>
+    ipcOn(IPC_CHANNELS.LANGUAGE_DATA_CATALOG_INVALIDATED, () => callback()),
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, operationId?: string, catalogSourceKey?: string) =>
+    ipcRenderer.send(IPC_CHANNELS.INSTALL_LANGUAGE_DATA, language, dictionaryTargetLanguage, installOptions, operationId, catalogSourceKey),
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) =>
     ipcOn(IPC_CHANNELS.LANGUAGE_DATA_INSTALLED, (_event, status) => callback(status)),
   onLanguageDataInstallProgress: (callback: (payload: import('../shared/types').LanguageDataInstallProgress) => void) =>

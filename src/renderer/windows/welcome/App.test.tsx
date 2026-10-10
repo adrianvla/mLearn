@@ -238,7 +238,7 @@ describe('WelcomeApp', () => {
     settingsSavedHandler = undefined;
     saveSettingsMock.mockReset();
     updateSettingsMock.mockReset();
-    installLanguageDataMock.mockReset();
+    installLanguageDataMock.mockReset().mockReturnValue(true);
     changeLanguageMock.mockReset();
     completeInitialSetupMock.mockReset();
     vi.spyOn(globalThis, 'setInterval').mockImplementation(() => 1 as unknown as ReturnType<typeof setInterval>);
@@ -424,6 +424,22 @@ describe('WelcomeApp', () => {
     expect(installLanguageDataMock).not.toHaveBeenCalled();
 
     dispose();
+  });
+
+  it('settles a refused catalog admission instead of keeping onboarding pending', async () => {
+    setLanguageDataCatalog([{ language: 'ja', name: 'Japanese', installed: false, missingRequiredAssets: ['language-metadata'], dictionaryPacks: [{ targetLanguage: 'en', name: 'Japanese -> English', installed: false }] }]);
+    installLanguageDataMock.mockReturnValue(false);
+    const { default: WelcomeApp } = await import('./App');
+    const dispose = render(() => <WelcomeApp />, container);
+    try {
+      settingsHandler?.(testSettings);
+      installerStateHandler?.({ success: true });
+      const button = Array.from(container.querySelectorAll('button')).find(button => button.textContent?.includes('Install Selected Language Data'))!;
+      button.click();
+      expect(installLanguageDataMock).toHaveBeenCalledOnce();
+      expect(button.disabled).toBe(false);
+      expect(container.textContent).toContain('mlearn.ComponentsTab.LanguageData.CatalogLoadError');
+    } finally { dispose(); }
   });
 
   it('passes the selected runtime components into language data installation', async () => {

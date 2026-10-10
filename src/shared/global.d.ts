@@ -8,7 +8,7 @@ import type { LearningDecision, LearningDecisionRecord } from './learningDecisio
  * Extends Window interface with mLearn IPC API
  */
 
-import type { Settings, FlashcardStore, FlashcardWriteAuthorization, LanguageDataCatalogStatus, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceTtsStopScope, VoiceSessionRequestIdentity, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from './types';
+import type { Settings, FlashcardStore, FlashcardWriteAuthorization, LanguageDataCatalogStatus, LanguageDataCatalogRequest, LanguageDataCatalogPublication, LanguageDataMap, InstallOptions, InstallerState, OpenWindowPayload, MediaStats, LLMChatMessage, LLMToolDefinition, LLMStreamChunk, LLMModelStatus, VoiceModelStatus, VoiceSTTResult, VoiceVadEvent, VoiceTtsAudio, VoiceTtsStatus, VoiceTtsRequestIdentity, VoiceTtsStopScope, VoiceSessionRequestIdentity, VoiceMode, VoiceSessionReady, VoiceSessionStatus, VoiceSessionError, VoiceSample, PipProgress, SystemMemoryInfo, PythonComponentId, PythonComponentInfo, ComponentsUninstallResult } from './types';
 import type { PluginInstallResult, PluginKVGetResult, PluginState, PluginWindowPayload } from './plugins/types';
 import type { PluginBusEnvelope, PluginBusJSONValue } from './pluginBus';
 import type { AppUpdateState } from './appUpdate';
@@ -109,9 +109,10 @@ export interface MLearnIPC {
   // Language Data
   getLangData: () => void;
   onLangData: (callback: (data: LanguageDataMap) => void) => () => void;
-  getLanguageDataCatalog: () => void;
-  onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) => () => void;
-  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, operationId?: string) => void;
+  getLanguageDataCatalog: (request: LanguageDataCatalogRequest) => void;
+  onLanguageDataCatalog: (callback: (data: LanguageDataCatalogPublication) => void) => () => void;
+  onLanguageDataCatalogInvalidated: (callback: () => void) => () => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, operationId?: string, catalogSourceKey?: string) => void;
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
   onLanguageDataInstallProgress: (callback: (payload: import('./types').LanguageDataInstallProgress) => void) => () => void;
   onLanguageDataInstallError: (callback: (payload: import('./types').LanguageDataInstallError) => void) => () => void;

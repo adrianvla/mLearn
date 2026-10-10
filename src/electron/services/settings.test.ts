@@ -9,6 +9,7 @@ import { createTempDir } from '../../../test/helpers/tempDir';
 import type { TempDir } from '../../../test/helpers/tempDir';
 import { DEFAULT_SETTINGS, type LanguageDataMap } from '../../shared/types';
 import { DEFAULT_LANGUAGE_CATALOG_URL } from '../../shared/constants';
+import { languageCatalogSourceKey } from '../../shared/languageCatalogConfiguration';
 
 const mockIpcListeners = new Map<string, ((event: MockIpcEvent, ...args: unknown[]) => void)[]>();
 
@@ -1657,6 +1658,76 @@ describe('GET_LANG_DATA IPC handler', () => {
 });
 
 describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
+  it('settles a failed settings save as a catalog error rather than leaving the consumer waiting', async () => {
+    mod.setupSettingsIPC();
+    const rename = vi.spyOn(fs.promises, 'rename').mockRejectedValueOnce(new Error('controlled settings write failure'));
+    const settings = { ...mod.loadSettings(), languageCatalogUrl: 'https://catalog.example/failed.json' };
+    const saving = mod.saveSettings(settings);
+    const failure = saving.catch(error => error);
+    const event = makeEvent();
+    const request = { requestId: 'failed-save', sourceKey: languageCatalogSourceKey(settings) };
+    await Promise.all([failure, mockIpcListeners.get('get-language-data-catalog')![0](event, request)]);
+    expect(event.reply).toHaveBeenCalledWith('language-data-catalog', { ...request, catalog: [], error: 'controlled settings write failure' });
+    rename.mockRestore();
+  });
+  it('awaits a queued settings commit before reading the requested catalog', async () => {
+    mod.setupSettingsIPC();
+    const settings = { ...mod.loadSettings(), languageCatalogUrl: 'https://catalog.example/committed.json', catalogMirrorDomain: '' };
+    const saving = mod.saveSettings(settings);
+    const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ languages: {} }) });
+    vi.stubGlobal('fetch', fetch);
+    const event = makeEvent();
+    const request = { requestId: 'after-save', sourceKey: languageCatalogSourceKey(settings) };
+    await Promise.all([saving, ...(mockIpcListeners.get('get-language-data-catalog') ?? []).map(handler => handler(event, request))]);
+    expect(fetch).toHaveBeenCalledWith(settings.languageCatalogUrl, expect.anything());
+    expect(event.reply).toHaveBeenCalledWith('language-data-catalog', { ...request, catalog: [] });
+  });
+
+  it('shares an in-flight fetch and supersedes all old-source publications after a commit', async () => {
+    await mod.saveSettings({ ...mod.loadSettings(), languageCatalogUrl: 'https://catalog.example/a.json', catalogMirrorDomain: '' });
+    mod.setupSettingsIPC();
+    let resolveFetch!: (value: unknown) => void;
+    const fetch = vi.fn(() => new Promise(resolve => { resolveFetch = resolve; }));
+    vi.stubGlobal('fetch', fetch);
+    const handler = mockIpcListeners.get('get-language-data-catalog')![0];
+    const one = makeEvent(); const two = makeEvent();
+    const sourceKey = languageCatalogSourceKey(mod.loadSettings());
+    const requests = [{ requestId: 'one', sourceKey }, { requestId: 'two', sourceKey }];
+    const reading = [handler(one, requests[0]), handler(two, requests[1])];
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    await mod.saveSettings({ ...mod.loadSettings(), languageCatalogUrl: 'https://catalog.example/b.json' });
+    resolveFetch({ ok: true, json: async () => ({ languages: {} }) });
+    await Promise.all(reading);
+    expect(one.reply).toHaveBeenCalledWith('language-data-catalog', { ...requests[0], catalog: [], superseded: true });
+    expect(two.reply).toHaveBeenCalledWith('language-data-catalog', { ...requests[1], catalog: [], superseded: true });
+    expect(mockBroadcastSend).toHaveBeenCalledWith('language-data-catalog-invalidated');
+  });
+
+  it('refuses an install whose source changes during the catalog fetch before any download', async () => {
+    await mod.saveSettings({ ...mod.loadSettings(), languageCatalogUrl: 'https://catalog.example/a.json', catalogMirrorDomain: '' });
+    mod.setupSettingsIPC();
+    let resolveFetch!: (value: unknown) => void;
+    const fetch = vi.fn(() => new Promise(resolve => { resolveFetch = resolve; }));
+    vi.stubGlobal('fetch', fetch);
+    const event = makeEvent();
+    const installing = mockIpcListeners.get('install-language-data')![0](event, 'aa', undefined, undefined, 'admission', languageCatalogSourceKey(mod.loadSettings()));
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    await mod.saveSettings({ ...mod.loadSettings(), languageCatalogUrl: 'https://catalog.example/b.json' });
+    resolveFetch({ ok: true, json: async () => ({ languages: {} }) });
+    await installing;
+    expect(mockDownloadFileWithProgress).not.toHaveBeenCalled();
+    expect(event.reply).toHaveBeenCalledWith('language-data-install-error', expect.objectContaining({ operationId: 'admission', language: 'aa', error: expect.stringContaining('catalog changed') }));
+  });
+
+  it('rejects an already stale install source at the main owner before fetching', async () => {
+    mod.setupSettingsIPC();
+    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+    const event = makeEvent();
+    await mockIpcListeners.get('install-language-data')![0](event, 'aa', undefined, undefined, 'stale', 'other-source');
+    expect(fetch).not.toHaveBeenCalled();
+    expect(event.reply).toHaveBeenCalledWith('language-data-install-error', expect.objectContaining({ operationId: 'stale', error: expect.stringContaining('catalog changed') }));
+  });
+
   it('replies with install status for every language', async () => {
     const installedDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     fs.mkdirSync(installedDir, { recursive: true });
@@ -1692,9 +1763,9 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('get-language-data-catalog') ?? [];
     const event = makeEvent();
-    for (const h of handlers) await h(event);
+    for (const h of handlers) await h(event, { requestId: 'catalog-read', sourceKey: languageCatalogSourceKey(mod.loadSettings()) });
 
-    expect(event.reply).toHaveBeenCalledWith('language-data-catalog', [
+    expect(event.reply).toHaveBeenCalledWith('language-data-catalog', { requestId: 'catalog-read', sourceKey: languageCatalogSourceKey(mod.loadSettings()), catalog: [
       expect.objectContaining({
         language: 'aa',
         name: 'Alpha',
@@ -1709,7 +1780,7 @@ describe('GET_LANGUAGE_DATA_CATALOG IPC handler', () => {
         minimumAppVersion: '2.7.0',
         missingRequiredAssets: ['freq'],
       }),
-    ]);
+    ] });
   });
 });
 
@@ -1784,7 +1855,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('install-language-data') ?? [];
     const event = makeEvent();
-    for (const h of handlers) await h(event, 'aa');
+    for (const h of handlers) await h(event, 'aa', undefined, undefined, undefined, languageCatalogSourceKey(mod.loadSettings()));
 
     expect(fs.existsSync(path.join(resolveLanguageDataRoot(path.join(tempDir.tmpDir, 'language-data')), 'languages', 'aa.freq.json'))).toBe(true);
     expect(mockBroadcastSend).toHaveBeenCalledWith('language-data-installed', expect.objectContaining({
@@ -1792,12 +1863,8 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
       installed: true,
       missingRequiredAssets: [],
     }));
-    expect(mockBroadcastSend).toHaveBeenCalledWith('language-data-catalog', [
-      expect.objectContaining({
-        language: 'aa',
-        installed: true,
-      }),
-    ]);
+    expect(mockBroadcastSend).toHaveBeenCalledWith('language-data-catalog-invalidated');
+    expect(mockBroadcastSend).not.toHaveBeenCalledWith('language-data-catalog', expect.anything());
     expect(mockBroadcastSend).toHaveBeenCalledWith('lang-data', expect.objectContaining({
       aa: expect.anything(),
     }));
@@ -1868,7 +1935,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('install-language-data') ?? [];
     const event = makeEvent();
-    for (const h of handlers) await h(event, 'aa');
+    for (const h of handlers) await h(event, 'aa', undefined, undefined, undefined, languageCatalogSourceKey(mod.loadSettings()));
 
     const { ensureLanguageGenerationReady } = await import('./pythonBackend');
     if (mode === 'system-unavailable') {
@@ -1957,7 +2024,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('install-language-data') ?? [];
     const event = makeEvent();
-    for (const h of handlers) await h(event, 'aa');
+    for (const h of handlers) await h(event, 'aa', undefined, undefined, undefined, languageCatalogSourceKey(mod.loadSettings()));
 
     expect(mockEnsureLanguagePythonRequirementsInstalled).toHaveBeenCalledWith(
       'aa',
@@ -1979,7 +2046,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     mockEnsureLanguagePythonRequirementsInstalled.mockClear();
     const explicitOptions = { includeLLM: false, includeOCR: true, includeVoice: false };
     const explicitEvent = makeEvent();
-    for (const h of handlers) await h(explicitEvent, 'aa', undefined, explicitOptions);
+    for (const h of handlers) await h(explicitEvent, 'aa', undefined, explicitOptions, undefined, languageCatalogSourceKey(mod.loadSettings()));
 
     expect(mockEnsureLanguagePythonRequirementsInstalled).toHaveBeenCalledWith(
       'aa',
@@ -2033,7 +2100,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('install-language-data') ?? [];
     const event = makeEvent();
-    for (const h of handlers) await h(event, 'aa', 'en');
+    for (const h of handlers) await h(event, 'aa', 'en', undefined, undefined, languageCatalogSourceKey(mod.loadSettings()));
 
     expect(event.reply).toHaveBeenCalledWith('language-data-install-error', expect.objectContaining({
       language: 'aa',
@@ -2072,7 +2139,7 @@ describe('INSTALL_LANGUAGE_DATA IPC handler', () => {
     mod.setupSettingsIPC();
     const handlers = mockIpcListeners.get('install-language-data') ?? [];
     const event = makeEvent();
-    for (const h of handlers) await h(event, 'aa');
+    for (const h of handlers) await h(event, 'aa', undefined, undefined, undefined, languageCatalogSourceKey(mod.loadSettings()));
 
     expect(event.reply).toHaveBeenCalledWith('language-data-install-error', expect.objectContaining({
       language: 'aa',

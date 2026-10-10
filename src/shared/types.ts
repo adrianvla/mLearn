@@ -1813,6 +1813,17 @@ export interface RuntimeCatalog {
   runtimes: Partial<Record<string, RuntimeCatalogEntry>>;
 }
 
+export interface LanguageDataCatalogRequest {
+  requestId: string;
+  sourceKey: string;
+}
+
+export interface LanguageDataCatalogPublication extends LanguageDataCatalogRequest {
+  catalog: LanguageDataCatalogStatus[];
+  superseded?: boolean;
+  error?: string;
+}
+
 export interface LanguageDataCatalogStatus {
   operationId?: string;
   dictionaryTargetLanguage?: string;

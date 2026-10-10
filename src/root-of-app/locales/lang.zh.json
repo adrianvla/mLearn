@@ -4059,7 +4059,10 @@
         "CoreTitle": "{language} 语言包",
         "CoreDescription": "{language} 的核心运行时数据。",
         "DictionaryDescription": "{language} 的 {target} 释义。",
-        "SizeStatus": "{installed} / {total}"
+        "SizeStatus": "{installed} / {total}",
+        "RefreshingCatalog": "正在刷新语言目录…",
+        "CatalogLoadError": "无法加载语言目录",
+        "RetryCatalog": "重试语言目录"
       },
       "SizeApprox": "预计大小：{size}",
       "Toast": {

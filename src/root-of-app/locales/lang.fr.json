@@ -4059,7 +4059,10 @@
         "CoreTitle": "Paquet de langue {language}",
         "CoreDescription": "Données runtime principales pour {language}.",
         "DictionaryDescription": "Définitions pour {language} en {target}.",
-        "SizeStatus": "{installed} sur {total}"
+        "SizeStatus": "{installed} sur {total}",
+        "RefreshingCatalog": "Actualisation du catalogue de langues…",
+        "CatalogLoadError": "Impossible de charger le catalogue de langues",
+        "RetryCatalog": "Réessayer le catalogue"
       },
       "SizeApprox": "Taille approximative : {size}",
       "Toast": {

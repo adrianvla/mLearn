@@ -12,6 +12,8 @@ const installLanguageDataMock = vi.fn();
 const [installJobs, setInstallJobs] = createSignal<Record<string, LanguageDataInstallProgress>>({});
 const [installingTargets, setInstallingTargets] = createSignal<string[]>([]);
 const [catalogRevision, setCatalogRevision] = createSignal(0);
+const [catalogLoading, setCatalogLoading] = createSignal(false);
+const [catalogError, setCatalogError] = createSignal<string | null>(null);
 const [targetErrors, setTargetErrors] = createSignal<Record<string, LanguageDataInstallError>>({});
 let installStarted: (() => void) | null = null;
 let installStatus: ((status: string) => void) | null = null;
@@ -123,8 +125,13 @@ vi.mock('../../../context', () => ({
   }),
   useLanguage: () => ({
     langData: testLangData,
+    isLanguageDataCatalogLoading: catalogLoading,
+    languageDataCatalogError: catalogError,
+    refreshLanguageDataCatalog: vi.fn(),
+    getLanguageDataStatus: (language: string) => language === 'ja' && catalogRevision() !== 3 ? { language: 'ja', dictionaryPacks: [{ targetLanguage: 'en' }, { targetLanguage: 'fr' }] } : undefined,
     languageDataCatalog: () => {
       catalogRevision();
+      if (catalogRevision() === 3) return [];
       return [
       {
         language: 'ja',
@@ -244,6 +251,8 @@ describe('ComponentsTab', () => {
     setInstallJobs({});
     setInstallingTargets([]);
     setCatalogRevision(0);
+    setCatalogLoading(false);
+    setCatalogError(null);
     setTargetErrors({});
     managedSettingKey = null;
     testSettings.llmEnabled = true;
@@ -329,6 +338,43 @@ describe('ComponentsTab', () => {
     } finally { dispose(); }
   });
 
+  it('retains an admitted row through catalog invalidation and terminal failure acknowledgement', async () => {
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+    try {
+      const row = Array.from(container.querySelectorAll('.components-tab__language-pack')).find(row => row.textContent?.includes('French'))!;
+      const button = row.querySelector('button')!;
+      setInstallingTargets(['ja:fr']);
+      setInstallJobs({ owned: { operationId: 'owned', language: 'ja', dictionaryTargetLanguage: 'fr', components: ['dictionary'], phase: 'downloading', downloadedBytes: 17, expectedBytes: 100 } });
+      setCatalogLoading(true); setCatalogRevision(3);
+      expect(row.isConnected).toBe(true);
+      expect(row.querySelector('progress')?.value).toBe(17);
+      expect(button.disabled).toBe(true);
+      setCatalogLoading(false);
+      setInstallJobs({ owned: { operationId: 'owned', language: 'ja', dictionaryTargetLanguage: 'fr', components: ['dictionary'], phase: 'error' } });
+      setInstallingTargets([]); // phase arrived; scoped error ACK has not arrived yet
+      expect(row.isConnected).toBe(true);
+      setTargetErrors({ 'ja:fr': { operationId: 'owned', language: 'ja', dictionaryTargetLanguage: 'fr', error: 'source transfer failed' } });
+      expect(row.isConnected).toBe(true);
+      expect(row.textContent).toContain('source transfer failed');
+      expect(button.disabled).toBe(true); // current catalog has no descriptor to retry
+    } finally { dispose(); }
+  });
+
+  it('retains disabled rows while a catalog refresh fails instead of reporting an empty success', async () => {
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+    try {
+      const rows = Array.from(container.querySelectorAll('.components-tab__language-pack'));
+      setCatalogLoading(true); setCatalogRevision(3);
+      expect(rows.every(row => row.isConnected)).toBe(true);
+      setCatalogError('catalog unreachable'); setCatalogLoading(false);
+      expect(rows.every(row => row.isConnected)).toBe(true);
+      expect(container.textContent).toContain('catalog unreachable');
+      expect(rows.flatMap(row => Array.from(row.querySelectorAll('button'))).every(button => button.disabled)).toBe(true);
+    } finally { dispose(); }
+  });
+
   it('joins correlated language jobs to their own rows and reacts to byte and readiness phases', async () => {
     setInstallJobs({
       core: { operationId: 'core', language: 'ja', components: ['core'], phase: 'downloading', downloadedBytes: 42, expectedBytes: 100 },
@@ -348,7 +394,7 @@ describe('ComponentsTab', () => {
       expect(target.querySelector('progress')?.hasAttribute('value')).toBe(false);
       setInstallJobs(previous => ({ ...previous, core: { ...previous.core, phase: 'waiting-for-backend' } }));
       expect(container.querySelector('[data-operation-id="core"]')?.textContent).toContain('waiting-for-backend');
-      expect(container.querySelector('[data-operation-id="core"] progress')).toBeNull();
+      expect(container.querySelector('[data-operation-id="core"] progress')?.hasAttribute('value')).toBe(false);
       expect(container.querySelector('[data-operation-id="target"] progress')).not.toBeNull();
       setInstallJobs(previous => ({ ...previous, core: { ...previous.core, phase: 'ready' } }));
       expect(container.querySelector('[data-operation-id="core"]')).toBeNull();

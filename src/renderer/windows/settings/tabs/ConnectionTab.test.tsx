@@ -124,7 +124,8 @@ describe('ConnectionTab', () => {
 
     input!.value = 'https://pages.example.com/language-catalog.json';
     input!.dispatchEvent(new InputEvent('input', { bubbles: true }));
-
+    expect(updateSettingMock).not.toHaveBeenCalled();
+    input!.dispatchEvent(new Event('change', { bubbles: true }));
     expect(updateSettingMock).toHaveBeenCalledWith('languageCatalogUrl', 'https://pages.example.com/language-catalog.json');
     dispose();
   });

@@ -371,11 +371,15 @@ const WelcomeContent: Component = () => {
     setProgress(96);
     setOverallStatus(t('mlearn.Installer.Status.InstallingLanguageData'));
     logInfo(t('mlearn.Installer.Status.InstallingLanguageData'));
-    installLanguageData(languageCode, selectedDictionaryTargetLanguage() || undefined, {
+    const admitted = installLanguageData(languageCode, selectedDictionaryTargetLanguage() || undefined, {
       includeLLM: includeLLM(),
       includeOCR: effectiveIncludeOcr(),
       includeVoice: effectiveIncludeVoice(),
     });
+    if (!admitted) {
+      setPendingLanguageInstall(null);
+      setOverallStatus(t('mlearn.ComponentsTab.LanguageData.CatalogLoadError'));
+    }
   };
 
   const handleUILanguageChange = (languageCode: string) => {

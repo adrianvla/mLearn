@@ -15,7 +15,7 @@ import type {
   Settings,
   FlashcardStore,
   FlashcardWriteAuthorization,
-  LanguageDataCatalogStatus,
+  LanguageDataCatalogStatus, LanguageDataCatalogRequest, LanguageDataCatalogPublication,
   LanguageDataInstallError,
   LanguageDataMap,
   InstallOptions,
@@ -133,9 +133,10 @@ export interface LocalizationBridge {
   changeUILanguage: (langCode: string) => void;
   getLangData: () => void;
   onLangData: (callback: (data: LanguageDataMap) => void) => () => void;
-  getLanguageDataCatalog: () => void;
-  onLanguageDataCatalog: (callback: (data: LanguageDataCatalogStatus[]) => void) => () => void;
-  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, operationId?: string) => void;
+  getLanguageDataCatalog: (request: LanguageDataCatalogRequest) => void;
+  onLanguageDataCatalog: (callback: (data: LanguageDataCatalogPublication) => void) => () => void;
+  onLanguageDataCatalogInvalidated: (callback: () => void) => () => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions, operationId?: string, catalogSourceKey?: string) => void;
   onLanguageDataInstalled: (callback: (status: LanguageDataCatalogStatus | undefined) => void) => () => void;
   onLanguageDataInstallProgress: (callback: (payload: import('./../types').LanguageDataInstallProgress) => void) => () => void;
   onLanguageDataInstallError: (callback: (payload: LanguageDataInstallError) => void) => () => void;

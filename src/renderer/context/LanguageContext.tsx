@@ -44,6 +44,7 @@ import { prosodyVisible } from '../../shared/prosodySettings';
 import { buildLanguageFrequencyState, type LanguageFrequencyState } from '../../shared/utils/wordForms';
 import { getLogger } from '../../shared/utils/logger';
 import { useSettings } from './SettingsContext';
+import { languageCatalogSourceKey } from '../../shared/languageCatalogConfiguration';
 
 const log = getLogger("renderer.context.language");
 
@@ -117,8 +118,11 @@ interface LanguageContextValue {
   getFreqLevelNames: () => Record<string, string>;
   isLoading: () => boolean;
   languageDataCatalog: () => LanguageDataCatalogStatus[];
+  isLanguageDataCatalogLoading: () => boolean;
+  languageDataCatalogError: () => string | null;
+  refreshLanguageDataCatalog: () => void;
   getLanguageDataStatus: (language: string) => LanguageDataCatalogStatus | undefined;
-  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => void;
+  installLanguageData: (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions) => boolean;
   isLanguageDataInstalling: (language: string, dictionaryTargetLanguage?: string) => boolean;
   refreshLanguageData: () => void;
   languageDataInstallError: (language?: string, dictionaryTargetLanguage?: string) => LanguageDataInstallError | null;
@@ -172,12 +176,16 @@ interface LanguageProviderProps {
 
 export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) => {
   const parent = useContext(LanguageContext);
-  const { settings } = useSettings();
+  const { settings, isLoading: settingsLoading } = useSettings();
   const [baseLangData, setBaseLangData] = createStore<LanguageDataMap>({});
   const [langData, setLangData] = createStore<LanguageDataMap>({});
   const [wordFrequency, setWordFrequency] = createSignal<WordFrequencyMap>({});
   const [isLoading, setIsLoading] = createSignal(true);
   const [languageDataCatalog, setLanguageDataCatalog] = createSignal<LanguageDataCatalogStatus[]>([]);
+  const [catalogLoading, setCatalogLoading] = createSignal(true);
+  const [catalogError, setCatalogError] = createSignal<string | null>(null);
+  const [catalogListenersReady, setCatalogListenersReady] = createSignal(false);
+  let latestCatalogRequest: import('../../shared/types').LanguageDataCatalogRequest | undefined;
   const [languageDataInstallErrors, setLanguageDataInstallErrors] = createSignal<Record<string, LanguageDataInstallError>>({});
   const [latestInstallErrorKey, setLatestInstallErrorKey] = createSignal<string | null>(null);
   const languageDataInstallError = (language?: string, dictionaryTargetLanguage?: string): LanguageDataInstallError | null => {
@@ -224,11 +232,27 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     bridge.localization.getLangData();
   };
 
+  const refreshLanguageDataCatalog = () => {
+    if (parent || !catalogListenersReady() || settingsLoading()) return;
+    latestCatalogRequest = { requestId: crypto.randomUUID(), sourceKey: languageCatalogSourceKey(settings) };
+    setCatalogLoading(true);
+    setCatalogError(null);
+    // The current source owns no install descriptors until its matching reply.
+    // Components retains its admitted job rows separately while refreshing.
+    setLanguageDataCatalog([]);
+    getBridge().localization.getLanguageDataCatalog(latestCatalogRequest);
+  };
+
   const loadLanguageDataCatalog = () => {
     const bridge = getBridge();
     ipcCleanups.push(bridge.localization.onLanguageDataCatalog((data) => {
-      setLanguageDataCatalog(data);
+      if (!latestCatalogRequest || data.requestId !== latestCatalogRequest.requestId
+        || data.sourceKey !== latestCatalogRequest.sourceKey || data.superseded) return;
+      setLanguageDataCatalog(data.catalog);
+      setCatalogError(data.error ?? null);
+      setCatalogLoading(false);
     }));
+    ipcCleanups.push(bridge.localization.onLanguageDataCatalogInvalidated(refreshLanguageDataCatalog));
     ipcCleanups.push(bridge.localization.onLanguageDataInstalled((status) => {
       if (!status) return;
       const key = getLanguageDataInstallKey(status.language, status.dictionaryTargetLanguage);
@@ -239,11 +263,6 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
         const key = getLanguageDataInstallKey(status.language, status.dictionaryTargetLanguage);
         if (!status.operationId || next[key] === status.operationId) delete next[key];
         return next;
-      });
-      setLanguageDataCatalog((previous) => {
-        const next = previous.filter((item) => item.language !== status.language);
-        next.push(status);
-        return next.sort((left, right) => left.language.localeCompare(right.language));
       });
       clearLanguageDataInstallError(key);
       bridge.localization.getLangData();
@@ -263,6 +282,8 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
       }
     }));
     if (bridge.localization.onLanguageDataInstallProgress) ipcCleanups.push(bridge.localization.onLanguageDataInstallProgress(payload => {
+      const latest = latestInstallOperations.get(getLanguageDataInstallKey(payload.language, payload.dictionaryTargetLanguage));
+      if (latest && latest !== payload.operationId) return;
       setLanguageDataInstallJobs(previous => ({ ...previous, [payload.operationId]: payload }));
       if (payload.phase === 'ready' || payload.phase === 'error') setLanguageDataInstalls(previous => {
         const next = { ...previous }; const key = getLanguageDataInstallKey(payload.language, payload.dictionaryTargetLanguage);
@@ -270,8 +291,14 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
         return next;
       });
     }));
-    bridge.localization.getLanguageDataCatalog();
+    setCatalogListenersReady(true);
   };
+
+  createEffect(() => {
+    if (parent || !catalogListenersReady() || settingsLoading()) return;
+    languageCatalogSourceKey(settings);
+    refreshLanguageDataCatalog();
+  });
 
   // Parse word frequency data
   const parseWordFrequency = (data: LanguageDataMap) => {
@@ -294,7 +321,13 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
   const getLanguageDataInstallKey = (language: string, dictionaryTargetLanguage?: string): string =>
     dictionaryTargetLanguage ? `${language}:${dictionaryTargetLanguage}` : language;
 
-  const installLanguageData = (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions): void => {
+  const installLanguageData = (language: string, dictionaryTargetLanguage?: string, installOptions?: InstallOptions): boolean => {
+    const status = getLanguageDataStatus(language);
+    if (catalogLoading() || catalogError() || !status
+      || (dictionaryTargetLanguage && !status.dictionaryPacks?.some(pack => pack.targetLanguage === dictionaryTargetLanguage))) return false;
+    setLanguageDataInstallJobs(previous => Object.fromEntries(Object.entries(previous).filter(([, job]) =>
+      job.language !== language || job.dictionaryTargetLanguage !== dictionaryTargetLanguage
+      || (job.phase !== 'ready' && job.phase !== 'error'))));
     clearLanguageDataInstallError(getLanguageDataInstallKey(language, dictionaryTargetLanguage));
     // The no-argument accessor retains its legacy transient latest-error view;
     // scoped consumers keep every unrelated target failure until its own retry.
@@ -305,7 +338,8 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
       ...previous,
       [getLanguageDataInstallKey(language, dictionaryTargetLanguage)]: operationId,
     }));
-    getBridge().localization.installLanguageData(language, dictionaryTargetLanguage, installOptions, operationId);
+    getBridge().localization.installLanguageData(language, dictionaryTargetLanguage, installOptions, operationId, latestCatalogRequest?.sourceKey);
+    return true;
   };
 
   const isLanguageDataInstalling = (language: string, dictionaryTargetLanguage?: string): boolean =>
@@ -634,6 +668,9 @@ export const LanguageProvider: ParentComponent<LanguageProviderProps> = (props) 
     getFreqLevelNames,
     isLoading: parent?.isLoading ?? isLoading,
     languageDataCatalog: parent?.languageDataCatalog ?? languageDataCatalog,
+    isLanguageDataCatalogLoading: parent?.isLanguageDataCatalogLoading ?? catalogLoading,
+    languageDataCatalogError: parent?.languageDataCatalogError ?? catalogError,
+    refreshLanguageDataCatalog: parent?.refreshLanguageDataCatalog ?? refreshLanguageDataCatalog,
     getLanguageDataStatus: parent?.getLanguageDataStatus ?? getLanguageDataStatus,
     installLanguageData: parent?.installLanguageData ?? installLanguageData,
     isLanguageDataInstalling: parent?.isLanguageDataInstalling ?? isLanguageDataInstalling,
