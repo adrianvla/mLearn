@@ -124,10 +124,9 @@ export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; i
           onSelect={(id) => { setSelectedCapability(undefined); setEntityId(id); }}
         />
       </section>
-      <button type="button" class="graph-inspector__details" onClick={() => setDetails(!details())}>{t('mlearn.GraphInspector.Details')}</button>
-      <div class="graph-inspector__details-panel" hidden={!details()}>
+      <button type="button" class="graph-inspector__details" aria-expanded={details()} aria-controls="graph-inspector-details" onClick={() => setDetails(!details())}>{t('mlearn.GraphInspector.Knowledge')}</button>
+      <div id="graph-inspector-details" class="graph-inspector__details-panel" hidden={!details()}>
       <Show when={details()}><section class="graph-inspector__targets"><h2>{t('mlearn.GraphInspector.Capabilities')}</h2><For each={capabilitiesFor(neighborhood()!)}>{(capability) => <button type="button" class="graph-inspector__chip" classList={{ 'is-active': selectedCapability() === capability }} onClick={() => setSelectedCapability(capability)}>{t(CAPABILITY_LABEL_KEYS[capability] ?? capability)}</button>}</For></section></Show>
-      <Show when={details()}><pre>{`${neighborhood()!.center.id}\ndense: ${neighborhood()!.centerDenseId}\nrelations: ${neighborhood()!.relationCount}`}</pre></Show>
     <Show when={details() && journalPending()}><SkeletonText lines={3} /></Show>
     <Show when={details() && journalFailed()}><KnowledgeLoadError onRetry={() => setJournalRevision(value => value + 1)} /></Show>
     <Show when={details() && explanation()}>{(value) => <section class="graph-inspector__target">

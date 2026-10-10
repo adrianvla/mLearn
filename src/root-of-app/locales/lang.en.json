@@ -73,6 +73,7 @@
       "Unavailable": "The active language graph is not installed.",
       "SelectEntity": "Select a graph entity to inspect.",
       "Capabilities": "Capabilities",
+      "Knowledge": "Knowledge",
       "identity": "Identity",
       "property": "Properties",
       "support": "Related support",

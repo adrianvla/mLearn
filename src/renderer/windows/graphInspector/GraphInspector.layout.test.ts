@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const css = readFileSync('src/renderer/windows/graphInspector/GraphInspector.css', 'utf8');
+const graphCss = readFileSync('src/renderer/components/common/GraphNeighborhoodViz/GraphNeighborhoodViz.css', 'utf8');
 
 describe('standalone graph inspector layout', () => {
   it('bounds the canvas host and gives expanded details their own vertical scroller', () => {
@@ -14,6 +15,10 @@ describe('standalone graph inspector layout', () => {
     expect(inspectorRule).toMatch(/display:\s*flex/);
     const detailsRule = css.match(/\.graph-inspector__details-panel\s*\{([^}]*)\}/)?.[1];
     expect(detailsRule).toMatch(/overflow-y:\s*auto/);
-    expect(detailsRule).toMatch(/max-height:\s*35%/);
+    expect(detailsRule).toMatch(/max-height:\s*22%/);
+
+    const selectedDetailsRule = graphCss.match(/\.graph-viz--fill-viewport \.graph-viz__detail\s*\{([^}]*)\}/)?.[1];
+    expect(selectedDetailsRule).toMatch(/overflow-y:\s*auto/);
+    expect(selectedDetailsRule).toMatch(/max-height:\s*22%/);
   });
 });

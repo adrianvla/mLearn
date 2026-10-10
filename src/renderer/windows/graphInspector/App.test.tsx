@@ -67,6 +67,26 @@ describe('GraphInspectorContent', () => {
     container.remove();
   });
 
+  it('labels the knowledge panel separately and omits raw graph diagnostics', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const dispose = render(() => <GraphInspectorContent />, container);
+    try {
+      await flush();
+      const knowledgeToggle = container.querySelector<HTMLButtonElement>('.graph-inspector__details')!;
+      expect(knowledgeToggle.textContent).toBe('mlearn.GraphInspector.Knowledge');
+      expect(knowledgeToggle.getAttribute('aria-expanded')).toBe('false');
+      expect(knowledgeToggle.getAttribute('aria-controls')).toBe('graph-inspector-details');
+      knowledgeToggle.click();
+
+      expect(knowledgeToggle.getAttribute('aria-expanded')).toBe('true');
+      expect(container.textContent).not.toContain(entityId);
+      expect(container.textContent).not.toContain('dense: 4');
+      expect(container.textContent).not.toContain('relations: 2');
+      expect(container.textContent).toContain('mlearn.GraphInspector.Capabilities');
+    } finally { dispose(); container.remove(); }
+  });
+
   it.each(['rows', 'archive'] as const)('withholds no-evidence conclusions after %s failure and retries the same scope', async (owner) => {
     journalMocks[owner].mockRejectedValueOnce(new Error('journal unavailable'));
     const container = document.createElement('div');
