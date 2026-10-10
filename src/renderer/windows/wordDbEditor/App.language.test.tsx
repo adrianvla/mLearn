@@ -398,6 +398,20 @@ describe('WordDbEditorContent', () => {
     dispose();
   });
 
+  it('keeps the dictionary-unavailable alert inside the measured sticky header', async () => {
+    mockWordFrequency = {};
+    const { loadDictionaryUniverse } = await import('../../services/dictionaryUniverse');
+    vi.mocked(loadDictionaryUniverse).mockRejectedValueOnce(new Error('unavailable'));
+    const { WordDbEditorContent } = await import('./App');
+    const dispose = render(() => <WordDbEditorContent />, container);
+
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
+    const alert = container.querySelector('[role="alert"]');
+    const header = container.querySelector('.word-db-editor-header');
+    expect(header?.contains(alert)).toBe(true);
+    dispose();
+  });
+
   it('shows an empty database instead of loading forever when frequency data is unavailable', async () => {
     mockWordFrequency = {};
     const { WordDbEditorContent } = await import('./App');

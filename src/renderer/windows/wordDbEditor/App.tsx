@@ -700,12 +700,6 @@ export const WordDbEditorContent: Component = () => {
 
   return (
       <div class="word-db-editor" classList={{ 'managing-words': showManagement() }}>
-        <Show when={loadFailed() || dictionaryUnavailable()}>
-          <div role="alert" class="word-db-load-error">
-            <p>{t(loadFailed() ? 'mlearn.WordDbEditor.LoadError' : 'mlearn.WordDbEditor.DictionaryUnavailable')}</p>
-            <Button onClick={() => void loadAllWords()} disabled={isLoading()}>{t('mlearn.Knowledge.Retry')}</Button>
-          </div>
-        </Show>
         {/* While initializing or waiting for word frequency data, keep the
             list's geometry with placeholder rows instead of a blank page —
             the window opens as a stable shell, never as an empty table. */}
@@ -717,6 +711,12 @@ export const WordDbEditorContent: Component = () => {
 
         <Show when={isInitialized() && (browseMode() === 'ignored' || hasLoadedWords() || isLoading())}>
           <CollapsibleStickyHeader ref={setHeaderRef} getScrollContainer={entriesListRef} class="word-db-editor-header">
+            <Show when={loadFailed() || dictionaryUnavailable()}>
+              <div role="alert" class="word-db-load-error">
+                <p>{t(loadFailed() ? 'mlearn.WordDbEditor.LoadError' : 'mlearn.WordDbEditor.DictionaryUnavailable')}</p>
+                <Button onClick={() => void loadAllWords()} disabled={isLoading()}>{t('mlearn.Knowledge.Retry')}</Button>
+              </div>
+            </Show>
             {/* Search Bar */}
             <SearchBar
                 searchQuery={searchQuery}

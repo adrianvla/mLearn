@@ -24,6 +24,24 @@ body.reduce-transparency .word-db-editor{
   backdrop-filter: var(--backdrop-filter);
 }
 
+.word-db-load-error {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-4);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--color-warning);
+}
+
+.word-db-load-error p {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
 /* On mobile, fill mobile content area */
 .mobile-layout .word-db-editor {
   height: 100%;
