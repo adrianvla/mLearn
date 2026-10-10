@@ -43,6 +43,8 @@ export interface FlashcardEditorProps {
   initialContent?: Partial<FlashcardContent>;
   /** Called when save is clicked */
   onSave: (content: FlashcardContent) => void;
+  /** Prevent duplicate submissions while an existing card is being persisted. */
+  saving?: boolean;
   /** Called when cancel is clicked */
   onCancel: () => void;
   /** Whether to show stats section (for existing cards) */
@@ -448,9 +450,9 @@ export const FlashcardEditor: Component<FlashcardEditorProps> = (props) => {
 
       {/* Footer Actions */}
       <div class="editor-footer">
-        <Button onClick={props.onCancel}>{t('mlearn.Global.Cancel')}</Button>
-        <Button variant="primary" onClick={handleSave}>
-          {t('mlearn.Global.Actions.SaveChanges')}
+        <Button disabled={props.saving} onClick={props.onCancel}>{t('mlearn.Global.Cancel')}</Button>
+        <Button variant="primary" disabled={props.saving} onClick={handleSave}>
+          {t(props.saving ? 'mlearn.Flashcards.Modals.EditCard.Saving' : 'mlearn.Global.Actions.SaveChanges')}
         </Button>
       </div>
     </div>

@@ -33,7 +33,7 @@ const log = getLogger("renderer.wordDbEditor.app");
 
 export const WordDbEditorContent: Component = () => {
   const { getWordFrequency, currentLangData, getFreqLevelNames, getCanonicalForm, getWordVariants, getReadingVariants } = useLanguage();
-  const { addFlashcard, removeFlashcard, getCardByWord, getCardByWordSync, updateFlashcardContent, updateFlashcard, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync, store: flashcardStore } = useFlashcards();
+  const { addFlashcard, removeFlashcard, getCardByWord, getCardByWordSync, saveFlashcardEdit, isLoading: flashcardsLoading, getIgnoredWordsSync, unignoreWordForLanguage, getComprehensiveWordStatusWithSourceSync, store: flashcardStore } = useFlashcards();
   const { t } = useLocalization();
   const { showConfirm, ConfirmDialogElement } = useConfirmDialog();
   const { settings } = useSettings();
@@ -613,16 +613,10 @@ export const WordDbEditorContent: Component = () => {
     setEditFlashcardOpen(true);
   };
 
-  const handleEditFlashcardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => {
+  const handleEditFlashcardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>): Promise<boolean> => {
     const card = editingFlashcard();
-    if (!card) return;
-    if (metadataUpdates && Object.keys(metadataUpdates).length > 0) {
-      updateFlashcard(card.id, { content: { ...card.content, ...content }, ...metadataUpdates });
-    } else {
-      updateFlashcardContent(card.id, content);
-    }
-    setEditFlashcardOpen(false);
-    setEditingFlashcard(null);
+    if (!card) return Promise.resolve(false);
+    return saveFlashcardEdit(card.id, content, metadataUpdates);
   };
 
   const handleEditFlashcardCancel = () => {

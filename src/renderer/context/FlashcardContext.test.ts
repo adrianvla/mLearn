@@ -521,6 +521,7 @@ type FlashcardCtx = {
   removeFlashcard: (id: string, neverShowAgain?: boolean) => Promise<boolean>;
   updateFlashcard: (id: string, updates: Partial<Flashcard>) => void;
   updateFlashcardContent: (id: string, content: Partial<Record<string, unknown>>) => void;
+  saveFlashcardEdit: (id: string, content: Partial<FlashcardContent>, metadataUpdates?: Partial<Flashcard>) => Promise<boolean>;
   suspendCard: (id: string) => void;
   unsuspendCard: (id: string) => void;
   buryCard: (id: string) => void;
@@ -6094,6 +6095,48 @@ describe('FlashcardProvider', () => {
     ctx.updateFlashcardContent(id, { back: 'book (also: origin)' });
 
     expect(ctx.store.flashcards[id].content.back).toBe('book (also: origin)');
+    dispose();
+  });
+
+  it('keeps an explicit card edit uncommitted until the durable write is acknowledged', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'explicit-save', content: { type: 'word', front: '婚約者', back: 'fiance; fiancee' } });
+    seed(makeEmptyStore({ rev: revision, flashcards: { [card.id]: card } }));
+    let acknowledge!: (rev: number) => void;
+    let candidate!: FlashcardStore;
+    mockBridge.flashcards.saveFlashcards.mockImplementationOnce((saved: FlashcardStore) => new Promise(resolve => {
+      candidate = structuredClone(saved);
+      acknowledge = resolve;
+    }));
+
+    const save = ctx.saveFlashcardEdit(card.id, { back: 'fiancé(e)' });
+    await vi.waitFor(() => expect(acknowledge).toBeTypeOf('function'));
+
+    expect(candidate.flashcards[card.id].content.back).toBe('fiancé(e)');
+    expect(ctx.store.flashcards[card.id].content.back).toBe('fiance; fiancee');
+    revision += 1;
+    committed = structuredClone(candidate);
+    committed.rev = revision;
+    acceptedSaves.push(structuredClone(committed));
+    acknowledge(revision);
+
+    await expect(save).resolves.toBe(true);
+    expect(ctx.store.flashcards[card.id].content.back).toBe('fiancé(e)');
+    expect(committed!.flashcards[card.id].content.back).toBe('fiancé(e)');
+    expect(Object.keys(committed!.flashcards)).toEqual([card.id]);
+    dispose();
+  });
+
+  it('does not publish an explicit card edit when the durable write is refused', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({ id: 'refused-explicit-save', content: { type: 'word', front: '婚約者', back: 'fiance; fiancee' } });
+    seed(makeEmptyStore({ rev: revision, flashcards: { [card.id]: card } }));
+    mockBridge.flashcards.saveFlashcards.mockRejectedValueOnce(new Error('ENOSPC: no space left on device'));
+
+    await expect(ctx.saveFlashcardEdit(card.id, { back: 'fiancé(e)' })).resolves.toBe(false);
+
+    expect(ctx.store.flashcards[card.id].content.back).toBe('fiance; fiancee');
+    expect(committed!.flashcards[card.id].content.back).toBe('fiance; fiancee');
     dispose();
   });
 

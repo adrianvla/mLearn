@@ -102,7 +102,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     refreshQueue,
     generateExampleSentenceWithLLM,
     updateFlashcardContent,
-    updateFlashcard,
+    saveFlashcardEdit,
     submitRating,
     saveReviewPresentation,
     releaseReviewPosition,
@@ -1235,16 +1235,10 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
     }
   };
 
-  const handleEditCardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => {
+  const handleEditCardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>): Promise<boolean> => {
     const card = editingCard();
-    if (!card) return;
-    if (metadataUpdates && Object.keys(metadataUpdates).length > 0) {
-      updateFlashcard(card.id, { content: { ...card.content, ...content }, ...metadataUpdates });
-    } else {
-      updateFlashcardContent(card.id, content);
-    }
-    setShowEditModal(false);
-    setEditingCard(null);
+    if (!card) return Promise.resolve(false);
+    return saveFlashcardEdit(card.id, content, metadataUpdates);
   };
 
   const handleEditCardClose = () => {

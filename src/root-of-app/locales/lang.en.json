@@ -1329,6 +1329,8 @@
         },
         "EditCard": {
           "Title": "Edit Flashcard",
+          "Saving": "Saving…",
+          "SaveFailed": "Could not save this edit. Your changes are still here; try again.",
           "TabEditor": "Editor",
           "TabAdvanced": "Advanced",
           "AdvancedHint": "Edit raw flashcard data. Changes are applied when you save.",

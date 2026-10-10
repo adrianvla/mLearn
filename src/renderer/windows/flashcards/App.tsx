@@ -83,7 +83,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose: () => v
     removeFlashcard,
     addFlashcard,
     updateFlashcardContent,
-    updateFlashcard,
+    saveFlashcardEdit,
     getSuggestedFlashcardsSync,
     intervalToString,
     generateExampleSentencesWithLLM,
@@ -577,18 +577,10 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose: () => v
     setShowEditModal(true);
   };
 
-  const handleEditCardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => {
+  const handleEditCardSave = (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>): Promise<boolean> => {
     const card = editingCard();
-    if (!card) return;
-
-    if (metadataUpdates && Object.keys(metadataUpdates).length > 0) {
-      updateFlashcard(card.id, { content: { ...card.content, ...content }, ...metadataUpdates });
-    } else {
-      updateFlashcardContent(card.id, content);
-    }
-
-    setShowEditModal(false);
-    setEditingCard(null);
+    if (!card) return Promise.resolve(false);
+    return saveFlashcardEdit(card.id, content, metadataUpdates);
   };
 
   const handleEditCardCancel = () => {

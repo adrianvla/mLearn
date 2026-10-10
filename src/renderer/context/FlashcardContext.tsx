@@ -302,6 +302,7 @@ interface FlashcardContextValue {
   removeFlashcard: (id: string, neverShowAgain?: boolean) => Promise<boolean>;
   updateFlashcard: (id: string, updates: Partial<Flashcard>) => void;
   updateFlashcardContent: (id: string, content: Partial<FlashcardContent>, trackUserEdits?: boolean) => void;
+  saveFlashcardEdit: (id: string, content: Partial<FlashcardContent>, metadataUpdates?: Partial<Flashcard>) => Promise<boolean>;
   suspendCard: (id: string) => void;
   unsuspendCard: (id: string) => void;
   buryCard: (id: string) => void;
@@ -2468,6 +2469,82 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       }
     }));
     saveFlashcards();
+  };
+
+  // Explicit editor saves keep their draft isolated until the flashcard owner
+  // acknowledges the durable write. Background callers continue using
+  // updateFlashcardContent and its existing debounced path.
+  const saveFlashcardEdit = (
+    id: string,
+    content: Partial<FlashcardContent>,
+    metadataUpdates?: Partial<Flashcard>,
+  ): Promise<boolean> => {
+    const current = store.flashcards[id];
+    if (!current) return Promise.resolve(false);
+    const confirmed = JSON.stringify(current);
+    return saveFlashcardsImmediate((target, intent) => {
+      let card = target.flashcards[id];
+      if (!card) return;
+
+      const language = card.language || settings.language;
+      const oldWordKey = langKey(language, SRS.hashWordSync(getPrimaryWordFormForLanguage(card.content.front, language)));
+      const nextFront = typeof content.front === 'string' ? content.front : card.content.front;
+      const nextWordKey = langKey(language, SRS.hashWordSync(getPrimaryWordFormForLanguage(nextFront, language)));
+      const changedFields = (Object.keys(content) as Array<keyof FlashcardContent>).filter(key => (
+        key !== 'userEditedFields'
+        && card.content[key] !== content[key]
+        && canonicalize(card.content[key]) !== canonicalize(content[key])
+      ));
+
+      Object.assign(card.content, content);
+      if (changedFields.length > 0) {
+        card.content.userEditedFields = Array.from(new Set([
+          ...(card.content.userEditedFields ?? []),
+          ...changedFields.map(String),
+        ]));
+      }
+      if (metadataUpdates) {
+        Object.assign(card, metadataUpdates);
+        for (const field of ['buried', 'suspended'] as const) {
+          if (!Object.hasOwn(metadataUpdates, field)) continue;
+          if (metadataUpdates[field]) {
+            card = setFlashcardExclusion(card, field, true);
+            target.flashcards[id] = card;
+          } else clearFlashcardActionOwner(card, field);
+        }
+      }
+      card.lastUpdated = Date.now();
+
+      if (oldWordKey !== nextWordKey) {
+        const oldIds = (target.wordToCardMap[oldWordKey] ?? []).filter(cardId => cardId !== id);
+        if (oldIds.length > 0) {
+          target.wordToCardMap[oldWordKey] = oldIds;
+          target.wordStatsMap[oldWordKey] = calculateWordStats(oldIds.map(cardId => target.flashcards[cardId]).filter(Boolean));
+        } else {
+          delete target.wordToCardMap[oldWordKey];
+          delete target.wordStatsMap[oldWordKey];
+        }
+        const nextIds = target.wordToCardMap[nextWordKey] ?? [];
+        if (!nextIds.includes(id)) target.wordToCardMap[nextWordKey] = [...nextIds, id];
+        target.wordStatsMap[nextWordKey] = calculateWordStats(
+          target.wordToCardMap[nextWordKey].map(cardId => target.flashcards[cardId]).filter(Boolean),
+        );
+
+        intent.wordToCardMap = {
+          [oldWordKey]: target.wordToCardMap[oldWordKey],
+          [nextWordKey]: target.wordToCardMap[nextWordKey],
+        };
+        intent.wordStatsMap = {
+          [oldWordKey]: target.wordStatsMap[oldWordKey],
+          [nextWordKey]: target.wordStatsMap[nextWordKey],
+        };
+      }
+      intent.flashcards = { [id]: JSON.parse(JSON.stringify(target.flashcards[id])) as Flashcard };
+    }, undefined, undefined, {
+      removedCardIds: [],
+      validate: target => JSON.stringify(target.flashcards[id]) === confirmed,
+      recomputeOnRebase: true,
+    }, 'explicit-card-edit');
   };
 
   // Suspend card
@@ -6212,6 +6289,7 @@ ${chunk.map(({ job }, index) => `${index + 1}. Word "${job.word}" (meaning: ${jo
     removeFlashcard,
     updateFlashcard,
     updateFlashcardContent,
+    saveFlashcardEdit,
     suspendCard,
     unsuspendCard,
     buryCard,

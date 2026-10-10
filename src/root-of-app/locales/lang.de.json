@@ -1329,6 +1329,8 @@
         },
         "EditCard": {
           "Title": "Lernkarte bearbeiten",
+          "Saving": "Wird gespeichert…",
+          "SaveFailed": "Die Änderung konnte nicht gespeichert werden. Deine Eingabe ist noch da; versuche es erneut.",
           "TabEditor": "Editor",
           "TabAdvanced": "Erweitert",
           "AdvancedHint": "Rohdaten der Lernkarte bearbeiten. Änderungen werden beim Speichern übernommen.",

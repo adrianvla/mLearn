@@ -31,7 +31,7 @@ export interface FlashcardEditModalProps {
   isOpen: boolean;
   flashcard: Flashcard | null;
   onClose: () => void;
-  onSave: (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => void;
+  onSave: (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => Promise<boolean>;
 }
 
 type TabId = 'editor' | 'advanced';
@@ -43,6 +43,8 @@ function getDraftString(value: DraftValue | undefined): string {
 export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) => {
   const { t } = useLocalization();
   const [activeTab, setActiveTab] = createSignal<TabId>('editor');
+  const [saving, setSaving] = createSignal(false);
+  const [saveFailed, setSaveFailed] = createSignal(false);
 
   // ---- Advanced editor local state ----
   // We clone values on open so edits are non-destructive until save
@@ -142,6 +144,20 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
   };
 
   // ---- Save from advanced tab ----
+  const commitSave = async (content: FlashcardContent, metadataUpdates?: Partial<Flashcard>) => {
+    if (saving()) return;
+    setSaving(true);
+    setSaveFailed(false);
+    try {
+      if (await props.onSave(content, metadataUpdates)) props.onClose();
+      else setSaveFailed(true);
+    } catch {
+      setSaveFailed(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleAdvancedSave = () => {
     const card = props.flashcard;
     if (!card) return;
@@ -199,12 +215,12 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
     // Ensure required content fields
     if (!content.type) content.type = 'word';
 
-    props.onSave(content as unknown as FlashcardContent, metaUpdates);
+    void commitSave(content as unknown as FlashcardContent, metaUpdates);
   };
 
   // ---- Editor tab save ----
   const handleEditorSave = (content: FlashcardContent) => {
-    props.onSave(content);
+    void commitSave(content);
   };
 
   const title = createMemo(() => {
@@ -215,7 +231,7 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
   return (
     <Modal
       isOpen={props.isOpen}
-      onClose={props.onClose}
+      onClose={() => { if (!saving()) props.onClose(); }}
       title={title()}
       size="lg"
     >
@@ -230,11 +246,18 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
           />
         </div>
 
+        <Show when={saveFailed()}>
+          <p class="flashcard-edit-save-failed" role="alert">
+            {t('mlearn.Flashcards.Modals.EditCard.SaveFailed')}
+          </p>
+        </Show>
+
         <TabPanel tabId="editor" activeTab={activeTab()}>
           <FlashcardEditor
             flashcard={props.flashcard!}
             onSave={handleEditorSave}
             onCancel={props.onClose}
+            saving={saving()}
             showStats={true}
           />
         </TabPanel>
@@ -393,9 +416,9 @@ export const FlashcardEditModal: Component<FlashcardEditModalProps> = (props) =>
 
             {/* Footer */}
             <div class="flashcard-advanced-footer">
-              <Button onClick={props.onClose}>{t('mlearn.Global.Cancel')}</Button>
-              <Button variant="primary" onClick={handleAdvancedSave}>
-                {t('mlearn.Global.Actions.SaveChanges')}
+              <Button disabled={saving()} onClick={props.onClose}>{t('mlearn.Global.Cancel')}</Button>
+              <Button variant="primary" disabled={saving()} onClick={handleAdvancedSave}>
+                {t(saving() ? 'mlearn.Flashcards.Modals.EditCard.Saving' : 'mlearn.Global.Actions.SaveChanges')}
               </Button>
             </div>
           </div>

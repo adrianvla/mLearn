@@ -7,6 +7,11 @@
   margin-bottom: 1rem;
 }
 
+.flashcard-edit-save-failed {
+  color: var(--color-danger);
+  margin: 0 0 0.75rem;
+}
+
 .flashcard-form-control {
   width: 100%;
   padding: 0.4rem 0.5rem;

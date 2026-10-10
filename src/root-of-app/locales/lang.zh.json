@@ -1329,6 +1329,8 @@
         },
         "EditCard": {
           "Title": "编辑闪卡",
+          "Saving": "正在保存…",
+          "SaveFailed": "无法保存此更改。输入内容仍在，请重试。",
           "TabEditor": "编辑器",
           "TabAdvanced": "高级",
           "AdvancedHint": "编辑闪卡原始数据。保存时应用更改。",
