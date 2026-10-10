@@ -922,10 +922,10 @@ export function tokensToPlainText(
 
 export function createEmptyLexemeIndex(): LanguageLexemeIndex {
   return {
-    normalizedSurfaceToCanonical: {},
-    normalizedSurfaceToVariants: {},
-    readingToCanonical: {},
-    readingToVariants: {},
+    normalizedSurfaceToCanonical: Object.create(null) as Record<string, string>,
+    normalizedSurfaceToVariants: Object.create(null) as Record<string, string[]>,
+    readingToCanonical: Object.create(null) as Record<string, string>,
+    readingToVariants: Object.create(null) as Record<string, string[]>,
   };
 }
 
@@ -935,10 +935,10 @@ export function buildLexemeIndex(freq: LanguageFrequencyRow[] | undefined, data?
     return createEmptyLexemeIndex();
   }
 
-  const readingToCanonical: Record<string, string> = {};
-  const readingToVariants: Record<string, string[]> = {};
-  const normalizedSurfaceToCanonical: Record<string, string> = {};
-  const normalizedSurfaceToVariants: Record<string, string[]> = {};
+  const readingToCanonical: Record<string, string> = Object.create(null) as Record<string, string>;
+  const readingToVariants: Record<string, string[]> = Object.create(null) as Record<string, string[]>;
+  const normalizedSurfaceToCanonical: Record<string, string> = Object.create(null) as Record<string, string>;
+  const normalizedSurfaceToVariants: Record<string, string[]> = Object.create(null) as Record<string, string[]>;
 
   for (const entry of freq) {
     if (!entry || entry.length < 2) continue;

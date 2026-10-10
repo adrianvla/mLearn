@@ -472,6 +472,30 @@ describe('language feature bricks', () => {
     expect(getLexemeVariants('あかい', wordFrequency, index, surfaceReadingLanguage)).toEqual(['あかい', '赤い', '明い']);
   });
 
+  it('indexes package-supplied property names as ordinary lexeme data', () => {
+    const languageData: LanguageData = {
+      name: 'Latin Surface Reading Language',
+      colour_codes: {},
+      settings: { fixed: {} },
+      textProcessing: {
+        scriptProfile: { acceptedScripts: ['Latn'] },
+        lexemeNormalization: {
+          type: 'surface-reading',
+          surfaceScripts: ['Latn'],
+          surfaceNormalizers: ['casefold'],
+          readingScripts: ['Latn'],
+          readingNormalizer: 'unicode-nfc',
+        },
+      },
+    };
+    const index = buildLexemeIndex([['constructor', 'toString']], languageData);
+
+    expect(index.normalizedSurfaceToCanonical['constructor']).toBe('constructor');
+    expect(index.normalizedSurfaceToVariants['constructor']).toEqual(['constructor']);
+    expect(index.readingToCanonical['toString']).toBe('constructor');
+    expect(index.readingToVariants['toString']).toEqual(['constructor']);
+  });
+
   it('does not treat reading homophones as variants of a surface lexeme', () => {
     const index = buildLexemeIndex(freq, surfaceReadingLanguage);
     // 赤い and 明い both read あかい — a kanji surface keeps its identity
