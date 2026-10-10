@@ -6140,6 +6140,45 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it('detaches nested reactive editor values before sending the durable write', async () => {
+    const { ctx, dispose } = await mountProvider();
+    const card = makeCard({
+      id: 'explicit-save-reactive-values',
+      content: {
+        type: 'word',
+        front: '婚約者',
+        back: 'fiance; fiancee',
+        reading: 'こんやくしゃ',
+        prosody: { type: 'future::contour', raw: { values: [2, 1], condition: { register: 'formal' } } },
+        extra: { 'future::relation': { participants: ['speaker', 'hearer'] } },
+      },
+    });
+    seed(makeEmptyStore({ rev: revision, flashcards: { [card.id]: card } }));
+    const current = ctx.store.flashcards[card.id];
+    let candidate!: FlashcardStore;
+    mockBridge.flashcards.saveFlashcards.mockImplementationOnce(async (saved: FlashcardStore) => {
+      candidate = structuredClone(saved);
+      revision += 1;
+      committed = structuredClone(candidate);
+      committed.rev = revision;
+      acceptedSaves.push(structuredClone(committed));
+      return revision;
+    });
+
+    await expect(ctx.saveFlashcardEdit(card.id, {
+      prosody: current.content.prosody,
+      extra: current.content.extra,
+      reading: undefined,
+    })).resolves.toBe(true);
+
+    expect(candidate.flashcards[card.id].content.prosody).toEqual(card.content.prosody);
+    expect(candidate.flashcards[card.id].content.extra).toEqual(card.content.extra);
+    expect(Object.hasOwn(candidate.flashcards[card.id].content, 'reading')).toBe(true);
+    expect(candidate.flashcards[card.id].content.reading).toBeUndefined();
+    expect(ctx.store.flashcards[card.id].content.reading).toBeUndefined();
+    dispose();
+  });
+
   it('tracks authored changes without marking cloned package data as edited', async () => {
     const { ctx, dispose } = await mountProvider();
     seedAccepted();

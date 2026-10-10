@@ -561,6 +561,22 @@ function cloneFlashcardStore<T extends object>(store: T): T {
   return JSON.parse(JSON.stringify(store)) as T;
 }
 
+/**
+ * Detach editor values from Solid stores before composing them into a plain
+ * persistence candidate. Unlike a JSON round-trip, this retains explicitly
+ * present `undefined` values used to clear optional fields.
+ */
+function cloneFlashcardValue<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(cloneFlashcardValue) as T;
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).map(key => [
+      key,
+      cloneFlashcardValue((value as Record<string, unknown>)[key]),
+    ])) as T;
+  }
+  return value;
+}
+
 function isStoreRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -2482,32 +2498,34 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const current = store.flashcards[id];
     if (!current) return Promise.resolve(false);
     const confirmed = JSON.stringify(current);
+    const detachedContent = cloneFlashcardValue(content);
+    const detachedMetadata = metadataUpdates ? cloneFlashcardValue(metadataUpdates) : undefined;
     return saveFlashcardsImmediate((target, intent) => {
       let card = target.flashcards[id];
       if (!card) return;
 
       const language = card.language || settings.language;
       const oldWordKey = langKey(language, SRS.hashWordSync(getPrimaryWordFormForLanguage(card.content.front, language)));
-      const nextFront = typeof content.front === 'string' ? content.front : card.content.front;
+      const nextFront = typeof detachedContent.front === 'string' ? detachedContent.front : card.content.front;
       const nextWordKey = langKey(language, SRS.hashWordSync(getPrimaryWordFormForLanguage(nextFront, language)));
-      const changedFields = (Object.keys(content) as Array<keyof FlashcardContent>).filter(key => (
+      const changedFields = (Object.keys(detachedContent) as Array<keyof FlashcardContent>).filter(key => (
         key !== 'userEditedFields'
-        && card.content[key] !== content[key]
-        && canonicalize(card.content[key]) !== canonicalize(content[key])
+        && card.content[key] !== detachedContent[key]
+        && canonicalize(card.content[key]) !== canonicalize(detachedContent[key])
       ));
 
-      Object.assign(card.content, content);
+      Object.assign(card.content, detachedContent);
       if (changedFields.length > 0) {
         card.content.userEditedFields = Array.from(new Set([
           ...(card.content.userEditedFields ?? []),
           ...changedFields.map(String),
         ]));
       }
-      if (metadataUpdates) {
-        Object.assign(card, metadataUpdates);
+      if (detachedMetadata) {
+        Object.assign(card, detachedMetadata);
         for (const field of ['buried', 'suspended'] as const) {
-          if (!Object.hasOwn(metadataUpdates, field)) continue;
-          if (metadataUpdates[field]) {
+          if (!Object.hasOwn(detachedMetadata, field)) continue;
+          if (detachedMetadata[field]) {
             card = setFlashcardExclusion(card, field, true);
             target.flashcards[id] = card;
           } else clearFlashcardActionOwner(card, field);
