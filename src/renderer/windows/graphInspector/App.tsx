@@ -117,6 +117,7 @@ export const GraphInspectorContent: Component<{ sourceLanguage?: () => string; i
         <GraphNeighborhoodViz
           fillViewport
           neighborhood={neighborhood()!}
+          showSelectionDetails={!details()}
           centerState={explanation()?.state}
           busy={pending()}
           onLoadMore={loadMore}

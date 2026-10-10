@@ -87,6 +87,29 @@ describe('GraphInspectorContent', () => {
     } finally { dispose(); container.remove(); }
   });
 
+  it('keeps the graph selection visible but avoids stacking both detail panels', async () => {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const dispose = render(() => <GraphInspectorContent />, container);
+    try {
+      await flush();
+      const node = container.querySelector<SVGGElement>('.graph-viz__node:not(.graph-viz__center)')!;
+      node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      expect(container.querySelector('.graph-viz__detail')).toBeTruthy();
+      expect(container.querySelector('.graph-viz__node--selected')).toBeTruthy();
+
+      const knowledgeToggle = container.querySelector<HTMLButtonElement>('.graph-inspector__details')!;
+      knowledgeToggle.click();
+      expect(container.querySelector('.graph-viz__detail')).toBeNull();
+      expect(container.querySelector('.graph-viz__node--selected')).toBeTruthy();
+      expect(container.querySelector<HTMLDivElement>('.graph-inspector__details-panel')?.hidden).toBe(false);
+
+      knowledgeToggle.click();
+      expect(container.querySelector('.graph-viz__detail')).toBeTruthy();
+      expect(container.querySelector('.graph-viz__node--selected')).toBeTruthy();
+    } finally { dispose(); container.remove(); }
+  });
+
   it.each(['rows', 'archive'] as const)('withholds no-evidence conclusions after %s failure and retries the same scope', async (owner) => {
     journalMocks[owner].mockRejectedValueOnce(new Error('journal unavailable'));
     const container = document.createElement('div');

@@ -22,6 +22,7 @@ export interface GraphNeighborhoodVizProps {
   neighborhood: GraphNeighborhood;
   centerState?: TargetState;
   onSelect?: (entityId: string) => void;
+  showSelectionDetails?: boolean;
   onLoadMore?: () => void;
   loadingMore?: boolean;
   busy?: boolean;
@@ -435,7 +436,9 @@ export const GraphNeighborhoodViz: Component<GraphNeighborhoodVizProps> = (props
             <Show when={!isOverview() && pageCount() > 1}><div class="graph-viz__pagination"><Button size="sm" variant="ghost" disabled={currentPage() === 0} onClick={() => changePage(currentPage() - 1)}>{text('Previous')}</Button><span aria-live="polite">{text('Page', { page: currentPage() + 1, total: pageCount() })}</span><Button size="sm" variant="ghost" disabled={currentPage() >= pageCount() - 1} onClick={() => changePage(currentPage() + 1)}>{text('Next')}</Button></div></Show>
             <Show when={props.neighborhood.relations.length < props.neighborhood.relationCount && props.onLoadMore}><Button variant="ghost" size="sm" loading={props.loadingMore} onClick={props.onLoadMore}>{text('LoadMore')}</Button></Show>
           </footer>
-          <Show when={compact()} fallback={<SelectionDetails />}><Portal><SelectionDetails /></Portal></Show>
+          <Show when={props.showSelectionDetails !== false}>
+            <Show when={compact()} fallback={<SelectionDetails />}><Portal><SelectionDetails /></Portal></Show>
+          </Show>
           <Show when={!isOverview() && group()?.category === 'support'}><p class="graph-viz__note graph-viz__support-note">{t('mlearn.GraphInspector.SupportCaption')}</p></Show>
           <Show when={props.centerState}><p class="graph-viz__note">{nodeLabel(props.neighborhood.center)} · {t(stateKey(props.centerState!))}</p></Show>
         </div>
