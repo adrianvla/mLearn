@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'solid-js/web';
 import { createSignal, type JSX } from 'solid-js';
 import type { LanguageDataMap, LanguageDataInstallError, LanguageDataInstallProgress } from '../../../../shared/types';
+import enLocale from '../../../../root-of-app/locales/lang.en.json';
 
 const updateSettingsMock = vi.fn();
 const startInstallMock = vi.fn();
@@ -70,7 +71,6 @@ const translations: Record<string, string> = {
   'mlearn.ComponentsTab.LanguageData.CoreTitle': '{language} language package',
   'mlearn.ComponentsTab.LanguageData.CoreDescription': 'Core runtime data for {language}.',
   'mlearn.ComponentsTab.LanguageData.DictionaryDescription': 'Definitions for {language} in {target}.',
-  'mlearn.ComponentsTab.LanguageData.SizeStatus': 'Installed files: {installed} · Download size: {download}',
   'mlearn.ComponentsTab.Groups.AI.Title': 'AI components',
   'mlearn.ComponentsTab.Groups.AI.Description': 'Local model runtime and Python model tooling.',
   'mlearn.ComponentsTab.Groups.Reader.Title': 'Reader and OCR components',
@@ -110,7 +110,9 @@ const translations: Record<string, string> = {
 vi.mock('../../../context', () => ({
   useLocalization: () => ({
     t: (key: string, params?: Record<string, string | number>) => {
-      const translation = translations[key] ?? key;
+      const translation = key === 'mlearn.ComponentsTab.LanguageData.SizeStatus'
+        ? enLocale.mlearn.ComponentsTab.LanguageData.SizeStatus
+        : translations[key] ?? key;
       return translation.replace(/\{(\w+)\}/g, (_, name) => (
         params?.[name] === undefined ? `{${name}}` : String(params[name])
       ));
@@ -440,7 +442,7 @@ describe('ComponentsTab', () => {
     } finally { dispose(); }
   });
 
-  it('labels installed asset bytes separately from the package download size', async () => {
+  it('labels installed on-disk bytes separately from download payload bytes', async () => {
     const { ComponentsTab } = await import('./ComponentsTab');
     const dispose = render(() => <ComponentsTab />, container);
     try {
@@ -449,8 +451,8 @@ describe('ComponentsTab', () => {
       const missingDictionary = Array.from(container.querySelectorAll('.components-tab__language-pack'))
         .find(row => row.textContent?.includes('Definitions for Japanese in FR.'))!;
 
-      expect(core.textContent).toContain('Installed files: 1.0 KB · Download size: 4.0 MB');
-      expect(missingDictionary.textContent).toContain('Installed files: 0 B · Download size: 2.0 KB');
+      expect(core.textContent).toContain('Installed on disk: 1.0 KB · Download payload: 4.0 MB');
+      expect(missingDictionary.textContent).toContain('Installed on disk: 0 B · Download payload: 2.0 KB');
     } finally { dispose(); }
   });
 

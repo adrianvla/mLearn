@@ -4061,7 +4061,7 @@
         "CoreTitle": "Sprachpaket {language}",
         "CoreDescription": "Kern-Laufzeitdaten für {language}.",
         "DictionaryDescription": "Definitionen für {language} auf {target}.",
-        "SizeStatus": "Installierte Dateien: {installed} · Downloadgröße: {download}",
+        "SizeStatus": "Installiert auf dem Datenträger: {installed} · Downloadumfang: {download}",
         "RefreshingCatalog": "Sprachkatalog wird aktualisiert…",
         "CatalogLoadError": "Sprachkatalog konnte nicht geladen werden",
         "RetryCatalog": "Katalog erneut laden"

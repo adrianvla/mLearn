@@ -4059,7 +4059,7 @@
         "CoreTitle": "Paquet de langue {language}",
         "CoreDescription": "Données runtime principales pour {language}.",
         "DictionaryDescription": "Définitions pour {language} en {target}.",
-        "SizeStatus": "Fichiers installés : {installed} · Taille du téléchargement : {download}",
+        "SizeStatus": "Installé sur le disque : {installed} · Données à télécharger : {download}",
         "RefreshingCatalog": "Actualisation du catalogue de langues…",
         "CatalogLoadError": "Impossible de charger le catalogue de langues",
         "RetryCatalog": "Réessayer le catalogue"

@@ -4061,7 +4061,7 @@
         "CoreTitle": "{language} language package",
         "CoreDescription": "Core runtime data for {language}.",
         "DictionaryDescription": "Definitions for {language} in {target}.",
-        "SizeStatus": "Installed files: {installed} · Download size: {download}",
+        "SizeStatus": "Installed on disk: {installed} · Download payload: {download}",
         "RefreshingCatalog": "Refreshing language catalog…",
         "CatalogLoadError": "Language catalog could not be loaded",
         "RetryCatalog": "Retry catalog"

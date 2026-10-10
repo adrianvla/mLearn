@@ -4061,7 +4061,7 @@
         "CoreTitle": "Языковой пакет {language}",
         "CoreDescription": "Основные runtime-данные для {language}.",
         "DictionaryDescription": "Определения для {language} на {target}.",
-        "SizeStatus": "Установленные файлы: {installed} · Размер загрузки: {download}",
+        "SizeStatus": "Установлено на диске: {installed} · Размер загружаемых данных: {download}",
         "RefreshingCatalog": "Обновление каталога языков…",
         "CatalogLoadError": "Не удалось загрузить каталог языков",
         "RetryCatalog": "Повторить загрузку каталога"
