@@ -11,4 +11,10 @@ describe('ComponentsTab active install layout', () => {
     expect(rule ?? '').toMatch(/top:\s*0/);
     expect(rule ?? '').toMatch(/background:/);
   });
+
+  it('keeps active progress legible over scrolled package rows', () => {
+    const rule = css.match(/\.components-tab__active-jobs\s*\{([^}]*)\}/)?.[1];
+
+    expect(rule ?? '').toMatch(/background:\s*var\(--bg-nt-primary\)/);
+  });
 });
