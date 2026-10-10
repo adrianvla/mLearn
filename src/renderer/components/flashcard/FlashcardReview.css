@@ -225,6 +225,25 @@
   padding: var(--spacing-2);
 }
 
+.popover-panel.review-activities-popover {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  width: min(11rem, calc(100vw - 32px));
+}
+
+.review-activities-popover .toggle-switch {
+  width: 100%;
+  min-width: 0;
+}
+
+.review-activities-popover .toggle-label {
+  flex: 1;
+  min-width: 0;
+}
+
 .popover-panel.review-activities-popover,
 .popover-panel.flashcard-actions-popover {
   background: var(--bg-opaque);
