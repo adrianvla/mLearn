@@ -15,6 +15,8 @@ export interface PopoverProps {
   open: boolean | Accessor<boolean>;
   /** Returns the trigger element the panel is anchored to */
   anchor: () => HTMLElement | undefined;
+  /** Optional content region the panel must stay inside */
+  collisionBoundary?: () => HTMLElement | undefined;
   /** Called when the popover should close (Escape / outside pointerdown) */
   onClose: () => void;
   /** Accessible name for the dialog panel */
@@ -48,10 +50,27 @@ export const Popover: Component<PopoverProps> = (props) => {
 
     const updatePosition = () => {
       const rect = anchorEl.getBoundingClientRect();
+      const boundary = props.collisionBoundary?.()?.getBoundingClientRect();
+      const viewportRight = window.innerWidth - MARGIN;
+      const viewportBottom = window.innerHeight - MARGIN;
+      const leftEdge = boundary
+        ? Math.min(viewportRight, Math.max(MARGIN, boundary.left + MARGIN))
+        : MARGIN;
+      const rightEdge = boundary
+        ? Math.max(leftEdge, Math.min(viewportRight, boundary.right - MARGIN))
+        : viewportRight;
+      const topEdge = boundary
+        ? Math.min(viewportBottom, Math.max(MARGIN, boundary.top + MARGIN))
+        : MARGIN;
+      const bottomEdge = boundary
+        ? Math.max(topEdge, Math.min(viewportBottom, boundary.bottom - MARGIN))
+        : viewportBottom;
+      panel.style.maxWidth = boundary ? `${rightEdge - leftEdge}px` : '';
+      panel.style.maxHeight = boundary ? `${bottomEdge - topEdge}px` : '';
       const panelW = panel.offsetWidth;
       const panelH = panel.offsetHeight;
-      const left = Math.max(MARGIN, Math.min(rect.right - panelW, window.innerWidth - panelW - MARGIN));
-      const top = Math.max(MARGIN, Math.min(rect.bottom + MARGIN, window.innerHeight - panelH - MARGIN));
+      const left = Math.max(leftEdge, Math.min(rect.right - panelW, rightEdge - panelW));
+      const top = Math.max(topEdge, Math.min(rect.bottom + MARGIN, bottomEdge - panelH));
       setPosition({ left, top });
     };
 

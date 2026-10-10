@@ -1299,6 +1299,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             {t('mlearn.Flashcards.Review.Activities')}
           </Button>
           <Popover open={showActivityPreferences} anchor={() => activityPreferencesAnchor} onClose={() => setShowActivityPreferences(false)}
+            collisionBoundary={() => activityPreferencesAnchor?.closest<HTMLElement>('.flashcards-main') ?? undefined}
             label={t('mlearn.Flashcards.Review.Activities')} class="review-activities-popover">
             <ToggleSwitch checked={preferences().holistic} label={t('mlearn.Flashcards.Review.Holistic')}
               onChange={checked => updateSetting('reviewActivities', { ...preferences(), holistic: checked })} />
@@ -1372,6 +1373,7 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
               <Popover
                 open={showCardActions}
                 anchor={() => cardActionsAnchor}
+                collisionBoundary={() => cardActionsAnchor?.closest<HTMLElement>('.flashcards-main') ?? undefined}
                 onClose={() => setShowCardActions(false)}
                 label={t('mlearn.Flashcards.Review.CardActions')}
                 class="flashcard-actions-popover"

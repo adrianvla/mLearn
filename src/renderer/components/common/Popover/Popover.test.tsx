@@ -26,14 +26,16 @@ describe('Popover', () => {
   let onCloseMock: ReturnType<typeof vi.fn<() => void>>;
   let anchorEl: HTMLButtonElement;
 
-  const mount = () => {
+  const mount = (extraProps: Record<string, unknown> = {}) => {
+    const popoverProps = {
+      open,
+      anchor: () => anchorEl,
+      onClose: onCloseMock,
+      label: 'Test popover',
+      ...extraProps,
+    } as Parameters<typeof Popover>[0];
     dispose = render(() => (
-      <Popover
-        open={open}
-        anchor={() => anchorEl}
-        onClose={onCloseMock}
-        label="Test popover"
-      >
+      <Popover {...popoverProps}>
         <button type="button" class="popover-child">panel content</button>
       </Popover>
     ), container);
@@ -112,6 +114,33 @@ describe('Popover', () => {
       expect(parseFloat(panel.style.left)).toBeGreaterThanOrEqual(8);
       expect(parseFloat(panel.style.left) + 500).toBeLessThanOrEqual(window.innerWidth - 8);
       expect(parseFloat(panel.style.top)).toBeGreaterThanOrEqual(8);
+    } finally {
+      if (originalOffsetWidth) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', originalOffsetWidth);
+      }
+    }
+  });
+
+  it('keeps the panel inside its content boundary instead of covering a sidebar', () => {
+    const originalOffsetWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    const contentBoundary = document.createElement('div');
+    try {
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => 240 });
+      Object.defineProperty(anchorEl, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => fixedRect(230, 300, 50, 78),
+      });
+      Object.defineProperty(contentBoundary, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => fixedRect(220, 500, 0, 800),
+      });
+      mount({ collisionBoundary: () => contentBoundary });
+      setOpen(true);
+
+      const panel = document.body.querySelector('.popover-panel') as HTMLElement;
+      expect(panel.style.left).toBe('228px');
+      expect(panel.style.maxWidth).toBe('264px');
+      expect(panel.style.maxHeight).toBe(`${window.innerHeight - 16}px`);
     } finally {
       if (originalOffsetWidth) {
         Object.defineProperty(HTMLElement.prototype, 'offsetWidth', originalOffsetWidth);
