@@ -4061,6 +4061,7 @@
         "CoreDescription": "Données runtime principales pour {language}.",
         "DictionaryDescription": "Définitions pour {language} en {target}.",
         "SizeStatus": "Installé sur le disque : {installed} · Données à télécharger : {download}",
+        "ActiveInstalls": "Installations de données linguistiques en cours",
         "RefreshingCatalog": "Actualisation du catalogue de langues…",
         "CatalogLoadError": "Impossible de charger le catalogue de langues",
         "RetryCatalog": "Réessayer le catalogue"

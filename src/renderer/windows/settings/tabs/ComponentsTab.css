@@ -49,6 +49,16 @@
   line-height: var(--line-height-normal);
 }
 
+.components-tab__active-jobs {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 calc(-1 * var(--spacing-4)) var(--spacing-4);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--panel-bg);
+}
+
 .components-tab__groups {
   display: flex;
   flex-direction: column;

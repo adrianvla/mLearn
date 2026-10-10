@@ -4062,6 +4062,7 @@
         "CoreDescription": "{language} 的核心运行时数据。",
         "DictionaryDescription": "{language} 的 {target} 释义。",
         "SizeStatus": "安装到磁盘后：{installed} · 下载数据量：{download}",
+        "ActiveInstalls": "正在进行的语言数据安装",
         "RefreshingCatalog": "正在刷新语言目录…",
         "CatalogLoadError": "无法加载语言目录",
         "RetryCatalog": "重试语言目录"

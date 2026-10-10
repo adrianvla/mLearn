@@ -4063,6 +4063,7 @@
         "CoreDescription": "Основные runtime-данные для {language}.",
         "DictionaryDescription": "Определения для {language} на {target}.",
         "SizeStatus": "Установлено на диске: {installed} · Размер загружаемых данных: {download}",
+        "ActiveInstalls": "Активные установки языковых данных",
         "RefreshingCatalog": "Обновление каталога языков…",
         "CatalogLoadError": "Не удалось загрузить каталог языков",
         "RetryCatalog": "Повторить загрузку каталога"

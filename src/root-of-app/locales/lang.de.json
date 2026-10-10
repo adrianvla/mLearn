@@ -4063,6 +4063,7 @@
         "CoreDescription": "Kern-Laufzeitdaten für {language}.",
         "DictionaryDescription": "Definitionen für {language} auf {target}.",
         "SizeStatus": "Installiert auf dem Datenträger: {installed} · Downloadumfang: {download}",
+        "ActiveInstalls": "Aktive Sprachdaten-Installationen",
         "RefreshingCatalog": "Sprachkatalog wird aktualisiert…",
         "CatalogLoadError": "Sprachkatalog konnte nicht geladen werden",
         "RetryCatalog": "Katalog erneut laden"

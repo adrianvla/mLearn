@@ -346,12 +346,9 @@ export const ComponentsTab: Component = () => {
   // lifetime stable so an admitted job cannot discard focus or scroll anchors.
   const [languagePackRows, setLanguagePackRows] = createStore<LanguagePackRow[]>([]);
   const [catalogRowsCurrent, setCatalogRowsCurrent] = createSignal(false);
-  const orphanedLanguageDataJobs = createMemo(() => {
-    const catalogRowKeys = new Set(languagePackRows.map(row => row.key));
+  const activeLanguageDataJobs = createMemo(() => {
     return Object.values(languageDataInstallJobs())
-      .filter(job => job.phase !== 'ready' && !catalogRowKeys.has(
-        job.dictionaryTargetLanguage ? `${job.language}:${job.dictionaryTargetLanguage}` : job.language,
-      ))
+      .filter(job => job.phase !== 'ready')
       .map(job => {
         const error = languageDataInstallError(job.language, job.dictionaryTargetLanguage);
         return error && (!error.operationId || error.operationId === job.operationId)
@@ -459,10 +456,6 @@ export const ComponentsTab: Component = () => {
           </Show>
         </div>
 
-        <LanguageDataJobProgress jobs={Object.values(languageDataInstallJobs()).filter(job =>
-          job.language === row.language && job.dictionaryTargetLanguage === row.dictionaryTargetLanguage
-          && job.phase !== 'ready' && job.phase !== 'error')} />
-
         <Show when={hasInstallError()}>
           <AlertBanner
             variant="error"
@@ -501,6 +494,13 @@ export const ComponentsTab: Component = () => {
         <p class="components-tab__description">
           {t('mlearn.ComponentsTab.Description')}
         </p>
+
+        <Show when={activeLanguageDataJobs().length > 0}>
+          <section class="components-tab__active-jobs" aria-label={t('mlearn.ComponentsTab.LanguageData.ActiveInstalls')}>
+            <h3 class="components-tab__section-title">{t('mlearn.ComponentsTab.LanguageData.ActiveInstalls')}</h3>
+            <LanguageDataJobProgress jobs={activeLanguageDataJobs()} />
+          </section>
+        </Show>
 
         <section class="components-tab__section">
           <div class="components-tab__section-header">
@@ -610,9 +610,6 @@ export const ComponentsTab: Component = () => {
               <AlertBanner variant="error" title={t('mlearn.ComponentsTab.LanguageData.CatalogLoadError')} message={error()} />
               <Button onClick={refreshLanguageDataCatalog}>{t('mlearn.ComponentsTab.LanguageData.RetryCatalog')}</Button>
             </>}</Show>
-            <Show when={orphanedLanguageDataJobs().length > 0}>
-              <LanguageDataJobProgress jobs={orphanedLanguageDataJobs()} />
-            </Show>
             <For each={languagePackRows}>{renderLanguagePackRow}</For>
           </div>
         </section>

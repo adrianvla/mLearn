@@ -61,6 +61,7 @@ const translations: Record<string, string> = {
   'mlearn.ComponentsTab.Sections.Runtime.Description': 'Python-side optional capabilities.',
   'mlearn.ComponentsTab.Sections.LanguageData.Title': 'Language data',
   'mlearn.ComponentsTab.Sections.LanguageData.Description': 'Installed and available language bundles.',
+  'mlearn.ComponentsTab.LanguageData.ActiveInstalls': 'Active language-data installs',
   'mlearn.ComponentsTab.Actions.Install': 'Install',
   'mlearn.ComponentsTab.Actions.Update': 'Update',
   'mlearn.ComponentsTab.Actions.RepairRuntime': 'Repair runtime components',
@@ -350,7 +351,7 @@ describe('ComponentsTab', () => {
       setInstallJobs({ owned: { operationId: 'owned', language: 'ja', dictionaryTargetLanguage: 'fr', components: ['dictionary'], phase: 'downloading', downloadedBytes: 17, expectedBytes: 100 } });
       setCatalogLoading(true); setCatalogRevision(3);
       expect(row.isConnected).toBe(true);
-      expect(row.querySelector('progress')?.value).toBe(17);
+      expect(container.querySelector('[data-operation-id="owned"]')?.querySelector<HTMLProgressElement>('progress')?.value).toBe(17);
       expect(button.disabled).toBe(true);
       setCatalogLoading(false);
       setInstallJobs({ owned: { operationId: 'owned', language: 'ja', dictionaryTargetLanguage: 'fr', components: ['dictionary'], phase: 'error' } });
@@ -360,6 +361,30 @@ describe('ComponentsTab', () => {
       expect(row.isConnected).toBe(true);
       expect(row.textContent).toContain('source transfer failed');
       expect(button.disabled).toBe(true); // current catalog has no descriptor to retry
+    } finally { dispose(); }
+  });
+
+  it('keeps active install progress in a persistent summary outside the long catalog list', async () => {
+    setInstallJobs({ active: {
+      operationId: 'active',
+      language: 'ja',
+      dictionaryTargetLanguage: 'fr',
+      components: ['dictionary'],
+      phase: 'downloading',
+      downloadedBytes: 17,
+      expectedBytes: 100,
+    } });
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+    try {
+      const summary = container.querySelector('.components-tab__active-jobs');
+      const operation = summary?.querySelector('[data-operation-id="active"]');
+      const languagePacks = container.querySelector('.components-tab__language-packs')!;
+      expect(summary).not.toBeNull();
+      expect(summary?.textContent ?? '').toContain('Active language-data installs');
+      expect(operation?.querySelector<HTMLProgressElement>('progress')?.value).toBe(17);
+      expect(container.querySelectorAll('[data-operation-id="active"]')).toHaveLength(1);
+      expect(summary && (summary.compareDocumentPosition(languagePacks) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
     } finally { dispose(); }
   });
 
@@ -415,7 +440,7 @@ describe('ComponentsTab', () => {
     } finally { dispose(); }
   });
 
-  it('joins correlated language jobs to their own rows and reacts to byte and readiness phases', async () => {
+  it('keeps correlated language jobs distinct in the active summary and reacts to byte and readiness phases', async () => {
     setInstallJobs({
       core: { operationId: 'core', language: 'ja', components: ['core'], phase: 'downloading', downloadedBytes: 42, expectedBytes: 100 },
       target: { operationId: 'target', language: 'ja', dictionaryTargetLanguage: 'fr', components: ['dictionary'], phase: 'downloading', downloadedBytes: 17 },
@@ -427,8 +452,8 @@ describe('ComponentsTab', () => {
       const target = container.querySelector('[data-operation-id="target"]')!;
       expect(core).not.toBeNull();
       expect(target).not.toBeNull();
-      expect(core.closest('.components-tab__language-pack')?.textContent).toContain('Core runtime');
-      expect(target.closest('.components-tab__language-pack')?.textContent).toContain('FR');
+      expect(core.textContent).toContain('ja');
+      expect(target.textContent).toContain('ja → fr');
       expect(core.querySelector('progress')?.value).toBe(42);
       expect(core.querySelector('progress')?.max).toBe(100);
       expect(target.querySelector('progress')?.hasAttribute('value')).toBe(false);

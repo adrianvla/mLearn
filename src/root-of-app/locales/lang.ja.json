@@ -4063,6 +4063,7 @@
         "CoreDescription": "{language} のコアランタイムデータです。",
         "DictionaryDescription": "{language} の定義を {target} で表示します。",
         "SizeStatus": "ディスク上のインストール済みサイズ: {installed} · ダウンロードデータ: {download}",
+        "ActiveInstalls": "進行中の言語データのインストール",
         "RefreshingCatalog": "言語カタログを更新中…",
         "CatalogLoadError": "言語カタログを読み込めませんでした",
         "RetryCatalog": "カタログを再読み込み"
