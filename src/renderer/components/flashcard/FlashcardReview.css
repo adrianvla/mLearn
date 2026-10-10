@@ -225,6 +225,13 @@
   padding: var(--spacing-2);
 }
 
+.popover-panel.review-activities-popover,
+.popover-panel.flashcard-actions-popover {
+  background: var(--bg-opaque);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .flashcard-action-buttons {
   display: flex;
   flex-direction: column;
