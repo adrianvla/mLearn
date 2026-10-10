@@ -4059,7 +4059,7 @@
         "CoreTitle": "{language} の言語パッケージ",
         "CoreDescription": "{language} のコアランタイムデータです。",
         "DictionaryDescription": "{language} の定義を {target} で表示します。",
-        "SizeStatus": "{installed} / {total}",
+        "SizeStatus": "インストール済みファイル: {installed} · ダウンロードサイズ: {download}",
         "RefreshingCatalog": "言語カタログを更新中…",
         "CatalogLoadError": "言語カタログを読み込めませんでした",
         "RetryCatalog": "カタログを再読み込み"

@@ -4059,7 +4059,7 @@
         "CoreTitle": "Языковой пакет {language}",
         "CoreDescription": "Основные runtime-данные для {language}.",
         "DictionaryDescription": "Определения для {language} на {target}.",
-        "SizeStatus": "{installed} из {total}",
+        "SizeStatus": "Установленные файлы: {installed} · Размер загрузки: {download}",
         "RefreshingCatalog": "Обновление каталога языков…",
         "CatalogLoadError": "Не удалось загрузить каталог языков",
         "RetryCatalog": "Повторить загрузку каталога"

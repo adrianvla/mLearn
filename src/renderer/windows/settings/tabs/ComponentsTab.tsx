@@ -57,7 +57,7 @@ type LanguagePackRow = {
   description: string;
   installed: boolean;
   outdated: boolean;
-  totalBytes: number;
+  downloadBytes: number;
   installedBytes: number;
   missingRequiredAssets: string[];
   assets: CatalogAssetStatus[];
@@ -83,7 +83,7 @@ function normalizeTtsEngine(engine: string): string {
 }
 
 function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];
   let value = bytes;
   let unitIndex = 0;
@@ -325,7 +325,7 @@ export const ComponentsTab: Component = () => {
         }),
         installed: status.installed,
         outdated: status.outdated,
-        totalBytes: status.totalBytes,
+        downloadBytes: status.downloadBytes,
         installedBytes: status.installedBytes,
         missingRequiredAssets: status.missingRequiredAssets,
         assets: status.assets,
@@ -426,7 +426,7 @@ export const ComponentsTab: Component = () => {
             <p class="components-tab__pack-meter">
               {t('mlearn.ComponentsTab.LanguageData.SizeStatus', {
                 installed: formatBytes(row.installedBytes),
-                total: formatBytes(row.totalBytes),
+                download: formatBytes(row.downloadBytes),
               })}
             </p>
           </div>
@@ -635,7 +635,7 @@ function buildDictionaryPackRow(
     }),
     installed: pack.installed,
     outdated: pack.outdated,
-    totalBytes: pack.totalBytes,
+    downloadBytes: pack.downloadBytes,
     installedBytes: pack.installedBytes,
     missingRequiredAssets: pack.missingRequiredAssets,
     assets: pack.assets,

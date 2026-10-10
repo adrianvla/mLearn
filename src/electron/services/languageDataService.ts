@@ -620,7 +620,7 @@ export function getLanguageDataCatalogStatus(
       const status = getLanguageDataStatus(language, langData);
       const assets = getAssets(language, langData);
       const bundle = metadata.languageData?.bundle;
-      const totalBytes = bundle?.sizeBytes ?? assets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0);
+      const downloadBytes = bundle?.sizeBytes ?? assets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0);
       const installedBytes = getInstalledBytes(assets);
       const minimumAppVersion = metadata.languageData?.minimumAppVersion;
       const compatible = allowIncompatibleAppVersion
@@ -641,7 +641,7 @@ export function getLanguageDataCatalogStatus(
               version: pack.version,
               installed: missingRequiredAssets.length === 0 && !outdated,
               outdated,
-              totalBytes: pack.bundle?.sizeBytes ?? packAssets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0),
+              downloadBytes: pack.bundle?.sizeBytes ?? packAssets.reduce((sum, asset) => sum + (asset.sizeBytes ?? 0), 0),
               installedBytes: getInstalledBytes(packAssets),
               missingRequiredAssets,
               assets: packAssetStatuses,
@@ -658,7 +658,7 @@ export function getLanguageDataCatalogStatus(
         outdated: status.outdated,
         compatible,
         minimumAppVersion,
-        totalBytes,
+        downloadBytes,
         installedBytes,
         missingRequiredAssets: status.missingAssets,
         assets: status.assets,

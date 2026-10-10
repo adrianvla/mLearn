@@ -70,7 +70,7 @@ const translations: Record<string, string> = {
   'mlearn.ComponentsTab.LanguageData.CoreTitle': '{language} language package',
   'mlearn.ComponentsTab.LanguageData.CoreDescription': 'Core runtime data for {language}.',
   'mlearn.ComponentsTab.LanguageData.DictionaryDescription': 'Definitions for {language} in {target}.',
-  'mlearn.ComponentsTab.LanguageData.SizeStatus': '{installed} of {total}',
+  'mlearn.ComponentsTab.LanguageData.SizeStatus': 'Installed files: {installed} · Download size: {download}',
   'mlearn.ComponentsTab.Groups.AI.Title': 'AI components',
   'mlearn.ComponentsTab.Groups.AI.Description': 'Local model runtime and Python model tooling.',
   'mlearn.ComponentsTab.Groups.Reader.Title': 'Reader and OCR components',
@@ -139,7 +139,7 @@ vi.mock('../../../context', () => ({
         nameTranslated: '日本語',
         installed: true,
         outdated: false,
-        totalBytes: 1024,
+        downloadBytes: 4 * 1024 * 1024,
         installedBytes: 1024,
         missingRequiredAssets: [],
         assets: [
@@ -156,7 +156,7 @@ vi.mock('../../../context', () => ({
             name: 'English',
             installed: true,
             outdated: false,
-            totalBytes: 4096,
+            downloadBytes: 4096,
             installedBytes: 4096,
             missingRequiredAssets: [],
             assets: [
@@ -173,7 +173,7 @@ vi.mock('../../../context', () => ({
             name: 'French',
             installed: catalogRevision() === 2,
             outdated: false,
-            totalBytes: 2048,
+            downloadBytes: 2048,
             installedBytes: catalogRevision() === 2 ? 2048 : 0,
             missingRequiredAssets: ['dictionary'],
             assets: [
@@ -399,6 +399,20 @@ describe('ComponentsTab', () => {
       setInstallJobs(previous => ({ ...previous, core: { ...previous.core, phase: 'ready' } }));
       expect(container.querySelector('[data-operation-id="core"]')).toBeNull();
       expect(container.querySelector('[data-operation-id="target"]')).not.toBeNull();
+    } finally { dispose(); }
+  });
+
+  it('labels installed asset bytes separately from the package download size', async () => {
+    const { ComponentsTab } = await import('./ComponentsTab');
+    const dispose = render(() => <ComponentsTab />, container);
+    try {
+      const core = Array.from(container.querySelectorAll('.components-tab__language-pack'))
+        .find(row => row.textContent?.includes('Core runtime data for Japanese.'))!;
+      const missingDictionary = Array.from(container.querySelectorAll('.components-tab__language-pack'))
+        .find(row => row.textContent?.includes('Definitions for Japanese in FR.'))!;
+
+      expect(core.textContent).toContain('Installed files: 1.0 KB · Download size: 4.0 MB');
+      expect(missingDictionary.textContent).toContain('Installed files: 0 B · Download size: 2.0 KB');
     } finally { dispose(); }
   });
 

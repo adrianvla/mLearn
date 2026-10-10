@@ -1836,7 +1836,8 @@ export interface LanguageDataCatalogStatus {
   outdated: boolean;
   compatible: boolean;
   minimumAppVersion?: string;
-  totalBytes: number;
+  /** Download archive size, or declared asset bytes when no bundle archive exists. */
+  downloadBytes: number;
   installedBytes: number;
   missingRequiredAssets: string[];
   assets: Array<{
@@ -1853,7 +1854,8 @@ export interface LanguageDataCatalogStatus {
     version?: string;
     installed: boolean;
     outdated: boolean;
-    totalBytes: number;
+    /** Download archive size, or declared asset bytes when no bundle archive exists. */
+    downloadBytes: number;
     installedBytes: number;
     missingRequiredAssets: string[];
     assets: Array<{

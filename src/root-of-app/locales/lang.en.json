@@ -4059,7 +4059,7 @@
         "CoreTitle": "{language} language package",
         "CoreDescription": "Core runtime data for {language}.",
         "DictionaryDescription": "Definitions for {language} in {target}.",
-        "SizeStatus": "{installed} of {total}",
+        "SizeStatus": "Installed files: {installed} · Download size: {download}",
         "RefreshingCatalog": "Refreshing language catalog…",
         "CatalogLoadError": "Language catalog could not be loaded",
         "RetryCatalog": "Retry catalog"

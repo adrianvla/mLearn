@@ -646,7 +646,7 @@ describe('languageDataService', () => {
       nameTranslated: 'Afar Local',
       installed: true,
       compatible: true,
-      totalBytes: 15,
+      downloadBytes: 15,
       installedBytes: 15,
       missingRequiredAssets: [],
     });
@@ -655,7 +655,7 @@ describe('languageDataService', () => {
       name: 'Bare Metadata',
       installed: true,
       compatible: true,
-      totalBytes: 0,
+      downloadBytes: 0,
       installedBytes: 0,
       missingRequiredAssets: [],
     });
@@ -665,7 +665,7 @@ describe('languageDataService', () => {
       installed: false,
       compatible: false,
       minimumAppVersion: '2.7.0',
-      totalBytes: 120,
+      downloadBytes: 120,
       installedBytes: 0,
       missingRequiredAssets: ['dictionary'],
       dictionaryPacks: [
@@ -673,7 +673,7 @@ describe('languageDataService', () => {
           targetLanguage: 'fr',
           name: 'French definitions',
           installed: false,
-          totalBytes: 75,
+          downloadBytes: 75,
           installedBytes: 0,
           missingRequiredAssets: ['dictionary-fr'],
         },
