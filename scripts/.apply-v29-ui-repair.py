@@ -1,10 +1,6 @@
-"""One-shot, anchored source edits for the isolated repair branch.
-Removed after the resulting source changes have been verified and committed.
-"""
+"""One-shot source edits for the isolated repair branch; removed after verification."""
 from pathlib import Path
-
 changed = set()
-
 def edit(name, before, after, count=1):
     path = Path(name)
     text = path.read_text()
@@ -17,14 +13,13 @@ def edit(name, before, after, count=1):
 review = 'src/renderer/components/flashcard/FlashcardReview.css'
 edit(review, '.flashcard-study-encounter .flashcard-face {', '.flashcard-study-encounter .flashcard-face:not(.flashcard-face--hidden) {', 2)
 edit(review, 'width: min(100%, 48rem);\n  margin-block: auto;', 'width: min(100%, 37.5rem);\n  margin-block: var(--spacing-4) 0;\n  flex: 0 0 auto;')
-edit(review, '.flashcard-study-encounter .flashcard-container { max-width: 48rem; }', '.flashcard-study-encounter .flashcard-container { max-width: 500px; }')
+edit(review, '.flashcard-study-encounter .flashcard-container {\n  max-width: 48rem;\n}', '.flashcard-study-encounter .flashcard-container {\n  max-width: 500px;\n}')
 edit(review, 'min-height: clamp(15rem, 42vh, 28rem);', 'min-height: 300px;')
-# Keep the scheduling overview outside the utility toolbar. Its counters still
-# come from the scheduler; changing layout must not create another queue owner.
 review_ts = 'src/renderer/components/flashcard/FlashcardReview.tsx'
 edit(review_ts, '{/* Header with stats */}\n        <div class="flashcard-review-header">', '{/* Scheduler overview is independent of the utility toolbar. */}\n        <div class="flashcard-review-overview">')
 edit(review_ts, '          <div class="flashcard-header-actions">\n        <div class="review-activity-preferences">', '        </div>\n        <div class="flashcard-review-header">\n          <div class="flashcard-header-actions">\n        <div class="review-activity-preferences">')
-edit(review, '/* Header */', '''.flashcard-review-overview {
+edit(review, '/* Floating review controls stay grouped while each group can wrap on narrow windows. */', '''/* Counts describe the scheduler, not actions on the displayed card. */
+.flashcard-review-overview {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -35,8 +30,7 @@ edit(review, '/* Header */', '''.flashcard-review-overview {
   width: 100%;
 }
 
-/* Header */''')
-# A card's declared width must include its padding, including outside Panel.
+/* Review controls stay grouped while each group can wrap on narrow windows. */''')
 face = 'src/renderer/components/flashcard/FlashcardDisplay.css'
 edit(face, '.flashcard-face {\n', '.flashcard-face {\n  box-sizing: border-box;\n')
 nav = 'src/renderer/windows/main/routes/components/ReaderNav.css'
@@ -45,7 +39,6 @@ edit(nav, 'min-height: calc(48px + var(--window-controls-block-start-inset));', 
 shell = 'src/renderer/windows/main/ApplicationShell.css'
 edit(shell, 'padding: calc(var(--spacing-2) + var(--window-controls-block-start-inset)) var(--spacing-4) var(--spacing-2);', 'padding: var(--spacing-2) var(--spacing-4);')
 home = 'src/renderer/windows/main/routes/welcome.css'
-# Home is below the native controls, so it needs the block inset, not both axes.
 edit(home, 'padding-inline-start: max(var(--spacing-6), calc(var(--spacing-6) + var(--window-controls-inline-start-inset)));', 'padding-inline-start: var(--spacing-6);')
 edit(home, '.welcome-record-details > summary { cursor: pointer; width: fit-content; }', '''.welcome-record-details > summary { display: flex; align-items: center; gap: var(--spacing-1); cursor: pointer; width: fit-content; list-style: none; }
 .welcome-record-details > summary::-webkit-details-marker { display: none; }
@@ -56,7 +49,6 @@ edit(summary, 'import { Button, LearningGoals }', 'import { Button, ChevronDownI
 edit(summary, "<summary>{t('mlearn.Home.Summary.RecordDetails')}</summary>", "<summary><span aria-hidden=\"true\"><ChevronDownIcon size={14} /></span>{t('mlearn.Home.Summary.RecordDetails')}</summary>")
 edit(summary, '<dl class="welcome-lifetime-totals"><div>', '<Show when={hasActiveGoal()}><dl class="welcome-lifetime-totals"><div>')
 edit(summary, '</dd></div></dl>\n          <p class="welcome-summary-definition">', '</dd></div></dl></Show>\n          <p class="welcome-summary-definition">')
-# Preserve actual saved preview text; style it as a message, never fabricate chat.
 edit(home, '.welcome-conversation-message { -webkit-line-clamp: 2; margin: 0; font-size: var(--font-size-sm); }', '''.welcome-conversation-message {
   -webkit-line-clamp: 3;
   margin: 0;
