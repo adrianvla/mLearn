@@ -6,6 +6,7 @@ on:
       - .github/workflows/repair-checkout.yml
       - scripts/verify-desktop-layout.mjs
       - scripts/.apply-v29-ui-repair.py
+      - scripts/.repair-diagnostics.py
       - src/**
 permissions:
   contents: write
@@ -26,10 +27,6 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Reproduce newly added Home regression before the fix
-        if: ${{ hashFiles('scripts/.apply-v29-ui-repair.py') != '' }}
-        continue-on-error: true
-        run: npx vitest run --maxWorkers=2 WelcomeLearningSummary
       - name: Apply exact, inspected source edits
         if: ${{ hashFiles('scripts/.apply-v29-ui-repair.py') != '' }}
         run: python3 scripts/.apply-v29-ui-repair.py
@@ -40,31 +37,54 @@ jobs:
           PLAYWRIGHT_PACKAGE_DIR: /tmp/mlearn-browser/node_modules/playwright
         run: node scripts/verify-desktop-layout.mjs
       - name: Component and ownership regressions
-        run: npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow WelcomeLearningSummary WelcomeRoute
+        run: |
+          npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow WelcomeLearningSummary WelcomeRoute > /tmp/mlearn-targeted-tests.log 2>&1 || { tail -80 /tmp/mlearn-targeted-tests.log; exit 1; }
+          tail -8 /tmp/mlearn-targeted-tests.log
       - name: Both TypeScript configurations
         run: npm run typecheck
       - name: Complete Vitest suite
+        id: full
+        continue-on-error: true
         run: |
-          set -o pipefail
-          npx vitest run --maxWorkers=2 > /tmp/mlearn-full-tests.log 2>&1 || { tail -180 /tmp/mlearn-full-tests.log; exit 1; }
-          tail -15 /tmp/mlearn-full-tests.log
+          npx vitest run --maxWorkers=2 --reporter=json --outputFile=/tmp/mlearn-full-tests.json > /tmp/mlearn-full-tests.log 2>&1
+      - name: Compare failures against the untouched pinned baseline
+        if: ${{ !cancelled() && steps.full.outcome == 'failure' }}
+        run: |
+          git fetch --depth=1 origin bdbbd7507554e36697c5b6add573c49f59ed6f1e
+          mkdir -p /tmp/mlearn-baseline
+          git archive bdbbd7507554e36697c5b6add573c49f59ed6f1e | tar -x -C /tmp/mlearn-baseline
+          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/mlearn-baseline/node_modules
+          cd /tmp/mlearn-baseline
+          npx --no-install vitest run --maxWorkers=2 --reporter=json --outputFile=/tmp/mlearn-baseline-tests.json SubtitleWord.pitchAccent flashcardsSuggestedPreview src/renderer/windows/wordSync/App.test.tsx WordEntryRow knowledgeHistoryStore pythonBackend src/electron/services/settings.test.ts > /tmp/mlearn-baseline-tests.log 2>&1 || true
+      - name: Failure summaries and source ownership
+        if: ${{ !cancelled() && hashFiles('scripts/.repair-diagnostics.py') != '' }}
+        run: python3 scripts/.repair-diagnostics.py /tmp/mlearn-full-tests.json /tmp/mlearn-baseline-tests.json
       - name: Desktop production build
-        run: npm run build
+        if: ${{ !cancelled() }}
+        run: |
+          npm run build > /tmp/mlearn-desktop-build.log 2>&1 || { tail -100 /tmp/mlearn-desktop-build.log; exit 1; }
+          tail -12 /tmp/mlearn-desktop-build.log
       - name: Mobile compatibility build
-        run: npm run build:mobile
+        if: ${{ !cancelled() }}
+        run: |
+          npm run build:mobile > /tmp/mlearn-mobile-build.log 2>&1 || { tail -100 /tmp/mlearn-mobile-build.log; exit 1; }
+          tail -12 /tmp/mlearn-mobile-build.log
       - name: Record patch and evidence
         if: always()
         run: |
           mkdir -p /tmp/mlearn-ui-evidence
           git diff --binary > /tmp/mlearn-ui-evidence/source.patch
           git diff --stat
-          cp /tmp/mlearn-full-tests.log /tmp/mlearn-ui-evidence/ 2>/dev/null || true
+          cp /tmp/mlearn-*-tests.json /tmp/mlearn-*-tests.log /tmp/mlearn-*-build.log /tmp/mlearn-ui-evidence/ 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: desktop-ui-evidence
           path: /tmp/mlearn-ui-evidence/
           retention-days: 7
+      - name: Require the full suite to pass
+        if: ${{ !cancelled() && steps.full.outcome != 'success' }}
+        run: exit 1
       - name: Commit only verified source edits to the isolated branch
         if: ${{ success() && hashFiles('scripts/.apply-v29-ui-repair.py') != '' }}
         run: |
