@@ -5,8 +5,7 @@ on:
     paths:
       - .github/workflows/repair-checkout.yml
       - scripts/verify-desktop-layout.mjs
-      - scripts/.apply-v29-ui-repair.py
-      - scripts/.repair-diagnostics.py
+      - scripts/.apply-*.py
       - src/**
 permissions:
   contents: write
@@ -23,52 +22,70 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
+        with: {node-version: '22', cache: npm}
       - run: npm ci --ignore-scripts
+      - name: Reproduce shared-memory omission before applying the fix
+        if: ${{ hashFiles('scripts/.apply-repair-correctness.py') != '' }}
+        continue-on-error: true
+        run: npx vitest run --maxWorkers=2 MemoryBrowser.shared
       - name: Apply exact, inspected source edits
-        if: ${{ hashFiles('scripts/.apply-v29-ui-repair.py') != '' }}
-        run: python3 scripts/.apply-v29-ui-repair.py
+        if: ${{ hashFiles('scripts/.apply-repair-correctness.py') != '' }}
+        run: python3 scripts/.apply-repair-correctness.py
       - name: Install isolated browser verification dependency
         run: npm install --prefix /tmp/mlearn-browser --no-package-lock --ignore-scripts playwright@1.56.1
       - name: Real Chromium layout regression checks
         env:
           PLAYWRIGHT_PACKAGE_DIR: /tmp/mlearn-browser/node_modules/playwright
         run: node scripts/verify-desktop-layout.mjs
-      - name: Component and ownership regressions
-        run: |
-          npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow WelcomeLearningSummary WelcomeRoute > /tmp/mlearn-targeted-tests.log 2>&1 || { tail -80 /tmp/mlearn-targeted-tests.log; exit 1; }
-          tail -8 /tmp/mlearn-targeted-tests.log
       - name: Both TypeScript configurations
+        id: types
+        continue-on-error: true
         run: npm run typecheck
       - name: Complete Vitest suite
         id: full
         continue-on-error: true
+        run: npx vitest run --maxWorkers=2 --reporter=json --outputFile=/tmp/mlearn-full-tests.json > /tmp/mlearn-full-tests.log 2>&1
+      - name: Bounded failure summaries
+        if: ${{ !cancelled() }}
         run: |
-          npx vitest run --maxWorkers=2 --reporter=json --outputFile=/tmp/mlearn-full-tests.json > /tmp/mlearn-full-tests.log 2>&1
-      - name: Compare failures against the untouched pinned baseline
-        if: ${{ !cancelled() && steps.full.outcome == 'failure' }}
-        run: |
-          git fetch --depth=1 origin bdbbd7507554e36697c5b6add573c49f59ed6f1e
-          mkdir -p /tmp/mlearn-baseline
-          git archive bdbbd7507554e36697c5b6add573c49f59ed6f1e | tar -x -C /tmp/mlearn-baseline
-          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/mlearn-baseline/node_modules
-          cd /tmp/mlearn-baseline
-          npx --no-install vitest run --maxWorkers=2 --reporter=json --outputFile=/tmp/mlearn-baseline-tests.json SubtitleWord.pitchAccent flashcardsSuggestedPreview src/renderer/windows/wordSync/App.test.tsx WordEntryRow knowledgeHistoryStore pythonBackend src/electron/services/settings.test.ts > /tmp/mlearn-baseline-tests.log 2>&1 || true
-      - name: Failure summaries and source ownership
-        if: ${{ !cancelled() && hashFiles('scripts/.repair-diagnostics.py') != '' }}
-        run: python3 scripts/.repair-diagnostics.py /tmp/mlearn-full-tests.json /tmp/mlearn-baseline-tests.json
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          p=Path('/tmp/mlearn-full-tests.json')
+          if p.exists():
+            d=json.loads(p.read_text());print({k:d.get(k) for k in ['numTotalTests','numPassedTests','numFailedTests','numPendingTests']})
+            for f in d.get('testResults',[]):
+              failures=[x for x in f.get('assertionResults',[]) if x['status']=='failed']
+              if not failures:continue
+              print('\nFILE',f['name'],'FAILURES',len(failures))
+              seen=set()
+              for x in failures:
+                msg=re.sub(r'\x1b\[[0-9;]*m','','\n'.join(x.get('failureMessages',[])))
+                print(x.get('fullName'))
+                first=msg.split('\n')[0]
+                if first not in seen:print(msg[:2000]);seen.add(first)
+          for folder in ['src/renderer/windows/statistics','scripts']:
+            print('\nFILES',folder)
+            for p in Path(folder).glob('*'):
+              if p.is_file() and (folder.endswith('statistics') or any(x in p.name for x in ['desktop','native','restor'])):print(p)
+          print('\nARCHIVE BUCKET READS')
+          for i,l in enumerate(Path('src/electron/services/knowledgeHistoryStore.ts').read_text().splitlines(),1):
+            if 'SELECT' in l and 'bucket' in l:print(i,l)
+          PY
       - name: Desktop production build
+        id: desktop
         if: ${{ !cancelled() }}
+        continue-on-error: true
         run: |
-          npm run build > /tmp/mlearn-desktop-build.log 2>&1 || { tail -100 /tmp/mlearn-desktop-build.log; exit 1; }
-          tail -12 /tmp/mlearn-desktop-build.log
+          npm run build > /tmp/mlearn-desktop-build.log 2>&1 || { tail -60 /tmp/mlearn-desktop-build.log; exit 1; }
+          tail -8 /tmp/mlearn-desktop-build.log
       - name: Mobile compatibility build
+        id: mobile
         if: ${{ !cancelled() }}
+        continue-on-error: true
         run: |
-          npm run build:mobile > /tmp/mlearn-mobile-build.log 2>&1 || { tail -100 /tmp/mlearn-mobile-build.log; exit 1; }
-          tail -12 /tmp/mlearn-mobile-build.log
+          npm run build:mobile > /tmp/mlearn-mobile-build.log 2>&1 || { tail -60 /tmp/mlearn-mobile-build.log; exit 1; }
+          tail -8 /tmp/mlearn-mobile-build.log
       - name: Record patch and evidence
         if: always()
         run: |
@@ -82,17 +99,17 @@ jobs:
           name: desktop-ui-evidence
           path: /tmp/mlearn-ui-evidence/
           retention-days: 7
-      - name: Require the full suite to pass
-        if: ${{ !cancelled() && steps.full.outcome != 'success' }}
+      - name: Require all verification gates
+        if: ${{ !cancelled() && (steps.full.outcome != 'success' || steps.types.outcome != 'success' || steps.desktop.outcome != 'success' || steps.mobile.outcome != 'success') }}
         run: exit 1
       - name: Commit only verified source edits to the isolated branch
-        if: ${{ success() && hashFiles('scripts/.apply-v29-ui-repair.py') != '' }}
+        if: ${{ success() && hashFiles('scripts/.apply-repair-correctness.py') != '' }}
         run: |
           test "$GITHUB_REF" = refs/heads/fix/v29-ui-regressions
           git diff --check
           while IFS= read -r file; do git add -- "$file"; done < /tmp/mlearn-ui-changed-files.txt
-          git rm -- scripts/.apply-v29-ui-repair.py
+          git rm -- scripts/.apply-v29-ui-repair.py scripts/.apply-repair-correctness.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'fix: restore compact review, native chrome and Home summary'
+          git commit -m 'fix: restore compact desktop UI and repair archived Undo'
           git push origin HEAD:refs/heads/fix/v29-ui-regressions
