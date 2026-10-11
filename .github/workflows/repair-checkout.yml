@@ -1,14 +1,20 @@
-name: Isolated repair checkout
+name: UI repair verification
 on:
   push:
     branches: [fix/v29-ui-regressions]
-    paths: [.github/workflows/repair-checkout.yml]
+    paths:
+      - .github/workflows/repair-checkout.yml
+      - scripts/verify-desktop-layout.mjs
+      - src/**
 permissions:
   contents: read
+concurrency:
+  group: v29-ui-repair
+  cancel-in-progress: true
 jobs:
-  checkout:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       NODE_LLAMA_CPP_SKIP_DOWNLOAD: 'true'
@@ -19,24 +25,52 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Archive the exact source, without repository credentials
-        run: |
-          git archive --format=tar HEAD | gzip > /tmp/mlearn-repair-source.tar.gz
-          git rev-parse HEAD > /tmp/mlearn-repair-source.sha
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mlearn-repair-source
-          path: |
-            /tmp/mlearn-repair-source.tar.gz
-            /tmp/mlearn-repair-source.sha
-          retention-days: 1
+          cache: npm
       - run: npm ci --ignore-scripts
-      - name: Archive the locked verification dependencies
-        run: tar -czf /tmp/mlearn-repair-dependencies.tar.gz node_modules
+      - name: Inspect current setting consumers and window ownership
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          needles = ['automaticFlashcardCreation', 'proportionOfLevelCards', 'maxNewCardsPerDay', 'maxNewCardsToLearn', 'window-controls-block-start-inset', 'window-controls-inline-start-inset', 'NoQuestionSources', 'NoSources', 'SeparateHistory', 'separate-history conversation']
+          for needle in needles:
+            print('\n=== SEARCH', needle, '===')
+            matches = 0
+            for folder in ['src', 'scripts/language-data']:
+              for p in Path(folder).rglob('*'):
+                if not p.is_file() or p.suffix not in ['.ts','.tsx','.css','.json','.py','.mjs'] or '.test.' in p.name: continue
+                try: text = p.read_text()
+                except (UnicodeError,OSError): continue
+                for i,line in enumerate(text.splitlines(),1):
+                  if needle in line:
+                    print(f'{p}:{i}: {line[:360]}')
+                    matches += 1
+                    if matches >= 65: break
+                if matches >= 65: break
+              if matches >= 65: break
+          print('\n=== OWNER FILES ===')
+          for folder in ['src/renderer/windows/statistics','src/renderer/windows/memoryBrowser','src/renderer/components/settings','src/renderer/services','src/renderer/windows/main/routes/components']:
+            for p in Path(folder).glob('*'):
+              if p.is_file() and not '.test.' in p.name and (folder.endswith('services') and any(v in p.name.lower() for v in ['question','mock','flashcard','auto']) or not folder.endswith('services')): print(p)
+          PY
+      - name: Install isolated browser verification dependency
+        run: npm install --prefix /tmp/mlearn-browser --no-package-lock --ignore-scripts playwright@1.56.1
+      - name: Real Chromium layout regression checks
+        id: browser
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_PACKAGE_DIR: /tmp/mlearn-browser/node_modules/playwright
+        run: node scripts/verify-desktop-layout.mjs
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: mlearn-repair-dependencies
-          path: /tmp/mlearn-repair-dependencies.tar.gz
-          retention-days: 1
-      - name: Baseline typecheck
+          name: desktop-ui-evidence
+          path: /tmp/mlearn-ui-evidence/
+          retention-days: 7
+      - name: Component and ownership regressions
+        run: npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow WelcomeLearningSummary WelcomeRoute
+      - name: Both TypeScript configurations
+        if: ${{ !cancelled() }}
         run: npm run typecheck
+      - name: Require browser checks to pass
+        if: ${{ !cancelled() && steps.browser.outcome != 'success' }}
+        run: exit 1
