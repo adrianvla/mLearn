@@ -32,7 +32,7 @@ edit(review, '/* Floating review controls stay grouped while each group can wrap
 
 /* Review controls stay grouped while each group can wrap on narrow windows. */''')
 face = 'src/renderer/components/flashcard/FlashcardDisplay.css'
-edit(face, '.flashcard-face {\n', '.flashcard-face {\n  box-sizing: border-box;\n')
+edit(face, '\n.flashcard-face {\n', '\n.flashcard-face {\n  box-sizing: border-box;\n')
 nav = 'src/renderer/windows/main/routes/components/ReaderNav.css'
 edit(nav, 'padding: calc(0.5rem + var(--window-controls-block-start-inset)) 1rem 0.5rem max(1rem, calc(1rem + var(--window-controls-inline-start-inset)));', 'padding: 0.5rem 1rem 0.5rem max(1rem, calc(1rem + var(--window-controls-inline-start-inset)));')
 edit(nav, 'min-height: calc(48px + var(--window-controls-block-start-inset));', 'min-height: 48px;')
