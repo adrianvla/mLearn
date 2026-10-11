@@ -412,6 +412,7 @@ export const WordHover: Component<WordHoverProps> = (props) => {
         const { content, ease } = await buildWordHoverFlashcardContent({
           token: props.token,
           word,
+          language: admittedLanguage,
           translationData: selectedTranslationData(),
           entry,
           contextPhrase: props.contextPhrase,

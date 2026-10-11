@@ -1,0 +1,49 @@
+{
+  "fixtureSchema": "mlearn-japanese-pitch-accent-regression/v1",
+  "source": {
+    "dictionary": "Jitendex",
+    "sourceRevision": "2024.10.07.0",
+    "pitchSource": "pitch1",
+    "dictionaryPack": "ja-en-dictionary-ja-package-2026.06.29",
+    "dictionarySha256": "487ed1a49baaece683cb2f107436cb93652a1d10438a4fdf24edc660d7d258f0"
+  },
+  "records": {
+    "historicalMismatch": {
+      "headword": "迫る",
+      "entryId": 1475720,
+      "saved": {
+        "reading": "せまる",
+        "position": 1,
+        "positionRaw": { "pitches": [{ "position": 1 }] },
+        "rawStatus": "Migrated from legacy scalar; original dictionary payload and reading association were not persisted."
+      },
+      "pitchRecords": [
+        {
+          "source": "pitch1",
+          "reading": "せまる",
+          "raw": ["迫る", "pitch", { "reading": "せまる", "pitches": [{ "position": 2 }] }]
+        },
+        {
+          "source": "pitch1",
+          "reading": "せる",
+          "raw": ["迫る", "pitch", { "reading": "せる", "pitches": [{ "position": 1 }] }]
+        }
+      ],
+      "expectedRenderer": {
+        "せまる": { "position": 2, "morae": ["せ", "ま", "る"], "contour": ["L", "H", "L"] },
+        "せる": { "position": 1, "morae": ["せ", "る"], "contour": ["H", "L"] }
+      }
+    },
+    "positiveControl": {
+      "headword": "順",
+      "entryId": 1342220,
+      "reading": "じゅん",
+      "position": 0,
+      "pitchRecord": {
+        "source": "pitch1",
+        "raw": ["順", "pitch", { "reading": "じゅん", "pitches": [{ "position": 0 }] }]
+      },
+      "expectedRenderer": { "morae": ["じゅ", "ん"], "contour": ["L", "H"], "particle": "H" }
+    }
+  }
+}

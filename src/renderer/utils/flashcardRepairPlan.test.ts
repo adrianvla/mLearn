@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { Flashcard } from '../../shared/types';
-import { DEFAULT_REPAIR_SELECTION, selectRepairFindings, repairFindingKey, countByKind, countExamples, hasMeaning, planFlashcardRepair, type TtsScanDeps } from './flashcardRepairPlan';
+import { DEFAULT_REPAIR_SELECTION, selectRepairFindings, repairFindingKey, countByKind, countExamples, hasMeaning, planFlashcardRepair, previewGeneratedProsodyReconciliation, type TtsScanDeps } from './flashcardRepairPlan';
 
 const card = (content: Partial<Flashcard['content']>, id = 'c1', language = 'ja'): Flashcard => ({
   id, language,
@@ -134,6 +134,62 @@ describe('missing example repair', () => {
     expect(missing.some((f) => f.kind === 'example')).toBe(false);
     const reroll = await planFlashcardRepair(cards, opts({ include: ['example'], exampleMode: 'replaceAll' }), deps());
     expect(reroll).toHaveLength(1);
+  });
+});
+
+describe('generated prosody reconciliation preview', () => {
+  const provenance = {
+    origin: 'dictionary-prosody',
+    source: { dictionaryTargetLanguage: 'en', dictionaryPackVersion: 'fixture-v1' },
+    generatedValue: 1,
+    raw: { reading: 'せまる', pitches: [{ position: 1 }] },
+  };
+  const cardWithProvenance = (overrides: Partial<Flashcard['content']> = {}) => card({
+    front: '迫る', back: 'approach', reading: 'せまる',
+    prosody: { type: 'japanese-pitch-accent', position: 1, raw: provenance.raw },
+    fieldProvenance: { prosody: provenance },
+    ...overrides,
+  });
+  const reconciliationDeps = (enrich: typeof import('../services/wordEnrichment').enrichWord) => ({
+    activeLanguage: 'ja', getLanguageData: () => null, settings: {}, enrich,
+  });
+
+  it('returns a read-only pitch-only candidate and leaves legacy cards unresolved', async () => {
+    const legacy = card({ front: '迫る', back: 'approach', reading: 'せまる', prosody: { type: 'japanese-pitch-accent', position: 1 } });
+    const enrich = vi.fn(async () => ({
+      back: 'dictionary meaning must not replace saved meaning',
+      reading: 'dictionary reading must not replace saved reading',
+      prosody: { type: 'japanese-pitch-accent' as const, position: 2, raw: { reading: 'せまる', pitches: [{ position: 2 }] } },
+      fieldProvenance: { prosody: { origin: 'dictionary-prosody', generatedValue: 2, source: { dictionaryPackVersion: 'fixture-v2' } } },
+    }));
+    const result = await previewGeneratedProsodyReconciliation([cardWithProvenance(), legacy], reconciliationDeps(enrich));
+    expect(result.map((item) => [item.status, item.reason])).toEqual([
+      ['candidate', 'generated-value-differs-from-current-dictionary'],
+      ['unresolved', 'missing-dictionary-generation-provenance'],
+    ]);
+    expect(result[0]).toMatchObject({ cardId: 'c1', reading: 'せまる', proposed: { position: 2 } });
+    expect(result[0].acceptancePolicy).toEqual({
+      requiresExplicitAcceptance: true,
+      invalidatesEvidenceFor: 'prosody-target',
+      preservesEvidenceFor: ['reading', 'meaning'],
+      preservesHistoricalGradesAndSchedule: true,
+    });
+    expect(result[0]).not.toHaveProperty('replacement.reading');
+    expect(result[1].proposed).toBeUndefined();
+    expect(enrich).toHaveBeenCalledOnce();
+  });
+
+  it('refuses to preview a pitch that was edited or no longer matches its recorded generated value', async () => {
+    const enrich = vi.fn();
+    const result = await previewGeneratedProsodyReconciliation([
+      cardWithProvenance({ userEditedFields: ['prosody'] }),
+      cardWithProvenance({ prosody: { type: 'japanese-pitch-accent', position: 3 } }),
+    ], reconciliationDeps(enrich as never));
+    expect(result.map((item) => item.reason)).toEqual([
+      'prosody-was-explicitly-edited',
+      'stored-value-no-longer-matches-generated-value',
+    ]);
+    expect(enrich).not.toHaveBeenCalled();
   });
 });
 

@@ -14,7 +14,7 @@
  */
 
 import { getBackend } from '../../shared/backends';
-import type { FlashcardContent, FlashcardProsody, LanguageData, TranslationEntry } from '../../shared/types';
+import type { FlashcardContent, FlashcardFieldProvenance, FlashcardProsody, LanguageData, TranslationEntry } from '../../shared/types';
 import { getDictionaryTargetLanguageForSettings } from '../utils/dictionaryTargetLanguage';
 import { extractProsodyFromTranslationData } from '../utils/readingProsody';
 import { extractReadingValue } from '../utils/translationCacheParsers';
@@ -37,6 +37,8 @@ export interface EnrichWordInput {
   dictionaryTargetLanguage?: string;
   /** Existing card content: facts the card already has (e.g. a captured reading) win. */
   currentContent?: Partial<FlashcardContent>;
+  /** Observed reading fallback used only when the dictionary entry omits a reading. */
+  fallbackReading?: string;
 }
 
 export interface EnrichedWordContent {
@@ -45,13 +47,16 @@ export interface EnrichedWordContent {
   prosody?: FlashcardProsody;
   definition?: string[];
   translation?: string[];
+  fieldProvenance?: Record<string, FlashcardFieldProvenance>;
 }
 
 type TranslateFn = (
   word: string,
   sourceLanguage: string,
   options?: { dictionaryTargetLanguage?: string },
-) => Promise<{ data?: unknown[] } | undefined>;
+) => Promise<{ data?: unknown[]; resolution?: { selectedId?: string } } | undefined>;
+
+export type EnrichmentTranslationResponse = Awaited<ReturnType<TranslateFn>>;
 
 export interface EnrichWordDeps {
   translate?: TranslateFn;
@@ -61,7 +66,7 @@ async function defaultTranslate(
   word: string,
   from: string,
   options?: { dictionaryTargetLanguage?: string },
-): Promise<{ data?: unknown[] } | undefined> {
+): Promise<{ data?: unknown[]; resolution?: { selectedId?: string } } | undefined> {
   return getBackend().translate(word, from, options) as Promise<{ data?: unknown[] } | undefined>;
 }
 
@@ -84,6 +89,15 @@ export async function enrichWord(
     input.language,
     dictionaryTargetLanguage ? { dictionaryTargetLanguage } : undefined,
   );
+  return enrichTranslationResponse({ ...input, word }, response, dictionaryTargetLanguage);
+}
+
+/** Resolve dictionary-backed card fields from one already selected response. */
+export function enrichTranslationResponse(
+  input: EnrichWordInput,
+  response: EnrichmentTranslationResponse,
+  resolvedDictionaryTargetLanguage?: string,
+): EnrichedWordContent | null {
   const data = response?.data;
   if (!Array.isArray(data) || data.length === 0) return null;
 
@@ -95,11 +109,43 @@ export async function enrichWord(
 
   // A reading the card already carries (e.g. captured from media) is authoritative.
   const currentReading = input.currentContent?.reading;
-  const reading = (currentReading && currentReading.trim())
-    || extractReadingValue(primaryEntry, input.languageData ?? null)
-    || '';
+  const dictionaryReading = extractReadingValue(primaryEntry, input.languageData ?? null) || '';
+  const fallbackReading = input.fallbackReading?.trim() || '';
+  const reading = (currentReading && currentReading.trim()) || dictionaryReading || fallbackReading || '';
 
   const prosody = extractProsodyFromTranslationData(response, input.languageData ?? null, reading);
+
+  const manifest = input.languageData?.languageData;
+  const dictionaryTargetLanguage = resolvedDictionaryTargetLanguage ?? input.dictionaryTargetLanguage;
+  const dictionaryPack = dictionaryTargetLanguage
+    ? manifest?.dictionaryPacks?.[dictionaryTargetLanguage]
+    : undefined;
+  const source: Record<string, unknown> = {
+    language: input.language,
+    ...(dictionaryTargetLanguage ? { dictionaryTargetLanguage } : {}),
+    ...(manifest?.activationGeneration ? { packageGeneration: manifest.activationGeneration } : {}),
+    ...(manifest?.version ? { packageVersion: manifest.version } : {}),
+    ...(dictionaryPack?.version ? { dictionaryPackVersion: dictionaryPack.version } : {}),
+    ...(dictionaryPack?.bundle?.sha256 ? { dictionaryBundleSha256: dictionaryPack.bundle.sha256 } : {}),
+    ...(response?.resolution?.selectedId ? { selectedEntryId: response.resolution.selectedId } : {}),
+  };
+  const fieldProvenance: Record<string, FlashcardFieldProvenance> = {};
+  if (reading) {
+    fieldProvenance.reading = {
+      origin: currentReading ? 'existing-card' : dictionaryReading ? 'dictionary-entry' : 'observed-reading',
+      source,
+      generatedValue: reading,
+      ...(dictionaryReading && !currentReading ? { raw: primaryEntry } : {}),
+    };
+  }
+  if (prosody) {
+    fieldProvenance.prosody = {
+      origin: 'dictionary-prosody',
+      source: { ...source, reading },
+      generatedValue: prosody.position ?? prosody.display,
+      raw: prosody.raw,
+    };
+  }
 
   const secondaryDefinitions = (data[primaryIndex + 1] as TranslationEntry | undefined)?.definitions;
   const definition = secondaryDefinitions
@@ -112,5 +158,6 @@ export async function enrichWord(
     ...(prosody ? { prosody } : {}),
     ...(definition && definition.length > 0 ? { definition } : {}),
     translation: [back],
+    ...(Object.keys(fieldProvenance).length > 0 ? { fieldProvenance } : {}),
   };
 }

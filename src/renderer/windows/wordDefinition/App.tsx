@@ -171,6 +171,7 @@ const WordDefinitionContent: Component = () => {
       const { content, ease } = await buildWordHoverFlashcardContent({
         token,
         word: w,
+        language: settings.language,
         translationData: translationData(),
         contextPhrase: undefined,
         isOcr: false,

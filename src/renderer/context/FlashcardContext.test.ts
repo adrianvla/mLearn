@@ -3,7 +3,7 @@ import { RatingAdmissionRefusal, type FlashcardRatingCommand } from '../../share
 import { knowledgeEventIdentity } from '../../shared/knowledge/eventIdentity';
 import { projectCapabilities, projectClaimMarkers } from '../../shared/knowledge/capabilityProjection';
 import { vi, describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
-import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, ReviewPresentation, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
+import type { FlashcardStore, Flashcard, FlashcardContent, FlashcardMeta, LanguageData, ReviewPresentation, ReviewQueue, Settings, WordStats, PassiveWordKnowledge } from '../../shared/types';
 import { DEFAULT_SETTINGS, type FlashcardAudioPreset } from '../../shared/types';
 import { selectFlashcardReviewDecision, flashcardReviewPolicyEntry } from '../components/flashcard/flashcardReviewDecision';
 import { selectNextEncounter } from '../learning/engine';
@@ -26,6 +26,8 @@ import fs from 'fs';
 import path from 'path';
 import { UNMEASURED_LABEL_KEY, knowledgeStatusLabelKey } from '../components/common/WordStatusPillKnowledge/knowledgeSummary';
 import { staleFlashcardRevisionMessage } from '../../shared/flashcardWriteRevision';
+import { planFlashcardRepair } from '../utils/flashcardRepairPlan';
+import { runFlashcardRepair } from '../utils/flashcardRepairRunner';
 
 // ── IPC callback captures ────────────────────────────────────────────
 let flashcardsCb: (store: FlashcardStore | null) => void;
@@ -493,6 +495,7 @@ vi.mock('../../shared/utils/textUtils', () => ({
   getReadingExtraCharacters: () => [],
   normalizeReading: (raw: string) => raw.replace(/<[^>]*>/g, '').replace(/\s+/g, ''),
   normalizeWordLookupText: (raw: string) => raw.replace(/<[^>]*>/g, '').trim(),
+  isTextOnlyInScripts: () => true,
   isWordInLanguageScript: (
     word: string,
     _language: string,
@@ -7647,6 +7650,90 @@ describe('FlashcardProvider', () => {
         `[bench] promote suggestion -> created=${result.created} promoted=${result.promoted} skipped=${result.skipped}`,
       );
       dispose();
+    });
+
+    it('Bulk Add promotes a paired reading/pitch, populates shells through repair, and survives Review restart', async () => {
+      const { ctx, dispose } = await mountProvider();
+      seedAccepted();
+      const ja = mockLangData.ja as unknown as LanguageData;
+      const previousProsody = ja.prosody;
+      const previousTextProcessing = ja.textProcessing;
+      ja.prosody = { type: 'japanese-pitch-accent' };
+      ja.textProcessing = {
+        scriptProfile: { acceptedScripts: ['Hira', 'Kana', 'Han'] },
+        lexemeNormalization: {
+          type: 'surface-reading', surfaceScripts: ['Han'], readingScripts: ['Hira', 'Kana'], readingNormalizer: 'kana-to-hiragana',
+        },
+        readingAnnotation: { type: 'script-reading', annotationScripts: ['Han'], surfaceSuffixScripts: ['Hira', 'Kana'] },
+      };
+      mockBackend.translate.mockImplementation(async (word: string) => word === '迫る'
+        ? { data: [
+            { definitions: ['to approach'], reading: 'せまる' },
+            { definitions: [], reading: 'せる' },
+            [
+              ['迫る', 'pitch', { reading: 'せまる', pitches: [{ position: 2 }] }],
+              ['迫る', 'pitch', { reading: 'せる', pitches: [{ position: 1 }] }],
+            ],
+          ] }
+        : { data: [
+            { definitions: ['order'], reading: 'じゅん' }, {},
+            ['順', 'pitch', { reading: 'じゅん', pitches: [{ position: 0 }] }],
+          ] });
+      try {
+        await ctx.captureSuggestedFlashcard({ word: '迫る', language: 'ja' });
+        const bulk = await ctx.addLevelStudyFlashcards(['迫る', '順'], 'new', 'ja');
+        expect(bulk).toEqual({ created: 1, promoted: 1, skipped: 0 });
+
+        const promoted = ctx.getCardByWordSync('迫る', 'ja')!;
+        expect(promoted.content).toMatchObject({
+          reading: 'せまる', prosody: { position: 2 },
+          fieldProvenance: { reading: { origin: 'dictionary-entry', generatedValue: 'せまる' }, prosody: { generatedValue: 2 } },
+        });
+        const shell = ctx.findUnpopulatedFlashcardForWord('順', 'ja')!;
+        expect(shell.content).toMatchObject({ back: '', unpopulated: true });
+        expect(shell.content.prosody).toBeUndefined();
+        await ctx.captureSuggestedFlashcard({ word: '順', language: 'ja', contextPhrase: 'from a review passage' });
+        expect(ctx.findUnpopulatedFlashcardForWord('順', 'ja')?.content).toMatchObject({
+          back: '', unpopulated: true, context: 'from a review passage',
+        });
+
+        const findings = await planFlashcardRepair([shell], { activeLanguage: 'ja', include: ['content'] }, {
+          getExistingTts: async () => false,
+          getSpeakableText: (card, field) => field === 'word' ? card.content.front : card.content.example ?? '',
+        });
+        const repaired = await runFlashcardRepair(findings, {
+          activeLanguage: 'ja',
+          getLanguageData: () => ja,
+          settings: mockSettings,
+          applyContent: (id, content) => ctx.updateFlashcardContent(id, content, false),
+          generateTts: async () => false,
+        });
+        expect(repaired).toMatchObject({ attempted: 1, succeeded: 1, failed: 0 });
+        expect(ctx.findUnpopulatedFlashcardForWord('順', 'ja')).toBeNull();
+        expect(ctx.getCardByWordSync('順', 'ja')?.content).toMatchObject({
+          reading: 'じゅん', prosody: { position: 0 },
+          fieldProvenance: { prosody: { generatedValue: 0, source: { reading: 'じゅん' } } },
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, SAVE_DEBOUNCE_MS_FOR_TESTS + 30));
+        const persisted = structuredClone(committed!);
+        expect(persisted.flashcards[promoted.id].content.prosody?.position).toBe(2);
+        expect(persisted.flashcards[shell.id].content.prosody?.position).toBe(0);
+        expect(ctx.getCurrentCard()?.content.front).toBeTruthy(); // The Review queue now admits the enriched cards.
+        dispose();
+
+        const reopened = await mountProvider();
+        seed(persisted);
+        await vi.waitFor(() => expect(reopened.ctx.isKnowledgeReady()).toBe(true));
+        expect(reopened.ctx.getCardByWordSync('迫る', 'ja')?.content).toMatchObject({ reading: 'せまる', prosody: { position: 2 } });
+        expect(reopened.ctx.getCardByWordSync('順', 'ja')?.content).toMatchObject({ reading: 'じゅん', prosody: { position: 0 } });
+        expect(['迫る', '順']).toContain(reopened.ctx.getCurrentCard()?.content.front);
+        reopened.dispose();
+      } finally {
+        ja.prosody = previousProsody;
+        ja.textProcessing = previousTextProcessing;
+        dispose();
+      }
     });
 
     it('skips already-tracked words when preserveExistingStatus is set', async () => {

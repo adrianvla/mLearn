@@ -739,6 +739,8 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,
         word,
+        language: admittedLanguage,
+        dictionaryTargetLanguage: admittedTarget,
         translationData: translationData || undefined,
         contextPhrase: entry.contextPhrase,
         isOcr: false,

@@ -1,4 +1,5 @@
 import type { FlashcardContent, DictionaryEntry, FlashcardProsody, LanguageData, Token, TranslationEntry, TranslationResponse } from '../../../shared/types';
+import { enrichTranslationResponse } from '../../services/wordEnrichment';
 import { WORD_STATUS, SRS_EASE } from '../../../shared/constants';
 import type { WordStatus } from '../../../shared/constants';
 import type { WordLookupCandidateOptions } from '../../hooks/useTranslation';
@@ -6,10 +7,7 @@ import { tokensToColoredHtml } from '../../utils/subtitleParsing';
 import { getLogger } from '../../../shared/utils/logger';
 import { captureElementToDataUrl } from '../../services/canvasCapture';
 import { extractDefinitionValues, extractReadingValue } from '../../utils/translationCacheParsers';
-import {
-  extractProsodyFromTranslationData,
-  normalizeDictionaryReading,
-} from '../../utils/readingProsody';
+import { extractProsodyFromTranslationData, normalizeDictionaryReading } from '../../utils/readingProsody';
 import {
   getLanguageProsodyType,
   getProsodyDisplayValueFromProsody,
@@ -74,6 +72,8 @@ export function hasUsefulWordHoverContent(
 export interface BuildWordHoverFlashcardContentParams {
   token: Token;
   word: string;
+  language: string;
+  dictionaryTargetLanguage?: string;
   translationData?: WordHoverTranslationData;
   entry?: DictionaryEntry;
   contextPhrase?: string;
@@ -178,7 +178,6 @@ function resolveProsodyFromTranslationData(
     reading && normalizeDictionaryReading(reading, languageData) !== normalizedReading
       ? extractProsodyFromTranslationData(data, languageData, reading)
       : undefined,
-    extractProsodyFromTranslationData(data, languageData),
   ];
   const prosody = candidates.find((candidate) => {
     if (!candidate || candidate.type !== prosodyType) return false;
@@ -415,8 +414,19 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
     params.token.reading, params.translationData, params.entry ? [params.entry] : undefined,
     params.languageData, { word, surface: params.token.surface || params.token.word },
   ).reading, params.languageData);
-  const reading = rawReading && rawReading !== word ? rawReading : '';
-  const prosody = extractProsodyFromTranslationData(params.translationData, params.languageData, reading);
+  const dictionaryContent = params.translationData
+    ? enrichTranslationResponse({
+      word,
+      language: params.language,
+      languageData: params.languageData,
+      dictionaryTargetLanguage: params.dictionaryTargetLanguage,
+      currentContent: { reading: rawReading || undefined },
+    }, params.translationData)
+    : null;
+  const reading = dictionaryContent?.reading && dictionaryContent.reading !== word
+    ? dictionaryContent.reading
+    : '';
+  const prosody = dictionaryContent?.prosody;
   // Capture produces PREPARED bytes, never a stored file. The card that ends
   // up owning this content persists them under its own id in `addFlashcard`,
   // so an abandoned or rejected capture leaves nothing behind.
@@ -453,6 +463,7 @@ export async function buildWordHoverFlashcardContent(params: BuildWordHoverFlash
     back: translationArr?.join('; ') || '-',
     reading: reading || undefined,
     prosody,
+    fieldProvenance: dictionaryContent?.fieldProvenance,
     pos: params.token.partOfSpeech ?? params.token.type ?? '',
     level: params.level ?? undefined,
     example: exampleHtml,

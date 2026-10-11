@@ -11,7 +11,7 @@
  * implementation would only re-introduce the drift this module exists to remove.
  */
 
-import type { Flashcard, FlashcardContent, LanguageData } from '../../shared/types';
+import type { Flashcard, FlashcardContent, FlashcardFieldProvenance, LanguageData } from '../../shared/types';
 import { enrichWord, type DictionaryTargetSettings, type EnrichedWordContent } from '../services/wordEnrichment';
 
 export type RepairKind = 'content' | 'tts' | 'exampleMeaning';
@@ -187,4 +187,95 @@ export function selectRepairFindings(findings: readonly RepairFinding[], selecti
 
 export function repairFindingKey(finding: RepairFinding): string {
   return `${finding.card.id}:${repairAspect(finding)}`;
+}
+
+export type GeneratedProsodyReconciliationStatus = 'candidate' | 'unchanged' | 'unresolved';
+
+export interface GeneratedProsodyReconciliationPreview {
+  cardId: string;
+  language: string;
+  status: GeneratedProsodyReconciliationStatus;
+  reason: string;
+  reading?: string;
+  current?: FlashcardContent['prosody'];
+  proposed?: FlashcardContent['prosody'];
+  source?: FlashcardFieldProvenance;
+  acceptancePolicy?: {
+    requiresExplicitAcceptance: true;
+    invalidatesEvidenceFor: 'prosody-target';
+    preservesEvidenceFor: readonly ['reading', 'meaning'];
+    preservesHistoricalGradesAndSchedule: true;
+  };
+}
+
+/**
+ * Read-only preview for generated prosody drift. A missing provenance record,
+ * an explicit edit marker, or a value that no longer matches its generated
+ * value is unresolved. The result carries only a prosody replacement; callers
+ * must present a separate, explicit user action to apply it.
+ */
+export async function previewGeneratedProsodyReconciliation(
+  cards: readonly Flashcard[],
+  deps: {
+    activeLanguage: string;
+    getLanguageData: (language: string) => LanguageData | null;
+    settings: DictionaryTargetSettings;
+    enrich?: typeof enrichWord;
+  },
+): Promise<GeneratedProsodyReconciliationPreview[]> {
+  const preview: GeneratedProsodyReconciliationPreview[] = [];
+  for (const card of cards) {
+    const language = card.language || deps.activeLanguage;
+    const reading = card.content.reading || card.content.front;
+    const provenance = card.content.fieldProvenance?.prosody;
+    const base = { cardId: card.id, language, reading, ...(card.content.prosody ? { current: card.content.prosody } : {}) };
+
+    if ((card.content.userEditedFields ?? []).includes('prosody')) {
+      preview.push({ ...base, status: 'unresolved', reason: 'prosody-was-explicitly-edited' });
+      continue;
+    }
+    if (!provenance || provenance.origin !== 'dictionary-prosody') {
+      preview.push({ ...base, status: 'unresolved', reason: 'missing-dictionary-generation-provenance' });
+      continue;
+    }
+    const currentValue = card.content.prosody?.position ?? card.content.prosody?.display;
+    if (currentValue === undefined || currentValue !== provenance.generatedValue) {
+      preview.push({ ...base, status: 'unresolved', reason: 'stored-value-no-longer-matches-generated-value', source: provenance });
+      continue;
+    }
+
+    const enriched = await (deps.enrich ?? enrichWord)({
+      word: card.content.front,
+      language,
+      languageData: deps.getLanguageData(language),
+      settings: deps.settings,
+      currentContent: card.content,
+    });
+    if (!enriched?.prosody || !enriched.fieldProvenance?.prosody) {
+      preview.push({ ...base, status: 'unresolved', reason: 'current-dictionary-has-no-unambiguous-reading-bound-prosody', source: provenance });
+      continue;
+    }
+    if (enriched.prosody.position === card.content.prosody?.position
+      && enriched.prosody.display === card.content.prosody?.display) {
+      preview.push({ ...base, status: 'unchanged', reason: 'generated-value-matches-current-dictionary', source: provenance });
+      continue;
+    }
+    preview.push({
+      ...base,
+      status: 'candidate',
+      reason: 'generated-value-differs-from-current-dictionary',
+      proposed: enriched.prosody,
+      source: enriched.fieldProvenance.prosody,
+      // This is a changed learning target. If a later UI accepts this preview,
+      // old pitch-recall evidence must not transfer; unrelated lexical
+      // knowledge and historical ratings/scheduling remain intact.
+      acceptancePolicy: {
+        requiresExplicitAcceptance: true,
+        invalidatesEvidenceFor: 'prosody-target',
+        preservesEvidenceFor: ['reading', 'meaning'],
+        preservesHistoricalGradesAndSchedule: true,
+      },
+    });
+  }
+  return preview;
 }

@@ -715,6 +715,7 @@ export const App: Component = () => {
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: entry.token,
         word,
+        language: settings.language,
         translationData: translationData || undefined,
         contextPhrase: entry.contextPhrase,
         isOcr: false,

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LanguageData } from '../../shared/types';
+import pitchFixture from '../../../test/fixtures/japanese-pitch-accent-bulk-add-v1.json';
+import { getJapanesePitchAccentInfo } from './japanesePitchAccent';
 import {
   extractProsodyFromTranslationData,
   normalizeDictionaryReading,
@@ -100,19 +102,69 @@ describe('extractProsodyFromTranslationData', () => {
     });
   });
 
-  it('preserves package-defined future prosody payloads for saved flashcards', () => {
+  it('binds the real 迫る records by reading, independent of dictionary result order', () => {
+    const records = pitchFixture.records.historicalMismatch.pitchRecords.map((record) => record.raw[2]);
+    for (const orderedRecords of [records, [...records].reverse()]) {
+      const response = {
+        data: [
+          { reading: 'せまる', definitions: ['to approach'] },
+          { reading: 'せる', definitions: [] },
+          orderedRecords,
+        ],
+      };
+      const semaru = extractProsodyFromTranslationData(response, japanesePitchLanguage, 'せまる')?.position;
+      const seru = extractProsodyFromTranslationData(response, japanesePitchLanguage, 'せる')?.position;
+      expect(semaru).toBe(2);
+      expect(seru).toBe(1);
+      expect(getJapanesePitchAccentInfo(semaru, 'せまる')?.pattern.map((high) => high ? 'H' : 'L'))
+        .toEqual(pitchFixture.records.historicalMismatch.expectedRenderer['せまる'].contour);
+      expect(getJapanesePitchAccentInfo(seru, 'せる')?.pattern.map((high) => high ? 'H' : 'L'))
+        .toEqual(pitchFixture.records.historicalMismatch.expectedRenderer['せる'].contour);
+    }
+  });
+
+  it('leaves pitch unresolved when a response record cannot be associated with the selected reading', () => {
+    expect(extractProsodyFromTranslationData({
+      data: [
+        { reading: 'せまる', definitions: ['to approach'] },
+        {},
+        { pitches: [{ position: 1 }] },
+      ],
+    }, japanesePitchLanguage, 'せまる')).toBeUndefined();
+  });
+
+  it('leaves conflicting same-reading source positions unresolved', () => {
+    expect(extractProsodyFromTranslationData({
+      data: [
+        { reading: 'せまる', definitions: ['to approach'] },
+        [
+          ['迫る', 'pitch', { reading: 'せまる', pitches: [{ position: 2 }] }],
+          ['迫る', 'pitch', { reading: 'せまる', pitches: [{ position: 3 }] }],
+        ],
+      ],
+    }, japanesePitchLanguage, 'せまる')).toBeUndefined();
+  });
+
+  it('keeps 順 / じゅん heiban [0] as the positive control', () => {
+    const raw = pitchFixture.records.positiveControl.pitchRecord.raw[2];
+    expect(extractProsodyFromTranslationData({
+      data: [{ reading: 'じゅん', definitions: ['order'] }, {}, raw],
+    }, japanesePitchLanguage, 'じゅん')?.position).toBe(0);
+    const rendered = getJapanesePitchAccentInfo(0, 'じゅん');
+    expect(rendered?.moraCharCounts).toEqual([2, 1]);
+    expect(rendered?.pattern.map((high) => high ? 'H' : 'L')).toEqual(['L', 'H']);
+    expect(rendered?.particleAccent).toBe(true);
+  });
+
+  it('leaves package-defined payloads unresolved when their reading association is absent', () => {
     const raw = { contours: [{ syllable: 'ma', tone: 'rising' }] };
     expect(extractProsodyFromTranslationData({
       data: [
-        { reading: 'ma', definitions: ['mother'] },
+        { reading: '', definitions: ['mother'] },
         { reading: '', definitions: [] },
         raw,
       ],
-    }, toneLanguage)).toEqual({
-      type: 'tone-contour',
-      display: 'rising',
-      raw,
-    });
+    }, toneLanguage)).toBeUndefined();
   });
 });
 

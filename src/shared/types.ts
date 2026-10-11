@@ -1937,6 +1937,14 @@ export interface FlashcardProsody {
   raw?: unknown;
 }
 
+/** Provenance for one generated content field; package and source identifiers stay open-ended. */
+export interface FlashcardFieldProvenance {
+  origin: string;
+  source?: Record<string, unknown>;
+  generatedValue?: unknown;
+  raw?: unknown;
+}
+
 export interface TranslationResponse {
   /**
    * Dictionary adapters return an ordered payload:
@@ -2030,6 +2038,8 @@ export interface FlashcardContent {
   unpopulated?: boolean;
   /** Content fields edited by the user that automatic population should not overwrite */
   userEditedFields?: string[];
+  /** Open-ended per-field provenance for safe, opt-in reconciliation of generated values. */
+  fieldProvenance?: Record<string, FlashcardFieldProvenance>;
   /** Custom fields for extensibility */
   extra?: Record<string, unknown>;
   

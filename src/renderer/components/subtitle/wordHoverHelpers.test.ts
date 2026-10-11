@@ -54,7 +54,7 @@ const toneLanguage: LanguageData = {
   name: 'Tone Language',
   colour_codes: {},
   settings: { fixed: {} },
-  prosody: { type: 'tone-contour', positionLabel: 'Tone position' },
+  prosody: { type: 'tone-contour', positionLabel: 'Tone position', displayPath: ['contours', '*', 'tone'] },
 };
 
 describe('compact word hover content', () => {
@@ -157,7 +157,7 @@ describe('extractFlashcardProsodyFromTranslationData', () => {
       data: [
         { reading: 'やっかい', definitions: ['trouble'] },
         { reading: '', definitions: [] },
-        { pitches: [{ position: 0 }] },
+        { reading: 'やっかい', pitches: [{ position: 0 }] },
       ],
     }, japanesePitchLanguage, 'やっかい');
 
@@ -186,7 +186,7 @@ describe('extractFlashcardProsodyFromTranslationData', () => {
       data: [
         { reading: 'test', definitions: ['test'] },
         { reading: '', definitions: [] },
-        { pitches: [{ position: 0 }] },
+        { reading: 'やっかい', pitches: [{ position: 0 }] },
       ],
     }, pinyinLanguage);
 
@@ -194,7 +194,7 @@ describe('extractFlashcardProsodyFromTranslationData', () => {
   });
 
   it('preserves package-defined future prosody payloads for saved flashcards', () => {
-    const raw = { contours: [{ syllable: 'ma', tone: 'rising' }] };
+    const raw = { reading: 'ma', contours: [{ syllable: 'ma', tone: 'rising' }] };
     const result = extractFlashcardProsodyFromTranslationData({
       data: [
         { reading: 'ma', definitions: ['mother'] },
@@ -205,6 +205,7 @@ describe('extractFlashcardProsodyFromTranslationData', () => {
 
     expect(result).toEqual({
       type: 'tone-contour',
+      display: 'rising',
       raw,
     });
   });
@@ -223,7 +224,7 @@ describe('resolveProsodyForHover for Japanese pitch accent', () => {
     data: [
       { reading, definitions: ['trouble'] },
       { reading: '', definitions: [] },
-      { pitches: [{ position }] },
+      { reading, pitches: [{ position }] },
     ],
   });
 
@@ -309,13 +310,9 @@ describe('resolveProsodyForHover for Japanese pitch accent', () => {
       reading: 'やっかい',
       translationData: translationWithPitch(0, 'cached-reading'),
     });
-    expect(result).toEqual({
-      type: 'japanese-pitch-accent',
-      renderer: 'inline-overlay',
-      overlayRenderer: 'japanese-pitch-accent',
-      position: 0,
-      reading: 'やっかい',
-    });
+    // The only pitch row is explicitly bound to a different reading, so the
+    // token reading cannot reuse it.
+    expect(result).toBeNull();
   });
 
   it('falls back to the canonical form when the hovered word has no pitch data', () => {
@@ -373,11 +370,15 @@ describe('resolveProsodyForHover for Japanese pitch accent', () => {
 });
 
 describe('resolveProsodyForHover for metadata-defined prosody', () => {
+  const tonePositionLanguage: LanguageData = {
+    ...toneLanguage,
+    prosody: { type: 'tone-contour', positionLabel: 'Tone position', positionPath: ['position'] },
+  };
   const baseOptions = {
     showProsody: true,
     getCanonicalForm: (word: string) => word,
     getCachedTranslation: () => null,
-    languageData: toneLanguage,
+    languageData: tonePositionLanguage,
     fallbackLabel: 'Prosody position',
   };
 
@@ -385,7 +386,7 @@ describe('resolveProsodyForHover for metadata-defined prosody', () => {
     data: [
       { reading: 'ma', definitions: ['mother'] },
       { reading: '', definitions: [] },
-      { type: 'tone-contour', position },
+      { reading: 'ma', type: 'tone-contour', position },
     ],
   });
 
@@ -425,7 +426,7 @@ describe('resolveProsodyForHover for metadata-defined prosody', () => {
         data: [
           { reading: 'ma', definitions: ['mother'] },
           { reading: '', definitions: [] },
-          { tone: { label: 'falling-rising' } },
+          { reading: 'ma', tone: { label: 'falling-rising' } },
         ],
       },
     });
@@ -446,7 +447,7 @@ describe('resolveProsodyForHover for metadata-defined prosody', () => {
         data: [
           { reading: 'やっかい', definitions: ['trouble'] },
           { reading: '', definitions: [] },
-          { pitches: [{ position: 0 }] },
+          { reading: 'やっかい', pitches: [{ position: 0 }] },
         ],
       },
       languageData: japanesePitchLanguage,

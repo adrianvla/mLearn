@@ -463,6 +463,7 @@ export const WordDbEditorContent: Component = () => {
       const { content, ease } = await buildWordHoverFlashcardContent({
         token: { word: entry.word, surface: entry.word, actual_word: entry.word, type: '' },
         word: entry.word,
+        language: settings.language,
         translationData,
         contextPhrase: undefined,
         isOcr: false,

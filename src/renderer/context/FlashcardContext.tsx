@@ -2067,6 +2067,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         back: content.back,
         reading: content.reading,
         prosody: content.prosody,
+        fieldProvenance: content.fieldProvenance,
         pos: content.pos,
         level: content.level,
         example: content.example,
@@ -3010,6 +3011,14 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     const userEditedFields = new Set(card.content.userEditedFields ?? []);
     const filtered: Partial<FlashcardContent> = {};
     for (const key of Object.keys(updates) as Array<keyof FlashcardContent>) {
+      if (key === 'fieldProvenance' && updates.fieldProvenance) {
+        const provenance = { ...(card.content.fieldProvenance ?? {}) };
+        for (const [field, record] of Object.entries(updates.fieldProvenance)) {
+          if (!userEditedFields.has(field)) provenance[field] = record;
+        }
+        Object.assign(filtered, { fieldProvenance: provenance });
+        continue;
+      }
       if (updates[key] !== undefined && !userEditedFields.has(String(key))) {
         Object.assign(filtered, { [key]: updates[key] });
       }
@@ -3164,7 +3173,12 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         sourceMediaHash: params.sourceMediaHash,
         level: getFrequencyForLanguage(lang, word)?.raw_level,
       });
-      updateFlashcardContent(unpopulatedCard.id, { ...updates, unpopulated: false }, false);
+      updateFlashcardContent(unpopulatedCard.id, {
+        ...updates,
+        // Capturing context/media does not provide the dictionary content that
+        // makes a new shell ready for Review.
+        unpopulated: !Boolean(unpopulatedCard.content.back?.trim()),
+      }, false);
       return;
     }
 
@@ -3539,6 +3553,8 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       if (!key) { done++; onProgress?.(done, total); continue; }
       const suggestion = store.suggestedFlashcards[key];
       if (!suggestion) { done++; onProgress?.(done, total); continue; }
+      const unpopulatedCard = findUnpopulatedFlashcardForWord(suggestion.word, suggestion.language);
+      const preservedReading = unpopulatedCard?.content.reading || suggestion.reading;
 
       try {
         const suggestionLanguageData = languageDataFor(suggestion.language);
@@ -3550,7 +3566,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           languageData: suggestionLanguageData,
           settings,
           dictionaryTargetLanguage: dictionaryTargetFor(suggestion.language),
-          currentContent: { reading: suggestion.reading },
+          currentContent: { reading: preservedReading },
         });
         if (!enriched) { done++; onProgress?.(done, total); continue; }
 
@@ -3572,6 +3588,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           back: backText,
           reading: reading || undefined,
           prosody,
+          fieldProvenance: enriched.fieldProvenance,
           pos: suggestion.pos,
           level: suggestion.level ?? getFrequencyForLanguage(suggestion.language, getPrimaryWordFormForLanguage(suggestion.word, suggestion.language))?.raw_level ?? undefined,
           example: exampleSentence || undefined,
@@ -3587,7 +3604,6 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           definition: definitionArr,
         };
 
-        const unpopulatedCard = findUnpopulatedFlashcardForWord(suggestion.word, suggestion.language);
         let populatedCardId: string;
         if (unpopulatedCard) {
           const updates = filterUserEditedUpdates(unpopulatedCard, content);
@@ -5681,6 +5697,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
       backText: string;
       reading: string;
       prosody: FlashcardProsody | undefined;
+      fieldProvenance: FlashcardContent['fieldProvenance'];
       definitionArr: string[] | undefined;
     }> = [];
 
@@ -5699,6 +5716,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           languageData: languageDataFor(lang),
           settings,
           dictionaryTargetLanguage: dictionaryTargetFor(lang),
+          fallbackReading: candidate.reading,
         });
         if (!enriched || isWordIgnoredSync(candidate.word, lang)) continue; // Skip words with no translation
 
@@ -5708,6 +5726,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           backText: enriched.back,
           reading: enriched.reading || candidate.reading || '',
           prosody: enriched.prosody,
+          fieldProvenance: enriched.fieldProvenance,
           definitionArr: enriched.definition,
         });
       } catch (e) {
@@ -5735,7 +5754,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
 
     let createdCount = 0;
     for (const [index, preparedCard] of prepared.entries()) {
-      const { compositeKey, candidate, backText, reading, prosody, definitionArr } = preparedCard;
+      const { compositeKey, candidate, backText, reading, prosody, fieldProvenance, definitionArr } = preparedCard;
       if (isWordIgnoredSync(candidate.word, lang)) continue;
       const example = examples[index];
       try {
@@ -5745,6 +5764,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           back: backText,
           reading: reading || undefined,
           prosody,
+          fieldProvenance,
           example: example.sentence || undefined,
           exampleMeaning: example.meaning || undefined,
           // Legacy fields

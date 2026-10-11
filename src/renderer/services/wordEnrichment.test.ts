@@ -36,6 +36,42 @@ describe('enrichWord', () => {
     expect(result?.reading).toBe('くらい');
   });
 
+  it('carries the reading, pitch record, and dictionary package identity together', async () => {
+    const languageData = {
+      name: 'Japanese', settings: { fixed: {} }, prosody: { type: 'japanese-pitch-accent' },
+      languageData: {
+        activationGeneration: 'generation-a', version: 'ja-v2', assets: [],
+        dictionaryPacks: { en: { targetLanguage: 'en', name: 'English', version: 'dict-v3', assets: [] } },
+      },
+    } as unknown as import('../../shared/types').LanguageData;
+    const translate = vi.fn().mockResolvedValue({
+      data: [
+        entry('approach', { reading: 'せまる' }),
+        entry('', { reading: 'せる' }),
+        [
+          ['迫る', 'pitch', { reading: 'せまる', pitches: [{ position: 2 }] }],
+          ['迫る', 'pitch', { reading: 'せる', pitches: [{ position: 1 }] }],
+        ],
+      ],
+      resolution: { selectedId: 'jmdict:1475720' },
+    });
+    const result = await enrichWord({ word: '迫る', language: 'ja', languageData, dictionaryTargetLanguage: 'en' }, { translate });
+    expect(result).toMatchObject({ reading: 'せまる', prosody: { position: 2 } });
+    expect(result?.fieldProvenance?.prosody).toMatchObject({
+      origin: 'dictionary-prosody', generatedValue: 2,
+      source: { language: 'ja', dictionaryTargetLanguage: 'en', packageGeneration: 'generation-a', packageVersion: 'ja-v2', dictionaryPackVersion: 'dict-v3', selectedEntryId: 'jmdict:1475720', reading: 'せまる' },
+      raw: { reading: 'せまる', pitches: [{ position: 2 }] },
+    });
+    expect(result?.fieldProvenance?.reading).toMatchObject({ origin: 'dictionary-entry', generatedValue: 'せまる' });
+  });
+
+  it('does not assign a pitch when an observed fallback reading is absent from the response', async () => {
+    const translate = vi.fn().mockResolvedValue({ data: [entry('approach'), {}, { pitches: [{ position: 1 }] }] });
+    const result = await enrichWord({ word: '迫る', language: 'ja', fallbackReading: 'せまる' }, { translate });
+    expect(result?.reading).toBe('せまる');
+    expect(result?.prosody).toBeUndefined();
+  });
+
   it('reads the configured dictionary target language from settings', async () => {
     const translate = vi.fn().mockResolvedValue({ data: [entry('dark')] });
     await enrichWord({
