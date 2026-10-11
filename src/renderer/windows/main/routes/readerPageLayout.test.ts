@@ -6,6 +6,8 @@ import {
   resolveReaderAnnotationColor,
   resolveReaderTextFontFamily,
   resolveReaderVerticalLayout,
+  readerWritingModeStorageKey,
+  parseReaderWritingMode,
 } from './readerPageLayout';
 
 describe('getVisiblePageIndices', () => {
@@ -23,6 +25,22 @@ describe('getVisiblePageIndices', () => {
 
   it('returns only the last page when no trailing spread page exists', () => {
     expect(getVisiblePageIndices(5, 4, 'double', false)).toEqual([4]);
+  });
+});
+
+describe('per-source reader writing mode preference', () => {
+  it('uses opaque source-scoped keys and accepts only explicit supported modes', () => {
+    const book = readerWritingModeStorageKey('/private/library/book.epub', 'epub');
+    const other = readerWritingModeStorageKey('/private/library/other.epub', 'epub');
+    expect(book).toMatch(/^mlearn-reader-writing-mode::[a-f0-9]{64}$/);
+    expect(book).not.toContain('/private/library');
+    expect(book).not.toBe(other);
+    expect(readerWritingModeStorageKey('', 'epub')).toBeNull();
+    expect(parseReaderWritingMode('vertical')).toBe('vertical');
+    expect(parseReaderWritingMode('horizontal')).toBe('horizontal');
+    expect(parseReaderWritingMode('auto')).toBe('auto');
+    expect(parseReaderWritingMode('unknown')).toBe('auto');
+    expect(parseReaderWritingMode(null)).toBe('auto');
   });
 });
 
@@ -79,6 +97,13 @@ describe('resolveReaderVerticalLayout', () => {
       }
     }
   }
+
+  it('lets the reader explicitly override detected page writing direction', () => {
+    const book = { isEpubBook: true, declaresVerticalWriting: true, progressionDirection: 'rtl' as const, supportsVerticalText: true };
+    expect(resolveReaderVerticalLayout({ ...book, writingMode: 'horizontal' })).toBe(false);
+    expect(resolveReaderVerticalLayout({ ...book, writingMode: 'vertical' })).toBe(true);
+    expect(resolveReaderVerticalLayout({ ...book, declaresVerticalWriting: false, writingMode: 'auto' })).toBe(false);
+  });
 });
 
 describe('resolveReaderTextFontFamily', () => {

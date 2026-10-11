@@ -1174,6 +1174,7 @@
         "RawData": "原始数据",
         "RecordCount": "{count} 条记录",
         "NoRuntimeData": "此上下文中没有记录。",
+        "SelectRecord": "选择一条记录查看字段；原始 JSON 位于下方。",
         "WorldSummary": "{rooms} 个房间 · {threads} 个会话 · {participants} 位参与者",
         "Runs": "后台运行",
         "Memories": "记忆",
@@ -1699,6 +1700,8 @@
         "ChangeLanguage": "更改语言",
         "ContinueLearning": "继续学习",
         "LearningLanguage": "正在学习{language}",
+        "ResumeGrammarPractice": "继续语法练习",
+        "ResumeWordPractice": "继续词汇练习",
         "TitleDescription": "选择下方选项开始学习",
         "RecentLoadFailed": "无法加载最近使用的材料。请重试。"
       },
@@ -1739,6 +1742,7 @@
         "AllTimeReviews": "累计记录的复习",
         "NewCardResponses": "新卡学习记录",
         "RecordDefinition": "所选学习语言的所有已保存每日记录合计。重复回答也计数；这些并非已掌握的单词或媒体使用量。",
+        "RecordDetails": "回答记录详情",
         "EvidenceUnavailable": "学习证据不可用。请重试以查看要求的进度。",
         "ConversationUnavailable": "对话预览不可用。仍可在聊天中访问本地对话。",
         "NoConversation": "与联系人中的某个人开始对话。"
@@ -2474,7 +2478,11 @@
         "NextPage": "下一页",
         "PageFit": "页面适应方式",
         "PageLayout": "页面布局",
-        "PageOrder": "页面顺序"
+        "PageOrder": "页面顺序",
+        "WritingMode": "文字方向",
+        "WritingModeAuto": "自动",
+        "WritingModeVertical": "竖排",
+        "WritingModeHorizontal": "横排"
       },
       "UI": {
         "Tips": {
@@ -3462,6 +3470,8 @@
         "ImmersionTime": "沉浸式学习时间",
         "IntervalDistribution": "间隔分布",
         "LapseHeatmap": "遗忘热力图",
+        "LapseRate": "遗忘率",
+        "LapseRateDefinition": "过去 30 天：记录遗忘 {lapses} 次 / 复习卡片 {reviews} 张。",
         "Lapses": "遗忘次数",
         "LevelCoverage": "覆盖率",
         "LevelTotal": "总计",
@@ -3476,6 +3486,7 @@
         "Overdue": "逾期",
         "RetentionRate": "保持率",
         "ReviewActivity": "复习活动（过去 30 天）",
+        "NoReviewActivity": "过去 30 天没有复习或新卡片记录。",
         "ReviewHeatmap": "复习热力图",
         "ReviewStudyTime": "复习学习时间",
         "Reviews": "复习次数",
@@ -3523,9 +3534,17 @@
       "LearningVelocity": {
         "Title": "学习速度",
         "Empty": "历史记录还不够——继续学习，稍后再来查看。",
+        "Loading": "正在加载已保存的学习历史…",
+        "LoadError": "无法加载已保存的学习历史。",
+        "Retry": "重试",
         "DaysToKnown": "达到稳定「已知」的中位天数",
-        "AcquisitionSlope": "14 天习得速度",
-        "RetentionAfterKnown": "「已知」后 30 天保持率"
+        "StrengthChange14Days": "14 天后的归一化强度变化",
+        "LapseIncidenceAfterKnown": "首次判为已知后 30 天内的遗忘发生率",
+        "DaysUnit": "天",
+        "StrengthChangeUnit": "归一化强度变化（0–1 刻度）",
+        "DaysTooltip": "{month}：达到稳定已知需 {value} 天（n={count}）",
+        "StrengthTooltip": "{month}：归一化强度变化 {value}（0–1 刻度，n={count}）",
+        "LapseTooltip": "{month}：首次判为已知且已完成 30 天跟踪的单词中，这 30 天内有遗忘记录的比例为 {percent}%（n={count}）"
       },
       "Sections": {
         "knowledge": "知识",

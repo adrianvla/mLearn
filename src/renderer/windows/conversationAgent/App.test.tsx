@@ -131,6 +131,13 @@ const mockBridge = {
       response,
     })),
   },
+  diagnostics: {
+    getRuntimeTraces: vi.fn(async () => ({ available: true, revision: 0, entries: [] })),
+    getRuntimeWorld: vi.fn(async () => currentWorld),
+    getRuntimeTrace: vi.fn(async () => null),
+    onRuntimeTraceChanged: vi.fn(() => () => {}),
+    clearRuntimeTraces: vi.fn(async () => {}),
+  },
   journal: {
     appendEvent: vi.fn(async (_roomId: string, draft: JournalEventDraft) => appendJournalEvent(draft)),
     readSeaProjection: vi.fn(async (roomId: string) => journalEvents.filter(event => event.roomId === roomId && event.scope.kind === 'sea')),
@@ -253,8 +260,9 @@ vi.mock('../../components/common', async (original) => ({
   IconBtn: (props: { children?: JSX.Element; onClick?: () => void; disabled?: boolean; 'aria-label'?: string; ref?: (el: HTMLButtonElement) => void }) => (
     <button type="button" ref={props.ref} aria-label={props['aria-label']} disabled={props.disabled} onClick={props.onClick}>{props.children}</button>
   ),
-  Modal: (props: { children?: JSX.Element; footer?: JSX.Element; title?: JSX.Element | string }) => (
-    <div>{props.title}{props.children}{props.footer}</div>
+  Modal: (props: { isOpen?: boolean; onClose?: () => void; showCloseButton?: boolean; children?: JSX.Element; footer?: JSX.Element; title?: JSX.Element | string }) => (
+    props.isOpen === false ? null : <div role="dialog">{props.title}{props.children}{props.footer}
+      {props.showCloseButton !== false && <button type="button" aria-label="mlearn.Global.Aria.CloseModal" onClick={props.onClose} />}</div>
   ),
   ModalForm: (props: { isOpen?: boolean; children?: JSX.Element; footer?: JSX.Element; title?: JSX.Element | string }) => (
     props.isOpen === false ? null : <div>{props.title}{props.children}{props.footer}</div>
@@ -485,6 +493,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
     await vi.waitFor(() => expect(container.querySelector('.ca-header-contact [data-testid="participant-avatar-group"]')).not.toBeNull());
+    expect(container.querySelector('.ca-header-title')?.textContent).toBe('Tutor, Tutor');
     const headerIds = Array.from(container.querySelectorAll('.ca-header-contact [data-participant-id]')).map(slot => slot.getAttribute('data-participant-id'));
     (container.querySelector('[aria-label="mlearn.ConversationAgent.History.ToggleSidebar"]') as HTMLButtonElement).click();
     await vi.waitFor(() => expect(container.querySelector('.room-sidebar-room [data-testid="participant-avatar-group"]')).not.toBeNull());
@@ -531,19 +540,25 @@ describe('conversationAgent window golden path (parity baseline)', () => {
   it('offers cloud reauthentication once and preserves the draft while sending stays disabled', async () => {
     testSettings.llmProvider = 'cloud';
     mockCloudToken.mockResolvedValue('');
+    appendJournalEvent({ roomId: 'room-a', scope: { kind: 'thread', threadId: 'thread-a' },
+      type: 'message.character', actorId: 'agent-a', witnesses: ['user'], payload: { text: 'Offline history remains here' } });
     const { ConversationContent } = await import('./App');
     dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
-    await vi.waitFor(() => expect(container.querySelector('.ca-provider-notice')?.textContent).toContain('mlearn.CloudReLogin.SessionExpired'));
+    await vi.waitFor(() => expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('mlearn.CloudReLogin.SessionExpired'));
     const input = container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement;
     input.value = 'Keep this while I sign in'; input.dispatchEvent(new Event('input', { bubbles: true }));
     expect((container.querySelector('[aria-label="mlearn.ConversationAgent.Send"]') as HTMLButtonElement).disabled).toBe(true);
-    const notice = container.querySelector('.ca-provider-notice')!;
-    expect(notice.querySelectorAll('button')).toHaveLength(1);
-    expect(notice.querySelector('button')?.textContent).toBe('mlearn.Connection.SignIn');
-    notice.querySelector<HTMLButtonElement>('button')!.click();
+    const dialog = document.body.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain('mlearn.Connection.SignIn');
+    Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.Connection.SignIn')!.click();
     expect(mockOpenCloudReLoginModal).toHaveBeenCalledOnce();
     expect(input.value).toBe('Keep this while I sign in');
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
+    dialog.querySelector<HTMLButtonElement>('[aria-label="mlearn.Global.Aria.CloseModal"]')!.click();
+    await vi.waitFor(() => expect(document.body.querySelector('[role="dialog"]')).toBeNull());
+    expect(container.querySelector('.ca-provider-notice')).toBeNull();
+    expect((container.querySelector('.ca-chat-textarea') as HTMLTextAreaElement).value).toBe('Keep this while I sign in');
+    expect(chatText(container)).toContain('Offline history remains here');
   });
 
   it('routes a missing local model to AI settings without dropping the draft', async () => {
@@ -616,7 +631,7 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
     (container.querySelector('[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]') as HTMLButtonElement).click();
     Array.from(document.querySelectorAll<HTMLButtonElement>('.ca-overflow-menu button')).find(button => button.textContent === 'mlearn.ConversationAgent.Menu.MemoryBrowser')!.click();
-    expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'memory-browser', context: { memoryScope: { kind: 'room', id: 'room-a' }, returnContext: { roomId: 'room-a', threadId: 'thread-a' } } });
+    expect(mockBridge.window.openWindow).toHaveBeenCalledWith({ type: 'memory-browser', context: { memoryScope: { kind: 'thread', id: 'thread-a' }, returnContext: { roomId: 'room-a', threadId: 'thread-a' } } });
     expect(mockBridge.llm.llmStream).not.toHaveBeenCalled();
   });
 
@@ -1840,6 +1855,26 @@ describe('conversationAgent window golden path (parity baseline)', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await vi.waitFor(() => expect(document.querySelector('.ca-overflow-menu')).toBeNull());
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('opens the developer inspector in the selected room and thread scope only when enabled', async () => {
+    testSettings.devMode = true;
+    const { ConversationContent } = await import('./App');
+    dispose = render(() => <ConversationContent launchContext={testLaunchContext()} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.ca-history-loading')).toBeNull());
+    const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="mlearn.ConversationAgent.Menu.OverflowAria"]')!;
+    trigger.click();
+    await vi.waitFor(() => expect(document.querySelector('.ca-overflow-menu')).not.toBeNull());
+    const menu = document.querySelector<HTMLElement>('.ca-overflow-menu')!;
+    const inspectorEntry = Array.from(menu.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Developer.Title')!;
+    inspectorEntry.click();
+
+    await vi.waitFor(() => expect(document.querySelector('[role="dialog"] .runtime-inspector')).not.toBeNull());
+    const dialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]')).find(element => element.querySelector('.runtime-inspector'))!;
+    expect(dialog.querySelector('.runtime-inspector')).not.toBeNull();
+    expect(dialog.textContent).toContain('mlearn.ConversationAgent.Developer.Title');
+    Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent === 'mlearn.ConversationAgent.Developer.Journal')!.click();
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledWith('room-a', 'thread-a'));
   });
 
   it('opens details from a media chip and initial stats context', async () => {

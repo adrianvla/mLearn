@@ -6,6 +6,7 @@ import type { RecentItem } from '../../../services/thumbnailService';
 const fixture = vi.hoisted(() => ({ navigate: vi.fn(), openWindow: vi.fn(), recent: [] as RecentItem[],
   recentFailure: false, language: 'future', updateSetting: vi.fn(), toast: vi.fn(),
   grammarResume: null as { context: { activity: string; patterns: string[] } } | null,
+  practiceResume: null as { context: { activity: 'practice' | 'reinforce'; sessionId: string } } | null,
   review: undefined as { id: string } | undefined,
   presentation: undefined as { id: string; cardId: string } | undefined,
 }));
@@ -26,7 +27,7 @@ vi.mock('../../../../shared/bridges', () => ({ getBridge: () => ({ window: { ope
 vi.mock('../../../services/thumbnailService', async (original) => ({ ...(await original<typeof import('../../../services/thumbnailService')>()), getRecentItems: async () => { if (fixture.recentFailure) throw new Error('offline recent material'); return fixture.recent; } }));
 vi.mock('../../../components/common/Feedback/Toast', () => ({ showToast: fixture.toast }));
 vi.mock('./homeGrammarResume', () => ({ homeGrammarResume: () => fixture.grammarResume }));
-vi.mock('./homePracticeResume', () => ({ homePracticeResume: () => null }));
+vi.mock('./homePracticeResume', () => ({ homePracticeResume: () => fixture.practiceResume }));
 vi.mock('../../../../shared/reviewSession', () => ({ reviewSessionHasAvailableCards: () => true }));
 vi.mock('../../../components/common/Misc/AppLogo', () => ({ default: () => null }));
 vi.mock('./components', async () => ({
@@ -73,7 +74,7 @@ describe('purpose-led Home', () => {
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(container.querySelector('.welcome-continue-title')?.textContent).toBe('Recovered');
   });
-  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.recentFailure = false; fixture.language = 'future'; fixture.grammarResume = null; fixture.review = undefined; fixture.presentation = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
+  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear(); fixture.recentFailure = false; fixture.language = 'future'; fixture.grammarResume = null; fixture.practiceResume = null; fixture.review = undefined; fixture.presentation = undefined; fixture.recent = []; container = document.createElement('div'); document.body.append(container); });
   afterEach(() => { dispose?.(); container.remove(); });
   it('shows a direct native language select with package-owned presentation', async () => {
     await mount();
@@ -102,14 +103,24 @@ describe('purpose-led Home', () => {
     expect(container.textContent).not.toContain('mlearn.Home.Today.Next');
     expect(container.textContent).not.toContain('no-target-filler');
   });
-  it('opens Review when an unrelated grammar pass is retained', async () => {
+  it('opens a bounded Review visit without replacing an unrelated grammar session', async () => {
     fixture.grammarResume = { context: { activity: 'grammar', patterns: ['private upcoming cue'] } };
     await mount(); open('mlearn.Flashcards.UI.Title');
     expect(fixture.navigate).not.toHaveBeenCalled();
-    expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'flashcards', context: { activity: 'review', intent: 'start', returnTo: 'home' } });
+    expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'flashcards', context: { activity: 'review', intent: 'start',
+      session: { encounterLimit: 120, requestId: expect.any(String) }, returnTo: 'home' } });
     expect(container.textContent).not.toContain('private upcoming cue');
-    Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('mlearn.Product.GrammarPractice'))!.click();
+    Array.from(container.querySelectorAll('button')).find(b => b.textContent?.includes('mlearn.Home.UI.ResumeGrammarPractice'))!.click();
     expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'level-study', context: { activity: 'grammar', patterns: ['private upcoming cue'], intent: 'resume', returnTo: 'home' } });
+  });
+  it('uses complete localized actions for saved grammar and word practice', async () => {
+    fixture.grammarResume = { context: { activity: 'grammar', patterns: ['one'] } };
+    fixture.practiceResume = { context: { activity: 'practice', sessionId: 'saved-word-session' } };
+    await mount();
+    const labels = Array.from(container.querySelectorAll('.welcome-resume-actions button')).map(button => button.textContent);
+    expect(labels).toContain('mlearn.Home.UI.ResumeGrammarPractice');
+    expect(labels).toContain('mlearn.Home.UI.ResumeWordPractice');
+    expect(labels.every(label => !label?.includes(' · '))).toBe(true);
   });
   it('opens saved conversation without requiring a configured LLM', async () => {
     await mount(); open('mlearn.Product.Messenger'); expect(fixture.navigate).toHaveBeenCalledWith('/messenger');
@@ -118,6 +129,27 @@ describe('purpose-led Home', () => {
     await mount(); open('mlearn.Product.Evaluate'); expect(fixture.navigate).toHaveBeenCalledWith('/evaluate', {
       state: { applicationRequestId: expect.any(String), applicationContext: { returnTo: 'home' } },
     }); expect(fixture.openWindow).not.toHaveBeenCalled();
+  });
+  it('offers direct assessment choices from Home with an explicit return destination', async () => {
+    await mount();
+    const options = Array.from(container.querySelectorAll<HTMLButtonElement>('.welcome-evaluate-options button'));
+    expect(options.map(button => button.textContent)).toEqual([
+      'mlearn.Product.KnowledgeCheck', 'mlearn.Product.GrammarCheck', 'mlearn.LevelStudy.Mock.Title',
+    ]);
+    options[0].click();
+    expect(fixture.navigate).toHaveBeenCalledWith('/evaluate/words', {
+      state: { applicationRequestId: expect.any(String), applicationContext: { returnTo: 'home', intent: 'start' } },
+    });
+    fixture.navigate.mockClear();
+    options[1].click();
+    expect(fixture.navigate).toHaveBeenCalledWith('/evaluate/grammar', {
+      state: { applicationRequestId: expect.any(String), applicationContext: { returnTo: 'home' } },
+    });
+    fixture.navigate.mockClear();
+    options[2].click();
+    expect(fixture.navigate).toHaveBeenCalledWith('/evaluate/grammar/mock', {
+      state: { applicationRequestId: expect.any(String), applicationContext: { returnTo: 'home' } },
+    });
   });
   it('resumes a continuous Review cursor by its exact identity without a finite boundary', async () => {
     fixture.presentation = { id: 'continuous-choice', cardId: 'card' }; await mount();

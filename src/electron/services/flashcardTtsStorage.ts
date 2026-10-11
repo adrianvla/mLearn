@@ -19,6 +19,7 @@ import http from 'http';
 import https from 'https';
 import { getLogger } from '../../shared/utils/logger';
 import { loadSettings } from './settings';
+import { hashWordSync } from '../../shared/utils/wordHash';
 
 const log = getLogger('electron.flashcardTtsStorage');
 
@@ -38,35 +39,39 @@ function ensureAudioDir(): void {
 }
 
 /** Build the filename for a card's audio */
-function audioFilename(cardId: string, field: 'word' | 'example'): string {
-  return `${cardId}-${field}.ogg`;
+function audioFilename(cardId: string, field: 'word' | 'example', resourceKey?: string): string {
+  return `${cardId}-${field}${resourceKey ? `-${resourceKey}` : ''}.ogg`;
 }
 
 /** Build the metadata filename for a card's audio */
-function metaFilename(cardId: string, field: 'word' | 'example'): string {
-  return `${cardId}-${field}.meta.json`;
+function metaFilename(cardId: string, field: 'word' | 'example', resourceKey?: string): string {
+  return `${cardId}-${field}${resourceKey ? `-${resourceKey}` : ''}.meta.json`;
 }
 
 /** Get the full path for a card's audio file */
-function audioPath(cardId: string, field: 'word' | 'example'): string {
-  return path.join(getAudioDir(), audioFilename(cardId, field));
+function audioPath(cardId: string, field: 'word' | 'example', resourceKey?: string): string {
+  return path.join(getAudioDir(), audioFilename(cardId, field, resourceKey));
 }
 
 /** Get the full path for a card's metadata file */
-function metaPath(cardId: string, field: 'word' | 'example'): string {
-  return path.join(getAudioDir(), metaFilename(cardId, field));
+function metaPath(cardId: string, field: 'word' | 'example', resourceKey?: string): string {
+  return path.join(getAudioDir(), metaFilename(cardId, field, resourceKey));
 }
 
 /** Write TTS metadata alongside the audio file */
-function writeMetadata(cardId: string, field: 'word' | 'example', provider: string, language: string, preset: FlashcardAudioPreset): void {
+function writeMetadata(cardId: string, field: 'word' | 'example', provider: string, language: string, preset: FlashcardAudioPreset,
+  text: string, voiceSampleId?: string, resourceKey?: string): void {
   const meta = {
     provider,
     preset,
     generatedAt: new Date().toISOString(),
     language,
+    textHash: hashWordSync(text),
+    ...(voiceSampleId ? { voiceSampleId } : {}),
+    ...(resourceKey ? { resourceKey } : {}),
   };
   try {
-    fs.writeFileSync(metaPath(cardId, field), JSON.stringify(meta));
+    fs.writeFileSync(metaPath(cardId, field, resourceKey), JSON.stringify(meta));
   } catch (e) {
     log.error("error", e);
     // Non-critical — silently ignore
@@ -74,8 +79,8 @@ function writeMetadata(cardId: string, field: 'word' | 'example', provider: stri
 }
 
 /** Read TTS metadata for a card field */
-function getFlashcardTtsMeta(cardId: string, field: 'word' | 'example'): { provider: string; generatedAt: string; language: string } | null {
-  const mp = metaPath(cardId, field);
+function getFlashcardTtsMeta(cardId: string, field: 'word' | 'example', resourceKey?: string): { provider: string; preset?: FlashcardAudioPreset; generatedAt: string; language: string; textHash?: string; voiceSampleId?: string; resourceKey?: string } | null {
+  const mp = metaPath(cardId, field, resourceKey);
   if (!fs.existsSync(mp)) return null;
   try {
     return JSON.parse(fs.readFileSync(mp, 'utf8'));
@@ -92,8 +97,9 @@ const MIN_AUDIO_SIZE = 100;
  * Check if a TTS audio file exists and return its file URL.
  * Files below MIN_AUDIO_SIZE are considered corrupt and removed.
  */
-function getFlashcardTts(cardId: string, field: 'word' | 'example'): string | null {
-  const filePath = audioPath(cardId, field);
+function getFlashcardTts(cardId: string, field: 'word' | 'example', resourceKey?: string): string | null {
+  if (resourceKey && !/^[a-f0-9]{64}$/.test(resourceKey)) return null;
+  const filePath = audioPath(cardId, field, resourceKey);
   if (fs.existsSync(filePath)) {
     try {
       const stat = fs.statSync(filePath);
@@ -386,13 +392,15 @@ async function generateFlashcardTts(
   cloudAuthToken?: string,
   cloudApiUrl?: string,
   preset: FlashcardAudioPreset = DEFAULT_SETTINGS.flashcardCreationAudioPreset,
+  resourceKey?: string,
 ): Promise<string | null> {
   if (!text || text === '-') return null;
+  if (resourceKey && !/^[a-f0-9]{64}$/.test(resourceKey)) return null;
   provider = flashcardAudioProvider(preset, provider as TTSProvider);
 
   // Sanitize consecutive dots to prevent TTS backend failures
   const sanitizedText = limitConsecutiveDots(text);
-  const output = audioPath(cardId, field);
+  const output = audioPath(cardId, field, resourceKey);
 
   // Resolve voice sample path if provided
   let voiceSamplePath: string | undefined;
@@ -415,7 +423,7 @@ async function generateFlashcardTts(
     }
 
     if (success) {
-      writeMetadata(cardId, field, provider, language, preset);
+      writeMetadata(cardId, field, provider, language, preset, text, voiceSampleId, resourceKey);
       return toAudioUrl(output);
     }
 
@@ -491,23 +499,13 @@ export function deleteFlashcardTts(cardId: string): void {
   if (!fs.existsSync(audioDir)) return;
 
   for (const field of ['word', 'example'] as const) {
-    const audio = audioPath(cardId, field);
-    const meta = metaPath(cardId, field);
-    if (fs.existsSync(audio)) {
-      try {
-        fs.unlinkSync(audio);
-      } catch (e) {
-        log.error("error", e);
-        throw e;
-      }
-    }
-    if (fs.existsSync(meta)) {
-      try {
-        fs.unlinkSync(meta);
-      } catch (e) {
-        log.error("error", e);
-        throw e;
-      }
+    const stem = `${cardId}-${field}`;
+    const ownedFiles = fs.readdirSync(audioDir).filter(filename =>
+      filename === `${stem}.ogg` || filename === `${stem}.meta.json`
+      || (filename.startsWith(`${stem}-`) && /^-[a-f0-9]{64}(?:\.ogg|\.meta\.json)$/.test(filename.slice(stem.length))));
+    for (const filename of ownedFiles) {
+      try { fs.unlinkSync(path.join(audioDir, filename)); }
+      catch (e) { log.error("error", e); throw e; }
     }
   }
 }
@@ -516,14 +514,14 @@ export function deleteFlashcardTts(cardId: string): void {
  * Setup IPC handlers for flashcard TTS operations.
  */
 export function setupFlashcardTtsIPC(): void {
-  ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_GET, (_event, cardId: string, field: 'word' | 'example') => {
-    return getFlashcardTts(cardId, field);
+  ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_GET, (_event, cardId: string, field: 'word' | 'example', resourceKey?: string) => {
+    return getFlashcardTts(cardId, field, resourceKey);
   });
 
   ipcMain.handle(
     IPC_CHANNELS.FLASHCARD_TTS_GENERATE,
-    (_event, cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset) => {
-      return generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset);
+    (_event, cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset, resourceKey?: string) => {
+      return generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset, resourceKey);
     },
   );
 
@@ -534,8 +532,8 @@ export function setupFlashcardTtsIPC(): void {
     },
   );
 
-  ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_GET_META, (_event, cardId: string, field: 'word' | 'example') => {
-    return getFlashcardTtsMeta(cardId, field);
+  ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_GET_META, (_event, cardId: string, field: 'word' | 'example', resourceKey?: string) => {
+    return getFlashcardTtsMeta(cardId, field, resourceKey);
   });
 
   ipcMain.handle(IPC_CHANNELS.FLASHCARD_TTS_DELETE, async (_event, cardId: string) => {

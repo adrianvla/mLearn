@@ -11,9 +11,11 @@
   align-items: stretch;
   gap: 2px;
   width: 100%;
+  margin-bottom: 13px;
 }
 
 .bar-chart-column {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -72,3 +74,16 @@
   text-overflow: ellipsis;
   max-width: 100%;
 }
+
+.bar-chart-label-positioned {
+  position: absolute;
+  top: 100%;
+  width: max-content;
+  max-width: none;
+  overflow: visible;
+  margin-top: 4px;
+}
+
+.bar-chart-label-left { left: 0; text-align: left; }
+.bar-chart-label-center { left: 50%; transform: translateX(-50%); text-align: center; }
+.bar-chart-label-right { right: 0; text-align: right; }

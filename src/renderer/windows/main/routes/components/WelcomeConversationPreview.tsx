@@ -37,9 +37,30 @@ export const WelcomeConversationPreview: Component<{ onOpen: (context?: Record<s
   });
   const entries = createMemo(() => {
     const snapshot = world(); if (!snapshot) return [];
-    return [...snapshot.rooms.map(room => ({ key: room.id, title: room.title, context: { roomId: room.id } })),
+    const untitled = t('mlearn.ConversationAgent.Details.UntitledThread');
+    const participantNames = (ids: readonly string[]): string[] => ids.flatMap(id => {
+      const person = snapshot.participants.find(item => item.id === id);
+      return person?.displayName.trim() ? [person.displayName.trim()] : [];
+    });
+    const roomTitle = (room: WorldSnapshot['rooms'][number]): string => {
+      const names = participantNames(room.participantIds);
+      const title = room.title.trim();
+      if (room.titleUserSet && title) return title;
+      return names.join(', ') || (title && title !== untitled ? title : untitled);
+    };
+    return [...snapshot.rooms.map(room => ({ key: room.id, title: roomTitle(room), context: { roomId: room.id } })),
       ...snapshot.threads.filter(thread => thread.state !== 'archived').map(thread => ({ key: `${threadContextId(thread)}/${thread.id}`,
-        title: thread.title ?? snapshot.rooms.find(room => room.id === thread.roomId)?.title ?? t('mlearn.ConversationAgent.Details.UntitledThread'),
+        title: (() => {
+          const room = snapshot.rooms.find(item => item.id === thread.roomId);
+          const title = thread.title?.trim();
+          if (title && title !== untitled) return title;
+          const boundNames = thread.sandbox?.bindings.map(binding => (binding.localOverride ?? binding.baseline).displayName.trim()).filter(Boolean) ?? [];
+          if (boundNames.length) return boundNames.join(', ');
+          if (room?.titleUserSet && room.title.trim()) return room.title.trim();
+          const names = room ? participantNames(room.participantIds) : [];
+          if (names.length) return names.join(', ');
+          return room?.title.trim() && room.title !== untitled ? room.title.trim() : untitled;
+        })(),
         context: { roomId: threadContextId(thread), threadId: thread.id } }))];
   });
   const continuation = createMemo(() => {

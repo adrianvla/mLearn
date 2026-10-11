@@ -207,6 +207,29 @@ describe('memory browser content', () => {
     expect(onReturn).toHaveBeenCalledWith(returnContext);
   });
 
+  it('opens the explicitly selected active room thread instead of borrowing room history', async () => {
+    const thread = { id: 'thread-active', roomId: roomFixture.id, title: 'Evening practice', state: 'active' as const, createdAt: 2 };
+    mockBridge.world.getWorldState.mockResolvedValue({ rooms: [roomFixture], threads: [thread], participants: [p1, p2] } as never);
+    dispose = render(() => <MemoryBrowserContent launchContext={{ memoryScope: { kind: 'thread', id: thread.id } }} />, container);
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledExactlyOnceWith(roomFixture.id, thread.id));
+    expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalled();
+    expect((container.querySelector('select') as HTMLSelectElement).value).toBe(thread.id);
+    expect(Array.from((container.querySelector('select') as HTMLSelectElement).options).map(option => option.text))
+      .toContain('Evening practice · mlearn.MemoryBrowser.Scope.thread');
+  });
+
+  it('labels an untitled separate-history thread by its scoped participant identity', async () => {
+    const thread = { id: 'thread-separate', roomId: roomFixture.id, state: 'active' as const, createdAt: 2,
+      sandbox: { operationId: 'op', requestHash: 'hash', baselineHeads: {},
+        bindings: [{ baseline: p1, localOverride: { ...p1, displayName: 'Practice Partner' } }] } };
+    mockBridge.world.getWorldState.mockResolvedValue({ rooms: [{ ...roomFixture, title: 'Unrelated shared room' }], threads: [thread], participants: [p1, p2] } as never);
+    dispose = render(() => <MemoryBrowserContent launchContext={{ memoryScope: { kind: 'thread', id: thread.id } }} />, container);
+    await vi.waitFor(() => expect(mockBridge.journal.readThread).toHaveBeenCalledExactlyOnceWith(thread.id, thread.id));
+    expect(Array.from((container.querySelector('select') as HTMLSelectElement).options).map(option => option.text))
+      .toContain('Practice Partner · mlearn.MemoryBrowser.Scope.thread');
+    expect(container.textContent).not.toContain('Unrelated shared room · mlearn.MemoryBrowser.Scope.thread');
+  });
+
   it('disambiguates same-named Rooms and retains the chosen exact scope across reload', async () => {
     mockBridge.world.getWorldState.mockResolvedValue({ rooms: [roomFixture, { ...roomFixture, id: 'room-2' }], threads: [], participants: [p1, p2] });
     const context = { memoryScope: { kind: 'room', id: 'room-1' }, returnContext: { roomId: 'room-1', threadId: 'thread-1' } };
@@ -231,6 +254,17 @@ describe('memory browser content', () => {
     await vi.waitFor(() => expect(container.querySelector('.memory-browser-loading')).toBeNull());
     expect(mockBridge.journal.readSeaProjection).toHaveBeenCalledWith(WORLD_CONTINUITY_ID);
     expect(mockBridge.journal.readSeaProjection).not.toHaveBeenCalledWith('room-1');
+  });
+
+  it('places the scope picker before the centered title in the native header', async () => {
+    dispose = render(() => <MemoryBrowserContent launchContext={{ roomId: 'room-1' }} />, container);
+    await vi.waitFor(() => expect(container.querySelector('.memory-browser-loading')).toBeNull());
+    const header = container.querySelector('.memory-browser-header')!;
+    const controls = header.querySelector('.memory-browser-header-controls')!;
+    const picker = header.querySelector('.memory-browser-room-select')!;
+    const title = header.querySelector('.memory-browser-title')!;
+    expect(controls.contains(picker)).toBe(true);
+    expect(Boolean(controls.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
   it.each(['room', 'thread'] as const)('uses only the selected %s participant identity and override', async kind => {

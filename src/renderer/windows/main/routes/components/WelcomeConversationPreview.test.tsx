@@ -11,7 +11,7 @@ vi.mock('../../../../../shared/bridges', () => ({ getBridge: () => ({
   kvStore: { kvGet: async () => fixture.selection }, journal: { readSeaProjection: fixture.readSea, readThread: fixture.readThread },
 }) }));
 vi.mock('../../../../hooks/useWindowActivity', () => ({ useWindowActivity: () => fixture.active }));
-vi.mock('../../../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }) }));
+vi.mock('../../../../context', () => ({ useLocalization: () => ({ t: (key: string) => key === 'mlearn.ConversationAgent.Details.UntitledThread' ? 'Untitled conversation' : key }) }));
 import { WelcomeConversationPreview } from './WelcomeConversationPreview';
 let dispose: (() => void) | undefined;
 beforeEach(() => { vi.clearAllMocks(); fixture.world = { rooms: [], threads: [], participants: [] }; fixture.selection = null; fixture.events = []; fixture.active = () => true;
@@ -32,6 +32,19 @@ it('offers an honest no-conversation action without inventing messages', async (
   await vi.waitFor(() => expect(document.body.textContent).toContain('mlearn.Home.Summary.NoConversation'));
   expect(document.querySelector('.welcome-conversation-message')).toBeNull();
   document.querySelector<HTMLButtonElement>('button')!.click(); expect(open).toHaveBeenCalledWith();
+});
+it('uses the selected conversation participants when its stored room title is only an untitled placeholder', async () => {
+  fixture.world = {
+    rooms: [{ id: 'room', title: 'Untitled conversation', participantIds: ['person'], createdAt: 1 }],
+    threads: [],
+    participants: [{ id: 'person', displayName: 'Izuku Midoriya', kind: 'persistent', personaText: '', setupComplete: true }],
+  };
+  fixture.selection = JSON.stringify({ roomId: 'room' });
+  fixture.events = [{ id: 'public', type: 'message.character', seq: 1, createdAt: 1, actorId: 'person', roomId: 'room', scope: { kind: 'sea' }, witnesses: ['user'], payload: { text: 'Existing conversation continues.' } }];
+  dispose = render(() => <WelcomeConversationPreview onOpen={vi.fn()} />, document.body);
+
+  await vi.waitFor(() => expect(document.body.textContent).toContain('Existing conversation continues.'));
+  expect(document.querySelector('.welcome-conversation-title')?.textContent).toBe('Izuku Midoriya');
 });
 it('defers background preview work until the Home window becomes active', async () => {
   const [active, setActive] = createSignal(false); fixture.active = active;

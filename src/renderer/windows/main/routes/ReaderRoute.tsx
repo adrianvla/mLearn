@@ -28,7 +28,7 @@ import { parseKeybind } from '../../../components/common';
 import { hashWordSync } from '../../../services/srsAlgorithm';
 import { isLLMReady } from '../../../services/llmProvider';
 import { requireCapability } from '../../../services/capabilityUnavailable';
-import type { Token, TranslationResponse, DictionaryEntry, ConversationAgentContext, ReaderSpreadDirection, Settings, LanguageData } from '../../../../shared/types';
+import type { Token, TranslationResponse, DictionaryEntry, ReaderSpreadDirection, Settings, LanguageData } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { getBridge } from '../../../../shared/bridges';
 import { getBackend, CloudOCRAdapter, resolveCloudApiUrl } from '../../../../shared/backends';
@@ -45,8 +45,6 @@ import { parseWorkName } from '../../../utils/subtitleParsing';
 import { readerBookDisplayTitle } from '../../../utils/readerDisplayTitle';
 import { cleanContextPhrase } from '../../../utils/phraseExtraction';
 import { filterSuggestedWords } from '../../../utils/suggestedFlashcards';
-import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../../utils/levelPercentages';
-import { buildGrammarExposure } from '../../../utils/grammarExposure';
 import {
   getReaderCollatePagesForLanguage,
   getReaderFirstPageSingleForLanguage,
@@ -74,8 +72,11 @@ import {
   resolveReaderAnnotationColor,
   resolveReaderTextFontFamily,
   resolveReaderVerticalLayout,
+  readerWritingModeStorageKey,
+  parseReaderWritingMode,
   type BookProgressionDirection,
   type ReaderPageMode,
+  type ReaderWritingMode,
 } from './readerPageLayout';
 import {
   auditTextPageCapacity,
@@ -105,7 +106,6 @@ import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetL
 import { getColoredProsodyConfig, coloredProsodyNeedsDictionaryLookup } from '../../../utils/coloredProsody';
 import { coloredProsodyAllowedOnSurface } from '../../../../shared/prosodySettings';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
-import { formatFrequencyLevelLabel } from '../../../utils/levelLabels';
 import {
   getWebkitEntry,
   isWebkitDirectoryEntry,
@@ -694,6 +694,12 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
   const [currentBookFile, setCurrentBookFile] = createSignal<File | null>(null);
   const [bookProgressionDirection, setBookProgressionDirection] = createSignal<BookProgressionDirection>(null);
   const [bookDeclaresVertical, setBookDeclaresVertical] = createSignal(false);
+  const [writingMode, setWritingMode] = createSignal<ReaderWritingMode>('auto');
+  createEffect(on(() => [currentBookResumeId(), currentBookFormat()] as const, ([resourceId, format]) => {
+    const key = resourceId && format ? readerWritingModeStorageKey(resourceId, format) : null;
+    try { setWritingMode(parseReaderWritingMode(key ? localStorage.getItem(key) : null)); }
+    catch (error) { log.warn('Reader writing-mode preference could not be loaded', error); setWritingMode('auto'); }
+  }, { defer: true }));
   const [fitMode, setFitMode] = createSignal<FitMode>('fit-height');
   const pageMode = () => getReaderPageModeForLanguage(settings, currentLangData());
   // This supersedes getReaderSpreadDirectionForLanguage so an EPUB's progression can take precedence.
@@ -708,7 +714,19 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     declaresVerticalWriting: bookDeclaresVertical(),
     progressionDirection: bookProgressionDirection(),
     supportsVerticalText: getLanguageFeatures().supportsVerticalText,
+    writingMode: writingMode(),
   });
+  const changeReaderWritingMode = (mode: ReaderWritingMode) => {
+    setWritingMode(mode);
+    const resourceId = currentBookResumeId();
+    const format = currentBookFormat();
+    const key = resourceId && format ? readerWritingModeStorageKey(resourceId, format) : null;
+    if (!key) return;
+    try {
+      if (mode === 'auto') localStorage.removeItem(key);
+      else localStorage.setItem(key, mode);
+    } catch (error) { log.warn('Reader writing-mode preference could not be saved', error); }
+  };
   onCleanup(revokeEpubBlobUrls);
   const readerTextFontStyle = () => settings.readerTextFontStyle ?? DEFAULT_SETTINGS.readerTextFontStyle!;
   const selectedLanguageFontId = () => (
@@ -3113,61 +3131,6 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
     navigate('/');
   };
 
-  const openConversationAgent = () => {
-    const s = mediaStats.stats();
-    const name = bookTitle();
-    const lang = sourceLanguage();
-
-    const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };
-    const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
-    const wordLevels = computeWordLevelPercentages(s, freqLookup, langCtx.currentLangData());
-    const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup, langCtx.currentLangData());
-    const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
-    const level = difficulty.headline;
-    const levelNames = langCtx.getFreqLevelNames();
-
-    // Only include words encountered in this specific media. Refine ease with
-    // the canonical resolver (effective claim ?? evidence projection) but never
-    // add words from other media. Per-media hover counts are the weak-signal
-    // observation for this media and stay local (no global channel in the
-    // resolver).
-    const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
-
-    for (const entry of Object.values(s.wordsEncountered)) {
-      const resolved = flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, sourceLanguage());
-      mediaWords.set(entry.word, {
-        word: entry.word,
-        ease: resolved.ease !== undefined ? Math.min(entry.ease, resolved.ease) : entry.ease,
-        timesSeen: Math.max(entry.timesSeen, resolved.timesSeen),
-        timesHovered: entry.timesHovered,
-      });
-    }
-
-    const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
-    const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
-    // Exposure-ranked practice candidates: repeatedly encountered in the
-    // canonical knowledge store without any failure. Unmeasured signals only —
-    // failed patterns stay in failedGrammar above.
-    const grammarExposure = buildGrammarExposure(s.grammarEncountered, (pattern) => flashcardCtx.getGrammarKnowledge(pattern, sourceLanguage()));
-
-    const context: ConversationAgentContext = {
-      mediaName: name,
-      mediaType: 'book',
-      sourceContext: { workspace: 'reader', path: currentBookPath(), page: currentPage(), location: sourceLocation(), mediaHash: s.mediaHash },
-      mediaHash: s.mediaHash,
-      assessedLevel: level,
-      assessedLevelName: formatFrequencyLevelLabel(level, levelNames, langCtx.currentLangData()),
-      language: lang,
-      failedWords,
-      failedGrammar,
-      grammarExposure,
-      wordLevelPercentages: wordLevels,
-      grammarLevelPercentages: grammarLevels,
-    };
-
-    getBridge().window.openWindow({ type: 'conversation-agent', context: { ...context, returnTo: 'reader' } });
-  };
-
   const toggleOcrOverlay = () => setShowOcrOverlay(!showOcrOverlay());
 
   // Computed accessors for components
@@ -3206,6 +3169,13 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
         {/* Navigation Bar */}
         <ReaderNav
             sourceLanguageControl={<SourceLanguageSelect scope={props.scope} />}
+            writingMode={writingMode}
+            writingModeOptions={[
+              { value: 'auto', label: t('mlearn.Reader.Toolbar.WritingModeAuto') },
+              { value: 'vertical', label: t('mlearn.Reader.Toolbar.WritingModeVertical') },
+              { value: 'horizontal', label: t('mlearn.Reader.Toolbar.WritingModeHorizontal') },
+            ]}
+            onWritingModeChange={changeReaderWritingMode}
             hasPages={hasPages}
             bookTitle={bookDisplayTitle}
             progressString={progressString}
@@ -3250,34 +3220,34 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
             onNextPage={nextPage}
         />
 
-        <Show when={hasPages() && (showSidebar() || showWordSidebar())}>
-          <button
-            type="button"
-            class="reader-sidebar-backdrop"
-            aria-label={t('mlearn.Global.Close')}
-            onClick={() => {
-              setShowSidebar(false);
-              setShowWordSidebar(false);
-            }}
-          />
-        </Show>
+        <div class="reader-workspace">
+          <Show when={hasPages() && (showSidebar() || showWordSidebar())}>
+            <button
+              type="button"
+              class="reader-sidebar-backdrop"
+              aria-label={t('mlearn.Global.Close')}
+              onClick={() => {
+                setShowSidebar(false);
+                setShowWordSidebar(false);
+              }}
+            />
+          </Show>
 
-        {/* Sidebar */}
-        <Show when={hasPages() && showSidebar()}>
-          <ReaderSidebar
-              pages={pages}
-              activePageIndices={visiblePageIndices}
-              hasOcrForPage={hasOcrForPage}
-              onGoToPage={goToPage}
-          />
-        </Show>
+          <Show when={hasPages() && showSidebar()}>
+            <ReaderSidebar
+                pages={pages}
+                activePageIndices={visiblePageIndices}
+                hasOcrForPage={hasOcrForPage}
+                onGoToPage={goToPage}
+            />
+          </Show>
 
-        {/* Main Content */}
-        <main
-          class={`reader-main ${hasPages() && showSidebar() ? 'with-sidebar' : ''} ${hasPages() && showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}${visiblePagesAreText() ? ` ${readerTextThemeClass(settings.readerTextTheme)}` : ''}`}
-          style={visiblePagesAreText() ? readerTextStyle() : undefined}
-          ref={readerMainRef}
-        >
+          {/* Main Content */}
+          <main
+            class={`reader-main ${hasPages() && showSidebar() ? 'with-sidebar' : ''} ${hasPages() && showWordSidebar() ? 'with-word-sidebar' : ''} ${fitMode()}${visiblePagesAreText() ? ' text-reader' : ''}${visiblePagesAreText() ? ` ${readerTextThemeClass(settings.readerTextTheme)}` : ''}`}
+            style={visiblePagesAreText() ? readerTextStyle() : undefined}
+            ref={readerMainRef}
+          >
           <Show
               when={pages().length > 0}
               fallback={<ReaderWelcomeCard isDragging={isDragging} loadError={bookLoadError()} onOpenFolder={handleOpenFolder} onOpenPdf={handleOpenBookFile} />}
@@ -3482,32 +3452,33 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
               </For>
             </div>
           </Show>
-        </main>
+          </main>
 
-        <Show when={hasPages() && showWordSidebar()}>
-          <ReaderUnknownWordsSidebar
-              words={visibleUnknownWords}
-              isProcessing={visiblePagesStillProcessing}
-              blockedMessage={() => {
-                const state = currentOcrAutomationState();
-                return state.kind === 'blocked' ? state.message : null;
-              }}
-              addingWordKeys={addingSidebarWords}
-              isAddingAll={isAddingAllSidebarWords}
-              failedWordSet={failedSidebarWordSet}
-              onAddWord={handleAddSidebarWord}
-              onAddAll={handleAddAllSidebarWords}
-              onIgnoreWord={handleIgnoreSidebarWord}
-              onWordHover={setSidebarHoveredEntry}
-              onWordLeave={() => setSidebarHoveredEntry(null)}
-              onClose={() => setShowWordSidebar(false)}
-              onPracticeWords={entries => getBridge().window.openWindow({ type: 'level-study', context: {
-                activity: 'practice', returnTo: 'reader',
-                sourceContext: { workspace: 'reader', path: currentBookPath(), page: currentPage(), location: sourceLocation() },
-                material: { language: sourceLanguage(), words: entries.map(entry => entry.word), label: bookTitle() },
-              } })}
-          />
-        </Show>
+          <Show when={hasPages() && showWordSidebar()}>
+            <ReaderUnknownWordsSidebar
+                words={visibleUnknownWords}
+                isProcessing={visiblePagesStillProcessing}
+                blockedMessage={() => {
+                  const state = currentOcrAutomationState();
+                  return state.kind === 'blocked' ? state.message : null;
+                }}
+                addingWordKeys={addingSidebarWords}
+                isAddingAll={isAddingAllSidebarWords}
+                failedWordSet={failedSidebarWordSet}
+                onAddWord={handleAddSidebarWord}
+                onAddAll={handleAddAllSidebarWords}
+                onIgnoreWord={handleIgnoreSidebarWord}
+                onWordHover={setSidebarHoveredEntry}
+                onWordLeave={() => setSidebarHoveredEntry(null)}
+                onClose={() => setShowWordSidebar(false)}
+                onPracticeWords={entries => getBridge().window.openWindow({ type: 'level-study', context: {
+                  activity: 'practice', returnTo: 'reader',
+                  sourceContext: { workspace: 'reader', path: currentBookPath(), page: currentPage(), location: sourceLocation() },
+                  material: { language: sourceLanguage(), words: entries.map(entry => entry.word), label: bookTitle() },
+                } })}
+            />
+          </Show>
+        </div>
 
         {/* Status Bar */}
         <ReaderStatusBar
@@ -3521,7 +3492,6 @@ const ReaderRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props
             isTokenizing={isTokenizingTextPages}
             isTranslating={isTranslationWarming}
             onRunOcr={runOcr}
-            onOpenConversationAgent={openConversationAgent}
             cropMode={cropMode}
             onToggleCropMode={toggleCropMode}
             cropAddMode={cropAddMode}

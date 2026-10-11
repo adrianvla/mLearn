@@ -14,16 +14,16 @@ export interface CohortPoint {
   wordCount: number;
 }
 
-export interface SlopeCohortPoint {
+export interface StrengthChangeCohortPoint {
   month: string;
-  medianSlope: number;
+  medianStrengthChange: number;
   wordCount: number;
 }
 
-export interface RetentionCohortPoint {
+export interface LapseIncidenceCohortPoint {
   month: string;
   lapseRate: number;
-  knownWordCount: number;
+  followedWordCount: number;
 }
 
 // One word spans several `${language}:${hash}` keys when surface variants exist (さすが vs 流石).
@@ -111,7 +111,7 @@ export function daysToStableKnown(eventsByWord: ReadonlyMap<string, readonly Kno
   }));
 }
 
-export function acquisitionSlope(eventsByWord: ReadonlyMap<string, readonly KnowledgeEvent[]>): SlopeCohortPoint[] {
+export function strengthChange14Days(eventsByWord: ReadonlyMap<string, readonly KnowledgeEvent[]>): StrengthChangeCohortPoint[] {
   const values: { month: string; value: number }[] = [];
   for (const events of eventsByWord.values()) {
     const meaning = meaningEvents(events);
@@ -123,15 +123,15 @@ export function acquisitionSlope(eventsByWord: ReadonlyMap<string, readonly Know
   }
   return [...cohortValues(values)].sort(([a], [b]) => a.localeCompare(b)).map(([month, cohort]) => ({
     month,
-    medianSlope: median(cohort),
+    medianStrengthChange: median(cohort),
     wordCount: cohort.length,
   }));
 }
 
-export function retentionAfterKnown(
+export function lapseIncidenceAfterKnown(
   eventsByWord: ReadonlyMap<string, readonly KnowledgeEvent[]>,
   now: number,
-): RetentionCohortPoint[] {
+): LapseIncidenceCohortPoint[] {
   const values: { month: string; value: boolean }[] = [];
   for (const events of eventsByWord.values()) {
     const meaning = meaningEvents(events);
@@ -143,7 +143,7 @@ export function retentionAfterKnown(
   return [...cohortValues(values)].sort(([a], [b]) => a.localeCompare(b)).map(([month, cohort]) => ({
     month,
     lapseRate: cohort.filter(Boolean).length / cohort.length,
-    knownWordCount: cohort.length,
+    followedWordCount: cohort.length,
   }));
 }
 
@@ -182,7 +182,7 @@ export function daysToStableKnownSummaries(byWord: ReadonlyMap<string, WordSumma
   }));
 }
 
-export function acquisitionSlopeSummaries(byWord: ReadonlyMap<string, WordSummaryGroup>): SlopeCohortPoint[] {
+export function strengthChange14DaysSummaries(byWord: ReadonlyMap<string, WordSummaryGroup>): StrengthChangeCohortPoint[] {
   const values: { month: string; value: number }[] = [];
   for (const group of byWord.values()) {
     const firstSenseT = summaryMin(group.summaries.map((summary) => summary.firstSenseT));
@@ -194,15 +194,15 @@ export function acquisitionSlopeSummaries(byWord: ReadonlyMap<string, WordSummar
   }
   return [...cohortValues(values)].sort(([a], [b]) => a.localeCompare(b)).map(([month, cohort]) => ({
     month,
-    medianSlope: median(cohort),
+    medianStrengthChange: median(cohort),
     wordCount: cohort.length,
   }));
 }
 
-export function retentionAfterKnownSummaries(
+export function lapseIncidenceAfterKnownSummaries(
   byWord: ReadonlyMap<string, WordSummaryGroup>,
   now: number,
-): RetentionCohortPoint[] {
+): LapseIncidenceCohortPoint[] {
   const values: { month: string; value: boolean }[] = [];
   for (const group of byWord.values()) {
     const firstSenseT = summaryMin(group.summaries.map((summary) => summary.firstSenseT));
@@ -216,6 +216,6 @@ export function retentionAfterKnownSummaries(
   return [...cohortValues(values)].sort(([a], [b]) => a.localeCompare(b)).map(([month, cohort]) => ({
     month,
     lapseRate: cohort.filter(Boolean).length / cohort.length,
-    knownWordCount: cohort.length,
+    followedWordCount: cohort.length,
   }));
 }

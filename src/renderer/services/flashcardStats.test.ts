@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import type { Flashcard, DailyStudyStats } from '../../shared/types';
 import {
   computeDueForecast,
-  computeRetentionStats,
+  computeLapseStats,
   computeIntervalDistribution,
 } from './flashcardStats';
 import { getEndOfSRSDay } from './srsAlgorithm';
@@ -92,32 +92,41 @@ describe('computeDueForecast', () => {
   });
 });
 
-describe('computeRetentionStats', () => {
-  it('totalDays equals the requested window even with empty stats', () => {
-    const stats = computeRetentionStats({}, 30);
+describe('computeLapseStats', () => {
+  it('returns no measured rate when the requested window has no review records', () => {
+    const stats = computeLapseStats({}, 30, Date.parse('2024-01-30T12:00:00'));
     expect(stats.totalDays).toBe(30);
-    expect(stats.retention).toBe(0);
+    expect(stats.lapseRate).toBe(0);
     expect(stats.totalReviews).toBe(0);
   });
 
-  it('totalDays equals the window with a 5-day history', () => {
-    const daily: Record<string, DailyStudyStats> = {};
-    for (let i = 1; i <= 5; i++) {
-      daily[`2024-01-0${i}`] = makeDayStats(`2024-01-0${i}`, { reviewCardsStudied: 10, lapses: 1 });
-    }
-    const stats = computeRetentionStats(daily, 30);
-    expect(stats.totalDays).toBe(30);
-    expect(stats.daysStudied).toBe(5);
-    expect(stats.retention).toBe(90);
-  });
-
-  it('retention is 0 when totalReviews is 0', () => {
+  it('uses the last 30 calendar dates rather than 30 sparse stored records', () => {
     const daily: Record<string, DailyStudyStats> = {
-      '2024-01-01': makeDayStats('2024-01-01', { newCardsStudied: 5 }),
+      '2023-12-31': makeDayStats('2023-12-31', { reviewCardsStudied: 100, lapses: 100 }),
+      '2024-01-01': makeDayStats('2024-01-01', { reviewCardsStudied: 10, lapses: 1 }),
+      '2024-01-30': makeDayStats('2024-01-30', { reviewCardsStudied: 10, lapses: 1 }),
     };
-    const stats = computeRetentionStats(daily, 30);
+    const stats = computeLapseStats(daily, 30, Date.parse('2024-01-30T12:00:00'));
+    expect(stats.totalDays).toBe(30);
+    expect(stats.daysStudied).toBe(2);
+    expect(stats.totalReviews).toBe(20);
+    expect(stats.totalLapses).toBe(2);
+    expect(stats.lapseRate).toBe(10);
+  });
+
+  it('counts recorded lapses as numerator and reviewed cards as denominator', () => {
+    const daily = { '2024-01-30': makeDayStats('2024-01-30', { reviewCardsStudied: 5, lapses: 1 }) };
+    const stats = computeLapseStats(daily, 30, Date.parse('2024-01-30T12:00:00'));
+    expect(stats.totalReviews).toBe(5);
+    expect(stats.totalLapses).toBe(1);
+    expect(stats.lapseRate).toBe(20);
+  });
+
+  it('does not interpret zero lapses without review samples as full retention', () => {
+    const daily = { '2024-01-30': makeDayStats('2024-01-30', { newCardsStudied: 5 }) };
+    const stats = computeLapseStats(daily, 30, Date.parse('2024-01-30T12:00:00'));
     expect(stats.totalReviews).toBe(0);
-    expect(stats.retention).toBe(0);
+    expect(stats.lapseRate).toBe(0);
   });
 });
 

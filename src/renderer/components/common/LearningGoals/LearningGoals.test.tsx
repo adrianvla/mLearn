@@ -181,10 +181,11 @@ describe('semantic learning outcome controls', () => {
     expect(document.body.textContent).toContain('mlearn.Goals.Source.community · Community workbook');
     expect(document.body.textContent).toContain('2027-04-05');
     expect(document.body.textContent).toContain('mlearn.Goals.Unavailable');
-    expect(document.body.textContent).toContain('Structured future condition');
-    expect(document.body.textContent).toContain('mlearn.Goals.RequirementStatus.met');
-    expect(document.body.textContent).toContain('package::other-rule');
-    expect(document.body.textContent).toContain('mlearn.Goals.RequirementStatus.unknown');
+    const statusSummary = document.querySelector('.learning-goals__status-summary')!;
+    expect(statusSummary.textContent).toContain('1mlearn.Goals.RequirementStatus.met');
+    expect(statusSummary.textContent).toContain('1mlearn.Goals.RequirementStatus.unknown');
+    expect(document.body.textContent).not.toContain('package::other-rule');
+    expect(document.body.textContent).not.toContain('Structured future condition');
     expect(document.querySelector('select[name="learning-outcome"]')).toBeNull();
     expect(document.querySelector('input[type="date"]')).toBeNull();
     expect(document.body.textContent).not.toContain('unrecognized');
@@ -245,8 +246,7 @@ describe('semantic learning outcome controls', () => {
     expect(evaluations()[0]?.requirements[0]).toMatchObject({ requirementId: 'future::recall-condition', status: 'unknown' });
     dispose(); document.body.replaceChildren();
     dispose = render(() => <LearningGoals compact summaryOnly requirementEvaluations={evaluations()} />, document.body);
-    expect(document.body.textContent).toContain('mlearn.Goals.RecallConditionSummary required future::arbitrary-recall 0.6');
-    expect(document.body.textContent).toContain('mlearn.Goals.RequirementStatus.unknown');
+    expect(document.querySelector('.learning-goals__status-summary')?.textContent).toContain('1mlearn.Goals.RequirementStatus.unknown');
   });
 });
 

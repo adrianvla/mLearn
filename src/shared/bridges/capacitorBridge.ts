@@ -613,11 +613,11 @@ const flashcardBridge: FlashcardBridge = {
     await deleteVideoFile(cardId);
   },
 
-  async getFlashcardTts() {
+  async getFlashcardTts(_cardId?: string, _field?: 'word' | 'example', _resourceKey?: string) {
     return null;
   },
 
-  async generateFlashcardTts(_cardId: string, _text: string, _language: string, _field: 'word' | 'example', _provider: string, _voiceSampleId?: string, _cloudAuthToken?: string, _cloudApiUrl?: string, _preset?: FlashcardAudioPreset) {
+  async generateFlashcardTts(_cardId: string, _text: string, _language: string, _field: 'word' | 'example', _provider: string, _voiceSampleId?: string, _cloudAuthToken?: string, _cloudApiUrl?: string, _preset?: FlashcardAudioPreset, _resourceKey?: string) {
     return null;
   },
 
@@ -625,7 +625,7 @@ const flashcardBridge: FlashcardBridge = {
     return {};
   },
 
-  async getFlashcardTtsMeta() {
+  async getFlashcardTtsMeta(_cardId?: string, _field?: 'word' | 'example', _resourceKey?: string) {
     return null;
   },
 

@@ -1174,6 +1174,7 @@
         "RawData": "Raw data",
         "RecordCount": "{count} records",
         "NoRuntimeData": "No records in this context.",
+        "SelectRecord": "Select a record to inspect its fields; raw JSON is available below.",
         "WorldSummary": "{rooms} rooms · {threads} threads · {participants} participants",
         "Runs": "Background runs",
         "Memories": "Memories",
@@ -1699,6 +1700,8 @@
         "ChangeLanguage": "Change Language",
         "ContinueLearning": "Continue Learning",
         "LearningLanguage": "Learning {language}",
+        "ResumeGrammarPractice": "Resume grammar practice",
+        "ResumeWordPractice": "Resume word practice",
         "TitleDescription": "Select an option below to begin",
         "RecentLoadFailed": "Recent material could not be loaded. Try again."
       },
@@ -1739,6 +1742,7 @@
         "AllTimeReviews": "All-time recorded reviews",
         "NewCardResponses": "New-card study records",
         "RecordDefinition": "For the selected learning language, over all saved daily records. Repeated responses count; these are not learned words or media usage.",
+        "RecordDetails": "Review record details",
         "EvidenceUnavailable": "Learning evidence is unavailable. Retry to see requirement progress.",
         "ConversationUnavailable": "Conversation preview is unavailable. Your local chats remain accessible in Messenger.",
         "NoConversation": "Start a conversation with someone in your contacts."
@@ -2474,7 +2478,11 @@
         "NextPage": "Next page",
         "PageFit": "Page fit",
         "PageLayout": "Page layout",
-        "PageOrder": "Page order"
+        "PageOrder": "Page order",
+        "WritingMode": "Writing layout",
+        "WritingModeAuto": "Automatic",
+        "WritingModeVertical": "Vertical",
+        "WritingModeHorizontal": "Horizontal"
       },
       "UI": {
         "Tips": {
@@ -3462,6 +3470,8 @@
         "ImmersionTime": "Immersion Time",
         "IntervalDistribution": "Interval Distribution",
         "LapseHeatmap": "Lapse Heatmap",
+        "LapseRate": "Lapse rate",
+        "LapseRateDefinition": "{lapses} recorded lapses / {reviews} reviewed cards in the last 30 days.",
         "Lapses": "Lapses",
         "LevelCoverage": "Coverage",
         "LevelTotal": "Total",
@@ -3476,6 +3486,7 @@
         "Overdue": "Overdue",
         "RetentionRate": "Retention Rate",
         "ReviewActivity": "Review Activity (Last 30 Days)",
+        "NoReviewActivity": "No review or new-card activity was recorded in the last 30 days.",
         "ReviewHeatmap": "Review Heatmap",
         "ReviewStudyTime": "Review Study Time",
         "Reviews": "Reviews",
@@ -3523,9 +3534,17 @@
       "LearningVelocity": {
         "Title": "Learning velocity",
         "Empty": "Not enough history yet — keep learning and check back.",
+        "Loading": "Loading saved learning history…",
+        "LoadError": "Saved learning history could not be loaded.",
+        "Retry": "Retry",
         "DaysToKnown": "Median days to stable known",
-        "AcquisitionSlope": "14-day acquisition slope",
-        "RetentionAfterKnown": "30-day retention after known"
+        "StrengthChange14Days": "14-day change in normalized strength",
+        "LapseIncidenceAfterKnown": "30-day lapse incidence after first known",
+        "DaysUnit": "days",
+        "StrengthChangeUnit": "normalized-strength change (0–1)",
+        "DaysTooltip": "{month}: {value} days to stable known (n={count})",
+        "StrengthTooltip": "{month}: {value} normalized-strength change (0–1 scale; n={count})",
+        "LapseTooltip": "{month}: {percent}% of words first marked known with a full 30-day follow-up had a recorded lapse within those 30 days (n={count})"
       },
       "Sections": {
         "knowledge": "Knowledge",

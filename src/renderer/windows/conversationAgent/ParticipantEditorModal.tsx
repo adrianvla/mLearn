@@ -132,9 +132,9 @@ export const ParticipantEditorModal: Component<ParticipantEditorModalProps> = (p
     <div class="participant-editor">
       <Show when={error()}><p class="participant-editor-error" role="alert">{error()}</p></Show>
       <div class="participant-editor-identity">
-        <Avatar name={displayName()} src={profilePhoto()} size="lg" />
+        <Avatar name={displayName()} src={profilePhoto()} size="lg" fallback="icon" />
         <div class="participant-editor-identity-meta">
-          <Button variant="ghost" size="sm" onClick={() => fileInputRef?.click()} disabled={uploading() || saving()}>{t('mlearn.ConversationAgent.Details.PhotoChange')}</Button>
+          <Button variant="secondary" size="sm" onClick={() => fileInputRef?.click()} disabled={uploading() || saving()}>{t('mlearn.ConversationAgent.Details.PhotoChange')}</Button>
           <Show when={profilePhoto()}><Button variant="ghost" size="sm" disabled={saving()} onClick={() => { photoVersion++; setProfilePhoto(''); }}>{t('mlearn.ConversationAgent.Details.PhotoRemove')}</Button></Show>
           <input ref={fileInputRef} type="file" accept="image/*" class="participant-editor-photo-input" onChange={() => { void handlePhotoUpload(); }} />
         </div>

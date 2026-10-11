@@ -207,11 +207,7 @@
 .level-card-bar-untracked {
   background: var(--border-color);
 }
-.level-card-card div:has(> .level-card-card-legend){
-  max-width:100%;
-  width:100%;
-  overflow: hidden;
-}
+.level-card-card div:has(> .level-card-card-legend){ max-width:100%; width:100%; }
 .level-card-card-legend {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -241,9 +237,8 @@
   color: var(--text-secondary);
   flex: 1 1 auto;
   min-width: 0;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .level-card-legend-label:hover{
   text-overflow: clip;
@@ -463,7 +458,7 @@ body .learning-plan-page .grammar-coverage-panel:has(.grammar-coverage--studying
 }
 .grammar-coverage--studying .grammar-coverage__session { background: transparent; }
 
-.learning-plan-configuration { margin: 0 0 var(--spacing-6); border-block: 1px solid var(--border-color); }
+.learning-plan-configuration { margin: 0 0 var(--spacing-6); border: 0; }
 .learning-plan-configuration > summary,
 .learning-plan-curriculum-preference > summary,
 .level-study-grammar-summary__detail > summary { list-style: none; cursor: pointer; }
@@ -471,7 +466,7 @@ body .learning-plan-page .grammar-coverage-panel:has(.grammar-coverage--studying
 .learning-plan-curriculum-preference > summary::-webkit-details-marker,
 .level-study-grammar-summary__detail > summary::-webkit-details-marker { display: none; }
 .learning-plan-configuration > summary { padding: var(--spacing-3) 0; font-size: var(--font-size-sm); color: var(--text-secondary); }
-.learning-plan-target-summary { margin-bottom: var(--spacing-4); padding-block: var(--spacing-3); border-block: 1px solid var(--border-color); }
+.learning-plan-target-summary { margin-bottom: var(--spacing-4); padding-block: var(--spacing-3); }
 .learning-plan-target-summary .learning-goals { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--spacing-2) var(--spacing-4); margin: 0; }
 .learning-plan-target-summary .learning-goals__purpose { flex-basis: 100%; }
 .learning-plan-target-summary .learning-goals__purpose > span { font-size: var(--font-size-base); }

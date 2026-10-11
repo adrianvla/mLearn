@@ -384,13 +384,17 @@ export class KnowledgeHistoryStore {
     if (command.decisionId !== undefined) {
       const record = this.getLearningDecisionRecord(command.decisionId);
       if (!record) throw new Error('The learning decision must be saved before presentation');
-      if (!command.guardCardIds?.includes(record.decision.selected.key)) throw new Error('The response does not address its captured choice');
+      const selectedCardId = record.decision.selected.presentation?.cardId;
+      const guardedCardId = typeof selectedCardId === 'string' ? selectedCardId : record.decision.selected.key;
+      if (command.selectedChoiceKey !== record.decision.selected.key || !command.guardCardIds?.includes(guardedCardId)) {
+        throw new Error('The response does not address its captured choice');
+      }
       if (record.decision.selected.presentation !== undefined
         && JSON.stringify(command.presentation) !== JSON.stringify(record.decision.selected.presentation)) {
         throw new Error('The response does not address its captured presentation');
       }
       for (const rows of Object.values(command.events)) for (const event of rows) {
-        if (event.schedulerCardId !== undefined && event.schedulerCardId !== record.decision.selected.key) {
+        if (event.schedulerCardId !== undefined && event.schedulerCardId !== guardedCardId) {
           throw new Error('The response does not address its captured choice');
         }
         if (event.targetRef?.capability !== undefined && !learningDecisionMatchesOutcome(record.decision, event.targetRef as LearningTargetAddress)) {

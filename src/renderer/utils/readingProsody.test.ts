@@ -67,6 +67,15 @@ describe('normalizeDictionaryReading', () => {
 });
 
 describe('extractProsodyFromTranslationData', () => {
+  it('selects the saved display reading rather than the first recursive pitch in a multi-reading record', () => {
+    const translationData = { data: [
+      { reading: 'せまる', pitches: [{ position: 2 }] },
+      { reading: 'せる', pitches: [{ position: 1 }] },
+    ] };
+    expect(extractProsodyFromTranslationData(translationData, japanesePitchLanguage, 'せまる')).toMatchObject({ position: 2 });
+    expect(extractProsodyFromTranslationData(translationData, japanesePitchLanguage, 'せる')).toMatchObject({ position: 1 });
+  });
+
   it('binds Japanese pitch data to the matching card reading', () => {
     const translationData = {
       data: [

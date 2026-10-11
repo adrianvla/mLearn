@@ -125,14 +125,18 @@ describe('getJapanesePitchAccentInfo', () => {
     });
   });
 
-  it('accentType 3: five-mora reading → low-high-high-high-low', () => {
+  it('accentType 3: five-mora reading → low-high-high-low-low', () => {
     expect(getJapanesePitchAccentInfo(3, 'あいうえお')).toEqual({
       accentType: 3,
-      pattern: [false, true, true, true, false],
+      pattern: [false, true, true, false, false],
       particleAccent: false,
       length: 5,
       moraCharCounts: [1, 1, 1, 1, 1],
     });
+  });
+
+  it('accentType 3 on a three-mora reading falls after the third mora', () => {
+    expect(getJapanesePitchAccentInfo(3, 'あいう')?.pattern).toEqual([false, true, true]);
   });
 
   it('accentType 4 (default): five-mora → low-high-high-high-low', () => {

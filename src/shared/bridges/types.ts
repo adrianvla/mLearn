@@ -98,10 +98,10 @@ export interface FlashcardBridge {
   deleteFlashcardImage: (cardId: string) => Promise<void>;
   saveFlashcardVideo: (cardId: string, data: ArrayBuffer) => Promise<string | null>;
   deleteFlashcardVideo: (cardId: string) => Promise<void>;
-  getFlashcardTts: (cardId: string, field: 'word' | 'example') => Promise<string | null>;
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset) => Promise<string | null>;
+  getFlashcardTts: (cardId: string, field: 'word' | 'example', resourceKey?: string) => Promise<string | null>;
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset, resourceKey?: string) => Promise<string | null>;
   batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset) => Promise<Record<string, string>>;
-  getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example') => Promise<{ provider: string; generatedAt: string; language: string } | null>;
+  getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example', resourceKey?: string) => Promise<{ provider: string; preset?: FlashcardAudioPreset; generatedAt: string; language: string; textHash?: string; voiceSampleId?: string; resourceKey?: string } | null>;
   deleteFlashcardTts: (cardId: string) => Promise<void>;
 }
 

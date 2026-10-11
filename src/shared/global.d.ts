@@ -100,10 +100,10 @@ export interface MLearnIPC {
   deleteFlashcardVideo: (cardId: string) => Promise<void>;
   
   // Flashcard TTS
-  getFlashcardTts: (cardId: string, field: string) => Promise<string | null>;
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset) => Promise<string | null>;
+  getFlashcardTts: (cardId: string, field: string, resourceKey?: string) => Promise<string | null>;
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset, resourceKey?: string) => Promise<string | null>;
   batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: string }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset) => Promise<Record<string, string>>;
-  getFlashcardTtsMeta: (cardId: string, field: string) => Promise<{ provider: string; generatedAt: string; language: string } | null>;
+  getFlashcardTtsMeta: (cardId: string, field: string, resourceKey?: string) => Promise<{ provider: string; preset?: FlashcardAudioPreset; generatedAt: string; language: string; textHash?: string; voiceSampleId?: string; resourceKey?: string } | null>;
   deleteFlashcardTts: (cardId: string) => Promise<void>;
   
   // Language Data

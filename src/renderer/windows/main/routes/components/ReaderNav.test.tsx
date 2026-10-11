@@ -41,6 +41,10 @@ describe('ReaderNav', () => {
       bookTitle={() => longTitle}
       progressString={() => '2/3'}
       fitMode={() => 'fit-height'}
+      writingMode={() => 'auto'}
+      writingModeOptions={[{ value: 'auto', label: 'Automatic' }, { value: 'vertical', label: 'Vertical' }, { value: 'horizontal', label: 'Horizontal' }]}
+      onWritingModeChange={() => undefined}
+      sourceLanguageControl={<div class="source-language-control">Source language</div>}
       pageMode={() => 'single'}
       spreadDirection={() => 'left-to-right'}
       firstPageSingle={() => true}

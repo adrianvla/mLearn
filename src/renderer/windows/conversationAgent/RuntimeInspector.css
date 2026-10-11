@@ -21,10 +21,24 @@
 .runtime-inspector pre.runtime-inspector-output { font-family: inherit; font-size: var(--font-size-sm); }
 .runtime-inspector-meta { color: var(--text-secondary); }
 .runtime-inspector .disclosure { margin-block: var(--spacing-2); }
+.runtime-inspector-record-group { min-width: 0; padding: var(--spacing-3); border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-secondary); }
+.runtime-inspector-record-group h3 { margin: 0 0 var(--spacing-2); color: var(--text-primary); font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); }
+.runtime-inspector-record-browser { display: grid; grid-template-columns: minmax(12rem, 30%) minmax(0, 1fr); min-height: 12rem; border-top: 1px solid var(--border-color); }
+.runtime-inspector-record-list { min-width: 0; display: flex; flex-direction: column; gap: var(--spacing-1); overflow: auto; padding: var(--spacing-2); border-right: 1px solid var(--border-color); }
+.runtime-inspector-record-row { display: flex; flex-direction: column; align-items: flex-start; gap: var(--spacing-1); min-width: 0; padding: var(--spacing-2); border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-secondary); text-align: start; cursor: pointer; }
+.runtime-inspector-record-row strong, .runtime-inspector-record-row small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.runtime-inspector-record-row.selected { border-color: var(--border-color); background: var(--bg-intense); color: var(--text-primary); }
+.runtime-inspector-record-row:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+.runtime-inspector-record-detail { min-width: 0; overflow: auto; padding: var(--spacing-3); }
+.runtime-inspector-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: var(--spacing-2); margin: var(--spacing-3) 0; }
+.runtime-inspector-fields > div { min-width: 0; padding: var(--spacing-2); border-radius: var(--radius-sm); background: var(--bg-intense); }
+.runtime-inspector-fields dt { color: var(--text-tertiary); font-size: var(--font-size-xs); }
+.runtime-inspector-fields dd { margin: var(--spacing-1) 0 0; color: var(--text-secondary); font-size: var(--font-size-sm); overflow-wrap: anywhere; white-space: pre-wrap; }
 .runtime-inspector-error { color: var(--color-error); margin: 0; font-size: var(--font-size-sm); }
 @media (max-width: 650px) {
   .runtime-inspector-controls { grid-template-columns: minmax(0, 1fr) auto; }
   .runtime-inspector-controls > select { grid-column: 1 / -1; max-width: none; }
-  .runtime-inspector-split { grid-template-columns: 1fr; grid-template-rows: minmax(8rem, 30%) minmax(12rem, 1fr); }
+  .runtime-inspector-split, .runtime-inspector-record-browser { grid-template-columns: 1fr; grid-template-rows: minmax(8rem, 30%) minmax(12rem, 1fr); }
   .runtime-inspector-call-list { border-right: 0; border-bottom: 1px solid var(--border-color); }
+  .runtime-inspector-record-list { border-right: 0; border-bottom: 1px solid var(--border-color); }
 }

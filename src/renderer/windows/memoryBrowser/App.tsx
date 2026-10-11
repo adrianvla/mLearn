@@ -15,7 +15,7 @@ import { getBridge } from '../../../shared/bridges';
 import { EmptyState, SkeletonRows, Select } from '../../components/common';
 import { getLogger } from '../../../shared/utils/logger';
 import { projectionForCaller, type RoomMemoryProjection } from '@shared/memoryProjection';
-import { WORLD_CONTINUITY_ID, USER_ACTOR, type JournalEvent, type Participant, type Room, type Thread } from '@shared/world';
+import { WORLD_CONTINUITY_ID, USER_ACTOR, threadContextId, type JournalEvent, type Participant, type Room, type Thread } from '@shared/world';
 import './MemoryBrowser.css';
 
 const log = getLogger('renderer.memoryBrowser.app');
@@ -80,6 +80,26 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
   const [roomUnavailable, setRoomUnavailable] = createSignal(false);
 
   const selectedRoom = createMemo(() => rooms().find((r) => r.id === selectedRoomId()) ?? null);
+  const scopeTitle = (room: Room): string => {
+    const title = room.title.trim();
+    const defaultTitle = t('mlearn.ConversationAgent.Details.UntitledThread');
+    if (room.titleUserSet || (title && title !== defaultTitle)) return title;
+    const separate = scopeKinds()[room.id] === 'thread' ? threads().find(thread => thread.id === room.id) : undefined;
+    const profiles = separate?.sandbox?.bindings.map(binding => binding.localOverride ?? binding.baseline) ?? participants();
+    const byId = new Map(profiles.map(person => [person.id, person]));
+    const names = room.participantIds.flatMap(id => {
+      const name = byId.get(id)?.displayName.trim();
+      return name ? [name] : [];
+    });
+    return names.join(', ') || title || defaultTitle;
+  };
+  const scopeOptions = createMemo(() => rooms().map(room => {
+    const kind = scopeKinds()[room.id];
+    const baseLabel = `${scopeTitle(room)} · ${t(`mlearn.MemoryBrowser.Scope.${kind}`)}`;
+    const duplicate = rooms().some(other => other.id !== room.id
+      && `${scopeTitle(other)} · ${t(`mlearn.MemoryBrowser.Scope.${scopeKinds()[other.id]}`)}` === baseLabel);
+    return { value: room.id, label: duplicate ? `${baseLabel} · ${room.id.slice(-6)}` : baseLabel };
+  }));
 
   const roomParticipants = createMemo<Participant[]>(() => {
     const room = selectedRoom();
@@ -156,7 +176,7 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
     try {
       const thread = threads().find(item => item.id === roomId);
       const seaEvents = scopeKinds()[roomId] === 'thread' && thread
-        ? await getBridge().journal.readThread(thread.id, thread.id)
+        ? await getBridge().journal.readThread(threadContextId(thread), thread.id)
         : await getBridge().journal.readSeaProjection(roomId);
       if (request === roomRequest) setEvents(seaEvents);
     } catch (err) {
@@ -179,10 +199,16 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
     try {
       const snapshot = await getBridge().world.getWorldState();
       if (request !== worldRequest) return;
-      const separate = snapshot.threads.filter(thread => thread.sandbox);
-      setThreads(separate);
-      setScopeKinds(Object.fromEntries([...snapshot.rooms.map(room => [room.id, 'room']), ...separate.map(thread => [thread.id, 'thread']), [WORLD_CONTINUITY_ID, 'world']]));
-      const contexts = [...snapshot.rooms, ...separate.map(thread => ({ id: thread.id, title: thread.title ?? t('mlearn.ConversationAgent.Details.UntitledThread'), participantIds: thread.sandbox!.bindings.map(binding => binding.baseline.id), createdAt: thread.createdAt })), { id: WORLD_CONTINUITY_ID, title: t('mlearn.ConversationAgent.Integration.WorldDestination'), participantIds: snapshot.participants.map(person => person.id), createdAt: 0 }];
+      const threadScopes = snapshot.threads.filter(thread => thread.sandbox || thread.state !== 'archived' || requestedScope?.id === thread.id);
+      setThreads(threadScopes);
+      const contexts = [...snapshot.rooms, ...threadScopes.map(thread => {
+        const room = snapshot.rooms.find(item => item.id === thread.roomId);
+        return { id: thread.id,
+          title: thread.title || t('mlearn.ConversationAgent.Details.UntitledThread'),
+          participantIds: thread.sandbox?.bindings.map(binding => binding.baseline.id) ?? room?.participantIds ?? [],
+          createdAt: thread.createdAt };
+      }), { id: WORLD_CONTINUITY_ID, title: t('mlearn.ConversationAgent.Integration.WorldDestination'), participantIds: snapshot.participants.map(person => person.id), createdAt: 0 }];
+      setScopeKinds(Object.fromEntries([...snapshot.rooms.map(room => [room.id, 'room']), ...threadScopes.map(thread => [thread.id, 'thread']), [WORLD_CONTINUITY_ID, 'world']]));
       setRooms(contexts);
       setParticipants(snapshot.participants);
       const retained = selectionKey ? await getBridge().kvStore.kvGet(selectionKey) : null;
@@ -218,19 +244,21 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
   return (
       <div class="memory-browser">
         <header class="memory-browser-header">
-          <Show when={props.onReturn}><button type="button" class="memory-browser-retry" onClick={() => props.onReturn?.(returning)}>{t('mlearn.Global.Back')}</button></Show>
+          <div class="memory-browser-header-controls">
+            <Show when={props.onReturn}><button type="button" class="memory-browser-retry" onClick={() => props.onReturn?.(returning)}>{t('mlearn.Global.Back')}</button></Show>
+            <Select
+              aria-label={t('mlearn.MemoryBrowser.Tabs.Room')}
+              class="memory-browser-room-select"
+              value={selectedRoomId()}
+              disabled={isLoading() || rooms().length === 0}
+              options={[
+                { value: '', label: t(roomUnavailable() ? 'mlearn.Home.Cards.Room.RoomNotFound' : 'mlearn.MemoryBrowser.ChooseScope'), disabled: true },
+                ...scopeOptions(),
+              ]}
+              onChange={event => void chooseScope(event.currentTarget.value)}
+            />
+          </div>
           <span class="memory-browser-title">{t('mlearn.MemoryBrowser.Title')}</span>
-          <Select
-            aria-label={t('mlearn.MemoryBrowser.Tabs.Room')}
-            class="memory-browser-room-select"
-            value={selectedRoomId()}
-            disabled={isLoading() || rooms().length === 0}
-            options={[
-              { value: '', label: t(roomUnavailable() ? 'mlearn.Home.Cards.Room.RoomNotFound' : 'mlearn.MemoryBrowser.ChooseScope'), disabled: true },
-              ...rooms().map(room => ({ value: room.id, label: `${room.title} · ${t(`mlearn.MemoryBrowser.Scope.${scopeKinds()[room.id]}`)} · ${room.id}` })),
-            ]}
-            onChange={event => void chooseScope(event.currentTarget.value)}
-          />
         </header>
         <div class="memory-browser-body">
           <Show when={!loadFailed()} fallback={

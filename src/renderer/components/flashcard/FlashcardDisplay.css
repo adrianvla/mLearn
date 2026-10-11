@@ -285,6 +285,7 @@
 
 .flashcard-screenshot {
   max-width: 100%;
+  max-height: min(38vh, 28rem);
   min-height: 150px;
   width: auto;
   height: auto;
@@ -292,6 +293,9 @@
   object-fit: contain;
   border:1px solid var(--border-color);
   box-shadow: var(--shadow-lg-intense);
+}
+@media (max-height: 650px) {
+  .flashcard-screenshot { min-height: 0; max-height: 32vh; }
 }
 .flashcard-example rt{
   position:relative;

@@ -14,13 +14,20 @@ let dispose: (() => void) | undefined;
 afterEach(() => { dispose?.(); document.body.replaceChildren(); });
 beforeEach(() => { vi.clearAllMocks(); });
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); };
-function mount() {
+function mount(initialThreadId?: string) {
   const host = document.createElement('div'); document.body.append(host);
-  dispose = render(() => <RuntimeInspector initialRoomId="first" />, host);
+  dispose = render(() => <RuntimeInspector initialRoomId="first" initialThreadId={initialThreadId} />, host);
   host.querySelector<HTMLButtonElement>('#runtime-inspector-tab-sea')!.click();
   return host;
 }
 describe('RuntimeInspector authoritative journal states', () => {
+  it('opens journal inspection in the explicitly selected thread scope', async () => {
+    mocks.readThread.mockResolvedValue([]);
+    mount('selected-thread'); await flush();
+    expect(mocks.readThread).toHaveBeenCalledWith('first', 'selected-thread');
+    expect(mocks.readSea).not.toHaveBeenCalled();
+  });
+
   it('shows pending and failed reads without claiming the journal has no events, then retries', async () => {
     let reject!: (error: Error) => void;
     mocks.readSea.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; })).mockResolvedValue([]);

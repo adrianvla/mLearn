@@ -2,11 +2,12 @@
 import { render } from 'solid-js/web';
 import { HashRouter } from '@solidjs/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const fixture = vi.hoisted(() => ({ listener: undefined as ((context: Record<string, unknown>) => void) | undefined, unsubscribe: vi.fn(), mounted: vi.fn(), savedReturn: {} as Record<string, unknown>, mobile: true }));
+const fixture = vi.hoisted(() => ({ listener: undefined as ((context: Record<string, unknown>) => void) | undefined, unsubscribe: vi.fn(), mounted: vi.fn(), openWindow: vi.fn(), closeWindow: vi.fn(), savedReturn: {} as Record<string, unknown>, mobile: true }));
 vi.mock('../../context', () => ({ useLocalization: () => ({ t: (key: string) => key }), useSettings: () => ({ settings: { language: 'package-x' }, isLoading: () => false }) }));
 vi.mock('../../context/WindowWrapper', () => ({ LibraryLoadGuard: (props: { recoveryAccess?: boolean }) => <span data-testid="guard" data-recovery={String(props.recoveryAccess)} /> }));
 vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ window: {
   onWindowContext: (listener: typeof fixture.listener) => { fixture.listener = listener; return fixture.unsubscribe; }, getWindowContext: vi.fn(),
+  openWindow: fixture.openWindow, closeWindow: fixture.closeWindow,
 } }) }));
 vi.mock('../../../shared/platform', () => ({ isElectron: () => !fixture.mobile, isMobile: () => fixture.mobile }));
 vi.mock('./components/LoadingOverlay', () => ({ LoadingOverlay: () => <span data-testid="backend-overlay" /> }));
@@ -24,7 +25,8 @@ vi.mock('../flashcards/App', () => ({ FlashcardsContent: (props: { initialTab?: 
   fixture.mounted(props.initialTab ?? 'review'); return <div data-content={props.initialTab ?? 'review'}><button onClick={props.onClose}>Return</button></div>;
 } }));
 vi.mock('../conversationAgent/App', () => ({ ConversationContent: (props: { onReturn?: (source?: Record<string, unknown>) => void }) => <div data-content="messenger"><button onClick={() => props.onReturn?.(fixture.savedReturn)}>Return</button></div> }));
-vi.mock('../levelStudy/App', () => ({ LevelStudyContent: (props: { workspace?: string }) => <div data-content={props.workspace ?? "plan"} /> }));
+vi.mock('../levelStudy/App', () => ({ LevelStudyContent: (props: { workspace?: string; onClose?: () => void }) =>
+  <div data-content={props.workspace ?? "plan"}><button onClick={props.onClose}>Return</button></div> }));
 vi.mock('../wordSync/App', () => ({ WordSyncContent: (props: { mode?: string; intent?: string; words?: readonly string[]; encounterLimit?: number; onClose?: (context: Record<string, unknown>) => void }) => <div data-content={props.mode === 'assessment' ? 'assessment' : 'words'} data-intent={props.intent} data-words={JSON.stringify(props.words)} data-limit={props.encounterLimit}><button onClick={() => props.onClose?.(fixture.savedReturn)}>Return</button></div> }));
 vi.mock('../characterGrid/App', () => ({ CharacterGridContent: () => <div data-content="characters" /> }));
 vi.mock('../wordDbEditor/App', () => ({ WordDbEditorContent: () => <div data-content="knowledge" /> }));
@@ -76,6 +78,47 @@ describe('application shell route ownership', () => {
       await vi.waitFor(() => expect(window.location.hash).toBe(`#${path}`));
     },
   );
+  it('closes the native Evaluate window after returning Home to its original host', async () => {
+    fixture.mobile = false;
+    window.history.replaceState(null, '', '/?host=study#/');
+    mount();
+    fixture.listener!({ applicationNavigation: {
+      path: '/evaluate', requestId: 'native-evaluate-home', context: { returnTo: 'home' },
+    } });
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/evaluate'));
+    container.querySelector<HTMLButtonElement>('.evaluation-chooser-header button')!.click();
+    expect(fixture.openWindow).toHaveBeenCalledWith({ type: 'main', context: {
+      returnTo: 'home', applicationPath: '/', applicationReturn: true,
+    } });
+    expect(fixture.closeWindow).toHaveBeenCalledOnce();
+  });
+  it('keeps a Home entry through a checkpoint return to the Evaluate chooser', async () => {
+    mount();
+    fixture.listener!({ applicationNavigation: {
+      path: '/evaluate/grammar/mock', requestId: 'mock-from-home', context: { returnTo: 'home' },
+    } });
+    await vi.waitFor(() => expect(container.querySelector('[data-content="mock"]')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('[data-content="mock"] button')!.click();
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/evaluate'));
+    expect(container.querySelector('.evaluation-chooser-header button')?.textContent).toContain('mlearn.Tabs.Home');
+  });
+  it('preserves Home through checkpoint return, Grammar check, and its Return action', async () => {
+    mount();
+    fixture.listener!({ applicationNavigation: {
+      path: '/evaluate/grammar/mock', requestId: 'mock-then-grammar-from-home', context: { returnTo: 'home' },
+    } });
+    await vi.waitFor(() => expect(container.querySelector('[data-content="mock"]')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('[data-content="mock"] button')!.click();
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/evaluate'));
+    expect(container.querySelector('.evaluation-chooser-header button')?.textContent).toContain('mlearn.Tabs.Home');
+
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+      .find(button => button.textContent === 'mlearn.Product.GrammarCheck')!.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-content="grammar-check"]')).not.toBeNull());
+    container.querySelector<HTMLButtonElement>('[data-content="grammar-check"] button')!.click();
+    await vi.waitFor(() => expect(window.location.hash).toBe('#/evaluate'));
+    expect(container.querySelector('.evaluation-chooser-header button')?.textContent).toContain('mlearn.Tabs.Home');
+  });
   it('Main desktop has no sitemap above an immersion activity', async () => {
     fixture.mobile = false; mount(); await navigate('/reader');
     expect(container.querySelector('nav')).toBeNull();

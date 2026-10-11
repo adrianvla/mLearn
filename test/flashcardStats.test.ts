@@ -5,7 +5,7 @@ import {
   computeEaseDistribution,
   computeIntervalDistribution,
   computeMaturityBreakdown,
-  computeRetentionStats,
+  computeLapseStats,
   computeAverageEase,
   computeDailyActivity,
   computeDueCounts,
@@ -134,14 +134,14 @@ describe('computeMaturityBreakdown', () => {
   });
 });
 
-describe('computeRetentionStats', () => {
-  it('computes retention over last 30 days', () => {
+describe('computeLapseStats', () => {
+  it('computes lapse incidence and its actual sample over the last 30 calendar days', () => {
     const dailyStats: Record<string, DailyStudyStats> = {
       '2024-01-01': { date: '2024-01-01', newCardsStudied: 5, reviewCardsStudied: 20, lapses: 2, timeSpent: 60000, graduated: 3 },
       '2024-01-02': { date: '2024-01-02', newCardsStudied: 3, reviewCardsStudied: 15, lapses: 1, timeSpent: 45000, graduated: 2 },
     };
-    const stats = computeRetentionStats(dailyStats);
-    expect(stats.retention).toBeCloseTo(((35 - 3) / 35) * 100, 1);
+    const stats = computeLapseStats(dailyStats, 30, Date.parse('2024-01-30T12:00:00'));
+    expect(stats.lapseRate).toBeCloseTo((3 / 35) * 100, 1);
     expect(stats.totalReviews).toBe(35);
     expect(stats.totalLapses).toBe(3);
     expect(stats.totalNew).toBe(8);
@@ -151,10 +151,11 @@ describe('computeRetentionStats', () => {
     expect(stats.totalDays).toBe(30); // totalDays is the requested window, not days-with-data
   });
 
-  it('returns 0 retention when no reviews', () => {
-    const stats = computeRetentionStats({});
-    expect(stats.retention).toBe(0);
+  it('returns a zero lapse count and no review sample when there were no reviews', () => {
+    const stats = computeLapseStats({}, 30, Date.parse('2024-01-30T12:00:00'));
+    expect(stats.lapseRate).toBe(0);
     expect(stats.totalReviews).toBe(0);
+    expect(stats.totalLapses).toBe(0);
   });
 
   it('limits to specified days', () => {
@@ -163,7 +164,7 @@ describe('computeRetentionStats', () => {
       '2024-01-02': { date: '2024-01-02', newCardsStudied: 0, reviewCardsStudied: 20, lapses: 0, timeSpent: 0, graduated: 0 },
       '2024-01-03': { date: '2024-01-03', newCardsStudied: 0, reviewCardsStudied: 30, lapses: 0, timeSpent: 0, graduated: 0 },
     };
-    const stats = computeRetentionStats(dailyStats, 2);
+    const stats = computeLapseStats(dailyStats, 2, Date.parse('2024-01-03T12:00:00'));
     expect(stats.totalReviews).toBe(50);
     expect(stats.totalDays).toBe(2);
   });

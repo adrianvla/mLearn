@@ -31,9 +31,6 @@ import { getBridge } from '../../../../shared/bridges';
 import { isWordInLanguageScript } from '../../../../shared/utils/textUtils';
 import { captureVideoThumbnail, getRecentItems, getRecentProgressPercent, saveToRecentItems, updateRecentItemPlaybackTime, updateRecentItemPlaybackTimeByPath, updateRecentItemSubtitlePathByPath, updateRecentItemThumbnail, updateRecentItemThumbnailByPath, updateRecentItemProgress, updateRecentItemProgressByPath } from '../../../services/thumbnailService';
 import { captureVideoFrameForFlashcard } from '../../../services/flashcardImageCapture';
-import { computeWordLevelPercentages, computeGrammarLevelPercentages, assessMediaDifficulty } from '../../../utils/levelPercentages';
-import { buildGrammarExposure } from '../../../utils/grammarExposure';
-import { buildCharacterContext } from '../../../utils/characterExtraction';
 import { buildWordHoverFlashcardContent } from '../../../components/subtitle/wordHoverHelpers';
 import { addAllCapturedWords } from '../../../services/addAllCapturedWords';
 import { resolveCapturedWordEligibility } from '../../../services/wordCaptureEligibility';
@@ -50,7 +47,6 @@ import {
   isShareableWatchTogetherUrl,
 } from '../../../services/watchTogetherRoomService';
 import { useTokenizer, getCachedTranslation } from '../../../hooks/useTranslation';
-import type { ConversationAgentContext } from '../../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../../shared/types';
 import { syncVideoPluginActivity } from './videoPluginActivity';
 import { opaqueActivityContentId } from '../../../services/activityHubRuntime';
@@ -60,7 +56,6 @@ import { clipVideo } from '../../../services/videoClipService';
 import { getTokenLookupWord, getWordFormCandidates } from '../../../utils/wordForms';
 import { useDictionaryTargetLanguage } from '../../../hooks/useDictionaryTargetLanguage';
 import { isWordMarkedFailed } from '@shared/utils/passiveWordTracking';
-import { formatFrequencyLevelLabel } from '../../../utils/levelLabels';
 import './video.css';
 import { getLogger } from '@shared/utils/logger';
 
@@ -161,7 +156,6 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
   const [currentVideoDuration, setCurrentVideoDuration] = createSignal<number | null>(null);
   const [currentVideoPath, setCurrentVideoPath] = createSignal('');
   const [usagePlaying, setUsagePlaying] = createSignal(false);
-  const [videoLoadState, setVideoLoadState] = createSignal<'idle' | 'loading' | 'ready' | 'error'>('idle');
   createEffect(() => setActiveMediaSource(currentVideoPath() ? { workspace: 'video', path: currentVideoPath() } : undefined));
   onCleanup(() => setActiveMediaSource(undefined));
   const [externalSubtitle, setExternalSubtitle] = createSignal<ExternalSubtitle | null>(null);
@@ -407,7 +401,6 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
     thumbnailCaptureBlockedKeys.delete(name);
     setCurrentVideoTime(0);
     setCurrentVideoDuration(null);
-    setVideoLoadState('loading');
     setCurrentVideoPath(path);
     setShowDropZone(false);
     setCurrentVideoName(name);
@@ -1459,71 +1452,6 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
     navigate('/');
   };
 
-  const openConversationAgent = () => {
-    const s = mediaStats.stats();
-    const name = currentVideoName();
-    const lang = sourceLanguage();
-
-    // Build level percentages from current media stats
-    const freqLookup = { getFrequency: langCtx.getFrequency, getFreqLevelNames: langCtx.getFreqLevelNames };
-    const grammarLookup = { getGrammarPoint: langCtx.getGrammarPoint, getGrammarLevelNames: langCtx.getGrammarLevelNames };
-    const wordLevels = computeWordLevelPercentages(s, freqLookup, langCtx.currentLangData());
-    const grammarLevels = computeGrammarLevelPercentages(s, grammarLookup, langCtx.currentLangData());
-    const difficulty = assessMediaDifficulty(wordLevels, grammarLevels, langCtx.currentLangData());
-    const level = difficulty.headline;
-    const levelNames = langCtx.getFreqLevelNames();
-
-    // Collect failed words: merge per-media stats with the canonical resolver
-    // (effective claim ?? evidence projection). wordsEncountered has per-media
-    // seen/hovered counts; the resolver refines ease with global knowledge.
-    // Per-media hover counts stay local (the weak-signal observation for this
-    // media; the resolver exposes no global hover channel).
-    const mediaWords = new Map<string, { word: string; ease: number; timesSeen: number; timesHovered: number }>();
-
-    // Only include words encountered in this specific media
-    for (const entry of Object.values(s.wordsEncountered)) {
-      const resolved = flashcardCtx.getComprehensiveWordStatusWithSourceSync(entry.word, sourceLanguage());
-      mediaWords.set(entry.word, {
-        word: entry.word,
-        ease: resolved.ease !== undefined ? Math.min(entry.ease, resolved.ease) : entry.ease,
-        timesSeen: Math.max(entry.timesSeen, resolved.timesSeen),
-        timesHovered: entry.timesHovered,
-      });
-    }
-
-    const failedWords = Array.from(mediaWords.values()).filter((word) => isWordMarkedFailed(word, settings));
-    const failedGrammar = Object.values(s.grammarEncountered).filter((g) => g.timesFailed > 0);
-    // Exposure-ranked practice candidates: repeatedly encountered in the
-    // canonical knowledge store without any failure. Unmeasured signals only —
-    // failed patterns stay in failedGrammar above.
-    const grammarExposure = buildGrammarExposure(s.grammarEncountered, (pattern) => flashcardCtx.getGrammarKnowledge(pattern, sourceLanguage()));
-
-    const context: ConversationAgentContext = {
-      mediaName: name,
-      mediaType: 'video',
-      sourceContext: { workspace: 'video', path: currentVideoPath(), time: currentVideoTime(),
-        subtitlePath: externalSubtitle()?.filePath, mediaHash: s.mediaHash },
-      mediaHash: s.mediaHash,
-      assessedLevel: level,
-      assessedLevelName: formatFrequencyLevelLabel(level, levelNames, langCtx.currentLangData()),
-      language: lang,
-      failedWords,
-      failedGrammar,
-      grammarExposure,
-      wordLevelPercentages: wordLevels,
-      grammarLevelPercentages: grammarLevels,
-      characterContext: buildCharacterContext(subtitles.subtitles().map((sub) => sub.text), {
-        languageData: langCtx.currentLangData(),
-      }) ?? undefined,
-      subtitleHistory: subtitles.subtitles()
-        .filter((sub) => sub.start <= currentVideoTime())
-        .slice(-50)
-        .map((sub) => sub.text),
-    };
-
-    getBridge().window.openWindow({ type: 'conversation-agent', context: { ...context, returnTo: 'video' } });
-  };
-
   const videoRouteClass = () => {
     const classes = ['video-route'];
     if (showWordSidebar() && !showDropZone()) classes.push('with-word-sidebar');
@@ -1542,23 +1470,15 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
 
       {/* Back button */}
       <div class="video-nav">
-        <SourceLanguageSelect scope={props.scope} />
+        <Show when={!showDropZone()}>
+          <details class="video-view-options">
+            <summary>{t('mlearn.Reader.Toolbar.ViewOptions')}</summary>
+            <SourceLanguageSelect scope={props.scope} />
+          </details>
+        </Show>
         <Button buttonType="nav" class="back-button" onClick={goHome} title={t('mlearn.Video.Tooltip.GoHome')}>
           {t('mlearn.Video.UI.GoHome')}
         </Button>
-
-        <Show when={!showDropZone()}>
-          <Button buttonType="nav"
-            class="conversation-agent-button"
-            onClick={openConversationAgent}
-            disabled={videoLoadState() !== 'ready'}
-            title={videoLoadState() === 'error'
-              ? t('mlearn.Video.LoadUnavailable')
-              : t('mlearn.Video.Tooltip.OpenConversationAgent')}
-          >
-            {t('mlearn.Video.UI.OpenConversationAgent')}
-          </Button>
-        </Show>
 
         <Show when={watchTogether.isRoomMode()}>
           <Button buttonType="nav"
@@ -1604,7 +1524,6 @@ const VideoRouteContent: Component<{ scope: MediaSourceLanguageScope }> = props 
             src={videoSrc()}
             mediaUsageContext={mediaStats.eventContext()}
             onPlaybackStateChange={setUsagePlaying}
-            onLoadStateChange={setVideoLoadState}
             onMediaElement={(element) => { ownedVideoElement = element; }}
             subtitleContent={subtitleContent()}
             remoteSubtitleHtml={watchTogether.remoteSubtitle()?.html || null}

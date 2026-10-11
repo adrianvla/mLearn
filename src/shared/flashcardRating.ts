@@ -1,6 +1,6 @@
 import type { KnowledgeEventLog } from './knowledgeEvents';
 import type { PendingRetraction } from './retractionRecovery';
-import { completeReviewEncounter, isReviewSession, reviewSessionRemaining } from './reviewSession';
+import { completeReviewEncounter, isReviewSession, reviewSessionRemaining, reviewSessionWorkAvailable } from './reviewSession';
 import { applyStorePatchInPlace, copyStoreWithPatch, getStorePath, setStorePath, type StorePatch } from './utils/storePatch';
 
 /** One stable attempt, including the scheduler and its observation provenance. */
@@ -8,6 +8,8 @@ export interface FlashcardRatingCommand {
   attemptId: string;
   /** A durable pre-presentation choice, including wholly assisted responses. */
   decisionId?: string;
+  /** The opaque task/work key selected by the pinned decision. */
+  selectedChoiceKey?: string;
   /** Actual input captured by the response producer, compared opaquely at admission. */
   presentation?: Record<string, unknown>;
   /** The original surface rollback, retained separately from compacted receipts. */
@@ -102,6 +104,15 @@ export function applyFlashcardRatingCommand<T extends object>(source: T, command
       throw new RatingAdmissionRefusal([command.attemptId], 'The review session changed before admission.');
     }
     const before = entry.before;
+    if (before.workIds && entry.after.workIds) {
+      const additions = (entry.after.completedWorkIds ?? []).filter(id => !(before.completedWorkIds ?? []).includes(id));
+      const workId = additions[0];
+      const cardId = workId && entry.after.workCardIds?.[workId];
+      if (additions.length !== 1 || !workId || !cardId || !reviewSessionWorkAvailable(current, workId, cardId)) {
+        throw new RatingAdmissionRefusal([command.attemptId], 'The review session has no available encounter.');
+      }
+      return [{ path: entry.path, value: completeReviewEncounter(current, workId, cardId) }];
+    }
     const additions = entry.after.completedCardIds.filter(id => !before.completedCardIds.includes(id));
     if (additions.length !== 1 || !current.cardIds.includes(additions[0])
       || (!current.completedCardIds.includes(additions[0]) && reviewSessionRemaining(current) === 0)) {

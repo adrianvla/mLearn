@@ -27,7 +27,7 @@ import {
   probeProvider,
   type ProviderFailure,
 } from '../../services/providerFailure';
-import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, ChatIcon, ParticipantAvatarGroup, ResponsiveSidebar, SkeletonCard } from '../../components/common';
+import { Button, Modal, EmptyState, ConnectionStatus, Popover, Textarea, ChatIcon, CloseIcon, ParticipantAvatarGroup, ResponsiveSidebar, SkeletonCard } from '../../components/common';
 import { WordHover } from '../../components/subtitle';
 import { ExplainerPopup } from '../../components/subtitle/ExplainerPopup';
 import { useWordHover, useTranslation, useTokenizer, useDictionary, getCachedTranslation } from '../../hooks';
@@ -49,6 +49,7 @@ import { createMessagePreparationQueue, messagePreparations } from './messagePre
 import { tokenLookupContext, warmTranslationCache } from '../../hooks/useTranslation';
 import { NewConversationModal } from './NewConversationModal';
 import { StoryProgressModal } from './StoryProgressModal';
+import { RuntimeInspector } from './RuntimeInspector';
 
 import { createConversationAgent, type AgentInstance } from '../../services/conversationAgent';
 import { createCheckerAgent } from '../../services/checkerAgent';
@@ -239,6 +240,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
    * point a non-null value is the reason the composer is disabled.
    */
   const [connectionFailure, setConnectionFailure] = createSignal<ProviderFailure | null>(null);
+  const [dismissedConnectionNotice, setDismissedConnectionNotice] = createSignal<string | null>(null);
   const [connectionProbeRevision, setConnectionProbeRevision] = createSignal(0);
   const [isRecording, setIsRecording] = createSignal(false);
   const [isSpeaking, setIsSpeaking] = createSignal(false);
@@ -378,6 +380,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   const [showIntegrationModal, setShowIntegrationModal] = createSignal(false);
   let overflowAnchorRef: HTMLButtonElement | undefined;
   const [showDetailsDrawer, setShowDetailsDrawer] = createSignal(false);
+  const [showRuntimeInspector, setShowRuntimeInspector] = createSignal(false);
   const openDetails = (): void => {
     setShowDetailsDrawer(true);
     void getBridge().world.getWorldState().then(setWorld).catch(error => log.error('Failed to refresh world activity', error));
@@ -391,6 +394,15 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
     ? rosterParticipants().filter(person => person.id === voiceContactParticipantId()) : rosterParticipants();
   const callIdentity = () => (voiceContactParticipantId() ? activeVoiceParticipant()?.displayName : rosterParticipants().map(person => person.displayName).join(', '))
     || activeRoom()?.title || t('mlearn.ConversationAgent.Title');
+  const headerIdentity = () => {
+    if (callSurfaceOpen()) return callIdentity();
+    const threadTitle = activeThread()?.title?.trim();
+    if (threadTitle) return threadTitle;
+    const room = activeRoom();
+    if (room?.titleUserSet && room.title.trim()) return room.title.trim();
+    const participantNames = rosterParticipants().map(person => person.displayName.trim()).filter(Boolean);
+    return participantNames.join(', ') || room?.title || t('mlearn.ConversationAgent.Title');
+  };
   const [contactEventId, setContactEventId] = createSignal<string | null>(null);
   let voiceScheduledNudgeId = 0;
   const [voiceScheduledNudge, setVoiceScheduledNudge] = createSignal<{ id: number; seconds: number; prompt?: string } | null>(null);
@@ -487,7 +499,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   const activeRoom = () => world()?.rooms.find((room) => room.id === selection()?.roomId) ?? (activeThread() ? sandboxContext(activeThread()!) : undefined) ?? null;
   const activeThread = () => world()?.threads.find((thread) => thread.id === selection()?.threadId) ?? null;
   const memoryLaunchContext = (): Record<string, unknown> => ({
-    memoryScope: activeThread()?.sandbox ? { kind: 'thread', id: activeThread()!.id }
+    memoryScope: activeThread() ? { kind: 'thread', id: activeThread()!.id }
       : activeRoom() ? { kind: 'room', id: activeRoom()!.id } : undefined,
     returnContext: { roomId: selection()?.roomId, threadId: selection()?.threadId },
   });
@@ -1986,6 +1998,17 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
     return t(connectionFailure()?.key ?? 'mlearn.ConnectionStatus.Disconnected');
   };
 
+  const connectionNoticeKey = (): string => {
+    const failure = connectionFailure();
+    return failure ? JSON.stringify([failure.key, failure.recovery, failure.requiresSignIn]) : '';
+  };
+  const signInPromptOpen = (): boolean => !isCheckingConnection() && !isConnected()
+    && connectionFailure()?.requiresSignIn === true
+    && dismissedConnectionNotice() !== connectionNoticeKey();
+  createEffect(() => {
+    if (!connectionNoticeKey()) setDismissedConnectionNotice(null);
+  });
+
   const connectionStatusLabel = (): string => t(isCheckingConnection()
     ? 'mlearn.ConnectionStatus.Connecting'
     : isConnected() ? 'mlearn.ConnectionStatus.Connected' : 'mlearn.ConnectionStatus.Disconnected');
@@ -1997,7 +2020,8 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
   const canActOnConnection = (): boolean => (
     !isCheckingConnection()
     && !isConnected()
-    && (connectionFailure()?.recovery === 'settings' || connectionFailure()?.recovery === 'none')
+    && (connectionFailure()?.requiresSignIn === true
+      || connectionFailure()?.recovery === 'settings' || connectionFailure()?.recovery === 'none')
   );
 
   const connectionActionLabel = (): string => {
@@ -2036,7 +2060,7 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
               else openDetails();
             }} disabled={!activeRoom()}>
               <ParticipantAvatarGroup size="sm" participants={rosterParticipants()} />
-              <span class="ca-header-title" title={callSurfaceOpen() ? callIdentity() : activeRoom()?.title}>{callSurfaceOpen() ? callIdentity() : activeRoom()?.title ?? t('mlearn.ConversationAgent.Title')}</span>
+              <span class="ca-header-title" title={headerIdentity()}>{headerIdentity()}</span>
             </Button>
             <Show when={activeRoom()}>
               <span class="ca-header-context">{t((activeThread()?.interactionMode ?? activeRoom()?.interactionMode) === 'practice'
@@ -2083,6 +2107,9 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
           >
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { openDetails(); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.Details')}</Button>
             <Button variant="ghost" class="ca-overflow-item" onClick={() => { getBridge().window.openWindow({ type: 'memory-browser', context: memoryLaunchContext() }); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Menu.MemoryBrowser')}</Button>
+            <Show when={settings.devMode}>
+              <Button variant="ghost" class="ca-overflow-item" onClick={() => { setShowRuntimeInspector(true); setShowOverflowMenu(false); }}>{t('mlearn.ConversationAgent.Developer.Title')}</Button>
+            </Show>
           </Popover>
         </div>
       </div>
@@ -2118,6 +2145,18 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
           </Show>
         </div>}
       </For>
+      <Show when={signInPromptOpen()}>
+        <Modal
+          isOpen
+          onClose={() => setDismissedConnectionNotice(connectionNoticeKey())}
+          title={t('mlearn.Connection.SignIn')}
+          size="sm"
+          panelClass="ca-auth-recovery"
+          footer={<Button variant="primary" onClick={handleConnectionStatusClick}>{connectionActionLabel()}</Button>}
+        >
+          <p>{connectionLabel()}</p>
+        </Modal>
+      </Show>
       <Show when={noticeScope() === 'remote'}>
         <AgeVerificationModal onAccept={() => acceptConversationNotice('remote')} onCancel={() => setNoticeScope(null)} />
       </Show>
@@ -2301,10 +2340,13 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
               <span>{t('mlearn.ConversationAgent.Contacts.AnnotationUnavailable')}</span>
               <Button size="sm" variant="ghost" onClick={() => { setAnnotationFailed(false); setAnnotationRetry(value => value + 1); }}>{t('mlearn.Global.Retry')}</Button>
             </div></Show>
-            <Show when={!isCheckingConnection() && !isConnected()}>
+            <Show when={!connectionFailure()?.requiresSignIn && !isCheckingConnection() && !isConnected() && dismissedConnectionNotice() !== connectionNoticeKey()}>
               <div class="ca-provider-notice" role="status" aria-live="polite">
                 <span>{connectionLabel()}</span>
                 <Show when={canActOnConnection()}><Button variant="ghost" size="sm" onClick={handleConnectionStatusClick}>{connectionActionLabel()}</Button></Show>
+                <Button buttonType="icon" variant="ghost" size="sm" icon={<CloseIcon size={14} />}
+                  aria-label={t('mlearn.Global.Aria.CloseAlert')}
+                  onClick={() => setDismissedConnectionNotice(connectionNoticeKey())} />
               </div>
             </Show>
             {/* Input */}
@@ -2564,6 +2606,11 @@ export const ConversationContent: Component<{ launchContext?: Record<string, unk
                 : [...new Set([...current, participantId])] });
             }}
           />
+        </Modal>
+      </Show>
+      <Show when={showRuntimeInspector()}>
+        <Modal isOpen onClose={() => setShowRuntimeInspector(false)} title={t('mlearn.ConversationAgent.Developer.Title')} size="full" fullHeight panelClass="ca-runtime-inspector-modal">
+          <RuntimeInspector initialRoomId={selection()?.roomId} initialThreadId={selection()?.threadId ?? undefined} showTitle={false} />
         </Modal>
       </Show>
       <Show when={showNewConversationModal()}>

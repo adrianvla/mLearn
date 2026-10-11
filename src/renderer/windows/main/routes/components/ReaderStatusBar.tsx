@@ -24,7 +24,6 @@ interface ReaderStatusBarProps {
   isTokenizing?: Accessor<boolean>;
   isTranslating?: Accessor<boolean>;
   onRunOcr: () => void;
-  onOpenConversationAgent: () => void;
   cropMode?: Accessor<boolean>;
   onToggleCropMode?: () => void;
   cropAddMode?: Accessor<boolean>;
@@ -143,14 +142,6 @@ export const ReaderStatusBar: Component<ReaderStatusBarProps> = (props) => {
             <option value="key-hover">{getHoverTriggerLabel('key-hover', currentKey())}</option>
           </select>
         </div>
-
-        <button
-          class="statusbar-toggle reader-tutor-action"
-          onClick={props.onOpenConversationAgent}
-          title={t('mlearn.Reader.StatusBar.OpenConversationAgentTitle')}
-        >
-          {t('mlearn.Reader.StatusBar.OpenConversationAgent')}
-        </button>
 
         <div class="reader-status-tools-inline toolbar-overflow-inline" data-overflow-inline />
         <details

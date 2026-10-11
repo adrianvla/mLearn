@@ -18,6 +18,9 @@ interface ReaderNavProps {
   bookTitle: Accessor<string>;
   progressString: Accessor<string>;
   fitMode: Accessor<string>;
+  writingMode: Accessor<'auto' | 'vertical' | 'horizontal'>;
+  writingModeOptions: Array<{ value: string; label: string }>;
+  onWritingModeChange: (mode: 'auto' | 'vertical' | 'horizontal') => void;
   pageMode: Accessor<string>;
   spreadDirection: Accessor<string>;
   firstPageSingle: Accessor<boolean>;
@@ -64,7 +67,6 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       <Show when={isElectron()}>
         <div class="reader-nav-drag-region" />
       </Show>
-      {props.sourceLanguageControl}
       <div class="nav-group">
         <Show when={props.hasPages()}>
           <Button buttonType="nav" class="sidebar-btn" onClick={props.onToggleSidebar} aria-label={t('mlearn.Reader.Toolbar.ToggleContents')}>
@@ -94,6 +96,14 @@ export const ReaderNav: Component<ReaderNavProps> = (props) => {
       >
         <summary aria-label={t('mlearn.Reader.Toolbar.ViewOptions')} onClick={toolbar.toggle}>{t('mlearn.Reader.Toolbar.ViewOptions')}</summary>
         <div class="reader-nav-options-panel" data-overflow-panel>
+        <div class="toolbar-control-group" data-overflow-priority="2">{props.sourceLanguageControl}</div>
+        <div class="toolbar-control-group" data-overflow-priority="1">
+          <label class="reader-writing-mode-control">
+            <span>{t('mlearn.Reader.Toolbar.WritingMode')}</span>
+            <Select options={props.writingModeOptions} aria-label={t('mlearn.Reader.Toolbar.WritingMode')}
+              value={props.writingMode()} onChange={event => props.onWritingModeChange(event.currentTarget.value as 'auto' | 'vertical' | 'horizontal')} />
+          </label>
+        </div>
         <div class="toolbar-control-group" data-overflow-priority="3"><Button buttonType="nav" onClick={props.onOpenFolder}>
           {t('mlearn.Reader.UI.WelcomeSplash.OpenFolder')}
         </Button></div>

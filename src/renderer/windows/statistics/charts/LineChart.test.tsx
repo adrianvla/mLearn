@@ -48,4 +48,16 @@ describe('LineChart', () => {
     expect(Number(points.split(',')[0])).toBe(50);
     dispose();
   });
+
+  it('gives sparse time-series labels real width on dense monthly series', () => {
+    const data = Array.from({ length: 15 }, (_, index) => ({
+      label: `2026-${String(index + 1).padStart(2, '0')}`,
+      value: index,
+    }));
+    const dispose = render(() => <LineChart data={data} />, container);
+
+    const labels = Array.from(container.querySelectorAll('.line-chart-label'));
+    expect(labels.map(label => label.textContent)).toEqual(['2026-01', '2026-05', '2026-08', '2026-12', '2026-15']);
+    dispose();
+  });
 });
