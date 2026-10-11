@@ -1,13 +1,20 @@
 // @vitest-environment happy-dom
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { createSignal } from 'solid-js';
 import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import type { Flashcard, MediaStats } from '../../../shared/types';
 import type { KnowledgeEvent } from '../../../shared/knowledgeEvents';
 import type { KeyHistorySummary } from '../../../shared/knowledge/historyQueries';
+import { Dashboard } from './Dashboard';
 
-const localizationMock = vi.fn((key: string) => key);
+const dashboardCss = readFileSync(`${process.cwd()}/src/renderer/windows/statistics/Dashboard.css`, 'utf8');
+
+const localizationMock = vi.fn((key: string, params?: Record<string, string | number>) =>
+  params ? `${key} ${Object.values(params).join(' ')}` : key,
+);
 let flashcardStoreMock: {
   flashcards: Record<string, Flashcard>;
   dailyStats: Record<string, Record<string, { newCardsStudied: number; reviewCardsStudied: number; lapses: number; timeSpent: number; graduated: number }>>;
@@ -17,14 +24,16 @@ let studyExcludedIds = new Set<string>();
 let settingsMock: { language: string; newDayHour: number; easeThresholdKnown: number; easeThresholdLearning: number };
 let summariesMock: Record<string, KeyHistorySummary> = {};
 let knowledgeEventsChanged: (() => void) | null = null;
-let flashcardsLoading = false;
+let flashcardsLoading: () => boolean;
+let setFlashcardsLoading: (value: boolean) => boolean;
+let querySummariesMock: Mock<(language: string) => Promise<Record<string, KeyHistorySummary>>>;
 let knownWords = 0;
 let unknownWords = 0;
 let unmeasuredWords = 0;
 let mediaStatsMock: MediaStats[] = [];
 
 vi.mock('../../context', () => ({
-  useFlashcards: () => ({ store: flashcardStoreMock, getStudyableCards: () => Object.fromEntries(Object.entries(flashcardStoreMock.flashcards).filter(([id]) => !studyExcludedIds.has(id))), isKnowledgeReady: () => true, isLoading: () => flashcardsLoading }),
+  useFlashcards: () => ({ store: flashcardStoreMock, getStudyableCards: () => Object.fromEntries(Object.entries(flashcardStoreMock.flashcards).filter(([id]) => !studyExcludedIds.has(id))), isKnowledgeReady: () => true, isLoading: flashcardsLoading }),
   useSettings: () => ({ settings: settingsMock }),
   useLanguage: () => ({
     getWordFrequency: () => ({}),
@@ -33,6 +42,7 @@ vi.mock('../../context', () => ({
     getLanguageFeatures: () => ({ supportsFrequencyLevels: false }),
     getCanonicalFormForLanguage: () => null,
     getWordVariantsForLanguage: () => [],
+    isLoading: () => false,
   }),
   useLocalization: () => ({ t: localizationMock }),
 }));
@@ -56,7 +66,7 @@ vi.mock('../../../shared/bridges', () => ({
       listMediaStats: () => {},
     },
     knowledgeEvents: {
-      queryKnowledgeSummaries: () => Promise.resolve(summariesMock),
+      queryKnowledgeSummaries: (language: string) => querySummariesMock(language),
       onKnowledgeEventsChanged: (callback: () => void) => { knowledgeEventsChanged = callback; return () => {}; },
     },
   }),
@@ -70,8 +80,8 @@ vi.mock('../../components/common', async (importOriginal) => {
   KnowledgeSkeleton: actual.KnowledgeSkeleton,
   SkeletonCard: actual.SkeletonCard,
   SkeletonStatGrid: actual.SkeletonStatGrid,
-  StatCard: (props: { label: string; value: string | number }) => (
-    <div class="mock-statcard"><span>{props.label}</span><b>{props.value}</b></div>
+  StatCard: (props: { label: string; value: string | number; description?: string }) => (
+    <div class="mock-statcard"><span>{props.label}</span><b>{props.value}</b><small>{props.description}</small></div>
   ),
   Panel: (props: { children?: JSX.Element; class?: string }) => <div class={`mock-panel ${props.class ?? ''}`}>{props.children}</div>,
   BookIcon: () => <span>book</span>,
@@ -88,9 +98,13 @@ vi.mock('../../hooks/useKnowledgeHistory', () => ({
 
 vi.mock('./charts', () => ({
   PieChart: () => <div>pie</div>,
-  BarChart: () => <div>bar</div>,
+  BarChart: (props: { data: Array<{ label: string; value: number; tooltip?: string }>; valueMax?: number }) => (
+    <div data-testid="mock-bar-chart">
+      {props.data.map((point) => <div data-testid="mock-bar-point" data-value={point.value} data-value-max={props.valueMax} aria-label={point.tooltip}>{point.label}</div>)}
+    </div>
+  ),
   Heatmap: () => <div>heat</div>,
-  LineChart: () => <div data-testid="mock-line-chart" />,
+  LineChart: (props: { valueUnit?: string }) => <div data-testid="mock-line-chart" data-value-unit={props.valueUnit} />,
 }));
 
 function makeFlashcard(id: string): Flashcard {
@@ -121,7 +135,10 @@ describe('Dashboard', () => {
     flashcardStoreMock = { flashcards: {}, dailyStats: {}, wordKnowledge: {} };
     settingsMock = { language: 'ja', newDayHour: 4, easeThresholdKnown: 1.8, easeThresholdLearning: 3 };
     summariesMock = {};
-    flashcardsLoading = false;
+    [flashcardsLoading, setFlashcardsLoading] = createSignal(false);
+    querySummariesMock = vi.fn<(language: string) => Promise<Record<string, KeyHistorySummary>>>(
+      () => Promise.resolve(summariesMock),
+    );
     knownWords = 0;
     unknownWords = 0;
     unmeasuredWords = 0;
@@ -144,7 +161,6 @@ describe('Dashboard', () => {
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const stats = (count: number) => ({ date, newCardsStudied: 0, reviewCardsStudied: count, lapses: 0, timeSpent: 0, graduated: 0 });
     flashcardStoreMock.dailyStats = { [date]: { ja: stats(2), future: stats(9) } };
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
     (Array.from(container.querySelectorAll('nav button')).find(button => button.textContent?.endsWith('.reviews')) as HTMLButtonElement).click();
     const value = (key: string) => Array.from(container.querySelectorAll('.mock-statcard')).find(card => card.textContent?.includes(key))?.querySelector('b')?.textContent;
@@ -161,6 +177,32 @@ describe('Dashboard', () => {
     dispose();
   });
 
+  it('reports rolling lapse incidence with its actual sample and an honest empty activity state', async () => {
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const day = (reviewCardsStudied: number, lapses: number) => ({ date, reviewCardsStudied, lapses, newCardsStudied: 0, timeSpent: 0, graduated: 0 });
+    flashcardStoreMock.dailyStats = { [date]: { ja: day(10, 2) } };
+    const dispose = render(() => <Dashboard />, container);
+    const reviewsTab = Array.from(container.querySelectorAll('nav button')).find(button => button.textContent?.endsWith('.reviews')) as HTMLButtonElement;
+    reviewsTab.click();
+    const lapseCard = Array.from(container.querySelectorAll('.mock-statcard')).find(card => card.textContent?.includes('Dashboard.LapseRate'))!;
+    expect(lapseCard.querySelector('b')?.textContent).toBe('20.0%');
+    expect(lapseCard.textContent).toContain('2 10');
+    expect(container.querySelector('.analytics-review-empty')).toBeNull();
+
+    flashcardStoreMock.dailyStats = {};
+    flashcardStoreMock.flashcards = { a: makeFlashcard('a') };
+    dispose();
+    const emptyDispose = render(() => <Dashboard />, container);
+    (Array.from(container.querySelectorAll('nav button')).find(button => button.textContent?.endsWith('.reviews')) as HTMLButtonElement).click();
+    expect(container.querySelector('.analytics-review-empty')?.textContent).toBe('mlearn.Statistics.Dashboard.NoReviewActivity');
+    expect(container.querySelector('.analytics-review-chart [data-testid="mock-bar-chart"]')).toBeNull();
+    const emptyLapseCard = Array.from(container.querySelectorAll('.mock-statcard')).find(card => card.textContent?.includes('Dashboard.LapseRate'))!;
+    expect(emptyLapseCard.querySelector('b')?.textContent).toBe('—');
+    expect(emptyLapseCard.textContent).toContain('0 0');
+    emptyDispose();
+  });
+
   it('uses the same language boundary for recorded immersion and keeps durations separate', async () => {
     const date = new Date().toISOString().split('T')[0];
     const media = (language: string, mediaType: 'video' | 'book', duration: number): MediaStats => ({
@@ -169,7 +211,6 @@ describe('Dashboard', () => {
       sessions: [{ date, duration, wordsLearned: 0 }], totalTimeSpent: duration, lastAccessed: 1,
     });
     mediaStatsMock = [media('ja', 'video', 60000), media('future', 'video', 180000), media('future', 'book', 120000)];
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
     (Array.from(container.querySelectorAll('nav button')).find(button => button.textContent?.endsWith('.activity')) as HTMLButtonElement).click();
     const times = () => Array.from(container.querySelectorAll('.session-time-value-sm')).map(node => node.textContent);
@@ -181,9 +222,25 @@ describe('Dashboard', () => {
     dispose();
   });
 
+  it('gives the immersion heatmap a bounded responsive panel instead of shrinking to its cells', () => {
+    const date = new Date().toISOString().split('T')[0];
+    mediaStatsMock = [{
+      mediaHash: 'ja-book', mediaName: 'Saved source', mediaType: 'book', language: 'ja',
+      wordsEncountered: {}, grammarEncountered: {}, assessedLevel: null,
+      sessions: [{ date, duration: 60000, wordsLearned: 0 }], totalTimeSpent: 60000, lastAccessed: 1,
+    }];
+    const dispose = render(() => <Dashboard />, container);
+    (Array.from(container.querySelectorAll('nav button')).find(button => button.textContent?.endsWith('.activity')) as HTMLButtonElement).click();
+    const panel = container.querySelector('.dashboard-heatmap-panel');
+    expect(panel).not.toBeNull();
+    expect(dashboardCss).toMatch(/\.dashboard-heatmap-panel\s*\{[^}]*width:\s*min\(100%,\s*760px\);/s);
+    expect(dashboardCss).toMatch(/\.dashboard-heatmap-panel\s*\{[^}]*container-type:\s*inline-size;/s);
+    expect(dashboardCss).toContain('.dashboard-heatmap-panel .heatmap-grid');
+    dispose();
+  });
+
   it('retains scope selection when the selected language has no data', async () => {
     flashcardStoreMock.flashcards = { other: { ...makeFlashcard('other'), language: 'future' } };
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
     expect(container.querySelector('.dashboard-empty-state')).not.toBeNull();
     const scope = container.querySelector('.analytics-scope select') as HTMLSelectElement;
@@ -194,7 +251,6 @@ describe('Dashboard', () => {
   });
 
   it('renders the empty state when there is no card or study data', async () => {
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
 
     await vi.waitFor(() => {
@@ -208,7 +264,6 @@ describe('Dashboard', () => {
 
   it('shows learner knowledge without requiring cards or immersion activity', async () => {
     knownWords = 12;
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
     expect(container.querySelector('.dashboard-empty-state')).toBeNull();
     expect(container.textContent).toContain('mlearn.Statistics.Legend.Learned');
@@ -220,7 +275,6 @@ describe('Dashboard', () => {
     knownWords = 2;
     unknownWords = 3;
     unmeasuredWords = 8;
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
     await vi.waitFor(() => expect(container.querySelector('.analytics-summary')).not.toBeNull());
     const summary = container.querySelector('.analytics-summary')!;
@@ -233,8 +287,7 @@ describe('Dashboard', () => {
   });
 
   it('shows the boot skeleton instead of a false empty state while the learner store hydrates', async () => {
-    flashcardsLoading = true;
-    const { Dashboard } = await import('./Dashboard');
+    setFlashcardsLoading(true);
     const dispose = render(() => <Dashboard />, container);
 
     await vi.waitFor(() => {
@@ -249,10 +302,70 @@ describe('Dashboard', () => {
     dispose();
   });
 
+  it('waits for canonical learner records before grouping event summaries', async () => {
+    const day = 24 * 60 * 60 * 1000;
+    const firstSenseT = Date.UTC(2024, 0, 1);
+    flashcardStoreMock = {
+      flashcards: { a: makeFlashcard('a') },
+      dailyStats: {},
+      wordKnowledge: { 'ja:lookup': { word: 'lookup' } },
+    };
+    summariesMock = {
+      'ja:lookup': {
+        firstT: firstSenseT,
+        lastT: firstSenseT + day,
+        exactRows: 2,
+        archivedRows: 0,
+        firstSenseT,
+        firstKnownT: firstSenseT + day,
+        stableKnownT: firstSenseT + day,
+        lapsedAfterFirstKnown: false,
+      },
+    };
+    setFlashcardsLoading(true);
+
+    const dispose = render(() => <Dashboard />, container);
+    await Promise.resolve();
+    expect(querySummariesMock).not.toHaveBeenCalled();
+
+    setFlashcardsLoading(false);
+    await vi.waitFor(() => {
+      expect(querySummariesMock).toHaveBeenCalledWith('ja');
+      const velocity = Array.from(container.querySelectorAll('.mock-panel'))
+        .find((panel) => panel.textContent?.includes('mlearn.Statistics.LearningVelocity.Title'));
+      expect(velocity?.querySelector('[data-testid="mock-line-chart"]')).not.toBeNull();
+    });
+
+    dispose();
+  });
+
+  it('distinguishes a failed history query from a true empty history and can retry', async () => {
+    flashcardStoreMock = {
+      flashcards: { a: makeFlashcard('a') },
+      dailyStats: {},
+      wordKnowledge: {},
+    };
+    querySummariesMock
+      .mockRejectedValueOnce(new Error('private diagnostic detail'))
+      .mockResolvedValueOnce({});
+
+    const dispose = render(() => <Dashboard />, container);
+    await vi.waitFor(() => expect(container.textContent).toContain('mlearn.Statistics.LearningVelocity.LoadError'));
+    expect(container.textContent).not.toContain('private diagnostic detail');
+    const retry = Array.from(container.querySelectorAll('button'))
+      .find((button) => button.textContent === 'mlearn.Statistics.LearningVelocity.Retry') as HTMLButtonElement;
+    retry.click();
+    await vi.waitFor(() => {
+      expect(querySummariesMock).toHaveBeenCalledTimes(2);
+      expect(container.textContent).toContain('mlearn.Statistics.LearningVelocity.Empty');
+    });
+
+    dispose();
+  });
+
   it('forecasts eligible work while retaining excluded authored cards in totals', async () => {
     flashcardStoreMock.flashcards = { a: makeFlashcard('a'), b: makeFlashcard('b') };
     studyExcludedIds.add('a');
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
     const reviews = Array.from(container.querySelectorAll('nav button')).find(button => button.textContent?.endsWith('.reviews')) as HTMLButtonElement;
     reviews.click();
@@ -271,7 +384,6 @@ describe('Dashboard', () => {
       wordKnowledge: {},
     };
 
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
 
     const reviews = Array.from(container.querySelectorAll('nav button')).find((button) => button.textContent?.endsWith('.reviews')) as HTMLButtonElement;
@@ -337,7 +449,6 @@ describe('Dashboard', () => {
       wordKnowledge: { 'ja:one': { word: 'one' }, 'ja:two': { word: 'two' } },
     };
 
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
 
     await vi.waitFor(() => {
@@ -345,10 +456,17 @@ describe('Dashboard', () => {
       const velocity = panels.find((p) => p.textContent?.includes('mlearn.Statistics.LearningVelocity.Title'));
       expect(velocity).toBeDefined();
       expect(velocity!.querySelectorAll('[data-testid="mock-line-chart"]')).toHaveLength(2);
-      expect(velocity!.textContent).toContain('bar');
+      expect(velocity!.querySelector('[data-testid="mock-bar-chart"]')).not.toBeNull();
       expect(velocity!.textContent).toContain('mlearn.Statistics.LearningVelocity.DaysToKnown');
-      expect(velocity!.textContent).toContain('mlearn.Statistics.LearningVelocity.AcquisitionSlope');
-      expect(velocity!.textContent).toContain('mlearn.Statistics.LearningVelocity.RetentionAfterKnown');
+      expect(velocity!.textContent).toContain('mlearn.Statistics.LearningVelocity.StrengthChange14Days');
+      expect(velocity!.textContent).toContain('mlearn.Statistics.LearningVelocity.LapseIncidenceAfterKnown');
+      expect(velocity!.textContent).not.toContain('AcquisitionSlope');
+      expect(velocity!.textContent).not.toContain('RetentionAfterKnown');
+      expect(velocity!.querySelectorAll('[data-value-unit="mlearn.Statistics.LearningVelocity.StrengthChangeUnit"]')).toHaveLength(1);
+      const lapse = velocity!.querySelector('[data-testid="mock-bar-point"]');
+      expect(lapse?.getAttribute('data-value')).toBe('50');
+      expect(lapse?.getAttribute('data-value-max')).toBe('100');
+      expect(lapse?.getAttribute('aria-label')).toContain('LapseTooltip 2024-01 50 2');
     });
 
     dispose();
@@ -361,7 +479,6 @@ describe('Dashboard', () => {
       wordKnowledge: {},
     };
 
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
 
     await vi.waitFor(() => {
@@ -382,7 +499,6 @@ describe('Dashboard', () => {
       wordKnowledge: {},
     };
 
-    const { Dashboard } = await import('./Dashboard');
     const dispose = render(() => <Dashboard />, container);
 
     await vi.waitFor(() => {

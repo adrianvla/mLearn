@@ -95,7 +95,6 @@ describe('ReaderStatusBar reading annotation controls', () => {
         hasOcrResult={() => false}
         hasPages={() => true}
         onRunOcr={() => undefined}
-        onOpenConversationAgent={() => undefined}
       />
     ), container);
 
@@ -115,7 +114,7 @@ describe('ReaderStatusBar reading annotation controls', () => {
       <ReaderStatusBar
         bookTitle={() => 'Book'} progressString={() => '1 / 2'} ocrStatus={() => ''}
         ocrProgress={() => 0} isProcessingOcr={() => false} hasOcrResult={() => false}
-        hasPages={() => true} onRunOcr={() => undefined} onOpenConversationAgent={() => undefined}
+        hasPages={() => true} onRunOcr={() => undefined}
       />
     ), container);
     const displayToggle = Array.from(container.querySelectorAll<HTMLButtonElement>('.statusbar-toggle'))

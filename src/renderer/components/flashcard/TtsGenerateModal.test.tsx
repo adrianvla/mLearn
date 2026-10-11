@@ -2,6 +2,8 @@ import { render } from 'solid-js/web';
 import type { JSX } from 'solid-js';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
+import { flashcardAudioResourceKey } from '../../../shared/flashcardAudioResource';
+import { hashWordSync } from '../../../shared/utils/wordHash';
 import { TtsGenerateModal } from './TtsGenerateModal';
 
 const mocks = vi.hoisted(() => ({
@@ -47,7 +49,15 @@ it.each(['fast', 'high-quality'])('regenerates with the selected %s preset, with
     const submit = Array.from(host.querySelectorAll('button')).find((button) => button.textContent === 'mlearn.CardEditor.GenerateTtsAction')!;
     submit.click();
     await vi.waitFor(() => expect(generated).toHaveBeenCalledOnce());
-    expect(mocks.generate).toHaveBeenCalledWith('card', 'Hello', DEFAULT_SETTINGS.language, 'word', preset === 'fast' ? 'qwen3' : 'cloud', 'sample', preset === 'fast' ? undefined : 'cloud-token', 'https://example.test', preset);
+    const provider = preset === 'fast' ? 'qwen3' : 'cloud';
+    const resourceKey = flashcardAudioResourceKey({
+      language: DEFAULT_SETTINGS.language,
+      textHash: hashWordSync('Hello'),
+      provider,
+      preset,
+      voiceSampleId: 'sample',
+    });
+    expect(mocks.generate).toHaveBeenCalledWith('card', 'Hello', DEFAULT_SETTINGS.language, 'word', provider, 'sample', preset === 'fast' ? undefined : 'cloud-token', 'https://example.test', preset, resourceKey);
     expect(mocks.cloudAuth).toHaveBeenCalledTimes(preset === 'fast' ? 0 : 1);
     expect(mocks.access).toHaveBeenCalledTimes(preset === 'fast' ? 1 : 0);
     expect(mocks.updateSettings).toHaveBeenCalledWith({ flashcardTtsProvider: 'cloud', flashcardVoiceSampleId: 'sample' });

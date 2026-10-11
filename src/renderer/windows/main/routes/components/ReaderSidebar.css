@@ -6,9 +6,9 @@
   --reader-sidebar-padding-block-start: 1rem;
   position: absolute;
   left: 0;
-  top: 48px;
+  top: 0;
   width: 160px;
-  bottom: 30px;
+  bottom: 0;
   height: auto;
   overflow: hidden;
   display: flex;

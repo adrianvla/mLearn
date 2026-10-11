@@ -1443,7 +1443,6 @@ export const GrammarCoverage: Component<GrammarCoverageProps> = (props) => {
   return (
     <Panel class="grammar-coverage-panel" padding={practicing() ? 'none' : 'lg'} border={!practicing()} shadow={!practicing()}>
     <section ref={practiceSection} class="grammar-coverage" classList={{ 'grammar-coverage--studying': practicing() }} aria-label={t('mlearn.LevelStudy.Grammar.Title')}>
-      <Show when={props.purpose === 'check' && !practicing()}><p>{t('mlearn.Product.GrammarSelfCheckDescription')}</p></Show>
       <Show when={practicing()}>
         <Button variant="ghost" onClick={() => setPracticePaused(true)}>{t('mlearn.LevelStudy.Mock.Pause')}</Button>
       </Show>

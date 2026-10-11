@@ -1,10 +1,22 @@
 import { getContentFontFamily } from '../../../../shared/languageFeatures';
 import { readingAnnotationMoreContrastEnabled } from '../../../../shared/readingAnnotationSettings';
 import type { ReaderTextFontStyle, Settings } from '../../../../shared/types';
+import { hashWordSync } from '../../../services/srsAlgorithm';
 
 export type ReaderPageMode = 'double' | 'single';
 export type ReaderSpreadDirection = 'left-to-right' | 'right-to-left';
 export type BookProgressionDirection = 'ltr' | 'rtl' | null;
+export type ReaderWritingMode = 'auto' | 'vertical' | 'horizontal';
+
+/** Keep this per-source display preference out of canonical media identity and raw paths. */
+export function readerWritingModeStorageKey(resourceId: string, format: string): string | null {
+  if (!resourceId.trim() || !format.trim()) return null;
+  return `mlearn-reader-writing-mode::${hashWordSync(JSON.stringify([format, resourceId]))}`;
+}
+
+export function parseReaderWritingMode(value: string | null): ReaderWritingMode {
+  return value === 'vertical' || value === 'horizontal' ? value : 'auto';
+}
 
 export function resolveReaderTextFontFamily(
   style: ReaderTextFontStyle,
@@ -48,7 +60,10 @@ export function resolveReaderVerticalLayout(opts: {
   declaresVerticalWriting: boolean;
   progressionDirection: BookProgressionDirection;
   supportsVerticalText: boolean;
+  writingMode?: 'auto' | 'vertical' | 'horizontal';
 }): boolean {
+  if (opts.writingMode === 'vertical') return true;
+  if (opts.writingMode === 'horizontal') return false;
   // Page progression chooses spread order; only authored writing mode chooses
   // vertical text. A study package's capabilities cannot reinterpret a book.
   return opts.isEpubBook && opts.declaresVerticalWriting;

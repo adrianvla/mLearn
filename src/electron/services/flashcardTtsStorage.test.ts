@@ -439,6 +439,31 @@ describe('flashcardTtsStorage', () => {
       expect(fs.existsSync(filePath)).toBe(true);
     });
 
+    it('stores prepared audio under its content key and records the matching identity', async () => {
+      const fakeRes = makeFakeRes(200);
+      const fakeReq = makeFakeReq();
+      const { default: httpMod } = await import('http');
+      vi.mocked(httpMod.request).mockImplementation((_opts: unknown, cb: unknown) => {
+        (cb as (res: FakeRes) => void)(fakeRes);
+        return fakeReq as unknown as ClientRequest;
+      });
+      const resourceKey = 'a'.repeat(64);
+      setupFlashcardTtsIPC();
+      const generate = mockIpcHandlers.get('flashcard-tts-generate')!;
+      const pending = generate({}, 'card-keyed', 'spoken form', 'lang-x', 'word', 'kokoro', 'voice-a', undefined, undefined, 'fast', resourceKey);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      fakeRes._fire('data', Buffer.alloc(500, 0x42));
+      fakeRes._fire('end');
+      expect(await pending).toBe(`flashcard-audio://card-keyed-word-${resourceKey}.ogg`);
+      const audioDir = path.join(tempDir.tmpDir, 'flashcard-audio');
+      const meta = JSON.parse(fs.readFileSync(path.join(audioDir, `card-keyed-word-${resourceKey}.meta.json`), 'utf8'));
+      expect(meta).toMatchObject({ language: 'lang-x', provider: 'qwen3', preset: 'fast', voiceSampleId: 'voice-a', resourceKey });
+      expect(meta.textHash).toBe((await import('../../shared/utils/wordHash')).hashWordSync('spoken form'));
+      const get = mockIpcHandlers.get('flashcard-tts-get')!;
+      expect(await get({}, 'card-keyed', 'word', resourceKey)).toBe(`flashcard-audio://card-keyed-word-${resourceKey}.ogg`);
+      expect(await get({}, 'card-keyed', 'word', '../legacy')).toBeNull();
+    });
+
     it.each(['high-quality', 'fast'] as const)('forwards %s, and fast selects Qwen even when cloud is configured', async (preset) => {
       const fakeRes = makeFakeRes(200);
       const fakeReq = makeFakeReq();

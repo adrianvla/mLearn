@@ -75,10 +75,10 @@ const flashcardBridge: FlashcardBridge = {
   deleteFlashcardImage: (cardId) => getIPC().deleteFlashcardImage(cardId),
   saveFlashcardVideo: (cardId, data) => getIPC().saveFlashcardVideo(cardId, data),
   deleteFlashcardVideo: (cardId) => getIPC().deleteFlashcardVideo(cardId),
-  getFlashcardTts: (cardId, field) => getIPC().getFlashcardTts(cardId, field),
-  generateFlashcardTts: (cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset) => getIPC().generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset),
+  getFlashcardTts: (cardId, field, resourceKey) => getIPC().getFlashcardTts(cardId, field, resourceKey),
+  generateFlashcardTts: (cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset, resourceKey) => getIPC().generateFlashcardTts(cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset, resourceKey),
   batchGenerateFlashcardTts: (items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset) => getIPC().batchGenerateFlashcardTts(items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset),
-  getFlashcardTtsMeta: (cardId, field) => getIPC().getFlashcardTtsMeta(cardId, field),
+  getFlashcardTtsMeta: (cardId, field, resourceKey) => getIPC().getFlashcardTtsMeta(cardId, field, resourceKey),
   deleteFlashcardTts: (cardId) => getIPC().deleteFlashcardTts(cardId),
 };
 

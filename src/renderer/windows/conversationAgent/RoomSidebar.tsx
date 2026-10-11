@@ -64,7 +64,9 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
       const preview = preferredSea ? props.previews?.[room.id] : preferredThread ? props.previews?.[`${room.id}/${preferredThread.id}`] : latestPreview;
       const roster = room.participantIds.map(id => world.participants.find(item => item.id === id)).filter((item): item is Participant => Boolean(item));
       const person = roster.length === 1 ? roster[0] : undefined;
-      return { id: room.id, title: person?.displayName ?? room.title, person, people: roster, preview,
+      const participantNames = roster.map(item => item.displayName.trim()).filter(Boolean);
+      const title = room.titleUserSet && room.title.trim() ? room.title.trim() : participantNames.join(', ') || room.title;
+      return { id: room.id, title, person, people: roster, preview,
         roomId: room.id, roomIds: [room.id], threadId: targetThread?.id, sessionTitle: targetThread?.title,
         unread: room.unreadCount ?? 0, timestamp: preview?.timestamp ?? targetThread?.createdAt ?? room.createdAt,
         practice: (targetThread?.interactionMode ?? room.interactionMode) === 'practice', temporary: false,
@@ -161,8 +163,10 @@ export const RoomSidebar: Component<RoomSidebarProps> = (props) => {
               : <Avatar name={chat.title} src={chat.person?.profilePhoto} />}
             headline={chat.title}
             title={chat.title}
-            description={<><span class="room-sidebar-scope">{t(chat.practice ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · {t(chat.temporary ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}</span>
-              <Show when={chat.loading} fallback={chat.preview?.text || (chat.sessionTitle !== chat.title ? chat.sessionTitle : '')}><SkeletonLine width="80%" animate={false} /></Show></>}
+            description={<span class="room-sidebar-description">
+              <span class="room-sidebar-scope">{t(chat.practice ? 'mlearn.ConversationAgent.NewConversation.CoachedPractice' : 'mlearn.ConversationAgent.NewConversation.Conversation')} · {t(chat.temporary ? 'mlearn.ConversationAgent.NewConversation.ScopeTemporary' : 'mlearn.ConversationAgent.NewConversation.ScopePersistent')}</span>
+              <span class="room-sidebar-preview"><Show when={chat.loading} fallback={chat.preview?.text || (chat.sessionTitle !== chat.title ? chat.sessionTitle : '')}><SkeletonLine width="80%" animate={false} /></Show></span>
+            </span>}
             trailing={<><Show when={chat.preview}><time dateTime={new Date(chat.timestamp).toISOString()}>{timestamp(chat.timestamp)}</time></Show>
               <Show when={chat.unread > 0}><Badge>{chat.unread}</Badge></Show>
             </>}

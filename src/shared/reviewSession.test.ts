@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beginReviewSession, reviewSessionRemaining, completeReviewEncounter, undoReviewEncounter, isReviewSession, reviewSessionHasAvailableCards } from './reviewSession';
+import { beginReviewSession, reviewSessionRemaining, completeReviewEncounter, undoReviewEncounter, isReviewSession, reviewSessionHasAvailableCards, reviewSessionHasPendingWorkForCard, reviewSessionWorkAvailable } from './reviewSession';
 import type { Flashcard, FlashcardStore, ReviewPresentation } from './types';
 import { hashWordSync } from './utils/wordHash';
 describe('finite review boundary', () => {
@@ -36,6 +36,27 @@ describe('finite review boundary', () => {
     const undone = undoReviewEncounter(session, 'a');
     expect(undone.completedCardIds).toEqual([]);
     expect(reviewSessionRemaining(undone)).toBe(2);
+  });
+  it('counts sibling task work independently while keeping its physical card identity', () => {
+    const session = beginReviewSession('task-visit', ['card'], 5, 10, [
+      { id: 'review:card:written', cardId: 'card' },
+      { id: 'review:card:audio', cardId: 'card' },
+    ]);
+    expect(session.encounterLimit).toBe(2);
+    expect(reviewSessionRemaining(session)).toBe(2);
+    expect(reviewSessionWorkAvailable(session, 'review:card:written', 'card')).toBe(true);
+    expect(reviewSessionWorkAvailable(session, 'review:card:audio', 'other-card')).toBe(false);
+    const written = completeReviewEncounter(session, 'review:card:written', 'card');
+    expect(written.completedWorkIds).toEqual(['review:card:written']);
+    expect(written.completedCardIds).toEqual([]);
+    expect(reviewSessionRemaining(written)).toBe(1);
+    expect(reviewSessionHasPendingWorkForCard(written, 'card')).toBe(true);
+    expect(reviewSessionWorkAvailable(written, 'review:card:written', 'card')).toBe(false);
+    expect(reviewSessionWorkAvailable(written, 'review:card:audio', 'card')).toBe(true);
+    const undone = undoReviewEncounter(written, 'review:card:written', 'card');
+    expect(undone.completedWorkIds).toEqual([]);
+    expect(reviewSessionRemaining(undone)).toBe(2);
+    expect(isReviewSession(JSON.parse(JSON.stringify(session)))).toBe(true);
   });
 });
 

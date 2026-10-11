@@ -62,18 +62,25 @@ describe('durable rating command ownership', () => {
     first.recordLearningDecision(structuredClone(decision));
     expect(() => first.recordLearningDecision({ ...decision, at: 30 })).toThrow(/immutable/);
     first.reserveRatingCommand({ attemptId: 'assisted-response', decisionId: decision.id,
+      selectedChoiceKey: decision.selected.key,
       presentation: decision.selected.presentation,
       guardCardIds: ['card'], events: {}, patch: { baseRev: 0, entries: [] } });
     expect(() => first.reserveRatingCommand({ attemptId: 'different-task', decisionId: decision.id,
+      selectedChoiceKey: decision.selected.key,
       presentation: decision.selected.presentation,
       guardCardIds: ['card'], events: { 'future:cue': [{ t: 20, kind: 'rating', source: 'manual', attemptId: 'different-task',
         targetRef: { kind: 'future-entity', id: 'other', capability: 'future::capability' }, quality: 'fluent' }] },
       patch: { baseRev: 0, entries: [] } })).toThrow(/captured task/);
     expect(() => first.reserveRatingCommand({ attemptId: 'wholly-supplied-wrong-cue', decisionId: decision.id,
+      selectedChoiceKey: decision.selected.key,
       presentation: { futureInput: ['other cue'] }, guardCardIds: ['card'],
       events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/captured presentation/);
     expect(() => first.reserveRatingCommand({ attemptId: 'different-prompt', decisionId: decision.id,
+      selectedChoiceKey: decision.selected.key,
       guardCardIds: ['other-card'], events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/captured choice/);
+    expect(() => first.reserveRatingCommand({ attemptId: 'different-work', decisionId: decision.id,
+      selectedChoiceKey: 'another-task', presentation: decision.selected.presentation, guardCardIds: ['card'],
+      events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/captured choice/);
     expect(first.sequenceCounter).toBe(0);
     first.close();
     const restarted = KnowledgeHistoryStore.open(file);
@@ -86,6 +93,28 @@ describe('durable rating command ownership', () => {
       events: {}, patch: { baseRev: 0, entries: [] } })).toThrow(/before presentation/);
     expect(restarted.pendingRatingCommands()).toEqual([]);
     restarted.close();
+  });
+
+  it('keeps the opaque admitted task key separate from its physical scheduler card identity', () => {
+    const s = store();
+    const decision: LearningDecision = { id: 'opaque-review-work', at: 20, policyVersion: 'future-policy',
+      selected: { key: 'review:physical-card:holistic', action: 'practice', targets: [],
+        presentation: { cardId: 'physical-card', language: 'xx', surface: 'cue' },
+        task: { taskTemplateId: 'future-task', inputModality: 'opaque', responseModality: 'opaque', supplied: [],
+          requested: [], fluencyRequired: false, ratingMode: 'profile' } },
+      baseline: null, detail: {} };
+    s.recordLearningDecision(decision);
+    expect(s.reserveRatingCommand({ attemptId: 'opaque-review-response', decisionId: decision.id,
+      selectedChoiceKey: decision.selected.key, presentation: decision.selected.presentation,
+      guardCardIds: ['physical-card'], events: { cue: [{ t: 21, kind: 'review', source: 'srs', rating: 'good',
+        schedulerCardId: 'physical-card', attemptId: 'opaque-review-response' }] },
+      patch: { baseRev: 0, entries: [] } })).toMatchObject({ sequence: 1 });
+    expect(() => s.reserveRatingCommand({ attemptId: 'wrong-physical-card', decisionId: decision.id,
+      selectedChoiceKey: decision.selected.key, presentation: decision.selected.presentation,
+      guardCardIds: ['another-card'], events: { cue: [{ t: 22, kind: 'review', source: 'srs', rating: 'good',
+        schedulerCardId: 'another-card', attemptId: 'wrong-physical-card' }] },
+      patch: { baseRev: 0, entries: [] } })).toThrow(/captured choice/);
+    s.close();
   });
 
   it('retains the exact command across restart without making it learning evidence', () => {

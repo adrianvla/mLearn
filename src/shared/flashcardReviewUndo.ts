@@ -19,6 +19,7 @@ export interface ReviewUndoProjection {
   /** Immutable original elicitation conditions for retrospective correction. Older receipts lack these. */
   correction?: ReviewCorrection;
   reviewSessionId?: string;
+  reviewWorkId?: string;
   cardId: string;
   type: string;
   restoreCard: Flashcard;
@@ -83,7 +84,8 @@ export function restoreReviewResponse(store: FlashcardStore, restore: ReviewUndo
   }
   if (card.lastUpdated === restore.expectedCard.lastUpdated) card.lastUpdated = restore.restoreCard.lastUpdated;
   const sessionLanguage = Object.keys(store.meta.reviewSessions ?? {}).find(language => store.meta.reviewSessions![language].id === restore.reviewSessionId);
-  if (sessionLanguage) store.meta.reviewSessions![sessionLanguage] = undoReviewEncounter(store.meta.reviewSessions![sessionLanguage], restore.cardId);
+  if (sessionLanguage) store.meta.reviewSessions![sessionLanguage] = undoReviewEncounter(store.meta.reviewSessions![sessionLanguage],
+    restore.reviewWorkId ?? restore.cardId, restore.cardId);
   const record = store as unknown as Record<string, unknown>;
   for (const { path, delta, scope } of restore.counterDeltas ?? []) {
     if (scope && !Object.is(getStorePath(record, scope.path), scope.value)) continue;

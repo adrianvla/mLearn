@@ -1174,6 +1174,7 @@
         "RawData": "生データ",
         "RecordCount": "{count} 件の記録",
         "NoRuntimeData": "このコンテキストには記録がありません。",
+        "SelectRecord": "レコードを選択して項目を確認してください。生のJSONは下にあります。",
         "WorldSummary": "ルーム {rooms} 件 · スレッド {threads} 件 · 参加者 {participants} 人",
         "Runs": "バックグラウンド実行",
         "Memories": "記憶",
@@ -1699,6 +1700,8 @@
         "ChangeLanguage": "言語を変更",
         "ContinueLearning": "学習を続ける",
         "LearningLanguage": "{language}を学習中",
+        "ResumeGrammarPractice": "文法練習を再開",
+        "ResumeWordPractice": "単語練習を再開",
         "TitleDescription": "下の項目を選択して始めましょう",
         "RecentLoadFailed": "最近の教材を読み込めませんでした。もう一度お試しください。"
       },
@@ -1739,6 +1742,7 @@
         "AllTimeReviews": "記録された復習の累計",
         "NewCardResponses": "新しいカードの学習記録",
         "RecordDefinition": "選択した学習言語の、保存された全日次記録の合計です。繰り返しの回答も含みます。習得した単語数やメディア利用ではありません。",
+        "RecordDetails": "回答記録の詳細",
         "EvidenceUnavailable": "学習の証拠を利用できません。要件の進捗を見るには再試行してください。",
         "ConversationUnavailable": "会話のプレビューを利用できません。ローカルのチャットはメッセンジャーで開けます。",
         "NoConversation": "連絡先の相手と会話を始めてください。"
@@ -2474,7 +2478,11 @@
         "NextPage": "次のページ",
         "PageFit": "ページの表示倍率",
         "PageLayout": "ページ配置",
-        "PageOrder": "ページの順序"
+        "PageOrder": "ページの順序",
+        "WritingMode": "文字の方向",
+        "WritingModeAuto": "自動",
+        "WritingModeVertical": "縦書き",
+        "WritingModeHorizontal": "横書き"
       },
       "UI": {
         "Tips": {
@@ -3462,6 +3470,8 @@
         "ImmersionTime": "没入時間",
         "IntervalDistribution": "間隔分布",
         "LapseHeatmap": "失敗ヒートマップ",
+        "LapseRate": "忘却率",
+        "LapseRateDefinition": "過去30日間の記録：忘却 {lapses} 件 / 復習カード {reviews} 件。",
         "Lapses": "失敗",
         "LevelCoverage": "カバー率",
         "LevelTotal": "合計",
@@ -3476,6 +3486,7 @@
         "Overdue": "期限超過",
         "RetentionRate": "記憶率",
         "ReviewActivity": "復習アクティビティ（過去30日間）",
+        "NoReviewActivity": "過去30日間に復習または新規カードの記録はありません。",
         "ReviewHeatmap": "復習ヒートマップ",
         "ReviewStudyTime": "復習学習時間",
         "Reviews": "復習",
@@ -3523,9 +3534,17 @@
       "LearningVelocity": {
         "Title": "学習速度",
         "Empty": "履歴がまだ十分ではありません。学習を続けてからまた確認してください。",
+        "Loading": "保存された学習履歴を読み込み中…",
+        "LoadError": "保存された学習履歴を読み込めませんでした。",
+        "Retry": "再試行",
         "DaysToKnown": "安定して既知になるまでの中央日数",
-        "AcquisitionSlope": "14日間の習得ペース",
-        "RetentionAfterKnown": "既知後30日間の定着率"
+        "StrengthChange14Days": "14日後の正規化強度の変化",
+        "LapseIncidenceAfterKnown": "初めて「既知」になった後30日間の失念発生率",
+        "DaysUnit": "日",
+        "StrengthChangeUnit": "正規化強度の変化（0～1尺度）",
+        "DaysTooltip": "{month}: 安定して既知になるまで {value} 日（n={count}）",
+        "StrengthTooltip": "{month}: 正規化強度の変化 {value}（0～1の尺度、n={count}）",
+        "LapseTooltip": "{month}: 初めて既知になり30日間の追跡が完了した単語のうち、その30日以内に失念記録があった割合 {percent}%（n={count}）"
       },
       "Sections": {
         "knowledge": "知識",

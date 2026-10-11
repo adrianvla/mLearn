@@ -1,4 +1,4 @@
-import { isReviewSession, reviewSessionRemaining, reviewSessionHasAvailableCards } from './reviewSession';
+import { isReviewSession, reviewSessionRemaining, reviewSessionHasAvailableCards, reviewSessionWorkAvailable } from './reviewSession';
 import { isLearningDecision } from './learningDecision';
 import type { Flashcard, FlashcardStore, ReviewPresentation } from './types';
 import type { StorePatch } from './utils/storePatch';
@@ -90,7 +90,8 @@ export function reviewPresentationPatch(store: FlashcardStore, command: ReviewPo
   const { presentation, language, card, expectedId } = command;
   const decision = presentation.decision;
   const cue = decision?.selected.presentation;
-  if (!isLearningDecision(decision) || presentation.id !== decision.id || presentation.cardId !== decision.selected.key
+  if (!isLearningDecision(decision) || presentation.id !== decision.id
+    || presentation.cardId !== (decision.selected.presentation?.cardId ?? decision.selected.key)
     || card.id !== presentation.cardId || cue?.cardId !== card.id || cue.surface !== card.content.front
     || cue.language !== language || cue.language !== (card.language || language)
     || (cue.contentVersion !== undefined && cue.contentVersion !== hashWordSync(JSON.stringify(card.content)))) {
@@ -143,12 +144,13 @@ export function reviewPresentationPatch(store: FlashcardStore, command: ReviewPo
   if (presentation.session) {
     const session = presentation.session;
     const prior = store.meta.reviewSessions?.[language];
-    if (!isReviewSession(session) || !session.cardIds.includes(card.id) || session.completedCardIds.includes(card.id)
+    if (!isReviewSession(session) || !session.cardIds.includes(card.id)
+      || !reviewSessionWorkAvailable(session, decision.selected.key, card.id)
       || reviewSessionRemaining(session) === 0) throw new Error('Invalid finite review session');
     if (prior?.id !== session.id) {
       if (prior && reviewSessionHasAvailableCards(prior, store, language)) throw new Error('An interrupted review session must be resumed');
       entries.push({ path: ['meta', 'reviewSessions', language], before: prior, after: session });
-    } else if (prior.completedCardIds.includes(card.id) || reviewSessionRemaining(prior) === 0) return null;
+    } else if (!reviewSessionWorkAvailable(prior, decision.selected.key, card.id) || reviewSessionRemaining(prior) === 0) return null;
   }
   return { baseRev: store.rev ?? 0, entries };
 }

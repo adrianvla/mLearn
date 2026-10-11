@@ -70,7 +70,7 @@ describe('RoomSidebar action placement and roster identity', () => {
       .toEqual([['a', 'c'], ['a', 'b']]);
     rows[0].click();
     expect(props.onSelectRoom).toHaveBeenCalledWith('room-second');
-    expect(rows[1].title).toBe('Pair');
+    expect(rows[1].title).toBe('Alex, Alex');
   });
 
   it('keeps long contact names available on the Contacts row', () => {

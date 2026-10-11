@@ -415,13 +415,27 @@ describe('flashcardBridge', () => {
   it('getFlashcardTts passes cardId and field to ipc.getFlashcardTts', () => {
     const bridge = createElectronBridge();
     bridge.flashcards.getFlashcardTts('card-1', 'word');
-    expect(mockIPC.getFlashcardTts).toHaveBeenCalledWith('card-1', 'word');
+    expect(mockIPC.getFlashcardTts).toHaveBeenCalledWith('card-1', 'word', undefined);
+  });
+
+  it('passes an exact resource identity when reading prepared audio', () => {
+    const bridge = createElectronBridge();
+    const resourceKey = 'a'.repeat(64);
+    bridge.flashcards.getFlashcardTts('card-1', 'word', resourceKey);
+    expect(mockIPC.getFlashcardTts).toHaveBeenCalledWith('card-1', 'word', resourceKey);
   });
 
   it('generateFlashcardTts passes all arguments to ipc.generateFlashcardTts', () => {
     const bridge = createElectronBridge();
     bridge.flashcards.generateFlashcardTts('card-1', 'hello', 'en', 'word', 'kokoro', 'sample-id', 'token', 'https://api.example.com', 'fast');
-    expect(mockIPC.generateFlashcardTts).toHaveBeenCalledWith('card-1', 'hello', 'en', 'word', 'kokoro', 'sample-id', 'token', 'https://api.example.com', 'fast');
+    expect(mockIPC.generateFlashcardTts).toHaveBeenCalledWith('card-1', 'hello', 'en', 'word', 'kokoro', 'sample-id', 'token', 'https://api.example.com', 'fast', undefined);
+  });
+
+  it('passes the prepared resource identity through generation', () => {
+    const bridge = createElectronBridge();
+    const resourceKey = 'b'.repeat(64);
+    bridge.flashcards.generateFlashcardTts('card-1', 'hello', 'en', 'word', 'kokoro', undefined, undefined, undefined, 'fast', resourceKey);
+    expect(mockIPC.generateFlashcardTts).toHaveBeenCalledWith('card-1', 'hello', 'en', 'word', 'kokoro', undefined, undefined, undefined, 'fast', resourceKey);
   });
 
   it('batchGenerateFlashcardTts passes all arguments to ipc.batchGenerateFlashcardTts', () => {
@@ -434,7 +448,7 @@ describe('flashcardBridge', () => {
   it('getFlashcardTtsMeta passes cardId and field to ipc.getFlashcardTtsMeta', () => {
     const bridge = createElectronBridge();
     bridge.flashcards.getFlashcardTtsMeta('card-1', 'example');
-    expect(mockIPC.getFlashcardTtsMeta).toHaveBeenCalledWith('card-1', 'example');
+    expect(mockIPC.getFlashcardTtsMeta).toHaveBeenCalledWith('card-1', 'example', undefined);
   });
 
   it('deleteFlashcardTts passes cardId to ipc.deleteFlashcardTts', () => {

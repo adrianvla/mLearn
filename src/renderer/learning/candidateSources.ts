@@ -75,6 +75,12 @@ export interface WeakTargetEntry {
   language: string;
   status: 'unknown' | 'learning' | 'known';
   ease: number;
+  /** Optional stable item+task identity for a material-backed package probe. */
+  key?: string;
+  /** Producer-owned canonical targets/task; absent keeps the legacy word-level candidate. */
+  targets?: readonly LearnableTarget[];
+  task?: EncounterTask;
+  presentation?: Record<string, unknown>;
 }
 
 export interface SupportedProbeTarget {
@@ -483,15 +489,20 @@ export function suggestedLearningCandidates(items: readonly LearnableWordSourceI
 export function weakTargetCandidates(entries: readonly WeakTargetEntry[]): Candidate[] {
   const learningRange = SRS_EASE.DEFAULT_KNOWN - SRS_EASE.MIN;
   return entries
-    .filter((entry) => entry.status === 'learning')
+    // Unknown is admitted only by the material-backed producer, which has
+    // already established an active outcome scope for these exact targets.
+    // The policy still decides whether that unmeasured work is worthwhile.
+    .filter((entry) => entry.status === 'learning' || (entry.status === 'unknown' && !!entry.targets?.length))
     .map((entry) => ({
-      key: `${entry.language}:${entry.word}`,
+      key: entry.key ?? `${entry.language}:${entry.word}`,
       word: entry.word,
       language: entry.language,
-      targets: [{
+      targets: entry.targets?.length ? [...entry.targets] : [{
         entityId: `${entry.language}:surface:${entry.word}`,
         capability: 'surface-recognition',
       }],
+      ...(entry.task ? { task: entry.task } : {}),
+      ...(entry.presentation ? { presentation: entry.presentation } : {}),
       origin: 'weak-target',
       scores: {
         'curriculum-relevance': clamp((entry.ease - SRS_EASE.MIN) / learningRange),

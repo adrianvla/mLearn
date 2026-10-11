@@ -23,13 +23,19 @@ interface FlashcardTtsState {
 
 export interface TtsMetadata {
   provider: string;
+  preset?: 'high-quality' | 'fast';
   generatedAt: string;
   language: string;
+  textHash?: string;
+  voiceSampleId?: string;
+  resourceKey?: string;
 }
 
 export interface TtsPlaybackOptions {
   /** Audio-first review must use an available recording, with no synthesis fallback. */
   savedOnly?: boolean;
+  /** Bind playback to the exact prepared material identity. */
+  resourceKey?: string;
   onCompleted?: () => void;
   onUnavailable?: () => void;
   /** Automatic playback should not interrupt review when a recording is absent. */
@@ -149,7 +155,7 @@ export function useFlashcardTts() {
     try {
       if (isElectron() || options?.savedOnly) {
         // Try existing audio file first
-        const existingUrl = await bridge.flashcards.getFlashcardTts(cardId, field);
+        const existingUrl = await bridge.flashcards.getFlashcardTts(cardId, field, options?.resourceKey);
         if (myGenId !== generationId) return; // Stale
 
         if (existingUrl) {
@@ -162,7 +168,7 @@ export function useFlashcardTts() {
           if (myGenId !== generationId) return;
           try {
             // Load metadata in parallel with starting playback
-            bridge.flashcards.getFlashcardTtsMeta(cardId, field).then(m => {
+            bridge.flashcards.getFlashcardTtsMeta(cardId, field, options?.resourceKey).then(m => {
               if (m && myGenId === generationId) setMetadata(m);
             });
             // Append cache-buster to avoid stale audio after regeneration

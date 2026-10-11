@@ -17,12 +17,12 @@ import { getLanguageProsodyType, shouldIncludeProsodyParticleBoxForContext } fro
 import { prosodyVisible } from '../../../shared/prosodySettings';
 import {
   buildJapanesePitchAccentHtml,
-  extractJapanesePitchAccentPayloadPosition,
   getJapanesePitchAccentInfo,
   getJapaneseMoraCount,
 } from '../../utils/japanesePitchAccent';
 import { cacheVersion, getCachedTranslation, type WordLookupCandidateOptions } from '../../hooks/useTranslation';
 import { extractReadingValue } from '../../utils/translationCacheParsers';
+import { extractProsodyFromTranslationData } from '../../utils/readingProsody';
 import { useDictionaryTargetLanguage } from '../../hooks/useDictionaryTargetLanguage';
 import { PillLabel } from '../common/Label';
 import type { LanguageData } from '../../../shared/types';
@@ -69,22 +69,13 @@ export interface JapanesePitchAccentOverlayProps {
 }
 
 /** Extract pitch position from translation cache data */
-function extractPitchFromCache(word: string, language?: string, lookupOptions?: WordLookupCandidateOptions): number | null {
+function extractPitchFromCache(word: string, languageData?: LanguageData | null, displayedReading?: string | null,
+  language?: string, lookupOptions?: WordLookupCandidateOptions): { position: number; reading: string | null } | null {
   const cached = getCachedTranslation(word, language, lookupOptions);
   if (!cached?.data) return null;
-
-  return extractJapanesePitchAccentPayloadPosition(cached.data);
-}
-
-/** Extract reading from translation cache data */
-function extractReadingFromCache(
-  word: string,
-  languageData?: LanguageData | null,
-  language?: string,
-  lookupOptions?: WordLookupCandidateOptions,
-): string | null {
-  const cached = getCachedTranslation(word, language, lookupOptions);
-  return extractReadingValue(cached?.data, languageData);
+  const reading = displayedReading || extractReadingValue(cached.data, languageData) || null;
+  const prosody = extractProsodyFromTranslationData({ data: cached.data }, languageData, reading);
+  return prosody?.position === undefined ? null : { position: prosody.position, reading };
 }
 
 /**
@@ -135,11 +126,11 @@ export const JapanesePitchAccentOverlay: Component<JapanesePitchAccentOverlayPro
     setCachedReading(null);
 
     const checkCache = () => {
-      const pitch = extractPitchFromCache(word, lookupLanguage(), lookupOptions());
-      if (pitch !== null) {
-        setCachedPitch(pitch);
-        const reading = extractReadingFromCache(word, resolvedLanguageData(), lookupLanguage(), lookupOptions());
-        if (reading) setCachedReading(reading);
+      const resolved = extractPitchFromCache(word, resolvedLanguageData(), props.reading,
+        lookupLanguage(), lookupOptions());
+      if (resolved !== null) {
+        setCachedPitch(resolved.position);
+        if (resolved.reading) setCachedReading(resolved.reading);
         return true;
       }
       return false;

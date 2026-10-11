@@ -18,7 +18,7 @@
 }
 .video-route > .video-nav{
   position: absolute;
-  top: var(--spacing-2);
+  top: calc(var(--window-controls-block-start-inset) + var(--spacing-2));
   left: calc(var(--window-controls-inline-start-inset) + var(--spacing-2));
   z-index: var(--z-foreground);
   display:flex;
@@ -39,6 +39,11 @@ body.hide-cursor .video-route > .video-nav > button {
 .video-route > .video-nav > button:hover {
   color: var(--text-primary);
 }
+.video-view-options { position: relative; z-index: var(--z-foreground); -webkit-app-region: no-drag; }
+.video-view-options > summary { cursor: pointer; list-style: none; white-space: nowrap; padding: var(--spacing-2) var(--spacing-3); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-secondary); background: var(--bg); backdrop-filter: var(--backdrop-filter); }
+.video-view-options > summary::-webkit-details-marker { display: none; }
+.video-view-options > .source-language-control { position: absolute; top: calc(100% + var(--spacing-2)); inset-inline-start: 0; width: max-content; max-width: min(24rem, calc(100vw - 2rem)); padding: var(--spacing-3); border: 1px solid var(--border-color); border-radius: var(--radius-md); color: var(--text-primary); background: var(--bg-opaque); box-shadow: var(--shadow-lg); }
+.video-view-options[open] > .source-language-control { display: block; }
 .drop-zone-container {
   flex: 1;
   display: flex;

@@ -14,19 +14,19 @@ import type { MediaStats } from '../../../shared/types';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import { getBridge } from '../../../shared/bridges';
 import { eventsVersion, queryKnowledgeSummaries } from '../../services/knowledgeEvents';
-import { acquisitionSlopeSummaries, daysToStableKnownSummaries, retentionAfterKnownSummaries, type WordSummaryGroup } from '../../services/learningAnalytics';
+import { daysToStableKnownSummaries, lapseIncidenceAfterKnownSummaries, strengthChange14DaysSummaries, type WordSummaryGroup } from '../../services/learningAnalytics';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import { getWordFormCandidates } from '../../utils/wordForms';
 
 import { initTimeWatched } from '../../services/statsService';
 import { computeWordLevelStats } from '../../utils/wordLevelStats';
-import { retentionDisplay } from '../../utils/retentionDisplay';
+import { lapseRateDisplay } from '../../utils/lapseRateDisplay';
 import { formatDateMedium, formatDateNumeric, formatDateShort, formatWeekday } from '../../utils/timeFormatting';
 import {
   computeStateDistribution,
   computeMaturityBreakdown,
   computeIntervalDistribution,
-  computeRetentionStats,
+  computeLapseStats,
   computeStreaks,
   getTodayStats,
   aggregateDailyStats,
@@ -91,7 +91,7 @@ export const Dashboard: Component = () => {
     const stateDist = computeStateDistribution(all);
     const maturity = computeMaturityBreakdown(all);
     const intervals = computeIntervalDistribution(all);
-    const retention = computeRetentionStats(flatDailyStats());
+    const lapses = computeLapseStats(flatDailyStats());
 
     return {
       total: stateDist.total,
@@ -99,9 +99,9 @@ export const Dashboard: Component = () => {
       learning: stateDist.learning,
       review: stateDist.review,
       suspended: stateDist.suspended,
-      retentionRate: retention.retention,
-      totalReviews: retention.totalReviews,
-      totalLapses: retention.totalLapses,
+      lapseRate: lapses.lapseRate,
+      totalReviews: lapses.totalReviews,
+      totalLapses: lapses.totalLapses,
       matureCount: maturity.mature,
       youngCount: maturity.young,
       intervalBuckets: intervals,
@@ -112,14 +112,14 @@ export const Dashboard: Component = () => {
     computeDueForecast(progressCards(Object.values(getStudyableCards()), scopeLanguage()), settings.newDayHour ?? DEFAULT_SETTINGS.newDayHour!),
   );
 
-  const retentionCard = createMemo(() => retentionDisplay(cardStats().retentionRate, cardStats().totalReviews));
+  const lapseCard = createMemo(() => lapseRateDisplay(cardStats().lapseRate, cardStats().totalReviews));
 
   // ── Daily stats aggregation ──
 
   const dailyStatsData = createMemo(() => {
     const ds = flatDailyStats();
 
-    const retention = computeRetentionStats(ds);
+    const lapses = computeLapseStats(ds);
     const streaks = computeStreaks(ds);
     const todayStats = getTodayStats(ds);
 
@@ -156,10 +156,10 @@ export const Dashboard: Component = () => {
     }
 
     return {
-      totalStudyTime: retention.totalTime,
+      totalStudyTime: lapses.totalTime,
       streakCurrent: streaks.current,
       streakMax: streaks.max,
-      totalDaysStudied: retention.daysStudied,
+      totalDaysStudied: lapses.daysStudied,
       last30,
       todayReviews: todayStats.reviews,
       todayNew: todayStats.newCards,
@@ -168,6 +168,8 @@ export const Dashboard: Component = () => {
       todayGraduated: todayStats.graduated,
     };
   });
+
+  const hasRecentReviewActivity = createMemo(() => dailyStatsData().last30.some(day => day.value > 0 || (day.secondaryValue ?? 0) > 0));
 
   const isEmpty = createMemo(() =>
     mediaStatsLoaded() && cardStats().total === 0 && dailyStatsData().totalDaysStudied === 0 && mediaTimeStats().totalImmersion === 0 && (allActivity() || wordStats().allEncountered.total === 0)
@@ -201,8 +203,13 @@ export const Dashboard: Component = () => {
   });
 
   // ── Learning velocity cohorts (event-store aggregates) ──
-  const [learningVelocity] = createResource(
-    () => [settings.language, eventsVersion()] as const,
+  const [learningVelocity, { refetch: retryLearningVelocity }] = createResource(
+    // The history query runs over the complete event journal. Do not let its
+    // result race ahead of the canonical material map used to group form
+    // variants, or a fast query can be cached as an empty chart for this visit.
+    () => !isLoading() && isKnowledgeReady() && !languageLoading()
+      ? [settings.language, eventsVersion()] as const
+      : null,
     async ([language]) => {
       const summaries = await queryKnowledgeSummaries(language);
       // Variant surfaces of one word live in several `${language}:${hash}` keys; unify
@@ -225,30 +232,31 @@ export const Dashboard: Component = () => {
       }
       return {
         days: daysToStableKnownSummaries(byWord),
-        slope: acquisitionSlopeSummaries(byWord),
-        retention: retentionAfterKnownSummaries(byWord, Date.now()),
+        strengthChange: strengthChange14DaysSummaries(byWord),
+        lapseIncidence: lapseIncidenceAfterKnownSummaries(byWord, Date.now()),
       };
     },
   );
 
   const velocityCharts = createMemo(() => {
+    if (learningVelocity.state !== 'ready') return null;
     const v = learningVelocity();
-    if (!v || (v.days.length === 0 && v.slope.length === 0 && v.retention.length === 0)) return null;
+    if (!v || (v.days.length === 0 && v.strengthChange.length === 0 && v.lapseIncidence.length === 0)) return null;
     return {
       days: v.days.map((p) => ({
         label: p.month,
         value: Math.round(p.medianDays * 10) / 10,
-        tooltip: `${p.month}: ${p.medianDays.toFixed(1)}d (n=${p.wordCount})`,
+        tooltip: t('mlearn.Statistics.LearningVelocity.DaysTooltip', { month: p.month, value: p.medianDays.toFixed(1), count: p.wordCount }),
       })),
-      slope: v.slope.map((p) => ({
+      strengthChange: v.strengthChange.map((p) => ({
         label: p.month,
-        value: Math.round(p.medianSlope * 1000) / 1000,
-        tooltip: `${p.month}: ${p.medianSlope.toFixed(2)} (n=${p.wordCount})`,
+        value: Math.round(p.medianStrengthChange * 1000) / 1000,
+        tooltip: t('mlearn.Statistics.LearningVelocity.StrengthTooltip', { month: p.month, value: p.medianStrengthChange.toFixed(2), count: p.wordCount }),
       })),
-      retention: v.retention.map((p) => ({
+      lapseIncidence: v.lapseIncidence.map((p) => ({
         label: p.month,
         value: Math.round(p.lapseRate * 100),
-        tooltip: `${p.month}: ${(p.lapseRate * 100).toFixed(0)}% (n=${p.knownWordCount})`,
+        tooltip: t('mlearn.Statistics.LearningVelocity.LapseTooltip', { month: p.month, percent: (p.lapseRate * 100).toFixed(0), count: p.followedWordCount }),
       })),
     };
   });
@@ -341,7 +349,7 @@ export const Dashboard: Component = () => {
       <Show when={getLanguageFeatures().supportsFrequencyLevels && levelBreakdown().length > 0}>
         <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
           <h2 class="dashboard-section-title">{t('mlearn.Statistics.WordsByLevel')}</h2>
-          <table class="level-table">
+          <div class="level-table-wrap"><table class="level-table">
             <thead>
               <tr>
                 <th>{t('mlearn.Statistics.LevelColumn')}</th>
@@ -377,7 +385,7 @@ export const Dashboard: Component = () => {
                 )}
               </For>
             </tbody>
-          </table>
+          </table></div>
         </Panel>
       </Show>
 
@@ -398,26 +406,36 @@ export const Dashboard: Component = () => {
       {/* ─── Learning Velocity ─── */}
       <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
         <h2 class="dashboard-section-title">{t('mlearn.Statistics.LearningVelocity.Title')}</h2>
-        <Show
-          when={velocityCharts()}
-          fallback={<p class="learning-velocity-empty">{t('mlearn.Statistics.LearningVelocity.Empty')}</p>}
-        >
-          {(charts) => (
-            <div class="learning-velocity-charts">
-              <div class="learning-velocity-chart">
-                <span class="learning-velocity-chart-label">{t('mlearn.Statistics.LearningVelocity.DaysToKnown')}</span>
-                <LineChart data={charts().days} />
-              </div>
-              <div class="learning-velocity-chart">
-                <span class="learning-velocity-chart-label">{t('mlearn.Statistics.LearningVelocity.AcquisitionSlope')}</span>
-                <LineChart data={charts().slope} />
-              </div>
-              <div class="learning-velocity-chart">
-                <span class="learning-velocity-chart-label">{t('mlearn.Statistics.LearningVelocity.RetentionAfterKnown')}</span>
-                <BarChart data={charts().retention} height={100} showValues />
-              </div>
+        <Show when={learningVelocity.state === 'ready'} fallback={
+          <Show when={learningVelocity.state === 'errored'} fallback={
+            <p class="learning-velocity-empty" role="status">{t('mlearn.Statistics.LearningVelocity.Loading')}</p>
+          }>
+            <div class="learning-velocity-error" role="status">
+              <p>{t('mlearn.Statistics.LearningVelocity.LoadError')}</p>
+              <button type="button" onClick={() => void retryLearningVelocity()}>{t('mlearn.Statistics.LearningVelocity.Retry')}</button>
             </div>
-          )}
+          </Show>
+        }>
+          <Show when={velocityCharts()} fallback={
+            <p class="learning-velocity-empty" role="status">{t('mlearn.Statistics.LearningVelocity.Empty')}</p>
+          }>
+            {(charts) => (
+              <div class="learning-velocity-charts">
+                <div class="learning-velocity-chart">
+                  <span class="learning-velocity-chart-label">{t('mlearn.Statistics.LearningVelocity.DaysToKnown')}</span>
+                  <LineChart data={charts().days} valueUnit={t('mlearn.Statistics.LearningVelocity.DaysUnit')} />
+                </div>
+                <div class="learning-velocity-chart">
+                  <span class="learning-velocity-chart-label">{t('mlearn.Statistics.LearningVelocity.StrengthChange14Days')}</span>
+                  <LineChart data={charts().strengthChange} valueUnit={t('mlearn.Statistics.LearningVelocity.StrengthChangeUnit')} />
+                </div>
+                <div class="learning-velocity-chart">
+                  <span class="learning-velocity-chart-label">{t('mlearn.Statistics.LearningVelocity.LapseIncidenceAfterKnown')}</span>
+                  <BarChart data={charts().lapseIncidence} height={100} valueMax={100} showValues formatValue={value => `${value}%`} />
+                </div>
+              </div>
+            )}
+          </Show>
         </Show>
       </Panel>
 
@@ -427,8 +445,11 @@ export const Dashboard: Component = () => {
       {/* ─── Header Stats ─── */}
       <div class="dashboard-stats-row">
         <StatCard label={t('mlearn.Statistics.Dashboard.TotalCards')} value={cardStats().total} size="md" />
-        <StatCard label={t('mlearn.Statistics.Dashboard.RetentionRate')} value={retentionCard().text} size="md"
-          color={retentionCard().color} />
+        <StatCard label={t('mlearn.Statistics.Dashboard.LapseRate')} value={lapseCard().text} size="md"
+          description={t('mlearn.Statistics.Dashboard.LapseRateDefinition', {
+            lapses: cardStats().totalLapses,
+            reviews: cardStats().totalReviews,
+          })} />
         <StatCard label={t('mlearn.Statistics.Dashboard.CurrentStreak')} value={`${dailyStatsData().streakCurrent}d`} size="md" color="primary" />
         <StatCard label={t('mlearn.Statistics.Dashboard.DaysStudied')} value={dailyStatsData().totalDaysStudied} size="md" />
       </div>
@@ -461,12 +482,18 @@ export const Dashboard: Component = () => {
       <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
         <div class="dashboard-section-header">
           <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ReviewActivity')}</h2>
-          <div class="dashboard-legend-inline">
-            <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-primary)' }} />{t('mlearn.Statistics.Dashboard.Reviews')}</span>
-            <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-success)' }} />{t('mlearn.Statistics.Dashboard.CardState.New')}</span>
-          </div>
+          <Show when={hasRecentReviewActivity()}>
+            <div class="dashboard-legend-inline">
+              <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-primary)' }} />{t('mlearn.Statistics.Dashboard.Reviews')}</span>
+              <span class="legend-entry"><span class="legend-dot" style={{ background: 'var(--color-success)' }} />{t('mlearn.Statistics.Dashboard.CardState.New')}</span>
+            </div>
+          </Show>
         </div>
-        <div class="analytics-review-chart"><BarChart data={dailyStatsData().last30} height={100} stacked showValues={false} /></div>
+        <div class="analytics-review-chart">
+          <Show when={hasRecentReviewActivity()} fallback={<p class="analytics-review-empty" role="status">{t('mlearn.Statistics.Dashboard.NoReviewActivity')}</p>}>
+            <BarChart data={dailyStatsData().last30} height={100} stacked showValues={false} />
+          </Show>
+        </div>
       </Panel>
 
         <details class="analytics-details">
@@ -530,7 +557,7 @@ export const Dashboard: Component = () => {
           <StatCard label={t('mlearn.Statistics.Dashboard.FlashcardTime')} value={formatDuration(dailyStatsData().totalStudyTime)} />
         </div>
       <Show when={Object.keys(immersionHeatmap()).length > 0}>
-        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel">
+        <Panel variant="default" rounded="lg" padding="lg" class="dashboard-panel dashboard-heatmap-panel">
           <h2 class="dashboard-section-title">{t('mlearn.Statistics.Dashboard.ImmersionHeatmap')}</h2>
           <Heatmap
             data={immersionHeatmap()}

@@ -22,7 +22,11 @@ import type { KnowledgeProjection } from '../../../shared/graph/ipc';
 
 const toastMocks = vi.hoisted(() => ({ showToast: vi.fn(() => 0) }));
 const decisionBridge = vi.hoisted(() => ({ record: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ knowledgeEvents: { recordLearningDecision: decisionBridge.record }, flashcards: { getFlashcardTts: async () => mockTtsAvailable ? 'flashcard-audio://test' : null } }) }));
+const mockTtsLookups: string[] = [];
+vi.mock('../../../shared/bridges', () => ({ getBridge: () => ({ knowledgeEvents: { recordLearningDecision: decisionBridge.record }, flashcards: {
+  getFlashcardTts: async (id: string) => { mockTtsLookups.push(id); return mockTtsAvailable ? 'flashcard-audio://test' : null; },
+  getFlashcardTtsMeta: async (_id: string, _field: string, resourceKey?: string) => resourceKey ? { resourceKey } : null,
+} }) }));
 afterEach(() => { decisionBridge.record.mockReset().mockResolvedValue(undefined); });
 
 let mockCard: Accessor<Flashcard | null> = () => null;
@@ -45,6 +49,8 @@ let mockKnowledgeMeasured: Accessor<string[]> = () => ALL_CAPABILITIES;
 let setMockKnowledgeMeasured: (measured: string[]) => void = () => {};
 let setMockQueueTotal: (total: number) => void = () => {};
 let mockTtsAvailable = true;
+let mockWeakAudioWord: string | null = null;
+let mockStrongWrittenWord: string | null = null;
 const mockPlayedTts = vi.fn();
 const mockSetAccessStatus = vi.fn();
 const mockBuryCard = vi.fn();
@@ -79,6 +85,14 @@ const flushEffects = () => new Promise<void>((resolve) => {
   channel.port2.postMessage(null);
 });
 
+function completeSubmittedReviewSession(session: ReviewSession, args: unknown[]): ReviewSession {
+  const options = args[2] as { reviewWorkId?: string; decision?: LearningDecision; scheduler?: { cardId: string } };
+  const cardId = options.scheduler?.cardId ?? mockCard()?.id ?? '';
+  return session.workIds
+    ? completeReviewEncounter(session, options.reviewWorkId ?? options.decision?.selected.key ?? '', cardId)
+    : completeReviewEncounter(session, cardId);
+}
+
 const mockT = (key: string, params?: Record<string, unknown>): string => {
   switch (key) {
     case 'mlearn.Flashcards.Review.Attribution.WrongReading': return 'Wrong reading';
@@ -95,6 +109,8 @@ const mockT = (key: string, params?: Record<string, unknown>): string => {
     case 'mlearn.Rating.Compact.AllFluent': return 'All fluent';
     case 'mlearn.Rating.Compact.AllEasy': return 'All easy';
     case 'mlearn.Rating.Compact.Adjust': return 'Adjust';
+    case 'mlearn.StudyEncounter.Progress': return `Progress ${String(params?.count)}/${String(params?.total)}`;
+    case 'mlearn.StudyEncounter.VisitProgress': return `Completed this visit: ${String(params?.count)}`;
     case 'mlearn.Knowledge.Capability.prosodic-pattern': return 'Prosody';
     case 'mlearn.Flashcards.Review.Again': return 'Again';
     case 'mlearn.Flashcards.Review.Hard': return 'Hard';
@@ -121,7 +137,11 @@ vi.mock('../../hooks/useKnowledgeProjection', () => ({
 vi.mock('../../context', () => ({
   useFlashcards: () => ({
     isKnowledgeReady: () => true,
-    getAccessStatus: () => ({ status: 'unknown', ease: 0, source: 'None' }),
+    getAccessStatus: (word: string, capability: string) => ({
+      status: word === mockWeakAudioWord && capability === 'spoken-recognition' ? 'learning'
+        : word === mockStrongWrittenWord && capability !== 'spoken-recognition' ? 'known' : 'unknown',
+      ease: 1.3, source: 'None',
+    }),
     isWordIgnoredSync: (word: string) => mockIgnoredWords().has(word),
     store: { ignoredWords: {}, get flashcards() { return mockReviewCards; }, get meta() { return { reviewPresentations: mockReviewPresentations(), reviewSessions: mockReviewSessions(), suspendedReviews: mockSuspendedReviews }; } },
     queue: () => mockReviewQueue(),
@@ -379,11 +399,15 @@ describe('FlashcardReview', () => {
     mockProjection = () => defaultProjection;
     mockRatingPersistenceState = () => 'idle';
     mockTtsAvailable = true;
+    mockTtsLookups.length = 0;
+    mockWeakAudioWord = null;
+    mockStrongWrittenWord = null;
     mockIgnoredWords = () => new Set();
     mockPlayedTts.mockClear();
     mockSettings = {
       ...DEFAULT_SETTINGS,
       language: 'ja',
+      reviewActivities: { holistic: true, focused: false, audio: false },
       flashcardAutoTts: false,
       flashcardFlipAnimation: false,
       use_anki: false,
@@ -416,14 +440,42 @@ describe('FlashcardReview', () => {
     container.remove();
   });
 
-  it('does not turn a moving scheduler queue into a learner-facing session denominator', async () => {
-    const dispose = render(() => <FlashcardReview />, container);
+  it('persists a bounded ordinary Review visit that does not grow with a moving scheduler queue', async () => {
+    const second = makeCard({ id: 'card-2', content: { type: 'word', front: '猫', reading: 'ねこ', back: 'cat' } });
+    mockReviewCards = { 'card-1': mockCard()!, [second.id]: second };
+    const [queue, setQueue] = createSignal<ReviewQueue>({ newQueue: [], scheduledQueue: ['card-1'] });
+    mockReviewQueue = queue;
+    const dispose = render(() => <FlashcardReview boundToAdmittedWorkload />, container);
     try {
       await flushEffects();
-      setMockQueueTotal(9);
+      expect(mockSaveReviewPresentation.mock.calls[0]?.[1].session).toMatchObject({
+        workIds: ['review:card-1:holistic'], encounterLimit: 1,
+      });
+      expect(container.querySelector('.flashcard-review-session-hud')?.textContent).toContain('Progress 0/1');
+      expect(container.querySelector('.flashcard-review-session-hud .progress-bar-container')).not.toBeNull();
+      setQueue({ newQueue: [], scheduledQueue: ['card-1', second.id] });
       await flushEffects();
-      expect(container.querySelector('.flashcard-review-session-hud')?.textContent).toContain('mlearn.StudyEncounter.VisitProgress');
-      expect(container.querySelector('.flashcard-review-session-hud .progress-bar-container')).toBeNull();
+      expect(container.querySelector('.flashcard-review-session-hud')?.textContent).toContain('Progress 0/1');
+      expect(mockSaveReviewPresentation.mock.calls.at(-1)?.[1].session?.encounterLimit).toBe(1);
+    } finally { dispose(); }
+  });
+
+  it('keeps a legacy card-keyed saved encounter inside the new admitted session', async () => {
+    const initial = render(() => <FlashcardReview />, container);
+    await flushEffects();
+    const [language, written] = mockSaveReviewPresentation.mock.calls.at(-1)!;
+    const legacy = JSON.parse(JSON.stringify(written)) as ReviewPresentation;
+    legacy.decision!.selected.key = legacy.cardId;
+    delete legacy.session;
+    mockReviewPresentations = () => ({ [language]: legacy });
+    initial();
+    mockSaveReviewPresentation.mockClear();
+
+    const dispose = render(() => <FlashcardReview boundToAdmittedWorkload />, container);
+    try {
+      await flushEffects();
+      expect(mockSaveReviewPresentation.mock.calls[0]?.[1].session?.workIds).toEqual([legacy.cardId]);
+      expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
     } finally { dispose(); }
   });
 
@@ -436,13 +488,13 @@ describe('FlashcardReview', () => {
     mockSubmitRating.mockImplementationOnce(async (...args) => {
       const options = args[2] as { reviewSessionId: string };
       expect(options.reviewSessionId).toBe(mockReviewSessions().ja.id);
-      const session = completeReviewEncounter(mockReviewSessions().ja, mockCard()!.id);
+      const session = completeSubmittedReviewSession(mockReviewSessions().ja, args);
       setSessions({ ja: session });
       return { attemptId: 'bounded', completed: false };
     });
     const dispose = render(() => <FlashcardReview encounterLimit={1} />, container);
     await flushEffects(); await clickShowAnswer(container);
-    expect(container.querySelector('.flashcard-review-session-hud')?.textContent).toContain('mlearn.StudyEncounter.Progress');
+    expect(container.querySelector('.flashcard-review-session-hud')?.textContent).toContain('Progress 0/1');
     expect(container.querySelector('.flashcard-review-session-hud .progress-bar-container')).not.toBeNull();
     container.querySelector<HTMLButtonElement>('.rating-matrix__quality')!.click();
     await flushEffects();
@@ -462,7 +514,7 @@ describe('FlashcardReview', () => {
     mockSubmitRating.mockImplementationOnce(async (...args) => {
       const options = args[2] as { reviewSessionId?: string };
       expect(options.reviewSessionId).toBe(mockReviewSessions().ja.id);
-      setSessions({ ja: completeReviewEncounter(mockReviewSessions().ja, mockCard()!.id) });
+      setSessions({ ja: completeSubmittedReviewSession(mockReviewSessions().ja, args) });
       return { attemptId: 'frozen-chunk', completed: false };
     });
     const dispose = render(() => <FlashcardReview encounterLimit={limit()} />, container);
@@ -484,8 +536,8 @@ describe('FlashcardReview', () => {
     mockSaveReviewPresentation.mockImplementationOnce(async (_language, presentation) => {
       if (presentation.session) setSessions({ ja: presentation.session });
     });
-    mockSubmitRating.mockImplementationOnce(async () => {
-      setSessions({ ja: completeReviewEncounter(mockReviewSessions().ja, mockCard()!.id) }); setState('failed');
+    mockSubmitRating.mockImplementationOnce(async (...args) => {
+      setSessions({ ja: completeSubmittedReviewSession(mockReviewSessions().ja, args) }); setState('failed');
       return { attemptId: 'last-queued', completed: false };
     });
     const complete = vi.fn();
@@ -598,6 +650,7 @@ describe('FlashcardReview', () => {
   });
 
   it('presents the offered package audio task after resource discovery and preserves it across restart', async () => {
+    mockSettings.reviewActivities = { holistic: false, focused: false, audio: true };
     const card = mockCard()!; mockReviewCards = { [card.id]: card };
     const data: LanguageData = { ...jaLanguageData, learning: { reviewActivities: { 'future::audio': {
       kind: 'audio-recognition', label: 'Sound task', prompt: 'Identify the package sound', targets: ['spoken-recognition'] } } } };
@@ -1643,10 +1696,14 @@ describe('FlashcardReview failure attribution', () => {
     mockProjection = () => defaultProjection;
     mockRatingPersistenceState = () => 'idle';
     mockTtsAvailable = true;
+    mockTtsLookups.length = 0;
+    mockWeakAudioWord = null;
+    mockStrongWrittenWord = null;
     mockIgnoredWords = () => new Set();
     mockSettings = {
       ...DEFAULT_SETTINGS,
       language: 'ja',
+      reviewActivities: { holistic: true, focused: false, audio: false },
       flashcardAutoTts: false,
       flashcardFlipAnimation: false,
       use_anki: false,
@@ -2363,6 +2420,9 @@ describe('FlashcardReview failure attribution', () => {
       Array.from(container.querySelectorAll('button')).find(button => button.textContent === 'mlearn.Flashcards.Review.Undo')!.click();
       await flushEffects();
       expect(container.querySelector('.flashcard-front')!.textContent).toBe('犬');
+      expect(mockSaveReviewPresentation.mock.calls.at(-1)?.[1]).toMatchObject({ cardId: first.id,
+        decision: { selected: { action: 'RESTORE', presentation: { cardId: first.id } } } });
+      restoreSavedReviewCursor();
       dispose();
       dispose = render(() => <FlashcardReview />, container);
       await flushEffects();
@@ -2437,6 +2497,7 @@ describe('FlashcardReview Remove asks before it destroys the card', () => {
     mockSettings = {
       ...DEFAULT_SETTINGS,
       language: 'ja',
+      reviewActivities: { holistic: true, focused: false, audio: false },
       flashcardAutoTts: false,
       flashcardFlipAnimation: false,
       use_anki: false,
@@ -2627,6 +2688,9 @@ describe('FlashcardReview rating latency', () => {
     mockProjection = () => defaultProjection;
     mockRatingPersistenceState = () => 'idle';
     mockTtsAvailable = true;
+    mockTtsLookups.length = 0;
+    mockWeakAudioWord = null;
+    mockStrongWrittenWord = null;
     mockIgnoredWords = () => new Set();
     mockSettings = {
       ...DEFAULT_SETTINGS,
@@ -2696,6 +2760,72 @@ describe('FlashcardReview rating latency', () => {
     mockCard = card;
     setMockCard(cards['big-0']!);
   }
+
+  it('keeps written work available while bounded audio discovery leaves later queue items pending', async () => {
+    mockSettings.reviewActivities = { holistic: true, focused: true, audio: true };
+    mockTtsAvailable = false;
+    useLargeQueue();
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
+      expect(mockSaveReviewPresentation.mock.calls[0]?.[1].decision?.selected.task.inputModality).toBe('written-form');
+    } finally { dispose(); }
+  });
+
+  it('looks up audio for a weak non-due probe before its recording is ready', async () => {
+    mockSettings.reviewActivities = { holistic: false, focused: false, audio: true };
+    mockTtsAvailable = false;
+    const current = makeCard({ id: 'current-queue' });
+    mockCard = () => current;
+    const weak = makeCard({ id: 'weak-listening', state: 'review', dueDate: Date.now() + 86_400_000,
+      interval: 86_400_000, content: { type: 'word', front: '遠い語', reading: 'とおいご', back: 'distant word' } });
+    mockWeakAudioWord = weak.content.front;
+    mockReviewCards = { [current.id]: current, [weak.id]: weak };
+    mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [current.id] });
+    const data: LanguageData = { ...jaLanguageData, learning: { reviewActivities: { listen: {
+      kind: 'audio-recognition', label: 'Listen', prompt: 'Identify the spoken word', targets: ['spoken-recognition'],
+    } } } };
+    mockLangMap = { ja: data }; mockLanguageData = data;
+
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      expect(mockTtsLookups).toContain(weak.id);
+      expect(mockSaveReviewPresentation.mock.calls[0]?.[1].cardId).not.toBe(weak.id);
+    } finally { dispose(); }
+  });
+
+  it('admits a future-due card through normal Review when written knowledge is strong and listening is weak', async () => {
+    mockSettings.reviewActivities = { holistic: false, focused: false, audio: true };
+    mockTtsAvailable = true;
+    const weak = makeCard({ id: 'weak-listening-admission', state: 'review', dueDate: Date.now() + 86_400_000,
+      interval: 86_400_000, content: { type: 'word', front: '遠い語', reading: 'とおいご', back: '' } });
+    mockWeakAudioWord = weak.content.front;
+    mockStrongWrittenWord = weak.content.front;
+    mockReviewCards = { [weak.id]: weak };
+    mockReviewQueue = () => ({ newQueue: [], scheduledQueue: [] });
+    const data: LanguageData = { ...jaLanguageData, learning: { reviewActivities: { listen: {
+      kind: 'audio-recognition', label: 'Listen', prompt: 'Identify the spoken word', targets: ['spoken-recognition'],
+    } } } };
+    mockLangMap = { ja: data }; mockLanguageData = data;
+
+    const dispose = render(() => <FlashcardReview />, container);
+    try {
+      await flushEffects();
+      await flushEffects();
+      expect(mockTtsLookups).toContain(weak.id);
+      expect(mockSaveReviewPresentation.mock.calls.at(-1)?.[1]).toEqual(expect.objectContaining({
+        cardId: weak.id,
+        decision: expect.objectContaining({ selected: expect.objectContaining({
+          task: expect.objectContaining({ inputModality: 'audio', requested: ['spoken-recognition'] }),
+        }) }),
+      }));
+      expect(container.querySelector('.review-activity-play')).not.toBeNull();
+      expect(container.querySelector('.flashcard-show-answer-btn')).not.toBeNull();
+      expect(container.textContent).not.toContain('distant word');
+    } finally { dispose(); }
+  });
 
   /**
    * How long until a DIFFERENT card is interactive after the rating keypress.

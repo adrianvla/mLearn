@@ -4,33 +4,43 @@ import { getTestedAccesses } from '../../../shared/languageFeatures';
 import { surfaceEntityId } from '../../../shared/graph/load';
 import { hashWordSync } from '../../services/srsAlgorithm';
 import type { FlashcardLike } from '../../learning/candidateSources';
-import { PRESETS, selectCounterfactualEncounter } from '../../learning/engine';
+import { selectCounterfactualEncounter } from '../../learning/engine';
 import type { PolicyContext, PolicyDecision } from '../../learning/types';
 import { isLearningDecision } from '../../../shared/learningDecision';
 import type { LearningChoiceSnapshot, LearningDecision } from '../../../shared/learningDecision';
+import type { WeakTargetEntry } from '../../learning/candidateSources';
 
 /** Scheduler admission stays separate from the actual retrieval task/address. */
-export function flashcardReviewPolicyEntry(card: Flashcard, language: string, languageData?: LanguageData | null, activity?: ReviewActivity): FlashcardLike {
+export function flashcardReviewPolicyEntry(card: Flashcard, language: string, languageData?: LanguageData | null,
+  activity?: ReviewActivity, candidateKey?: string): FlashcardLike {
   const requested = activity?.targets ?? [...getTestedAccesses({ languageData, surface: card.content.front,
     hasReadingData: !!card.content.reading && card.content.reading !== card.content.front,
     hasProsodyData: !!card.content.prosody && (card.content.prosody.position !== undefined || !!card.content.prosody.display),
     taskType: 'srs-review' })];
   const entityId = surfaceEntityId(language, hashWordSync(card.content.front));
   return {
-    id: card.id, word: card.content.front, language,
+    id: candidateKey ?? card.id, word: card.content.front, language,
     presentation: { cardId: card.id, language, surface: card.content.front, contentVersion: hashWordSync(JSON.stringify(card.content)) },
     targets: requested.map(capability => ({ entityId, capability })),
-    task: activity && (activity.kind !== 'holistic' || activity.stages) ? activityTask(activity) : { ...PRESETS.RETENTION.task, supplied: [...PRESETS.RETENTION.task.supplied], requested },
+    task: activity ? activityTask(activity) : {
+      taskTemplateId: 'flashcard-review', inputModality: 'written-form', responseModality: 'recall',
+      supplied: ['written-form'], requested, fluencyRequired: true, ratingMode: 'profile',
+    },
     dueDate: card.dueDate, interval: card.interval, suspended: card.suspended, buried: card.buried, state: card.state,
     scheduledForToday: true, lastReviewed: card.lastReviewed, ease: card.ease, reviews: card.reviews,
   };
 }
 
+/** Stable item+task identity lets compatible material support sibling probes without cloning cards. */
+export function reviewActivityCandidateKey(cardId: string, activityId: string): string {
+  return `review:${encodeURIComponent(cardId)}:${encodeURIComponent(activityId)}`;
+}
+
 /** Actual whole scheduler workload, with paired entropy and opaque package tasks. */
 export function selectFlashcardReviewDecision(input: { id: string; at: number;
-  entries: readonly FlashcardLike[]; context?: PolicyContext; rng?: () => number }) {
+  entries: readonly FlashcardLike[]; weakTargets?: readonly WeakTargetEntry[]; context?: PolicyContext; rng?: () => number }) {
   const { selected, baseline } = selectCounterfactualEncounter({ preset: 'RETENTION', nowMs: input.at,
-    reviewQueueEntries: input.entries, context: input.context, rng: input.rng,
+    reviewQueueEntries: input.entries, weakTargets: input.weakTargets, context: input.context, rng: input.rng,
     config: { preserveActivityChoice: true } });
   if (!selected || selected.action === 'DEFER') return null;
   const snapshot = (choice: PolicyDecision): LearningChoiceSnapshot => ({ key: choice.candidate.key, action: choice.action,
@@ -50,7 +60,8 @@ export function selectFlashcardReviewDecision(input: { id: string; at: number;
 /** Restore a captured choice only while its actual cue and package task still match. */
 export function restoreFlashcardReviewDecision(presentation: ReviewPresentation, card: Flashcard, entry: FlashcardLike) {
   const decision = presentation.decision;
-  if (!isLearningDecision(decision) || presentation.cardId !== card.id || decision.selected.key !== card.id
+  if (!isLearningDecision(decision) || presentation.cardId !== card.id
+    || (decision.selected.key !== entry.id && decision.selected.key !== card.id)
     || decision.selected.presentation?.cardId !== card.id || decision.selected.presentation?.surface !== card.content.front
     || decision.selected.presentation?.language !== entry.language
     || decision.selected.presentation?.contentVersion !== hashWordSync(JSON.stringify(card.content))

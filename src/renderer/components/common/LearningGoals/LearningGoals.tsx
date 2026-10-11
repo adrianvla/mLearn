@@ -6,7 +6,7 @@ import { learningOutcomeOptions, resolveLearningOutcome } from '../../../../shar
 import { Button } from '../Button';
 import { Input } from '../Input';
 import { Select } from '../Select';
-import type { LearningGoalRequirementEvaluation, LearningRequirementConditionEvaluation } from '../../../../shared/learningRequirementEvaluation';
+import type { LearningGoalRequirementEvaluation, LearningRequirementStatus } from '../../../../shared/learningRequirementEvaluation';
 import './LearningGoals.css';
 import type { LanguageData } from '../../../../shared/types';
 import { CAPABILITY_LABEL_KEYS } from '../../../../shared/graph/access';
@@ -34,18 +34,12 @@ export const LearningGoals: Component<{ compact?: boolean; summaryOnly?: boolean
     if (rebound) updateSetting('learningGoals', goals().map(item => item.id === goal.id ? rebound : item));
   };
   const evaluationFor = (goal: LearningGoal) => props.requirementEvaluations?.find(evaluation => evaluation.goalId === goal.id);
-  const conditionLabel = (goal: LearningGoal, condition: LearningRequirementConditionEvaluation) => {
-    if (editableRecallCondition(condition.conditions)) {
-      const recall = condition.conditions;
-      const material = resolveLearningOutcome(currentLangData(), goal.outcomeRef!.id)?.groups ?? [];
-      const labels = recall.groupIds.map(id => material.find(group => group.id === id)?.label ?? id);
-      const capability = currentLangData()?.learning?.capabilities?.[recall.capability]?.label
-        ?? (CAPABILITY_LABEL_KEYS[recall.capability] ? t(CAPABILITY_LABEL_KEYS[recall.capability]) : recall.capability);
-      return t('mlearn.Goals.RecallConditionSummary', { material: labels.join(', '), capability, minimum: recall.minimum });
-    }
-    const label = condition.conditions && typeof condition.conditions === 'object' && !Array.isArray(condition.conditions)
-      ? (condition.conditions as Record<string, unknown>).label : undefined;
-    return typeof label === 'string' && label.trim() ? label : condition.requirementId;
+  const requirementStatusCounts = (evaluation: LearningGoalRequirementEvaluation) => {
+    const counts: Partial<Record<LearningRequirementStatus, number>> = {};
+    for (const requirement of evaluation.requirements) counts[requirement.status] = (counts[requirement.status] ?? 0) + 1;
+    if (evaluation.requirements.length === 0 && evaluation.status !== 'met') counts[evaluation.status] = 1;
+    return (['met', 'unmet', 'unknown', 'unsupported'] as const)
+      .flatMap(status => counts[status] ? [{ status, count: counts[status]! }] : []);
   };
   const patch = (id: string, change: Partial<LearningGoal>) => updateSetting('learningGoals', goals().map(goal => goal.id === id ? { ...goal, ...change } : goal));
   const select = (id: string) => {
@@ -96,17 +90,10 @@ export const LearningGoals: Component<{ compact?: boolean; summaryOnly?: boolean
       <Show when={props.compact && !props.summaryOnly && props.onEdit}><Button variant="ghost" size="sm" onClick={props.onEdit}>{t('mlearn.LearningPlan.Edit')}</Button></Show>
       <Show when={goalDeadlineDayDifference(goal.deadline) !== undefined && goalDeadlineDayDifference(goal.deadline)! < 0}><span role="status">{t('mlearn.Goals.Passed')}</span></Show>
       <Show when={goal.deadline && props.deadlineWarnings?.[goal.id]}><span role="status">{t('mlearn.Goals.ScopeWorkloadRisk', { date: goal.deadline! })}</span></Show>
-      <Show when={props.summaryOnly && evaluationFor(goal)}>{evaluation => <ul class="learning-goals__requirements" aria-label={t('mlearn.Goals.RequirementEvidence')}>
-        <For each={evaluation().requirements}>{condition => <li class={`learning-goals__requirement learning-goals__requirement--${condition.status}`}>
-          <span>{conditionLabel(goal, condition)}</span>
-          <span>{t(`mlearn.Goals.RequirementStatus.${condition.status}`)}</span>
+      <Show when={props.summaryOnly && evaluationFor(goal)}>{evaluation => <ul class="learning-goals__status-summary" aria-label={t('mlearn.Goals.RequirementEvidence')}>
+        <For each={requirementStatusCounts(evaluation())}>{summary => <li class={`learning-goals__requirement learning-goals__requirement--${summary.status}`}>
+          <strong>{summary.count}</strong><span>{t(`mlearn.Goals.RequirementStatus.${summary.status}`)}</span>
         </li>}</For>
-        <Show when={!evaluation().requirements.length && evaluation().status !== 'met'}>
-          <li class={`learning-goals__requirement learning-goals__requirement--${evaluation().status}`}>
-            <span>{t('mlearn.Goals.RequirementEvidence')}</span>
-            <span>{t(`mlearn.Goals.RequirementStatus.${evaluation().status}`)}</span>
-          </li>
-        </Show>
       </ul>}</Show>
     </div>}</For>
     <Show when={props.summaryOnly && props.onEdit}><Button class="learning-goals__edit" variant="ghost" size="sm" onClick={props.onEdit}>{t('mlearn.LearningPlan.Edit')}</Button></Show>

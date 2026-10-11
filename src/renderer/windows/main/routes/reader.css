@@ -58,6 +58,17 @@ body.reduce-transparency .reader-route .panel{
   box-sizing: border-box;
 }
 
+.reader-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.reader-workspace > .reader-main {
+  height: auto;
+}
+
 /* On mobile, no extra margins — MobileLayout handles spacing */
 .mobile-layout .reader-main {
   flex: 1;
@@ -467,6 +478,7 @@ body.reduce-transparency .reader-route .panel{
 
 .reader-sidebar-backdrop {
   display: none;
+  inset: 0;
 }
 
 :root[data-sidebar-layout='drawer'] .reader-main.with-sidebar,
@@ -479,7 +491,7 @@ body.reduce-transparency .reader-route .panel{
     display: block;
     position: absolute;
     z-index: var(--z-modal-backdrop);
-    inset: 48px 0 30px;
+    inset: 0;
     width: 100%;
     height: auto;
     padding: 0;
@@ -489,8 +501,8 @@ body.reduce-transparency .reader-route .panel{
 
 :root[data-sidebar-layout='drawer'] .reader-sidebar,
 :root[data-sidebar-layout='drawer'] .reader-unknown-words-sidebar {
-    top: 48px;
-    bottom: 30px;
+    top: 0;
+    bottom: 0;
     height: auto;
     box-shadow: var(--shadow-lg);
     z-index: var(--z-modal);

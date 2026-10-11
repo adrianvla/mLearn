@@ -109,9 +109,6 @@ function buildAccentPattern(accentType: number, reading: string): boolean[] {
       case 2:
         pattern.push(moraIndex === 1);
         break;
-      case 3:
-        pattern.push(moraIndex !== 0 && moraIndex < moraCount - 1);
-        break;
       default:
         pattern.push(moraIndex !== 0 && moraIndex < accentType);
         break;

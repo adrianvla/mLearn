@@ -259,6 +259,16 @@ function promptedPattern(container: HTMLElement, level: number) {
 }
 
 describe('GrammarCoverage policy-selected practice session', () => {
+  it('keeps the check overview focused on its available actions', () => {
+    const check = mount(vi.fn(), undefined, undefined, undefined, undefined, undefined, undefined,
+      passThroughLocks, true, undefined, undefined, 'check');
+
+    expect(check.container.querySelector('.grammar-coverage > p')).toBeNull();
+
+    check.dispose();
+    check.container.remove();
+  });
+
   it('shares Space reveal, rating and Undo with lexical tasks without composing or repeated submissions', async () => {
     const onProbe = vi.fn();
     const { container, dispose } = mount(onProbe, undefined, undefined, undefined, undefined, undefined, undefined, passThroughLocks, false, ['ば']);

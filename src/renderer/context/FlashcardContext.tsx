@@ -1,4 +1,4 @@
-import { completeReviewEncounter, reviewSessionRemaining } from '../../shared/reviewSession';
+import { completeReviewEncounter, reviewSessionRemaining, reviewSessionWorkAvailable } from '../../shared/reviewSession';
 import { isStudyExcluded, mergeStudyExclusion } from '../../shared/studyExclusion';
 import { flashcardAudioProvider } from '../../shared/utils/flashcardAudioPreset';
 /**
@@ -272,6 +272,7 @@ type SchedulerRating = {
 type RatingSubmissionOptions = Omit<AttemptOptions, 'method'> & {
   priorStageScaffolds?: Record<string, AttemptScaffolds>;
   reviewSessionId?: string;
+  reviewWorkId?: string;
   scheduler?: SchedulerRating;
   /** Review advances locally while main owns and batches the durable write. */
   persistence?: 'immediate' | 'background';
@@ -2625,8 +2626,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     if (!card) throw new Error(`Flashcard ${scheduler.cardId} no longer exists`);
 
     const session = options.reviewSessionId ? target.meta.reviewSessions?.[card.language || options.language || settings.language] : undefined;
+    const reviewWorkId = options.reviewWorkId ?? options.decision?.selected.key ?? card.id;
     if (options.reviewSessionId && (!session || session.id !== options.reviewSessionId
-      || !session.cardIds.includes(card.id) || session.completedCardIds.includes(card.id) || reviewSessionRemaining(session) === 0)) {
+      || !reviewSessionWorkAvailable(session, reviewWorkId, card.id) || reviewSessionRemaining(session) === 0)) {
       throw new Error('This encounter is no longer part of the active review session');
     }
     const wasNew = card.state === 'new';
@@ -2742,7 +2744,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
     patch?.set(['meta', 'perLanguage', language], perLanguage);
     patch?.set(['dailyStats', today, language], target.dailyStats[today][language]);
     if (session) {
-      (target.meta.reviewSessions ??= {})[language] = completeReviewEncounter(session, card.id);
+      (target.meta.reviewSessions ??= {})[language] = completeReviewEncounter(session, reviewWorkId, card.id);
       patch?.set(['meta', 'reviewSessions', language], target.meta.reviewSessions[language]);
     }
     const undo: UndoEntry = {
@@ -2768,6 +2770,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
         ...(options.sourceVersions ? { sourceVersions: options.sourceVersions } : {}),
       } } : {}),
       ...(session ? { reviewSessionId: session.id } : {}),
+      ...(session?.workIds ? { reviewWorkId } : {}),
       expectedCard: JSON.parse(JSON.stringify(updated)) as Flashcard,
       counterDeltas: ratingCounterDeltas(patch?.build(0) ?? { baseRev: 0, entries: [] })
         .filter(({ path }) => path[0] !== 'flashcards'),
@@ -4742,7 +4745,9 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
           // an ACK. Retry must keep the admitted Undo, never the rated pre-image.
           schedulerResult = { ...schedulerResult, ...envelope.schedulerOutcome };
           envelope.command ??= JSON.parse(JSON.stringify({
-            attemptId, decisionId: options?.decision?.id, events: eventsByKey, patch: patchRecorder.build(commandBase.rev ?? 0),
+            attemptId, decisionId: options?.decision?.id,
+            ...(options?.decision ? { selectedChoiceKey: options.decision.selected.key } : {}),
+            events: eventsByKey, patch: patchRecorder.build(commandBase.rev ?? 0),
             undo: { ...schedulerResult.undo.reviewUndo!, target: {
               ...wordRetractionTarget(word, language), keys: Object.keys(eventsByKey),
             } },
@@ -4787,6 +4792,7 @@ const migrateLegacyEpistemicState = async (): Promise<void> => {
             const patch = patchRecorder.build(commandBase.rev ?? 0);
             persisted = sendBackgroundRating(JSON.parse(JSON.stringify({ attemptId, events: eventsByKey, patch,
               decisionId: options?.decision?.id,
+              ...(options?.decision ? { selectedChoiceKey: options.decision.selected.key } : {}),
               ...(options?.decision ? { presentation: { cardId: scheduler!.cardId, language, surface: word,
                 ...(options.decision.selected.presentation?.contentVersion !== undefined
                   ? { contentVersion: SRS.hashWordSync(JSON.stringify(card!.content)) } : {}) } } : {}),

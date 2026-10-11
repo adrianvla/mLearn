@@ -100,14 +100,15 @@ describe('calibrationUnmeasuredCandidates', () => {
 });
 
 describe('weakTargetCandidates', () => {
-  it('keeps learning-band entries and scores proximity to known', () => {
+  it('keeps learning-band entries and admits unknown only with producer-supplied scoped targets', () => {
     const candidates = weakTargetCandidates([
       { word: 'hallo', language: 'de', status: 'learning', ease: 1.55 },
       { word: 'neu', language: 'de', status: 'unknown', ease: 1.3 },
+      { word: 'ziel', language: 'de', status: 'unknown', ease: 0, targets: [{ entityId: 'de:goal', capability: 'future::access' }] },
       { word: 'klar', language: 'de', status: 'known', ease: 1.8 },
     ]);
 
-    expect(candidates).toHaveLength(1);
+    expect(candidates).toHaveLength(2);
     expect(candidates[0]).toMatchObject({
       key: 'de:hallo',
       word: 'hallo',
@@ -115,6 +116,18 @@ describe('weakTargetCandidates', () => {
       origin: 'weak-target',
       scores: { 'curriculum-relevance': 0.5 },
       targets: [{ entityId: 'de:surface:hallo', capability: 'surface-recognition' }],
+    });
+    expect(candidates[1]).toMatchObject({ key: 'de:ziel', word: 'ziel',
+      targets: [{ entityId: 'de:goal', capability: 'future::access' }] });
+  });
+  it('preserves an opaque task and material identity for a weak material-backed target', () => {
+    const task = { taskTemplateId: 'package::listen', inputModality: 'audio', responseModality: 'recall',
+      supplied: ['recording'], requested: ['package::spoken'], fluencyRequired: false, ratingMode: 'profile' as const };
+    expect(weakTargetCandidates([{ word: 'form', language: 'x', status: 'learning', ease: 2,
+      key: 'review:item:listen', targets: [{ entityId: 'opaque:item', capability: 'package::spoken' }], task,
+      presentation: { cardId: 'item', reading: 'variant-a' } }])[0]).toMatchObject({
+      key: 'review:item:listen', targets: [{ entityId: 'opaque:item', capability: 'package::spoken' }],
+      task, presentation: { cardId: 'item', reading: 'variant-a' },
     });
   });
 });

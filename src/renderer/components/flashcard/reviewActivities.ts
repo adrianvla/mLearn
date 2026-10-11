@@ -6,6 +6,10 @@ import { getTestedAccesses, getProsodyPositionLabel } from '../../../shared/lang
 import { providedAccessScaffolds } from '../../../shared/knowledgeEvents';
 import type { LearningTaskSnapshot } from '../../../shared/learningDecision';
 import { evaluateLearningAction, type LearningModel, type EvaluationContext } from '../../../shared/learningModel';
+import { getLogger } from '../../../shared/utils/logger';
+
+const log = getLogger('ReviewActivities');
+const reportedCompositionIssues = new Set<string>();
 
 export interface ReviewActivity extends Omit<LanguageReviewActivity, 'kind'> {
   id: string;
@@ -15,11 +19,14 @@ export interface ReviewActivity extends Omit<LanguageReviewActivity, 'kind'> {
 /** Resource availability is explicit; absent resources never become an alternate cue. */
 export function eligibleReviewActivities(card: Flashcard, data: LanguageData | null | undefined,
   preferences: Settings['reviewActivities'], audioAvailable: boolean,
-  labels?: { focused: string; focusedTarget: string; focusedPrompt: (target: string) => string; audio: string; audioPrompt: string }, composeMixed = true): ReviewActivity[] {
+  labels?: { focused: string; focusedTarget: string; focusedPrompt: (target: string) => string; audio: string; audioPrompt: string },
+  composeMixed = true, includeMissingAudio = false): ReviewActivity[] {
+  // Retained as an API compatibility parameter; task alternatives now reach shared policy together.
+  void composeMixed;
   const result: ReviewActivity[] = [];
   const resourceReady = (kind: string) => kind === 'holistic' ? preferences.holistic || preferences.focused
     : kind === 'written-reading-recall' ? preferences.focused && !!card.content.reading?.trim() && !!card.content.prosody
-    : kind === 'audio-recognition' && preferences.audio && audioAvailable && !!card.content.back.trim();
+    : kind === 'audio-recognition' && preferences.audio && (audioAvailable || includeMissingAudio) && !!card.content.front.trim();
   if (preferences.holistic) result.push({ id: 'holistic', kind: 'holistic', label: '', prompt: '', targets: [...getTestedAccesses({
     languageData: data, surface: card.content.front,
     hasReadingData: !!card.content.reading && card.content.reading !== card.content.front,
@@ -48,7 +55,15 @@ export function eligibleReviewActivities(card: Flashcard, data: LanguageData | n
         || typeof stage.id !== 'string' || typeof stage.prompt !== 'string' || typeof stage.label !== 'string'
         || !Array.isArray(stage.targets) || !stage.targets.every(target => typeof target === 'string' && target.trim())
         || !Array.isArray(stage.suppliedAccesses) || !stage.suppliedAccesses.every(target => typeof target === 'string' && target.trim()))) continue;
-      for (const [index, stages] of composeRetrievalStages(activity.stages.map(stage => ({ ...stage, cueKey: stage.kind }))).entries()) {
+      const composition = composeRetrievalStages(activity.stages.map(stage => ({ ...stage, cueKey: stage.kind })));
+      for (const issue of composition.invalid) {
+        const key = `${data?.name ?? ''}:${id}:${issue.id}:${issue.reason}`;
+        if (!reportedCompositionIssues.has(key)) {
+          reportedCompositionIssues.add(key);
+          log.warn('Ignored invalid package review stage declaration:', { activity: id, ...issue });
+        }
+      }
+      for (const [index, stages] of composition.groups.entries()) {
         const targets = [...new Set(stages.flatMap(stage => stage.targets))];
         result.push({ ...activity, id: `${id}:${index}`, kind: stages[0].kind, targets, stages });
       }
@@ -56,14 +71,12 @@ export function eligibleReviewActivities(card: Flashcard, data: LanguageData | n
     }
     // A weak compatible access can select the item without turning its
     // ordinary written encounter into an isolated, reading-supplied drill.
-    if (composeMixed && !activity.stages && activity.kind === 'written-reading-recall'
-      && result.some(choice => choice.kind === 'holistic' && activity.targets.every(target => choice.targets.includes(target)))) continue;
     if (activity.kind === 'written-reading-recall' && preferences.focused && card.content.reading?.trim()
       && card.content.prosody && (Number.isFinite(card.content.prosody.position) || !!card.content.prosody.display?.trim())) {
       result.push({ ...activity, id, targets: [...activity.targets] });
     }
-    if (activity.kind === 'audio-recognition' && preferences.audio && audioAvailable
-      && card.content.front.trim() && card.content.back.trim()) result.push({ ...activity, id, targets: [...activity.targets] });
+    if (activity.kind === 'audio-recognition' && preferences.audio && (audioAvailable || includeMissingAudio)
+      && card.content.front.trim()) result.push({ ...activity, id, targets: [...activity.targets] });
   }
   return result;
 }
@@ -88,11 +101,11 @@ export function selectReviewActivity(activities: readonly ReviewActivity[], mode
 export function activityTask(activity: ReviewActivity): LearningTaskSnapshot {
   return {
     ...(activity.stages ? { stages: activity.stages.map(stage => ({ id: stage.id, inputModality: stage.kind === 'audio-recognition' ? 'audio' : 'written-form', supplied: stage.suppliedAccesses, requested: stage.targets })) } : {}),
-    taskTemplateId: activity.id,
+    taskTemplateId: activity.kind === 'holistic' && !activity.stages ? 'flashcard-review' : activity.id,
     inputModality: activity.kind === 'audio-recognition' ? 'audio' : 'written-form',
-    responseModality: 'self-assessment',
+    responseModality: 'recall',
     supplied: activity.kind === 'audio-recognition' ? ['word-audio'] : activity.kind === 'written-reading-recall' ? ['written-form', 'reading'] : ['written-form'],
-    requested: [...activity.targets], fluencyRequired: false, ratingMode: 'profile',
+    requested: [...activity.targets], fluencyRequired: activity.kind === 'holistic' && !activity.stages, ratingMode: 'profile',
   };
 }
 

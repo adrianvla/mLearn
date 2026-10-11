@@ -31,7 +31,7 @@ export const ParticipantAvatarGroup: Component<ParticipantAvatarGroupProps> = (p
     <span class={`participant-avatar-group participant-avatar-group--${props.size ?? 'md'}`}
       data-testid="participant-avatar-group" data-total-count={roster().length} data-slot-count={slotCount()} aria-hidden="true">
       <For each={shown()}>{person => <span class="participant-avatar-group__slot" data-participant-id={person.id}>
-        <Avatar name={person.displayName} src={person.profilePhoto} size={props.size} class="participant-avatar-group__avatar" />
+        <Avatar name={person.displayName} src={person.profilePhoto} size={props.size} fallback="initials" class="participant-avatar-group__avatar" />
       </span>}</For>
       <Show when={overflow() > 0}>
         <span class="participant-avatar-group__overflow">+{overflow()}</span>

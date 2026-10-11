@@ -9,6 +9,11 @@ it('shows a pictogram for a blank contact rather than an empty circle', () => {
   expect(document.querySelector('.avatar svg')).not.toBeNull();
   expect(document.querySelector('.avatar')?.getAttribute('aria-hidden')).toBe('true');
 });
+it('uses a pictogram rather than name initials for an unphotographed contact by default', () => {
+  dispose = render(() => <Avatar name="Isolated Practice Partner" />, document.body);
+  expect(document.querySelector('.avatar svg')).not.toBeNull();
+  expect(document.querySelector('.avatar')?.textContent).toBe('');
+});
 it('keeps the fallback recognizable when an empty-name photo fails', () => {
   dispose = render(() => <Avatar name="" src="broken-local-photo" />, document.body);
   document.querySelector('img')!.dispatchEvent(new Event('error'));

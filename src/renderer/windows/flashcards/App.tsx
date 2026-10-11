@@ -861,6 +861,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose: () => v
               <Show when={!reviewContextRefused()} fallback={<div role="alert"><p>{t('mlearn.WordSync.ProjectionUnavailable')}</p><Button onClick={props.onClose}>{t('mlearn.Global.Back')}</Button></div>}>
                 <ReviewWorkspace launchContext={reviewContext()} onReturn={props.onClose} autoEnter={props.workspace === 'flashcards'}>
                   <FlashcardReview encounterLimit={reviewSessionRequest()?.encounterLimit}
+                    boundToAdmittedWorkload={!reviewSessionRequest()}
                     resumeSessionId={reviewContext()?.intent === 'resume' && typeof reviewContext()?.sessionId === 'string' ? reviewContext()!.sessionId as string : undefined}
                     sessionRequestId={reviewSessionRequest()?.requestId}
                     initialCardId={reviewSessionRequest()?.initialCardId}

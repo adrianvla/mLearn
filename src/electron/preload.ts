@@ -236,14 +236,14 @@ const mLearnIPC = {
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_VIDEO_DELETE, cardId),
 
   // ========== Flashcard TTS ==========
-  getFlashcardTts: (cardId: string, field: 'word' | 'example'): Promise<string | null> =>
-    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET, cardId, field),
-  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset): Promise<string | null> =>
-    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GENERATE, cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset),
+  getFlashcardTts: (cardId: string, field: 'word' | 'example', resourceKey?: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET, cardId, field, resourceKey),
+  generateFlashcardTts: (cardId: string, text: string, language: string, field: 'word' | 'example', provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset, resourceKey?: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GENERATE, cardId, text, language, field, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset, resourceKey),
   batchGenerateFlashcardTts: (items: Array<{ cardId: string; text: string; field: 'word' | 'example' }>, language: string, provider: string, voiceSampleId?: string, cloudAuthToken?: string, cloudApiUrl?: string, preset?: FlashcardAudioPreset): Promise<Record<string, string>> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_BATCH_GENERATE, items, language, provider, voiceSampleId, cloudAuthToken, cloudApiUrl, preset),
-  getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example'): Promise<{ provider: string; generatedAt: string; language: string } | null> =>
-    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET_META, cardId, field),
+  getFlashcardTtsMeta: (cardId: string, field: 'word' | 'example', resourceKey?: string): Promise<{ provider: string; preset?: FlashcardAudioPreset; generatedAt: string; language: string; textHash?: string; voiceSampleId?: string; resourceKey?: string } | null> =>
+    ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_GET_META, cardId, field, resourceKey),
   deleteFlashcardTts: (cardId: string): Promise<void> =>
     ipcRenderer.invoke(IPC_CHANNELS.FLASHCARD_TTS_DELETE, cardId),
 

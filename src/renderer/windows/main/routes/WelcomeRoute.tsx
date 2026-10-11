@@ -95,6 +95,10 @@ export const WelcomeRoute: Component = () => {
     const selectedLanguage = event.currentTarget.value;
     if (selectedLanguage !== settings.language) updateSetting('language', selectedLanguage);
   };
+  const openEvaluation = (path: string, intent?: 'start') => navigate(path, { state: {
+    applicationRequestId: crypto.randomUUID(),
+    applicationContext: { returnTo: 'home', ...(intent ? { intent } : {}) },
+  } });
   const openRecent = (item: RecentItem) => {
     const route = item.type === 'video' ? '/video' : '/reader';
     if (!item.path?.trim()) { showToast({ message: t('mlearn.Home.Errors.UnableToOpen'), variant: 'error' }); navigate(route); return; }
@@ -105,7 +109,8 @@ export const WelcomeRoute: Component = () => {
     } else sessionStorage.setItem('mlearn_open_book', item.path);
     navigate(route);
   };
-  const startReview = () => getBridge().window.openWindow({ type: 'flashcards', context: { activity: 'review', intent: 'start', returnTo: 'home' } });
+  const startReview = () => getBridge().window.openWindow({ type: 'flashcards', context: { activity: 'review', intent: 'start',
+    session: { encounterLimit: 120, requestId: crypto.randomUUID() }, returnTo: 'home' } });
   const resumeReview = () => getBridge().window.openWindow({ type: 'flashcards', context: {
     activity: 'review', intent: 'resume', sessionId: savedReview()?.id, returnTo: 'home',
   } });
@@ -147,15 +152,26 @@ export const WelcomeRoute: Component = () => {
             <Button variant="primary" onClick={() => savedReview() ? resumeReview() : startReview()}>{t(savedReview() ? 'mlearn.StudyEncounter.Resume' : 'mlearn.LevelStudy.Mock.Start')}</Button>
             <Show when={grammarResume()}>{saved => <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
               ...saved().context, intent: 'resume', returnTo: 'home',
-            } })}>{t('mlearn.StudyEncounter.Resume')} · {t('mlearn.Product.GrammarPractice')}</Button>}</Show>
+            } })}>{t('mlearn.Home.UI.ResumeGrammarPractice')}</Button>}</Show>
             <Show when={practiceResume()}>{saved => <Button onClick={() => getBridge().window.openWindow({ type: 'level-study', context: {
               ...saved().context, intent: 'resume', returnTo: 'home',
-            } })}>{t('mlearn.StudyEncounter.Resume')} · {t('mlearn.Product.WordPractice')}</Button>}</Show>
+            } })}>{t('mlearn.Home.UI.ResumeWordPractice')}</Button>}</Show>
           </div>} />
         <WelcomeFeatureCard icon={<TargetIcon size={22} />} title={t('mlearn.Product.Evaluate')}
           description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate', { state: {
             applicationRequestId: crypto.randomUUID(), applicationContext: { returnTo: 'home' },
-          } })} />
+          } })}
+          preview={<div class="welcome-evaluate-options" aria-label={t('mlearn.Product.Evaluate')}>
+            <Button size="sm" variant="secondary" onClick={() => openEvaluation('/evaluate/words', 'start')}>
+              {t('mlearn.Product.KnowledgeCheck')}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => openEvaluation('/evaluate/grammar')}>
+              {t('mlearn.Product.GrammarCheck')}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => openEvaluation('/evaluate/grammar/mock')}>
+              {t('mlearn.LevelStudy.Mock.Title')}
+            </Button>
+          </div>} />
       </div>
       <Show when={recentFailed()}><KnowledgeLoadError message={t('mlearn.Home.UI.RecentLoadFailed')} onRetry={refreshHome} /></Show>
       <Show when={recentItems().length > 0}>

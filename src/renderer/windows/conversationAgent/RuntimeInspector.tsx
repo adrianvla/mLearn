@@ -10,9 +10,58 @@ import './RuntimeInspector.css';
 const json = (value: unknown): string => JSON.stringify(value, null, 2) ?? 'null';
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
+function InspectorRecordBrowser(props: { records: readonly unknown[]; query: string; onCopy: (value: unknown) => void; rawLabel: string; copyLabel: string; selectLabel: string }) {
+  const [selectedIndex, setSelectedIndex] = createSignal(0);
+  const filtered = createMemo(() => props.records.map((record, index) => ({ record, index }))
+    .filter(({ record }) => !props.query.trim() || json(record).toLocaleLowerCase().includes(props.query.trim().toLocaleLowerCase())));
+  const selected = createMemo(() => filtered().find(item => item.index === selectedIndex()) ?? filtered()[0]);
+  const title = (record: unknown, index: number): string => {
+    if (!isRecord(record)) return `Record ${index + 1}`;
+    for (const key of ['title', 'name', 'label', 'id', 'kind', 'type', 'status']) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 100);
+    }
+    return `Record ${index + 1}`;
+  };
+  const describe = (record: unknown): string => {
+    if (!isRecord(record)) return typeof record;
+    const keys = ['status', 'kind', 'type', 'createdAt', 'updatedAt', 'contextId', 'roomId', 'threadId'];
+    return keys.flatMap(key => {
+      const value = record[key];
+      return typeof value === 'string' || typeof value === 'number' ? [`${key}: ${String(value)}`] : [];
+    }).slice(0, 2).join(' · ');
+  };
+  const display = (value: unknown): string => {
+    const result = typeof value === 'string' ? value : json(value);
+    return result.length > 280 ? `${result.slice(0, 277)}…` : result;
+  };
+  return <Show when={filtered().length > 0} fallback={<HintText>{props.selectLabel}</HintText>}>
+    <div class="runtime-inspector-record-browser">
+      <nav class="runtime-inspector-record-list" aria-label={props.selectLabel}>
+        <For each={filtered()}>{item => <button type="button" class="runtime-inspector-record-row"
+          classList={{ selected: selected()?.index === item.index }} aria-pressed={selected()?.index === item.index}
+          onClick={() => setSelectedIndex(item.index)}>
+          <strong>{title(item.record, item.index)}</strong>
+          <Show when={describe(item.record)}><small>{describe(item.record)}</small></Show>
+        </button>}</For>
+      </nav>
+      <section class="runtime-inspector-record-detail">
+        <Show when={selected()} keyed>{item => <>
+          <div class="runtime-inspector-detail-heading"><strong>{title(item.record, item.index)}</strong>
+            <Button size="sm" variant="ghost" onClick={() => props.onCopy(item.record)}>{props.copyLabel}</Button></div>
+          <dl class="runtime-inspector-fields"><For each={Object.entries(isRecord(item.record) ? item.record : { value: item.record }).slice(0, 16)}>{([key, value]) => <div>
+            <dt>{key}</dt><dd>{display(value)}</dd>
+          </div>}</For></dl>
+          <Disclosure title={props.rawLabel}><pre>{json(item.record)}</pre></Disclosure>
+        </>}</Show>
+      </section>
+    </div>
+  </Show>;
+}
+
 /** Read-only developer view of captured calls and their authoritative stores.
  * Never recompiles a historical prompt from today's world state. */
-export function RuntimeInspector(props: { initialRoomId?: string }) {
+export function RuntimeInspector(props: { initialRoomId?: string; initialThreadId?: string; showTitle?: boolean }) {
   const { t } = useLocalization();
   const { settings } = useSettings();
   const bridge = getBridge();
@@ -23,7 +72,7 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
   const [trace, setTrace] = createSignal<RuntimeTraceEntry | null>(null);
   const [world, setWorld] = createSignal<WorldSnapshot | null>(null);
   const [roomId, setRoomId] = createSignal(props.initialRoomId ?? '');
-  const [threadId, setThreadId] = createSignal('');
+  const [threadId, setThreadId] = createSignal(props.initialThreadId ?? '');
   const [events, setEvents] = createSignal<JournalEvent[]>([]);
   const [query, setQuery] = createSignal('');
   const [errors, setErrors] = createSignal<Record<string, string>>({});
@@ -133,7 +182,7 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
     <section class="runtime-inspector" aria-label={label('Title')}>
       <div class="runtime-inspector-toolbar">
         <div class="runtime-inspector-status">
-          <h2>{label('Title')}</h2>
+          <Show when={props.showTitle !== false}><h2>{label('Title')}</h2></Show>
           <HintText>{label('CaptureNotice')}</HintText>
         </div>
         <div class="runtime-inspector-controls">
@@ -173,14 +222,16 @@ export function RuntimeInspector(props: { initialRoomId?: string }) {
             </Show>
           </Show>
           <Show when={tab() === 'runs'}><HintText>{label('RunsNotice')}</HintText>
-            <For each={Object.entries(scopedRuns() ?? {})}>{([key, value]) => <Disclosure title={`${key} · ${label('RecordCount', { count: value.length })}`}>
-              <p class="runtime-inspector-summary">{value.length === 0 ? label('NoRuntimeData') : label('RecordCount', { count: value.length })}</p>
-              <Disclosure title={label('RawData')}><pre>{json(value)}</pre></Disclosure>
-              <Button size="sm" variant="ghost" onClick={() => void copy(value)}>{label('Copy')}</Button>
-            </Disclosure>}</For>
+            <For each={Object.entries(scopedRuns() ?? {}).filter(([, value]) => value.length > 0)}>{([key, value]) => <section class="runtime-inspector-record-group">
+              <h3>{key}</h3><InspectorRecordBrowser records={value} query={query()} onCopy={copy} rawLabel={label('RawData')} copyLabel={label('Copy')} selectLabel={label('SelectRecord')} />
+            </section>}</For>
+            <Show when={Object.values(scopedRuns() ?? {}).every(value => value.length === 0)}><HintText>{label('NoRuntimeData')}</HintText></Show>
           </Show>
           <Show when={tab() === 'world'}><HintText>{label('WorldNotice')}</HintText>
             <Show when={worldLoading() && !world()} fallback={<Show when={world()}><p class="runtime-inspector-summary">{worldSummary()}</p></Show>}><SkeletonRows rows={3} /></Show>
+            <For each={Object.entries(world() ?? {}).filter(([, value]) => Array.isArray(value) && value.length > 0)}>{([key, value]) => <section class="runtime-inspector-record-group">
+              <h3>{key}</h3><InspectorRecordBrowser records={value as unknown[]} query={query()} onCopy={copy} rawLabel={label('RawData')} copyLabel={label('Copy')} selectLabel={label('SelectRecord')} />
+            </section>}</For>
             <Disclosure title={label('RawData')}><pre>{json(world())}</pre></Disclosure>
             <Button size="sm" variant="ghost" onClick={() => void copy(world())}>{label('Copy')}</Button>
           </Show>

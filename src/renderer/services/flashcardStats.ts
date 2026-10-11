@@ -46,8 +46,9 @@ export interface MaturityBreakdown {
   total: number;
 }
 
-export interface RetentionStats {
-  retention: number;
+export interface LapseStats {
+  /** Lapses divided by recorded review cards in the explicit calendar window. */
+  lapseRate: number;
   totalReviews: number;
   totalLapses: number;
   totalNew: number;
@@ -252,18 +253,26 @@ export function computeMaturityBreakdown(cards: Flashcard[]): MaturityBreakdown 
 }
 
 // ============================================================================
-// Retention (rolling window)
+// Review lapse incidence (rolling calendar window)
 // ============================================================================
 
 /**
- * Retention stats over the last N days from dailyStats.
- * Retention = (reviewCardsStudied - lapses) / reviewCardsStudied
+ * Schedule lapse incidence over the last N local calendar days.
+ * This is not a recall-success or retention measurement.
  */
-export function computeRetentionStats(
+export function computeLapseStats(
   dailyStats: Record<string, DailyStudyStats>,
-  days: number = 30
-): RetentionStats {
-  const keys = getSortedDateKeys(dailyStats).slice(-days);
+  days: number = 30,
+  now: number = Date.now(),
+): LapseStats {
+  const dateKey = (date: Date): string => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const end = new Date(now);
+  end.setHours(0, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(start.getDate() - Math.max(1, Math.floor(days)) + 1);
+  const firstDate = dateKey(start);
+  const lastDate = dateKey(end);
+  const keys = getSortedDateKeys(dailyStats).filter(key => key >= firstDate && key <= lastDate);
   let totalReviews = 0;
   let totalLapses = 0;
   let totalTime = 0;
@@ -279,11 +288,11 @@ export function computeRetentionStats(
     totalGraduated += d.graduated;
   }
 
-  const retention = totalReviews > 0 ? ((totalReviews - totalLapses) / totalReviews) * 100 : 0;
+  const lapseRate = totalReviews > 0 ? (totalLapses / totalReviews) * 100 : 0;
   const avgTimePerDay = keys.length > 0 ? totalTime / keys.length : 0;
 
   return {
-    retention: Math.round(retention * 10) / 10,
+    lapseRate: Math.round(lapseRate * 10) / 10,
     totalReviews,
     totalLapses,
     totalNew,
@@ -466,7 +475,7 @@ export interface ComprehensiveCardStats {
   review: number;
   suspended: number;
   buried: number;
-  retentionRate: number;
+  lapseRate: number;
   totalReviews: number;
   totalLapses: number;
   matureCount: number;
@@ -486,7 +495,7 @@ export function computeComprehensiveCardStats(
   const stateDist = computeStateDistribution(cards);
   const maturity = computeMaturityBreakdown(cards);
   const intervals = computeIntervalDistribution(cards);
-  const retention = computeRetentionStats(dailyStats);
+  const lapses = computeLapseStats(dailyStats);
   const due = computeDueCounts(cards, newDayHour);
 
   return {
@@ -496,9 +505,9 @@ export function computeComprehensiveCardStats(
     review: stateDist.review,
     suspended: stateDist.suspended,
     buried: stateDist.buried,
-    retentionRate: retention.retention,
-    totalReviews: retention.totalReviews,
-    totalLapses: retention.totalLapses,
+    lapseRate: lapses.lapseRate,
+    totalReviews: lapses.totalReviews,
+    totalLapses: lapses.totalLapses,
     matureCount: maturity.mature,
     youngCount: maturity.young,
     dueCount: due.total,

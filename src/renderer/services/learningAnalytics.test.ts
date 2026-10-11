@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KnowledgeEvent } from '../../shared/knowledgeEvents';
 import { replayKnowledgeHistory } from '../utils/knowledgeHistory';
-import { acquisitionSlope, daysToStableKnown, retentionAfterKnown, unifyEventLogByWord } from './learningAnalytics';
+import { daysToStableKnown, lapseIncidenceAfterKnown, strengthChange14Days, unifyEventLogByWord } from './learningAnalytics';
 
 const DAY = 24 * 60 * 60 * 1000;
 const start = Date.UTC(2026, 0, 1);
@@ -45,27 +45,27 @@ describe('learning analytics cohorts', () => {
     ]);
 
     expect(daysToStableKnown(eventsByWord)).toEqual([]);
-    expect(retentionAfterKnown(eventsByWord, start + 50 * DAY)).toEqual([]);
+    expect(lapseIncidenceAfterKnown(eventsByWord, start + 50 * DAY)).toEqual([]);
   });
 
-  it('excludes recent known words and counts lapses during the 30-day retention window', () => {
+  it('excludes words without a full 30-day follow-up and reports the lapse denominator', () => {
     const now = start + 50 * DAY;
     const eventsByWord = new Map([
       ['recent', [event(0), event(40, { toStatus: 'known' })]],
       ['lapsed', [event(0), event(5, { toStatus: 'known' }), event(25, { fromStatus: 'known', toStatus: 'learning' })]],
     ]);
 
-    expect(retentionAfterKnown(eventsByWord, now)).toEqual([{ month: '2026-01', lapseRate: 1, knownWordCount: 1 }]);
+    expect(lapseIncidenceAfterKnown(eventsByWord, now)).toEqual([{ month: '2026-01', lapseRate: 1, followedWordCount: 1 }]);
   });
 
-  it('measures 14-day strength gain through the history replay', () => {
+  it('reports a 14-day strength change rather than a rate per day', () => {
     const events = [event(0, { easeAfter: 1.3 }), event(14, { easeAfter: 1.8 })];
     const expected = replayKnowledgeHistory(events, { now: start + 14 * DAY }).points;
     const eventsByWord = new Map([['one', events]]);
 
-    expect(acquisitionSlope(eventsByWord)).toEqual([{
+    expect(strengthChange14Days(eventsByWord)).toEqual([{
       month: '2026-01',
-      medianSlope: expected[1].strength - expected[0].strength,
+      medianStrengthChange: expected[1].strength - expected[0].strength,
       wordCount: 1,
     }]);
   });
@@ -83,8 +83,8 @@ describe('learning analytics cohorts', () => {
     expect(daysToStableKnown(eventsByWord)).toEqual([
       { month: '2026-01', medianDays: 20, wordCount: 1 },
     ]);
-    expect(retentionAfterKnown(eventsByWord, now)).toEqual([
-      { month: '2026-01', lapseRate: 0.5, knownWordCount: 2 },
+    expect(lapseIncidenceAfterKnown(eventsByWord, now)).toEqual([
+      { month: '2026-01', lapseRate: 0.5, followedWordCount: 2 },
     ]);
   });
 
@@ -92,8 +92,8 @@ describe('learning analytics cohorts', () => {
     const eventsByWord = new Map<string, readonly KnowledgeEvent[]>();
 
     expect(daysToStableKnown(eventsByWord)).toEqual([]);
-    expect(acquisitionSlope(eventsByWord)).toEqual([]);
-    expect(retentionAfterKnown(eventsByWord, start)).toEqual([]);
+    expect(strengthChange14Days(eventsByWord)).toEqual([]);
+    expect(lapseIncidenceAfterKnown(eventsByWord, start)).toEqual([]);
   });
 });
 

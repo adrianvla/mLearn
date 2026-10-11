@@ -1,5 +1,5 @@
 import { MemoryBrowserContent } from '../memoryBrowser/App';
-import { useApplicationNavigate, useApplicationReturn } from './applicationHost';
+import { currentApplicationHost, useApplicationNavigate, useApplicationReturn } from './applicationHost';
 import { Route, useLocation } from '@solidjs/router';
 import { Show, createMemo, type Component, type ParentComponent } from 'solid-js';
 import { FlashcardsContent } from '../flashcards/App';
@@ -16,6 +16,7 @@ import { ActionCard, ArrowLeftIcon, Button, TargetIcon, LearningWorkspace, TabCo
 import { WelcomeRoute } from './routes/WelcomeRoute';
 import { ReaderRoute } from './routes/ReaderRoute';
 import { VideoRoute } from './routes/VideoRoute';
+import { applicationHostForPath } from '../../../shared/applicationNavigation';
 import { isMobile, isElectron } from '../../../shared/platform';
 import { getBridge } from '../../../shared/bridges';
 import { LicensesRoute } from '../mobile/routes/LicensesRoute';
@@ -100,6 +101,7 @@ const evaluationReturnDestination = (context?: Record<string, unknown>): { path:
 const Evaluate: Component<RequestedWorkspaceProps> = (props) => {
   const { t } = useLocalization();
   const navigate = useApplicationNavigate();
+  const returnTo = useApplicationReturn();
   const sourceContext = () => props.launchContext ?? {};
   const returnDestination = () => evaluationReturnDestination(props.launchContext);
   const childContext = () => ({
@@ -111,9 +113,16 @@ const Evaluate: Component<RequestedWorkspaceProps> = (props) => {
         ? { evaluationReturnTo: sourceContext().returnTo }
         : {}),
   });
+  const returnToSource = () => {
+    const destination = returnDestination().path;
+    returnTo(destination, sourceContext());
+    if (isElectron() && applicationHostForPath(destination) !== currentApplicationHost()) {
+      getBridge().window.closeWindow();
+    }
+  };
   return <section class="product-workspace evaluation-chooser">
     <header class="evaluation-chooser-header"><Button buttonType="nav" icon={<ArrowLeftIcon size={16} />}
-      onClick={() => navigate(returnDestination().path)}>{t(returnDestination().label)}</Button><h1>{t('mlearn.Product.Evaluate')}</h1></header>
+      onClick={returnToSource}>{t(returnDestination().label)}</Button><h1>{t('mlearn.Product.Evaluate')}</h1></header>
     <div class="study-chooser-alternatives"><ActionCard icon={<TargetIcon size={24} />} primary title={t('mlearn.Product.KnowledgeCheck')}
       description={t('mlearn.Product.KnowledgeCheckDescription')} onClick={() => navigate('/evaluate/words', { state: {
         applicationRequestId: crypto.randomUUID(), applicationContext: { ...childContext(), intent: 'start' },
@@ -122,9 +131,10 @@ const Evaluate: Component<RequestedWorkspaceProps> = (props) => {
         description={t('mlearn.Product.GrammarSelfCheckDescription')} onClick={() => navigate('/evaluate/grammar', { state: {
           applicationRequestId: crypto.randomUUID(), applicationContext: childContext(),
         } })} /></div>
-      <div class="product-workspace-actions"><Button variant="ghost" onClick={() => navigate('/evaluate/grammar/mock', { state: {
+      <div class="study-chooser-alternatives evaluation-checkpoint-choice"><ActionCard icon={<TargetIcon size={24} />} title={t('mlearn.LevelStudy.Mock.Title')}
+        description={t('mlearn.LevelStudy.Mock.Subtitle')} onClick={() => navigate('/evaluate/grammar/mock', { state: {
         applicationRequestId: crypto.randomUUID(), applicationContext: childContext(),
-      } })}>{t('mlearn.LevelStudy.Mock.Title')}</Button></div>
+      } })} /></div>
   </section>;
 };
 const returnToWorkspace = (navigate: ReturnType<typeof useApplicationReturn>, context: Record<string, unknown> | undefined) => (path: string, savedContext?: Record<string, unknown>) => navigate(path, savedContext ?? context);

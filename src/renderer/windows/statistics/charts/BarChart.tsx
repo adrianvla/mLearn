@@ -3,7 +3,7 @@
  * Vertical bar chart for time-series data (daily reviews, etc.)
  */
 
-import { Component, For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
+import { Component, For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { Tooltip } from '../../../components/common';
 import { selectAxisTicks } from '../../../components/flashcard/barChartTicks';
 import './BarChart.css';
@@ -20,8 +20,10 @@ export interface BarChartDataPoint {
 interface BarChartProps {
   data: BarChartDataPoint[];
   height?: number;
+  valueMax?: number;
   showValues?: boolean;
   stacked?: boolean;
+  formatValue?: (value: number) => string;
   class?: string;
 }
 
@@ -32,7 +34,7 @@ export const BarChart: Component<BarChartProps> = (props) => {
   // The axis can only be labelled as densely as the rendered columns allow.
   // A fixed stride ignores how narrow the card actually is, so the labels
   // are chosen from the measured column width instead of the data index.
-  const [labelledIndices, setLabelledIndices] = createSignal<ReadonlySet<number>>(new Set());
+  const [labelledTicks, setLabelledTicks] = createSignal<ReadonlyMap<number, 'center' | 'left' | 'right'>>(new Map());
 
   const relabel = () => {
     if (!chartElement) return;
@@ -55,21 +57,25 @@ export const BarChart: Component<BarChartProps> = (props) => {
         return width;
       },
     );
-    setLabelledIndices(new Set(ticks.map(tick => tick.index)));
+    setLabelledTicks(new Map(ticks.map(tick => [tick.index, tick.align])));
   };
 
   onMount(() => {
-    relabel();
     const observer = new ResizeObserver(relabel);
     if (chartElement) observer.observe(chartElement);
     onCleanup(() => observer.disconnect());
   });
 
+  createEffect(() => {
+    props.data.map(point => point.label);
+    relabel();
+  });
+
   const maxValue = createMemo(() => {
-    if (props.stacked) {
-      return Math.max(...props.data.map(d => d.value + (d.secondaryValue ?? 0)), 1);
-    }
-    return Math.max(...props.data.map(d => Math.max(d.value, d.secondaryValue ?? 0)), 1);
+    const observedMax = props.stacked
+      ? Math.max(...props.data.map(d => d.value + (d.secondaryValue ?? 0)), 0)
+      : Math.max(...props.data.map(d => Math.max(d.value, d.secondaryValue ?? 0)), 0);
+    return Math.max(props.valueMax ?? 0, observedMax, 1);
   });
 
   return (
@@ -119,14 +125,25 @@ export const BarChart: Component<BarChartProps> = (props) => {
                 <Show when={props.showValues !== false && (point.value > 0 || (point.secondaryValue ?? 0) > 0)}>
                   <div class="bar-chart-value">
                     {props.stacked
-                      ? point.value + (point.secondaryValue ?? 0)
-                      : point.value}
+                      ? props.formatValue?.(point.value + (point.secondaryValue ?? 0)) ?? point.value + (point.secondaryValue ?? 0)
+                      : props.formatValue?.(point.value) ?? point.value}
                   </div>
                 </Show>
                 <Show when={point.tooltip} fallback={barSlot}>
                   <Tooltip content={point.tooltip!}>{barSlot}</Tooltip>
                 </Show>
-                <div class="bar-chart-label">{labelledIndices().has(index()) ? point.label : ''}</div>
+                <div
+                  class="bar-chart-label"
+                  classList={{
+                    'bar-chart-label-positioned': labelledTicks().has(index()),
+                    'bar-chart-label-left': labelledTicks().get(index()) === 'left',
+                    'bar-chart-label-center': labelledTicks().get(index()) === 'center',
+                    'bar-chart-label-right': labelledTicks().get(index()) === 'right',
+                  }}
+                  title={labelledTicks().has(index()) ? point.label : undefined}
+                >
+                  {labelledTicks().has(index()) ? point.label : ''}
+                </div>
               </div>
             );
           }}

@@ -370,6 +370,15 @@
   color: var(--text-tertiary);
 }
 
+.learning-velocity-error {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-wrap: wrap;
+}
+
+.learning-velocity-error p { margin: 0; }
+
 /* Boot skeleton shown while the consolidated learner store hydrates. */
 .dashboard-boot {
   display: flex;
@@ -381,10 +390,10 @@
 .statistics-dashboard { max-width: 1280px; width: 100%; }
 .analytics-header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-4); flex-wrap: wrap; }
 .analytics-header h1 { margin: 0; font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); }
-.analytics-nav { display: flex; gap: var(--spacing-1); border-bottom: 1px solid var(--border-color); }
-.analytics-nav button { border: 0; border-bottom: 2px solid transparent; padding: var(--spacing-2) var(--spacing-3); background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
-.analytics-nav button[aria-pressed="true"] { border-bottom-color: var(--color-primary); color: var(--text-primary); }
-.analytics-nav button:hover { background: var(--bg-intense); }
+.analytics-nav { display: inline-flex; width: fit-content; gap: var(--spacing-1); padding: var(--spacing-1); border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-intense); }
+.analytics-nav button { border: 1px solid transparent; border-radius: var(--radius-sm); padding: var(--spacing-1) var(--spacing-3); background: transparent; color: var(--text-secondary); font: inherit; cursor: pointer; }
+.analytics-nav button[aria-pressed="true"] { border-color: var(--border-color); background: var(--bg-primary); color: var(--text-primary); }
+.analytics-nav button:hover { background: var(--bg-secondary); }
 .analytics-nav button:focus-visible, .analytics-details summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .analytics-caption { margin: 0; color: var(--text-secondary); font-size: var(--font-size-sm); }
 .dashboard-panel { min-width: 0; backdrop-filter: none; }
@@ -394,7 +403,8 @@
 .analytics-details { border-top: 1px solid var(--border-color); padding-top: var(--spacing-3); }
 .analytics-details summary { cursor: pointer; color: var(--text-secondary); padding-bottom: var(--spacing-3); }
 .dashboard-section-header, .dashboard-meta-stats { flex-wrap: wrap; gap: var(--spacing-2); }
-.level-table { min-width: 0; }
+.level-table-wrap { width: 100%; overflow-x: auto; }
+.level-table { min-width: 860px; }
 .level-table th:nth-child(1) { width: 18%; }
 .level-table th:nth-child(2), .level-table th:nth-child(3), .level-table th:nth-child(4), .level-table th:nth-child(5) { width: 11%; }
 .level-table th:nth-child(6) { width: 12%; }
@@ -423,6 +433,23 @@
 }
 .dashboard-charts-row .dashboard-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .analytics-review-chart .bar-chart-label { max-width: none; overflow: visible; }
+.analytics-review-empty { display: flex; align-items: center; justify-content: center; min-height: 6rem; margin: 0; color: var(--text-secondary); text-align: center; }
+.dashboard-heatmap-panel {
+  width: min(100%, 760px);
+  max-width: 100%;
+  justify-self: start;
+  container-type: inline-size;
+}
+.dashboard-heatmap-panel .heatmap-grid {
+  --dashboard-heatmap-cell-size: clamp(12px, calc((100cqw - 42px) / 21), 34px);
+}
+.dashboard-heatmap-panel .heatmap-month-labels { width: 100%; }
+.dashboard-heatmap-panel .heatmap-month-label-spacer { width: calc(var(--dashboard-heatmap-cell-size) + 4px); flex: 0 0 calc(var(--dashboard-heatmap-cell-size) + 4px); }
+.dashboard-heatmap-panel .heatmap-month-label { width: auto; min-width: 0; flex: 1 1 0; font-size: clamp(10px, 1.5cqw, 14px); }
+.dashboard-heatmap-panel .heatmap-day-label { width: var(--dashboard-heatmap-cell-size); height: var(--dashboard-heatmap-cell-size); font-size: clamp(9px, 1.3cqw, 12px); }
+.dashboard-heatmap-panel .heatmap-weeks { min-width: 0; }
+.dashboard-heatmap-panel .heatmap-week { min-width: 0; flex: 1 1 0; }
+.dashboard-heatmap-panel .heatmap-cell { width: 100%; height: var(--dashboard-heatmap-cell-size); }
 
 .analytics-scope {
   display: flex;
