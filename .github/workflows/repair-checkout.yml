@@ -1,0 +1,42 @@
+name: Isolated repair checkout
+on:
+  push:
+    branches: [fix/v29-ui-regressions]
+    paths: [.github/workflows/repair-checkout.yml]
+permissions:
+  contents: read
+jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      NODE_LLAMA_CPP_SKIP_DOWNLOAD: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Archive the exact source, without repository credentials
+        run: |
+          git archive --format=tar HEAD | gzip > /tmp/mlearn-repair-source.tar.gz
+          git rev-parse HEAD > /tmp/mlearn-repair-source.sha
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mlearn-repair-source
+          path: |
+            /tmp/mlearn-repair-source.tar.gz
+            /tmp/mlearn-repair-source.sha
+          retention-days: 1
+      - run: npm ci --ignore-scripts
+      - name: Archive the locked verification dependencies
+        run: tar -czf /tmp/mlearn-repair-dependencies.tar.gz node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mlearn-repair-dependencies
+          path: /tmp/mlearn-repair-dependencies.tar.gz
+          retention-days: 1
+      - name: Baseline typecheck
+        run: npm run typecheck
