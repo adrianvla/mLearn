@@ -5,72 +5,74 @@ on:
     paths:
       - .github/workflows/repair-checkout.yml
       - scripts/verify-desktop-layout.mjs
+      - scripts/.apply-v29-ui-repair.py
       - src/**
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: v29-ui-repair
   cancel-in-progress: true
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       NODE_LLAMA_CPP_SKIP_DOWNLOAD: 'true'
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Inspect current setting consumers and window ownership
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          needles = ['automaticFlashcardCreation', 'proportionOfLevelCards', 'maxNewCardsPerDay', 'maxNewCardsToLearn', 'window-controls-block-start-inset', 'window-controls-inline-start-inset', 'NoQuestionSources', 'NoSources', 'SeparateHistory', 'separate-history conversation']
-          for needle in needles:
-            print('\n=== SEARCH', needle, '===')
-            matches = 0
-            for folder in ['src', 'scripts/language-data']:
-              for p in Path(folder).rglob('*'):
-                if not p.is_file() or p.suffix not in ['.ts','.tsx','.css','.json','.py','.mjs'] or '.test.' in p.name: continue
-                try: text = p.read_text()
-                except (UnicodeError,OSError): continue
-                for i,line in enumerate(text.splitlines(),1):
-                  if needle in line:
-                    print(f'{p}:{i}: {line[:360]}')
-                    matches += 1
-                    if matches >= 65: break
-                if matches >= 65: break
-              if matches >= 65: break
-          print('\n=== OWNER FILES ===')
-          for folder in ['src/renderer/windows/statistics','src/renderer/windows/memoryBrowser','src/renderer/components/settings','src/renderer/services','src/renderer/windows/main/routes/components']:
-            for p in Path(folder).glob('*'):
-              if p.is_file() and not '.test.' in p.name and (folder.endswith('services') and any(v in p.name.lower() for v in ['question','mock','flashcard','auto']) or not folder.endswith('services')): print(p)
-          PY
+      - name: Reproduce newly added Home regression before the fix
+        if: ${{ hashFiles('scripts/.apply-v29-ui-repair.py') != '' }}
+        continue-on-error: true
+        run: npx vitest run --maxWorkers=2 WelcomeLearningSummary
+      - name: Apply exact, inspected source edits
+        if: ${{ hashFiles('scripts/.apply-v29-ui-repair.py') != '' }}
+        run: python3 scripts/.apply-v29-ui-repair.py
       - name: Install isolated browser verification dependency
         run: npm install --prefix /tmp/mlearn-browser --no-package-lock --ignore-scripts playwright@1.56.1
       - name: Real Chromium layout regression checks
-        id: browser
-        continue-on-error: true
         env:
           PLAYWRIGHT_PACKAGE_DIR: /tmp/mlearn-browser/node_modules/playwright
         run: node scripts/verify-desktop-layout.mjs
+      - name: Component and ownership regressions
+        run: npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow WelcomeLearningSummary WelcomeRoute
+      - name: Both TypeScript configurations
+        run: npm run typecheck
+      - name: Complete Vitest suite
+        run: |
+          set -o pipefail
+          npx vitest run --maxWorkers=2 > /tmp/mlearn-full-tests.log 2>&1 || { tail -180 /tmp/mlearn-full-tests.log; exit 1; }
+          tail -15 /tmp/mlearn-full-tests.log
+      - name: Desktop production build
+        run: npm run build
+      - name: Mobile compatibility build
+        run: npm run build:mobile
+      - name: Record patch and evidence
+        if: always()
+        run: |
+          mkdir -p /tmp/mlearn-ui-evidence
+          git diff --binary > /tmp/mlearn-ui-evidence/source.patch
+          git diff --stat
+          cp /tmp/mlearn-full-tests.log /tmp/mlearn-ui-evidence/ 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: desktop-ui-evidence
           path: /tmp/mlearn-ui-evidence/
           retention-days: 7
-      - name: Component and ownership regressions
-        run: npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow WelcomeLearningSummary WelcomeRoute
-      - name: Both TypeScript configurations
-        if: ${{ !cancelled() }}
-        run: npm run typecheck
-      - name: Require browser checks to pass
-        if: ${{ !cancelled() && steps.browser.outcome != 'success' }}
-        run: exit 1
+      - name: Commit only verified source edits to the isolated branch
+        if: ${{ success() && hashFiles('scripts/.apply-v29-ui-repair.py') != '' }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/fix/v29-ui-regressions
+          git diff --check
+          while IFS= read -r file; do git add -- "$file"; done < /tmp/mlearn-ui-changed-files.txt
+          git rm -- scripts/.apply-v29-ui-repair.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: restore compact review, native chrome and Home summary'
+          git push origin HEAD:refs/heads/fix/v29-ui-regressions
