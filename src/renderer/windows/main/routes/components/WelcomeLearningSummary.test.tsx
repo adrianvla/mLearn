@@ -13,6 +13,7 @@ vi.mock('../../../../context', () => ({
 vi.mock('../../../../hooks/useLearningModel', () => ({ useLearningModel: () => ({ model: () => null, snapshot: () => null, failed: () => false, retry: vi.fn() }) }));
 vi.mock('../../../../components/common', () => ({
   Button: (props: { children?: string }) => <button>{props.children}</button>,
+  ChevronDownIcon: () => <svg data-testid="disclosure-icon" />,
   LearningGoals: () => <div data-testid="goal-surface">goal surface</div>,
 }));
 import { WelcomeLearningSummary } from './WelcomeLearningSummary';
@@ -32,10 +33,20 @@ describe('Home learning summary', () => {
     expect(container.textContent).not.toContain('mlearn.Goals.Explore');
   });
 
-  it('shows the shared goal owner when a valid active package goal exists', () => {
+  it('does not repeat the same counters when record details are opened', () => {
+    dispose = render(() => <WelcomeLearningSummary onPlan={vi.fn()} />, container);
+    container.querySelector('details')!.open = true;
+    expect(container.querySelectorAll('.welcome-lifetime-totals')).toHaveLength(1);
+    expect(container.querySelector('.welcome-summary-definition')).not.toBeNull();
+    expect(container.querySelector('summary [data-testid="disclosure-icon"]')).not.toBeNull();
+  });
+
+  it('shows the shared goal owner and retains record totals in details when a valid active package goal exists', () => {
     fixture.settings.learningGoals = [{ id: 'goal', language: 'future', status: 'active', outcomeRef: { id: 'package-outcome' } }];
     dispose = render(() => <WelcomeLearningSummary onPlan={vi.fn()} />, container);
     expect(container.querySelector('[data-testid="goal-surface"]')).not.toBeNull();
     expect(container.querySelector('.welcome-lifetime-totals--home')).toBeNull();
+    expect(container.querySelectorAll('.welcome-lifetime-totals')).toHaveLength(1);
+    expect(container.querySelector('details .welcome-lifetime-totals')).not.toBeNull();
   });
 });
