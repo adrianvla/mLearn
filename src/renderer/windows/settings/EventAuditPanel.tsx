@@ -1,5 +1,0 @@
-import { RuntimeInspector } from '../conversationAgent/RuntimeInspector';
-
-/** Developer settings use the same gated, live inspector as Conversation. */
-export function EventAuditPanel() { return <RuntimeInspector />; }
-export default EventAuditPanel;

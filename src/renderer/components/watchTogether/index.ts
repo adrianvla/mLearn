@@ -1,2 +1,0 @@
-export { WatchTogetherModeModal, type WatchTogetherModeModalProps } from './WatchTogetherModeModal';
-export { WatchTogetherCodeModal, type WatchTogetherCodeModalProps } from './WatchTogetherCodeModal';
