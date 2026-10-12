@@ -17,16 +17,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
+        with: { node-version: '22', cache: npm }
       - run: npm ci
-      - run: node --test tools/checks/*.test.mjs
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint
       - run: npm run build:web
   rust:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test -p mlearn-core -p mlearn-language-host
+      - uses: Swatinem/rust-cache@v2
+      - run: node tools/prepare-plugins.mjs
+      - run: cargo test --locked --workspace --exclude mlearn-desktop --exclude mlearn-ffi --exclude mlearn-bindgen
+        env:
+          MLEARN_TEST_PLUGIN: target/wasm32-unknown-unknown/release/mlearn_example_hello.wasm
+      - run: cargo run --locked -p mlearn-core --features typescript --example export_contracts -- --check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foundation-build-data
+          path: |
+            target/plugin-cdn
+            Cargo.lock
+            packages/contracts/src/generated.ts

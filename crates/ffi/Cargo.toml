@@ -10,6 +10,8 @@ crate-type = ["lib", "staticlib", "cdylib"]
 mobile-bundle = []
 [dependencies]
 mlearn-runtime = { path = "../runtime" }
+mlearn-language-host = { path = "../language-host" }
+serde_json.workspace = true
 uniffi.workspace = true
 thiserror.workspace = true
 [build-dependencies]

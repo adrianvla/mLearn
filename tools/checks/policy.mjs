@@ -1,10 +1,8 @@
 import ts from 'typescript';
 import path from 'node:path';
-
 const controls = new Set(['Pressable', 'Button', 'TouchableOpacity', 'TouchableHighlight', 'TouchableWithoutFeedback', 'TouchableNativeFeedback', 'TextInput', 'Switch']);
 const persistence = ['expo-sqlite', '@react-native-async-storage/async-storage', 'expo-file-system', '@tauri-apps/plugin-fs'];
 
-/** AST-based checks: aliases, re-exports and dynamic imports must not bypass ownership. */
 export function checkSource(filename, source) {
   const file = filename.replaceAll('\\', '/');
   const owner = file.startsWith('packages/ui/');
@@ -13,6 +11,13 @@ export function checkSource(filename, source) {
   const dom = file.startsWith('packages/reader-dom/');
   const errors = [];
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const approved = new Set();
+  for (const node of ast.statements) {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text.startsWith('@mlearn/ui/')) {
+      const bindings = node.importClause?.namedBindings;
+      if (bindings && ts.isNamedImports(bindings)) for (const entry of bindings.elements) approved.add(entry.name.text);
+    }
+  }
   const fail = (node, message) => {
     const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));
     errors.push(`${file}:${line + 1}: ${message}`);
@@ -42,9 +47,7 @@ export function checkSource(filename, source) {
       if (!owner && specifier === 'react-native') {
         const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : node.exportClause;
         if (bindings && (ts.isNamedImports(bindings) || ts.isNamedExports(bindings))) {
-          for (const element of bindings.elements) {
-            if (controls.has((element.propertyName ?? element.name).text)) fail(element, 'Interactive native primitives belong in @mlearn/ui.');
-          }
+          for (const element of bindings.elements) if (controls.has((element.propertyName ?? element.name).text)) fail(element, 'Interactive native primitives belong in @mlearn/ui.');
         } else if (bindings) fail(node, 'Namespace/native default imports hide interactive primitives; import named layout primitives.');
       }
     }
@@ -56,16 +59,12 @@ export function checkSource(filename, source) {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const name = node.tagName.getText(ast);
       if (!dom && /^[a-z]/.test(name)) fail(node, 'Universal UI uses React Native primitives, not raw HTML.');
-      if (!owner && controls.has(name.split('.').at(-1))) fail(node, 'Use the shared semantic control.');
+      if (!owner && !approved.has(name) && controls.has(name.split('.').at(-1))) fail(node, 'Use the shared semantic control.');
       if (!owner && !dom && /^(?:View|Text|.*\.(?:View|Text))$/.test(name)) {
-        for (const attribute of node.attributes.properties) {
-          if (ts.isJsxAttribute(attribute) && /^(onPress|onClick|onResponder|onStartShouldSetResponder)/.test(attribute.name.getText(ast))) fail(attribute, 'Do not turn static text/layout into an ad hoc control.');
-        }
+        for (const attribute of node.attributes.properties) if (ts.isJsxAttribute(attribute) && /^(onPress|onClick|onResponder|onStartShouldSetResponder)/.test(attribute.name.getText(ast))) fail(attribute, 'Do not turn static text/layout into an ad hoc control.');
       }
     }
-    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
-      if (/\b(?:localStorage|sessionStorage)\b/.test(node.expression.getText(ast))) fail(node, 'Renderer persistence is not the application authority.');
-    }
+    if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) && /\b(?:localStorage|sessionStorage)\b/.test(node.expression.getText(ast))) fail(node, 'Renderer persistence is not the application authority.');
     ts.forEachChild(node, visit);
   };
   visit(ast);

@@ -1,0 +1,6 @@
+[bindings.kotlin]
+package_name = "net.kikan.mlearn.rust"
+cdylib_name = "mlearn_ffi"
+
+[bindings.swift]
+module_name = "MlearnRust"

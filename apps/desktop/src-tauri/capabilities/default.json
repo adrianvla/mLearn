@@ -1,11 +1,1 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "enables the default permissions",
-  "windows": [
-    "main"
-  ],
-  "permissions": [
-    "core:default"
-  ]
-}
+{"$schema":"../gen/schemas/desktop-schema.json","identifier":"main","description":"Local application window. Native functionality is exposed only through the bounded runtime command.","windows":["main"],"permissions":[]}
