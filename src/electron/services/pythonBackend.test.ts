@@ -220,6 +220,8 @@ vi.mock('../utils/downloadManager', () => ({
 }));
 
 const originalNodeEnv = process.env.NODE_ENV;
+const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform')!;
+const originalArchDescriptor = Object.getOwnPropertyDescriptor(process, 'arch')!;
 
 /** Drive the event loop until the predicate holds (pip spawns land on I/O turns). */
 async function waitForCalls(predicate: () => boolean, maxTurns = 100): Promise<void> {
@@ -233,6 +235,15 @@ describe('pythonBackend', () => {
   let tempDir: TempDir;
 
   beforeEach(async () => {
+    // The default archive and platform-module fixtures describe Apple Silicon.
+    // Keep the process platform consistent on Linux/Windows CI too; explicit
+    // cross-platform tests still override this through setupInstaller.
+    Object.defineProperty(process, 'platform', { ...originalPlatformDescriptor, value: 'darwin' });
+    Object.defineProperty(process, 'arch', { ...originalArchDescriptor, value: 'arm64' });
+    // A test that aborts before extraction must not donate a queued one-shot
+    // extractor (or process) to the next installation.
+    mockTarExtract.mockReset().mockResolvedValue(undefined);
+    mockSpawn.mockReset();
     tempDir = createTempDir('mlearn-python-test-');
     mockIpcListeners.clear();
     vi.clearAllMocks();
@@ -318,6 +329,8 @@ describe('pythonBackend', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     process.env.NODE_ENV = originalNodeEnv;
+    Object.defineProperty(process, 'platform', originalPlatformDescriptor);
+    Object.defineProperty(process, 'arch', originalArchDescriptor);
     tempDir.cleanup();
   });
 
