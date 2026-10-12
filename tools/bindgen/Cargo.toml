@@ -1,0 +1,7 @@
+[package]
+name = "mlearn-bindgen"
+version.workspace = true
+edition.workspace = true
+publish = false
+[dependencies]
+uniffi = { workspace = true, features = ["cli"] }

@@ -1,3 +1,6 @@
+mod execute;
+pub use execute::{AssetMap, CompiledPlugin};
+
 /// Executable origin is fixed by the native host, never by renderer input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CodePolicy { MobileBundled, DesktopDownloaded }

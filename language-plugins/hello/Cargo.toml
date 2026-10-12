@@ -1,0 +1,9 @@
+[package]
+name = "mlearn-example-hello"
+version = "0.1.0"
+edition = "2024"
+publish = false
+[lib]
+crate-type = ["cdylib", "rlib"]
+[dependencies]
+mlearn-language-sdk = { path = "../../crates/language-sdk" }
