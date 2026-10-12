@@ -24,19 +24,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
-      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb
       - run: npm ci
       - run: npm run build:plugin
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
       - run: cargo install tauri-driver --locked
       - run: xvfb-run -a node tests/desktop/native-smoke.mjs
-      - name: Inspect patched versions for inherited dependency advisories
-        if: always()
-        run: |
-          npm view braces version
-          npm view decode-uri-component version
-          npm view node-forge version
-          npm view uuid@11 version
       - uses: actions/upload-artifact@v4
         if: always()
         with:

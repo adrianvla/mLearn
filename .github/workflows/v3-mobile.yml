@@ -2,13 +2,13 @@ name: v3 native mobile build
 on:
   push:
     branches: [work/v3-foundation, rewrite/v3]
-    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'apps/client/modules/**', 'apps/client/package.json', 'package-lock.json']
+    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/prepare-plugins.mjs', 'language-plugins/**', 'apps/client/**', 'packages/**', 'package-lock.json', 'Cargo.lock']
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: v3-mobile-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   ios:
     runs-on: macos-latest

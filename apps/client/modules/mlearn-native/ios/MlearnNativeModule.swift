@@ -2,19 +2,19 @@ import ExpoModulesCore
 import Foundation
 
 public class MlearnNativeModule: Module {
-  private var runtime: RuntimeBridge?
+  private var bridgeInstance: RuntimeBridge?
   private let initializationLock = NSLock()
 
   private func bridge() throws -> RuntimeBridge {
     initializationLock.lock()
     defer { initializationLock.unlock() }
-    if let runtime { return runtime }
+    if let bridgeInstance { return bridgeInstance }
     let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
     let directory = base.appendingPathComponent("mlearn-v3", isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let runtime = try RuntimeBridge(profilePath: directory.path)
-    self.runtime = runtime
-    return runtime
+    let bridgeInstance = try RuntimeBridge(profilePath: directory.path)
+    self.bridgeInstance = bridgeInstance
+    return bridgeInstance
   }
 
   public func definition() -> ModuleDefinition {
