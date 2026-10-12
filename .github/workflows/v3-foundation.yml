@@ -1,0 +1,41 @@
+name: v3 foundation
+on:
+  push:
+    branches: [work/v3-foundation, rewrite/v3]
+  pull_request:
+    branches: [rewrite/v3]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v3-foundation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      - name: Inspect available foundation dependencies
+        run: |
+          npm view react-native-unistyles version peerDependencies --json
+          npm view react-native-nitro-modules version --json
+          npm view @rn-primitives/dialog version peerDependencies dependencies --json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: baseline-lock
+          path: package-lock.json
+  rust:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
