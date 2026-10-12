@@ -10,7 +10,8 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 sha2.workspace = true
-# Untrusted downloaded modules must always pass Wasm validation.
-wasmi = { version = "2", default-features = false, features = ["std", "validate"] }
+# Validation is mandatory for downloaded modules. Auto-dispatch avoids tail-call
+# stack growth in unoptimized/debug builds while retaining optimized release dispatch.
+wasmi = { version = "2", default-features = false, features = ["std", "validate", "stable", "auto-dispatch"] }
 [dev-dependencies]
 wat = "1"

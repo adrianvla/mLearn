@@ -2,14 +2,17 @@ import { StyleSheet, UnistylesRuntime } from 'react-native-unistyles';
 import type { ThemeDocument } from '@mlearn/contracts';
 import { initialTheme, resolveTheme, type ResolvedTheme } from './theme';
 
+const breakpoints = { compact: 0, medium: 700, wide: 1100 };
+type Breakpoints = typeof breakpoints;
 declare module 'react-native-unistyles' {
   export interface UnistylesThemes { active: ResolvedTheme }
+  export interface UnistylesBreakpoints extends Breakpoints {}
 }
 
 StyleSheet.configure({
   themes: { active: resolveTheme(initialTheme) },
   settings: { initialTheme: 'active' },
-  breakpoints: { compact: 0, medium: 700, wide: 1100 },
+  breakpoints,
 });
 
 /** Apply only an accepted document, or a clearly labelled unsaved preview. */

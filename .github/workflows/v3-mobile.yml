@@ -19,6 +19,7 @@ jobs:
         with: { node-version: '22', cache: npm }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { cache-on-failure: true }
       - run: npm ci
       - run: npm run prepare:ios
       - name: Generate and compile native simulator app
@@ -28,7 +29,9 @@ jobs:
           npx expo prebuild --platform ios --no-install
           cd ios
           pod install
-          xcodebuild -workspace mLearnv3Dev.xcworkspace -scheme mLearnv3Dev -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { tail -150 build.log; exit 1; }
+          workspace=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          scheme=$(basename "$workspace" .xcworkspace)
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { tail -150 build.log; exit 1; }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -49,11 +52,15 @@ jobs:
         with: { distribution: 'temurin', java-version: '17' }
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with: { cache-on-failure: true }
       - run: npm ci
       - run: cargo install cargo-ndk --locked
+      - name: Select installed Android NDK
+        run: |
+          ndk=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          test -n "$ndk"
+          echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
       - run: npm run prepare:android
-        env:
-          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/29.0.14206865
       - name: Generate and compile Android application
         working-directory: apps/client
         env: { CI: '1' }
