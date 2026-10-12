@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+target/
+.DS_Store
+*.tsbuildinfo
+.env.local
+.env.*.local
+
+# Expo-generated native projects
+apps/client/ios/
+apps/client/android/
+
+.idea/

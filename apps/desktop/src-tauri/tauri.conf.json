@@ -1,0 +1,40 @@
+{
+  "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "mLearn v3",
+  "version": "0.1.0",
+  "identifier": "com.tauri.dev",
+  "build": {
+    "frontendDist": "../../client/dist",
+    "devUrl": "http://localhost:8081",
+    "beforeDevCommand": "npm run web -w @mlearn/client -- --port 8081",
+    "beforeBuildCommand": "npm run export:web -w @mlearn/client"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "mLearn",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    }
+  }
+}
