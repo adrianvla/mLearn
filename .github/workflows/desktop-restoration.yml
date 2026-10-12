@@ -21,7 +21,6 @@ jobs:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       NODE_LLAMA_CPP_SKIP_DOWNLOAD: 'true'
-      EVIDENCE_DIR: ${{ runner.temp }}/mlearn-verification
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +31,8 @@ jobs:
           cache: npm
       - name: Record the exact source and runtime
         run: |
+          export EVIDENCE_DIR="$RUNNER_TEMP/mlearn-verification"
+          echo "EVIDENCE_DIR=$EVIDENCE_DIR" >> "$GITHUB_ENV"
           mkdir -p "$EVIDENCE_DIR"
           git rev-parse HEAD > "$EVIDENCE_DIR/commit.txt"
           git rev-parse HEAD^{tree} > "$EVIDENCE_DIR/tree.txt"
