@@ -10,6 +10,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 sha2.workspace = true
-wasmi = { version = "2", default-features = false, features = ["std"] }
+# Untrusted downloaded modules must always pass Wasm validation.
+wasmi = { version = "2", default-features = false, features = ["std", "validate"] }
 [dev-dependencies]
 wat = "1"

@@ -20,18 +20,21 @@ pub struct ProfileStore { connection: Connection }
 
 impl ProfileStore {
     pub fn open(path: &Path) -> Result<Self, StorageError> {
-        let connection = Connection::open(path)?;
+        let mut connection = Connection::open(path)?;
         connection.busy_timeout(Duration::from_secs(5))?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
         connection.pragma_update(None, "synchronous", "FULL")?;
-        let version: u32 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        let transaction = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let version: u32 = transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
         if version > 1 { return Err(StorageError::Invalid("Profile was created by a newer application".into())); }
         if version == 0 {
-            connection.execute_batch("BEGIN IMMEDIATE; CREATE TABLE preferences (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, theme TEXT NOT NULL); CREATE TABLE receipts (sequence INTEGER PRIMARY KEY AUTOINCREMENT, command_id TEXT NOT NULL UNIQUE, digest BLOB NOT NULL, revision INTEGER NOT NULL); CREATE TABLE plugins (id TEXT PRIMARY KEY, manifest TEXT NOT NULL); PRAGMA user_version=1; COMMIT;")?;
-            connection.execute("INSERT INTO preferences VALUES (1, 0, ?1)", [serde_json::to_string(&ThemeDocument::default())?])?;
+            transaction.execute_batch("CREATE TABLE preferences (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, theme TEXT NOT NULL); CREATE TABLE receipts (sequence INTEGER PRIMARY KEY AUTOINCREMENT, command_id TEXT NOT NULL UNIQUE, digest BLOB NOT NULL, revision INTEGER NOT NULL); CREATE TABLE plugins (id TEXT PRIMARY KEY, manifest TEXT NOT NULL); PRAGMA user_version=1;")?;
+            transaction.execute("INSERT INTO preferences VALUES (1, 0, ?1)", [serde_json::to_string(&ThemeDocument::default())?])?;
         }
+        // Schema version and initial row become durable together, including first startup.
+        transaction.commit()?;
         let store = Self { connection };
-        store.preferences()?; // Never treat a damaged existing profile as a new empty profile.
+        store.preferences()?;
         Ok(store)
     }
 
@@ -58,7 +61,6 @@ impl ProfileStore {
         let next = revision.checked_add(1).ok_or_else(|| StorageError::Invalid("Settings revision exhausted".into()))?;
         transaction.execute("UPDATE preferences SET revision=?1, theme=?2 WHERE id=1", params![next, encoded])?;
         transaction.execute("INSERT INTO receipts(command_id,digest,revision) VALUES (?1,?2,?3)", params![command_id, digest, next])?;
-        // The settings protocol has a bounded retry window, not a lifetime command journal.
         transaction.execute("DELETE FROM receipts WHERE sequence <= (SELECT COALESCE(MAX(sequence),0)-256 FROM receipts)", [])?;
         transaction.commit()?;
         Ok(next)
@@ -66,8 +68,7 @@ impl ProfileStore {
 
     pub fn plugin_manifests(&self) -> Result<Vec<String>, StorageError> {
         let mut statement = self.connection.prepare("SELECT manifest FROM plugins ORDER BY id")?;
-        let rows = statement.query_map([], |row| row.get(0))?.collect::<Result<Vec<_>, _>>()?;
-        Ok(rows)
+        Ok(statement.query_map([], |row| row.get(0))?.collect::<Result<Vec<_>, _>>()?)
     }
     pub fn activate_plugin(&mut self, id: &str, manifest: &str) -> Result<(), StorageError> {
         self.connection.execute("INSERT INTO plugins(id,manifest) VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET manifest=excluded.manifest", params![id, manifest])?;

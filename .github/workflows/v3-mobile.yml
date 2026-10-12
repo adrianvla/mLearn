@@ -1,0 +1,70 @@
+name: v3 native mobile build
+on:
+  push:
+    branches: [work/v3-foundation, rewrite/v3]
+    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'apps/client/modules/**', 'apps/client/package.json', 'package-lock.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v3-mobile-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm run prepare:ios
+      - name: Generate and compile native simulator app
+        working-directory: apps/client
+        env: { CI: '1' }
+        run: |
+          npx expo prebuild --platform ios --no-install
+          cd ios
+          pod install
+          xcodebuild -workspace mLearnv3Dev.xcworkspace -scheme mLearnv3Dev -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { tail -150 build.log; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build-evidence
+          path: |
+            apps/client/modules/mlearn-native/ios/generated/*.swift
+            apps/client/modules/mlearn-native/ios/generated/*.h
+            apps/client/ios/Podfile.lock
+            apps/client/ios/build.log
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: cargo install cargo-ndk --locked
+      - run: npm run prepare:android
+        env:
+          ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/29.0.14206865
+      - name: Generate and compile Android application
+        working-directory: apps/client
+        env: { CI: '1' }
+        run: |
+          npx expo prebuild --platform android --no-install
+          cd android
+          ./gradlew assembleDebug --no-daemon --console=plain > build.log 2>&1 || { tail -150 build.log; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-build-evidence
+          path: |
+            apps/client/modules/mlearn-native/android/generated
+            apps/client/android/build.log

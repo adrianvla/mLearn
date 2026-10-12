@@ -15,7 +15,8 @@ fn fixture(body: &str) -> Vec<u8> {
 fn runaway_guest_is_stopped_by_fuel() {
     let code = fixture("(loop $forever br $forever) i64.const 0");
     let plugin = CompiledPlugin::new(&code, AssetMap::new()).unwrap();
-    assert!(plugin.invoke("test::loop", Value::Null).is_err());
+    let error = plugin.invoke("test::loop", Value::Null).unwrap_err();
+    assert!(error.contains("fuel"), "Unexpected failure: {error}");
 }
 
 #[test]
@@ -33,10 +34,19 @@ fn undeclared_host_imports_are_unavailable() {
 }
 
 #[test]
-fn real_sdk_module_runs_when_provided_by_build_step() {
-    let Ok(path) = std::env::var("MLEARN_TEST_PLUGIN") else { return; };
-    let code = std::fs::read(path).unwrap();
+fn malformed_binary_is_rejected_before_instantiation() {
+    assert!(CompiledPlugin::new(b"not-wasm", AssetMap::new()).is_err());
+}
+
+#[test]
+fn real_sdk_module_runs_with_downloadable_asset() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let path = std::env::var_os("MLEARN_TEST_PLUGIN").map(std::path::PathBuf::from)
+        .unwrap_or_else(|| root.join("target/wasm32-unknown-unknown/release/mlearn_example_hello.wasm"));
+    let code = std::fs::read(path).expect("Run npm run build:plugin before the native integration tests");
     let assets = [("greeting.json".into(), std::sync::Arc::<[u8]>::from(&b"{\"prefix\":\"Hello, \"}"[..]))].into_iter().collect();
     let plugin = CompiledPlugin::new(&code, assets).unwrap();
     assert_eq!(plugin.invoke("example::hello", serde_json::json!({"name":"Adrian"})).unwrap()["message"], "Hello, Adrian!");
+    assert_eq!(plugin.invoke("example::hello", serde_json::json!({"name":"アドリアン"})).unwrap()["message"], "Hello, アドリアン!");
+    assert!(plugin.invoke("example::hello", serde_json::json!({"name":""})).is_err());
 }

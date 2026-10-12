@@ -23,6 +23,13 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build:web
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-inspection
+          path: |
+            apps/client/dist
+            package-lock.json
   rust:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -34,9 +41,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: node tools/prepare-plugins.mjs
       - run: cargo test --locked --workspace --exclude mlearn-desktop --exclude mlearn-ffi --exclude mlearn-bindgen
-        env:
-          MLEARN_TEST_PLUGIN: target/wasm32-unknown-unknown/release/mlearn_example_hello.wasm
       - run: cargo run --locked -p mlearn-core --features typescript --example export_contracts -- --check
+      - run: cargo check --locked -p mlearn-ffi --features mobile-bundle
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -45,3 +51,15 @@ jobs:
             target/plugin-cdn
             Cargo.lock
             packages/contracts/src/generated.ts
+  desktop:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+      - run: npm run build:web
+      - run: cargo build --locked -p mlearn-desktop
