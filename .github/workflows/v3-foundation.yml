@@ -24,9 +24,9 @@ jobs:
       - run: node --test tools/checks/*.test.mjs
       - run: npm run build:web
   rust:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+      - run: cargo test -p mlearn-core -p mlearn-language-host

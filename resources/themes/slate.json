@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "mlearn.slate",
+  "name": "Slate",
+  "colors": {
+    "background": "#15191F",
+    "surface": "#20262E",
+    "text": "#EDF0F5",
+    "muted": "#BAC2CE",
+    "accent": "#99BEFF",
+    "onAccent": "#15243C",
+    "border": "#414B5A"
+  },
+  "radius": 12,
+  "textScale": 1,
+  "extensions": {}
+}

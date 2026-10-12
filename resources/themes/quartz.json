@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "mlearn.quartz",
+  "name": "Quartz",
+  "colors": {
+    "background": "#F1F2F4",
+    "surface": "#FFFFFF",
+    "text": "#20232A",
+    "muted": "#555D6B",
+    "accent": "#2458A6",
+    "onAccent": "#FFFFFF",
+    "border": "#CFD4DC"
+  },
+  "radius": 12,
+  "textScale": 1,
+  "extensions": {}
+}

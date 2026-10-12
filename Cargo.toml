@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/language-host", "apps/desktop/src-tauri"]
+default-members = ["crates/core", "crates/language-host"]
+
+[workspace.package]
+version = "3.0.0-dev.0"
+edition = "2024"
+rust-version = "1.90"
+license-file = "LICENSE"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+sha2 = "0.10"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
