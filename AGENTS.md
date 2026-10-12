@@ -1,57 +1,36 @@
-# mLearn v3 — Agent Guide
+# mLearn v3 — engineering contract
 
-## What this repository is
+Greenfield implementation, not a line-by-line v2 port. Read `README.md` for commands and `docs/architecture/foundation.md` for actual boundaries and limitations. Historical design discussions do not override the rules below.
 
-mLearn is a local-first, open-world language immersion and learning application. This `rewrite/v3` branch is a **greenfield implementation** within the original v1 → v2 → v3 Git history, not a port or cleanup of v2.
+## Ownership
 
-**Target architecture (do not claim a component exists before it is built):** portable Rust core; Tauri 2 + React DOM on desktop; Expo/React Native on iOS and Android; shared typed contracts and feature behavior. npm workspaces + Cargo workspaces. No shipped Python runtime, Electron, or Capacitor. Prefer on-device inference with portable runtimes where feasible; make model/platform limitations explicit. Large local LLMs may use separate optional backends.
+- **One UI:** `apps/client` is Expo/React Native on mobile and React Native Web on desktop. `apps/desktop` is the Tauri host, never another frontend. Thin routes compose shared feature screens. Platform differences belong in small host/UI adapters, not duplicate screen trees.
+- **Rust is the application:** `crates/runtime` coordinates commands, `core` defines domain contracts, `storage` owns SQLite, `language-host` executes plugins. React owns display, focus, gestures, animation and unsaved drafts only. Never implement learner/scheduling/projection authority or a parallel JSON/AsyncStorage/localStorage database in the renderer.
+- **One design system:** feature code imports `@mlearn/ui/*`. Only that package owns `Pressable`, `TextInput`, RN Primitives and other low-level controls. Do not create `Btn`, `CustomButton`, clickable text/divs or feature-local replacements. Add a missing semantic component to its owner with interaction tests. A link, tab or toggle is not a button styling variant.
+- **Portable styling:** Unistyles and semantic theme values; no Tailwind/NativeWind/UnoCSS. Colocate component styles. CSS/DOM are reserved for explicitly owned specialist content such as the future document renderer. Native views are the normal shared UI.
+- `@mlearn/theme` resolves presentation values; Rust validates and commits saved theme documents. User theme identifiers are data, not a hardcoded list. Do not duplicate durable defaults or hide storage errors behind fallback success.
+- `@mlearn/runtime-client` sends typed commands through an injected transport. Only `apps/client/src/host` imports Tauri/Expo native module APIs. Generated contracts come from Rust via `npm run codegen`; do not edit their output by hand.
 
-Rust owns durable learner state, storage, learning decisions, and platform-independent computation. Frontends own bounded interaction state and platform-specific presentation. Do not mirror entire databases into JS stores, pass inference tensors through UI state, or make a renderer authoritative over persisted knowledge. Keep host-specific APIs behind adapters.
+## Language extensions and distribution
 
-## Use v2 as a reference, never as the foundation
+- Language algorithms, schemas and language-specific dependencies belong to independently authored plugins, not core. Core provides execution, storage, resource access and open capability mechanisms, not a closed linguistic ontology. Preserve unknown namespaced structured values.
+- Plugins use the Rust SDK and core Wasm/Wasmi. Do not introduce another interpreter or proprietary scripting language. The current ABI is an experimental integration contract, not yet a performance-certified NLP SDK.
+- **iOS AND Android bundle executable plugins. Desktop does NOT bundle executable language plugins: it downloads code and assets from a trusted CDN catalog.** Code origin is selected by the native host, never a UI parameter. Mobile can download data through data-only interfaces; never disguise downloaded executable code as data.
+- The hello plugin is a test/integration fixture, not language support. Desktop development uses a local signed catalog. Never trust its development key in release, publish its private key, or claim a production CDN is deployed.
+- No network/filesystem/WASI access for guest code unless a bounded, explicitly reviewed host capability provides it. Keep execution, memory and message budgets. Do not copy entire dictionaries/models into renderer state.
 
-- Consult `refactor/minimize-tech-debt`, its commit history, earlier v2.9-era commits/tags, and the eventual `archive/v2-final` tag to reconstruct requirements. The refactor branch may still move; cite an exact commit SHA when documenting findings.
-- Read source, historical UI/CSS, tests, docs, and representative persisted data. Differentiate **intended behavior**, **observed implementation**, **known regression**, and **new proposal**. Recent HEAD is not necessarily the desired UX.
-- Reimplement production logic and components against reviewed contracts. Do **not** mechanically translate/copy Solid components, Electron/Python services, legacy settings wiring, or IPC abstractions.
-- Selectively reuse CSS, design tokens, icons, licensed assets, and other genuinely reusable visual materials. Preserve the characteristic **v2.9 desktop design**, not the later unwanted redesigns. Adapt presentation for native mobile instead of making desktop look like a phone.
-- Never edit, merge into, or force-push the v2 reference branch as part of v3 work. Avoid broad merges of the old tree; inspect and deliberately port relevant fixes or tests.
+## Reference and data integrity
 
-## Open-world language packages are non-negotiable
+- `archive/v2-final` (`1788f9c7`) is the T2 functional reference. Inspect exact historical revisions and screenshots; classify behavior as keep/change/reject/undecided. Do not preserve bugs, legacy settings or every recent UI change merely because they exist. Retain selected v2.9 visual ideas, not its component/state architecture.
+- SQLite writes are incremental, transactional and Rust-owned. Never rewrite the full learner library on each interaction. No live v2 profile writes; use isolated v3 data and synthetic/sanitized fixtures.
+- No per-review full-card revisions. The approved future history policy distinguishes session undo, compact recent evidence, coarse older summaries and versioned model checkpoints. A summary is not a fabricated review. Sync tombstones and user-authored content have separate lifetimes.
+- Learning observations, self-claims, exposure and predictions are distinct. Do not silently turn an exposure into demonstrated knowledge. Review scheduling and user-selected practice remain separate.
 
-- Core provides mechanisms: package loading/verification, capability discovery, storage and graph primitives, generic UI slots, validation, and adapter invocation. **Language packages provide linguistic semantics**, data, rules, schemas, and optional behavior.
-- Adding a language must **not** require adding its language code or linguistic concepts to core. No `if (language === 'ja')`, language-specific shared fields, fixed POS/case/gender/number/prosody inventories, or central registry of every possible linguistic concept.
-- A language-owned feature may attach to a sense, form, morpheme, token, span, construction, discourse entity, or another package-defined entity. Values may be structured, relational, contextual, or unknown to core.
-- Preserve valid unknown, namespaced package data on load → store → export. Missing capabilities should degrade gracefully. Support executable/behavioral extensions only through documented cross-platform host contracts; account for iOS execution restrictions without pretending arbitrary native code can be downloaded.
-- Prove extensibility with a synthetic third-party language that introduces unknown structured features and capabilities without changing core code.
+## Verification and change discipline
 
-## Learner correctness, storage, and performance
-
-- Separate encounters/exposures, learner observations, explicit ratings, derived knowledge, SRS scheduling, and forecasts. Passive interaction must not silently become assessment evidence.
-- Review selects due items through the scheduler; targeted practice/cramming is a separate workflow. Preserve the distinctions between probe modalities (written word, audio, reading, meaning, pronunciation, etc.) rather than flattening them into one card.
-- Persist rating, evidence, retraction/undo, and sync intent atomically. Use idempotent commands, revision/receipt handling, and crash-safe recovery. Never rewrite a large JSON store for every rating.
-- Build a **lossless, testable, reversible v2 data importer** before reading real profiles in v3. Never mutate the production v2 profile. Preserve unknown extension data and histories, not just current flashcard labels.
-- Measure latency, peak/steady memory, DB/WAL size, and long-session behavior on real platforms; avoid per-item unbounded caches, repeated scans, and full-state reserialization. Treat prior heap exhaustion and stalled loading as architecture-level failure cases.
-
-## UI and platform behavior
-
-- Desktop: dense, keyboard-first, translucent custom mLearn design. Mobile: native-feeling navigation/controls, touch/gesture/accessibility behavior, with shared semantics and appropriate platform-specific renderers.
-- Reuse semantic feature contracts where useful; do not force identical JSX, DOM elements, popover mechanics, or one component hierarchy on desktop and mobile.
-- Keep colors, themes, localization, and settings effects centrally defined. No hardcoded language-specific UI assumptions, generic AI-dashboard styling, or emoji stand-ins for icons.
-- Treat media readers, video/subtitles, OCR overlays, word inspection, voice, agent conversations, plugins, sync, recovery, and school flows as real parity work. Document platform restrictions as blockers or explicit adaptations, never silently omit them.
-
-## How to implement a feature
-
-1. Inspect the relevant pinned v2 source/history, UI, and data; record its contract, intended behavior, and known defects.
-2. Define the smallest cross-platform interface and focused acceptance tests. Do not invent an abstraction before a real use case demands it.
-3. Implement a complete vertical slice: core → storage/inference as applicable → desktop/mobile presentation → restart/undo/error behavior.
-4. Verify builds and tests **and** exercise real user-facing workflows on representative data, including persisted state. Inspect screenshots for visual work; use actual iOS/Android devices for mobile claims.
-5. Report exactly what was observed, not just which tests passed. Keep unverified surfaces and gaps explicit; never declare an app-wide workflow finished from agent summaries, test counts, or superficial polish.
-
-Prefer small independently reviewable commits. Preserve data and user-facing workflows over rapid bulk changes. Do not introduce fake production implementations, pretend a stub is feature parity, or silently expand scope.
-
-## Repository conventions
-
-- Planned roots: `apps/desktop`, `apps/mobile`, `crates/`, `packages/`, `fixtures/legacy`, `docs/`. Keep this section aligned with the **actual** scaffold as it evolves.
-- Use strict TypeScript, Rust formatting/lints, automated tests, and checked-in dependency lockfiles. Do not prescribe nonexistent commands; document commands after they are verified.
-- Never commit real user profiles, credentials, voice samples, or private school data. Tests use synthetic or sanitized fixtures.
-- Keep important architectural contracts and a feature-by-feature parity/verification register under `docs/`, so subsequent agents do not rediscover requirements or mislabel incomplete work.
+- `npm test`, `npm run typecheck`, `npm run lint`, `npm run build:web`; native scope additionally uses `npm run test:native`. Contract edits require `npm run codegen` and `npm run check:contracts`. Test real UI behavior with `npm run test:web` after exporting web.
+- Architecture checks include negative fixtures: aliases/re-exports must not bypass ownership. Add a failing fixture before broadening a rule; exceptions must be explicit and narrowly scoped.
+- A successful browser build does not verify Tauri IPC or mobile native modules. A successful simulator compile does not certify physical-device behavior. Report the exact platforms, tests and missing acceptance evidence.
+- Never call stubs, test counts or an agent report feature completion. Inspect user-facing behavior, visual output, error states and persisted results. This foundation contains no actual learner model, OCR, speech or sync.
+- Keep npm and Cargo lockfiles tracked. Use npm workspaces, not pnpm. Do not add empty packages, speculative frameworks or native dependencies with no implemented use.
+- Work only on the authorized v3 branch. Do not modify v2, force-push, overwrite concurrent commits, kill processes by name, or use real user data in tests. Read branch HEAD before writing and preserve other contributors' changes.

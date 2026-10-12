@@ -1,0 +1,44 @@
+name: v3 real desktop integration
+on:
+  push:
+    branches: [work/v3-foundation, rewrite/v3]
+    paths: ['.github/workflows/v3-desktop-e2e.yml', 'apps/desktop/**', 'tests/desktop/**', 'crates/runtime/**', 'crates/language-host/**', 'packages/ui/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v3-desktop-e2e-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+      XDG_DATA_HOME: ${{ github.workspace }}/.mlearn/e2e-data
+      XDG_CONFIG_HOME: ${{ github.workspace }}/.mlearn/e2e-config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { cache-on-failure: true }
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb
+      - run: npm ci
+      - run: npm run build:plugin
+      - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
+      - run: cargo install tauri-driver --locked
+      - run: xvfb-run -a node tests/desktop/native-smoke.mjs
+      - name: Inspect patched versions for inherited dependency advisories
+        if: always()
+        run: |
+          npm view braces version
+          npm view decode-uri-component version
+          npm view node-forge version
+          npm view uuid@11 version
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-desktop-evidence
+          path: test-results/desktop
