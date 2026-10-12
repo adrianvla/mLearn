@@ -2,7 +2,7 @@ import { createMemo, Show, type Component } from 'solid-js';
 import { useFlashcards, useLanguage, useLocalization, useSettings } from '../../../../context';
 import { useLearningModel } from '../../../../hooks/useLearningModel';
 import { policyContextFromSettings } from '../../../../learning/policyContext';
-import { Button, LearningGoals } from '../../../../components/common';
+import { Button, ChevronDownIcon, LearningGoals } from '../../../../components/common';
 import { activeLearningGoals, learningGoalsForSettings } from '../../../../../shared/learningGoals';
 import { homeLifetimeReviewTotals } from '../homeLearningSummary';
 
@@ -28,9 +28,9 @@ export const WelcomeLearningSummary: Component<{ onPlan: () => void }> = props =
     <Show when={!flashcards.libraryLoadError()} fallback={<div role="alert"><p>{flashcards.libraryLoadError()}</p><Button onClick={flashcards.retryLibraryLoad}>{t('mlearn.Knowledge.Retry')}</Button></div>}>
       <Show when={!flashcards.isLoading()} fallback={<p role="status">{t('mlearn.Global.Loading')}</p>}>
         <details class="welcome-record-details">
-          <summary>{t('mlearn.Home.Summary.RecordDetails')}</summary>
-          <dl class="welcome-lifetime-totals"><div><dt>{t('mlearn.Home.Summary.AllTimeReviews')}</dt><dd>{totals().reviews.toLocaleString(settings.uiLanguage)}</dd></div>
-            <div><dt>{t('mlearn.Home.Summary.NewCardResponses')}</dt><dd>{totals().newCardResponses.toLocaleString(settings.uiLanguage)}</dd></div></dl>
+          <summary><span aria-hidden="true"><ChevronDownIcon size={14} /></span>{t('mlearn.Home.Summary.RecordDetails')}</summary>
+          <Show when={hasActiveGoal()}><dl class="welcome-lifetime-totals"><div><dt>{t('mlearn.Home.Summary.AllTimeReviews')}</dt><dd>{totals().reviews.toLocaleString(settings.uiLanguage)}</dd></div>
+            <div><dt>{t('mlearn.Home.Summary.NewCardResponses')}</dt><dd>{totals().newCardResponses.toLocaleString(settings.uiLanguage)}</dd></div></dl></Show>
           <p class="welcome-summary-definition">{t('mlearn.Home.Summary.RecordDefinition')}</p>
         </details>
       </Show>

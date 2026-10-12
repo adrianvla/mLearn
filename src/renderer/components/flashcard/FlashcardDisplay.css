@@ -30,6 +30,7 @@
 
 /* Face base styles */
 .flashcard-face {
+  box-sizing: border-box;
   width: 100%;
   min-height: 300px;
   display: flex;

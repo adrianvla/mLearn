@@ -4,7 +4,7 @@ import { FlashcardAudioPresetSelect } from '../../../components/flashcard/Flashc
  * SRS Settings Tab
  */
 
-import { Component, createSignal, Show, createMemo, createEffect, on } from 'solid-js';
+import { Component, createSignal, Show, createEffect, on } from 'solid-js';
 import { useSettings, useLocalization, useFlashcards, useLanguage } from '../../../context';
 import { Button, SettingRow, SettingGroup, ToggleSwitch, TabContent, Select, Input, Textarea, VoiceSamplePicker, SafeHtml, useConfirmDialog } from '../../../components/common';
 import { showToast } from '../../../components/common/Feedback/Toast';
@@ -19,7 +19,7 @@ import '../SettingsForm.css';
 import './AnkiFieldPreview.css';
 import Icon from "@renderer/components/common/Icons/Icon";
 import { DEFAULT_SETTINGS, type TTSProvider } from "@shared/types";
-import { shouldShowAnkiSettings, shouldShowFrequencySettings } from './managedSettingVisibility';
+import { shouldShowAnkiSettings } from './managedSettingVisibility';
 
 export const SRSTab: Component = () => {
   const { settings, updateSettings, isSettingManaged } = useSettings();
@@ -27,7 +27,7 @@ export const SRSTab: Component = () => {
   const { store, updateMeta, resetSRS, nukeAllFlashcards } = useFlashcards();
   const { recomputeWordKnowledgeFromEvidence } = useFlashcards();
 
-  const { getLanguageFeatures, currentLangData } = useLanguage();
+  const { currentLangData } = useLanguage();
   const usesFastFlashcardAudio = () => (settings.flashcardCreationAudioPreset ?? DEFAULT_SETTINGS.flashcardCreationAudioPreset) === 'fast'
     || (settings.flashcardRegenerationAudioPreset ?? DEFAULT_SETTINGS.flashcardRegenerationAudioPreset) === 'fast';
   const anki = useAnki();
@@ -119,7 +119,6 @@ export const SRSTab: Component = () => {
   const handleResetSRS = () => { void confirmThen('resetSrs', resetSRS); };
   const handleNukeFlashcards = () => { void confirmThen('deleteAllFlashcards', nukeAllFlashcards); };
 
-  const hasFreqLevels = createMemo(() => getLanguageFeatures().supportsFrequencyLevels);
 
   const checkAnkiConnection = async () => {
     const connected = await anki.checkConnection();
@@ -535,17 +534,6 @@ export const SRSTab: Component = () => {
         </SettingRow>
 
         <SettingRow
-          label={t('mlearn.Settings.SRS.BuiltInFlashcards.AutomaticCreation.Label')}
-          description={t('mlearn.Settings.SRS.BuiltInFlashcards.AutomaticCreation.Description')}
-          settingKey="automaticFlashcardCreation"
-        >
-          <ToggleSwitch
-            checked={settings.automaticFlashcardCreation}
-            onChange={(checked) => updateSettings({ automaticFlashcardCreation: checked })}
-          />
-        </SettingRow>
-
-        <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.MaxNewCards.Label')}
           description={t('mlearn.Settings.SRS.BuiltInFlashcards.MaxNewCards.Description')}
           settingKey="maxNewCardsPerDay"
@@ -559,26 +547,6 @@ export const SRSTab: Component = () => {
             onChange={(e) => updateSettings({ maxNewCardsPerDay: parseInt(e.currentTarget.value) })}
           />
         </SettingRow>
-
-        <Show when={shouldShowFrequencySettings(hasFreqLevels(), isSettingManaged)}>
-          <SettingRow
-            label={t('mlearn.Settings.SRS.BuiltInFlashcards.LevelCardProportion.Label')}
-            description={t('mlearn.Settings.SRS.BuiltInFlashcards.LevelCardProportion.Description')}
-            settingKey="proportionOfLevelCards"
-          >
-            <input
-              type="number"
-              class="setting-input"
-              value={settings.proportionOfLevelCards}
-              min={0}
-              max={1}
-              step={0.1}
-              onChange={(e) => updateSettings({ proportionOfLevelCards: parseFloat(e.currentTarget.value) })}
-            />
-          </SettingRow>
-
-
-        </Show>
 
         <SettingRow
           label={t('mlearn.Settings.SRS.BuiltInFlashcards.CreateUnseenCards.Label')}

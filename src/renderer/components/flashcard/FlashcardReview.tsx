@@ -1484,8 +1484,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
   return (
       <div class="flashcard-review-container" data-review-phase={presentation().phase} data-encounter-id={currentEncounter()?.provenance.id} style={props.style}>
         <Show when={learning.failed()}><KnowledgeLoadError onRetry={learning.retry} /></Show>
-        {/* Header with stats */}
-        <div class="flashcard-review-header">
+        {/* Scheduler overview is independent of the utility toolbar. */}
+        <div class="flashcard-review-overview">
           <div class="flashcard-status">
             <Badge class="flashcard-stat flashcard-stat--new">
               <span class="flashcard-stat-label">{t('mlearn.Flashcards.Review.New')}</span>
@@ -1507,6 +1507,8 @@ export const FlashcardReview: Component<FlashcardReviewProps> = (props) => {
             class="flashcard-review-session-hud"
           />
 
+        </div>
+        <div class="flashcard-review-header">
           <div class="flashcard-header-actions">
         <div class="review-activity-preferences">
           <Button ref={element => { activityPreferencesAnchor = element; }} size="sm" variant="ghost" aria-haspopup="dialog" aria-expanded={showActivityPreferences()} onClick={() => setShowActivityPreferences(!showActivityPreferences())}>

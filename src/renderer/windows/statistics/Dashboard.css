@@ -410,6 +410,7 @@
 .level-table th:nth-child(6) { width: 12%; }
 .level-table th:nth-child(7) { width: 26%; }
 @media (max-width: 950px) {
+  .level-table { min-width: 0; }
   .level-table, .level-table tbody { display: block; }
   .level-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .level-table tbody { display: grid; gap: var(--spacing-3); }

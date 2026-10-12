@@ -137,6 +137,9 @@ export const MemoryBrowserContent: Component<{ launchContext?: Record<string, un
     const sections = activeTab() === ROOM_TAB
       ? [
           { title: t('mlearn.MemoryBrowser.Sections.RoomCulture'), entries: view.roomCulture },
+          { title: t('mlearn.MemoryBrowser.Sections.Beliefs'), entries: view.beliefs },
+          { title: t('mlearn.MemoryBrowser.Sections.OpenLoops'), entries: view.openLoops },
+          { title: t('mlearn.MemoryBrowser.Sections.Episodes'), entries: view.episodes },
           { title: t('mlearn.MemoryBrowser.Sections.Relationships'), entries: view.relationships },
         ]
       : [

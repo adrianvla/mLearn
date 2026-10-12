@@ -8,8 +8,8 @@
   justify-content: flex-start;
   align-items: center;
   gap: var(--spacing-2);
-  padding: calc(0.5rem + var(--window-controls-block-start-inset)) 1rem 0.5rem max(1rem, calc(1rem + var(--window-controls-inline-start-inset)));
-  min-height: calc(48px + var(--window-controls-block-start-inset));
+  padding: 0.5rem 1rem 0.5rem max(1rem, calc(1rem + var(--window-controls-inline-start-inset)));
+  min-height: 48px;
   border-bottom: 1px solid var(--border-color);
   background: var(--panel-bg);
   backdrop-filter: var(--backdrop-filter);

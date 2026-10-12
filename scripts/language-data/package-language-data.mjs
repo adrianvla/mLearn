@@ -155,17 +155,14 @@ function createTarGz(archivePath, stagingDir) {
     'manifest.json',
     ...collectArchiveEntries(path.join(stagingDir, 'files')).map((entry) => `files/${entry}`),
   ];
+  const tarVersion = execFileSync('tar', ['--version'], { encoding: 'utf8' });
+  const ownershipArgs = /GNU tar/.test(tarVersion)
+    ? ['--owner=root:0', '--group=root:0']
+    : ['--uid', '0', '--gid', '0', '--uname', 'root', '--gname', 'root'];
   execFileSync('tar', [
     '--format',
     'ustar',
-    '--uid',
-    '0',
-    '--gid',
-    '0',
-    '--uname',
-    'root',
-    '--gname',
-    'root',
+    ...ownershipArgs,
     '-cf',
     tempTarPath,
     ...archiveEntries,

@@ -707,6 +707,8 @@ describe('WordEntryRow', () => {
   });
 
   it('draws cached pitch accent on every displayed alternate reading even when the row primary reading differs', async () => {
+    const parsers = await vi.importActual<typeof import('../../../utils/translationCacheParsers')>('../../../utils/translationCacheParsers');
+    extractProsodyDataMock.mockImplementation(parsers.extractProsodyData);
     getCachedReadingMock.mockReturnValue('あく');
     getCachedTranslationMock.mockImplementation((word: string) => {
       if (word === 'ひらく') {
