@@ -152,13 +152,13 @@ describe('buildSuggestedFlashcardPreviewContent', () => {
       colour_codes: {},
       settings: { fixed: {} },
       textProcessing: { scriptProfile: { acceptedScripts: ['Arab'] } },
-      prosody: { type: 'tone-contour' },
+      prosody: { type: 'tone-contour', displayPath: ['tone'] },
     };
     const translation: TranslationResponse = {
       data: [
         { definitions: ['peace'] },
         {},
-        { tone: 'falling' },
+        { reading: 'salaam', tone: 'falling' },
       ],
     };
     const getCachedTranslation = vi.fn(() => translation);
@@ -185,7 +185,7 @@ describe('buildSuggestedFlashcardPreviewContent', () => {
       back: 'peace',
       prosody: {
         type: 'tone-contour',
-        raw: { tone: 'falling' },
+        raw: { reading: 'salaam', tone: 'falling' },
       },
     });
     expect((content as unknown as Record<string, unknown>).pitchAccent).toBeUndefined();

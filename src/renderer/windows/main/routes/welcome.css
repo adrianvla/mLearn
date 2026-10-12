@@ -1,7 +1,7 @@
 .welcome-container { height: 100%; min-height: 0; display: flex; flex-direction: column; box-sizing: border-box; overflow: hidden; background: linear-gradient(180deg, var(--transparent) 0%, var(--transparent) 30%, var(--bg-opaque) 130%); color: var(--text-primary); }
 .welcome-page { max-width: 74rem; margin: 0 auto; }
 .welcome-header, .welcome-logo { display: flex; align-items: center; gap: var(--spacing-3); }
-.welcome-header { justify-content: space-between; padding: calc(var(--spacing-4) + var(--window-controls-block-start-inset)) var(--spacing-6) var(--spacing-4); padding-inline-start: max(var(--spacing-6), calc(var(--spacing-6) + var(--window-controls-inline-start-inset))); flex: 0 0 auto; flex-wrap: wrap; -webkit-app-region: drag; }
+.welcome-header { justify-content: space-between; padding: calc(var(--spacing-4) + var(--window-controls-block-start-inset)) var(--spacing-6) var(--spacing-4); padding-inline-start: var(--spacing-6); flex: 0 0 auto; flex-wrap: wrap; -webkit-app-region: drag; }
 .welcome-logo h1 { margin: 0; font-size: var(--font-size-xl); }
 .welcome-subtitle { color: var(--text-secondary); font-size: var(--font-size-sm); }
 .welcome-language-switch { -webkit-app-region: no-drag; text-align: start; position: relative; }
@@ -25,7 +25,10 @@
 .welcome-scroll { position: relative; z-index: 0; overscroll-behavior: contain; }
 .welcome-header, .welcome-secondary-actions { position: relative; z-index: 1; background: var(--app-shell-bg); }
 .welcome-record-details { margin-block-start: var(--spacing-2); color: var(--text-secondary); font-size: var(--font-size-xs); }
-.welcome-record-details > summary { cursor: pointer; width: fit-content; }
+.welcome-record-details > summary { display: flex; align-items: center; gap: var(--spacing-1); cursor: pointer; width: fit-content; list-style: none; }
+.welcome-record-details > summary::-webkit-details-marker { display: none; }
+.welcome-record-details > summary svg { transform: rotate(-90deg); }
+.welcome-record-details[open] > summary svg { transform: none; }
 .welcome-record-details .welcome-lifetime-totals { margin-block: var(--spacing-2); }
 .welcome-language-presentation { flex: 0 0 auto; }
 body.reduce-transparency .welcome-container { background: var(--bg-opaque); }
@@ -43,4 +46,15 @@ body.reduce-transparency .welcome-container { background: var(--bg-opaque); }
 .welcome-conversation-preview { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--spacing-2); }
 .welcome-conversation-title { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .welcome-conversation-message { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; line-height: var(--line-height-normal); }
-.welcome-conversation-message { -webkit-line-clamp: 2; margin: 0; font-size: var(--font-size-sm); }
+.welcome-conversation-message {
+  -webkit-line-clamp: 3;
+  margin: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  border-start-start-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: var(--font-size-sm);
+}

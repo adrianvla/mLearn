@@ -734,11 +734,13 @@ export class KnowledgeHistoryStore {
     const affected = new Map<string, Set<number>>(); // bucket -> retracted seqs
     const placeholders = retractedIds.map(() => '?').join(',');
     for (const row of this.db
-      .prepare(`SELECT DISTINCT bucket, seq FROM attempt_index WHERE key = ? AND attempt_id IN (${placeholders})`)
-      .all(key, ...retractedIds) as Array<{ bucket: string; seq: number }>) {
-      const seqs = affected.get(row.bucket) ?? new Set<number>();
+      .prepare(`SELECT DISTINCT CAST(bucket AS BLOB) AS bucket, seq FROM attempt_index WHERE key = ? AND attempt_id IN (${placeholders})`)
+      .all(key, ...retractedIds) as Array<{ bucket: Uint8Array; seq: number }>) {
+      // Preserve the complete capability/address key, including its NUL separator.
+      const bucket = Buffer.from(row.bucket).toString('utf8');
+      const seqs = affected.get(bucket) ?? new Set<number>();
       seqs.add(row.seq);
-      affected.set(row.bucket, seqs);
+      affected.set(bucket, seqs);
     }
     if (affected.size === 0) return;
     const archive = this.readArchive(key);
@@ -795,7 +797,7 @@ export class KnowledgeHistoryStore {
     const exactEventId = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json_extract(json, '$.eventId') = ?");
     const exactAnkiId = this.db.prepare("SELECT json FROM rows WHERE key = ? AND json_extract(json, '$.ankiReviewId') = ?");
     const retracted = this.db.prepare("SELECT 1 FROM rows WHERE key = ? AND json_extract(json, '$.retracts') = ? LIMIT 1");
-    const archivedAttempt = this.db.prepare('SELECT rec, bucket, attempt_id FROM attempt_index WHERE key = ? AND attempt_id = ?');
+    const archivedAttempt = this.db.prepare('SELECT rec, CAST(bucket AS BLOB) AS bucket, attempt_id FROM attempt_index WHERE key = ? AND attempt_id = ?');
     for (const [key, events] of Object.entries(eventsByKey)) {
       if (!events.length) continue;
       const lang = this.languageOfKey(key);
@@ -816,9 +818,9 @@ export class KnowledgeHistoryStore {
             ...(event.ankiReviewId === undefined ? [] : exactAnkiId.all(key, event.ankiReviewId) as Array<{ json: string }>).map(row => JSON.parse(row.json) as KnowledgeEvent),
             ...(event.attemptId === undefined ? [] : [
             ...(exactAttempt.all(key, event.attemptId) as Array<{ json: string }>).map(row => JSON.parse(row.json) as KnowledgeEvent),
-            ...(archivedAttempt.all(key, String(event.attemptId)) as Array<{ rec: Uint8Array; bucket: string; attempt_id: string }>).flatMap(row => {
+            ...(archivedAttempt.all(key, String(event.attemptId)) as Array<{ rec: Uint8Array; bucket: Uint8Array; attempt_id: string }>).flatMap(row => {
               const record = decodeAttemptRecord(row.rec);
-              return record ? [{ ...bucketRepresentative(row.bucket), ...record.event, attemptId: row.attempt_id }] : [];
+              return record ? [{ ...bucketRepresentative(Buffer.from(row.bucket).toString('utf8')), ...record.event, attemptId: row.attempt_id }] : [];
             }),
           ]),
           ];

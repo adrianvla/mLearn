@@ -714,7 +714,22 @@ describe('WordSyncContent', () => {
     return dispose;
   };
 
-beforeEach(() => {
+  // Happy DOM's Storage proxy binds methods to each instance and hides their
+  // descriptors. Restoring a spy through assignment/deletion cannot remove its
+  // wrapper. Preserve real bound methods and reinstall them via defineProperty;
+  // quota injections must both take effect and remain confined to one test.
+  const originalStorageMethods = {
+    setItem: localStorage.setItem.bind(localStorage),
+    removeItem: localStorage.removeItem.bind(localStorage),
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    for (const method of ['setItem', 'removeItem'] as const) {
+      Object.defineProperty(localStorage, method, {
+        configurable: true, writable: true, value: originalStorageMethods[method],
+      });
+    }
     const lockChains = new Map<string, Promise<void>>();
     Object.defineProperty(navigator, 'locks', {
       configurable: true,
@@ -813,6 +828,7 @@ beforeEach(() => {
 
   afterEach(() => {
     while (disposals.length) disposals.pop()!();
+    vi.restoreAllMocks();
     container.remove();
     document.body.querySelectorAll('.popover-panel').forEach((el) => el.remove());
   });

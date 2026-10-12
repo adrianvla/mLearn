@@ -117,7 +117,7 @@ describe('SubtitleWord pitch accent reading annotation layout', () => {
       data: [
         { definitions: ['when'], reading: 'いつ' },
         undefined,
-        { pitches: [{ position: 1 }] },
+        { reading: 'いつ', pitches: [{ position: 1 }] },
       ],
     });
     mockSettings.language = 'ja';

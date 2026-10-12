@@ -60,7 +60,19 @@
   white-space: nowrap;
 }
 
-/* Floating review controls stay grouped while each group can wrap on narrow windows. */
+/* Counts describe the scheduler, not actions on the displayed card. */
+.flashcard-review-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2) var(--spacing-4);
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Review controls stay grouped while each group can wrap on narrow windows. */
 .flashcard-review-header {
   display: flex;
   flex-flow: row wrap;
@@ -344,20 +356,21 @@
   min-width: 12rem;
 }
 .flashcard-study-encounter {
-  width: min(100%, 48rem);
-  margin-block: auto;
+  width: min(100%, 37.5rem);
+  margin-block: var(--spacing-4) 0;
+  flex: 0 0 auto;
 }
 .flashcard-study-encounter .flashcard-container {
-  max-width: 48rem;
+  max-width: 500px;
 }
-.flashcard-study-encounter .flashcard-face {
-  min-height: clamp(15rem, 42vh, 28rem);
+.flashcard-study-encounter .flashcard-face:not(.flashcard-face--hidden) {
+  min-height: 300px;
   padding: clamp(var(--spacing-3), 2.5vw, var(--spacing-7));
 }
 
 @media (max-height: 650px) {
   .flashcard-review-container { gap: var(--spacing-2); }
-  .flashcard-study-encounter .flashcard-face { min-height: 0; }
+  .flashcard-study-encounter .flashcard-face:not(.flashcard-face--hidden) { min-height: 0; }
 }
 
 .review-activity-preferences {

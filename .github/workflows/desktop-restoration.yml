@@ -1,9 +1,10 @@
 name: Desktop restoration checks
 on:
   push:
-    branches: [fix/restore-mlearn-desktop-ux]
+    branches: [refactor/minimize-tech-debt, fix/v29-ui-regressions, fix/restore-mlearn-desktop-ux]
   pull_request:
     branches: [refactor/minimize-tech-debt]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -11,8 +12,12 @@ concurrency:
   cancel-in-progress: true
 jobs:
   check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       NODE_LLAMA_CPP_SKIP_DOWNLOAD: 'true'
@@ -24,26 +29,73 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - name: Match the offline verification runtime
+      - name: Record the exact source and runtime
         run: |
-          mkdir -p /tmp/mlearn-runtime
-          cp "$(command -v node)" /tmp/mlearn-runtime/node
-          node --version > /tmp/mlearn-runtime/version.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mlearn-verification-node
-          path: /tmp/mlearn-runtime/
-          retention-days: 1
+          export EVIDENCE_DIR="$RUNNER_TEMP/mlearn-verification"
+          echo "EVIDENCE_DIR=$EVIDENCE_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$EVIDENCE_DIR"
+          git rev-parse HEAD > "$EVIDENCE_DIR/commit.txt"
+          git rev-parse HEAD^{tree} > "$EVIDENCE_DIR/tree.txt"
+          node --version > "$EVIDENCE_DIR/node.txt"
+          tar --version > "$EVIDENCE_DIR/tar.txt"
       - id: install
         run: npm ci --ignore-scripts
-      - name: Focused restoration and shared interaction regressions
-        run: npx vitest run --maxWorkers=2 applicationNavigation windowFirstPaint ReviewWorkspace StudyEncounter FlashcardReview ReaderNav ReaderStatusBar toolbarOverflow
+      - name: Full three-project Vitest suite
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          npm test -- --maxWorkers=2 --reporter=json --outputFile="$EVIDENCE_DIR/vitest.json" > "$EVIDENCE_DIR/vitest.log" 2>&1 || { tail -100 "$EVIDENCE_DIR/vitest.log"; exit 1; }
       - name: Both TypeScript configurations
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run typecheck
+        run: |
+          npm run typecheck > "$EVIDENCE_DIR/typecheck.log" 2>&1 || { cat "$EVIDENCE_DIR/typecheck.log"; exit 1; }
+      - name: Language packaging and acceptance tooling
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: |
+          node --test scripts/language-data/*.test.mjs scripts/acceptance/*.test.mjs scripts/clean-electron-output.test.mjs > "$EVIDENCE_DIR/tooling.log" 2>&1 || { tail -120 "$EVIDENCE_DIR/tooling.log"; exit 1; }
+          tail -12 "$EVIDENCE_DIR/tooling.log"
       - name: Desktop production build
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run build
+        run: |
+          npm run build > "$EVIDENCE_DIR/desktop-build.log" 2>&1 || { tail -100 "$EVIDENCE_DIR/desktop-build.log"; exit 1; }
+          tail -12 "$EVIDENCE_DIR/desktop-build.log"
       - name: Mobile compatibility build
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run build:mobile
+        run: |
+          npm run build:mobile > "$EVIDENCE_DIR/mobile-build.log" 2>&1 || { tail -100 "$EVIDENCE_DIR/mobile-build.log"; exit 1; }
+          tail -8 "$EVIDENCE_DIR/mobile-build.log"
+      - name: Production CSS browser geometry regressions
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && runner.os == 'Linux' }}
+        env:
+          PLAYWRIGHT_PACKAGE_DIR: ${{ runner.temp }}/mlearn-browser/node_modules/playwright
+          UI_EVIDENCE_DIR: ${{ runner.temp }}/mlearn-verification/layout
+        run: |
+          npm install --prefix "$RUNNER_TEMP/mlearn-browser" --no-package-lock --ignore-scripts playwright@1.56.1
+          node scripts/verify-desktop-layout.mjs
+      - name: Tests and builds must leave tracked source untouched
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: git diff --exit-code
+      - name: Publish precise test outcomes
+        if: always()
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const reportPath = path.join(process.env.EVIDENCE_DIR, 'vitest.json');
+          if (fs.existsSync(reportPath)) {
+            const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+            const counts = Object.fromEntries(['success', 'numTotalTests', 'numPassedTests', 'numFailedTests', 'numPendingTests'].map(key => [key, report[key]]));
+            console.log(JSON.stringify(counts));
+            const omitted = report.testResults.flatMap(file => (file.assertionResults ?? []).filter(test => !['passed', 'failed'].includes(test.status)).map(test => ({ file: file.name, name: test.fullName, status: test.status })));
+            fs.writeFileSync(path.join(process.env.EVIDENCE_DIR, 'skipped-tests.json'), JSON.stringify(omitted, null, 2));
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### ${process.env.RUNNER_OS}: ${process.env.GITHUB_SHA}\n\n\`\`\`json\n${JSON.stringify(counts, null, 2)}\n\`\`\`\n\nSkipped tests are recorded separately in the evidence artifact; they are not passes.\n`);
+          } else {
+            console.error('Vitest did not produce a report.');
+            process.exitCode = 1;
+          }
+          JS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-verification-${{ runner.os }}
+          path: ${{ runner.temp }}/mlearn-verification/
+          retention-days: 14

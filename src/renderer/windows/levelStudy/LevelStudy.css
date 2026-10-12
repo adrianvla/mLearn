@@ -35,6 +35,7 @@
 
 .level-study-content {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 }
@@ -210,7 +211,7 @@
 .level-card-card div:has(> .level-card-card-legend){ max-width:100%; width:100%; }
 .level-card-card-legend {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
   gap: var(--spacing-2) var(--spacing-1);
   max-width:100%;
   width:100%;
@@ -238,7 +239,7 @@
   flex: 1 1 auto;
   min-width: 0;
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .level-card-legend-label:hover{
   text-overflow: clip;
