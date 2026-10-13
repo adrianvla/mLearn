@@ -29,7 +29,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
-      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus-x11
       - run: npm ci
       - run: npm run build:plugin
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          xvfb-run -a node tests/desktop/native-smoke.mjs 2>&1 | tee test-results/desktop/run.log
+          dbus-run-session -- xvfb-run -a node tests/desktop/native-smoke.mjs 2>&1 | tee test-results/desktop/run.log
       - name: Ensure native acceptance did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
