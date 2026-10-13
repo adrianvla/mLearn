@@ -61,6 +61,27 @@ async function styleState() {
     };
   `);
 }
+// Checking body.innerText alone misses results positioned below the action.
+// The feedback must be locally visible as part of the originating panel.
+async function assertPluginFeedbackNearAction(expected) {
+  const geometry = await script(`
+    const heading = Array.from(document.querySelectorAll('h1,h2,h3,[role="heading"],[role="header"]'))
+      .find(node => node.textContent === 'Hello, plugin');
+    const panel = heading?.parentElement;
+    const message = document.querySelector('[data-testid="runtime-message"]');
+    const button = document.querySelector('[aria-label="Run hello"]');
+    const msgBox = message?.getBoundingClientRect();
+    const buttonBox = button?.getBoundingClientRect();
+    return {
+      message: message?.textContent ?? null,
+      inPluginPanel: Boolean(panel && message && panel.contains(message)),
+      gapPx: msgBox && buttonBox ? Math.abs(msgBox.top - buttonBox.top) : null,
+    };
+  `);
+  assert.equal(geometry.message, expected);
+  assert.ok(geometry.inPluginPanel, 'Result must be rendered within the Hello, plugin panel');
+  assert.ok(geometry.gapPx !== null && geometry.gapPx < 100, 'Result must be adjacent to the Run hello action');
+}
 async function assertStyled(theme, color) {
   const state = await styleState();
   await writeFile(`test-results/desktop/styles-${theme}.json`, JSON.stringify(state, null, 2));
@@ -76,8 +97,10 @@ try {
   await screenshot('initial-quartz');
   await click('Install SDK example');
   await text('Verified plugin installed from the catalog.');
+  await assertPluginFeedbackNearAction('Verified plugin installed from the catalog.');
   await click('Run hello');
   await text('Hello, world!');
+  await assertPluginFeedbackNearAction('Hello, world!');
   await click('Slate');
   await text('Theme saved by Rust');
   await assertStyled('slate', 'rgb(237, 240, 245)');
