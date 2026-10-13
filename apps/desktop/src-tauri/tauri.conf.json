@@ -12,6 +12,7 @@
   "app": {
     "windows": [{ "title": "mLearn v3", "width": 1080, "height": 800, "minWidth": 420, "minHeight": 560 }],
     "security": {
+      "dangerousDisableAssetCspModification": ["style-src"],
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'",
       "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://localhost:8081 ws://localhost:8081; object-src 'none'"
     }
