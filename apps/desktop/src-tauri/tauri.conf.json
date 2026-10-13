@@ -1,6 +1,6 @@
 {
   "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "mLearn v3 Dev",
+  "productName": "mLearn",
   "version": "3.0.0-dev.0",
   "identifier": "net.kikan.mlearn.v3dev",
   "build": {
@@ -10,7 +10,7 @@
     "beforeBuildCommand": "npm run export:web -w @mlearn/client"
   },
   "app": {
-    "windows": [{ "title": "mLearn v3", "width": 1080, "height": 800, "minWidth": 420, "minHeight": 560 }],
+    "windows": [{ "title": "mLearn", "width": 1080, "height": 800, "minWidth": 420, "minHeight": 560 }],
     "security": {
       "dangerousDisableAssetCspModification": ["style-src"],
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'",

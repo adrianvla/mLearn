@@ -14,7 +14,14 @@
       "package": "net.kikan.mlearn.v3dev"
     },
     "web": { "output": "single", "favicon": "./assets/images/favicon.png", "bundler": "metro" },
-    "plugins": ["expo-router", ["expo-splash-screen", { "backgroundColor": "#F1F2F4", "image": "./assets/images/splash-icon.png", "imageWidth": 76 }]],
+    "plugins": ["expo-router", ["expo-splash-screen", { "backgroundColor": "#F1F2F4", "image": "./assets/images/splash-icon.png", "imageWidth": 76 }], [
+      "expo-build-properties",
+      {
+        "ios": {
+          "enableSceneSupport": true
+        }
+      }
+    ]],
     "experiments": { "typedRoutes": true, "reactCompiler": true }
   }
 }
