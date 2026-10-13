@@ -4,7 +4,15 @@ Status: target contract for v3, established from maintainer decisions on 2026-10
 
 Implementation baseline inspected: `d726ea9f81bfc4a77e762487dec345eb56177eb4`. It provides a shared UI, native settings and a sample plugin; it does not provide the learning product described below. Historical reference: `archive/v2-final` at `1788f9c74dc73dd884b687ec80d9550c3ebf6c6b`, plus selected earlier revisions. See [reference selection and screenshot requests](REFERENCE.md).
 
-This document governs product semantics and exclusions. [AGENTS.md](../../AGENTS.md) governs engineering execution. Older specifications and implementation reports are historical where they conflict. Requirement identifiers below are stable anchors for implementation and verification; they are not prescribed modules or a task ordering.
+This document and the [required feature catalogue](FEATURES.md) jointly define the product. The catalogue makes small modes, actions and integration behavior explicit rather than leaving them implicit under surface names. This document governs product semantics and exclusions. [AGENTS.md](../../AGENTS.md) governs engineering execution. Older specifications and implementation reports are historical where they conflict. Requirement identifiers below are stable anchors for implementation and verification; they are not prescribed modules or a task ordering.
+
+## Product vocabulary and coverage
+
+**Knowledge** is the unified native learner-state service and its bounded view projections; it is not the flashcard collection. **Material** is authored/saved content. **Inspector** is contextual linguistic inspection, with desktop popup and mobile drawer/sheet presentations. **Runtime Inspector** is developer access to actual execution and agent decisions. Legacy `FlashcardContext` and `WordHover` names locate reference behavior but do not define the new owners.
+
+The feature catalogue is a coverage contract, not a request for one implementation or test per row. Each wanted behavior has a delivery unit and observable acceptance condition. Newly discovered meaningful legacy behavior is mapped before its area closes; retirement or replacement requires a decision. A broadly working player, reader or conversation cannot silently omit its smaller controls and workflows. A required row with unresolved details remains open, not downgraded to optional.
+
+[The implementation plan](../implementation/PLAN.md) delivers one connected unit at a time. Candidate verification precedes maintainer review; explicit acceptance precedes the next unit. Internal engineering decisions do not require a separate review per function. Mobile functional/platform status and final mobile visual design status are recorded separately. A usable initial mobile arrangement may be revised later without forking the feature implementation.
 
 ## P01. Product purpose and success criteria
 
@@ -77,7 +85,7 @@ Unmeasured/Untracked is different from measured weak/Unknown. Missing observatio
 
 Maintain capability-specific state. Written recognition, reading, meaning, listening, orthographic recall, pronunciation/prosody and production illustrate distinct accesses; this is not a closed universal enum. A learner may know one direction but not its reverse. Packages determine which accesses and relations are meaningful.
 
-An explicit claim can control the effective status shown to the user while underlying observations and evidence-derived estimates remain separately inspectable. It does not rewrite the historical evidence. All ordinary surfaces consume the same native projection; WordHover, Reader, Review, Browse and Progress cannot invent conflicting thresholds or status rules.
+An explicit claim can control the effective status shown to the user while underlying observations and evidence-derived estimates remain separately inspectable. It does not rewrite the historical evidence. All ordinary surfaces consume the same native projection; Inspector, Reader, Review, Browse and Progress cannot invent conflicting thresholds or status rules.
 
 The model must not require a manually authored flashcard for every known or encountered item. Authored material, target identities, observations, current model state and scheduling are related but separate entities. Predictions can change what mLearn offers next without being written back as successful observations.
 
@@ -137,9 +145,11 @@ Support the existing material families: text/EPUB, PDF, images/manga and image f
 
 OCR is an on-device requirement on mobile as well as desktop. Text already available from a document must not be needlessly rasterized and recognized again. OCR-derived text retains source-region alignment so selection, lookup and correction refer to the actual material. Native capture/helper APIs can differ by platform without duplicating the reader or learner model.
 
+Annotated text is a shared semantic pipeline for subtitles, documents, OCR output and conversation messages. Native work analyzes a relevant bounded range, resolves stable source spans/targets and reads Knowledge for distinct targets in batches. The UI presents those results rather than assembling a separate knowledge query per word. Cache keys include the relevant source/content and package/analysis context; obsolete results cannot apply to a new source. Knowledge revisions update affected view data without automatically retokenizing the source. Source raw text can render while analysis is pending; it must not fabricate knowledge or hide processing errors.
+
 Keep source content dominant. Selection/hover/tap opens fast contextual inspection; returning preserves location and playback. Recognition, annotation and dictionary preparation occur as bounded native work, not a full parse or model initialization triggered by every hover. Missing optional assets degrade locally with an actionable state, not an app-wide permanent skeleton.
 
-WordHover and deeper Inspector are central learning surfaces. Keep the source form, nearby meaning, reading/pronunciation where applicable, senses, available linguistic structure, knowledge/capability state and relevant actions coherently grouped. Ordering and punctuation must be appropriate to package data and locale, not Japanese-specific separators imposed globally. Use narrow/scrolling content sensibly; keep actions and essential information reachable.
+Contextual Inspector and its deeper detail views are central learning surfaces. Keep the source form, nearby meaning, reading/pronunciation where applicable, senses, available linguistic structure, knowledge/capability state and relevant actions coherently grouped. Ordering and punctuation must be appropriate to package data and locale, not Japanese-specific separators imposed globally. Use narrow/scrolling content sensibly; keep actions and essential information reachable.
 
 Moving between descendants of one inspected item must not repeatedly remount its popup or reset its content. Nested menus, knowledge details and Inspect have deliberate focus/layer ownership. On mobile the same semantic inspector may use a drawer/sheet. Do not force desktop geometry onto a phone or reimplement the feature separately.
 
@@ -163,7 +173,7 @@ Conversation is a primary way to use the language, not an optional generic chatb
 
 The interface behaves as a messenger: contacts/participants, a clear current conversation, usable history and search, a composer, reply/context actions, text/voice states and appropriate unread/continuation behavior. Creating a contact or starting an agent conversation is directly accessible. Do not replace this with a dashboard, a grid of prompt suggestions or graph-management controls.
 
-Tokenize/annotate messages through the normal bounded render-data pipeline before inspection needs them; hover should open an already understood message region, not be the sole trigger for recognizing language. Preserve scroll position when history prepends, stream responses without losing the composer, and avoid forced autoscroll while the user reads older messages. WordHover supports the conversation rather than taking it over.
+Tokenize/annotate messages through the normal bounded render-data pipeline before inspection needs them; hover should open an already understood message region, not be the sole trigger for recognizing language. Preserve scroll position when history prepends, stream responses without losing the composer, and avoid forced autoscroll while the user reads older messages. Inspector supports the conversation rather than taking it over.
 
 Sea is durable world continuity. A Room is a persistent conversational context; a Thread is temporary practice with disposable world continuity unless explicitly integrated. Persistent social/roleplay context is optional: ordinary practice must not force the learner to maintain a fictional world. Preserve the distinction between a room, its members, the events recorded there and an individual's memory.
 
@@ -243,7 +253,7 @@ Import reads an isolated v2 source, preserves the source and reports unsupported
 
 ## P15. Performance and lifecycle
 
-The core application, SQLite and plugin host compile natively on mobile. Wasmi interprets guest plugins; it is not an excuse to move learner logic or dictionaries into the renderer. Neural models use the native inference boundary and compatible on-device assets, with no shipped Python runtime. A model download is usable only if its operators, preprocessing, decoding and resource requirements are supported.
+The core application, SQLite and plugin host compile natively on mobile. Wasmi interprets guest plugins; it is not an excuse to move learner logic or dictionaries into the renderer. Neural models use the native ONNX inference boundary and compatible on-device assets, with no shipped Python runtime. Non-neural learning, graph and text algorithms are not forced into ONNX; optional native platform providers preserve the same capability/privacy contracts. A model download is usable only if its operators, preprocessing, decoding and resource requirements are supported.
 
 Readers, ratings, conversations and large libraries must stay responsive over sustained use. React receives bounded projections and owns transient interaction state, not complete histories or repeated copies of graph/model data. Background model fitting, asset decoding, OCR and inference cannot block UI/event loops or ordinary due-item advance.
 

@@ -1,6 +1,6 @@
 # Product references and UI capture guide
 
-Use with [SPEC.md](SPEC.md). This is a selection/discovery record, not a declaration that all referenced code works or that every legacy path has been audited.
+Use with [SPEC.md](SPEC.md), [FEATURES.md](FEATURES.md) and the [review-gated plan](../implementation/PLAN.md). This is a selection/discovery record, not a declaration that all referenced code works or that every legacy path has been audited.
 
 ## Reference locations
 
@@ -11,6 +11,10 @@ Use with [SPEC.md](SPEC.md). This is a selection/discovery record, not a declara
 - Project discussion material includes `mLearn Agent Overhaul Ideas.txt` and deployment documents. Their proposals are not proof of implemented behavior; the current product specification selects the relevant direction without importing their promotional text.
 
 For a consequential feature decision, record: surface/behavior, source revision or screenshot, keep/change/retire/unresolved, intended outcome, known defect and resulting acceptance condition. Functional and visual dispositions can differ. Do not create a record for every CSS declaration.
+
+## Names in new implementation
+
+Use **Inspector** for contextual linguistic inspection, **Knowledge** for unified learner access and **Runtime Inspector** for developer execution inspection. Names such as `WordHover`, `FlashcardContext`, `OcrWord` and old window families remain useful when searching the reference checkout; they are not names or boundaries to reproduce. The new Inspector may be a popup or a mobile drawer without changing its semantic owner.
 
 ## Selected behavior and discovery map
 
@@ -65,9 +69,17 @@ Each image or short clip needs a small caption: surface, version/commit if known
 | 1. WordHover / Inspector | Preferred popup in real reading context; expanded knowledge/Inspect; one longer or ambiguous entry | Information hierarchy, nearby meaning, pills, action placement, nested interaction |
 | 2. Review / ratings | Question, revealed answer with ratings, expanded Adjust; audio cue state if available | Holistic versus granular presentation, reveal boundary, keyboard feedback, essential controls |
 | 3. Messenger | Preferred recent conversation with history and composer; contacts/start conversation; voice state; developer inspector if available | Which later conversation UI to retain and how much machinery stays out of ordinary view |
-| 4. Reader / Watch | Preferred EPUB/text or OCR page; video with subtitles and popup; compact window example | Source dominance, reading aids, selection, toolbar/sidebar hierarchy and source Return |
+| 4. Reader / Watch | Preferred EPUB/text, PDF or OCR page; image spread and page controls; video with subtitles/transcript and popup; compact window example | Source dominance, reading aids, selection, toolbar/sidebar hierarchy and source Return |
 
 A 15–30 second clip is preferable to many stills for popup flicker, reveal/rating/Undo, scrolling, audio interruption or returning to media. It is optional; stills plus a stated interaction are sufficient for the initial design reference.
+
+### Small interactions that need a deliberate reference
+
+Include the reader's recognized-text mirror state and a short open/use/close sequence; its exact intended interaction is required but was not established by the currently inspected files. Ordinary OCR hit areas and the image-only magnifier are separate features, not substitutes. Also capture annotation hide/reveal, crop re-recognition, source ruby, first-page pairing/collation and a relevant unknown-word sidebar where these are important to the preferred workflow.
+
+For Watch, include subtitle timing adjustment, embedded/alternate tracks, clipping/capture and any rate/repeat behavior to preserve. For learning, include the actual single/double-key grading behavior and a correction/resume sequence. For Messenger, include People/contact creation independently of a chat, task-focused versus persistent entry, actual message/context actions and the execution inspector.
+
+No phone mockups are required before implementation. Initial native functionality must work; final mobile composition is reviewed in the separate design pass. Label screenshots as preferred/reference/problem examples rather than implying every captured button or old mode must be reproduced.
 
 ### Second batch, when those areas are implemented
 
@@ -87,5 +99,5 @@ Existing local reference leads named in the archived activity report include `~/
 - The initial foundation and hello-plugin demonstration are not acceptance of any learner, conversation or media workflow in this specification.
 - Desktop Mac feedback in this conversation established the greeting, theme change/persistence and theme editor on the maintainer's machine. It did not establish mobile behavior or real-language performance.
 - Historical native reports and test counts are leads, not transferable certification. Preserve specific useful regression cases without importing their entire test implementation or obsolete UI assumptions.
-- Adding these documents does not fix the current iOS FFI packaging issue, complete Android/native acceptance, implement the proposed retention policy or retire settings in the old app.
+- Documentation does not fix native packaging or interaction failures. H00 in the implementation plan records the current source/evidence and repair gate; subsequent candidate evidence supersedes that baseline only for the verified scope.
 - Missing visual references do not block native domain work. Missing approved behavior or privacy/data semantics must remain explicit. Cosmetic fine-tuning belongs to the maintainer, not an unbounded acceptance loop.
