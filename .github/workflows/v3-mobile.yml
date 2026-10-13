@@ -15,6 +15,11 @@ jobs:
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
+      - name: Record exact mobile source
+        run: |
+          mkdir -p verification
+          git rev-parse HEAD HEAD^{tree} | tee verification/source.txt
+          git archive --format=tar HEAD -o verification/source.tar
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm }
       - uses: dtolnay/rust-toolchain@stable
@@ -32,6 +37,9 @@ jobs:
           workspace=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
           scheme=$(basename "$workspace" .xcworkspace)
           xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { tail -150 build.log; exit 1; }
+      - name: Ensure build did not modify tracked source
+        if: always()
+        run: git diff --exit-code HEAD
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -41,11 +49,17 @@ jobs:
             apps/client/modules/mlearn-native/ios/generated/*.h
             apps/client/ios/Podfile.lock
             apps/client/ios/build.log
+            verification
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
+      - name: Record exact mobile source
+        run: |
+          mkdir -p verification
+          git rev-parse HEAD HEAD^{tree} | tee verification/source.txt
+          git archive --format=tar HEAD -o verification/source.tar
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm }
       - uses: actions/setup-java@v4
@@ -68,6 +82,9 @@ jobs:
           npx expo prebuild --platform android --no-install
           cd android
           ./gradlew assembleDebug --no-daemon --console=plain > build.log 2>&1 || { tail -150 build.log; exit 1; }
+      - name: Ensure build did not modify tracked source
+        if: always()
+        run: git diff --exit-code HEAD
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -75,3 +92,4 @@ jobs:
           path: |
             apps/client/modules/mlearn-native/android/generated
             apps/client/android/build.log
+            verification
