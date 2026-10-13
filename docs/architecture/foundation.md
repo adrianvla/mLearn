@@ -29,6 +29,20 @@ Unistyles is initialized before Expo Router. An arbitrary theme document maps in
 
 Automated browser tests exercise missing-native state, theme updates, labels, dialog dismissal/focus restoration and WCAG checks. Native builds and physical screen-reader/keyboard behavior are distinct acceptance claims.
 
+### Packaged desktop styling and CSP
+
+React Native Web and Unistyles generate styles at runtime. Tauri's automatic style nonces/hashes caused the packaged WebKit view to reject those styles even though the same export looked correct in a browser. `dangerousDisableAssetCspModification` is therefore restricted to **`["style-src"]`**, whose policy explicitly permits inline styling. Script nonce/hash protection remains enabled, production scripts remain restricted to self, and object/network restrictions are retained. Do not change this to `true`, add production script `unsafe-inline`/`unsafe-eval`, or remove CSP to solve a styling problem.
+
+The native desktop acceptance test checks computed typography, theme colors and hit-target size in addition to real IPC, signed plugin download, Wasmi invocation and restart persistence. A saved theme name alone is not proof that the theme is rendered.
+
+### Mobile bindings and native build evidence
+
+UniFFI-generated Swift/Kotlin remains build output. CocoaPods receives an explicit **target-local** generated FFI module-map path; merely linking the Rust static XCFramework does not make its separately named Clang module visible to Swift. `prepare:ios` typechecks the generated Swift against that unchanged module map before building Pods, then packages device arm64 and a combined arm64/x86_64 simulator slice. Do not patch generated bindings or change all pods' compiler settings to hide a missing import.
+
+Android preparation builds arm64-v8a and x86_64 Rust libraries, with 16 KiB page alignment. This is not certification of every third-party library on a 16 KiB device. Release/device ABI support and physical-device behavior need explicit acceptance.
+
+CI artifacts record the checked-out commit and source tree together with build logs and screenshots. Verify that evidence belongs to the code under review. Native compilation is not runtime UI acceptance on phones. Dependency audits are captured without automatic fixes; unresolved advisories require triage before distributing a production release.
+
 ## Deferred deliberately
 
 The learner graph, models/HMM, rating history, summaries/checkpoints, sync, ONNX inference, real languages, package asset streaming, multi-plugin performance certification, storage import, and full product UI are not implemented. Add them as real vertical slices, not placeholder APIs that claim success.
