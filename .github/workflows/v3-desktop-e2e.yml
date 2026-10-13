@@ -2,7 +2,7 @@ name: v3 real desktop integration
 on:
   push:
     branches: [work/v3-foundation, rewrite/v3]
-    paths: ['.github/workflows/v3-desktop-e2e.yml', 'apps/desktop/**', 'tests/desktop/**', 'crates/runtime/**', 'crates/language-host/**', 'packages/ui/**']
+    paths: ['.github/workflows/v3-desktop-e2e.yml', 'apps/client/**', 'apps/desktop/**', 'tests/desktop/**', 'crates/**', 'packages/**', 'tools/**', 'language-plugins/**', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json']
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,6 +19,11 @@ jobs:
       XDG_CONFIG_HOME: ${{ github.workspace }}/.mlearn/e2e-config
     steps:
       - uses: actions/checkout@v4
+      - name: Record exact source under native acceptance
+        run: |
+          mkdir -p verification test-results/desktop
+          git rev-parse HEAD HEAD^{tree} | tee verification/source.txt
+          git archive --format=tar HEAD -o verification/source.tar
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm }
       - uses: dtolnay/rust-toolchain@stable
@@ -29,9 +34,18 @@ jobs:
       - run: npm run build:plugin
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
       - run: cargo install tauri-driver --locked
-      - run: xvfb-run -a node tests/desktop/native-smoke.mjs
+      - name: Exercise real IPC, plugin download and restart
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a node tests/desktop/native-smoke.mjs 2>&1 | tee test-results/desktop/run.log
+      - name: Ensure native acceptance did not modify tracked source
+        if: always()
+        run: git diff --exit-code HEAD
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: native-desktop-evidence
-          path: test-results/desktop
+          path: |
+            test-results/desktop
+            verification
