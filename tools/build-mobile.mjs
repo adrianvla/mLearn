@@ -47,7 +47,9 @@ if (platform === 'ios') {
     run('cargo', ['build', '--locked', '-p', 'mlearn-ffi', '--release', '--target', target]);
   }
   // Simulator architectures share a platform slice, unlike device arm64.
-  const simulatorLibrary = path.join(generated, 'libmlearn_ffi-simulator.a');
+  // CocoaPods requires the same binary basename in every XCFramework slice.
+  const simulatorLibrary = path.join(generated, 'simulator', 'libmlearn_ffi.a');
+  await mkdir(path.dirname(simulatorLibrary), { recursive: true });
   run('xcrun', ['lipo', '-create', ...simulators.map(target => path.join(root, 'target', target, 'release/libmlearn_ffi.a')), '-output', simulatorLibrary]);
   const framework = path.join(generated, 'MlearnRust.xcframework');
   await rm(framework, { recursive: true, force: true });
