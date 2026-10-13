@@ -9,13 +9,15 @@ import { applyTheme } from '@mlearn/theme/runtime';
 import { builtInThemes, initialTheme, parseThemePreview } from '@mlearn/theme';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 
+type FeedbackTarget = 'runtime' | 'plugin' | 'theme';
+type Feedback = { target: FeedbackTarget; message: string; error: boolean };
+
 /** Temporary integration surface: no learner data, fake reviews or parallel JS backend. */
 export function WelcomeScreen() {
   const host = useRuntime();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [name, setName] = useState('world');
   const [editing, setEditing] = useState(false);
   const [themeJson, setThemeJson] = useState(JSON.stringify(initialTheme, null, 2));
@@ -28,7 +30,7 @@ export function WelcomeScreen() {
       setSnapshot(value);
       setThemeJson(JSON.stringify(value.theme, null, 2));
       applyTheme(value.theme);
-    }).catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : String(cause)); });
+    }).catch((cause: unknown) => { if (active) report('runtime', cause instanceof Error ? cause.message : String(cause), true); });
     return () => { active = false; };
   }, [host]);
 
@@ -39,18 +41,27 @@ export function WelcomeScreen() {
     setThemeJson(JSON.stringify(value.theme, null, 2));
     applyTheme(value.theme);
   }
-  async function perform(operation: () => Promise<void>) {
+  function report(target: FeedbackTarget, message: string, error = false) {
+    setFeedback({ target, message, error });
+  }
+  function feedbackAt(target: FeedbackTarget) {
+    if (!feedback || feedback.target !== target) return null;
+    return <Text testID="runtime-message" accessibilityRole={feedback.error ? 'alert' : undefined}
+      accessibilityLiveRegion={feedback.error ? 'assertive' : 'polite'}>{feedback.message}</Text>;
+  }
+  async function perform(target: FeedbackTarget, operation: () => Promise<void>) {
     if (busy) return;
-    setBusy(true); setError(''); setMessage('');
+    setBusy(true);
+    setFeedback(null);
     try { await operation(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    catch (cause) { report(target, cause instanceof Error ? cause.message : String(cause), true); }
     finally { setBusy(false); }
   }
   async function saveTheme(theme: ThemeDocument) {
     if (!host.available || !snapshot) return;
     const revision = await host.client.saveTheme(theme, snapshot.revision);
     await refresh();
-    setMessage(`Theme saved by Rust · revision ${revision}`);
+    report('theme', `Theme saved by Rust · revision ${revision}`);
     setEditing(false);
   }
   const installed = snapshot?.installedPlugins.find((plugin) => plugin.id === 'example.hello');
@@ -64,7 +75,8 @@ export function WelcomeScreen() {
       {!host.available ? <Text muted>{host.reason}</Text> : <>
         <Text>Plugin code: {snapshot?.codePolicy ?? 'Connecting…'}</Text>
         <Text variant="caption" muted>Desktop downloads executable plugins. iOS and Android ship their executable plugins in the app. Language data remains separately packaged.</Text>
-        <Button label="Reload native state" variant="secondary" disabled={busy} onPress={() => void perform(refresh)} />
+        <Button label="Reload native state" variant="secondary" disabled={busy} onPress={() => void perform('runtime', async () => { await refresh(); report('runtime', 'Native state reloaded.'); })} />
+        {feedbackAt('runtime')}
       </>}
     </Panel>
     <Panel>
@@ -72,34 +84,35 @@ export function WelcomeScreen() {
       <Text muted>A Rust SDK fixture executed by Wasmi. Its greeting comes from a separate data asset.</Text>
       <TextField label="Your name" value={name} onChangeText={setName} maxLength={128} autoCapitalize="none" editable={!busy} />
       <Row>
-        {snapshot?.codePolicy === 'desktop-downloaded' && <Button label="Install SDK example" variant="secondary" disabled={!snapshot.catalogConfigured || busy} onPress={() => void perform(async () => {
+        {snapshot?.codePolicy === 'desktop-downloaded' && <Button label="Install SDK example" variant="secondary" disabled={!snapshot.catalogConfigured || busy} onPress={() => void perform('plugin', async () => {
           if (!host.available) return;
-          await host.client.installPlugin('example.hello'); await refresh(); setMessage('Verified plugin installed from the catalog.');
+          await host.client.installPlugin('example.hello'); await refresh(); report('plugin', 'Verified plugin installed from the catalog.');
         })} />}
-        <Button label="Run hello" disabled={!installed || busy || !name.trim()} onPress={() => void perform(async () => {
+        <Button label="Run hello" disabled={!installed || busy || !name.trim()} onPress={() => void perform('plugin', async () => {
           if (!host.available) return;
           const result = await host.client.invokePlugin('example.hello', 'example::hello', { name });
-          setMessage(typeof result === 'object' && result !== null && 'message' in result && typeof result.message === 'string' ? result.message : JSON.stringify(result));
+          report('plugin', typeof result === 'object' && result !== null && 'message' in result && typeof result.message === 'string' ? result.message : JSON.stringify(result));
         })} />
+        {feedbackAt('plugin')}
       </Row>
+      {!installed && snapshot?.codePolicy === 'desktop-downloaded' && snapshot.catalogConfigured && <Text variant="caption" muted>Install the example before running it.</Text>}
       {snapshot?.codePolicy === 'desktop-downloaded' && !snapshot.catalogConfigured && <Text variant="caption" muted>No trusted catalog configured. Desktop development starts a local signed catalog; release builds need a publisher URL and public key.</Text>}
     </Panel>
     <Panel>
       <Text variant="heading" accessibilityRole="header">Theme</Text>
       <Text muted>{snapshot ? `Current: ${snapshot.theme.name}. Saved in the native SQLite profile.` : 'Preview only. Native storage is not connected.'}</Text>
       <Row>{builtInThemes.map((theme) => <Button key={theme.id} label={theme.name} variant="secondary" disabled={busy} onPress={() => {
-        if (canSave) void perform(() => saveTheme(theme));
-        else { applyTheme(theme); setMessage('Unsaved visual preview. No native data was written.'); }
+        if (canSave) void perform('theme', () => saveTheme(theme));
+        else { applyTheme(theme); report('theme', 'Unsaved visual preview. No native data was written.'); }
       }} />)}</Row>
       <Dialog open={editing} onOpenChange={setEditing} title="Custom theme" description="Edit a versioned theme document. Rust validates and commits saved changes." trigger={<Button label="Edit theme JSON" variant="secondary" />}>
         <TextField label="Theme JSON" value={themeJson} onChangeText={setThemeJson} multiline maxLength={24000} autoCapitalize="none" autoCorrect={false} />
-        <Button label="Save custom theme" disabled={!canSave} onPress={() => void perform(() => saveTheme(parseThemePreview(themeJson)))} />
+        <Button label="Save custom theme" disabled={!canSave} onPress={() => void perform('theme', () => saveTheme(parseThemePreview(themeJson)))} />
         {!canSave && <Text variant="caption" muted>Native runtime required to save.</Text>}
-        {error ? <Text accessibilityRole="alert">{error}</Text> : null}
+        {editing && feedback?.target === 'theme' && feedback.error ? feedbackAt('theme') : null}
       </Dialog>
+      {!editing && feedbackAt('theme')}
     </Panel>
-    {message ? <Text accessibilityLiveRegion="polite" testID="runtime-message">{message}</Text> : null}
-    {error && !editing ? <Panel><Text accessibilityRole="alert">{error}</Text></Panel> : null}
     <Text variant="caption" muted>The learner model, real language packages, sync and neural inference are not implemented by this placeholder.</Text>
   </Screen>;
 }
