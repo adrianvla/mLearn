@@ -1,0 +1,18 @@
+[package]
+name = "mlearn-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../LICENSE"
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+[features]
+mobile-bundle = []
+[dependencies]
+mlearn-runtime = { path = "../runtime" }
+mlearn-language-host = { path = "../language-host" }
+serde_json.workspace = true
+uniffi.workspace = true
+thiserror.workspace = true
+[build-dependencies]
+serde_json.workspace = true

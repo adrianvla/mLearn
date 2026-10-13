@@ -1,0 +1,163 @@
+name: v3 native mobile integration
+on:
+  push:
+    branches: [work/v3-foundation, rewrite/v3]
+    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/prepare-plugins.mjs', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v3-mobile-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record exact mobile source
+        run: |
+          mkdir -p verification test-results/mobile
+          git rev-parse HEAD HEAD^{tree} | tee verification/source.txt
+          git archive --format=tar HEAD -o verification/source.tar
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { cache-on-failure: true }
+      - run: npm ci
+      - name: Prepare and typecheck native Swift bindings
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run prepare:ios 2>&1 | tee verification/prepare-ios.log
+      - name: Generate and compile offline simulator app
+        working-directory: apps/client
+        env: { CI: '1' }
+        run: |
+          set -o pipefail
+          npx expo prebuild --platform ios --no-install 2>&1 | tee ../../verification/prebuild-ios.log
+          cd ios
+          pod install 2>&1 | tee ../../../verification/pod-install.log
+          workspace=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          scheme=$(basename "$workspace" .xcworkspace)
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { tail -150 build.log; exit 1; }
+      - uses: ./.github/actions/setup-maestro
+      - name: Exercise actual iOS UI and Rust persistence
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x.get("isAvailable") and ".iOS-" in x["identifier"]]; assert r, "No installed iOS runtime"; print(sorted(r, key=lambda x:tuple(map(int,x["version"].split("."))))[-1]["identifier"])')
+          device=$(xcrun simctl create "mLearn CI $GITHUB_RUN_ID" 'com.apple.CoreSimulator.SimDeviceType.iPhone-16' "$runtime")
+          echo "$device $runtime" | tee test-results/mobile/device.txt
+          cleanup() {
+            xcrun simctl io "$device" screenshot test-results/mobile/final-state.png || true
+            xcrun simctl spawn "$device" log show --last 10m --style compact --predicate 'process CONTAINS[c] "mlearn"' > test-results/mobile/native.log 2>&1 || true
+            xcrun simctl shutdown "$device" || true
+            xcrun simctl delete "$device" || true
+          }
+          trap cleanup EXIT
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          app=$(find apps/client/ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$app"
+          xcrun simctl install "$device" "$app"
+          maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/foundation.yaml 2>&1 | tee test-results/mobile/run.log
+      - name: Ensure build did not modify tracked source
+        if: always()
+        run: git diff --exit-code HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build-evidence
+          path: |
+            apps/client/modules/mlearn-native/ios/generated/*.swift
+            apps/client/modules/mlearn-native/ios/generated/*.h
+            apps/client/modules/mlearn-native/ios/generated/*.modulemap
+            apps/client/modules/mlearn-native/ios/generated/headers
+            apps/client/modules/mlearn-native/ios/generated/MlearnRust.xcframework/Info.plist
+            apps/client/ios/Podfile.lock
+            apps/client/ios/build.log
+            verification
+            test-results/mobile
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record exact mobile source
+        run: |
+          mkdir -p verification test-results/mobile
+          git rev-parse HEAD HEAD^{tree} | tee verification/source.txt
+          git archive --format=tar HEAD -o verification/source.tar
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: 'temurin', java-version: '17' }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { cache-on-failure: true }
+      - run: npm ci
+      - run: cargo install cargo-ndk --locked
+      - name: Select installed Android NDK
+        run: |
+          ndk=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          test -n "$ndk"
+          echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ndk" >> "$GITHUB_ENV"
+      - name: Prepare native Kotlin bindings and libraries
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run prepare:android 2>&1 | tee verification/prepare-android.log
+      - name: Generate and compile Android application
+        working-directory: apps/client
+        env: { CI: '1' }
+        run: |
+          set -o pipefail
+          npx expo prebuild --platform android --no-install 2>&1 | tee ../../verification/prebuild-android.log
+          cd android
+          grep -qx 'reactNativeArchitectures=arm64-v8a,x86_64' gradle.properties
+          ./gradlew :app:assembleRelease --no-daemon --console=plain > build.log 2>&1 || { tail -150 build.log; exit 1; }
+      - name: Verify APK contains complete Rust ABIs
+        run: |
+          python3 - <<'PYAPK'
+          from zipfile import ZipFile
+          with ZipFile('apps/client/android/app/build/outputs/apk/release/app-release.apk') as apk:
+              names = set(apk.namelist())
+              abis = {name.split('/')[1] for name in names if name.startswith('lib/') and name.endswith('.so')}
+              assert abis == {'arm64-v8a', 'x86_64'}, abis
+              for abi in abis:
+                  assert f'lib/{abi}/libmlearn_ffi.so' in names, f'Missing Rust bridge for {abi}'
+              print('APK native ABIs and bundled Rust bridges:', sorted(abis))
+          PYAPK
+      - uses: ./.github/actions/setup-maestro
+      - name: Enable emulator acceleration on the disposable runner
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Exercise actual Android UI and Rust persistence
+        timeout-minutes: 20
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          disable-animations: true
+          script: bash tests/mobile/run-android.sh
+      - name: Ensure build did not modify tracked source
+        if: always()
+        run: git diff --exit-code HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-build-evidence
+          path: |
+            apps/client/modules/mlearn-native/android/generated
+            apps/client/android/build.log
+            verification
+            test-results/mobile
+            apps/client/android/gradle.properties

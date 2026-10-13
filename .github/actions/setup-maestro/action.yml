@@ -1,0 +1,20 @@
+name: Install pinned Maestro CLI
+description: Install the local UI test runner without Maestro Cloud or an account.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v4
+      with: { distribution: temurin, java-version: '17' }
+    - shell: bash
+      run: |
+        set -euo pipefail
+        directory="$RUNNER_TEMP/mlearn-maestro"
+        mkdir -p "$directory"
+        curl --fail --location --retry 3 'https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.11.0/maestro.zip' -o "$directory/maestro.zip"
+        echo "5384593cb4e7a106489e75a821d157dd43f4e438df6bc308b72e82c685e1283a  $directory/maestro.zip" | shasum -a 256 -c -
+        unzip -q "$directory/maestro.zip" -d "$directory"
+        executable=$(find "$directory" -type f -path '*/bin/maestro' -print -quit)
+        test -n "$executable"
+        chmod +x "$executable"
+        echo "$(dirname "$executable")" >> "$GITHUB_PATH"
+        "$executable" --version

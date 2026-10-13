@@ -1,0 +1,1 @@
+{"name":"@mlearn/theme","version":"3.0.0-dev.0","private":true,"exports":{".":"./src/theme.ts","./runtime":"./src/runtime.ts"},"dependencies":{"@mlearn/contracts":"3.0.0-dev.0"},"peerDependencies":{"react-native-unistyles":"3.5.2"}}

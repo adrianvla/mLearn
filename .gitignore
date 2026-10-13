@@ -2,13 +2,18 @@ node_modules/
 .expo/
 dist/
 target/
+.mlearn/
 .DS_Store
 *.tsbuildinfo
+.env
 .env.local
 .env.*.local
-
-# Expo-generated native projects
+.idea/
+# Expo regenerates application projects; native module sources remain tracked.
 apps/client/ios/
 apps/client/android/
-
-.idea/
+apps/client/modules/mlearn-native/ios/generated/
+apps/client/modules/mlearn-native/android/generated/
+apps/client/modules/mlearn-native/android/src/main/jniLibs/
+playwright-report/
+test-results/

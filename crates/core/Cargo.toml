@@ -1,0 +1,15 @@
+[package]
+name = "mlearn-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../LICENSE"
+
+[features]
+typescript = ["dep:ts-rs"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+ts-rs = { version = "11", optional = true, features = ["serde-json-impl"] }

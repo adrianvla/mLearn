@@ -1,0 +1,77 @@
+use mlearn_core::ThemeDocument;
+use rusqlite::{params, Connection, OptionalExtension};
+use sha2::{Digest, Sha256};
+use std::{path::Path, time::Duration};
+
+#[derive(Debug, thiserror::Error)]
+pub enum StorageError {
+    #[error("Database operation failed: {0}")]
+    Sql(#[from] rusqlite::Error),
+    #[error("Stored data is invalid: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("{0}")]
+    Invalid(String),
+    #[error("Settings changed elsewhere; reload before saving")]
+    Conflict,
+}
+
+/// One native owner. Call on a blocking worker, never on a renderer/UI thread.
+pub struct ProfileStore { connection: Connection }
+
+impl ProfileStore {
+    pub fn open(path: &Path) -> Result<Self, StorageError> {
+        let mut connection = Connection::open(path)?;
+        connection.busy_timeout(Duration::from_secs(5))?;
+        connection.pragma_update(None, "journal_mode", "WAL")?;
+        connection.pragma_update(None, "synchronous", "FULL")?;
+        let transaction = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let version: u32 = transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        if version > 1 { return Err(StorageError::Invalid("Profile was created by a newer application".into())); }
+        if version == 0 {
+            transaction.execute_batch("CREATE TABLE preferences (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, theme TEXT NOT NULL); CREATE TABLE receipts (sequence INTEGER PRIMARY KEY AUTOINCREMENT, command_id TEXT NOT NULL UNIQUE, digest BLOB NOT NULL, revision INTEGER NOT NULL); CREATE TABLE plugins (id TEXT PRIMARY KEY, manifest TEXT NOT NULL); PRAGMA user_version=1;")?;
+            transaction.execute("INSERT INTO preferences VALUES (1, 0, ?1)", [serde_json::to_string(&ThemeDocument::default())?])?;
+        }
+        // Schema version and initial row become durable together, including first startup.
+        transaction.commit()?;
+        let store = Self { connection };
+        store.preferences()?;
+        Ok(store)
+    }
+
+    pub fn preferences(&self) -> Result<(u32, ThemeDocument), StorageError> {
+        let (revision, json): (u32, String) = self.connection.query_row("SELECT revision, theme FROM preferences WHERE id=1", [], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let theme: ThemeDocument = serde_json::from_str(&json)?;
+        theme.validate().map_err(StorageError::Invalid)?;
+        Ok((revision, theme))
+    }
+
+    pub fn save_theme(&mut self, theme: &ThemeDocument, expected: u32, command_id: &str) -> Result<u32, StorageError> {
+        theme.validate().map_err(StorageError::Invalid)?;
+        if command_id.is_empty() || command_id.len() > 128 { return Err(StorageError::Invalid("Invalid command identity".into())); }
+        let encoded = serde_json::to_string(theme)?;
+        let digest = Sha256::digest(format!("{expected}:{encoded}").as_bytes()).to_vec();
+        let transaction = self.connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let previous: Option<(Vec<u8>, u32)> = transaction.query_row("SELECT digest, revision FROM receipts WHERE command_id=?1", [command_id], |row| Ok((row.get(0)?, row.get(1)?))).optional()?;
+        if let Some((old_digest, revision)) = previous {
+            if old_digest != digest { return Err(StorageError::Invalid("Command identity reused for different contents".into())); }
+            return Ok(revision);
+        }
+        let revision: u32 = transaction.query_row("SELECT revision FROM preferences WHERE id=1", [], |row| row.get(0))?;
+        if revision != expected { return Err(StorageError::Conflict); }
+        let next = revision.checked_add(1).ok_or_else(|| StorageError::Invalid("Settings revision exhausted".into()))?;
+        transaction.execute("UPDATE preferences SET revision=?1, theme=?2 WHERE id=1", params![next, encoded])?;
+        transaction.execute("INSERT INTO receipts(command_id,digest,revision) VALUES (?1,?2,?3)", params![command_id, digest, next])?;
+        transaction.execute("DELETE FROM receipts WHERE sequence <= (SELECT COALESCE(MAX(sequence),0)-256 FROM receipts)", [])?;
+        transaction.commit()?;
+        Ok(next)
+    }
+
+    pub fn plugin_manifests(&self) -> Result<Vec<String>, StorageError> {
+        let mut statement = self.connection.prepare("SELECT manifest FROM plugins ORDER BY id")?;
+        Ok(statement.query_map([], |row| row.get(0))?.collect::<Result<Vec<_>, _>>()?)
+    }
+    pub fn activate_plugin(&mut self, id: &str, manifest: &str) -> Result<(), StorageError> {
+        self.connection.execute("INSERT INTO plugins(id,manifest) VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET manifest=excluded.manifest", params![id, manifest])?;
+        Ok(())
+    }
+}

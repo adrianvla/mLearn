@@ -1,0 +1,7 @@
+{
+  "id": "example.hello",
+  "version": "0.1.0",
+  "abiVersion": 1,
+  "capabilities": ["example::hello"],
+  "fixture": true
+}

@@ -1,0 +1,92 @@
+name: v3 foundation
+on:
+  push:
+    branches: [work/v3-foundation, rewrite/v3]
+  pull_request:
+    branches: [rewrite/v3]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v3-foundation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record exact source under test
+        run: |
+          mkdir -p verification
+          git rev-parse HEAD HEAD^{tree} | tee verification/source.txt
+          git status --porcelain=v1 | tee verification/start-status.txt
+          git archive --format=tar HEAD -o verification/source.tar
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build:web
+      - run: npx playwright install chromium --with-deps
+      - run: npm run test:web
+      - name: Ensure checks did not modify tracked source
+        if: always()
+        run: git diff --exit-code HEAD
+      - name: Capture dependency audit without automatic fixes
+        if: always()
+        run: npm audit --json > npm-audit.json || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-inspection
+          path: |
+            test-results
+            apps/client/dist
+            npm-audit.json
+            package-lock.json
+            verification
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record native source and toolchain
+        run: git rev-parse HEAD HEAD^{tree}
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { cache-on-failure: true }
+      - run: node tools/prepare-plugins.mjs
+      - run: cargo test --locked --workspace --exclude mlearn-desktop --exclude mlearn-ffi --exclude mlearn-bindgen
+      - run: cargo run --locked -p mlearn-core --features typescript --example export_contracts -- --check
+      - run: cargo check --locked -p mlearn-ffi --features mobile-bundle
+      - name: Ensure native checks did not modify tracked source
+        if: always()
+        run: git diff --exit-code HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foundation-build-data
+          path: |
+            target/plugin-cdn
+            Cargo.lock
+            packages/contracts/src/generated.ts
+  desktop:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { cache-on-failure: true }
+      - run: npm ci
+      - run: npm run build:web
+      - run: cargo build --locked -p mlearn-desktop
+      - name: Ensure desktop build did not modify tracked source
+        if: always()
+        run: git diff --exit-code HEAD
