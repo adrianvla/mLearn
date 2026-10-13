@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const config = JSON.parse(readFileSync(new URL('../../apps/desktop/src-tauri/tauri.conf.json', new URL('../', import.meta.url)), 'utf8'));
+const config = JSON.parse(readFileSync(new URL('../../apps/desktop/src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
 
 function directives(policy) {
   return new Map(policy.split(';').map(part => part.trim().split(/\s+/)).filter(([name]) => name).map(([name, ...sources]) => [name, sources]));
