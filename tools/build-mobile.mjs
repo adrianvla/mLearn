@@ -25,10 +25,18 @@ await mkdir(generated, { recursive: true });
 run('cargo', ['run', '--locked', '-p', 'mlearn-bindgen', '--', 'generate', '--library', library, '--language', platform === 'ios' ? 'swift' : 'kotlin', '--config', 'crates/ffi/uniffi.toml', '--out-dir', generated, '--no-format']);
 if (platform === 'ios') {
   const headers = path.join(generated, 'headers');
-  await rm(headers, { recursive: true, force: true });
-  await mkdir(headers, { recursive: true });
+  const frameworkHeaders = path.join(generated, 'xcframework-headers');
+  for (const directory of [headers, frameworkHeaders]) {
+    await rm(directory, { recursive: true, force: true });
+    await mkdir(directory, { recursive: true });
+  }
+  // CocoaPods exposes this module map explicitly. Do not also embed it in
+  // the XCFramework, or Clang sees two definitions of MlearnRustFFI.
   for (const file of await readdir(generated)) {
-    if (file.endsWith('.h')) await copyFile(path.join(generated, file), path.join(headers, file));
+    if (file.endsWith('.h')) {
+      await copyFile(path.join(generated, file), path.join(headers, file));
+      await copyFile(path.join(generated, file), path.join(frameworkHeaders, file));
+    }
     if (file.endsWith('.modulemap')) await copyFile(path.join(generated, file), path.join(headers, 'module.modulemap'));
   }
   // Fail on missing C-module visibility before spending time building all Pods.
@@ -54,8 +62,11 @@ if (platform === 'ios') {
   const framework = path.join(generated, 'MlearnRust.xcframework');
   await rm(framework, { recursive: true, force: true });
   run('xcodebuild', ['-create-xcframework',
-    '-library', path.join(root, 'target', device, 'release/libmlearn_ffi.a'), '-headers', headers,
-    '-library', simulatorLibrary, '-headers', headers, '-output', framework]);
+    '-library', path.join(root, 'target', device, 'release/libmlearn_ffi.a'), '-headers', frameworkHeaders,
+    '-library', simulatorLibrary, '-headers', frameworkHeaders, '-output', framework]);
+  // Protect against duplicate Clang module registration in the assembled app.
+  const embeddedModuleMaps = output('find', [framework, '-type', 'f', '-name', '*.modulemap']);
+  if (embeddedModuleMaps) throw new Error(`Unexpected XCFramework module map(s): ${embeddedModuleMaps}`);
 } else {
   const probe = spawnSync('cargo', ['ndk', '--version'], { cwd: root, stdio: 'ignore' });
   if (probe.status !== 0) throw new Error('Install the Android NDK and cargo-ndk first: cargo install cargo-ndk --locked');
