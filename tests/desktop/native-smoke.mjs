@@ -101,6 +101,7 @@ try {
   await click('Run hello');
   await text('Hello, world!');
   await assertPluginFeedbackNearAction('Hello, world!');
+  await screenshot('hello-result-beside-action');
   await click('Slate');
   await text('Theme saved by Rust');
   await assertStyled('slate', 'rgb(237, 240, 245)');
