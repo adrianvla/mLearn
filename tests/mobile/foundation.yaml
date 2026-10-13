@@ -1,0 +1,78 @@
+appId: net.kikan.mlearn.v3dev
+name: Native foundation persists Rust state across process restart
+---
+# Run against a locally compiled Release app. No Metro, Expo Go, EAS, mocked
+# transport or JavaScript persistence. All test data belongs to this v3 app.
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Plugin code: mobile-bundled'
+    timeout: 60000
+- assertVisible: 'Expo native'
+- takeScreenshot: initial-quartz
+- scrollUntilVisible:
+    element: 'Run hello'
+    direction: DOWN
+- tapOn: 'Run hello'
+- scrollUntilVisible:
+    element:
+      id: runtime-message
+    direction: DOWN
+- assertVisible: 'Hello, world!'
+- takeScreenshot: bundled-plugin-result
+- scrollUntilVisible:
+    element: 'Slate'
+    direction: UP
+- assertVisible: 'Current: Quartz\. Saved in the native SQLite profile\.'
+- tapOn: 'Slate'
+- extendedWaitUntil:
+    visible: 'Current: Slate\. Saved in the native SQLite profile\.'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: runtime-message
+    direction: DOWN
+- assertVisible: 'Theme saved by Rust · revision [1-9][0-9]*'
+- takeScreenshot: saved-slate
+- scrollUntilVisible:
+    element: 'One app\. Native at the core\.'
+    direction: UP
+- takeScreenshot: slate-before-restart
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: 'Plugin code: mobile-bundled'
+    timeout: 60000
+- takeScreenshot: slate-after-restart
+- scrollUntilVisible:
+    element: 'Slate'
+    direction: DOWN
+- assertVisible: 'Current: Slate\. Saved in the native SQLite profile\.'
+- assertNotVisible: 'Unsaved visual preview.*'
+- scrollUntilVisible:
+    element: 'Edit theme JSON'
+    direction: DOWN
+- tapOn: 'Edit theme JSON'
+- assertVisible: 'Custom theme'
+- assertVisible: 'Theme JSON'
+- takeScreenshot: custom-theme-dialog
+- tapOn: 'Close'
+- assertNotVisible: 'Custom theme'
+- scrollUntilVisible:
+    element: 'world'
+    direction: UP
+- tapOn: 'world'
+- eraseText: 5
+- inputText: 'Ada'
+- hideKeyboard
+- scrollUntilVisible:
+    element: 'Run hello'
+    direction: DOWN
+- tapOn: 'Run hello'
+- scrollUntilVisible:
+    element:
+      id: runtime-message
+    direction: DOWN
+- assertVisible: 'Hello, Ada!'
+- takeScreenshot: edited-native-input-result
