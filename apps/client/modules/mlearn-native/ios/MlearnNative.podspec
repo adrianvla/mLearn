@@ -13,5 +13,13 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
   s.source_files = 'MlearnNativeModule.swift', 'generated/*.swift'
   s.vendored_frameworks = 'generated/MlearnRust.xcframework'
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
+  # CocoaPods links the static XCFramework but does not automatically expose
+  # UniFFI's separately named Clang module to the Swift compiler.
+  # Keep this target-local; do not change module search paths for other pods.
+  s.preserve_paths = 'generated/headers/*'
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+    'SWIFT_INCLUDE_PATHS' => '$(inherited) "$(PODS_TARGET_SRCROOT)/generated/headers"',
+    'OTHER_SWIFT_FLAGS' => '$(inherited) -Xcc -fmodule-map-file="$(PODS_TARGET_SRCROOT)/generated/headers/module.modulemap"'
+  }
 end
