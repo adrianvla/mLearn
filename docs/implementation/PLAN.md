@@ -69,7 +69,7 @@ These names identify responsibilities and shared semantics, not mandatory new pa
 
 ## 3. H00 — reliable development and application harnesses
 
-**Current baseline:** `b3e571dd9a70ce0a8fe280f1d2966aeccf720732`; application source is the foundation squashed at `d726ea9f81bfc4a77e762487dec345eb56177eb4`. Re-read current HEAD and local changes before execution. Do not recreate the scaffold or revive the deleted `work/v3-foundation` branch.
+**Historical planning baseline:** `b3e571dd9a70ce0a8fe280f1d2966aeccf720732`; original application foundation was squashed at `d726ea9f81bfc4a77e762487dec345eb56177eb4`. Subsequent commits `b3ccc00b6` and `e3cebd9c2` altered native packaging and launch behavior. Re-read current HEAD, source and current CI before diagnosing; do not recreate scaffold, reapply a fix that has landed or revive `work/v3-foundation`.
 
 **Scope:** reliable source/build/test/review handling plus the existing hello/settings native integration. No learner, media or new UI feature starts before H00 is accepted.
 
@@ -84,7 +84,7 @@ These names identify responsibilities and shared semantics, not mandatory new pa
 | iOS `ios-build-evidence`, artifact `11802962825` | Two definitions of `MlearnRustFFI`: generated headers module map and copied XCFramework intermediates module map. Standalone binding preparation did not catch the full consuming-app failure |
 | Android `android-build-evidence`, artifact `11803122199` | JUnit reports no visible `Slate`. Screenshot shows a real `Hello, world!` response; the flow searches upward for Theme after the result was moved above Theme. Treat stale navigation as a concrete hypothesis and reproduce it, not as certification of the remaining flow |
 
-These are pinned evidence references, not an instruction to rerun obsolete commits or to assume HEAD still has the same defect. Inspect current artifacts first. Expired artifacts require a fresh reproduction, not guessed logs.
+These are pinned historical evidence references, not an instruction to rerun obsolete commits or assume current HEAD still has the same defect. For `e3cebd9c2`, native UI verification still failed on both platforms (run `38453671706`), foundation web tests failed while Rust/desktop checks passed (run `38453671823`), and desktop native integration passed (run `38453671797`). Reproduce and isolate the **current** failures before editing. Expired artifacts require a fresh reproduction, not guessed logs.
 
 ### H00.1 — establish the execution session
 
@@ -196,9 +196,11 @@ Each row is a review boundary. The executor reads its feature IDs, shared contra
 
 **Deliver:** on-device recognition, image/folder pages, crop recognition, aligned text and recognized-text mirror presentation, annotation hiding, magnifier, spread/collation/fit controls, OCR queue/cache/retry and unknown-word side actions.
 
-**Consumes:** Reader source coordinates, shared text/Knowledge/Inspector/Capture and a native neural-resource owner. Introduce ONNX/provider dependencies when this real pipeline needs them. Do not ship Python or silently use cloud OCR to pass mobile acceptance.
+**Consumes:** Reader source coordinates, shared text/Knowledge/Inspector/Capture and a native model/provider resource owner. The initial iOS provider is Apple's Vision text recognition through a Swift Expo native-module adapter; Android must use real offline OCR, with bundled ML Kit Text Recognition v2 as the first candidate to evaluate. Supported language/script information is obtained from the executing provider rather than a hardcoded core map. Use shared normalized image coordinates and source orientation, preserve provider identity and recognition candidates, and let installed language packages postprocess available OCR results without choosing a hardcoded per-language engine in core. Desktop retains its independently tuned OCR paths. Do not port MangaOCR/PaddleOCR/Python or force ONNX on mobile as a prerequisite to the first release.
 
-**Review:** use a real licensed/sanitized image/PDF with main text and annotations, then a spread. Crop/reprocess, resize, hide/reveal annotations, magnify, inspect and capture on each page. Verify exact mirrored-presentation behavior against the selected reference before acceptance. Test actual offline inference and cancellation on both mobile platforms; one cosmetic mobile redesign is not part of this unit.
+**Reference and fidelity gate:** inspect `archive/v2-final` `src/root-of-app/routes/ocr.py` and `src/renderer/utils/ocrUtils.ts`, including real language runtime metadata, detection/recognition separation, downscaling, vertical regrouping, crop coordinates, box/annotation filtering and caching. The Japanese desktop path runs PaddleOCR detection then MangaOCR recognition; this tuned behavior is a reference, not a mobile implementation mandate. Keep a small representative corpus with vertical manga/ruby, horizontal mixed text, glare/low contrast, one crop and a two-page spread. Compare recognized content, source geometry, hit behavior and processing/lifetime costs; do not demand byte-identical outputs from unrelated OCR models.
+
+**Review:** use a real licensed/sanitized image/PDF with main text and annotations, then a spread. Crop/reprocess, resize, hide/reveal annotations, magnify, inspect and capture on each page. Verify exact mirrored-presentation behavior against the selected reference before acceptance. Test native Vision/Android OCR offline on actual supported languages and record unsupported ones; test cancellation/retry and image/orientation transforms on both mobile platforms. No custom neural model port or cosmetic mobile redesign is part of this unit.
 
 ### M07 — People, temporary conversations and contextual explanations
 
@@ -212,7 +214,9 @@ Each row is a review boundary. The executor reads its feature IDs, shared contra
 
 **Deliver:** provider/model management, microphone/STT/VAD, TTS/playback, persistent voice selection, supported authorized voice-reference workflow, interruption and call recovery. Extend rather than replace M04's audio delivery behavior.
 
-**Consumes:** common provider/resource management, messages/People and learning assistance semantics. Native output is not an independent speech app; Inspector and Review use the same provider contracts.
+**Consumes:** common provider/resource management, messages/People and learning assistance semantics. Native output is not an independent speech app; Inspector and Review use the same provider contracts. Preserve the tuned local desktop Qwen3-TTS path identified at `archive/v2-final` `src/root-of-app/routes/voice.py`: `mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit` with 24-kHz output, 0.32-s streaming interval, reference audio/transcript, and its selected generation parameters (`temperature=0.9`, `top_k=50`, `top_p=1.0`, `repetition_penalty=1.5`, `max_tokens=4096`). The separate `qwen3_tts_server.py` defaults to a 1.7B remote model and is not this local reference. Evaluate reusable Rust/native inference implementations against a small audio/reference corpus; retain streaming, actual delivered-text and interruption semantics. Differences from tuned settings require a reason and a listening/test comparison, not a silent default change.
+
+No native mobile Qwen3-TTS, Kokoro, MangaOCR or PaddleOCR model port is required for the first mobile product release. Future mobile voice may use a declared system or remote provider within its true capabilities. Never report a fallback provider as though the selected model ran.
 
 **Review:** pronounce an Inspector item, run an audio probe and make an interruptible conversation call. Verify generated versus delivered transcript and permission/error paths. Perform targeted native audio lifecycle tests and real model memory measurements.
 
@@ -338,7 +342,7 @@ Each row is a review boundary. The executor reads its feature IDs, shared contra
 
 **Review:** a connected journey from installing a language through real media, Inspector/Capture, Review, conversation, sync and restart. Use representative large retained state and >30-minute active sessions. Inspect native and renderer memory, model/cache/WAL growth and idle work. Actual iPhone/Android testing and Windows/macOS/Linux release evidence remain named targets, not extrapolated from a browser build.
 
-Do not defer every performance, data-safety or platform check until M24. This unit verifies the integrated product after the earlier owner-level checks, and it cannot waive a required feature because the main demo works.
+Do not defer every performance, data-safety or platform check until M24. This unit verifies the integrated product after the earlier owner-level checks, and it cannot waive a required feature because the main demo works. The first mobile release's **neural deployment scope** is limited to OS-native OCR alongside local Rust/Wasmi morphology; that is not a reason to fork or omit shared supported learning/reading workflows. Advanced native TTS and specialist OCR models are later options, not hidden first-release prerequisites. Clearly identify any currently unsupported mobile voice or OCR language capabilities rather than displaying dead actions.
 
 ## 5. Test and build economy
 

@@ -102,7 +102,7 @@ Reference entries: `ReaderRoute.tsx`, its navigation/sidebar/status/layout/resum
 | RDR-08 | Inspect publisher-authored readings | Source ruby, including partial token spans, remains separate from dictionary-inferred readings through reflow and cache updates | M05 |
 | RDR-09 | View relevant/unknown source words | Source-linked list, highlight, inspect, exclude, capture one/all and scoped practice reuse the same Knowledge/Capture contracts | M06 |
 | RDR-10 | Copy/explain source text or context phrases | Context selection is grounded in the source; optional explanation does not make local reading dependent on an LLM | M07 |
-| OCR-01 | Recognize page/image text on device | Usable detection, recognition and postprocessing on mobile and desktop with real compatible models; source-local errors and retry | M06 |
+| OCR-01 | Recognize page/image text on device | iOS: Vision on-device text recognition. Android: verified on-device OCR provider (evaluate bundled ML Kit v2). Desktop: supported tuned/package provider. Each recognizes representative content without a cloud or Python dependency on mobile, and returns source-local errors and retry | M06 |
 | OCR-02 | Recognize selected crop regions | Add/reprocess a region while preserving other valid regions and mapping its result back to the original image | M06 |
 | OCR-03 | Toggle aligned interactive OCR text | Text hit areas track source-image scaling, offset and layout; Inspector/capture resolve the actual region, including a two-page spread | M06 |
 | OCR-04 | Use the reader's recognized-text mirror presentation | Required as a distinct interaction from ordinary hit-box overlays or magnification. Trace the selected historical implementation and obtain a reference capture before fixing its interaction contract; do not substitute one of those other features | M06 |
@@ -111,7 +111,8 @@ Reference entries: `ReaderRoute.tsx`, its navigation/sidebar/status/layout/resum
 | OCR-07 | Hide/reveal publisher reading annotations | Conceal the identified annotation region without deleting source data or ordinary text; deliberate reveal is accessible | M06 |
 | OCR-08 | Magnify the source image independently | Lens/zoom reveals source pixels rather than magnifying UI or OCR text; supported hold/release/wheel behavior has a touch alternative | M06 |
 | OCR-09 | Inspect and correct recognition/alignment problems | Relevant text/region correction, re-recognition and diagnostic views have explicit persistence/refresh effects; debug thresholds do not automatically become permanent ordinary settings | M06 |
-| OCR-10 | Reuse recognition and analysis safely | Cached results are keyed to source revision/region/model/package conditions, survive applicable resume and invalidate after relevant edits | M06 |
+| OCR-10 | Reuse recognition and analysis safely | Cached results are keyed to source revision/region/provider/model/package conditions, survive applicable resume and invalidate after relevant edits | M06 |
+| OCR-11 | Report native OCR capability and output provenance | Supported scripts/languages and install/readiness status come from the executing provider; unsupported language or missing model is explicit. Reading order, candidates and hit geometry remain attributable to the provider and actual image | M06 |
 
 ## Capture, authored material and collection management
 
@@ -239,7 +240,7 @@ These controls are implemented alongside their owning feature. M22 closes the in
 | OPS-01 | Search/edit active preferences | Every setting has one native owner/default/consumer, clear scope and application timing; dead aliases and Tactile/Flat are retired | M22 |
 | OPS-02 | Apply built-in or user-defined themes | Runtime theme documents work across supported renderers; changing appearance does not migrate profiles or alter task evidence | H00 |
 | OPS-03 | Select/reset input and source-display preferences | Relevant shortcuts, inspector activation and aids affect the intended surface without leaking through IME/modal contexts | M22 |
-| OPS-04 | Manage neural models and providers | Download/cancel/remove/test supported models, explicit offline/readiness/failure state, actual native inference and bounded resource ownership; speech extends the OCR foundation in M08 | M06 |
+| OPS-04 | Manage neural models and providers | Show availability and failures for system OCR without pretending to download its OS-managed model; download/cancel/remove/test only separately installable neural models, with bounded resource ownership and actual supported inference | M06 |
 | OPS-05 | Inspect storage and clean regenerable data | Size categories distinguish content/history/models/cache/backups; cleanup states consequences and preserves authored data | M14 |
 | OPS-06 | Back up/restore and recover from corruption | Consistent bounded recovery points and safe activation; diagnostics/export remain accessible when normal startup fails | M22 |
 | OPS-07 | Configure catalogs/services and institutional endpoints | Authenticated configuration, explicit trust and privacy consequences, cached offline operation; development keys cannot authorize release installs | M02 |

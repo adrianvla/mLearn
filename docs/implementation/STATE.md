@@ -7,7 +7,8 @@
 - Development executor: **GPT 6.1 Sol, medium reasoning**, maintainer selection; effective local harness settings not verified by this document.
 - Integration branch: `rewrite/v3`. Inspect its current HEAD and local changes before work.
 - Plan input baseline: `b3e571dd9a70ce0a8fe280f1d2966aeccf720732`.
-- Product source baseline within it: `d726ea9f81bfc4a77e762487dec345eb56177eb4`.
+- Original product foundation: `d726ea9f81bfc4a77e762487dec345eb56177eb4`.
+- Current-source checkpoint last inspected: `e3cebd9c2a228a5ad48cafa819fa5d4e240d8c72`. Recheck HEAD and all local modifications before work; commits after the planning baseline altered packaging/launch.
 - Next action: execute H00 from [PLAN.md](PLAN.md), then request maintainer review. **M01 is not authorized to start before that review accepts H00.**
 
 ## Established evidence and unresolved gates
@@ -16,11 +17,13 @@
 |---|---|
 | Existing foundation checks | CI `38404304561` at b3e571dd passed; not native mobile acceptance |
 | Desktop integration | Linux Tauri/WebKit `38377484637` at d726ea9 passed. Maintainer reported Mac greeting, theme persistence and theme editor working |
-| iOS | Mobile run `38377484585`, job `115229408798`: consuming-app build failed with duplicate `MlearnRustFFI` module definitions; unaccepted |
-| Android | Same run, job `115229409143`: APK/ABI checks passed; UI flow failed locating Slate. Artifact shows greeting works and a likely stale upward search after feedback was moved; remaining flow unaccepted |
+| iOS | Earlier duplicate `MlearnRustFFI` module error occurred at `d726ea9`; later source `e3cebd9` has native UI acceptance failure in run `38453671706`, job `115491511244`. Current failure not yet diagnosed here; reproduce against current HEAD instead of reapplying old fix |
+| Android | Earlier `Slate` locator failure occurred at `d726ea9`; later source `e3cebd9` native UI acceptance failed in run `38453671706`, job `115491510933`. Current failure not yet diagnosed here |
+| Current HEAD web checks | Foundation run `38453671823`: Rust and desktop checks passed, web `npm test` failed; do not assert H00 is green. Native desktop integration `38453671797` passed on the same source |
 | Current documentation session | Read and compared pinned source/artifacts. Three existing dependency-free desktop-security/mobile-config/mobile-packaging tests passed locally; no local native compiler or full application build was run |
 | Feature catalogue | Required behavior documented; current v2 reachability audit is targeted, not exhaustive. `OCR-04` needs a selected interaction reference |
 | Mobile appearance | Maintainer design deferred. Native usability/functionality is not deferred |
+| Initial mobile inference scope | Rust/Wasmi morphology and system OCR: Apple Vision on iOS; evaluate verified offline OCR provider on Android (bundled ML Kit v2 first). Native Qwen3-TTS/PaddleOCR/MangaOCR port excluded from first mobile release; desktop tuned pipelines remain references |
 
 ## Working record to fill during H00
 
