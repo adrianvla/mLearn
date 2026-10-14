@@ -43,7 +43,9 @@ Keep this packet in the current STATE record or its linked PR, not a new report 
 
 `changes_requested` returns to the same unit. `blocked` records a concrete missing input/tool/decision and the next safe action. Missing tools are not passing checks. Failed tests remain failures until resolved or independently characterized within an explicitly accepted scope.
 
-Track **functional/platform acceptance** separately from **mobile visual design**. A native workflow may be accepted with mobile design pending when its controls, text, touch/keyboard operation, navigation and accessibility remain usable. A pretty desktop screenshot cannot waive a broken native build, unusable mobile control or missing function.
+Track **functional/platform acceptance** separately from **mobile visual design**. A native workflow may be functionally accepted with mobile design pending when its controls, text, touch/keyboard operation, navigation and accessibility remain usable. A pretty desktop screenshot cannot waive a broken native build, unusable mobile control or missing function.
+
+For the desktop and any other surface the maintainer provides an edited reference for, that edited image is the **visual review target**, not a loosely inspirational legacy screenshot. Match the depicted control arrangement, hierarchy, density and relative geometry closely without recreating old CSS or freezing responsiveness. Legacy UI absent from the edited image is visually unselected. A required catalogue action absent from the reference is a specific placement/scope question; do not sneak it back into the approved design, fabricate surrounding UI or silently delete the underlying feature. A required screen with no edited image can be exercised with a minimal functional interim arrangement, explicitly `visual_pending`; do not call its visual design accepted.
 
 ## 2. Connected product boundaries
 
@@ -302,11 +304,11 @@ No native mobile Qwen3-TTS, Kokoro, MangaOCR or PaddleOCR model port is required
 
 ### M19 — external capture and host integrations
 
-**Deliver:** supported overlays, external definition entry, browser-extension/online-subtitle paths, PiP or justified utilities and mobile share/import alternatives.
+**Deliver:** desktop system/browser overlays, external definition entry and desktop browser-extension/online-subtitle paths, plus picture-in-picture or detached utilities only where separately supported. **No mobile browser overlay, browser extension, transparent native window, or forced parity substitute** is part of this unit. Ordinary mobile source import/inspection remains owned by its existing source workflows.
 
 **Consumes:** the same SourceContext, Inspector, Capture and player. Add host adapters, not separate mobile/desktop domain code. Record actual OS/site capability limits.
 
-**Review:** capture an external occurrence into the existing workflow and Return; deny a permission or disconnect the extension; verify no arbitrary filesystem/network exposure and no phantom success on unsupported hosts.
+**Review:** on desktop, capture an external occurrence into the existing workflow and Return; deny a permission or disconnect the extension; verify no arbitrary filesystem/network exposure and no phantom success. No iOS/Android overlay/extension UI test or capability claim is required.
 
 ### M20 — institution-managed client integration
 
@@ -332,7 +334,7 @@ No native mobile Qwen3-TTS, Kokoro, MangaOCR or PaddleOCR model port is required
 
 ### M23 — maintainer-directed mobile design
 
-**Deliver:** the approved phone/tablet layout, navigation, Inspector drawer and input arrangements using existing feature semantics. The maintainer supplies visual direction after seeing real workflows.
+**Deliver:** the maintainer-approved phone/tablet layout, navigation, Inspector drawer and input arrangements using existing feature semantics. Only provided edited references determine the final presentation of captured states; omitted legacy screens are not default design input. The maintainer supplies visual direction after seeing real workflows.
 
 **Review:** representative reading, watching, learning and messaging flows, rotation/large text/keyboard/safe-area behavior. Cosmetic deferral from earlier units ends here; there is no second mobile screen tree or data model.
 

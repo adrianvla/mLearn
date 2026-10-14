@@ -58,9 +58,11 @@ Source inspection here is targeted, not exhaustive dead-code certification. For 
 
 ## Screenshot selection
 
-Screenshots select visual intent; runtime/data evidence selects correctness. Use existing images or an isolated reference profile. Do not submit ratings to the real learner profile just to obtain a picture. Redact private conversations, school data and credentials.
+**Only the maintainer's edited images are approved visual targets.** They describe the desired composition of the captured surface/state, not merely inspiration from v2. Reproduce the edited hierarchy, shown controls, relative placement, spacing intent, information density and visual language closely; responsive layout, legible content, native interaction and accessibility take precedence over literal old CSS or fixed pixel coordinates. Runtime/data evidence separately establishes correctness.
 
-Each image or short clip needs a small caption: surface, version/commit if known, language, theme, viewport/device, current state, and what to keep/change/remove. 'Keep the pill hierarchy, remove this sidebar' is more useful than 'copy exactly'. Identify unavailable references rather than invent them.
+**Unpictured and unedited v2 UI is intentionally not selected.** Do not browse remaining v2 screens looking for attractive styling to fill gaps, auto-generate replacements, or treat archived screenshots as approval. The feature catalogue, not incidental v2 controls, determines wanted product behavior. If a required feature has no edited image, mark the presentation `visual_pending`, provide only a minimal usable interim control where needed, and ask for its final arrangement at review. If an edited image omits a catalogue-required control, report the conflict; do not reinsert it into the pictured design or silently retire its behavior.
+
+For each edited image, retain its surface/state and viewport information; optional annotations can identify interaction and changes not visible in a still. Unedited before-images may be supplied for comparison but have **no** authority over the final UI. Do not alter the real learning profile to stage a capture; redact private conversations and credentials.
 
 ### First batch
 
@@ -90,9 +92,9 @@ No phone mockups are required before implementation. Initial native functionalit
 | 7. Grammar / evaluation | Recall/contrast/typed or timed assessment actually available, including feedback | Which experiences exist versus partial fixtures and what evidence they claim |
 | 8. Settings / recovery / onboarding | Preferred navigation/search, relevant provider/language controls, recovery access; annotate retired controls | New active settings inventory without copying dead fields or Tactile/Flat branches |
 
-For a surface that changed substantially, provide one preferred version and one later version annotated with the useful additions and unwanted changes. Do not capture every language, theme or viewport. A Japanese example and a structurally different language such as German are useful checks against language-specific layout assumptions, not the extent of supported languages.
+For a surface that changed substantially, the maintainer's final edited image is the target; an earlier/later unedited image can only document behavior or what was removed. Do not capture every language, theme or viewport. A Japanese example and a structurally different language such as German help validate that the selected UI survives different content structures, not grant automatic permission to copy either legacy layout.
 
-Existing local reference leads named in the archived activity report include `~/mlearn-acceptance-runs/activity-host-20261005/` with `reader-compact.png`, `watch-large.png`, `messenger-compact.png`, `study-adjust-large.png`, `plan-large.png`, `knowledge-compact.png`, `progress-large.png`, and `settings-large.png`. Their existence on the maintainer's current machine has not been verified. They are candidate comparisons, not approved visual targets. Earlier preferred v2.9 images take priority wherever the maintainer selects them.
+Existing local reference leads named in the archived activity report include `~/mlearn-acceptance-runs/activity-host-20261005/` with `reader-compact.png`, `watch-large.png`, `messenger-compact.png`, `study-adjust-large.png`, `plan-large.png`, `knowledge-compact.png`, `progress-large.png`, and `settings-large.png`. Their existence on the maintainer's current machine has not been verified. These and historical v2.9 images are **behavioral comparison sources only**, unless the maintainer explicitly supplies an edited/approved visual for that surface. A historical version being preferred generally does not mean every visible element in it was selected.
 
 ## Verification boundaries for this specification
 
@@ -100,4 +102,5 @@ Existing local reference leads named in the archived activity report include `~/
 - Desktop Mac feedback in this conversation established the greeting, theme change/persistence and theme editor on the maintainer's machine. It did not establish mobile behavior or real-language performance.
 - Historical native reports and test counts are leads, not transferable certification. Preserve specific useful regression cases without importing their entire test implementation or obsolete UI assumptions.
 - Documentation does not fix native packaging or interaction failures. H00 in the implementation plan records the current source/evidence and repair gate; subsequent candidate evidence supersedes that baseline only for the verified scope.
-- Missing visual references do not block native domain work. Missing approved behavior or privacy/data semantics must remain explicit. Cosmetic fine-tuning belongs to the maintainer, not an unbounded acceptance loop.
+- Missing edited images do not block native domain work, but final visual acceptance is pending on those surfaces; do not invent the omitted design or present it as complete. Missing approved behavior or privacy/data semantics remain explicit. Detailed spacing refinement remains with the maintainer, not an unbounded acceptance loop.
+- Browser extensions, system-browser overlays and transparent floating inspection windows are desktop-only for the current release. Do not request mobile visual references or tests for their nonexistent mobile counterparts.
