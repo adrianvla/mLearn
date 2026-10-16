@@ -60,7 +60,7 @@ name: Native foundation persists Rust state across process restart
 # Select the complete document rather than issuing thousands of backspaces.
 - longPressOn:
     id: theme-json-input
-- tapOn: 'Select All'
+- tapOn: 'Select [Aa]ll'
 - eraseText: 1
 - inputText: |
     {
