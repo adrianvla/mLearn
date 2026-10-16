@@ -44,7 +44,7 @@ jobs:
           xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { tail -150 build.log; exit 1; }
       - uses: ./.github/actions/setup-maestro
       - name: Exercise actual iOS UI and Rust persistence
-        timeout-minutes: 15
+        timeout-minutes: 20
         shell: bash
         run: |
           set -euo pipefail

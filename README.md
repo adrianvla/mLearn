@@ -82,10 +82,12 @@ See [architecture](docs/architecture/foundation.md) and the GitHub Actions evide
 
 ## H00 candidate verification and resume
 
-Work on a delivery branch and open a PR to `rewrite/v3`. Foundation runs for affected PR paths. Mobile and Linux desktop integration
-run on affected pushes to `agent/**` delivery branches and `rewrite/v3`, with
-manual dispatch also available. Native workflows do not duplicate the candidate
-push with a PR run; inspect their branch runs alongside PR checks. Mobile and
+Work on an `agent/**` delivery branch and open a PR to `rewrite/v3`. Foundation,
+mobile and Linux desktop integration run on affected pushes to delivery branches
+and `rewrite/v3`, with manual dispatch also available. Their commit checks attach
+to the PR; opening or updating the PR does not duplicate the push runs. Other
+branch names require manual dispatch. This also lets a documentation-only review
+checkpoint skip application builds even when the PR already contains code changes. Mobile and
 native desktop runs finish without cancellation by a later documentation edit.
 Documentation alone does not schedule application builds. The foundation desktop
 job builds on macOS and Windows; Linux has the separate WebKit interaction flow.
@@ -122,7 +124,11 @@ unchanged and does not skip any mLearn flow assertion; remove it when the pinned
 runner selects its serving test itself. The checked-in
 flow clears only `net.kikan.mlearn.v3dev`, invokes bundled Wasm, saves Slate through
 Rust, restarts the process, checks persistence, opens the dialog, checks a rejected
-native save and changes the greeting input. Android's existing CI entry is
+native save and changes the greeting input. The pinned iOS XCTest driver loses
+characters in bulk typing, so the small JSON fixture uses bounded per-character
+native-value acknowledgements (about 11 minutes locally); the flow fails on any
+loss and never retries a character. This is test-input pacing, not a product
+input filter. iOS shared text fields expose Done without changing multiline Return. Android's existing CI entry is
 `EMULATOR_PORT=5556 bash tests/mobile/run-android.sh` for the retained local device.
 Use `--format junit --output PATH --test-output-dir DIR --debug-output DIR` to retain
 Maestro results. Native CI uploads `ios-build-evidence` and `android-build-evidence`;

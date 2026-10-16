@@ -65,19 +65,34 @@ name: Native foundation persists Rust state across process restart
     id: theme-json-input
 - tapOn: 'Select [Aa]ll'
 - eraseText: 1
-# Compact JSON preserves the same native rejection while keeping typing within
-# Maestro's 120-second Android RPC deadline on a software-rendered emulator.
-- inputText: '{"schemaVersion":1,"id":"mlearn.slate","name":" ","colors":{"background":"#15191F","surface":"#20262E","text":"#EDF0F5","muted":"#BAC2CE","accent":"#99BEFF","onAccent":"#15243C","border":"#414B5A"},"radius":12,"textScale":1,"extensions":{}}'
+# The pinned iOS XCTest driver drops characters in bulk inputText, even in
+# eight-character batches. Enter this bounded fixture once per character and
+# acknowledge the native value before continuing; never retry a lost character.
+# Remove this workaround after the pinned toolchain passes bulk-input round-trip.
+- evalScript: ${output.document = '{"schemaVersion":1,"id":"mlearn.slate","name":" ","colors":{"background":"#15191F","surface":"#20262E","text":"#EDF0F5","muted":"#BAC2CE","accent":"#99BEFF","onAccent":"#15243C","border":"#414B5A"},"radius":12,"textScale":1,"extensions":{}}'; output.characters = output.document.split(''); output.index = 0; output.entered = ''}
 - runFlow:
     when:
       platform: iOS
     commands:
+      - repeat:
+          times: ${output.characters.length}
+          commands:
+            - inputText: ${output.characters[output.index]}
+            - evalScript: ${output.entered += output.characters[output.index]}
+            - copyTextFrom:
+                id: theme-json-input
+            - assertTrue: ${maestro.copiedText === output.entered}
+            - evalScript: ${output.index += 1}
       - tapOn: 'Done'
 - runFlow:
     when:
       platform: Android
     commands:
+      - inputText: ${output.document}
       - hideKeyboard
+- copyTextFrom:
+    id: theme-json-input
+- assertTrue: ${maestro.copiedText === output.document}
 - scrollUntilVisible:
     element: 'Save custom theme'
     direction: DOWN
@@ -96,16 +111,22 @@ name: Native foundation persists Rust state across process restart
     direction: UP
 - tapOn: 'world'
 - eraseText: 5
-- inputText: 'Ada'
 - runFlow:
     when:
       platform: iOS
     commands:
+      - inputText: 'A'
+      - assertVisible: '^A$'
+      - inputText: 'd'
+      - assertVisible: '^Ad$'
+      - inputText: 'a'
+      - assertVisible: '^Ada$'
       - tapOn: 'Done'
 - runFlow:
     when:
       platform: Android
     commands:
+      - inputText: 'Ada'
       - hideKeyboard
 - scrollUntilVisible:
     element: 'Run hello'
