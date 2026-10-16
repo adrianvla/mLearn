@@ -57,29 +57,17 @@ name: Native foundation persists Rust state across process restart
 - assertVisible: 'Custom theme'
 - assertVisible: 'Theme JSON'
 - takeScreenshot: custom-theme-dialog
-# Select the complete document rather than issuing thousands of backspaces.
+# Focus first: on iOS the first long press on an unfocused input only places
+# the cursor. Select the document rather than issuing thousands of backspaces.
+- tapOn:
+    id: theme-json-input
 - longPressOn:
     id: theme-json-input
 - tapOn: 'Select [Aa]ll'
 - eraseText: 1
-- inputText: |
-    {
-      "schemaVersion": 1,
-      "id": "mlearn.slate",
-      "name": " ",
-      "colors": {
-        "background": "#15191F",
-        "surface": "#20262E",
-        "text": "#EDF0F5",
-        "muted": "#BAC2CE",
-        "accent": "#99BEFF",
-        "onAccent": "#15243C",
-        "border": "#414B5A"
-      },
-      "radius": 12,
-      "textScale": 1,
-      "extensions": {}
-    }
+# Compact JSON preserves the same native rejection while keeping typing within
+# Maestro's 120-second Android RPC deadline on a software-rendered emulator.
+- inputText: '{"schemaVersion":1,"id":"mlearn.slate","name":" ","colors":{"background":"#15191F","surface":"#20262E","text":"#EDF0F5","muted":"#BAC2CE","accent":"#99BEFF","onAccent":"#15243C","border":"#414B5A"},"radius":12,"textScale":1,"extensions":{}}'
 - hideKeyboard
 - scrollUntilVisible:
     element: 'Save custom theme'

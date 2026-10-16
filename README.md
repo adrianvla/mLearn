@@ -114,7 +114,12 @@ xcodebuild -workspace apps/client/ios/mLearnv3Dev.xcworkspace -scheme mLearnv3De
 ```
 
 Install the current Release artifact on a disposable H00 simulator/emulator, then
-run `maestro --device DEVICE_ID test tests/mobile/foundation.yaml`. The checked-in
+run `maestro --device DEVICE_ID test tests/mobile/foundation.yaml` (Android). For
+iOS, prefix that command with `PATH="$PWD/tests/mobile/ios-driver:$PATH"`. The narrow
+Xcode shim selects Maestro 2.11’s HTTP-server XCTest, avoiding its bundled helper
+unit tests stalling in Xcode 27 crash-log teardown. It forwards unrelated builds
+unchanged and does not skip any mLearn flow assertion; remove it when the pinned
+runner selects its serving test itself. The checked-in
 flow clears only `net.kikan.mlearn.v3dev`, invokes bundled Wasm, saves Slate through
 Rust, restarts the process, checks persistence, opens the dialog, checks a rejected
 native save and changes the greeting input. Android's existing CI entry is
@@ -131,6 +136,8 @@ read Git status/history and `docs/implementation/STATE.md`, then the local check
 and retained command logs. Continue the next recorded action without resetting
 source or rerunning successful unrelated builds. Stop at the named review gate.
 
+For a local Mac app bundle use `CI=true npm run tauri -w @mlearn/desktop -- build --debug --bundles app`
+(the Tauri CLI accepts boolean `CI`, unlike the preflight scripts using `CI=1`).
 Mac development launches through `npm run dev:desktop` using the v3 identifier
 `net.kikan.mlearn.v3dev`; the native profile is in
 `~/Library/Application Support/net.kikan.mlearn.v3dev/`, separate from v2. Mobile

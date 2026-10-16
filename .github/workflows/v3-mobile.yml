@@ -63,7 +63,7 @@ jobs:
           app=$(find apps/client/ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app"
           xcrun simctl install "$device" "$app"
-          maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/foundation.yaml 2>&1 | tee test-results/mobile/run.log
+          PATH="$PWD/tests/mobile/ios-driver:$PATH" maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/foundation.yaml 2>&1 | tee test-results/mobile/run.log
       - name: Ensure build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
