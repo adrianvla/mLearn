@@ -62,7 +62,18 @@ Source inspection here is targeted, not exhaustive dead-code certification. For 
 
 **Reference provenance:** the maintainer confirmed that **every image in the supplied `screenshots.zip` batch** was deliberately restyled and rearranged in the running v2 UI (including direct DevTools CSS and dragging/repositioning) to express the desired layout; the application could be unstable or near crashing during capture. These are **constructed target compositions**, not unedited historical screenshots, reliable measurements of the original runtime, or demonstrations that their visible controls worked. Reconstruct the intended arrangement in v3 without carrying over the temporary DOM/CSS manipulation, defective component ownership, performance problems or app-state anomalies. Verify actual behavior separately.
 
-The conversation attachment is **not automatically a file in the coding agent's v3 worktree**. Before visual implementation, the maintainer should make approved edited images available in the executor's accessible reference directory, preserving descriptive filenames. Keep media, private conversations and source screenshots out of a public Git commit unless specifically reviewed and authorized; a private/ignored local reference folder is sufficient. An inaccessible image is `visual_pending`, not an invitation to guess.
+**Approved images are now committed in this repository:** [`docs/product/screenshots/`](screenshots/), with 21 PNG targets organized by surface. Read them directly from the worktree; do not ask for the former chat ZIP or treat an archived screenshot elsewhere as the approved target.
+
+| Surface | Approved reference directory | Captures |
+|---|---|---:|
+| Inspector | [`screenshots/inspector/`](screenshots/inspector/) | 3 |
+| Messenger | [`screenshots/messenger/`](screenshots/messenger/) | 2 |
+| Reader / OCR | [`screenshots/reader/`](screenshots/reader/) | 8 |
+| Watch / subtitles | [`screenshots/watch/`](screenshots/watch/) | 4 |
+| Desktop overlays | [`screenshots/overlay/`](screenshots/overlay/) | 2 |
+| Settings | [`screenshots/other/`](screenshots/other/) | 2 |
+
+These are manually constructed target designs, not proof that the legacy behavior, layout code or performance worked. Do not copy the original application structure or hand-edited DevTools CSS. Other screens remain `visual_pending` until the maintainer supplies a design. The screenshots are already publicly committed; check future additions for private conversations, credentials and copyrighted/private content before publishing.
 
 **Unpictured and unedited v2 UI is intentionally not selected.** Do not browse remaining v2 screens looking for attractive styling to fill gaps, auto-generate replacements, or treat archived screenshots as approval. The feature catalogue, not incidental v2 controls, determines wanted product behavior. If a required feature has no edited image, mark the presentation `visual_pending`, provide only a minimal usable interim control where needed, and ask for its final arrangement at review. If an edited image omits a catalogue-required control, report the conflict; do not reinsert it into the pictured design or silently retire its behavior.
 
