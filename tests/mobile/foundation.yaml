@@ -22,7 +22,7 @@ name: Native foundation persists Rust state across process restart
 - takeScreenshot: bundled-plugin-result
 - scrollUntilVisible:
     element: 'Slate'
-    direction: UP
+    direction: DOWN
 - assertVisible: 'Current: Quartz\. Saved in the native SQLite profile\.'
 - tapOn: 'Slate'
 - extendedWaitUntil:
@@ -57,8 +57,43 @@ name: Native foundation persists Rust state across process restart
 - assertVisible: 'Custom theme'
 - assertVisible: 'Theme JSON'
 - takeScreenshot: custom-theme-dialog
+# Select the complete document rather than issuing thousands of backspaces.
+- longPressOn:
+    id: theme-json-input
+- tapOn: 'Select All'
+- eraseText: 1
+- inputText: |
+    {
+      "schemaVersion": 1,
+      "id": "mlearn.slate",
+      "name": " ",
+      "colors": {
+        "background": "#15191F",
+        "surface": "#20262E",
+        "text": "#EDF0F5",
+        "muted": "#BAC2CE",
+        "accent": "#99BEFF",
+        "onAccent": "#15243C",
+        "border": "#414B5A"
+      },
+      "radius": 12,
+      "textScale": 1,
+      "extensions": {}
+    }
+- hideKeyboard
+- scrollUntilVisible:
+    element: 'Save custom theme'
+    direction: DOWN
+- tapOn: 'Save custom theme'
+- scrollUntilVisible:
+    element: 'Theme name must contain.*'
+    direction: DOWN
+- assertVisible: 'Theme name must contain.*'
+- assertVisible: 'Custom theme'
+- takeScreenshot: rejected-native-theme
 - tapOn: 'Close'
 - assertNotVisible: 'Custom theme'
+- assertVisible: 'Current: Slate\. Saved in the native SQLite profile\.'
 - scrollUntilVisible:
     element: 'world'
     direction: UP

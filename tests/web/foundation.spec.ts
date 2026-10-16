@@ -23,6 +23,9 @@ test('runtime theme updates, dialog labeling and keyboard focus work', async ({ 
   await trigger.click();
   const dialog = page.getByRole('dialog', { name: 'Custom theme' });
   await expect(dialog).toBeVisible();
+  // A late-mounted dialog must pair the active surface and text palette.
+  await expect(page.getByTestId('dialog-surface')).toHaveCSS('background-color', 'rgb(32, 38, 46)');
+  await expect(dialog.getByRole('heading', { name: 'Custom theme' })).toHaveCSS('color', 'rgb(237, 240, 245)');
   await expect(dialog.getByRole('textbox', { name: 'Theme JSON' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Save custom theme' })).toBeDisabled();
   await page.screenshot({ path: 'test-results/foundation-dialog.png', fullPage: true });

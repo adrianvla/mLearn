@@ -1,14 +1,14 @@
 name: v3 native mobile integration
 on:
   push:
-    branches: [work/v3-foundation, rewrite/v3]
-    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/prepare-plugins.mjs', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock']
+    branches: ['agent/**', rewrite/v3]
+    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/prepare-plugins.mjs', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock', 'resources/**', 'Cargo.toml', 'rust-toolchain.toml', 'package.json']
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: v3-mobile-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   ios:
     runs-on: macos-latest

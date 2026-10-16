@@ -106,7 +106,7 @@ export function WelcomeScreen() {
         else { applyTheme(theme); report('theme', 'Unsaved visual preview. No native data was written.'); }
       }} />)}</Row>
       <Dialog open={editing} onOpenChange={setEditing} title="Custom theme" description="Edit a versioned theme document. Rust validates and commits saved changes." trigger={<Button label="Edit theme JSON" variant="secondary" />}>
-        <TextField label="Theme JSON" value={themeJson} onChangeText={setThemeJson} multiline maxLength={24000} autoCapitalize="none" autoCorrect={false} />
+        <TextField testID="theme-json-input" label="Theme JSON" value={themeJson} onChangeText={setThemeJson} multiline maxLength={24000} autoCapitalize="none" autoCorrect={false} />
         <Button label="Save custom theme" disabled={!canSave} onPress={() => void perform('theme', () => saveTheme(parseThemePreview(themeJson)))} />
         {!canSave && <Text variant="caption" muted>Native runtime required to save.</Text>}
         {editing && feedback?.target === 'theme' && feedback.error ? feedbackAt('theme') : null}

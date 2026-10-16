@@ -17,3 +17,5 @@ apps/client/modules/mlearn-native/android/generated/
 apps/client/modules/mlearn-native/android/src/main/jniLibs/
 playwright-report/
 test-results/
+# Gradle output from the local Expo module (not its native sources).
+apps/client/modules/mlearn-native/android/build/

@@ -79,3 +79,62 @@ All v3 development identities and profile paths are separate from v2. The schema
 The plugin ABI and resource limits are deliberately a **bounded hello-world prototype**: 4 MiB executable, 8 MiB fixture assets, 64 MiB guest memory, bounded messages and execution fuel. They are not appropriate defaults for large language dictionaries without the planned resource-streaming and analyzer benchmarks. No claim of full language support, native device acceptance, or T2 feature parity is made by the presence of a green build.
 
 See [architecture](docs/architecture/foundation.md) and the GitHub Actions evidence for the exact verified scope. Source/asset licenses remain applicable; the archived v2 implementation is a reference, not copied production code.
+
+## H00 candidate verification and resume
+
+Work on a delivery branch and open a PR to `rewrite/v3`. Foundation runs for affected PR paths. Mobile and Linux desktop integration
+run on affected pushes to `agent/**` delivery branches and `rewrite/v3`, with
+manual dispatch also available. Native workflows do not duplicate the candidate
+push with a PR run; inspect their branch runs alongside PR checks. Mobile and
+native desktop runs finish without cancellation by a later documentation edit.
+Documentation alone does not schedule application builds. The foundation desktop
+job builds on macOS and Windows; Linux has the separate WebKit interaction flow.
+A build is not runtime evidence for an unexercised platform.
+
+CI validates the committed npm/Cargo lockfiles and generated contracts without
+committing source. When deliberately changing dependencies, resolve the relevant
+lockfile locally (`npm install --package-lock-only --ignore-scripts` or
+`cargo generate-lockfile`), review its diff, regenerate contracts only when needed,
+and run the affected checks before committing.
+
+For the prepared local H00 Mac, source `.mlearn/preflight/env.sh` in **each** shell
+that needs Node 22, Java 17, Android SDK/NDK or Maestro. This ignored file describes
+that machine, not a portable dependency. The preflight report retains the installed
+versions and isolated device IDs. Keep `.mlearn/preflight/` and incremental native
+outputs; they are evidence/build caches, not source.
+
+To build offline mobile Release apps after shared UI changes (from the repo root):
+
+```sh
+# Run preparation/prebuild/pod install first if Rust, bindings or native config changed.
+xcodebuild -workspace apps/client/ios/mLearnv3Dev.xcworkspace -scheme mLearnv3Dev \
+  -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+  -derivedDataPath apps/client/ios/build CODE_SIGNING_ALLOWED=NO build
+(cd apps/client/android && ./gradlew :app:assembleRelease --no-daemon --console=plain)
+```
+
+Install the current Release artifact on a disposable H00 simulator/emulator, then
+run `maestro --device DEVICE_ID test tests/mobile/foundation.yaml`. The checked-in
+flow clears only `net.kikan.mlearn.v3dev`, invokes bundled Wasm, saves Slate through
+Rust, restarts the process, checks persistence, opens the dialog, checks a rejected
+native save and changes the greeting input. Android's existing CI entry is
+`EMULATOR_PORT=5556 bash tests/mobile/run-android.sh` for the retained local device.
+Use `--format junit --output PATH --test-output-dir DIR --debug-output DIR` to retain
+Maestro results. Native CI uploads `ios-build-evidence` and `android-build-evidence`;
+Linux uploads `native-desktop-evidence`. Retrieve a specific run with
+`gh run download RUN_ID --dir .mlearn/h00/ci-RUN_ID`.
+
+Record source commit/tree, app/bundle hashes, device/configuration and complete
+command logs under `.mlearn/h00/`. Reuse Rust outputs only while their source and
+configuration match; rebuild the consuming app for changed JavaScript. On resume,
+read Git status/history and `docs/implementation/STATE.md`, then the local checkpoint
+and retained command logs. Continue the next recorded action without resetting
+source or rerunning successful unrelated builds. Stop at the named review gate.
+
+Mac development launches through `npm run dev:desktop` using the v3 identifier
+`net.kikan.mlearn.v3dev`; the native profile is in
+`~/Library/Application Support/net.kikan.mlearn.v3dev/`, separate from v2. Mobile
+profiles are inside each disposable app sandbox. Never point tests at a live v2
+profile. The foundation screen has no approved final visual reference; its current
+composition is interim. Physical devices, distribution signing and Windows runtime
+interaction remain separate from H00 simulator/emulator and build evidence.

@@ -1,9 +1,11 @@
 name: v3 foundation
 on:
   push:
-    branches: [work/v3-foundation, rewrite/v3]
+    branches: [rewrite/v3]
+    paths: ['.github/workflows/v3-foundation.yml', 'apps/**', 'packages/**', 'resources/**', 'tools/**', 'tests/**', 'language-plugins/**', 'crates/**', 'package.json', 'package-lock.json', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'tsconfig*', 'playwright.config.ts']
   pull_request:
     branches: [rewrite/v3]
+    paths: ['.github/workflows/v3-foundation.yml', 'apps/**', 'packages/**', 'resources/**', 'tools/**', 'tests/**', 'language-plugins/**', 'crates/**', 'package.json', 'package-lock.json', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'tsconfig*', 'playwright.config.ts']
   workflow_dispatch:
 permissions:
   contents: read
@@ -75,7 +77,11 @@ jobs:
             Cargo.lock
             packages/contracts/src/generated.ts
   desktop:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
