@@ -48,7 +48,7 @@ Platform differences belong in narrow adapters. A popover becoming a sheet, a sy
 
 Core local workflows remain usable offline after required assets are installed. Network media, hosted generation and remote collaboration expose their genuine network requirements. Large on-device LLMs may be unavailable on particular devices; that does not remove dictionaries, OCR, learning, media or saved conversation access. Optional remote or local-network providers must not silently take over private processing.
 
-Some desktop facilities cannot be reproduced literally on phones, such as unrestricted system-wide overlays or arbitrary local desktop integrations. Preserve the supported user objective through an explicit import/share/capture or paired-device route where feasible. Record the exact platform limitation; do not hide it behind a nominally present button or quietly reduce the parity target.
+Desktop browser overlays, browser extensions and transparent floating-window inspection are **desktop-only** in the current product scope. Neither iOS nor Android is a target for these integrations in this release, even if particular Android devices or browser configurations permit some form of overlay. Do not add mobile permission flows, fake buttons, a second in-app browser or a compulsory share/import workaround solely for feature parity. Ordinary in-app Reader/Watch/Inspector and independently supported mobile file import/share remain in scope. Future mobile external-browser integration requires a new product decision rather than being inferred from desktop functionality.
 
 Executable distribution is fixed: desktop downloads language code and data from authenticated catalogs; both mobile platforms ship executable plugins in the application and download compatible language data separately. Installed working packages do not become unusable merely because the catalog is unreachable. New mobile executable functionality needs an application update under this distribution design.
 
@@ -161,7 +161,7 @@ Moving between descendants of one inspected item must not repeatedly remount its
 
 Capturing useful material retains its source sentence/span, file or source identity, time/page and selected media/audio where available. Do not silently store full duplicate media files or base64 image copies per observation. New records can be edited and inspected without requiring an external service.
 
-Supported desktop overlays, browser extension, picture-in-picture and external-definition flows remain in the compatibility inventory. Watch Together retains synchronized media continuity where supported. Platform restrictions require explicit alternatives or recorded gaps, not claims of universal access to arbitrary sites/apps.
+Desktop overlays, browser extensions and external-definition flows remain in the desktop compatibility inventory. Picture-in-picture is available only where a supported platform/player genuinely permits it and is not a substitute for a browser overlay. Watch Together retains synchronized media continuity where supported. The desktop-only scope of browser overlays/extensions is deliberate; mobile does not owe an alternative implementation of those features.
 
 ## P09. Authored material, knowledge and integrations
 
@@ -221,7 +221,9 @@ Retire Tactile/Flat modes, duplicate threshold aliases, old engine selectors, de
 
 Themes permit user-defined palettes and supported typography, spacing, surfaces and component values at runtime. Built-in themes are examples, not an exhaustive identity enum. Appearance, content aids and accessibility preferences are distinct from learner assessment. Unrestricted browser CSS is not promised as a portable native theme language.
 
-Retain mLearn's selected visual language without reproducing the old CSS structure or every pixel. Typography hierarchy, compact controls, knowledge pills, contextual inspection, restrained translucency and productive use of space matter. Widths, alignment and decorative details can be tuned by the maintainer. A generic marketing layout, oversized cards and repetitive 'your learning/your world' prose are not substitutes.
+The maintainer is editing the reference images to show the intended interface. **Those edited images, not the surrounding legacy UI, govern the visual appearance of the depicted surface and state.** Implement their visible hierarchy, arrangements, control placement, proportions, information density and styling intent with high fidelity at the represented viewport. Adapt responsibly to real text, scaling, accessibility and other sizes without cloning historical CSS declarations. The maintainer retains authority over alignment and other fine visual adjustments.
+
+**No edited image means no approval of that legacy surface's appearance.** Do not imitate or infer unselected screens, toolbars or modals from v2. If the catalogue requires their behavior, deliver a minimal accessible functional presentation labeled `visual_pending`, and ask for a deliberate design at review rather than fabricating a final one. If an edited image removes a control that still represents required behavior, preserve the requirement but request a placement/scope decision rather than silently putting the control back. A generic marketing layout, oversized cards and repetitive promotional prose are not substitutes.
 
 Essential accessibility includes names/roles/states, focus and dismissal, keyboard and IME behavior, legible contrast, reduced-motion/transparency handling and usable large text. Visual polish cannot waive these functional constraints; conversely, cosmetic differences must not expand into repeated whole-app redesigns.
 
@@ -287,7 +289,7 @@ For retained behavior, use representative source examples and data as a differen
 
 Explicitly excluded from normal v3 behavior: whole-profile renderer state; ad hoc mutable JSON databases; old engine/threshold compatibility aliases; Tactile/Flat branches; compulsory free-form goal/budget setup; one review per internal capability by default; fake readiness or validated-assessment claims; automatic global knowledge from graph support; duplicate desktop/mobile features; unnecessary activity windows; decorative integration dashboards; another interpreter or JIT/AOT backend in this phase.
 
-Open visual choices do not block domain implementation. Open semantic choices, unavailable content or platform limitations remain visible and must not be settled by silently narrowing the specification. A feature absent from a chosen screenshot is not automatically retired.
+Open visual choices do not block domain implementation, but **a surface without an edited visual reference is not approved as final UI**. Open semantic choices, unavailable content or platform limitations remain explicit. An omitted legacy screen is visually rejected as a reference; an independently required catalogue feature is not automatically retired merely because its placement is not pictured. If an edited reference and the feature catalogue disagree about visible controls, ask for the maintainer's decision before claiming that surface visually complete.
 
 ## P18. Acceptance and change control
 

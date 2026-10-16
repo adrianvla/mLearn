@@ -22,7 +22,8 @@
 | Current HEAD web checks | Foundation run `38453671823`: Rust and desktop checks passed, web `npm test` failed; do not assert H00 is green. Native desktop integration `38453671797` passed on the same source |
 | Current documentation session | Read and compared pinned source/artifacts. Three existing dependency-free desktop-security/mobile-config/mobile-packaging tests passed locally; no local native compiler or full application build was run |
 | Feature catalogue | Required behavior documented; current v2 reachability audit is targeted, not exhaustive. `OCR-04` needs a selected interaction reference |
-| Mobile appearance | Maintainer design deferred. Native usability/functionality is not deferred |
+| Mobile appearance | Final mobile design remains pending; native usability/functionality is not deferred. No mobile browser overlays/extensions or transparent inspection windows in current target |
+| Visual reference authority | Only maintainer-edited supplied images are approved UI targets. Unpictured/unedited legacy UI is not an approved visual reference; separately catalogued behavior remains required, with its presentation `visual_pending` when unpictured |
 | Initial mobile inference scope | Rust/Wasmi morphology and system OCR: Apple Vision on iOS; evaluate verified offline OCR provider on Android (bundled ML Kit v2 first). Native Qwen3-TTS/PaddleOCR/MangaOCR port excluded from first mobile release; desktop tuned pipelines remain references |
 
 ## Working record to fill during H00
