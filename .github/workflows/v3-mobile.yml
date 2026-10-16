@@ -1,14 +1,14 @@
 name: v3 native mobile integration
 on:
   push:
-    branches: [work/v3-foundation, rewrite/v3]
-    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/prepare-plugins.mjs', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock']
+    branches: ['agent/**', rewrite/v3]
+    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/bindgen/**', 'tools/prepare-plugins.mjs', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock', 'resources/**', 'Cargo.toml', 'rust-toolchain.toml', 'package.json']
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: v3-mobile-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   ios:
     runs-on: macos-latest
@@ -44,7 +44,7 @@ jobs:
           xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { tail -150 build.log; exit 1; }
       - uses: ./.github/actions/setup-maestro
       - name: Exercise actual iOS UI and Rust persistence
-        timeout-minutes: 15
+        timeout-minutes: 20
         shell: bash
         run: |
           set -euo pipefail
@@ -63,7 +63,7 @@ jobs:
           app=$(find apps/client/ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app"
           xcrun simctl install "$device" "$app"
-          maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/foundation.yaml 2>&1 | tee test-results/mobile/run.log
+          PATH="$PWD/tests/mobile/ios-driver:$PATH" maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/foundation.yaml 2>&1 | tee test-results/mobile/run.log
       - name: Ensure build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD

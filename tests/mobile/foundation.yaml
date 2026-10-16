@@ -22,7 +22,7 @@ name: Native foundation persists Rust state across process restart
 - takeScreenshot: bundled-plugin-result
 - scrollUntilVisible:
     element: 'Slate'
-    direction: UP
+    direction: DOWN
 - assertVisible: 'Current: Quartz\. Saved in the native SQLite profile\.'
 - tapOn: 'Slate'
 - extendedWaitUntil:
@@ -57,15 +57,77 @@ name: Native foundation persists Rust state across process restart
 - assertVisible: 'Custom theme'
 - assertVisible: 'Theme JSON'
 - takeScreenshot: custom-theme-dialog
+# Focus first: on iOS the first long press on an unfocused input only places
+# the cursor. Select the document rather than issuing thousands of backspaces.
+- tapOn:
+    id: theme-json-input
+- longPressOn:
+    id: theme-json-input
+- tapOn: 'Select [Aa]ll'
+- eraseText: 1
+# The pinned iOS XCTest driver drops characters in bulk inputText, even in
+# eight-character batches. Enter this bounded fixture once per character and
+# acknowledge the native value before continuing; never retry a lost character.
+# Remove this workaround after the pinned toolchain passes bulk-input round-trip.
+- evalScript: ${output.document = '{"schemaVersion":1,"id":"mlearn.slate","name":" ","colors":{"background":"#15191F","surface":"#20262E","text":"#EDF0F5","muted":"#BAC2CE","accent":"#99BEFF","onAccent":"#15243C","border":"#414B5A"},"radius":12,"textScale":1,"extensions":{}}'; output.characters = output.document.split(''); output.index = 0; output.entered = ''}
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - repeat:
+          times: ${output.characters.length}
+          commands:
+            - inputText: ${output.characters[output.index]}
+            - evalScript: ${output.entered += output.characters[output.index]}
+            - copyTextFrom:
+                id: theme-json-input
+            - assertTrue: ${maestro.copiedText === output.entered}
+            - evalScript: ${output.index += 1}
+      - tapOn: 'Done'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - inputText: ${output.document}
+      - hideKeyboard
+- copyTextFrom:
+    id: theme-json-input
+- assertTrue: ${maestro.copiedText === output.document}
+- scrollUntilVisible:
+    element: 'Save custom theme'
+    direction: DOWN
+- tapOn: 'Save custom theme'
+- scrollUntilVisible:
+    element: 'Theme name must contain.*'
+    direction: DOWN
+- assertVisible: 'Theme name must contain.*'
+- assertVisible: 'Custom theme'
+- takeScreenshot: rejected-native-theme
 - tapOn: 'Close'
 - assertNotVisible: 'Custom theme'
+- assertVisible: 'Current: Slate\. Saved in the native SQLite profile\.'
 - scrollUntilVisible:
     element: 'world'
     direction: UP
 - tapOn: 'world'
 - eraseText: 5
-- inputText: 'Ada'
-- hideKeyboard
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - inputText: 'A'
+      - assertVisible: '^A$'
+      - inputText: 'd'
+      - assertVisible: '^Ad$'
+      - inputText: 'a'
+      - assertVisible: '^Ada$'
+      - tapOn: 'Done'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - inputText: 'Ada'
+      - hideKeyboard
 - scrollUntilVisible:
     element: 'Run hello'
     direction: DOWN

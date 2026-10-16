@@ -1,14 +1,14 @@
 name: v3 real desktop integration
 on:
   push:
-    branches: [work/v3-foundation, rewrite/v3]
-    paths: ['.github/workflows/v3-desktop-e2e.yml', 'apps/client/**', 'apps/desktop/**', 'tests/desktop/**', 'crates/**', 'packages/**', 'tools/**', 'language-plugins/**', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json']
+    branches: ['agent/**', rewrite/v3]
+    paths: ['.github/workflows/v3-desktop-e2e.yml', 'apps/client/**', 'apps/desktop/**', 'tests/desktop/**', 'crates/**', 'packages/**', 'tools/**', 'language-plugins/**', 'Cargo.toml', 'Cargo.lock', 'package.json', 'package-lock.json', 'resources/**', 'rust-toolchain.toml']
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: v3-desktop-e2e-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   native:
     runs-on: ubuntu-latest

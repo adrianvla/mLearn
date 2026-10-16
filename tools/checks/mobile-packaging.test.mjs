@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 
 // Exercise the real build script's arguments and file layout, without requiring
 // Xcode on every unit-test host. The actual compiler/Pods gate remains in CI.
-async function iosCommands(t) {
+async function iosCommands(t, embeddedModuleMap = false) {
   const root = await mkdtemp(path.join(tmpdir(), 'mlearn mobile packaging-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(path.join(root, 'tools'));
@@ -18,9 +18,10 @@ async function iosCommands(t) {
   await writeFile(preload, `
     import childProcess from 'node:child_process';
     import { syncBuiltinESMExports } from 'node:module';
-    import { appendFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
+    import { appendFileSync, mkdirSync, writeFileSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
     import path from 'node:path';
     Object.defineProperty(process, 'platform', { value: 'darwin' });
+    const spawnSync = childProcess.spawnSync;
     childProcess.spawnSync = (command, args) => {
       appendFileSync(process.env.TEST_CALLS, JSON.stringify({ command, args }) + '\\n');
       if (command === 'cargo' && args.includes('--out-dir')) {
@@ -34,19 +35,32 @@ async function iosCommands(t) {
         const out = args[args.indexOf('-output') + 1];
         if (!existsSync(path.dirname(out))) throw new Error('Simulator output directory was not created');
       }
-      return { status: 0, stdout: '/fixture/iPhoneSimulator.sdk\\n', stderr: '' };
+      if (command === 'xcodebuild') {
+        const out = args[args.indexOf('-output') + 1];
+        for (const slice of ['ios-arm64', 'ios-arm64_x86_64-simulator']) {
+          const headers = path.join(out, slice, 'Headers');
+          mkdirSync(headers, { recursive: true });
+          const source = args[args.indexOf('-headers') + 1];
+          for (const file of readdirSync(source)) copyFileSync(path.join(source, file), path.join(headers, file));
+          if (process.env.TEST_EMBED_MODULE_MAP === '1') writeFileSync(path.join(headers, 'module.modulemap'), 'module MlearnRustFFI {}');
+        }
+      }
+      // Run the real inspection against the assembled fixture. Other tools must
+      // never supply plausible-looking output to an unrelated command.
+      if (command === 'find') return spawnSync(command, args, { encoding: 'utf8' });
+      return { status: 0, stdout: command === 'xcrun' && args.includes('--show-sdk-path') ? '/fixture/iPhoneSimulator.sdk\\n' : '', stderr: '' };
     };
     syncBuiltinESMExports();
   `);
   const result = spawnSync(process.execPath, ['--import', preload, script, 'ios'], {
-    encoding: 'utf8', env: { ...process.env, TEST_CALLS: calls }, timeout: 10_000,
+    encoding: 'utf8', env: { ...process.env, TEST_CALLS: calls, TEST_EMBED_MODULE_MAP: embeddedModuleMap ? '1' : '0' }, timeout: 10_000,
   });
-  assert.equal(result.status, 0, result.stderr || result.error?.message);
-  return (await readFile(calls, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+  return { result, calls: (await readFile(calls, 'utf8')).trim().split('\n').map(line => JSON.parse(line)) };
 }
 
 test('iOS XCFramework uses identical static library names for device and simulator', async t => {
-  const calls = await iosCommands(t);
+  const { calls, result } = await iosCommands(t);
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
   const pack = calls.find(call => call.command === 'xcodebuild' && call.args[0] === '-create-xcframework');
   assert.ok(pack, 'XCFramework creation must be invoked');
   const libraries = pack.args.flatMap((arg, i) => arg === '-library' ? [pack.args[i + 1]] : []);
@@ -57,4 +71,10 @@ test('iOS XCFramework uses identical static library names for device and simulat
   assert.equal(lipo.args[lipo.args.indexOf('-output') + 1], libraries[1]);
   assert.ok(lipo.args.some(arg => arg.includes('/aarch64-apple-ios-sim/')));
   assert.ok(lipo.args.some(arg => arg.includes('/x86_64-apple-ios/')));
+});
+
+test('iOS packaging rejects an XCFramework that reintroduces the FFI module map', async t => {
+  const { result } = await iosCommands(t, true);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Unexpected XCFramework module map\(s\): .*module\.modulemap/);
 });

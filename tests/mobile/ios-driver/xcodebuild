@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+# Maestro 2.11's xctestrun includes SwipeRouteHandlerV2ClassificationTests before
+# its HTTP server. On Xcode 27, helper teardown can wait for crash logs until
+# driver startup times out. Select the serving XCTest; all mLearn flow assertions
+# still run. Remove this shim when the pinned runner selects its server itself.
+real_xcodebuild="${MLEARN_XCODEBUILD:-$(xcrun --find xcodebuild)}"
+previous=''
+for argument in "$@"; do
+  if [[ "${1:-}" == test-without-building && "$previous" == -xctestrun && "${argument##*/}" == maestro-driver-ios-config.xctestrun ]]; then
+    exec "$real_xcodebuild" "$@" '-only-testing:maestro-driver-iosUITests/maestro_driver_iosUITests'
+  fi
+  previous="$argument"
+done
+exec "$real_xcodebuild" "$@"
