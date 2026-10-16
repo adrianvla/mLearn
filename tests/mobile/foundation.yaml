@@ -68,7 +68,16 @@ name: Native foundation persists Rust state across process restart
 # Compact JSON preserves the same native rejection while keeping typing within
 # Maestro's 120-second Android RPC deadline on a software-rendered emulator.
 - inputText: '{"schemaVersion":1,"id":"mlearn.slate","name":" ","colors":{"background":"#15191F","surface":"#20262E","text":"#EDF0F5","muted":"#BAC2CE","accent":"#99BEFF","onAccent":"#15243C","border":"#414B5A"},"radius":12,"textScale":1,"extensions":{}}'
-- hideKeyboard
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Done'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - scrollUntilVisible:
     element: 'Save custom theme'
     direction: DOWN
@@ -88,7 +97,16 @@ name: Native foundation persists Rust state across process restart
 - tapOn: 'world'
 - eraseText: 5
 - inputText: 'Ada'
-- hideKeyboard
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: 'Done'
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - scrollUntilVisible:
     element: 'Run hello'
     direction: DOWN

@@ -251,6 +251,7 @@ These controls are implemented alongside their owning feature. M22 closes the in
 | OPS-12 | Use a deliberately designed mobile layout | Maintainer-directed phone/tablet arrangement over the same feature semantics; design remains separately pending while functional milestones proceed | M23 |
 | OPS-13 | Use sustained workloads within a supported device budget | Representative >30-minute sessions, cold/warm resource measurements and recovery; raising heap limits or hiding controls is not the fix | M24 |
 | OPS-14 | Install/distribute a complete supported application | Release artifacts and licenses match actual code/data, platform capability limits are documented, no runtime Python dependency or missing mobile native library | M24 |
+| OPS-15 | Dismiss the keyboard while editing native settings | An explicit native dismissal keeps the unsubmitted document, preserves multiline Return behavior and makes Save/Close reachable; failed saves remain beside their action | H00 |
 
 ## Inventory closure
 
