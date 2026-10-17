@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text as NativeText } from 'react-native';
+import { Platform, View, Text as NativeText } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
@@ -20,6 +20,7 @@ export function WatchScreen() {
     const id = typeof params.id === 'string' ? params.id : '';
     const insets = useSafeAreaInsets();
     const [subtitleInset, setSubtitleInset] = useState(128);
+    const [toolbarHeight, setToolbarHeight] = useState(64);
     const [window, setWindow] = useState<SourceWindow | null>(null);
     const [batch, setBatch] = useState<AnalysisBatch | null>(null);
     const [position, setPosition] = useState(0);
@@ -236,7 +237,7 @@ export function WatchScreen() {
     }
     return (
         <View style={styles.screen(insets.top, insets.bottom)}>
-            <View style={[styles.toolbar, { top: insets.top }]}>
+            <View style={[styles.toolbar, { top: insets.top }]} onLayout={event => setToolbarHeight(event.nativeEvent.layout.height)}>
                 <Row>
                     <Button label="← Home" accessibilityLabel="Home" size="compact" variant="media"
                         disabled={busy} onPress={() => void back().catch(() => {})} />
@@ -274,7 +275,10 @@ export function WatchScreen() {
                             setSubtitleInset(value.subtitleBottomInset);
                         }}
                         onProgress={progress} onError={setError} />
-                    <View pointerEvents="box-none" style={[styles.subtitle, { bottom: subtitleInset }]}>
+                    <View pointerEvents="box-none" style={[styles.subtitle, {
+                        bottom: subtitleInset + 24,
+                        opacity: Platform.OS !== 'web' && inspection ? 0 : 1,
+                    }]}>
                         {cues.map(cue => {
                             const analysis = batch?.subtitleRevision === window.source.subtitleRevision
                                 ? batch.cues.find(a => a.cue.index === cue.index) : null;
@@ -290,7 +294,7 @@ export function WatchScreen() {
                     </View>
                 </View>
                 <View pointerEvents="box-none"
-                    style={[styles.status, { top: insets.top + 64 }, (!window.source.subtitlePath || analysisError) ? styles.feedback : null]}>
+                    style={[styles.status, { top: insets.top + toolbarHeight + 8 }, (!window.source.subtitlePath || analysisError) ? styles.feedback : null]}>
                     {!window.source.subtitlePath ? <Text tone="media">Open a plain UTF-8 SRT file to inspect subtitles.</Text> : null}
                     {analysisError ? <>
                         <Text tone="media" accessibilityRole="alert">{analysisError}</Text>
@@ -316,7 +320,7 @@ const styles = StyleSheet.create(theme => ({
     }), toolbar: {
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, paddingHorizontal: 16, paddingVertical: 8, gap: 8, backgroundColor: theme.media.chrome
     }, title: {
-        flex: 1, minWidth: 0, color: theme.media.text, fontSize: 13 * theme.textScale
+        flex: 1, flexBasis: 120, minWidth: 0, color: theme.media.text, fontSize: 13 * theme.textScale
     }, stage: {
         flex: 1, minHeight: 240, backgroundColor: theme.media.background
     }, subtitle: {

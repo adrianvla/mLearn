@@ -1,14 +1,15 @@
-import type { PropsWithChildren } from 'react';
+import type { PropsWithChildren, ReactNode } from 'react';
 import { Platform, View, Text as NativeText, ScrollView, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Text } from './Text';
 import { Button } from './Button';
 import type { TextAnchor } from './InlineWord';
-export function ContextPanel({ title, anchor, onClose, children }: PropsWithChildren<{
+export function ContextPanel({ title, anchor, onClose, children, footer }: PropsWithChildren<{
     title: string;
     anchor: TextAnchor;
     onClose: () => void;
+    footer?: ReactNode;
 }>) {
     const { width, height } = useWindowDimensions();
     const { theme } = useUnistyles();
@@ -26,7 +27,7 @@ export function ContextPanel({ title, anchor, onClose, children }: PropsWithChil
                             <View testID="inspector-panel" style={[
                                 styles.panel,
                                 {
-                                    backgroundColor: theme.media.panel,
+                                    backgroundColor: Platform.OS === 'web' ? theme.media.panel : theme.media.chrome,
                                     borderColor: theme.media.border,
                                     borderRadius: theme.radius,
                                     width: panelWidth,
@@ -36,7 +37,7 @@ export function ContextPanel({ title, anchor, onClose, children }: PropsWithChil
                                     position: 'absolute',
                                     left: Math.max(12, Math.min(width - panelWidth - 12, anchor.x + anchor.width / 2 - panelWidth / 2)),
                                     bottom: Math.max(16, height - anchor.y + 12),
-                                } : { alignSelf: 'center', marginBottom: 20 },
+                                } : { alignSelf: 'center', marginHorizontal: 'auto', marginBottom: 20 },
                             ]}>
                                 <View style={styles.header}>
                                     <View style={styles.heading}>
@@ -49,9 +50,10 @@ export function ContextPanel({ title, anchor, onClose, children }: PropsWithChil
                                     </Primitive.Description>
                                     <Button label="×" accessibilityLabel="Close Inspector" variant="media" size="compact" onPress={onClose} />
                                 </View>
-                                <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
+                                <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
                                     {children}
                                 </ScrollView>
+                                {footer ? <View testID="inspector-footer" style={styles.footer}>{footer}</View> : null}
                             </View>
                         </Primitive.Content>
                     </View>
@@ -70,12 +72,16 @@ const styles = StyleSheet.create(theme => ({
             backdropFilter: 'blur(16px)', boxShadow: '0 8px 30px #00000055'
         }
     }, header: {
-        flexDirection: 'row', alignItems: 'center', gap: 10
+        flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0
     }, heading: {
         flex: 1, minWidth: 0
     }, title: {
         color: theme.media.text, fontSize: 24 * theme.textScale, lineHeight: 32 * theme.textScale
+    }, scroll: {
+        flexShrink: 1, minHeight: 0
     }, body: {
         gap: 8, paddingBottom: 4
+    }, footer: {
+        flexShrink: 0, borderTopWidth: 1, borderTopColor: theme.media.border, paddingTop: theme.spacing.small
     }
 }));
