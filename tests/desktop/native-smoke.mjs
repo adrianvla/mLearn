@@ -210,8 +210,36 @@ try {
   await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:00,250\nChildren.\n\n2\n00:00:00,250 --> 00:00:00,500\nwalked.\n\n3\n00:00:00,500 --> 00:00:01,500\nhome.\n');
   assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
   await click('Home');await resumeWatch();
-  await script('document.querySelector("video").currentTime=0.1');await click('Children: mixed');await click('Close Inspector');
-  await script('document.querySelector("video").currentTime=0.8');await click('home: untracked');await text('home');await click('Close Inspector');
+  // A Resume click finishes before React mounts the player. Subscribe to its
+  // real media/initial-seek events before seeking, retaining that active element.
+  const subsecondVideo=await rpc('POST', `/session/${session}/execute/async`, {script: `
+    const done=arguments[arguments.length-1];
+    const listeners=new AbortController();
+    let video,settled=false;
+    function finish(value) {
+      if(settled)return;
+      settled=true;observer.disconnect();listeners.abort();clearTimeout(timer);done(value);
+    }
+    function check() {
+      const active=Array.from(document.querySelectorAll('video')).find(node=>
+        node.getClientRects().length&&!node.closest('[aria-hidden="true"]'));
+      if(active!==video) {
+        video=active;
+        video?.addEventListener('loadedmetadata',check,{signal:listeners.signal});
+        video?.addEventListener('loadeddata',check,{signal:listeners.signal});
+        video?.addEventListener('seeked',check,{signal:listeners.signal});
+        video?.addEventListener('error',check,{signal:listeners.signal});
+      }
+      if(video?.error)finish({mediaError:video.error.code});
+      else if(video&&video.readyState>=2&&!video.seeking)finish(video);
+    }
+    const observer=new MutationObserver(check);
+    const timer=setTimeout(()=>finish({readinessError:'Video metadata unavailable before subsecond seek'}),20000);
+    observer.observe(document.body,{subtree:true,childList:true,attributes:true});
+    check();`, args:[]});
+  assert.ok(subsecondVideo?.['element-6066-11e4-a52e-4f735466cecf'],JSON.stringify(subsecondVideo));
+  await script('arguments[0].currentTime=0.1',[subsecondVideo]);await click('Children: mixed');await click('Close Inspector');
+  await script('arguments[0].currentTime=0.8',[subsecondVideo]);await click('home: untracked');await text('home');await click('Close Inspector');
   console.log('Real Tauri IPC, signed packages, playback/seek, contextual Inspector, shared claims, exact source restart and missing-source recovery passed.');
 } catch (error) {
   if (session) {
