@@ -22,7 +22,7 @@ name: Watch Inspector Knowledge and native source resume
 - extendedWaitUntil:
     visible: child
     timeout: 60000
-- tapOn: Knowledge
+- tapOn: 'Knowledge(,.*)?'
 - scrollUntilVisible:
     element: 'Claim Meaning unknown'
     direction: DOWN
