@@ -123,6 +123,34 @@ try {
         .then(value=>done(JSON.parse(value))).catch(error=>done({type:'error',message:String(error)}));`, args:[request]});
     return value;
   }
+  async function resumeWatch() {
+    // Home refreshes native state after missing-source recovery. Presence alone
+    // can find the button while that refresh still disables it. Observe readiness
+    // before the real WebDriver click; a permanently disabled control still fails.
+    const element = await rpc('POST', `/session/${session}/execute/async`, {script: `
+      const done=arguments[arguments.length-1];
+      let settled=false;
+      function finish(value) {
+        if(settled)return;
+        settled=true;observer.disconnect();clearTimeout(timer);done(value);
+      }
+      function check() {
+        const button=Array.from(document.querySelectorAll('[aria-label="Resume watch-fixture.mp4"]')).find(node=>{
+          if(node.disabled||node.getAttribute('aria-disabled')==='true'||
+            node.closest('[aria-hidden="true"]')||!node.getClientRects().length)return false;
+          const style=getComputedStyle(node);
+          return style.visibility!=='hidden'&&style.pointerEvents!=='none';
+        });
+        if(button)finish(button);
+      }
+      const observer=new MutationObserver(check);
+      const timer=setTimeout(()=>finish({readinessError:'Resume source did not become visible and enabled'}),20000);
+      observer.observe(document.body,{subtree:true,childList:true,attributes:true});
+      check();`, args:[]});
+    const id=element?.['element-6066-11e4-a52e-4f735466cecf'];
+    assert.ok(id,JSON.stringify(element));
+    await rpc('POST', `/session/${session}/element/${id}/click`, {});
+  }
   assert.equal((await native({type:'install_plugin',pluginId:'org.mlearn.english'})).type,'installed');
   const fixture=path.resolve('.mlearn/m01-ci-fixtures/watch-fixture.mp4');
   const opened=await native({type:'open_source',path:fixture,packageId:'org.mlearn.english'});
@@ -133,7 +161,7 @@ try {
   await click('Home');
   // Refocus Home to fetch sources created through the same native runtime.
   await click('Settings');await click('Home');
-  await click('Resume watch-fixture.mp4');
+  await resumeWatch();
   await until(()=>script('const v=document.querySelector("video");return v&&v.readyState>=2&&v.duration>=29'),'Decoded real H.264/AAC fixture');
   await rpc('POST', `/session/${session}/execute/async`, {script:'const done=arguments[arguments.length-1];document.querySelector("video").play().then(()=>done(true)).catch(e=>done(String(e)));',args:[]});
   await until(()=>script('return document.querySelector("video").currentTime>1'),'Playback time advances');
@@ -150,20 +178,20 @@ try {
   const saved=(await native({type:'recent_sources'})).sources.find(source=>source.id===id);
   assert.ok(Math.abs(saved.positionMs-20000)<500);assert.equal(saved.subtitleRevision,attached.window.source.subtitleRevision);assert.equal(saved.packageId,'org.mlearn.english');
   await rpc('DELETE', `/session/${session}`);session=undefined;
-  await launch();await click('Home');await click('Resume watch-fixture.mp4');
+  await launch();await click('Home');await resumeWatch();
   await until(()=>script('const v=document.querySelector("video");return v&&Math.abs(v.currentTime-20)<0.5'),'Exact source position after native restart');
   await click('Children: mixed');await click('Close Inspector');await click('Home');
   await rename(fixture,fixture+'.missing');
-  try {await click('Resume watch-fixture.mp4');await text('reselect');await click('Reselect from Home');}
+  try {await resumeWatch();await text('reselect');await click('Reselect from Home');}
   finally {await rename(fixture+'.missing',fixture);}
-  await click('Resume watch-fixture.mp4');
+  await resumeWatch();
   await until(()=>script('const v=document.querySelector("video");return v&&Math.abs(v.currentTime-20)<0.5'),'Missing-source recovery keeps progress');
   await screenshot('watch-restarted-source');
   await click('Home');
   const subtitleCopy=attached.window.source.subtitlePath;
   await rename(subtitleCopy,subtitleCopy+'.missing');
   try {
-    await click('Resume watch-fixture.mp4');await text('Reselect subtitles');
+    await resumeWatch();await text('Reselect subtitles');
     assert.equal((await native({type:'attach_subtitles',sourceId:id,path:path.resolve('.mlearn/m01-ci-fixtures/watch-fixture.srt')})).type,'source');
     await click('Retry source');
     await until(()=>script('const v=document.querySelector("video");return v&&Math.abs(v.currentTime-20)<0.5'),'Replaced missing subtitles preserve source position');
@@ -173,7 +201,7 @@ try {
   const unsupported=path.resolve('.mlearn/m01-ci-fixtures/unsupported.srt');
   await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:05,000\n日本語\n\n2\n00:00:10,000 --> 00:00:15,000\n語彙\n\n3\n00:00:20,000 --> 00:00:30,000\n字幕\n');
   assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
-  await click('Home');await click('Resume watch-fixture.mp4');
+  await click('Home');await resumeWatch();
   await text('English');await text('字幕');
   await script('document.querySelector("video").currentTime=2');
   await text('日本語');
@@ -181,7 +209,7 @@ try {
   // Two seeks within the same two-second bucket must still change the cue window.
   await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:00,250\nChildren.\n\n2\n00:00:00,250 --> 00:00:00,500\nwalked.\n\n3\n00:00:00,500 --> 00:00:01,500\nhome.\n');
   assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
-  await click('Home');await click('Resume watch-fixture.mp4');
+  await click('Home');await resumeWatch();
   await script('document.querySelector("video").currentTime=0.1');await click('Children: mixed');await click('Close Inspector');
   await script('document.querySelector("video").currentTime=0.8');await click('home: untracked');await text('home');await click('Close Inspector');
   console.log('Real Tauri IPC, signed packages, playback/seek, contextual Inspector, shared claims, exact source restart and missing-source recovery passed.');
