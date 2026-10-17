@@ -9,7 +9,7 @@ let url=URL(fileURLWithPath:directory).appendingPathComponent("watch-fixture.mov
 if FileManager.default.fileExists(atPath:url.path){try FileManager.default.removeItem(at:url)}
 let writer=try AVAssetWriter(outputURL:url,fileType:.mov)
 let video=AVAssetWriterInput(mediaType:.video,outputSettings:[AVVideoCodecKey:AVVideoCodecType.h264,AVVideoWidthKey:640,AVVideoHeightKey:360])
-let adaptor=AVAssetWriterInputPixelBufferAdaptor(assetWriterInput:video,sourcePixelBufferAttributes:[kCVPixelBufferPixelFormatTypeKey as String:kCVPixelFormatType_32ARGB,kCVPixelBufferWidthKey as String:640,kCVPixelBufferHeightKey as String:360])
+let adaptor=AVAssetWriterInputPixelBufferAdaptor(assetWriterInput:video,sourcePixelBufferAttributes:[kCVPixelBufferPixelFormatTypeKey as String:kCVPixelFormatType_32BGRA,kCVPixelBufferWidthKey as String:640,kCVPixelBufferHeightKey as String:360])
 writer.add(video)
 writer.startWriting();writer.startSession(atSourceTime:.zero)
 for frame in 0..<900 {
@@ -17,7 +17,7 @@ for frame in 0..<900 {
  var pixel:CVPixelBuffer?;CVPixelBufferPoolCreatePixelBuffer(nil,adaptor.pixelBufferPool!,&pixel)
  let buffer=pixel!;CVPixelBufferLockBaseAddress(buffer,[])
  let address=CVPixelBufferGetBaseAddress(buffer)!.assumingMemoryBound(to:UInt32.self)
- for i in 0..<(CVPixelBufferGetBytesPerRow(buffer)/4*360){address[i]=frame<450 ? 0xff403020:0xff204050}
+ for i in 0..<(CVPixelBufferGetBytesPerRow(buffer)/4*360){address[i]=frame<450 ? 0xffd04040:0xff4080d0}
  CVPixelBufferUnlockBaseAddress(buffer,[])
  guard adaptor.append(buffer,withPresentationTime:CMTime(value:Int64(frame),timescale:30)) else {fatalError(writer.error?.localizedDescription ?? "Append failed")}
 }

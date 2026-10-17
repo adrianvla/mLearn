@@ -43,7 +43,7 @@ export function WatchScreen(){
  async function refreshKnowledge(){if(!host.available)return;const b=await host.client.analyzeSource(id,latest.current.position);if(mounted.current)setBatch(b);}
  const cues=window?.cues.filter(c=>c.startMs<=position&&c.endMs>position)??[];
  return <View style={styles.screen(insets.top,insets.bottom)}>
-  <View style={styles.toolbar}><Row><Button label="← Home" accessibilityLabel="Home" variant="media" disabled={busy} onPress={()=>void back().catch(()=>{})}/><NativeText numberOfLines={1} style={styles.title}>{window?.source.title??'Watch'}</NativeText>{busy&&host.available?<Button label="Cancel opening" variant="secondary" onPress={()=>void host.client.cancelSourceOpen().catch(e=>setError(e.message))}/>:null}{window?<Button label={window.source.subtitlePath?'Replace subtitles':'Open subtitles'} variant="media" disabled={busy} onPress={()=>void attach()}/>:null}</Row>
+  <View style={[styles.toolbar,{top:insets.top}]}><Row><Button label="← Home" accessibilityLabel="Home" variant="media" disabled={busy} onPress={()=>void back().catch(()=>{})}/><NativeText numberOfLines={1} style={styles.title}>{window?.source.title??'Watch'}</NativeText>{busy&&host.available?<Button label="Cancel opening" variant="secondary" onPress={()=>void host.client.cancelSourceOpen().catch(e=>setError(e.message))}/>:null}{window?<Button label={window.source.subtitlePath?'Replace subtitles':'Open subtitles'} variant="media" disabled={busy} onPress={()=>void attach()}/>:null}</Row>
    {error?<><Text tone="media" accessibilityRole="alert">{error}</Text><Row><Button label="Retry source" variant="secondary" onPress={()=>setSourceReload(v=>v+1)}/><Button label="Reselect subtitles" variant="secondary" disabled={busy} onPress={()=>void attach()}/><Button label="Reselect from Home" variant="secondary" onPress={()=>router.replace('/')}/></Row></>:null}
    {saveError?<><Text tone="media" accessibilityRole="alert">Progress not saved: {saveError}</Text><Button label="Retry saving position" variant="secondary" onPress={()=>void persist().catch(()=>{})}/></>:null}
   </View>
@@ -54,7 +54,7 @@ export function WatchScreen(){
      {cues.map(cue=>{const analysis=batch?.subtitleRevision===window.source.subtitleRevision?batch.cues.find(a=>a.cue.index===cue.index):null;return <AnnotatedText key={cue.index} rawText={cue.text} analysis={analysis??null} annotations={batch?.annotations??[]} onInspect={(token,anchor)=>{void pauseAndSave().catch(()=>{});setInspection({sourceForm:token.text,context:cue.text,targets:token.targets,anchor});}}/>;})}
     </View>
    </View>
-   <View pointerEvents="box-none" style={[styles.status,(!window.source.subtitlePath||analysisError)?styles.feedback:null]}>
+   <View pointerEvents="box-none" style={[styles.status,{top:insets.top+64},(!window.source.subtitlePath||analysisError)?styles.feedback:null]}>
     {!window.source.subtitlePath?<Text tone="media">Open a plain UTF-8 SRT file to inspect subtitles.</Text>:null}
     {analysisError?<><Text tone="media" accessibilityRole="alert">{analysisError}</Text><Button label="Retry analysis" variant="secondary" onPress={()=>setAnalysisReload(v=>v+1)}/></>:null}
    </View>
@@ -62,4 +62,4 @@ export function WatchScreen(){
   </>:!error?<Text tone="media">Opening source…</Text>:null}
  </View>;
 }
-const styles=StyleSheet.create(theme=>({screen:(top:number,bottom:number)=>({flex:1,paddingTop:top,paddingBottom:bottom,backgroundColor:theme.media.background}),toolbar:{position:'absolute',top:0,left:0,right:0,zIndex:2,paddingHorizontal:16,paddingVertical:8,gap:8,backgroundColor:theme.media.chrome},title:{flexShrink:1,maxWidth:360,color:theme.media.text,fontSize:13*theme.textScale},stage:{flex:1,minHeight:240,backgroundColor:theme.media.background},subtitle:{position:'absolute',left:20,right:20,bottom:64,alignItems:'center'},status:{position:'absolute',top:80,left:16,right:16,gap:8},feedback:{padding:12,borderRadius:theme.radius,backgroundColor:theme.media.chrome}}));
+const styles=StyleSheet.create(theme=>({screen:(top:number,bottom:number)=>({flex:1,paddingTop:top,paddingBottom:bottom,backgroundColor:theme.media.background}),toolbar:{position:'absolute',top:0,left:0,right:0,zIndex:2,paddingHorizontal:16,paddingVertical:8,gap:8,backgroundColor:theme.media.chrome},title:{flex:1,minWidth:0,color:theme.media.text,fontSize:13*theme.textScale},stage:{flex:1,minHeight:240,backgroundColor:theme.media.background},subtitle:{position:'absolute',left:20,right:20,bottom:64,alignItems:'center'},status:{position:'absolute',top:80,left:16,right:16,gap:8},feedback:{padding:12,borderRadius:theme.radius,backgroundColor:theme.media.chrome}}));
