@@ -1,0 +1,70 @@
+appId: net.kikan.mlearn.v3dev
+---
+# Tap outside the central play button to reveal AVKit's transport.
+- runFlow:
+    when:
+      notVisible:
+        id: Play/Pause
+    commands:
+      - tapOn:
+          point: 50%, 35%
+- tapOn:
+    id: Play/Pause
+- extendedWaitUntil:
+    visible: 'came: untracked'
+    timeout: 25000
+- tapOn: 'Children: mixed'
+- extendedWaitUntil:
+    visible: child
+    timeout: 15000
+- tapOn: Close Inspector
+- runFlow:
+    when:
+      notVisible:
+        id: Play/Pause
+    commands:
+      - tapOn:
+          point: 50%, 35%
+- assertVisible: Play
+- takeScreenshot: native-played-frame
+# AVKit uses ten-second skips. Reset then seek to an exact paused checkpoint.
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: Skip Backward
+- assertVisible: '0:00 elapsed'
+- repeat:
+    times: 2
+    commands:
+      - tapOn:
+          id: Skip Forward
+- extendedWaitUntil:
+    visible: '0:20 elapsed'
+    timeout: 15000
+- extendedWaitUntil:
+    visible: 'came: untracked'
+    timeout: 15000
+- assertVisible: 'Children: mixed'
+- assertVisible: Play
+- takeScreenshot: native-paused-seek
+- tapOn: Home
+- assertVisible: '20s · org.mlearn.english · subtitles attached'
+- stopApp
+- launchApp:
+    clearState: false
+- tapOn: Resume m01-watch.mp4
+- extendedWaitUntil:
+    visible: 'came: untracked'
+    timeout: 15000
+- assertVisible: 'Children: mixed'
+- runFlow:
+    when:
+      notVisible:
+        id: Play/Pause
+    commands:
+      - tapOn:
+          point: 50%, 35%
+- assertVisible: '0:20 elapsed'
+- assertVisible: Play
+- takeScreenshot: native-restart-source-position

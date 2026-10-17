@@ -1,0 +1,92 @@
+appId: net.kikan.mlearn.v3dev
+---
+- tapOn: Open local video
+- tapOn: Browse
+- runFlow:
+    when:
+      visible:
+        id: 'DOC.sidebar.item.On My iPhone'
+    commands:
+      - tapOn:
+          id: 'DOC.sidebar.item.On My iPhone'
+      - extendedWaitUntil:
+          visible:
+            id: 'mLearn v3 Dev, Container'
+          timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'mLearn v3 Dev, Container'
+    commands:
+      - tapOn:
+          id: 'mLearn v3 Dev, Container'
+      - extendedWaitUntil:
+          visible:
+            id: 'M01 fixtures, Folder'
+          timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'M01 fixtures, Folder'
+    commands:
+      - tapOn:
+          id: 'M01 fixtures, Folder'
+      - extendedWaitUntil:
+          visible:
+            id: 'm01-watch, mp4'
+          timeout: 15000
+- tapOn:
+    id: 'm01-watch, mp4'
+- extendedWaitUntil:
+    visible: '(Open|Replace) subtitles'
+    timeout: 60000
+- runFlow:
+    when:
+      notVisible:
+        id: Play/Pause
+    commands:
+      - tapOn:
+          point: 50%, 35%
+- repeat:
+    times: 3
+    commands:
+      - tapOn:
+          id: Skip Backward
+- assertVisible: '0:00 elapsed'
+- tapOn: '(Open|Replace) subtitles'
+- tapOn: Browse
+- runFlow:
+    when:
+      visible:
+        id: 'DOC.sidebar.item.On My iPhone'
+    commands:
+      - tapOn:
+          id: 'DOC.sidebar.item.On My iPhone'
+      - extendedWaitUntil:
+          visible:
+            id: 'mLearn v3 Dev, Container'
+          timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'mLearn v3 Dev, Container'
+    commands:
+      - tapOn:
+          id: 'mLearn v3 Dev, Container'
+      - extendedWaitUntil:
+          visible:
+            id: 'M01 fixtures, Folder'
+          timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'M01 fixtures, Folder'
+    commands:
+      - tapOn:
+          id: 'M01 fixtures, Folder'
+      - extendedWaitUntil:
+          visible:
+            id: 'm01-watch, mp4'
+          timeout: 15000
+- tapOn:
+    id: 'm01-watch.srt, srt'

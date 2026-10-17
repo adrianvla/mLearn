@@ -1,0 +1,60 @@
+appId: net.kikan.mlearn.v3dev
+name: Watch Inspector Knowledge and native source resume
+---
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: Open local video
+    timeout: 60000
+- runFlow:
+    when:
+      platform: Android
+    file: watch/open-android.yaml
+- runFlow:
+    when:
+      platform: iOS
+    file: watch/open-ios.yaml
+- extendedWaitUntil:
+    visible: 'Children: (untracked|mixed)'
+    timeout: 60000
+- takeScreenshot: annotated-subtitles
+- tapOn: 'Children: (untracked|mixed)'
+- extendedWaitUntil:
+    visible: child
+    timeout: 60000
+- tapOn: Knowledge
+- scrollUntilVisible:
+    element: 'Claim Meaning unknown'
+    direction: DOWN
+- tapOn: 'Claim Meaning unknown'
+- extendedWaitUntil:
+    visible: 'Meaning · claimed unknown'
+    timeout: 15000
+- tapOn: 'Claim Meaning known'
+- extendedWaitUntil:
+    visible: 'Meaning · claimed known'
+    timeout: 15000
+- tapOn: 'Withdraw Meaning claim'
+- extendedWaitUntil:
+    visible: 'Meaning · untracked'
+    timeout: 15000
+- tapOn: 'Claim Meaning known'
+- extendedWaitUntil:
+    visible: 'Meaning · claimed known'
+    timeout: 15000
+- takeScreenshot: claimed-meaning
+- tapOn: Close Inspector
+- assertVisible: 'Children: mixed'
+- tapOn: Home
+- tapOn: Resume m01-watch.mp4
+- extendedWaitUntil:
+    visible: 'Children: mixed'
+    timeout: 15000
+- runFlow:
+    when:
+      platform: Android
+    file: watch/player-android.yaml
+- runFlow:
+    when:
+      platform: iOS
+    file: watch/player-ios.yaml

@@ -1,0 +1,81 @@
+appId: net.kikan.mlearn.v3dev
+---
+- runFlow:
+    when:
+      visible: Show player controls
+    commands:
+      - tapOn: Show player controls
+- tapOn:
+    id: net.kikan.mlearn.v3dev:id/exo_play_pause
+- extendedWaitUntil:
+    visible:
+      id: net.kikan.mlearn.v3dev:id/exo_position
+      text: '00:0[1-9]'
+    timeout: 15000
+# Inspection is a stable user action that must pause the actual native player.
+- tapOn: 'Children: mixed'
+- extendedWaitUntil:
+    visible: child
+    timeout: 15000
+- tapOn: Close Inspector
+- extendedWaitUntil:
+    visible:
+      id: net.kikan.mlearn.v3dev:id/exo_play_pause
+      text: Play
+    timeout: 15000
+- takeScreenshot: native-played-frame
+- runFlow:
+    when:
+      visible: Show player controls
+    commands:
+      - tapOn: Show player controls
+- tapOn:
+    id: net.kikan.mlearn.v3dev:id/exo_prev
+- extendedWaitUntil:
+    visible:
+      id: net.kikan.mlearn.v3dev:id/exo_position
+      text: '00:00'
+    timeout: 15000
+- tapOn:
+    id: net.kikan.mlearn.v3dev:id/exo_ffwd_with_amount
+- extendedWaitUntil:
+    visible:
+      id: net.kikan.mlearn.v3dev:id/exo_position
+      text: '00:15'
+    timeout: 15000
+- extendedWaitUntil:
+    visible: 'came: untracked'
+    timeout: 15000
+- assertVisible: 'Children: mixed'
+- copyTextFrom:
+    id: net.kikan.mlearn.v3dev:id/exo_position
+- evalScript: ${output.savedSeconds = parseInt(maestro.copiedText.split(':')[1],10)}
+- assertTrue: ${output.savedSeconds === 15}
+- assertVisible:
+    id: net.kikan.mlearn.v3dev:id/exo_play_pause
+    text: Play
+- takeScreenshot: native-paused-seek
+- tapOn: Home
+- assertVisible: '${output.savedSeconds}s · org.mlearn.english · subtitles attached'
+- stopApp
+- launchApp:
+    clearState: false
+- extendedWaitUntil:
+    visible: Resume m01-watch.mp4
+    timeout: 60000
+- tapOn: Resume m01-watch.mp4
+- extendedWaitUntil:
+    visible: 'Children: mixed'
+    timeout: 15000
+- runFlow:
+    when:
+      visible: Show player controls
+    commands:
+      - tapOn: Show player controls
+- extendedWaitUntil:
+    visible:
+      id: net.kikan.mlearn.v3dev:id/exo_position
+      text: '00:${output.savedSeconds}'
+    timeout: 15000
+- assertVisible: 'came: untracked'
+- takeScreenshot: native-restart-source-position

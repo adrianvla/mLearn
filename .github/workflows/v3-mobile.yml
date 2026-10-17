@@ -64,7 +64,12 @@ jobs:
           app=$(find apps/client/ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app"
           xcrun simctl install "$device" "$app"
-          PATH="$PWD/tests/mobile/ios-driver:$PATH" maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/foundation.yaml 2>&1 | tee test-results/mobile/run.log
+          python3 tools/create-watch-fixture.py .mlearn/m01-ci-fixtures
+          container=$(xcrun simctl get_app_container "$device" net.kikan.mlearn.v3dev data)
+          mkdir -p "$container/Documents/M01 fixtures"
+          cp .mlearn/m01-ci-fixtures/watch-fixture.mp4 "$container/Documents/M01 fixtures/m01-watch.mp4"
+          cp .mlearn/m01-ci-fixtures/watch-fixture.srt "$container/Documents/M01 fixtures/m01-watch.srt"
+          PATH="$PWD/tests/mobile/ios-driver:$PATH" maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/watch.yaml 2>&1 | tee test-results/mobile/run.log
       - name: Ensure build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
@@ -101,6 +106,7 @@ jobs:
         with: { cache-on-failure: true }
       - run: npm ci
       - run: npm run prepare:language-data
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: cargo install cargo-ndk --locked
       - name: Select installed Android NDK
         run: |
