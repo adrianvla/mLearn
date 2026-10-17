@@ -23,8 +23,8 @@
       "dangerousDisableAssetCspModification": [
         "style-src"
       ],
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; media-src 'self' mlearn-media: http://mlearn-media.localhost blob:",
-      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://localhost:8081 ws://localhost:8081; object-src 'none'; media-src 'self' mlearn-media: http://mlearn-media.localhost blob:"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; media-src 'self' http://127.0.0.1:* blob:",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src ipc: http://ipc.localhost http://localhost:8081 ws://localhost:8081; object-src 'none'; media-src 'self' http://127.0.0.1:* blob:"
     }
   },
   "bundle": {
