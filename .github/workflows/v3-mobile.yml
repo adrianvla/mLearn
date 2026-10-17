@@ -90,6 +90,9 @@ jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    # Trace the first server lifetime: prior failures lost ADB before app launch.
+    env:
+      ADB_TRACE: transport,sockets,auth,services
     steps:
       - uses: actions/checkout@v4
       - name: Record exact mobile source
@@ -159,6 +162,12 @@ jobs:
       - name: Ensure build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
+      - name: Preserve host ADB transport diagnostics
+        if: always()
+        run: |
+          mkdir -p test-results/mobile
+          find /tmp "$RUNNER_TEMP" -maxdepth 1 -type f -name 'adb.*.log' \
+            -print -exec cp {} test-results/mobile/ \;
       - uses: actions/upload-artifact@v4
         if: always()
         with:

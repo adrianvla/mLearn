@@ -4,7 +4,10 @@ name: Watch Inspector Knowledge and native source resume
 - launchApp:
     clearState: false
 - extendedWaitUntil:
-    visible: Open local video
+    # Home renders this control disabled while language packages initialize.
+    visible:
+      text: Open local video
+      enabled: true
     timeout: 60000
 - runFlow:
     when:

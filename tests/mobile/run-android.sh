@@ -4,6 +4,13 @@ set -euo pipefail
 device="emulator-${EMULATOR_PORT:-5554}"
 mkdir -p test-results/mobile
 trap 'adb -s "$device" logcat -d -t 3000 > test-results/mobile/native.log 2>&1 || true' EXIT
+{
+  command -v adb
+  adb version
+  adb server-status
+  ps -C adb -o pid,ppid,lstart,args
+  emulator -version
+} > test-results/mobile/host-adb-start.log 2>&1
 adb -s "$device" install apps/client/android/app/build/outputs/apk/release/app-release.apk
 python3 tools/create-watch-fixture.py .mlearn/m01-ci-fixtures
 adb -s "$device" shell mkdir -p /sdcard/Download

@@ -1,6 +1,8 @@
 appId: net.kikan.mlearn.v3dev
 ---
-- tapOn: Open local video
+- tapOn:
+    text: Open local video
+    enabled: true
 - tapOn: Browse
 - runFlow:
     when:
