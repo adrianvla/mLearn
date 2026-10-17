@@ -12,7 +12,7 @@ Runs38993481639,39025955515,39026425829 and39026883759 retain the successive fai
 
 ## Original WebM — corrected diagnosis
 
-The provided original is **VP9,2048×858, with stereo Opus**, duration236.681s. It was not transcoded or modified. Local Chromium decoded the original, reached readyState4 and advanced past1s with the expected video dimensions. Mac WebKit advertises `probably` for VP9/Opus; standalone AVFoundation's earlier refusal does **not** establish WebKit codec availability.
+The provided original is **VP9 with stereo Opus** (exact original stream metadata is retained locally). It was not transcoded or modified. Local Chromium decoded the original, reached readyState4 and advanced past1s with the expected video dimensions. Mac WebKit advertises `probably` for VP9/Opus; standalone AVFoundation's earlier refusal does **not** establish WebKit codec availability.
 
 The real product trace shows:
 
@@ -23,7 +23,7 @@ The real product trace shows:
 
 The fourth request is rejected by the existing handler because the original is60,475,168 bytes and unranged bodies are limited to2 MiB. That is an identified transport failure, not evidence that the original codec is unsupported.
 
-A temporary, local-only transport comparison served the **same original bytes**, streamed in64 KiB buffers, to the **same Tauri/WebKit application** over loopback HTTP. Native playback loaded its3m56s duration, advanced to6s, paused and saved6s. No private frames/audio were uploaded or put in model context; decoded-frame/quality and audible-output acceptance are not inferred from the diagnostic's timeline alone. The temporary adapter/CSP changes were restored, the diagnostic server stopped, and the normal product build restored. This is **not** candidate WebM support or original-corpus acceptance.
+A temporary, local-only transport comparison served the **same original bytes**, streamed in64 KiB buffers, to the **same Tauri/WebKit application** over loopback HTTP. Native playback loaded its real duration and advanced to6s, paused and saved6s. No private frames/audio were uploaded or put in model context; decoded-frame/quality and audible-output acceptance are not inferred from the diagnostic's timeline alone. The temporary adapter/CSP changes were restored, the diagnostic server stopped, and the normal product build restored. This is **not** candidate WebM support or original-corpus acceptance.
 
 ## Outstanding streaming decision
 
