@@ -29,10 +29,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
-      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus-x11 ffmpeg gstreamer1.0-libav gstreamer1.0-plugins-good
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus-x11 ffmpeg gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-tools
       - run: npm ci
       - run: npm run prepare:language-data
       - run: python3 tools/create-watch-fixture.py .mlearn/m01-ci-fixtures
+      - name: Verify actual fixture decoder chain
+        run: |
+          gst-inspect-1.0 qtdemux h264parse avdec_h264 > verification/gstreamer-chain.txt
+          gst-launch-1.0 -q filesrc location=.mlearn/m01-ci-fixtures/watch-fixture.mp4 ! qtdemux name=d d.video_0 ! h264parse ! avdec_h264 ! fakesink
       - run: npm run build:plugin
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
       - run: cargo install tauri-driver --locked

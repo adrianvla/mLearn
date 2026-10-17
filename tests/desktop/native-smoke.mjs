@@ -190,6 +190,7 @@ try {
     await screenshot('failure').catch(() => {});
     const body = await script('return document.body.innerText').catch(() => 'No DOM available');
     await writeFile('test-results/desktop/failure.txt', String(body));
+    await script(`const v=document.querySelector('video'); return v && {src:v.currentSrc,readyState:v.readyState,networkState:v.networkState,duration:Number.isFinite(v.duration)?v.duration:null,currentTime:v.currentTime,paused:v.paused,error:v.error&&{code:v.error.code,message:v.error.message},mp4:v.canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"'),webm:v.canPlayType('video/webm; codecs="vp9, opus"')};`).then(state=>writeFile('test-results/desktop/media-failure.json',JSON.stringify(state,null,2))).catch(()=>{});
     await styleState().then(state => writeFile('test-results/desktop/styles-failure.json', JSON.stringify(state, null, 2))).catch(() => {});
   }
   throw error;
