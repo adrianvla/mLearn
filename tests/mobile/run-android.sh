@@ -8,7 +8,6 @@ trap 'adb -s "$device" logcat -d -t 3000 > test-results/mobile/native.log 2>&1 |
   command -v adb
   adb version
   adb server-status
-  ps -C adb -o pid,ppid,lstart,args
   emulator -version
 } > test-results/mobile/host-adb-start.log 2>&1
 adb -s "$device" install apps/client/android/app/build/outputs/apk/release/app-release.apk

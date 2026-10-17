@@ -158,7 +158,9 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
-          script: bash tests/mobile/run-android.sh
+          script: |
+            ps -C adb -o pid,ppid,lstart,args > test-results/mobile/host-adb-process.log
+            bash tests/mobile/run-android.sh
       - name: Ensure build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
