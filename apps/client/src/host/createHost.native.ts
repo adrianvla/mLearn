@@ -22,7 +22,7 @@ export function createHost(): Host {
       // DocumentPicker owns a cache copy. Move it into one owned selection directory
       // so Rust sees the real filename rather than the provider's UUID cache name.
       const directory=new Directory(Paths.cache,'mlearn-picker',randomUUID());directory.create({intermediates:true});
-      try {const selected=cached;selected.move(new File(directory,asset.name));const path=decodeURIComponent(selected.uri.replace(/^file:\/\//,''));pickerCache.set(path,directory);return path;}
+      try {const selected=cached;await selected.move(new File(directory,asset.name));const path=decodeURIComponent(selected.uri.replace(/^file:\/\//,''));pickerCache.set(path,directory);return path;}
       catch(error){directory.delete();if(cached.exists&&cached.uri.startsWith(Paths.cache.uri))cached.delete();throw error;}
     },
     uri:(source)=>new File(`file://${source.mediaPath.split('/').map(encodeURIComponent).join('/')}`).uri,
