@@ -37,7 +37,7 @@ jobs:
       - run: python3 tools/create-watch-fixture.py .mlearn/m01-ci-fixtures
       - name: Verify actual fixture decoder chain
         run: |
-          gst-inspect-1.0 qtdemux h264parse avdec_h264 > verification/gstreamer-chain.txt
+          for element in qtdemux h264parse avdec_h264; do gst-inspect-1.0 "$element"; done > verification/gstreamer-chain.txt
           gst-launch-1.0 -q filesrc location=.mlearn/m01-ci-fixtures/watch-fixture.mp4 ! qtdemux name=d d.video_0 ! h264parse ! avdec_h264 ! fakesink
       - run: npm run build:plugin
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle

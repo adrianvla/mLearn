@@ -13,7 +13,7 @@ let session;
 async function rpc(method, endpoint, body) {
   const response = await fetch(`http://127.0.0.1:4444${endpoint}`, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30000) });
   const result = await response.json();
-  if (!response.ok || result.value?.error) throw new Error(JSON.stringify(result));
+  if (!response.ok || typeof result.value?.error === 'string') throw new Error(JSON.stringify(result));
   return result.value;
 }
 async function until(work, description, timeout = 30000) {
