@@ -33,6 +33,24 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
     };
     let profile = dir.path().join("profile");
     let mut runtime = Runtime::open(&profile, CodePolicy::MobileBundled, None, bundle()).unwrap();
+    let katakana = call(&mut runtime, json!({
+        "type":"invoke_plugin", "pluginId":"org.mlearn.japanese",
+        "capability":"text.analyze.v1", "input":{"texts":["ｶﾞｯﾂﾎﾟｰｽﾞ"]}
+    }));
+    assert_eq!(katakana["output"][0], json!([
+        {"start":0,"end":12,"text":"ｶﾞｯﾂ","targets":["jmdict:1040280"]},
+        {"start":12,"end":27,"text":"ﾎﾟｰｽﾞ","targets":["jmdict:1124650","jmdict:2780530","jmdict:2858735"]}
+    ]));
+    for (target, reading) in [
+        ("jmdict:1040280", "ガッツ"),
+        ("jmdict:1124650", "ポーズ"),
+        ("jmdict:2780530", "ポーズ"),
+        ("jmdict:2858735", "ポーズ"),
+    ] {
+        let entry = call(&mut runtime, json!({"type":"inspect_target","packageId":"org.mlearn.japanese","targetId":target}));
+        assert_eq!(entry["entry"]["targetId"], target);
+        assert!(entry["entry"]["reading"].as_str().unwrap().split(" / ").any(|value| value == reading));
+    }
     let source = call(&mut runtime, json!({"type":"open_source","path":video,"packageId":"org.mlearn.japanese"}));
     let id = source["window"]["source"]["id"].clone();
     call(&mut runtime, json!({"type":"attach_subtitles","sourceId":id,"path":subtitle}));

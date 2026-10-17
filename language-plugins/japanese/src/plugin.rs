@@ -67,7 +67,7 @@ fn candidates(token: &Token, lookup: &impl Fn(&str) -> Result<Option<Value>, Str
                 // An inflected surface reading is not a lemma reading. Preserve
                 // reading ambiguity there instead of forcing an invented reading.
                 let uninflected = token.surface == token.lemma || token.pos.get(4).is_some_and(|p| p == "*");
-                let reading_matches = !uninflected || hiragana(&token.reading) == candidate.reading;
+                let reading_matches = !uninflected || hiragana(&token.reading) == hiragana(&candidate.reading);
                 if reading_matches && compatible(&token.pos, &candidate.pos) {
                     targets.insert(candidate.id);
                 }
@@ -159,6 +159,26 @@ mod tests {
         assert_eq!(candidates(&token(), &lookup).unwrap(), ["jmdict:1", "jmdict:2"]);
         let mut oov = token(); oov.oov = true;
         assert!(candidates(&oov, &lookup).unwrap().is_empty());
+    }
+    #[test]
+    fn katakana_dictionary_reading_preserves_half_width_source_association() {
+        let token = Token {
+            start: 0, end: 12, surface: "ｶﾞｯﾂ".into(), lemma: "ガッツ".into(),
+            normalized: "ガッツ".into(), reading: "ガッツ".into(),
+            pos: vec!["名詞".into(), "普通名詞".into(), "一般".into(), "*".into(), "*".into(), "*".into()],
+            oov: false,
+        };
+        let lookup = |key: &str| {
+            assert_eq!(key, "form/ガッツ");
+            Ok(Some(json!([{
+                "id":"jmdict:1040280", "reading":"ガッツ",
+                "pos":["noun (common) (futsuumeishi)"]
+            }])))
+        };
+        let result = project("ｶﾞｯﾂ", vec![token], &lookup).unwrap();
+        assert_eq!(result, vec![json!({
+            "start":0, "end":12, "text":"ｶﾞｯﾂ", "targets":["jmdict:1040280"]
+        })]);
     }
     #[test]
     fn zero_width_expansion_has_no_fabricated_source_association() {
