@@ -19,8 +19,24 @@ fn local(path:&str,extensions:&[&str])->Result<PathBuf,String>{
  if !extensions.contains(&ext.as_str()){return Err(format!("Unsupported file; select {}",extensions.join(", ")));}Ok(path)
 }
 impl Runtime {
+ // Owned imports follow the profile when iOS relocates its data container.
+ // Only paths we created in the content-addressed imports namespace are rebased;
+ // external desktop videos keep their original user-selected location.
+ fn resolve_source_paths(&self,mut source:SourceRecord)->SourceRecord{
+  let owned=|saved:&str,revision:&str|->String{
+   let path=Path::new(saved);
+   match path.file_name().and_then(|n|n.to_str()){
+    Some(name) if path.parent().and_then(Path::file_name)==Some(std::ffi::OsStr::new("imports")) && name.starts_with(&format!("{revision}."))=>self.root.join("imports").join(name).to_string_lossy().into_owned(),
+    _=>saved.to_owned(),
+   }
+  };
+  if self.policy==mlearn_language_host::CodePolicy::MobileBundled{source.media_path=owned(&source.media_path,&source.media_revision);}
+  if let (Some(path),Some(revision))=(&source.subtitle_path,&source.subtitle_revision){source.subtitle_path=Some(owned(path,revision));}
+  source
+ }
+ fn source_record(&self,id:&str)->Result<SourceRecord,String>{self.store.source(id).map(|s|self.resolve_source_paths(s)).map_err(|e|e.to_string())}
  pub fn source_media_path(&self,id:&str)->Result<PathBuf,String>{
-  let source=self.store.source(id).map_err(|e|e.to_string())?;
+  let source=self.source_record(id)?;
   local(&source.media_path,&["mp4","mov","m4v","webm","mkv"])
  }
  fn invoke_language(&self,id:&str,capability:&str,input:serde_json::Value)->Result<serde_json::Value,String>{
@@ -68,12 +84,12 @@ impl Runtime {
  pub(crate) fn watch(&mut self,request:Request)->Result<Response,String>{
   let epoch=self.cancellation.load(Ordering::Relaxed);
   match request {
-   Request::RecentSources=>Ok(Response::Sources{sources:self.store.recents().map_err(|e|e.to_string())?}),
+   Request::RecentSources=>Ok(Response::Sources{sources:self.store.recents().map_err(|e|e.to_string())?.into_iter().map(|s|self.resolve_source_paths(s)).collect()}),
    Request::OpenSource{path,package_id}=>{
     let description=self.description(&package_id)?;let _=description;
     let path=local(&path,&["mp4","mov","m4v","webm","mkv"])?;let media_revision=hash(&path,&self.cancellation,epoch)?;
     let id=format!("video-{media_revision}");
-    let old=self.store.find_source(&id).map_err(|e|e.to_string())?;
+    let old=self.store.find_source(&id).map_err(|e|e.to_string())?.map(|s|self.resolve_source_paths(s));
     let title=path.file_name().and_then(|s|s.to_str()).unwrap_or("Video").to_owned();
     let path=self.import_path(&path,&media_revision,false,epoch)?;
     let source=SourceRecord{id,title,media_path:path.to_string_lossy().into_owned(),media_revision,subtitle_path:old.as_ref().and_then(|s|s.subtitle_path.clone()),subtitle_revision:old.as_ref().and_then(|s|s.subtitle_revision.clone()),package_id:package_id.clone(),package_version:self.installed[&package_id].manifest.version.clone(),position_ms:old.as_ref().map_or(0,|s|s.position_ms),duration_ms:old.map_or(0,|s|s.duration_ms)};
@@ -81,7 +97,7 @@ impl Runtime {
     Ok(Response::Source{window:self.window(source.clone(),source.position_ms)?})
    },
    Request::ResumeSource{source_id}=>{
-    let source=self.store.source(&source_id).map_err(|e|e.to_string())?;
+    let source=self.source_record(&source_id)?;
     let path=self.source_media_path(&source_id)?;
     if hash(&path,&self.cancellation,epoch)?!=source.media_revision{return Err("Video content changed; open it as a new source. Saved progress is preserved.".into());}
     if let Some(path)=&source.subtitle_path {
@@ -95,16 +111,16 @@ impl Runtime {
     if fs::metadata(&path).map_err(|e|e.to_string())?.len()>2*1024*1024{return Err("Subtitle file exceeds 2 MiB".into());}
     let cues=subtitles::parse(&fs::read_to_string(&path).map_err(|e|format!("SRT must be UTF-8: {e}"))?)?;
     let revision=hash(&path,&self.cancellation,epoch)?;let path=self.import_path(&path,&revision,true,epoch)?;
-    let mut source=self.store.source(&source_id).map_err(|e|e.to_string())?;
+    let mut source=self.source_record(&source_id)?;
     source.subtitle_path=Some(path.to_string_lossy().into_owned());source.subtitle_revision=Some(revision);
     self.store.attach_cues(&source,&cues).map_err(|e|e.to_string())?;
     self.analysis_cache.retain(|(key,_)|!key.starts_with(&source_id));
     Ok(Response::Source{window:self.window(source.clone(),source.position_ms)?})
    },
-   Request::SourceWindow{source_id,position_ms}=>Ok(Response::Source{window:self.window(self.store.source(&source_id).map_err(|e|e.to_string())?,position_ms)?}),
+   Request::SourceWindow{source_id,position_ms}=>Ok(Response::Source{window:self.window(self.source_record(&source_id)?,position_ms)?}),
    Request::SavePosition{source_id,position_ms,duration_ms}=>{
     if duration_ms>7*24*60*60*1000 || (duration_ms>0 && position_ms>duration_ms){return Err("Playback position is outside the media duration".into());}
-    let mut source=self.store.source(&source_id).map_err(|e|e.to_string())?;source.position_ms=position_ms;source.duration_ms=duration_ms;
+    let mut source=self.source_record(&source_id)?;source.position_ms=position_ms;source.duration_ms=duration_ms;
     self.store.save_source(&source).map_err(|e|e.to_string())?;Ok(Response::PositionSaved)
    },
    Request::DescribeLanguage{package_id}=>Ok(Response::Language{description:self.description(&package_id)?}),
@@ -119,7 +135,7 @@ impl Runtime {
     Ok(Response::ClaimChanged{projection:self.store.change_claim(&change).map_err(|e|e.to_string())?})
    },
    Request::AnalyzeSource{source_id,position_ms}=>{
-    let source=self.store.source(&source_id).map_err(|e|e.to_string())?;
+    let source=self.source_record(&source_id)?;
     let revision=source.subtitle_revision.clone().ok_or("Select an external SRT subtitle file first")?;
     let installed=self.installed.get(&source.package_id).ok_or("Language package unavailable; install it and retry")?;
     if installed.manifest.version!=source.package_version{return Err("Saved source requires its original package version; reselect the source language explicitly".into());}

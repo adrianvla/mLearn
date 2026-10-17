@@ -12,14 +12,14 @@ fn call(runtime:&mut Runtime,request:Value)->Value{let reply:Value=serde_json::f
 fn real_wasm_dictionary_source_restart_claim_projection_and_recovery(){
  let dir=tempfile::tempdir().unwrap();let profile=dir.path().join("profile");
  let video=dir.path().join("synthetic.mp4");std::fs::write(&video,b"source identity fixture; playback is tested in consuming app").unwrap();
- let subs=dir.path().join("authored.srt");std::fs::write(&subs,"1\n00:00:00,000 --> 00:00:10,000\nChildren walked home.\n\n2\n00:00:10,000 --> 00:00:20,000\nChildren came home.\n").unwrap();
+ let subs=dir.path().join("authored.srt");std::fs::write(&subs,"1\n00:00:00,000 --> 00:00:10,000\nChildren walked home.\n\n2\n00:00:10,000 --> 00:00:20,000\nChildren came\nhome.\n").unwrap();
  let mut runtime=Runtime::open(&profile,CodePolicy::MobileBundled,None,bundles()).unwrap();
  let opened=call(&mut runtime,json!({"type":"open_source","path":video,"packageId":"org.mlearn.english"}));
  let id=opened["window"]["source"]["id"].as_str().unwrap().to_owned();
  call(&mut runtime,json!({"type":"attach_subtitles","sourceId":id,"path":subs}));
  let before=call(&mut runtime,json!({"type":"analyze_source","sourceId":id,"positionMs":0}));
  let token=&before["batch"]["cues"][0]["tokens"][0]; assert_eq!(token["text"],"Children");assert!(!token["targets"].as_array().unwrap().is_empty());
- assert_eq!(before["batch"]["cues"][1]["cue"]["text"],"Children came home.");
+ assert_eq!(before["batch"]["cues"][1]["cue"]["text"],"Children came\nhome.");
  assert_eq!(before["batch"]["cues"][1]["tokens"][0]["targets"],token["targets"]);
  let projections=before["batch"]["knowledge"].as_array().unwrap();
  let distinct=projections.iter().map(|p|p["key"].to_string()).collect::<std::collections::BTreeSet<_>>();
@@ -34,10 +34,14 @@ fn real_wasm_dictionary_source_restart_claim_projection_and_recovery(){
  let state=after["batch"]["knowledge"].as_array().unwrap().iter().find(|p|p["key"]==key).unwrap(); assert_eq!(state["claim"],true);assert_eq!(state["assessed"],Value::Null);assert_eq!(state["prediction"],Value::Null);
  call(&mut runtime,json!({"type":"save_position","sourceId":id,"positionMs":12345,"durationMs":20000}));
  drop(runtime);
+ // iOS can relocate the data container on app updates. Owned imports must follow
+ // the profile, while the source identity, claims and exact checkpoint survive.
+ let relocated=dir.path().join("relocated-profile");std::fs::rename(&profile,&relocated).unwrap();let profile=relocated;
  let mut runtime=Runtime::open(&profile,CodePolicy::MobileBundled,None,bundles()).unwrap();
  let restored=call(&mut runtime,json!({"type":"resume_source","sourceId":id}));
  assert_eq!(restored["window"]["source"]["positionMs"],12345);assert_eq!(restored["window"]["source"]["packageId"],"org.mlearn.english");
  assert!(restored["window"]["source"]["subtitlePath"].as_str().unwrap().contains("imports"));
+ let persisted=call(&mut runtime,json!({"type":"knowledge","keys":[key]}));assert_eq!(persisted["projections"][0]["claim"],true);
  // Unavailable source errors preserve the last saved record and its association.
  let imported=PathBuf::from(restored["window"]["source"]["mediaPath"].as_str().unwrap());std::fs::remove_file(imported).unwrap();
  let failed:Value=serde_json::from_str(&runtime.execute(&json!({"type":"resume_source","sourceId":id}).to_string())).unwrap();assert_eq!(failed["type"],"error");
