@@ -23,7 +23,7 @@
     "ios": "npm run ios -w @mlearn/client",
     "android": "npm run android -w @mlearn/client",
     "test:web": "playwright test",
-    "prepare:language-data": "python3 tools/prepare-wordnet.py"
+    "prepare:language-data": "python3 tools/prepare-wordnet.py && node tools/acquire-japanese.mjs && python3 tools/prepare-japanese.py --offline"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

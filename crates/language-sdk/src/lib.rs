@@ -14,10 +14,43 @@ pub struct Call {
 #[cfg(target_arch = "wasm32")]
 #[link(wasm_import_module = "mlearn")]
 unsafe extern "C" {
+    fn resource_len(key: *const u8, key_len: usize) -> i64;
+    fn resource_digest(key: *const u8, key_len: usize, output: *mut u8) -> i32;
+    fn resource_read_at(key: *const u8, key_len: usize, offset: i64, output: *mut u8, capacity: usize) -> i32;
     #[link_name="resource_get"]
     fn host_resource_get(resource:*const u8,resource_len:usize,key:*const u8,key_len:usize,output:*mut u8,capacity:usize)->i32;
     fn asset_len(key: *const u8, key_len: usize) -> i32;
     fn asset_read(key: *const u8, key_len: usize, output: *mut u8, capacity: usize) -> i32;
+}
+
+/// Consume an authenticated immutable binary resource through bounded ranges.
+/// The expected identity is package-owned; no guest path or SQL is accepted.
+pub fn read_resource(key: &str, expected_size: usize, expected_sha256: &str) -> Result<Vec<u8>, String> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if expected_size > 128 * 1024 * 1024 || expected_sha256.len() != 64 {
+            return Err("Invalid binary resource expectation".into());
+        }
+        // SAFETY: the imported host receives live borrowed key and owned output spans.
+        let size = unsafe { resource_len(key.as_ptr(), key.len()) };
+        let mut digest = [0u8; 64];
+        // SAFETY: resource_digest writes at most its fixed 64-byte contract.
+        let count = unsafe { resource_digest(key.as_ptr(), key.len(), digest.as_mut_ptr()) };
+        if size != expected_size as i64 || count != 64 || digest != expected_sha256.as_bytes() {
+            return Err("Authenticated resource identity does not match this plugin".into());
+        }
+        let mut bytes = vec![0; expected_size];
+        for (index, chunk) in bytes.chunks_mut(65536).enumerate() {
+            // SAFETY: each output is a disjoint, live initialized chunk of this allocation.
+            let count = unsafe { resource_read_at(key.as_ptr(), key.len(), (index * 65536) as i64, chunk.as_mut_ptr(), chunk.len()) };
+            if count != chunk.len() as i32 {
+                return Err("Binary resource read failed or exceeded its budget".into());
+            }
+        }
+        Ok(bytes)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    { let _ = (key, expected_size, expected_sha256); Err("Resources are supplied by the Wasm host".into()) }
 }
 
 pub fn read_asset(key: &str) -> Result<Vec<u8>, String> {
@@ -38,6 +71,14 @@ pub fn read_asset(key: &str) -> Result<Vec<u8>, String> {
 /// Exports one batch entry point. The host owns calls to alloc/dealloc; plugin logic owns no host state.
 #[macro_export]
 macro_rules! export_plugin {
+    ($handler:path, $initialize:path) => {
+        $crate::export_plugin!($handler);
+        #[cfg(target_arch = "wasm32")]
+        #[unsafe(no_mangle)]
+        pub extern "C" fn mlearn_initialize() -> i32 {
+            match $initialize() { Ok(()) => 0, Err(_) => -1 }
+        }
+    };
     ($handler:path) => {
         #[cfg(target_arch = "wasm32")]
         #[unsafe(no_mangle)]

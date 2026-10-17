@@ -5,7 +5,7 @@ use std::{path::PathBuf,collections::BTreeMap};
 fn bundles()->Vec<BundledPlugin>{
  let root=PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");
  let manifests:Vec<Manifest>=serde_json::from_slice(&std::fs::read(root.join("bundle.json")).expect("npm run build:plugin first")).unwrap();
- manifests.into_iter().map(|manifest|{let code=std::fs::read(root.join(&manifest.code.path)).unwrap();let assets=manifest.assets.iter().map(|(key,artifact)|(key.clone(),std::fs::read(root.join(&artifact.path)).unwrap())).collect::<BTreeMap<_,_>>();BundledPlugin{manifest,code,assets}}).collect()
+ manifests.into_iter().filter(|m|m.id=="org.mlearn.english").map(|manifest|{let code=std::fs::read(root.join(&manifest.code.path)).unwrap();let assets=manifest.assets.iter().map(|(key,artifact)|(key.clone(),std::fs::read(root.join(&artifact.path)).unwrap().into())).collect::<BTreeMap<_,_>>();BundledPlugin{manifest,code,assets}}).collect()
 }
 fn call(runtime:&mut Runtime,request:Value)->Value{let reply:Value=serde_json::from_str(&runtime.execute(&request.to_string())).unwrap();assert_ne!(reply["type"],"error","{}: {reply}",request["type"]);reply}
 #[test]

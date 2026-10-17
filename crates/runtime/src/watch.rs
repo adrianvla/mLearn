@@ -111,7 +111,7 @@ impl Runtime {
         {
             return Err("Selected package does not support this language operation".into());
         }
-        package.compiled.invoke(capability, input)
+        package.compiled.invoke_cancellable(capability, input, self.cancellation.clone(), self.request_epoch)
     }
     fn description(&self, id: &str) -> Result<LanguageDescription, String> {
         let description: LanguageDescription = serde_json::from_value(self.invoke_language(
@@ -436,6 +436,7 @@ impl Runtime {
                         }
                         result.push(CueAnalysis { cue, tokens });
                     }
+                    check(&self.cancellation, epoch)?;
                     if self.analysis_cache.len() >= 8 {
                         self.analysis_cache.pop_front();
                     }
@@ -496,6 +497,7 @@ impl Runtime {
                         })
                     })
                     .collect();
+                check(&self.cancellation, epoch)?;
                 Ok(Response::Analysis {
                     batch: AnalysisBatch {
                         source_id,
