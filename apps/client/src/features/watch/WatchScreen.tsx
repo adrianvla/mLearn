@@ -9,7 +9,7 @@ export function WatchScreen(){
  const latest=useRef({position:0,duration:0});const lastSaved=useRef(0);const mounted=useRef(true);const saveFailed=useRef(false);const controller=useRef<{pauseAndRead:()=>{positionMs:number;durationMs:number}}|null>(null);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  useEffect(()=>{if(!host.available)return;let active=true;let pending=true;setError('');host.client.resumeSource(id).then(w=>{pending=false;if(active){setWindow(w);setPosition(w.source.positionMs);latest.current={position:w.source.positionMs,duration:w.source.durationMs};}}).catch(e=>{pending=false;if(active)setError(e.message);});return()=>{active=false;if(pending)void host.client.cancelSourceOpen().catch(()=>{});};},[host,id,sourceReload]);
- const bucket=Math.floor(position/2000);const ready=!!window;const subtitleRevision=window?.source.subtitleRevision;
+ const bucket=Math.floor(position/2000);const cues=window?.cues.filter(c=>c.startMs<=position&&c.endMs>position)??[];const cueKey=cues.map(c=>c.index).join(',');const ready=!!window;const subtitleRevision=window?.source.subtitleRevision;
  useEffect(()=>{
   if(!host.available||!ready||!subtitleRevision)return;
   let active=true;
@@ -18,14 +18,14 @@ export function WatchScreen(){
   void host.client.sourceWindow(id,latest.current.position).then(w=>{if(active)setWindow(w);}).catch(e=>{if(active)setError(e.message);});
   void host.client.analyzeSource(id,latest.current.position).then(b=>{if(active){setBatch(b);setAnalysisError('');}}).catch(e=>{if(active){setBatch(null);setAnalysisError(e.message);}});
   return()=>{active=false;};
- },[host,id,ready,subtitleRevision,bucket,analysisReload]);
+ },[host,id,ready,subtitleRevision,bucket,cueKey,analysisReload]);
  async function persist(positionMs=latest.current.position,durationMs=latest.current.duration){
   if(!host.available||!Number.isFinite(durationMs)||durationMs<=0)return;
   try{await host.client.savePosition(id,Math.min(positionMs,durationMs),durationMs);saveFailed.current=false;if(mounted.current)setSaveError('');}
   catch(e){saveFailed.current=true;if(mounted.current)setSaveError(e instanceof Error?e.message:String(e));throw e;}
  }
  function progress(positionMs:number,durationMs:number,checkpoint:boolean){
-  latest.current={position:positionMs,duration:durationMs};if(mounted.current)setPosition(positionMs);
+  latest.current={position:positionMs,duration:durationMs};if(mounted.current){setPosition(positionMs);if(checkpoint)setAnalysisReload(v=>v+1);}
   if(!saveFailed.current&&(checkpoint||Date.now()-lastSaved.current>2000)){lastSaved.current=Date.now();void persist(positionMs,durationMs).catch(()=>{/* Explicit retry stays beside playback. */});}
  }
  async function pauseAndSave(){const point=controller.current?.pauseAndRead();if(point){latest.current={position:point.positionMs,duration:point.durationMs};setPosition(point.positionMs);}await persist();}
@@ -41,7 +41,6 @@ export function WatchScreen(){
   return()=>{active=false;stop?.();};
  },[host,id,!!window,window?.source.packageId,busy]));
  async function refreshKnowledge(){if(!host.available)return;const b=await host.client.analyzeSource(id,latest.current.position);if(mounted.current)setBatch(b);}
- const cues=window?.cues.filter(c=>c.startMs<=position&&c.endMs>position)??[];
  return <View style={styles.screen(insets.top,insets.bottom)}>
   <View style={[styles.toolbar,{top:insets.top}]}><Row><Button label="← Home" accessibilityLabel="Home" variant="media" disabled={busy} onPress={()=>void back().catch(()=>{})}/><NativeText numberOfLines={1} style={styles.title}>{window?.source.title??'Watch'}</NativeText>{busy&&host.available?<Button label="Cancel opening" variant="secondary" onPress={()=>void host.client.cancelSourceOpen().catch(e=>setError(e.message))}/>:null}{window?<Button label={window.source.subtitlePath?'Replace subtitles':'Open subtitles'} variant="media" disabled={busy} onPress={()=>void attach()}/>:null}</Row>
    {error?<><Text tone="media" accessibilityRole="alert">{error}</Text><Row><Button label="Retry source" variant="secondary" onPress={()=>setSourceReload(v=>v+1)}/><Button label="Reselect subtitles" variant="secondary" disabled={busy} onPress={()=>void attach()}/><Button label="Reselect from Home" variant="secondary" onPress={()=>router.replace('/')}/></Row></>:null}

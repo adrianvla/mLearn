@@ -10,5 +10,5 @@ if sys.platform=='darwin':
  subprocess.run(['swift',str(Path(__file__).with_suffix('.swift')),str(output)],check=True)
 else:
  subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-f','lavfi','-i','color=c=navy:s=640x360:r=30:d=30','-f','lavfi','-i','sine=frequency=440:sample_rate=24000:duration=30','-c:v','libx264','-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart',str(output/'watch-fixture.mp4')],check=True)
-(output/'watch-fixture.srt').write_text('1\n00:00:00,000 --> 00:00:15,000\nChildren walked home.\n\n2\n00:00:15,000 --> 00:00:30,000\nChildren walked home.\n')
+(output/'watch-fixture.srt').write_text('1\n00:00:00,000 --> 00:00:15,000\nChildren walked home.\n\n2\n00:00:15,000 --> 00:00:30,000\nChildren came home.\n')
 print('Authored 30s H.264/AAC video, tone and matching external SRT; no corpus input')

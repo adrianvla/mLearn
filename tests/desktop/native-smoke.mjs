@@ -143,6 +143,7 @@ try {
   await click('Children: mixed');await click('Close Inspector');
   await script('document.querySelector("video").currentTime=20');
   await until(()=>script('return Math.abs(document.querySelector("video").currentTime-20)<0.5'),'Seek to second occurrence');
+  await click('came: untracked');await text('come');await click('Close Inspector');
   await click('Children: mixed');await click('Close Inspector');
   await screenshot('watch-inspector-claim-projection');
   await click('Home');
@@ -177,6 +178,12 @@ try {
   await script('document.querySelector("video").currentTime=2');
   await text('日本語');
   await screenshot('watch-raw-subtitles-with-analysis-unavailable');
+  // Two seeks within the same two-second bucket must still change the cue window.
+  await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:00,250\nChildren.\n\n2\n00:00:00,250 --> 00:00:00,500\nwalked.\n\n3\n00:00:00,500 --> 00:00:01,500\nhome.\n');
+  assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
+  await click('Home');await click('Resume watch-fixture.mp4');
+  await script('document.querySelector("video").currentTime=0.1');await click('Children: mixed');await click('Close Inspector');
+  await script('document.querySelector("video").currentTime=0.8');await click('home: untracked');await text('home');await click('Close Inspector');
   console.log('Real Tauri IPC, signed packages, playback/seek, contextual Inspector, shared claims, exact source restart and missing-source recovery passed.');
 } catch (error) {
   if (session) {
