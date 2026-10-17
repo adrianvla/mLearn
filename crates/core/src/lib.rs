@@ -1,3 +1,5 @@
+mod watch;
+pub use watch::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -91,6 +93,18 @@ pub struct Snapshot {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Request {
     Snapshot,
+    RecentSources,
+    AvailablePackages,
+    OpenSource { path: String, #[serde(rename="packageId")] package_id:String },
+    ResumeSource { #[serde(rename="sourceId")] source_id:String },
+    AttachSubtitles { #[serde(rename="sourceId")] source_id:String,path:String },
+    SourceWindow { #[serde(rename="sourceId")] source_id:String,#[serde(rename="positionMs")] position_ms:u32 },
+    SavePosition { #[serde(rename="sourceId")] source_id:String,#[serde(rename="positionMs")] position_ms:u32,#[serde(rename="durationMs")] duration_ms:u32 },
+    AnalyzeSource { #[serde(rename="sourceId")] source_id:String,#[serde(rename="positionMs")] position_ms:u32 },
+    DescribeLanguage { #[serde(rename="packageId")] package_id:String },
+    InspectTarget { #[serde(rename="packageId")] package_id:String,#[serde(rename="targetId")] target_id:String },
+    Knowledge { keys:Vec<KnowledgeKey> },
+    ChangeClaim { change:ClaimChange },
     SaveTheme {
         document: ThemeDocument,
         #[serde(rename = "expectedRevision")]
@@ -116,6 +130,15 @@ pub enum Request {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Response {
     Snapshot { snapshot: Snapshot },
+    Sources { sources:Vec<SourceRecord> },
+    Packages { plugins:Vec<PluginSummary> },
+    Source { window:SourceWindow },
+    PositionSaved,
+    Analysis { batch:AnalysisBatch },
+    Language { description:LanguageDescription },
+    Entry { entry:LexicalEntry },
+    Knowledge { projections:Vec<KnowledgeProjection> },
+    ClaimChanged { projection:KnowledgeProjection },
     Saved { revision: u32 },
     Installed { plugin: PluginSummary },
     PluginResult {

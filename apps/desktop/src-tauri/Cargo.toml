@@ -16,3 +16,6 @@ mlearn-language-host = { path = "../../../crates/language-host" }
 serde_json.workspace = true
 tokio = { version = "1", features = ["sync"] }
 tauri = { version = "2.12.3", features = [] }
+http-range = "0.1.5"
+rfd = "0.15.4"
+mlearn-core = {path="../../../crates/core"}

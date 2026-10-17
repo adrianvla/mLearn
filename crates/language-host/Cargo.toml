@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license-file = "../../LICENSE"
 [dependencies]
+rusqlite = { version="0.37", features=["bundled"] }
 mlearn-language-sdk = { path = "../language-sdk" }
 serde.workspace = true
 serde_json.workspace = true
@@ -15,3 +16,4 @@ sha2.workspace = true
 wasmi = { version = "2", default-features = false, features = ["std", "validate", "stable", "auto-dispatch"] }
 [dev-dependencies]
 wat = "1"
+tempfile="3"

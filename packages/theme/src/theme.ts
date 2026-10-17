@@ -9,6 +9,7 @@ export const initialTheme: ThemeDocument = quartz;
 export function resolveTheme(document: ThemeDocument) {
   return {
     colors: { ...document.colors },
+    media:{background:"#000000",text:"#F8FAFC",muted:"#B8C1CC",chrome:"#171717E6",panel:"#252525F2",border:"#545454"},
     radius: document.radius,
     textScale: document.textScale,
     spacing: { small: 8, medium: 16, large: 24 },

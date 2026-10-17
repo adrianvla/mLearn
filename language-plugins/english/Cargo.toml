@@ -1,0 +1,11 @@
+[package]
+name="mlearn-language-english"
+version="0.1.0"
+edition="2024"
+publish=false
+[lib]
+crate-type=["cdylib","rlib"]
+[dependencies]
+mlearn-language-sdk={path="../../crates/language-sdk"}
+mlearn-core={path="../../crates/core"}
+unicode-segmentation="1.13.3"

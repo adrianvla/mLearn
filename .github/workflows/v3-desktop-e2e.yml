@@ -31,6 +31,7 @@ jobs:
         with: { cache-on-failure: true }
       - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus-x11
       - run: npm ci
+      - run: npm run prepare:language-data
       - run: npm run build:plugin
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
       - run: cargo install tauri-driver --locked

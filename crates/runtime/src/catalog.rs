@@ -29,10 +29,10 @@ impl Manifest {
         if self.capabilities.is_empty() || self.capabilities.len() > 64 || self.capabilities.iter().any(|v| v.is_empty() || v.len() > 256) { return Err("Invalid capability declarations".into()); }
         if self.assets.len() > 32 { return Err("Too many fixture assets".into()); }
         for (key, artifact) in &self.assets {
-            if key.is_empty() || key.len() > 256 || artifact.byte_length > 8 * 1024 * 1024 { return Err("Invalid asset declaration".into()); }
+            if key.is_empty() || key.len() > 256 || artifact.byte_length > if key.ends_with(".sqlite") {32*1024*1024} else {8*1024*1024} { return Err("Invalid asset declaration".into()); }
             validate_artifact(artifact)?;
         }
-        if self.assets.values().map(|a| a.byte_length).sum::<usize>() > 8 * 1024 * 1024 || self.code.byte_length > 4 * 1024 * 1024 { return Err("Plugin exceeds fixture runtime budget".into()); }
+        if self.assets.values().map(|a| a.byte_length).sum::<usize>() > 40 * 1024 * 1024 || self.code.byte_length > 4 * 1024 * 1024 { return Err("Plugin exceeds fixture runtime budget".into()); }
         validate_artifact(&self.code)
     }
 }

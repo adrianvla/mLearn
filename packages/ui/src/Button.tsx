@@ -5,7 +5,7 @@ import styles from './Button.styles';
 export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
   busy?: boolean;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'media';
 };
 
 export const Button = forwardRef<View, ButtonProps>(function Button({ label, busy = false, disabled = false, variant = 'primary', ...props }, ref) {

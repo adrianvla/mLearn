@@ -2,7 +2,7 @@ name: v3 native mobile integration
 on:
   push:
     branches: ['agent/**', rewrite/v3]
-    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/bindgen/**', 'tools/prepare-plugins.mjs', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock', 'resources/**', 'Cargo.toml', 'rust-toolchain.toml', 'package.json']
+    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/bindgen/**', 'tools/prepare-plugins.mjs', 'tools/prepare-wordnet.py', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock', 'resources/**', 'Cargo.toml', 'rust-toolchain.toml', 'package.json']
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,6 +26,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
       - run: npm ci
+      - run: npm run prepare:language-data
       - name: Prepare and typecheck native Swift bindings
         shell: bash
         run: |
@@ -99,6 +100,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
       - run: npm ci
+      - run: npm run prepare:language-data
       - run: cargo install cargo-ndk --locked
       - name: Select installed Android NDK
         run: |

@@ -3,13 +3,13 @@ import { Text as NativeText, type TextProps as NativeTextProps } from 'react-nat
 import { StyleSheet } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
 
-type Props = Omit<NativeTextProps, 'style' | 'onPress' | 'onLongPress'> & { variant?: 'heading' | 'body' | 'caption'; muted?: boolean };
-export const Text = forwardRef<NativeText, Props>(function Text({ variant = 'body', muted = false, ...props }, ref) {
-  return <NativeText {...props} ref={ref} style={styles.text(variant, muted)} />;
+type Props = Omit<NativeTextProps, 'style' | 'onPress' | 'onLongPress'> & { variant?: 'heading' | 'body' | 'caption'; muted?: boolean; tone?: 'content' | 'media' };
+export const Text = forwardRef<NativeText, Props>(function Text({ variant = 'body', muted = false, tone = 'content', ...props }, ref) {
+  return <NativeText {...props} ref={ref} style={styles.text(variant, muted, tone)} />;
 });
 const styles = StyleSheet.create((theme) => ({
-  text: (variant: 'heading' | 'body' | 'caption', muted: boolean) => ({
-    color: muted ? theme.colors.muted : theme.colors.text,
+  text: (variant: 'heading' | 'body' | 'caption', muted: boolean, tone: 'content' | 'media') => ({
+    color: tone === 'media' ? (muted ? theme.media.muted : theme.media.text) : (muted ? theme.colors.muted : theme.colors.text),
     fontSize: (variant === 'heading' ? 28 : variant === 'caption' ? 13 : 16) * theme.textScale,
     lineHeight: (variant === 'heading' ? 36 : variant === 'caption' ? 20 : 24) * theme.textScale,
     fontWeight: variant === 'heading' ? '600' : '400',

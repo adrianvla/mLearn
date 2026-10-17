@@ -36,3 +36,13 @@ test('prevents UI from importing runtime services', () => {
 test('permits DOM in the specialist document package', () => {
   assert.deepEqual(checkSource('packages/reader-dom/src/Document.tsx', 'const A = () => <ruby>字<rt>じ</rt></ruby>;'), []);
 });
+
+test('only the actual media and inline-control rendering boundaries admit specialist DOM',()=>{
+ const video='export const Player=()=> <video controls />;';
+ assert.equal(checkSource('apps/client/src/host/MediaPlayer.web.tsx',video).length,0);
+ assert.ok(checkSource('apps/client/src/features/watch/WatchScreen.tsx',video).length);
+ assert.equal(checkSource('packages/ui/src/InlineWordControl.web.tsx','export const Word=()=> <button>word</button>;').length,0);
+ assert.ok(checkSource('packages/ui/src/ButtonEscape.tsx','export const Word=()=> <button>word</button>;').length);
+ assert.equal(checkSource('apps/client/src/host/createHost.native.ts',"import {File} from 'expo-file-system';").length,0);
+ assert.ok(checkSource('apps/client/src/host/createHost.native.ts',"import {openDatabaseSync} from 'expo-sqlite';").length);
+});

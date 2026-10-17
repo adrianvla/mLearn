@@ -1,7 +1,8 @@
+mod watch;
 pub mod catalog;
 use catalog::{CatalogClient, CatalogTrust, Manifest, verify_artifact};
 use mlearn_core::{PluginSummary, Request, Response, Snapshot, PROTOCOL_VERSION};
-use mlearn_language_host::{AssetMap, CodeOrigin, CodePolicy, CompiledPlugin};
+use mlearn_language_host::{ResourcePaths,AssetMap, CodeOrigin, CodePolicy, CompiledPlugin};
 use mlearn_storage::{ProfileStore, StorageError};
 use std::{collections::BTreeMap, path::{Path, PathBuf}, sync::Arc};
 
@@ -15,10 +16,12 @@ struct Installed { manifest: Manifest, compiled: CompiledPlugin }
 /// Independent of Tauri, Expo and React. Native hosts schedule calls on blocking workers.
 pub struct Runtime {
     store: ProfileStore,
+    cancellation:Arc<std::sync::atomic::AtomicU64>,
     root: PathBuf,
     policy: CodePolicy,
     catalog: Option<CatalogClient>,
     installed: BTreeMap<String, Installed>,
+    analysis_cache:std::collections::VecDeque<(String,Vec<mlearn_core::CueAnalysis>)>,
 }
 
 fn summary(manifest: &Manifest) -> PluginSummary {
@@ -32,32 +35,41 @@ impl Runtime {
         std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
         let store = ProfileStore::open(&root.join("profile.sqlite3")).map_err(|e| e.to_string())?;
         let catalog = trust.map(CatalogClient::new).transpose()?;
-        let mut runtime = Self { store, root: root.into(), policy, catalog, installed: BTreeMap::new() };
+        let mut runtime = Self { store, cancellation:Arc::new(std::sync::atomic::AtomicU64::new(0)),root: root.into(), policy, catalog, installed: BTreeMap::new(),analysis_cache:std::collections::VecDeque::new() };
         if policy == CodePolicy::DesktopDownloaded {
             for stored in runtime.store.plugin_manifests().map_err(|e| e.to_string())? {
                 let manifest: Manifest = serde_json::from_str(&stored).map_err(|e| e.to_string())?;
                 manifest.validate()?;
                 let code = runtime.read_blob(&manifest.code)?;
-                let assets = manifest.assets.iter().map(|(key, value)| Ok((key.clone(), Arc::<[u8]>::from(runtime.read_blob(value)?)))).collect::<Result<AssetMap, String>>()?;
-                let compiled = CompiledPlugin::new(&code, assets)?;
+                let compiled = runtime.compile(&manifest,&code)?;
                 runtime.installed.insert(manifest.id.clone(), Installed { manifest, compiled });
             }
         }
         for plugin in bundled {
             plugin.manifest.validate()?;
             verify_artifact(&plugin.manifest.code, &plugin.code)?;
-            let mut assets = AssetMap::new();
-            for (key, artifact) in &plugin.manifest.assets {
-                let bytes = plugin.assets.get(key).ok_or("Bundled asset missing")?;
-                verify_artifact(artifact, bytes)?;
-                assets.insert(key.clone(), Arc::from(bytes.clone()));
+            for (key,artifact) in &plugin.manifest.assets {
+                let bytes=plugin.assets.get(key).ok_or("Bundled asset missing")?;
+                runtime.write_blob(artifact,bytes)?;
             }
-            let compiled = CompiledPlugin::new(&plugin.code, assets)?;
+            let compiled=runtime.compile(&plugin.manifest,&plugin.code)?;
             if runtime.installed.insert(plugin.manifest.id.clone(), Installed { manifest: plugin.manifest, compiled }).is_some() { return Err("Duplicate bundled plugin id".into()); }
         }
         Ok(runtime)
     }
 
+    pub fn cancellation_handle(&self)->Arc<std::sync::atomic::AtomicU64>{self.cancellation.clone()}
+    fn compile(&self,manifest:&Manifest,code:&[u8])->Result<CompiledPlugin,String> {
+        let mut assets=AssetMap::new();let mut resources=ResourcePaths::new();
+        for (key,artifact) in &manifest.assets {
+            let bytes=self.read_blob(artifact)?;
+            if key.ends_with(".sqlite") {
+                if !bytes.starts_with(b"SQLite format 3\0"){return Err("Indexed resource is not SQLite".into());}
+                resources.insert(key.clone(),self.root.join("plugin-blobs").join(&artifact.sha256));
+            } else {assets.insert(key.clone(),Arc::from(bytes));}
+        }
+        CompiledPlugin::with_resources(code,assets,resources)
+    }
     fn read_blob(&self, artifact: &catalog::Artifact) -> Result<Vec<u8>, String> {
         let path = self.root.join("plugin-blobs").join(&artifact.sha256);
         if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() != artifact.byte_length as u64 { return Err("Installed plugin blob has changed".into()); }
@@ -86,13 +98,11 @@ impl Runtime {
         let catalog = self.catalog.as_ref().ok_or("No trusted desktop plugin catalog configured")?;
         let manifest = catalog.manifests()?.into_iter().find(|m| m.id == id).ok_or("Plugin is not in the trusted catalog")?;
         let code = catalog.artifact(&manifest.code)?;
-        let mut assets = AssetMap::new();
-        for (key, artifact) in &manifest.assets {
+        for artifact in manifest.assets.values() {
             let bytes = catalog.artifact(artifact)?;
             self.write_blob(artifact, &bytes)?;
-            assets.insert(key.clone(), Arc::from(bytes));
         }
-        let compiled = CompiledPlugin::new(&code, assets)?;
+        let compiled=self.compile(&manifest,&code)?;
         self.write_blob(&manifest.code, &code)?;
         self.store.activate_plugin(&manifest.id, &serde_json::to_string(&manifest).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         let result = summary(&manifest);
@@ -102,6 +112,8 @@ impl Runtime {
     fn dispatch(&mut self, request: Request) -> Result<Response, (String, String)> {
         let failure = |message: String| ("operation_failed".into(), message);
         match request {
+            request @ (Request::RecentSources|Request::OpenSource{..}|Request::ResumeSource{..}|Request::AttachSubtitles{..}|Request::SourceWindow{..}|Request::SavePosition{..}|Request::AnalyzeSource{..}|Request::DescribeLanguage{..}|Request::InspectTarget{..}|Request::Knowledge{..}|Request::ChangeClaim{..})=>self.watch(request).map_err(failure),
+            Request::AvailablePackages=>Ok(Response::Packages{plugins:self.catalog.as_ref().ok_or_else(||failure("No trusted catalog configured".into()))?.manifests().map_err(failure)?.iter().map(summary).collect()}),
             Request::Snapshot => {
                 let (revision, theme) = self.store.preferences().map_err(|e| failure(e.to_string()))?;
                 Ok(Response::Snapshot { snapshot: Snapshot { protocol_version: PROTOCOL_VERSION, revision, theme, code_policy: self.policy.label().into(), catalog_configured: self.catalog.is_some(), available_plugins: vec![], installed_plugins: self.installed.values().map(|p| summary(&p.manifest)).collect() } })
@@ -125,6 +137,8 @@ impl Runtime {
         let result = if request.len() > 262_144 { Err(("request_too_large".into(), "Request exceeds 256 KiB".into())) }
             else { serde_json::from_str::<Request>(request).map_err(|e| ("invalid_request".into(), e.to_string())).and_then(|request| self.dispatch(request)) };
         let response = result.unwrap_or_else(|(code, message)| Response::Error { code, message: message.chars().take(2048).collect() });
-        serde_json::to_string(&response).expect("Runtime response types are JSON serializable")
+        let encoded=serde_json::to_string(&response).expect("Runtime response types are JSON serializable");
+        if encoded.len()>524288 {return r#"{"type":"error","code":"response_too_large","message":"Native response exceeds 512 KiB; select a smaller source range."}"#.into();}
+        encoded
     }
 }

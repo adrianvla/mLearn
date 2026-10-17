@@ -1,5 +1,16 @@
 # Current implementation checkpoint
 
+## M01 — implementing
+
+- Authorized by the maintainer’s overnight M01 instruction as a one-time exception; **H00 remains unaccepted**. No merge or M02 authorization.
+- Branch `agent/m01`, exact provisional H00 base `87df9c137167601c6ae210ad2f663235f0a2a820`. PR will target `agent/h00`; PR #43 and its branch are unchanged.
+- Current batch: Rust-owned source identity, subtitle import/windows, exact paused resume, capability claims and projections; real English WordNet package through Wasmi with bounded immutable indexed resource reads; typed shared client; Home/Watch/Annotated Text/Inspector and platform media/picker boundaries.
+- Checks so far: focused source/claim red→green, real-package connected owner test, broader owner suites, npm tests/typecheck/ownership lint/contracts pass. Logs `.mlearn/m01/`. Mac current consuming bundle has opened synthetic local video/SRT through native pickers, inspected irregular “Children”, committed a meaning claim, and updated the subtitle to mixed-sense state. UI focus/density corrections and both consuming native builds are still in progress; no final verification claim.
+- Initial package decision: English WordNet 3.0 (206,978 lexical senses / 147,306 lemmas), Unicode word spans and package-owned Morphy candidate rules, without contextual disambiguation. No Japanese support is claimed for the corpus SRT. Public source is SHA-256 pinned; private corpus originals remain untouched/unpublished.
+- Remaining: connected desktop playback/resume/recovery and reference/layout checks, both-mobile real integration smoke, candidate-wide checks, final review packet and stacked PR. Resume from Git and `.mlearn/m01/checkpoint.txt`; continue M01 only.
+
+## Frozen H00 record (unaccepted; retained below)
+
 ## H00 candidate
 
 - Unit: **H00 — development and native application harnesses** only. Status: **awaiting_review**; no maintainer acceptance, **M01 not authorized**.

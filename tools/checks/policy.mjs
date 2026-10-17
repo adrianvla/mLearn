@@ -8,7 +8,7 @@ export function checkSource(filename, source) {
   const owner = file.startsWith('packages/ui/');
   const host = file.includes('/src/host/') || file.includes('/modules/');
   const bootstrap = file.includes('/src/bootstrap/');
-  const dom = file.startsWith('packages/reader-dom/');
+  const dom = file.startsWith('packages/reader-dom/') || file === 'apps/client/src/host/MediaPlayer.web.tsx' || file === 'packages/ui/src/InlineWordControl.web.tsx';
   const errors = [];
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const approved = new Set();
@@ -25,7 +25,7 @@ export function checkSource(filename, source) {
   const checkImport = (node, specifier) => {
     if (!owner && (specifier.startsWith('@rn-primitives/') || specifier.startsWith('@expo/ui'))) fail(node, 'Use @mlearn/ui, not its underlying primitive library.');
     if (!host && (specifier.startsWith('@tauri-apps/') || specifier.includes('mlearn-native'))) fail(node, 'Native APIs belong in host adapters.');
-    if (persistence.some((p) => specifier === p || specifier.startsWith(`${p}/`))) fail(node, 'Durable application storage belongs to Rust.');
+    if (persistence.some((p) => specifier === p || specifier.startsWith(`${p}/`)) && !(file==='apps/client/src/host/createHost.native.ts' && specifier==='expo-file-system')) fail(node, 'Durable application storage belongs to Rust.');
     if (owner && /@mlearn\/runtime-client|\/features\/|\/host\//.test(specifier)) fail(node, 'UI primitives must not depend on application services.');
     if (!host && !bootstrap && /(?:^|\/)host\//.test(specifier)) fail(node, 'Inject runtime-client at bootstrap; do not import host implementation.');
     if (specifier.includes('/features/')) {

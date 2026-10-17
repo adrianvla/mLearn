@@ -10,6 +10,7 @@ Prerequisites: Node.js 22+ and npm, stable Rust with the `wasm32-unknown-unknown
 
 ```sh
 npm ci
+npm run prepare:language-data # once: pinned public WordNet source → local indexed data
 npm run dev:desktop
 ```
 
@@ -34,7 +35,7 @@ npm run prepare:android
 npm run android
 ```
 
-Preparation builds the same SDK fixture and embeds its executable into the **mobile Rust library**. No executable-code download interface is enabled for mobile. The tiny greeting JSON is bundled for this offline integration example; large language assets/data-only downloads are a subsequent package feature.
+Preparation builds the SDK fixture and initial English executable into the **mobile Rust library**, with the pinned WordNet resource for offline use. No executable-code download interface is enabled for mobile. Desktop obtains both from its authenticated catalogue. Subsequent data-only update/management flows belong to M02.
 
 Generated Swift/Kotlin bindings, XCFrameworks, native binaries and Expo application projects are reproducible build outputs, not checked-in parallel implementations. Rerun preparation when the Rust interface or bundled plugin changes.
 
@@ -74,9 +75,9 @@ When Rust boundary types change, run `npm run codegen` and commit the generated 
 
 Desktop release builds do **not** trust the generated development publisher key and contain **no executable language plugin**. Supply `MLEARN_RELEASE_CATALOG_TRUST` at build time as single-line JSON containing `url` (HTTPS) and `publicKey` (base64 Ed25519 public key). With no configured publisher, the UI reports that installation is unavailable. This repository does not publish a production CDN or contain a release signing key.
 
-All v3 development identities and profile paths are separate from v2. The schema currently persists a small validated theme document in one SQLite row; it is not a whole-library JSON file. No real profile import or learner evidence storage is implemented.
+All v3 development identities and profile paths are separate from v2. SQLite also owns bounded source recents, subtitle cues, playback checkpoints and explicit capability claims. Claims do not create assessments, predictions or cards. No real v2 profile import or review evidence storage is implemented.
 
-The plugin ABI and resource limits are deliberately a **bounded hello-world prototype**: 4 MiB executable, 8 MiB fixture assets, 64 MiB guest memory, bounded messages and execution fuel. They are not appropriate defaults for large language dictionaries without the planned resource-streaming and analyzer benchmarks. No claim of full language support, native device acceptance, or T2 feature parity is made by the presence of a green build.
+The experimental plugin ABI now supports immutable indexed resources: 4 MiB executable, up to 32 MiB per SQLite resource / 40 MiB total package data, 8 MiB ordinary guest-readable assets, 64 MiB guest memory and bounded messages/fuel. The generic host admits only primary-key resource lookups, not guest SQL or access to learner storage. WordNet is 24.4 MiB; guest calls fetch bounded entries instead of copying the dictionary into Wasm or React. Broader analyzer benchmarks remain required before declaring a production SDK. No claim of full language support, native device acceptance, or T2 feature parity is made by the presence of a green build.
 
 See [architecture](docs/architecture/foundation.md) and the GitHub Actions evidence for the exact verified scope. Source/asset licenses remain applicable; the archived v2 implementation is a reference, not copied production code.
 

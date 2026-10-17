@@ -58,6 +58,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
+      - run: npm run prepare:language-data
       - run: node tools/prepare-plugins.mjs
       - run: cargo test --locked --workspace --exclude mlearn-desktop --exclude mlearn-ffi --exclude mlearn-bindgen
       - run: cargo run --locked -p mlearn-core --features typescript --example export_contracts -- --check

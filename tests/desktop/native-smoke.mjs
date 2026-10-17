@@ -38,6 +38,7 @@ async function launch() {
   const result = await rpc('POST', '/session', { capabilities: { alwaysMatch: { 'tauri:options': { application: path.resolve('target/debug/mlearn-desktop') } } } });
   session = result.sessionId;
   assert.ok(session, 'WebDriver session missing');
+  await click('Settings');
   await text('Tauri desktop');
 }
 async function screenshot(name) {

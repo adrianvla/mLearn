@@ -14,6 +14,8 @@ pub struct Call {
 #[cfg(target_arch = "wasm32")]
 #[link(wasm_import_module = "mlearn")]
 unsafe extern "C" {
+    #[link_name="resource_get"]
+    fn host_resource_get(resource:*const u8,resource_len:usize,key:*const u8,key_len:usize,output:*mut u8,capacity:usize)->i32;
     fn asset_len(key: *const u8, key_len: usize) -> i32;
     fn asset_read(key: *const u8, key_len: usize, output: *mut u8, capacity: usize) -> i32;
 }
@@ -73,4 +75,23 @@ macro_rules! export_plugin {
             ((ptr as u64) << 32) | len as u64
         }
     };
+}
+
+/// Read one bounded value from a declared immutable SQLite resource's key index.
+/// The host supplies no query language or access to the learner database.
+pub fn resource_get(resource:&str,key:&str)->Result<Option<Vec<u8>>,String> {
+ #[cfg(target_arch="wasm32")] {
+  let mut bytes=vec![0;4096];
+  // SAFETY: all spans point to live owned/borrowed buffers, with exact lengths.
+  let mut count=unsafe {host_resource_get(resource.as_ptr(),resource.len(),key.as_ptr(),key.len(),bytes.as_mut_ptr(),bytes.len())};
+  if count==-2{return Ok(None);}
+  if count>bytes.len() as i32 && count<=65536 {
+   bytes.resize(count as usize,0);
+   // SAFETY: same immutable resource/key; the resized output owns this span.
+   count=unsafe{host_resource_get(resource.as_ptr(),resource.len(),key.as_ptr(),key.len(),bytes.as_mut_ptr(),bytes.len())};
+  }
+  if count<0 || count as usize>bytes.len(){return Err("Indexed resource unavailable or query/output budget exceeded".into());}
+  bytes.truncate(count as usize);Ok(Some(bytes))
+ }
+ #[cfg(not(target_arch="wasm32"))] {let _=(resource,key);Err("Indexed resources are supplied by the Wasm host".into())}
 }
