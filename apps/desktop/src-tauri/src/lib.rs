@@ -43,6 +43,15 @@ pub fn run() {
                 let mut file=std::fs::File::open(&path).map_err(|e|e.to_string())?;
                 let length=file.metadata().map_err(|e|e.to_string())?.len();
                 let range=request.headers().get("range").and_then(|h|h.to_str().ok());
+                // Explicit local diagnostics only; never include content or the filesystem path.
+                #[cfg(debug_assertions)]
+                if let Some(trace)=std::env::var_os("MLEARN_MEDIA_TRACE") {
+                    use std::io::Write;
+                    if let Ok(mut output)=std::fs::OpenOptions::new().create(true).append(true).open(trace) {
+                        let _=writeln!(output,"method={} extension={} length={} range={:?}",request.method(),path.extension().and_then(|s|s.to_str()).unwrap_or(""),length,range);
+                    }
+                }
+
                 let (start,end)=if let Some(range)=range {
                     let ranges=http_range::HttpRange::parse(range,length).map_err(|e|format!("Invalid media range: {e:?}"))?;
                     if ranges.len()!=1{return Err("One media range per request is supported".into());}

@@ -17,6 +17,8 @@ jobs:
       WEBKIT_DISABLE_COMPOSITING_MODE: '1'
       XDG_DATA_HOME: ${{ github.workspace }}/.mlearn/e2e-data
       XDG_CONFIG_HOME: ${{ github.workspace }}/.mlearn/e2e-config
+      MLEARN_MEDIA_TRACE: ${{ github.workspace }}/test-results/desktop/media-requests.log
+      GST_DEBUG: '2,webkitwebsrc:5'
     steps:
       - uses: actions/checkout@v4
       - name: Record exact source under native acceptance
