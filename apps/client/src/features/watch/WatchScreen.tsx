@@ -5,7 +5,7 @@ import {useRuntime} from '../../bootstrap/RuntimeProvider';import {MediaSurface}
 import {AnnotatedText} from '../annotated-text';import {Inspector,type Inspection} from '../inspector';
 export function WatchScreen(){
  const host=useRuntime();const router=useRouter();const params=useLocalSearchParams<{id:string}>();const id=typeof params.id==='string'?params.id:'';const insets=useSafeAreaInsets();
- const [window,setWindow]=useState<SourceWindow|null>(null);const [batch,setBatch]=useState<AnalysisBatch|null>(null);const [position,setPosition]=useState(0);const [inspection,setInspection]=useState<Inspection|null>(null);const [error,setError]=useState('');const [analysisError,setAnalysisError]=useState('');const [saveError,setSaveError]=useState('');const [busy,setBusy]=useState(false);const [sourceReload,setSourceReload]=useState(0);const [analysisReload,setAnalysisReload]=useState(0);
+ const [subtitleInset,setSubtitleInset]=useState(128);const [window,setWindow]=useState<SourceWindow|null>(null);const [batch,setBatch]=useState<AnalysisBatch|null>(null);const [position,setPosition]=useState(0);const [inspection,setInspection]=useState<Inspection|null>(null);const [error,setError]=useState('');const [analysisError,setAnalysisError]=useState('');const [saveError,setSaveError]=useState('');const [busy,setBusy]=useState(false);const [sourceReload,setSourceReload]=useState(0);const [analysisReload,setAnalysisReload]=useState(0);
  const latest=useRef({position:0,duration:0});const lastSaved=useRef(0);const mounted=useRef(true);const saveFailed=useRef(false);const controller=useRef<{pauseAndRead:()=>{positionMs:number;durationMs:number}}|null>(null);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  useEffect(()=>{if(!host.available)return;let active=true;let pending=true;setError('');host.client.resumeSource(id).then(w=>{pending=false;if(active){setWindow(w);setPosition(w.source.positionMs);latest.current={position:w.source.positionMs,duration:w.source.durationMs};}}).catch(e=>{pending=false;if(active)setError(e.message);});return()=>{active=false;if(pending)void host.client.cancelSourceOpen().catch(()=>{});};},[host,id,sourceReload]);
@@ -48,8 +48,8 @@ export function WatchScreen(){
   </View>
   {window&&host.available?<>
    <View style={styles.stage}>
-    <MediaSurface key={window.source.id} uri={host.media.uri(window.source)} initialPositionMs={window.source.positionMs} paused={!!inspection||busy} onController={value=>{controller.current=value;}} onProgress={progress} onError={setError}/>
-    <View pointerEvents="box-none" style={styles.subtitle}>
+    <MediaSurface key={window.source.id} uri={host.media.uri(window.source)} initialPositionMs={window.source.positionMs} paused={!!inspection||busy} onController={value=>{controller.current=value;setSubtitleInset(value.subtitleBottomInset);}} onProgress={progress} onError={setError}/>
+    <View pointerEvents="box-none" style={[styles.subtitle,{bottom:subtitleInset}]}>
      {cues.map(cue=>{const analysis=batch?.subtitleRevision===window.source.subtitleRevision?batch.cues.find(a=>a.cue.index===cue.index):null;return <AnnotatedText key={cue.index} rawText={cue.text} analysis={analysis??null} annotations={batch?.annotations??[]} onInspect={(token,anchor)=>{void pauseAndSave().catch(()=>{});setInspection({sourceForm:token.text,context:cue.text,targets:token.targets,anchor});}}/>;})}
     </View>
    </View>

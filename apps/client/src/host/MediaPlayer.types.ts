@@ -1,1 +1,1 @@
-export type MediaPlayerProps={uri:string;initialPositionMs:number;paused:boolean;onController:(controller:{pauseAndRead:()=>{positionMs:number;durationMs:number}})=>void;onProgress:(positionMs:number,durationMs:number,checkpoint:boolean)=>void;onError:(message:string)=>void};
+export type MediaPlayerProps={uri:string;initialPositionMs:number;paused:boolean;onController:(controller:{subtitleBottomInset:number;pauseAndRead:()=>{positionMs:number;durationMs:number}})=>void;onProgress:(positionMs:number,durationMs:number,checkpoint:boolean)=>void;onError:(message:string)=>void};

@@ -6,7 +6,9 @@ export function MediaPlayer({uri,initialPositionMs,paused,onProgress,onError,onC
  const lastProgress=useRef({positionMs:initialPositionMs,durationMs:0});
  const callbacks=useRef({onProgress,onError});callbacks.current={onProgress,onError};
  const player=useVideoPlayer({uri},p=>{p.timeUpdateEventInterval=0.25;p.currentTime=initialPositionMs/1000;});
- useEffect(()=>{onController({pauseAndRead:()=>{player.pause();lastProgress.current={positionMs:Math.round(player.currentTime*1000),durationMs:Math.round(player.duration*1000)};return lastProgress.current;}});},[player]);
+ useEffect(()=>{// Native transport and timeline occupy two bottom rows. Keep subtitle touch
+ // targets above both; the web renderer owns its smaller control inset separately.
+ onController({subtitleBottomInset:128,pauseAndRead:()=>{player.pause();lastProgress.current={positionMs:Math.round(player.currentTime*1000),durationMs:Math.round(player.duration*1000)};return lastProgress.current;}});},[player]);
  useEffect(()=>{if(paused)player.pause();},[paused,player]);
  useEffect(()=>{
   const report=(checkpoint:boolean)=>{if(Number.isFinite(player.duration)&&player.duration>0){lastProgress.current={positionMs:Math.round(player.currentTime*1000),durationMs:Math.round(player.duration*1000)};callbacks.current.onProgress(lastProgress.current.positionMs,lastProgress.current.durationMs,checkpoint);}};

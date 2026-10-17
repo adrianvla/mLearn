@@ -4,7 +4,7 @@ import {useRef,useEffect} from 'react';
 import type {MediaPlayerProps} from './MediaPlayer.types';
 export function MediaPlayer({uri,initialPositionMs,paused,onProgress,onError,onController}:MediaPlayerProps){
  const ref=useRef<HTMLVideoElement>(null);
- useEffect(()=>{onController({pauseAndRead:()=>{const v=ref.current;v?.pause();return{positionMs:Math.round((v?.currentTime??0)*1000),durationMs:Math.round((v?.duration??0)*1000)};}});},[]);
+ useEffect(()=>{onController({subtitleBottomInset:64,pauseAndRead:()=>{const v=ref.current;v?.pause();return{positionMs:Math.round((v?.currentTime??0)*1000),durationMs:Math.round((v?.duration??0)*1000)};}});},[]);
  const callbacks=useRef({onProgress,onError});callbacks.current={onProgress,onError};
  useEffect(()=>{if(paused)ref.current?.pause();},[paused]);
  useEffect(()=>()=>{const video=ref.current;if(video){video.pause();callbacks.current.onProgress(video.currentTime*1000,video.duration*1000,true);}},[]);
