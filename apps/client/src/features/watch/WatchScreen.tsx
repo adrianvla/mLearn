@@ -6,14 +6,17 @@ import {AnnotatedText} from '../annotated-text';import {Inspector,type Inspectio
 export function WatchScreen(){
  const host=useRuntime();const router=useRouter();const params=useLocalSearchParams<{id:string}>();const id=typeof params.id==='string'?params.id:'';const insets=useSafeAreaInsets();
  const [window,setWindow]=useState<SourceWindow|null>(null);const [batch,setBatch]=useState<AnalysisBatch|null>(null);const [position,setPosition]=useState(0);const [inspection,setInspection]=useState<Inspection|null>(null);const [error,setError]=useState('');const [analysisError,setAnalysisError]=useState('');const [saveError,setSaveError]=useState('');const [busy,setBusy]=useState(false);const [sourceReload,setSourceReload]=useState(0);const [analysisReload,setAnalysisReload]=useState(0);
- const latest=useRef({position:0,duration:0});const lastSaved=useRef(0);const mounted=useRef(true);const fetching=useRef(false);const saveFailed=useRef(false);const controller=useRef<{pauseAndRead:()=>{positionMs:number;durationMs:number}}|null>(null);
+ const latest=useRef({position:0,duration:0});const lastSaved=useRef(0);const mounted=useRef(true);const saveFailed=useRef(false);const controller=useRef<{pauseAndRead:()=>{positionMs:number;durationMs:number}}|null>(null);
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  useEffect(()=>{if(!host.available)return;let active=true;let pending=true;setError('');host.client.resumeSource(id).then(w=>{pending=false;if(active){setWindow(w);setPosition(w.source.positionMs);latest.current={position:w.source.positionMs,duration:w.source.durationMs};}}).catch(e=>{pending=false;if(active)setError(e.message);});return()=>{active=false;if(pending)void host.client.cancelSourceOpen().catch(()=>{});};},[host,id,sourceReload]);
  const bucket=Math.floor(position/2000);const ready=!!window;const subtitleRevision=window?.source.subtitleRevision;
  useEffect(()=>{
-  if(!host.available||!ready||!subtitleRevision||fetching.current)return;
-  let active=true;fetching.current=true;
-  Promise.all([host.client.sourceWindow(id,latest.current.position),host.client.analyzeSource(id,latest.current.position)]).then(([w,b])=>{if(active){setWindow(w);setBatch(b);setAnalysisError('');}}).catch(e=>{if(active)setAnalysisError(e.message);}).finally(()=>{fetching.current=false;});
+  if(!host.available||!ready||!subtitleRevision)return;
+  let active=true;
+  // Raw cue navigation must remain usable when the optional linguistic read fails.
+  // The client bounds its serial queue; each seek owns its own stale-publication guard.
+  void host.client.sourceWindow(id,latest.current.position).then(w=>{if(active)setWindow(w);}).catch(e=>{if(active)setError(e.message);});
+  void host.client.analyzeSource(id,latest.current.position).then(b=>{if(active){setBatch(b);setAnalysisError('');}}).catch(e=>{if(active){setBatch(null);setAnalysisError(e.message);}});
   return()=>{active=false;};
  },[host,id,ready,subtitleRevision,bucket,analysisReload]);
  async function persist(positionMs=latest.current.position,durationMs=latest.current.duration){
@@ -27,7 +30,7 @@ export function WatchScreen(){
  }
  async function pauseAndSave(){const point=controller.current?.pauseAndRead();if(point){latest.current={position:point.positionMs,duration:point.durationMs};setPosition(point.positionMs);}await persist();}
  async function back(){setBusy(true);try{await pauseAndSave();router.back();}finally{setBusy(false);}}
- async function attach(droppedPath?:string){if(!host.available)return;setBusy(true);setError('');try{await pauseAndSave();const path=droppedPath??await host.media.pick(true);if(path){let w;try{w=await host.client.attachSubtitles(id,path);}finally{await host.media.releasePicked(path);}setWindow(w);setBatch(null);setAnalysisReload(v=>v+1);}}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
+ async function attach(droppedPath?:string){if(!host.available)return;setBusy(true);setError('');try{await pauseAndSave();const path=droppedPath??await host.media.pick(true);if(path){let w;try{w=await host.client.attachSubtitles(id,path);}finally{await host.media.releasePicked(path);}setWindow(w);setBatch(null);if(!window)setSourceReload(v=>v+1);setAnalysisReload(v=>v+1);}}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}}
  useFocusEffect(useCallback(()=>{
   if(!host.available||!host.media.subscribeDrop||!window)return;
   let active=true;let stop:(()=>void)|undefined;
@@ -41,7 +44,7 @@ export function WatchScreen(){
  const cues=window?.cues.filter(c=>c.startMs<=position&&c.endMs>position)??[];
  return <View style={styles.screen(insets.top,insets.bottom)}>
   <View style={styles.toolbar}><Row><Button label="← Home" accessibilityLabel="Home" variant="media" disabled={busy} onPress={()=>void back().catch(()=>{})}/><NativeText numberOfLines={1} style={styles.title}>{window?.source.title??'Watch'}</NativeText>{busy&&host.available?<Button label="Cancel opening" variant="secondary" onPress={()=>void host.client.cancelSourceOpen().catch(e=>setError(e.message))}/>:null}{window?<Button label={window.source.subtitlePath?'Replace subtitles':'Open subtitles'} variant="media" disabled={busy} onPress={()=>void attach()}/>:null}</Row>
-   {error?<><Text tone="media" accessibilityRole="alert">{error}</Text><Row><Button label="Retry source" variant="secondary" onPress={()=>setSourceReload(v=>v+1)}/><Button label="Reselect from Home" variant="secondary" onPress={()=>router.replace('/')}/></Row></>:null}
+   {error?<><Text tone="media" accessibilityRole="alert">{error}</Text><Row><Button label="Retry source" variant="secondary" onPress={()=>setSourceReload(v=>v+1)}/><Button label="Reselect subtitles" variant="secondary" disabled={busy} onPress={()=>void attach()}/><Button label="Reselect from Home" variant="secondary" onPress={()=>router.replace('/')}/></Row></>:null}
    {saveError?<><Text tone="media" accessibilityRole="alert">Progress not saved: {saveError}</Text><Button label="Retry saving position" variant="secondary" onPress={()=>void persist().catch(()=>{})}/></>:null}
   </View>
   {window&&host.available?<>

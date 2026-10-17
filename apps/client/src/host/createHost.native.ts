@@ -18,6 +18,6 @@ export function createHost(): Host {
       if(result.canceled)return null;
       const uri=result.assets[0].uri;const path=decodeURIComponent(uri.replace(/^file:\/\//,''));pickerCache.set(path,uri);return path;
     },
-    uri:(source)=>new File(source.mediaPath).uri,
+    uri:(source)=>new File(`file://${source.mediaPath}`).uri,
   }, client: createRuntimeClient({ execute: (request) => module.execute(request), cancelSourceOpen:()=>module.cancelSourceOpen(),commandId: randomUUID }) };
 }
