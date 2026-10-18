@@ -4,6 +4,13 @@ name: Watch Inspector Knowledge and native source resume
 - launchApp:
     clearState: false
 - extendedWaitUntil:
+    # Android labels can report enabled before their disabled parent is ready.
+    # Package selection also settles the bootstrap layout before the Open tap.
+    visible:
+      text: org.mlearn.english
+      selected: true
+    timeout: 60000
+- extendedWaitUntil:
     # Home renders this control disabled while language packages initialize.
     visible:
       text: Open local video
