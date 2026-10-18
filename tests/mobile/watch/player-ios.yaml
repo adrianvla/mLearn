@@ -1,13 +1,13 @@
 appId: net.kikan.mlearn.v3dev
 ---
-# Tap outside the central play button to reveal AVKit's transport.
+# Tap inside the video, above the central play button, to reveal AVKit's transport.
 - runFlow:
     when:
       notVisible:
         id: Play/Pause
     commands:
       - tapOn:
-          point: 50%, 35%
+          point: 50%, 45%
 - tapOn:
     id: Play/Pause
 - extendedWaitUntil:
@@ -24,7 +24,7 @@ appId: net.kikan.mlearn.v3dev
         id: Play/Pause
     commands:
       - tapOn:
-          point: 50%, 35%
+          point: 50%, 45%
 - assertVisible: Play
 - takeScreenshot: native-played-frame
 # AVKit uses ten-second skips. Reset then seek to an exact paused checkpoint.
@@ -34,11 +34,14 @@ appId: net.kikan.mlearn.v3dev
       - tapOn:
           id: Skip Backward
 - assertVisible: '0:00 elapsed'
-- repeat:
-    times: 2
-    commands:
-      - tapOn:
-          id: Skip Forward
+# AVKit seeks asynchronously; wait for each checkpoint before the next skip.
+- tapOn:
+    id: Skip Forward
+- extendedWaitUntil:
+    visible: '0:10 elapsed'
+    timeout: 15000
+- tapOn:
+    id: Skip Forward
 - extendedWaitUntil:
     visible: '0:20 elapsed'
     timeout: 15000
@@ -64,7 +67,7 @@ appId: net.kikan.mlearn.v3dev
         id: Play/Pause
     commands:
       - tapOn:
-          point: 50%, 35%
+          point: 50%, 45%
 - assertVisible: '0:20 elapsed'
 - assertVisible: Play
 - takeScreenshot: native-restart-source-position

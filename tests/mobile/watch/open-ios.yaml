@@ -48,7 +48,7 @@ appId: net.kikan.mlearn.v3dev
         id: Play/Pause
     commands:
       - tapOn:
-          point: 50%, 35%
+          point: 50%, 45%
 - repeat:
     times: 3
     commands:
