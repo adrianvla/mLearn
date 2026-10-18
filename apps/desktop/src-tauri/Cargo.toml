@@ -24,5 +24,6 @@ rfd = "0.15.4"
 mlearn-core = {path="../../../crates/core"}
 
 [dev-dependencies]
+mlearn-storage = { path = "../../../crates/storage" }
 sha2.workspace = true
 tempfile = "3"

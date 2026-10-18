@@ -4,7 +4,20 @@
 
 Transport commit `4dba4b415655dcad88fa069bb8921e6147792653` replaces the desktop custom scheme with an ephemeral loopback HTTP listener. Rust still resolves admitted source IDs; neither the renderer nor a request can supply a filesystem path. The host initializes a per-process bearer URL only in the application's allowed local origins. CSP changes are restricted to media loading.
 
-The listener admits four connections and four blocking resolver jobs, uses 64 KiB read/frame buffers and socket backpressure, and bounds headers to 16 KiB/32 fields. A resolver permit remains owned by its blocking job after caller cancellation. Ordinary Runtime contention waits off the reactor instead of producing a transient playback failure; the existing native-command gate remains separate. Disconnect releases the response body, and application exit owns listener/task/thread shutdown.
+The listener admits four connections and four blocking resolver jobs, uses 64 KiB read/frame buffers and socket backpressure, and bounds headers to 16 KiB/32 fields. A resolver permit remains owned by its blocking job after caller cancellation. Media authorization reads the canonical source record through a separate read-only SQLite connection owned by Rust, rather than waiting for language execution's Runtime mutex. It has no source/path cache and observes committed reselection directly. The existing native-command gate remains separate. Disconnect releases the response body, and application exit owns listener/task/thread shutdown.
+
+The M01 foundation correction reproduced a cold-development playback failure:
+Japanese guest initialization held the execution owner for 22.192 seconds, and
+the media GET waited 22.188 seconds before receiving headers. The native player
+failed with media error 4. The actual host resolver regression failed while the
+execution mutex was held, then passed with the independent read-only source
+view. On the same cold native workflow, guest initialization still took 21.982
+seconds, but media authorization acquired immediately and the full-range
+response began in under 1 ms; the original MOV decoded, played and paused.
+No retries, decoder substitution, cache, or relaxed authorization were added.
+Local trace and native captures are under `.mlearn/m01/repair-cold-*`; temporary
+trace code was removed. This explains the reproduced development failure, not
+the separately reported historical raw-subtitle observation without a trace.
 
 Full GET, single ranges, suffix ranges, HEAD, empty files and unsatisfiable ranges have truthful HTTP responses. Exact Host, process capability, source identity, method and optional Origin are checked. There is no wildcard CORS, directory route, whole-file response buffer, transcode or custom-scheme fallback.
 

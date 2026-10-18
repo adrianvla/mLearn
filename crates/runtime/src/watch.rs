@@ -93,6 +93,21 @@ impl Runtime {
         let source = self.source_record(id)?;
         local(&source.media_path, &["mp4", "mov", "m4v", "webm", "mkv"])
     }
+    /// Media reads the same admitted SQLite records without retaining the
+    /// execution owner. Cold guest initialization must not stall HTTP headers.
+    pub fn media_source_reader(
+        &self,
+    ) -> Result<impl Fn(&str) -> Result<PathBuf, String> + Send + 'static, String> {
+        if self.policy != mlearn_language_host::CodePolicy::DesktopDownloaded {
+            return Err("Desktop media transport is unavailable on this host".into());
+        }
+        let reader = mlearn_storage::SourceReader::open(&self.root.join("profile.sqlite3"))
+            .map_err(|e| e.to_string())?;
+        Ok(move |id: &str| {
+            let source = reader.source(id).map_err(|e| e.to_string())?;
+            local(&source.media_path, &["mp4", "mov", "m4v", "webm", "mkv"])
+        })
+    }
     fn invoke_language(
         &self,
         id: &str,

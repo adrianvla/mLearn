@@ -11,6 +11,20 @@ struct NativeState {
     cancellation: Arc<std::sync::atomic::AtomicU64>,
 }
 
+fn media_resolver(runtime: Arc<Mutex<Runtime>>) -> Result<media::Resolver, String> {
+    let reader = runtime
+        .lock()
+        .map_err(|_| "Native runtime lock poisoned")?
+        .media_source_reader()?;
+    let reader = Mutex::new(reader);
+    Ok(Arc::new(move |id| {
+        let reader = reader
+            .lock()
+            .map_err(|_| tauri::http::StatusCode::SERVICE_UNAVAILABLE)?;
+        reader(id).map_err(|_| tauri::http::StatusCode::NOT_FOUND)
+    }))
+}
+
 #[tauri::command]
 async fn runtime_execute(
     state: tauri::State<'_, NativeState>,
@@ -85,18 +99,8 @@ pub fn run() {
                 runtime: Arc::new(Mutex::new(runtime)),
                 permits: Arc::new(tokio::sync::Semaphore::new(2)),
             };
-            let runtime = state.runtime.clone();
-            let server = media_listener.start(Arc::new(move |id| {
-                // The transport admits at most four blocking resolver jobs.
-                // Ordinary analysis contention must wait, not fail playback;
-                // runtime_execute keeps its existing independent permit gate.
-                let runtime = runtime
-                    .lock()
-                    .map_err(|_| tauri::http::StatusCode::SERVICE_UNAVAILABLE)?;
-                runtime
-                    .source_media_path(id)
-                    .map_err(|_| tauri::http::StatusCode::NOT_FOUND)
-            }))?;
+            let resolver = media_resolver(state.runtime.clone()).map_err(std::io::Error::other)?;
+            let server = media_listener.start(resolver)?;
             app.manage(Mutex::new(server));
             app.manage(state);
             Ok(())
@@ -115,4 +119,42 @@ pub fn run() {
                 server.shutdown();
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mlearn_core::SourceRecord;
+    use mlearn_storage::ProfileStore;
+    use std::{sync::mpsc, time::Duration};
+
+    #[test]
+    fn admitted_media_remains_available_while_execution_owner_is_busy() {
+        // Given an admitted source in real storage and the actual host resolver.
+        let root = tempfile::tempdir().unwrap();
+        let video = root.path().join("source.mp4");
+        std::fs::write(&video, b"media authorization fixture").unwrap();
+        let runtime = Runtime::open(root.path(), CodePolicy::DesktopDownloaded, None, vec![]).unwrap();
+        let store = ProfileStore::open(&root.path().join("profile.sqlite3")).unwrap();
+        store.save_source(&SourceRecord {
+            id: "admitted".into(), title: "Source".into(),
+            media_path: video.to_string_lossy().into_owned(), media_revision: "revision".into(),
+            subtitle_path: None, subtitle_revision: None,
+            package_id: "package".into(), package_version: "1".into(),
+            position_ms: 0, duration_ms: 0,
+        }).unwrap();
+        let runtime = Arc::new(Mutex::new(runtime));
+        let resolver = media_resolver(runtime.clone()).unwrap();
+        let execution = runtime.lock().unwrap();
+        let (send, received) = mpsc::channel();
+
+        // When execution retains its mutex, media authorization must still finish.
+        let worker = std::thread::spawn(move || send.send(resolver("admitted")).unwrap());
+        let result = received.recv_timeout(Duration::from_secs(5));
+        drop(execution);
+        worker.join().unwrap();
+
+        // Then it resolves the admitted file without waiting for execution release.
+        assert_eq!(result.expect("media authorization waited for language execution").unwrap(), video.canonicalize().unwrap());
+    }
 }

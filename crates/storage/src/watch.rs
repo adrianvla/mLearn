@@ -2,12 +2,39 @@ use crate::{ProfileStore,StorageError};
 use mlearn_core::{SourceRecord,KnowledgeKey,KnowledgeProjection,ClaimChange};
 use rusqlite::{params,OptionalExtension};
 use sha2::{Digest,Sha256};
+use std::path::Path;
+
+/// A live, read-only source view for media work independent of language execution.
+pub struct SourceReader {
+    connection: rusqlite::Connection,
+}
+impl SourceReader {
+    pub fn open(path: &Path) -> Result<Self, StorageError> {
+        let connection = rusqlite::Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )?;
+        connection.busy_timeout(std::time::Duration::from_secs(5))?;
+        Ok(Self { connection })
+    }
+    pub fn source(&self, id: &str) -> Result<SourceRecord, StorageError> {
+        read_source(&self.connection, id)
+    }
+}
+fn read_source(connection: &rusqlite::Connection, id: &str) -> Result<SourceRecord, StorageError> {
+    let json: String = connection.query_row(
+        "SELECT document FROM sources WHERE id=?1",
+        [id],
+        |row| row.get(0),
+    )?;
+    Ok(serde_json::from_str(&json)?)
+}
 impl ProfileStore {
  pub fn save_source(&self, source:&SourceRecord)->Result<(),StorageError> {
   self.connection.execute("INSERT INTO sources(id,document,touched) VALUES(?1,?2,unixepoch('subsec')) ON CONFLICT(id) DO UPDATE SET document=excluded.document,touched=excluded.touched",params![source.id,serde_json::to_string(source)?])?; Ok(())
  }
  pub fn source(&self,id:&str)->Result<SourceRecord,StorageError> {
-  let json:String=self.connection.query_row("SELECT document FROM sources WHERE id=?1",[id],|r|r.get(0))?; Ok(serde_json::from_str(&json)?)
+  read_source(&self.connection,id)
  }
  pub fn recents(&self)->Result<Vec<SourceRecord>,StorageError> {
   let mut stmt=self.connection.prepare("SELECT document FROM sources ORDER BY touched DESC,id LIMIT 20")?;

@@ -1,4 +1,5 @@
 mod watch;
+pub use watch::SourceReader;
 use mlearn_core::ThemeDocument;
 use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};

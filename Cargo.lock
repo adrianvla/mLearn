@@ -2482,6 +2482,7 @@ dependencies = [
  "mlearn-core",
  "mlearn-language-host",
  "mlearn-runtime",
+ "mlearn-storage",
  "rfd",
  "serde_json",
  "sha2",
