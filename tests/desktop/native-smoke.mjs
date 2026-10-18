@@ -36,6 +36,24 @@ async function click(label) {
   }, label);
   await rpc('POST', `/session/${session}/element/${element}/click`, {});
 }
+async function closeInspector() {
+  await script(`window.__m01Dismiss={};window.__m01Dismiss.promise=new Promise(resolve=>{
+    let settled=false;
+    const finish=pass=>{if(settled)return;settled=true;observer.disconnect();clearTimeout(timer);resolve(pass);};
+    const check=()=>{if(!document.querySelector('[data-testid="inspector-panel"]'))finish(true);};
+    const observer=new MutationObserver(check);
+    const timer=setTimeout(()=>finish(false),5000);
+    window.__m01Dismiss.cancel=()=>finish(false);
+    observer.observe(document.documentElement,{subtree:true,childList:true});
+  });return true;`);
+  try {
+    await click('Close Inspector');
+    const closed=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0];window.__m01Dismiss.promise.then(done);',args:[]});
+    assert.equal(closed,true,'Inspector must finish dismissing before the next source interaction');
+  } finally {
+    await script('window.__m01Dismiss.cancel();delete window.__m01Dismiss;return true;');
+  }
+}
 async function launch() {
   const result = await rpc('POST', '/session', { capabilities: { alwaysMatch: { 'tauri:options': { application: path.resolve('target/debug/mlearn-desktop') } } } });
   session = result.sessionId;
@@ -207,12 +225,12 @@ try {
   await until(()=>script('return document.querySelector("video").currentTime>1'),'Playback time advances');
   await script('document.querySelector("video").pause()');
   await click('Children: untracked');await text('child');await click('Adjust Meaning knowledge: Meaning \u00b7 untracked');
-  await click('Claim Meaning known');await text('claimed known');await click('Close Inspector');
-  await click('Children: mixed');await click('Close Inspector');
+  await click('Claim Meaning known');await text('claimed known');await closeInspector();
+  await click('Children: mixed');await closeInspector();
   await script('document.querySelector("video").currentTime=20');
   await until(()=>script('return Math.abs(document.querySelector("video").currentTime-20)<0.5'),'Seek to second occurrence');
-  await click('came: untracked');await text('come');await click('Close Inspector');
-  await click('Children: mixed');await click('Close Inspector');
+  await click('came: untracked');await text('come');await closeInspector();
+  await click('Children: mixed');await closeInspector();
   // A second-line occurrence must reserve its entire authored cue and follow
   // the real native window resize, not retain its first captured coordinates.
   await script(`window.__m01EntryReady=new Promise(resolve=>{
@@ -291,7 +309,7 @@ try {
   } finally {
    await rpc('POST',windowPath,originalRect);
   }
-  await click('Close Inspector');
+  await closeInspector();
   assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'home: untracked');
   await screenshot('watch-inspector-claim-projection');
   await click('Home');
@@ -302,7 +320,7 @@ try {
   await rpc('DELETE', `/session/${session}`);session=undefined;
   await launch();await click('Home');await resumeWatch();
   await until(()=>script('const v=document.querySelector("video");return v&&Math.abs(v.currentTime-20)<0.5'),'Exact source position after native restart');
-  await click('Children: mixed');await click('Close Inspector');await click('Home');
+  await click('Children: mixed');await closeInspector();await click('Home');
   await rename(fixture,fixture+'.missing');
   try {await resumeWatch();await text('reselect');await click('Reselect from Home');}
   finally {await rename(fixture+'.missing',fixture);}
@@ -360,8 +378,8 @@ try {
     observer.observe(document.body,{subtree:true,childList:true,attributes:true});
     check();`, args:[]});
   assert.ok(subsecondVideo?.['element-6066-11e4-a52e-4f735466cecf'],JSON.stringify(subsecondVideo));
-  await script('arguments[0].currentTime=0.1',[subsecondVideo]);await click('Children: mixed');await click('Close Inspector');
-  await script('arguments[0].currentTime=0.8',[subsecondVideo]);await click('home: untracked');await text('home');await click('Close Inspector');
+  await script('arguments[0].currentTime=0.1',[subsecondVideo]);await click('Children: mixed');await closeInspector();
+  await script('arguments[0].currentTime=0.8',[subsecondVideo]);await click('home: untracked');await text('home');await closeInspector();
   console.log('Real Tauri IPC, signed packages, playback/seek, contextual Inspector, shared claims, exact source restart and missing-source recovery passed.');
 } catch (error) {
   if (session) {
