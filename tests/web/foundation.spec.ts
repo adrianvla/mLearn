@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright';
 test('one shared surface is honest about missing native capabilities', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/');
+  await page.goto('/settings');
   await expect(page.getByText('Browser preview', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Run hello', exact: true })).toBeDisabled();
   await expect(page.getByText('The browser preview has no native runtime.', { exact: false })).toBeVisible();
@@ -13,7 +13,7 @@ test('one shared surface is honest about missing native capabilities', async ({ 
 });
 
 test('runtime theme updates, dialog labeling and keyboard focus work', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/settings');
   const heading = page.getByRole('heading', { name: 'One app. Native at the core.' });
   const before = await heading.evaluate((element) => getComputedStyle(element).color);
   await page.getByRole('button', { name: 'Slate', exact: true }).click();
@@ -35,10 +35,19 @@ test('runtime theme updates, dialog labeling and keyboard focus work', async ({ 
 });
 
 test('shared controls pass automated WCAG checks', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/settings');
   await expect(page.getByRole('button', { name: 'Edit theme JSON' })).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   await page.getByRole('button', { name: 'Edit theme JSON' }).click();
   await expect(page.getByRole('dialog', { name: 'Custom theme' })).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+});
+
+test('Home exposes the native boundary without fabricated recents',async({page})=>{
+ await page.goto('/');await expect(page.getByRole('button',{name:'Settings',exact:true})).toBeVisible();
+ await expect(page.getByText('The browser preview has no native runtime.',{exact:false})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Run hello',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Run hello',exact:true})).toBeDisabled();
+ await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.getByText('mLearn',{exact:true})).toBeVisible();
 });

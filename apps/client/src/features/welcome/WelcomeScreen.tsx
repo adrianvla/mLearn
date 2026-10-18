@@ -1,3 +1,4 @@
+import {useRouter} from 'expo-router';
 import { useEffect, useState } from 'react';
 import type { Snapshot, ThemeDocument } from '@mlearn/contracts';
 import { Button } from '@mlearn/ui/button';
@@ -15,6 +16,7 @@ type Feedback = { target: FeedbackTarget; message: string; error: boolean };
 /** Temporary integration surface: no learner data, fake reviews or parallel JS backend. */
 export function WelcomeScreen() {
   const host = useRuntime();
+  const router=useRouter();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -67,7 +69,7 @@ export function WelcomeScreen() {
   const installed = snapshot?.installedPlugins.find((plugin) => plugin.id === 'example.hello');
   const canSave = host.available && snapshot !== null && !busy;
 
-  return <Screen>
+  return <Screen><Button label="Home" variant="secondary" onPress={()=>router.canGoBack()?router.back():router.replace('/')}/>
     <Stack><Text variant="caption" muted>mLearn · v3 foundation</Text><Text variant="heading" accessibilityRole="header">One app. Native at the core.</Text><Text muted>This is an integration placeholder, not a learning session.</Text></Stack>
     <Panel>
       <Text variant="heading" accessibilityRole="header">Runtime</Text>

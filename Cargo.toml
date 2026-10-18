@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/core", "crates/storage", "crates/language-sdk", "crates/language-host", "crates/runtime", "crates/ffi", "tools/bindgen", "language-plugins/hello", "apps/desktop/src-tauri"]
+members = ["crates/core", "crates/storage", "crates/language-sdk", "crates/language-host", "crates/runtime", "crates/ffi", "tools/bindgen", "language-plugins/hello", "language-plugins/english", "apps/desktop/src-tauri"]
 default-members = ["crates/core", "crates/storage", "crates/language-sdk", "crates/language-host", "crates/runtime"]
 
 [workspace.package]

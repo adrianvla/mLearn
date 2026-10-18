@@ -2,7 +2,10 @@
   "name": "mlearn",
   "version": "3.0.0-dev.0",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev:web": "npm run web -w @mlearn/client",
     "dev:desktop": "npm run tauri -w @mlearn/desktop -- dev",
@@ -19,7 +22,8 @@
     "prepare:android": "node tools/build-mobile.mjs android",
     "ios": "npm run ios -w @mlearn/client",
     "android": "npm run android -w @mlearn/client",
-    "test:web": "playwright test"
+    "test:web": "playwright test",
+    "prepare:language-data": "python3 tools/prepare-wordnet.py && node tools/acquire-japanese.mjs && python3 tools/prepare-japanese.py --offline"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 for (const viewport of [{ width: 1080, height: 900 }, { width: 390, height: 740 }]) {
   test(`dialog is centered and remains inside ${viewport.width}px viewport`, async ({ page }) => {
     await page.setViewportSize(viewport);
-    await page.goto('/');
+    await page.goto('/settings');
     await page.getByRole('button', { name: 'Edit theme JSON', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Custom theme' });
     await expect(dialog).toBeVisible();

@@ -1,5 +1,46 @@
 # Current implementation checkpoint
 
+## M01 — blocked on measured implementation boundaries; changes requested
+
+- Continue only on `agent/m01`, [draft PR #44](https://github.com/adrianvla/mLearn/pull/44), base `agent/h00`. Exact provisional H00 base **`87df9c137167601c6ae210ad2f663235f0a2a820`** remains unchanged. H00 is **unaccepted**; neither PR is merged and M02 is unauthorized.
+- Previous review candidate `ea911d4fc72811fdbb01fe2a7436c85d2f04904d`; current application/diagnostic source **`7132968ccfb571f6728b123cc7763e05f335a066`**. The final review-record child changes documentation only. Same checkout, no reset/worktree/stash or corpus/v2 writes. Effective executor remains gpt-6.1-sol / medium, as recorded locally.
+- The connected English increment is preserved: real local video/SRT, Rust/SQLite source identity/resume, genuine WordNet Wasmi analysis, bounded annotated/Knowledge batches, shared contextual Inspector and explicit claim changes. It does **not** complete the required representative Japanese original-corpus workflow.
+
+### Review findings and disposition
+
+| Requested priority | Evidence / actual result |
+|---|---|
+| Linux Tauri playback | **Still failed, root traced.** The original decoded-frame assertion and advancing-time assertion remain unchanged. Actual H.264 fixture decoder-chain probe passes. WebKitGTK2.52.6 first rejects the custom scheme; an allow-list experiment then exposes **“No URI handler implemented for mlearn-media”** from GStreamer. The ineffective exception was removed. Runs [38993481639](https://github.com/adrianvla/mLearn/actions/runs/38993481639), [39025955515](https://github.com/adrianvla/mLearn/actions/runs/39025955515), [39026425829](https://github.com/adrianvla/mLearn/actions/runs/39026425829), [39026883759](https://github.com/adrianvla/mLearn/actions/runs/39026883759); local `linux-*-failure.log`, artifacts and source IDs retained. |
+| Japanese analysis | **Undelivered; precise resource/lifetime boundary.** Official pinned Sudachi Small20260116 contains a122,948,155-byte dictionary. Current guest reads whole assets≤8MiB, guest memory≤64MiB, indexed SQLite resources≤32MiB/package≤40MiB; there is no binary paging/file ABI and each invocation creates a fresh guest. Raising a download limit would not make this model runnable or a validated mobile lifecycle. A genuine analyzer strategy and stable Japanese lexical data/identity remain required; no rough splitter/word list substituted. [Boundary and pin](../architecture/japanese-language-boundary.md). |
+| Original WebM | **Product route unsupported by current transport, not proven codec incompatibility.** Original VP9/Opus decodes and advances in Chromium. Mac WebKit advertises support. Real product requests three small ranges then an ordinary GET; current2MiB unranged-body limit returns416. The untouched original advanced to6s in the same native app during a temporary loopback streaming comparison, with its real duration. No transcode; temporary adapter/CSP/server were removed. This diagnostic is not candidate support or visible-frame/audio acceptance. [Host findings](../architecture/media-playback.md). |
+| Original subtitle association | Rust's saved MOV revision, SRT revision and imported copy hash all match the actual provided files (`original-provenance-review.json`). This verifies byte association and continuity. **Spoken/semantic provenance is unverified**; timing bounds, filenames and staged design images are not proof of a matching track. |
+| Actual Watch / Inspector | Current native Watch source, real WordNet Inspector and granular claim captures are compared directly with both approved Watch references and relevant Inspector images in **`.mlearn/m01/Watch-review-comparison.html`**. Provisional, unpictured Home is separate. Remaining differences (native transport geometry and expanded claims versus compact Known footer) are explicit. The combined Japanese original-corpus Inspector comparison is unavailable; no final visual acceptance. |
+
+The next major decisions are a genuine Japanese analyzer/resource/session strategy and a supported, bounded desktop streaming transport with source-ID authorization and an owned lifecycle. The measured constraints and candidate alternatives are documented above. No unauthenticated general file server, whole-file buffer, guest filesystem access, renderer database or new theme system was shipped to bypass them. M01 remains **blocked/incomplete**, not awaiting acceptance.
+
+### Readability and ownership
+
+Expanded the compressed Watch, Inspector, Home, Annotated Text, media controls and contextual-panel owners into readable statements/render structure; Rust source/subtitle/language and desktop host owners are rustfmt-formatted. Nine presentation owners' emitted JavaScript syntax/string literals remain identical after formatting-only parentheses/trailing-comma normalization (`readability-verification.txt`). No ownership moved: features use the typed runtime client; host APIs remain in host adapters; Rust owns claims, source/domain decisions and persistence; language algorithms remain plugins. No new orchestration framework or M02 work.
+
+### Current verification and evidence
+
+Ignored raw evidence remains in **`.mlearn/m01/`**; final packet **`.mlearn/M01-review.md`**. Original media/private diagnostics/generated binaries remain out of Git and hosted artifacts. Public CI uses synthetic inputs only.
+
+- PASS: `npm test`, typecheck, ownership lint, generated-contract check, plugin build and six web interaction/accessibility checks: `review-npm-test.log`, `review-typecheck-integrated.log`, `review-lint-integrated.log`, `review-contracts.log`, `review-plugin-build.log`, `review-web-integrated.log`, `review-candidate-web.log`.
+- PASS: focused real-Wasm/SQLite source→analysis→claim→relocated-profile→resume/recovery owner suite against the current built plugin (`review-watch-owner-current-plugin.log`). The earlier full native/domain suite is retained for unchanged behavior; no broad native suite was repeated after each formatting edit.
+- Current consuming macOS debug application build: `review-candidate-build.log`. Current package installed through its authenticated catalogue; native Watch/Inspector preserves the saved second occurrence and claim; actual withdraw/reclaim and Escape focus restoration exercised. `review-watch-*.png`. Final binary/source hash and launch details are in the local packet.
+- Prior iOS27/AndroidAPI35 Release connected flows passed2m18s/2m02s at application source `e696c40`, including20s/15s paused seek/process restart. This review's presentation changes preserve emitted behavior and Rust edits are formatting; **no new current-source mobile runtime pass is claimed**. Any newly scheduled candidate jobs remain pending/unverified until their results exist.
+- Foundation passed at diagnostic source `bad7189` ([39025955560](https://github.com/adrianvla/mLearn/actions/runs/39025955560)). Failed Linux native runs remain failed despite other passing checks. Exact final scheduled candidate runs/status go in `.mlearn/m01/review-final-ci.json`; no duplicate dispatch or extended pending-job monitoring.
+
+### Short manual review / next action
+
+1. Source `.mlearn/preflight/env.sh`; open `target/debug/bundle/macos/mLearn.app`, or `npm run dev:desktop` with7780/8081 free. Use the local comparison HTML above to review actual Watch/Inspector independently of provisional Home.
+2. Resume the authored English video/SRT, inspect Children/came, expand Knowledge, withdraw/set Meaning and close Inspector. Other occurrences retain the same native projection; Home/real restart retains source, language, SRT and position. This remains fixture verification, not Japanese corpus acceptance.
+3. Separately open the original MOV/SRT and original WebM normally. Review the explicit Japanese-analysis and transport failures. Do not infer a semantic track match or decoder failure from generic media error4. Do not alter originals for recovery tests.
+4. Resolve the documented analyzer and streaming decisions, then implement and verify the complete original open/play/seek/Inspector/claim/reopen flow and the actual reference comparison before M01 can be complete. No M02, acceptance, merge or release publication.
+
+## Frozen H00 record (unaccepted; retained below)
+
 ## H00 candidate
 
 - Unit: **H00 — development and native application harnesses** only. Status: **awaiting_review**; no maintainer acceptance, **M01 not authorized**.

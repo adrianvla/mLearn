@@ -18,14 +18,14 @@ The catalogue describes the intended product, not current implementation status.
 
 | ID | Required capability | Acceptance condition | Unit |
 |---|---|---|---|
-| SRC-01 | Open local content through a picker, supported drag/drop and mobile import/share | Source identity and access permission survive the supported reopen path; unavailable files produce a recoverable error, not a blank view | M01 |
+| SRC-01 | Open local content through a picker, supported drag/drop and mobile import/share | Source identity, original selected filename and access permission survive the supported reopen path; cancellation preserves saved progress; unavailable files produce a recoverable error, not a blank view | M01 |
 | SRC-02 | Resume a source from recents | Restore the correct file/content revision, position, source language and relevant tracks/view state; deduplicate repeat openings | M01 |
 | SRC-03 | Choose source language independently of UI/definition language | A book, video and conversation can retain different language/variant contexts without global-state contamination | M02 |
 | SRC-04 | Display a bounded batch of annotated text | Analyze the relevant cue/page/message range together; obtain Knowledge for distinct targets in bounded batches; display raw text during preparation without falsely classifying it | M01 |
 | SRC-05 | Apply a Knowledge change consistently | Inspector, visible source annotations and the relevant list agree; unrelated content is not retokenized or reloaded | M01 |
 | SRC-06 | Preserve exact surface text and source coordinates | Punctuation, whitespace, combining marks, source ruby, normalization and alternative analyses do not corrupt selection or source links | M02 |
 | SRC-07 | Move between source, inspection, capture and learning | Return to the same source/page/time/selection without replaying Start or dropping unfinished work | M03 |
-| SRC-08 | Retry missing, moved, unsupported or failed content | User can reselect/retry a source without deleting saved progress or confusing missing data with an empty result | M01 |
+| SRC-08 | Retry missing, moved, unsupported or failed content | User can reselect/retry a source or replace a missing subtitle association without deleting saved progress or confusing missing data with an empty result | M01 |
 | SRC-09 | Navigate long documents/transcripts/messages | Windowing/pagination and bounded prefetch preserve position and selection; no whole-library render or per-token listeners/workers | M05 |
 | SRC-10 | Search within applicable source content | Results navigate to a real page/span/cue/message with context and a return path; search scope and unavailable indexes are explicit | M10 |
 
@@ -53,7 +53,7 @@ The catalogue describes the intended product, not current implementation status.
 
 | ID | Required capability | Acceptance condition | Unit |
 |---|---|---|---|
-| INS-01 | Inspect from text, subtitle, image text or message | Same target/context contract; popup on desktop and suitable touch presentation; no independent lookup feature per source | M01 |
+| INS-01 | Inspect from text, subtitle, image text or message | Same target/context contract; popup on desktop and suitable touch presentation; individual subtitle targets are keyboard/touch/accessibility reachable with return focus; no independent lookup feature per source | M01 |
 | INS-02 | See source form and nearby meaning | Preserve selected visual hierarchy, senses/definitions, context and dictionary attribution; do not impose one language's punctuation globally | M01 |
 | INS-03 | Inspect reading/pronunciation/prosody and morphology | Applicable structures, alternate forms and uncertainty are shown; absent capabilities are not fabricated | M02 |
 | INS-04 | See and adjust Knowledge using pills/controls | Visible granular states and explicit corrections use the same native commands as other knowledge surfaces | M01 |

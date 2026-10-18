@@ -1,8 +1,8 @@
-# mLearn v3 foundation
+# mLearn v3
 
 This branch contains a cross-platform integration foundation, **not the completed language-learning application**.
 
-One Expo application renders with React Native on iOS/Android and React Native Web inside Tauri on desktop. A portable Rust runtime owns persisted settings and a bounded Wasmi plugin host. The placeholder demonstrates native state, theme editing and a Rust-authored hello plugin.
+One Expo application renders with React Native on iOS/Android and React Native Web inside Tauri on desktop. A portable Rust runtime owns persisted settings and a bounded Wasmi plugin host. The current M01 candidate adds local Watch sources, UTF-8 SRT subtitles, a real English WordNet package, contextual Inspector and explicit Knowledge claims. M01 is incomplete pending its recorded corpus and platform verification gaps; this is not a parity or acceptance claim.
 
 ## Start on desktop
 
@@ -10,12 +10,13 @@ Prerequisites: Node.js 22+ and npm, stable Rust with the `wasm32-unknown-unknown
 
 ```sh
 npm ci
+npm run prepare:language-data # once: pinned public WordNet source → local indexed data
 npm run dev:desktop
 ```
 
 The development command builds the sample plugin, starts a **local signed CDN fixture** on `127.0.0.1:7780`, starts Expo web on port 8081, and launches Tauri. The extra browser tab is suppressed. Ports must be free; the command does not kill another process to claim them.
 
-In the Tauri window, choose **Install SDK example**, then **Run hello**. Its executable Wasm and separate greeting data travel through the catalog download and hash/signature verification path. Change the theme, close and reopen the application, and reload native state to inspect persisted settings.
+In the Tauri window, choose **Get language packages**, install **org.mlearn.english**, then open a local video and attach its UTF-8 SRT subtitles. Select a subtitle word to inspect its senses and change a granular Knowledge claim. Home lists actual sources and their saved positions. **Settings** retains the H00 theme/runtime diagnostics. The English package does not analyze Japanese; unsupported text remains visible with an explicit analysis error.
 
 The ordinary browser preview (`npm run dev:web`) explicitly has **no native backend**. Visual theme previews work there; it does not pretend to save settings or execute a plugin.
 
@@ -34,7 +35,7 @@ npm run prepare:android
 npm run android
 ```
 
-Preparation builds the same SDK fixture and embeds its executable into the **mobile Rust library**. No executable-code download interface is enabled for mobile. The tiny greeting JSON is bundled for this offline integration example; large language assets/data-only downloads are a subsequent package feature.
+Preparation builds the SDK fixture and initial English executable into the **mobile Rust library**, with the pinned WordNet resource for offline use. No executable-code download interface is enabled for mobile. Desktop obtains both from its authenticated catalogue. Subsequent data-only update/management flows belong to M02.
 
 Generated Swift/Kotlin bindings, XCFrameworks, native binaries and Expo application projects are reproducible build outputs, not checked-in parallel implementations. Rerun preparation when the Rust interface or bundled plugin changes.
 
@@ -69,20 +70,21 @@ When Rust boundary types change, run `npm run codegen` and commit the generated 
 | `crates/language-sdk` | Experimental guest ABI and asset access |
 | `crates/ffi` | Mobile UniFFI binding; no second business implementation |
 | `language-plugins/hello` | Independent Rust plugin fixture |
+| `language-plugins/english` | WordNet 3.0 analysis, morphology and linguistic schema |
 
 ## Release configuration and limitations
 
 Desktop release builds do **not** trust the generated development publisher key and contain **no executable language plugin**. Supply `MLEARN_RELEASE_CATALOG_TRUST` at build time as single-line JSON containing `url` (HTTPS) and `publicKey` (base64 Ed25519 public key). With no configured publisher, the UI reports that installation is unavailable. This repository does not publish a production CDN or contain a release signing key.
 
-All v3 development identities and profile paths are separate from v2. The schema currently persists a small validated theme document in one SQLite row; it is not a whole-library JSON file. No real profile import or learner evidence storage is implemented.
+All v3 development identities and profile paths are separate from v2. SQLite also owns bounded source recents, subtitle cues, playback checkpoints and explicit capability claims. Claims do not create assessments, predictions or cards. No real v2 profile import or review evidence storage is implemented.
 
-The plugin ABI and resource limits are deliberately a **bounded hello-world prototype**: 4 MiB executable, 8 MiB fixture assets, 64 MiB guest memory, bounded messages and execution fuel. They are not appropriate defaults for large language dictionaries without the planned resource-streaming and analyzer benchmarks. No claim of full language support, native device acceptance, or T2 feature parity is made by the presence of a green build.
+The experimental plugin ABI now supports immutable indexed resources: 4 MiB executable, up to 32 MiB per SQLite resource / 40 MiB total package data, 8 MiB ordinary guest-readable assets, 64 MiB guest memory and bounded messages/fuel. The generic host admits only primary-key resource lookups, not guest SQL or access to learner storage. WordNet is 24.4 MiB; guest calls fetch bounded entries instead of copying the dictionary into Wasm or React. Broader analyzer benchmarks remain required before declaring a production SDK. No claim of full language support, native device acceptance, or T2 feature parity is made by the presence of a green build.
 
 See [architecture](docs/architecture/foundation.md) and the GitHub Actions evidence for the exact verified scope. Source/asset licenses remain applicable; the archived v2 implementation is a reference, not copied production code.
 
 ## H00 candidate verification and resume
 
-Work on an `agent/**` delivery branch and open a PR to `rewrite/v3`. Foundation,
+Work on an `agent/**` delivery branch. H00 targets `rewrite/v3`; the provisional M01 stack targets `agent/h00` and depends on PR #43. Foundation,
 mobile and Linux desktop integration run on affected pushes to delivery branches
 and `rewrite/v3`, with manual dispatch also available. Their commit checks attach
 to the PR; opening or updating the PR does not duplicate the push runs. Other
@@ -151,3 +153,11 @@ profiles are inside each disposable app sandbox. Never point tests at a live v2
 profile. The foundation screen has no approved final visual reference; its current
 composition is interim. Physical devices, distribution signing and Windows runtime
 interaction remain separate from H00 simulator/emulator and build evidence.
+
+## M01 review and focused native flow
+
+The current connected native flow is `tests/mobile/watch.yaml`. It uses the synthetic red/blue 30-second video produced by `python3 tools/create-watch-fixture.py <ignored-output-directory>`; this is deterministic regression input, not real-corpus acceptance. Android expects `m01-watch.mp4` and `m01-watch.srt` in Downloads. iOS expects those names in the development app's Documents/**M01 fixtures** folder. The workflow copies them there before running Maestro. `tests/mobile/foundation.yaml` retains H00's separate diagnostic flow.
+
+M01 source, actual checks, unresolved coverage and manual review steps are recorded in [STATE.md](docs/implementation/STATE.md). Local raw evidence and the review packet `.mlearn/M01-review.md` remain ignored. Corpus media and private diagnostics are never PR artifacts. Neither milestone is accepted or merged by these checks.
+
+M01 review found two major unresolved implementation boundaries: [Japanese analyzer resources/lifetime](docs/architecture/japanese-language-boundary.md) and [desktop media transport](docs/architecture/media-playback.md). The original WebM is valid VP9/Opus; the current custom protocol rejects its unranged streaming request, so a generic media error is not proof of unsupported codecs. Linux's real playback assertion remains failing and unchanged. The temporary loopback comparison was diagnostic only and is not shipped.

@@ -50,3 +50,30 @@ fn real_sdk_module_runs_with_downloadable_asset() {
     assert_eq!(plugin.invoke("example::hello", serde_json::json!({"name":"アドリアン"})).unwrap()["message"], "Hello, アドリアン!");
     assert!(plugin.invoke("example::hello", serde_json::json!({"name":""})).is_err());
 }
+#[test]
+fn indexed_resource_sizes_are_bounded_and_guest_capacity_is_negotiated(){
+ use mlearn_language_host::ResourcePaths;
+ let dir=tempfile::tempdir().unwrap();let path=dir.path().join("resource.sqlite");
+ let db=rusqlite::Connection::open(&path).unwrap();db.execute_batch("CREATE TABLE resource_entries(key TEXT PRIMARY KEY,value BLOB NOT NULL) WITHOUT ROWID").unwrap();
+ db.execute("INSERT INTO resource_entries VALUES('key',?1)",[vec![b'x';5000]]).unwrap();drop(db);
+ let code=wat::parse_str(r#"(module
+ (import "mlearn" "resource_get" (func $get (param i32 i32 i32 i32 i32 i32)(result i32)))
+ (memory (export "memory") 1)
+ (data(i32.const 0) "dictionary") (data(i32.const 16) "key")
+ (data(i32.const 32) "{\22ok\22:true,\22value\22:true}")
+ (func(export "mlearn_abi_version")(result i32) i32.const 1)
+ (func(export "mlearn_alloc")(param i32)(result i32)i32.const 20000)
+ (func(export "mlearn_dealloc")(param i32 i32))
+ (func(export "mlearn_call")(param i32 i32)(result i64)
+  i32.const 0 i32.const 10 i32.const 16 i32.const 3 i32.const 128 i32.const 4 call $get i32.const 5000 i32.ne
+  if i64.const 0 return end
+  i32.const 128 i32.load8_u if i64.const 0 return end
+  i32.const 0 i32.const 10 i32.const 16 i32.const 3 i32.const 128 i32.const 5000 call $get i32.const 5000 i32.ne
+  if i64.const 0 return end
+  i32.const 128 i32.load8_u i32.const 120 i32.ne if i64.const 0 return end
+  i64.const 137438953496
+ ))"#).unwrap();
+ let resources=ResourcePaths::from([("dictionary".into(),path)]);
+ let plugin=CompiledPlugin::with_resources(&code,AssetMap::new(),resources).unwrap();
+ assert_eq!(plugin.invoke("resource.test",Value::Null).unwrap(),Value::Bool(true));
+}

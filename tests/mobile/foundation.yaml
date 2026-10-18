@@ -5,6 +5,7 @@ name: Native foundation persists Rust state across process restart
 # transport or JavaScript persistence. All test data belongs to this v3 app.
 - launchApp:
     clearState: true
+- tapOn: 'Settings'
 - extendedWaitUntil:
     visible: 'Plugin code: mobile-bundled'
     timeout: 60000
@@ -41,6 +42,7 @@ name: Native foundation persists Rust state across process restart
 - stopApp
 - launchApp:
     clearState: false
+- tapOn: 'Settings'
 - extendedWaitUntil:
     visible: 'Plugin code: mobile-bundled'
     timeout: 60000

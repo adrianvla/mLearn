@@ -19,6 +19,9 @@ public class MlearnNativeModule: Module {
 
   public func definition() -> ModuleDefinition {
     Name("MlearnNative")
+    AsyncFunction("cancelSourceOpen") { () throws -> Void in
+      try self.bridge().cancelSourceOpen()
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
     AsyncFunction("execute") { (request: String) throws -> String in
       try self.bridge().execute(request: request)
     }

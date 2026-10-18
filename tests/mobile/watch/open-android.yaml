@@ -1,0 +1,38 @@
+appId: net.kikan.mlearn.v3dev
+---
+- tapOn:
+    text: Open local video
+    enabled: true
+- tapOn: Show roots
+- tapOn:
+    id: android:id/title
+    text: Downloads
+- extendedWaitUntil:
+    visible: m01-watch.mp4
+    timeout: 15000
+- tapOn: m01-watch.mp4
+- extendedWaitUntil:
+    visible: '(Open|Replace) subtitles'
+    timeout: 60000
+- assertVisible: m01-watch.mp4
+- runFlow:
+    when:
+      visible: Show player controls
+    commands:
+      - tapOn: Show player controls
+- tapOn:
+    id: net.kikan.mlearn.v3dev:id/exo_prev
+- extendedWaitUntil:
+    visible:
+      id: net.kikan.mlearn.v3dev:id/exo_position
+      text: '00:00'
+    timeout: 15000
+- tapOn: '(Open|Replace) subtitles'
+- tapOn: Show roots
+- tapOn:
+    id: android:id/title
+    text: Downloads
+- extendedWaitUntil:
+    visible: m01-watch.srt
+    timeout: 15000
+- tapOn: m01-watch.srt

@@ -1,3 +1,4 @@
+mod watch;
 use mlearn_core::ThemeDocument;
 use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
@@ -26,10 +27,13 @@ impl ProfileStore {
         connection.pragma_update(None, "synchronous", "FULL")?;
         let transaction = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let version: u32 = transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 1 { return Err(StorageError::Invalid("Profile was created by a newer application".into())); }
+        if version > 2 { return Err(StorageError::Invalid("Profile was created by a newer application".into())); }
         if version == 0 {
             transaction.execute_batch("CREATE TABLE preferences (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL, theme TEXT NOT NULL); CREATE TABLE receipts (sequence INTEGER PRIMARY KEY AUTOINCREMENT, command_id TEXT NOT NULL UNIQUE, digest BLOB NOT NULL, revision INTEGER NOT NULL); CREATE TABLE plugins (id TEXT PRIMARY KEY, manifest TEXT NOT NULL); PRAGMA user_version=1;")?;
             transaction.execute("INSERT INTO preferences VALUES (1, 0, ?1)", [serde_json::to_string(&ThemeDocument::default())?])?;
+        }
+        if version < 2 {
+            transaction.execute_batch("CREATE TABLE cues(source_id TEXT NOT NULL,cue_index INTEGER NOT NULL,start_ms INTEGER NOT NULL,end_ms INTEGER NOT NULL,text TEXT NOT NULL,PRIMARY KEY(source_id,cue_index)); CREATE INDEX cues_time ON cues(source_id,start_ms); CREATE TABLE sources(id TEXT PRIMARY KEY,document TEXT NOT NULL,touched REAL NOT NULL); CREATE TABLE knowledge_revision(id INTEGER PRIMARY KEY CHECK(id=1),revision INTEGER NOT NULL); INSERT INTO knowledge_revision VALUES(1,0); CREATE TABLE claims(package_id TEXT NOT NULL,target_id TEXT NOT NULL,capability TEXT NOT NULL,claim INTEGER,revision INTEGER NOT NULL,PRIMARY KEY(package_id,target_id,capability)); CREATE TABLE claim_receipts(command_id TEXT PRIMARY KEY,digest BLOB NOT NULL,projection TEXT NOT NULL); PRAGMA user_version=2;")?;
         }
         // Schema version and initial row become durable together, including first startup.
         transaction.commit()?;

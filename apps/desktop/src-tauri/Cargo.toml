@@ -14,5 +14,15 @@ tauri-build = { version = "2.7.2", features = [] }
 mlearn-runtime = { path = "../../../crates/runtime" }
 mlearn-language-host = { path = "../../../crates/language-host" }
 serde_json.workspace = true
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "rt", "net", "fs", "io-util", "time", "macros"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+uuid = { version = "1", features = ["v4"] }
 tauri = { version = "2.12.3", features = [] }
+http-range = "0.1.5"
+rfd = "0.15.4"
+mlearn-core = {path="../../../crates/core"}
+
+[dev-dependencies]
+sha2.workspace = true
+tempfile = "3"
