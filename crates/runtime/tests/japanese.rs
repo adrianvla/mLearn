@@ -72,6 +72,9 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
     assert_eq!(entry["entry"]["headword"], "昨日");
     assert!(entry["entry"]["reading"].as_str().unwrap().contains("きのう"));
     assert!(entry["entry"]["definition"].as_str().unwrap().contains("yesterday"));
+    let senses = entry["entry"]["senses"].as_array().expect("JMdict sense groups must survive the package/runtime boundary");
+    assert!(!senses.is_empty());
+    assert!(senses.iter().all(|sense| sense["definitions"].as_array().is_some_and(|definitions| !definitions.is_empty())));
     let key = json!({"packageId":"org.mlearn.japanese","targetId":target,"capability":"org.mlearn.japanese:meaning"});
     let claim = json!({"type":"change_claim","change":{"key":key,"claim":true,"commandId":"japanese-claim-once"}});
     let claimed = call(&mut runtime, claim.clone());

@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { Pressable, Text as NativeText, View, AccessibilityInfo, findNodeHandle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
-import type { TextAnchor } from './InlineWord.types';
+import type { TextAnchor, TextBounds } from './InlineWord.types';
 /** A real inline view keeps each word independently reachable by TalkBack/VoiceOver.
  * Nested NativeText onPress works by touch but collapses into its parent's AX node.
  */
@@ -16,9 +16,9 @@ export function InlineWordControl({ text, status, onActivate }: {
         if (tag)
             AccessibilityInfo.setAccessibilityFocus(tag);
     };
-    const activate = () => ref.current?.measureInWindow((x, y, width, height) => onActivate({
-        x, y, width, height, restoreFocus
-    }));
+    const measure = (publish: (bounds: TextBounds) => void) =>
+        ref.current?.measureInWindow((x, y, width, height) => publish({ x, y, width, height }));
+    const activate = () => measure(bounds => onActivate({ ...bounds, measure, restoreFocus }));
     return <Pressable
       ref={ref}
       accessible

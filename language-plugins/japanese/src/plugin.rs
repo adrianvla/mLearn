@@ -13,7 +13,7 @@ fn initialize() -> Result<(), String> {
     let bytes = mlearn_language_sdk::read_resource("sudachi.dic", DICTIONARY_BYTES, "34bdc3d279530567399874e62d7f98ea327c536dd7029a3dfdf5c694db1942c7")?;
     let engine = JapaneseEngine::from_verified_dictionary_bytes(bytes).map_err(|e| e.to_string())?;
     let metadata = read("metadata")?.ok_or("JMdict metadata missing")?;
-    if metadata["schemaVersion"] != 1 || metadata["source"]["sha256"] != "eb7cb9c5179c23154f3897eddb0f78f2ef374837fcaef0474cf9875d42161d9b" {
+    if metadata["schemaVersion"] != 2 || metadata["source"]["sha256"] != "eb7cb9c5179c23154f3897eddb0f78f2ef374837fcaef0474cf9875d42161d9b" {
         return Err("JMdict data is incompatible with this package".into());
     }
     ENGINE.with(|owner| *owner.borrow_mut() = Some(engine));
@@ -99,6 +99,67 @@ fn project(text: &str, tokens: Vec<Token>, lookup: &impl Fn(&str) -> Result<Opti
     if cursor < text.len() { result.push(json!({"start":cursor,"end":text.len(),"text":&text[cursor..],"targets":[]})); }
     Ok(result)
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DictionaryEntry {
+    target_id: String,
+    headword: String,
+    reading: String,
+    senses: Vec<DictionarySense>,
+}
+#[derive(Deserialize)]
+struct DictionarySense {
+    pos: Vec<String>,
+    forms: Vec<String>,
+    readings: Vec<String>,
+    glosses: Vec<String>,
+}
+
+fn inspect_entry(target: &str, value: Value) -> Result<Value, String> {
+    let entry: DictionaryEntry = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    if entry.target_id != target || entry.senses.is_empty()
+        || entry.senses.iter().any(|sense| sense.glosses.is_empty())
+    {
+        return Err("JMdict entry identity or senses are invalid".into());
+    }
+    let summary = entry.senses[0].glosses.iter().take(3)
+        .map(String::as_str).collect::<Vec<_>>().join("; ");
+    // Preserve the complete target.inspect.v1 field for existing consumers.
+    // The short nearby meaning is an additive field, not lost dictionary data.
+    let definition = entry.senses.iter().map(|sense| {
+        let restrictions = sense.forms.iter().chain(&sense.readings)
+            .map(String::as_str).collect::<Vec<_>>();
+        let glosses = sense.glosses.join("; ");
+        if restrictions.is_empty() { glosses }
+        else { format!("[{}] {glosses}", restrictions.join(", ")) }
+    }).collect::<Vec<_>>().join("\n");
+    let mut parts = Vec::new();
+    let senses = entry.senses.into_iter().map(|sense| {
+        for part in &sense.pos {
+            if !parts.contains(part) { parts.push(part.clone()); }
+        }
+        // JMdict owns these labels. Keep the full taxonomy while presenting its
+        // short English heading; no shared UI knows Japanese POS conventions.
+        let heading = sense.pos.iter().map(|part| {
+            part.split_once(" (").map_or(part.as_str(), |(label, _)| label)
+        }).collect::<Vec<_>>().join(", ");
+        let mut notes = Vec::new();
+        if !sense.forms.is_empty() {
+            notes.push(format!("Written forms: {}", sense.forms.join(", ")));
+        }
+        if !sense.readings.is_empty() {
+            notes.push(format!("Readings: {}", sense.readings.join(", ")));
+        }
+        json!({"heading":heading,"labels":sense.pos,"definitions":sense.glosses,"notes":notes})
+    }).collect::<Vec<_>>();
+    Ok(json!({
+        "targetId":entry.target_id,"headword":entry.headword,"reading":entry.reading,
+        "partOfSpeech":parts.join("; "),"definition":definition,"summary":summary,"senses":senses,
+        "attribution":ATTRIBUTION,"capabilities":capabilities()
+    }))
+}
+
 fn handle(call: Call) -> Result<Value, String> {
     match call.capability.as_str() {
         "language.describe.v1" => Ok(json!({"language":"ja","label":"Japanese","capabilities":capabilities(),"annotationCapability":format!("{PACKAGE}:meaning"),"attribution":ATTRIBUTION})),
@@ -126,11 +187,8 @@ fn handle(call: Call) -> Result<Value, String> {
         "target.inspect.v1" => {
             let target = call.input.get("targetId").and_then(Value::as_str).ok_or("Expected targetId")?;
             let seq = target.strip_prefix("jmdict:").filter(|s| !s.is_empty() && s.len() <= 10 && s.bytes().all(|b| b.is_ascii_digit())).ok_or("Unknown Japanese target identity")?;
-            let mut entry = read(&format!("entry/{seq}"))?.ok_or("JMdict entry not found")?;
-            if entry["targetId"] != target { return Err("JMdict entry identity mismatch".into()); }
-            entry["attribution"] = json!(ATTRIBUTION);
-            entry["capabilities"] = capabilities();
-            Ok(entry)
+            let entry = read(&format!("entry/{seq}"))?.ok_or("JMdict entry not found")?;
+            inspect_entry(target, entry)
         }
         _ => Err("Unsupported Japanese capability".into()),
     }
@@ -144,6 +202,29 @@ mod tests {
     fn native_calls_do_not_fake_host_resources() {
         assert!(initialize().is_err());
         assert_eq!(handle(Call { capability: "language.describe.v1".into(), input: Value::Null }).unwrap()["language"], "ja");
+    }
+    #[test]
+    fn dictionary_projection_preserves_gloss_boundaries_and_restrictions() {
+        let source = json!({
+            "targetId":"jmdict:1","headword":"語","reading":"ご",
+            "senses":[
+                {"pos":["noun (common) (futsuumeishi)"],"forms":["語"],"readings":[],
+                 "glosses":["a gloss; including punctuation","another gloss"]},
+                {"pos":["expression"],"forms":[],"readings":["ご"],
+                 "glosses":["a separate sense"]}
+            ]
+        });
+        let entry = inspect_entry("jmdict:1", source.clone()).unwrap();
+        assert_eq!(entry["senses"][0]["definitions"], source["senses"][0]["glosses"]);
+        assert_eq!(entry["senses"][1]["definitions"], source["senses"][1]["glosses"]);
+        assert!(entry["definition"].as_str().unwrap().contains("a separate sense"),
+            "ABI-v1 consumers must still receive the complete definition");
+        assert!(!entry["summary"].as_str().unwrap().contains("a separate sense"));
+        assert_eq!(entry["senses"][0]["labels"], source["senses"][0]["pos"]);
+        assert_eq!(entry["senses"][0]["heading"], "noun");
+        assert!(!entry["senses"][0]["notes"].as_array().unwrap().is_empty());
+        assert!(!entry["senses"][1]["notes"].as_array().unwrap().is_empty());
+        assert!(inspect_entry("jmdict:2", source).is_err());
     }
     fn token() -> Token {
         Token { start: 0, end: 6, surface: "生物".into(), lemma: "生物".into(), normalized: "生物".into(), reading: "セイブツ".into(), pos: vec!["名詞".into()], oov: false }

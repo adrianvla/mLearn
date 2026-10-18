@@ -20,7 +20,11 @@ const server = createServer(async (request, response) => {
 });
 await new Promise((resolve, reject) => { server.once('error', reject); server.listen(7780, '127.0.0.1', resolve); });
 console.log('Local development plugin catalog: http://127.0.0.1:7780/catalog.json');
-const expo = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'web', '-w', '@mlearn/client', '--', '--port', '8081'], { cwd: root, stdio: 'inherit', env: { ...process.env, BROWSER: 'none' } });
+// Tauri accepts CI=true, but Metro disables file watching in CI. A local
+// development launch must consume edits rather than repeatedly serve an old graph.
+const expoEnv = { ...process.env, BROWSER: 'none' };
+delete expoEnv.CI;
+const expo = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'web', '-w', '@mlearn/client', '--', '--port', '8081'], { cwd: root, stdio: 'inherit', env: expoEnv });
 let stopping = false;
 function stop() { if (stopping) return; stopping = true; expo.kill('SIGTERM'); server.close(); }
 process.on('SIGINT', stop); process.on('SIGTERM', stop);

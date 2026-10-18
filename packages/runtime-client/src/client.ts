@@ -12,7 +12,40 @@ export class RuntimeError extends Error {
 
 export function createRuntimeClient(transport: Transport) {
   let tail:Promise<void>=Promise.resolve();let pending=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
+  type DisplayRead={readonly command:Request;readonly epoch:number;readonly resolve:(value:Response)=>void;readonly reject:(reason:unknown)=>void};
+  const analysis:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
+  const windows:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
+  const cancelled=()=>new RuntimeError('cancelled','Source work cancelled.');
+  async function cancelSourceOpen(){
+    sourceEpoch++;
+    for(const lane of [analysis,windows]){lane.desired?.reject(cancelled());lane.desired=null;}
+    if(!cancelInFlight)cancelInFlight=(transport.cancelSourceOpen?.()??Promise.resolve()).finally(()=>{cancelInFlight=null;});
+    await cancelInFlight;
+  }
+  async function runDisplay(lane:typeof analysis,read:DisplayRead):Promise<void>{
+    lane.running=true;
+    try{
+      if(cancelInFlight)await cancelInFlight;
+      if(read.epoch!==sourceEpoch)throw cancelled();
+      const value=await execute(read.command);
+      if(read.epoch!==sourceEpoch)throw cancelled();
+      read.resolve(value);
+    }catch(error){read.reject(error);}
+    finally{
+      const desired=lane.desired;lane.desired=null;
+      if(desired)void runDisplay(lane,desired);else lane.running=false;
+    }
+  }
+  function displayRead(command:Request):Promise<Response>{
+    const lane=command.type==='analyze_source'?analysis:windows;
+    return new Promise((resolve,reject)=>{
+      const read={command,epoch:sourceEpoch,resolve,reject};
+      if(lane.running){lane.desired?.reject(cancelled());lane.desired=read;}
+      else void runDisplay(lane,read);
+    });
+  }
   async function request(command:Request):Promise<Response>{
+    if(command.type==='analyze_source'||command.type==='source_window')return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles'].includes(command.type);
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
@@ -34,7 +67,11 @@ export function createRuntimeClient(transport: Transport) {
     return response;
   }
   return {
-    async cancelSourceOpen(){sourceEpoch++;if(!cancelInFlight)cancelInFlight=(transport.cancelSourceOpen?.()??Promise.resolve()).finally(()=>{cancelInFlight=null;});await cancelInFlight;},
+    cancelSourceOpen,
+    beginSourceSession(){
+      const ready=cancelSourceOpen();const epoch=sourceEpoch;
+      return {ready,isCurrent:()=>epoch===sourceEpoch,cancel:()=>epoch===sourceEpoch?cancelSourceOpen():Promise.resolve()};
+    },
     async recentSources(){ const r=await watch({type:'recent_sources'}); if(r.type!=='sources')throw new RuntimeError('protocol','Missing sources'); return r.sources; },
     async availablePackages(){const r=await watch({type:'available_packages'});if(r.type!=='packages')throw new RuntimeError('protocol','Missing catalog');return r.plugins;},
     async openSource(path:string,packageId:string){const r=await watch({type:'open_source',path,packageId});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},

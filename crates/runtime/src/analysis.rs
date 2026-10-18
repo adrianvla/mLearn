@@ -1,0 +1,94 @@
+use crate::{Runtime, execution::{Cancellation, Failure}};
+use mlearn_core::*;
+use std::collections::BTreeSet;
+
+pub(super) struct AnalysisInput {
+    pub source: SourceRecord,
+    pub cues: Vec<Cue>,
+    pub cache_key: String,
+    pub cached: Option<Vec<CueAnalysis>>,
+}
+impl Runtime {
+    pub(super) fn prepare_analysis(&self, source_id: &str, position_ms: u32) -> Result<AnalysisInput, Failure> {
+        let source = self.source_record(source_id)?;
+        let revision = source.subtitle_revision.as_ref().ok_or_else(|| Failure::Operation("Select an external SRT subtitle file first".into()))?;
+        let installed = self.installed.get(&source.package_id).ok_or_else(|| Failure::Operation("Language package unavailable; install it and retry".into()))?;
+        if installed.manifest.version != source.package_version {
+            return Err(Failure::Operation("Saved source requires its original package version; reselect the source language explicitly".into()));
+        }
+        let window = self.window(source.clone(), position_ms)?;
+        let cache_key = format!("{}|{}|{}|{}|{:?}", source.id, revision, source.package_id, source.package_version,
+            window.cues.iter().map(|c| c.index).collect::<Vec<_>>());
+        let cached = self.analysis_cache.iter().find(|(key, _)| key == &cache_key).map(|(_, value)| value.clone());
+        Ok(AnalysisInput { source, cues: window.cues, cache_key, cached })
+    }
+    pub(super) fn complete_analysis(
+        &mut self,
+        input: &AnalysisInput,
+        output: (&Option<Vec<Vec<AnalyzedToken>>>, &LanguageDescription),
+        cancellation: &Cancellation,
+    ) -> Result<Response, Failure> {
+        let (tokens, description) = output;
+        let analyses = match (&input.cached, tokens) {
+            (Some(cached), None) => cached.clone(),
+            (None, Some(tokens)) => validate(&input.cues, tokens)?,
+            _ => return Err(Failure::Operation("Analysis result does not match prepared input".into())),
+        };
+        let targets = analyses.iter().flat_map(|a| &a.tokens).flat_map(|t| &t.targets).collect::<BTreeSet<_>>();
+        if targets.len() * description.capabilities.len() > 256 {
+            return Err(Failure::Operation("This subtitle window has too many alternatives for one Knowledge batch; raw subtitles remain available".into()));
+        }
+        let keys = targets.into_iter().flat_map(|target| {
+            description.capabilities.iter().map(|cap| KnowledgeKey {
+                package_id: input.source.package_id.clone(), target_id: target.clone(), capability: cap.id.clone(),
+            })
+        }).collect::<Vec<_>>();
+        // Knowledge is authoritative at completion, never captured with guest input.
+        let knowledge = self.store.knowledge(&keys).map_err(|e| Failure::Operation(e.to_string()))?;
+        let annotations = analyses.iter().flat_map(|a| a.tokens.iter().map(|token| {
+            let states = token.targets.iter().map(|id| {
+                knowledge.iter().find(|p| p.key.target_id == *id && p.key.capability == description.annotation_capability)
+                    .map(|p| p.status.as_str()).unwrap_or("untracked")
+            }).collect::<BTreeSet<_>>();
+            let status = match states.len() {
+                0 => "unresolved",
+                1 => states.first().copied().unwrap_or("unresolved"),
+                _ => "mixed",
+            };
+            OccurrenceKnowledge { cue_index: a.cue.index, token_start: token.start, status: status.into() }
+        })).collect();
+        cancellation.check()?;
+        if input.cached.is_none() {
+            if self.analysis_cache.len() >= 8 { self.analysis_cache.pop_front(); }
+            self.analysis_cache.push_back((input.cache_key.clone(), analyses.clone()));
+        }
+        Ok(Response::Analysis { batch: AnalysisBatch {
+            source_id: input.source.id.clone(),
+            subtitle_revision: input.source.subtitle_revision.clone().ok_or_else(|| Failure::Operation("Analysis source has no subtitle revision".into()))?,
+            package_id: input.source.package_id.clone(), package_version: input.source.package_version.clone(),
+            cues: analyses, knowledge, annotations,
+        } })
+    }
+}
+fn validate(cues: &[Cue], batches: &[Vec<AnalyzedToken>]) -> Result<Vec<CueAnalysis>, Failure> {
+    if batches.len() != cues.len() { return Err(Failure::Operation("Package returned the wrong analysis batch length".into())); }
+    let mut result = Vec::new();
+    for (cue, tokens) in cues.iter().zip(batches) {
+        let mut cursor = 0;
+        for token in tokens {
+            let start = usize::try_from(token.start).map_err(|e| Failure::Operation(e.to_string()))?;
+            let end = usize::try_from(token.end).map_err(|e| Failure::Operation(e.to_string()))?;
+            if start != cursor || end <= start || cue.text.get(cursor..end) != Some(token.text.as_str())
+                || token.targets.len() > 128 || token.targets.iter().any(|id| id.is_empty() || id.len() > 512)
+            {
+                return Err(Failure::Operation("Package returned invalid UTF-8 source spans or targets".into()));
+            }
+            cursor = end;
+        }
+        if cursor != cue.text.len() || tokens.len() > 512 {
+            return Err(Failure::Operation("Package analysis did not cover the untouched source text".into()));
+        }
+        result.push(CueAnalysis { cue: cue.clone(), tokens: tokens.clone() });
+    }
+    Ok(result)
+}

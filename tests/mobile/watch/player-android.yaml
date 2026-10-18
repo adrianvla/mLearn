@@ -7,10 +7,13 @@ appId: net.kikan.mlearn.v3dev
       - tapOn: Show player controls
 - tapOn:
     id: net.kikan.mlearn.v3dev:id/exo_play_pause
+    # Native controls hide during playback. Maestro's idle-settle wait exceeded
+    # that lifetime; observe advancement immediately instead of awaiting idleness.
+    waitToSettleTimeoutMs: 0
 - extendedWaitUntil:
     visible:
       id: net.kikan.mlearn.v3dev:id/exo_position
-      text: '00:0[1-9]'
+      text: '00:(0[1-9]|[12][0-9]|30)'
     timeout: 15000
 # Inspection is a stable user action that must pause the actual native player.
 - tapOn: 'Children: mixed'

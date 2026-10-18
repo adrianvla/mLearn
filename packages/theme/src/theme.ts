@@ -9,7 +9,27 @@ export const initialTheme: ThemeDocument = quartz;
 export function resolveTheme(document: ThemeDocument) {
   return {
     colors: { ...document.colors },
-    media:{background:"#000000",text:"#F8FAFC",muted:"#B8C1CC",chrome:"#171717E6",panel:"#252525D9",border:"#545454"},
+    media: {
+      background: '#000000',
+      text: '#E8E8E8',
+      muted: '#A6A6A6',
+      chrome: '#1C1C1CE6',
+      panel: '#242424B8',
+      border: '#505050',
+      footer: '#FFFFFF08',
+      badge: '#FFFFFF20',
+    },
+    typography: {
+      family: 'Helvetica Neue',
+      inspectionTitle: 32,
+      inspectionBody: 20,
+      inspectionReading: 18,
+    },
+    pills: {
+      neutral: { text: '#D6D6DC', surface: '#303037', top: '#48484F' },
+      positive: { text: '#38E34D', surface: '#063309', top: '#1E4F25' },
+      negative: { text: '#FF4D75', surface: '#481024', top: '#693146' },
+    },
     radius: document.radius,
     textScale: document.textScale,
     spacing: { small: 8, medium: 16, large: 24 },

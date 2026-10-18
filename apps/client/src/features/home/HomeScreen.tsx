@@ -143,7 +143,8 @@ export function HomeScreen() {
                     if (host.available)
                         void host.client.cancelSourceOpen().catch(e => setError(e.message));
                 }}/> : null}
-   {!selected ? <Text>Install a language package before opening a source.</Text> : null}<>
+   {!selected ? <Text>Install a language package before opening a source.</Text> : null}
+   {snapshot?.catalogConfigured ? <>
     <Button
           label="Get language packages"
           disabled={busy}
@@ -151,7 +152,7 @@ export function HomeScreen() {
           key={p.id}
           label={`Install ${p.id}`}
           disabled={busy}
-          onPress={() => void action(async () => { await host.client.installPlugin(p.id); await refresh(); })}/>)}</>
+          onPress={() => void action(async () => { await host.client.installPlugin(p.id); await refresh(); })}/>)}</> : null}
    {error ? <>
     <Text accessibilityRole="alert">{error}</Text>
     <Button

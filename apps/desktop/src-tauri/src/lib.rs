@@ -1,21 +1,18 @@
 use mlearn_language_host::CodePolicy;
-use mlearn_runtime::{Runtime, catalog::CatalogTrust};
+use mlearn_runtime::{Runtime, RuntimeExecutor, catalog::CatalogTrust};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 mod media;
 
 struct NativeState {
-    runtime: Arc<Mutex<Runtime>>,
+    runtime: Arc<RuntimeExecutor>,
     permits: Arc<tokio::sync::Semaphore>,
     cancellation: Arc<std::sync::atomic::AtomicU64>,
 }
 
-fn media_resolver(runtime: Arc<Mutex<Runtime>>) -> Result<media::Resolver, String> {
-    let reader = runtime
-        .lock()
-        .map_err(|_| "Native runtime lock poisoned")?
-        .media_source_reader()?;
+fn media_resolver(runtime: &Runtime) -> Result<media::Resolver, String> {
+    let reader = runtime.media_source_reader()?;
     let reader = Mutex::new(reader);
     Ok(Arc::new(move |id| {
         let reader = reader
@@ -41,11 +38,10 @@ async fn runtime_execute(
     let runtime = state.runtime.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let _permit = permit;
-        let mut runtime = runtime.lock().map_err(|_| "Native runtime lock poisoned")?;
-        Ok(runtime.execute(&request))
+        runtime.execute(&request)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -93,13 +89,13 @@ pub fn run() {
             // Desktop never receives bundled executable language modules.
             let runtime = Runtime::open(&path, CodePolicy::DesktopDownloaded, trust, vec![])
                 .map_err(std::io::Error::other)?;
+            let resolver = media_resolver(&runtime).map_err(std::io::Error::other)?;
             let cancellation = runtime.cancellation_handle();
             let state = NativeState {
                 cancellation,
-                runtime: Arc::new(Mutex::new(runtime)),
-                permits: Arc::new(tokio::sync::Semaphore::new(2)),
+                runtime: Arc::new(RuntimeExecutor::new(runtime)),
+                permits: Arc::new(tokio::sync::Semaphore::new(3)),
             };
-            let resolver = media_resolver(state.runtime.clone()).map_err(std::io::Error::other)?;
             let server = media_listener.start(resolver)?;
             app.manage(Mutex::new(server));
             app.manage(state);
@@ -143,8 +139,8 @@ mod tests {
             package_id: "package".into(), package_version: "1".into(),
             position_ms: 0, duration_ms: 0,
         }).unwrap();
+        let resolver = media_resolver(&runtime).unwrap();
         let runtime = Arc::new(Mutex::new(runtime));
-        let resolver = media_resolver(runtime.clone()).unwrap();
         let execution = runtime.lock().unwrap();
         let (send, received) = mpsc::channel();
 

@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { startCatalog } from '../../tools/catalog-server.mjs';
 
@@ -10,6 +11,7 @@ await mkdir('test-results/desktop', { recursive: true });
 const catalog = await startCatalog(path.resolve('target/plugin-cdn'));
 const driver = spawn('tauri-driver', ['--port', '4444'], { stdio: 'inherit' });
 let session;
+let restoreTheme;
 async function rpc(method, endpoint, body) {
   const response = await fetch(`http://127.0.0.1:4444${endpoint}`, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30000) });
   const result = await response.json();
@@ -123,6 +125,44 @@ try {
         .then(value=>done(JSON.parse(value))).catch(error=>done({type:'error',message:String(error)}));`, args:[request]});
     return value;
   }
+  const numericBase = (await native({ type: 'snapshot' })).snapshot;
+  restoreTheme = async () => {
+    const current = (await native({type:'snapshot'})).snapshot;
+    const restored = await native({type:'save_theme',document:numericBase.theme,expectedRevision:current.revision,commandId:randomUUID()});
+    assert.equal(restored.type,'saved',JSON.stringify(restored));
+    restoreTheme = undefined;
+  };
+  // Observe actual layout before refreshing accepted native settings. CSS-variable
+  // mode formerly updated colors but left numeric theme-derived styles frozen.
+  await script(`
+    window.__m01NumericTheme = {};
+    window.__m01NumericTheme.promise = new Promise(resolve => {
+      const heading = document.querySelector('h1,h2,h3,[role="heading"],[role="header"]');
+      let settled = false;
+      const finish = value => {
+        if(settled)return;
+        settled=true;observer.disconnect();clearTimeout(timer);resolve(value);
+      };
+      const observer = new ResizeObserver(() => {
+        const fontSize=getComputedStyle(heading).fontSize;
+        if(fontSize==='56px')finish({fontSize});
+      });
+      const timer = setTimeout(() => finish({error:'Numeric theme did not update mounted text',fontSize:getComputedStyle(heading).fontSize}),5000);
+      window.__m01NumericTheme.cancel = () => finish({error:'cancelled'});
+      observer.observe(heading);
+    });
+    return true;
+  `);
+  try {
+    const scaled = await native({type:'save_theme',document:{...numericBase.theme,textScale:2},expectedRevision:numericBase.revision,commandId:randomUUID()});
+    assert.equal(scaled.type,'saved',JSON.stringify(scaled));
+    await click('Reload native state');
+    const scaledText = await rpc('POST',`/session/${session}/execute/async`,{script:`
+      const done=arguments[arguments.length-1];window.__m01NumericTheme.promise.then(done);`,args:[]});
+    assert.equal(scaledText.fontSize,'56px',JSON.stringify(scaledText));
+  } finally {
+    await script('window.__m01NumericTheme.cancel();delete window.__m01NumericTheme;return true;');
+  }
   async function resumeWatch() {
     // Home refreshes native state after missing-source recovery. Presence alone
     // can find the button while that refresh still disables it. Observe readiness
@@ -166,15 +206,97 @@ try {
   await rpc('POST', `/session/${session}/execute/async`, {script:'const done=arguments[arguments.length-1];document.querySelector("video").play().then(()=>done(true)).catch(e=>done(String(e)));',args:[]});
   await until(()=>script('return document.querySelector("video").currentTime>1'),'Playback time advances');
   await script('document.querySelector("video").pause()');
-  await click('Children: untracked');await text('child');await click('Knowledge');
+  await click('Children: untracked');await text('child');await click('Adjust Meaning knowledge: Meaning \u00b7 untracked');
   await click('Claim Meaning known');await text('claimed known');await click('Close Inspector');
   await click('Children: mixed');await click('Close Inspector');
   await script('document.querySelector("video").currentTime=20');
   await until(()=>script('return Math.abs(document.querySelector("video").currentTime-20)<0.5'),'Seek to second occurrence');
   await click('came: untracked');await text('come');await click('Close Inspector');
   await click('Children: mixed');await click('Close Inspector');
+  // A second-line occurrence must reserve its entire authored cue and follow
+  // the real native window resize, not retain its first captured coordinates.
+  await script(`window.__m01EntryReady=new Promise(resolve=>{
+   const ready=()=>document.querySelector('[data-testid="inspector-panel"] [aria-label="Dictionary source"]');
+   const finish=pass=>{observer.disconnect();clearTimeout(timer);resolve(pass);};
+   const observer=new MutationObserver(()=>{if(ready())finish(true);});
+   const timer=setTimeout(()=>finish(false),5000);
+   observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true});
+  });`);
+  await click('home: untracked');
+  assert.equal(await rpc('POST',`/session/${session}/execute/async`,{
+   script:'const done=arguments[0],pending=window.__m01EntryReady;delete window.__m01EntryReady;pending.then(done);',args:[]
+  }),true,'The actual dictionary entry must be ready before layout assertions');
+  const clearance=await script(`const panel=document.querySelector('[data-testid="inspector-panel"]').getBoundingClientRect();
+   const cue=document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').getBoundingClientRect();
+   return {bottom:panel.bottom,cueTop:cue.top};`);
+  assert.ok(clearance.bottom<=clearance.cueTop,JSON.stringify(clearance));
+  const windowPath=`/session/${session}/window/rect`;
+  const originalRect=await rpc('GET',windowPath);
+  await script(`window.__m01ResizeCheck=new Promise(resolve=>{
+   const panel=document.querySelector('[data-testid="inspector-panel"]');
+   const word=document.querySelector('button[aria-label="home: untracked"]');
+   const cue=word.closest('[data-testid="annotated-text"]');
+   const initialWidth=innerWidth;
+   let resize,mutation,last;
+   const finish=pass=>{resize.disconnect();mutation.disconnect();removeEventListener('resize',check);clearTimeout(timer);resolve({pass,...last});};
+   const check=()=>{
+    if(innerWidth===initialWidth)return;
+    const p=panel.getBoundingClientRect(),w=word.getBoundingClientRect(),c=cue.getBoundingClientRect();
+    const expected=w.left+w.width/2;
+    last={panel:p.toJSON(),cue:c.toJSON(),expected,viewport:innerWidth};
+    if(Math.abs(p.left+p.width/2-expected)<2&&p.bottom<=c.top&&p.left>=0&&p.right<=innerWidth)finish(true);
+   };
+   const timer=setTimeout(()=>finish(false),5000);
+   resize=new ResizeObserver(check);resize.observe(document.documentElement);resize.observe(panel);
+   mutation=new MutationObserver(check);mutation.observe(panel,{attributes:true,attributeFilter:['style','class']});
+   addEventListener('resize',check);
+  });`);
+  try {
+   await rpc('POST',windowPath,{...originalRect,width:originalRect.width+160});
+   const resized=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0],pending=window.__m01ResizeCheck;delete window.__m01ResizeCheck;pending.then(done);',args:[]});
+   assert.equal(resized.pass,true,JSON.stringify(resized));
+  } finally {
+   await rpc('POST',windowPath,originalRect);
+  }
+  // Keep the accepted maximum text scale through the minimum native viewport.
+  // A fixed expanded footer previously left no complete dictionary line visible.
+  await click('Adjust Meaning knowledge: Meaning \u00b7 untracked');
+  await script(`window.__m01CompactCheck=new Promise(resolve=>{
+   const panel=document.querySelector('[data-testid="inspector-panel"]');
+   const body=panel.querySelector('[data-testid="inspector-body"]');
+   const footer=panel.querySelector('[data-testid="inspector-footer"]');
+   let settled=false,last;
+   const finish=pass=>{
+    if(settled)return;settled=true;
+    resize.disconnect();mutation.disconnect();removeEventListener('resize',check);clearTimeout(timer);resolve({pass,...last});
+   };
+   const check=()=>{
+    if(innerWidth>420||innerHeight>560)return;
+    const p=panel.getBoundingClientRect(),b=body.getBoundingClientRect(),f=footer.getBoundingClientRect();
+    const lineHeight=Math.max(44,...Array.from(body.querySelectorAll('*'),node=>parseFloat(getComputedStyle(node).lineHeight)).filter(Number.isFinite));
+    last={panel:p.toJSON(),body:b.toJSON(),footer:f.toJSON(),lineHeight,width:innerWidth,height:innerHeight};
+    if(b.height>=lineHeight&&p.top>=0&&p.bottom<=innerHeight&&f.top>=b.bottom&&f.bottom<=p.bottom)finish(true);
+   };
+   const resize=new ResizeObserver(check);[panel,body,footer].forEach(node=>resize.observe(node));
+   const mutation=new MutationObserver(check);mutation.observe(panel,{subtree:true,attributes:true,childList:true});
+   const timer=setTimeout(()=>finish(false),5000);
+   addEventListener('resize',check);check();
+  });`);
+  try {
+   await rpc('POST',windowPath,{...originalRect,width:420,height:560});
+   const compact=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0],pending=window.__m01CompactCheck;delete window.__m01CompactCheck;pending.then(done);',args:[]});
+   assert.equal(compact.pass,true,JSON.stringify(compact));
+   await click('Adjust Meaning knowledge: Meaning \u00b7 untracked');
+   await screenshot('watch-enlarged-minimum-inspector');
+  } finally {
+   await rpc('POST',windowPath,originalRect);
+  }
+  await click('Close Inspector');
+  assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'home: untracked');
   await screenshot('watch-inspector-claim-projection');
   await click('Home');
+  await restoreTheme();
+  await click('Settings');await click('Reload native state');await click('Home');
   const saved=(await native({type:'recent_sources'})).sources.find(source=>source.id===id);
   assert.ok(Math.abs(saved.positionMs-20000)<500);assert.equal(saved.subtitleRevision,attached.window.source.subtitleRevision);assert.equal(saved.packageId,'org.mlearn.english');
   await rpc('DELETE', `/session/${session}`);session=undefined;
@@ -251,7 +373,11 @@ try {
   }
   throw error;
 } finally {
-  if (session) await rpc('DELETE', `/session/${session}`).catch(() => {});
-  driver.kill('SIGTERM');
-  catalog.close();
+  try {
+    if (session && restoreTheme) await restoreTheme();
+  } finally {
+    if (session) await rpc('DELETE', `/session/${session}`).catch(() => {});
+    driver.kill('SIGTERM');
+    catalog.close();
+  }
 }

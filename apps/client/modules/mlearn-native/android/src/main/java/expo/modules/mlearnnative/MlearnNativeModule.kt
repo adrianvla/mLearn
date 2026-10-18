@@ -11,6 +11,8 @@ import kotlinx.coroutines.cancel
 
 class MlearnNativeModule : Module() {
   private val cancellationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+  // Leave capacity for raw cues and checkpoints while Rust admits one guest call.
+  private val executionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(3))
   private var bridgeInstance: RuntimeBridge? = null
 
   @Synchronized private fun bridge(): RuntimeBridge {
@@ -23,8 +25,8 @@ class MlearnNativeModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("MlearnNative")
-    OnDestroy { cancellationScope.cancel() }
+    OnDestroy { cancellationScope.cancel(); executionScope.cancel() }
     AsyncFunction("cancelSourceOpen") { bridge().cancelSourceOpen() }.runOnQueue(cancellationScope)
-    AsyncFunction("execute") { request: String -> bridge().execute(request) }
+    AsyncFunction("execute") { request: String -> bridge().execute(request) }.runOnQueue(executionScope)
   }
 }

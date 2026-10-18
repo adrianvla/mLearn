@@ -54,12 +54,12 @@ The catalogue describes the intended product, not current implementation status.
 | ID | Required capability | Acceptance condition | Unit |
 |---|---|---|---|
 | INS-01 | Inspect from text, subtitle, image text or message | Same target/context contract; popup on desktop and suitable touch presentation; individual subtitle targets are keyboard/touch/accessibility reachable with return focus; no independent lookup feature per source | M01 |
-| INS-02 | See source form and nearby meaning | Preserve selected visual hierarchy, senses/definitions, context and dictionary attribution; do not impose one language's punctuation globally | M01 |
+| INS-02 | See source form and nearby meaning | Preserve selected visual hierarchy, intact package-produced senses/definitions, context and dictionary attribution; a short nearby summary must not replace the complete definition for existing consumers; do not impose one language's punctuation globally | M01 |
 | INS-03 | Inspect reading/pronunciation/prosody and morphology | Applicable structures, alternate forms and uncertainty are shown; absent capabilities are not fabricated | M02 |
 | INS-04 | See and adjust Knowledge using pills/controls | Visible granular states and explicit corrections use the same native commands as other knowledge surfaces | M01 |
 | INS-05 | Open deeper linguistic/evidence details | Detail navigation preserves original source and target; no separate conflicting Inspector state | M10 |
 | INS-06 | Trigger inspection deliberately | Preserve supported immediate, delayed and modifier-assisted desktop inspection; provide touch/keyboard access without copying pointer-only semantics | M02 |
-| INS-07 | Move across popup content and nested actions | Stable anchor/identity; no flicker, remounting, repeated lookup or accidental close when crossing related content | M01 |
+| INS-07 | Move across popup content and nested actions | Stable anchor/identity; reserve the complete authored cue when anchoring; keep title, dismissal, readable body and all correction actions reachable at supported minimum sizes/enlarged text, using bounded independent scrolling where necessary; retain source context in compact inspection; no flicker, remounting, repeated lookup or accidental close when crossing related content | M01 |
 | INS-08 | Copy or explain a selected phrase/item | Actual selected context is used; optional provider readiness is checked at the action, not before reading/inspection | M07 |
 | INS-09 | Play pronunciation and select available recorded/generated audio | Audio provider/language is explicit, loading/failure/cancel are visible; playback does not certify comprehension | M08 |
 | INS-10 | Capture or reuse the inspected item | Selected sense/context and source media are retained; duplicate or failed capture is visible and retryable | M03 |
@@ -238,7 +238,7 @@ These controls are implemented alongside their owning feature. M22 closes the in
 | ID | Required capability | Acceptance condition | Unit |
 |---|---|---|---|
 | OPS-01 | Search/edit active preferences | Every setting has one native owner/default/consumer, clear scope and application timing; dead aliases and Tactile/Flat are retired | M22 |
-| OPS-02 | Apply built-in or user-defined themes | Runtime theme documents work across supported renderers; changing appearance does not migrate profiles or alter task evidence | H00 |
+| OPS-02 | Apply built-in or user-defined themes | Runtime theme documents work across supported renderers, including live numeric typography/spacing as well as colors; changing appearance does not migrate profiles or alter task evidence | H00 |
 | OPS-03 | Select/reset input and source-display preferences | Relevant shortcuts, inspector activation and aids affect the intended surface without leaking through IME/modal contexts | M22 |
 | OPS-04 | Manage neural models and providers | Show availability and failures for system OCR without pretending to download its OS-managed model; download/cancel/remove/test only separately installable neural models, with bounded resource ownership and actual supported inference | M06 |
 | OPS-05 | Inspect storage and clean regenerable data | Size categories distinguish content/history/models/cache/backups; cleanup states consequences and preserves authored data | M14 |

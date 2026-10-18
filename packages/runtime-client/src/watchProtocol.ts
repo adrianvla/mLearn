@@ -13,6 +13,10 @@ function key(v: unknown): boolean { return object(v) && string(v.packageId) && s
 function projection(v: unknown): boolean { return object(v) && key(v.key) && optionalBoolean(v.claim) && optionalBoolean(v.assessed) && (v.prediction===null || typeof v.prediction==='number' && Number.isFinite(v.prediction)) && integer(v.revision) && string(v.status); }
 function plugin(v: unknown): boolean { return object(v) && string(v.id) && string(v.version) && list(v.capabilities,64,string); }
 function token(v: unknown): boolean { return object(v) && integer(v.start) && integer(v.end) && Number(v.end)>Number(v.start) && string(v.text) && list(v.targets,128,string); }
+function sense(v: unknown): boolean {
+ return object(v) && string(v.heading) && list(v.labels,32,string) && list(v.notes,32,string)
+  && list(v.definitions,128,string) && Array.isArray(v.definitions) && v.definitions.length>0;
+}
 /** Structure validation at the native JSON transport boundary, not a TypeScript cast. */
 export function isWatchResponse(v: unknown): v is Response {
  if(!object(v))return false;
@@ -22,7 +26,7 @@ export function isWatchResponse(v: unknown): v is Response {
  case 'source':return object(v.window) && source(v.window.source) && integer(v.window.totalCues) && list(v.window.cues,16,cue);
  case 'position_saved':return true;
  case 'language':return object(v.description) && string(v.description.language) && string(v.description.label) && string(v.description.annotationCapability) && string(v.description.attribution) && list(v.description.capabilities,8,capability);
- case 'entry':return object(v.entry) && ['targetId','headword','partOfSpeech','definition','attribution'].every(k=>string((v.entry as RecordValue)[k])) && optionalString(v.entry.reading) && list(v.entry.capabilities,8,capability);
+ case 'entry':return object(v.entry) && ['targetId','headword','partOfSpeech','definition','attribution'].every(k=>string((v.entry as RecordValue)[k])) && optionalString(v.entry.reading) && optionalString(v.entry.summary) && (v.entry.senses===null || list(v.entry.senses,128,sense) && Array.isArray(v.entry.senses) && v.entry.senses.length>0) && list(v.entry.capabilities,8,capability);
  case 'knowledge':return list(v.projections,256,projection);
  case 'claim_changed':return projection(v.projection);
  case 'analysis':return object(v.batch) && ['sourceId','subtitleRevision','packageId','packageVersion'].every(k=>string((v.batch as RecordValue)[k])) && list(v.batch.knowledge,256,projection) && list(v.batch.annotations,8192,a=>object(a)&&integer(a.cueIndex)&&integer(a.tokenStart)&&string(a.status)) && list(v.batch.cues,16,a=>object(a)&&cue(a.cue)&&list(a.tokens,512,token));

@@ -1,1 +1,1 @@
-{"id":"org.mlearn.japanese","version":"0.1.0-sudachi20260116-jmdict20261017","abiVersion":1,"capabilities":["language.describe.v1","text.analyze.v1","target.inspect.v1"],"execution":"persistent-v1","resources":{"sudachi.dic":"bytes-v1","lexicon.sqlite":"key-value-sqlite-v1"}}
+{"id":"org.mlearn.japanese","version":"0.1.1-sudachi20260116-jmdict20261017","abiVersion":1,"capabilities":["language.describe.v1","text.analyze.v1","target.inspect.v1"],"execution":"persistent-v1","resources":{"sudachi.dic":"bytes-v1","lexicon.sqlite":"key-value-sqlite-v1"}}

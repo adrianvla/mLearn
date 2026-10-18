@@ -84,19 +84,18 @@ def prepare_index(source: Path, destination: Path) -> None:
                     root.clear()
                     continue
                 headword = forms[0] if forms else readings[0][0]
-                definition = []
-                for sense in senses:
-                    restrictions = sense["forms"] + sense["readings"]
-                    prefix = ("[" + ", ".join(restrictions) + "] ") if restrictions else ""
-                    definition.append(prefix + "; ".join(sense["glosses"]))
                 record = {
                     "targetId": target,
                     "headword": headword,
                     "reading": " / ".join(r[0] for r in readings),
-                    "partOfSpeech": "; ".join(dict.fromkeys(p for s in senses for p in s["pos"])),
-                    "definition": "\n".join(definition),
+                    "senses": senses,
                 }
-                if len(record["definition"].encode()) > 32768:
+                full_definition = "\n".join(
+                    ("[" + ", ".join(s["forms"] + s["readings"]) + "] "
+                     if s["forms"] or s["readings"] else "") + "; ".join(s["glosses"])
+                    for s in senses
+                )
+                if len(full_definition.encode()) > 32768:
                     raise RuntimeError("JMdict definition exceeds Inspector contract")
                 db.execute("INSERT INTO resource_entries VALUES (?,?)", ("entry/" + seq, encoded(record)))
                 # Each match retains form/reading/sense restrictions. A reading-only
@@ -141,7 +140,7 @@ def prepare_index(source: Path, destination: Path) -> None:
             db.execute("INSERT INTO resource_entries VALUES(?,?)", ("form/" + current, encoded(values)))
             form_count += 1
         db.execute("DROP TABLE candidates")
-        db.execute("INSERT INTO resource_entries VALUES(?,?)", ("metadata", encoded({"schemaVersion": 1, "source": PIN["jmdict"], "entries": entries, "forms": form_count})))
+        db.execute("INSERT INTO resource_entries VALUES(?,?)", ("metadata", encoded({"schemaVersion": 2, "source": PIN["jmdict"], "entries": entries, "forms": form_count})))
         db.commit()
         db.execute("VACUUM")
     temporary.replace(destination)

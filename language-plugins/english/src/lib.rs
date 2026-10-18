@@ -205,6 +205,8 @@ fn handle(call: Call) -> Result<Value, String> {
                     .as_str()
                     .ok_or("Invalid definition")?
                     .into(),
+                summary: None,
+                senses: None,
                 attribution: "Princeton WordNet 3.0".into(),
                 capabilities: capabilities()
             }))

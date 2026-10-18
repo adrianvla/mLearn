@@ -22,8 +22,10 @@ public class MlearnNativeModule: Module {
     AsyncFunction("cancelSourceOpen") { () throws -> Void in
       try self.bridge().cancelSourceOpen()
     }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    // Expo's serial default queue would put checkpoints behind cold guest work.
+    // Rust owns bounded admission and releases storage while the guest runs.
     AsyncFunction("execute") { (request: String) throws -> String in
       try self.bridge().execute(request: request)
-    }
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
   }
 }

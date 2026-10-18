@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { View } from 'react-native';
+import { View, Text as NativeText } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import { ContextPanel } from '@mlearn/ui/context-panel';
 import type { TextAnchor } from '@mlearn/ui/inline-word';
 import { Text } from '@mlearn/ui/text';
-import { Row, Stack } from '@mlearn/ui/layout';
+import { Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import type { LexicalEntry, KnowledgeProjection, ClaimChange } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
@@ -28,13 +28,16 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
     const [busy, setBusy] = useState(false);
     const [retry, setRetry] = useState<ClaimChange | null>(null);
     const [lookupVersion, setLookupVersion] = useState(0);
-    const [showKnowledge, setShowKnowledge] = useState(false);
-    const [showDefinition, setShowDefinition] = useState(false);
+    const [expandedCapability, setExpandedCapability] = useState<string | null>(null);
+    const [showSource, setShowSource] = useState(false);
+    const [showAlternatives, setShowAlternatives] = useState(false);
     useEffect(() => {
         let active = true;
         setError('');
         setEntry(null);
-        setShowDefinition(false);
+        setRetry(null);
+        setExpandedCapability(null);
+        setShowSource(false);
         client.inspectTarget(packageId, inspection.targets[index]).then(value => {
             if (active)
                 setEntry(value);
@@ -60,80 +63,140 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
             setBusy(false);
         }
     }
+    const activeCapability = entry?.capabilities.find(cap => cap.id === expandedCapability);
+    const activeProjection = knowledge.find(projection =>
+        projection.key.packageId === packageId && projection.key.targetId === entry?.targetId
+        && projection.key.capability === expandedCapability);
     return (
-        <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose}
-            footer={entry ? (
+        <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context}
+            footer={entry ? <>
+                {activeCapability ? <View style={styles.adjustment}>
+                    <Text tone="media">{activeCapability.label} · {activeProjection?.status.replaceAll('_', ' ') ?? 'untracked'}</Text>
+                    <Row>
+                        <Button size="compact" label="Known" accessibilityLabel={`Claim ${activeCapability.label} known`}
+                            variant="pill" tone="positive" disabled={busy}
+                            onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: activeCapability.id }, true))} />
+                        <Button size="compact" label="Unknown" accessibilityLabel={`Claim ${activeCapability.label} unknown`}
+                            variant="pill" tone="negative" disabled={busy}
+                            onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: activeCapability.id }, false))} />
+                        <Button size="compact" label="Withdraw" accessibilityLabel={`Withdraw ${activeCapability.label} claim`}
+                            variant="media" disabled={busy || activeProjection?.claim == null}
+                            onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: activeCapability.id }, null))} />
+                    </Row>
+                    <Text tone="media" muted variant="caption">
+                        Assessed: {activeProjection?.assessed == null ? 'unmeasured' : String(activeProjection.assessed)} · Prediction: {activeProjection?.prediction == null ? 'unavailable' : String(activeProjection.prediction)}
+                    </Text>
+                    {error && retry?.key.capability === activeCapability.id ? <>
+                        <Text tone="media" accessibilityRole="alert">{error}</Text>
+                        <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
+                    </> : null}
+                </View> : null}
                 <View style={styles.pills}>
                     {entry.capabilities.map((cap, capIndex) => {
                         const projection = knowledge.find(p => p.key.packageId === packageId && p.key.targetId === entry.targetId && p.key.capability === cap.id);
                         const status = projection?.status.replaceAll('_', ' ') ?? 'untracked';
-                        return <Button key={cap.id} size="compact" variant="media"
-                            label={`${cap.label} · ${status}`}
+                        return <Button key={cap.id} size="compact" variant="pill"
+                            tone={projection?.claim === true ? 'positive' : projection?.claim === false ? 'negative' : 'neutral'}
+                            label={`${projection?.claim === true ? '✓' : projection?.claim === false ? '×' : '○'} ${cap.label}`}
                             accessibilityLabel={capIndex === 0 ? 'Knowledge' : `Adjust ${cap.label} knowledge`}
                             accessibilityValue={{ text: `${cap.label} · ${status}` }}
-                            accessibilityState={{ expanded: showKnowledge }}
-                            onPress={() => setShowKnowledge(v => !v)} />;
+                            accessibilityState={{ expanded: expandedCapability === cap.id }}
+                            disabled={busy}
+                            onPress={() => setExpandedCapability(value => value === cap.id ? null : cap.id)} />;
                     })}
                 </View>
-            ) : null}>
+            </> : null}>
             {entry ? <>
-                <Text tone="media" selectable numberOfLines={showDefinition ? undefined : 2}>{entry.definition}</Text>
-                {entry.reading ? <Text tone="media" selectable>{entry.reading}</Text> : null}
-                <View style={styles.metadata}>
-                    <Text tone="media" muted variant="caption">
-                        {inspection.sourceForm !== entry.headword ? `${inspection.sourceForm} · ` : ''}{entry.partOfSpeech}
-                    </Text>
-                    <Button size="compact" label={showDefinition ? 'Less' : 'Full definition'} variant="media"
-                        accessibilityState={{ expanded: showDefinition }} onPress={() => setShowDefinition(v => !v)} />
-                </View>
+                <NativeText selectable style={styles.definition}>{entry.summary ?? entry.definition}</NativeText>
+                {entry.reading ? <View style={styles.metadata}>
+                    <View style={styles.readingPill}>
+                        <NativeText selectable style={styles.reading}>{entry.reading}</NativeText>
+                    </View>
+                </View> : null}
                 {inspection.targets.length > 1 ? <>
-                <View style={styles.alternatives}>
+                <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="media"
+                    accessibilityState={{ expanded: showAlternatives }} onPress={() => setShowAlternatives(v => !v)} />
+                {showAlternatives ? <View style={styles.alternatives}>
                     <Button size="compact" label="‹" accessibilityLabel="Previous sense" variant="media"
                         disabled={index === 0 || busy} onPress={() => setIndex(i => i - 1)} />
-                    <Text tone="media" variant="caption">Sense {index + 1} of {inspection.targets.length}</Text>
+                    <Text tone="media" variant="caption">Entry {index + 1} of {inspection.targets.length}</Text>
                     <Button size="compact" label="›" accessibilityLabel="Next sense" variant="media"
                         disabled={index + 1 >= inspection.targets.length || busy} onPress={() => setIndex(i => i + 1)} />
-                </View>
-                <Text tone="media" muted variant="caption">Dictionary alternatives · not context-ranked</Text>
+                </View> : null}
+                {showAlternatives ? <Text tone="media" muted variant="caption">Dictionary alternatives · not context-ranked</Text> : null}
                 </> : null}
-                <Text tone="media" muted variant="caption" selectable>{entry.attribution}</Text>
-                {showKnowledge ? entry.capabilities.map(cap => {
-                    const projection = knowledge.find(p => p.key.packageId === packageId && p.key.targetId === entry.targetId && p.key.capability === cap.id);
-                    return (
-                        <Stack key={cap.id}>
-                            <Text tone="media">{cap.label} · {projection?.status.replaceAll('_', ' ') ?? 'untracked'}</Text>
-                            <Row>
-                                <Button size="compact" label="Known" accessibilityLabel={`Claim ${cap.label} known`}
-                                    variant="media" disabled={busy}
-                                    onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: cap.id }, true))} />
-                                <Button size="compact" label="Unknown" accessibilityLabel={`Claim ${cap.label} unknown`}
-                                    variant="media" disabled={busy}
-                                    onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: cap.id }, false))} />
-                                <Button size="compact" label="Withdraw" accessibilityLabel={`Withdraw ${cap.label} claim`}
-                                    variant="media" disabled={busy || projection?.claim == null}
-                                    onPress={() => void commit(client.prepareClaim({ packageId, targetId: entry.targetId, capability: cap.id }, null))} />
-                            </Row>
-                            <Text tone="media" muted variant="caption">
-                                Assessed: {projection?.assessed == null ? 'unmeasured' : String(projection.assessed)} · Prediction: {projection?.prediction == null ? 'unavailable' : String(projection.prediction)}
-                            </Text>
-                        </Stack>
-                    );
-                }) : null}
+                {entry.senses ? <View style={styles.dictionary}>
+                    {entry.senses.map((sense, senseIndex) => <View key={senseIndex} style={styles.sense}>
+                        {sense.heading ? <View style={styles.metadata}>
+                            <View style={styles.partOfSpeech}>
+                                <NativeText style={styles.partOfSpeechText}>{sense.heading}</NativeText>
+                            </View>
+                        </View> : null}
+                        {sense.definitions.map((definition, definitionIndex) => (
+                            <View key={definitionIndex} style={styles.definitionRow}>
+                                <NativeText style={styles.definition}>•</NativeText>
+                                <NativeText selectable style={[styles.definition, styles.definitionText]}>{definition}</NativeText>
+                            </View>
+                        ))}
+                        {sense.notes.map((note, noteIndex) => <Text key={noteIndex} tone="media" muted variant="caption" selectable>{note}</Text>)}
+                    </View>)}
+                </View> : entry.partOfSpeech ? <View style={styles.metadata}>
+                        <View style={styles.partOfSpeech}>
+                            <NativeText style={styles.partOfSpeechText}>{entry.partOfSpeech}</NativeText>
+                        </View>
+                    </View> : null}
+                    {inspection.sourceForm !== entry.headword ? (
+                        <Text tone="media" muted variant="caption" selectable>In text: {inspection.sourceForm}</Text>
+                    ) : null}
+                    <View style={styles.metadata}>
+                        <Button size="compact" label="Dictionary source" variant="media"
+                            accessibilityState={{ expanded: showSource }} onPress={() => setShowSource(v => !v)} />
+                    </View>
+                    {showSource ? <>
+                        <Text tone="media" muted variant="caption" selectable>{entry.attribution}</Text>
+                        {entry.senses?.map((sense, senseIndex) => <Text key={senseIndex} tone="media" muted variant="caption" selectable>{sense.labels.join(' · ')}</Text>)}
+                    </> : null}
             </> : !error ? <Text tone="media">Loading entry…</Text> : null}
-            {error ? <>
+            {error && !retry ? <>
                 <Text tone="media" accessibilityRole="alert">{error}</Text>
-                <Button size="compact" label={retry ? 'Retry claim' : 'Retry lookup'} disabled={busy}
-                    onPress={() => retry ? void commit(retry) : setLookupVersion(v => v + 1)} />
+                <Button size="compact" label="Retry lookup" disabled={busy}
+                    onPress={() => setLookupVersion(v => v + 1)} />
             </> : null}
         </ContextPanel>
     );
 }
 const styles = StyleSheet.create(theme => ({
+    definition: {
+        color: theme.media.text, fontFamily: theme.typography.family,
+        fontSize: theme.typography.inspectionBody * theme.textScale, lineHeight: 28 * theme.textScale
+    }, readingPill: {
+        borderRadius: theme.radius, backgroundColor: theme.pills.neutral.surface,
+        paddingVertical: 6, paddingHorizontal: 12
+    }, reading: {
+        color: theme.pills.neutral.text, fontFamily: theme.typography.family,
+        fontSize: theme.typography.inspectionReading * theme.textScale, lineHeight: 26 * theme.textScale
+    }, dictionary: {
+        borderTopWidth: 1, borderTopColor: theme.media.border, paddingTop: 12, gap: 10
+    }, sense: {
+        gap: 6
+    }, definitionRow: {
+        flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingLeft: 12
+    }, definitionText: {
+        flex: 1, minWidth: 0
+    }, partOfSpeech: {
+        backgroundColor: theme.media.badge, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3
+    }, partOfSpeechText: {
+        color: theme.media.text, fontFamily: theme.typography.family,
+        fontSize: 15 * theme.textScale, lineHeight: 20 * theme.textScale, fontWeight: '600'
+    },
     metadata: {
         flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.small
     }, alternatives: {
         flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small
     }, pills: {
         flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small
+    }, adjustment: {
+        gap: 8, paddingBottom: 10, marginBottom: 10,
+        borderBottomWidth: 1, borderBottomColor: theme.media.border
     }
 }));

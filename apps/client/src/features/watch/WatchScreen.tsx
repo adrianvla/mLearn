@@ -7,6 +7,7 @@ import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { Row } from '@mlearn/ui/layout';
 import type { SourceWindow, AnalysisBatch } from '@mlearn/contracts';
+import type { RuntimeClient } from '@mlearn/runtime-client';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MediaSurface } from '../../bootstrap/MediaSurface';
 import { AnnotatedText } from '../annotated-text';
@@ -36,6 +37,9 @@ export function WatchScreen() {
     });
     const lastSaved = useRef(0);
     const mounted = useRef(true);
+    const session = useRef<ReturnType<RuntimeClient['beginSourceSession']> | null>(null);
+    const activeSource = useRef(id);
+    activeSource.current = id;
     const saveFailed = useRef(false);
     const controller = useRef<{
         pauseAndRead: () => {
@@ -44,15 +48,17 @@ export function WatchScreen() {
         };
     } | null>(null);
     useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-    useEffect(() => {
+    useFocusEffect(useCallback(() => {
         if (!host.available)
             return;
         let active = true;
-        let pending = true;
-        setError('');
-        host.client.resumeSource(id).then(w => {
-            pending = false;
-            if (active) {
+        const current = host.client.beginSourceSession();
+        session.current = current;
+        setWindow(previous => previous?.source.id === id ? previous : null);
+        setBatch(null);
+        setInspection(null);
+        void current.ready.then(() => host.client.resumeSource(id)).then(w => {
+            if (active && current.isCurrent()) {
                 setWindow(w);
                 setPosition(w.source.positionMs);
                 latest.current = {
@@ -60,47 +66,60 @@ export function WatchScreen() {
                 };
             }
         }).catch(e => {
-            pending = false;
-            if (active)
+            if (active && current.isCurrent())
                 setError(e.message);
         });
         return () => {
             active = false;
-            if (pending)
-                void host.client.cancelSourceOpen().catch(() => { });
+            void current.cancel().catch(e => {
+                if (mounted.current && session.current === current)
+                    setError(e instanceof Error ? e.message : String(e));
+            });
         };
-    }, [host, id, sourceReload]);
+    }, [host, id, sourceReload]));
     const bucket = Math.floor(position / 2000);
     const cues = window?.cues.filter(c => c.startMs <= position && c.endMs > position) ?? [];
     const cueKey = cues.map(c => c.index).join(',');
-    const ready = !!window;
+    const ready = window?.source.id === id;
     const subtitleRevision = window?.source.subtitleRevision;
     useEffect(() => {
-        if (!host.available || !ready || !subtitleRevision)
+        if (!host.available || !ready || !window || !subtitleRevision)
             return;
         let active = true;
-        // Raw cue navigation must remain usable when the optional linguistic read fails.
-        // The client bounds its serial queue; each seek owns its own stale-publication guard.
+        const current = session.current;
+        const source = window.source;
         void host.client.sourceWindow(id, latest.current.position).then(w => {
-            if (active)
+            if (active && current?.isCurrent() && w.source.id === source.id &&
+                w.source.subtitleRevision === source.subtitleRevision &&
+                w.source.packageId === source.packageId && w.source.packageVersion === source.packageVersion)
                 setWindow(w);
         }).catch(e => {
-            if (active)
+            if (active && current?.isCurrent() && e.code !== 'cancelled')
                 setError(e.message);
         });
+        return () => { active = false; };
+    }, [host, id, ready, subtitleRevision, bucket, cueKey, sourceReload]);
+    useEffect(() => {
+        if (!host.available || !ready || !window || !subtitleRevision)
+            return;
+        let active = true;
+        const current = session.current;
+        const source = window.source;
         void host.client.analyzeSource(id, latest.current.position).then(b => {
-            if (active) {
+            if (active && current?.isCurrent() && b.sourceId === source.id &&
+                b.subtitleRevision === source.subtitleRevision &&
+                b.packageId === source.packageId && b.packageVersion === source.packageVersion) {
                 setBatch(b);
                 setAnalysisError('');
             }
         }).catch(e => {
-            if (active) {
+            if (active && current?.isCurrent() && e.code !== 'cancelled') {
                 setBatch(null);
                 setAnalysisError(e.message);
             }
         });
         return () => { active = false; };
-    }, [host, id, ready, subtitleRevision, bucket, cueKey, analysisReload]);
+    }, [host, id, ready, subtitleRevision, bucket, cueKey, analysisReload, sourceReload]);
     async function persist(positionMs = latest.current.position, durationMs = latest.current.duration) {
         if (!host.available || !Number.isFinite(durationMs) || durationMs <= 0)
             return;
@@ -118,6 +137,8 @@ export function WatchScreen() {
         }
     }
     function progress(positionMs: number, durationMs: number, checkpoint: boolean) {
+        if (activeSource.current !== id || !session.current?.isCurrent())
+            return;
         latest.current = {
             position: positionMs, duration: durationMs
         };
@@ -144,8 +165,13 @@ export function WatchScreen() {
     async function back() {
         setBusy(true);
         try {
+            await session.current?.cancel();
             await pauseAndSave();
             router.back();
+        }
+        catch (e) {
+            setSourceReload(v => v + 1);
+            throw e;
         }
         finally {
             setBusy(false);
@@ -156,10 +182,13 @@ export function WatchScreen() {
             return;
         setBusy(true);
         setError('');
+        let replacing = false;
         try {
             await pauseAndSave();
             const path = droppedPath ?? await host.media.pick(true);
             if (path) {
+                replacing = true;
+                await session.current?.cancel();
                 let w;
                 try {
                     w = await host.client.attachSubtitles(id, path);
@@ -169,8 +198,6 @@ export function WatchScreen() {
                 }
                 setWindow(w);
                 setBatch(null);
-                if (!window)
-                    setSourceReload(v => v + 1);
                 setAnalysisReload(v => v + 1);
             }
         }
@@ -178,6 +205,8 @@ export function WatchScreen() {
             setError(e instanceof Error ? e.message : String(e));
         }
         finally {
+            if (replacing)
+                setSourceReload(v => v + 1);
             setBusy(false);
         }
     }
@@ -202,6 +231,7 @@ export function WatchScreen() {
             setError('');
             void (async () => {
                 try {
+                    await session.current?.cancel();
                     await pauseAndSave();
                     const opened = await host.client.openSource(path, window.source.packageId);
                     router.replace({
@@ -209,9 +239,11 @@ export function WatchScreen() {
                             id: opened.source.id
                         }
                     });
+                    setSourceReload(v => v + 1);
                 }
                 catch (e) {
                     setError(e instanceof Error ? e.message : String(e));
+                    setSourceReload(v => v + 1);
                 }
                 finally {
                     setBusy(false);
@@ -229,10 +261,14 @@ export function WatchScreen() {
         return () => { active = false; stop?.(); };
     }, [host, id, !!window, window?.source.packageId, busy]));
     async function refreshKnowledge() {
-        if (!host.available)
+        if (!host.available || !window)
             return;
+        const current = session.current;
+        const source = window.source;
         const b = await host.client.analyzeSource(id, latest.current.position);
-        if (mounted.current)
+        if (mounted.current && current?.isCurrent() && b.sourceId === source.id &&
+            b.subtitleRevision === source.subtitleRevision &&
+            b.packageId === source.packageId && b.packageVersion === source.packageVersion)
             setBatch(b);
     }
     return (
@@ -256,7 +292,7 @@ export function WatchScreen() {
                 {error ? <>
                     <Text tone="media" accessibilityRole="alert">{error}</Text>
                     <Row>
-                        <Button label="Retry source" variant="secondary" onPress={() => setSourceReload(v => v + 1)} />
+                        <Button label="Retry source" variant="secondary" onPress={() => { setError(''); setSourceReload(v => v + 1); }} />
                         <Button label="Reselect subtitles" variant="secondary" disabled={busy} onPress={() => void attach()} />
                         <Button label="Reselect from Home" variant="secondary" onPress={() => router.replace('/')} />
                     </Row>
@@ -283,7 +319,7 @@ export function WatchScreen() {
                             const analysis = batch?.subtitleRevision === window.source.subtitleRevision
                                 ? batch.cues.find(a => a.cue.index === cue.index) : null;
                             return (
-                                <AnnotatedText key={cue.index} rawText={cue.text} analysis={analysis ?? null}
+                                <AnnotatedText key={JSON.stringify([window.source.id, window.source.subtitleRevision, window.source.packageId, window.source.packageVersion, cue.index])} rawText={cue.text} analysis={analysis ?? null}
                                     annotations={batch?.annotations ?? []}
                                     onInspect={(token, anchor) => {
                                         void pauseAndSave().catch(() => {});
@@ -304,11 +340,7 @@ export function WatchScreen() {
                 {inspection ? (
                     <Inspector inspection={inspection} packageId={window.source.packageId} client={host.client}
                         knowledge={batch?.knowledge ?? []} onChanged={refreshKnowledge}
-                        onClose={() => {
-                            const anchor = inspection.anchor;
-                            setInspection(null);
-                            anchor.restoreFocus();
-                        }} />
+                        onClose={() => setInspection(null)} />
                 ) : null}
             </> : !error ? <Text tone="media">Opening source…</Text> : null}
         </View>

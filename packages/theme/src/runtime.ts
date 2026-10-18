@@ -11,7 +11,9 @@ declare module 'react-native-unistyles' {
 
 StyleSheet.configure({
   themes: { active: resolveTheme(initialTheme) },
-  settings: { initialTheme: 'active' },
+  // CSS-vars mode substitutes strings but drops theme listeners for literal
+  // numbers. Recompute styles so accepted textScale and radius updates apply.
+  settings: { initialTheme: 'active', CSSVars: false },
   breakpoints,
 });
 

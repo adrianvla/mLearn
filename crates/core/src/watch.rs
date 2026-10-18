@@ -14,7 +14,9 @@ model!(LanguageDescription { language:String,label:String,capabilities:Vec<Capab
 model!(AnalyzedToken { start:u32,end:u32,text:String,targets:Vec<String> });
 model!(CueAnalysis { cue:Cue,tokens:Vec<AnalyzedToken> });
 model!(AnalysisBatch { source_id:String,subtitle_revision:String,package_id:String,package_version:String,cues:Vec<CueAnalysis>,knowledge:Vec<KnowledgeProjection>,annotations:Vec<OccurrenceKnowledge> });
-model!(LexicalEntry { target_id:String,headword:String,reading:Option<String>,part_of_speech:String,definition:String,attribution:String,capabilities:Vec<Capability> });
+model!(LexicalSense { heading:String,labels:Vec<String>,definitions:Vec<String>,notes:Vec<String> });
+// Absent structured detail remains readable for already installed ABI-v1 packages.
+model!(LexicalEntry { target_id:String,headword:String,reading:Option<String>,part_of_speech:String,definition:String,summary:Option<String>,senses:Option<Vec<LexicalSense>>,attribution:String,capabilities:Vec<Capability> });
 model!(KnowledgeKey { package_id:String,target_id:String,capability:String });
 model!(KnowledgeProjection { key:KnowledgeKey,claim:Option<bool>,assessed:Option<bool>,prediction:Option<f64>,revision:u32,status:String });
 model!(OccurrenceKnowledge { cue_index:u32,token_start:u32,status:String });

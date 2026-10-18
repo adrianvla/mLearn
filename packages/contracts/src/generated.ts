@@ -18,7 +18,9 @@ export type CueAnalysis = { cue: Cue, tokens: Array<AnalyzedToken>, };
 
 export type AnalysisBatch = { sourceId: string, subtitleRevision: string, packageId: string, packageVersion: string, cues: Array<CueAnalysis>, knowledge: Array<KnowledgeProjection>, annotations: Array<OccurrenceKnowledge>, };
 
-export type LexicalEntry = { targetId: string, headword: string, reading: string | null, partOfSpeech: string, definition: string, attribution: string, capabilities: Array<Capability>, };
+export type LexicalSense = { heading: string, labels: Array<string>, definitions: Array<string>, notes: Array<string>, };
+
+export type LexicalEntry = { targetId: string, headword: string, reading: string | null, partOfSpeech: string, definition: string, summary: string | null, senses: Array<LexicalSense> | null, attribution: string, capabilities: Array<Capability>, };
 
 export type KnowledgeKey = { packageId: string, targetId: string, capability: string, };
 

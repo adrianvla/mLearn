@@ -19,7 +19,15 @@ export function InlineWordControl({ text, status, onActivate }: {
             if (node) {
                 const r = node.getBoundingClientRect();
                 onActivate({
-                    x: r.x, y: r.y, width: r.width, height: r.height, restoreFocus: () => ref.current?.focus()
+                    x: r.x, y: r.y, width: r.width, height: r.height,
+                    measure: publish => {
+                        const current = ref.current;
+                        if (current) {
+                            const bounds = current.getBoundingClientRect();
+                            publish({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
+                        }
+                    },
+                    restoreFocus: () => ref.current?.focus()
                 });
             }
         }}

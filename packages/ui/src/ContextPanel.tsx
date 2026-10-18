@@ -1,20 +1,38 @@
-import type { PropsWithChildren, ReactNode } from 'react';
+import { useLayoutEffect, useState, type PropsWithChildren, type ReactNode } from 'react';
 import { Platform, View, Text as NativeText, ScrollView, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Text } from './Text';
 import { Button } from './Button';
 import type { TextAnchor } from './InlineWord';
-export function ContextPanel({ title, anchor, onClose, children, footer }: PropsWithChildren<{
+import type { TextBounds } from './InlineWord.types';
+export function ContextPanel({ title, anchor, onClose, children, footer, sourceContext }: PropsWithChildren<{
     title: string;
     anchor: TextAnchor;
     onClose: () => void;
     footer?: ReactNode;
+    sourceContext?: string;
 }>) {
     const { width, height } = useWindowDimensions();
     const { theme } = useUnistyles();
+    const [bounds, setBounds] = useState<TextBounds>(anchor);
+    const [headerHeight, setHeaderHeight] = useState(0);
+    useLayoutEffect(() => {
+        let active = true;
+        anchor.measure(value => { if (active) setBounds(value); });
+        return () => { active = false; };
+    }, [anchor, width, height, theme.textScale]);
     const desktop = Platform.OS === 'web' && width >= 720;
-    const panelWidth = Math.min(440, width - 24);
+    const panelWidth = Math.min(600, width - 24);
+    const above = Math.max(0, bounds.y - 24);
+    const below = Math.max(0, height - bounds.y - bounds.height - 24);
+    // Keep at least one readable body/action region when enlarged text leaves
+    // too little space beside the cue. Compact inspection retains its context.
+    const anchored = desktop && Math.max(above, below) >= headerHeight + 128;
+    const placeAbove = above >= Math.min(350 * theme.textScale, height * 0.72) || above >= below;
+    const maxHeight = anchored
+        ? Math.min(350 * theme.textScale, placeAbove ? above : below)
+        : Math.min(height - 40, height * 0.75);
     return (
         <Primitive.Root open onOpenChange={open => { if (!open) onClose(); }}>
             <Primitive.Portal>
@@ -27,33 +45,40 @@ export function ContextPanel({ title, anchor, onClose, children, footer }: Props
                             <View testID="inspector-panel" style={[
                                 styles.panel,
                                 {
-                                    backgroundColor: Platform.OS === 'web' ? theme.media.panel : theme.media.chrome,
+                                    backgroundColor: anchored ? theme.media.panel : theme.media.chrome,
                                     borderColor: theme.media.border,
                                     borderRadius: theme.radius,
                                     width: panelWidth,
-                                    maxHeight: Math.min(height - 40, height * 0.72),
+                                    maxHeight,
                                 },
-                                desktop ? {
+                                anchored ? {
                                     position: 'absolute',
-                                    left: Math.max(12, Math.min(width - panelWidth - 12, anchor.x + anchor.width / 2 - panelWidth / 2)),
-                                    bottom: Math.max(16, height - anchor.y + 12),
+                                    left: Math.max(12, Math.min(width - panelWidth - 12, bounds.x + bounds.width / 2 - panelWidth / 2)),
+                                    ...(placeAbove
+                                        ? { bottom: height - bounds.y + 12 }
+                                        : { top: bounds.y + bounds.height + 12 }),
                                 } : { alignSelf: 'center', marginHorizontal: 'auto', marginBottom: 20 },
                             ]}>
-                                <View style={styles.header}>
-                                    <View style={styles.heading}>
-                                        <Primitive.Title asChild>
-                                            <NativeText style={styles.title}>{title}</NativeText>
-                                        </Primitive.Title>
-                                    </View>
-                                    <Primitive.Description asChild>
-                                        <Text tone="media" muted variant="caption">Inspect</Text>
-                                    </Primitive.Description>
-                                    <Button label="×" accessibilityLabel="Close Inspector" variant="media" size="compact" onPress={onClose} />
+                                <View style={styles.header} onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
+                                        <View style={styles.heading}>
+                                            <Primitive.Title asChild>
+                                                <NativeText selectable numberOfLines={2} style={styles.title}>{title}</NativeText>
+                                            </Primitive.Title>
+                                        </View>
+                                        <Primitive.Description asChild>
+                                            <Text tone="media" muted variant="caption">Inspect</Text>
+                                        </Primitive.Description>
+                                        <Button label="×" accessibilityLabel="Close Inspector" variant="media" size="compact" onPress={onClose} />
                                 </View>
-                                <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
+                                <ScrollView testID="inspector-body" style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
+                                    {!anchored && sourceContext ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
                                     {children}
                                 </ScrollView>
-                                {footer ? <View testID="inspector-footer" style={styles.footer}>{footer}</View> : null}
+                                {footer ? <ScrollView testID="inspector-footer"
+                                    style={[styles.footer, { maxHeight: Math.max(64, Math.min(maxHeight / 2, maxHeight - headerHeight - 64)) }]}
+                                    contentContainerStyle={styles.footerContent} keyboardShouldPersistTaps="handled">
+                                    {footer}
+                                </ScrollView> : null}
                             </View>
                         </Primitive.Content>
                     </View>
@@ -68,20 +93,26 @@ const styles = StyleSheet.create(theme => ({
             position: 'fixed', zIndex: 1000
         }
     }, panel: {
-        padding: 12, gap: 6, borderWidth: 1, _web: {
-            backdropFilter: 'blur(16px)', boxShadow: '0 8px 30px #00000055'
+        overflow: 'hidden', borderWidth: 1, _web: {
+            backdropFilter: 'blur(20px)', boxShadow: '0 18px 50px -10px #00000055'
         }
     }, header: {
-        flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 0
+        flexDirection: 'row', alignItems: 'flex-start', gap: 8, flexShrink: 0,
+        paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8
     }, heading: {
         flex: 1, minWidth: 0
     }, title: {
-        color: theme.media.text, fontSize: 24 * theme.textScale, lineHeight: 32 * theme.textScale
+        color: theme.media.text, fontFamily: theme.typography.family,
+        fontSize: theme.typography.inspectionTitle * theme.textScale,
+        lineHeight: 44 * theme.textScale, fontWeight: '400'
     }, scroll: {
         flexShrink: 1, minHeight: 0
     }, body: {
-        gap: 8, paddingBottom: 4
+        gap: 12, paddingHorizontal: 16, paddingBottom: 16
     }, footer: {
-        flexShrink: 0, borderTopWidth: 1, borderTopColor: theme.media.border, paddingTop: theme.spacing.small
+        flexGrow: 0, flexShrink: 0, borderTopWidth: 1, borderTopColor: theme.media.border,
+        backgroundColor: theme.media.footer
+    }, footerContent: {
+        padding: 10
     }
 }));
