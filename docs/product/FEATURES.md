@@ -238,7 +238,7 @@ These controls are implemented alongside their owning feature. M22 closes the in
 | ID | Required capability | Acceptance condition | Unit |
 |---|---|---|---|
 | OPS-01 | Search/edit active preferences | Every setting has one native owner/default/consumer, clear scope and application timing; dead aliases and Tactile/Flat are retired | M22 |
-| OPS-02 | Apply built-in or user-defined themes | Runtime theme documents work across supported renderers, including live numeric typography/spacing as well as colors; changing appearance does not migrate profiles or alter task evidence | H00 |
+| OPS-02 | Apply built-in or user-defined themes | Runtime theme documents work across supported renderers, including live numeric typography/radius as well as colors; changing appearance does not migrate profiles or alter task evidence | H00 |
 | OPS-03 | Select/reset input and source-display preferences | Relevant shortcuts, inspector activation and aids affect the intended surface without leaking through IME/modal contexts | M22 |
 | OPS-04 | Manage neural models and providers | Show availability and failures for system OCR without pretending to download its OS-managed model; download/cancel/remove/test only separately installable neural models, with bounded resource ownership and actual supported inference | M06 |
 | OPS-05 | Inspect storage and clean regenerable data | Size categories distinguish content/history/models/cache/backups; cleanup states consequences and preserves authored data | M14 |

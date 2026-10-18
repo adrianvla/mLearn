@@ -1,6 +1,76 @@
 # Current implementation checkpoint
 
-## M01 — verified candidate awaiting maintainer review
+## M01 — frozen repair candidate; awaiting maintainer review
+
+Application **2ee9ae9f3e3a15e1e75fed20f28f875b029bd977**, media parent
+**67ab69c**, and native harness **b16b825886f8016f40f7f78a1470ac2dbe6d3bce**
+are pushed to existing draft PR #44, agent/m01 → agent/h00. H00 remains unchanged
+and unaccepted at **87df9c137167601c6ae210ad2f663235f0a2a820**. No merge, release,
+maintainer acceptance or M02 is authorized. Effective development model was
+**gpt-6.1-sol / medium / chatgpt-subscription**; independent source gate used the
+same selected model and returned **APPROVE**, medium-high confidence, no blockers.
+
+Launch: source .mlearn/preflight/env.sh; export CI=true; npm run dev:desktop.
+Open .mlearn/m01/Watch-review-comparison.html and .mlearn/M01-review.md.
+The familiar comparison now displays final actual native Japanese captures,
+approved targets and a direct component capture, not the previous English gallery.
+Current capture-by-capture identity is .mlearn/m01/current-captures.json; prior
+HTML and manifests are archived unchanged with original provenance.
+
+Real workflow: Home → Resume original test-video.mov at 18.805 s → 度胸(どきょう)
+→ Inspector → explicit Meaning corrections → close/focused source → Home/restart.
+Current native capture opens without learner mutation (revision/receipts 16 / 16).
+Actual structured senses, full ABI1 definition, source cue clearance and granular
+claims share existing owners. Live numeric themes and independently scrollable
+body/corrections remain usable at the supported 420 × 560 minimum and 2× text;
+the exact original Slate theme was restored after QA.
+
+Two reproduced cold failures are repaired: independent canonical media authorization
+removes a 22.188 s Runtime wait/error 4; prepare/run/complete plus scoped cancellation
+makes final cold Home return observable at 95 ms instead of the original 3,106 ms
+failure. Runtime retains three total calls, one guest execution, bounded source
+windows/cache and exact identity checks. Foreground lookup waits outside Runtime
+instead of spuriously rejecting background contention; durable claims/checkpoints
+retain receipts. No renderer authority, fake analysis or automatic retry.
+
+Current local evidence: all shared checks, generated contracts, real Rust/Wasmi/storage
+owners, retained pre-repair ABI1 modules, strict Runtime Clippy, eight desktop media
+contracts and both rebuilt native consumers pass. Full native Android/iOS flows pass
+116.550 s / 110.496 s, including actual claims, playback/seek and stop/launch/Resume.
+Original Japanese iOS correction/restart passes 24.276 s. Explicitly selected original
+WebM plus original SRT on Android decodes/seeks and passes Japanese correction/15 s
+restart in 76.379 s. This is not semantic track-alignment proof or an automatic fallback.
+
+Hosted foundation **39165079864 PASS** and real Linux native **39165079858 PASS**
+at harness b16b825. The latter includes complete-cue resize, 2× typography/minimum,
+focus, playback, claims, exact restart, recovery and subsecond assertions.
+Hosted mobile **39164285916 PASS** on application2ee9ae9: Android132.415 s /
+iOS208.592 s, zero failures and exact source/tree receipts. Linux 39164285940
+remains a failed earlier run; the harness now observes actual Inspector dismissal
+before the next source action without weakening its assertions.
+
+Remaining review decisions/limits: Home and final mobile composition are visual_pending;
+no fake pitch/levels or later controls. Original Android HEVC10-bit MOV exceeds this
+emulator's codec capabilities and its decoder/progress probe remains failed, separately
+from proved H264 advancement and supported original WebM behavior. The old uninstrumented
+raw-only cold observation has no established cause and is precisely retained in
+.mlearn/m01/repair-cold-risk.md, not relabelled universally fixed. No physical-device,
+Windows UI playback, audible-output quality or spoken-SRT alignment certification.
+
+Final CI receipts are .mlearn/m01/review-final-ci.json. Owned launchers, ports,
+emulator and QA browsers are stopped; isolated reference/source-planning profiles
+and task-only cache root are removed. Original media, development profiles,
+compiled candidates, devices, shared caches and the maintainer comparison tab
+remain. Cleanup receipt: .mlearn/m01/repair-cleanup.json. Only this checkpoint
+and the catalogue's accurate numeric theme field wording changed after the frozen
+application/harness; no application rebuild is needed for this documentation.
+Independent source report:
+.mlearn/m01/repair-code-review.md. Current append-only notepad:
+/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261018-154219.XXXXXX.md.bGmM0DCa54.
+Historical rescue approvals below apply only to their named old sources and do not
+replace the current maintainer review gate.
+
+### Historical rescue checkpoint — not current acceptance
 
 - Continue only on `agent/m01`, [draft PR #44](https://github.com/adrianvla/mLearn/pull/44), base `agent/h00`. Exact provisional H00 base **`87df9c137167601c6ae210ad2f663235f0a2a820`** remains unchanged. H00 is **unaccepted**; neither PR is merged and M02 is unauthorized.
 - Reviewed application source **`6d842f3e970d49f7bdffc348d503086b6c1de865`** and approved harness **`c71a5289a019d5d42d984f1b9f1b7daf0e67b9a4`** are pushed to the existing PR. Connected rescue increments: `4dba4b41` bounded HTTP media, `9c93762e` / `9f36addf` native readiness, `cc58e4c2` contextual presentation, `e116c02b` native touch targets, `7c91b41` genuine Japanese SDK/resources/execution, `662994c1` Android accessibility-value selection and `6d842f3e` symmetric reading comparison for real katakana lexical matches.
