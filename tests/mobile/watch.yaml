@@ -3,6 +3,9 @@ name: Watch Inspector Knowledge and native source resume
 ---
 - launchApp:
     clearState: false
+    # Document pickers need no runtime grants; avoid Maestro 2.11's whole-APK
+    # permission discovery, active during the ADB failure in run39084979320.
+    permissions: {}
 - extendedWaitUntil:
     # Android labels can report enabled before their disabled parent is ready.
     # Package selection also settles the bootstrap layout before the Open tap.

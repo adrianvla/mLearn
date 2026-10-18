@@ -60,6 +60,7 @@ appId: net.kikan.mlearn.v3dev
 - stopApp
 - launchApp:
     clearState: false
+    permissions: {}
 - extendedWaitUntil:
     visible: Resume m01-watch.mp4
     timeout: 60000
