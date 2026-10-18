@@ -2,7 +2,7 @@
 
 This branch contains a cross-platform integration foundation, **not the completed language-learning application**.
 
-One Expo application renders with React Native on iOS/Android and React Native Web inside Tauri on desktop. A portable Rust runtime owns persisted settings and a bounded Wasmi plugin host. The current M01 candidate adds local Watch sources, UTF-8 SRT subtitles, a real English WordNet package, contextual Inspector and explicit Knowledge claims. M01 is incomplete pending its recorded corpus and platform verification gaps; this is not a parity or acceptance claim.
+One Expo application renders with React Native on iOS/Android and React Native Web inside Tauri on desktop. A portable Rust runtime owns persisted settings and a bounded Wasmi plugin host. The M01 candidate adds local Watch sources, UTF-8 SRT subtitles, genuine English WordNet and Japanese Sudachi/JMdict packages, contextual Inspector and explicit Knowledge claims. Its current source, verification and review disposition are in [STATE.md](docs/implementation/STATE.md); these are not parity or maintainer-acceptance claims.
 
 ## Start on desktop
 
@@ -10,13 +10,13 @@ Prerequisites: Node.js 22+ and npm, stable Rust with the `wasm32-unknown-unknown
 
 ```sh
 npm ci
-npm run prepare:language-data # once: pinned public WordNet source → local indexed data
+npm run prepare:language-data # once online: pinned public WordNet/Japanese inputs → local indexed data
 npm run dev:desktop
 ```
 
 The development command builds the sample plugin, starts a **local signed CDN fixture** on `127.0.0.1:7780`, starts Expo web on port 8081, and launches Tauri. The extra browser tab is suppressed. Ports must be free; the command does not kill another process to claim them.
 
-In the Tauri window, choose **Get language packages**, install **org.mlearn.english**, then open a local video and attach its UTF-8 SRT subtitles. Select a subtitle word to inspect its senses and change a granular Knowledge claim. Home lists actual sources and their saved positions. **Settings** retains the H00 theme/runtime diagnostics. The English package does not analyze Japanese; unsupported text remains visible with an explicit analysis error.
+In the Tauri window, choose **Get language packages** and install **org.mlearn.english** or **org.mlearn.japanese**. Select the matching package on Home, open a local video and attach its UTF-8 SRT subtitles. Select a subtitle word to inspect genuine entries/readings and change a granular Knowledge claim. Home lists actual sources and saved positions. **Settings** retains the H00 theme/runtime diagnostics. Unsupported analysis or host codecs produce explicit errors; import success alone does not establish decoding support.
 
 The ordinary browser preview (`npm run dev:web`) explicitly has **no native backend**. Visual theme previews work there; it does not pretend to save settings or execute a plugin.
 
@@ -160,4 +160,4 @@ The current connected native flow is `tests/mobile/watch.yaml`. It uses the synt
 
 M01 source, actual checks, unresolved coverage and manual review steps are recorded in [STATE.md](docs/implementation/STATE.md). Local raw evidence and the review packet `.mlearn/M01-review.md` remain ignored. Corpus media and private diagnostics are never PR artifacts. Neither milestone is accepted or merged by these checks.
 
-M01 review found two major unresolved implementation boundaries: [Japanese analyzer resources/lifetime](docs/architecture/japanese-language-boundary.md) and [desktop media transport](docs/architecture/media-playback.md). The original WebM is valid VP9/Opus; the current custom protocol rejects its unranged streaming request, so a generic media error is not proof of unsupported codecs. Linux's real playback assertion remains failing and unchanged. The temporary loopback comparison was diagnostic only and is not shipped.
+The rescue implements the measured [Japanese analyzer resource/lifetime boundary](docs/architecture/japanese-language-boundary.md) and [bounded desktop media transport](docs/architecture/media-playback.md). The current product serves authorized ordinary GET/ranges over loopback HTTP; actual macOS originals and the Linux native playback gate pass. Japanese original-SRT Inspector/claim/restart flows run in the desktop and offline mobile apps. Codec support remains host-specific: the Android emulator decodes the original VP9/Opus WebM but explicitly rejects the original MOV's HEVC 10-bit profile. See the checkpoint for exact source, retained failures, pending gates and evidence limits.

@@ -1,28 +1,34 @@
-# Japanese analysis boundary for M01 review
+# Japanese analysis execution — M01 rescue
 
-M01 remains incomplete for the original Japanese subtitle workflow. This is a measured boundary of the current package/guest implementation, not evidence that Japanese cannot run in Rust or Wasmi. No English content, character splitter, maximum-match word list or fake Japanese package substitutes for that workflow.
+Commit `7c91b41` implements the previously measured resource boundary. The language package owns genuine Sudachi morphology and JMdict lexical semantics; core supplies generic authenticated resources and bounded execution. No language-code branch, character splitter or guest filesystem/network access substitutes for analysis.
 
 ## Reference and pinned compatibility probe
 
 The read-only v2 reference at `1788f9c74dc73dd884b687ec80d9550c3ebf6c6b` declares `sudachipy` and `sudachidict_small` without versions. `GenericLanguage._ensure_sudachi` prefers Small and uses SplitMode C; dictionary-form/normalized-form selection belongs to its language configuration. Its unversioned install and fallback do **not** establish a reproducible accepted analyzer variant, and are not copied into core.
 
-For the size/format probe, the official **SudachiDict Small 20260116** wheel contains `resources/system.dic` of **122,948,155 bytes** (117.25 MiB), compressed to41,760,293 bytes. The public wheel metadata, URL and SHA-256 are retained locally in `.mlearn/m01/sudachi-small-source.json`; the hash-verified wheel is an ignored package-source cache, not a shipped v3 artifact. This V0 dictionary is an explicit probe pin, not a claim that the unversioned v2 environment used that release. [Official release metadata](https://pypi.org/pypi/SudachiDict-small/20260116/json), [Sudachi dictionary versions](https://github.com/WorksApplications/SudachiDict/blob/develop/README.md).
+The selected engine is Sudachi Rust **0.6.11**, upstream revision `90fd6068c80c2fc3b63e0dbab0e341475bad4d8f`, with **Small 20260116 V0, Mode C** and pinned default normalization/OOV/path-rewrite behavior. Its dictionary is **122,948,155 bytes**, SHA-256 `34bdc3d279530567399874e62d7f98ea327c536dd7029a3dfdf5c694db1942c7`. The selected official wheel is 41,766,874 bytes; exact source URLs, hashes and licensing are in `language-plugins/japanese/data-pin.json` and `vendor/README.md`. This explicit v3 pin does not retroactively identify v2's unversioned installation.
 
-## Exact current blockers
+## Resource and lifetime ownership
 
-- `crates/language-sdk/src/lib.rs::read_asset` accepts at most8 MiB and returns a complete guest-owned buffer. The host provides no file handle, mmap, WASI filesystem or bounded byte-range reader for a standard analyzer binary.
-- `crates/language-host/src/execute.rs` limits each guest to64 MiB. This pinned dictionary alone is larger than that entire allowance before the analyzer, lattice, input/output and copy overhead. Raising only the download limit would not fix this.
-- The larger resource route is **SQLite primary-key lookup**, not arbitrary binary access. `crates/runtime/src/catalog.rs::Manifest::validate` caps each indexed resource at32 MiB and all package assets at40 MiB. Declaring `system.dic` as that resource would neither admit its size nor make its binary format a SQLite index.
-- `CompiledPlugin::invoke` instantiates a fresh guest for each call. Simply raising memory and copying/parsing117 MiB for every subtitle window is not a validated mobile lifecycle or performance policy. No representative Sudachi output/latency comparison has been run in v3, so model loading cannot be claimed as analysis acceptance.
-- A usable Inspector also needs authenticated lexical data with stable entry/sense IDs, not merely morphological spans. The English WordNet target schema and capability inventory cannot be relabeled as Japanese. JMdict ingestion, attribution and its lexical identity/association remain undelivered.
+- The SDK exposes resource length, authenticated digest and reads of at most 64 KiB. Rust streams and verifies immutable private snapshots. Guests receive no paths, file descriptors, SQL or ambient access.
+- Existing Fresh execution retains its 64 MiB memory, 32 million call-fuel, 8 MiB small-asset/read and 32 MiB indexed-resource limits. Retained ABI1 English/hello packages and saved claims run offline without reinstalling.
+- Explicit host-admitted PersistentV1 execution has one process-global lazy guest slot, 160 MiB memory, 384 million initialization fuel and 64 million call fuel. Switching owner, cancellation, malformed responses, errors/traps and shutdown evict the slot. Fuel is granted in bounded slices so cancellation remains observable.
+- The final repaired guest's measured linear-memory high-water is **138,805,248 bytes**. Initialization uses **255,954,738 fuel**, about **121 ms** in the measured release Wasmi owner run. Ten warm batches of all 13 representative inputs took about **72 ms**. These are owner measurements, not mobile cold-start or audible-media benchmarks.
+- SDK initialization checks the exact package-owned dictionary size/digest against the host's verified snapshot. It does not repeat a 117 MiB SHA-256 pass inside the interpreter. The public native constructor still validates untrusted dictionary bytes; a same-sized wrong-digest dictionary is rejected. The previous redundant-hash module exhausts the new initialization allowance in the counterfactual regression.
+- Mobile bundles executable plugins and borrows static resource bytes at admission; desktop installs authenticated catalogue artifacts. Neither policy can be chosen by renderer or guest input.
 
-## Implementation decision required
+## Lexical identity and reproducibility
 
-A genuine package needs a concrete analyzer/resource strategy before implementation can continue honestly:
+JMdict's 2026-10-17 data supplies stable `jmdict:<ent_seq>` targets, readings, written-form restrictions, POS and definitions. The deterministic lookup index contains 218,923 entries and 465,834 forms; it is 120,008,704 bytes. Unknown/OOV spans are not promoted into invented lexical identities. Original UTF-8 text, including parenthesized readings, remains intact.
 
-1. Adapt a pinned Rust analyzer to generic bounded, authenticated, read-only package resources, with a measured guest/session/cache lifetime and explicit per-package resource policy; or
-2. Validate a different genuine morphological model/engine against representative Japanese output, memory and timing under the existing ABI before selecting it.
+`npm run prepare:language-data` explicitly acquires pinned inputs. The immutable archive replay in `archive-pin.json` reconstructs the exact independently verified official JMdict XML, rather than depending on a moving daily URL. A clean empty-cache acquisition/index build reproduced both dictionary and index hashes. Subsequent plugin builds are offline. See `language-plugins/japanese/README.md`; dictionary binaries, local originals and private profiles remain uncommitted.
 
-The first path may need a generic byte-resource ABI and a persistent bounded analyzer instance/lifetime. The second may avoid that ABI, but no alternative is accepted merely because its dictionary is smaller or it segments the fixture. Neither path permits a language-code branch in core, guest filesystem/network access, desktop executable bundling or mobile executable downloads. The current hard-coded fixture budgets must not simply be raised without measuring the resulting guest and cache lifecycle.
+## Actual integration evidence
 
-This is the outstanding major implementation boundary presented for maintainer review. It does not authorize M02, declare a Japanese package delivered, or close original-corpus acceptance. Next evidence must include a pinned analyzer/model, actual morphological forms/offsets and lexical targets, then the original open→play→seek→Inspector→claim→restart workflow.
+The independent native reference comparison matched all 13 inputs/101 tokens. Final real Wasmi execution validates the public positive-span contract, 59 genuine lexical targets and original-SRT readings. Review found that comparing only the analyzer's normalized reading discarded valid katakana JMdict candidates; `6d842f3e` compares both readings consistently without changing source or display text. Its regression fails before the repair, and the real runtime checks the four missing half-width katakana associations and genuine entries. Actual native Inspector selection exercises both repaired nouns. Runtime owner tests retain claim identity/retry, persisted source position, restart, withdrawal and a second restart using isolated storage.
+
+Actual macOS Watch selected `度胸(どきょう)` from the original SRT, opened genuine `度胸` / `どきょう` with JMdict definitions, changed/withdrew/restored Meaning and retained the complete source/subtitle/package/18,736 ms position and claim across application restart. Both offline consuming mobile Release apps also exercised original-file import, genuine Japanese Inspector and claim/withdraw/cold-restart flows. This is not semantic proof that the supplied SRT matches the video's spoken audio.
+
+An initial macOS cold paused Resume showed raw subtitles without an error; its cause was not confirmed. A separate cold-process repeat exposed all genuine tokens and the saved claim without playback, as did both mobile cold-restart flows. No guessed retry or playback prerequisite was added. The retained functional assessment records this bounded finding.
+
+Raw evidence is under ignored `.mlearn/m01/rescue-*`; final source/CI/review disposition belongs to `docs/implementation/STATE.md`. No M02 or maintainer acceptance is implied.

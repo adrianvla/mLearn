@@ -1,4 +1,24 @@
-# Local media host findings — M01 changes requested
+# Local media transport — M01 rescue
+
+## Current implementation
+
+Transport commit `4dba4b415655dcad88fa069bb8921e6147792653` replaces the desktop custom scheme with an ephemeral loopback HTTP listener. Rust still resolves admitted source IDs; neither the renderer nor a request can supply a filesystem path. The host initializes a per-process bearer URL only in the application's allowed local origins. CSP changes are restricted to media loading.
+
+The listener admits four connections and four blocking resolver jobs, uses 64 KiB read/frame buffers and socket backpressure, and bounds headers to 16 KiB/32 fields. A resolver permit remains owned by its blocking job after caller cancellation. Ordinary Runtime contention waits off the reactor instead of producing a transient playback failure; the existing native-command gate remains separate. Disconnect releases the response body, and application exit owns listener/task/thread shutdown.
+
+Full GET, single ranges, suffix ranges, HEAD, empty files and unsatisfiable ranges have truthful HTTP responses. Exact Host, process capability, source identity, method and optional Origin are checked. There is no wildcard CORS, directory route, whole-file response buffer, transcode or custom-scheme fallback.
+
+The lead independently passed all seven real TCP owner tests and built the consuming macOS application. In that application, the untouched original WebM decoded and advanced from its saved 6-second position; paused seek moved from 22 to 37 seconds with a different decoded frame. The original MOV decoded and advanced from 122 seconds; paused seek moved from 139 to 124 seconds. Original-file captures remain under ignored `.mlearn/m01/rescue-desktop-original-{webm,mov}*.png`. The candidate's binary SHA-256 and exact source blobs are recorded in the rescue notepad.
+
+The repaired Linux native gate passed in run `39066773729` at `9f36addf8e88c138a4211e7cb0a39bb9dd811aa8`, and again at final Japanese-source `662994c1` in run `39074202779`. It exercised decoded H.264/AAC playback, advancing time, seek, claims, exact application restart, missing-file/subtitle recovery and subsecond seeks. Two preceding failed runs exposed test readiness races; bounded event-driven waits precede the same real interactions and assertions. Linux synthetic-media evidence and macOS original-media evidence do not certify Windows playback. Audible-output quality was not assessed.
+
+The current Japanese package also completes original MOV/SRT Watch → genuine Inspector → claim/withdraw → application restart on macOS and both offline mobile Release apps. This verifies analysis and byte-associated source continuity, not semantic correspondence to spoken audio. See `japanese-language-boundary.md`.
+
+On the retained Android API 35 emulator, the untouched original VP9/Opus WebM decoded, advanced and resumed into an exact paused 15-second native seek with a different decoded frame (`android-webm-paused-seek.xml`, `rescue-android-original-webm.png`). Its original MOV is HEVC 10-bit and the platform decoder reports `NO_EXCEEDS_CAPABILITIES`; that explicit failure is preserved beside the player. Successful MOV import, subtitle analysis and claims are not a claim of Android MOV decoding. iOS and macOS decoded that original. No silent transcode, decoder replacement or fallback was introduced.
+
+## Historical pre-rescue findings
+
+The following diagnoses describe the previous custom-scheme candidate, not the HTTP implementation above.
 
 Rust owns admitted source identities and paths. React renders the shared Watch surface; desktop host adaptation resolves a source ID to bytes. File extensions accepted by the picker are candidate containers, not a claim that every host decoder and transport can play them.
 
