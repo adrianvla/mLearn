@@ -130,7 +130,10 @@ jobs:
           npx expo prebuild --platform android --no-install 2>&1 | tee ../../verification/prebuild-android.log
           cd android
           grep -qx 'reactNativeArchitectures=arm64-v8a,x86_64' gradle.properties
-          ./gradlew :app:assembleRelease --no-daemon --console=plain > build.log 2>&1 || { tail -150 build.log; exit 1; }
+          # D8 merge exhausted Expo's 2 GiB default in run39081460041.
+          ./gradlew :app:assembleRelease --no-daemon --console=plain \
+            '-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m' \
+            > build.log 2>&1 || { tail -150 build.log; exit 1; }
       - name: Verify APK contains complete Rust ABIs
         run: |
           python3 - <<'PYAPK'
