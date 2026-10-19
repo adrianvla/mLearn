@@ -27,6 +27,7 @@ async fn runtime_execute(
     state: tauri::State<'_, NativeState>,
     request: String,
 ) -> Result<String, String> {
+    let started = std::time::Instant::now();
     if request.len() > 262_144 {
         return Err("Request exceeds 256 KiB".into());
     }
@@ -37,8 +38,14 @@ async fn runtime_execute(
         .map_err(|_| "Native runtime is busy; retry after the current operation")?;
     let runtime = state.runtime.clone();
     tauri::async_runtime::spawn_blocking(move || {
+        let worker_wait = started.elapsed();
         let _permit = permit;
-        runtime.execute(&request)
+        let response = runtime.execute(&request);
+        if std::env::var_os("MLEARN_PLUGIN_METRICS").is_some() {
+            eprintln!("runtime-ipc worker_wait_us={} elapsed_us={} response_bytes={}",
+                worker_wait.as_micros(), started.elapsed().as_micros(), response.len());
+        }
+        response
     })
     .await
     .map_err(|e| e.to_string())
@@ -138,6 +145,7 @@ mod tests {
             subtitle_path: None, subtitle_revision: None,
             package_id: "package".into(), package_version: "1".into(),
             position_ms: 0, duration_ms: 0,
+            subtitle_offset_ms: 0, playback_rate: 1.0, inspection_trigger: Default::default(),
         }).unwrap();
         let resolver = media_resolver(&runtime).unwrap();
         let runtime = Arc::new(Mutex::new(runtime));

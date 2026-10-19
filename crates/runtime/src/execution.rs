@@ -1,6 +1,6 @@
 use crate::{Runtime, guest::{GuestOutput, GuestWork, Prepared}};
 use mlearn_core::{Request, Response};
-use std::sync::{Arc, Mutex, TryLockError, atomic::{AtomicU64, AtomicUsize, Ordering}};
+use std::{sync::{Arc, Mutex, TryLockError, atomic::{AtomicU64, AtomicUsize, Ordering}}, time::Instant};
 
 #[derive(Debug, thiserror::Error)]
 pub(super) enum Failure {
@@ -69,6 +69,7 @@ impl RuntimeExecutor {
         encode(parse(request).and_then(|request| self.execute_request(request)))
     }
     fn execute_request(&self, request: Request) -> Result<Response, Failure> {
+        let started = std::env::var_os("MLEARN_PLUGIN_METRICS").is_some().then(Instant::now);
         let epoch = self.cancellation.load(Ordering::Relaxed);
         // Reserve the single install identity before waiting for guest admission.
         // Status/cancel never take that guest lock or wait behind a transfer.
@@ -79,6 +80,7 @@ impl RuntimeExecutor {
                 work @ Prepared::Work(_) => (None, Some(work)),
             }
         } else { (Some(request), None) };
+        let install_prepared_at = started.map(|start| start.elapsed()).unwrap_or_default();
         let admission = if install.is_some() || request.as_ref().is_some_and(guest_bearing) {
             // Background refresh must not queue behind a user action. Foreground
             // lookup/claims wait for current analysis without owning Runtime;
@@ -92,15 +94,27 @@ impl RuntimeExecutor {
                 self.guest.lock().map_err(|_| Failure::Operation("Native guest admission lock poisoned".into()))?
             })
         } else { None };
+        let admitted_at = started.map(|start| start.elapsed()).unwrap_or_default();
         let prepared = if let Some(install) = install { install } else {
             let mut runtime = self.runtime.lock().map_err(|_| Failure::Operation("Native runtime lock poisoned".into()))?;
             runtime.prepare(request.ok_or_else(|| Failure::Operation("Missing prepared request".into()))?, epoch)?
         };
+        if let Some(started) = started {
+            let capability = match &prepared { Prepared::Immediate(_) => "metadata", Prepared::Work(work) => work.capability() };
+            eprintln!("runtime-work owner=executor capability={capability:?} phase=prepare admission_us={} preparation_us={}",
+                admitted_at.saturating_sub(install_prepared_at).as_micros(),
+                (started.elapsed().saturating_sub(admitted_at) + install_prepared_at).as_micros());
+        }
         match prepared {
             Prepared::Immediate(response) => Ok(*response),
             Prepared::Work(work) => {
+                let guest_started = started.map(|_| Instant::now());
                 let output = work.run();
+                if let Some(guest_started) = guest_started {
+                    eprintln!("runtime-work owner=executor capability={:?} phase=guest elapsed_us={} success={}", work.capability(), guest_started.elapsed().as_micros(), output.is_ok());
+                }
                 drop(admission);
+                let completion_started = started.map(|_| Instant::now());
                 let result = (|| {
                     let mut output = output?;
                     // Real guest results and their Arc owners remain outside the Runtime guard.
@@ -108,7 +122,13 @@ impl RuntimeExecutor {
                     crate::watch::source_execution_tests::hold_guest_result(work.capability());
                     self.publish(&work, &mut output)
                 })();
-                self.runtime.lock().map_err(|_| Failure::Operation("Native runtime lock poisoned".into()))?.finish_work(&work, result)
+                let result = self.runtime.lock().map_err(|_| Failure::Operation("Native runtime lock poisoned".into()))
+                    .and_then(|mut runtime| runtime.finish_work(&work, result));
+                if let Some(completion_started) = completion_started {
+                    // Includes authoritative Knowledge projection and durable completion.
+                    eprintln!("runtime-work owner=executor capability={:?} phase=completion elapsed_us={} success={}", work.capability(), completion_started.elapsed().as_micros(), result.is_ok());
+                }
+                result
             }
         }
     }

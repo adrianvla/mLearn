@@ -24,7 +24,13 @@ impl Runtime {
             }
             Request::SetSourceLanguage { source_id, package_id } => {
                 cancellation.check()?;
-                self.source_record(&source_id)?;
+                let source = self.source_record(&source_id)?;
+                if source.package_id == package_id
+                    && self.installed.get(&package_id).is_some_and(|package| package.manifest.version == source.package_version)
+                {
+                    let position_ms = source.position_ms;
+                    return Ok(Prepared::Immediate(Box::new(Response::Source { window: self.window(source, position_ms)? })));
+                }
                 self.language_work(&package_id, LanguageAction::SelectSourceLanguage { source_id }, cancellation)
             }
             Request::DescribeLanguage { package_id } => self.language_work(&package_id, LanguageAction::Describe, cancellation),

@@ -7,7 +7,7 @@ use std::{
     io::Read,
     path::PathBuf,
     sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}},
-    time::Instant,
+    time::{Duration, Instant},
 };
 use wasmi::{Caller, Config, Engine, Extern, Instance, Linker, Module, Store, StoreLimits, StoreLimitsBuilder, TypedFunc, TypedResumableCall, WasmParams, WasmResults};
 
@@ -52,6 +52,8 @@ struct State {
     read_limit: usize,
     resource_queries: usize,
     range_calls: usize,
+    metrics_enabled: bool,
+    resource_elapsed: Duration,
     cancellation: Arc<AtomicU64>,
     epoch: u64,
     fuel_remaining: u64,
@@ -88,7 +90,10 @@ pub struct CompiledPlugin {
 impl Drop for CompiledPlugin {
     fn drop(&mut self) {
         let mut slot = ACTIVE.lock().unwrap_or_else(|poison| poison.into_inner());
-        if slot.as_ref().is_some_and(|active| active.owner == self.owner) { *slot = None; }
+        if slot.as_ref().is_some_and(|active| active.owner == self.owner) {
+            slot_metrics(self.owner, "evict", "owner-drop");
+            *slot = None;
+        }
     }
 }
 impl CompiledPlugin {
@@ -137,6 +142,7 @@ impl CompiledPlugin {
         let mut store = Store::new(&self.engine, State {
             assets: self.assets.clone(), resources: self.resources.clone(), limits,
             read_bytes: 0, read_limit: HOST_READ_BUDGET, resource_queries: 0, range_calls: 0,
+            metrics_enabled: std::env::var_os("MLEARN_PLUGIN_METRICS").is_some(), resource_elapsed: Duration::ZERO,
             cancellation, epoch, fuel_remaining: 0, fuel_granted: CALL_FUEL,
         });
         store.limiter(|s| &mut s.limits);
@@ -177,8 +183,11 @@ impl CompiledPlugin {
             let Some(memory) = caller.get_export("memory").and_then(Extern::into_memory) else { return -1; };
             // Validate guest output before touching host storage, then fill guest
             // memory directly: no second dictionary-sized host allocation.
+            let started = caller.data().metrics_enabled.then(Instant::now);
             let Some(output) = memory.data_mut(&mut caller).get_mut(out as usize..out as usize + cap as usize) else { return -1; };
-            if resource.read_at(offset as u64, output).is_err() { return -1; }
+            let result = resource.read_at(offset as u64, output);
+            if let Some(started) = started { caller.data_mut().resource_elapsed += started.elapsed(); }
+            if result.is_err() { return -1; }
             caller.data_mut().read_bytes += cap as usize;
             cap
         }).map_err(|e| e.to_string())?;
@@ -187,7 +196,9 @@ impl CompiledPlugin {
             let Some(entry) = key(&caller, kp, kl) else { return -1; };
             if out < 0 || !(1..=65536).contains(&cap) || caller.data().resource_queries >= 1024 || caller.data().check().is_err() { return -1; }
             caller.data_mut().resource_queries += 1;
+            let started = caller.data().metrics_enabled.then(Instant::now);
             let result = caller.data().resources.get(&resource).ok_or_else(|| "Undeclared resource".to_owned()).and_then(|r| r.get(&entry));
+            if let Some(started) = started { caller.data_mut().resource_elapsed += started.elapsed(); }
             let bytes = match result { Ok(Some(v)) => v, Ok(None) => return -2, Err(_) => return -1 };
             if bytes.len() > 65536 || caller.data().read_bytes + bytes.len() > caller.data().read_limit { return -1; }
             // Charge even capacity negotiation: repeated too-small buffers do not
@@ -208,13 +219,14 @@ impl CompiledPlugin {
             reset(&mut store, self.policy.initialization_fuel(), 128 * 1024 * 1024)?;
             let started = Instant::now();
             let status = run(&mut store, initialize, ());
-            metrics(&store, "initialize", started);
+            metrics(&store, self.owner, "initialize", "mlearn_initialize", started, status.as_ref().is_ok_and(|status| *status == 0));
             if std::env::var_os("MLEARN_PLUGIN_METRICS").is_some()
                 && let Some(memory) = instance.get_memory(&store, "memory") {
-                eprintln!("plugin-initialize-memory bytes={}", memory.data_size(&store));
+                eprintln!("plugin-initialize-memory owner={} bytes={}", self.owner, memory.data_size(&store));
             }
             if status? != 0 { return Err("Plugin initialization rejected its pinned resources".into()); }
         }
+        slot_metrics(self.owner, "initialize", "instance-ready");
         Ok(Active { owner: self.owner, store, instance })
     }
 
@@ -227,6 +239,7 @@ impl CompiledPlugin {
         let mut slot = ACTIVE
             .lock()
             .map_err(|_| "Plugin execution owner was poisoned")?;
+        if let Some(active) = slot.as_ref() { slot_metrics(active.owner, "evict", "validation"); }
         *slot = None;
         let active = self.instantiate(Arc::new(AtomicU64::new(0)), 0)?;
         active
@@ -247,6 +260,8 @@ impl CompiledPlugin {
             .map_err(|e| e.to_string())?;
         if self.policy == ExecutionPolicy::PersistentV1 {
             *slot = Some(active);
+        } else {
+            slot_metrics(self.owner, "evict", "fresh-validation");
         }
         Ok(())
     }
@@ -259,11 +274,20 @@ impl CompiledPlugin {
         if bytes.len() > MAX_MESSAGE_BYTES { return Err("Plugin input exceeds message limit".into()); }
         let mut slot = match ACTIVE.lock() {
             Ok(slot) => slot,
-            Err(poison) => { *poison.into_inner() = None; ACTIVE.clear_poison(); return Err("Plugin execution owner was poisoned and evicted".into()); }
+            Err(poison) => {
+                let mut slot = poison.into_inner();
+                if let Some(active) = slot.as_ref() { slot_metrics(active.owner, "evict", "poison"); }
+                *slot = None;
+                ACTIVE.clear_poison();
+                return Err("Plugin execution owner was poisoned and evicted".into());
+            }
         };
         if slot.as_ref().is_none_or(|a| a.owner != self.owner) {
+            if let Some(active) = slot.as_ref() { slot_metrics(active.owner, "evict", "owner-switch"); }
             *slot = None;
             *slot = Some(self.instantiate(cancellation.clone(), epoch)?);
+        } else {
+            slot_metrics(self.owner, "reuse", "same-owner");
         }
         let result = (|| {
             let active = slot.as_mut().ok_or("Execution slot unavailable")?;
@@ -275,9 +299,14 @@ impl CompiledPlugin {
                 // original ABI1 allowance. Do not replenish after its start function.
                 ExecutionPolicy::Fresh => active.store.data().check()?,
             }
-            active.invoke(&bytes)
+            active.invoke(capability, &bytes)
         })();
-        if result.is_err() || self.policy == ExecutionPolicy::Fresh { *slot = None; }
+        if result.is_err() || self.policy == ExecutionPolicy::Fresh {
+            let cause = if slot.as_ref().is_some_and(|active| active.store.data().check().is_err()) { "cancelled" }
+                else if result.is_err() { "call-error" } else { "fresh-call" };
+            slot_metrics(self.owner, "evict", cause);
+            *slot = None;
+        }
         result
     }
 }
@@ -285,6 +314,7 @@ fn reset(store: &mut Store<State>, fuel: u64, read_limit: usize) -> Result<(), S
     store.data().check()?;
     let state = store.data_mut();
     state.read_bytes = 0; state.resource_queries = 0; state.range_calls = 0;
+    state.resource_elapsed = Duration::ZERO;
     state.read_limit = read_limit; state.fuel_remaining = fuel; state.fuel_granted = 0;
     store.set_fuel(0).map_err(|e| e.to_string())
 }
@@ -313,25 +343,35 @@ fn run<P: WasmParams, R: WasmResults>(store: &mut Store<State>, function: TypedF
         }
     }
 }
-fn metrics(store: &Store<State>, phase: &str, started: Instant) {
+fn slot_metrics(owner: u64, event: &str, cause: &str) {
     if std::env::var_os("MLEARN_PLUGIN_METRICS").is_some() {
-        eprintln!("plugin-work phase={phase} elapsed_us={} fuel_used={} resource_queries={} resource_bytes={} range_calls={}", started.elapsed().as_micros(), store.data().fuel_granted - store.get_fuel().unwrap_or(0), store.data().resource_queries, store.data().read_bytes, store.data().range_calls);
+        eprintln!("plugin-slot owner={owner} event={event} cause={cause} count=1");
+    }
+}
+fn metrics(store: &Store<State>, owner: u64, phase: &str, capability: &str, started: Instant, run_success: bool) {
+    if std::env::var_os("MLEARN_PLUGIN_METRICS").is_some() {
+        let elapsed = started.elapsed();
+        let resource_elapsed = store.data().resource_elapsed;
+        // The remainder includes interpreter/fuel and bridge overhead, not host storage work.
+        eprintln!("plugin-work owner={owner} capability={capability:?} phase={phase} run_success={run_success} elapsed_us={} host_resource_us={} interpreter_bridge_us={} fuel_used={} resource_queries={} resource_bytes={} range_calls={}", elapsed.as_micros(), resource_elapsed.as_micros(), elapsed.saturating_sub(resource_elapsed).as_micros(), store.data().fuel_granted - store.get_fuel().unwrap_or(0), store.data().resource_queries, store.data().read_bytes, store.data().range_calls);
     }
 }
 impl Active {
-    fn invoke(&mut self, bytes: &[u8]) -> Result<serde_json::Value, String> {
+    fn invoke(&mut self, capability: &str, bytes: &[u8]) -> Result<serde_json::Value, String> {
         let store = &mut self.store;
         let memory = self.instance.get_memory(&*store, "memory").ok_or("Plugin memory export missing")?;
         let alloc = self.instance.get_typed_func::<i32, i32>(&*store, "mlearn_alloc").map_err(|e| e.to_string())?;
         let dealloc = self.instance.get_typed_func::<(i32, i32), ()>(&*store, "mlearn_dealloc").map_err(|e| e.to_string())?;
         let call = self.instance.get_typed_func::<(i32, i32), i64>(&*store, "mlearn_call").map_err(|e| e.to_string())?;
+        // Fresh start/ABI host work predates this call span.
+        store.data_mut().resource_elapsed = Duration::ZERO;
         let started = Instant::now();
         let pointer = run(store, alloc, bytes.len() as i32)?;
         if pointer <= 0 { return Err("Plugin input allocation failed".into()); }
         memory.write(&mut *store, pointer as usize, bytes).map_err(|e| e.to_string())?;
         let outcome = run(store, call, (pointer, bytes.len() as i32));
-        metrics(store, "call", started);
-        if std::env::var_os("MLEARN_PLUGIN_METRICS").is_some() { eprintln!("plugin-memory bytes={}", memory.data_size(&*store)); }
+        metrics(store, self.owner, "call", capability, started, outcome.is_ok());
+        if std::env::var_os("MLEARN_PLUGIN_METRICS").is_some() { eprintln!("plugin-memory owner={} capability={capability:?} bytes={}", self.owner, memory.data_size(&*store)); }
         let packed = outcome? as u64;
         let output_pointer = (packed >> 32) as u32;
         let output_length = packed as u32;

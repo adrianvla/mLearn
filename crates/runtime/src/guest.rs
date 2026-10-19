@@ -79,7 +79,6 @@ impl GuestWork {
             Self::Language(_) | Self::Catalog(_) => result,
         }
     }
-    #[cfg(test)]
     pub fn capability(&self) -> &str {
         match self {
             Self::Language(work) => match &work.action {
@@ -88,7 +87,8 @@ impl GuestWork {
                 LanguageAction::Open { .. } | LanguageAction::SelectSourceLanguage { .. } | LanguageAction::Describe => "language.describe.v1",
                 LanguageAction::Invoke { capability, .. } => capability,
             },
-            Self::Install { .. } | Self::Catalog(_) => "",
+            Self::Install { .. } => "package.install",
+            Self::Catalog(_) => "package.catalog",
         }
     }
 }

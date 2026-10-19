@@ -12,7 +12,7 @@ export class RuntimeError extends Error {
 
 export function createRuntimeClient(transport: Transport) {
   let tail:Promise<void>=Promise.resolve();let pending=0;let sourceEpoch=0;let cancelInFlight:Promise<void>|null=null;
-  type DisplayRead={readonly command:Request;readonly epoch:number;readonly resolve:(value:Response)=>void;readonly reject:(reason:unknown)=>void};
+  type DisplayRead={readonly command:Request;readonly epoch:number;readonly queuedAt:number;readonly resolve:(value:Response)=>void;readonly reject:(reason:unknown)=>void};
   const analysis:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
   const windows:{running:boolean;desired:DisplayRead|null}={running:false,desired:null};
   const cancelled=()=>new RuntimeError('cancelled','Source work cancelled.');
@@ -27,6 +27,8 @@ export function createRuntimeClient(transport: Transport) {
     try{
       if(cancelInFlight)await cancelInFlight;
       if(read.epoch!==sourceEpoch)throw cancelled();
+      if(process.env.EXPO_PUBLIC_MLEARN_METRICS==='1')
+        console.info(`runtime-queue operation=${read.command.type} elapsed_ms=${(performance.now()-read.queuedAt).toFixed(3)}`);
       const value=await execute(read.command);
       if(read.epoch!==sourceEpoch)throw cancelled();
       read.resolve(value);
@@ -39,7 +41,7 @@ export function createRuntimeClient(transport: Transport) {
   function displayRead(command:Request):Promise<Response>{
     const lane=command.type==='analyze_source'||command.type==='analyze_transcript'?analysis:windows;
     return new Promise((resolve,reject)=>{
-      const read={command,epoch:sourceEpoch,resolve,reject};
+      const read={command,epoch:sourceEpoch,queuedAt:performance.now(),resolve,reject};
       if(lane.running){lane.desired?.reject(cancelled());lane.desired=read;}
       else void runDisplay(lane,read);
     });
@@ -48,12 +50,18 @@ export function createRuntimeClient(transport: Transport) {
     if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='source_window')return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles','set_source_language'].includes(command.type);
+    const queuedAt=performance.now();
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
+    if(process.env.EXPO_PUBLIC_MLEARN_METRICS==='1')
+      console.info(`runtime-queue operation=${command.type} elapsed_ms=${(performance.now()-queuedAt).toFixed(3)}`);
     try{if(sourceAction&&cancelInFlight)await cancelInFlight;if(sourceAction&&epoch!==sourceEpoch)throw new RuntimeError('cancelled','Source opening cancelled.');const value=await execute(command);if(sourceAction&&epoch!==sourceEpoch)throw new RuntimeError('cancelled','Source opening cancelled.');return value;}finally{pending--;release();}
   }
   async function execute(command: Request): Promise<Response> {
+    const started = performance.now();
     const raw = await transport.execute(JSON.stringify(command));
+    if (process.env.EXPO_PUBLIC_MLEARN_METRICS === '1')
+      console.info(`runtime-transport operation=${command.type} elapsed_ms=${(performance.now() - started).toFixed(3)}`);
     if (raw.length > 524_288) throw new RuntimeError('protocol', 'Native response exceeds the message limit.');
     const value: unknown = JSON.parse(raw);
     if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') throw new RuntimeError('protocol', 'Malformed native response.');

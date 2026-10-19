@@ -1,6 +1,6 @@
 use crate::{Runtime, execution::{Cancellation, Failure}};
 use mlearn_core::*;
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, time::Instant};
 
 pub(super) struct AnalysisInput {
     pub source: SourceRecord,
@@ -29,6 +29,9 @@ impl Runtime {
         let cache_key = format!("{}|{}|{}|{}|{:?}", source.id, revision, source.package_id, source.package_version,
             cues.iter().map(|c| c.index).collect::<Vec<_>>());
         let cached = self.analysis_cache.iter().find(|(key, _)| key == &cache_key).map(|(_, value)| value.clone());
+        if std::env::var_os("MLEARN_PLUGIN_METRICS").is_some() {
+            eprintln!("runtime-analysis owner=analysis phase=prepare cache_hit={} cue_count={}", cached.is_some(), cues.len());
+        }
         Ok(AnalysisInput { source, cues, cache_key, cached })
     }
     pub(super) fn complete_analysis(
@@ -53,7 +56,13 @@ impl Runtime {
             })
         }).collect::<Vec<_>>();
         // Knowledge is authoritative at completion, never captured with guest input.
-        let knowledge = self.store.knowledge(&keys).map_err(|e| Failure::Operation(e.to_string()))?;
+        let started = std::env::var_os("MLEARN_PLUGIN_METRICS").is_some().then(Instant::now);
+        let knowledge = self.store.knowledge(&keys);
+        if let Some(started) = started {
+            eprintln!("runtime-analysis owner=analysis phase=knowledge elapsed_us={} key_count={} cache_hit={} cue_count={} success={}",
+                started.elapsed().as_micros(), keys.len(), input.cached.is_some(), input.cues.len(), knowledge.is_ok());
+        }
+        let knowledge = knowledge.map_err(|e| Failure::Operation(e.to_string()))?;
         let annotations = analyses.iter().flat_map(|a| a.tokens.iter().map(|token| {
             let states = token.targets.iter().map(|id| {
                 knowledge.iter().find(|p| p.key.target_id == *id && p.key.capability == description.annotation_capability)

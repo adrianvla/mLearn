@@ -20,3 +20,36 @@ uniffi = "0.32"
 lto = "thin"
 codegen-units = 1
 strip = "debuginfo"
+
+# The interpreter, support crates and host-State monomorphizations all participate
+# in guest execution. Keep symbols, assertions and overflow checks while optimizing
+# them; language-host selects bounded loop dispatch even at this optimization level.
+[profile.dev.package.wasmi]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.mlearn-language-host]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.wasmi_core]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.wasmi_ir]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.wasmi_collections]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true

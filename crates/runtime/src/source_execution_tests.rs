@@ -95,6 +95,45 @@ fn foreground_attempt(executor: &Arc<RuntimeExecutor>, request: Value)
     (before_release, worker, response)
 }
 #[test]
+fn unchanged_source_language_keeps_analysis_without_guest_execution() {
+    // Given real cached morphology for the currently installed package/version.
+    let (_directory, executor, source) = fixture();
+    let analyzed: Value = serde_json::from_str(&executor.execute(&json!({
+        "type":"analyze_source","sourceId":source.id,"positionMs":0,
+    }).to_string())).unwrap();
+    assert_eq!(analyzed["type"], "analysis");
+    let mut runtime = executor.runtime.lock().unwrap();
+    // When that exact package is selected again, the guest-work budget is zero.
+    let prepared = runtime.prepare(Request::SetSourceLanguage {
+        source_id: source.id.clone(), package_id: source.package_id.clone(),
+    }, 0).unwrap();
+    let crate::guest::Prepared::Immediate(response) = prepared else {
+        panic!("Unchanged package selection admitted redundant guest work");
+    };
+    // Then the bounded source is returned without invalidating reusable morphology.
+    assert_eq!(serde_json::to_value(response).unwrap()["window"]["source"]["id"], source.id);
+    assert!(runtime.prepare_analysis(&source.id, 0).unwrap().cached.is_some(),
+        "Unchanged package selection discarded reusable morphology");
+}
+
+#[test]
+fn source_language_reselection_adopts_a_new_installed_version() {
+    // Given the same package ID saved with an older version.
+    let (directory, executor, mut source) = fixture();
+    let installed_version = source.package_version.clone();
+    source.package_version = "previous-version".into();
+    let store = ProfileStore::open(&directory.path().join("profile/profile.sqlite3")).unwrap();
+    store.save_source(&source).unwrap();
+    // When the installed package is explicitly selected, this is not a no-op.
+    let changed: Value = serde_json::from_str(&executor.execute(&json!({
+        "type":"set_source_language","sourceId":source.id,"packageId":source.package_id,
+    }).to_string())).unwrap();
+    // Then its current version is adopted through normal validated guest execution.
+    assert_eq!(changed["type"], "source");
+    assert_eq!(changed["window"]["source"]["packageVersion"], installed_version);
+}
+
+#[test]
 fn bounded_source_window_completes_when_guest_result_is_held() {
     // Given real stored cues and actual Wasm output held before publication.
     let (_directory, executor, source) = fixture();
