@@ -6,6 +6,15 @@ name: Watch Inspector Knowledge and native source resume
     # Document pickers need no runtime grants; avoid Maestro 2.11's whole-APK
     # permission discovery, active during the ADB failure in run39084979320.
     permissions: {}
+# The disposable hosted Pixel launcher can ANR during first boot (39295160679).
+# Dismiss only that identified system app, never an mLearn error. Remove when
+# the runner image no longer exhibits the launcher ANR.
+- runFlow:
+    when:
+      platform: Android
+      visible: "Pixel Launcher isn't responding"
+    commands:
+      - tapOn: Close app
 - extendedWaitUntil:
     # Android labels can report enabled before their disabled parent is ready.
     # Package selection also settles the bootstrap layout before the Open tap.

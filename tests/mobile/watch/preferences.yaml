@@ -7,6 +7,9 @@ appId: net.kikan.mlearn.v3dev
     element: Reset synchronization
     direction: DOWN
 - tapOn: Reset synchronization
+- scrollUntilVisible:
+    element: 'Current offset: 0 ms'
+    direction: DOWN
 - extendedWaitUntil:
     visible: 'Current offset: 0 ms'
     timeout: 15000
@@ -142,7 +145,16 @@ appId: net.kikan.mlearn.v3dev
     direction: DOWN
 - assertVisible: 'Current offset: 500 ms'
 - takeScreenshot: native-source-settings-after-restart
+# On the hosted iOS 26.5 viewport, the persisted-offset label can be exposed
+# while Reset remains clipped by the fixed footer. Scroll the real target into
+# view before tapping; keep the reset-value assertion below.
+- scrollUntilVisible:
+    element: Reset synchronization
+    direction: DOWN
 - tapOn: Reset synchronization
+- scrollUntilVisible:
+    element: 'Current offset: 0 ms'
+    direction: DOWN
 - extendedWaitUntil:
     visible: 'Current offset: 0 ms'
     timeout: 15000
