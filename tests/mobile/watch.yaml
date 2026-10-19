@@ -61,6 +61,8 @@ name: Watch Inspector Knowledge and native source resume
 - takeScreenshot: claimed-meaning
 - tapOn: Close Inspector
 - assertVisible: 'Children: mixed'
+- runFlow:
+    file: watch/preferences.yaml
 - tapOn: Home
 - tapOn: Resume m01-watch.mp4
 - extendedWaitUntil:

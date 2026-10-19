@@ -54,6 +54,33 @@ async function closeInspector() {
     await script('window.__m01Dismiss.cancel();delete window.__m01Dismiss;return true;');
   }
 }
+// Subscribe before input. Native media properties do not all mutate the DOM.
+async function observeSourceView(condition) {
+  await script(`window.__m02View={};window.__m02View.promise=new Promise(resolve=>{
+    let settled=false;
+    const events=['loadedmetadata','ratechange','seeked'];
+    const finish=pass=>{
+      if(settled)return;settled=true;observer.disconnect();clearTimeout(timer);
+      events.forEach(event=>document.removeEventListener(event,check,true));resolve(pass);
+    };
+    const check=()=>{if(${condition})finish(true);};
+    const observer=new MutationObserver(check);
+    const timer=setTimeout(()=>finish(false),30000);
+    window.__m02View.cancel=()=>finish(false);
+    observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true});
+    events.forEach(event=>document.addEventListener(event,check,true));check();
+  });return true;`);
+}
+async function observedSourceView(description) {
+  try {
+    const result=await rpc('POST',`/session/${session}/execute/async`,{
+      script:'const done=arguments[0];window.__m02View.promise.then(done);',args:[],
+    });
+    assert.equal(result,true,description);
+  } finally {
+    await script('window.__m02View.cancel();delete window.__m02View;return true;');
+  }
+}
 async function launch() {
   const result = await rpc('POST', '/session', { capabilities: { alwaysMatch: { 'tauri:options': { application: path.resolve('target/debug/mlearn-desktop') } } } });
   session = result.sessionId;
@@ -159,7 +186,10 @@ try {
   await script(`
     window.__m01NumericTheme = {};
     window.__m01NumericTheme.promise = new Promise(resolve => {
-      const heading = document.querySelector('h1,h2,h3,[role="heading"],[role="header"]');
+      // Expo keeps the Home route mounted. Observe the active Settings heading,
+      // not the first (hidden) route heading, which can retain its old geometry.
+      const heading = Array.from(document.querySelectorAll('h1,h2,h3,[role="heading"],[role="header"]'))
+        .find(node => node.textContent === 'Settings' && node.getClientRects().length);
       let settled = false;
       const finish = value => {
         if(settled)return;
@@ -235,6 +265,120 @@ try {
   await until(()=>script('return Math.abs(document.querySelector("video").currentTime-20)<0.5'),'Seek to second occurrence');
   await click('came: untracked');await text('come');await closeInspector();
   await click('Children: mixed');await closeInspector();
+  // Hold only delivery of a real native preference response. Cancellation and
+  // route blur must recover without an obsolete completion replacing that owner.
+  for (const leave of ['cancel', 'blur']) {
+    await script(`const original=window.__TAURI_INTERNALS__.invoke;
+      const gate={original,release:null,entered:null,checkpoint:null};
+      gate.entered=new Promise(resolve=>gate.enter=resolve);
+      gate.checkpoint=new Promise(resolve=>gate.saved=resolve);
+      const held=new Promise(resolve=>gate.release=resolve);
+      window.__m02Preference=gate;
+      window.__TAURI_INTERNALS__.invoke=async function(command,args,...rest){
+        const request=command==='runtime_execute'?JSON.parse(args.request):null;
+        const response=await original.call(this,command,args,...rest);
+        if(request?.type==='set_subtitle_offset'){gate.enter();await held;}
+        if(request?.type==='save_position'&&request.positionMs===10000)gate.saved(response);
+        return response;
+      };return true;`);
+    try {
+      await click('Playback options');
+      await click('Reset synchronization');
+      assert.equal(await rpc('POST',`/session/${session}/execute/async`,{
+        script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.entered.then(()=>{clearTimeout(timer);done(true);});',args:[],
+      }),true,'Preference must reach the actual native owner before cancellation');
+      await click('Close');
+      if (leave === 'cancel') {
+        await click('Cancel opening');
+      } else {
+        await rpc('POST',`/session/${session}/back`,{});
+        await text('Recent sources');
+      }
+      await script('window.__m02Preference.release();return true;');
+      if (leave === 'blur') await resumeWatch();
+      await observeSourceView('!!document.querySelector(\'[aria-label="Children: mixed"]\')&&!document.querySelector(\'[aria-label="Cancel opening"]\')');
+      await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
+      await script('document.querySelector("video").currentTime=10;return true;');
+      const saved=await rpc('POST',`/session/${session}/execute/async`,{
+        script:'const done=arguments[0];const timer=setTimeout(()=>done(null),10000);window.__m02Preference.checkpoint.then(value=>{clearTimeout(timer);done(value);});',args:[],
+      });
+      assert.equal(JSON.parse(saved ?? '{}').type,'position_saved','Fresh media checkpoints must persist after preference cancellation');
+      const recent=await native({type:'recent_sources'});
+      assert.equal(recent.sources.find(source=>source.id===id).positionMs,10000);
+    } finally {
+      await script('const gate=window.__m02Preference;gate.release();window.__TAURI_INTERNALS__.invoke=gate.original;delete window.__m02Preference;return true;');
+    }
+  }
+  // Real persisted source preferences feed the mounted host and untouched cues.
+  assert.equal((await native({type:'set_subtitle_offset',sourceId:id,offsetMs:500})).type,'source');
+  assert.equal((await native({type:'set_playback_rate',sourceId:id,rate:1.25})).type,'source');
+  assert.equal((await native({type:'set_inspection_trigger',sourceId:id,trigger:'modifier'})).type,'source');
+  await click('Home');
+  await observeSourceView('document.querySelector("video")?.readyState>=1&&document.querySelector("video").playbackRate===1.25');
+  await resumeWatch();
+  await observedSourceView('Saved playback rate must reach the actual native video');
+  const shifted=await native({type:'source_window',sourceId:id,positionMs:14500});
+  assert.equal(shifted.window.cues.find(cue=>cue.index===1).startMs,15000);
+  await click('Transcript');
+  const search=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[aria-label="Search transcript"]'});
+  const searchId=search['element-6066-11e4-a52e-4f735466cecf'];
+  await rpc('POST',`/session/${session}/element/${searchId}/value`,{text:'came'});
+  await observeSourceView('!!document.querySelector(\'[aria-label="Go to cue 2 at 0:14"]\')&&!document.querySelector(\'[aria-label^="Go to cue 1 "]\')');
+  await click('Search');
+  await observedSourceView('Bounded transcript search must return the actual second cue');
+  await screenshot('native-transcript-search');
+  await observeSourceView('!!document.querySelector(\'[aria-label="came: untracked"]\')');
+  await observedSourceView('Transcript must reuse real native token analysis');
+  await click('came: untracked');
+  await text('come');
+  await click('Adjust Meaning knowledge: Meaning \u00b7 untracked');
+  await observeSourceView('!!document.querySelector(\'[aria-label="Adjust Meaning knowledge: Meaning · claimed known"]\')');
+  await click('Claim Meaning known');
+  await observedSourceView('Transcript claim must update authoritative Knowledge');
+  await closeInspector();
+  assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'came: mixed');
+  await click('came: mixed');
+  await text('come');
+  await click('Adjust Meaning knowledge: Meaning \u00b7 claimed known');
+  await observeSourceView('!!document.querySelector(\'[aria-label="Adjust Meaning knowledge: Meaning · untracked"]\')');
+  await click('Withdraw Meaning claim');
+  await observedSourceView('Transcript withdrawal must refresh the same Knowledge projection');
+  await closeInspector();
+  assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'came: untracked');
+  await observeSourceView('Math.abs(document.querySelector("video").currentTime-14.5)<0.01&&!document.querySelector(\'[data-testid="dialog-surface"]\')');
+  await click('Go to cue 2 at 0:14');
+  await observedSourceView('Transcript selection must seek the real player using the saved offset');
+  await observeSourceView('!!document.querySelector(\'[aria-label="Children: mixed"]\')');
+  await observedSourceView('Shifted cue retains the same authoritative Knowledge');
+  const beforeHover=await native({type:'analyze_source',sourceId:id,positionMs:14500});
+  assert.equal(beforeHover.type,'analysis',JSON.stringify(beforeHover));
+  assert.ok(beforeHover.batch.knowledge.some(projection=>projection.claim===true));
+  const child=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[aria-label="Children: mixed"]'});
+  await observeSourceView('!!document.querySelector(\'[data-testid="inspector-panel"] [aria-label="Dictionary source"]\')');
+  await rpc('POST',`/session/${session}/actions`,{actions:[
+    {type:'key',id:'inspection-modifier',actions:[{type:'keyDown',value:'\uE008'},{type:'pause',duration:0},{type:'keyUp',value:'\uE008'}]},
+    {type:'pointer',id:'inspection-pointer',parameters:{pointerType:'mouse'},actions:[
+      {type:'pointerMove',duration:0,origin:'viewport',x:0,y:0},
+      {type:'pointerMove',duration:0,origin:child,x:0,y:0},
+      {type:'pause',duration:0},
+    ]},
+  ]});
+  await observedSourceView('Shift-assisted real pointer entry must open the shared Inspector without a click');
+  await screenshot('native-modifier-inspection');
+  await closeInspector();
+  const retainedClaim=await native({type:'knowledge',keys:beforeHover.batch.knowledge.map(projection=>projection.key)});
+  assert.equal(retainedClaim.type,'knowledge');
+  assert.deepEqual(retainedClaim.projections,beforeHover.batch.knowledge,'Hover must not create learner evidence or change claims');
+  assert.equal((await native({type:'set_subtitle_offset',sourceId:id,offsetMs:0})).type,'source');
+  assert.equal((await native({type:'set_playback_rate',sourceId:id,rate:1})).type,'source');
+  assert.equal((await native({type:'set_inspection_trigger',sourceId:id,trigger:'click'})).type,'source');
+  await click('Home');
+  await observeSourceView('document.querySelector("video")?.readyState>=1&&document.querySelector("video").playbackRate===1');
+  await resumeWatch();
+  await observedSourceView('Reset source preferences must restore the real host');
+  await observeSourceView('Math.abs(document.querySelector("video").currentTime-20)<0.01&&!!document.querySelector(\'[aria-label="home: untracked"]\')');
+  await script('document.querySelector("video").currentTime=20;return true;');
+  await observedSourceView('Continue at the exact original second-line occurrence');
   // A second-line occurrence must reserve its entire authored cue and follow
   // the real native window resize, not retain its first captured coordinates.
   await script(`window.__m01EntryReady=new Promise(resolve=>{

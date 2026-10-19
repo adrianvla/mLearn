@@ -70,11 +70,20 @@ impl RuntimeExecutor {
     }
     fn execute_request(&self, request: Request) -> Result<Response, Failure> {
         let epoch = self.cancellation.load(Ordering::Relaxed);
-        let admission = if guest_bearing(&request) {
+        // Reserve the single install identity before waiting for guest admission.
+        // Status/cancel never take that guest lock or wait behind a transfer.
+        let (request, install) = if matches!(request, Request::InstallPlugin { .. } | Request::InstallPackage { .. }) {
+            let prepared = self.runtime.lock().map_err(|_| Failure::Operation("Native runtime lock poisoned".into()))?.prepare(request, epoch)?;
+            match prepared {
+                Prepared::Immediate(response) => return Ok(*response),
+                work @ Prepared::Work(_) => (None, Some(work)),
+            }
+        } else { (Some(request), None) };
+        let admission = if install.is_some() || request.as_ref().is_some_and(guest_bearing) {
             // Background refresh must not queue behind a user action. Foreground
             // lookup/claims wait for current analysis without owning Runtime;
             // the shared three-call permit still bounds all waiting workers.
-            Some(if matches!(request, Request::AnalyzeSource { .. }) {
+            Some(if matches!(request, Some(Request::AnalyzeSource { .. } | Request::AnalyzeTranscript { .. })) {
                 self.guest.try_lock().map_err(|error| match error {
                     TryLockError::WouldBlock => Failure::Busy,
                     TryLockError::Poisoned(_) => Failure::Operation("Native guest admission lock poisoned".into()),
@@ -83,20 +92,23 @@ impl RuntimeExecutor {
                 self.guest.lock().map_err(|_| Failure::Operation("Native guest admission lock poisoned".into()))?
             })
         } else { None };
-        let prepared = {
+        let prepared = if let Some(install) = install { install } else {
             let mut runtime = self.runtime.lock().map_err(|_| Failure::Operation("Native runtime lock poisoned".into()))?;
-            runtime.prepare(request, epoch)?
+            runtime.prepare(request.ok_or_else(|| Failure::Operation("Missing prepared request".into()))?, epoch)?
         };
         match prepared {
             Prepared::Immediate(response) => Ok(*response),
             Prepared::Work(work) => {
                 let output = work.run();
                 drop(admission);
-                let mut output = output?;
-                // Real guest results and their Arc owners remain outside the Runtime guard.
-                #[cfg(test)]
-                crate::watch::source_execution_tests::hold_guest_result(work.capability());
-                self.publish(&work, &mut output)
+                let result = (|| {
+                    let mut output = output?;
+                    // Real guest results and their Arc owners remain outside the Runtime guard.
+                    #[cfg(test)]
+                    crate::watch::source_execution_tests::hold_guest_result(work.capability());
+                    self.publish(&work, &mut output)
+                })();
+                self.runtime.lock().map_err(|_| Failure::Operation("Native runtime lock poisoned".into()))?.finish_work(&work, result)
             }
         }
     }
@@ -113,12 +125,15 @@ impl RuntimeExecutor {
 }
 fn guest_bearing(request: &Request) -> bool {
     match request {
-        Request::OpenSource { .. } | Request::AnalyzeSource { .. } | Request::DescribeLanguage { .. }
+        Request::OpenSource { .. } | Request::SetSourceLanguage { .. } | Request::AnalyzeSource { .. } | Request::AnalyzeTranscript { .. } | Request::DescribeLanguage { .. }
         | Request::InspectTarget { .. } | Request::ChangeClaim { .. } | Request::InvokePlugin { .. }
-        | Request::InstallPlugin { .. } => true,
+        | Request::InstallPlugin { .. } | Request::InstallPackage { .. } => true,
         Request::Snapshot | Request::RecentSources | Request::AvailablePackages | Request::ResumeSource { .. }
         | Request::AttachSubtitles { .. } | Request::SourceWindow { .. } | Request::SavePosition { .. }
-        | Request::Knowledge { .. } | Request::SaveTheme { .. } => false,
+        | Request::Transcript { .. } | Request::CuePosition { .. } | Request::SetSubtitleOffset { .. } | Request::SetPlaybackRate { .. }
+        | Request::SetInspectionTrigger { .. }
+        | Request::Knowledge { .. } | Request::SaveTheme { .. }
+        | Request::PackageInstallStatus { .. } | Request::CurrentPackageInstall | Request::CancelPackageInstall { .. } => false,
     }
 }
 pub(super) fn parse(request: &str) -> Result<Request, Failure> {
@@ -128,7 +143,14 @@ pub(super) fn parse(request: &str) -> Result<Request, Failure> {
     serde_json::from_str(request).map_err(|e| Failure::Protocol("invalid_request", e.to_string()))
 }
 pub(super) fn encode(result: Result<Response, Failure>) -> String {
-    let response = result.unwrap_or_else(|error| {
+    let response = result.unwrap_or_else(|error| error_response(&error));
+    let encoded = serde_json::to_string(&response).expect("Runtime response types are JSON serializable");
+    if encoded.len() > 524288 {
+        return r#"{"type":"error","code":"response_too_large","message":"Native response exceeds 512 KiB; select a smaller source range."}"#.into();
+    }
+    encoded
+}
+pub(super) fn error_response(error: &Failure) -> Response {
         let code = match &error {
             Failure::Operation(_) => "operation_failed",
             Failure::Cancelled => "cancelled",
@@ -136,10 +158,4 @@ pub(super) fn encode(result: Result<Response, Failure>) -> String {
             Failure::Protocol(code, _) => code,
         };
         Response::Error { code: code.into(), message: error.to_string().chars().take(2048).collect() }
-    });
-    let encoded = serde_json::to_string(&response).expect("Runtime response types are JSON serializable");
-    if encoded.len() > 524288 {
-        return r#"{"type":"error","code":"response_too_large","message":"Native response exceeds 512 KiB; select a smaller source range."}"#.into();
-    }
-    encoded
 }

@@ -27,6 +27,7 @@ pub struct Runtime {
     root: PathBuf,
     policy: CodePolicy,
     catalog: Option<Arc<CatalogClient>>,
+    installs: Arc<packages::InstallOwner>,
     installed: BTreeMap<String, Installed>,
     package_issues: BTreeMap<String, String>,
     analysis_cache: std::collections::VecDeque<(String, Vec<mlearn_core::CueAnalysis>)>,
@@ -41,7 +42,7 @@ impl Runtime {
         std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
         let store = ProfileStore::open(&root.join("profile.sqlite3")).map_err(|e| e.to_string())?;
         let catalog = trust.map(CatalogClient::new).transpose()?.map(Arc::new);
-        let mut runtime = Self { store, cancellation: Arc::new(std::sync::atomic::AtomicU64::new(0)), root: root.into(), policy, catalog, installed: BTreeMap::new(), package_issues: BTreeMap::new(), analysis_cache: std::collections::VecDeque::new() };
+        let mut runtime = Self { store, cancellation: Arc::new(std::sync::atomic::AtomicU64::new(0)), root: root.into(), policy, catalog, installs: Arc::new(packages::InstallOwner::default()), installed: BTreeMap::new(), package_issues: BTreeMap::new(), analysis_cache: std::collections::VecDeque::new() };
         if policy == CodePolicy::DesktopDownloaded {
             for (id, stored) in runtime.store.plugin_manifests().map_err(|e| e.to_string())? {
                 let restored = (|| -> Result<Installed, String> {
@@ -89,15 +90,29 @@ impl Runtime {
             match self.prepare(request, epoch)? {
                 guest::Prepared::Immediate(response) => Ok(*response),
                 guest::Prepared::Work(work) => {
-                    let mut output = work.run()?;
-                    #[cfg(test)]
-                    watch::source_execution_tests::hold_guest_result(work.capability());
-                    let (response, retired) = self.complete(&work, &mut output)?;
-                    drop(retired);
-                    Ok(response)
+                    let result = (|| {
+                        let mut output = work.run()?;
+                        #[cfg(test)]
+                        watch::source_execution_tests::hold_guest_result(work.capability());
+                        let (response, retired) = self.complete(&work, &mut output)?;
+                        drop(retired);
+                        Ok(response)
+                    })();
+                    self.finish_work(&work, result)
                 }
             }
         }))
+    }
+    fn finish_work(&mut self, work: &guest::GuestWork, result: Result<Response, execution::Failure>) -> Result<Response, execution::Failure> {
+        let result = work.finish(result);
+        if let (guest::GuestWork::Install { transfer, .. }, Err(error)) = (work, &result) {
+            let command = transfer.command()?;
+            if !command.command_id.starts_with("native:") {
+                self.store.record_install_failure(&command, &execution::error_response(error))
+                    .map_err(|e| execution::Failure::Operation(e.to_string()))?;
+            }
+        }
+        result
     }
     fn metadata(&mut self, request: Request) -> Result<Response, execution::Failure> {
         use execution::Failure;

@@ -6,6 +6,13 @@ test('bounded JSON is validated instead of trusting a response discriminator',()
  assert.equal(isWatchResponse({type:'knowledge',projections:[{key:{packageId:'p',targetId:'t',capability:'c'},claim:true,assessed:null,prediction:null,revision:1,status:'claimed_known'}]}),true);
  assert.equal(isWatchResponse({type:'knowledge',projections:new Array(257).fill(null)}),false);
 });
+test('transcript admission stays bounded and retains untouched source coordinates',()=>{
+ const cue={index:7,startMs:1000,endMs:2000,text:' e\u0301 日本語\n%_'};
+ const page={sourceId:'source',subtitleRevision:'revision',cues:[cue],nextIndex:7};
+ assert.equal(isWatchResponse({type:'transcript',page}),true);
+ assert.equal(isWatchResponse({type:'transcript',page:{...page,cues:Array(17).fill(cue)}}),false);
+ assert.equal(isWatchResponse({type:'transcript',page:{...page,nextIndex:-1}}),false);
+});
 test('structured dictionary senses remain bounded typed values at transport admission',()=>{
  const entry={targetId:'target',headword:'form',reading:null,partOfSpeech:'noun',definition:'complete definition',summary:'nearby meaning',
   attribution:'dictionary',capabilities:[],senses:[{heading:'noun',labels:['source taxonomy'],definitions:['one; intact gloss','second gloss'],notes:[]}]};
@@ -48,7 +55,7 @@ test('cancellation rejects obsolete analysis without discarding an admitted chec
  await checkpoint;await rejected;
  assert.equal((await client.analyzeSource('new',0)).sourceId,'new');
 });
-test('display work keeps only the latest desired position without blocking durable checkpoints',{timeout:5000},async()=>{
+test('source and transcript display work share the latest desired read without blocking checkpoints',{timeout:5000},async()=>{
  let release!:()=>void;let entered!:()=>void;
  const gate=new Promise<void>(resolve=>{release=resolve;});
  const started=new Promise<void>(resolve=>{entered=resolve;});
@@ -64,7 +71,7 @@ test('display work keeps only the latest desired position without blocking durab
   return JSON.stringify({type:'analysis',batch:{sourceId:'source',subtitleRevision:'revision',packageId:'package',packageVersion:'1',cues:[],knowledge:[],annotations:[]}});
  }});
  const first=client.analyzeSource('source',0);await started;
- const second=client.analyzeSource('source',2000);
+ const second=client.analyzeTranscript('source',null,'came');
  const superseded=assert.rejects(second,{code:'cancelled'});
  const latest=client.analyzeSource('source',4000);
  try{await client.savePosition('source',4000,30000);await superseded;assert.deepEqual(positions,[0]);}

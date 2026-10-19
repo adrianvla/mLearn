@@ -110,6 +110,30 @@ pub struct PackageIssue {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct PackageInstallCommand {
+    pub plugin_id: String,
+    pub command_id: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum PackageInstallPhase { Downloading, Validating, Succeeded, Failed, Cancelled }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct PackageInstallStatus {
+    pub command: PackageInstallCommand,
+    pub phase: PackageInstallPhase,
+    pub downloaded_bytes: u32,
+    pub total_bytes: Option<u32>,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Request {
@@ -120,8 +144,15 @@ pub enum Request {
     ResumeSource { #[serde(rename="sourceId")] source_id:String },
     AttachSubtitles { #[serde(rename="sourceId")] source_id:String,path:String },
     SourceWindow { #[serde(rename="sourceId")] source_id:String,#[serde(rename="positionMs")] position_ms:u32 },
+    Transcript { #[serde(rename="sourceId")] source_id:String,#[serde(rename="afterIndex")] after_index:Option<u32>,query:String },
+    CuePosition { #[serde(rename="sourceId")] source_id:String,#[serde(rename="subtitleRevision")] subtitle_revision:String,#[serde(rename="cueIndex")] cue_index:u32 },
+    SetSubtitleOffset { #[serde(rename="sourceId")] source_id:String,#[serde(rename="offsetMs")] offset_ms:i32 },
+    SetPlaybackRate { #[serde(rename="sourceId")] source_id:String,rate:f64 },
+    SetInspectionTrigger { #[serde(rename="sourceId")] source_id:String,trigger:InspectionTrigger },
+    SetSourceLanguage { #[serde(rename="sourceId")] source_id:String,#[serde(rename="packageId")] package_id:String },
     SavePosition { #[serde(rename="sourceId")] source_id:String,#[serde(rename="positionMs")] position_ms:u32,#[serde(rename="durationMs")] duration_ms:u32 },
     AnalyzeSource { #[serde(rename="sourceId")] source_id:String,#[serde(rename="positionMs")] position_ms:u32 },
+    AnalyzeTranscript { #[serde(rename="sourceId")] source_id:String,#[serde(rename="afterIndex")] after_index:Option<u32>,query:String },
     DescribeLanguage { #[serde(rename="packageId")] package_id:String },
     InspectTarget { #[serde(rename="packageId")] package_id:String,#[serde(rename="targetId")] target_id:String },
     Knowledge { keys:Vec<KnowledgeKey> },
@@ -137,6 +168,10 @@ pub enum Request {
         #[serde(rename = "pluginId")]
         plugin_id: String,
     },
+    InstallPackage { command: PackageInstallCommand },
+    PackageInstallStatus { #[serde(rename = "commandId")] command_id: String },
+    CurrentPackageInstall,
+    CancelPackageInstall { #[serde(rename = "commandId")] command_id: String },
     InvokePlugin {
         #[serde(rename = "pluginId")]
         plugin_id: String,
@@ -154,6 +189,8 @@ pub enum Response {
     Sources { sources:Vec<SourceRecord> },
     Packages { plugins:Vec<PluginSummary> },
     Source { window:SourceWindow },
+    Transcript { page:TranscriptPage },
+    CuePosition { position:CuePosition },
     PositionSaved,
     Analysis { batch:AnalysisBatch },
     Language { description:LanguageDescription },
@@ -162,6 +199,7 @@ pub enum Response {
     ClaimChanged { projection:KnowledgeProjection },
     Saved { revision: u32 },
     Installed { plugin: PluginSummary },
+    PackageInstallStatus { status: Option<PackageInstallStatus> },
     PluginResult {
         #[cfg_attr(feature = "typescript", ts(type = "unknown"))]
         output: serde_json::Value,

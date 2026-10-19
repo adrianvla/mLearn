@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
-import type { PluginSummary, Snapshot, ThemeDocument } from '@mlearn/contracts';
+import type { Snapshot, ThemeDocument } from '@mlearn/contracts';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { Screen, Stack, Row } from '@mlearn/ui/layout';
@@ -11,6 +11,8 @@ import { Dialog } from '@mlearn/ui/dialog';
 import { applyTheme } from '@mlearn/theme/runtime';
 import { builtInThemes, initialTheme, parseThemePreview } from '@mlearn/theme';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { LanguagePackageInstall } from './LanguagePackageInstall';
+import { usePackageInstall } from './usePackageInstall';
 
 type FeedbackTarget = 'runtime' | 'plugin' | 'theme';
 type Feedback = { target: FeedbackTarget; message: string; error: boolean };
@@ -24,13 +26,14 @@ export function SettingsScreen() {
     params.section === 'languages' || params.section === 'runtime' ? params.section : 'appearance',
   );
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [catalog, setCatalog] = useState<PluginSummary[]>([]);
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [name, setName] = useState('world');
   const [editing, setEditing] = useState(false);
   const [themeJson, setThemeJson] = useState(JSON.stringify(initialTheme, null, 2));
+  const packageInstall = usePackageInstall(host.available ? host.client : null,
+    section === 'languages' && snapshot?.codePolicy === 'desktop-downloaded', refresh);
 
   useEffect(() => {
     if (!host.available) return;
@@ -139,23 +142,9 @@ export function SettingsScreen() {
               </View>
               <Text variant="caption" muted>Installed</Text>
             </View>)}
-          {snapshot?.catalogConfigured ? <>
-            <Row><Button label="Check for packages" variant="secondary" disabled={busy}
-              onPress={() => void perform('plugin', async () => {
-                setCatalog((await host.client.availablePackages()).filter(plugin => plugin.capabilities.includes('text.analyze.v1')));
-              })} /></Row>
-            {catalog.map(plugin => <View key={plugin.id} style={styles.setting}>
-              <View style={styles.settingLabel}>
-                <Text>{plugin.displayName ?? 'Unnamed language package'}</Text>
-                <Text variant="caption" muted selectable>{plugin.version}</Text>
-              </View>
-              <Button label={`${snapshot.installedPlugins.some(installed => installed.id === plugin.id) ? 'Update' : 'Install'} ${plugin.displayName ?? plugin.id}`}
-                variant="secondary" disabled={busy} onPress={() => void perform('plugin', async () => {
-                  await host.client.installPlugin(plugin.id);
-                  await refresh();
-                })} />
-            </View>)}
-          </> : <Text muted>{snapshot?.codePolicy === 'mobile-bundled' ? 'Language code is included with this app.' : 'No trusted language catalog is configured.'}</Text>}
+          {snapshot?.codePolicy === 'desktop-downloaded'
+            ? <LanguagePackageInstall client={host.client} snapshot={snapshot} install={packageInstall} />
+            : <Text muted>{snapshot?.codePolicy === 'mobile-bundled' ? 'Language code is included with this app.' : 'No trusted language catalog is configured.'}</Text>}
           {feedbackAt('plugin')}
         </>}
       </Stack> : null}

@@ -13,6 +13,8 @@ export type Inspection = {
     context: string;
     targets: string[];
     anchor: TextAnchor;
+    showContext?: boolean;
+    onChanged?: () => Promise<void>;
 };
 export function Inspector({ inspection, packageId, client, knowledge, onChanged, onClose }: {
     inspection: Inspection;
@@ -68,7 +70,7 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
         projection.key.packageId === packageId && projection.key.targetId === entry?.targetId
         && projection.key.capability === expandedCapability);
     return (
-        <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context}
+        <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
             footer={entry ? <>
                 {activeCapability ? <View style={styles.adjustment}>
                     <Text tone="media">{activeCapability.label} · {activeProjection?.status.replaceAll('_', ' ') ?? 'untracked'}</Text>

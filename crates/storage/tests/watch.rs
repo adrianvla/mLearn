@@ -1,6 +1,6 @@
 use mlearn_core::{SourceRecord, ClaimChange, KnowledgeKey};
 use mlearn_storage::{ProfileStore, SourceReader};
-fn source() -> SourceRecord { SourceRecord { id:"content-sha".into(), title:"Local video".into(), media_path:"/isolated/movie.mp4".into(), media_revision:"sha".into(), subtitle_path:None, subtitle_revision:None, package_id:"org.mlearn.english".into(), package_version:"1".into(), position_ms:12345, duration_ms:30000 } }
+fn source() -> SourceRecord { SourceRecord { id:"content-sha".into(), title:"Local video".into(), media_path:"/isolated/movie.mp4".into(), media_revision:"sha".into(), subtitle_path:None, subtitle_revision:None, package_id:"org.mlearn.english".into(), package_version:"1".into(), position_ms:12345, duration_ms:30000, subtitle_offset_ms:0, playback_rate:1.0, inspection_trigger:Default::default() } }
 #[test]
 fn exact_resume_and_claim_retry_preserve_untracked_semantics() {
  let dir=tempfile::tempdir().unwrap(); let db=dir.path().join("profile.sqlite3");

@@ -72,7 +72,9 @@ impl Runtime {
         })
     }
     pub(super) fn window(&self, source: SourceRecord, time: u32) -> Result<SourceWindow, String> {
-        let (cues, total_cues) = self.store.cue_window(&source.id, time).map_err(|e| e.to_string())?;
+        // Cue timestamps remain authored coordinates. Only the lookup clock moves.
+        let subtitle_time = (i64::from(time) + i64::from(source.subtitle_offset_ms)).clamp(0, i64::from(u32::MAX)) as u32;
+        let (cues, total_cues) = self.store.cue_window(&source.id, subtitle_time).map_err(|e| e.to_string())?;
         Ok(SourceWindow { source, cues, total_cues })
     }
     fn import_path(&self, path: &Path, digest: &str, copy: bool, epoch: u64) -> Result<PathBuf, String> {
@@ -123,7 +125,10 @@ impl Runtime {
                     subtitle_path: old.as_ref().and_then(|s| s.subtitle_path.clone()),
                     subtitle_revision: old.as_ref().and_then(|s| s.subtitle_revision.clone()),
                     package_id: package_id.clone(), package_version: self.installed[&package_id].manifest.version.clone(),
-                    position_ms: old.as_ref().map_or(0, |s| s.position_ms), duration_ms: old.map_or(0, |s| s.duration_ms),
+                    position_ms: old.as_ref().map_or(0, |s| s.position_ms), duration_ms: old.as_ref().map_or(0, |s| s.duration_ms),
+                    subtitle_offset_ms: old.as_ref().map_or(0, |s| s.subtitle_offset_ms),
+                    playback_rate: old.as_ref().map_or(1.0, |s| s.playback_rate),
+                    inspection_trigger: old.as_ref().map_or(InspectionTrigger::Click, |s| s.inspection_trigger),
                 };
                 self.store.save_source(&source).map_err(|e| e.to_string())?;
                 Ok(Response::Source { window: self.window(source.clone(), source.position_ms)? })
@@ -151,11 +156,61 @@ impl Runtime {
                 let mut source = self.source_record(&source_id)?;
                 source.subtitle_path = Some(path.to_string_lossy().into_owned());
                 source.subtitle_revision = Some(revision);
+                source.subtitle_offset_ms = 0;
                 self.store.attach_cues(&source, &cues).map_err(|e| e.to_string())?;
                 self.analysis_cache.retain(|(key, _)| !key.starts_with(&source_id));
                 Ok(Response::Source { window: self.window(source.clone(), source.position_ms)? })
             }
             Request::SourceWindow { source_id, position_ms } => Ok(Response::Source { window: self.window(self.source_record(&source_id)?, position_ms)? }),
+            Request::CuePosition { source_id, subtitle_revision, cue_index } => {
+                let source = self.source_record(&source_id)?;
+                if source.subtitle_revision.as_deref() != Some(subtitle_revision.as_str()) {
+                    return Err("Subtitle association changed; reopen the transcript".into());
+                }
+                if source.duration_ms == 0 { return Err("Video duration unavailable; wait for media or reselect it".into()); }
+                let cue = self.store.cue(&source_id, cue_index).map_err(|e| e.to_string())?.ok_or("Cue unavailable; reopen the transcript")?;
+                let start = i64::from(cue.start_ms) - i64::from(source.subtitle_offset_ms);
+                let end = i64::from(cue.end_ms) - i64::from(source.subtitle_offset_ms);
+                if end <= 0 { return Err("This cue falls before the video at the current subtitle offset".into()); }
+                if start >= i64::from(source.duration_ms) { return Err("This cue falls after the video at the current subtitle offset".into()); }
+                Ok(Response::CuePosition { position: CuePosition {
+                    source_id, subtitle_revision, cue_index,
+                    position_ms: u32::try_from(start.max(0)).map_err(|e| e.to_string())?,
+                } })
+            }
+            Request::Transcript { source_id, after_index, query } => {
+                if query.len() > 128 { return Err("Transcript search exceeds 128 bytes".into()); }
+                let source = self.source_record(&source_id)?;
+                let subtitle_revision = source.subtitle_revision.ok_or("Select subtitles before opening the transcript")?;
+                let (cues, next_index) = self.store.transcript_page(&source_id, after_index, &query).map_err(|e| e.to_string())?;
+                Ok(Response::Transcript { page: TranscriptPage { source_id, subtitle_revision, cues, next_index } })
+            }
+            Request::SetSubtitleOffset { source_id, offset_ms } => {
+                if !(-86_400_000..=86_400_000).contains(&offset_ms) {
+                    return Err("Subtitle offset must be within 24 hours".into());
+                }
+                let mut source = self.source_record(&source_id)?;
+                if source.subtitle_revision.is_none() { return Err("Select subtitles before adjusting synchronization".into()); }
+                source.subtitle_offset_ms = offset_ms;
+                let window = self.window(source.clone(), source.position_ms)?;
+                self.store.save_source(&source).map_err(|e| e.to_string())?;
+                Ok(Response::Source { window })
+            }
+            Request::SetPlaybackRate { source_id, rate } => {
+                if !rate.is_finite() || !(0.5..=2.0).contains(&rate) { return Err("Playback rate must be between 0.5 and 2".into()); }
+                let mut source = self.source_record(&source_id)?;
+                source.playback_rate = rate;
+                let window = self.window(source.clone(), source.position_ms)?;
+                self.store.save_source(&source).map_err(|e| e.to_string())?;
+                Ok(Response::Source { window })
+            }
+            Request::SetInspectionTrigger { source_id, trigger } => {
+                let mut source = self.source_record(&source_id)?;
+                source.inspection_trigger = trigger;
+                let window = self.window(source.clone(), source.position_ms)?;
+                self.store.save_source(&source).map_err(|e| e.to_string())?;
+                Ok(Response::Source { window })
+            }
             Request::SavePosition { source_id, position_ms, duration_ms } => {
                 if duration_ms > 7 * 24 * 60 * 60 * 1000 || (duration_ms > 0 && position_ms > duration_ms) {
                     return Err("Playback position is outside the media duration".into());

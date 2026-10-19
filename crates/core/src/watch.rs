@@ -1,14 +1,21 @@
 //! Bounded source/linguistic protocol. Offsets are UTF-8 bytes into untouched cue text.
 use serde::{Deserialize, Serialize};
-macro_rules! model { ($name:ident { $($field:ident : $ty:ty),* $(,)? }) => {
+macro_rules! model { ($name:ident { $($(#[$attr:meta])* $field:ident : $ty:ty),* $(,)? }) => {
  #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
  #[serde(rename_all="camelCase")]
  #[cfg_attr(feature="typescript", derive(ts_rs::TS))]
- pub struct $name { $(pub $field: $ty),* }
+ pub struct $name { $($(#[$attr])* pub $field: $ty),* }
 }; }
-model!(SourceRecord { id:String,title:String,media_path:String,media_revision:String,subtitle_path:Option<String>,subtitle_revision:Option<String>,package_id:String,package_version:String,position_ms:u32,duration_ms:u32 });
+fn normal_rate() -> f64 { 1.0 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all="snake_case")]
+#[cfg_attr(feature="typescript", derive(ts_rs::TS))]
+pub enum InspectionTrigger { #[default] Click, Immediate, Delayed, Modifier }
+model!(SourceRecord { id:String,title:String,media_path:String,media_revision:String,subtitle_path:Option<String>,subtitle_revision:Option<String>,package_id:String,package_version:String,position_ms:u32,duration_ms:u32,#[serde(default)] subtitle_offset_ms:i32,#[serde(default="normal_rate")] playback_rate:f64,#[serde(default)] inspection_trigger:InspectionTrigger });
 model!(Cue { index:u32,start_ms:u32,end_ms:u32,text:String });
 model!(SourceWindow { source:SourceRecord,cues:Vec<Cue>,total_cues:u32 });
+model!(CuePosition { source_id:String,subtitle_revision:String,cue_index:u32,position_ms:u32 });
+model!(TranscriptPage { source_id:String,subtitle_revision:String,cues:Vec<Cue>,next_index:Option<u32> });
 model!(Capability { id:String,label:String });
 model!(LanguageDescription { language:String,label:String,capabilities:Vec<Capability>,annotation_capability:String,attribution:String });
 model!(AnalyzedToken { start:u32,end:u32,text:String,targets:Vec<String> });

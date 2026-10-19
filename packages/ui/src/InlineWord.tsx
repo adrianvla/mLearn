@@ -1,2 +1,2 @@
 export {InlineWordControl as InlineWord} from './InlineWordControl';
-export type {TextAnchor, TextBounds} from './InlineWord.types';
+export type {InspectionMode, TextAnchor, TextBounds} from './InlineWord.types';

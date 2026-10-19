@@ -1,5 +1,5 @@
 import { isWatchResponse } from './watchProtocol';
-import type { Request, Response, Snapshot, ThemeDocument, KnowledgeKey, ClaimChange } from '@mlearn/contracts';
+import type { Request, Response, Snapshot, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand } from '@mlearn/contracts';
 
 export interface Transport {
   execute(request: string): Promise<string>;
@@ -37,7 +37,7 @@ export function createRuntimeClient(transport: Transport) {
     }
   }
   function displayRead(command:Request):Promise<Response>{
-    const lane=command.type==='analyze_source'?analysis:windows;
+    const lane=command.type==='analyze_source'||command.type==='analyze_transcript'?analysis:windows;
     return new Promise((resolve,reject)=>{
       const read={command,epoch:sourceEpoch,resolve,reject};
       if(lane.running){lane.desired?.reject(cancelled());lane.desired=read;}
@@ -45,9 +45,9 @@ export function createRuntimeClient(transport: Transport) {
     });
   }
   async function request(command:Request):Promise<Response>{
-    if(command.type==='analyze_source'||command.type==='source_window')return displayRead(command);
+    if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='source_window')return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
-    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles'].includes(command.type);
+    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles','set_source_language'].includes(command.type);
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
     try{if(sourceAction&&cancelInFlight)await cancelInFlight;if(sourceAction&&epoch!==sourceEpoch)throw new RuntimeError('cancelled','Source opening cancelled.');const value=await execute(command);if(sourceAction&&epoch!==sourceEpoch)throw new RuntimeError('cancelled','Source opening cancelled.');return value;}finally{pending--;release();}
@@ -66,7 +66,31 @@ export function createRuntimeClient(transport: Transport) {
     if(!isWatchResponse(response))throw new RuntimeError('protocol','Malformed bounded native response.');
     return response;
   }
+  function prepareInstall(pluginId:string):PackageInstallCommand {
+    return {pluginId,commandId:transport.commandId()};
+  }
+  async function installPackage(command:PackageInstallCommand) {
+    const response=await execute({type:'install_package',command});
+    if(!isWatchResponse(response)||response.type!=='installed')throw new RuntimeError('protocol','Missing plugin installation receipt.');
+    return response.plugin;
+  }
+  async function packageInstallControl(type:'package_install_status'|'cancel_package_install',commandId:string) {
+    // Control reads must not queue behind the transfer whose body is pending.
+    const response=await execute({type,commandId});
+    if(!isWatchResponse(response)||response.type!=='package_install_status')throw new RuntimeError('protocol','Malformed package install status.');
+    if(response.status!==null&&response.status.command.commandId!==commandId)throw new RuntimeError('protocol','Mismatched package install identity.');
+    return response.status;
+  }
   return {
+    prepareInstall,
+    installPackage,
+    packageInstallStatus:(commandId:string)=>packageInstallControl('package_install_status',commandId),
+    cancelPackageInstall:(commandId:string)=>packageInstallControl('cancel_package_install',commandId),
+    async currentPackageInstall(){
+      const response=await execute({type:'current_package_install'});
+      if(!isWatchResponse(response)||response.type!=='package_install_status')throw new RuntimeError('protocol','Malformed current package install status.');
+      return response.status;
+    },
     cancelSourceOpen,
     beginSourceSession(){
       const ready=cancelSourceOpen();const epoch=sourceEpoch;
@@ -78,8 +102,19 @@ export function createRuntimeClient(transport: Transport) {
     async resumeSource(sourceId:string){const r=await watch({type:'resume_source',sourceId});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
     async attachSubtitles(sourceId:string,path:string){const r=await watch({type:'attach_subtitles',sourceId,path});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
     async sourceWindow(sourceId:string,positionMs:number){const r=await watch({type:'source_window',sourceId,positionMs});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
+    async transcript(sourceId:string,afterIndex:number|null,query:string){const r=await watch({type:'transcript',sourceId,afterIndex,query});if(r.type!=='transcript')throw new RuntimeError('protocol','Missing transcript');return r.page;},
+    async cuePosition(sourceId:string,subtitleRevision:string,cueIndex:number){
+      const r=await watch({type:'cue_position',sourceId,subtitleRevision,cueIndex});
+      if(r.type!=='cue_position'||r.position.sourceId!==sourceId||r.position.subtitleRevision!==subtitleRevision||r.position.cueIndex!==cueIndex)throw new RuntimeError('protocol','Mismatched subtitle cue position.');
+      return r.position.positionMs;
+    },
+    async setSubtitleOffset(sourceId:string,offsetMs:number){const r=await watch({type:'set_subtitle_offset',sourceId,offsetMs});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
+    async setPlaybackRate(sourceId:string,rate:number){const r=await watch({type:'set_playback_rate',sourceId,rate});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
+    async setInspectionTrigger(sourceId:string,trigger:InspectionTrigger){const r=await watch({type:'set_inspection_trigger',sourceId,trigger});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
+    async setSourceLanguage(sourceId:string,packageId:string){const r=await watch({type:'set_source_language',sourceId,packageId});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
     async savePosition(sourceId:string,positionMs:number,durationMs:number){const r=await watch({type:'save_position',sourceId,positionMs:Math.round(positionMs),durationMs:Math.round(durationMs)});if(r.type!=='position_saved')throw new RuntimeError('protocol','Missing position receipt');},
     async analyzeSource(sourceId:string,positionMs:number){const r=await watch({type:'analyze_source',sourceId,positionMs});if(r.type!=='analysis')throw new RuntimeError('protocol','Missing analysis');return r.batch;},
+    async analyzeTranscript(sourceId:string,afterIndex:number|null,query:string){const r=await watch({type:'analyze_transcript',sourceId,afterIndex,query});if(r.type!=='analysis')throw new RuntimeError('protocol','Missing transcript analysis');return r.batch;},
     async describeLanguage(packageId:string){const r=await watch({type:'describe_language',packageId});if(r.type!=='language')throw new RuntimeError('protocol','Missing language description');return r.description;},
     async inspectTarget(packageId:string,targetId:string){const r=await watch({type:'inspect_target',packageId,targetId});if(r.type!=='entry')throw new RuntimeError('protocol','Missing entry');return r.entry;},
     async knowledge(keys:KnowledgeKey[]){const r=await watch({type:'knowledge',keys});if(r.type!=='knowledge')throw new RuntimeError('protocol','Missing Knowledge');return r.projections;},
@@ -96,9 +131,7 @@ export function createRuntimeClient(transport: Transport) {
       return response.revision;
     },
     async installPlugin(pluginId: string) {
-      const response = await request({ type: 'install_plugin', pluginId });
-      if (response.type !== 'installed') throw new RuntimeError('protocol', 'Missing plugin installation receipt.');
-      return response.plugin;
+      return installPackage(prepareInstall(pluginId));
     },
     async invokePlugin(pluginId: string, capability: string, input: unknown): Promise<unknown> {
       const response = await request({ type: 'invoke_plugin', pluginId, capability, input });

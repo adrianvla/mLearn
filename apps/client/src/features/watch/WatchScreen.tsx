@@ -6,12 +6,15 @@ import { StyleSheet } from 'react-native-unistyles';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { Row } from '@mlearn/ui/layout';
-import type { SourceWindow, AnalysisBatch } from '@mlearn/contracts';
+import { Dialog } from '@mlearn/ui/dialog';
+import { TextField } from '@mlearn/ui/text-field';
+import type { SourceWindow, AnalysisBatch, PluginSummary } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MediaSurface } from '../../bootstrap/MediaSurface';
 import { AnnotatedText } from '../annotated-text';
 import { Inspector, type Inspection } from '../inspector';
+import { Transcript } from './Transcript';
 export function WatchScreen() {
     const host = useRuntime();
     const router = useRouter();
@@ -24,12 +27,19 @@ export function WatchScreen() {
     const [toolbarHeight, setToolbarHeight] = useState(64);
     const [window, setWindow] = useState<SourceWindow | null>(null);
     const [batch, setBatch] = useState<AnalysisBatch | null>(null);
+    const [transcriptBatch, setTranscriptBatch] = useState<AnalysisBatch | null>(null);
     const [position, setPosition] = useState(0);
     const [inspection, setInspection] = useState<Inspection | null>(null);
     const [error, setError] = useState('');
     const [analysisError, setAnalysisError] = useState('');
+    const [analysisPending, setAnalysisPending] = useState(false);
     const [saveError, setSaveError] = useState('');
     const [busy, setBusy] = useState(false);
+    const [transcriptOpen, setTranscriptOpen] = useState(false);
+    const [playbackOpen, setPlaybackOpen] = useState(false);
+    const [offsetDraft, setOffsetDraft] = useState('0');
+    const [playbackError, setPlaybackError] = useState('');
+    const [languages, setLanguages] = useState<PluginSummary[]>([]);
     const [sourceReload, setSourceReload] = useState(0);
     const [analysisReload, setAnalysisReload] = useState(0);
     const latest = useRef({
@@ -39,24 +49,42 @@ export function WatchScreen() {
     const mounted = useRef(true);
     const session = useRef<ReturnType<RuntimeClient['beginSourceSession']> | null>(null);
     const activeSource = useRef(id);
+    const focused = useRef<object | null>(null);
     activeSource.current = id;
     const saveFailed = useRef(false);
     const controller = useRef<{
+        seekTo: (positionMs: number) => void;
         pauseAndRead: () => {
             positionMs: number;
             durationMs: number;
         };
     } | null>(null);
     useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+    useEffect(() => {
+        if (!host.available || !playbackOpen) return;
+        let active = true;
+        void host.client.snapshot().then(snapshot => {
+            if (active) setLanguages(snapshot.installedPlugins.filter(plugin => plugin.capabilities.includes('text.analyze.v1')));
+        }).catch((cause: unknown) => {
+            if (active) setPlaybackError(cause instanceof Error ? cause.message : String(cause));
+        });
+        return () => { active = false; };
+    }, [host, playbackOpen]);
     useFocusEffect(useCallback(() => {
         if (!host.available)
             return;
         let active = true;
+        const owner = {};
+        focused.current = owner;
         const current = host.client.beginSourceSession();
         session.current = current;
+        setBusy(false);
         setWindow(previous => previous?.source.id === id ? previous : null);
         setBatch(null);
         setInspection(null);
+        setTranscriptOpen(false);
+        setTranscriptBatch(null);
+        setPlaybackOpen(false);
         void current.ready.then(() => host.client.resumeSource(id)).then(w => {
             if (active && current.isCurrent()) {
                 setWindow(w);
@@ -71,19 +99,25 @@ export function WatchScreen() {
         });
         return () => {
             active = false;
-            void current.cancel().catch(e => {
-                if (mounted.current && session.current === current)
+            if (focused.current === owner) focused.current = null;
+            const owned = session.current;
+            void owned?.cancel().catch(e => {
+                if (mounted.current && session.current === owned)
                     setError(e instanceof Error ? e.message : String(e));
             });
         };
     }, [host, id, sourceReload]));
     const bucket = Math.floor(position / 2000);
-    const cues = window?.cues.filter(c => c.startMs <= position && c.endMs > position) ?? [];
+    const subtitleTime = position + (window?.source.subtitleOffsetMs ?? 0);
+    const cues = window?.cues.filter(c => c.startMs <= subtitleTime && c.endMs > subtitleTime) ?? [];
     const cueKey = cues.map(c => c.index).join(',');
     const ready = window?.source.id === id;
     const subtitleRevision = window?.source.subtitleRevision;
+    const subtitleOffset = window?.source.subtitleOffsetMs;
+    const packageId = window?.source.packageId;
+    const packageVersion = window?.source.packageVersion;
     useEffect(() => {
-        if (!host.available || !ready || !window || !subtitleRevision)
+        if (!host.available || !ready || !window || !subtitleRevision || transcriptOpen)
             return;
         let active = true;
         const current = session.current;
@@ -98,13 +132,14 @@ export function WatchScreen() {
                 setError(e.message);
         });
         return () => { active = false; };
-    }, [host, id, ready, subtitleRevision, bucket, cueKey, sourceReload]);
+    }, [host, id, ready, subtitleRevision, subtitleOffset, packageId, packageVersion, bucket, cueKey, sourceReload, transcriptOpen]);
     useEffect(() => {
-        if (!host.available || !ready || !window || !subtitleRevision)
+        if (!host.available || !ready || !window || !subtitleRevision || transcriptOpen)
             return;
         let active = true;
         const current = session.current;
         const source = window.source;
+        setAnalysisPending(true);
         void host.client.analyzeSource(id, latest.current.position).then(b => {
             if (active && current?.isCurrent() && b.sourceId === source.id &&
                 b.subtitleRevision === source.subtitleRevision &&
@@ -117,9 +152,9 @@ export function WatchScreen() {
                 setBatch(null);
                 setAnalysisError(e.message);
             }
-        });
-        return () => { active = false; };
-    }, [host, id, ready, subtitleRevision, bucket, cueKey, analysisReload, sourceReload]);
+        }).finally(() => { if (active) setAnalysisPending(false); });
+        return () => { active = false; setAnalysisPending(false); };
+    }, [host, id, ready, subtitleRevision, subtitleOffset, packageId, packageVersion, bucket, cueKey, analysisReload, sourceReload, transcriptOpen]);
     async function persist(positionMs = latest.current.position, durationMs = latest.current.duration) {
         if (!host.available || !Number.isFinite(durationMs) || durationMs <= 0)
             return;
@@ -161,6 +196,69 @@ export function WatchScreen() {
             setPosition(point.positionMs);
         }
         await persist();
+    }
+    async function changeSource(operation: (client: RuntimeClient) => Promise<SourceWindow>, reanalyze = false) {
+        if (!host.available || busy) return;
+        const owner = focused.current;
+        let current = session.current;
+        const ownsOperation = () => mounted.current && owner !== null && focused.current === owner && activeSource.current === id;
+        setBusy(true);
+        setPlaybackError('');
+        try {
+            await pauseAndSave();
+            if (!ownsOperation()) return;
+            if (reanalyze) {
+                await current?.cancel();
+                if (!ownsOperation()) return;
+                current = host.client.beginSourceSession();
+                session.current = current;
+                await current.ready;
+                if (!ownsOperation() || !current.isCurrent()) return;
+                const changed = await operation(host.client);
+                if (ownsOperation() && current.isCurrent()) {
+                    setWindow(changed);
+                    setBatch(null);
+                    setAnalysisReload(value => value + 1);
+                }
+            } else {
+                const changed = await operation(host.client);
+                if (ownsOperation() && current?.isCurrent()) setWindow(changed);
+            }
+        } catch (cause) {
+            if (ownsOperation()) setPlaybackError(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+            if (ownsOperation()) {
+                setBusy(false);
+                // Focus cleanup owns the current replacement too. Re-enter that
+                // lifetime only if cancellation invalidated it.
+                if (!current?.isCurrent()) setSourceReload(value => value + 1);
+            }
+        }
+    }
+    async function cancelOpening() {
+        if (!host.available) return;
+        const owner = focused.current;
+        try { await host.client.cancelSourceOpen(); }
+        catch (cause) {
+            if (focused.current === owner) setError(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+            if (owner !== null && focused.current === owner) {
+                setBusy(false);
+                setSourceReload(value => value + 1);
+            }
+        }
+    }
+    function applyOffset(value: number) {
+        if (!Number.isInteger(value)) {
+            setPlaybackError('Enter a whole number of milliseconds.');
+            return;
+        }
+        void changeSource(client => client.setSubtitleOffset(id, value), true);
+    }
+    function seekTranscript(positionMs: number) {
+        controller.current?.seekTo(positionMs);
+        setInspection(null);
+        setTranscriptOpen(false);
     }
     async function back() {
         setBusy(true);
@@ -261,16 +359,31 @@ export function WatchScreen() {
         return () => { active = false; stop?.(); };
     }, [host, id, !!window, window?.source.packageId, busy]));
     async function refreshKnowledge() {
-        if (!host.available || !window)
+        if (!host.available || !window || activeSource.current !== id)
             return;
         const current = session.current;
         const source = window.source;
         const b = await host.client.analyzeSource(id, latest.current.position);
-        if (mounted.current && current?.isCurrent() && b.sourceId === source.id &&
+        if (mounted.current && activeSource.current === id && current?.isCurrent() && b.sourceId === source.id &&
             b.subtitleRevision === source.subtitleRevision &&
             b.packageId === source.packageId && b.packageVersion === source.packageVersion)
             setBatch(b);
     }
+    async function changedInspection() {
+        if (activeSource.current !== id) return;
+        if (inspection?.onChanged) {
+            // The transcript owns its current range; do not briefly expose the
+            // caption's old classifications if it closes during the refresh.
+            setBatch(null);
+            await inspection.onChanged();
+        }
+        await refreshKnowledge();
+    }
+    const inspector = inspection && window && host.available ? (
+        <Inspector inspection={inspection} packageId={window.source.packageId} client={host.client}
+            knowledge={(transcriptOpen ? transcriptBatch : batch)?.knowledge ?? []}
+            onChanged={changedInspection} onClose={() => setInspection(null)} />
+    ) : null;
     return (
         <View style={styles.screen(insets.top, insets.bottom)}>
             <View testID="watch-toolbar" style={[styles.toolbar, { top: insets.top }]} onLayout={event => setToolbarHeight(event.nativeEvent.layout.height)}>
@@ -282,12 +395,72 @@ export function WatchScreen() {
                     </NativeText>
                     {busy && host.available ? (
                         <Button label="Cancel opening" variant="secondary"
-                            onPress={() => void host.client.cancelSourceOpen().catch(e => setError(e.message))} />
+                            onPress={() => void cancelOpening()} />
                     ) : null}
                     {window ? (
                         <Button label={window.source.subtitlePath ? 'Replace subtitles' : 'Open subtitles'}
                             size="compact" variant="media" disabled={busy} onPress={() => void attach()} />
                     ) : null}
+                    {window && host.available ? <>
+                      <Transcript key={`${id}:${window.source.subtitleRevision}`} client={host.client}
+                        source={window.source} open={transcriptOpen}
+                        analysis={transcriptBatch} onAnalysis={setTranscriptBatch} onInspect={setInspection}
+                        onOpenChange={value => {
+                          setInspection(null); setTranscriptOpen(value);
+                          if (value) void pauseAndSave().catch(() => {});
+                          else setTranscriptBatch(null);
+                        }}
+                        onSeek={seekTranscript}>{transcriptOpen ? inspector : null}</Transcript>
+                      <Dialog open={playbackOpen} onOpenChange={value => {
+                        setPlaybackOpen(value);
+                        if (value) {
+                          setOffsetDraft(String(window.source.subtitleOffsetMs));
+                          setPlaybackError('');
+                          void pauseAndSave().catch(() => {});
+                        }
+                      }} title="Playback and subtitles" description="Changes are saved for this video."
+                        trigger={<Button label="Playback options" variant="media" size="compact" />}>
+                        <Text>Playback rate · {window.source.playbackRate}×</Text>
+                        <Row>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate =>
+                          <Button key={rate} label={`${rate}×`} accessibilityLabel={`Playback rate ${rate}`}
+                            variant="secondary" disabled={busy}
+                            accessibilityState={{ selected: window.source.playbackRate === rate }}
+                            onPress={() => void changeSource(client => client.setPlaybackRate(id, rate))} />)}</Row>
+                        <Text>Source language</Text>
+                        <Row>{languages.map(plugin => <Button key={plugin.id}
+                          label={`${window.source.packageId === plugin.id ? '✓ ' : ''}${plugin.displayName ?? plugin.id}`}
+                          accessibilityLabel={plugin.displayName ?? plugin.id} variant="secondary" disabled={busy}
+                          accessibilityState={{ selected: window.source.packageId === plugin.id }}
+                          onPress={() => void changeSource(client => client.setSourceLanguage(id, plugin.id), true)} />)}</Row>
+                        {Platform.OS === 'web' ? <>
+                          <Text>Desktop inspection</Text>
+                          <Row>{([
+                            ['click', 'Click'], ['immediate', 'Immediate hover'],
+                            ['delayed', 'Delayed hover (300 ms)'], ['modifier', 'Shift + hover'],
+                          ] as const).map(([trigger, label]) => <Button key={trigger}
+                            label={`${window.source.inspectionTrigger === trigger ? '✓ ' : ''}${label}`}
+                            accessibilityLabel={label}
+                            variant="secondary" disabled={busy}
+                            accessibilityState={{ selected: window.source.inspectionTrigger === trigger }}
+                            onPress={() => void changeSource(client => client.setInspectionTrigger(id, trigger))} />)}</Row>
+                          <Text variant="caption" muted>Click and keyboard activation remain available. Shift is held when entering a word.</Text>
+                        </> : null}
+                        {window.source.subtitleRevision ? <>
+                          <Text>Subtitle synchronization</Text>
+                          <Text variant="caption" muted>Saved for this source and subtitle association. Positive milliseconds show cues earlier; original subtitle timestamps stay intact.</Text>
+                          <TextField testID="subtitle-offset-input" label="Subtitle offset in milliseconds" value={offsetDraft}
+                            onChangeText={setOffsetDraft} maxLength={12} autoCorrect={false} />
+                          <Row>
+                            <Button label="Apply subtitle offset" disabled={busy}
+                              onPress={() => applyOffset(offsetDraft.trim() ? Number(offsetDraft) : NaN)} />
+                            <Button label="Reset synchronization" variant="secondary" disabled={busy}
+                              onPress={() => { setOffsetDraft('0'); applyOffset(0); }} />
+                          </Row>
+                          <Text>Current offset: {window.source.subtitleOffsetMs} ms</Text>
+                        </> : null}
+                        {playbackError ? <Text accessibilityRole="alert">{playbackError}</Text> : null}
+                      </Dialog>
+                    </> : null}
                 </Row>
                 {error ? <>
                     <Text tone="media" accessibilityRole="alert">{error}</Text>
@@ -305,14 +478,15 @@ export function WatchScreen() {
             {window && host.available ? <>
                 <View style={styles.stage}>
                     <MediaSurface key={window.source.id} uri={host.media.uri(window.source)}
-                        initialPositionMs={window.source.positionMs} paused={!!inspection || busy}
+                        initialPositionMs={window.source.positionMs} playbackRate={window.source.playbackRate}
+                        paused={!!inspection || busy || transcriptOpen || playbackOpen}
                         onController={value => {
                             controller.current = value;
                             setSubtitleInset(value.subtitleBottomInset);
                         }}
                         onProgress={progress} onError={setError} />
                     <View pointerEvents="box-none" style={[styles.subtitle(toolbarHeight, subtitleInset), {
-                        opacity: Platform.OS !== 'web' && inspection ? 0 : 1,
+                        opacity: transcriptOpen || (Platform.OS !== 'web' && inspection) ? 0 : 1,
                     }]}>
                       <ScrollView testID="subtitle-window" accessibilityLabel="Subtitles"
                         style={styles.subtitleScroll} contentContainerStyle={styles.subtitleContent}
@@ -323,6 +497,7 @@ export function WatchScreen() {
                             return (
                                 <AnnotatedText key={JSON.stringify([window.source.id, window.source.subtitleRevision, window.source.packageId, window.source.packageVersion, cue.index])} rawText={cue.text} analysis={analysis ?? null}
                                     annotations={batch?.annotations ?? []}
+                                    inspectionMode={window.source.inspectionTrigger}
                                     onInspect={(token, anchor) => {
                                         void pauseAndSave().catch(() => {});
                                         setInspection({ sourceForm: token.text, context: cue.text, targets: token.targets, anchor });
@@ -333,18 +508,15 @@ export function WatchScreen() {
                     </View>
                 </View>
                 <View pointerEvents="box-none"
-                    style={[styles.status, { top: insets.top + toolbarHeight + 8 }, (!window.source.subtitlePath || analysisError) ? styles.feedback : null]}>
+                    style={[styles.status, { top: insets.top + toolbarHeight + 8 }, (!window.source.subtitlePath || analysisError || (analysisPending && !batch)) ? styles.feedback : null]}>
                     {!window.source.subtitlePath ? <Text tone="media">Open a plain UTF-8 SRT file to inspect subtitles.</Text> : null}
+                    {analysisPending && !batch && !transcriptOpen ? <Text tone="media" accessibilityLiveRegion="polite">Analyzing subtitles…</Text> : null}
                     {analysisError ? <>
                         <Text tone="media" accessibilityRole="alert">{analysisError}</Text>
                         <Button label="Retry analysis" variant="secondary" onPress={() => setAnalysisReload(v => v + 1)} />
                     </> : null}
                 </View>
-                {inspection ? (
-                    <Inspector inspection={inspection} packageId={window.source.packageId} client={host.client}
-                        knowledge={batch?.knowledge ?? []} onChanged={refreshKnowledge}
-                        onClose={() => setInspection(null)} />
-                ) : null}
+                {!transcriptOpen ? inspector : null}
             </> : !error ? <Text tone="media">Opening source…</Text> : null}
         </View>
     );

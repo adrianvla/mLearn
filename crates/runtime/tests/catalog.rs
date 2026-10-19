@@ -7,7 +7,7 @@ mod readiness {
     use super::*;
     use mlearn_language_host::{AssetMap, CodePolicy, CompiledPlugin};
     use mlearn_runtime::{
-        Runtime,
+        Runtime, RuntimeExecutor,
         catalog::{CatalogTrust, Manifest},
     };
     use serde_json::{Value, json};
@@ -16,14 +16,29 @@ mod readiness {
         io::{Read, Write},
         net::{TcpListener, TcpStream},
         path::PathBuf,
-        sync::{Arc, Mutex},
+        sync::{Arc, Mutex, mpsc},
         thread,
     };
 
     struct Catalog {
         address: std::net::SocketAddr,
         replies: Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
+        hold: Arc<Mutex<Option<StreamHold>>>,
         server: Option<thread::JoinHandle<()>>,
+    }
+    struct StreamHold {
+        path: String,
+        entered: mpsc::SyncSender<()>,
+        release: mpsc::Receiver<()>,
+    }
+    struct StreamGate {
+        entered: mpsc::Receiver<()>,
+        release: mpsc::SyncSender<()>,
+    }
+    impl Drop for StreamGate {
+        fn drop(&mut self) {
+            if let Err(error) = self.release.send(()) { eprintln!("Stream gate already closed: {error}"); }
+        }
     }
     impl Catalog {
         fn new() -> Self {
@@ -31,6 +46,8 @@ mod readiness {
             let address = listener.local_addr().unwrap();
             let replies = Arc::new(Mutex::new(BTreeMap::<String, Vec<u8>>::new()));
             let responses = replies.clone();
+            let hold = Arc::new(Mutex::new(None::<StreamHold>));
+            let held = hold.clone();
             let server = thread::spawn(move || {
                 for stream in listener.incoming() {
                     let mut stream = stream.unwrap();
@@ -49,22 +66,40 @@ mod readiness {
                     if path == "/shutdown" {
                         break;
                     }
-                    let replies = responses.lock().unwrap();
-                    let body = replies.get(path).unwrap();
+                    let body = responses.lock().unwrap().get(path).unwrap().clone();
+                    let barrier = {
+                        let mut held = held.lock().unwrap();
+                        if held.as_ref().is_some_and(|hold| hold.path == path) { held.take() } else { None }
+                    };
                     write!(
                         stream,
                         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                         body.len()
                     )
                     .unwrap();
-                    stream.write_all(body).unwrap();
+                    if let Some(barrier) = barrier {
+                        stream.write_all(&body[..1]).unwrap();
+                        stream.flush().unwrap();
+                        barrier.entered.send(()).unwrap();
+                        barrier.release.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+                        if let Err(error) = stream.write_all(&body[1..]) { eprintln!("Cancelled stream closed: {error}"); }
+                    } else {
+                        stream.write_all(&body).unwrap();
+                    }
                 }
             });
             Self {
                 address,
                 replies,
+                hold,
                 server: Some(server),
             }
+        }
+        fn hold(&self, path: &str) -> StreamGate {
+            let (entered, ready) = mpsc::sync_channel(1);
+            let (release, resumed) = mpsc::sync_channel(1);
+            *self.hold.lock().unwrap() = Some(StreamHold { path: format!("/{path}"), entered, release: resumed });
+            StreamGate { entered: ready, release }
         }
         fn trust(&self) -> CatalogTrust {
             CatalogTrust {
@@ -137,6 +172,153 @@ mod readiness {
             json!({"type":"invoke_plugin","pluginId":"example.hello",
             "capability":"example::hello","input":{"name":"still installed"}}),
         )
+    }
+    fn execute(executor: &RuntimeExecutor, request: Value) -> Value {
+        serde_json::from_str(&executor.execute(&request.to_string())).unwrap()
+    }
+
+    #[test]
+    fn authenticated_transfer_reports_progress_cancels_without_activation_and_retries() {
+        // Given an installed real language package, claim and saved source.
+        let directory = tempfile::tempdir().unwrap();
+        let catalog = Catalog::new();
+        let (original, code, assets) = bundle("org.mlearn.english");
+        catalog.publish(&original, &code, &assets);
+        let mut runtime = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, Some(catalog.trust()), vec![]).unwrap();
+        assert_eq!(install(&mut runtime, &original.id)["type"], "installed");
+        let video = directory.path().join("fixture.mp4");
+        let subtitles = directory.path().join("fixture.srt");
+        std::fs::write(&video, b"isolated source; no playback assertion").unwrap();
+        std::fs::write(&subtitles, "1\n00:00:00,000 --> 00:00:10,000\nChildren walked home.\n").unwrap();
+        let opened = call(&mut runtime, json!({"type":"open_source","path":video,"packageId":original.id}));
+        let source_id = opened["window"]["source"]["id"].clone();
+        assert!(source_id.is_string(), "{opened}");
+        call(&mut runtime, json!({"type":"attach_subtitles","sourceId":source_id,"path":subtitles}));
+        let analyzed = call(&mut runtime, json!({"type":"analyze_source","sourceId":source_id,"positionMs":0}));
+        let key = json!({"packageId":original.id,"targetId":analyzed["batch"]["cues"][0]["tokens"][0]["targets"][0],"capability":"org.mlearn.english:meaning"});
+        let claim = call(&mut runtime, json!({"type":"change_claim","change":{"key":key,"claim":true,"commandId":"retained-claim"}}));
+        assert_eq!(claim["type"], "claim_changed", "{claim}");
+        call(&mut runtime, json!({"type":"save_position","sourceId":source_id,"positionMs":1234,"durationMs":10000}));
+        let executor = Arc::new(RuntimeExecutor::new(runtime));
+        let before = execute(&executor, json!({"type":"resume_source","sourceId":source_id}));
+        let mut candidate = original.clone();
+        candidate.version = "explicit-retry".into();
+        catalog.publish(&candidate, &code, &assets);
+
+        // When the signed package body is held after headers and its first byte,
+        // the completed code response is already counted, but the transfer is not.
+        let asset = candidate.assets.values().next().unwrap();
+        let gate = catalog.hold(&asset.path);
+        let command = json!({"pluginId":candidate.id,"commandId":"cancel-this-install"});
+        let (finished, result) = mpsc::sync_channel(1);
+        let installing = executor.clone();
+        let request = json!({"type":"install_package","command":command});
+        let worker = thread::spawn(move || finished.send(execute(&installing, request)).unwrap());
+        gate.entered.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+        let status = execute(&executor, json!({"type":"package_install_status","commandId":"cancel-this-install"}));
+        assert_eq!(status["status"]["phase"], "downloading", "{status}");
+        let downloaded = status["status"]["downloadedBytes"].as_u64().unwrap();
+        let total = candidate.code.byte_length + candidate.assets.values().map(|artifact| artifact.byte_length).sum::<usize>();
+        assert!(downloaded >= candidate.code.byte_length as u64 && downloaded < total as u64, "{status}");
+        assert_eq!(status["status"]["totalBytes"], total);
+        assert!(std::fs::read_dir(directory.path().join("plugin-blobs")).unwrap().any(|entry| {
+            entry.unwrap().file_name().to_string_lossy().starts_with(".tmp")
+        }), "The held transfer must own a pending NamedTempFile");
+        assert_eq!(execute(&executor, json!({"type":"install_package","command":{"pluginId":candidate.id,"commandId":"competing-install"}}))["code"], "busy");
+        // Source cancellation has its own epoch, independent from the transfer.
+        executor.cancellation_handle().fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(execute(&executor, json!({"type":"package_install_status","commandId":"cancel-this-install"}))["status"]["phase"], "downloading");
+        assert_eq!(execute(&executor, json!({"type":"cancel_package_install","commandId":"older-install"}))["status"], Value::Null);
+        assert_eq!(execute(&executor, json!({"type":"cancel_package_install","commandId":"cancel-this-install"}))["status"]["command"], command);
+        // Then cancellation completes while the server still withholds the body,
+        // cleans NamedTempFile data and retains the previous usable owner.
+        let cancelled = result.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        worker.join().unwrap();
+        assert_eq!(cancelled["code"], "cancelled", "{cancelled}");
+        assert_eq!(execute(&executor, json!({"type":"package_install_status","commandId":"cancel-this-install"}))["status"]["phase"], "cancelled");
+        assert!(std::fs::read_dir(directory.path().join("plugin-blobs")).unwrap().all(|entry| {
+            let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+            name.len() == 64 && name.bytes().all(|byte| byte.is_ascii_hexdigit())
+        }));
+        assert_eq!(execute(&executor, json!({"type":"snapshot"}))["snapshot"]["installedPlugins"][0]["version"], original.version);
+        assert_eq!(execute(&executor, json!({"type":"resume_source","sourceId":source_id})), before);
+        assert_eq!(execute(&executor, json!({"type":"knowledge","keys":[key]}))["projections"][0], claim["projection"]);
+        let retained = execute(&executor, json!({"type":"analyze_source","sourceId":source_id,"positionMs":0}));
+        assert_eq!(retained["batch"]["cues"], analyzed["batch"]["cues"]);
+        assert_eq!(retained["batch"]["packageVersion"], original.version);
+        drop(gate);
+
+        // Explicit retry has a new identity; a late old cancel cannot hit it.
+        let retry_gate = catalog.hold(&asset.path);
+        let retry = json!({"type":"install_package","command":{"pluginId":candidate.id,"commandId":"explicit-retry"}});
+        let running = executor.clone();
+        let retry_request = retry.clone();
+        let worker = thread::spawn(move || execute(&running, retry_request));
+        retry_gate.entered.recv_timeout(std::time::Duration::from_secs(10)).unwrap();
+        assert_eq!(execute(&executor, json!({"type":"cancel_package_install","commandId":"cancel-this-install"}))["status"], Value::Null);
+        assert_eq!(execute(&executor, json!({"type":"package_install_status","commandId":"explicit-retry"}))["status"]["phase"], "downloading");
+        drop(retry_gate);
+        let installed = worker.join().unwrap();
+        assert_eq!(installed["type"], "installed", "{installed}");
+        assert_eq!(installed["plugin"]["version"], candidate.version);
+        let succeeded = execute(&executor, json!({"type":"package_install_status","commandId":"explicit-retry"}));
+        assert_eq!(succeeded["status"]["phase"], "succeeded", "{succeeded}");
+        assert_eq!(succeeded["status"]["downloadedBytes"], total);
+        assert_eq!(execute(&executor, retry), installed);
+        drop(executor);
+        let mut restored = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, None, vec![]).unwrap();
+        assert_eq!(call(&mut restored, json!({"type":"snapshot"}))["snapshot"]["installedPlugins"][0]["version"], candidate.version);
+        assert_eq!(call(&mut restored, json!({"type":"knowledge","keys":[key]}))["projections"][0], claim["projection"]);
+    }
+
+    #[test]
+    fn successful_install_identity_replays_original_receipt_after_another_install_and_restart() {
+        let directory = tempfile::tempdir().unwrap();
+        let catalog = Catalog::new();
+        let (mut manifest, code, assets) = bundle("example.hello");
+        catalog.publish(&manifest, &code, &assets);
+        let mut runtime = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, Some(catalog.trust()), vec![]).unwrap();
+        let first_command = json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"first-durable-install"}});
+        let first = call(&mut runtime, first_command.clone());
+        assert_eq!(first["type"], "installed", "{first}");
+        manifest.version = "0.2.0-next-explicit-install".into();
+        catalog.publish(&manifest, &code, &assets);
+        let second = call(&mut runtime, json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"second-durable-install"}}));
+        assert_eq!(second["type"], "installed", "{second}");
+        drop(runtime);
+        let mut runtime = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, Some(catalog.trust()), vec![]).unwrap();
+        // A transport replay keeps its admitted outcome, not today's catalog.
+        assert_eq!(call(&mut runtime, first_command), first);
+        let snapshot = call(&mut runtime, json!({"type":"snapshot"}));
+        assert_eq!(snapshot["snapshot"]["installedPlugins"][0]["version"], second["plugin"]["version"]);
+        assert_eq!(call(&mut runtime, json!({"type":"install_package","command":{"pluginId":"different.package","commandId":"first-durable-install"}}))["type"], "error");
+    }
+
+    #[test]
+    fn failed_install_identity_replays_failure_until_explicit_new_command() {
+        // Given an authenticated catalog whose body fails digest validation.
+        let directory = tempfile::tempdir().unwrap();
+        let catalog = Catalog::new();
+        let (manifest, code, assets) = bundle("example.hello");
+        let mut corrupted = code.clone();
+        corrupted[0] ^= 1;
+        catalog.publish(&manifest, &corrupted, &assets);
+        let mut runtime = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, Some(catalog.trust()), vec![]).unwrap();
+        let command = json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"failed-transfer"}});
+        // When a transfer fails and the server is subsequently repaired.
+        let failed = call(&mut runtime, command.clone());
+        assert_eq!(failed["type"], "error");
+        assert_eq!(call(&mut runtime, json!({"type":"package_install_status","commandId":"failed-transfer"}))["status"]["phase"], "failed");
+        catalog.publish(&manifest, &code, &assets);
+        // Then a transport replay does not secretly retry; a new command does.
+        assert_eq!(call(&mut runtime, command.clone()), failed);
+        assert_eq!(call(&mut runtime, json!({"type":"install_package","command":{"pluginId":"different.package","commandId":"failed-transfer"}}))["type"], "error");
+        assert_eq!(call(&mut runtime, json!({"type":"install_package","command":{"pluginId":manifest.id,"commandId":"new-explicit-attempt"}}))["type"], "installed");
+        assert_eq!(hello(&mut runtime)["output"]["message"], "Hello, still installed!");
+        drop(runtime);
+        let mut restored = Runtime::open(directory.path(), CodePolicy::DesktopDownloaded, None, vec![]).unwrap();
+        assert_eq!(call(&mut restored, command), failed, "Failed command replay must remain explicit after another install and restart");
+        assert_eq!(hello(&mut restored)["output"]["message"], "Hello, still installed!");
     }
 
     #[test]
@@ -342,6 +524,53 @@ fn signature_and_expiry_are_verified_before_accepting_catalog() {
     assert!(verify_catalog(&envelope, &STANDARD.encode([3; 32]), 99).is_err());
     let changed = serde_json::to_vec(&serde_json::json!({"payload":STANDARD.encode(b"{}"),"signature":STANDARD.encode(signature.to_bytes())})).unwrap();
     assert!(verify_catalog(&changed, &public, 99).is_err());
+}
+
+#[test]
+fn catalog_reopens_after_peer_closes_while_io_runtime_is_parked() {
+    use mlearn_runtime::catalog::{CatalogClient, CatalogTrust};
+    use std::{io::{Read, Write}, net::{Shutdown, TcpListener}, sync::mpsc, time::Duration};
+    let key = SigningKey::from_bytes(&[42; 32]);
+    let payload = serde_json::to_vec(&serde_json::json!({
+        "schemaVersion":1,"expiresAt":4102444800_u64,"plugins":[],
+    })).unwrap();
+    let body = serde_json::to_vec(&serde_json::json!({
+        "payload":STANDARD.encode(&payload),"signature":STANDARD.encode(key.sign(&payload).to_bytes()),
+    })).unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let (close, close_requested) = mpsc::sync_channel(1);
+    let (closed, peer_closed) = mpsc::sync_channel(1);
+    let server = std::thread::spawn(move || {
+        for index in 0..2 {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0];
+            while !request.ends_with(b"\r\n\r\n") {
+                assert!(request.len() < 16384);
+                stream.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            write!(stream, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len()).unwrap();
+            stream.write_all(&body).unwrap();
+            stream.flush().unwrap();
+            if index == 0 {
+                close_requested.recv_timeout(Duration::from_secs(5)).unwrap();
+                stream.shutdown(Shutdown::Both).unwrap();
+                closed.send(()).unwrap();
+            }
+        }
+    });
+    let client = CatalogClient::new(CatalogTrust {
+        url: format!("http://{address}/catalog.json"),
+        public_key: STANDARD.encode(key.verifying_key().to_bytes()),
+    }).unwrap();
+    assert!(client.manifests().unwrap().is_empty());
+    close.send(()).unwrap();
+    peer_closed.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert!(client.manifests().unwrap().is_empty());
+    server.join().unwrap();
 }
 
 #[test]

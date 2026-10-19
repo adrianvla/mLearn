@@ -58,7 +58,7 @@ fn damaged_package_does_not_block_settings_recents_or_other_installed_code() {
         media_path: directory.path().join("source.mp4").to_string_lossy().into_owned(),
         media_revision: "retained-media".into(), subtitle_path: None, subtitle_revision: None,
         package_id: "org.mlearn.english".into(), package_version: "0.1.0-wn30-batch1".into(),
-        position_ms: 12_345, duration_ms: 30_000,
+        position_ms: 12_345, duration_ms: 30_000, subtitle_offset_ms: 0, playback_rate: 1.0, inspection_trigger: Default::default(),
     };
     store.save_source(&source).unwrap();
     let stored_before = store.plugin_manifests().unwrap();

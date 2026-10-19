@@ -11,16 +11,25 @@ pub(super) struct AnalysisInput {
 impl Runtime {
     pub(super) fn prepare_analysis(&self, source_id: &str, position_ms: u32) -> Result<AnalysisInput, Failure> {
         let source = self.source_record(source_id)?;
+        let window = self.window(source.clone(), position_ms)?;
+        self.analysis_input(source, window.cues)
+    }
+    pub(super) fn prepare_transcript_analysis(&self, source_id: &str, after: Option<u32>, query: &str) -> Result<AnalysisInput, Failure> {
+        if query.len() > 128 { return Err(Failure::Operation("Transcript search exceeds 128 bytes".into())); }
+        let source = self.source_record(source_id)?;
+        let (cues, _) = self.store.transcript_page(source_id, after, query).map_err(|e| Failure::Operation(e.to_string()))?;
+        self.analysis_input(source, cues)
+    }
+    fn analysis_input(&self, source: SourceRecord, cues: Vec<Cue>) -> Result<AnalysisInput, Failure> {
         let revision = source.subtitle_revision.as_ref().ok_or_else(|| Failure::Operation("Select an external SRT subtitle file first".into()))?;
         let installed = self.installed.get(&source.package_id).ok_or_else(|| Failure::Operation("Language package unavailable; install it and retry".into()))?;
         if installed.manifest.version != source.package_version {
             return Err(Failure::Operation("Saved source requires its original package version; reselect the source language explicitly".into()));
         }
-        let window = self.window(source.clone(), position_ms)?;
         let cache_key = format!("{}|{}|{}|{}|{:?}", source.id, revision, source.package_id, source.package_version,
-            window.cues.iter().map(|c| c.index).collect::<Vec<_>>());
+            cues.iter().map(|c| c.index).collect::<Vec<_>>());
         let cached = self.analysis_cache.iter().find(|(key, _)| key == &cache_key).map(|(_, value)| value.clone());
-        Ok(AnalysisInput { source, cues: window.cues, cache_key, cached })
+        Ok(AnalysisInput { source, cues, cache_key, cached })
     }
     pub(super) fn complete_analysis(
         &mut self,

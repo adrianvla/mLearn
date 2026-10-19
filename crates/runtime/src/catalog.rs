@@ -117,26 +117,57 @@ pub fn verify_catalog(bytes: &[u8], key: &str, now: u64) -> Result<Vec<Manifest>
     Ok(catalog.plugins)
 }
 
-pub struct CatalogClient { trust: CatalogTrust, client: reqwest::blocking::Client, base: reqwest::Url }
+pub struct CatalogClient {
+    trust: CatalogTrust,
+    client: reqwest::Client,
+    base: reqwest::Url,
+    io: std::sync::Mutex<tokio::runtime::Runtime>,
+}
 impl CatalogClient {
     pub fn new(trust: CatalogTrust) -> Result<Self, String> {
         let base = reqwest::Url::parse(&trust.url).map_err(|e| e.to_string())?;
         let loopback = cfg!(debug_assertions) && base.scheme() == "http" && base.host_str() == Some("127.0.0.1");
         if base.scheme() != "https" && !loopback { return Err("Catalog requires HTTPS (debug permits numeric loopback only)".into()); }
         if !base.username().is_empty() || base.password().is_some() || base.fragment().is_some() { return Err("Invalid catalog URL".into()); }
-        let client = reqwest::blocking::Client::builder().timeout(Duration::from_secs(20)).redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
-        Ok(Self { trust, client, base })
+        // The current-thread reactor is parked between calls, so it cannot observe
+        // an idle peer closing. Do not reuse those undriven idle connections.
+        let client = reqwest::Client::builder().timeout(Duration::from_secs(20)).pool_max_idle_per_host(0).redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
+        let io = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(|e| e.to_string())?;
+        Ok(Self { trust, client, base, io: std::sync::Mutex::new(io) })
     }
-    fn get(&self, url: reqwest::Url, limit: usize) -> Result<Vec<u8>, String> {
-        let response = self.client.get(url).send().map_err(|e| e.to_string())?;
+    async fn response(&self, url: reqwest::Url, transfer: Option<&crate::packages::InstallTransfer>) -> Result<reqwest::Response, String> {
+        tokio::select! {
+            biased;
+            () = cancelled(transfer) => Err("Package installation cancelled".into()),
+            response = self.client.get(url).send() => response.map_err(|e| e.to_string()),
+        }
+    }
+    async fn chunk(response: &mut reqwest::Response, transfer: Option<&crate::packages::InstallTransfer>) -> Result<Option<impl AsRef<[u8]>>, String> {
+        tokio::select! {
+            biased;
+            () = cancelled(transfer) => Err("Package installation cancelled".into()),
+            chunk = response.chunk() => chunk.map_err(|e| e.to_string()),
+        }
+    }
+    async fn get(&self, url: reqwest::Url, limit: usize, transfer: Option<&crate::packages::InstallTransfer>) -> Result<Vec<u8>, String> {
+        let mut response = self.response(url, transfer).await?;
         if !response.status().is_success() || response.content_length().is_some_and(|n| n > limit as u64) { return Err("Download rejected by status/size limits".into()); }
         let mut bytes = Vec::new();
-        response.take(limit as u64 + 1).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
-        if bytes.len() > limit { return Err("Download exceeds size limit".into()); }
+        while let Some(chunk) = Self::chunk(&mut response, transfer).await? {
+            let chunk = chunk.as_ref();
+            if chunk.len() > limit.saturating_sub(bytes.len()) { return Err("Download exceeds size limit".into()); }
+            bytes.extend_from_slice(chunk);
+        }
         Ok(bytes)
     }
     pub fn manifests(&self) -> Result<Vec<Manifest>, String> {
-        let bytes = self.get(self.base.clone(), 512 * 1024)?;
+        self.manifests_for(None)
+    }
+    pub(super) fn install_manifests(&self, transfer: &crate::packages::InstallTransfer) -> Result<Vec<Manifest>, String> {
+        self.manifests_for(Some(transfer))
+    }
+    fn manifests_for(&self, transfer: Option<&crate::packages::InstallTransfer>) -> Result<Vec<Manifest>, String> {
+        let bytes = self.io.lock().map_err(|_| "Catalog I/O lock poisoned")?.block_on(self.get(self.base.clone(), 512 * 1024, transfer))?;
         let now = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
         verify_catalog(&bytes, &self.trust.public_key, now)
     }
@@ -145,18 +176,49 @@ impl CatalogClient {
         if artifact.byte_length > 4 * 1024 * 1024 { return Err("Large artifacts require the streaming download path".into()); }
         let url = self.base.join(&artifact.path).map_err(|e| e.to_string())?;
         if url.origin() != self.base.origin() { return Err("Artifact must share the trusted catalog origin".into()); }
-        let bytes = self.get(url, artifact.byte_length)?;
+        let bytes = self.io.lock().map_err(|_| "Catalog I/O lock poisoned")?.block_on(self.get(url, artifact.byte_length, None))?;
         verify_artifact(artifact, &bytes)?;
         Ok(bytes)
     }
     pub fn download(&self, artifact: &Artifact, output: &mut impl std::io::Write) -> Result<(), String> {
+        self.download_for(artifact, output, None)
+    }
+    pub(super) fn install_download(&self, artifact: &Artifact, output: &mut impl std::io::Write, transfer: &crate::packages::InstallTransfer) -> Result<(), String> {
+        self.download_for(artifact, output, Some(transfer))
+    }
+    fn download_for(&self, artifact: &Artifact, output: &mut impl std::io::Write, transfer: Option<&crate::packages::InstallTransfer>) -> Result<(), String> {
         validate_artifact(artifact)?;
         let url = self.base.join(&artifact.path).map_err(|e| e.to_string())?;
         if url.origin() != self.base.origin() { return Err("Artifact must share the trusted catalog origin".into()); }
-        let mut response = self.client.get(url).send().map_err(|e| e.to_string())?;
+        self.io.lock().map_err(|_| "Catalog I/O lock poisoned")?.block_on(async {
+        let mut response = self.response(url, transfer).await?;
         if !response.status().is_success() || response.content_length().is_some_and(|n| n != artifact.byte_length as u64) {
             return Err("Download rejected by status/size limits".into());
         }
-        copy_artifact(artifact, &mut response, output)
+        let mut hash = Sha256::new();
+        let mut total = 0usize;
+        while let Some(chunk) = Self::chunk(&mut response, transfer).await? {
+            let chunk = chunk.as_ref();
+            total = total.checked_add(chunk.len()).ok_or("Artifact size overflow")?;
+            if total > artifact.byte_length { return Err("Artifact exceeds declared size".into()); }
+            for bytes in chunk.chunks(65536) {
+                if let Some(transfer) = transfer { transfer.check()?; }
+                output.write_all(bytes).map_err(|e| e.to_string())?;
+                hash.update(bytes);
+                if let Some(transfer) = transfer { transfer.progress(bytes.len())?; }
+            }
+        }
+        if total != artifact.byte_length || !format!("{:x}", hash.finalize()).eq_ignore_ascii_case(&artifact.sha256) {
+            return Err("Artifact digest or size mismatch".into());
+        }
+        Ok(())
+        })
+    }
+}
+
+async fn cancelled(transfer: Option<&crate::packages::InstallTransfer>) {
+    match transfer {
+        Some(transfer) => transfer.cancelled().await,
+        None => std::future::pending().await,
     }
 }

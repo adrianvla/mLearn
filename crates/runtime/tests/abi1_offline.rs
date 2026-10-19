@@ -46,7 +46,7 @@ fn retained_abi1_modules_and_saved_source_run_offline_without_reinstallation() {
         media_path: video.to_string_lossy().into_owned(), media_revision,
         subtitle_path: Some(subtitle.to_string_lossy().into_owned()), subtitle_revision: Some(subtitle_revision),
         package_id: "org.mlearn.english".into(), package_version: "0.1.0-wn30-batch1".into(),
-        position_ms: 1987, duration_ms: 10000,
+        position_ms: 1987, duration_ms: 10000, subtitle_offset_ms: 0, playback_rate: 1.0, inspection_trigger: Default::default(),
     };
     let mut store = ProfileStore::open(&profile.join("profile.sqlite3")).unwrap();
     let manifests = [

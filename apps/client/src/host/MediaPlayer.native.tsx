@@ -2,7 +2,7 @@ import { AppState } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import type { MediaPlayerProps } from './MediaPlayer.types';
-export function MediaPlayer({ uri, initialPositionMs, paused, onProgress, onError, onController }: MediaPlayerProps) {
+export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, onProgress, onError, onController }: MediaPlayerProps) {
     const lastProgress = useRef({
         positionMs: initialPositionMs, durationMs: 0
     });
@@ -18,11 +18,22 @@ export function MediaPlayer({ uri, initialPositionMs, paused, onProgress, onErro
     useEffect(() => {
         // targets above both; the web renderer owns its smaller control inset separately.
         onController({
-            subtitleBottomInset: 128, pauseAndRead: () => { player.pause(); lastProgress.current = {
+            subtitleBottomInset: 128,
+            seekTo: positionMs => {
+                player.currentTime = Math.max(0, Math.min(positionMs / 1000, player.duration > 0 ? player.duration : Infinity));
+            },
+            pauseAndRead: () => { player.pause(); lastProgress.current = {
                 positionMs: Math.round(player.currentTime * 1000), durationMs: Math.round(player.duration * 1000)
             }; return lastProgress.current; }
         });
     }, [player]);
+    useEffect(() => {
+        const wasPlaying = player.playing;
+        player.playbackRate = playbackRate;
+        // Expo's iOS setter also assigns AVPlayer.rate, including on a paused
+        // initial source. Changing speed must not start playback.
+        if (!wasPlaying) player.pause();
+    }, [player, playbackRate]);
     useEffect(() => {
         if (paused)
             player.pause();

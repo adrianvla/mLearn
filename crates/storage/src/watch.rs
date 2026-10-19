@@ -85,6 +85,15 @@ impl ProfileStore {
   if rows.len()>16{return Err(StorageError::Invalid("Subtitle window exceeds 16 concurrent/context cues".into()));}
   Ok((rows,count))
  }
+ pub fn transcript_page(&self,id:&str,after:Option<u32>,query:&str)->Result<(Vec<mlearn_core::Cue>,Option<u32>),StorageError>{
+  let mut stmt=self.connection.prepare("SELECT cue_index,start_ms,end_ms,text FROM cues WHERE source_id=?1 AND (?2 IS NULL OR cue_index>?2) AND instr(text,?3)>0 ORDER BY cue_index LIMIT 17")?;
+  let mut cues=stmt.query_map(params![id,after,query],|r|Ok(mlearn_core::Cue{index:r.get(0)?,start_ms:r.get(1)?,end_ms:r.get(2)?,text:r.get(3)?}))?.collect::<Result<Vec<_>,_>>()?;
+  let next=if cues.len()>16 {cues.truncate(16);cues.last().map(|c|c.index)} else {None};
+  Ok((cues,next))
+ }
+ pub fn cue(&self,id:&str,index:u32)->Result<Option<mlearn_core::Cue>,StorageError>{
+  Ok(self.connection.query_row("SELECT cue_index,start_ms,end_ms,text FROM cues WHERE source_id=?1 AND cue_index=?2",params![id,index],|r|Ok(mlearn_core::Cue{index:r.get(0)?,start_ms:r.get(1)?,end_ms:r.get(2)?,text:r.get(3)?})).optional()?)
+ }
 }
 
 impl ProfileStore {

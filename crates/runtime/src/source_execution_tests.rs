@@ -48,7 +48,7 @@ fn fixture() -> (tempfile::TempDir, Arc<RuntimeExecutor>, SourceRecord) {
         subtitle_path: Some(directory.path().join("original.srt").to_string_lossy().into_owned()),
         subtitle_revision: Some(format!("{:x}", Sha256::digest(b"original subtitle revision"))),
         package_id: "org.mlearn.english".into(), package_version: version,
-        position_ms: 0, duration_ms: 40_000,
+        position_ms: 0, duration_ms: 40_000, subtitle_offset_ms: 0, playback_rate: 1.0, inspection_trigger: Default::default(),
     };
     let mut store = ProfileStore::open(&profile.join("profile.sqlite3")).unwrap();
     store.save_source(&source).unwrap();
@@ -152,6 +152,23 @@ fn subtitle_replacement_rejects_the_held_analysis_completion() {
     assert_eq!(completed["type"], "error", "Replaced source published stale real guest output");
     assert_eq!(completed["code"], "cancelled");
     assert!(executor.runtime.lock().unwrap().analysis_cache.is_empty(), "Rejected completion populated the analysis cache");
+}
+#[test]
+fn timing_change_rejects_held_analysis_without_rewriting_source_coordinates() {
+    let (directory, executor, source) = fixture();
+    let (changed, completed) = with_held_guest(&executor,
+        Request::AnalyzeSource { source_id: source.id.clone(), position_ms: 0 }, || {
+            serde_json::from_str::<Value>(&executor.execute(&json!({
+                "type":"set_subtitle_offset","sourceId":source.id,"offsetMs":20_000,
+            }).to_string())).unwrap()
+        });
+    assert_eq!(changed["window"]["cues"][1]["index"], 20);
+    assert_eq!(changed["window"]["cues"][1]["startMs"], 20_000);
+    assert_eq!(completed["type"], "error");
+    assert_eq!(completed["code"], "cancelled");
+    assert!(executor.runtime.lock().unwrap().analysis_cache.is_empty());
+    let store = ProfileStore::open(&directory.path().join("profile/profile.sqlite3")).unwrap();
+    assert_eq!(store.source(&source.id).unwrap().subtitle_offset_ms, 20_000);
 }
 #[test]
 fn explicit_cancellation_rejects_the_held_analysis_without_losing_a_checkpoint() {

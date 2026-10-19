@@ -9,7 +9,7 @@ pub(super) enum Prepared {
 }
 pub(super) enum GuestWork {
     Language(Box<LanguageWork>),
-    Install { root: PathBuf, catalog: Arc<CatalogClient>, plugin_id: String },
+    Install { root: PathBuf, catalog: Arc<CatalogClient>, plugin_id: String, transfer: crate::packages::InstallTransfer },
     Catalog(Arc<CatalogClient>),
 }
 pub(super) struct LanguageWork {
@@ -19,6 +19,7 @@ pub(super) struct LanguageWork {
 }
 pub(super) enum LanguageAction {
     Open { path: String },
+    SelectSourceLanguage { source_id: String },
     Describe,
     Inspect { target_id: String },
     Claim(ClaimChange),
@@ -40,7 +41,7 @@ impl GuestWork {
             Self::Language(work) => {
                 work.cancellation.check()?;
                 let output = match &work.action {
-                    LanguageAction::Open { .. } => {
+                    LanguageAction::Open { .. } | LanguageAction::SelectSourceLanguage { .. } => {
                         work.description()?;
                         GuestOutput::Open
                     }
@@ -66,10 +67,16 @@ impl GuestWork {
                 work.cancellation.check()?;
                 Ok(output)
             }
-            Self::Install { root, catalog, plugin_id } => {
-                Ok(GuestOutput::Installed(Some(crate::packages::install(root, catalog, plugin_id)?)))
+            Self::Install { root, catalog, plugin_id, transfer } => {
+                Ok(GuestOutput::Installed(Some(crate::packages::install(root, catalog, plugin_id, transfer)?)))
             }
             Self::Catalog(catalog) => Ok(GuestOutput::Catalog(catalog.manifests()?)),
+        }
+    }
+    pub fn finish(&self, result: Result<Response, Failure>) -> Result<Response, Failure> {
+        match self {
+            Self::Install { transfer, .. } => transfer.finish(result),
+            Self::Language(_) | Self::Catalog(_) => result,
         }
     }
     #[cfg(test)]
@@ -78,7 +85,7 @@ impl GuestWork {
             Self::Language(work) => match &work.action {
                 LanguageAction::Analyze(_) => "text.analyze.v1",
                 LanguageAction::Inspect { .. } | LanguageAction::Claim(_) => "target.inspect.v1",
-                LanguageAction::Open { .. } | LanguageAction::Describe => "language.describe.v1",
+                LanguageAction::Open { .. } | LanguageAction::SelectSourceLanguage { .. } | LanguageAction::Describe => "language.describe.v1",
                 LanguageAction::Invoke { capability, .. } => capability,
             },
             Self::Install { .. } | Self::Catalog(_) => "",

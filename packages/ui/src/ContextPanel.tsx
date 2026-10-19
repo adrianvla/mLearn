@@ -6,12 +6,13 @@ import { Text } from './Text';
 import { Button } from './Button';
 import type { TextAnchor } from './InlineWord';
 import type { TextBounds } from './InlineWord.types';
-export function ContextPanel({ title, anchor, onClose, children, footer, sourceContext }: PropsWithChildren<{
+export function ContextPanel({ title, anchor, onClose, children, footer, sourceContext, alwaysShowContext = false }: PropsWithChildren<{
     title: string;
     anchor: TextAnchor;
     onClose: () => void;
     footer?: ReactNode;
     sourceContext?: string;
+    alwaysShowContext?: boolean;
 }>) {
     const { width, height } = useWindowDimensions();
     const { theme } = useUnistyles();
@@ -71,7 +72,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, sourceC
                                         <Button label="×" accessibilityLabel="Close Inspector" variant="media" size="compact" onPress={onClose} />
                                 </View>
                                 <ScrollView testID="inspector-body" style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
-                                    {!anchored && sourceContext ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
+                                    {(!anchored || alwaysShowContext) && sourceContext ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
                                     {children}
                                 </ScrollView>
                                 {footer ? <ScrollView testID="inspector-footer"
