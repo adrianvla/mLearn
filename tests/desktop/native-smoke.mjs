@@ -377,12 +377,34 @@ try {
   await observedSourceView('Transcript withdrawal must refresh the same Knowledge projection');
   await closeInspector();
   assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'came: untracked');
-  await observeSourceView('Math.abs(document.querySelector("video").currentTime-14.5)<0.01&&!document.querySelector(\'[data-testid="dialog-surface"]\')');
-  await click('Go to cue 2 at 0:14');
-  await observedSourceView('Transcript selection must seek the real player using the saved offset');
-  await observeSourceView('!!document.querySelector(\'[aria-label="Children: mixed"]\')');
-  await observedSourceView('Shifted cue retains the same authoritative Knowledge');
-  const beforeHover=await native({type:'analyze_source',sourceId:id,positionMs:14500});
+  // Observe the UI's actual analysis instead of issuing a competing background
+  // analysis into the deliberately single-guest native execution slot.
+  await script(`const callbacks=window.__TAURI_INTERNALS__.callbacks;
+    const observed={originalSet:callbacks.set};
+    observed.promise=new Promise(resolve=>observed.publish=resolve);
+    const sourceId=arguments[0];
+    window.__m02AnalysisObservation=observed;
+    callbacks.set=function(key,callback){
+      return observed.originalSet.call(this,key,data=>{
+        callback(data);
+        let response;
+        if(typeof data==='string')try{response=JSON.parse(data);}catch{}
+        if(response?.type==='analysis'&&response.batch?.sourceId===sourceId)observed.publish(response);
+      });
+    };return true;`,[id]);
+  let beforeHover;
+  try {
+    await observeSourceView('Math.abs(document.querySelector("video").currentTime-14.5)<0.01&&!document.querySelector(\'[data-testid="dialog-surface"]\')');
+    await click('Go to cue 2 at 0:14');
+    await observedSourceView('Transcript selection must seek the real player using the saved offset');
+    await observeSourceView('!!document.querySelector(\'[aria-label="Children: mixed"]\')');
+    await observedSourceView('Shifted cue retains the same authoritative Knowledge');
+    beforeHover=await rpc('POST',`/session/${session}/execute/async`,{
+      script:'const done=arguments[0];const timer=setTimeout(()=>done({type:"error",message:"No UI analysis completed"}),10000);window.__m02AnalysisObservation.promise.then(value=>{clearTimeout(timer);done(value);});',args:[],
+    });
+  } finally {
+    await script('window.__TAURI_INTERNALS__.callbacks.set=window.__m02AnalysisObservation.originalSet;delete window.__m02AnalysisObservation;return true;');
+  }
   assert.equal(beforeHover.type,'analysis',JSON.stringify(beforeHover));
   assert.ok(beforeHover.batch.knowledge.some(projection=>projection.claim===true));
   const child=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[aria-label="Children: mixed"]'});
