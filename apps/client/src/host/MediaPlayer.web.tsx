@@ -72,7 +72,7 @@ export function MediaPlayer({ uri, initialPositionMs, paused, onProgress, onErro
     onPause={() => progress(true)}
     onEnded={() => progress(true)}
     onError={() => callbacks.current.onError(`This host could not decode the video (media error ${ref.current?.error?.code ?? 'unknown'}). Select a compatible local video; saved progress is preserved.`)}/>
-    <View style={styles.controls} onLayout={event => setControlHeight(event.nativeEvent.layout.height)}>
+    <View testID="media-controls" style={styles.controls} onLayout={event => setControlHeight(event.nativeEvent.layout.height)}>
         <Button label={playback.playing ? 'Ⅱ' : '▶'} accessibilityLabel={playback.playing ? 'Pause' : 'Play'}
             variant="media" size="compact" disabled={!playback.duration}
             onPress={() => {

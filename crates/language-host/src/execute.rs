@@ -218,6 +218,39 @@ impl CompiledPlugin {
         Ok(Active { owner: self.owner, store, instance })
     }
 
+    /// Checks linking, ABI exports and guest initialization before durable activation.
+    /// Uses the single execution slot; successful persistent initialization is reused.
+    ///
+    /// # Errors
+    /// Returns an error for incompatible imports/exports, ABI, limits or initialization.
+    pub fn validate(&self) -> Result<(), String> {
+        let mut slot = ACTIVE
+            .lock()
+            .map_err(|_| "Plugin execution owner was poisoned")?;
+        *slot = None;
+        let active = self.instantiate(Arc::new(AtomicU64::new(0)), 0)?;
+        active
+            .instance
+            .get_memory(&active.store, "memory")
+            .ok_or("Plugin memory export missing")?;
+        active
+            .instance
+            .get_typed_func::<i32, i32>(&active.store, "mlearn_alloc")
+            .map_err(|e| e.to_string())?;
+        active
+            .instance
+            .get_typed_func::<(i32, i32), ()>(&active.store, "mlearn_dealloc")
+            .map_err(|e| e.to_string())?;
+        active
+            .instance
+            .get_typed_func::<(i32, i32), i64>(&active.store, "mlearn_call")
+            .map_err(|e| e.to_string())?;
+        if self.policy == ExecutionPolicy::PersistentV1 {
+            *slot = Some(active);
+        }
+        Ok(())
+    }
+
     pub fn invoke(&self, capability: &str, input: serde_json::Value) -> Result<serde_json::Value, String> {
         self.invoke_cancellable(capability, input, Arc::new(AtomicU64::new(0)), 0)
     }

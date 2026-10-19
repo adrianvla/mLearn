@@ -6,7 +6,7 @@ export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
   busy?: boolean;
   size?: 'default' | 'compact';
-  variant?: 'primary' | 'secondary' | 'media' | 'pill';
+  variant?: 'primary' | 'secondary' | 'quiet' | 'media' | 'pill';
   tone?: 'neutral' | 'positive' | 'negative';
 };
 
@@ -18,7 +18,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, bus
       accessibilityLabel={Platform.OS === 'web' && accessibilityValue?.text ? `${name}: ${accessibilityValue.text}` : name}
       accessibilityValue={Platform.OS === 'web' ? undefined : accessibilityValue}
       accessibilityState={{ ...props.accessibilityState, disabled: blocked, busy }} disabled={blocked}
-      style={[styles.root(variant, size, tone), blocked && styles.disabled]}>
+      style={({ pressed }) => [styles.root(variant, size, tone), pressed && styles.pressed, blocked && styles.disabled]}>
       <Text style={styles.label(variant, size, tone)}>{busy ? `${label}…` : label}</Text>
     </Pressable>
   );

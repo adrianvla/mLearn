@@ -21,7 +21,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, sourceC
         let active = true;
         anchor.measure(value => { if (active) setBounds(value); });
         return () => { active = false; };
-    }, [anchor, width, height, theme.textScale]);
+    }, [anchor, width, height, theme.textScale, theme.spacing.medium]);
     const desktop = Platform.OS === 'web' && width >= 720;
     const panelWidth = Math.min(600, width - 24);
     const above = Math.max(0, bounds.y - 24);
@@ -97,8 +97,8 @@ const styles = StyleSheet.create(theme => ({
             backdropFilter: 'blur(20px)', boxShadow: '0 18px 50px -10px #00000055'
         }
     }, header: {
-        flexDirection: 'row', alignItems: 'flex-start', gap: 8, flexShrink: 0,
-        paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8
+        flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.small, flexShrink: 0,
+        paddingHorizontal: theme.spacing.medium, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.small
     }, heading: {
         flex: 1, minWidth: 0
     }, title: {
@@ -108,11 +108,11 @@ const styles = StyleSheet.create(theme => ({
     }, scroll: {
         flexShrink: 1, minHeight: 0
     }, body: {
-        gap: 12, paddingHorizontal: 16, paddingBottom: 16
+        gap: theme.spacing.compact, paddingHorizontal: theme.spacing.medium, paddingBottom: theme.spacing.medium
     }, footer: {
         flexGrow: 0, flexShrink: 0, borderTopWidth: 1, borderTopColor: theme.media.border,
         backgroundColor: theme.media.footer
     }, footerContent: {
-        padding: 10
+        padding: theme.spacing.compact
     }
 }));

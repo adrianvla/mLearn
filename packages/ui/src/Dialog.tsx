@@ -18,9 +18,11 @@ export function Dialog({ open, onOpenChange, title, description, trigger, childr
           <View style={styles.bounds}>
             <Primitive.Content asChild>
               <View style={[styles.content(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: theme.radius }]} testID="dialog-surface">
-                <Primitive.Title asChild><Text variant="heading">{title}</Text></Primitive.Title>
-                <Primitive.Description asChild><Text muted>{description}</Text></Primitive.Description>
-                <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">{children}</ScrollView>
+                <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+                  <Primitive.Title asChild><Text variant="heading">{title}</Text></Primitive.Title>
+                  <Primitive.Description asChild><Text muted>{description}</Text></Primitive.Description>
+                  {children}
+                </ScrollView>
                 <Primitive.Close asChild><Button label="Close" variant="secondary" /></Primitive.Close>
               </View>
             </Primitive.Content>
@@ -33,12 +35,12 @@ export function Dialog({ open, onOpenChange, title, description, trigger, childr
 const styles = StyleSheet.create((theme) => ({
   // Style the native View itself: RN Primitives adds unstyled DOM wrappers on web.
   // A fixed web overlay must not move when focus scrolls the underlying page.
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 20, backgroundColor: theme.scrim, _web: { position: 'fixed', zIndex: 1000 } },
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.comfortable, backgroundColor: theme.scrim, _web: { position: 'fixed', zIndex: 1000 } },
   bounds: { width: '100%', maxWidth: 640 },
   // Content crosses a third-party asChild/portal boundary. Resolve its palette
   // through useUnistyles so a surface mounted after a theme change cannot keep
   // the initial palette while its child controls use the active theme.
-  content: (height: number) => ({ width: '100%', maxHeight: Math.max(220, height - 40), gap: 16, padding: 24, borderWidth: 1 }),
+  content: (height: number) => ({ width: '100%', maxHeight: Math.max(0, height - 2 * theme.spacing.comfortable), gap: theme.spacing.medium, padding: theme.spacing.large, borderWidth: 1 }),
   scroll: { flexShrink: 1, minHeight: 0 },
-  body: { gap: 16 },
+  body: { gap: theme.spacing.medium },
 }));

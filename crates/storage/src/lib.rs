@@ -71,9 +71,9 @@ impl ProfileStore {
         Ok(next)
     }
 
-    pub fn plugin_manifests(&self) -> Result<Vec<String>, StorageError> {
-        let mut statement = self.connection.prepare("SELECT manifest FROM plugins ORDER BY id")?;
-        Ok(statement.query_map([], |row| row.get(0))?.collect::<Result<Vec<_>, _>>()?)
+    pub fn plugin_manifests(&self) -> Result<Vec<(String, String)>, StorageError> {
+        let mut statement = self.connection.prepare("SELECT id,manifest FROM plugins ORDER BY id")?;
+        Ok(statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?.collect::<Result<Vec<_>, _>>()?)
     }
     pub fn activate_plugin(&mut self, id: &str, manifest: &str) -> Result<(), StorageError> {
         self.connection.execute("INSERT INTO plugins(id,manifest) VALUES (?1,?2) ON CONFLICT(id) DO UPDATE SET manifest=excluded.manifest", params![id, manifest])?;

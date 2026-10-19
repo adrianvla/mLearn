@@ -3,6 +3,333 @@ use ed25519_dalek::{Signer, SigningKey};
 use mlearn_runtime::catalog::{verify_artifact, verify_catalog, Artifact};
 use sha2::{Digest, Sha256};
 
+mod readiness {
+    use super::*;
+    use mlearn_language_host::{AssetMap, CodePolicy, CompiledPlugin};
+    use mlearn_runtime::{
+        Runtime,
+        catalog::{CatalogTrust, Manifest},
+    };
+    use serde_json::{Value, json};
+    use std::{
+        collections::BTreeMap,
+        io::{Read, Write},
+        net::{TcpListener, TcpStream},
+        path::PathBuf,
+        sync::{Arc, Mutex},
+        thread,
+    };
+
+    struct Catalog {
+        address: std::net::SocketAddr,
+        replies: Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
+        server: Option<thread::JoinHandle<()>>,
+    }
+    impl Catalog {
+        fn new() -> Self {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let replies = Arc::new(Mutex::new(BTreeMap::<String, Vec<u8>>::new()));
+            let responses = replies.clone();
+            let server = thread::spawn(move || {
+                for stream in listener.incoming() {
+                    let mut stream = stream.unwrap();
+                    stream
+                        .set_read_timeout(Some(std::time::Duration::from_secs(10)))
+                        .unwrap();
+                    let mut request = Vec::new();
+                    let mut byte = [0];
+                    while !request.ends_with(b"\r\n\r\n") {
+                        assert!(request.len() < 16384);
+                        stream.read_exact(&mut byte).unwrap();
+                        request.push(byte[0]);
+                    }
+                    let request = String::from_utf8(request).unwrap();
+                    let path = request.split_whitespace().nth(1).unwrap();
+                    if path == "/shutdown" {
+                        break;
+                    }
+                    let replies = responses.lock().unwrap();
+                    let body = replies.get(path).unwrap();
+                    write!(
+                        stream,
+                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    )
+                    .unwrap();
+                    stream.write_all(body).unwrap();
+                }
+            });
+            Self {
+                address,
+                replies,
+                server: Some(server),
+            }
+        }
+        fn trust(&self) -> CatalogTrust {
+            CatalogTrust {
+                url: format!("http://{}/catalog.json", self.address),
+                public_key: STANDARD
+                    .encode(SigningKey::from_bytes(&[42; 32]).verifying_key().to_bytes()),
+            }
+        }
+        fn publish(&self, manifest: &Manifest, code: &[u8], assets: &BTreeMap<String, Vec<u8>>) {
+            let payload = serde_json::to_vec(&json!({
+                "schemaVersion":1, "expiresAt":4102444800_u64, "plugins":[manifest],
+            }))
+            .unwrap();
+            let envelope = serde_json::to_vec(&json!({
+                "payload":STANDARD.encode(&payload),
+                "signature":STANDARD.encode(SigningKey::from_bytes(&[42; 32]).sign(&payload).to_bytes()),
+            })).unwrap();
+            let mut replies = self.replies.lock().unwrap();
+            replies.insert("/catalog.json".into(), envelope);
+            replies.insert(format!("/{}", manifest.code.path), code.to_vec());
+            for (key, artifact) in &manifest.assets {
+                replies.insert(format!("/{}", artifact.path), assets[key].clone());
+            }
+        }
+    }
+    impl Drop for Catalog {
+        fn drop(&mut self) {
+            let mut stream = TcpStream::connect(self.address).unwrap();
+            stream
+                .write_all(b"GET /shutdown HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .unwrap();
+            self.server.take().unwrap().join().unwrap();
+        }
+    }
+    fn bundle(id: &str) -> (Manifest, Vec<u8>, BTreeMap<String, Vec<u8>>) {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");
+        let manifests: Vec<Manifest> =
+            serde_json::from_slice(&std::fs::read(root.join("bundle.json")).unwrap()).unwrap();
+        let manifest = manifests.into_iter().find(|m| m.id == id).unwrap();
+        let code = std::fs::read(root.join(&manifest.code.path)).unwrap();
+        let assets = manifest
+            .assets
+            .iter()
+            .map(|(key, artifact)| {
+                (
+                    key.clone(),
+                    std::fs::read(root.join(&artifact.path)).unwrap(),
+                )
+            })
+            .collect();
+        (manifest, code, assets)
+    }
+    fn artifact(bytes: &[u8]) -> Artifact {
+        let digest = format!("{:x}", Sha256::digest(bytes));
+        Artifact {
+            path: format!("objects/{digest}.bin"),
+            sha256: digest,
+            byte_length: bytes.len(),
+        }
+    }
+    fn call(runtime: &mut Runtime, request: Value) -> Value {
+        serde_json::from_str(&runtime.execute(&request.to_string())).unwrap()
+    }
+    fn install(runtime: &mut Runtime, id: &str) -> Value {
+        call(runtime, json!({"type":"install_plugin","pluginId":id}))
+    }
+    fn hello(runtime: &mut Runtime) -> Value {
+        call(
+            runtime,
+            json!({"type":"invoke_plugin","pluginId":"example.hello",
+            "capability":"example::hello","input":{"name":"still installed"}}),
+        )
+    }
+
+    #[test]
+    fn unusable_authenticated_update_preserves_installed_owner_and_restart() {
+        // Given a real SDK hello package installed from a signed loopback catalog.
+        let directory = tempfile::tempdir().unwrap();
+        let catalog = Catalog::new();
+        let (manifest, code, assets) = bundle("example.hello");
+        catalog.publish(&manifest, &code, &assets);
+        let mut runtime = Runtime::open(
+            directory.path(),
+            CodePolicy::DesktopDownloaded,
+            Some(catalog.trust()),
+            vec![],
+        )
+        .unwrap();
+        assert_eq!(install(&mut runtime, &manifest.id)["type"], "installed");
+        let expected = hello(&mut runtime);
+        assert_eq!(expected["output"]["message"], "Hello, still installed!");
+
+        // When authenticated, compilable replacements have unusable ABI/init/resources/schema.
+        let mut missing_call = code.clone();
+        let export = b"mlearn_call";
+        let offset = missing_call
+            .windows(export.len())
+            .position(|w| w == export)
+            .unwrap();
+        missing_call[offset..offset + export.len()].copy_from_slice(b"mlearn_fail");
+        CompiledPlugin::new(&missing_call, AssetMap::new()).unwrap();
+        let mut missing_manifest = manifest.clone();
+        missing_manifest.version = "unusable-export".into();
+        missing_manifest.code = artifact(&missing_call);
+        let mut initialize = manifest.clone();
+        initialize.version = "unusable-initializer".into();
+        initialize.execution = mlearn_language_host::ExecutionPolicy::PersistentV1;
+        initialize.assets.clear();
+        let (mut incompatible, japanese, _) = bundle("org.mlearn.japanese");
+        incompatible.id = manifest.id.clone();
+        incompatible.version = "unusable-resources".into();
+        incompatible.assets = BTreeMap::from([(
+            "sudachi.dic".into(),
+            artifact(b"authenticated but incompatible"),
+        )]);
+        incompatible.resources.retain(|key, _| key == "sudachi.dic");
+        let wrong_assets = BTreeMap::from([(
+            "sudachi.dic".into(),
+            b"authenticated but incompatible".to_vec(),
+        )]);
+        let mut description = manifest.clone();
+        description.version = "unusable-description".into();
+        description.capabilities.push("language.describe.v1".into());
+        let candidates = [
+            (missing_manifest, missing_call, assets.clone()),
+            (initialize, code.clone(), BTreeMap::new()),
+            (incompatible, japanese, wrong_assets),
+            (description, code, assets),
+        ];
+        for (candidate, code, assets) in candidates {
+            catalog.publish(&candidate, &code, &assets);
+            let result = install(&mut runtime, &candidate.id);
+            // Then neither the live owner nor its durable manifest is retired.
+            assert_eq!(
+                hello(&mut runtime),
+                expected,
+                "retired owner for {}: {result}",
+                candidate.version
+            );
+            let stored =
+                mlearn_storage::ProfileStore::open(&directory.path().join("profile.sqlite3"))
+                    .unwrap()
+                    .plugin_manifests()
+                    .unwrap();
+            assert_eq!(
+                stored,
+                vec![(manifest.id.clone(), serde_json::to_string(&manifest).unwrap())],
+                "replaced manifest for {}",
+                candidate.version
+            );
+            assert_eq!(result["type"], "error", "{}: {result}", candidate.version);
+            eprintln!(
+                "READINESS_REJECT {}: {}",
+                candidate.version, result["message"]
+            );
+            drop(runtime);
+            runtime = Runtime::open(
+                directory.path(),
+                CodePolicy::DesktopDownloaded,
+                None,
+                vec![],
+            )
+            .unwrap();
+            assert_eq!(hello(&mut runtime), expected);
+            drop(runtime);
+            runtime = Runtime::open(
+                directory.path(),
+                CodePolicy::DesktopDownloaded,
+                Some(catalog.trust()),
+                vec![],
+            )
+            .unwrap();
+        }
+    }
+
+    #[test]
+    fn same_version_replacement_does_not_reuse_previous_artifact_analysis() {
+        // Given real English Wasm, dictionary, source and cached lexical analysis.
+        let directory = tempfile::tempdir().unwrap();
+        let catalog = Catalog::new();
+        let (mut manifest, code, assets) = bundle("org.mlearn.english");
+        catalog.publish(&manifest, &code, &assets);
+        let mut runtime = Runtime::open(
+            directory.path(),
+            CodePolicy::DesktopDownloaded,
+            Some(catalog.trust()),
+            vec![],
+        )
+        .unwrap();
+        assert_eq!(install(&mut runtime, &manifest.id)["type"], "installed");
+        let video = directory.path().join("fixture.mp4");
+        let subtitles = directory.path().join("fixture.srt");
+        std::fs::write(&video, b"isolated source identity; no playback assertion").unwrap();
+        std::fs::write(
+            &subtitles,
+            "1\n00:00:00,000 --> 00:00:10,000\nChildren walked home.\n",
+        )
+        .unwrap();
+        let opened = call(
+            &mut runtime,
+            json!({"type":"open_source","path":video,"packageId":manifest.id}),
+        );
+        let source = &opened["window"]["source"]["id"];
+        assert!(source.is_string(), "{opened}");
+        assert_eq!(
+            call(
+                &mut runtime,
+                json!({"type":"attach_subtitles","sourceId":source,"path":subtitles})
+            )["type"],
+            "source"
+        );
+        let analyze = json!({"type":"analyze_source","sourceId":source,"positionMs":0});
+        let before = call(&mut runtime, analyze.clone());
+        assert!(
+            !before["batch"]["cues"][0]["tokens"][0]["targets"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(call(&mut runtime, analyze.clone()), before);
+
+        // When a signed same-version module changes its lexical lookup semantics.
+        // Replace only a same-length data string, preserving a real compilable SDK module.
+        let mut replacement = code;
+        let mut replacements = 0;
+        for index in 0..replacement.len() - 6 {
+            if &replacement[index..index + 6] == b"lemma/" {
+                replacement[index..index + 6].copy_from_slice(b"other/");
+                replacements += 1;
+            }
+        }
+        assert!(replacements > 0);
+        manifest.code = artifact(&replacement);
+        catalog.publish(&manifest, &replacement, &assets);
+        assert_eq!(install(&mut runtime, &manifest.id)["type"], "installed");
+        let direct = call(
+            &mut runtime,
+            json!({"type":"invoke_plugin","pluginId":manifest.id,
+            "capability":"text.analyze.v1","input":{"texts":["Children walked home."]}}),
+        );
+        assert!(
+            direct["output"][0][0]["targets"]
+                .as_array()
+                .unwrap()
+                .is_empty(),
+            "{direct}"
+        );
+
+        // Then the existing source uses replacement output, not the prior version-only cache.
+        let after = call(&mut runtime, analyze.clone());
+        assert_eq!(after["type"], "analysis", "{after}");
+        assert_eq!(after["batch"]["cues"][0]["tokens"], direct["output"][0]);
+        assert_ne!(after["batch"]["cues"], before["batch"]["cues"]);
+        drop(runtime);
+        let mut runtime = Runtime::open(
+            directory.path(),
+            CodePolicy::DesktopDownloaded,
+            None,
+            vec![],
+        )
+        .unwrap();
+        assert_eq!(call(&mut runtime, analyze), after);
+    }
+}
+
 #[test]
 fn signature_and_expiry_are_verified_before_accepting_catalog() {
     let key = SigningKey::from_bytes(&[42; 32]); // Test-only key, never trusted by application hosts.

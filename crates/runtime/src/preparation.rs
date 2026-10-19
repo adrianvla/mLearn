@@ -93,7 +93,11 @@ impl Runtime {
                 self.store.activate_plugin(&installed.manifest.id, &serde_json::to_string(&installed.manifest).map_err(|e| Failure::Operation(e.to_string()))?)
                     .map_err(|e| Failure::Operation(e.to_string()))?;
                 let installed = pending.take().ok_or_else(|| Failure::Operation("Installed package already committed".into()))?;
+                self.package_issues.remove(&installed.manifest.id);
                 let retired = self.installed.insert(installed.manifest.id.clone(), installed);
+                // Versions are not artifact identities: an authenticated replacement
+                // may keep its version while changing code or resource semantics.
+                self.analysis_cache.clear();
                 Ok((Response::Installed { plugin }, retired))
             }
             GuestWork::Catalog(_) => {

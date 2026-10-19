@@ -28,6 +28,8 @@ pub struct ThemeDocument {
     pub colors: ThemeColors,
     pub radius: u32,
     pub text_scale: f32,
+    #[serde(default = "default_spacing_scale")]
+    pub spacing_scale: f32,
     #[serde(default)]
     #[cfg_attr(feature = "typescript", ts(type = "Record<string, unknown>"))]
     pub extensions: BTreeMap<String, serde_json::Value>,
@@ -52,11 +54,18 @@ impl ThemeDocument {
         if self.radius > 48 || !self.text_scale.is_finite() || !(0.8..=2.0).contains(&self.text_scale) {
             return Err("Theme radius or text scale is outside the supported range".into());
         }
+        if !self.spacing_scale.is_finite() || !(0.75..=1.5).contains(&self.spacing_scale) {
+            return Err("Theme spacing scale must be between 0.75 and 1.5".into());
+        }
         if serde_json::to_vec(&self.extensions).map_err(|e| e.to_string())?.len() > 16_384 {
             return Err("Theme extensions exceed 16 KiB".into());
         }
         Ok(())
     }
+}
+
+fn default_spacing_scale() -> f32 {
+    1.0
 }
 
 impl Default for ThemeDocument {
@@ -71,6 +80,8 @@ impl Default for ThemeDocument {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct PluginSummary {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     pub version: String,
     pub capabilities: Vec<String>,
 }
@@ -86,6 +97,16 @@ pub struct Snapshot {
     pub catalog_configured: bool,
     pub available_plugins: Vec<PluginSummary>,
     pub installed_plugins: Vec<PluginSummary>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub package_issues: Vec<PackageIssue>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct PackageIssue {
+    pub package_id: String,
+    pub message: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -52,7 +52,7 @@ appId: net.kikan.mlearn.v3dev
 - assertVisible: Play
 - takeScreenshot: native-paused-seek
 - tapOn: Home
-- assertVisible: '20s · org.mlearn.english · subtitles attached'
+- assertVisible: '0:20 · English · Subtitles'
 - stopApp
 - launchApp:
     clearState: false

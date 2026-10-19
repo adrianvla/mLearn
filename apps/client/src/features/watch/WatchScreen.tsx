@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, View, Text as NativeText } from 'react-native';
+import { Platform, ScrollView, View, Text as NativeText } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
@@ -273,7 +273,7 @@ export function WatchScreen() {
     }
     return (
         <View style={styles.screen(insets.top, insets.bottom)}>
-            <View style={[styles.toolbar, { top: insets.top }]} onLayout={event => setToolbarHeight(event.nativeEvent.layout.height)}>
+            <View testID="watch-toolbar" style={[styles.toolbar, { top: insets.top }]} onLayout={event => setToolbarHeight(event.nativeEvent.layout.height)}>
                 <Row>
                     <Button label="← Home" accessibilityLabel="Home" size="compact" variant="media"
                         disabled={busy} onPress={() => void back().catch(() => {})} />
@@ -311,10 +311,12 @@ export function WatchScreen() {
                             setSubtitleInset(value.subtitleBottomInset);
                         }}
                         onProgress={progress} onError={setError} />
-                    <View pointerEvents="box-none" style={[styles.subtitle, {
-                        bottom: subtitleInset + 24,
+                    <View pointerEvents="box-none" style={[styles.subtitle(toolbarHeight, subtitleInset), {
                         opacity: Platform.OS !== 'web' && inspection ? 0 : 1,
                     }]}>
+                      <ScrollView testID="subtitle-window" accessibilityLabel="Subtitles"
+                        style={styles.subtitleScroll} contentContainerStyle={styles.subtitleContent}
+                        keyboardShouldPersistTaps="handled">
                         {cues.map(cue => {
                             const analysis = batch?.subtitleRevision === window.source.subtitleRevision
                                 ? batch.cues.find(a => a.cue.index === cue.index) : null;
@@ -327,6 +329,7 @@ export function WatchScreen() {
                                     }} />
                             );
                         })}
+                      </ScrollView>
                     </View>
                 </View>
                 <View pointerEvents="box-none"
@@ -350,16 +353,22 @@ const styles = StyleSheet.create(theme => ({
     screen: (top: number, bottom: number) => ({
         flex: 1, paddingTop: top, paddingBottom: bottom, backgroundColor: theme.media.background
     }), toolbar: {
-        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, paddingHorizontal: 16, paddingVertical: 8, gap: 8, backgroundColor: theme.media.chrome
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small, backgroundColor: theme.media.chrome
     }, title: {
         flex: 1, flexBasis: 120, minWidth: 0, color: theme.media.text, fontSize: 13 * theme.textScale
     }, stage: {
         flex: 1, minHeight: 240, backgroundColor: theme.media.background
-    }, subtitle: {
-        position: 'absolute', left: 20, right: 20, bottom: 64, alignItems: 'center'
+    }, subtitle: (toolbarHeight: number, controlsHeight: number) => ({
+        position: 'absolute', left: theme.spacing.comfortable, right: theme.spacing.comfortable,
+        top: toolbarHeight + theme.spacing.small, bottom: controlsHeight + theme.spacing.large,
+        alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden'
+    }), subtitleScroll: {
+        width: '100%', maxHeight: '100%', flexGrow: 0, flexShrink: 1
+    }, subtitleContent: {
+        alignItems: 'center', gap: theme.spacing.small
     }, status: {
-        position: 'absolute', top: 80, left: 16, right: 16, gap: 8
+        position: 'absolute', top: 80, left: theme.spacing.medium, right: theme.spacing.medium, gap: theme.spacing.small
     }, feedback: {
-        padding: 12, borderRadius: theme.radius, backgroundColor: theme.media.chrome
+        padding: theme.spacing.compact, borderRadius: theme.radius, backgroundColor: theme.media.chrome
     }
 }));

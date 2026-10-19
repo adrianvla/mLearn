@@ -59,6 +59,7 @@ async function launch() {
   session = result.sessionId;
   assert.ok(session, 'WebDriver session missing');
   await click('Settings');
+  await click('Runtime');
   await text('Tauri desktop');
 }
 async function screenshot(name) {
@@ -68,8 +69,8 @@ async function screenshot(name) {
 async function styleState() {
   return script(`
     const heading = Array.from(document.querySelectorAll('h1,h2,h3,[role="heading"],[role="header"]'))
-      .find(node => node.textContent === 'One app. Native at the core.');
-    const button = document.querySelector('[aria-label="Reload native state"]');
+      .find(node => node.textContent === 'Settings');
+    const button = document.querySelector('[aria-label="Home"]');
     const computed = heading && getComputedStyle(heading);
     return {
       heading: heading ? { fontSize: computed.fontSize, color: computed.color } : null,
@@ -87,7 +88,7 @@ async function styleState() {
 async function assertPluginFeedbackNearAction(expected) {
   const geometry = await script(`
     const heading = Array.from(document.querySelectorAll('h1,h2,h3,[role="heading"],[role="header"]'))
-      .find(node => node.textContent === 'Hello, plugin');
+      .find(node => node.textContent === 'SDK example');
     const panel = heading?.parentElement;
     const message = document.querySelector('[data-testid="runtime-message"]');
     const button = document.querySelector('[aria-label="Run hello"]');
@@ -123,14 +124,17 @@ try {
   await text('Hello, world!');
   await assertPluginFeedbackNearAction('Hello, world!');
   await screenshot('hello-result-beside-action');
+  await click('Appearance');
   await click('Slate');
   await text('Theme saved by Rust');
   await assertStyled('slate', 'rgb(237, 240, 245)');
   await screenshot('downloaded-plugin-and-saved-theme');
   await rpc('DELETE', `/session/${session}`); session = undefined;
   await launch();
+  await click('Appearance');
   await text('Current: Slate.');
   await assertStyled('restarted-slate', 'rgb(237, 240, 245)');
+  await click('Runtime');
   await click('Run hello');
   await text('Hello, world!');
   await screenshot('persisted-after-native-restart');
@@ -283,6 +287,9 @@ try {
    const panel=document.querySelector('[data-testid="inspector-panel"]');
    const body=panel.querySelector('[data-testid="inspector-body"]');
    const footer=panel.querySelector('[data-testid="inspector-footer"]');
+   const subtitles=document.querySelector('[data-testid="subtitle-window"]');
+   const toolbar=document.querySelector('[data-testid="watch-toolbar"]');
+   const controls=document.querySelector('[data-testid="media-controls"]');
    let settled=false,last;
    const finish=pass=>{
     if(settled)return;settled=true;
@@ -292,10 +299,11 @@ try {
     if(innerWidth>420||innerHeight>560)return;
     const p=panel.getBoundingClientRect(),b=body.getBoundingClientRect(),f=footer.getBoundingClientRect();
     const lineHeight=Math.max(44,...Array.from(body.querySelectorAll('*'),node=>parseFloat(getComputedStyle(node).lineHeight)).filter(Number.isFinite));
-    last={panel:p.toJSON(),body:b.toJSON(),footer:f.toJSON(),lineHeight,width:innerWidth,height:innerHeight};
-    if(b.height>=lineHeight&&p.top>=0&&p.bottom<=innerHeight&&f.top>=b.bottom&&f.bottom<=p.bottom)finish(true);
+    const s=subtitles.getBoundingClientRect(),t=toolbar.getBoundingClientRect(),c=controls.getBoundingClientRect();
+    last={panel:p.toJSON(),body:b.toJSON(),footer:f.toJSON(),subtitles:s.toJSON(),toolbar:t.toJSON(),controls:c.toJSON(),lineHeight,width:innerWidth,height:innerHeight};
+    if(b.height>=lineHeight&&p.top>=0&&p.bottom<=innerHeight&&f.top>=b.bottom&&f.bottom<=p.bottom&&s.height>0&&s.top>=t.bottom&&s.bottom<=c.top)finish(true);
    };
-   const resize=new ResizeObserver(check);[panel,body,footer].forEach(node=>resize.observe(node));
+   const resize=new ResizeObserver(check);[panel,body,footer,subtitles,toolbar,controls].forEach(node=>resize.observe(node));
    const mutation=new MutationObserver(check);mutation.observe(panel,{subtree:true,attributes:true,childList:true});
    const timer=setTimeout(()=>finish(false),5000);
    addEventListener('resize',check);check();
@@ -313,8 +321,48 @@ try {
   assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'home: untracked');
   await screenshot('watch-inspector-claim-projection');
   await click('Home');
+  await click('Settings');
+  // Observe before opening/resizing: AX/DOM presence alone missed a clipped form.
+  await script(`window.__overnightDialogCheck=new Promise(resolve=>{
+   let settled=false,last;
+   const finish=pass=>{
+    if(settled)return;settled=true;
+    resize.disconnect();mutation.disconnect();removeEventListener('resize',check);clearTimeout(timer);
+    resolve({pass,...last});
+   };
+   const visible=element=>{
+    element.scrollIntoView({block:'center'});
+    const r=element.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
+    return r.width>0&&r.height>0&&!!hit&&(hit===element||element.contains(hit));
+   };
+   const check=()=>{
+    if(settled||innerWidth>420||innerHeight>560)return;
+    const dialog=document.querySelector('[role="dialog"]');
+    const panel=dialog?.querySelector('[data-testid="dialog-surface"]');
+    const editor=dialog?.querySelector('textarea'),save=dialog?.querySelector('[aria-label="Save custom theme"]');
+    if(!panel||!editor||!save)return;
+    const bounds=panel.getBoundingClientRect();
+    last={bounds:bounds.toJSON(),width:innerWidth,height:innerHeight,editor:visible(editor),save:visible(save)};
+    if(last.editor&&last.save&&bounds.top>=0&&bounds.bottom<=innerHeight)finish(true);
+   };
+   const resize=new ResizeObserver(check);resize.observe(document.body);
+   const mutation=new MutationObserver(check);mutation.observe(document.body,{subtree:true,attributes:true,childList:true});
+   const timer=setTimeout(()=>finish(false),5000);
+   addEventListener('resize',check);check();
+  });`);
+  await click('Edit theme JSON');
+  try {
+   await rpc('POST',windowPath,{...originalRect,width:420,height:560});
+   const visibility=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0],pending=window.__overnightDialogCheck;delete window.__overnightDialogCheck;pending.then(done);',args:[]});
+   await screenshot('dialog-minimum-2x-controls');
+   assert.equal(visibility.pass,true,JSON.stringify(visibility));
+  } finally {
+   try { await click('Close'); }
+   finally { await rpc('POST',windowPath,originalRect); }
+  }
+  await click('Home');
   await restoreTheme();
-  await click('Settings');await click('Reload native state');await click('Home');
+   await click('Settings');await click('Runtime');await click('Reload native state');await click('Home');
   const saved=(await native({type:'recent_sources'})).sources.find(source=>source.id===id);
   assert.ok(Math.abs(saved.positionMs-20000)<500);assert.equal(saved.subtitleRevision,attached.window.source.subtitleRevision);assert.equal(saved.packageId,'org.mlearn.english');
   await rpc('DELETE', `/session/${session}`);session=undefined;

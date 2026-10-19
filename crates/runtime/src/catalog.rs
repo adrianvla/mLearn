@@ -17,6 +17,8 @@ pub struct Artifact { pub path: String, pub sha256: String, pub byte_length: usi
 #[serde(rename_all = "camelCase")]
 pub struct Manifest {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     pub version: String,
     pub abi_version: u32,
     pub capabilities: Vec<String>,
@@ -35,6 +37,9 @@ impl Manifest {
     }
     pub fn validate(&self) -> Result<(), String> {
         if self.id.is_empty() || self.id.len() > 128 || !self.id.bytes().all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b)) { return Err("Invalid plugin package id".into()); }
+        if self.display_name.as_ref().is_some_and(|name| name.trim().is_empty() || name.len() > 256 || name.chars().any(char::is_control)) {
+            return Err("Invalid package display name".into());
+        }
         if self.version.is_empty() || self.version.len() > 128 || self.abi_version != 1 { return Err("Unsupported plugin version/ABI".into()); }
         if self.capabilities.is_empty() || self.capabilities.len() > 64 || self.capabilities.iter().any(|v| v.is_empty() || v.len() > 256) { return Err("Invalid capability declarations".into()); }
         if self.assets.len() > 32 || self.resources.len() > 8 || self.resources.keys().any(|k| !self.assets.contains_key(k)) { return Err("Invalid resource declarations".into()); }

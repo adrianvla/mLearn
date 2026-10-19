@@ -10,7 +10,7 @@ name: Watch Inspector Knowledge and native source resume
     # Android labels can report enabled before their disabled parent is ready.
     # Package selection also settles the bootstrap layout before the Open tap.
     visible:
-      text: org.mlearn.english
+      id: language-org.mlearn.english
       selected: true
     timeout: 60000
 - extendedWaitUntil:
@@ -19,7 +19,9 @@ name: Watch Inspector Knowledge and native source resume
       text: Open local video
       enabled: true
     timeout: 60000
-- assertNotVisible: Get language packages
+- tapOn: Get language packages
+- assertNotVisible: Check for packages
+- tapOn: Home
 - runFlow:
     when:
       platform: Android

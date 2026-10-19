@@ -12,6 +12,6 @@ export function TextField({ label, multiline = false, ...props }: Props) {
   return <View style={styles.field}><Text nativeID={id} variant="caption">{label}</Text><TextInput {...props} multiline={multiline} inputAccessoryViewID={Platform.OS === 'ios' ? accessory : undefined} accessibilityLabel={label} accessibilityLabelledBy={id} style={styles.input(multiline)} /><TextFieldAccessory nativeID={accessory} /></View>;
 }
 const styles = StyleSheet.create((theme) => ({
-  field: { gap: 6, minWidth: 0 },
-  input: (multiline: boolean) => ({ minHeight: multiline ? 180 : 44, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius, color: theme.colors.text, backgroundColor: theme.colors.background, padding: 12, fontSize: 16 * theme.textScale, textAlignVertical: 'top' }),
+  field: { gap: theme.spacing.small, minWidth: 0 },
+  input: (multiline: boolean) => ({ minHeight: multiline ? 180 : 44, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius, color: theme.colors.text, backgroundColor: theme.colors.background, padding: theme.spacing.compact, fontFamily: theme.typography.family, fontSize: theme.typography.body * theme.textScale, textAlignVertical: 'top' }),
 }));

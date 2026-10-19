@@ -39,6 +39,109 @@ fn malformed_binary_is_rejected_before_instantiation() {
 }
 
 #[test]
+fn admission_rejects_compilable_but_unusable_abi_and_initialization() {
+    use mlearn_language_host::{ExecutionPolicy, Resources};
+    // Given compilable modules with distinct linking, start, ABI and export failures.
+    let module = r#"(module
+        (memory (export "memory") 1)
+        (func (export "mlearn_abi_version") (result i32) i32.const 1)
+        (func (export "mlearn_alloc") (param i32) (result i32) i32.const 64)
+        (func (export "mlearn_dealloc") (param i32 i32))
+        (func (export "mlearn_call") (param i32 i32) (result i64) unreachable)
+    )"#;
+    let cases = [
+        (
+            "ABI",
+            module.replace("i32.const 1)", "i32.const 2)"),
+            ExecutionPolicy::Fresh,
+        ),
+        (
+            "memory",
+            module.replace("(export \"memory\")", ""),
+            ExecutionPolicy::Fresh,
+        ),
+        (
+            "allocation",
+            module.replace("(param i32) (result i32)", "(param i64) (result i32)"),
+            ExecutionPolicy::Fresh,
+        ),
+        (
+            "deallocation",
+            module.replace("mlearn_dealloc", "missing_free"),
+            ExecutionPolicy::Fresh,
+        ),
+        (
+            "call",
+            module.replace("mlearn_call", "missing_call"),
+            ExecutionPolicy::Fresh,
+        ),
+        (
+            "imports",
+            module.replacen(
+                "(module",
+                "(module (import \"unavailable\" \"function\" (func))",
+                1,
+            ),
+            ExecutionPolicy::Fresh,
+        ),
+        (
+            "start",
+            module.replacen(
+                "(module",
+                "(module (func $start unreachable) (start $start)",
+                1,
+            ),
+            ExecutionPolicy::Fresh,
+        ),
+        (
+            "missing initialization",
+            module.to_owned(),
+            ExecutionPolicy::PersistentV1,
+        ),
+        (
+            "rejected initialization",
+            module.replacen(
+                "(module",
+                "(module (func (export \"mlearn_initialize\") (result i32) i32.const 1)",
+                1,
+            ),
+            ExecutionPolicy::PersistentV1,
+        ),
+        (
+            "trapped initialization",
+            module.replacen(
+                "(module",
+                "(module (func (export \"mlearn_initialize\") (result i32) unreachable)",
+                1,
+            ),
+            ExecutionPolicy::PersistentV1,
+        ),
+    ];
+    for (name, source, policy) in cases {
+        let code = wat::parse_str(source).unwrap();
+        let plugin = CompiledPlugin::with_verified_resources(
+            &code,
+            AssetMap::new(),
+            Resources::new(),
+            policy,
+        )
+        .unwrap();
+        // When admission checks the real module before any durable installation.
+        let result = plugin.validate();
+        // Then every unusable contract is rejected without inventing a capability call.
+        assert!(result.is_err(), "{name} was admitted");
+    }
+    // A valid ABI is admissible even though an arbitrary capability call traps.
+    let plugin = CompiledPlugin::new(&wat::parse_str(module).unwrap(), AssetMap::new()).unwrap();
+    plugin.validate().unwrap();
+    assert!(
+        plugin
+            .invoke("not-an-admission-probe", Value::Null)
+            .is_err()
+    );
+}
+
+#[test]
 fn real_sdk_module_runs_with_downloadable_asset() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let path = std::env::var_os("MLEARN_TEST_PLUGIN").map(std::path::PathBuf::from)
@@ -46,6 +149,7 @@ fn real_sdk_module_runs_with_downloadable_asset() {
     let code = std::fs::read(path).expect("Run npm run build:plugin before the native integration tests");
     let assets = [("greeting.json".into(), std::sync::Arc::<[u8]>::from(&b"{\"prefix\":\"Hello, \"}"[..]))].into_iter().collect();
     let plugin = CompiledPlugin::new(&code, assets).unwrap();
+    plugin.validate().unwrap();
     assert_eq!(plugin.invoke("example::hello", serde_json::json!({"name":"Adrian"})).unwrap()["message"], "Hello, Adrian!");
     assert_eq!(plugin.invoke("example::hello", serde_json::json!({"name":"アドリアン"})).unwrap()["message"], "Hello, アドリアン!");
     assert!(plugin.invoke("example::hello", serde_json::json!({"name":""})).is_err());

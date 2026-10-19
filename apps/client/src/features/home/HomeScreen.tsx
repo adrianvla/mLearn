@@ -1,9 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Screen, Stack, Row } from '@mlearn/ui/layout';
+import { View } from 'react-native';
+import { StyleSheet } from 'react-native-unistyles';
+import { Screen, Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
-import type { SourceRecord, PluginSummary, Snapshot } from '@mlearn/contracts';
+import type { SourceRecord, Snapshot } from '@mlearn/contracts';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 export function HomeScreen() {
     const busyRef = useRef(false);
@@ -13,7 +15,6 @@ export function HomeScreen() {
     const [sources, setSources] = useState<SourceRecord[]>([]);
     const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
     const [selected, setSelected] = useState('');
-    const [catalog, setCatalog] = useState<PluginSummary[]>([]);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     async function refresh() {
@@ -113,66 +114,60 @@ export function HomeScreen() {
             setOpening(false);
         }
     }
+    const languages = snapshot?.installedPlugins.filter(p => p.capabilities.includes('text.analyze.v1')) ?? [];
     return <Screen>
-    <Row>
-    <Text variant="heading">mLearn</Text>
-    <Button
-        label="Settings"
-        variant="secondary"
-        onPress={() => router.push('/settings')}/></Row>
-  {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : <>
-   <Text variant="heading">Watch</Text>
-    <Row>{snapshot?.installedPlugins.filter(p => p.capabilities.includes('text.analyze.v1')).map(p => <Button
-          key={p.id}
-          label={p.id}
-          accessibilityState={{
-            selected: selected === p.id
-        }}
-          variant={selected === p.id ? 'primary' : 'secondary'}
-          disabled={busy}
-          onPress={() => setSelected(p.id)}/>)}</Row>
-   <Button
-        label="Open local video"
-        disabled={busy || !selected}
-        busy={busy}
-        onPress={() => void action(open)}/>
-   {opening ? <Button
-        label="Cancel opening"
-        variant="secondary"
-        onPress={() => {
-                    if (host.available)
-                        void host.client.cancelSourceOpen().catch(e => setError(e.message));
-                }}/> : null}
-   {!selected ? <Text>Install a language package before opening a source.</Text> : null}
-   {snapshot?.catalogConfigured ? <>
-    <Button
-          label="Get language packages"
-          disabled={busy}
-          onPress={() => void action(async () => setCatalog((await host.client.availablePackages()).filter(p => p.capabilities.includes('text.analyze.v1'))))}/>{catalog.map(p => <Button
-          key={p.id}
-          label={`Install ${p.id}`}
-          disabled={busy}
-          onPress={() => void action(async () => { await host.client.installPlugin(p.id); await refresh(); })}/>)}</> : null}
-   {error ? <>
-    <Text accessibilityRole="alert">{error}</Text>
-    <Button
-          label="Retry sources"
-          variant="secondary"
-          disabled={busy}
-          onPress={() => void action(refresh)}/></> : null}
-   <Text variant="heading">Recent sources</Text>{sources.length ? sources.map(source => <Stack key={source.id}>
-    <Button
-          label={`Resume ${source.title}`}
-          variant="secondary"
-          disabled={busy}
-          onPress={() => router.push({
-            pathname: '/watch', params: {
-                id: source.id
-            }
-        })}/>
-    <Text
-            muted
-            variant="caption">{Math.floor(source.positionMs / 1000)}s · {source.packageId}{source.subtitlePath ? ' · subtitles attached' : ''}</Text></Stack>) : <Text muted>No recent sources.</Text>}
-  </>}
- </Screen>;
+      <View style={styles.header}>
+        <Text variant="heading" accessibilityRole="header">Home</Text>
+        <Button label="Settings" variant="quiet" onPress={() => router.push('/settings')} />
+      </View>
+      {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : <>
+        {snapshot?.packageIssues?.length ? <Text accessibilityRole="alert">Some language packages are unavailable. Open Settings to repair them; other installed packages remain usable.</Text> : null}
+        <View style={styles.entry}>
+          <Text variant="section" accessibilityRole="header">Watch</Text>
+          <Text variant="caption" muted>Source language</Text>
+          <Row>{languages.map(p => <Button key={p.id}
+            testID={`language-${p.id}`}
+            label={`${selected === p.id ? '✓ ' : ''}${p.displayName ?? p.id}`}
+            accessibilityLabel={p.displayName ?? p.id}
+            accessibilityState={{ selected: selected === p.id }}
+            variant="secondary" disabled={busy} onPress={() => setSelected(p.id)} />)}</Row>
+          <Row>
+            <Button label="Open local video" disabled={busy || !selected} busy={busy} onPress={() => void action(open)} />
+            <Button label="Get language packages" variant="quiet"
+              onPress={() => router.push({ pathname: '/settings', params: { section: 'languages' } })} />
+            {opening ? <Button label="Cancel opening" variant="secondary" onPress={() => {
+              if (host.available) void host.client.cancelSourceOpen().catch(e => setError(e.message));
+            }} /> : null}
+          </Row>
+          {!selected ? <Text muted>Install a language package before opening a source.</Text> : null}
+          {error ? <>
+            <Text accessibilityRole="alert">{error}</Text>
+            <Row><Button label="Retry sources" variant="secondary" disabled={busy} onPress={() => void action(refresh)} /></Row>
+          </> : null}
+        </View>
+        <View style={styles.recents}>
+          <Text variant="section" accessibilityRole="header">Recent sources</Text>
+          {sources.length ? sources.map(source => {
+            const language = languages.find(p => p.id === source.packageId);
+            const seconds = Math.floor(source.positionMs / 1000);
+            return <View key={source.id} style={styles.sourceRow}>
+              <View style={styles.sourceText}>
+                <Text selectable numberOfLines={2}>{source.title}</Text>
+                <Text muted variant="caption">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')} · {language ? language.displayName ?? 'Language name unavailable' : 'Language package unavailable'}{source.subtitlePath ? ' · Subtitles' : ''}</Text>
+              </View>
+              <Button label="Resume" accessibilityLabel={`Resume ${source.title}`} variant="secondary" disabled={busy}
+                onPress={() => router.push({ pathname: '/watch', params: { id: source.id } })} />
+            </View>;
+          }) : <Text muted>No recent sources. Open a local video to begin.</Text>}
+        </View>
+      </>}
+    </Screen>;
 }
+
+const styles = StyleSheet.create(theme => ({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.medium },
+  entry: { gap: theme.spacing.compact, paddingVertical: theme.spacing.medium },
+  recents: { gap: theme.spacing.small },
+  sourceRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.medium, paddingVertical: theme.spacing.medium, borderBottomWidth: 1, borderColor: theme.colors.border },
+  sourceText: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
+}));

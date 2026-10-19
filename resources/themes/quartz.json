@@ -13,5 +13,6 @@
   },
   "radius": 12,
   "textScale": 1,
+  "spacingScale": 1,
   "extensions": {}
 }

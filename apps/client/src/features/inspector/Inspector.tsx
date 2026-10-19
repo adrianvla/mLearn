@@ -171,16 +171,16 @@ const styles = StyleSheet.create(theme => ({
         fontSize: theme.typography.inspectionBody * theme.textScale, lineHeight: 28 * theme.textScale
     }, readingPill: {
         borderRadius: theme.radius, backgroundColor: theme.pills.neutral.surface,
-        paddingVertical: 6, paddingHorizontal: 12
+        paddingVertical: theme.spacing.small, paddingHorizontal: theme.spacing.compact
     }, reading: {
         color: theme.pills.neutral.text, fontFamily: theme.typography.family,
         fontSize: theme.typography.inspectionReading * theme.textScale, lineHeight: 26 * theme.textScale
     }, dictionary: {
-        borderTopWidth: 1, borderTopColor: theme.media.border, paddingTop: 12, gap: 10
+        borderTopWidth: 1, borderTopColor: theme.media.border, paddingTop: theme.spacing.compact, gap: theme.spacing.small
     }, sense: {
-        gap: 6
+        gap: theme.spacing.small
     }, definitionRow: {
-        flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingLeft: 12
+        flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.small, paddingLeft: theme.spacing.compact
     }, definitionText: {
         flex: 1, minWidth: 0
     }, partOfSpeech: {
@@ -196,7 +196,7 @@ const styles = StyleSheet.create(theme => ({
     }, pills: {
         flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small
     }, adjustment: {
-        gap: 8, paddingBottom: 10, marginBottom: 10,
+        gap: theme.spacing.small, paddingBottom: theme.spacing.compact, marginBottom: theme.spacing.compact,
         borderBottomWidth: 1, borderBottomColor: theme.media.border
     }
 }));

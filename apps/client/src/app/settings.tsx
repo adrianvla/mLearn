@@ -1,1 +1,1 @@
-export {WelcomeScreen as default} from '../features/welcome';
+export {SettingsScreen as default} from '../features/settings';

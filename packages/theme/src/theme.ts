@@ -21,6 +21,10 @@ export function resolveTheme(document: ThemeDocument) {
     },
     typography: {
       family: 'Helvetica Neue',
+      heading: 28,
+      section: 20,
+      body: 16,
+      caption: 14,
       inspectionTitle: 32,
       inspectionBody: 20,
       inspectionReading: 18,
@@ -32,7 +36,15 @@ export function resolveTheme(document: ThemeDocument) {
     },
     radius: document.radius,
     textScale: document.textScale,
-    spacing: { small: 8, medium: 16, large: 24 },
+    spacing: {
+      tiny: 4 * document.spacingScale,
+      small: 8 * document.spacingScale,
+      compact: 12 * document.spacingScale,
+      medium: 16 * document.spacingScale,
+      comfortable: 20 * document.spacingScale,
+      large: 24 * document.spacingScale,
+      section: 32 * document.spacingScale,
+    },
     scrim: '#00000066',
   };
 }
@@ -51,6 +63,8 @@ export function parseThemePreview(source: string): ThemeDocument {
     if (typeof colors[key] !== 'string' || !/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(colors[key])) throw new Error(`Invalid color: ${key}`);
   }
   if (typeof data.radius !== 'number' || !Number.isInteger(data.radius) || data.radius < 0 || data.radius > 48 || typeof data.textScale !== 'number' || data.textScale < 0.8 || data.textScale > 2) throw new Error('Unsupported radius or text scale.');
+  if (data.spacingScale === undefined) data.spacingScale = 1;
+  if (typeof data.spacingScale !== 'number' || !Number.isFinite(data.spacingScale) || data.spacingScale < 0.75 || data.spacingScale > 1.5) throw new Error('Theme spacing scale must be between 0.75 and 1.5.');
   if (data.extensions === undefined) data.extensions = {};
   if (!data.extensions || typeof data.extensions !== 'object' || Array.isArray(data.extensions)) throw new Error('Theme extensions must be an object.');
   return data as unknown as ThemeDocument;

@@ -6,6 +6,7 @@ name: Native foundation persists Rust state across process restart
 - launchApp:
     clearState: true
 - tapOn: 'Settings'
+- tapOn: 'Runtime'
 - extendedWaitUntil:
     visible: 'Plugin code: mobile-bundled'
     timeout: 60000
@@ -21,6 +22,7 @@ name: Native foundation persists Rust state across process restart
     direction: DOWN
 - assertVisible: 'Hello, world!'
 - takeScreenshot: bundled-plugin-result
+- tapOn: 'Appearance'
 - scrollUntilVisible:
     element: 'Slate'
     direction: DOWN
@@ -36,17 +38,19 @@ name: Native foundation persists Rust state across process restart
 - assertVisible: 'Theme saved by Rust · revision [1-9][0-9]*'
 - takeScreenshot: saved-slate
 - scrollUntilVisible:
-    element: 'One app\. Native at the core\.'
+    element: 'Settings'
     direction: UP
 - takeScreenshot: slate-before-restart
 - stopApp
 - launchApp:
     clearState: false
 - tapOn: 'Settings'
+- tapOn: 'Runtime'
 - extendedWaitUntil:
     visible: 'Plugin code: mobile-bundled'
     timeout: 60000
 - takeScreenshot: slate-after-restart
+- tapOn: 'Appearance'
 - scrollUntilVisible:
     element: 'Slate'
     direction: DOWN
@@ -105,9 +109,13 @@ name: Native foundation persists Rust state across process restart
 - assertVisible: 'Theme name must contain.*'
 - assertVisible: 'Custom theme'
 - takeScreenshot: rejected-native-theme
+- assertVisible:
+    id: dialog-surface
 - tapOn: 'Close'
-- assertNotVisible: 'Custom theme'
+- assertNotVisible:
+    id: dialog-surface
 - assertVisible: 'Current: Slate\. Saved in the native SQLite profile\.'
+- tapOn: 'Runtime'
 - scrollUntilVisible:
     element: 'world'
     direction: UP

@@ -1,4 +1,9 @@
-use crate::{Installed, catalog::{self, Artifact, CatalogClient, Manifest}};
+use crate::{
+    Installed,
+    catalog::{self, Artifact, CatalogClient, Manifest},
+    execution::Cancellation,
+    guest::{LanguageAction, LanguageWork},
+};
 use mlearn_language_host::{AssetMap, CompiledPlugin, Resource, Resources};
 use std::{path::Path, sync::Arc};
 
@@ -52,6 +57,22 @@ pub(super) fn install(root: &Path, catalog: &CatalogClient, id: &str) -> Result<
         temporary.persist(directory.join(&artifact.sha256)).map_err(|e| e.to_string())?;
     }
     let compiled = Arc::new(compile(root, &manifest, &code)?);
-    write_blob(root, &manifest.code, &code)?;
-    Ok(Installed { manifest, compiled })
+    compiled.validate()?;
+    let installed = Installed { manifest, compiled };
+    if installed
+        .manifest
+        .capabilities
+        .iter()
+        .any(|c| c == "language.describe.v1")
+    {
+        LanguageWork {
+            package: installed.clone(),
+            cancellation: Cancellation::durable(),
+            action: LanguageAction::Describe,
+        }
+        .description()
+        .map_err(|e| e.to_string())?;
+    }
+    write_blob(root, &installed.manifest.code, &code)?;
+    Ok(installed)
 }

@@ -7,7 +7,7 @@ mod watch;
 pub mod catalog;
 pub use execution::RuntimeExecutor;
 use catalog::{CatalogClient, CatalogTrust, Manifest, verify_artifact};
-use mlearn_core::{PluginSummary, Request, Response, Snapshot, PROTOCOL_VERSION};
+use mlearn_core::{PackageIssue, PluginSummary, Request, Response, Snapshot, PROTOCOL_VERSION};
 use mlearn_language_host::{CodeOrigin, CodePolicy, CompiledPlugin};
 use mlearn_storage::{ProfileStore, StorageError};
 use std::{collections::BTreeMap, path::{Path, PathBuf}, sync::Arc};
@@ -28,10 +28,11 @@ pub struct Runtime {
     policy: CodePolicy,
     catalog: Option<Arc<CatalogClient>>,
     installed: BTreeMap<String, Installed>,
+    package_issues: BTreeMap<String, String>,
     analysis_cache: std::collections::VecDeque<(String, Vec<mlearn_core::CueAnalysis>)>,
 }
 fn summary(manifest: &Manifest) -> PluginSummary {
-    PluginSummary { id: manifest.id.clone(), version: manifest.version.clone(), capabilities: manifest.capabilities.clone() }
+    PluginSummary { id: manifest.id.clone(), display_name: manifest.display_name.clone(), version: manifest.version.clone(), capabilities: manifest.capabilities.clone() }
 }
 impl Runtime {
     pub fn open(root: &Path, policy: CodePolicy, trust: Option<CatalogTrust>, bundled: Vec<BundledPlugin>) -> Result<Self, String> {
@@ -40,25 +41,43 @@ impl Runtime {
         std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
         let store = ProfileStore::open(&root.join("profile.sqlite3")).map_err(|e| e.to_string())?;
         let catalog = trust.map(CatalogClient::new).transpose()?.map(Arc::new);
-        let mut runtime = Self { store, cancellation: Arc::new(std::sync::atomic::AtomicU64::new(0)), root: root.into(), policy, catalog, installed: BTreeMap::new(), analysis_cache: std::collections::VecDeque::new() };
+        let mut runtime = Self { store, cancellation: Arc::new(std::sync::atomic::AtomicU64::new(0)), root: root.into(), policy, catalog, installed: BTreeMap::new(), package_issues: BTreeMap::new(), analysis_cache: std::collections::VecDeque::new() };
         if policy == CodePolicy::DesktopDownloaded {
-            for stored in runtime.store.plugin_manifests().map_err(|e| e.to_string())? {
-                let manifest: Manifest = serde_json::from_str(&stored).map_err(|e| e.to_string())?;
-                manifest.validate()?;
-                let code = packages::read_blob(root, &manifest.code)?;
-                let compiled = Arc::new(packages::compile(root, &manifest, &code)?);
-                runtime.installed.insert(manifest.id.clone(), Installed { manifest, compiled });
+            for (id, stored) in runtime.store.plugin_manifests().map_err(|e| e.to_string())? {
+                let restored = (|| -> Result<Installed, String> {
+                    let manifest: Manifest = serde_json::from_str(&stored).map_err(|e| e.to_string())?;
+                    manifest.validate()?;
+                    if manifest.id != id {
+                        return Err("Stored package identity does not match its manifest".into());
+                    }
+                    let code = packages::read_blob(root, &manifest.code)?;
+                    let compiled = Arc::new(packages::compile(root, &manifest, &code)?);
+                    Ok(Installed { manifest, compiled })
+                })();
+                match restored {
+                    Ok(installed) => { runtime.installed.insert(id, installed); }
+                    Err(message) => { runtime.package_issues.insert(id, message); }
+                }
             }
         }
+        let mut bundled_ids = std::collections::BTreeSet::new();
         for plugin in bundled {
-            plugin.manifest.validate()?;
-            verify_artifact(&plugin.manifest.code, &plugin.code)?;
-            for (key, artifact) in &plugin.manifest.assets {
-                let bytes = plugin.assets.get(key).ok_or("Bundled asset missing")?;
-                packages::write_blob(root, artifact, bytes)?;
+            let id = plugin.manifest.id.clone();
+            if !bundled_ids.insert(id.clone()) { return Err("Duplicate bundled plugin id".into()); }
+            let restored = (|| -> Result<Installed, String> {
+                plugin.manifest.validate()?;
+                verify_artifact(&plugin.manifest.code, &plugin.code)?;
+                for (key, artifact) in &plugin.manifest.assets {
+                    let bytes = plugin.assets.get(key).ok_or("Bundled asset missing")?;
+                    packages::write_blob(root, artifact, bytes)?;
+                }
+                let compiled = Arc::new(packages::compile(root, &plugin.manifest, &plugin.code)?);
+                Ok(Installed { manifest: plugin.manifest, compiled })
+            })();
+            match restored {
+                Ok(installed) => { runtime.installed.insert(id, installed); }
+                Err(message) => { runtime.package_issues.insert(id, message); }
             }
-            let compiled = Arc::new(packages::compile(root, &plugin.manifest, &plugin.code)?);
-            if runtime.installed.insert(plugin.manifest.id.clone(), Installed { manifest: plugin.manifest, compiled }).is_some() { return Err("Duplicate bundled plugin id".into()); }
         }
         Ok(runtime)
     }
@@ -85,7 +104,7 @@ impl Runtime {
         match request {
             Request::Snapshot => {
                 let (revision, theme) = self.store.preferences().map_err(|e| Failure::Operation(e.to_string()))?;
-                Ok(Response::Snapshot { snapshot: Snapshot { protocol_version: PROTOCOL_VERSION, revision, theme, code_policy: self.policy.label().into(), catalog_configured: self.catalog.is_some(), available_plugins: vec![], installed_plugins: self.installed.values().map(|p| summary(&p.manifest)).collect() } })
+                Ok(Response::Snapshot { snapshot: Snapshot { protocol_version: PROTOCOL_VERSION, revision, theme, code_policy: self.policy.label().into(), catalog_configured: self.catalog.is_some(), available_plugins: vec![], installed_plugins: self.installed.values().map(|p| summary(&p.manifest)).collect(), package_issues: self.package_issues.iter().map(|(package_id, message)| PackageIssue { package_id: package_id.clone(), message: message.clone() }).collect() } })
             }
             Request::SaveTheme { document, expected_revision, command_id } => {
                 let revision = self.store.save_theme(&document, expected_revision, &command_id).map_err(|e| {
