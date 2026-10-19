@@ -322,14 +322,19 @@ try {
       }
       await script('window.__m02Preference.release();return true;');
       if (leave === 'blur') await resumeWatch();
-      await observeSourceView('!!document.querySelector(\'[aria-label="Children: mixed"]\')&&!document.querySelector(\'[aria-label="Cancel opening"]\')');
+      const resumed=(await native({type:'recent_sources'})).sources.find(source=>source.id===id);
+      // This probe sets HTMLVideoElement.currentTime directly, unlike the product
+      // controller which queues seeks until metadata. First observe real resume
+      // initialization so it cannot overwrite the test's subsequent raw seek.
+      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking&&Math.abs(document.querySelector("video").currentTime-${resumed.positionMs}/1000)<0.01`);
       await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
       await script('window.__m02Preference.checkpointArmed=true;document.querySelector("video").currentTime=arguments[0]/1000;return true;',[checkpoint]);
       const saved=await rpc('POST',`/session/${session}/execute/async`,{
         script:'const done=arguments[0];const timer=setTimeout(()=>done(null),10000);window.__m02Preference.checkpoint.then(value=>{clearTimeout(timer);done(value);});',args:[],
       });
-      assert.equal(JSON.parse(saved ?? '{}').type,'position_saved','Fresh media checkpoints must persist after preference cancellation');
       const recent=await native({type:'recent_sources'});
+      const media=await script('const video=document.querySelector("video");return {positionMs:Math.round(video.currentTime*1000),readyState:video.readyState,seeking:video.seeking};');
+      assert.equal(JSON.parse(saved ?? '{}').type,'position_saved',`Fresh media checkpoints must persist after preference cancellation: ${JSON.stringify({leave,checkpoint,media,source:recent.sources.find(source=>source.id===id),saved})}`);
       assert.equal(recent.sources.find(source=>source.id===id).positionMs,checkpoint);
       assert.equal(recent.sources.find(source=>source.id===id).subtitleOffsetMs,offset);
     } finally {
