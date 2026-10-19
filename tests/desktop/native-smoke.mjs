@@ -280,7 +280,7 @@ try {
       // Tauri's invoke property is deliberately nonwritable. Its documented
       // debugging callback Map lets this harness delay a real result without
       // replacing IPC or fabricating a native response.
-      const offset=arguments[0],sourceId=arguments[1];
+      const offset=arguments[0],sourceId=arguments[1],position=arguments[2];
       callbacks.set=function(key,callback){
         return originalSet.call(this,key,data=>{
           let response;
@@ -289,9 +289,20 @@ try {
             gate.delivered=true;gate.enter();void held.then(()=>callback(data));return;
           }
           callback(data);
-          if(gate.checkpointArmed&&response?.type==='position_saved')gate.saved(data);
+          if(gate.checkpointArmed&&response?.type==='position_saved'){
+            // A resumed player's earlier checkpoint can finish after a new seek.
+            // Signal the exact durable position, not whichever acknowledgement
+            // happens to arrive first.
+            void window.__TAURI_INTERNALS__.invoke('runtime_execute',{request:JSON.stringify({type:'recent_sources'})}).then(raw=>{
+              const saved=JSON.parse(raw);
+              if(saved.type!=='sources')throw new Error(raw);
+              if(saved.sources.find(source=>source.id===sourceId)?.positionMs===position){
+                gate.checkpointArmed=false;gate.saved(data);
+              }
+            }).catch(error=>gate.saved(JSON.stringify({type:'error',message:String(error)})));
+          }
         });
-      };return true;`,[offset,id]);
+      };return true;`,[offset,id,checkpoint]);
     try {
       await click('Playback options');
       const input=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[data-testid="subtitle-offset-input"]'});
