@@ -37,6 +37,35 @@ async function click(label) {
   await rpc('POST', `/session/${session}/element/${element}/click`, {});
 }
 async function closeInspector() {
+  // A newly reopened, above-cue panel grows upward when its real entry arrives.
+  // Observe the completed entry and its layout before WebDriver chooses a point;
+  // otherwise the Close button can move between pointer-down and pointer-up.
+  const ready=await rpc('POST',`/session/${session}/execute/async`,{script:`
+    const done=arguments[arguments.length-1];
+    let settled=false,frame=0,panel;
+    const finish=value=>{
+      if(settled)return;
+      settled=true;mutations.disconnect();resize.disconnect();
+      cancelAnimationFrame(frame);clearTimeout(timer);done(value);
+    };
+    const check=()=>{
+      cancelAnimationFrame(frame);
+      frame=requestAnimationFrame(()=>{frame=requestAnimationFrame(()=>{
+        const current=document.querySelector('[data-testid="inspector-panel"]');
+        if(current!==panel){if(panel)resize.unobserve(panel);panel=current;if(panel)resize.observe(panel);}
+        const button=panel?.querySelector('[aria-label="Close Inspector"]');
+        if(!button||!panel.querySelector('[aria-label="Dictionary source"]'))return;
+        const r=button.getBoundingClientRect();
+        const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
+        if(r.width&&r.height&&hit?.closest('[aria-label="Close Inspector"]')===button)
+          finish({ready:true,rect:{x:r.x,y:r.y,width:r.width,height:r.height}});
+      });});
+    };
+    const mutations=new MutationObserver(check),resize=new ResizeObserver(check);
+    const timer=setTimeout(()=>finish({error:'Inspector entry and Close target did not become ready'}),5000);
+    mutations.observe(document.body,{subtree:true,childList:true,attributes:true});check();
+  `,args:[]});
+  assert.equal(ready.ready,true,JSON.stringify(ready));
   await script(`window.__m01Dismiss={};window.__m01Dismiss.promise=new Promise(resolve=>{
     let settled=false;
     const finish=pass=>{if(settled)return;settled=true;observer.disconnect();clearTimeout(timer);resolve(pass);};
