@@ -36,7 +36,24 @@ builds pass; Android foundation/Watch pass in 123/205 seconds and current iOS
 foundation/Watch pass in 598/164 seconds, zero failures. The diagnosed iOS
 edit-menu automation gesture was repaired without weakening any assertion.
 Hosted foundation `39295160843` passes on application source `66a5f04d`;
-consuming mobile `39295160679` remains subscribed by immutable run ID.
+consuming mobile `39295160679` compiled both apps but failed its UI jobs:
+Android's Pixel Launcher ANR obscured correctly selected English Home; iOS
+completed persisted offset/transcript/claim/restart checks before its final Reset
+tap hit a clipped control. Opened artifacts and JUnit failures remain retained.
+Harness-only `8aa53c46` scrolls the real Reset/status targets into view and
+dismisses only the specifically identified launcher ANR. Original assertions
+remain unchanged. Consuming mobile rerun `39299585014` has passed Android's
+actual UI/persistence, complete APK ABI and unchanged-source steps (zero failures
+in 242.955 seconds; actual transcript/restart captures opened). iOS compiled but
+its artifacts reproduced the clipped Reset failure: visibility alone did not move
+the target. The job then exceeded its 55-minute execution budget; this is not a
+passing iOS run. The harness now centers the target away from the viewport edge,
+and the complete local consuming iOS 27 flow passes with zero failures in
+177.994 seconds. The iOS job budget
+reserves time for the unchanged 20-minute UI bound after its observed 42-minute
+cold preparation/build, without weakening assertions.
+Centered harness `0ca5ca83` is pushed; complete hosted consuming mobile run
+`39308549546` is subscribed. No application or native binary input changed.
 Linux `39295160705` exposed a real-pointer dismissal synchronization failure
 immediately after Inspector reopen. Harness-only `463b76cf` observes entry/layout
 readiness without changing the pointer action, disappearance assertion or timeout;

@@ -156,8 +156,31 @@ data and captures are not uploaded.
   the actual IPC/package/playback/Inspector/claims/transcript/cancellation/
   minimum/2x/restart/recovery step. Its current minimum Inspector and transcript
   captures were opened. Hosted foundation `39296832201` also passes, with web,
-  Rust and both macOS/Windows desktop jobs successful. The original consuming
-  mobile build `39295160679` remains in progress; it was not cancelled or restarted.
+  Rust and both macOS/Windows desktop jobs successful.
+- Original consuming mobile `39295160679` compiled both Release apps but failed
+  UI assertions. Opened Android evidence shows the unrelated Pixel Launcher ANR
+  obscuring correctly selected English Home. Opened iOS evidence and command
+  receipts show persisted offset/transcript/claims/restart succeeded before a final
+  Reset tap hit a control clipped by the fixed footer on iOS 26.5. Both failures
+  remain retained under `mobile-failed-39295160679/`, not relabelled passing.
+  Harness-only `8aa53c46` explicitly scrolls the Reset/status targets into view and
+  conditionally dismisses only that exact launcher ANR, never an mLearn error.
+  YAML parsing and whitespace checks pass; original assertions remain intact.
+  Consuming mobile rerun `39299585014` has passed Android's actual UI/persistence,
+  complete APK ABI and unchanged-source steps (none skipped). JUnit reports zero
+  failures in 242.955 seconds; actual transcript/restart captures were opened.
+  iOS compiled but its retained UI log reproduced the reset failure: accessibility
+  visibility alone skipped moving the clipped target. The job then exceeded its
+  55-minute limit, confirmed by the check annotation; its missing JUnit is not a
+  pass. The harness now centers Reset away from the viewport edge, retaining
+  original assertions. The complete local consuming iOS 27 flow passes with zero
+  failures in 177.994 seconds; its actual restart capture was opened. This is not
+  claimed as hosted iOS 26.5 verification. The iOS
+  job budget now reserves time for the unchanged 20-minute UI bound after the
+  observed 42-minute cold preparation/build, plus evidence upload. No agent
+  cancelled either run. Application/binary inputs remain unchanged.
+- Centered harness `0ca5ca83` is pushed. Complete consuming mobile run
+  `39308549546` is subscribed; its actual iOS result remains required.
 
 LSP diagnostics were unavailable (missing TypeScript server and Rust daemon
 timeouts). Actual compiler, typechecker and scoped strict diagnostics supply the
@@ -173,8 +196,12 @@ Current local captures include `settings-{slate,quartz}-desktop.png`,
 `home-quartz-desktop.png`, `inspector-desktop.png`, `inspector-expanded.png`,
 `inspector-source-visible.png`, `transcript-desktop.png`,
 `transcript-minimum-2x.png`, `inspector-minimum-2x-expanded.png` and
-`inspector-alternatives-minimum.png`. All 13 images listed in the local
-`candidate-identity.json` exist and decode with their recorded original
-2160x1600 or 840x1120 dimensions. The reader's automatic 2000-pixel preview
+`inspector-alternatives-minimum.png` and `opening-source-desktop.png`. The latter
+retains the genuine normal-launch Resume pending state below the toolbar, followed
+by paused 18,805 ms annotations and Home restoration. Its OS window capture includes
+the shadow (2384x1824); its application window is 1080x800. The binary hash is
+unchanged. All 14 images listed in local `candidate-identity.json` exist and decode
+with their recorded original dimensions (the other captures are 2160x1600 or
+840x1120). The reader's automatic 2000-pixel preview
 resizing is not mistaken for a different native viewport. That manifest records
 the exact binary, package/data and source identities and restored state.
