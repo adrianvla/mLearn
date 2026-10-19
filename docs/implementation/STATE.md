@@ -52,8 +52,12 @@ and the complete local consuming iOS 27 flow passes with zero failures in
 177.994 seconds. The iOS job budget
 reserves time for the unchanged 20-minute UI bound after its observed 42-minute
 cold preparation/build, without weakening assertions.
-Centered harness `0ca5ca83` is pushed; complete hosted consuming mobile run
-`39308549546` is subscribed. No application or native binary input changed.
+Centered harness `0ca5ca83` passes complete hosted consuming mobile run
+`39308549546`: actual iOS 26.5 and Android UI/persistence/source-integrity steps
+all succeeded, none skipped. JUnit reports zero failures in 317.383/272.984
+seconds; current native transcript/restart captures were opened. Current
+foundation `39308549547` also passes all web/Rust/macOS/Windows jobs.
+No application or native binary input changed after `66a5f04d`.
 Linux `39295160705` exposed a real-pointer dismissal synchronization failure
 immediately after Inspector reopen. Harness-only `463b76cf` observes entry/layout
 readiness without changing the pointer action, disappearance assertion or timeout;
@@ -66,8 +70,12 @@ Original desktop Slate 1x is restored at preferences revision 25; Japanese sourc
 18,805 ms/offset 0/rate 1/click and learner revision/claim receipts 21/21 are
 preserved. Private evidence remains local under `.mlearn/foundation-repair/`.
 This focused checkpoint supersedes the older executable/theme identities below,
-not its unresolved feature catalogue. Final commit/remote checks and cleanup
-receipts will be recorded before handoff.
+not its unresolved feature catalogue. All owned apps/reference servers/emulator,
+QA app, database/computer handles and CI subscriptions are closed. The exact
+2.1 GB task cache `/tmp/mlearn-repair.7JcXPy` was removed; ports
+3000/8081/7780/4173 and owned desktop PIDs are clear, reference Git is clean.
+`cleanup-receipt.log` records exit-zero verification. Original profiles/media,
+compiled candidates, retained simulator/AVD and shared caches are preserved.
 
 ## Historical overnight batch - frozen for maintainer review, 2026-10-19
 

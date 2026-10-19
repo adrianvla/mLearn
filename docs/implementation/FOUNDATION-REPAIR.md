@@ -179,8 +179,17 @@ data and captures are not uploaded.
   job budget now reserves time for the unchanged 20-minute UI bound after the
   observed 42-minute cold preparation/build, plus evidence upload. No agent
   cancelled either run. Application/binary inputs remain unchanged.
-- Centered harness `0ca5ca83` is pushed. Complete consuming mobile run
-  `39308549546` is subscribed; its actual iOS result remains required.
+- Centered harness `0ca5ca83` passes complete consuming mobile run `39308549546`.
+  Both actual UI/persistence and unchanged-source steps succeeded, none skipped;
+  Android's complete ABI step also passes. Current iOS 26.5 and Android JUnit
+  report zero failures in 317.383 and 272.984 seconds. Their source receipts match
+  `0ca5ca83be4d52b65583e81975567f38877589ec`, tree
+  `e970db35c907808d9e333ecced8b4dd364e18b49`. Actual native transcript/restart
+  captures were opened under `mobile-centered-39308549546/`. The final Reset,
+  rate restoration and player checks passed, not just the intermediate screenshot.
+  Current foundation `39308549547` also passes web, Rust and actual macOS/Windows
+  desktop jobs, none skipped. Application inputs remain `66a5f04d`; subsequent
+  changes are explicit harness/workflow/documentation only.
 
 LSP diagnostics were unavailable (missing TypeScript server and Rust daemon
 timeouts). Actual compiler, typechecker and scoped strict diagnostics supply the
@@ -205,3 +214,14 @@ with their recorded original dimensions (the other captures are 2160x1600 or
 840x1120). The reader's automatic 2000-pixel preview
 resizing is not mistaken for a different native viewport. That manifest records
 the exact binary, package/data and source identities and restored state.
+
+## Final resource receipt
+
+All owned app/reference servers, the Android emulator and iOS QA app are stopped.
+Read-only profile database and computer handles are closed. The existing iOS
+simulator and Android AVD, private media/profiles, compiled candidates and shared
+caches remain intact. Every required CI subscription and artifact collection
+completed. `cleanup-receipt.log` records removal/readback of the exact owned
+2.1 GB `/tmp/mlearn-repair.7JcXPy` root, empty ports 3000/8081/7780/4173,
+absent owned desktop PIDs and clean reference Git, with exit code zero.
+No merge, acceptance or milestone advancement is implied by this verified repair.
