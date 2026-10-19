@@ -268,22 +268,37 @@ try {
   // Hold only delivery of a real native preference response. Cancellation and
   // route blur must recover without an obsolete completion replacing that owner.
   for (const leave of ['cancel', 'blur']) {
-    await script(`const original=window.__TAURI_INTERNALS__.invoke;
-      const gate={original,release:null,entered:null,checkpoint:null};
+    const offset=leave==='cancel'?375:625;
+    const checkpoint=leave==='cancel'?10000:11000;
+    await script(`const callbacks=window.__TAURI_INTERNALS__.callbacks;
+      const originalSet=callbacks.set;
+      const gate={originalSet,release:null,entered:null,checkpoint:null,delivered:false,checkpointArmed:false};
       gate.entered=new Promise(resolve=>gate.enter=resolve);
       gate.checkpoint=new Promise(resolve=>gate.saved=resolve);
       const held=new Promise(resolve=>gate.release=resolve);
       window.__m02Preference=gate;
-      window.__TAURI_INTERNALS__.invoke=async function(command,args,...rest){
-        const request=command==='runtime_execute'?JSON.parse(args.request):null;
-        const response=await original.call(this,command,args,...rest);
-        if(request?.type==='set_subtitle_offset'){gate.enter();await held;}
-        if(request?.type==='save_position'&&request.positionMs===10000)gate.saved(response);
-        return response;
-      };return true;`);
+      // Tauri's invoke property is deliberately nonwritable. Its documented
+      // debugging callback Map lets this harness delay a real result without
+      // replacing IPC or fabricating a native response.
+      const offset=arguments[0],sourceId=arguments[1];
+      callbacks.set=function(key,callback){
+        return originalSet.call(this,key,data=>{
+          let response;
+          if(typeof data==='string')try{response=JSON.parse(data);}catch{}
+          if(!gate.delivered&&response?.type==='source'&&response.window.source.id===sourceId&&response.window.source.subtitleOffsetMs===offset){
+            gate.delivered=true;gate.enter();void held.then(()=>callback(data));return;
+          }
+          callback(data);
+          if(gate.checkpointArmed&&response?.type==='position_saved')gate.saved(data);
+        });
+      };return true;`,[offset,id]);
     try {
       await click('Playback options');
-      await click('Reset synchronization');
+      const input=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[data-testid="subtitle-offset-input"]'});
+      const inputId=input['element-6066-11e4-a52e-4f735466cecf'];
+      await rpc('POST',`/session/${session}/element/${inputId}/clear`,{});
+      await rpc('POST',`/session/${session}/element/${inputId}/value`,{text:String(offset)});
+      await click('Apply subtitle offset');
       assert.equal(await rpc('POST',`/session/${session}/execute/async`,{
         script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.entered.then(()=>{clearTimeout(timer);done(true);});',args:[],
       }),true,'Preference must reach the actual native owner before cancellation');
@@ -298,15 +313,16 @@ try {
       if (leave === 'blur') await resumeWatch();
       await observeSourceView('!!document.querySelector(\'[aria-label="Children: mixed"]\')&&!document.querySelector(\'[aria-label="Cancel opening"]\')');
       await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
-      await script('document.querySelector("video").currentTime=10;return true;');
+      await script('window.__m02Preference.checkpointArmed=true;document.querySelector("video").currentTime=arguments[0]/1000;return true;',[checkpoint]);
       const saved=await rpc('POST',`/session/${session}/execute/async`,{
         script:'const done=arguments[0];const timer=setTimeout(()=>done(null),10000);window.__m02Preference.checkpoint.then(value=>{clearTimeout(timer);done(value);});',args:[],
       });
       assert.equal(JSON.parse(saved ?? '{}').type,'position_saved','Fresh media checkpoints must persist after preference cancellation');
       const recent=await native({type:'recent_sources'});
-      assert.equal(recent.sources.find(source=>source.id===id).positionMs,10000);
+      assert.equal(recent.sources.find(source=>source.id===id).positionMs,checkpoint);
+      assert.equal(recent.sources.find(source=>source.id===id).subtitleOffsetMs,offset);
     } finally {
-      await script('const gate=window.__m02Preference;gate.release();window.__TAURI_INTERNALS__.invoke=gate.original;delete window.__m02Preference;return true;');
+      await script('const gate=window.__m02Preference;gate.release();window.__TAURI_INTERNALS__.callbacks.set=gate.originalSet;delete window.__m02Preference;return true;');
     }
   }
   // Real persisted source preferences feed the mounted host and untouched cues.
