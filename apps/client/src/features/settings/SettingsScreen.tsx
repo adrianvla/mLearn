@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles';
 import type { Snapshot, ThemeDocument } from '@mlearn/contracts';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
-import { Screen, Stack, Row } from '@mlearn/ui/layout';
+import { Screen, Stack, Row, SettingRow } from '@mlearn/ui/layout';
 import { TextField } from '@mlearn/ui/text-field';
 import { Dialog } from '@mlearn/ui/dialog';
 import { applyTheme } from '@mlearn/theme/runtime';
@@ -89,30 +89,26 @@ export function SettingsScreen() {
     <View style={styles.layout}>
       <View style={styles.navigation(width < 700)}>
         {(['appearance', 'languages', 'runtime'] as const).map(value => <Button key={value}
-          label={`${section === value ? '✓ ' : ''}${value === 'appearance' ? 'Appearance' : value === 'languages' ? 'Languages' : 'Runtime'}`}
+          label={value === 'appearance' ? 'Appearance' : value === 'languages' ? 'Languages' : 'Runtime'}
           accessibilityLabel={value === 'appearance' ? 'Appearance' : value === 'languages' ? 'Language packages' : 'Runtime'}
           accessibilityState={{ selected: section === value }}
-          variant={section === value ? 'secondary' : 'quiet'} onPress={() => setSection(value)} />)}
+          variant="quiet" onPress={() => setSection(value)} />)}
       </View>
       <View style={styles.content}>
       {section === 'appearance' ? <Stack>
         <Text variant="section" accessibilityRole="header">Appearance</Text>
-        <View style={styles.setting}>
-          <View style={styles.settingLabel}>
-            <Text>Theme</Text>
-            <Text variant="caption" muted>{snapshot ? `Current: ${snapshot.theme.name}. Saved in the native SQLite profile.` : 'Preview only. Native storage is not connected.'}</Text>
-          </View>
+        <SettingRow label="Theme" description={
+          <Text variant="caption" muted>{snapshot ? `Current: ${snapshot.theme.name}. Saved in the native SQLite profile.` : 'Preview only. Native storage is not connected.'}</Text>
+        }>
           <Row>{builtInThemes.map(theme => <Button key={theme.id} label={theme.name} variant="secondary"
             accessibilityState={{ selected: snapshot?.theme.id === theme.id }} disabled={busy} onPress={() => {
               if (canSave) void perform('theme', () => saveTheme(theme));
               else { applyTheme(theme); report('theme', 'Unsaved visual preview. No native data was written.'); }
             }} />)}</Row>
-        </View>
-        <View style={styles.setting}>
-          <View style={styles.settingLabel}>
-            <Text>Custom theme</Text>
-            <Text variant="caption" muted>Palette, text size, spacing and corner radius.</Text>
-          </View>
+        </SettingRow>
+        <SettingRow label="Custom theme" description={
+          <Text variant="caption" muted>Palette, text size, spacing and corner radius.</Text>
+        }>
           <Dialog open={editing} onOpenChange={setEditing} title="Custom theme"
             description="Edit a versioned theme document. Rust validates and commits saved changes."
             trigger={<Button label="Edit theme JSON" variant="secondary" />}>
@@ -121,27 +117,22 @@ export function SettingsScreen() {
             {!canSave && <Text variant="caption" muted>Native runtime required to save.</Text>}
             {editing && feedback?.target === 'theme' && feedback.error ? feedbackAt('theme') : null}
           </Dialog>
-        </View>
+        </SettingRow>
         {!editing && feedbackAt('theme')}
       </Stack> : null}
       {section === 'languages' ? <Stack>
         <Text variant="section" accessibilityRole="header">Language packages</Text>
         {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : <>
-          {snapshot?.packageIssues?.map(issue => <View key={issue.packageId} style={styles.setting}>
-            <View style={styles.settingLabel}>
-              <Text>Package unavailable</Text>
+          {snapshot?.packageIssues?.map(issue => <SettingRow key={issue.packageId} label="Package unavailable" description={<>
               <Text variant="caption" muted selectable>{issue.packageId}</Text>
               <Text accessibilityRole="alert" selectable>{issue.message}</Text>
-            </View>
-          </View>)}
+            </>} />)}
           {snapshot?.installedPlugins.filter(plugin => plugin.capabilities.includes('text.analyze.v1')).map(plugin =>
-            <View key={plugin.id} style={styles.setting}>
-              <View style={styles.settingLabel}>
-                <Text>{plugin.displayName ?? 'Language name unavailable'}</Text>
+            <SettingRow key={plugin.id} label={plugin.displayName ?? 'Language name unavailable'} description={
                 <Text variant="caption" muted selectable>{plugin.id} · {plugin.version}</Text>
-              </View>
+            }>
               <Text variant="caption" muted>Installed</Text>
-            </View>)}
+            </SettingRow>)}
           {snapshot?.codePolicy === 'desktop-downloaded'
             ? <LanguagePackageInstall client={host.client} snapshot={snapshot} install={packageInstall} />
             : <Text muted>{snapshot?.codePolicy === 'mobile-bundled' ? 'Language code is included with this app.' : 'No trusted language catalog is configured.'}</Text>}
@@ -187,7 +178,5 @@ const styles = StyleSheet.create(theme => ({
   layout: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: theme.spacing.section },
   navigation: (compact: boolean) => ({ flexDirection: compact ? 'row' : 'column', flexWrap: 'wrap', width: compact ? '100%' : 180, gap: theme.spacing.small }),
   content: { flex: 1, minWidth: 260, gap: theme.spacing.large },
-  setting: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.medium, paddingVertical: theme.spacing.large, borderBottomWidth: 1, borderColor: theme.colors.border },
-  settingLabel: { flex: 1, minWidth: 180, gap: theme.spacing.small },
   runtimeExample: { borderTopWidth: 1, borderColor: theme.colors.border, paddingTop: theme.spacing.large, gap: theme.spacing.medium },
 }));

@@ -13,6 +13,14 @@ const blocked = [
   ['Tauri bypass', "import { invoke } from '@tauri-apps/api/core';"],
   ['dynamic Tauri bypass', "async function f() { return import('@tauri-apps/api/core'); }"],
   ['hidden re-export', "export { Pressable as Button } from 'react-native';"],
+  ['aliased ordinary native text', "import { Text as Definition } from 'react-native'; const A = () => <Definition />;"],
+  ['re-exported ordinary native text', "export { Text as Definition } from 'react-native';"],
+  ['wildcard native re-export', "export * from 'react-native';"],
+  ['default native import', "import Native from 'react-native'; const { Text: Definition } = Native;"],
+  ['destructured native require', "const { Text: Definition } = require('react-native');"],
+  ['destructured dynamic native import', "const { Text: Definition } = await import('react-native');"],
+  ['aliased raw typography', "const metrics = { ['fontSize']: 20, lineHeight: 28 }; const definition = metrics;"],
+  ['destructured raw typography', "const { size: fontSize } = metrics; const definition = { fontSize };"],
   ['renderer database', "import { openDatabaseSync } from 'expo-sqlite';"],
   ['renderer persistence', "localStorage.setItem('learner', '{}');"],
   ['clickable text', 'const A = () => <Text onPress={() => {}}>Go</Text>;'],
@@ -26,6 +34,26 @@ for (const [name, source] of blocked) {
 
 test('allows ordinary shared composition', () => {
   assert.deepEqual(checkSource(feature, "import { View } from 'react-native'; import { Button } from '@mlearn/ui/button'; const A = () => <View><Button label=\"Go\" onPress={() => {}} /></View>;"), []);
+});
+test('allows shared text aliases, re-exports and source variants', () => {
+  assert.deepEqual(checkSource(feature, `
+    import { Text as Definition } from '@mlearn/ui/text';
+    export { Text as Heading } from '@mlearn/ui/text';
+    const A = () => <Definition variant="inspectionBody" tone="media" selectable>Meaning</Definition>;
+  `), []);
+});
+test('allows layout aliases and type-only native text references', () => {
+  assert.deepEqual(checkSource(feature, `
+    import { View as Region, type TextProps } from 'react-native';
+    const A = () => <Region />;
+  `), []);
+});
+test('allows typography in the shared owner, not in feature styles', () => {
+  assert.deepEqual(checkSource('packages/ui/src/InlineWordControl.native.tsx', `
+    import { Text as NativeText } from 'react-native';
+    const style = { fontSize: 26, lineHeight: 44, fontWeight: '400', fontFamily: 'system' };
+    const A = () => <NativeText style={style} />;
+  `), []);
 });
 test('allows primitive implementation only in its owner', () => {
   assert.deepEqual(checkSource('packages/ui/src/Button.tsx', "import { Pressable } from 'react-native'; const A = () => <Pressable />;"), []);

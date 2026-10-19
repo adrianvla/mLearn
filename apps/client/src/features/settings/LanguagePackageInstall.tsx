@@ -1,11 +1,9 @@
 import { useRef, useState } from 'react';
-import { View } from 'react-native';
-import { StyleSheet } from 'react-native-unistyles';
 import type { PackageInstallPhase, PluginSummary, Snapshot } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
-import { Row, Stack } from '@mlearn/ui/layout';
+import { Row, Stack, SettingRow } from '@mlearn/ui/layout';
 import type { usePackageInstall } from './usePackageInstall';
 
 const phases = {
@@ -50,9 +48,7 @@ export function LanguagePackageInstall({ client, snapshot, install }: {
         disabled={checking || active || install.submitting} onPress={() => void checkCatalog()} />
     </Row> : <Text muted>No trusted language catalog is configured.</Text>}
     {catalogError && <Text accessibilityRole="alert" selectable>{catalogError}</Text>}
-    {install.command && <View style={styles.setting}>
-      <View style={styles.label}>
-        <Text>{packageName}</Text>
+    {install.command && <SettingRow label={packageName ?? install.command.pluginId} description={<>
         <Text accessibilityLiveRegion="polite">{status ? phases[status.phase] : 'Waiting for native install status'}</Text>
         {status && <Text variant="caption" muted selectable>
           {status.downloadedBytes} bytes received{status.totalBytes === null ? ' · total not yet declared' : ` / ${status.totalBytes} bytes declared`}
@@ -61,7 +57,7 @@ export function LanguagePackageInstall({ client, snapshot, install }: {
         {active && install.cancelRequested === status.command.commandId && <Text variant="caption">
           Cancellation requested; waiting for native acknowledgement.
         </Text>}
-      </View>
+      </>}>
       <Row>
         {active && <Button label={install.cancelError ? 'Retry cancellation' : 'Cancel installation'} variant="secondary"
           disabled={install.cancelRequested === status.command.commandId && !install.cancelError}
@@ -69,7 +65,7 @@ export function LanguagePackageInstall({ client, snapshot, install }: {
         {retryable && <Button label="Retry installation" variant="secondary" disabled={!install.canStart}
           onPress={() => install.start(status.command.pluginId)} />}
       </Row>
-    </View>}
+    </SettingRow>}
     {install.installError && <Text accessibilityRole="alert" selectable>Install response: {install.installError}</Text>}
     {install.canReplay && <Row><Button label="Replay same install request" variant="secondary" onPress={install.replay} /></Row>}
     {install.cancelError && <Text accessibilityRole="alert" selectable>Cancellation: {install.cancelError}</Text>}
@@ -81,18 +77,11 @@ export function LanguagePackageInstall({ client, snapshot, install }: {
       <Text accessibilityRole="alert" selectable>Installed package list: {install.refreshError}</Text>
       <Button label="Reload installed packages" variant="secondary" onPress={install.retryRefresh} />
     </Row>}
-    {catalog.map(plugin => <View key={plugin.id} style={styles.setting}>
-      <View style={styles.label}>
-        <Text>{plugin.displayName ?? 'Unnamed language package'}</Text>
+    {catalog.map(plugin => <SettingRow key={plugin.id} label={plugin.displayName ?? 'Unnamed language package'} description={
         <Text variant="caption" muted selectable>{plugin.version}</Text>
-      </View>
+      }>
       <Button label={`${snapshot.installedPlugins.some(value => value.id === plugin.id) ? 'Update' : 'Install'} ${plugin.displayName ?? plugin.id}`}
         variant="secondary" disabled={!snapshot.catalogConfigured || !install.canStart} onPress={() => install.start(plugin.id)} />
-    </View>)}
+    </SettingRow>)}
   </Stack>;
 }
-
-const styles = StyleSheet.create(theme => ({
-  setting: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.medium, paddingVertical: theme.spacing.large, borderBottomWidth: 1, borderColor: theme.colors.border },
-  label: { flex: 1, minWidth: 180, gap: theme.spacing.small },
-}));

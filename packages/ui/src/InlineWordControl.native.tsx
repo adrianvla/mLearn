@@ -28,8 +28,8 @@ const styles = StyleSheet.create(theme => ({
     target: {
         minHeight: 44, maxWidth: '100%', flexDirection: 'row', alignItems: 'center'
     }, word: (status: string, variant: 'subtitle' | 'body') => ({
-        flexShrink: 1, fontSize: (variant === 'body' ? theme.typography.body : 26) * theme.textScale,
-        lineHeight: (variant === 'body' ? 24 : 44) * theme.textScale,
+        ...theme.typography[variant],
+        flexShrink: 1,
         ...(variant === 'subtitle' ? { textShadowColor: theme.media.background, textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } } : {}),
         color: status === 'claimed_known' ? theme.colors.accent : variant === 'body' ? theme.colors.text : theme.media.text, textDecorationLine: status === 'claimed_unknown' || status === 'mixed' ? 'underline' : 'none', textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid'
     })

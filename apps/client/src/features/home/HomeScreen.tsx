@@ -127,7 +127,7 @@ export function HomeScreen() {
           <Text variant="caption" muted>Source language</Text>
           <Row>{languages.map(p => <Button key={p.id}
             testID={`language-${p.id}`}
-            label={`${selected === p.id ? '✓ ' : ''}${p.displayName ?? p.id}`}
+            label={p.displayName ?? p.id}
             accessibilityLabel={p.displayName ?? p.id}
             accessibilityState={{ selected: selected === p.id }}
             variant="secondary" disabled={busy} onPress={() => setSelected(p.id)} />)}</Row>
@@ -156,7 +156,11 @@ export function HomeScreen() {
                 <Text muted variant="caption">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')} · {language ? language.displayName ?? 'Language name unavailable' : 'Language package unavailable'}{source.subtitlePath ? ' · Subtitles' : ''}</Text>
               </View>
               <Button label="Resume" accessibilityLabel={`Resume ${source.title}`} variant="secondary" disabled={busy}
-                onPress={() => router.push({ pathname: '/watch', params: { id: source.id } })} />
+                onPress={() => {
+                  if (process.env.EXPO_PUBLIC_MLEARN_METRICS === '1')
+                    console.info(`annotation-ui phase=resume_action timestamp_ms=${Date.now()}`);
+                  router.push({ pathname: '/watch', params: { id: source.id } });
+                }} />
             </View>;
           }) : <Text muted>No recent sources. Open a local video to begin.</Text>}
         </View>

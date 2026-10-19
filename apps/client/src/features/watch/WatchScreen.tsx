@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, ScrollView, View, Text as NativeText } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Platform, ScrollView, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
@@ -33,6 +33,16 @@ export function WatchScreen() {
     const [error, setError] = useState('');
     const [analysisError, setAnalysisError] = useState('');
     const [analysisPending, setAnalysisPending] = useState(false);
+    const analysisStarted = useRef(0);
+    useLayoutEffect(() => {
+        if (!batch || !analysisStarted.current || process.env.EXPO_PUBLIC_MLEARN_METRICS !== '1') return;
+        const started = analysisStarted.current;
+        const frame = requestAnimationFrame(() => {
+            console.info(`annotation-ui phase=caption_commit timestamp_ms=${Date.now()} request_to_frame_ms=${(performance.now() - started).toFixed(3)} cues=${batch.cues.length}`);
+            analysisStarted.current = 0;
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [batch]);
     const [saveError, setSaveError] = useState('');
     const [busy, setBusy] = useState(false);
     const [transcriptOpen, setTranscriptOpen] = useState(false);
@@ -140,6 +150,7 @@ export function WatchScreen() {
         const current = session.current;
         const source = window.source;
         setAnalysisPending(true);
+        analysisStarted.current = performance.now();
         void host.client.analyzeSource(id, latest.current.position).then(b => {
             if (active && current?.isCurrent() && b.sourceId === source.id &&
                 b.subtitleRevision === source.subtitleRevision &&
@@ -390,9 +401,9 @@ export function WatchScreen() {
                 <Row>
                     <Button label="← Home" accessibilityLabel="Home" size="compact" variant="media"
                         disabled={busy} onPress={() => void back().catch(() => {})} />
-                    <NativeText numberOfLines={1} style={styles.title}>
+                    <View style={styles.title}><Text numberOfLines={1} variant="mediaTitle" tone="media">
                         {window?.source.title ?? 'Watch'}
-                    </NativeText>
+                    </Text></View>
                     {busy && host.available ? (
                         <Button label="Cancel opening" variant="secondary"
                             onPress={() => void cancelOpening()} />
@@ -428,17 +439,21 @@ export function WatchScreen() {
                             onPress={() => void changeSource(client => client.setPlaybackRate(id, rate))} />)}</Row>
                         <Text>Source language</Text>
                         <Row>{languages.map(plugin => <Button key={plugin.id}
-                          label={`${window.source.packageId === plugin.id ? '✓ ' : ''}${plugin.displayName ?? plugin.id}`}
+                          label={plugin.displayName ?? plugin.id}
                           accessibilityLabel={plugin.displayName ?? plugin.id} variant="secondary" disabled={busy}
                           accessibilityState={{ selected: window.source.packageId === plugin.id }}
-                          onPress={() => void changeSource(client => client.setSourceLanguage(id, plugin.id), true)} />)}</Row>
+                          onPress={() => {
+                            if (window.source.packageId !== plugin.id || window.source.packageVersion !== plugin.version) {
+                              void changeSource(client => client.setSourceLanguage(id, plugin.id), true);
+                            }
+                          }} />)}</Row>
                         {Platform.OS === 'web' ? <>
                           <Text>Desktop inspection</Text>
                           <Row>{([
                             ['click', 'Click'], ['immediate', 'Immediate hover'],
                             ['delayed', 'Delayed hover (300 ms)'], ['modifier', 'Shift + hover'],
                           ] as const).map(([trigger, label]) => <Button key={trigger}
-                            label={`${window.source.inspectionTrigger === trigger ? '✓ ' : ''}${label}`}
+                            label={label}
                             accessibilityLabel={label}
                             variant="secondary" disabled={busy}
                             accessibilityState={{ selected: window.source.inspectionTrigger === trigger }}
@@ -517,7 +532,9 @@ export function WatchScreen() {
                     </> : null}
                 </View>
                 {!transcriptOpen ? inspector : null}
-            </> : !error ? <Text tone="media">Opening source…</Text> : null}
+            </> : !error ? <View style={[styles.status, styles.feedback, { top: insets.top + toolbarHeight + 8 }]}>
+                <Text tone="media" accessibilityLiveRegion="polite">Opening source…</Text>
+            </View> : null}
         </View>
     );
 }
@@ -527,7 +544,7 @@ const styles = StyleSheet.create(theme => ({
     }), toolbar: {
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small, backgroundColor: theme.media.chrome
     }, title: {
-        flex: 1, flexBasis: 120, minWidth: 0, color: theme.media.text, fontSize: 13 * theme.textScale
+        flex: 1, flexBasis: 120, minWidth: 0
     }, stage: {
         flex: 1, minHeight: 240, backgroundColor: theme.media.background
     }, subtitle: (toolbarHeight: number, controlsHeight: number) => ({

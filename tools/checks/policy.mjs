@@ -1,11 +1,13 @@
 import ts from 'typescript';
 import path from 'node:path';
 const controls = new Set(['Pressable', 'Button', 'TouchableOpacity', 'TouchableHighlight', 'TouchableWithoutFeedback', 'TouchableNativeFeedback', 'TextInput', 'Switch']);
+const typography = new Set(['fontFamily', 'fontSize', 'lineHeight', 'fontWeight']);
 const persistence = ['expo-sqlite', '@react-native-async-storage/async-storage', 'expo-file-system', '@tauri-apps/plugin-fs'];
 
 export function checkSource(filename, source) {
   const file = filename.replaceAll('\\', '/');
   const owner = file.startsWith('packages/ui/');
+  const feature = file.includes('/src/features/');
   const host = file.includes('/src/host/') || file.includes('/modules/');
   const bootstrap = file.includes('/src/bootstrap/');
   const dom = file.startsWith('packages/reader-dom/') || file === 'apps/client/src/host/MediaPlayer.web.tsx' || file === 'packages/ui/src/InlineWordControl.web.tsx';
@@ -44,17 +46,25 @@ export function checkSource(filename, source) {
     if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
       const specifier = node.moduleSpecifier.text;
       checkImport(node, specifier);
-      if (!owner && specifier === 'react-native') {
+      if (!owner && specifier === 'react-native' && !(ts.isImportDeclaration(node) ? node.importClause?.isTypeOnly : node.isTypeOnly)) {
         const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : node.exportClause;
+        if (ts.isImportDeclaration(node) && node.importClause?.name) fail(node, 'Native default imports hide shared text/control bypasses; import named layout primitives.');
         if (bindings && (ts.isNamedImports(bindings) || ts.isNamedExports(bindings))) {
-          for (const element of bindings.elements) if (controls.has((element.propertyName ?? element.name).text)) fail(element, 'Interactive native primitives belong in @mlearn/ui.');
-        } else if (bindings) fail(node, 'Namespace/native default imports hide interactive primitives; import named layout primitives.');
+          for (const element of bindings.elements) if (!element.isTypeOnly && (controls.has((element.propertyName ?? element.name).text) || (element.propertyName ?? element.name).text === 'Text')) fail(element, 'Native text and interactive primitives belong in @mlearn/ui.');
+        } else if (bindings || ts.isExportDeclaration(node)) fail(node, 'Namespace/wildcard native imports hide shared text/control bypasses; import named layout primitives.');
       }
     }
     if (ts.isCallExpression(node)) {
       const callee = node.expression.getText(ast);
-      if ((node.expression.kind === ts.SyntaxKind.ImportKeyword || callee === 'require') && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) checkImport(node, node.arguments[0].text);
+      if ((node.expression.kind === ts.SyntaxKind.ImportKeyword || callee === 'require') && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) {
+        checkImport(node, node.arguments[0].text);
+        if (!owner && node.arguments[0].text === 'react-native') fail(node, 'Use named native layout imports; dynamic native access bypasses shared text/control ownership.');
+      }
       if (!dom && /(?:^|\.)createElement$/.test(callee) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) fail(node, 'DOM elements belong in the document renderer, not universal UI.');
+    }
+    if (feature && (ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node))) {
+      const name = ts.isComputedPropertyName(node.name) ? node.name.expression : node.name;
+      if ((ts.isIdentifier(name) || ts.isStringLiteral(name)) && typography.has(name.text)) fail(node, 'Feature typography belongs in shared theme/Text roles.');
     }
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const name = node.tagName.getText(ast);

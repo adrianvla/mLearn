@@ -26,3 +26,11 @@ test('theme documents predating density retain the ordinary spacing default', ()
   const { spacingScale: _spacing, ...older } = initialTheme;
   assert.equal(parseThemePreview(JSON.stringify(older)).spacingScale, 1);
 });
+
+test('all text roles scale size and line height together without changing family or weight', () => {
+  const ordinary = resolveTheme(initialTheme).typography;
+  const enlarged = resolveTheme({ ...initialTheme, textScale: 2, spacingScale: 0.75 }).typography;
+  assert.deepEqual(enlarged, Object.fromEntries(Object.entries(ordinary).map(([role, metrics]) => [
+    role, { ...metrics, fontSize: metrics.fontSize * 2, lineHeight: metrics.lineHeight * 2 },
+  ])));
+});

@@ -7,8 +7,17 @@ export const initialTheme: ThemeDocument = quartz;
 
 /** Rendering-only projection. Rust is authoritative for accepting and storing theme documents. */
 export function resolveTheme(document: ThemeDocument) {
+  const textRole = (fontSize: number, lineHeight: number, fontWeight: '400' | '600' | '700' = '400') => ({
+    fontFamily: 'Helvetica Neue',
+    fontSize: fontSize * document.textScale,
+    lineHeight: lineHeight * document.textScale,
+    fontWeight,
+  });
   return {
     colors: { ...document.colors },
+    controls: {
+      selected: `${document.colors.text.slice(0, 7)}14`,
+    },
     media: {
       background: '#000000',
       text: '#E8E8E8',
@@ -20,14 +29,19 @@ export function resolveTheme(document: ThemeDocument) {
       badge: '#FFFFFF20',
     },
     typography: {
-      family: 'Helvetica Neue',
-      heading: 28,
-      section: 20,
-      body: 16,
-      caption: 14,
-      inspectionTitle: 32,
-      inspectionBody: 20,
-      inspectionReading: 18,
+      heading: textRole(28, 36, '600'),
+      section: textRole(20, 28, '600'),
+      body: textRole(16, 24),
+      caption: textRole(14, 20),
+      inspectionTitle: textRole(32, 44),
+      inspectionBody: textRole(20, 28),
+      inspectionReading: textRole(18, 26),
+      mediaTitle: textRole(13, 20),
+      subtitle: textRole(26, 44),
+      action: textRole(15, 20, '600'),
+      compactAction: textRole(14, 20, '600'),
+      knowledgeAction: textRole(16, 22, '700'),
+      badge: textRole(15, 20, '600'),
     },
     pills: {
       neutral: { text: '#D6D6DC', surface: '#303037', top: '#48484F' },

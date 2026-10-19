@@ -1,7 +1,8 @@
 import { useRef, type ReactNode } from 'react';
-import { Platform, View, Text as NativeText } from 'react-native';
+import { Platform, View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import { InlineWord, type InspectionMode, type TextAnchor, type TextBounds } from '@mlearn/ui/inline-word';
+import { Text } from '@mlearn/ui/text';
 import type { CueAnalysis, OccurrenceKnowledge, AnalyzedToken } from '@mlearn/contracts';
 /** Presentation only. One native batch owns analysis and all target projections. */
 export function AnnotatedText({ analysis, rawText, annotations, onInspect, inspectionMode, variant = 'subtitle' }: {
@@ -14,7 +15,7 @@ export function AnnotatedText({ analysis, rawText, annotations, onInspect, inspe
 }) {
     const paragraph = useRef<View>(null);
     if (!analysis)
-        return <NativeText style={styles.line(variant)}>{rawText}</NativeText>;
+        return <Text variant={variant} tone={variant === 'body' ? 'content' : 'media'} align={variant === 'body' ? 'left' : 'center'}>{rawText}</Text>;
     const native = Platform.OS !== 'web';
     function inspect(token: AnalyzedToken, anchor: TextAnchor) {
         const measure = (publish: (bounds: TextBounds) => void) => anchor.measure(word => {
@@ -34,14 +35,14 @@ export function AnnotatedText({ analysis, rawText, annotations, onInspect, inspe
     inspectionMode={inspectionMode}
     variant={variant}
     status={annotations.find(a => a.cueIndex === analysis!.cue.index && a.tokenStart === token.start)?.status ?? 'untracked'}
-    onActivate={anchor => inspect(token, anchor)}/> : <NativeText
+    onActivate={anchor => inspect(token, anchor)}/> : <Text
       key={key}
-      style={native ? styles.line(variant) : undefined}>{text}</NativeText>;
+      variant={variant} tone={variant === 'body' ? 'content' : 'media'}>{text}</Text>;
     }
     if (!native)
-        return <View ref={paragraph} testID="annotated-text" style={styles.paragraph}><NativeText
+        return <View ref={paragraph} testID="annotated-text" style={styles.paragraph}><Text
       accessible={false}
-      style={styles.line(variant)}>{analysis.tokens.map(token => segment(token, token.text, String(token.start)))}</NativeText></View>;
+      variant={variant} tone={variant === 'body' ? 'content' : 'media'} align={variant === 'body' ? 'left' : 'center'}>{analysis.tokens.map(token => segment(token, token.text, String(token.start)))}</Text></View>;
     // Native inline-view attachments use the view bottom as a text baseline. A
     // baseline-aligned flow keeps real accessible buttons and punctuation aligned.
     // Explicit rows preserve authored newlines, including blank lines.
@@ -63,11 +64,5 @@ const styles = StyleSheet.create(theme => ({
         alignSelf: 'stretch'
     }, nativeLine: (variant: 'subtitle' | 'body') => ({
         flexDirection: 'row', flexWrap: 'wrap', justifyContent: variant === 'body' ? 'flex-start' : 'center', alignItems: 'baseline', minHeight: 44 * theme.textScale
-    }), line: (variant: 'subtitle' | 'body') => ({
-        fontSize: (variant === 'body' ? theme.typography.body : 26) * theme.textScale,
-        lineHeight: (variant === 'body' ? 24 : 44) * theme.textScale,
-        color: variant === 'body' ? theme.colors.text : theme.media.text,
-        textAlign: variant === 'body' ? 'left' : 'center',
-        ...(variant === 'subtitle' ? { textShadowColor: theme.media.background, textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } } : {}),
     })
 }));

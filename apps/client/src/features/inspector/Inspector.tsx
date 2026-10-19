@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { View, Text as NativeText } from 'react-native';
+import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import { ContextPanel } from '@mlearn/ui/context-panel';
 import type { TextAnchor } from '@mlearn/ui/inline-word';
 import { Text } from '@mlearn/ui/text';
 import { Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
+import { Badge } from '@mlearn/ui/badge';
 import type { LexicalEntry, KnowledgeProjection, ClaimChange } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 export type Inspection = {
@@ -109,11 +110,9 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
                 </View>
             </> : null}>
             {entry ? <>
-                <NativeText selectable style={styles.definition}>{entry.summary ?? entry.definition}</NativeText>
+                <Text selectable variant="inspectionBody" tone="media">{entry.summary ?? entry.definition}</Text>
                 {entry.reading ? <View style={styles.metadata}>
-                    <View style={styles.readingPill}>
-                        <NativeText selectable style={styles.reading}>{entry.reading}</NativeText>
-                    </View>
+                    <Badge label={entry.reading} variant="reading" selectable />
                 </View> : null}
                 {inspection.targets.length > 1 ? <>
                 <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="media"
@@ -130,22 +129,18 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
                 {entry.senses ? <View style={styles.dictionary}>
                     {entry.senses.map((sense, senseIndex) => <View key={senseIndex} style={styles.sense}>
                         {sense.heading ? <View style={styles.metadata}>
-                            <View style={styles.partOfSpeech}>
-                                <NativeText style={styles.partOfSpeechText}>{sense.heading}</NativeText>
-                            </View>
+                            <Badge label={sense.heading} />
                         </View> : null}
                         {sense.definitions.map((definition, definitionIndex) => (
                             <View key={definitionIndex} style={styles.definitionRow}>
-                                <NativeText style={styles.definition}>•</NativeText>
-                                <NativeText selectable style={[styles.definition, styles.definitionText]}>{definition}</NativeText>
+                                <Text variant="inspectionBody" tone="media">•</Text>
+                                <View style={styles.definitionText}><Text selectable variant="inspectionBody" tone="media">{definition}</Text></View>
                             </View>
                         ))}
                         {sense.notes.map((note, noteIndex) => <Text key={noteIndex} tone="media" muted variant="caption" selectable>{note}</Text>)}
                     </View>)}
                 </View> : entry.partOfSpeech ? <View style={styles.metadata}>
-                        <View style={styles.partOfSpeech}>
-                            <NativeText style={styles.partOfSpeechText}>{entry.partOfSpeech}</NativeText>
-                        </View>
+                        <Badge label={entry.partOfSpeech} />
                     </View> : null}
                     {inspection.sourceForm !== entry.headword ? (
                         <Text tone="media" muted variant="caption" selectable>In text: {inspection.sourceForm}</Text>
@@ -168,16 +163,7 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
     );
 }
 const styles = StyleSheet.create(theme => ({
-    definition: {
-        color: theme.media.text, fontFamily: theme.typography.family,
-        fontSize: theme.typography.inspectionBody * theme.textScale, lineHeight: 28 * theme.textScale
-    }, readingPill: {
-        borderRadius: theme.radius, backgroundColor: theme.pills.neutral.surface,
-        paddingVertical: theme.spacing.small, paddingHorizontal: theme.spacing.compact
-    }, reading: {
-        color: theme.pills.neutral.text, fontFamily: theme.typography.family,
-        fontSize: theme.typography.inspectionReading * theme.textScale, lineHeight: 26 * theme.textScale
-    }, dictionary: {
+    dictionary: {
         borderTopWidth: 1, borderTopColor: theme.media.border, paddingTop: theme.spacing.compact, gap: theme.spacing.small
     }, sense: {
         gap: theme.spacing.small
@@ -185,11 +171,6 @@ const styles = StyleSheet.create(theme => ({
         flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.small, paddingLeft: theme.spacing.compact
     }, definitionText: {
         flex: 1, minWidth: 0
-    }, partOfSpeech: {
-        backgroundColor: theme.media.badge, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3
-    }, partOfSpeechText: {
-        color: theme.media.text, fontFamily: theme.typography.family,
-        fontSize: 15 * theme.textScale, lineHeight: 20 * theme.textScale, fontWeight: '600'
     },
     metadata: {
         flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.small

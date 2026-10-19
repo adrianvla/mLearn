@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import type { SourceRecord, TranscriptPage, AnalysisBatch } from '@mlearn/contracts';
@@ -36,6 +36,16 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   const [error, setError] = useState('');
   const [analysisError, setAnalysisError] = useState('');
   const [analysisPending, setAnalysisPending] = useState(false);
+  const analysisStarted = useRef(0);
+  useLayoutEffect(() => {
+    if (!open || !analysis || !analysisStarted.current || process.env.EXPO_PUBLIC_MLEARN_METRICS !== '1') return;
+    const started = analysisStarted.current;
+    const frame = requestAnimationFrame(() => {
+      console.info(`annotation-ui phase=transcript_commit timestamp_ms=${Date.now()} request_to_frame_ms=${(performance.now() - started).toFixed(3)} cues=${analysis.cues.length}`);
+      analysisStarted.current = 0;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, analysis]);
   const [navigating, setNavigating] = useState(false);
   const [navigationError, setNavigationError] = useState<{ cueIndex: number; message: string } | null>(null);
   const current = useRef('');
@@ -45,6 +55,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   async function refreshAnalysis() {
     if (!open || current.current !== identity) throw new Error('Transcript changed; reopen the inspection.');
     const owner = generation.current;
+    analysisStarted.current = performance.now();
     const result = await client.analyzeTranscript(source.id, after, query);
     if (current.current !== identity || generation.current !== owner || result.sourceId !== source.id ||
       result.subtitleRevision !== source.subtitleRevision || result.packageId !== source.packageId ||

@@ -5,6 +5,7 @@
   "exports": {
     "./button": "./src/Button.tsx",
     "./text": "./src/Text.tsx",
+    "./badge": "./src/Badge.tsx",
     "./layout": "./src/Layout.tsx",
     "./text-field": "./src/TextField.tsx",
     "./dialog": "./src/Dialog.tsx",

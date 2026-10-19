@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState, type PropsWithChildren, type ReactNode } from 'react';
-import { Platform, View, Text as NativeText, ScrollView, useWindowDimensions } from 'react-native';
+import { Platform, View, ScrollView, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Text } from './Text';
@@ -63,7 +63,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, sourceC
                                 <View style={styles.header} onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
                                         <View style={styles.heading}>
                                             <Primitive.Title asChild>
-                                                <NativeText selectable numberOfLines={2} style={styles.title}>{title}</NativeText>
+                                                <Text selectable numberOfLines={2} variant="inspectionTitle" tone="media">{title}</Text>
                                             </Primitive.Title>
                                         </View>
                                         <Primitive.Description asChild>
@@ -102,10 +102,6 @@ const styles = StyleSheet.create(theme => ({
         paddingHorizontal: theme.spacing.medium, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.small
     }, heading: {
         flex: 1, minWidth: 0
-    }, title: {
-        color: theme.media.text, fontFamily: theme.typography.family,
-        fontSize: theme.typography.inspectionTitle * theme.textScale,
-        lineHeight: 44 * theme.textScale, fontWeight: '400'
     }, scroll: {
         flexShrink: 1, minHeight: 0
     }, body: {
