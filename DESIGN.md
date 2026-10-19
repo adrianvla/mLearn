@@ -30,10 +30,17 @@ surface remains legible in light and dark; media contrast is not a second app.
 
 Use the shared platform-compatible Helvetica Neue/system family. Semantic roles:
 page heading 28/36 semibold; section heading 20/28 semibold; body 16/24;
-caption 14/20; action 15 semibold, compact action 14. All scale through accepted
-`textScale`. Inspector title 32, body 20 and reading 18 retain the approved dense
+caption 14/20; action 15/20 semibold, compact action 14/20 semibold and Knowledge
+action 16/22 bold. Inspector title 32/44 regular, body 20/28 regular and reading
+18/26 regular retain the approved dense
 linguistic hierarchy. Long titles wrap or truncate deliberately, never push actions
 offscreen. User content, paths and useful feedback remain selectable.
+
+Every role in `resolveTheme().typography` owns family, size, line-height and weight,
+including media title 13/20 regular, source subtitle 26/44 regular and badge 15/20
+semibold. All metrics scale together through accepted `textScale`. `Text` consumes
+these roles directly; native InlineWord and text input use the same role objects.
+Feature styles own source/layout geometry, never ordinary font metrics.
 
 ## 4. Spacing and layout
 
@@ -52,16 +59,27 @@ dismissal stays fixed, body and oversized correction region scroll independently
 
 ## 5. Existing primitives and meaningful composition
 
-- `Text`: heading/section/body/caption, ordinary/media tone; dynamic typography.
+- `Text`: heading/section/body/caption, inspectionTitle/inspectionBody/
+  inspectionReading, mediaTitle/subtitle, action/compactAction/knowledgeAction/
+  badge; ordinary/media tone and explicit alignment. Source subtitles own their
+  shared shadow here rather than in each consumer.
+- `Badge`: noninteractive reading and part-of-speech metadata. Reading uses the
+  neutral pill material and 8/12 scaled insets; POS uses the translucent media
+  badge material, radius 4 and 3/6 scaled insets. These are not Knowledge actions.
 - `Button`: primary outcome, secondary action, quiet navigation, media action and
   semantic Knowledge pill. Default/hover/press/focus/disabled/busy are explicit;
   native targets stay at least 44 points. Selected choices have a readable selected
-  state and glyph/label, not an unexplained color.
+  state and glyph/label, not an unexplained color. `accessibilityState.selected`
+  owns selection: Button adds the checkmark and a quiet ink wash. Callers supply
+  unprefixed choice labels. Knowledge claim glyphs remain distinct from selection.
 - `TextField`: visible label, native keyboard ownership, multiline Return and iOS
   dismissal preserved; border/focus and errors use accepted theme semantics.
 - `Screen`, `Stack`, `Row`, `Panel`: content limiter, vertical rhythm, wrapping
   cluster and intentional surface grouping. Divided feature rows remain local
   composition; no component for every element or universal form framework.
+- `SettingRow`: a divided, wrapping label/description and action composition shared
+  by appearance, installed languages and catalog/install status. Feedback remains
+  beside its action; the row does not own settings state or persistence.
 - `Dialog`/`ContextPanel`: one focus/layer owner with visible dismissal and source
   return. No new modal stack or duplicate Inspector/Knowledge state.
 
@@ -97,5 +115,16 @@ Home composition and final mobile layout remain `visual_pending`. That is not
 permission to retain integration scaffolding. Settings only includes current
 appearance/language/runtime functions, not every pictured later feature.
 No fixture result, screenshot-only styling or generated image proves behavior.
-Evidence uses current normal native surfaces, approved targets, source identities
-and a separate independent rendered assessment.
+Evidence uses current normal native surfaces, approved targets and source identities.
+Source review, functional checks and rendered assessment remain separate gates.
+
+Foundation repair mapping: `inspector/inspector.png` maps its linguistic hierarchy
+to Text/Badge/ContextPanel and its claim actions to Button; `other/settings.png`
+maps divided rows and quiet selected navigation to SettingRow/Button. Home recent
+source rows retain their real local composition. Watch media title and both
+caption/transcript source consumers use shared roles. The retained
+`.mlearn/overnight/final-{home,settings,watch,inspector}.png` images are pre-repair
+baselines, not evidence of the changed rendering. Fresh desktop/narrow, 2×,
+native and expanded/pending/error results are recorded in
+`docs/implementation/FOUNDATION-REPAIR.md`; local captures stay under
+`.mlearn/foundation-repair/`. These results do not grant maintainer acceptance.

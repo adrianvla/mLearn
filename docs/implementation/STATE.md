@@ -1,6 +1,58 @@
 # Current implementation checkpoint
 
-## Authorized overnight batch - frozen for maintainer review, 2026-10-19
+## Focused foundation repair - 2026-10-19
+
+The maintainer authorized a focused performance/shared-UI repair on existing
+`agent/m01`, draft PR #44, without advancing M02, starting M03, merging or granting
+acceptance. The clean worktree was fast-forwarded to requested contract
+`13ab1e8897a71f85843cf22efd6517d0b4439d28`. The unchanged base is `agent/h00`
+at `87df9c137167601c6ae210ad2f663235f0a2a820`.
+
+Application source `66a5f04d99c960b568e0f34d71ebb5752b4e7dad` includes backend
+repair `52f94f5e` and shared UI repair `66a5f04d`, both pushed to the existing
+draft PR. The backend retains Wasmi, validation, authentication, fuel/memory
+bounds, cancellation and the single execution slot. Safe portable dispatch plus
+bounded development optimization reduces real Japanese initialization from
+21.6-21.9 seconds to 365-400 milliseconds; actual Resume to committed annotations
+is 1.26-1.32 seconds, including the documented normal launch. Reopen reuses
+morphology with fresh Knowledge. An unchanged package selection no longer
+invalidates morphology; a real version change still validates/adopts normally.
+The Release throughput tradeoff, failed experiments, exact inputs and full
+red/green evidence are explicit in [FOUNDATION-REPAIR.md](FOUNDATION-REPAIR.md).
+
+Shared theme roles now own complete typography. Text/Badge/Button/SettingRow
+express reading/POS, selection and divided settings composition through real
+Home/Settings/Watch/transcript/Inspector callers. Actual native light/dark,
+420x560/2x, long/expanded/alternative, nested focus, error and pending-state QA
+passed; the observed opening-label overlap was repaired. Home/final mobile
+composition remains `visual_pending`, not accepted.
+
+Current npm tests/typecheck/lint/contracts/web export/six browser tests, complete
+native Rust suite and eight desktop host tests pass. Strict runtime/host
+all-target and desktop production Clippy pass; unchanged desktop media-test
+`useless_format` and the historical storage-test warning remain explicit, not
+suppressed. Missing/timed-out LSPs are not passes. Both consuming mobile Release
+builds pass; Android foundation/Watch pass in 123/205 seconds and current iOS
+foundation/Watch pass in 598/164 seconds, zero failures. The diagnosed iOS
+edit-menu automation gesture was repaired without weakening any assertion.
+Hosted foundation `39295160843` passes on application source `66a5f04d`;
+consuming mobile `39295160679` remains subscribed by immutable run ID.
+Linux `39295160705` exposed a real-pointer dismissal synchronization failure
+immediately after Inspector reopen. Harness-only `463b76cf` observes entry/layout
+readiness without changing the pointer action, disappearance assertion or timeout;
+the complete real Linux rerun `39296832207` and foundation `39296832201` both
+pass. Current Linux minimum/Inspector/transcript captures were opened.
+Application/mobile inputs are unchanged; the original slow mobile build was
+not cancelled or restarted.
+
+Original desktop Slate 1x is restored at preferences revision 25; Japanese source
+18,805 ms/offset 0/rate 1/click and learner revision/claim receipts 21/21 are
+preserved. Private evidence remains local under `.mlearn/foundation-repair/`.
+This focused checkpoint supersedes the older executable/theme identities below,
+not its unresolved feature catalogue. Final commit/remote checks and cleanup
+receipts will be recorded before handoff.
+
+## Historical overnight batch - frozen for maintainer review, 2026-10-19
 
 Execute [OVERNIGHT.md](OVERNIGHT.md) on existing `agent/m01`, draft PR #44 against unchanged `agent/h00`. H00/M01 remain unaccepted. No merge, release, M04+, new worktree or production/v2 writes. Starting local/remote source: `8d4589e162cee76224476cf959d4c04cb72f0a52`; H00: `87df9c137167601c6ae210ad2f663235f0a2a820`. Authorization documentation: `117cfc573b16c31139799b89e80e8695487dc4e6`. The historical checkpoint remains in that commit.
 
