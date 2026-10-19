@@ -6,6 +6,7 @@ appId: net.kikan.mlearn.v3dev
 - scrollUntilVisible:
     element: Reset synchronization
     direction: DOWN
+    centerElement: true
 - tapOn: Reset synchronization
 - scrollUntilVisible:
     element: 'Current offset: 0 ms'
@@ -146,11 +147,13 @@ appId: net.kikan.mlearn.v3dev
 - assertVisible: 'Current offset: 500 ms'
 - takeScreenshot: native-source-settings-after-restart
 # On the hosted iOS 26.5 viewport, the persisted-offset label can be exposed
-# while Reset remains clipped by the fixed footer. Scroll the real target into
-# view before tapping; keep the reset-value assertion below.
+# while Reset remains clipped by the fixed footer. Accessibility visibility alone
+# still skipped scrolling in 39299585014. Move the target away from the viewport
+# edge before tapping; keep the reset-value assertion below.
 - scrollUntilVisible:
     element: Reset synchronization
     direction: DOWN
+    centerElement: true
 - tapOn: Reset synchronization
 - scrollUntilVisible:
     element: 'Current offset: 0 ms'
