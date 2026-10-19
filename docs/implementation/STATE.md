@@ -1,6 +1,16 @@
 # Current implementation checkpoint
 
-## M01 — frozen repair candidate; awaiting maintainer review
+## Authorized overnight batch — implementing (2026-10-19)
+
+The maintainer requested foundation scrutiny and conditional forward progress for one combined review. Execute [OVERNIGHT.md](OVERNIGHT.md): audit/repair M01 and shared UI, advance to M02 only when its dependency gate passes, and attempt M03 only after coherent M02 integration and with verification capacity remaining. Ceiling: M03; no merge, release or M04+. H00/M01 remain unaccepted. Do not interpret historical no-M02 text below as the current authorization.
+
+Starting reference: `agent/m01`, PR #44 against unchanged `agent/h00`; last observed remote HEAD `8d4589e162cee76224476cf959d4c04cb72f0a52`. Preserve and reconcile any newer local/remote work. This documentation update is not a new application build, technical-debt clearance or claim of executed verification.
+
+Patch compatibility and application passed (`git apply --check`, then `git apply`, both exit 0). The checkout was clean and local/remote `agent/m01` both matched the starting reference; H00 is unchanged. Current work: inspect actual next-consumer owners, audit OPS-02 authority, and repair propagating foundations plus shared Home/Settings design before deciding M02 readiness. No dependency gate has passed yet.
+
+Execution: `gpt-6.1-sol` through `chatgpt-subscription`; preserve the selected medium effort and configured subscription routes. Target eight hours from 02:35 local, with no large new feature after 08:35 and the final two hours reserved for integration/native checks/handoff. Quota telemetry is not currently exposed; no percentage is inferred from token or cost estimates. Notepad: `/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261019-023551.XXXXXX.md.AV9eHJ4Zbh`.
+
+## Previous M01 candidate — historical evidence, not current authorization
 
 Application **2ee9ae9f3e3a15e1e75fed20f28f875b029bd977**, media parent
 **67ab69c**, and native harness **b16b825886f8016f40f7f78a1470ac2dbe6d3bce**

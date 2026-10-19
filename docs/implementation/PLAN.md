@@ -1,5 +1,7 @@
 # Review-gated implementation plan
 
+> **Active batch exception (2026-10-19):** [OVERNIGHT.md](OVERNIGHT.md), when started by the maintainer, authorizes M01 foundation work, conditional M02 and optional M03 for one combined review. Its readiness gate replaces per-unit human waiting within that batch only. Earlier no-M02/wait wording below is the default/historical procedure, not a veto of this authorization. No acceptance, merge, M04 or later work is authorized. The revised [AGENTS.md](../../AGENTS.md) governs product-wide UI consistency, including unpictured provisional screens.
+
 **Goal:** Build the specified mLearn product as connected, usable increments, with a maintainer decision between increments.
 
 **Architecture:** One universal React/Expo client calls a native Rust application. Knowledge, source context, annotated text, Inspector, Capture, learning sessions, settings and resource ownership are shared capabilities, not separately rebuilt services for each screen.

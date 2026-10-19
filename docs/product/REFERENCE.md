@@ -1,5 +1,7 @@
 # Product references and UI capture guide
 
+> **2026-10-19 clarification:** [AGENTS.md](../../AGENTS.md) now explicitly permits studying/running the isolated `../mlearn-ts` reference and composing unpictured provisional screens using the shared design system. This supersedes the older presentation restrictions below only where they prohibit such composition. Edited images remain authoritative for depicted states; unedited legacy layouts are not approved targets. `visual_pending` is not permission to leave generic integration scaffolding or ignore app-wide visual consistency.
+
 Use with [SPEC.md](SPEC.md), [FEATURES.md](FEATURES.md) and the [review-gated plan](../implementation/PLAN.md). This is a selection/discovery record, not a declaration that all referenced code works or that every legacy path has been audited.
 
 ## Reference locations
