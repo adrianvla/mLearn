@@ -5,10 +5,6 @@ import { StyleSheet } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
 import { Text } from './Text';
 
-export function Screen({ children }: PropsWithChildren) {
-  const insets = useSafeAreaInsets();
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.scroll(insets.top, insets.bottom)} keyboardShouldPersistTaps="handled"><View style={styles.content}>{children}</View></ScrollView>;
-}
 /** Bounded application frame: navigation stays put; only content scrolls. */
 export function AppShell({ header, navigation, children }: PropsWithChildren<{
   readonly header: ReactNode;
@@ -28,12 +24,14 @@ export function AppShell({ header, navigation, children }: PropsWithChildren<{
     </View>
   </View>;
 }
-export function Panel({ children }: PropsWithChildren) { return <View style={styles.panel}>{children}</View>; }
+export function Panel({ children, inset = 'standard' }: PropsWithChildren<{ inset?: 'standard' | 'compact' }>) {
+  return <View style={styles.panel(inset === 'compact')}>{children}</View>;
+}
 export function Stack({ children }: PropsWithChildren) { return <View style={styles.stack}>{children}</View>; }
 export function Section({ title, children }: PropsWithChildren<{ readonly title: string }>) {
-  return <View style={styles.stack}>
-    <View style={styles.sectionHeading}><Text variant="section" accessibilityRole="header">{title}</Text></View>
-    {children}
+  return <View style={styles.section}>
+    <View style={styles.sectionHeading}><Text variant="groupTitle" accessibilityRole="header">{title}</Text></View>
+    <View>{children}</View>
   </View>;
 }
 export function Row({ children }: PropsWithChildren) { return <View style={styles.row}>{children}</View>; }
@@ -43,7 +41,7 @@ export function SettingRow({ label, description, children }: PropsWithChildren<{
   readonly description?: ReactNode;
 }>) {
   return <View style={styles.setting}>
-    <View style={styles.settingLabel}><Text>{label}</Text>{description}</View>
+    <View style={styles.settingLabel}><Text variant="caption">{label}</Text>{description}</View>
     {children}
   </View>;
 }
@@ -62,22 +60,23 @@ const styles = StyleSheet.create((theme) => ({
   main: (sidebar: boolean) => ({
     flex: 1, minWidth: 0, minHeight: 0,
     backgroundColor: sidebar ? theme.shell.content : theme.colors.background,
+    _web: sidebar ? {} : { backgroundImage: `linear-gradient(180deg, transparent 0%, transparent 30%, ${theme.shell.canvas} 130%)` },
   }),
   shellHeader: (sidebar: boolean) => ({
-    flexShrink: 0, gap: theme.spacing.medium, paddingHorizontal: sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,
+    flexShrink: 0, gap: sidebar ? theme.spacing.tiny : theme.spacing.small, paddingHorizontal: sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,
     paddingTop: sidebar ? theme.spacing.large : theme.spacing.section + theme.spacing.small,
-    paddingBottom: theme.spacing.medium,
+    paddingBottom: sidebar ? theme.spacing.large : theme.spacing.medium,
   }),
   shellScroll: { flex: 1, minHeight: 0 },
-  shellBody: (sidebar: boolean) => ({ flexGrow: 1, paddingHorizontal: sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.large, alignItems: 'center' }),
+  shellBody: (sidebar: boolean) => ({ flexGrow: 1, paddingLeft: sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,
+    paddingRight: sidebar ? theme.spacing.section : theme.spacing.large, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.large, alignItems: 'center' }),
   shellContent: { width: '100%', maxWidth: 1184, gap: theme.spacing.comfortable },
-  screen: { flex: 1, backgroundColor: theme.colors.background },
-  scroll: (top: number, bottom: number) => ({ flexGrow: 1, alignItems: 'center', paddingTop: Math.max(top, theme.spacing.large), paddingBottom: Math.max(bottom, theme.spacing.large), paddingHorizontal: theme.spacing.comfortable }),
-  content: { width: '100%', maxWidth: 1040, gap: theme.spacing.comfortable },
-  panel: { backgroundColor: theme.colors.surface, borderRadius: theme.radius + 4, borderWidth: 1, borderColor: theme.colors.border, padding: theme.spacing.medium, gap: theme.spacing.compact },
+  panel: (compact: boolean) => ({ backgroundColor: theme.surfaces.glass, borderRadius: theme.radius + 4, borderWidth: 1, borderColor: theme.colors.border,
+    padding: compact ? theme.spacing.small + theme.spacing.tiny / 2 : theme.spacing.medium, gap: theme.spacing.compact }),
   stack: { gap: theme.spacing.compact },
+  section: { gap: theme.spacing.tiny },
   sectionHeading: { borderLeftWidth: 2, borderColor: theme.colors.muted, paddingLeft: theme.spacing.small },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.spacing.compact },
-  setting: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.medium, paddingVertical: theme.spacing.large, borderBottomWidth: 1, borderColor: theme.colors.border },
-  settingLabel: { flex: 1, minWidth: 0, flexBasis: 180, gap: theme.spacing.small },
+  setting: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.medium, paddingVertical: theme.spacing.compact, borderBottomWidth: 1, borderColor: theme.colors.border },
+  settingLabel: { flex: 1, minWidth: 0, flexBasis: 180, gap: theme.spacing.tiny / 2 },
 }));

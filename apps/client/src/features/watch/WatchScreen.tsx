@@ -279,7 +279,8 @@ export function WatchScreen() {
         try {
             await session.current?.cancel();
             await pauseAndSave();
-            router.back();
+            if (router.canGoBack()) router.back();
+            else router.replace('/');
         }
         catch (e) {
             setSourceReload(v => v + 1);

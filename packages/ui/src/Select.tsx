@@ -22,7 +22,7 @@ export function Select({ label, value, options, onValueChange, disabled = false,
   const items = options.map(option => <Primitive.Item key={option.value} value={option.value}
     label={option.label} aria-label={option.label}>
     <View testID={option.testID} style={[styles.item, option.value === value && styles.selected]}>
-      <Text>{option.label}</Text>
+      <Text variant="caption">{option.label}</Text>
       <Primitive.ItemIndicator><View style={styles.indicator}>
         <Icon name="check" size={16} color={theme.colors.text} />
       </View></Primitive.ItemIndicator>
@@ -63,7 +63,7 @@ const styles = StyleSheet.create(theme => ({
   item: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.medium,
     justifyContent: 'space-between', paddingHorizontal: theme.spacing.compact,
     paddingVertical: theme.spacing.small, borderRadius: theme.radius / 2,
-    _web: { minHeight: 32, cursor: 'pointer' } },
+    _web: { minHeight: 32, paddingVertical: theme.spacing.tiny, cursor: 'pointer' } },
   selected: { backgroundColor: theme.controls.selected },
   indicator: { width: 16, height: 16 },
 }));

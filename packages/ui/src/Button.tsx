@@ -1,13 +1,13 @@
 import { forwardRef, useState } from 'react';
 import { Platform, Pressable, Text, type PressableProps, type View } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
-import styles, { buttonForeground, type ButtonVariant, type ButtonTone } from './Button.styles';
+import styles, { buttonForeground, type ButtonVariant, type ButtonTone, type ButtonSize } from './Button.styles';
 import { Icon, type IconName } from './Icon';
 
 export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
   busy?: boolean;
-  size?: 'default' | 'compact';
+  size?: ButtonSize;
   variant?: ButtonVariant;
   tone?: ButtonTone;
   icon?: IconName;
@@ -30,9 +30,9 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, bus
       accessibilityState={{ ...props.accessibilityState, disabled: blocked, busy }} disabled={blocked}
       style={({ pressed }) => [styles.root(variant, size, tone, selected, iconOnly),
         hovered && !blocked && styles.hover(variant, tone), pressed && styles.pressed, blocked && styles.disabled]}>
-      {icon && iconPosition === 'leading' ? <Icon name={icon} size={size === 'compact' ? 18 : 20} color={buttonForeground(theme, variant, tone)} /> : null}
+      {icon && iconPosition === 'leading' ? <Icon name={icon} size={size === 'default' ? 20 : 18} color={buttonForeground(theme, variant, tone)} /> : null}
       {!iconOnly ? <Text style={styles.label(variant, size, tone)}>{selected && variant !== 'navigation' ? '✓ ' : ''}{busy ? `${label}…` : label}</Text> : null}
-      {icon && iconPosition === 'trailing' ? <Icon name={icon} size={size === 'compact' ? 18 : 20} color={buttonForeground(theme, variant, tone)} /> : null}
+      {icon && iconPosition === 'trailing' ? <Icon name={icon} size={size === 'default' ? 20 : 18} color={buttonForeground(theme, variant, tone)} /> : null}
     </Pressable>
   );
 });

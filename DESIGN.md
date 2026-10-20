@@ -50,7 +50,8 @@ live in ignored `.mlearn/visual-parity/manifest.json`.
   pixel measurements, not the rejected v3 Slate palette.
 - Reference `styles/index.css:83-139` defines Helvetica Neue UI/content,
   16px body, 14px secondary, 18px feature titles, 20px shell title, 24px
-  page title, 32px inspection title; 400/500/600/700 weights; a 4px spacing
+  Settings title (20px in the running Settings layout), 32px inspection title;
+  400/500/600/700 weights; a 4px spacing
   unit and 4/8/12/16px corner families.
 - Ordinary primary actions use the reference's warm outlined/tinted treatment,
   not the rejected filled-blue v3 button: `index.css:23` sets dark primary
@@ -66,6 +67,13 @@ live in ignored `.mlearn/visual-parity/manifest.json`.
 - Settings uses a 180-200px fixed navigation column and independently
   scrolling content. Its ordinary rows are divided, with label/description
   on the left and a control on the right, wrapping on narrow layouts.
+  Measured rows use 12px inset, 14px labels, 12px descriptions and a 2px gap.
+- Running light Quartz uses `#cacacb` canvas, `#111418` foreground,
+  `#242a31` secondary text and `#a4a5a7` boundaries. Shared glass is white
+  at 50% in light appearance and `rgba(130,130,130,.2)` in dark appearance.
+  Home retains the reference's vertical canvas gradient, 160px media preview
+  and full-width continuation rows with a separate Resume action. Breakpoints
+  at 950/550px yield three/two/one activity columns without invented activities.
 - Watch uses a black source canvas, compact translucent Home/window controls
   and a bottom player rail. The seek track is above the compact playback
   controls, not a large stock slider between text buttons. Native video
@@ -80,7 +88,7 @@ live in ignored `.mlearn/visual-parity/manifest.json`.
 `Button` owns action, selection, busy/disabled and icon-only states, including
 compact media and Knowledge variants. `Icon` owns portable vector geometry;
 features do not recreate click targets or icon text. `Text` owns complete
-typography roles. `Screen`, `Panel`, `SettingRow` and shell composition own
+typography roles. `AppShell`, `Panel`, `SettingRow` and shell composition own
 bounded scroll regions and shared surface anatomy. `Dialog`/`ContextPanel`
 retain portal, dismissal, focus restoration and bounded scrolling semantics.
 Fields, badges, selectors and disclosures use the same type/material/control

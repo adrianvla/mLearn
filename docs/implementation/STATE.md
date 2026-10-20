@@ -55,8 +55,26 @@ The collision was reproduced in the real browser (heading0px/button44px);
 the selector now requires a visible button and retains the 44px assertion,
 also exercised in the existing Home navigation web test. Corrected native CI
 is pending; the original failure is not erased by local passing checks.
-Next: finish Settings and migrate Watch/player/captions/transcript, then
-Inspector/corrections, compare all states and run consuming verification.
+Second pushed checkpoint `3e845487` also passed hosted foundation checks.
+Its native desktop test exposed the same aria-label collision in the generic
+click helper. The current correction requires a visible enabled interactive
+element, observes layout readiness and performs the real driver click; no
+assertion or touch-target requirement was removed. Its hosted rerun is pending.
+
+Current convergence adds measured light Quartz, 20px Settings headings,
+14/12px divided rows, reference Home preview/full-width continuation rows and
+shared glass/canvas material. A direct-entry Watch Home regression failed
+before the navigation repair and passes afterward. The last integrated local
+run passed seven web tests; a final-source run is in progress.
+
+Both consuming mobile Release builds passed before the last convergence.
+The subsequent iOS rebuild failed with `No space left on device`, not a
+passing compile. Only this task's new simulator and generated module cache
+were removed, recovering 3.3 GiB; the same consuming build is retrying.
+Retained H00 devices, profiles and unrelated caches were not cleared.
+Next: complete matched full-window/regional and narrow comparisons, real
+native workflows, normal restart/persistence and performance gates. No visual
+or native gate is closed by the prior builds or local suites.
 
 ## Historical focused foundation repair - 2026-10-19
 

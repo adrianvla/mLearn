@@ -49,7 +49,7 @@ export function LanguagePackageInstall({ client, snapshot, install }: {
     </Row> : <Text muted>No trusted language catalog is configured.</Text>}
     {catalogError && <Text accessibilityRole="alert" selectable>{catalogError}</Text>}
     {install.command && <SettingRow label={packageName ?? install.command.pluginId} description={<>
-        <Text accessibilityLiveRegion="polite">{status ? phases[status.phase] : 'Waiting for native install status'}</Text>
+        <Text tone={status?.phase === 'succeeded' ? 'success' : 'content'} accessibilityLiveRegion="polite">{status ? phases[status.phase] : 'Waiting for native install status'}</Text>
         {status && <Text variant="caption" muted selectable>
           {status.downloadedBytes} bytes received{status.totalBytes === null ? ' · total not yet declared' : ` / ${status.totalBytes} bytes declared`}
         </Text>}
@@ -78,7 +78,7 @@ export function LanguagePackageInstall({ client, snapshot, install }: {
       <Button label="Reload installed packages" variant="secondary" onPress={install.retryRefresh} />
     </Row>}
     {catalog.map(plugin => <SettingRow key={plugin.id} label={plugin.displayName ?? 'Unnamed language package'} description={
-        <Text variant="caption" muted selectable>{plugin.version}</Text>
+        <Text variant="detail" muted selectable>{plugin.version}</Text>
       }>
       <Button label={`${snapshot.installedPlugins.some(value => value.id === plugin.id) ? 'Update' : 'Install'} ${plugin.displayName ?? plugin.id}`}
         variant="secondary" disabled={!snapshot.catalogConfigured || !install.canStart} onPress={() => install.start(plugin.id)} />

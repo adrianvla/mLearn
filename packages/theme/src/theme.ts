@@ -8,12 +8,19 @@ export const initialTheme: ThemeDocument = quartz;
 // Import boundary for whole documents saved before the reference-parity rewrite.
 // ID alone is not authority: same-ID user palettes, radii and extensions remain
 // custom. Resolve untouched old presentation, never rewrite learner preferences.
+// Remove these fingerprints only after a native schema migration records
+// built-in/custom identity and no supported profile needs whole-document import.
 const retiredBuiltIns = [
-  { id: 'mlearn.quartz', name: 'Quartz', replacement: quartz, colors: {
+  { id: 'mlearn.quartz', name: 'Quartz', radius: 12, replacement: quartz, colors: {
     background: '#F1F2F4', surface: '#FFFFFF', text: '#20232A', muted: '#555D6B',
     accent: '#2458A6', onAccent: '#FFFFFF', border: '#CFD4DC',
   } },
-  { id: 'mlearn.slate', name: 'Slate', replacement: darkQuartz, colors: {
+  // The first pushed rewrite checkpoint could also be saved as a whole document.
+  { id: 'mlearn.quartz', name: 'Quartz', radius: 8, replacement: quartz, colors: {
+    background: '#F5F5F5', surface: '#EEEEEE', text: '#1A1A1A', muted: '#626262',
+    accent: '#C44700', onAccent: '#FFFFFF', border: '#BFBFBF',
+  } },
+  { id: 'mlearn.slate', name: 'Slate', radius: 12, replacement: darkQuartz, colors: {
     background: '#15191F', surface: '#20262E', text: '#EDF0F5', muted: '#BAC2CE',
     accent: '#99BEFF', onAccent: '#15243C', border: '#414B5A',
   } },
@@ -21,7 +28,7 @@ const retiredBuiltIns = [
 
 export function resolveBuiltInTheme(document: ThemeDocument): ThemeDocument {
   const retired = retiredBuiltIns.find(preset =>
-    document.id === preset.id && document.name === preset.name && document.radius === 12
+    document.id === preset.id && document.name === preset.name && document.radius === preset.radius
     && Object.keys(document.extensions).length === 0
     && (['background', 'surface', 'text', 'muted', 'accent', 'onAccent', 'border'] as const)
       .every(key => document.colors[key] === preset.colors[key]));
@@ -32,6 +39,8 @@ export function resolveBuiltInTheme(document: ThemeDocument): ThemeDocument {
 /** Rendering-only projection. Rust is authoritative for accepting and storing theme documents. */
 export function resolveTheme(saved: ThemeDocument) {
   const document = resolveBuiltInTheme(saved);
+  const rgb = Number.parseInt(document.colors.surface.slice(1, 7), 16);
+  const lightSurface = 0.2126 * (rgb >> 16) + 0.7152 * ((rgb >> 8) & 255) + 0.0722 * (rgb & 255) >= 128;
   const textRole = (fontSize: number, lineHeight: number, fontWeight: '400' | '500' | '600' | '700' = '400') => ({
     fontFamily: 'Helvetica Neue',
     fontSize: fontSize * document.textScale,
@@ -41,11 +50,15 @@ export function resolveTheme(saved: ThemeDocument) {
   return {
     colors: { ...document.colors },
     controls: {
-      selected: `${document.colors.text.slice(0, 7)}14`,
+      selected: lightSurface ? '#FFFFFFB8' : `${document.colors.text.slice(0, 7)}14`,
       surface: `${document.colors.text.slice(0, 7)}0D`,
-      hover: `${document.colors.text.slice(0, 7)}20`,
+      field: lightSurface ? '#FFFFFF80' : `${document.colors.text.slice(0, 7)}14`,
+      hover: lightSurface ? '#FFFFFFE6' : `${document.colors.text.slice(0, 7)}20`,
     },
-    shell: { navigation: document.colors.background, content: document.colors.surface },
+    shell: { navigation: document.colors.background, content: document.colors.surface,
+      canvas: lightSurface ? '#F3F5F7' : '#000000' },
+    surfaces: { glass: lightSurface ? '#FFFFFF80' : '#82828233' },
+    feedback: { success: lightSurface ? '#2F7D20' : '#58C333' },
     media: {
       background: '#000000',
       text: '#E8E8E8',
@@ -57,12 +70,14 @@ export function resolveTheme(saved: ThemeDocument) {
       badge: '#FFFFFF20',
     },
     typography: {
-      heading: textRole(24, 36, '600'),
+      heading: textRole(20, 30, '600'),
       shellTitle: textRole(20, 30, '700'),
       navigation: textRole(18, 27),
       section: textRole(18, 27, '600'),
+      groupTitle: textRole(16, 24, '600'),
       body: textRole(16, 24),
       caption: textRole(14, 21),
+      detail: textRole(12, 17),
       // Edited Inspector targets use serif CJK headwords while Latin remains UI
       // sans. Refer to installed system fonts; no font binary is redistributed.
       inspectionTitle: { ...textRole(32, 44), _web: { fontFamily: '"Helvetica Neue", "Hiragino Mincho ProN", serif' } },

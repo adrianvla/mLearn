@@ -8,6 +8,11 @@ const savedSlate = {
     accent: '#99BEFF', onAccent: '#15243C', border: '#414B5A' },
   radius: 12, textScale: 1, spacingScale: 1, extensions: {},
 };
+const savedQuartzCheckpoint = {
+  ...initialTheme,
+  colors: { background: '#F5F5F5', surface: '#EEEEEE', text: '#1A1A1A', muted: '#626262',
+    accent: '#C44700', onAccent: '#FFFFFF', border: '#BFBFBF' },
+};
 
 test('normal saved built-in presentation updates without losing text and density preferences', () => {
   const saved = { ...savedSlate, textScale: 1.5, spacingScale: 0.75 };
@@ -17,6 +22,7 @@ test('normal saved built-in presentation updates without losing text and density
   assert.equal(rendered.textScale, 1.5);
   assert.equal(rendered.spacing.small, 6);
   assert.deepEqual(saved, { ...savedSlate, textScale: 1.5, spacingScale: 0.75 });
+  assert.deepEqual(resolveTheme(savedQuartzCheckpoint).colors, initialTheme.colors);
 });
 
 test('customized historical built-in IDs retain their actual palette and extension data', () => {
@@ -24,6 +30,7 @@ test('customized historical built-in IDs retain their actual palette and extensi
     { ...savedSlate, colors: { ...savedSlate.colors, accent: '#AA3377' } },
     { ...savedSlate, radius: 6 },
     { ...savedSlate, extensions: { 'school::palette': { retained: true } } },
+    { ...savedQuartzCheckpoint, colors: { ...savedQuartzCheckpoint.colors, accent: '#AA3377' } },
   ]) {
     const parsed = parseThemePreview(JSON.stringify(custom));
     assert.deepEqual(resolveTheme(parsed).colors, custom.colors);

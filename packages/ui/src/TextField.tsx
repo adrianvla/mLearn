@@ -24,7 +24,7 @@ export function TextField({ label, multiline = false, variant = 'default', ...pr
 const styles = StyleSheet.create((theme) => ({
   field: { gap: theme.spacing.small, minWidth: 0 },
   search: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small, paddingHorizontal: theme.spacing.compact,
-    borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius, backgroundColor: theme.controls.selected },
+    borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius, backgroundColor: theme.controls.field },
   input: (multiline: boolean, search: boolean) => ({ ...theme.typography[search ? 'caption' : 'body'], minWidth: 0, flex: search ? 1 : undefined,
     minHeight: multiline ? 180 : 44, borderWidth: search ? 0 : 1, borderColor: theme.colors.border,
     borderRadius: theme.radius, color: theme.colors.text, backgroundColor: search ? 'transparent' : theme.controls.surface,

@@ -30,10 +30,39 @@ async function until(work, description, timeout = 30000) {
 async function script(source, args = []) { return rpc('POST', `/session/${session}/execute/sync`, { script: source, args }); }
 async function text(expected) { return until(async () => (await script('return document.body.innerText')).includes(expected), expected); }
 async function click(label) {
-  const element = await until(async () => {
-    const value = await rpc('POST', `/session/${session}/element`, { using: 'css selector', value: `[aria-label="${label}"]` });
-    return value['element-6066-11e4-a52e-4f735466cecf'];
-  }, label);
+  const result = await rpc('POST', `/session/${session}/execute/async`, { script: `
+    const label=arguments[0],done=arguments[arguments.length-1];
+    let settled=false,frame=0;
+    const finish=value=>{
+      if(settled)return;
+      settled=true;observer.disconnect();cancelAnimationFrame(frame);
+      document.removeEventListener('scroll',check,true);clearTimeout(timer);done(value);
+    };
+    const check=()=>{
+      cancelAnimationFrame(frame);
+      frame=requestAnimationFrame(()=>{
+        const control=Array.from(document.querySelectorAll('button,[role="button"],[role="combobox"],[role="option"]'))
+          .find(node=>{
+            const rect=node.getBoundingClientRect();
+            return node.getAttribute('aria-label')===label && rect.width && rect.height &&
+              !node.disabled && node.getAttribute('aria-disabled')!=='true' &&
+              !node.closest('[aria-hidden="true"]') && getComputedStyle(node).visibility!=='hidden';
+          });
+        if(!control)return;
+        control.scrollIntoView({block:'nearest',inline:'nearest'});
+        const rect=control.getBoundingClientRect(),style=getComputedStyle(control);
+        const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+        if(rect.width && rect.height && style.visibility!=='hidden' &&
+          style.pointerEvents!=='none' && hit && control.contains(hit))finish(control);
+      });
+    };
+    const observer=new MutationObserver(check);
+    const timer=setTimeout(()=>finish({error:'Visible enabled control unavailable',label}),15000);
+    observer.observe(document.body,{subtree:true,childList:true,attributes:true});
+    document.addEventListener('scroll',check,true);check();
+  `, args: [label] });
+  const element = result?.['element-6066-11e4-a52e-4f735466cecf'];
+  assert.ok(element, JSON.stringify(result));
   await rpc('POST', `/session/${session}/element/${element}/click`, {});
 }
 async function closeInspector() {
@@ -167,14 +196,14 @@ async function assertStyled(theme, color) {
   const state = await styleState();
   await writeFile(`test-results/desktop/styles-${theme}.json`, JSON.stringify(state, null, 2));
   assert.ok(state.heading, 'Main heading missing');
-  assert.equal(state.heading.fontSize, '24px', 'Packaged webview must apply the shared typography');
+  assert.equal(state.heading.fontSize, '20px', 'Packaged webview must apply the shared typography');
   assert.equal(state.heading.color, color, 'Native webview must apply the current theme, not merely save its name');
   assert.ok(state.buttonHeight >= 44, 'Shared native-web button must retain its accessible hit target');
 }
 try {
   await until(() => rpc('GET', '/status'), 'WebDriver startup');
   await launch();
-  await assertStyled('quartz', 'rgb(26, 26, 26)');
+  await assertStyled('quartz', 'rgb(17, 20, 24)');
   await screenshot('initial-quartz');
   await click('Install SDK example');
   await text('Verified plugin installed from the catalog.');
@@ -230,7 +259,7 @@ try {
       };
       const observer = new ResizeObserver(() => {
         const fontSize=getComputedStyle(heading).fontSize;
-        if(fontSize==='48px')finish({fontSize});
+        if(fontSize==='40px')finish({fontSize});
       });
       const timer = setTimeout(() => finish({error:'Numeric theme did not update mounted text',fontSize:getComputedStyle(heading).fontSize}),5000);
       window.__m01NumericTheme.cancel = () => finish({error:'cancelled'});
@@ -244,7 +273,7 @@ try {
     await click('Reload native state');
     const scaledText = await rpc('POST',`/session/${session}/execute/async`,{script:`
       const done=arguments[arguments.length-1];window.__m01NumericTheme.promise.then(done);`,args:[]});
-    assert.equal(scaledText.fontSize,'48px',JSON.stringify(scaledText));
+    assert.equal(scaledText.fontSize,'40px',JSON.stringify(scaledText));
   } finally {
     await script('window.__m01NumericTheme.cancel();delete window.__m01NumericTheme;return true;');
   }

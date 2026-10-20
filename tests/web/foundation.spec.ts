@@ -63,3 +63,11 @@ test('Home exposes the native boundary without fabricated recents',async({page})
  expect((await home.boundingBox())!.height).toBeGreaterThanOrEqual(44);
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.getByRole('heading',{name:'Home',exact:true})).toBeVisible();
 });
+
+test('Home recovers a directly opened Watch route without navigation history', async ({ page }) => {
+  await page.goto('/watch?id=unavailable');
+  const home = page.waitForURL(url => url.pathname === '/', { timeout: 5000 });
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await home;
+  await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+});

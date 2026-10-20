@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { Snapshot, ThemeDocument } from '@mlearn/contracts';
 import { Button } from '@mlearn/ui/button';
@@ -24,6 +24,7 @@ export function SettingsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
   const { theme } = useUnistyles();
+  const { width } = useWindowDimensions();
   const [section, setSection] = useState<'appearance' | 'languages' | 'runtime'>(
     params.section === 'languages' || params.section === 'runtime' ? params.section : 'appearance',
   );
@@ -93,12 +94,12 @@ export function SettingsScreen() {
 
   return <AppShell header={<>
     <View style={styles.header}>
-      <View style={styles.title}><Icon name="settings" size={24} color={theme.colors.text} />
+      <View style={styles.title}><Icon name="settings" size={20} color={theme.colors.text} />
         <Text variant="heading" accessibilityRole="header">Settings</Text></View>
-      <Button label="Home" icon="arrowLeft" variant="quiet"
-        onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />
+      <View style={styles.home}><Button label="Home" icon="arrowLeft" iconOnly={width < 700} variant="quiet"
+        onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /></View>
     </View>
-    <Text muted>Configure mLearn to your preferences</Text>
+    <View style={styles.description}><Text muted variant="caption">Configure mLearn to your preferences</Text></View>
   </>} navigation={<>
     <View style={styles.search}><TextField label="Search settings" variant="search" value={search} maxLength={128}
       onChangeText={setSearch} placeholder="Search settings…" autoCorrect={false} /></View>
@@ -113,7 +114,7 @@ export function SettingsScreen() {
       <View style={styles.content}>
       {section === 'appearance' ? <Section title="Appearance">
         <SettingRow label="Theme" description={
-          <Text variant="caption" muted>{snapshot ? `Current: ${displayedTheme.name}. Saved in the native SQLite profile.` : 'Preview only. Native storage is not connected.'}</Text>
+          <Text variant="detail" muted>{snapshot ? `Current: ${displayedTheme.name}. Saved in the native SQLite profile.` : 'Preview only. Native storage is not connected.'}</Text>
         }>
           <Select label="Select theme" value={displayedTheme.id}
             options={builtInThemes.map(preset => ({ value: preset.id, label: preset.name }))}
@@ -125,7 +126,7 @@ export function SettingsScreen() {
             }} />
         </SettingRow>
         <SettingRow label="Custom theme" description={
-          <Text variant="caption" muted>Palette, text size, spacing and corner radius.</Text>
+          <Text variant="detail" muted>Palette, text size, spacing and corner radius.</Text>
         }>
           <Dialog open={editing} onOpenChange={setEditing} title="Custom theme"
             description="Edit a versioned theme document. Rust validates and commits saved changes."
@@ -146,9 +147,9 @@ export function SettingsScreen() {
             </>} />)}
           {snapshot?.installedPlugins.filter(plugin => plugin.capabilities.includes('text.analyze.v1')).map(plugin =>
             <SettingRow key={plugin.id} label={plugin.displayName ?? 'Language name unavailable'} description={
-                <Text variant="caption" muted selectable>{plugin.id} · {plugin.version}</Text>
+                <Text variant="detail" muted selectable>{plugin.id} · {plugin.version}</Text>
             }>
-              <Text variant="caption" muted>Installed</Text>
+              <Text variant="detail" tone="success">Installed</Text>
             </SettingRow>)}
           {snapshot?.codePolicy === 'desktop-downloaded'
             ? <LanguagePackageInstall client={host.client} snapshot={snapshot} install={packageInstall} />
@@ -190,8 +191,10 @@ export function SettingsScreen() {
 
 const styles = StyleSheet.create(theme => ({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: theme.spacing.medium },
+  home: { position: 'absolute', top: 0, right: 0 },
+  description: { paddingLeft: 20 + theme.spacing.compact },
   title: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.compact },
   search: { width: '100%', marginBottom: theme.spacing.compact },
-  content: { minWidth: 0, gap: theme.spacing.large, paddingTop: theme.spacing.section },
+  content: { minWidth: 0, gap: theme.spacing.large },
   runtimeExample: { borderTopWidth: 1, borderColor: theme.colors.border, paddingTop: theme.spacing.large, gap: theme.spacing.medium },
 }));
