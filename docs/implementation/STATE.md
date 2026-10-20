@@ -2,13 +2,60 @@
 
 ## Active visual-parity rewrite - 2026-10-20
 
-Status: `implementing`, not complete or accepted. Execute
+Status: `verifying`, not complete or accepted. Execute
 [VISUAL-PARITY.md](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44,
 against unchanged `agent/h00`. Requested `4a86df32` was fetched and already
 equalled clean HEAD; no reset, history rewrite or new worktree was used.
 This authorization supersedes the historical frozen-review, minimal-restyle
 and unpictured `visual_pending` restrictions below. No new domain milestone,
 merge, release or maintainer acceptance is authorized.
+
+### Current verification checkpoint
+
+Presentation and connected-flow repairs are pushed through `93ecb6c5`.
+Exact-source foundation run `39448604492` and desktop run `39448604405`
+pass. Desktop includes preference cancellation/blur recovery, persisted
+rate-failure/retry, selector keyboard ownership and enlarged-text Inspector
+clearance. Native run `39448604470` remains pending; it is not a pass.
+
+The final local consuming iOS Watch flow passes in 180.179 seconds, including
+native fullscreen/return and restart. Android Watch passes in 216.126 seconds.
+The native stage now clears the app toolbar; removing only that clearance
+reproduces the iOS fullscreen hit-test failure. The Expo appearance repair
+also has same-source positive/negative native evidence. Final Android APK
+SHA256 is `698be22a6d14b91f785f462bfdf5ae65e910219ca616fd368f06343d9fbd5663`;
+iOS bundle is `c959056a5625e1bef992794d38ed635103c2a190df0958ad702a92df235f082a`
+and executable is `843fe7de738236cdb4dbf771aeb8c7d0874e46a05ec856e911b45f92e97b7b1a`.
+These binaries precede the final metrics-only change described below.
+
+With owned simulators stopped, the normal documented desktop development
+launch renders the existing Japanese source in 1296 ms on a fresh process
+with warm filesystem caches; warm reopen takes 895 ms. Initialization takes
+391541 us, with 23615 us resource work and 367926 us interpreter work.
+Inspector activation to its first entry frame takes 47 ms, including 4 ms
+runtime transport. Missing action/frame telemetry is now gated by
+`EXPO_PUBLIC_MLEARN_METRICS=1`, carries no source text/path and cancels its
+frame callback on entry replacement/unmount. Typecheck, ownership lint,
+web export and all seven web tests pass after that change. Earlier
+load-contaminated samples below remain anomalies, not passing evidence.
+
+Full-window and narrow Home, Settings, Watch and Inspector comparisons,
+including enlarged text and actual dictionary content, are retained under
+`.mlearn/visual-parity/`. Normal startup preserves the user's saved theme
+document; copied-profile 2x QA restored its exact original theme. No live
+v2 profile was used. Remaining unavailable pictured capabilities (structured
+ruby/prosody, live translation, aggregate Known/Flashcard/Explain and cue
+alignment arrows) are explicitly incomplete, not replaced with fake actions.
+Manual subtitle offset remains in advanced Playback options. No absent
+Reader/Messenger/Review backend is authorized by this work.
+
+Next: finish exact-source hosted verification, record final gates and clean
+only task-owned resources. Final maintainer acceptance remains separate.
+
+### Historical visual-rewrite progress
+
+The following paragraphs retain earlier observations and superseded pending
+statuses; the current checkpoint above is authoritative.
 
 Post-`73e362b3` verification found two regressions. Exact-source foundation CI passed all
 web/Rust/macOS/Windows jobs, but real desktop CI failed its existing preference

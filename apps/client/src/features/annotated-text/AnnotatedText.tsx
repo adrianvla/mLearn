@@ -18,6 +18,8 @@ export function AnnotatedText({ analysis, rawText, annotations, onInspect, inspe
         return <Text variant={variant} tone={variant === 'body' ? 'content' : 'media'} align={variant === 'body' ? 'left' : 'center'}>{rawText}</Text>;
     const native = Platform.OS !== 'web';
     function inspect(token: AnalyzedToken, anchor: TextAnchor) {
+        if (process.env.EXPO_PUBLIC_MLEARN_METRICS === '1')
+            console.info(`annotation-ui phase=inspect_action timestamp_ms=${Date.now()}`);
         const measure = (publish: (bounds: TextBounds) => void) => anchor.measure(word => {
             const node = paragraph.current;
             node?.measureInWindow((_x, y, _width, height) => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import { ContextPanel } from '@mlearn/ui/context-panel';
@@ -34,6 +34,13 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
     const [expandedCapability, setExpandedCapability] = useState<string | null>(null);
     const [showSource, setShowSource] = useState(false);
     const [showAlternatives, setShowAlternatives] = useState(false);
+    useLayoutEffect(() => {
+        if (!entry || process.env.EXPO_PUBLIC_MLEARN_METRICS !== '1') return;
+        const frame = requestAnimationFrame(() => {
+            console.info(`annotation-ui phase=inspect_commit timestamp_ms=${Date.now()}`);
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [entry]);
     useEffect(() => {
         let active = true;
         setError('');
