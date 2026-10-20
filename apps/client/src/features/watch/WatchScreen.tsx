@@ -103,6 +103,9 @@ export function WatchScreen() {
             if (active && current.isCurrent()) {
                 setWindow(w);
                 setPosition(w.source.positionMs);
+                // Focus clears the batch even when the retained source has the
+                // same revision, cues and position. Reanalyze after admission.
+                setAnalysisReload(value => value + 1);
                 latest.current = {
                     position: w.source.positionMs, duration: w.source.durationMs
                 };
