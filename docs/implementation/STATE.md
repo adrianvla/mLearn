@@ -10,24 +10,38 @@ This authorization supersedes the historical frozen-review, minimal-restyle
 and unpictured `visual_pending` restrictions below. No new domain milestone,
 merge, release or maintainer acceptance is authorized.
 
-Post-`73e362b3` regressions remain open. Exact-source foundation CI passed all
+Post-`73e362b3` verification found two regressions. Exact-source foundation CI passed all
 web/Rust/macOS/Windows jobs, but real desktop CI failed its existing preference
-cancellation recovery assertion: media remained decoded at20s while subtitles
+cancellation recovery assertion: media remained decoded at 20 seconds while subtitles
 had no usable annotation controls. The new rate-failure/retry and combobox-key
 checks passed before that failure. Focus clears the analysis batch; a retained
 source with unchanged cue/revision/position must explicitly reanalyze after
-resume admission. The current one-line refresh passes local typecheck, lint,
-web build and seven browser tests; the real hosted regression is pending.
+resume admission. The one-line refresh in `19fa6771` passes local checks and
+the entire real desktop run 39440737621, including both cancellation/blur
+checkpoint paths and the new rate-error/retry/combobox-key regressions.
+Foundation run 39440737605 also passes all jobs.
 
 Final local iOS Watch passed claims, transcript, preferences and restart, then
 failed to reveal Play/Pause after source reopen. A clean unmodified process
-passes the same native transport probe in12s, narrowing the failure to reuse/
+passes the same native transport probe in 12 seconds, narrowing the failure to reuse/
 navigation lifetime. Read-only UIKit inspection found AVKit ready with
 controls enabled and frame analysis disabled, but direct hit testing returned
 nil. Diagnostic containment, appearance and transport reconfiguration did not
 restore the unchanged touch probe; none is shipped as a fix. A later debugger
 controller-replacement experiment interrupted the disposable process, which
 was restarted before further evidence. No native assertion was weakened.
+
+The installed Expo 57.0.5 view starts an appearance transition on each window
+move without ending it. Balancing it and calling super passes the unchanged
+full iOS Watch flow in 176.736 seconds. Removing only those two SDK lines on identical
+`19fa6771` source fails at Play/Pause in 159.137 seconds. The durable install repair is
+`tools/patch-expo-video.mjs`, invoked by the normal npm postinstall; it is pinned
+to 57.0.5 and rejects partial/unexpected source or versions. Its idempotence and
+drift rejection are exercised in the existing mobile-packaging suite. Both real
+postinstall invocations and local tests/typecheck/lint/contracts pass.
+Patched SDK SHA256 is `ee45004def0d1e78239fbfa2818015595ee4d78337e47ff99d6541eb70e3a2a8`.
+The final consuming build/full Watch rerun after durable reapplication is
+pending. This changes AVKit lifecycle, not its transport semantics or assertions.
 
 The shared foundation and Home are being replaced, not merely centralized:
 measured reference palettes, historical built-in rendering resolution,

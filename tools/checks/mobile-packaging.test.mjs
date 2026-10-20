@@ -78,3 +78,45 @@ test('iOS packaging rejects an XCFramework that reintroduces the FFI module map'
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Unexpected XCFramework module map\(s\): .*module\.modulemap/);
 });
+
+test('native video install repair is idempotent and rejects unsupported source or versions', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'mlearn video lifecycle-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, 'tools'));
+  const script = path.join(root, 'tools/patch-expo-video.mjs');
+  await copyFile(new URL('../patch-expo-video.mjs', import.meta.url), script);
+  const packageRoot = path.join(root, 'node_modules/expo-video');
+  await mkdir(path.join(packageRoot, 'ios'), { recursive: true });
+  const manifest = path.join(packageRoot, 'package.json');
+  const file = path.join(packageRoot, 'ios/VideoView.swift');
+  const before = `class VideoView {
+  public override func didMoveToWindow() {
+    #if !os(tvOS)
+    playerViewController.beginAppearanceTransition(self.window != nil, animated: true)
+    #endif
+  }
+
+  public override func safeAreaInsetsDidChange() {}
+}
+`;
+  await writeFile(manifest, JSON.stringify({ version: '57.0.5' }));
+  await writeFile(file, before);
+  const run = () => spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 5000 });
+  let result = run();
+  assert.equal(result.status, 0, result.stderr);
+  const patched = await readFile(file, 'utf8');
+  const superCall = patched.indexOf('super.didMoveToWindow()');
+  assert.ok(superCall >= 0 && superCall < patched.indexOf('beginAppearanceTransition('));
+  assert.ok(patched.indexOf('endAppearanceTransition()') > patched.indexOf('beginAppearanceTransition('));
+  result = run();
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(await readFile(file, 'utf8'), patched);
+  const drift = before.replace('beginAppearanceTransition', 'changedUpstreamTransition');
+  await writeFile(file, drift);
+  assert.notEqual(run().status, 0);
+  assert.equal(await readFile(file, 'utf8'), drift);
+  await writeFile(manifest, JSON.stringify({ version: '57.0.6' }));
+  await writeFile(file, before);
+  assert.notEqual(run().status, 0);
+  assert.equal(await readFile(file, 'utf8'), before);
+});
