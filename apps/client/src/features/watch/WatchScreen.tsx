@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Platform, ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { Row } from '@mlearn/ui/layout';
-import { Dialog } from '@mlearn/ui/dialog';
+import { Dialog, dialogSidebarWidth } from '@mlearn/ui/dialog';
 import { TextField } from '@mlearn/ui/text-field';
+import { Select } from '@mlearn/ui/select';
 import type { SourceWindow, AnalysisBatch, PluginSummary } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
@@ -23,6 +24,7 @@ export function WatchScreen() {
     }>();
     const id = typeof params.id === 'string' ? params.id : '';
     const insets = useSafeAreaInsets();
+    const viewport = useWindowDimensions();
     const [subtitleInset, setSubtitleInset] = useState(128);
     const [toolbarHeight, setToolbarHeight] = useState(64);
     const [window, setWindow] = useState<SourceWindow | null>(null);
@@ -46,6 +48,7 @@ export function WatchScreen() {
     const [saveError, setSaveError] = useState('');
     const [busy, setBusy] = useState(false);
     const [transcriptOpen, setTranscriptOpen] = useState(false);
+    const sidebarInset = transcriptOpen && Platform.OS === 'web' && viewport.width >= 720 ? dialogSidebarWidth : 0;
     const [playbackOpen, setPlaybackOpen] = useState(false);
     const [offsetDraft, setOffsetDraft] = useState('0');
     const [playbackError, setPlaybackError] = useState('');
@@ -395,22 +398,10 @@ export function WatchScreen() {
             knowledge={(transcriptOpen ? transcriptBatch : batch)?.knowledge ?? []}
             onChanged={changedInspection} onClose={() => setInspection(null)} />
     ) : null;
-    return (
-        <View style={styles.screen(insets.top, insets.bottom)}>
-            <View testID="watch-toolbar" style={[styles.toolbar, { top: insets.top }]} onLayout={event => setToolbarHeight(event.nativeEvent.layout.height)}>
-                <Row>
-                    <Button label="← Home" accessibilityLabel="Home" size="compact" variant="media"
-                        disabled={busy} onPress={() => void back().catch(() => {})} />
-                    <View style={styles.title}><Text numberOfLines={1} variant="mediaTitle" tone="media">
-                        {window?.source.title ?? 'Watch'}
-                    </Text></View>
-                    {busy && host.available ? (
-                        <Button label="Cancel opening" variant="secondary"
-                            onPress={() => void cancelOpening()} />
-                    ) : null}
+    const sourceActions = <>
                     {window ? (
                         <Button label={window.source.subtitlePath ? 'Replace subtitles' : 'Open subtitles'}
-                            size="compact" variant="media" disabled={busy} onPress={() => void attach()} />
+                            icon="subtitles" iconOnly size="compact" variant="media" disabled={busy} onPress={() => void attach()} />
                     ) : null}
                     {window && host.available ? <>
                       <Transcript key={`${id}:${window.source.subtitleRevision}`} client={host.client}
@@ -430,7 +421,7 @@ export function WatchScreen() {
                           void pauseAndSave().catch(() => {});
                         }
                       }} title="Playback and subtitles" description="Changes are saved for this video."
-                        trigger={<Button label="Playback options" variant="media" size="compact" />}>
+                        trigger={<Button label="Playback options" icon="settings" iconOnly variant="media" size="compact" />}>
                         <Text>Playback rate · {window.source.playbackRate}×</Text>
                         <Row>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate =>
                           <Button key={rate} label={`${rate}×`} accessibilityLabel={`Playback rate ${rate}`}
@@ -438,15 +429,14 @@ export function WatchScreen() {
                             accessibilityState={{ selected: window.source.playbackRate === rate }}
                             onPress={() => void changeSource(client => client.setPlaybackRate(id, rate))} />)}</Row>
                         <Text>Source language</Text>
-                        <Row>{languages.map(plugin => <Button key={plugin.id}
-                          label={plugin.displayName ?? plugin.id}
-                          accessibilityLabel={plugin.displayName ?? plugin.id} variant="secondary" disabled={busy}
-                          accessibilityState={{ selected: window.source.packageId === plugin.id }}
-                          onPress={() => {
-                            if (window.source.packageId !== plugin.id || window.source.packageVersion !== plugin.version) {
-                              void changeSource(client => client.setSourceLanguage(id, plugin.id), true);
+                        <Select label="Source language" value={window.source.packageId} disabled={busy}
+                          options={languages.map(plugin => ({ value: plugin.id, label: plugin.displayName ?? plugin.id, testID: plugin.id }))}
+                          onValueChange={id => {
+                            const plugin = languages.find(value => value.id === id);
+                            if (plugin && (window.source.packageId !== plugin.id || window.source.packageVersion !== plugin.version)) {
+                              void changeSource(client => client.setSourceLanguage(window.source.id, plugin.id), true);
                             }
-                          }} />)}</Row>
+                          }} />
                         {Platform.OS === 'web' ? <>
                           <Text>Desktop inspection</Text>
                           <Row>{([
@@ -476,6 +466,22 @@ export function WatchScreen() {
                         {playbackError ? <Text accessibilityRole="alert">{playbackError}</Text> : null}
                       </Dialog>
                     </> : null}
+    </>;
+    return (
+        <View style={[styles.screen(insets.top, insets.bottom), { paddingRight: sidebarInset }]}>
+            <View testID="watch-toolbar" style={[styles.toolbar, { top: insets.top, right: sidebarInset,
+                paddingLeft: host.available ? Math.max(16, host.windowControlsWidth ?? 0) : 16 }]} onLayout={event => setToolbarHeight(event.nativeEvent.layout.height)}>
+                <Row>
+                    <Button label="Home" icon="arrowLeft" size="compact" variant="media"
+                        disabled={busy} onPress={() => void back().catch(() => {})} />
+                    <View style={styles.title}><Text numberOfLines={1} variant="mediaTitle" tone="media">
+                        {window?.source.title ?? 'Watch'}
+                    </Text></View>
+                    {busy && host.available ? (
+                        <Button label="Cancel opening" variant="secondary"
+                            onPress={() => void cancelOpening()} />
+                    ) : null}
+                    {Platform.OS !== 'web' ? sourceActions : null}
                 </Row>
                 {error ? <>
                     <Text tone="media" accessibilityRole="alert">{error}</Text>
@@ -493,6 +499,7 @@ export function WatchScreen() {
             {window && host.available ? <>
                 <View style={styles.stage}>
                     <MediaSurface key={window.source.id} uri={host.media.uri(window.source)}
+                        controls={Platform.OS === 'web' ? sourceActions : undefined}
                         initialPositionMs={window.source.positionMs} playbackRate={window.source.playbackRate}
                         paused={!!inspection || busy || transcriptOpen || playbackOpen}
                         onController={value => {
@@ -542,7 +549,7 @@ const styles = StyleSheet.create(theme => ({
     screen: (top: number, bottom: number) => ({
         flex: 1, paddingTop: top, paddingBottom: bottom, backgroundColor: theme.media.background
     }), toolbar: {
-        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small, backgroundColor: theme.media.chrome
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small
     }, title: {
         flex: 1, flexBasis: 120, minWidth: 0
     }, stage: {

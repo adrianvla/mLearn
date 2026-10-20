@@ -126,7 +126,10 @@ async function styleState() {
   return script(`
     const heading = Array.from(document.querySelectorAll('h1,h2,h3,[role="heading"],[role="header"]'))
       .find(node => node.textContent === 'Settings');
-    const button = document.querySelector('[aria-label="Home"]');
+    // Expo retains the hidden Home heading when Settings is pushed. Measure
+    // the visible navigation control, not any node sharing its accessible name.
+    const button = Array.from(document.querySelectorAll('button[aria-label="Home"],[role="button"][aria-label="Home"]'))
+      .find(node => node.getClientRects().length && node.getBoundingClientRect().height > 0);
     const computed = heading && getComputedStyle(heading);
     return {
       heading: heading ? { fontSize: computed.fontSize, color: computed.color } : null,

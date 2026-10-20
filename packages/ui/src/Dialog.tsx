@@ -1,29 +1,33 @@
 import type { PropsWithChildren, ReactElement } from 'react';
-import { ScrollView, View, useWindowDimensions } from 'react-native';
+import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
 import { Button } from './Button';
 import { Text } from './Text';
 
-type Props = PropsWithChildren<{ open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; trigger: ReactElement }>;
-export function Dialog({ open, onOpenChange, title, description, trigger, children }: Props) {
-  const { height } = useWindowDimensions();
+type Props = PropsWithChildren<{ open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; trigger: ReactElement; presentation?: 'dialog' | 'sidebar' }>;
+export const dialogSidebarWidth = 320;
+export function Dialog({ open, onOpenChange, title, description, trigger, children, presentation = 'dialog' }: Props) {
+  const { height, width } = useWindowDimensions();
+  const sidebar = presentation === 'sidebar' && Platform.OS === 'web' && width >= 720;
   const { theme } = useUnistyles();
   return <Primitive.Root open={open} onOpenChange={onOpenChange}>
     <Primitive.Trigger asChild>{trigger}</Primitive.Trigger>
     <Primitive.Portal>
       <Primitive.Overlay asChild>
-        <View style={styles.overlay}>
-          <View style={styles.bounds}>
+        <View style={[styles.overlay, sidebar && styles.sidebarOverlay]}>
+          <View style={[styles.bounds, sidebar && styles.sidebarBounds]}>
             <Primitive.Content asChild>
-              <View style={[styles.content(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: theme.radius }]} testID="dialog-surface">
+              <View style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
+                <View style={styles.header}>
+                  <View style={styles.title}><Primitive.Title asChild><Text variant={sidebar ? 'section' : 'heading'}>{title}</Text></Primitive.Title></View>
+                  <Primitive.Close asChild><Button label="Close" icon="close" iconOnly variant="quiet" size="compact" /></Primitive.Close>
+                </View>
+                <Primitive.Description asChild><Text muted variant="caption">{description}</Text></Primitive.Description>
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-                  <Primitive.Title asChild><Text variant="heading">{title}</Text></Primitive.Title>
-                  <Primitive.Description asChild><Text muted>{description}</Text></Primitive.Description>
                   {children}
                 </ScrollView>
-                <Primitive.Close asChild><Button label="Close" variant="secondary" /></Primitive.Close>
               </View>
             </Primitive.Content>
           </View>
@@ -37,6 +41,11 @@ const styles = StyleSheet.create((theme) => ({
   // A fixed web overlay must not move when focus scrolls the underlying page.
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.comfortable, backgroundColor: theme.scrim, _web: { position: 'fixed', zIndex: 1000 } },
   bounds: { width: '100%', maxWidth: 640 },
+  sidebarOverlay: { alignItems: 'flex-end', padding: 0, backgroundColor: 'transparent' },
+  sidebarBounds: { width: dialogSidebarWidth, maxWidth: '100%', height: '100%' },
+  sidebarContent: (height: number) => ({ height, maxHeight: height, borderTopWidth: 0, borderBottomWidth: 0, borderRightWidth: 0 }),
+  header: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },
+  title: { flex: 1, minWidth: 0 },
   // Content crosses a third-party asChild/portal boundary. Resolve its palette
   // through useUnistyles so a surface mounted after a theme change cannot keep
   // the initial palette while its child controls use the active theme.

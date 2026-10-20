@@ -72,8 +72,7 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
         && projection.key.capability === expandedCapability);
     return (
         <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
-            footer={entry ? <>
-                {activeCapability ? <View style={styles.adjustment}>
+            popover={entry && activeCapability ? <View style={styles.adjustment}>
                     <Text tone="media">{activeCapability.label} · {activeProjection?.status.replaceAll('_', ' ') ?? 'untracked'}</Text>
                     <Row>
                         <Button size="compact" label="Known" accessibilityLabel={`Claim ${activeCapability.label} known`}
@@ -94,13 +93,15 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
                         <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
                     </> : null}
                 </View> : null}
+            footer={entry ? <>
                 <View style={styles.pills}>
                     {entry.capabilities.map((cap, capIndex) => {
                         const projection = knowledge.find(p => p.key.packageId === packageId && p.key.targetId === entry.targetId && p.key.capability === cap.id);
                         const status = projection?.status.replaceAll('_', ' ') ?? 'untracked';
                         return <Button key={cap.id} size="compact" variant="pill"
                             tone={projection?.claim === true ? 'positive' : projection?.claim === false ? 'negative' : 'neutral'}
-                            label={`${projection?.claim === true ? '✓' : projection?.claim === false ? '×' : '○'} ${cap.label}`}
+                            label={cap.label}
+                            icon={projection?.claim === true ? 'checkCircle' : projection?.claim === false ? 'closeCircle' : 'circle'}
                             accessibilityLabel={capIndex === 0 ? 'Knowledge' : `Adjust ${cap.label} knowledge`}
                             accessibilityValue={{ text: `${cap.label} · ${status}` }}
                             accessibilityState={{ expanded: expandedCapability === cap.id }}
@@ -115,7 +116,8 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
                     <Badge label={entry.reading} variant="reading" selectable />
                 </View> : null}
                 {inspection.targets.length > 1 ? <>
-                <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="media"
+                <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="disclosure"
+                    icon={showAlternatives ? 'chevronDown' : 'chevronRight'}
                     accessibilityState={{ expanded: showAlternatives }} onPress={() => setShowAlternatives(v => !v)} />
                 {showAlternatives ? <View style={styles.alternatives}>
                     <Button size="compact" label="‹" accessibilityLabel="Previous sense" variant="media"
@@ -179,7 +181,6 @@ const styles = StyleSheet.create(theme => ({
     }, pills: {
         flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small
     }, adjustment: {
-        gap: theme.spacing.small, paddingBottom: theme.spacing.compact, marginBottom: theme.spacing.compact,
-        borderBottomWidth: 1, borderBottomColor: theme.media.border
+        gap: theme.spacing.small
     }
 }));

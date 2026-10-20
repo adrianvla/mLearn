@@ -6,11 +6,12 @@ import { Text } from './Text';
 import { Button } from './Button';
 import type { TextAnchor } from './InlineWord';
 import type { TextBounds } from './InlineWord.types';
-export function ContextPanel({ title, anchor, onClose, children, footer, sourceContext, alwaysShowContext = false }: PropsWithChildren<{
+export function ContextPanel({ title, anchor, onClose, children, footer, popover, sourceContext, alwaysShowContext = false }: PropsWithChildren<{
     title: string;
     anchor: TextAnchor;
     onClose: () => void;
     footer?: ReactNode;
+    popover?: ReactNode;
     sourceContext?: string;
     alwaysShowContext?: boolean;
 }>) {
@@ -18,6 +19,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, sourceC
     const { theme } = useUnistyles();
     const [bounds, setBounds] = useState<TextBounds>(anchor);
     const [headerHeight, setHeaderHeight] = useState(0);
+    const [footerHeight, setFooterHeight] = useState(0);
     useLayoutEffect(() => {
         let active = true;
         anchor.measure(value => { if (active) setBounds(value); });
@@ -48,7 +50,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, sourceC
                                 {
                                     backgroundColor: anchored ? theme.media.panel : theme.media.chrome,
                                     borderColor: theme.media.border,
-                                    borderRadius: theme.radius,
+                                    borderRadius: theme.radius + 4,
                                     width: panelWidth,
                                     maxHeight,
                                 },
@@ -69,16 +71,22 @@ export function ContextPanel({ title, anchor, onClose, children, footer, sourceC
                                         <Primitive.Description asChild>
                                             <Text tone="media" muted variant="caption">Inspect</Text>
                                         </Primitive.Description>
-                                        <Button label="×" accessibilityLabel="Close Inspector" variant="media" size="compact" onPress={onClose} />
+                                        <Button label="Close Inspector" icon="close" iconOnly variant="media" size="compact" onPress={onClose} />
                                 </View>
                                 <ScrollView testID="inspector-body" style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
                                     {(!anchored || alwaysShowContext) && sourceContext ? <Text tone="media" variant="caption" selectable>{sourceContext}</Text> : null}
                                     {children}
                                 </ScrollView>
                                 {footer ? <ScrollView testID="inspector-footer"
+                                    onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
                                     style={[styles.footer, { maxHeight: Math.max(64, Math.min(maxHeight / 2, maxHeight - headerHeight - 64)) }]}
                                     contentContainerStyle={styles.footerContent} keyboardShouldPersistTaps="handled">
                                     {footer}
+                                </ScrollView> : null}
+                                {popover ? <ScrollView style={[styles.popover, { bottom: footerHeight,
+                                    maxHeight: Math.max(80, maxHeight - headerHeight - footerHeight) }]}
+                                    contentContainerStyle={styles.popoverContent} keyboardShouldPersistTaps="handled">
+                                    {popover}
                                 </ScrollView> : null}
                             </View>
                         </Primitive.Content>
@@ -111,5 +119,11 @@ const styles = StyleSheet.create(theme => ({
         backgroundColor: theme.media.footer
     }, footerContent: {
         padding: theme.spacing.compact
+    }, popover: {
+        position: 'absolute', left: theme.spacing.medium, right: theme.spacing.medium, maxWidth: 360,
+        borderWidth: 1, borderColor: theme.media.border, borderRadius: theme.radius / 2,
+        backgroundColor: theme.media.chrome, _web: { backdropFilter: 'blur(20px)', boxShadow: '0 8px 24px #00000040' }
+    }, popoverContent: {
+        padding: theme.spacing.small, gap: theme.spacing.small
     }
 }));

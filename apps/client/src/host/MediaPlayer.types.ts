@@ -1,1 +1,2 @@
-export type MediaPlayerProps={uri:string;initialPositionMs:number;paused:boolean;playbackRate?:number;onController:(controller:{subtitleBottomInset:number;seekTo:(positionMs:number)=>void;pauseAndRead:()=>{positionMs:number;durationMs:number}})=>void;onProgress:(positionMs:number,durationMs:number,checkpoint:boolean)=>void;onError:(message:string)=>void};
+import type { ReactNode } from 'react';
+export type MediaPlayerProps={uri:string;initialPositionMs:number;paused:boolean;playbackRate?:number;controls?:ReactNode;onController:(controller:{subtitleBottomInset:number;seekTo:(positionMs:number)=>void;pauseAndRead:()=>{positionMs:number;durationMs:number}})=>void;onProgress:(positionMs:number,durationMs:number,checkpoint:boolean)=>void;onError:(message:string)=>void};

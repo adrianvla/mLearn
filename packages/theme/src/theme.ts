@@ -63,7 +63,9 @@ export function resolveTheme(saved: ThemeDocument) {
       section: textRole(18, 27, '600'),
       body: textRole(16, 24),
       caption: textRole(14, 21),
-      inspectionTitle: textRole(32, 44),
+      // Edited Inspector targets use serif CJK headwords while Latin remains UI
+      // sans. Refer to installed system fonts; no font binary is redistributed.
+      inspectionTitle: { ...textRole(32, 44), _web: { fontFamily: '"Helvetica Neue", "Hiragino Mincho ProN", serif' } },
       inspectionBody: textRole(20, 28),
       inspectionReading: textRole(18, 26),
       mediaTitle: textRole(13, 20),

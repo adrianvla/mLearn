@@ -58,5 +58,8 @@ test('Home exposes the native boundary without fabricated recents',async({page})
  await page.getByRole('button',{name:'Settings',exact:true}).click();
  await page.getByRole('button',{name:'Runtime',exact:true}).click();
  await expect(page.getByRole('button',{name:'Run hello',exact:true})).toBeDisabled();
+ const home = page.getByRole('button',{name:'Home',exact:true});
+ await expect(home).toBeVisible();
+ expect((await home.boundingBox())!.height).toBeGreaterThanOrEqual(44);
  await page.getByRole('button',{name:'Home',exact:true}).click();await expect(page.getByRole('heading',{name:'Home',exact:true})).toBeVisible();
 });

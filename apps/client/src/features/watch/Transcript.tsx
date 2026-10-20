@@ -105,18 +105,18 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
 
   const prepared = analysis?.sourceId === source.id && analysis.subtitleRevision === source.subtitleRevision
     && analysis.packageId === source.packageId && analysis.packageVersion === source.packageVersion ? analysis : null;
-  return <Dialog open={open} onOpenChange={onOpenChange} title="Transcript"
+  return <Dialog open={open} onOpenChange={onOpenChange} title="Transcript" presentation="sidebar"
     description="Exact, case-sensitive subtitle search."
-    trigger={<Button label="Transcript" size="compact" variant="media" disabled={!source.subtitleRevision} />}>
-    <TextField testID="transcript-search-input" label="Search transcript" value={draft} onChangeText={setDraft}
+    trigger={<Button label="Transcript" icon="transcript" iconOnly size="compact" variant="media" disabled={!source.subtitleRevision} />}>
+    <TextField testID="transcript-search-input" label="Search transcript" variant="search" value={draft} onChangeText={setDraft}
       maxLength={128} autoCapitalize="none" autoCorrect={false} />
     <Row>
-      <Button label="Search" disabled={pending} onPress={() => {
+      <Button label="Search" size="compact" disabled={pending} onPress={() => {
         setPage(null); setAfter(null); setQuery(draft); setReload(value => value + 1);
       }} />
-      <Button label="First page" variant="secondary" disabled={pending || after === null}
+      <Button label="First page" icon="arrowLeft" iconOnly size="compact" variant="secondary" disabled={pending || after === null}
         onPress={() => { setPage(null); setAfter(null); }} />
-      <Button label="Next page" variant="secondary" disabled={pending || page?.nextIndex == null}
+      <Button label="Next page" icon="chevronRight" iconOnly size="compact" variant="secondary" disabled={pending || page?.nextIndex == null}
         onPress={() => { setAfter(page?.nextIndex ?? null); setPage(null); }} />
     </Row>
     {pending ? <Text accessibilityLiveRegion="polite">Loading transcript…</Text> : null}
@@ -128,9 +128,9 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
         setAnalysisError(cause instanceof Error ? cause.message : String(cause)))} /></> : null}
     {!pending && !error && page?.cues.length === 0 ? <Text>No matching cues in this subtitle file.</Text> : null}
     {page?.cues.map(cue => <View key={cue.index} style={styles.cue}>
-      <Button label={`Go to ${cueTime(cue.startMs - source.subtitleOffsetMs)}`}
+      <View style={styles.cueTime}><Button label={cueTime(cue.startMs - source.subtitleOffsetMs)}
         accessibilityLabel={`Go to cue ${cue.index + 1} at ${cueTime(cue.startMs - source.subtitleOffsetMs)}`}
-        variant="quiet" disabled={navigating} onPress={() => void seek(cue.index)} />
+        size="compact" variant="quiet" disabled={navigating} onPress={() => void seek(cue.index)} /></View>
       {navigationError?.cueIndex === cue.index ? <Text accessibilityRole="alert">{navigationError.message}</Text> : null}
       <AnnotatedText rawText={cue.text} variant="body" inspectionMode={source.inspectionTrigger}
         analysis={prepared?.cues.find(value => value.cue.index === cue.index && value.cue.text === cue.text) ?? null}
@@ -144,6 +144,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
 }
 
 const styles = StyleSheet.create(theme => ({
+  cueTime: { alignSelf: 'flex-start' },
   cue: { gap: theme.spacing.small, paddingVertical: theme.spacing.small,
     borderBottomWidth: 1, borderBottomColor: theme.colors.border },
 }));

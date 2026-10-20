@@ -15,7 +15,12 @@ measured reference palettes, historical built-in rendering resolution,
 portable icons/selectors, bounded shell, native overlay titlebar and actual
 source cards. Same-ID customized themes are preserved. Settings now consumes
 the same shell, navigation, selector, field and divided-row families.
-Watch/transcript/Inspector reconstruction and final convergence remain open.
+Watch now composes the measured seek rail/icon footer, with real subtitle,
+transcript and playback actions. Transcript uses the shared bounded sidebar
+on desktop and a dialog on narrow/native screens. Inspector now uses shared
+gradient reading metadata, vector claim icons, disclosure anatomy and a bounded
+nested correction popover without shrinking away dictionary content. Final
+convergence remains open.
 
 Current private comparison entry point:
 `.mlearn/visual-parity/manifest.json`, with surface/state inventory in
@@ -43,6 +48,13 @@ regression is red/green, and live accent edit/restore reached the rendered
 action without another server restart. Native overlay window dragging moves
 the window; the task restored its original position.
 These checks do not close visual, functional/native or performance gates.
+First pushed checkpoint `7700d7b0` passed hosted foundation checks. Its native
+desktop integration exposed a test selector collision: the newly labelled
+hidden Home heading was measured instead of the visible 44px Home button.
+The collision was reproduced in the real browser (heading0px/button44px);
+the selector now requires a visible button and retains the 44px assertion,
+also exercised in the existing Home navigation web test. Corrected native CI
+is pending; the original failure is not erased by local passing checks.
 Next: finish Settings and migrate Watch/player/captions/transcript, then
 Inspector/corrections, compare all states and run consuming verification.
 

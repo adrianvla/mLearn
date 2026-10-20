@@ -3,7 +3,7 @@
 // ordinary actions use shared primitives. Native VideoView retains native input.
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { View } from 'react-native';
-import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import type { MediaPlayerProps } from './MediaPlayer.types';
@@ -11,10 +11,31 @@ function timeLabel(seconds: number) {
     const whole = Math.max(0, Math.floor(seconds));
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 }
-export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, onProgress, onError, onController }: MediaPlayerProps) {
+/** Keep the native range's keyboard and pointer semantics, with media-owned visuals. */
+function MediaRange({ label, value, maximum, onChange, valueText, compact = false }: {
+    readonly label: string;
+    readonly value: number;
+    readonly maximum: number;
+    readonly onChange: (value: number) => void;
+    readonly valueText?: string;
+    readonly compact?: boolean;
+}) {
+    const [focused, setFocused] = useState(false);
+    const ratio = maximum ? Math.min(1, Math.max(0, value / maximum)) : 0;
+    return <View style={[styles.range(compact), focused && styles.rangeFocus]}>
+        <View style={styles.track}><View style={[styles.filledTrack, { width: `${ratio * 100}%` }]} /></View>
+        <View pointerEvents="none" style={[styles.thumb(compact), { left: `${ratio * 100}%` }]} />
+        <input type="range" aria-label={label} min={0} max={maximum} step="any"
+            value={value} disabled={!maximum} aria-valuetext={valueText}
+            onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+            onChange={event => onChange(Number(event.currentTarget.value))}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
+                margin: 0, opacity: 0, cursor: 'pointer' }} />
+    </View>;
+}
+export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, controls, onProgress, onError, onController }: MediaPlayerProps) {
     const ref = useRef<HTMLVideoElement>(null);
     const pendingPositionMs = useRef(initialPositionMs);
-    const { theme } = useUnistyles();
     const [controlHeight, setControlHeight] = useState(64);
     const [fullscreen, setFullscreen] = useState(false);
     const [playback, setPlayback] = useState({
@@ -165,31 +186,39 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
     onEnded={() => progress(true)}
     onError={() => callbacks.current.onError(`This host could not decode the video (media error ${ref.current?.error?.code ?? 'unknown'}). Select a compatible local video; saved progress is preserved.`)}/>
     <View testID="media-controls" style={styles.controls} onLayout={event => setControlHeight(event.nativeEvent.layout.height)}>
-        <Button label={playback.playing ? 'Ⅱ' : '▶'} accessibilityLabel={playback.playing ? 'Pause' : 'Play'}
-            variant="media" size="compact" disabled={!playback.duration}
-            onPress={togglePlayback} />
-        <input type="range" aria-label="Playback position" min={0} max={playback.duration} step="any"
-            value={playback.position} disabled={!playback.duration}
-            aria-valuetext={`${timeLabel(playback.position)} of ${timeLabel(playback.duration)}`}
-            onChange={event => seekTo(Number(event.currentTarget.value) * 1000)}
-            style={{ flex: 1, minWidth: 100, accentColor: theme.media.text, cursor: 'pointer' }} />
-        <Text tone="media" variant="caption">{timeLabel(playback.position)} / {timeLabel(playback.duration)}</Text>
-        <Button label={playback.muted ? 'Unmute' : 'Mute'} accessibilityLabel={playback.muted ? 'Unmute' : 'Mute'}
-            variant="media" size="compact"
-            onPress={() => { if (ref.current) ref.current.muted = !ref.current.muted; }} />
-        <input type="range" aria-label="Volume" min={0} max={1} step={0.01} value={playback.volume}
-            onChange={event => { if (ref.current) ref.current.volume = Number(event.currentTarget.value); }}
-            style={{ width: 72, accentColor: theme.media.text, cursor: 'pointer' }} />
-        <Button label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-            accessibilityLabel={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-            variant="media" size="compact" onPress={toggleFullscreen} />
+        <MediaRange label="Playback position" value={playback.position} maximum={playback.duration}
+            valueText={`${timeLabel(playback.position)} of ${timeLabel(playback.duration)}`}
+            onChange={value => seekTo(value * 1000)} />
+        <View style={styles.controlRow}>
+            <Button label={playback.playing ? 'Pause' : 'Play'} icon={playback.playing ? 'pause' : 'play'}
+                iconOnly variant="media" size="compact" disabled={!playback.duration} onPress={togglePlayback} />
+            <Button label={playback.muted ? 'Unmute' : 'Mute'} icon={playback.muted ? 'volumeOff' : 'volume'}
+                iconOnly variant="media" size="compact"
+                onPress={() => { if (ref.current) ref.current.muted = !ref.current.muted; }} />
+            <MediaRange label="Volume" compact value={playback.volume} maximum={1}
+                onChange={value => { if (ref.current) ref.current.volume = value; }} />
+            <Text tone="media" variant="mediaTitle">{timeLabel(playback.position)} / {timeLabel(playback.duration)}</Text>
+            <View style={styles.spacer} />
+            {controls}
+            <Button label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'} icon={fullscreen ? 'shrink' : 'expand'}
+                iconOnly variant="media" size="compact" onPress={toggleFullscreen} />
+        </View>
     </View></View>;
 }
 const styles = StyleSheet.create(theme => ({
     player: { flex: 1, minHeight: 0 },
     controls: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12,
-        paddingHorizontal: 16, paddingVertical: 10, backgroundColor: theme.media.chrome,
+        gap: 0, paddingBottom: 4, backgroundColor: theme.media.chrome,
     },
+    controlRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, paddingHorizontal: 8 },
+    spacer: { flex: 1 },
+    range: (compact: boolean) => ({ height: compact ? 24 : 12, width: compact ? 64 : '100%',
+        justifyContent: 'center', paddingHorizontal: 3 }),
+    rangeFocus: { borderRadius: 3, borderWidth: 1, borderColor: theme.media.text },
+    track: { height: 4, borderWidth: 1, borderColor: theme.media.border, backgroundColor: theme.media.badge },
+    filledTrack: { height: '100%', backgroundColor: theme.media.muted },
+    thumb: (compact: boolean) => ({ position: 'absolute', width: compact ? 6 : 4, height: compact ? 18 : 6,
+        marginLeft: -3, borderWidth: 1, borderColor: theme.media.muted, backgroundColor: theme.media.badge,
+        borderRadius: compact ? 3 : 1 }),
 }));
