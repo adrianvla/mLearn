@@ -12,11 +12,13 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current verification checkpoint
 
-Presentation and connected-flow repairs are pushed through `93ecb6c5`.
-Exact-source foundation run `39448604492` and desktop run `39448604405`
+Application source is pushed through `0ddb9b28`.
+Exact-source foundation run `39450937743` and desktop run `39450937775`
 pass. Desktop includes preference cancellation/blur recovery, persisted
 rate-failure/retry, selector keyboard ownership and enlarged-text Inspector
-clearance. Native run `39448604470` remains pending; it is not a pass.
+clearance. Native run `39450937682` remains pending with an active persistent
+subscription; it is not a pass. Superseded run `39448604470` was cancelled
+before any jobs ran, not counted as verification.
 
 The final local consuming iOS Watch flow passes in 180.179 seconds, including
 native fullscreen/return and restart. Android Watch passes in 216.126 seconds.
@@ -49,8 +51,28 @@ alignment arrows) are explicitly incomplete, not replaced with fake actions.
 Manual subtitle offset remains in advanced Playback options. No absent
 Reader/Messenger/Review backend is authorized by this work.
 
-Next: finish exact-source hosted verification, record final gates and clean
-only task-owned resources. Final maintainer acceptance remains separate.
+The language-package controls also have connected native evidence on the
+same application source. In the retained copied profile, a loopback server
+served the existing signed catalog and authentic English package bytes:
+catalog HTTP503/recovery, a held 1024-byte transfer, acknowledged cancellation,
+artifact HTTP503/failure and retry to all 25876710 authenticated bytes/Installed.
+No transport or result was mocked. Pending, cancellation, failure, recovery
+and narrow long-label captures were inspected; competing starts were disabled
+and feedback remained beside the initiating action. No source fix was needed.
+
+Owned apps, reference/browser processes, Metro and catalog servers are stopped;
+ports 3000/8081/7780/9229 are closed. Only the task-created Android AVD and iOS
+simulator were deleted; retained H00 is untouched. Dock autohide is restored
+to false. Useful isolated profiles, caches and diagnostic evidence are retained
+under ignored `.mlearn/visual-parity/retained-20261020`; the temporary root was
+removed. Later package QA reused that copy and stopped all its new processes.
+The rewrite diff from requested `4a86df32` is whitespace-clean; the broader
+H00 diff has pre-existing vendored Japanese whitespace, reproduced on that
+unchanged baseline and left alone.
+
+Next: finish the subscribed consuming mobile run and record its actual result.
+Unavailable target states remain incomplete even if all checks pass. Final
+maintainer acceptance remains separate.
 
 ### Historical visual-rewrite progress
 
