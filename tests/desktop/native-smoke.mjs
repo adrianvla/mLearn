@@ -410,12 +410,19 @@ try {
       }
       await script('window.__m02Preference.release();return true;');
       if (leave === 'blur') await resumeWatch();
-      const resumed=(await native({type:'recent_sources'})).sources.find(source=>source.id===id);
+      // Raw harness IPC bypasses the client's bounded admission queue. Let the
+      // mounted source finish initialization before adding a separate read.
+      await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking`);
+      await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
+      const resumedSources=await native({type:'recent_sources'});
+      assert.equal(resumedSources.type,'sources',JSON.stringify(resumedSources));
+      const resumed=resumedSources.sources.find(source=>source.id===id);
+      assert.ok(resumed,'The resumed source must remain persisted');
       // This probe sets HTMLVideoElement.currentTime directly, unlike the product
       // controller which queues seeks until metadata. First observe real resume
       // initialization so it cannot overwrite the test's subsequent raw seek.
       await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking&&Math.abs(document.querySelector("video").currentTime-${resumed.positionMs}/1000)<0.01`);
-      await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
+      await observedSourceView('Resume must settle at its persisted position before the raw seek');
       await script('window.__m02Preference.checkpointArmed=true;document.querySelector("video").currentTime=arguments[0]/1000;return true;',[checkpoint]);
       const saved=await rpc('POST',`/session/${session}/execute/async`,{
         script:'const done=arguments[0];const timer=setTimeout(()=>done(null),10000);window.__m02Preference.checkpoint.then(value=>{clearTimeout(timer);done(value);});',args:[],

@@ -19,8 +19,16 @@ route blur. Its retained capture is still Home and `media-failure.json` is null,
 not an unannotated Watch: the special Resume helper checked enabled/presence
 but skipped the shared click helper's scrolling and actual hit-target check.
 Resume now delegates to that existing readiness owner and the real WebDriver
-click; the original usable-Watch assertion is unchanged. Its hosted rerun is
-pending. Prior `0ddb9b28` foundation/desktop runs passed cancellation/blur,
+click; the original usable-Watch assertion is unchanged. Rerun `39469345870`
+reaches real Watch (paused at 20 seconds, readyState 2), but its raw
+`recent_sources` read returns a response without `sources` during initialization;
+the harness dereferenced `sources` before waiting for annotations. This read
+bypasses the client's admission queue and can compete with the three permitted
+native operations. It now follows visible annotation readiness, reports an
+unexpected response explicitly, and retains the original exact persisted-position
+predicate before the raw seek. No retries or native-limit changes were added.
+`644652e2` foundation run `39469345838` passes; corrected desktop verification
+remains pending. Prior `0ddb9b28` foundation/desktop runs passed cancellation/blur,
 rate-failure/retry, keyboard ownership and enlarged-text Inspector clearance.
 
 Earlier native run `39450937682` passes Android but fails iOS before media
