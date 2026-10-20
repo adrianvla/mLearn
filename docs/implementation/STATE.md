@@ -12,11 +12,18 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current verification checkpoint
 
-Application source is pushed through `0ddb9b28`.
-Exact-source foundation run `39450937743` and desktop run `39450937775`
-pass. Desktop includes preference cancellation/blur recovery, persisted
-rate-failure/retry, selector keyboard ownership and enlarged-text Inspector
-clearance. Native run `39450937682` passes Android but fails iOS before media
+Application/native-build source is pushed through `f4b59d78`.
+Its foundation run `39467499076` passes; native run `39467499143` remains
+subscribed. Desktop run `39467499144` failed the usable-Watch assertion after
+route blur. Its retained capture is still Home and `media-failure.json` is null,
+not an unannotated Watch: the special Resume helper checked enabled/presence
+but skipped the shared click helper's scrolling and actual hit-target check.
+Resume now delegates to that existing readiness owner and the real WebDriver
+click; the original usable-Watch assertion is unchanged. Its hosted rerun is
+pending. Prior `0ddb9b28` foundation/desktop runs passed cancellation/blur,
+rate-failure/retry, keyboard ownership and enlarged-text Inspector clearance.
+
+Earlier native run `39450937682` passes Android but fails iOS before media
 import: Files had already restored the app container with `M01 fixtures`
 visible, while the helper insisted on seeing the parent container row.
 Captured hierarchy, image and command records establish that mismatch.

@@ -280,32 +280,9 @@ try {
     await script('window.__m01NumericTheme.cancel();delete window.__m01NumericTheme;return true;');
   }
   async function resumeWatch() {
-    // Home refreshes native state after missing-source recovery. Presence alone
-    // can find the button while that refresh still disables it. Observe readiness
-    // before the real WebDriver click; a permanently disabled control still fails.
-    const element = await rpc('POST', `/session/${session}/execute/async`, {script: `
-      const done=arguments[arguments.length-1];
-      let settled=false;
-      function finish(value) {
-        if(settled)return;
-        settled=true;observer.disconnect();clearTimeout(timer);done(value);
-      }
-      function check() {
-        const button=Array.from(document.querySelectorAll('[aria-label="Resume watch-fixture.mp4"]')).find(node=>{
-          if(node.disabled||node.getAttribute('aria-disabled')==='true'||
-            node.closest('[aria-hidden="true"]')||!node.getClientRects().length)return false;
-          const style=getComputedStyle(node);
-          return style.visibility!=='hidden'&&style.pointerEvents!=='none';
-        });
-        if(button)finish(button);
-      }
-      const observer=new MutationObserver(check);
-      const timer=setTimeout(()=>finish({readinessError:'Resume source did not become visible and enabled'}),20000);
-      observer.observe(document.body,{subtree:true,childList:true,attributes:true});
-      check();`, args:[]});
-    const id=element?.['element-6066-11e4-a52e-4f735466cecf'];
-    assert.ok(id,JSON.stringify(element));
-    await rpc('POST', `/session/${session}/element/${id}/click`, {});
+    // At 2x, recents can sit below the viewport during a route return.
+    // Use the shared scroll/hit-target readiness before real WebDriver input.
+    await click('Resume watch-fixture.mp4');
   }
   assert.equal((await native({type:'install_plugin',pluginId:'org.mlearn.english'})).type,'installed');
   const fixture=path.resolve('.mlearn/m01-ci-fixtures/watch-fixture.mp4');
