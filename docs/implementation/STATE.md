@@ -12,9 +12,10 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current verification checkpoint
 
-Application/native-build source is pushed through `f4b59d78`.
-Its foundation run `39467499076` passes; native run `39467499143` remains
-subscribed. Desktop run `39467499144` failed the usable-Watch assertion after
+The preceding hosted native-build candidate was `f4b59d78`; the verified
+lifecycle and fixture-input repair below is the current working candidate.
+Its foundation run `39467499076` passes. Native run `39467499143` completed
+with the failures detailed below. Desktop run `39467499144` failed the usable-Watch assertion after
 route blur. Its retained capture is still Home and `media-failure.json` is null,
 not an unannotated Watch: the special Resume helper checked enabled/presence
 but skipped the shared click helper's scrolling and actual hit-target check.
@@ -27,9 +28,24 @@ bypasses the client's admission queue and can compete with the three permitted
 native operations. It now follows visible annotation readiness, reports an
 unexpected response explicitly, and retains the original exact persisted-position
 predicate before the raw seek. No retries or native-limit changes were added.
-`644652e2` foundation run `39469345838` passes; corrected desktop verification
-remains pending. Prior `0ddb9b28` foundation/desktop runs passed cancellation/blur,
+The corrected `c3203961` foundation run `39470921398` and complete real desktop
+run `39470921482` pass, including both cancellation/blur iterations, exact
+resume/checkpoint persistence and enlarged Inspector clearance. Prior
+`0ddb9b28` foundation/desktop runs also passed cancellation/blur,
 rate-failure/retry, keyboard ownership and enlarged-text Inspector clearance.
+
+Native run `39467499143` completed with both jobs failed. Android built and passed
+ABI validation but never launched the emulator or app: SDK installation failed
+with `Error on ZipFile unknown archive`; the following port-5554 refusal was
+cleanup, not a product assertion. Its earlier passing Android run uses the same
+emulator action revision and has the same XML-version warning, so that warning
+does not establish an incompatibility. iOS built successfully but remained in
+Files after its enabled video cell was tapped at the filename-area centre.
+The helper now targets each exact enabled fixture's preview area; original
+import and product assertions remain. Do not count these failures as passes.
+The rejected Android-only retry started no job. One new candidate CI run will
+cover the connected native repair and a fresh Android SDK download, rather than
+starting an obsolete-source retry plus duplicate builds.
 
 Earlier native run `39450937682` passes Android but fails iOS before media
 import: Files had already restored the app container with `M01 fixtures`
@@ -39,12 +55,13 @@ The picker helper now waits for any of its three real navigation levels;
 exact video/subtitle selection and all product assertions remain unchanged.
 Focused consuming verification passed the picker and exposed native transport
 reveal failure with the precompiled video module after enlarged-toolbar reflow.
-The source-built module now passes the complete local workflow; hosted
-verification of the repair remains open.
+The earlier source-built module could pass an individual workflow but still
+lost input on a subsequent local reopening. The new lifecycle repair below
+passes the complete normal local workflow; hosted verification remains open.
 Superseded run `39448604470` was cancelled
 before any jobs ran, not counted as verification.
 
-The current local consuming iOS Watch flow passes in 193 seconds, including
+The current local consuming iOS Watch flow passes in 187.988 seconds, including
 actual paused control hide/reveal, fullscreen/return and restart.
 The prior Android Watch flow passes in 216.126 seconds.
 The native stage now clears the app toolbar; removing only that clearance
@@ -56,19 +73,34 @@ repair causality. The application now opts only ExpoVideo into iOS source
 compilation; a real-autolinker configuration regression failed before this
 setting. Pods now compiles VideoView.swift for arm64/x86_64. A source-built
 comparison with the two-line patch passes in 185 seconds; removing only those
-lines and genuinely recompiling also passes the strengthened full flow in
-193 seconds with unchanged JavaScript. The Swift patch is therefore removed,
-along with its postinstall hook and obsolete passing installer test; it was
-not needed for this flow. The retained regression checks the effective
-autolinker configuration, and the native test now explicitly hides/reveals
-controls while remaining paused instead of merely observing initial presence.
+lines and genuinely recompiling also passed once in 193 seconds. Those
+individual passes did not establish stable equivalence. A later unmodified
+full flow failed after Home/Resume; an identical settled tap failed for 19
+seconds while UIKit confirmed the point reached AVKit and the player was
+ready, paused and controls-enabled. Calling only the missing public
+`endAppearanceTransition()` restored that same tap in 2 seconds. This was
+diagnosis, not staged acceptance.
+
+Only that matching end call is now persisted by the version/content-pinned
+`tools/patch-expo-video.mjs`; the old extra super call is not restored.
+Actual arm64/x86_64 source compilation produced the new binary below. After
+terminating the debugger-mutated process, the unchanged full native flow passed
+in a normal fresh process (JUnit timestamp `2026-10-20T20:58:46`). Normal
+`npm ci` reproduces the same native-tested source; 40 harness and 19 package
+tests, typecheck, ownership lint and contracts pass. The guard protects exact
+dependency transformation, idempotence and rejection of an unreviewed upgrade;
+runtime proof remains the real native flow. The new enabled-preview fixture
+input also passes the complete fresh-process flow in 187.988 seconds
+(JUnit timestamp `2026-10-20T21:08:50`), with all assertions kept.
+Current repaired SDK source SHA256 is
+`a0bf4cc7557d9092b7bd24054c6e774bcd988176091ed085bb0b11e2f6c0c705`.
 Unmodified SDK source SHA256 is
 `d4296ca377d39150928d2cb58375bd1161954f9fcc3993ef5a48de4bd6da5a0b`.
 Prior local Android APK
 SHA256 is `698be22a6d14b91f785f462bfdf5ae65e910219ca616fd368f06343d9fbd5663`;
 current iOS bundle is
 `2993271d6cfd718e03ae3bd439b6023cc7871bf33167ea7c8e9528695712848c`
-and executable is `49451be03a8204b78f5165f8d77ad3b2e558630f2c73749b46ce966650ebaa26`.
+and executable is `2f3a8c0f49dfb6db5eb1999977a19370b5bee9e25f1a77fd2b47b3c82a84e422`.
 
 With owned simulators stopped, the normal documented desktop development
 launch renders the existing Japanese source in 1296 ms on a fresh process

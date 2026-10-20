@@ -40,7 +40,10 @@ appId: net.kikan.mlearn.v3dev
             id: 'm01-watch, mp4'
           timeout: 15000
 - tapOn:
+    # The Files cell includes filename/metadata below its interactive preview.
     id: 'm01-watch, mp4'
+    enabled: true
+    point: 50%, 25%
 - extendedWaitUntil:
     visible: '(Open|Replace) subtitles'
     timeout: 60000
@@ -95,3 +98,5 @@ appId: net.kikan.mlearn.v3dev
           timeout: 15000
 - tapOn:
     id: 'm01-watch.srt, srt'
+    enabled: true
+    point: 50%, 25%

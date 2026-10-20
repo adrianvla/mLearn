@@ -5,6 +5,7 @@ import { createContext, runInContext } from 'node:vm';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { patchVideoView } from '../patch-expo-video.mjs';
 
 const configPath = new URL('../../apps/client/app.config.js', import.meta.url);
 function applyAppConfig(properties) {
@@ -48,8 +49,8 @@ test('normal Metro development observes shared theme resources outside workspace
   assert.ok(config.resolver.sourceExts.includes(path.extname(source).slice(1)));
 });
 
-// The 57.0.5 prebuilt loses AVKit input after enlarged Watch reflow.
-// Remove the override when its precompiled artifact passes the native input flow.
+// The guarded UIKit lifecycle repair must reach the consuming native app.
+// Remove both when the upstream binary passes the native input flow.
 test('iOS builds the video module from source rather than the precompiled Expo binary', async () => {
   const require = createRequire(import.meta.url);
   const { createAutolinkingOptionsLoader } = require('expo-modules-autolinking/build/commands/autolinkingOptions');
@@ -58,4 +59,20 @@ test('iOS builds the video module from source rather than the precompiled Expo b
   });
   assert.deepEqual((await loader.getPlatformOptions('apple')).buildFromSource, ['expo-video']);
   assert.equal((await loader.getPlatformOptions('android')).buildFromSource, undefined);
+});
+
+test('the pinned video dependency repair is reproducible, idempotent and rejects an unreviewed upgrade', () => {
+  const dependency = new URL('../../node_modules/expo-video/', import.meta.url);
+  const { version } = JSON.parse(readFileSync(new URL('package.json', dependency), 'utf8'));
+  const shipped = readFileSync(new URL('ios/VideoView.swift', dependency), 'utf8');
+  // Reconstruct the upstream input from the consumed, native-tested copy.
+  const upstream = shipped.replace(
+    '    playerViewController.endAppearanceTransition()\n    #endif\n  }\n\n  public override func safeAreaInsetsDidChange()',
+    '    #endif\n  }\n\n  public override func safeAreaInsetsDidChange()',
+  );
+  assert.notEqual(upstream, shipped);
+  assert.equal(patchVideoView(version, upstream), shipped);
+  assert.equal(patchVideoView(version, shipped), shipped);
+  assert.throws(() => patchVideoView('unreviewed', shipped), Error);
+  assert.throws(() => patchVideoView(version, 'unknown-source'), Error);
 });
