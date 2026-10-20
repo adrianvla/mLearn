@@ -3,6 +3,13 @@
   "main": "index.ts",
   "version": "3.0.0-dev.0",
   "private": true,
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "buildFromSource": ["expo-video"]
+      }
+    }
+  },
   "dependencies": {
     "@mlearn/contracts": "3.0.0-dev.0",
     "@mlearn/runtime-client": "3.0.0-dev.0",

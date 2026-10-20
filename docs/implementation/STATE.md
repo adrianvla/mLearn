@@ -16,19 +16,44 @@ Application source is pushed through `0ddb9b28`.
 Exact-source foundation run `39450937743` and desktop run `39450937775`
 pass. Desktop includes preference cancellation/blur recovery, persisted
 rate-failure/retry, selector keyboard ownership and enlarged-text Inspector
-clearance. Native run `39450937682` remains pending with an active persistent
-subscription; it is not a pass. Superseded run `39448604470` was cancelled
+clearance. Native run `39450937682` passes Android but fails iOS before media
+import: Files had already restored the app container with `M01 fixtures`
+visible, while the helper insisted on seeing the parent container row.
+Captured hierarchy, image and command records establish that mismatch.
+The picker helper now waits for any of its three real navigation levels;
+exact video/subtitle selection and all product assertions remain unchanged.
+Focused consuming verification passed the picker and exposed native transport
+reveal failure with the precompiled video module after enlarged-toolbar reflow.
+The source-built module now passes the complete local workflow; hosted
+verification of the repair remains open.
+Superseded run `39448604470` was cancelled
 before any jobs ran, not counted as verification.
 
-The final local consuming iOS Watch flow passes in 180.179 seconds, including
-native fullscreen/return and restart. Android Watch passes in 216.126 seconds.
+The current local consuming iOS Watch flow passes in 193 seconds, including
+actual paused control hide/reveal, fullscreen/return and restart.
+The prior Android Watch flow passes in 216.126 seconds.
 The native stage now clears the app toolbar; removing only that clearance
-reproduces the iOS fullscreen hit-test failure. The Expo appearance repair
-also has same-source positive/negative native evidence. Final Android APK
+reproduces the iOS fullscreen hit-test failure. Earlier claims that the Expo
+Swift repair had consuming positive/negative proof are withdrawn: Pods linked
+the precompiled ExpoVideo XCFramework, and the executable hash did not change
+when Swift source changed. Those runs establish flow results only, not SDK
+repair causality. The application now opts only ExpoVideo into iOS source
+compilation; a real-autolinker configuration regression failed before this
+setting. Pods now compiles VideoView.swift for arm64/x86_64. A source-built
+comparison with the two-line patch passes in 185 seconds; removing only those
+lines and genuinely recompiling also passes the strengthened full flow in
+193 seconds with unchanged JavaScript. The Swift patch is therefore removed,
+along with its postinstall hook and obsolete passing installer test; it was
+not needed for this flow. The retained regression checks the effective
+autolinker configuration, and the native test now explicitly hides/reveals
+controls while remaining paused instead of merely observing initial presence.
+Unmodified SDK source SHA256 is
+`d4296ca377d39150928d2cb58375bd1161954f9fcc3993ef5a48de4bd6da5a0b`.
+Prior local Android APK
 SHA256 is `698be22a6d14b91f785f462bfdf5ae65e910219ca616fd368f06343d9fbd5663`;
-iOS bundle is `c959056a5625e1bef992794d38ed635103c2a190df0958ad702a92df235f082a`
-and executable is `843fe7de738236cdb4dbf771aeb8c7d0874e46a05ec856e911b45f92e97b7b1a`.
-These binaries precede the final metrics-only change described below.
+current iOS bundle is
+`2993271d6cfd718e03ae3bd439b6023cc7871bf33167ea7c8e9528695712848c`
+and executable is `49451be03a8204b78f5165f8d77ad3b2e558630f2c73749b46ce966650ebaa26`.
 
 With owned simulators stopped, the normal documented desktop development
 launch renders the existing Japanese source in 1296 ms on a fresh process
@@ -70,14 +95,16 @@ The rewrite diff from requested `4a86df32` is whitespace-clean; the broader
 H00 diff has pre-existing vendored Japanese whitespace, reproduced on that
 unchanged baseline and left alone.
 
-Next: finish the subscribed consuming mobile run and record its actual result.
+Next: verify the picker repair and finish the consuming mobile rerun.
 Unavailable target states remain incomplete even if all checks pass. Final
 maintainer acceptance remains separate.
 
 ### Historical visual-rewrite progress
 
 The following paragraphs retain earlier observations and superseded pending
-statuses; the current checkpoint above is authoritative.
+statuses; the current checkpoint above is authoritative. Historical Expo SDK
+positive/negative comparisons below did not consume the Swift edits and must
+not be reused as proof of that repair.
 
 Post-`73e362b3` verification found two regressions. Exact-source foundation CI passed all
 web/Rust/macOS/Windows jobs, but real desktop CI failed its existing preference

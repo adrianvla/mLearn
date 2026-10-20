@@ -12,8 +12,10 @@ appId: net.kikan.mlearn.v3dev
       - tapOn:
           id: 'DOC.sidebar.item.On My iPhone'
       - extendedWaitUntil:
+          # Files may restore the app container or fixture directory directly.
+          # Wait for a usable location, then keep the exact fixture selection below.
           visible:
-            id: 'mLearn v3 Dev, Container'
+            id: '(mLearn v3 Dev, Container|M01 fixtures, Folder|m01-watch, mp4)'
           timeout: 15000
 - runFlow:
     when:
@@ -67,7 +69,7 @@ appId: net.kikan.mlearn.v3dev
           id: 'DOC.sidebar.item.On My iPhone'
       - extendedWaitUntil:
           visible:
-            id: 'mLearn v3 Dev, Container'
+            id: '(mLearn v3 Dev, Container|M01 fixtures, Folder|m01-watch, mp4)'
           timeout: 15000
 - runFlow:
     when:

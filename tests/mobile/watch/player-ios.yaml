@@ -9,6 +9,19 @@ appId: net.kikan.mlearn.v3dev
       - tapOn:
           text: Local video player
           point: 50%, 38%
+# Controls must respond to input, not merely be present after source loading.
+- assertVisible: Play
+- tapOn:
+    text: Local video player
+    point: 50%, 38%
+- assertNotVisible:
+    id: Play/Pause
+- tapOn:
+    text: Local video player
+    point: 50%, 38%
+- assertVisible:
+    id: Play/Pause
+- assertVisible: Play
 # The app toolbar must not cover AVKit's fullscreen control.
 - tapOn:
     id: Fullscreen Button

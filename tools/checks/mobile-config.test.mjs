@@ -47,3 +47,15 @@ test('normal Metro development observes shared theme resources outside workspace
   'A theme edit must invalidate the normal development graph, not require a fresh profile or cache wipe');
   assert.ok(config.resolver.sourceExts.includes(path.extname(source).slice(1)));
 });
+
+// The 57.0.5 prebuilt loses AVKit input after enlarged Watch reflow.
+// Remove the override when its precompiled artifact passes the native input flow.
+test('iOS builds the video module from source rather than the precompiled Expo binary', async () => {
+  const require = createRequire(import.meta.url);
+  const { createAutolinkingOptionsLoader } = require('expo-modules-autolinking/build/commands/autolinkingOptions');
+  const loader = createAutolinkingOptionsLoader({
+    projectRoot: fileURLToPath(new URL('../../apps/client', import.meta.url)),
+  });
+  assert.deepEqual((await loader.getPlatformOptions('apple')).buildFromSource, ['expo-video']);
+  assert.equal((await loader.getPlatformOptions('android')).buildFromSource, undefined);
+});
