@@ -509,11 +509,11 @@ export function WatchScreen() {
                 </> : null}
             </View>
             {window && host.available ? <>
-                <View style={styles.stage}>
+                <View style={styles.stage(Platform.OS === 'web' ? 0 : toolbarHeight)}>
                     <MediaSurface key={window.source.id} uri={host.media.uri(window.source)}
                         controls={Platform.OS === 'web' ? sourceActions : undefined}
                         initialPositionMs={window.source.positionMs} playbackRate={window.source.playbackRate}
-                         paused={!!inspection || busy || transcriptOpen || playbackOpen}
+                        paused={!!inspection || busy || transcriptOpen || playbackOpen}
                         onController={value => {
                             controller.current = value;
                             setSubtitleInset(value.subtitleBottomInset);
@@ -567,9 +567,9 @@ const styles = StyleSheet.create(theme => ({
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small
     }, title: {
         flex: 1, flexBasis: 120, minWidth: 0
-    }, stage: {
-        flex: 1, minHeight: 240, backgroundColor: theme.media.background
-    }, subtitle: (toolbarHeight: number, controlsHeight: number) => ({
+    }, stage: (toolbarHeight: number) => ({
+        flex: 1, minHeight: 240, paddingTop: toolbarHeight, backgroundColor: theme.media.background
+    }), subtitle: (toolbarHeight: number, controlsHeight: number) => ({
         position: 'absolute', left: theme.spacing.comfortable, right: theme.spacing.comfortable,
         top: toolbarHeight + theme.spacing.small, bottom: controlsHeight + theme.spacing.large,
         alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden'

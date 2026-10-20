@@ -1,13 +1,38 @@
 appId: net.kikan.mlearn.v3dev
 ---
-# Tap inside the video, above the central play button, to reveal AVKit's transport.
+# Reveal above AVKit's central play target, relative to the actual media view.
 - runFlow:
     when:
       notVisible:
         id: Play/Pause
     commands:
       - tapOn:
-          point: 50%, 45%
+          text: Local video player
+          point: 50%, 38%
+# The app toolbar must not cover AVKit's fullscreen control.
+- tapOn:
+    id: Fullscreen Button
+- runFlow:
+    when:
+      notVisible:
+        id: Close Button
+    commands:
+      - tapOn:
+          point: 50%, 38%
+- assertVisible:
+    id: Close Button
+- tapOn:
+    id: Close Button
+- assertVisible: Home
+- assertVisible: 'Children: mixed'
+- runFlow:
+    when:
+      notVisible:
+        id: Play/Pause
+    commands:
+      - tapOn:
+          text: Local video player
+          point: 50%, 38%
 - tapOn:
     id: Play/Pause
 - extendedWaitUntil:
@@ -24,7 +49,8 @@ appId: net.kikan.mlearn.v3dev
         id: Play/Pause
     commands:
       - tapOn:
-          point: 50%, 45%
+          text: Local video player
+          point: 50%, 38%
 - assertVisible: Play
 - takeScreenshot: native-played-frame
 # AVKit uses ten-second skips. Reset then seek to an exact paused checkpoint.
@@ -68,7 +94,8 @@ appId: net.kikan.mlearn.v3dev
         id: Play/Pause
     commands:
       - tapOn:
-          point: 50%, 45%
+          text: Local video player
+          point: 50%, 38%
 - assertVisible: '0:20 elapsed'
 - assertVisible: Play
 - takeScreenshot: native-restart-source-position
