@@ -2,7 +2,7 @@
 
 ## Active visual-parity rewrite - 2026-10-20
 
-Status: `verifying`, not complete or accepted. Execute
+Status: `paused_incomplete`, not complete or accepted. Execute
 [VISUAL-PARITY.md](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44,
 against unchanged `agent/h00`. Requested `4a86df32` was fetched and already
 equalled clean HEAD; no reset, history rewrite or new worktree was used.
@@ -11,6 +11,39 @@ and unpictured `visual_pending` restrictions below. No new domain milestone,
 merge, release or maintainer acceptance is authorized.
 
 ### Current verification checkpoint
+
+Application source `1a9a24c70f66bba0d4362120196a34836e4edc7a`, tree
+`3069cd5547ceb35ffc4ae6c7c98134c75d2daee1`, is pushed to the existing draft.
+Exact-source foundation `39481892368`, real desktop `39481892120` and native
+`39481892339` all pass. Native reports bind that same source/tree: Android's
+complete emulator flow passes in 251.835 seconds; iOS simulator 26.5 passes
+in 339.883 seconds. Its build log also confirms actual ExpoVideo source-target
+compilation, not the rejected prebuilt-binary inference. Current artifacts,
+JUnit, source receipts and normal local iOS 27 captures are retained under
+`.mlearn/visual-parity/`; local iOS flows pass in 188.618 and 187.988 seconds.
+Normal `npm ci`, 40 harness and 19 package tests, typecheck, ownership lint and
+contracts pass. Web presentation inputs remain unchanged from the recorded
+web export and seven passing interactions.
+
+Functional, structural and measured performance gates therefore pass for the
+implemented scope. Full visual parity remains **incomplete**: the structured
+token ruby/prosody, live translation, aggregate Known/Flashcard/Explain and
+cue-alignment reference states lack delivered capabilities. Ordinary entry
+readings already render; the Japanese token projection publishes only
+start/end/text/targets. The existing-artifact question timed out without an
+input, which does not waive those target states or authorize new backends.
+Manual offset remains in advanced Playback options. Owned-device cleanup is
+complete: the final native profile was preserved byte-for-byte under
+`.mlearn/visual-parity/retained-20261020/native-picker-profile` before deleting
+only simulator `BD432C33-7ECC-4EB3-9FF9-03F97E30F4B1`. Ten final diagnostic
+scripts were removed; canonical tests, logs, captures and useful build/profile
+outputs remain. Read-back confirms no owned development listeners and H00's
+original simulator still booted, untouched. The remaining action is obtaining
+approved package/protocol inputs for the unmatched states, not another cosmetic
+pass or unrelated backend implementation. No maintainer acceptance, merge or
+release is claimed.
+
+### Historical verification detail before the final candidate
 
 The preceding hosted native-build candidate was `f4b59d78`; the verified
 lifecycle and fixture-input repair below is the current working candidate.
