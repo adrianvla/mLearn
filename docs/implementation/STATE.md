@@ -2,7 +2,7 @@
 
 ## Active visual-parity rewrite - 2026-10-20
 
-Status: `paused_incomplete`, not complete or accepted. Execute
+Status: `implementation_resumed`, not complete or accepted. Execute
 [VISUAL-PARITY.md](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44,
 against unchanged `agent/h00`. Requested `4a86df32` was fetched and already
 equalled clean HEAD; no reset, history rewrite or new worktree was used.
@@ -25,23 +25,32 @@ Normal `npm ci`, 40 harness and 19 package tests, typecheck, ownership lint and
 contracts pass. Web presentation inputs remain unchanged from the recorded
 web export and seven passing interactions.
 
-Functional, structural and measured performance gates therefore pass for the
-implemented scope. Full visual parity remains **incomplete**: the structured
-token ruby/prosody, live translation, aggregate Known/Flashcard/Explain and
-cue-alignment reference states lack delivered capabilities. Ordinary entry
-readings already render; the Japanese token projection publishes only
-start/end/text/targets. The existing-artifact question timed out without an
-input, which does not waive those target states or authorize new backends.
-Manual offset remains in advanced Playback options. Owned-device cleanup is
-complete: the final native profile was preserved byte-for-byte under
+These checks bind the preceding application source, not the resumed changes.
+Full visual parity remains **incomplete**. The earlier diagnosis that an external
+reference-state package had to be supplied is withdrawn: authentic pitch banks,
+reading/level data, live-word dictionary behavior and cue-alignment algorithms
+already exist in the approved reference checkout. Missing v3 projections and
+controls are implementation work, not evidence of unavailable external input.
+
+The maintainer explicitly resumed authentic ruby/readings, pitch accent,
+JLPT/linguistic metadata, dictionary-driven live-word cards, subtitle sync
+controls and truthful aggregate Knowledge presentation through the existing
+Rust/package/UI boundaries. Preserve stable source/target identities and
+granular Knowledge semantics. No additional external package is expected.
+M03 capture/Anki and M07 Explain remain separate, unauthorized milestones;
+their missing operations must not be represented as functional success.
+Current execution/evidence is recorded in
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261020-resume.XXXXXX.md.gDU0LQvD5f`.
+
+Previous owned-device cleanup preserved the complete native profile under
 `.mlearn/visual-parity/retained-20261020/native-picker-profile` before deleting
 only simulator `BD432C33-7ECC-4EB3-9FF9-03F97E30F4B1`. Ten final diagnostic
 scripts were removed; canonical tests, logs, captures and useful build/profile
-outputs remain. Read-back confirms no owned development listeners and H00's
-original simulator still booted, untouched. The remaining action is obtaining
-approved package/protocol inputs for the unmatched states, not another cosmetic
-pass or unrelated backend implementation. No maintainer acceptance, merge or
-release is claimed.
+outputs remain. Those cleanup receipts describe that completed run; resumed
+resources require their own ownership and teardown receipts. Continue the
+reference-derived implementation and real-app comparisons, without treating
+the former package question or green tests as visual acceptance. No maintainer
+acceptance, merge or release is claimed.
 
 ### Historical verification detail before the final candidate
 

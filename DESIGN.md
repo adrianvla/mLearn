@@ -89,9 +89,10 @@ live in ignored `.mlearn/visual-parity/manifest.json`.
   thumb; its transparent native input preserves keyboard and pointer semantics.
   Main subtitle type is 40/64px, measured from the reference's 40px/1.6 rule.
   Authored subtitle newlines and literal readings remain source content.
-  Manual millisecond offset editing stays in Playback options. The pictured
-  cue-alignment arrows require a currently absent capability and are not
-  represented by misleading Apply/Reset icons.
+  The resumed synchronization composition uses the pictured previous/next
+  cue-alignment controls with real cue starts and the existing persisted offset.
+  Rust owns alignment decisions; manual editing and reset remain available.
+  Apply/Reset must not be substituted for the distinct alignment actions.
 - Inspector uses 32/44 title, 20/28 definitions and 18/26 readings at 1x
   text scale, translucent dark material, 1px neutral boundary, independently
   scrolling dictionary content and an attached action footer. Knowledge
