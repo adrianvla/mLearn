@@ -22,8 +22,18 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
     const [footerHeight, setFooterHeight] = useState(0);
     useLayoutEffect(() => {
         let active = true;
-        anchor.measure(value => { if (active) setBounds(value); });
-        return () => { active = false; };
+        let revision = 0;
+        const measure = () => {
+            const current = ++revision;
+            anchor.measure(value => {
+                if (active && current === revision)
+                    setBounds(previous => previous.x === value.x && previous.y === value.y &&
+                        previous.width === value.width && previous.height === value.height ? previous : value);
+            });
+        };
+        const stop = anchor.subscribe?.(measure);
+        measure();
+        return () => { active = false; stop?.(); };
     }, [anchor, width, height, theme.textScale, theme.spacing.medium]);
     const desktop = Platform.OS === 'web' && width >= 720;
     const panelWidth = Math.min(600, width - 24);

@@ -26,7 +26,7 @@ export function AnnotatedText({ analysis, rawText, annotations, onInspect, inspe
         });
         // Horizontal placement follows the occurrence; vertical clearance keeps
         // its entire authored cue readable, including preceding subtitle lines.
-        measure(bounds => onInspect(token, { ...bounds, measure, restoreFocus: anchor.restoreFocus }));
+        measure(bounds => onInspect(token, { ...bounds, measure, subscribe: anchor.subscribe, restoreFocus: anchor.restoreFocus }));
     }
     function segment(token: AnalyzedToken, text: string, key: string) {
         return token.targets.length ? <InlineWord

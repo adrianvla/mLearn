@@ -546,17 +546,11 @@ try {
   await observedSourceView('Continue at the exact original second-line occurrence');
   // A second-line occurrence must reserve its entire authored cue and follow
   // the real native window resize, not retain its first captured coordinates.
-  await script(`window.__m01EntryReady=new Promise(resolve=>{
-   const ready=()=>document.querySelector('[data-testid="inspector-panel"] [aria-label="Dictionary source"]');
-   const finish=pass=>{observer.disconnect();clearTimeout(timer);resolve(pass);};
-   const observer=new MutationObserver(()=>{if(ready())finish(true);});
-   const timer=setTimeout(()=>finish(false),5000);
-   observer.observe(document.documentElement,{childList:true,subtree:true,attributes:true});
-  });`);
+  await observeSourceView(`!!document.querySelector('[data-testid="inspector-panel"] [aria-label="Dictionary source"]')&&
+    document.querySelector('[data-testid="inspector-panel"]').getBoundingClientRect().bottom<=
+    document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').getBoundingClientRect().top`);
   await click('home: untracked');
-  assert.equal(await rpc('POST',`/session/${session}/execute/async`,{
-   script:'const done=arguments[0],pending=window.__m01EntryReady;delete window.__m01EntryReady;pending.then(done);',args:[]
-  }),true,'The actual dictionary entry must be ready before layout assertions');
+  await observedSourceView('The loaded Inspector must clear the entire cue after caption reflow');
   const clearance=await script(`const panel=document.querySelector('[data-testid="inspector-panel"]').getBoundingClientRect();
    const cue=document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').getBoundingClientRect();
    return {bottom:panel.bottom,cueTop:cue.top};`);

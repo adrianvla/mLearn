@@ -35,6 +35,21 @@ export function InlineWordControl({ text, status, onActivate, inspectionMode = '
                         publish({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height });
                     }
                 },
+                subscribe: onLayout => {
+                    const observer = new ResizeObserver(onLayout);
+                    // Caption viewport changes can move a word without resizing
+                    // it. This subscription exists only while its panel is open.
+                    for (let element: Element | null = node; element; element = element.parentElement)
+                        observer.observe(element);
+                    const onScroll = (event: Event) => {
+                        if (event.target instanceof Node && event.target.contains(node)) onLayout();
+                    };
+                    node.ownerDocument.addEventListener('scroll', onScroll, true);
+                    return () => {
+                        observer.disconnect();
+                        node.ownerDocument.removeEventListener('scroll', onScroll, true);
+                    };
+                },
                 restoreFocus: () => ref.current?.focus()
             });
         }
