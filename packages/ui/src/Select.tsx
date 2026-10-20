@@ -8,13 +8,15 @@ import { Text } from './Text';
 type Option = { readonly value: string; readonly label: string; readonly testID?: string };
 
 /** A labelled, keyboard/touch accessible selection with one portable owner. */
-export function Select({ label, value, options, onValueChange, disabled = false, placeholder = 'Select' }: {
+export function Select({ label, value, options, onValueChange, disabled = false, placeholder = 'Select', variant = 'default', testID }: {
   readonly label: string;
   readonly value: string;
   readonly options: readonly Option[];
   readonly onValueChange: (value: string) => void;
   readonly disabled?: boolean;
   readonly placeholder?: string;
+  readonly variant?: 'default' | 'media';
+  readonly testID?: string;
 }) {
   const { theme } = useUnistyles();
   const { height, width } = useWindowDimensions();
@@ -32,10 +34,11 @@ export function Select({ label, value, options, onValueChange, disabled = false,
     if (option) onValueChange(option.value);
   }}>
     <Primitive.Trigger asChild disabled={disabled || !options.length}>
-      <Button label={selected?.label ?? placeholder} accessibilityLabel={label}
+      <Button testID={testID} label={selected?.label ?? placeholder} accessibilityLabel={label}
         role="combobox" accessibilityRole="combobox"
         accessibilityValue={{ text: selected?.label ?? placeholder }}
-        variant="select" icon="chevronDown" iconPosition="trailing"
+        variant={variant === 'media' ? 'mediaSelect' : 'select'} size={variant === 'media' ? 'compact' : 'default'}
+        icon="chevronDown" iconPosition="trailing"
         disabled={disabled || !options.length} />
     </Primitive.Trigger>
     <Primitive.Portal>

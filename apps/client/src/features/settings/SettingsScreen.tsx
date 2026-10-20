@@ -64,7 +64,8 @@ export function SettingsScreen() {
   }
   function feedbackAt(target: FeedbackTarget) {
     if (!feedback || feedback.target !== target) return null;
-    return <Text testID="runtime-message" accessibilityRole={feedback.error ? 'alert' : undefined}
+    return <Text testID="runtime-message" variant={target === 'theme' && !feedback.error ? 'detail' : 'body'}
+      muted={target === 'theme' && !feedback.error} accessibilityRole={feedback.error ? 'alert' : undefined}
       accessibilityLiveRegion={feedback.error ? 'assertive' : 'polite'}>{feedback.message}</Text>;
   }
   async function perform(target: FeedbackTarget, operation: () => Promise<void>) {
@@ -78,9 +79,9 @@ export function SettingsScreen() {
   }
   async function saveTheme(theme: ThemeDocument) {
     if (!host.available || !snapshot) return;
-    const revision = await host.client.saveTheme(theme, snapshot.revision);
+    await host.client.saveTheme(theme, snapshot.revision);
     await refresh();
-    report('theme', `Theme saved by Rust · revision ${revision}`);
+    report('theme', 'Theme saved.');
     setEditing(false);
   }
   const installed = snapshot?.installedPlugins.find((plugin) => plugin.id === 'example.hello');

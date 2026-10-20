@@ -16,17 +16,22 @@ name: Watch Inspector Knowledge and native source resume
     commands:
       - tapOn: Close app
 - extendedWaitUntil:
-    visible: 'Source language.*'
+    visible:
+      id: source-language-select
+      enabled: true
     timeout: 60000
-- tapOn: 'Source language.*'
-- tapOn:
-    id: language-org.mlearn.english
 - extendedWaitUntil:
-    # Home renders this control disabled while language packages initialize.
+    # Readiness belongs to the interactive owner, not its Text child: Android
+    # reports the disabled placeholder Text as enabled before packages arrive.
     visible:
       text: Open local video
       enabled: true
     timeout: 60000
+- tapOn:
+    id: source-language-select
+    enabled: true
+- tapOn:
+    id: language-org.mlearn.english
 - tapOn: Get language packages
 - assertNotVisible: Check for packages
 - tapOn: Home

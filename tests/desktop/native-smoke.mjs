@@ -5,6 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { DatabaseSync } from 'node:sqlite';
 import { startCatalog } from '../../tools/catalog-server.mjs';
 
 await mkdir('test-results/desktop', { recursive: true });
@@ -214,8 +215,9 @@ try {
   await screenshot('hello-result-beside-action');
   await click('Appearance');
   await click('Select theme: Quartz');
+  await observeSourceView('!!document.querySelector(\'[data-testid="runtime-message"]\')');
   await click('Dark Quartz');
-  await text('Theme saved by Rust');
+  await observedSourceView('Saved theme feedback must be visible after the native acknowledgement');
   await assertStyled('dark-quartz', 'rgb(240, 240, 240)');
   await screenshot('downloaded-plugin-and-saved-theme');
   await rpc('DELETE', `/session/${session}`); session = undefined;
@@ -317,6 +319,53 @@ try {
   await click('Settings');await click('Home');
   await resumeWatch();
   await until(()=>script('const v=document.querySelector("video");return v&&v.readyState>=2&&v.duration>=29'),'Decoded real H.264/AAC fixture');
+  // Reject only a real rate write in this explicitly isolated profile. Position
+  // checkpoints still commit; IPC and the native rejection remain genuine.
+  assert.ok(process.env.XDG_DATA_HOME, 'Native failure checks require an isolated XDG_DATA_HOME');
+  const preferenceDb = new DatabaseSync(path.join(process.env.XDG_DATA_HOME, 'net.kikan.mlearn.v3dev', 'profile.sqlite3'));
+  preferenceDb.exec(`CREATE TRIGGER mlearn_test_rate_write_rejected BEFORE UPDATE OF document ON sources
+    WHEN json_extract(NEW.document,'$.playbackRate') <> json_extract(OLD.document,'$.playbackRate')
+    BEGIN SELECT RAISE(ABORT,'mlearn_test_rate_write_rejected'); END`);
+  try {
+    await observeSourceView('!!document.querySelector(\'[data-testid="playback-preference-error"]\')');
+    await click('Playback rate: 1×');
+    await click('1.25×');
+    await observedSourceView('A rejected preference write must show feedback without opening another dialog');
+    const feedback = await script(`const error=document.querySelector('[data-testid="playback-preference-error"]');
+      const controls=document.querySelector('[data-testid="media-controls"]');
+      const r=error.getBoundingClientRect();return {text:error.textContent,besideControls:controls.contains(error),
+        visible:r.width>0&&r.height>0&&r.top>=0&&r.bottom<=innerHeight};`);
+    assert.match(feedback.text, /mlearn_test_rate_write_rejected/);
+    assert.ok(feedback.besideControls && feedback.visible, 'Rate failure must remain visible beside its initiating control');
+    assert.equal((await native({type:'recent_sources'})).sources.find(source=>source.id===id).playbackRate, 1);
+  } finally {
+    preferenceDb.exec('DROP TRIGGER mlearn_test_rate_write_rejected');
+    preferenceDb.close();
+  }
+  await observeSourceView('document.querySelector("video")?.playbackRate===1.25&&!document.querySelector(\'[data-testid="playback-preference-error"]\')');
+  await click('Playback rate: 1×');await click('1.25×');
+  await observedSourceView('Retry must save the real preference and clear its feedback');
+  await observeSourceView('document.querySelector("video")?.playbackRate===1');
+  await click('Playback rate: 1.25×');await click('1×');
+  await observedSourceView('Restore the fixture rate before ordinary media input');
+  const rateKeysBefore=await script(`document.querySelector('[role="combobox"][aria-label^="Playback rate:"]').focus();
+    window.__rateKeyEvents=[];window.__rateKeyListener=event=>window.__rateKeyEvents.push({key:event.key,prevented:event.defaultPrevented});
+    document.addEventListener('keydown',window.__rateKeyListener);
+    const video=document.querySelector('video');return {time:video.currentTime,muted:video.muted};`);
+  try {
+    for(const key of ['\uE014','\uE012','m','f']) {
+      await rpc('POST',`/session/${session}/actions`,{actions:[{type:'key',id:'rate-control-input',actions:[
+        {type:'keyDown',value:key},{type:'keyUp',value:key},
+      ]}]});
+    }
+    const rateKeysAfter=await script(`const video=document.querySelector('video');return {time:video.currentTime,muted:video.muted,events:window.__rateKeyEvents};`);
+    assert.equal(rateKeysAfter.time,rateKeysBefore.time,'Closed combobox arrows must not seek the video');
+    assert.equal(rateKeysAfter.muted,rateKeysBefore.muted,'Combobox typing must not mute the video');
+    assert.equal(rateKeysAfter.events.length,4);
+    assert.ok(rateKeysAfter.events.every(event=>!event.prevented),'Media shortcuts must not consume combobox keys');
+  } finally {
+    await script('document.removeEventListener("keydown",window.__rateKeyListener);delete window.__rateKeyEvents;delete window.__rateKeyListener;document.activeElement.blur();return true;');
+  }
   await rpc('POST', `/session/${session}/execute/async`, {script:'const done=arguments[arguments.length-1];document.querySelector("video").play().then(()=>done(true)).catch(e=>done(String(e)));',args:[]});
   await until(()=>script('return document.querySelector("video").currentTime>1'),'Playback time advances');
   await script('document.querySelector("video").pause()');

@@ -136,7 +136,7 @@ export function HomeScreen() {
           <Image source={logoSource} style={styles.logo} accessibilityLabel="mLearn Logo" />
           <Text variant="shellTitle" accessibilityRole="header" accessibilityLabel="Home">mLearn</Text>
         </View>
-        <View style={styles.languages}><Select label="Source language" value={selected}
+        <View style={styles.languages}><Select label="Source language" testID="source-language-select" value={selected}
           options={languages.map(p => ({ value: p.id, label: p.displayName ?? p.id, testID: `language-${p.id}` }))}
           onValueChange={setSelected} disabled={busy} placeholder="Source language" /></View>
       </View>
@@ -223,8 +223,9 @@ const styles = StyleSheet.create(theme => ({
   activity: (width: number) => ({ width, minWidth: 0, maxWidth: '100%' }),
   activityHeader: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.compact },
   activityText: { flex: 1, minWidth: 0 },
-  icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius, backgroundColor: theme.surfaces.glass },
-  preview: { minHeight: 160, alignItems: 'center', justifyContent: 'center', gap: theme.spacing.small, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius, backgroundColor: theme.surfaces.glass, overflow: 'hidden' },
+  icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.controls.outline, borderRadius: theme.radius, backgroundColor: theme.surfaces.glass },
+  preview: { minHeight: 160, alignItems: 'center', justifyContent: 'center', gap: theme.spacing.small, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius, backgroundColor: theme.surfaces.glass, overflow: 'hidden',
+    _web: { boxShadow: `inset 0 0 0 1px ${theme.colors.border}` } },
   previewFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: theme.spacing.tiny,
     paddingHorizontal: theme.spacing.small, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small,
     borderTopWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.controls.field },

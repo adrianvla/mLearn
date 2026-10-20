@@ -68,20 +68,42 @@ live in ignored `.mlearn/visual-parity/manifest.json`.
   scrolling content. Its ordinary rows are divided, with label/description
   on the left and a control on the right, wrapping on narrow layouts.
   Measured rows use 12px inset, 14px labels, 12px descriptions and a 2px gap.
+  Navigation inherits the reference's 16px body size with 18px icons;
+  inactive items use secondary foreground. Desktop search/navigation controls
+  are 32/36px high, with native 44px touch targets preserved.
+  Appearance selectors are 166px wide with 14px chevrons. Section titles use
+  15.2/23px semibold type and a 2px by 1em marker, rather than a full-line rule.
 - Running light Quartz uses `#cacacb` canvas, `#111418` foreground,
   `#242a31` secondary text and `#a4a5a7` boundaries. Shared glass is white
   at 50% in light appearance and `rgba(130,130,130,.2)` in dark appearance.
   Home retains the reference's vertical canvas gradient, 160px media preview
   and full-width continuation rows with a separate Resume action. Breakpoints
   at 950/550px yield three/two/one activity columns without invented activities.
+  Icon tiles and circular play controls use the reference's 25% white outline
+  in dark appearance; the preview has a second inset boundary.
 - Watch uses a black source canvas, compact translucent Home/window controls
   and a bottom player rail. The seek track is above the compact playback
   controls, not a large stock slider between text buttons. Native video
   rendering and input ownership remain in the media host.
+  The compact volume range has an 80px width, 26px rounded trough and 30px
+  thumb; its transparent native input preserves keyboard and pointer semantics.
+  Main subtitle type is 40/64px, measured from the reference's 40px/1.6 rule.
+  Authored subtitle newlines and literal readings remain source content.
+  Manual millisecond offset editing stays in Playback options. The pictured
+  cue-alignment arrows require a currently absent capability and are not
+  represented by misleading Apply/Reset icons.
 - Inspector uses 32/44 title, 20/28 definitions and 18/26 readings at 1x
   text scale, translucent dark material, 1px neutral boundary, independently
   scrolling dictionary content and an attached action footer. Knowledge
   colors and gradients carry real claims only.
+  The matched courage entry exposed extra definition gaps and badge padding:
+  definition baselines are 28px apart and readings have 4px vertical inset.
+  Shared web typography requests grayscale antialiasing to match the edited
+  text strokes; native typography does not consume that web-only adaptation.
+  The shared Helvetica Neue family resolves CJK through platform fallback,
+  without a forced Mincho override. Glass uses rgba(60,60,60,.5) with
+  blur(20px) saturate(2): the matched magenta region is exactly [157,30,157],
+  rather than the rejected candidate's [81,26,81].
 
 ### Shared component families
 

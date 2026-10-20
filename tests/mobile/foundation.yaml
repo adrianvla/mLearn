@@ -36,7 +36,8 @@ name: Native foundation persists Rust state across process restart
     element:
       id: runtime-message
     direction: DOWN
-- assertVisible: 'Theme saved by Rust · revision [1-9][0-9]*'
+- assertVisible:
+    id: runtime-message
 - takeScreenshot: saved-slate
 - scrollUntilVisible:
     element: 'Settings'
@@ -64,13 +65,19 @@ name: Native foundation persists Rust state across process restart
 - assertVisible: 'Custom theme'
 - assertVisible: 'Theme JSON'
 - takeScreenshot: custom-theme-dialog
-# Maestro's iOS 27 long press places a caret without opening the edit menu.
-# Tap the same visible leading-text position again to open its native menu.
+# Focus first and observe the keyboard before placing the caret: the
+# keyboard-aware dialog moves the leading text when the keyboard opens.
+# Maestro's iOS 27 long press does not open the edit menu; two taps at the
+# same settled leading-text position do.
 # Remove this gesture workaround when longPressOn opens that menu reliably.
 - runFlow:
     when:
       platform: iOS
     commands:
+      - tapOn:
+          id: theme-json-input
+          point: "10%,5%"
+      - assertVisible: Done
       - tapOn:
           id: theme-json-input
           point: "10%,5%"

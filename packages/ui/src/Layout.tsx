@@ -1,5 +1,5 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { ScrollView, View, useWindowDimensions } from 'react-native';
+import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
@@ -13,8 +13,14 @@ export function AppShell({ header, navigation, children }: PropsWithChildren<{
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const compact = width < 700;
-  return <View style={styles.shell(insets.top, insets.bottom, compact)}>
-    {navigation ? <View style={styles.navigation(compact)}>{navigation}</View> : null}
+  // Keep the scroll viewport itself below desktop overlay traffic lights;
+  // padding inside scrolling navigation would disappear as the user scrolls.
+  const top = Platform.OS === 'web' && compact && navigation ? Math.max(insets.top, 28) : insets.top;
+  return <View style={styles.shell(top, insets.bottom, compact)}>
+    {navigation ? <ScrollView style={styles.navigationViewport(compact)}
+      contentContainerStyle={styles.navigation(compact)} keyboardShouldPersistTaps="handled">
+      {navigation}
+    </ScrollView> : null}
     <View style={styles.main(!!navigation)}>
       <View style={styles.shellHeader(!!navigation && !compact)}>{header}</View>
       <ScrollView style={styles.shellScroll} contentContainerStyle={styles.shellBody(!!navigation && !compact)}
@@ -30,7 +36,7 @@ export function Panel({ children, inset = 'standard' }: PropsWithChildren<{ inse
 export function Stack({ children }: PropsWithChildren) { return <View style={styles.stack}>{children}</View>; }
 export function Section({ title, children }: PropsWithChildren<{ readonly title: string }>) {
   return <View style={styles.section}>
-    <View style={styles.sectionHeading}><Text variant="groupTitle" accessibilityRole="header">{title}</Text></View>
+    <View style={styles.sectionHeading}><View style={styles.sectionMarker} /><Text variant="groupTitle" accessibilityRole="header">{title}</Text></View>
     <View>{children}</View>
   </View>;
 }
@@ -46,6 +52,12 @@ export function SettingRow({ label, description, children }: PropsWithChildren<{
   </View>;
 }
 const styles = StyleSheet.create((theme) => ({
+  navigationViewport: (compact: boolean) => ({
+    width: compact ? '100%' : 200, maxHeight: compact ? '35%' : undefined,
+    flexGrow: 0, flexShrink: compact ? 1 : 0,
+    borderRightWidth: compact ? 0 : 1, borderBottomWidth: compact ? 1 : 0,
+    borderColor: theme.colors.border,
+  }),
   shell: (top: number, bottom: number, compact: boolean) => ({
     flex: 1, minHeight: 0, backgroundColor: theme.shell.navigation,
     paddingTop: top, paddingBottom: bottom, flexDirection: compact ? 'column' : 'row',
@@ -54,8 +66,7 @@ const styles = StyleSheet.create((theme) => ({
     width: compact ? '100%' : 200, paddingHorizontal: theme.spacing.compact,
     paddingTop: compact ? theme.spacing.small : theme.spacing.section + theme.spacing.small,
     paddingBottom: theme.spacing.small, gap: theme.spacing.tiny,
-    borderRightWidth: compact ? 0 : 1, borderBottomWidth: compact ? 1 : 0,
-    borderColor: theme.colors.border, flexDirection: compact ? 'row' : 'column', flexWrap: 'wrap',
+    flexDirection: compact ? 'row' : 'column', flexWrap: 'wrap',
   }),
   main: (sidebar: boolean) => ({
     flex: 1, minWidth: 0, minHeight: 0,
@@ -74,8 +85,9 @@ const styles = StyleSheet.create((theme) => ({
   panel: (compact: boolean) => ({ backgroundColor: theme.surfaces.glass, borderRadius: theme.radius + 4, borderWidth: 1, borderColor: theme.colors.border,
     padding: compact ? theme.spacing.small + theme.spacing.tiny / 2 : theme.spacing.medium, gap: theme.spacing.compact }),
   stack: { gap: theme.spacing.compact },
-  section: { gap: theme.spacing.tiny },
-  sectionHeading: { borderLeftWidth: 2, borderColor: theme.colors.muted, paddingLeft: theme.spacing.small },
+  section: { gap: theme.spacing.small },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },
+  sectionMarker: { width: 2, height: theme.typography.groupTitle.fontSize, borderRadius: 1, backgroundColor: theme.colors.muted },
   row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.spacing.compact },
   setting: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.medium, paddingVertical: theme.spacing.compact, borderBottomWidth: 1, borderColor: theme.colors.border },
   settingLabel: { flex: 1, minWidth: 0, flexBasis: 180, gap: theme.spacing.tiny / 2 },

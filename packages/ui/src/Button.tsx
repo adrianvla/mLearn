@@ -21,6 +21,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, bus
   const blocked = disabled || busy;
   const selected = props.accessibilityState?.selected === true;
   const name = props.accessibilityLabel ?? label;
+  const iconSize = variant === 'select' || variant === 'mediaSelect' ? 14 : size === 'default' && variant !== 'navigation' ? 20 : 18;
   return (
     <Pressable {...props} ref={ref} accessibilityRole={accessibilityRole}
       onHoverIn={event => { setHovered(true); onHoverIn?.(event); }}
@@ -30,9 +31,9 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, bus
       accessibilityState={{ ...props.accessibilityState, disabled: blocked, busy }} disabled={blocked}
       style={({ pressed }) => [styles.root(variant, size, tone, selected, iconOnly),
         hovered && !blocked && styles.hover(variant, tone), pressed && styles.pressed, blocked && styles.disabled]}>
-      {icon && iconPosition === 'leading' ? <Icon name={icon} size={size === 'default' ? 20 : 18} color={buttonForeground(theme, variant, tone)} /> : null}
-      {!iconOnly ? <Text style={styles.label(variant, size, tone)}>{selected && variant !== 'navigation' ? '✓ ' : ''}{busy ? `${label}…` : label}</Text> : null}
-      {icon && iconPosition === 'trailing' ? <Icon name={icon} size={size === 'default' ? 20 : 18} color={buttonForeground(theme, variant, tone)} /> : null}
+      {icon && iconPosition === 'leading' ? <Icon name={icon} size={iconSize} color={buttonForeground(theme, variant, tone, selected)} /> : null}
+      {!iconOnly ? <Text style={styles.label(variant, size, tone, selected)}>{selected && variant !== 'navigation' ? '✓ ' : ''}{busy ? `${label}…` : label}</Text> : null}
+      {icon && iconPosition === 'trailing' ? <Icon name={icon} size={iconSize} color={buttonForeground(theme, variant, tone, selected)} /> : null}
     </Pressable>
   );
 });

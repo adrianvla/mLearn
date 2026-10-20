@@ -15,7 +15,7 @@ const styles = StyleSheet.create(theme => ({
     maxWidth: '100%',
     borderRadius: variant === 'reading' ? theme.radius + 4 : 4,
     backgroundColor: variant === 'reading' ? theme.pills.neutral.surface : theme.media.badge,
-    paddingVertical: variant === 'reading' ? theme.spacing.small : theme.spacing.tiny * 0.75,
+    paddingVertical: variant === 'reading' ? theme.spacing.tiny : theme.spacing.tiny * 0.75,
     paddingHorizontal: variant === 'reading' ? theme.spacing.compact : theme.spacing.small * 0.75,
     _web: variant === 'reading' ? { backgroundImage: `linear-gradient(${theme.pills.neutral.top}, ${theme.pills.neutral.surface})` } : {},
   }),

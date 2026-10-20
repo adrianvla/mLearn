@@ -168,9 +168,9 @@ const styles = StyleSheet.create(theme => ({
     dictionary: {
         borderTopWidth: 1, borderTopColor: theme.media.border, paddingTop: theme.spacing.compact, gap: theme.spacing.small
     }, sense: {
-        gap: theme.spacing.small
+        gap: 0
     }, definitionRow: {
-        flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.small, paddingLeft: theme.spacing.compact
+        flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.small, marginLeft: -theme.spacing.medium
     }, definitionText: {
         flex: 1, minWidth: 0
     },

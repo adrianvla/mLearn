@@ -74,6 +74,10 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
     return <VideoView
     player={player}
     nativeControls
+    // iOS 27's AVVisualAnalysisView consumes the paused video's first tap.
+    // Keep playback input with AVKit and language inspection with our captions.
+    // Remove when the native Watch touch/skip flow passes with Live Text enabled.
+    allowsVideoFrameAnalysis={false}
     contentFit="contain"
     style={{
         width: '100%', height: '100%'

@@ -23,7 +23,7 @@ function MediaRange({ label, value, maximum, onChange, valueText, compact = fals
     const [focused, setFocused] = useState(false);
     const ratio = maximum ? Math.min(1, Math.max(0, value / maximum)) : 0;
     return <View style={[styles.range(compact), focused && styles.rangeFocus]}>
-        <View style={styles.track}><View style={[styles.filledTrack, { width: `${ratio * 100}%` }]} /></View>
+        <View style={styles.track(compact)}><View style={[styles.filledTrack(compact), { width: `${ratio * 100}%` }]} /></View>
         <View pointerEvents="none" style={[styles.thumb(compact), { left: `${ratio * 100}%` }]} />
         <input type="range" aria-label={label} min={0} max={maximum} step="any"
             value={value} disabled={!maximum} aria-valuetext={valueText}
@@ -96,7 +96,7 @@ export function MediaPlayer({ uri, initialPositionMs, paused, playbackRate = 1, 
                 return;
             const target = event.target;
             if (target instanceof Element && (
-                target.closest('input, textarea, select, button, [role="button"], [role="textbox"], dialog, [role="dialog"], [role="alertdialog"]') ||
+                target.closest('input, textarea, select, button, [role="button"], [role="textbox"], [role="combobox"], [role="listbox"], dialog, [role="dialog"], [role="alertdialog"]') ||
                 target instanceof HTMLElement && target.isContentEditable))
                 return;
             if (Array.from(doc.querySelectorAll('dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"]'))
@@ -213,12 +213,15 @@ const styles = StyleSheet.create(theme => ({
     },
     controlRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, paddingHorizontal: 8 },
     spacer: { flex: 1 },
-    range: (compact: boolean) => ({ height: compact ? 24 : 12, width: compact ? 64 : '100%',
-        justifyContent: 'center', paddingHorizontal: 3 }),
+    range: (compact: boolean) => ({ height: compact ? 32 : 12, width: compact ? 80 : '100%',
+        justifyContent: 'center', paddingHorizontal: 3, marginRight: compact ? 8 : 0 }),
     rangeFocus: { borderRadius: 3, borderWidth: 1, borderColor: theme.media.text },
-    track: { height: 4, borderWidth: 1, borderColor: theme.media.border, backgroundColor: theme.media.badge },
-    filledTrack: { height: '100%', backgroundColor: theme.media.muted },
-    thumb: (compact: boolean) => ({ position: 'absolute', width: compact ? 6 : 4, height: compact ? 18 : 6,
-        marginLeft: -3, borderWidth: 1, borderColor: theme.media.muted, backgroundColor: theme.media.badge,
-        borderRadius: compact ? 3 : 1 }),
+    track: (compact: boolean) => ({ height: compact ? 26 : 4, borderWidth: 1, borderColor: theme.media.border,
+        borderRadius: compact ? 9 : 0, padding: compact ? 3 : 0,
+        backgroundColor: compact ? 'transparent' : theme.media.badge }),
+    filledTrack: (compact: boolean) => ({ height: '100%', borderRadius: compact ? 5 : 0,
+        backgroundColor: compact ? theme.media.badge : theme.media.muted }),
+    thumb: (compact: boolean) => ({ position: 'absolute', width: compact ? 10 : 4, height: compact ? 30 : 6,
+        marginLeft: compact ? -5 : -3, borderWidth: 1, borderColor: theme.media.muted, backgroundColor: theme.media.badge,
+        borderRadius: compact ? 5 : 1 }),
 }));

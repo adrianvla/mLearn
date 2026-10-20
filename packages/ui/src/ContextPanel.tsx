@@ -103,7 +103,7 @@ const styles = StyleSheet.create(theme => ({
         }
     }, panel: {
         overflow: 'hidden', borderWidth: 1, _web: {
-            backdropFilter: 'blur(20px)', boxShadow: '0 18px 50px -10px #00000055'
+            backdropFilter: theme.media.backdrop, boxShadow: '0 18px 50px -10px #00000055'
         }
     }, header: {
         flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.small, flexShrink: 0,

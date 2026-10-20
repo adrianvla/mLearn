@@ -67,14 +67,73 @@ shared glass/canvas material. A direct-entry Watch Home regression failed
 before the navigation repair and passes afterward. The last integrated local
 run passed seven web tests; a final-source run is in progress.
 
-Both consuming mobile Release builds passed before the last convergence.
-The subsequent iOS rebuild failed with `No space left on device`, not a
-passing compile. Only this task's new simulator and generated module cache
-were removed, recovering 3.3 GiB; the same consuming build is retrying.
-Retained H00 devices, profiles and unrelated caches were not cleared.
-Next: complete matched full-window/regional and narrow comparisons, real
-native workflows, normal restart/persistence and performance gates. No visual
-or native gate is closed by the prior builds or local suites.
+Both consuming mobile Release builds now pass after the maintainer resolved
+disk capacity; the old ENOSPC failure remains historical evidence. No removed
+large acceptance environment was recreated. Current Android foundation and
+complete Watch flows pass, including keyboard-visible offset editing. Current
+iOS foundation passes in 7m12s after an event-based keyboard/caret gesture
+repair. Native hit testing identified AVKit's
+AVVisualAnalysisView at the failed touch point; disabling its optional Live
+Text analysis passes the same touch/skip diagnostic. The host now sets the
+supported Expo property, and its rebuilt full Watch passed in198.775s.
+The real interactive language-selector owner also passes Android Watch
+in235.185s; a disabled placeholder Text child was not a valid readiness signal.
+Both final consuming Release builds pass after shared typography/material
+changes. Android foundation141.822s and complete Watch231.631s pass; iOS
+foundation passes in7m41s and final Watch is running. Android's first attempt
+was obstructed by a screenshot-confirmed System UI ANR, not an mLearn crash;
+after dismissing that system obstruction, the unchanged flow passed.
+Retained H00 devices and live learner profiles remain unchanged.
+
+Fresh native startup renders the replacement Quartz theme. A bounded421MB
+APFS clone plus consistent SQLite readonly backup supplies existing-profile
+copy verification, with database integrity and process isolation checked.
+Matching media/entry comparisons now use real test-video.mov at25.182s,
+offset-6350ms and the actual courage entry in that copy, not a different
+headword. The normal profile retains its original18.805s/offset0/rate1x.
+Shared navigation density, Inspector definition/badge spacing and WebKit text
+rendering were repaired from these comparisons. Latest local38harness,
+19package and7web tests, typecheck, ownership lint, export and contracts pass.
+Exact target states requiring absent ruby/prosody, live translation, aggregate
+Known/Flashcard/Explain actions or cue-alignment arrows remain incomplete;
+their semantics were not faked or added as new backends.
+Final regional comparison repaired shared Inspector opacity/saturation,
+platform CJK fallback, 40/64px subtitles, 166px Settings selectors and section
+rhythm, Home outlines and the compact volume trough. Manual offset editing
+is retained in Playback options; superseded floating APIs were removed.
+An invalid offset is rejected beside its field, a valid retry saves through
+Rust, and closing restores focus to Playback options.
+
+Two review regressions have real before/after proof: a failed playback-rate
+write now remains visible beside the selector, and focused combobox keys no
+longer seek/mute/fullscreen the video. A temporary SQLite trigger in the
+isolated profile rejected only rate updates; after removing it, retry saved
+and cleared feedback. No trigger or held database transaction remains.
+The desktop harness now protects both contracts through real WebDriver/native
+actions; its Linux execution is pending. Latest local tests, typecheck, lint,
+web export, seven browser tests and generated contracts pass. A stale
+setSyncOpen reset initially failed typecheck, was removed, and the blocked
+checks subsequently passed.
+
+Final desktop1000px and420px Home, Settings, editor and matching Inspector
+captures are retained and inspected. The real copied-source English switch
+shows its unsupported-script error beside Retry analysis; restoring Japanese
+recovers annotations without changing source time/rate/offset.
+Final APK SHA256 is85a12c778fe64eb4ab56dea267215cebadc293370848f09f2b43d369a635f483;
+iOS JS bundle isd24d4a0676ccf9d4dbad0706b717344d0bf82e9cb7286d029a06abdee380af0f.
+
+Normal documented startup Resume-to-caption is1321ms with one401560us
+Japanese initialization, versus1280ms before the rewrite. A warm reopen
+during simultaneous simulator boot/build work took16465ms in resume_source
+metadata preparation, while analysis remained cached; this is retained as an
+anomaly, not counted as a passing latency sample. Its frame callback also
+waited149638ms while the WebKit window was backgrounded. A visible warm
+sample under remaining native load was2190ms; copied-source reopen1347ms.
+Repeat with the normal app foreground and owned device load stopped before
+closing the performance gate.
+Next: finish final native workflows, narrow captures and uncontended warm/
+package-switch measurements, then record gates and publish verified repairs.
+Unavailable exact target capabilities remain incomplete, not accepted.
 
 ## Historical focused foundation repair - 2026-10-19
 

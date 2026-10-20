@@ -26,6 +26,7 @@ export function WatchScreen() {
     const insets = useSafeAreaInsets();
     const viewport = useWindowDimensions();
     const [subtitleInset, setSubtitleInset] = useState(128);
+    const [subtitleHeight, setSubtitleHeight] = useState(0);
     const [toolbarHeight, setToolbarHeight] = useState(64);
     const [window, setWindow] = useState<SourceWindow | null>(null);
     const [batch, setBatch] = useState<AnalysisBatch | null>(null);
@@ -400,6 +401,13 @@ export function WatchScreen() {
             onChanged={changedInspection} onClose={() => setInspection(null)} />
     ) : null;
     const sourceActions = <>
+                    {Platform.OS === 'web' && window ? <Select label="Playback rate" variant="media"
+                      value={String(window.source.playbackRate)} disabled={busy}
+                      options={[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate => ({ value: String(rate), label: `${rate}×` }))}
+                      onValueChange={rate => void changeSource(client => client.setPlaybackRate(id, Number(rate)))} /> : null}
+                    {Platform.OS === 'web' && playbackError && !playbackOpen ? <View style={styles.preferenceFeedback}>
+                      <Text testID="playback-preference-error" accessibilityRole="alert" variant="caption" tone="media">{playbackError}</Text>
+                    </View> : null}
                     {window ? (
                         <Button label={window.source.subtitlePath ? 'Replace subtitles' : 'Open subtitles'}
                             icon="subtitles" iconOnly size="compact" variant="media" disabled={busy} onPress={() => void attach()} />
@@ -423,12 +431,12 @@ export function WatchScreen() {
                         }
                       }} title="Playback and subtitles" description="Changes are saved for this video."
                         trigger={<Button label="Playback options" icon="settings" iconOnly variant="media" size="compact" />}>
-                        <Text>Playback rate · {window.source.playbackRate}×</Text>
+                        {Platform.OS !== 'web' ? <><Text>Playback rate · {window.source.playbackRate}×</Text>
                         <Row>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate =>
                           <Button key={rate} label={`${rate}×`} accessibilityLabel={`Playback rate ${rate}`}
                             variant="secondary" disabled={busy}
                             accessibilityState={{ selected: window.source.playbackRate === rate }}
-                            onPress={() => void changeSource(client => client.setPlaybackRate(id, rate))} />)}</Row>
+                            onPress={() => void changeSource(client => client.setPlaybackRate(id, rate))} />)}</Row></> : null}
                         <Text>Source language</Text>
                         <Select label="Source language" value={window.source.packageId} disabled={busy}
                           options={languages.map(plugin => ({ value: plugin.id, label: plugin.displayName ?? plugin.id, testID: plugin.id }))}
@@ -502,17 +510,19 @@ export function WatchScreen() {
                     <MediaSurface key={window.source.id} uri={host.media.uri(window.source)}
                         controls={Platform.OS === 'web' ? sourceActions : undefined}
                         initialPositionMs={window.source.positionMs} playbackRate={window.source.playbackRate}
-                        paused={!!inspection || busy || transcriptOpen || playbackOpen}
+                         paused={!!inspection || busy || transcriptOpen || playbackOpen}
                         onController={value => {
                             controller.current = value;
                             setSubtitleInset(value.subtitleBottomInset);
                         }}
                         onProgress={progress} onError={setError} />
-                    <View pointerEvents="box-none" style={[styles.subtitle(toolbarHeight, subtitleInset), {
+                    {cues.length ? <View pointerEvents="box-none" style={[styles.subtitle(toolbarHeight, subtitleInset), {
                         opacity: transcriptOpen || (Platform.OS !== 'web' && inspection) ? 0 : 1,
                     }]}>
                       <ScrollView testID="subtitle-window" accessibilityLabel="Subtitles"
-                        style={styles.subtitleScroll} contentContainerStyle={styles.subtitleContent}
+                        style={[styles.subtitleScroll, { height: subtitleHeight }]}
+                        onContentSizeChange={(_, height) => setSubtitleHeight(height)}
+                        contentContainerStyle={styles.subtitleContent}
                         keyboardShouldPersistTaps="handled">
                         {cues.map(cue => {
                             const analysis = batch?.subtitleRevision === window.source.subtitleRevision
@@ -528,7 +538,7 @@ export function WatchScreen() {
                             );
                         })}
                       </ScrollView>
-                    </View>
+                    </View> : null}
                 </View>
                 <View pointerEvents="box-none"
                     style={[styles.status, { top: insets.top + toolbarHeight + 8 }, (!window.source.subtitlePath || analysisError || (analysisPending && !batch)) ? styles.feedback : null]}>
@@ -547,6 +557,7 @@ export function WatchScreen() {
     );
 }
 const styles = StyleSheet.create(theme => ({
+    preferenceFeedback: { maxWidth: 320, flexShrink: 1 },
     screen: (top: number, bottom: number) => ({
         flex: 1, paddingTop: top, paddingBottom: bottom, backgroundColor: theme.media.background
     }), toolbar: {
