@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "mlearn.dark-quartz",
+  "name": "Dark Quartz",
+  "colors": {
+    "background": "#1B1C1B",
+    "surface": "#2C2D2B",
+    "text": "#F0F0F0",
+    "muted": "#A0A0A0",
+    "accent": "#FF5900",
+    "onAccent": "#FFFFFF",
+    "border": "#4B4C4B"
+  },
+  "radius": 8,
+  "textScale": 1,
+  "spacingScale": 1,
+  "extensions": {}
+}

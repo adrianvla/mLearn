@@ -1,15 +1,17 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { View, useWindowDimensions } from 'react-native';
-import { StyleSheet } from 'react-native-unistyles';
+import { View } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { Snapshot, ThemeDocument } from '@mlearn/contracts';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
-import { Screen, Stack, Row, SettingRow } from '@mlearn/ui/layout';
+import { AppShell, Section, Row, SettingRow } from '@mlearn/ui/layout';
 import { TextField } from '@mlearn/ui/text-field';
 import { Dialog } from '@mlearn/ui/dialog';
 import { applyTheme } from '@mlearn/theme/runtime';
-import { builtInThemes, initialTheme, parseThemePreview } from '@mlearn/theme';
+import { builtInThemes, initialTheme, parseThemePreview, resolveBuiltInTheme } from '@mlearn/theme';
+import { Select } from '@mlearn/ui/select';
+import { Icon } from '@mlearn/ui/icon';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { LanguagePackageInstall } from './LanguagePackageInstall';
 import { usePackageInstall } from './usePackageInstall';
@@ -21,7 +23,7 @@ export function SettingsScreen() {
   const host = useRuntime();
   const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
-  const { width } = useWindowDimensions();
+  const { theme } = useUnistyles();
   const [section, setSection] = useState<'appearance' | 'languages' | 'runtime'>(
     params.section === 'languages' || params.section === 'runtime' ? params.section : 'appearance',
   );
@@ -32,6 +34,8 @@ export function SettingsScreen() {
   const [name, setName] = useState('world');
   const [editing, setEditing] = useState(false);
   const [themeJson, setThemeJson] = useState(JSON.stringify(initialTheme, null, 2));
+  const [search, setSearch] = useState('');
+  const [previewTheme, setPreviewTheme] = useState(initialTheme);
   const packageInstall = usePackageInstall(host.available ? host.client : null,
     section === 'languages' && snapshot?.codePolicy === 'desktop-downloaded', refresh);
 
@@ -80,31 +84,45 @@ export function SettingsScreen() {
   }
   const installed = snapshot?.installedPlugins.find((plugin) => plugin.id === 'example.hello');
   const canSave = host.available && snapshot !== null && !busy;
+  const displayedTheme = resolveBuiltInTheme(snapshot?.theme ?? previewTheme);
+  const sections = [
+    { value: 'appearance', label: 'Appearance', icon: 'palette', terms: 'appearance theme custom palette text size spacing radius' },
+    { value: 'languages', label: 'Languages', icon: 'globe', terms: 'language packages install catalog update' },
+    { value: 'runtime', label: 'Runtime', icon: 'settings', terms: 'runtime native plugin diagnostics sdk hello' },
+  ] as const;
 
-  return <Screen>
+  return <AppShell header={<>
     <View style={styles.header}>
-      <Text variant="heading" accessibilityRole="header">Settings</Text>
-      <Button label="Home" variant="quiet" onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />
+      <View style={styles.title}><Icon name="settings" size={24} color={theme.colors.text} />
+        <Text variant="heading" accessibilityRole="header">Settings</Text></View>
+      <Button label="Home" icon="arrowLeft" variant="quiet"
+        onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />
     </View>
-    <View style={styles.layout}>
-      <View style={styles.navigation(width < 700)}>
-        {(['appearance', 'languages', 'runtime'] as const).map(value => <Button key={value}
-          label={value === 'appearance' ? 'Appearance' : value === 'languages' ? 'Languages' : 'Runtime'}
-          accessibilityLabel={value === 'appearance' ? 'Appearance' : value === 'languages' ? 'Language packages' : 'Runtime'}
-          accessibilityState={{ selected: section === value }}
-          variant="quiet" onPress={() => setSection(value)} />)}
-      </View>
+    <Text muted>Configure mLearn to your preferences</Text>
+  </>} navigation={<>
+    <View style={styles.search}><TextField label="Search settings" variant="search" value={search} maxLength={128}
+      onChangeText={setSearch} placeholder="Search settings…" autoCorrect={false} /></View>
+    {sections.filter(item => item.terms.includes(search.trim().toLowerCase())).map(item =>
+      <Button key={item.value} label={item.label} icon={item.icon}
+        accessibilityLabel={item.value === 'languages' ? 'Language packages' : item.label}
+        accessibilityState={{ selected: section === item.value }}
+        variant="navigation" onPress={() => setSection(item.value)} />)}
+    {search && !sections.some(item => item.terms.includes(search.trim().toLowerCase()))
+      ? <Text muted variant="caption">No matching settings.</Text> : null}
+  </>}>
       <View style={styles.content}>
-      {section === 'appearance' ? <Stack>
-        <Text variant="section" accessibilityRole="header">Appearance</Text>
+      {section === 'appearance' ? <Section title="Appearance">
         <SettingRow label="Theme" description={
-          <Text variant="caption" muted>{snapshot ? `Current: ${snapshot.theme.name}. Saved in the native SQLite profile.` : 'Preview only. Native storage is not connected.'}</Text>
+          <Text variant="caption" muted>{snapshot ? `Current: ${displayedTheme.name}. Saved in the native SQLite profile.` : 'Preview only. Native storage is not connected.'}</Text>
         }>
-          <Row>{builtInThemes.map(theme => <Button key={theme.id} label={theme.name} variant="secondary"
-            accessibilityState={{ selected: snapshot?.theme.id === theme.id }} disabled={busy} onPress={() => {
-              if (canSave) void perform('theme', () => saveTheme(theme));
-              else { applyTheme(theme); report('theme', 'Unsaved visual preview. No native data was written.'); }
-            }} />)}</Row>
+          <Select label="Select theme" value={displayedTheme.id}
+            options={builtInThemes.map(preset => ({ value: preset.id, label: preset.name }))}
+            disabled={busy} onValueChange={id => {
+              const preset = builtInThemes.find(value => value.id === id);
+              if (!preset) return;
+              if (canSave) void perform('theme', () => saveTheme(preset));
+              else { setPreviewTheme(preset); applyTheme(preset); report('theme', 'Unsaved visual preview. No native data was written.'); }
+            }} />
         </SettingRow>
         <SettingRow label="Custom theme" description={
           <Text variant="caption" muted>Palette, text size, spacing and corner radius.</Text>
@@ -119,9 +137,8 @@ export function SettingsScreen() {
           </Dialog>
         </SettingRow>
         {!editing && feedbackAt('theme')}
-      </Stack> : null}
-      {section === 'languages' ? <Stack>
-        <Text variant="section" accessibilityRole="header">Language packages</Text>
+      </Section> : null}
+      {section === 'languages' ? <Section title="Language packages">
         {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : <>
           {snapshot?.packageIssues?.map(issue => <SettingRow key={issue.packageId} label="Package unavailable" description={<>
               <Text variant="caption" muted selectable>{issue.packageId}</Text>
@@ -138,9 +155,8 @@ export function SettingsScreen() {
             : <Text muted>{snapshot?.codePolicy === 'mobile-bundled' ? 'Language code is included with this app.' : 'No trusted language catalog is configured.'}</Text>}
           {feedbackAt('plugin')}
         </>}
-      </Stack> : null}
-      {section === 'runtime' ? <Stack>
-      <Text variant="section" accessibilityRole="header">Runtime</Text>
+      </Section> : null}
+      {section === 'runtime' ? <Section title="Runtime">
       <Text>{host.label}</Text>
       {!host.available ? <Text muted>{host.reason}</Text> : <>
         <Text>Plugin code: {snapshot?.codePolicy ?? 'Connecting…'}</Text>
@@ -167,16 +183,15 @@ export function SettingsScreen() {
       {!installed && snapshot?.codePolicy === 'desktop-downloaded' && snapshot.catalogConfigured && <Text variant="caption" muted>Install the example before running it.</Text>}
       {snapshot?.codePolicy === 'desktop-downloaded' && !snapshot.catalogConfigured && <Text variant="caption" muted>No trusted catalog configured. Desktop development starts a local signed catalog; release builds need a publisher URL and public key.</Text>}
       </View>
-      </Stack> : null}
+      </Section> : null}
       </View>
-    </View>
-  </Screen>;
+  </AppShell>;
 }
 
 const styles = StyleSheet.create(theme => ({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: theme.spacing.medium },
-  layout: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: theme.spacing.section },
-  navigation: (compact: boolean) => ({ flexDirection: compact ? 'row' : 'column', flexWrap: 'wrap', width: compact ? '100%' : 180, gap: theme.spacing.small }),
-  content: { flex: 1, minWidth: 260, gap: theme.spacing.large },
+  title: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.compact },
+  search: { width: '100%', marginBottom: theme.spacing.compact },
+  content: { minWidth: 0, gap: theme.spacing.large, paddingTop: theme.spacing.section },
   runtimeExample: { borderTopWidth: 1, borderColor: theme.colors.border, paddingTop: theme.spacing.large, gap: theme.spacing.medium },
 }));

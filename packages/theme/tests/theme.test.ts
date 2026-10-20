@@ -1,6 +1,36 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { initialTheme, parseThemePreview, resolveTheme } from '../src/theme.ts';
+import { builtInThemes, initialTheme, parseThemePreview, resolveTheme } from '../src/theme.ts';
+
+const savedSlate = {
+  schemaVersion: 1, id: 'mlearn.slate', name: 'Slate',
+  colors: { background: '#15191F', surface: '#20262E', text: '#EDF0F5', muted: '#BAC2CE',
+    accent: '#99BEFF', onAccent: '#15243C', border: '#414B5A' },
+  radius: 12, textScale: 1, spacingScale: 1, extensions: {},
+};
+
+test('normal saved built-in presentation updates without losing text and density preferences', () => {
+  const saved = { ...savedSlate, textScale: 1.5, spacingScale: 0.75 };
+  const rendered = resolveTheme(saved);
+  assert.notDeepEqual(rendered.colors, saved.colors);
+  assert.deepEqual(rendered.colors, builtInThemes[1].colors);
+  assert.equal(rendered.textScale, 1.5);
+  assert.equal(rendered.spacing.small, 6);
+  assert.deepEqual(saved, { ...savedSlate, textScale: 1.5, spacingScale: 0.75 });
+});
+
+test('customized historical built-in IDs retain their actual palette and extension data', () => {
+  for (const custom of [
+    { ...savedSlate, colors: { ...savedSlate.colors, accent: '#AA3377' } },
+    { ...savedSlate, radius: 6 },
+    { ...savedSlate, extensions: { 'school::palette': { retained: true } } },
+  ]) {
+    const parsed = parseThemePreview(JSON.stringify(custom));
+    assert.deepEqual(resolveTheme(parsed).colors, custom.colors);
+    assert.equal(resolveTheme(parsed).radius, custom.radius);
+    assert.deepEqual(parsed, custom);
+  }
+});
 
 test('arbitrary themes preserve extension values and are not a fixed theme-name enum', () => {
   const custom = { ...initialTheme, id: 'school.unique', name: 'Custom', extensions: { 'future::feature': { nested: ['kept'] } } };

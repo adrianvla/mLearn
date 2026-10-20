@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { createContext, runInContext } from 'node:vm';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const configPath = new URL('../../apps/client/app.config.js', import.meta.url);
 function applyAppConfig(properties) {
@@ -33,4 +36,14 @@ test('Android prebuild only advertises ABIs supplied by the Rust bridge', () => 
   ]);
   assert.deepEqual(properties.filter(item => item.key !== 'reactNativeArchitectures'), original.slice(0, 2));
   assert.deepEqual(JSON.parse(JSON.stringify(applyAppConfig(properties).modResults)), properties);
+});
+
+test('normal Metro development observes shared theme resources outside workspace packages', () => {
+  const require = createRequire(import.meta.url);
+  const config = require('../../apps/client/metro.config.js');
+  const source = fileURLToPath(new URL('../../resources/themes/quartz.json', import.meta.url));
+  assert.ok([config.projectRoot, ...config.watchFolders].some(folder =>
+    source.startsWith(`${path.resolve(folder)}${path.sep}`)),
+  'A theme edit must invalidate the normal development graph, not require a fresh profile or cache wipe');
+  assert.ok(config.resolver.sourceExts.includes(path.extname(source).slice(1)));
 });

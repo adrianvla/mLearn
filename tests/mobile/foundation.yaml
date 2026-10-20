@@ -24,12 +24,13 @@ name: Native foundation persists Rust state across process restart
 - takeScreenshot: bundled-plugin-result
 - tapOn: 'Appearance'
 - scrollUntilVisible:
-    element: 'Slate'
+    element: 'Select theme.*'
     direction: DOWN
 - assertVisible: 'Current: Quartz\. Saved in the native SQLite profile\.'
-- tapOn: 'Slate'
+- tapOn: 'Select theme.*'
+- tapOn: 'Dark Quartz'
 - extendedWaitUntil:
-    visible: 'Current: Slate\. Saved in the native SQLite profile\.'
+    visible: 'Current: Dark Quartz\. Saved in the native SQLite profile\.'
     timeout: 15000
 - scrollUntilVisible:
     element:
@@ -52,9 +53,9 @@ name: Native foundation persists Rust state across process restart
 - takeScreenshot: slate-after-restart
 - tapOn: 'Appearance'
 - scrollUntilVisible:
-    element: 'Slate'
+    element: 'Edit theme JSON'
     direction: DOWN
-- assertVisible: 'Current: Slate\. Saved in the native SQLite profile\.'
+- assertVisible: 'Current: Dark Quartz\. Saved in the native SQLite profile\.'
 - assertNotVisible: 'Unsaved visual preview.*'
 - scrollUntilVisible:
     element: 'Edit theme JSON'
@@ -129,7 +130,7 @@ name: Native foundation persists Rust state across process restart
 - tapOn: 'Close'
 - assertNotVisible:
     id: dialog-surface
-- assertVisible: 'Current: Slate\. Saved in the native SQLite profile\.'
+- assertVisible: 'Current: Dark Quartz\. Saved in the native SQLite profile\.'
 - tapOn: 'Runtime'
 - scrollUntilVisible:
     element: 'world'

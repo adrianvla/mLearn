@@ -3,15 +3,15 @@
   "id": "mlearn.quartz",
   "name": "Quartz",
   "colors": {
-    "background": "#F1F2F4",
-    "surface": "#FFFFFF",
-    "text": "#20232A",
-    "muted": "#555D6B",
-    "accent": "#2458A6",
+    "background": "#F5F5F5",
+    "surface": "#EEEEEE",
+    "text": "#1A1A1A",
+    "muted": "#626262",
+    "accent": "#C44700",
     "onAccent": "#FFFFFF",
-    "border": "#CFD4DC"
+    "border": "#BFBFBF"
   },
-  "radius": 12,
+  "radius": 8,
   "textScale": 1,
   "spacingScale": 1,
   "extensions": {}

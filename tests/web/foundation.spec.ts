@@ -14,10 +14,16 @@ test('one shared surface is honest about missing native capabilities', async ({ 
 });
 
 test('runtime theme updates, dialog labeling and keyboard focus work', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto('/settings');
   const heading = page.getByRole('heading', { name: 'Settings', exact: true });
   const before = await heading.evaluate((element) => getComputedStyle(element).color);
-  await page.getByRole('button', { name: 'Slate', exact: true }).click();
+  const selector = page.getByRole('combobox', { name: /^Select theme:/ });
+  await selector.click();
+  await page.getByRole('option', { name: 'Dark Quartz', exact: true }).click();
+  await expect(selector).toBeFocused();
   await expect(heading).not.toHaveCSS('color', before);
   await expect(page.getByText('Unsaved visual preview. No native data was written.')).toBeVisible();
   const trigger = page.getByRole('button', { name: 'Edit theme JSON', exact: true });
@@ -25,14 +31,15 @@ test('runtime theme updates, dialog labeling and keyboard focus work', async ({ 
   const dialog = page.getByRole('dialog', { name: 'Custom theme' });
   await expect(dialog).toBeVisible();
   // A late-mounted dialog must pair the active surface and text palette.
-  await expect(page.getByTestId('dialog-surface')).toHaveCSS('background-color', 'rgb(32, 38, 46)');
-  await expect(dialog.getByText('Custom theme', { exact: true })).toHaveCSS('color', 'rgb(237, 240, 245)');
+  await expect(page.getByTestId('dialog-surface')).toHaveCSS('background-color', 'rgb(44, 45, 43)');
+  await expect(dialog.getByText('Custom theme', { exact: true })).toHaveCSS('color', 'rgb(240, 240, 240)');
   await expect(dialog.getByRole('textbox', { name: 'Theme JSON' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Save custom theme' })).toBeDisabled();
   await page.screenshot({ path: 'test-results/foundation-dialog.png', fullPage: true });
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
   await expect(trigger).toBeFocused();
+  expect(errors).toEqual([]);
 });
 
 test('shared controls pass automated WCAG checks', async ({ page }) => {

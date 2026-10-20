@@ -13,6 +13,8 @@
     "windows": [
       {
         "title": "mLearn",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
         "width": 1080,
         "height": 800,
         "minWidth": 420,

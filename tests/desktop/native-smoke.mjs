@@ -164,14 +164,14 @@ async function assertStyled(theme, color) {
   const state = await styleState();
   await writeFile(`test-results/desktop/styles-${theme}.json`, JSON.stringify(state, null, 2));
   assert.ok(state.heading, 'Main heading missing');
-  assert.equal(state.heading.fontSize, '28px', 'Packaged webview must apply the shared typography');
+  assert.equal(state.heading.fontSize, '24px', 'Packaged webview must apply the shared typography');
   assert.equal(state.heading.color, color, 'Native webview must apply the current theme, not merely save its name');
   assert.ok(state.buttonHeight >= 44, 'Shared native-web button must retain its accessible hit target');
 }
 try {
   await until(() => rpc('GET', '/status'), 'WebDriver startup');
   await launch();
-  await assertStyled('quartz', 'rgb(32, 35, 42)');
+  await assertStyled('quartz', 'rgb(26, 26, 26)');
   await screenshot('initial-quartz');
   await click('Install SDK example');
   await text('Verified plugin installed from the catalog.');
@@ -181,15 +181,16 @@ try {
   await assertPluginFeedbackNearAction('Hello, world!');
   await screenshot('hello-result-beside-action');
   await click('Appearance');
-  await click('Slate');
+  await click('Select theme: Quartz');
+  await click('Dark Quartz');
   await text('Theme saved by Rust');
-  await assertStyled('slate', 'rgb(237, 240, 245)');
+  await assertStyled('dark-quartz', 'rgb(240, 240, 240)');
   await screenshot('downloaded-plugin-and-saved-theme');
   await rpc('DELETE', `/session/${session}`); session = undefined;
   await launch();
   await click('Appearance');
-  await text('Current: Slate.');
-  await assertStyled('restarted-slate', 'rgb(237, 240, 245)');
+  await text('Current: Dark Quartz.');
+  await assertStyled('restarted-dark-quartz', 'rgb(240, 240, 240)');
   await click('Runtime');
   await click('Run hello');
   await text('Hello, world!');
@@ -226,7 +227,7 @@ try {
       };
       const observer = new ResizeObserver(() => {
         const fontSize=getComputedStyle(heading).fontSize;
-        if(fontSize==='56px')finish({fontSize});
+        if(fontSize==='48px')finish({fontSize});
       });
       const timer = setTimeout(() => finish({error:'Numeric theme did not update mounted text',fontSize:getComputedStyle(heading).fontSize}),5000);
       window.__m01NumericTheme.cancel = () => finish({error:'cancelled'});
@@ -240,7 +241,7 @@ try {
     await click('Reload native state');
     const scaledText = await rpc('POST',`/session/${session}/execute/async`,{script:`
       const done=arguments[arguments.length-1];window.__m01NumericTheme.promise.then(done);`,args:[]});
-    assert.equal(scaledText.fontSize,'56px',JSON.stringify(scaledText));
+    assert.equal(scaledText.fontSize,'48px',JSON.stringify(scaledText));
   } finally {
     await script('window.__m01NumericTheme.cancel();delete window.__m01NumericTheme;return true;');
   }

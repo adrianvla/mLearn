@@ -1,13 +1,38 @@
 import type { ThemeDocument } from '@mlearn/contracts';
 import quartz from '../../../resources/themes/quartz.json';
-import slate from '../../../resources/themes/slate.json';
+import darkQuartz from '../../../resources/themes/dark-quartz.json';
 
-export const builtInThemes: readonly ThemeDocument[] = [quartz, slate];
+export const builtInThemes: readonly ThemeDocument[] = [quartz, darkQuartz];
 export const initialTheme: ThemeDocument = quartz;
 
+// Import boundary for whole documents saved before the reference-parity rewrite.
+// ID alone is not authority: same-ID user palettes, radii and extensions remain
+// custom. Resolve untouched old presentation, never rewrite learner preferences.
+const retiredBuiltIns = [
+  { id: 'mlearn.quartz', name: 'Quartz', replacement: quartz, colors: {
+    background: '#F1F2F4', surface: '#FFFFFF', text: '#20232A', muted: '#555D6B',
+    accent: '#2458A6', onAccent: '#FFFFFF', border: '#CFD4DC',
+  } },
+  { id: 'mlearn.slate', name: 'Slate', replacement: darkQuartz, colors: {
+    background: '#15191F', surface: '#20262E', text: '#EDF0F5', muted: '#BAC2CE',
+    accent: '#99BEFF', onAccent: '#15243C', border: '#414B5A',
+  } },
+] as const;
+
+export function resolveBuiltInTheme(document: ThemeDocument): ThemeDocument {
+  const retired = retiredBuiltIns.find(preset =>
+    document.id === preset.id && document.name === preset.name && document.radius === 12
+    && Object.keys(document.extensions).length === 0
+    && (['background', 'surface', 'text', 'muted', 'accent', 'onAccent', 'border'] as const)
+      .every(key => document.colors[key] === preset.colors[key]));
+  return retired ? { ...document, id: retired.replacement.id, name: retired.replacement.name,
+    colors: { ...retired.replacement.colors }, radius: retired.replacement.radius } : document;
+}
+
 /** Rendering-only projection. Rust is authoritative for accepting and storing theme documents. */
-export function resolveTheme(document: ThemeDocument) {
-  const textRole = (fontSize: number, lineHeight: number, fontWeight: '400' | '600' | '700' = '400') => ({
+export function resolveTheme(saved: ThemeDocument) {
+  const document = resolveBuiltInTheme(saved);
+  const textRole = (fontSize: number, lineHeight: number, fontWeight: '400' | '500' | '600' | '700' = '400') => ({
     fontFamily: 'Helvetica Neue',
     fontSize: fontSize * document.textScale,
     lineHeight: lineHeight * document.textScale,
@@ -17,7 +42,10 @@ export function resolveTheme(document: ThemeDocument) {
     colors: { ...document.colors },
     controls: {
       selected: `${document.colors.text.slice(0, 7)}14`,
+      surface: `${document.colors.text.slice(0, 7)}0D`,
+      hover: `${document.colors.text.slice(0, 7)}20`,
     },
+    shell: { navigation: document.colors.background, content: document.colors.surface },
     media: {
       background: '#000000',
       text: '#E8E8E8',
@@ -29,23 +57,26 @@ export function resolveTheme(document: ThemeDocument) {
       badge: '#FFFFFF20',
     },
     typography: {
-      heading: textRole(28, 36, '600'),
-      section: textRole(20, 28, '600'),
+      heading: textRole(24, 36, '600'),
+      shellTitle: textRole(20, 30, '700'),
+      navigation: textRole(18, 27),
+      section: textRole(18, 27, '600'),
       body: textRole(16, 24),
-      caption: textRole(14, 20),
+      caption: textRole(14, 21),
       inspectionTitle: textRole(32, 44),
       inspectionBody: textRole(20, 28),
       inspectionReading: textRole(18, 26),
       mediaTitle: textRole(13, 20),
       subtitle: textRole(26, 44),
-      action: textRole(15, 20, '600'),
-      compactAction: textRole(14, 20, '600'),
+      action: textRole(16, 24, '500'),
+      compactAction: textRole(14, 20, '500'),
+      mediaAction: textRole(13, 20),
       knowledgeAction: textRole(16, 22, '700'),
       badge: textRole(15, 20, '600'),
     },
     pills: {
       neutral: { text: '#D6D6DC', surface: '#303037', top: '#48484F' },
-      positive: { text: '#38E34D', surface: '#063309', top: '#1E4F25' },
+      positive: { text: '#00CC00', surface: '#003300', top: '#2D4C25' },
       negative: { text: '#FF4D75', surface: '#481024', top: '#693146' },
     },
     radius: document.radius,

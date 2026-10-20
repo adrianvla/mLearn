@@ -1,6 +1,52 @@
 # Current implementation checkpoint
 
-## Focused foundation repair - 2026-10-19
+## Active visual-parity rewrite - 2026-10-20
+
+Status: `implementing`, not complete or accepted. Execute
+[VISUAL-PARITY.md](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44,
+against unchanged `agent/h00`. Requested `4a86df32` was fetched and already
+equalled clean HEAD; no reset, history rewrite or new worktree was used.
+This authorization supersedes the historical frozen-review, minimal-restyle
+and unpictured `visual_pending` restrictions below. No new domain milestone,
+merge, release or maintainer acceptance is authorized.
+
+The shared foundation and Home are being replaced, not merely centralized:
+measured reference palettes, historical built-in rendering resolution,
+portable icons/selectors, bounded shell, native overlay titlebar and actual
+source cards. Same-ID customized themes are preserved. Settings now consumes
+the same shell, navigation, selector, field and divided-row families.
+Watch/transcript/Inspector reconstruction and final convergence remain open.
+
+Current private comparison entry point:
+`.mlearn/visual-parity/manifest.json`, with surface/state inventory in
+`.mlearn/visual-parity/surfaces.md`. The append-only execution notepad is
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/ulw-20261020-visual.XXXXXX.md.aXK9yXuTab`.
+Source/state identities, captures, failed attempts and cleanup ownership are
+recorded there. Edited images remain primary; actual isolated reference
+`1788f9c7` completed legitimate Japanese onboarding and supplies unpictured
+Home evidence. Normal existing-profile launch already renders the replacement
+palette without rewriting the saved Slate document or clearing any profile.
+
+First connected checkpoint: npm tests (38 harness/architecture and 19 package
+tests), typecheck, ownership lint, web export, all six web tests including the
+unchanged axe assertion, and generated-contract checks pass. The new shared
+selector preserves combobox semantics and supplies native scrolling. The
+saved-built-in regression failed before the repair and passes
+after it, including custom-palette/radius/extension preservation. Actual
+pre-rewrite Japanese Resume-to-caption baseline is 1.280 seconds.
+Native Settings rejects an invalid theme name in its actual dialog; closing,
+reloading native state and reopening returns the exact original saved document.
+SDK input produces `Hello, Ada!`; installed language metadata and the signed
+catalog render real package actions. No package transfer or profile reset was
+used for these checks. Metro now watches shared resources: its actual-config
+regression is red/green, and live accent edit/restore reached the rendered
+action without another server restart. Native overlay window dragging moves
+the window; the task restored its original position.
+These checks do not close visual, functional/native or performance gates.
+Next: finish Settings and migrate Watch/player/captions/transcript, then
+Inspector/corrections, compare all states and run consuming verification.
+
+## Historical focused foundation repair - 2026-10-19
 
 The maintainer authorized a focused performance/shared-UI repair on existing
 `agent/m01`, draft PR #44, without advancing M02, starting M03, merging or granting

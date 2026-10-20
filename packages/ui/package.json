@@ -4,6 +4,9 @@
   "private": true,
   "exports": {
     "./button": "./src/Button.tsx",
+    "./icon": "./src/Icon.tsx",
+    "./brand": "./src/brand.ts",
+    "./select": "./src/Select.tsx",
     "./text": "./src/Text.tsx",
     "./badge": "./src/Badge.tsx",
     "./layout": "./src/Layout.tsx",
@@ -16,13 +19,15 @@
   "dependencies": {
     "@mlearn/theme": "3.0.0-dev.0",
     "@rn-primitives/dialog": "1.5.2",
-    "@rn-primitives/portal": "1.5.2"
+    "@rn-primitives/portal": "1.5.2",
+    "@rn-primitives/select": "^1.5.2"
   },
   "peerDependencies": {
     "react": "19.2.3",
     "react-native": "0.86.3",
-    "react-native-web": "~0.21.0",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4",
     "react-native-unistyles": "3.5.2",
-    "react-native-safe-area-context": "~5.7.0"
+    "react-native-web": "~0.21.0"
   }
 }

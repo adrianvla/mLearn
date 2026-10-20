@@ -16,12 +16,11 @@ name: Watch Inspector Knowledge and native source resume
     commands:
       - tapOn: Close app
 - extendedWaitUntil:
-    # Android labels can report enabled before their disabled parent is ready.
-    # Package selection also settles the bootstrap layout before the Open tap.
-    visible:
-      id: language-org.mlearn.english
-      selected: true
+    visible: 'Source language.*'
     timeout: 60000
+- tapOn: 'Source language.*'
+- tapOn:
+    id: language-org.mlearn.english
 - extendedWaitUntil:
     # Home renders this control disabled while language packages initialize.
     visible:

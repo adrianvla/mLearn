@@ -35,3 +35,62 @@ Match viewport, scale, theme, data, media time and state. Compare full windows a
 Unimplemented capabilities or missing trustworthy reference states stay explicitly incomplete; no fake actions/data. Preserve responsive and native touch/keyboard behavior and the repaired native performance. Do not confuse accessibility containment, code review or successful builds with visual conformity.
 
 Update this file during implementation with actual reference-derived component contracts, replacing hypotheses with evidence. Completion follows VISUAL-PARITY's separate visual, structural, functional and performance gates; only the maintainer grants acceptance.
+
+## Measured foundation, 2026-10-20
+
+Reference revision: `1788f9c74dc73dd884b687ec80d9550c3ebf6c6b`.
+The isolated development application completed its real EULA and Japanese
+installation. Home was captured at 1200x700 logical pixels / 2x, with Glass and
+Dark Quartz selected through Settings. Captures and the open mismatch ledger
+live in ignored `.mlearn/visual-parity/manifest.json`.
+
+- The edited Settings PNG is 2224x1744. Its dominant content material is
+  `#2c2d2b`, navigation `#1b1c1b`, control `#3d3e3d`, border `#4b4c4b`,
+  foreground `#f0f0f0` and secondary text `#a0a0a0`. These are decoded
+  pixel measurements, not the rejected v3 Slate palette.
+- Reference `styles/index.css:83-139` defines Helvetica Neue UI/content,
+  16px body, 14px secondary, 18px feature titles, 20px shell title, 24px
+  page title, 32px inspection title; 400/500/600/700 weights; a 4px spacing
+  unit and 4/8/12/16px corner families.
+- Ordinary primary actions use the reference's warm outlined/tinted treatment,
+  not the rejected filled-blue v3 button: `index.css:23` sets dark primary
+  `#ff5900`, `themes/quartz.css:5` sets light primary `#c44700`, and
+  `Button.css:123-127` uses a 12% tint with foreground text and an accent
+  boundary. Blue and green gradient Knowledge actions remain separate roles.
+- `welcome.css` owns a fixed header and secondary navigation, then one
+  independently scrolling content region, with 24px horizontal inset and
+  20px activity-grid gaps. Feature cards have 16px inset, 12px corners,
+  40px outlined icon tiles and 18px semibold titles. Recents remain actual
+  source records. Only implemented activities are presented: no invented
+  learning-progress metrics or absent Reader/Messenger/Review actions.
+- Settings uses a 180-200px fixed navigation column and independently
+  scrolling content. Its ordinary rows are divided, with label/description
+  on the left and a control on the right, wrapping on narrow layouts.
+- Watch uses a black source canvas, compact translucent Home/window controls
+  and a bottom player rail. The seek track is above the compact playback
+  controls, not a large stock slider between text buttons. Native video
+  rendering and input ownership remain in the media host.
+- Inspector uses 32/44 title, 20/28 definitions and 18/26 readings at 1x
+  text scale, translucent dark material, 1px neutral boundary, independently
+  scrolling dictionary content and an attached action footer. Knowledge
+  colors and gradients carry real claims only.
+
+### Shared component families
+
+`Button` owns action, selection, busy/disabled and icon-only states, including
+compact media and Knowledge variants. `Icon` owns portable vector geometry;
+features do not recreate click targets or icon text. `Text` owns complete
+typography roles. `Screen`, `Panel`, `SettingRow` and shell composition own
+bounded scroll regions and shared surface anatomy. `Dialog`/`ContextPanel`
+retain portal, dismissal, focus restoration and bounded scrolling semantics.
+Fields, badges, selectors and disclosures use the same type/material/control
+families. Native minimum touch targets remain 44 logical pixels.
+
+### Persisted built-in compatibility
+
+Untouched historical built-in palette/radius fingerprints resolve to the
+replacement presentation at the rendering boundary. Text/density preferences
+and extension data are preserved. A user-edited palette, radius or extended
+document is not identified as built-in merely by its ID. SQLite remains
+authoritative; rendering resolution does not create a second preference store
+or wipe or rewrite profiles.

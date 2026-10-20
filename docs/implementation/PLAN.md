@@ -1,6 +1,6 @@
 # Review-gated implementation plan
 
-> **Active batch exception (2026-10-19):** [OVERNIGHT.md](OVERNIGHT.md), when started by the maintainer, authorizes M01 foundation work, conditional M02 and optional M03 for one combined review. Its readiness gate replaces per-unit human waiting within that batch only. Earlier no-M02/wait wording below is the default/historical procedure, not a veto of this authorization. No acceptance, merge, M04 or later work is authorized. The revised [AGENTS.md](../../AGENTS.md) governs product-wide UI consistency, including unpictured provisional screens.
+> **Active authorization (2026-10-20):** Execute the complete [visual-parity rewrite](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44. Replace the rejected presentation across all currently implemented surfaces; edited images are primary and the corresponding isolated running v2 screen is secondary for unpictured surfaces, including Home. This supersedes the older frozen-review/minimal-restyle/`visual_pending` restrictions and the October 19 feature-expansion batch. Iterate autonomously through the named visual job, not new domain milestones. No merge, release or self-acceptance. The review loop below remains the default for future product increments, not a request to stop between this rewrite's connected slices.
 
 **Goal:** Build the specified mLearn product as connected, usable increments, with a maintainer decision between increments.
 
