@@ -40,9 +40,17 @@ dialog; no authorization interaction was automated. Dynamic macOS transitions
 and compositor captures remain open. Windows UI Automation/DWM transition and
 restart captures are added to the existing foundation Windows job, but have not
 yet run; no Windows visual result is claimed.
-Changed-source foundation `39685611412`, real desktop `39685611328` and native
-mobile `39685611279` are active with quiet completion subscriptions; no active
-build was cancelled or duplicated. Actual current native Home/Settings,
+Changed-source foundation `39685611412` has completed: Rust, web and macOS
+desktop pass. Windows builds and all desktop host tests pass, but the native
+material step fails before producing its run log/captures. The uploaded source
+receipt contains the correct commit followed by literal `HEAD^`, demonstrating
+PowerShell parsed unquoted `HEAD^{tree}` incorrectly. Exact job `119518775627`
+confirms `fatal: ambiguous argument 'HEAD^'` terminates the step before launching
+the material script. The revision argument is now quoted; workflow YAML parses
+and the diff check passes. No Windows visual result is claimed. Real desktop
+`39685611328` passes; its source-bound evidence download is active. Native mobile
+`39685611279` remains subscribed; no active build was cancelled or duplicated.
+Actual current native Home/Settings,
 focused live-card backing, card Inspector, nested Knowledge and synchronization
 were inspected. Nested Knowledge visibly blurs dictionary text beneath it;
 Inspector dismissal restores focus to the originating live card. Captures:

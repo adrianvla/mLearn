@@ -106,7 +106,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force verification | Out-Null
           New-Item -ItemType Directory -Force test-results/window-materials | Out-Null
-          git rev-parse HEAD HEAD^{tree} | Set-Content verification/source.txt
+          git rev-parse HEAD 'HEAD^{tree}' | Set-Content verification/source.txt
           powershell.exe -Mta -NoProfile -ExecutionPolicy Bypass -File tests/desktop/window-materials.ps1 2>&1 | Tee-Object test-results/window-materials/run.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Ensure desktop build did not modify tracked source
