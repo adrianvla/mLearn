@@ -12,6 +12,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows.Automation;
 using System.Windows.Forms;
@@ -35,7 +36,8 @@ public static class NativeMaterialQa {
   [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
 
   // Subscribe before triggering the action; no timing sleeps or readiness polls.
-  static AutomationElement Wait(AutomationElement root, Func<AutomationElement> query, Action trigger) {
+  static AutomationElement Wait(string expected, AutomationElement root, Func<AutomationElement> query, Action trigger) {
+    Console.WriteLine("Waiting for: " + expected);
     object gate = new object();
     AutomationElement found = null;
     Exception failure = null;
@@ -60,7 +62,7 @@ public static class NativeMaterialQa {
       try {
         trigger();
         check();
-        if (!ready.WaitOne(25000)) throw new TimeoutException("Native UI did not publish the expected control");
+        if (!ready.WaitOne(25000)) throw new TimeoutException("Native UI did not publish " + expected);
         if (failure != null) throw failure;
         return found;
       } finally {
@@ -89,28 +91,36 @@ public static class NativeMaterialQa {
     ((InvokePattern)control.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
   }
 
-  static AutomationElement Start(string application, out Process process) {
+  static AutomationElement Start(string application, string output, Action<Process> started) {
     Process launched = null;
-    AutomationElement window = Wait(AutomationElement.RootElement, delegate {
+    AutomationElement window = Wait("the owned application window", AutomationElement.RootElement, delegate {
       if (launched == null) return null;
       launched.Refresh();
       return launched.MainWindowHandle == IntPtr.Zero ? null : AutomationElement.FromHandle(launched.MainWindowHandle);
     }, delegate {
-      launched = Process.Start(new ProcessStartInfo(application) { UseShellExecute = false });
+      string errors = Path.Combine(output, "native-stderr.log");
+      launched = new Process { StartInfo = new ProcessStartInfo(application) {
+        UseShellExecute = false, RedirectStandardError = true
+      }};
+      launched.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs line) {
+        if (line.Data != null) File.AppendAllText(errors, line.Data + Environment.NewLine);
+      };
+      launched.Start();
+      started(launched);
+      launched.BeginErrorReadLine();
     });
-    process = launched;
-    Wait(window, delegate { return Find(window, "Settings", InvokePattern.Pattern); }, delegate {});
+    Wait("Home Settings action", window, delegate { return Find(window, "Settings", InvokePattern.Pattern); }, delegate {});
     return window;
   }
 
   static void Settings(AutomationElement window) {
-    Wait(window, delegate { return Find(window, "Edit theme JSON", InvokePattern.Pattern); },
+    Wait("Edit theme JSON action", window, delegate { return Find(window, "Edit theme JSON", InvokePattern.Pattern); },
       delegate { Invoke(window, "Settings"); });
   }
 
   static void Save(AutomationElement window, Process process, string document, string theme) {
     Console.WriteLine("Saving native theme: " + theme);
-    AutomationElement editor = Wait(window, delegate { return Find(window, "Theme JSON", ValuePattern.Pattern); },
+    AutomationElement editor = Wait("Theme JSON editor", window, delegate { return Find(window, "Theme JSON", ValuePattern.Pattern); },
       delegate { Invoke(window, "Edit theme JSON"); });
     process.Refresh();
     SetForegroundWindow(process.MainWindowHandle);
@@ -136,7 +146,7 @@ public static class NativeMaterialQa {
     // Custom palettes are not built-in selector options; their saved state
     // closes the editor and restores the enabled placeholder selector.
     string selection = theme == "Slate" ? "Select" : theme;
-    Wait(window, delegate { return Find(window, "Select theme: " + selection, null); },
+    Wait("saved " + theme + " selector", window, delegate { return Find(window, "Select theme: " + selection, null); },
       delegate { Invoke(window, "Save custom theme"); });
   }
 
@@ -176,7 +186,7 @@ public static class NativeMaterialQa {
     List<MaterialCapture> captures = new List<MaterialCapture>();
     Process process = null;
     try {
-      AutomationElement window = Start(application, out process);
+      AutomationElement window = Start(application, output, delegate(Process launched) { process = launched; });
       Settings(window);
       captures.Add(Capture(process, "Quartz", Path.Combine(output, "quartz.png"), true, false));
       Save(window, process, dark, "Dark Quartz");
@@ -186,7 +196,7 @@ public static class NativeMaterialQa {
       Save(window, process, dark, "Dark Quartz");
       Close(window, process);
       process = null;
-      window = Start(application, out process);
+      window = Start(application, output, delegate(Process launched) { process = launched; });
       captures.Add(Capture(process, "Restored Dark Quartz", Path.Combine(output, "restored-dark-quartz.png"), true, true));
       Settings(window);
       Save(window, process, quartz, "Quartz");
@@ -194,6 +204,52 @@ public static class NativeMaterialQa {
       Close(window, process);
       process = null;
       return captures;
+    } catch (Exception error) {
+      string failure = Path.Combine(output, "failure.txt");
+      File.WriteAllText(failure, error + Environment.NewLine +
+        "Interactive=" + Environment.UserInteractive +
+        ", session=" + Process.GetCurrentProcess().SessionId +
+        ", foreground=" + GetForegroundWindow() + Environment.NewLine);
+      if (process != null) {
+        process.Refresh();
+        File.AppendAllText(failure, "Process=" + process.Id + ", exited=" + process.HasExited +
+          (process.HasExited ? ", exitCode=" + process.ExitCode : ", window=" + process.MainWindowHandle) +
+          Environment.NewLine);
+      }
+      try {
+        Rectangle bounds = Screen.PrimaryScreen.Bounds;
+        using (Bitmap image = new Bitmap(bounds.Width, bounds.Height))
+        using (Graphics graphics = Graphics.FromImage(image)) {
+          graphics.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, image.Size);
+          image.Save(Path.Combine(output, "failure-desktop.png"), ImageFormat.Png);
+        }
+      } catch (Exception captureError) {
+        File.AppendAllText(failure, "Desktop capture: " + captureError + Environment.NewLine);
+      }
+      try {
+        StringBuilder tree = new StringBuilder();
+        Queue<AutomationElement> pending = new Queue<AutomationElement>();
+        pending.Enqueue(AutomationElement.RootElement);
+        int visited = 0;
+        while (pending.Count > 0 && visited < 400) {
+          AutomationElement element = pending.Dequeue();
+          visited++;
+          AutomationElement.AutomationElementInformation info = element.Current;
+          object pattern;
+          tree.AppendLine("pid=" + info.ProcessId + " handle=" + info.NativeWindowHandle +
+            " role=" + info.ControlType.ProgrammaticName + " name=" + info.Name +
+            " id=" + info.AutomationId + " enabled=" + info.IsEnabled +
+            " offscreen=" + info.IsOffscreen +
+            " invoke=" + element.TryGetCurrentPattern(InvokePattern.Pattern, out pattern));
+          for (AutomationElement child = TreeWalker.ControlViewWalker.GetFirstChild(element);
+               child != null && visited + pending.Count < 400;
+               child = TreeWalker.ControlViewWalker.GetNextSibling(child)) pending.Enqueue(child);
+        }
+        File.WriteAllText(Path.Combine(output, "failure-uia.txt"), tree.ToString());
+      } catch (Exception treeError) {
+        File.AppendAllText(failure, "UI Automation capture: " + treeError + Environment.NewLine);
+      }
+      throw;
     } finally {
       if (process != null && !process.HasExited) process.Kill();
     }

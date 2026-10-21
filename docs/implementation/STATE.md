@@ -50,6 +50,16 @@ the material script. The revision argument is now quoted; workflow YAML parses
 and the diff check passes. No Windows visual result is claimed. Real desktop
 `39685611328` passes; its source-bound evidence download is active. Native mobile
 `39685611279` remains subscribed; no active build was cancelled or duplicated.
+The quoted-revision follow-up `39686510030` passes Rust, web and macOS again;
+Windows build/11 host tests pass, then its real UI exercise times out after
+25 seconds waiting for an unnamed control. Exact job `119521821872` is
+retrieved with ANSI output explicitly enabled; only source receipts were
+uploaded, so the missing UI state and cause are not established. The Windows
+harness now names each subscribed wait, retains native stderr, and captures
+the desktop, bounded UI Automation tree and process/interactive-session state
+on failure before releasing its owned process. Assertions, event subscriptions
+and 25-second deadlines are unchanged. This diagnostic code cannot execute on
+the local macOS host and requires the actual Windows runner.
 Actual current native Home/Settings,
 focused live-card backing, card Inspector, nested Knowledge and synchronization
 were inspected. Nested Knowledge visibly blurs dictionary text beneath it;
