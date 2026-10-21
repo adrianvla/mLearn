@@ -35,7 +35,7 @@ npm run prepare:android
 npm run android
 ```
 
-Preparation builds the SDK fixture and initial English executable into the **mobile Rust library**, with the pinned WordNet resource for offline use. No executable-code download interface is enabled for mobile. Desktop obtains both from its authenticated catalogue. Subsequent data-only update/management flows belong to M02.
+Preparation bundles the SDK fixture and English/Japanese executables into the **mobile Rust library**, with pinned WordNet and Sudachi/JMdict resources for offline use. No executable-code download interface is enabled for mobile. Desktop obtains executable packages and data from its authenticated catalogue. Subsequent mobile updates are data-only.
 
 Generated Swift/Kotlin bindings, XCFrameworks, native binaries and Expo application projects are reproducible build outputs, not checked-in parallel implementations. Rerun preparation when the Rust interface or bundled plugin changes.
 

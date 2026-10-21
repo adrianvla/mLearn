@@ -10,7 +10,73 @@ This authorization supersedes the historical frozen-review, minimal-restyle
 and unpictured `visual_pending` restrictions below. No new domain milestone,
 merge, release or maintainer acceptance is authorized.
 
-### Runtime-boundary audit - 2026-10-21
+### Current application and verification - 2026-10-21
+
+Application candidate: `02a0de18fa7e5e93690f951234b98c8942d558b8`, tree
+`03c8184e57b53e8f96e505ad78a5234164ae7f4d`, pushed to the existing draft.
+Status remains `implementation_resumed`: consuming checks are pending, not waived.
+
+Shared captions/transcript now consume real package readings and contours.
+Inspector shows authentic pronunciation alternatives, attributed JLPT metadata
+and one native aggregate Knowledge pill with attached granular corrections.
+Live cards use bounded real dictionary batches and package-declared eligibility;
+native previous/next alignment, manual offset and reset persist independently of
+original subtitle bytes. Japanese ruby bases remove duplicated inline reading
+markers through the package's actual preprocessed surface, never frontend
+language rules or lemma substitution. Source bytes, inflection and UTF-8 offsets
+remain authoritative.
+
+Matched real-app comparisons include the original courage source, a separately
+imported one-line reference composition, multiple Japanese pronunciations,
+the minimum 420x560 window, supported 2x text and reachable correction controls.
+The original source retains its authored line breaks. The comparison fixture uses
+a distinct losslessly repacked media identity, not staged DOM or altered UI.
+The exact original Dark Quartz document was restored/read back at scale 1;
+the original media path, subtitle association, 18.805-second checkpoint and zero
+offset were restored through native actions. Existing claims were not changed.
+
+All relevant root Rust owner suites, 13 Japanese library tests, 40 harness and
+24 package/source tests, typecheck, ownership lint, generated contracts, web
+export and seven browser interactions pass. The normal app authenticates the
+current Japanese guest `8cef5d7b6e8d041ddb7d64855b29d9e44bbf2202a678bdbcb0ff0012bc3ab923`.
+Measured development SHA-256 specialization reduced the same authenticated
+package update from 21,409 to 2,119 ms without relaxing verification. Moving JSON
+trees and bounded per-call resource reuse repaired the actual six-cue transcript
+fuel failure: the final enriched source uses 63,269,037 of the unchanged 64M fuel
+allowance, and its consuming transcript renders in 96 ms. Fresh-process,
+warm-filesystem Resume measured 545 ms; warm reopen and package-switch evidence
+remain in the execution record. These are observed cases, not cold-cache claims.
+
+Application-source foundation `39543218137` and real desktop `39543218151`
+pass, including the actual Japanese metadata, enlarged ruby and source-overlay
+assertions. Artifact inspection then exposed missing CJK glyph fonts in the Linux
+runner; those tofu captures are not visual acceptance. Verification-only source
+`6157c330` adds the system font prerequisite and coverage check. Real desktop
+`39544257847` passes; its font receipt and actual readable Japanese metadata and
+enlarged source-overlay captures were inspected. macOS glyphs were inspected directly.
+Native `39543218156` remains active; corrected rate-input run `39544717796` from
+`230d30be` is queued behind it. These later commits change only verification/documentation,
+not application inputs. No active hosted build was canceled.
+
+The retained original iOS job `119023396747` shows a rate-button tap at y=87 while
+the dialog body starts at y=142: accessibility reported a clipped button as visible
+behind the fixed header. The preference flow now centers both rate targets before
+input, like its existing Reset guard; saved-rate assertions are unchanged.
+Native gates remain open until the corrected flow and actual captures pass.
+Prior desktop failures exposed and repaired
+test-side WAL lock acquisition, a stale theme-label query and a reused pre-restart
+WebDriver session URL. Android's new Japanese fixture was a byte-identical renamed
+English video, so native identity correctly reused its source/checkpoint.
+The fixture producer now emits distinct media bytes and verifies their SHA-256
+identities; all three consuming harnesses use that output. No domain identity,
+native assertion or test timeout was weakened. Retained platform evidence is local
+under `.mlearn/visual-parity/`.
+
+M03 capture/Anki, M07 Explain and absent Reader/Messenger/Review backends remain
+outside this authorization. The independently reproduced preparation-script
+`KeyError: 'definition'` remains a baseline finding, not a passing check.
+
+### Historical runtime-boundary audit - 2026-10-21
 
 The maintainer clarified that v2 is a reference/data source, never a runtime
 dependency. The audit found one leak in the resumed Japanese guest: initialization
@@ -46,7 +112,7 @@ presentation changes are being integrated. Typecheck and ownership lint pass,
 but no new visual or consuming-mobile acceptance is claimed. Resume matched
 real-app verification after this boundary repair; M03/M07 remain excluded.
 
-### Resumed native projection and synchronization checkpoint
+### Historical native projection and synchronization checkpoint
 
 Native-only increment: `verified_for_continuation`, not a visually complete
 application or maintainer acceptance. Rust now admits bounded package-owned
