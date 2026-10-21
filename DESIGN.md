@@ -151,6 +151,9 @@ that disappears into the footer. Home source positions and package transfer byte
 remain native facts; an unknown transfer total has no invented percentage.
 Fields, badges, selectors and disclosures use the same type/material/control
 families. Native minimum touch targets remain 44 logical pixels.
+Compact shell headers share navigation's bounded 35% viewport budget and can
+scroll independently when enlarged text exceeds it. A fixed header must not
+consume the source workspace; ordinary desktop headers remain stationary.
 Native dialog content leaves pan ownership to its scrolling body rather than
 claiming the initial touch above it; controls retain their own activation and
 keyboard/escape behavior.

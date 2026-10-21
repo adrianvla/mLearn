@@ -1,5 +1,6 @@
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
+import type {} from '@mlearn/theme/runtime';
 
 /** Read-only native progress; an unknown total leaves the current value absent. */
 export function Progress({ label, value, style }: {
@@ -9,7 +10,7 @@ export function Progress({ label, value, style }: {
 }) {
   const percent = value === undefined ? undefined : Math.max(0, Math.min(100, value));
   return <View accessibilityRole="progressbar" accessibilityLabel={label}
-    accessibilityValue={{ min: 0, max: 100, now: percent }} style={[styles.track, style]}>
+    aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} style={[styles.track, style]}>
     {percent === undefined ? null : <View style={[styles.fill, { width: `${percent}%` }]} />}
   </View>;
 }

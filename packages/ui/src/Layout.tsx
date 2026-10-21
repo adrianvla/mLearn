@@ -5,7 +5,7 @@ import { StyleSheet } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
 import { Text } from './Text';
 
-/** Bounded application frame: navigation stays put; only content scrolls. */
+/** Bounded application frame with independently scrolling compact controls and content. */
 export function AppShell({ header, navigation, children }: PropsWithChildren<{
   readonly header: ReactNode;
   readonly navigation?: ReactNode;
@@ -15,15 +15,17 @@ export function AppShell({ header, navigation, children }: PropsWithChildren<{
   const compact = width < 700;
   // Keep the scroll viewport itself below desktop overlay traffic lights;
   // padding inside scrolling navigation would disappear as the user scrolls.
-  const top = Platform.OS === 'web' && compact && navigation ? Math.max(insets.top, 28) : insets.top;
+  const top = Platform.OS === 'web' && compact ? Math.max(insets.top, 28) : insets.top;
   return <View style={styles.shell(top, insets.bottom, compact)}>
     {navigation ? <ScrollView style={styles.navigationViewport(compact)}
       contentContainerStyle={styles.navigation(compact)} keyboardShouldPersistTaps="handled">
       {navigation}
     </ScrollView> : null}
     <View style={styles.main(!!navigation)}>
-      <View style={styles.shellHeader(!!navigation && !compact)}>{header}</View>
-      <ScrollView style={styles.shellScroll} contentContainerStyle={styles.shellBody(!!navigation && !compact)}
+      <ScrollView testID="app-shell-header" scrollEnabled={compact}
+        style={styles.headerViewport(compact)} contentContainerStyle={styles.shellHeader(!!navigation && !compact)}
+        keyboardShouldPersistTaps="handled">{header}</ScrollView>
+      <ScrollView testID="app-shell-content" style={styles.shellScroll} contentContainerStyle={styles.shellBody(!!navigation && !compact)}
         keyboardShouldPersistTaps="handled">
         <View style={styles.shellContent}>{children}</View>
       </ScrollView>
@@ -77,6 +79,9 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 0, gap: sidebar ? theme.spacing.tiny : theme.spacing.small, paddingHorizontal: sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,
     paddingTop: sidebar ? theme.spacing.large : theme.spacing.section + theme.spacing.small,
     paddingBottom: sidebar ? theme.spacing.large : theme.spacing.medium,
+  }),
+  headerViewport: (compact: boolean) => ({
+    flexGrow: 0, flexShrink: compact ? 1 : 0, maxHeight: compact ? '35%' : undefined,
   }),
   shellScroll: { flex: 1, minHeight: 0 },
   shellBody: (sidebar: boolean) => ({ flexGrow: 1, paddingLeft: sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,

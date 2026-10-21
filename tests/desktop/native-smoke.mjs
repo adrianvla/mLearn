@@ -263,6 +263,25 @@ try {
   await click('Home');
   // Refocus Home to fetch sources created through the same native runtime.
   await click('Settings');await click('Home');
+  const homeWindowRect=await rpc('GET',`/session/${session}/window/rect`);
+  try {
+    await observeSourceView(`innerWidth<=420&&innerHeight<=560&&(()=>{
+      const visible=id=>Array.from(document.querySelectorAll('[data-testid="'+id+'"]')).find(node=>node.getClientRects().length);
+      const header=visible('app-shell-header'),body=visible('app-shell-content');
+      return header&&body&&header.scrollHeight>header.clientHeight&&body.getBoundingClientRect().height>=innerHeight/2;
+    })()`);
+    await rpc('POST',`/session/${session}/window/rect`,{...homeWindowRect,width:420,height:560});
+    await observedSourceView('Enlarged compact headers must scroll without consuming the source workspace');
+    const regions=await script(`const visible=id=>Array.from(document.querySelectorAll('[data-testid="'+id+'"]')).find(node=>node.getClientRects().length);
+      const header=visible('app-shell-header'),body=visible('app-shell-content');
+      return {header:header.getBoundingClientRect().toJSON(),body:body.getBoundingClientRect().toJSON(),
+        headerContentHeight:header.scrollHeight,viewportHeight:innerHeight};`);
+    await writeFile('test-results/desktop/home-compact-scroll-regions.json',JSON.stringify(regions));
+    await screenshot('home-minimum-2x-scroll-regions');
+    await click('Get language packages');await text('Language packages');await click('Home');
+  } finally {
+    await rpc('POST',`/session/${session}/window/rect`,homeWindowRect);
+  }
   await resumeWatch();
   await until(()=>script('const v=document.querySelector("video");return v&&v.readyState>=2&&v.duration>=29'),'Decoded real H.264/AAC fixture');
   // Reject only a real rate write in this explicitly isolated profile. Position
