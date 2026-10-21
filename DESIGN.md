@@ -146,6 +146,9 @@ bounded scroll regions and shared surface anatomy. `Dialog`/`ContextPanel`
 retain portal, dismissal, focus restoration and bounded scrolling semantics.
 Fields, badges, selectors and disclosures use the same type/material/control
 families. Native minimum touch targets remain 44 logical pixels.
+Native dialog content leaves pan ownership to its scrolling body rather than
+claiming the initial touch above it; controls retain their own activation and
+keyboard/escape behavior.
 
 ### Persisted built-in compatibility
 

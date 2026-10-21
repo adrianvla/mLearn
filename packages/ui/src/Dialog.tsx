@@ -21,7 +21,10 @@ export function Dialog({ open, onOpenChange, title, description, trigger, childr
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardFrame(sidebar)}>
           <View style={[styles.bounds, sidebar && styles.sidebarBounds]}>
-            <Primitive.Content asChild>
+            <Primitive.Content asChild
+              // Native Content claims the initial responder by default.
+              // Leave pan ownership to its ScrollView, not the wrapper.
+              onStartShouldSetResponder={Platform.OS === 'web' ? undefined : () => false}>
               <View style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
                 <View style={styles.header}>
                   <View style={styles.title}><Primitive.Title asChild><Text variant={sidebar ? 'section' : 'heading'}>{title}</Text></Primitive.Title></View>
