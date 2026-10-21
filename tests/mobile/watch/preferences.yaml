@@ -17,6 +17,7 @@ appId: net.kikan.mlearn.v3dev
 - scrollUntilVisible:
     element: 'Playback rate 1\.25'
     direction: UP
+    centerElement: true
 - tapOn: 'Playback rate 1\.25'
 - extendedWaitUntil:
     visible: 'Playback rate · 1\.25×'
@@ -166,6 +167,9 @@ appId: net.kikan.mlearn.v3dev
 - scrollUntilVisible:
     element: 'Playback rate 1'
     direction: UP
+    # iOS AX can expose this button behind the dialog's fixed header.
+    # Center the actual hit target, as for Reset above; keep the saved-rate check.
+    centerElement: true
 - tapOn: 'Playback rate 1'
 - extendedWaitUntil:
     visible: 'Playback rate · 1×'
