@@ -82,3 +82,11 @@ test('all text role dimensions scale together without changing family or weight'
       ...('letterSpacing' in metrics ? { letterSpacing: metrics.letterSpacing * 2 } : {}) },
   ])));
 });
+
+test('web text roles retain a sans-serif fallback when the reference font is unavailable', () => {
+  for (const metrics of Object.values(resolveTheme(initialTheme).typography)) {
+    const web = metrics._web;
+    assert.ok('fontFamily' in web && typeof web.fontFamily === 'string');
+    assert.match(web.fontFamily, /,\s*sans-serif$/);
+  }
+});

@@ -34,7 +34,10 @@ export function resolveTheme(saved: ThemeDocument) {
     fontSize: fontSize * document.textScale,
     lineHeight: lineHeight * document.textScale,
     fontWeight,
-    _web: { WebkitFontSmoothing: 'antialiased' as const },
+    _web: {
+      fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif',
+      WebkitFontSmoothing: 'antialiased' as const,
+    },
   });
   return {
     colors: { ...document.colors },

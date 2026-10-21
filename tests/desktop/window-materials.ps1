@@ -102,6 +102,10 @@ public static class NativeMaterialQa {
       launched = new Process { StartInfo = new ProcessStartInfo(application) {
         UseShellExecute = false, RedirectStandardError = true
       }};
+      // UIA is a test client, not a detected screen reader. Activate WebView2's
+      // on-demand renderer tree only in this owned test process.
+      launched.StartInfo.EnvironmentVariables["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] =
+        "--force-renderer-accessibility";
       launched.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs line) {
         if (line.Data != null) File.AppendAllText(errors, line.Data + Environment.NewLine);
       };

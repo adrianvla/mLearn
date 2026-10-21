@@ -60,6 +60,22 @@ the desktop, bounded UI Automation tree and process/interactive-session state
 on failure before releasing its owned process. Assertions, event subscriptions
 and 25-second deadlines are unchanged. This diagnostic code cannot execute on
 the local macOS host and requires the actual Windows runner.
+Diagnostic `ebdc7b7f` / foundation `39687315674` again passes Rust, web and macOS;
+Windows builds/tests pass and its named wait fails at `Home Settings action`.
+Exact job `119524559332`, screenshot and bounded UIA tree are inspected:
+the owned window is foreground, alive and visibly renders Home in interactive
+session 2, but WebView2 exposes only panes, no web controls. The test process
+now enables WebView2's documented `--force-renderer-accessibility` on-demand
+renderer tree; production host arguments and real UI/DWM assertions are unchanged.
+The screenshot independently exposes a serif fallback on Windows. Shared web
+text roles now retain Helvetica Neue first with Helvetica/Arial/sans-serif
+fallbacks; TextField preserves those role properties while adding search
+geometry. The new regression fails before that repair, then all 54 harness /
+26 package tests, typecheck, ownership lint, export and eight browser tests pass.
+Desktop light Settings, dark editor and 390px editor captures are inspected.
+Theme/TextField diagnostics are clean; the test file retains its existing LSP
+node:test/node:assert type-resolution diagnostics (the executable suite passes).
+Actual Windows font rendering, controls and native transitions remain pending.
 Actual current native Home/Settings,
 focused live-card backing, card Inspector, nested Knowledge and synchronization
 were inspected. Nested Knowledge visibly blurs dictionary text beneath it;

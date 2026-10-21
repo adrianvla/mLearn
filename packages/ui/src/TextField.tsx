@@ -33,5 +33,6 @@ const styles = StyleSheet.create((theme) => ({
     paddingVertical: search ? theme.spacing.small : theme.spacing.compact,
     paddingHorizontal: search ? 0 : theme.spacing.compact,
     textAlignVertical: multiline ? 'top' : 'center',
-    _web: search ? { minHeight: 32, paddingVertical: theme.spacing.tiny } : {} }),
+    _web: { ...theme.typography[search ? 'caption' : 'body']._web,
+      ...(search ? { minHeight: 32, paddingVertical: theme.spacing.tiny } : {}) } }),
 }));

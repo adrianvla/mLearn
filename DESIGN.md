@@ -68,7 +68,10 @@ remain historical evidence, not authority for another style variant.
   16px body, 14px secondary, 18px feature titles, 20px shell title, 24px
   Settings title (20px in the running Settings layout), 32px inspection title;
   400/500/600/700 weights; a 4px spacing
-  unit and 4/8/12/16px corner families.
+  unit and 4/8/12/16px corner families. Shared web text roles retain Helvetica
+  Neue first, then Helvetica/Arial and generic sans-serif: Windows without the
+  reference face must not fall through to the browser's default serif.
+  Fields preserve that shared web role when adding compact search geometry.
 - Ordinary primary actions use the reference's warm outlined/tinted treatment,
   not the rejected filled-blue v3 button: `index.css:23` sets dark primary
   `#ff5900`, `themes/quartz.css:5` sets light primary `#c44700`, and
