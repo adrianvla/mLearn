@@ -29,7 +29,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
       - run: npm ci
-      - run: npm run prepare:language-data
+      - name: Acquire and verify pinned language data
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run prepare:language-data 2>&1 | tee verification/prepare-language-data.log
       - name: Prepare and typecheck native Swift bindings
         shell: bash
         run: |
@@ -117,7 +122,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
       - run: npm ci
-      - run: npm run prepare:language-data
+      - name: Acquire and verify pinned language data
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run prepare:language-data 2>&1 | tee verification/prepare-language-data.log
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: cargo install cargo-ndk --locked
       - name: Select installed Android NDK

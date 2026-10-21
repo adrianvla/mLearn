@@ -6,13 +6,20 @@ One Expo application renders with React Native on iOS/Android and React Native W
 
 ## Start on desktop
 
-Prerequisites: Node.js 22+ and npm, stable Rust with the `wasm32-unknown-unknown` target, and Tauri's native platform build prerequisites. On macOS use Xcode command-line tools. Linux needs installed system fonts covering the displayed scripts; native Japanese verification uses Ubuntu's `fonts-noto-cjk`.
+Prerequisites: Node.js 22+ and npm, stable Rust with the `wasm32-unknown-unknown` target, curl for initial language-data acquisition, and Tauri's native platform build prerequisites. On macOS use Xcode command-line tools. Linux needs installed system fonts covering the displayed scripts; native Japanese verification uses Ubuntu's `fonts-noto-cjk`.
 
 ```sh
 npm ci
 npm run prepare:language-data # once online: pinned public WordNet/Japanese inputs → local indexed data
 npm run dev:desktop
 ```
+
+WordNet acquisition tries the NetBSD pkgsrc CDN and distribution mirror before
+Princeton. Every candidate must match the original 11,537,239-byte WordNet 3.0
+archive and its pinned SHA-256 before atomic publication. Requests have finite
+connection/transfer deadlines; failed downloads cannot poison the cache. The
+conversion preserves the original version, Princeton attribution and license.
+Already verified inputs remain usable offline.
 
 The development command builds the sample plugin, starts a **local signed CDN fixture** on `127.0.0.1:7780`, starts Expo web on port 8081, and launches Tauri. The extra browser tab is suppressed. Ports must be free; the command does not kill another process to claim them.
 
