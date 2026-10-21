@@ -102,7 +102,7 @@ jobs:
       - run: cargo test --locked -p mlearn-desktop --lib
       - name: Exercise actual Windows native theme materials
         if: runner.os == 'Windows'
-        shell: powershell
+        shell: pwsh
         run: |
           New-Item -ItemType Directory -Force verification | Out-Null
           New-Item -ItemType Directory -Force test-results/window-materials | Out-Null

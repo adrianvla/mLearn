@@ -86,9 +86,15 @@ public static class NativeMaterialQa {
   }
 
   static void Invoke(AutomationElement root, string name) {
-    AutomationElement control = Find(root, name, InvokePattern.Pattern);
+    AutomationElement control = Find(root, name, null);
     if (control == null) throw new InvalidOperationException("Missing native action: " + name);
-    ((InvokePattern)control.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
+    object action;
+    if (control.TryGetCurrentPattern(InvokePattern.Pattern, out action))
+      ((InvokePattern)action).Invoke();
+    else if (control.TryGetCurrentPattern(ExpandCollapsePattern.Pattern, out action))
+      ((ExpandCollapsePattern)action).Expand();
+    else throw new InvalidOperationException("No native activation pattern for " + name + ": " +
+      String.Join(", ", Array.ConvertAll(control.GetSupportedPatterns(), pattern => pattern.ProgrammaticName)));
   }
 
   static AutomationElement Start(string application, string output, Action<Process> started) {
@@ -122,7 +128,7 @@ public static class NativeMaterialQa {
   }
 
   static void Settings(AutomationElement window) {
-    Wait("Edit theme JSON action", window, delegate { return Find(window, "Edit theme JSON", InvokePattern.Pattern); },
+    Wait("Edit theme JSON action", window, delegate { return Find(window, "Edit theme JSON", null); },
       delegate { Invoke(window, "Settings"); });
   }
 
@@ -175,6 +181,9 @@ public static class NativeMaterialQa {
       graphics.CopyFromScreen(rect.Left, rect.Top, 0, 0, image.Size);
       image.Save(path, ImageFormat.Png);
     }
+    Console.WriteLine("Native material " + theme + ": window=" + window +
+      ", backdrop=" + backdrop + ", dark=" + appearance +
+      ", HRESULTs=" + backdropResult + "/" + appearanceResult);
     if (backdropResult != 0 || appearanceResult != 0)
       throw new InvalidOperationException("DWM material inspection is unavailable: " + backdropResult + ", " + appearanceResult);
     if (backdrop != (translucent ? 2 : 1) || appearance != (dark ? 1 : 0))
@@ -247,7 +256,8 @@ public static class NativeMaterialQa {
             " role=" + info.ControlType.ProgrammaticName + " name=" + info.Name +
             " id=" + info.AutomationId + " enabled=" + info.IsEnabled +
             " offscreen=" + info.IsOffscreen +
-            " invoke=" + element.TryGetCurrentPattern(InvokePattern.Pattern, out pattern));
+            " invoke=" + element.TryGetCurrentPattern(InvokePattern.Pattern, out pattern) +
+            " patterns=" + String.Join(",", Array.ConvertAll(element.GetSupportedPatterns(), supported => supported.ProgrammaticName)));
           for (AutomationElement child = TreeWalker.ControlViewWalker.GetFirstChild(element);
                child != null && visited + pending.Count < 400;
                child = TreeWalker.ControlViewWalker.GetNextSibling(child)) pending.Enqueue(child);

@@ -27,8 +27,23 @@ window and carries that same UIA/HWND identity through controls, DWM capture
 and closing. Browser flags, renderer-class assumptions and the unproven product
 focus change are absent. Original controls, deadlines and DWM assertions remain;
 the corrected window identity still requires Windows verification.
+Run `39691697164` verifies the corrected identity: native UIA finds Home,
+invokes Settings and exposes the full real control tree. It then waits for
+an InvokePattern on the visible enabled popup trigger `Edit theme JSON`, which
+does not offer that pattern. The probe now dispatches supported native Invoke
+or ExpandCollapse activation, without replacing controls or changing deadlines.
+Native DWM state is logged before assertions; the pwsh wrapper retains UTF-8
+run logs while the UIA child remains Windows PowerShell/MTA. Windows material
+transitions are still unverified.
 Current mobile verification remains subscribed, with the earlier hosted iOS
 Files failure unresolved.
+Native `39685611279` has completed: iOS 26.5 builds and passes the English
+claim/player/restart path, then fails Japanese Files dismissal at 466.499
+seconds. Its exact enabled filename tap is (154,221); before/failure images
+still show the focused Search field and picker. Android fails during Gradle's
+NDK27.0.12077973 auto-install (`Archive is not a ZIP archive`), before UI.
+Both platforms' exact artifacts are retained; Android NDK consumer alignment
+is being traced separately. No original native assertion is weakened.
 Local 11 host tests, 54 harness / 26 package tests, typecheck, ownership lint,
 web export and eight browser interactions pass in their affected scopes.
 Portable-font real desktop `39688396439` passes at b7fac91e; exact source/tree,
