@@ -17,6 +17,7 @@ import { AnnotatedText } from '../annotated-text';
 import { Inspector, type Inspection } from '../inspector';
 import { Transcript } from './Transcript';
 import { LiveWordCards } from './LiveWordCards';
+import { MediaOverlay } from '@mlearn/ui/media-overlay';
 export function WatchScreen() {
     const host = useRuntime();
     const router = useRouter();
@@ -548,7 +549,7 @@ export function WatchScreen() {
             {showLiveWords || showSynchronization ? <View testID="watch-source-overlays"
                 onLayout={event => setOverlayHeight(event.nativeEvent.layout.height)}
                 style={[styles.overlays(viewport.width - sidebarInset < 720),
-                    { top: insets.top + toolbarHeight + 8, right: sidebarInset + 16 }]}>
+                    { top: insets.top + toolbarHeight + (Platform.OS === 'web' ? -2 : 8), right: sidebarInset + 10 }]}>
             {showLiveWords && batch ? <View style={styles.liveWords}>
                 <LiveWordCards key={JSON.stringify([id, batch.subtitleRevision, batch.packageId, batch.packageVersion, batch.packageRevision])}
                      client={host.client} batch={batch} cueKey={cueKey} focusFallback={liveWordTrigger}
@@ -558,22 +559,23 @@ export function WatchScreen() {
                      }} />
             </View> : null}
             {showSynchronization && window ? <View style={styles.synchronization(viewport.width - sidebarInset < 720)}>
+              <MediaOverlay variant="synchronization" closeLabel="Hide synchronization"
+                onClose={() => setSynchronizationOpen(false)}>
                 <Row>
-                    <Button label="Align previous subtitle" icon="previousCue" iconOnly size="compact" variant="media"
+                    <Button label="Align previous subtitle" icon="previousCue" iconOnly size="compact" variant="mediaSync"
                         disabled={busy} onPress={() => alignSubtitle('previous')} />
                     <Button label={(window.source.subtitleOffsetMs / 1000).toFixed(2)}
                         accessibilityLabel="Subtitle offset" accessibilityValue={{ text: `${window.source.subtitleOffsetMs} milliseconds` }}
-                        size="compact" variant="mediaSelect" onPress={() => {
+                        size="compact" variant="mediaSync" onPress={() => {
                             setOffsetDraft(String(window.source.subtitleOffsetMs)); setPlaybackOpen(true);
                         }} />
-                    <Button label="Align next subtitle" icon="nextCue" iconOnly size="compact" variant="media"
+                    <Button label="Align next subtitle" icon="nextCue" iconOnly size="compact" variant="mediaSync"
                         disabled={busy} onPress={() => alignSubtitle('next')} />
-                    <Button label="Hide synchronization" icon="close" iconOnly size="compact" variant="media"
-                        onPress={() => setSynchronizationOpen(false)} />
                 </Row>
                 {playbackError ? <><Text tone="media" variant="caption" accessibilityRole="alert">{playbackError}</Text>
                     <Button label="Refresh synchronization" size="compact" variant="media" disabled={busy}
                         onPress={() => void changeSource(client => client.sourceWindow(id, latest.current.position))} /></> : null}
+              </MediaOverlay>
             </View> : null}
             </View> : null}
             {window && host.available ? <>
@@ -630,22 +632,21 @@ export function WatchScreen() {
 }
 const styles = StyleSheet.create(theme => ({
     overlays: (compact: boolean) => ({
-        position: 'absolute', zIndex: 2, left: theme.spacing.medium,
+        position: 'absolute', zIndex: 2, left: theme.spacing.comfortable / 2,
         flexDirection: compact ? 'column-reverse' : 'row', gap: theme.spacing.small,
         alignItems: compact ? 'stretch' : 'flex-start',
     }),
     liveWords: { flexGrow: 1, flexShrink: 1, minWidth: 0, maxWidth: '100%' },
     synchronization: (compact: boolean) => ({
-        alignSelf: compact ? 'flex-end' : 'flex-start', flexShrink: 0, maxWidth: '100%', padding: theme.spacing.tiny,
-        borderRadius: theme.radius + 4, backgroundColor: theme.media.panel,
-        _web: { backdropFilter: theme.media.backdrop },
+        alignSelf: compact ? 'flex-end' : 'flex-start', flexShrink: 0, maxWidth: '100%',
     }),
     preferenceFeedback: { maxWidth: 320, flexShrink: 1 },
     screen: (top: number, bottom: number) => ({
         flex: 1, paddingTop: top, paddingBottom: bottom, backgroundColor: theme.media.background
     }), toolbar: {
         position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, backgroundColor: theme.media.background,
-        paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small
+        paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small,
+        _web: { paddingVertical: theme.spacing.tiny },
     }, title: {
         flex: 1, flexBasis: 120, minWidth: 0
     }, stage: (toolbarHeight: number) => ({

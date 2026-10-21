@@ -135,7 +135,7 @@ punctuation and 44px touch controls. Align their source-box bottoms: Yoga's
 first-text baseline can otherwise align a neighbour to the ruby reading.
 
 `LiveWordTranslator.css` measures compact meaning/reading cards at 300x30px,
-20px horizontal inset, 10px gaps and a two-row flow beneath window chrome.
+20px horizontal inset, 10px gaps and a column-first two-row flow beneath window chrome.
 Cards use the shared glass material and actual dictionary summaries. A single
 source/revision/package-bound native batch supplies at most six distinct
 targets; bounded history expires after the reference's 30-second lifetime and
@@ -159,11 +159,22 @@ Compact shell headers share navigation's bounded 35% viewport budget and can
 scroll independently when enlarged text exceeds it. A fixed header must not
 consume the source workspace; ordinary desktop headers remain stationary.
 Watch retains the approved black top rail so source identity stays readable over
-bright frames. Nearby cards flow in at most two 300px desktop columns without
-an enclosing full-width material; each card owns its backing. Scoped pending and
-failure feedback keeps a dark backing, and floating dismissal remains visible.
+bright frames. A fresh loaded comparison supersedes the earlier two-column
+assumption: cards fill down two rows before starting the next 300px column,
+with scoped scrolling when that bounded history exceeds available width.
+Resting cards own their backing. The edited hovered image and reference CSS
+reveal the enclosing material and leading dismissal only on hover; keyboard
+focus must reveal the same controls, and touch keeps dismissal reachable.
+The shared media-overlay boundary owns those input/material states for cards
+and synchronization rather than feature-local hover controls.
 Synchronization uses one shared enclosing material, not a second filled box
-around its numeric offset.
+around its numeric offset. `SubtitleSync.css` measures its number at 1.5rem
+(24px from the 16px root), 30px arrow glyphs and a 50px ordinary bar. The shared
+numeric control role scales with saved text size; enlarged/native layouts grow
+rather than clipping, while retaining 44px native targets.
+Shared buttons project expanded/busy/checked states through the supported ARIA
+aliases. Selected buttons expose a pressed state on web; non-button roles keep
+their applicable selected state. Native accessibility state remains intact.
 Native dialog content leaves pan ownership to its scrolling body rather than
 claiming the initial touch above it; controls retain their own activation and
 keyboard/escape behavior.

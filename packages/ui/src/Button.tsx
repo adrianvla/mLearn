@@ -20,16 +20,24 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, det
   const { theme } = useUnistyles();
   const [hovered, setHovered] = useState(false);
   const blocked = disabled || busy;
-  const selected = props.accessibilityState?.selected === true;
+  const state = { ...props.accessibilityState, disabled: blocked, busy };
+  const selected = state.selected === true;
   const name = props.accessibilityLabel ?? label;
-  const iconSize = variant === 'select' || variant === 'mediaSelect' ? 14 : size === 'default' && variant !== 'navigation' ? 20 : 18;
+  const iconSize = variant === 'mediaSync' ? 30 : variant === 'select' || variant === 'mediaSelect' ? 14 : size === 'default' && variant !== 'navigation' ? 20 : 18;
   return (
-    <Pressable {...props} ref={ref} accessibilityRole={accessibilityRole}
+    <Pressable {...props}
+      {...(Platform.OS === 'web' && accessibilityRole === 'button' ? { 'aria-pressed': state.selected } : {})}
+      ref={ref} accessibilityRole={accessibilityRole}
       onHoverIn={event => { setHovered(true); onHoverIn?.(event); }}
       onHoverOut={event => { setHovered(false); onHoverOut?.(event); }}
       accessibilityLabel={Platform.OS === 'web' && accessibilityValue?.text ? `${name}: ${accessibilityValue.text}` : name}
       accessibilityValue={Platform.OS === 'web' ? undefined : accessibilityValue}
-      accessibilityState={{ ...props.accessibilityState, disabled: blocked, busy }} disabled={blocked}
+      accessibilityState={state}
+      aria-busy={busy} aria-disabled={blocked}
+      aria-checked={props['aria-checked'] ?? state.checked}
+      aria-expanded={props['aria-expanded'] ?? state.expanded}
+      aria-selected={Platform.OS === 'web' && accessibilityRole === 'button' ? undefined : props['aria-selected'] ?? state.selected}
+      disabled={blocked}
       style={({ pressed }) => [styles.root(variant, size, tone, selected, iconOnly),
         hovered && !blocked && styles.hover(variant, tone), pressed && styles.pressed, blocked && styles.disabled]}>
       {icon && iconPosition === 'leading' ? <Icon name={icon} size={iconSize} color={buttonForeground(theme, variant, tone, selected)} /> : null}

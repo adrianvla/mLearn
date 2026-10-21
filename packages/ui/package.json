@@ -16,7 +16,8 @@
     "./provider": "./src/Provider.tsx",
     "./inline-word": "./src/InlineWord.tsx",
     "./context-panel": "./src/ContextPanel.tsx",
-    "./dictionary-card": "./src/DictionaryCard.tsx"
+    "./dictionary-card": "./src/DictionaryCard.tsx",
+    "./media-overlay": "./src/MediaOverlay.tsx"
   },
   "dependencies": {
     "@mlearn/theme": "3.0.0-dev.0",

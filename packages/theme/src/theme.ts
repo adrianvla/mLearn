@@ -99,6 +99,7 @@ export function resolveTheme(saved: ThemeDocument) {
       action: textRole(16, 24, '500'),
       compactAction: textRole(14, 20, '500'),
       mediaAction: textRole(13, 20),
+      subtitleOffset: textRole(24, 30),
       knowledgeAction: textRole(16, 22, '700'),
       badge: textRole(15, 20, '600'),
     },

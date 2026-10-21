@@ -13,6 +13,16 @@ test('one shared surface is honest about missing native capabilities', async ({ 
   expect(errors).toEqual([]);
 });
 
+test('navigation buttons expose their selected state', async ({ page }) => {
+  await page.goto('/settings');
+  const appearance = page.getByRole('button', { name: 'Appearance', exact: true });
+  const runtime = page.getByRole('button', { name: 'Runtime', exact: true });
+  await expect(appearance).toHaveAttribute('aria-pressed', 'true');
+  await runtime.click();
+  await expect(runtime).toHaveAttribute('aria-pressed', 'true');
+  await expect(appearance).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('runtime theme updates, dialog labeling and keyboard focus work', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));

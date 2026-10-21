@@ -3,22 +3,22 @@ import { Platform } from 'react-native';
 import type {} from '@mlearn/theme/runtime';
 import type { ResolvedTheme } from '@mlearn/theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'media' | 'mediaFloating' | 'mediaSelect' | 'pill' | 'navigation' | 'select' | 'disclosure' | 'preview' | 'dictionary';
+export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'media' | 'mediaFloating' | 'mediaSelect' | 'mediaSync' | 'pill' | 'navigation' | 'select' | 'disclosure' | 'preview' | 'dictionary';
 export type ButtonTone = 'neutral' | 'positive' | 'negative';
 export type ButtonSize = 'default' | 'compact' | 'row';
 
 export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, tone: ButtonTone, selected = false) {
   return variant === 'pill' ? theme.pills[tone].text
     : variant === 'navigation' && !selected ? theme.colors.muted
-    : variant === 'dictionary' ? theme.media.muted
+    : variant === 'dictionary' || variant === 'mediaSync' ? theme.media.muted
     : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' || variant === 'disclosure' ? theme.media.text : theme.colors.text;
 }
 
 export default StyleSheet.create(theme => ({
   root: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, iconOnly: boolean) => {
-    const transparent = variant === 'quiet' || variant === 'navigation' || variant === 'disclosure' || variant === 'mediaSelect'
+    const transparent = variant === 'quiet' || variant === 'navigation' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync'
       || variant === 'media' && iconOnly;
-    const borderless = variant === 'dictionary' || variant === 'pill' || variant === 'quiet' || variant === 'disclosure' || variant === 'mediaSelect'
+    const borderless = variant === 'dictionary' || variant === 'pill' || variant === 'quiet' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync'
       || variant === 'media' && iconOnly;
     const selectedSurface = selected && (variant === 'quiet' || variant === 'secondary' || variant === 'navigation');
     return {
@@ -52,11 +52,13 @@ export default StyleSheet.create(theme => ({
           boxShadow: 'inset 0 1px 0 #FFFFFF08',
         } : {}),
         ...(variant === 'dictionary' ? { minHeight: 30, paddingVertical: 0, backdropFilter: theme.media.backdrop } : {}),
+        ...(variant === 'mediaSync' ? { minHeight: 40, minWidth: iconOnly ? 40 : 100 * theme.textScale,
+          paddingVertical: 5, paddingHorizontal: 5 } : {}),
       },
     };
   },
   label: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean) => ({
-    ...theme.typography[variant === 'dictionary' ? 'dictionaryMeaning' : variant === 'disclosure' ? 'inspectionBody'
+    ...theme.typography[variant === 'mediaSync' ? 'subtitleOffset' : variant === 'dictionary' ? 'dictionaryMeaning' : variant === 'disclosure' ? 'inspectionBody'
       : variant === 'navigation' ? 'navigation' : variant === 'select' ? 'caption'
       : variant === 'pill' ? 'knowledgeAction' : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' ? 'mediaAction'
       : size === 'default' ? 'action' : 'compactAction'],
@@ -69,7 +71,7 @@ export default StyleSheet.create(theme => ({
     backgroundColor: variant === 'primary' ? `${theme.colors.accent.slice(0, 7)}33`
       : variant === 'pill' ? theme.pills[tone].top
       : variant === 'mediaFloating' ? theme.media.border
-      : variant === 'media' || variant === 'mediaSelect' || variant === 'disclosure' ? theme.media.badge : theme.controls.hover,
+      : variant === 'media' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'disclosure' ? theme.media.badge : theme.controls.hover,
     _web: variant === 'pill' ? { filter: 'brightness(1.08)' } : {},
   }),
   pressed: { transform: [{ scale: 0.98 }] },

@@ -1,12 +1,13 @@
 import Svg, { Path } from 'react-native-svg';
 
+const cueArrow = 'M12 10.1976C11.9771 10.1821 11.9537 10.1669 11.93 10.152L6.94333 7.03536C5.66202 6.23454 4 7.15571 4 8.66669V15.3334C4 16.8443 5.66202 17.7655 6.94333 16.9647L11.93 13.848C11.9537 13.8332 11.9771 13.818 12 13.8025V14.6667C12 16.0286 13.4713 16.8825 14.6538 16.2067L19.0961 13.6683C20.387 12.9307 20.387 11.0694 19.0961 10.3318L14.6538 7.7933C13.4713 7.11759 12 7.97142 12 9.33336V10.1976Z';
 // One portable, stroke-based family for chrome. Icons never own hit targets.
 const paths = {
   arrowLeft: 'M19 12H5m6-6-6 6 6 6',
   chevronDown: 'm6 9 6 6 6-6',
   chevronRight: 'm9 6 6 6-6 6',
-  previousCue: 'm11 7-7 5 7 5Zm9 0-7 5 7 5Z',
-  nextCue: 'm4 7 7 5-7 5Zm9 0 7 5-7 5Z',
+  previousCue: cueArrow,
+  nextCue: cueArrow,
   sync: 'M20 7v5h-5M4 17v-5h5M6.1 8a7 7 0 0 1 11.6-2L20 9M4 15l2.3 3A7 7 0 0 0 17.9 16',
   play: 'm8 5 11 7-11 7Z',
   pause: 'M8 5v14M16 5v14',
@@ -38,9 +39,11 @@ export function Icon({ name, size = 20, color }: {
   readonly size?: number;
   readonly color: string;
 }) {
-  return <Svg width={size} height={size} viewBox="0 0 24 24" fill={name === 'play' ? color : 'none'}
-    stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"
+  const cue = name === 'previousCue' || name === 'nextCue';
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill={name === 'play' || cue ? color : 'none'}
+    stroke={cue ? 'none' : color} opacity={cue ? 0.6 : 1}
+    strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round"
     aria-hidden>
-    <Path d={paths[name]} />
+    <Path d={paths[name]} transform={name === 'previousCue' ? 'rotate(180 12 12)' : undefined} />
   </Svg>;
 }

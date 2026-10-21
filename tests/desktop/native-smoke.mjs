@@ -85,7 +85,7 @@ async function closeInspector() {
 async function observeSourceView(condition) {
   await script(`window.__m02View={};window.__m02View.promise=new Promise(resolve=>{
     let settled=false;
-    const events=['loadedmetadata','ratechange','seeked'];
+    const events=['loadedmetadata','ratechange','seeked','scroll','focusin'];
     const finish=pass=>{
       if(settled)return;settled=true;observer.disconnect();clearTimeout(timer);
       events.forEach(event=>document.removeEventListener(event,check,true));resolve(pass);
@@ -356,6 +356,7 @@ try {
   await observeSourceView('!!document.querySelector(\'[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])\')');
   await click('Live word translator');
   await observedSourceView('Live dictionary cards must come from the actual source analysis');
+  assert.equal(await script('return document.querySelector(\'[aria-label="Live word translator"]\').getAttribute("aria-expanded")'),'true');
   const liveCards = await script(`return Array.from(document.querySelectorAll('[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])'),
     node=>({label:node.getAttribute('aria-label'),width:node.getBoundingClientRect().width}));`);
   assert.ok(liveCards.length > 0 && liveCards.length <= 6, JSON.stringify(liveCards));
@@ -363,7 +364,9 @@ try {
   await click(liveCards[0].label);
   await text('Dictionary source');
   await closeInspector();
+  await observeSourceView('document.querySelector(\'[aria-label="Live word translator"]\').getAttribute("aria-expanded")==="false"');
   await click('Live word translator');
+  await observedSourceView('The live dictionary control must announce its collapsed state');
   await click('Children: untracked');await text('child');await click('Knowledge: Untracked');await click('Meaning');
   await click('Claim Meaning known');await text('claimed known');await closeInspector();
   await click('Children: mixed');await closeInspector();
@@ -840,6 +843,17 @@ try {
     await click('Live word translator');await click('Subtitle synchronization');
     await observedSourceView('Measured source overlays must not cover enlarged captions');
     await screenshot('native-japanese-enlarged-source-overlays');
+    await observeSourceView(`(()=>{
+      const panel=document.querySelector('[data-testid="live-word-cards"]');
+      const cards=panel?.querySelectorAll('button:not([aria-label="Hide live word translator"])');
+      if(!cards||cards.length<2||document.activeElement!==cards[1])return false;
+      const card=cards[1].getBoundingClientRect(),bounds=panel.getBoundingClientRect();
+      return card.left>=bounds.left&&card.right<=bounds.right&&
+        !panel.querySelector('[aria-label="Hide live word translator"]').disabled;
+    })()`);
+    await script(`document.querySelectorAll('[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])')[1].focus();return true;`);
+    await observedSourceView('Keyboard focus must reveal the auxiliary card and close control in the narrow rail');
+    await screenshot('native-japanese-focused-auxiliary-card');
   } finally {
     await rpc('POST',japaneseWindowPath,japaneseRect);
   }

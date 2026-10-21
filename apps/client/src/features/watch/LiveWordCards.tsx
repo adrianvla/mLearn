@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
+import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import type { AnalysisBatch, DictionaryResult } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { DictionaryCard } from '@mlearn/ui/dictionary-card';
+import { MediaOverlay } from '@mlearn/ui/media-overlay';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import type { Inspection } from '../inspector';
@@ -28,6 +29,8 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
 }) {
     const viewport = useWindowDimensions();
     const [cards, setCards] = useState<readonly Card[]>([]);
+    const [cardWidth, setCardWidth] = useState(300);
+    const scroll = useRef<ScrollView>(null);
     const history = useRef<readonly Card[]>([]);
     const [pending, setPending] = useState(false);
     const [error, setError] = useState('');
@@ -92,10 +95,17 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
         return () => clearTimeout(timer);
     }, [cards]);
     if (!cards.length && !pending && !error) return null;
-    return <View testID="live-word-cards" style={styles.panel}>
+    const rows = viewport.width < 720 && viewport.height < 650 ? 1 : 2;
+    return <MediaOverlay testID="live-word-cards" variant="cards"
+        closeLabel="Hide live word translator" onClose={onClose}>
         <View style={[styles.content, pending || error ? styles.feedback : null]}>
-            <ScrollView style={styles.scroll(viewport.width < 720 && viewport.height < 650 ? 1 : 2)} contentContainerStyle={styles.cards} keyboardShouldPersistTaps="handled">
-                {cards.map(card => card.result.state === 'available' ?
+            <ScrollView ref={scroll} horizontal style={styles.scroll} contentContainerStyle={styles.cards}
+                onLayout={event => setCardWidth(Math.min(300, event.nativeEvent.layout.width))}
+                keyboardShouldPersistTaps="handled">
+                {Array.from({ length: Math.ceil(cards.length / rows) }, (_, column) =>
+                    <View key={column} style={[styles.column, { width: cardWidth }]}
+                        onFocus={() => scroll.current?.scrollTo({ x: column * (cardWidth + 10), animated: false })}>
+                    {cards.slice(column * rows, (column + 1) * rows).map(card => card.result.state === 'available' ?
                     <DictionaryCard key={card.id} meaning={card.result.summary.summary}
                         focusFallback={focusFallback}
                         reading={card.result.summary.reading ?? card.result.summary.headword}
@@ -107,22 +117,20 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
                         <Text variant="caption" tone="media">{card.sourceForm}: {card.result.message}</Text>
                         <Button label="Retry dictionary entry" size="compact" variant="media" onPress={() => setReload(value => value + 1)} />
                     </View>)}
+                    </View>)}
             </ScrollView>
             {pending ? <Text variant="caption" tone="media" accessibilityLiveRegion="polite">Looking up dictionary meanings…</Text> : null}
             {error ? <><Text variant="caption" tone="media" accessibilityRole="alert">{error}</Text>
                 <Button label="Retry live word lookup" size="compact" variant="media" onPress={() => setReload(value => value + 1)} /></> : null}
         </View>
-        <Button label="Hide live word translator" icon="close" iconOnly variant="mediaFloating" size="compact" onPress={onClose} />
-    </View>;
+    </MediaOverlay>;
 }
 
 const styles = StyleSheet.create(theme => ({
-    panel: { width: '100%', maxWidth: 600 + theme.spacing.small * 2 + 44,
-        flexDirection: 'row', gap: theme.spacing.small },
-    content: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
-    scroll: (rows: number) => ({ maxHeight: Math.max(Platform.OS === 'web' ? 30 : 44,
-        theme.typography.dictionaryMeaning.lineHeight + (Platform.OS === 'web' ? 0 : theme.spacing.small * 2)) * rows + theme.spacing.small * (rows - 1) }),
-    cards: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small },
+    content: { minWidth: 0, gap: theme.spacing.tiny },
+    scroll: { flexGrow: 0, flexShrink: 1 },
+    cards: { flexDirection: 'row', gap: 10, paddingVertical: 10, paddingHorizontal: 10 },
+    column: { gap: 10 },
     feedback: { padding: theme.spacing.small, borderRadius: theme.radius, backgroundColor: theme.media.chrome },
     unavailable: { maxWidth: 300, gap: theme.spacing.tiny, padding: theme.spacing.small,
         borderRadius: theme.radius, backgroundColor: theme.media.chrome },
