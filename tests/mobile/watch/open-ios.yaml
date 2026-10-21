@@ -44,9 +44,16 @@ appId: net.kikan.mlearn.v3dev
 # selecting the document. Use its real list row, not a preview coordinate.
 - tapOn: More
 - tapOn: '^List$'
+- takeScreenshot: '${VIDEO_NAME}-media-picker-before-selection'
 - tapOn:
-    id: '${VIDEO_NAME}, mp4'
+    # The row's center can fall outside a short filename's actual hit region.
+    text: '^${VIDEO_NAME}$'
     enabled: true
+- extendedWaitUntil:
+    notVisible:
+      id: '${VIDEO_NAME}, mp4'
+    timeout: 10000
+- takeScreenshot: '${VIDEO_NAME}-media-picker-dismissed'
 - extendedWaitUntil:
     visible: '(Open|Replace) subtitles'
     timeout: 60000
@@ -101,6 +108,12 @@ appId: net.kikan.mlearn.v3dev
           timeout: 15000
 - tapOn: More
 - tapOn: '^List$'
+- takeScreenshot: '${SUBTITLE_NAME}-subtitle-picker-before-selection'
 - tapOn:
-    id: '${SUBTITLE_NAME}.srt, srt'
+    text: '^${SUBTITLE_NAME}\.srt$'
     enabled: true
+- extendedWaitUntil:
+    notVisible:
+      id: '${SUBTITLE_NAME}.srt, srt'
+    timeout: 10000
+- takeScreenshot: '${SUBTITLE_NAME}-subtitle-picker-dismissed'
