@@ -10,14 +10,66 @@ This authorization supersedes the historical frozen-review, minimal-restyle
 and unpictured `visual_pending` restrictions below. No new domain milestone,
 merge, release or maintainer acceptance is authorized.
 
-### Current application and verification - 2026-10-21 19:00 UTC
+### Current application and verification - 2026-10-21
 
-Status: `implementation_resumed`; current-source native gates are running,
-not accepted. Current pushed application is `a555dc398176edf88b1dfdbab164751faf141efc`,
-tree `55bb94681e21d2a2a06877f74aa355539220fd68`, on existing `agent/m01` / draft #44.
-Foundation `39656998985` and real desktop `39656999028` pass. Native
-`39656998975` has one persistent completion subscription across its full build
-budget. No build was cancelled or unchanged workflow retried.
+Status: `implementation_resumed`; current-source hosted acceptance is incomplete,
+not accepted. Current pushed application is `e494df59c83a4fb7d3d1d0899c297ac442231aa7`,
+tree `51fcef0007a6208b309896015e04f7d6ff37ff18`, on existing `agent/m01` / draft #44.
+Changed-source foundation `39672070578`, desktop `39672070821` and native
+`39672070585` are running, each with one persistent completion subscription.
+No unchanged workflow was retried. Previous application `a555dc39` foundation
+`39656998985` and real desktop `39656999028` pass. Its native
+`39656998975` has completed: Android passes the full 429.918-second flow; iOS
+builds and passes English import, claims, playback and restart, then fails
+Japanese media-picker dismissal at 453.049 seconds. No build was cancelled or
+unchanged workflow retried.
+
+Current iOS investigation: exact source/tree, JUnit, screenshots, hierarchy and
+tap log are retained in `ci-a555dc39-ios`. The Japanese filename is enabled at
+`[100,211][208,232]`; the actual tap is `(154,221)`. Before/after frames still show
+the picker and keyboard, so this is not the old missing-List snapshot failure.
+Keyboard/first-row interaction, filename hit behavior and inherited picker state
+remain hypotheses, not an established cause. The unchanged full flow on retained
+diagnostic device `6790712D-7A1A-4BFC-A084-45B427A2652A` passes imports but stops
+at its historical Knowledge labels, before the Japanese boundary; it does not
+reproduce the new failure. A focused picker/player/restart-history replay passes
+on that same binary without rebuilding: 132.013 seconds, including real Japanese
+movie/subtitle selection and visible Japanese captions. The before-selection
+capture still has the focused Search field and keyboard, so those conditions
+alone do not reproduce the failure. Only iOS 27.0 is installed locally; CI uses
+iOS 26.5, so a local result does not certify the hosted platform. Current-source
+native preparation and the incremental Release simulator build both pass.
+The unchanged full acceptance flow passes on that device with current source:
+368.346 seconds, zero failures, including English claims/player/restart,
+Japanese movie/subtitle selection, Inspector, synchronization and original
+English continuity. The latter two real screenshots were inspected. This is
+local iOS 27.0 evidence, not a reversal of the hosted iOS 26.5 failure.
+No new simulator or environment was created.
+The build retains upstream React/Expo warnings; it is not warning-free. No
+helper or product repair has been made for this new failure. Artifacts are under
+`picker-current-repro`, `picker-history-repro` and
+`picker-current-source-repro`; build logs are `picker-current-prepare-ios.log`
+and `picker-current-xcodebuild.log`.
+
+Independent visual follow-up: selected-reference Home and the current app were
+inspected at the same 1200x700 logical size. Reference text ghost buttons have
+visible dark material; current Home quiet actions are visually transparent.
+The reference's shared `.btn-default` owns `backdrop-filter: blur(8px)` even when
+the ghost variant clears its fill, whereas v3's shared quiet variant lacks it.
+The actual reference console confirms transparent fill, blur(8px), transparent
+1px border and 8px radius. WebKit receives the same blur but does not reproduce
+Chromium's native dark backing from blur alone. A shared web-only quiet material
+now uses the measured 35% black tint in dark appearance and no light tint;
+icon-only and native quiet controls retain their existing treatment. The actual
+Home now shows the reference's dark nav/action material. No interface preference
+or alternate implementation was introduced. Actual browser hover feedback passes,
+as do typecheck, ownership lint, 54 harness and 25 package/source tests, web export
+and all eight browser interactions. Narrow light Home, narrow dark Settings and
+desktop dark Settings were inspected. The current native Home capture is
+`home-selected-quiet-material-final.png`. The test file has clean diagnostics;
+final theme/button LSP freshness checks time out, not a clean diagnostic result.
+The local iOS pass precedes this web-only material change; its native branch and
+picker are unchanged.
 
 Scope clarification, 2026-10-21: the legacy Interface style selector is explicitly
 excluded, including persisted style preferences, parallel implementations and
