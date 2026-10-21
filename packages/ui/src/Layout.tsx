@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
 import { Text } from './Text';
+import { useWindowMaterial } from './Provider';
 
 /** Bounded application frame with independently scrolling compact controls and content. */
 export function AppShell({ header, navigation, children }: PropsWithChildren<{
@@ -13,15 +14,16 @@ export function AppShell({ header, navigation, children }: PropsWithChildren<{
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const compact = width < 700;
+  const windowMaterial = useWindowMaterial();
   // Keep the scroll viewport itself below desktop overlay traffic lights;
   // padding inside scrolling navigation would disappear as the user scrolls.
   const top = Platform.OS === 'web' && compact ? Math.max(insets.top, 28) : insets.top;
-  return <View style={styles.shell(top, insets.bottom, compact)}>
+  return <View testID="app-shell" style={styles.shell(top, insets.bottom, compact, windowMaterial)}>
     {navigation ? <ScrollView style={styles.navigationViewport(compact)}
       contentContainerStyle={styles.navigation(compact)} keyboardShouldPersistTaps="handled">
       {navigation}
     </ScrollView> : null}
-    <View style={styles.main(!!navigation)}>
+    <View style={styles.main(!!navigation, windowMaterial)}>
       <ScrollView testID="app-shell-header" scrollEnabled={compact}
         style={styles.headerViewport(compact)} contentContainerStyle={styles.shellHeader(!!navigation && !compact)}
         keyboardShouldPersistTaps="handled">{header}</ScrollView>
@@ -60,9 +62,10 @@ const styles = StyleSheet.create((theme) => ({
     borderRightWidth: compact ? 0 : 1, borderBottomWidth: compact ? 1 : 0,
     borderColor: theme.colors.border,
   }),
-  shell: (top: number, bottom: number, compact: boolean) => ({
-    flex: 1, minHeight: 0, backgroundColor: theme.shell.navigation,
+  shell: (top: number, bottom: number, compact: boolean, windowMaterial: boolean) => ({
+    flex: 1, minHeight: 0, backgroundColor: windowMaterial && theme.shell.windowTint ? theme.shell.windowTint : theme.shell.navigation,
     paddingTop: top, paddingBottom: bottom, flexDirection: compact ? 'column' : 'row',
+    _web: windowMaterial ? { backdropFilter: theme.shell.windowFilter, WebkitBackdropFilter: theme.shell.windowFilter } : {},
   }),
   navigation: (compact: boolean) => ({
     width: compact ? '100%' : 200, paddingHorizontal: theme.spacing.compact,
@@ -70,9 +73,9 @@ const styles = StyleSheet.create((theme) => ({
     paddingBottom: theme.spacing.small, gap: theme.spacing.tiny,
     flexDirection: compact ? 'row' : 'column', flexWrap: 'wrap',
   }),
-  main: (sidebar: boolean) => ({
+  main: (sidebar: boolean, windowMaterial: boolean) => ({
     flex: 1, minWidth: 0, minHeight: 0,
-    backgroundColor: sidebar ? theme.shell.content : theme.colors.background,
+    backgroundColor: sidebar ? theme.shell.content : windowMaterial && theme.shell.windowTint ? 'transparent' : theme.colors.background,
     _web: sidebar ? {} : { backgroundImage: `linear-gradient(180deg, transparent 0%, transparent 30%, ${theme.shell.canvas} 130%)` },
   }),
   shellHeader: (sidebar: boolean) => ({

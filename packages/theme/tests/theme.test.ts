@@ -45,6 +45,16 @@ test('arbitrary themes preserve extension values and are not a fixed theme-name 
   assert.deepEqual(parsed, custom);
   assert.equal(resolveTheme(parsed).colors.accent, initialTheme.colors.accent);
 });
+test('native window tint is limited to unchanged built-in palettes', () => {
+  for (const preset of builtInThemes) {
+    const projection = resolveTheme(preset);
+    assert.ok(projection.shell.windowTint);
+    assert.equal(projection.shell.navigation, preset.colors.background);
+    const customized = { ...preset, colors: { ...preset.colors, background: '#123456' } };
+    assert.equal(resolveTheme(customized).shell.windowTint, undefined);
+    assert.equal(resolveTheme(customized).shell.navigation, '#123456');
+  }
+});
 test('editor rejects invalid rendering values without coercion', () => {
   assert.throws(() => parseThemePreview(JSON.stringify({ ...initialTheme, radius: -1 })));
   assert.throws(() => parseThemePreview(JSON.stringify({ ...initialTheme, colors: { ...initialTheme.colors, text: 'url(secret)' } })));

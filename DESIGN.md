@@ -81,6 +81,18 @@ live in ignored `.mlearn/visual-parity/manifest.json`.
   at 950/550px yield three/two/one activity columns without invented activities.
   Icon tiles and circular play controls use the reference's 25% white outline
   in dark appearance; the preview has a second inset boundary.
+- The running macOS reference uses an under-window native material that follows
+  window activity and system appearance. The desktop host supplies that material;
+  bootstrap injects its availability into the shared shell. Navigation ancestors
+  must remain transparent. Home and Settings navigation reveal the material;
+  Settings content and media retain their own opaque canvases. Browser/mobile and
+  custom palettes retain their saved opaque background. Matched 1200x700 / 2x
+  composited captures over identical color bands establish the dark black 38%
+  tint and the WebKit light white 75% floor. The latter compensates for the
+  different native/renderer composition; copying Chromium's white 50% body tint
+  left the actual app visibly too dark. Quartz also uses the reference's
+  blur(8px), saturate(.82), contrast(.92), brightness(1.04) backdrop treatment.
+  Window-only screenshots flatten native vibrancy and cannot verify this gate.
 - Watch uses a black source canvas, compact translucent Home/window controls
   and a bottom player rail. The seek track is above the compact playback
   controls, not a large stock slider between text buttons. Native video

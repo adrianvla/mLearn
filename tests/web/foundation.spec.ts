@@ -9,6 +9,15 @@ test('one shared surface is honest about missing native capabilities', async ({ 
   await expect(page.getByText('Browser preview', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Run hello', exact: true })).toBeDisabled();
   await expect(page.getByText('The browser preview has no native runtime.', { exact: false })).toBeVisible();
+  const opaqueNavigation = await page.getByTestId('app-shell').evaluate(shell => {
+    const opaque = [];
+    for (let node = shell.parentElement; node; node = node.parentElement) {
+      const background = getComputedStyle(node).backgroundColor;
+      if (background !== 'rgba(0, 0, 0, 0)') opaque.push({ tag: node.tagName, background });
+    }
+    return opaque;
+  });
+  expect(opaqueNavigation).toEqual([]);
   await page.screenshot({ path: 'test-results/foundation-light.png', fullPage: true });
   expect(errors).toEqual([]);
 });

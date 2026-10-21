@@ -15,6 +15,11 @@
         "title": "mLearn",
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
+        "transparent": true,
+        "windowEffects": {
+          "effects": ["underWindowBackground"],
+          "state": "followsWindowActiveState"
+        },
         "width": 1080,
         "height": 800,
         "minWidth": 420,

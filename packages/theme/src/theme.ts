@@ -41,6 +41,8 @@ export function resolveTheme(saved: ThemeDocument) {
   const document = resolveBuiltInTheme(saved);
   const rgb = Number.parseInt(document.colors.surface.slice(1, 7), 16);
   const lightSurface = 0.2126 * (rgb >> 16) + 0.7152 * ((rgb >> 8) & 255) + 0.0722 * (rgb & 255) >= 128;
+  const builtInPalette = builtInThemes.some(preset => document.id === preset.id
+    && Object.entries(preset.colors).every(([key, value]) => document.colors[key as keyof ThemeDocument['colors']] === value));
   const textRole = (fontSize: number, lineHeight: number, fontWeight: '400' | '500' | '600' | '700' = '400') => ({
     fontFamily: 'Helvetica Neue',
     fontSize: fontSize * document.textScale,
@@ -57,7 +59,11 @@ export function resolveTheme(saved: ThemeDocument) {
       hover: lightSurface ? '#FFFFFFE6' : `${document.colors.text.slice(0, 7)}20`,
       outline: lightSurface ? '#00000040' : '#FFFFFF40',
     },
-    shell: { navigation: document.colors.background, content: document.colors.surface,
+    shell: { navigation: document.colors.background, content: document.colors.surface, light: lightSurface,
+      // WebKit's native-material composition needs a stronger light floor than
+      // Chromium's body tint; matched composited reference captures set this alpha.
+      windowTint: builtInPalette ? lightSurface ? '#FFFFFFBF' : '#00000061' : undefined,
+      windowFilter: builtInPalette && lightSurface ? 'blur(8px) saturate(0.82) contrast(0.92) brightness(1.04)' : undefined,
       canvas: lightSurface ? '#F3F5F7' : '#000000' },
     surfaces: { glass: lightSurface ? '#FFFFFF80' : '#82828233' },
     feedback: { success: lightSurface ? '#2F7D20' : '#58C333' },
