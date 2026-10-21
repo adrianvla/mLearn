@@ -12,8 +12,9 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-21
 
-Current product inputs match `b7fac91ef93a8e25854f0052f689d3d0a794fd1b`
-exactly; Windows test/evidence repairs continue on existing draft #44.
+Current runtime/shared UI inputs remain
+`b7fac91ef93a8e25854f0052f689d3d0a794fd1b`; Windows test/evidence repairs and
+the isolated Android NDK-generation repair continue on existing draft #44.
 Status: `implementation_resumed`, not complete or accepted. Windows startup
 focus verification `39689717875` fails at the same UIA lookup; that unproven
 product change is removed. Product inputs match verified b7fac91e exactly.
@@ -35,6 +36,14 @@ or ExpandCollapse activation, without replacing controls or changing deadlines.
 Native DWM state is logged before assertions; the pwsh wrapper retains UTF-8
 run logs while the UIA child remains Windows PowerShell/MTA. Windows material
 transitions are still unverified.
+Run `39692819010` now verifies actual native Mica and the live light/dark
+transition: Quartz backdrop=2/dark=0, Dark Quartz backdrop=2/dark=1, both DWM
+HRESULTs zero. Their compositor captures are inspected. The next Slate paste
+fails an immediate complete-value comparison before save. The probe now
+subscribes to native ValueProperty changes before its single paste and awaits
+the entire expected document, normalizing only CRLF/LF in both values; a timeout
+retains exact escaped expected/received text. No input is replayed. Opaque
+clear and persisted restart remain unverified on Windows.
 Current mobile verification remains subscribed, with the earlier hosted iOS
 Files failure unresolved.
 Native `39685611279` has completed: iOS 26.5 builds and passes the English

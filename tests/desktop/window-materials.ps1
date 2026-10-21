@@ -57,7 +57,8 @@ public static class NativeMaterialQa {
       AutomationEventHandler opened = delegate { check(); };
       Automation.AddStructureChangedEventHandler(root, TreeScope.Subtree, structure);
       Automation.AddAutomationPropertyChangedEventHandler(root, TreeScope.Subtree, property,
-        AutomationElement.NameProperty, AutomationElement.IsEnabledProperty, AutomationElement.IsOffscreenProperty);
+        AutomationElement.NameProperty, AutomationElement.IsEnabledProperty, AutomationElement.IsOffscreenProperty,
+        ValuePattern.ValueProperty);
       Automation.AddAutomationEventHandler(WindowPattern.WindowOpenedEvent, root, TreeScope.Subtree, opened);
       try {
         trigger();
@@ -143,20 +144,30 @@ public static class NativeMaterialQa {
     editor.SetFocus();
     string input = document.Replace("\r\n", "\n");
     Exception inputFailure = null;
-    Thread typing = new Thread(delegate() {
-      try {
-        Clipboard.SetText(input);
-        SendKeys.SendWait("^a");
-        SendKeys.SendWait("^v");
-      } catch (Exception error) { inputFailure = error; }
-    });
-    typing.IsBackground = true;
-    typing.SetApartmentState(ApartmentState.STA);
-    typing.Start();
-    if (!typing.Join(10000)) throw new TimeoutException("Native editor input did not finish");
-    if (inputFailure != null) throw inputFailure;
-    if (((ValuePattern)editor.GetCurrentPattern(ValuePattern.Pattern)).Current.Value != input)
-      throw new InvalidOperationException("Native editor did not receive the complete theme");
+    string receivedInput = "";
+    try {
+      Wait("complete " + theme + " editor input", window, delegate {
+        receivedInput = ((ValuePattern)editor.GetCurrentPattern(ValuePattern.Pattern)).Current.Value;
+        return receivedInput.Replace("\r\n", "\n") == input ? editor : null;
+      }, delegate {
+        Thread typing = new Thread(delegate() {
+          try {
+            Clipboard.SetText(input);
+            SendKeys.SendWait("^a");
+            SendKeys.SendWait("^v");
+          } catch (Exception error) { inputFailure = error; }
+        });
+        typing.IsBackground = true;
+        typing.SetApartmentState(ApartmentState.STA);
+        typing.Start();
+        if (!typing.Join(10000)) throw new TimeoutException("Native editor input did not finish");
+        if (inputFailure != null) throw inputFailure;
+      });
+    } catch (TimeoutException error) {
+      throw new InvalidOperationException("Incomplete native theme input. Expected: " +
+        input.Replace("\r", "\\r").Replace("\n", "\\n") + Environment.NewLine +
+        "Received: " + receivedInput.Replace("\r", "\\r").Replace("\n", "\\n"), error);
+    }
     // Custom palettes are not built-in selector options; their saved state
     // closes the editor and restores the enabled placeholder selector.
     string selection = theme == "Slate" ? "Select" : theme;
