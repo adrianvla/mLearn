@@ -44,6 +44,8 @@ export default StyleSheet.create(theme => ({
         : variant === 'primary' ? `${theme.colors.accent.slice(0, 7)}1F`
         : variant === 'dictionary' ? theme.media.panel : theme.media.chrome,
       _web: {
+        ...(variant === 'quiet' && !iconOnly ? { backdropFilter: theme.controls.backdrop,
+          backgroundColor: theme.controls.quiet } : {}),
         ...(size === 'compact' ? { minHeight: 32, minWidth: iconOnly ? 32 : undefined, paddingVertical: theme.spacing.tiny }
           : variant === 'select' ? { minHeight: 36, paddingVertical: theme.spacing.tiny * 1.5 }
           : variant === 'media' || variant === 'navigation' ? { minHeight: 36, paddingVertical: theme.spacing.tiny } : {}),

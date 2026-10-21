@@ -58,6 +58,10 @@ export function resolveTheme(saved: ThemeDocument) {
       field: lightSurface ? '#FFFFFF80' : `${document.colors.text.slice(0, 7)}14`,
       hover: lightSurface ? '#FFFFFFE6' : `${document.colors.text.slice(0, 7)}20`,
       outline: lightSurface ? '#00000040' : '#FFFFFF40',
+      backdrop: 'blur(8px)',
+      // WebKit blur alone misses the reference's dark backing; retain this
+      // measured tint until the native renderer's composition matches.
+      quiet: lightSurface ? 'transparent' : '#00000059',
     },
     shell: { navigation: document.colors.background, content: document.colors.surface, light: lightSurface,
       // WebKit's native-material composition needs a stronger light floor than

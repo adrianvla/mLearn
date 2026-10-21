@@ -171,7 +171,16 @@ is released on source/package/focus changes. Narrow layouts preserve reachable
 cards and controls rather than clipping the media or Inspector.
 
 `Button` owns action, selection, busy/disabled and icon-only states, including
-compact media and Knowledge variants. `Icon` owns portable vector geometry;
+compact media and Knowledge variants. The selected reference's text ghost
+buttons retain the shared default button's `blur(8px)` backdrop while clearing
+their CSS fill and border. Chromium's native dark composition still produces
+a dark backing; WebKit blur alone leaves the underlying canvas unchanged.
+The WebKit quiet text material uses a 35% black tint in dark appearance and
+no tint in light appearance to retain that measured contrast.
+Shared quiet text actions consume that material; icon-only
+quiet controls remain unbacked. This is a web rendering treatment, not a saved
+interface preference or a separate component implementation.
+`Icon` owns portable vector geometry;
 features do not recreate click targets or icon text. `Text` owns complete
 typography roles. `AppShell`, `Panel`, `SettingRow` and shell composition own
 bounded scroll regions and shared surface anatomy. `Dialog`/`ContextPanel`

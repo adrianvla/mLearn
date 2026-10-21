@@ -72,6 +72,11 @@ test('shared controls pass automated WCAG checks', async ({ page }) => {
 
 test('Home exposes the native boundary without fabricated recents',async({page})=>{
  await page.goto('/');await expect(page.getByRole('button',{name:'Settings',exact:true})).toBeVisible();
+ const settings = page.getByRole('button',{name:'Settings',exact:true});
+ const restingBackground = await settings.evaluate(element => getComputedStyle(element).backgroundColor);
+ await settings.hover();
+ await expect(settings).not.toHaveCSS('background-color', restingBackground);
+ await page.mouse.move(0, 0);
  await expect(page.getByText('The browser preview has no native runtime.',{exact:false})).toBeVisible();
  await expect(page.getByRole('button',{name:'Run hello',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Settings',exact:true}).click();
