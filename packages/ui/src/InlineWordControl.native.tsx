@@ -16,7 +16,7 @@ export function InlineWordContent({ segments, variant = 'body', status }: Inline
                 <NativeText style={contentStyles.source(variant, status)}>{segment.reading.base ?? segment.text}</NativeText>
             </View> :
             segment.contour ? <PronunciationReading key={index} contour={segment.contour}
-                color={status === 'claimed_known' ? theme.colors.accent : undefined}
+                color={status === 'claimed_known' ? theme.feedback.success : undefined}
                 variant={variant === 'inspectionTitle' ? 'inspectionReading' : variant} /> :
                 <NativeText key={index} style={contentStyles.source(variant, status)}>{segment.text}</NativeText>
         )}
@@ -29,14 +29,14 @@ const contentStyles = StyleSheet.create(theme => ({
     source: (variant: NonNullable<InlineWordContentProps['variant']>, status?: string) => ({
         ...theme.typography[variant],
         flexShrink: 1,
-        color: status === 'claimed_known' ? theme.colors.accent : variant === 'body' ? theme.colors.text : theme.media.text,
+        color: status === 'claimed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
         ...(variant === 'subtitle' ? { textShadowColor: theme.media.background, textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } } : {}),
         textDecorationLine: status === 'claimed_unknown' || status === 'mixed' ? 'underline' : 'none',
         textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid',
     }),
     reading: (variant: NonNullable<InlineWordContentProps['variant']>, status?: string) => ({
         ...theme.typography[variant === 'subtitle' ? 'subtitleRuby' : variant === 'inspectionTitle' ? 'inspectionRuby' : 'bodyRuby'],
-        color: status === 'claimed_known' ? theme.colors.accent : variant === 'body' ? theme.colors.text : theme.media.text,
+        color: status === 'claimed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
     }),
 }));
 
@@ -69,6 +69,6 @@ const styles = StyleSheet.create(theme => ({
         ...theme.typography[variant],
         flexShrink: 1,
         ...(variant === 'subtitle' ? { textShadowColor: theme.media.background, textShadowRadius: 4, textShadowOffset: { width: 0, height: 1 } } : {}),
-        color: status === 'claimed_known' ? theme.colors.accent : variant === 'body' ? theme.colors.text : theme.media.text, textDecorationLine: status === 'claimed_unknown' || status === 'mixed' ? 'underline' : 'none', textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid'
+        color: status === 'claimed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text, textDecorationLine: status === 'claimed_unknown' || status === 'mixed' ? 'underline' : 'none', textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid'
     })
 }));

@@ -110,7 +110,6 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
                     </View>)}
             </ScrollView>
             {pending ? <Text variant="caption" tone="media" accessibilityLiveRegion="polite">Looking up dictionary meanings…</Text> : null}
-            {cards.some(card => card.alternatives.length > 1) ? <Text variant="detail" tone="media" muted>Unranked dictionary alternatives</Text> : null}
             {error ? <><Text variant="caption" tone="media" accessibilityRole="alert">{error}</Text>
                 <Button label="Retry live word lookup" size="compact" variant="media" onPress={() => setReload(value => value + 1)} /></> : null}
         </View>
