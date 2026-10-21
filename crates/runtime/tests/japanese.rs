@@ -37,6 +37,74 @@ fn call(runtime: &mut Runtime, request: Value) -> Value {
     response
 }
 #[test]
+fn japanese_transcript_metadata_fits_the_existing_guest_budget() {
+    let dir = tempfile::tempdir().unwrap();
+    let video = dir.path().join("authored.mp4");
+    std::fs::write(&video, b"source identity; native media QA owns playback").unwrap();
+    let texts = [
+        "昨日の予定をもう一度確認してください。",
+        "つまり明日は学校で日本語の勉強をします。",
+        "今度こそ絶対に勝ってみせます。",
+        "友達と一緒に美味しい料理を食べました。",
+        "図書館で新しい本を借りて読みます。",
+        "天気が良いので公園を歩きたいです。",
+    ];
+    let subtitle = dir.path().join("authored.srt");
+    let srt = texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| {
+            format!(
+                "{}\n00:00:{:02},000 --> 00:00:{:02},000\n{text}\n\n",
+                index + 1,
+                index * 3,
+                index * 3 + 2
+            )
+        })
+        .collect::<String>();
+    std::fs::write(&subtitle, srt).unwrap();
+    let mut runtime = Runtime::open(
+        &dir.path().join("profile"),
+        CodePolicy::MobileBundled,
+        None,
+        bundle(),
+    )
+    .unwrap();
+    let opened = call(
+        &mut runtime,
+        json!({"type":"open_source","path":video,"packageId":"org.mlearn.japanese"}),
+    );
+    let id = &opened["window"]["source"]["id"];
+    call(
+        &mut runtime,
+        json!({"type":"attach_subtitles","sourceId":id,"path":subtitle}),
+    );
+    let analyzed = call(
+        &mut runtime,
+        json!({"type":"analyze_transcript","sourceId":id,"after":null,"query":""}),
+    );
+    let cues = analyzed["batch"]["cues"].as_array().unwrap();
+    assert_eq!(cues.len(), texts.len());
+    for (cue, text) in cues.iter().zip(texts) {
+        assert_eq!(cue["cue"]["text"], text);
+        let tokens = cue["tokens"].as_array().unwrap();
+        assert_eq!(
+            tokens
+                .iter()
+                .map(|token| token["text"].as_str().unwrap())
+                .collect::<String>(),
+            text
+        );
+    }
+    assert!(
+        cues.iter()
+            .flat_map(|cue| cue["tokens"].as_array().unwrap())
+            .any(|token| token["presentation"]["contours"]
+                .as_array()
+                .is_some_and(|values| !values.is_empty()))
+    );
+}
+#[test]
 fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
     let dir = tempfile::tempdir().unwrap();
     let video = dir.path().join("authored.mp4");

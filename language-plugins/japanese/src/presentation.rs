@@ -1,9 +1,12 @@
-use super::{hiragana, DictionaryEntry, DictionaryVariant, PACKAGE};
+use super::{hiragana, DictionaryVariant, PACKAGE};
 use crate::Token;
 use mlearn_language_sdk::serde_json::{self, json, Value};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 const READING_SOURCE: &str = "SudachiDict Small 20260116; Apache-2.0";
 const PITCH_SOURCE: &str = "Uros Ozvatic / Kanjium; CC-BY-SA-4.0";
@@ -81,13 +84,15 @@ fn contour(written: &str, reading: &str, accent: &Accent) -> Option<Value> {
         accent.drop_after_mora,
         accent.part_of_speech.join(",")
     );
-    Some(json!({
+    let mut value = json!({
         "id":format!("{PACKAGE}:pitch:{:x}",Sha256::digest(identity)),
-        "reading":reading,"units":points,"followingHeight":if accent.drop_after_mora==0 {1.0} else {0.0},
+        "reading":reading,"followingHeight":if accent.drop_after_mora==0 {1.0} else {0.0},
         "label":format!("{category} [{}]{}",accent.drop_after_mora,
             if accent.part_of_speech.is_empty(){String::new()}else{format!(" · {}",accent.part_of_speech.join(", "))}),
         "color":color,"attribution":PITCH_SOURCE,
-    }))
+    });
+    value["units"] = Value::Array(points);
+    Some(value)
 }
 
 fn build(
@@ -95,16 +100,15 @@ fn build(
     readings: BTreeSet<String>,
     ruby: Option<(&str, &str)>,
     tag: Option<&str>,
-    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
-) -> Result<Value, String> {
+    lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
+) -> Result<Option<Value>, String> {
     let mut contours = BTreeMap::new();
     let mut levels = BTreeSet::new();
     for reading in readings {
         let Some(value) = lookup(&key(written, &reading))? else {
             continue;
         };
-        let supplemental: Supplemental =
-            serde_json::from_value(value).map_err(|e| e.to_string())?;
+        let supplemental = Supplemental::deserialize(value.as_ref()).map_err(|e| e.to_string())?;
         levels.extend(supplemental.vocabulary_levels);
         for accent in supplemental.pronunciations {
             if tag.is_some_and(|tag| {
@@ -125,10 +129,18 @@ fn build(
             }
         }
     }
+    if ruby.is_none() && levels.is_empty() && contours.is_empty() {
+        return Ok(None);
+    }
     let labels = levels.into_iter().map(|level| {
-        if !(1..=5).contains(&level) { return Err("Invalid vocabulary level".into()); }
+        // Package-owned level display, measured from the reference label palette.
+        let color = match level {
+            1 => "#FF3C59", 2 => "#3C91FF", 3 => "#42D631",
+            4 => "#FF8D3C", 5 => "#FF3CAA",
+            _ => return Err("Invalid vocabulary level".into()),
+        };
         Ok(json!({"id":format!("{PACKAGE}:jlpt-vocabulary:N{level}"),"label":format!("JLPT N{level}"),
-            "color":null,"attribution":LEVEL_SOURCE}))
+            "color":color,"attribution":LEVEL_SOURCE}))
     }).collect::<Result<Vec<_>, String>>()?;
     let readings = ruby
         .map(|(text, attribution)| {
@@ -137,26 +149,33 @@ fn build(
             })]
         })
         .unwrap_or_default();
-    Ok(
-        json!({"readings":readings,"labels":labels,"contours":contours.into_values().collect::<Vec<_>>()}),
-    )
+    let mut value = json!({});
+    value["readings"] = Value::Array(readings);
+    value["labels"] = Value::Array(labels);
+    value["contours"] = Value::Array(contours.into_values().collect());
+    Ok(Some(value))
 }
 
 pub(super) fn token(
     token: &Token,
     targets: &[String],
-    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
-) -> Result<Value, String> {
+    lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
+) -> Result<Option<Value>, String> {
     let reading = hiragana(&token.reading);
+    let category = token.pos.first().map(String::as_str).unwrap_or("");
     let ruby = (!token.oov
+        // Sudachi's キゴウ class reading names the symbol, not its pronunciation.
+        && !matches!(category, "補助記号" | "記号")
         && !reading.is_empty()
         && reading != "*"
         && reading != hiragana(&token.surface))
     .then_some((reading.as_str(), READING_SOURCE));
-    let category = token.pos.first().map(String::as_str).unwrap_or("");
     let standalone = !token.oov
         && (token.surface == token.lemma || token.pos.get(4).is_some_and(|part| part == "*"))
         && !matches!(category, "助詞" | "助動詞" | "補助記号" | "記号");
+    if ruby.is_none() && !standalone {
+        return Ok(None);
+    }
     // Never lend a lemma's accent to an inflected surface or a coincidentally
     // spelled auxiliary. Surface ruby still comes from actual morphological work.
     let readings = if standalone {
@@ -194,11 +213,10 @@ pub(super) fn token(
             let Some(value) = lookup(&format!("entry/{seq}"))? else {
                 continue;
             };
-            let entry: DictionaryEntry =
-                serde_json::from_value(value).map_err(|e| e.to_string())?;
+            let variants = Vec::<DictionaryVariant>::deserialize(&value["variants"])
+                .map_err(|e| e.to_string())?;
             forms.extend(
-                entry
-                    .variants
+                variants
                     .into_iter()
                     .filter(|variant| {
                         hiragana(&variant.reading) == reading && variant.written != token.surface
@@ -212,8 +230,8 @@ pub(super) fn token(
             let Some(value) = lookup(&key(&form, &reading))? else {
                 continue;
             };
-            let supplemental: Supplemental =
-                serde_json::from_value(value).map_err(|e| e.to_string())?;
+            let supplemental =
+                Supplemental::deserialize(value.as_ref()).map_err(|e| e.to_string())?;
             levels.extend(supplemental.vocabulary_levels);
             pronunciations.extend(supplemental.pronunciations);
         }
@@ -224,7 +242,7 @@ pub(super) fn token(
             pronunciations,
             vocabulary_levels: levels.into_iter().collect(),
         })
-        .map(Some)
+        .map(|value| Some(Rc::new(value)))
         .map_err(|e| e.to_string())
     };
     build(&token.surface, readings, ruby, tag, &lookup_surface)
@@ -233,8 +251,8 @@ pub(super) fn token(
 pub(super) fn entry(
     written: &str,
     variants: &[DictionaryVariant],
-    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
-) -> Result<Value, String> {
+    lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
+) -> Result<Option<Value>, String> {
     let readings = variants
         .iter()
         .filter(|variant| variant.written == written)
@@ -258,6 +276,21 @@ pub(super) fn entry(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn symbol_dictionary_readings_are_not_spoken_ruby() {
+        let symbol = Token {
+            start: 0,
+            end: 3,
+            surface: "（".into(),
+            lemma: "（".into(),
+            normalized: "(".into(),
+            reading: "キゴウ".into(),
+            pos: vec!["補助記号".into(), "括弧開".into()],
+            oov: false,
+        };
+        let value = token(&symbol, &[], &|_| panic!("Symbols have no lexical lookup")).unwrap();
+        assert!(value.is_none());
+    }
     #[test]
     fn contours_preserve_morae_variants_and_following_context() {
         assert_eq!(morae("きょう"), ["きょ", "う"]);
@@ -288,11 +321,12 @@ mod tests {
             None,
             None,
             &|_| {
-                Ok(Some(json!({
+                Ok(Some(Rc::new(json!({
                     "accent":[{"drop":0,"pos":[]},{"drop":1,"pos":[]}],"jlpt":[3]
-                })))
+                }))))
             },
         )
+        .unwrap()
         .unwrap();
         assert_eq!(value["contours"].as_array().unwrap().len(), 2);
         assert_eq!(value["labels"][0]["label"], "JLPT N3");
@@ -318,6 +352,7 @@ mod tests {
         let value = super::token(&token, &[], &|_| {
             panic!("Inflection must not request a lemma's pitch")
         })
+        .unwrap()
         .unwrap();
         assert_eq!(value["readings"][0]["text"], "たべ");
         assert_eq!(value["readings"][0]["end"], 6);
@@ -339,6 +374,7 @@ mod tests {
             assert_eq!(requested, key("生物", "せいぶつ"));
             Ok(None)
         })
+        .unwrap()
         .unwrap();
         assert_eq!(value["readings"][0]["text"], "せいぶつ");
         assert_eq!(value["contours"], json!([]));
@@ -366,16 +402,16 @@ mod tests {
                 return Ok(None);
             }
             if requested == "entry/1" {
-                return Ok(Some(json!({"targetId":"jmdict:1","headword":"詰まり","senses":[],
-                    "variants":[{"written":"詰まり","reading":"つまり"},{"written":"別語","reading":"べつご"}]})));
+                return Ok(Some(Rc::new(json!({"targetId":"jmdict:1","headword":"詰まり","senses":[],
+                    "variants":[{"written":"詰まり","reading":"つまり"},{"written":"別語","reading":"べつご"}]}))));
             }
             assert_eq!(requested, key("詰まり", "つまり"));
-            Ok(Some(json!({
+            Ok(Some(Rc::new(json!({
                 "accent":[{"drop":1,"pos":["adv"]},{"drop":3,"pos":["n"]}],
                 "jlpt":[3]
-            })))
+            }))))
         })
-        .unwrap();
+        .unwrap().unwrap();
         assert_eq!(value["labels"][0]["label"], "JLPT N3");
         assert_eq!(value["readings"], json!([]));
         assert_eq!(value["contours"].as_array().unwrap().len(), 1);

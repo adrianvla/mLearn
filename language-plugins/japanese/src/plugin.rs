@@ -7,6 +7,7 @@ use serde::Deserialize;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
+    rc::Rc,
 };
 #[path = "presentation.rs"]
 mod presentation;
@@ -104,7 +105,7 @@ fn compatible(pos: &[String], lexical: &[String]) -> bool {
 }
 fn candidates(
     token: &Token,
-    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
+    lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
 ) -> Result<Vec<String>, String> {
     if token.oov {
         return Ok(vec![]);
@@ -116,8 +117,8 @@ fn candidates(
             continue;
         }
         if let Some(value) = lookup(&format!("form/{form}"))? {
-            let values: Vec<Candidate> =
-                serde_json::from_value(value).map_err(|e| e.to_string())?;
+            let values =
+                Vec::<Candidate>::deserialize(value.as_ref()).map_err(|e| e.to_string())?;
             if values.len() > 128 {
                 return Err("JMdict candidate set exceeds its bound".into());
             }
@@ -143,7 +144,7 @@ fn candidates(
 fn project(
     text: &str,
     tokens: Vec<Token>,
-    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
+    lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
 ) -> Result<Vec<Value>, String> {
     let mut result = Vec::new();
     let mut cursor = 0;
@@ -165,11 +166,7 @@ fn project(
         let presentation = presentation::token(&token, &targets, lookup)?;
         let mut value =
             json!({"start":token.start,"end":token.end,"text":token.surface,"targets":targets});
-        if ["readings", "labels", "contours"].iter().any(|key| {
-            presentation[key]
-                .as_array()
-                .is_some_and(|values| !values.is_empty())
-        }) {
+        if let Some(presentation) = presentation {
             value["presentation"] = presentation;
         }
         result.push(value);
@@ -205,7 +202,7 @@ struct DictionarySense {
 fn inspect_entry(
     target: &str,
     value: Value,
-    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
+    lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
 ) -> Result<Value, String> {
     let entry: DictionaryEntry = serde_json::from_value(value).map_err(|e| e.to_string())?;
     if entry.target_id != target
@@ -306,12 +303,12 @@ fn handle(call: Call) -> Result<Value, String> {
             let mut bytes = 0;
             let mut count = 0;
             let mut batch = Vec::new();
-            let cache = RefCell::new(BTreeMap::<String, Option<Value>>::new());
+            let cache = RefCell::new(BTreeMap::<String, Option<Rc<Value>>>::new());
             let lookup = |key: &str| {
                 if let Some(value) = cache.borrow().get(key) {
                     return Ok(value.clone());
                 }
-                let value = read(key)?;
+                let value = read(key)?.map(Rc::new);
                 if cache.borrow().len() < 128 {
                     cache.borrow_mut().insert(key.into(), value.clone());
                 }
@@ -333,7 +330,7 @@ fn handle(call: Call) -> Result<Value, String> {
                     }
                     batch.push(project(text, tokens, &lookup)?);
                 }
-                Ok(json!(batch))
+                Ok(Value::Array(batch.into_iter().map(Value::Array).collect()))
             })
         }
         "target.inspect.v1" => {
@@ -347,7 +344,9 @@ fn handle(call: Call) -> Result<Value, String> {
                 .filter(|s| !s.is_empty() && s.len() <= 10 && s.bytes().all(|b| b.is_ascii_digit()))
                 .ok_or("Unknown Japanese target identity")?;
             let entry = read(&format!("entry/{seq}"))?.ok_or("JMdict entry not found")?;
-            inspect_entry(target, entry, &read)
+            inspect_entry(target, entry, &|key| {
+                read(key).map(|value| value.map(Rc::new))
+            })
         }
         _ => Err("Unsupported Japanese capability".into()),
     }
@@ -448,12 +447,12 @@ mod tests {
     #[test]
     fn reading_and_pos_restrict_candidates_without_collapsing_entries() {
         let lookup = |_: &str| {
-            Ok(Some(json!([
+            Ok(Some(Rc::new(json!([
                 {"id":"jmdict:1","reading":"せいぶつ","pos":["noun (common) (futsuumeishi)"]},
                 {"id":"jmdict:2","reading":"せいぶつ","pos":["noun (common) (futsuumeishi)"]},
                 {"id":"jmdict:3","reading":"なまもの","pos":["noun (common) (futsuumeishi)"]},
                 {"id":"jmdict:4","reading":"せいぶつ","pos":["Godan verb"]}
-            ])))
+            ]))))
         };
         assert_eq!(
             candidates(&token(), &lookup).unwrap(),
@@ -490,10 +489,10 @@ mod tests {
                 return Ok(None);
             }
             assert_eq!(key, "form/ガッツ");
-            Ok(Some(json!([{
+            Ok(Some(Rc::new(json!([{
                 "id":"jmdict:1040280", "reading":"ガッツ",
                 "pos":["noun (common) (futsuumeishi)"]
-            }])))
+            }]))))
         };
         let result = project("ｶﾞｯﾂ", vec![token], &lookup).unwrap();
         assert_eq!(result.len(), 1);
