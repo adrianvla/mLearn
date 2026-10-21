@@ -47,8 +47,8 @@ export function AnnotatedText({ analysis, rawText, annotations, onInspect, inspe
         return <View ref={paragraph} testID="annotated-text" style={styles.paragraph}><Text
       accessible={false}
       variant={variant} tone={variant === 'body' ? 'content' : 'media'} align={variant === 'body' ? 'left' : 'center'}>{analysis.tokens.map(token => segment(token, token.text, String(token.start)))}</Text></View>;
-    // Native inline-view attachments use the view bottom as a text baseline. A
-    // baseline-aligned flow keeps real accessible buttons and punctuation aligned.
+    // Yoga takes a ruby view's baseline from its first text (the reading).
+    // Source-box bottoms align words and punctuation, not reading baselines.
     // Explicit rows preserve authored newlines, including blank lines.
     const lines: ReactNode[][] = [[]];
     for (const token of analysis.tokens) {
@@ -67,6 +67,6 @@ const styles = StyleSheet.create(theme => ({
     paragraph: {
         alignSelf: 'stretch'
     }, nativeLine: (variant: 'subtitle' | 'body') => ({
-        flexDirection: 'row', flexWrap: 'wrap', justifyContent: variant === 'body' ? 'flex-start' : 'center', alignItems: 'baseline', minHeight: 44 * theme.textScale
+        flexDirection: 'row', flexWrap: 'wrap', justifyContent: variant === 'body' ? 'flex-start' : 'center', alignItems: 'flex-end', minHeight: 44 * theme.textScale
     })
 }));

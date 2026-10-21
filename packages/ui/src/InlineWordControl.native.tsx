@@ -64,7 +64,7 @@ export function InlineWordControl({ text, children, accessibilityLabel, status, 
 }
 const styles = StyleSheet.create(theme => ({
     target: {
-        minHeight: 44, maxWidth: '100%', flexDirection: 'row', alignItems: 'center'
+        minHeight: 44, maxWidth: '100%', flexDirection: 'row', alignItems: 'flex-end'
     }, word: (status: string, variant: 'subtitle' | 'body') => ({
         ...theme.typography[variant],
         flexShrink: 1,

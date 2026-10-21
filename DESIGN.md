@@ -126,6 +126,9 @@ package supplies a following height; source overlays use a fading continuation.
 The edited Inspector pairs pronunciation/reading pills with package-declared
 level badges above the dictionary disclosure. Static metadata is not a claim.
 Absent metadata leaves ordinary source text intact.
+Native ruby and non-ruby words share the source-line baseline, including
+punctuation and 44px touch controls. Align their source-box bottoms: Yoga's
+first-text baseline can otherwise align a neighbour to the ruby reading.
 
 `LiveWordTranslator.css` measures compact meaning/reading cards at 300x30px,
 20px horizontal inset, 10px gaps and a two-row flow beneath window chrome.
