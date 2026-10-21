@@ -153,13 +153,6 @@ pub fn run() {
                 .apply(&window, &snapshot)
                 .map_err(std::io::Error::other)?;
             window.show()?;
-            #[cfg(target_os = "windows")]
-            {
-                // Wry's initial MoveFocus can fail while this window is hidden.
-                // Showing the host alone does not restore WebView2 keyboard/AT entry.
-                let webview: &tauri::Webview = window.as_ref();
-                webview.set_focus()?;
-            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

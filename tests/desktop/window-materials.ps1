@@ -32,6 +32,9 @@ public static class NativeMaterialQa {
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out Rect rect);
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  delegate bool ChildWindowVisitor(IntPtr window, IntPtr parameter);
+  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, ChildWindowVisitor visit, IntPtr parameter);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int length);
   [DllImport("dwmapi.dll")] static extern int DwmFlush();
   [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
 
@@ -93,7 +96,7 @@ public static class NativeMaterialQa {
 
   static AutomationElement Start(string application, string output, Action<Process> started) {
     Process launched = null;
-    AutomationElement window = Wait("the owned application window", AutomationElement.RootElement, delegate {
+    Wait("the owned application window", AutomationElement.RootElement, delegate {
       if (launched == null) return null;
       launched.Refresh();
       return launched.MainWindowHandle == IntPtr.Zero ? null : AutomationElement.FromHandle(launched.MainWindowHandle);
@@ -109,6 +112,23 @@ public static class NativeMaterialQa {
       started(launched);
       launched.BeginErrorReadLine();
     });
+    // The pinned Wry/WebView2 top-level UIA chain can end at its provider-less
+    // host container. Query the live native content provider itself, as an AT
+    // client can; do not replace it with DOM controls or browser feature flags.
+    IntPtr content = IntPtr.Zero;
+    List<string> classes = new List<string>();
+    EnumChildWindows(launched.MainWindowHandle, delegate(IntPtr child, IntPtr parameter) {
+      StringBuilder name = new StringBuilder(256);
+      GetClassName(child, name, name.Capacity);
+      classes.Add(name.ToString());
+      if (name.ToString() != "Chrome_RenderWidgetHostHWND") return true;
+      content = child;
+      return false;
+    }, IntPtr.Zero);
+    if (content == IntPtr.Zero)
+      throw new InvalidOperationException("Native WebView2 content HWND unavailable: " + String.Join(", ", classes));
+    Console.WriteLine("Native accessibility content HWND: " + content);
+    AutomationElement window = AutomationElement.FromHandle(content);
     Wait("Home Settings action", window, delegate { return Find(window, "Settings", InvokePattern.Pattern); }, delegate {});
     return window;
   }
@@ -176,7 +196,8 @@ public static class NativeMaterialQa {
       Width = width, Height = height, Image = path };
   }
 
-  static void Close(AutomationElement window, Process process) {
+  static void Close(Process process) {
+    AutomationElement window = AutomationElement.FromHandle(process.MainWindowHandle);
     ((WindowPattern)window.GetCurrentPattern(WindowPattern.Pattern)).Close();
     if (!process.WaitForExit(15000)) throw new TimeoutException("Owned native app did not exit");
   }
@@ -194,14 +215,14 @@ public static class NativeMaterialQa {
       Save(window, process, slate, "Slate");
       captures.Add(Capture(process, "Slate", Path.Combine(output, "opaque-slate.png"), false, true));
       Save(window, process, dark, "Dark Quartz");
-      Close(window, process);
+      Close(process);
       process = null;
       window = Start(application, output, delegate(Process launched) { process = launched; });
       captures.Add(Capture(process, "Restored Dark Quartz", Path.Combine(output, "restored-dark-quartz.png"), true, true));
       Settings(window);
       Save(window, process, quartz, "Quartz");
       captures.Add(Capture(process, "Restored Quartz", Path.Combine(output, "restored-quartz.png"), true, false));
-      Close(window, process);
+      Close(process);
       process = null;
       return captures;
     } catch (Exception error) {

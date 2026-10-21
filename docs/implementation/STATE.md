@@ -12,6 +12,33 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-21
 
+Current candidate: `bcfe50f65a785172f1130d9a2cf6ebf30f72ca82`, tree
+`faa758709947783976c59451a152ec418916abc6`, pushed to existing draft #44.
+Status: `implementation_resumed`, not complete or accepted. Windows startup
+focus verification `39689717875` fails at the same UIA lookup; that unproven
+product change is removed. Product inputs match verified b7fac91e exactly.
+The Windows probe now queries the native renderer HWND's actual UIA provider
+instead of the broken top-level traversal chain; its real controls, deadlines
+and DWM assertions are unchanged. This probe requires Windows verification.
+Current mobile verification remains subscribed, with the earlier hosted iOS
+Files failure unresolved.
+Local 11 host tests, 54 harness / 26 package tests, typecheck, ownership lint,
+web export and eight browser interactions pass in their affected scopes.
+Portable-font real desktop `39688396439` passes at b7fac91e; exact source/tree,
+full consuming receipt, narrow 2x editor and focused card were inspected.
+macOS normal startup, real saved Dark Quartz -> Quartz -> opaque Slate ->
+original Dark Quartz transitions and a fresh normal restart were inspected in
+actual compositor captures. The original theme document is read back unchanged;
+source checkpoints and learner claims are preserved. Direct native-view
+introspection failed and is not claimed. Windows UIA/material transitions and
+hosted iOS remain open; passing builds do not waive these gates.
+Compositor evidence: `native-theme-quartz-settings-composited.png`,
+`native-theme-opaque-slate-composited.png`,
+`native-theme-dark-restored-settings-composited.png` and
+`native-theme-after-save-restart-composited.png`.
+
+Retained native-material evidence sequence (source-bound history):
+
 Native theme integration `fdcaf52f4cc4257bc00207a148a126098c90bbcb` is pushed and undergoing platform
 verification, not visually accepted. Accepted Quartz/Dark Quartz preferences now
 drive the desktop host's actual NSVisualEffectView or Windows Mica, with Acrylic
