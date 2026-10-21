@@ -12,14 +12,21 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-21
 
-Current candidate: `bcfe50f65a785172f1130d9a2cf6ebf30f72ca82`, tree
-`faa758709947783976c59451a152ec418916abc6`, pushed to existing draft #44.
+Current product inputs match `b7fac91ef93a8e25854f0052f689d3d0a794fd1b`
+exactly; Windows test/evidence repairs continue on existing draft #44.
 Status: `implementation_resumed`, not complete or accepted. Windows startup
 focus verification `39689717875` fails at the same UIA lookup; that unproven
 product change is removed. Product inputs match verified b7fac91e exactly.
-The Windows probe now queries the native renderer HWND's actual UIA provider
-instead of the broken top-level traversal chain; its real controls, deadlines
-and DWM assertions are unchanged. This probe requires Windows verification.
+Provider-discovery run `39690695182` fails earlier and supplies the actual cause:
+`Process.MainWindowHandle` initially selects an unnamed helper pane, not the
+eventual process-owned `mLearn` window. Its exact job `119535859749` and capture
+show that helper before the application is visible. The UIA-parent diagnosis
+was wrong and is withdrawn, not carried as an application accessibility defect.
+The Windows probe now waits for the actual process-owned, named top-level
+window and carries that same UIA/HWND identity through controls, DWM capture
+and closing. Browser flags, renderer-class assumptions and the unproven product
+focus change are absent. Original controls, deadlines and DWM assertions remain;
+the corrected window identity still requires Windows verification.
 Current mobile verification remains subscribed, with the earlier hosted iOS
 Files failure unresolved.
 Local 11 host tests, 54 harness / 26 package tests, typecheck, ownership lint,

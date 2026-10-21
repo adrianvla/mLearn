@@ -32,9 +32,6 @@ public static class NativeMaterialQa {
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out Rect rect);
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
-  delegate bool ChildWindowVisitor(IntPtr window, IntPtr parameter);
-  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr parent, ChildWindowVisitor visit, IntPtr parameter);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int length);
   [DllImport("dwmapi.dll")] static extern int DwmFlush();
   [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
 
@@ -96,10 +93,16 @@ public static class NativeMaterialQa {
 
   static AutomationElement Start(string application, string output, Action<Process> started) {
     Process launched = null;
-    Wait("the owned application window", AutomationElement.RootElement, delegate {
-      if (launched == null) return null;
-      launched.Refresh();
-      return launched.MainWindowHandle == IntPtr.Zero ? null : AutomationElement.FromHandle(launched.MainWindowHandle);
+    int launchedId = 0;
+    AutomationElement window = Wait("the owned mLearn application window", AutomationElement.RootElement, delegate {
+      if (launchedId == 0) return null;
+      // MainWindowHandle can initially identify an unnamed startup helper pane.
+      // Bind the UIA owner to the actual configured window, not the first HWND.
+      return AutomationElement.RootElement.FindFirst(TreeScope.Children, new AndCondition(
+        new PropertyCondition(AutomationElement.ProcessIdProperty, launchedId),
+        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Window),
+        new PropertyCondition(AutomationElement.NameProperty, "mLearn"),
+        new PropertyCondition(AutomationElement.IsOffscreenProperty, false)));
     }, delegate {
       string errors = Path.Combine(output, "native-stderr.log");
       launched = new Process { StartInfo = new ProcessStartInfo(application) {
@@ -110,25 +113,10 @@ public static class NativeMaterialQa {
       };
       launched.Start();
       started(launched);
+      launchedId = launched.Id;
       launched.BeginErrorReadLine();
     });
-    // The pinned Wry/WebView2 top-level UIA chain can end at its provider-less
-    // host container. Query the live native content provider itself, as an AT
-    // client can; do not replace it with DOM controls or browser feature flags.
-    IntPtr content = IntPtr.Zero;
-    List<string> classes = new List<string>();
-    EnumChildWindows(launched.MainWindowHandle, delegate(IntPtr child, IntPtr parameter) {
-      StringBuilder name = new StringBuilder(256);
-      GetClassName(child, name, name.Capacity);
-      classes.Add(name.ToString());
-      if (name.ToString() != "Chrome_RenderWidgetHostHWND") return true;
-      content = child;
-      return false;
-    }, IntPtr.Zero);
-    if (content == IntPtr.Zero)
-      throw new InvalidOperationException("Native WebView2 content HWND unavailable: " + String.Join(", ", classes));
-    Console.WriteLine("Native accessibility content HWND: " + content);
-    AutomationElement window = AutomationElement.FromHandle(content);
+    Console.WriteLine("Native mLearn HWND: " + window.Current.NativeWindowHandle);
     Wait("Home Settings action", window, delegate { return Find(window, "Settings", InvokePattern.Pattern); }, delegate {});
     return window;
   }
@@ -138,13 +126,13 @@ public static class NativeMaterialQa {
       delegate { Invoke(window, "Settings"); });
   }
 
-  static void Save(AutomationElement window, Process process, string document, string theme) {
+  static void Save(AutomationElement window, string document, string theme) {
     Console.WriteLine("Saving native theme: " + theme);
     AutomationElement editor = Wait("Theme JSON editor", window, delegate { return Find(window, "Theme JSON", ValuePattern.Pattern); },
       delegate { Invoke(window, "Edit theme JSON"); });
-    process.Refresh();
-    SetForegroundWindow(process.MainWindowHandle);
-    if (GetForegroundWindow() != process.MainWindowHandle)
+    IntPtr handle = new IntPtr(window.Current.NativeWindowHandle);
+    SetForegroundWindow(handle);
+    if (GetForegroundWindow() != handle)
       throw new InvalidOperationException("The owned test window cannot receive native input");
     editor.SetFocus();
     string input = document.Replace("\r\n", "\n");
@@ -170,9 +158,8 @@ public static class NativeMaterialQa {
       delegate { Invoke(window, "Save custom theme"); });
   }
 
-  static MaterialCapture Capture(Process process, string theme, string path, bool translucent, bool dark) {
-    process.Refresh();
-    IntPtr window = process.MainWindowHandle;
+  static MaterialCapture Capture(AutomationElement target, string theme, string path, bool translucent, bool dark) {
+    IntPtr window = new IntPtr(target.Current.NativeWindowHandle);
     int backdrop, appearance;
     int backdropResult = DwmGetWindowAttribute(window, 38, out backdrop, sizeof(int));
     int appearanceResult = DwmGetWindowAttribute(window, 20, out appearance, sizeof(int));
@@ -196,8 +183,7 @@ public static class NativeMaterialQa {
       Width = width, Height = height, Image = path };
   }
 
-  static void Close(Process process) {
-    AutomationElement window = AutomationElement.FromHandle(process.MainWindowHandle);
+  static void Close(AutomationElement window, Process process) {
     ((WindowPattern)window.GetCurrentPattern(WindowPattern.Pattern)).Close();
     if (!process.WaitForExit(15000)) throw new TimeoutException("Owned native app did not exit");
   }
@@ -209,20 +195,20 @@ public static class NativeMaterialQa {
     try {
       AutomationElement window = Start(application, output, delegate(Process launched) { process = launched; });
       Settings(window);
-      captures.Add(Capture(process, "Quartz", Path.Combine(output, "quartz.png"), true, false));
-      Save(window, process, dark, "Dark Quartz");
-      captures.Add(Capture(process, "Dark Quartz", Path.Combine(output, "dark-quartz.png"), true, true));
-      Save(window, process, slate, "Slate");
-      captures.Add(Capture(process, "Slate", Path.Combine(output, "opaque-slate.png"), false, true));
-      Save(window, process, dark, "Dark Quartz");
-      Close(process);
+      captures.Add(Capture(window, "Quartz", Path.Combine(output, "quartz.png"), true, false));
+      Save(window, dark, "Dark Quartz");
+      captures.Add(Capture(window, "Dark Quartz", Path.Combine(output, "dark-quartz.png"), true, true));
+      Save(window, slate, "Slate");
+      captures.Add(Capture(window, "Slate", Path.Combine(output, "opaque-slate.png"), false, true));
+      Save(window, dark, "Dark Quartz");
+      Close(window, process);
       process = null;
       window = Start(application, output, delegate(Process launched) { process = launched; });
-      captures.Add(Capture(process, "Restored Dark Quartz", Path.Combine(output, "restored-dark-quartz.png"), true, true));
+      captures.Add(Capture(window, "Restored Dark Quartz", Path.Combine(output, "restored-dark-quartz.png"), true, true));
       Settings(window);
-      Save(window, process, quartz, "Quartz");
-      captures.Add(Capture(process, "Restored Quartz", Path.Combine(output, "restored-quartz.png"), true, false));
-      Close(process);
+      Save(window, quartz, "Quartz");
+      captures.Add(Capture(window, "Restored Quartz", Path.Combine(output, "restored-quartz.png"), true, false));
+      Close(window, process);
       process = null;
       return captures;
     } catch (Exception error) {
