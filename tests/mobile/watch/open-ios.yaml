@@ -40,6 +40,9 @@ appId: net.kikan.mlearn.v3dev
           visible:
             id: '${VIDEO_NAME}, mp4'
           timeout: 15000
+# Files exposes the destination cell during its folder transition. Wait for
+# the native picker to settle before dispatch, not for an arbitrary delay.
+- waitForAnimationToEnd
 - tapOn:
     # The Files cell includes filename/metadata below its interactive preview.
     id: '${VIDEO_NAME}, mp4'
@@ -97,6 +100,7 @@ appId: net.kikan.mlearn.v3dev
           visible:
             id: '${VIDEO_NAME}, mp4'
           timeout: 15000
+- waitForAnimationToEnd
 - tapOn:
     id: '${SUBTITLE_NAME}.srt, srt'
     enabled: true
