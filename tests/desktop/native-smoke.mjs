@@ -301,6 +301,9 @@ try {
   // checkpoints still commit; IPC and the native rejection remain genuine.
   assert.ok(process.env.XDG_DATA_HOME, 'Native failure checks require an isolated XDG_DATA_HOME');
   const preferenceDb = new DatabaseSync(path.join(process.env.XDG_DATA_HOME, 'net.kikan.mlearn.v3dev', 'profile.sqlite3'));
+  // The real player's initial checkpoint may own the WAL writer lock. Use the
+  // same bounded lock acquisition as storage, not timing luck before this DDL.
+  preferenceDb.exec('PRAGMA busy_timeout=5000');
   preferenceDb.exec(`CREATE TRIGGER mlearn_test_rate_write_rejected BEFORE UPDATE OF document ON sources
     WHEN json_extract(NEW.document,'$.playbackRate') <> json_extract(OLD.document,'$.playbackRate')
     BEGIN SELECT RAISE(ABORT,'mlearn_test_rate_write_rejected'); END`);
