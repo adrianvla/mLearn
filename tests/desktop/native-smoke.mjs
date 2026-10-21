@@ -650,6 +650,42 @@ try {
    await click('Settings');await click('Runtime');await click('Reload native state');await click('Home');
   const saved=(await native({type:'recent_sources'})).sources.find(source=>source.id===id);
   assert.ok(Math.abs(saved.positionMs-20000)<500);assert.equal(saved.subtitleRevision,attached.window.source.subtitleRevision);assert.equal(saved.packageId,'org.mlearn.english');
+  const homeSources=(await native({type:'recent_sources'})).sources;
+  const expectedProgress=homeSources.filter(source=>source.durationMs>0)
+    .map(source=>Math.max(0,Math.min(100,source.positionMs/source.durationMs*100)));
+  if(homeSources[0]?.durationMs>0)
+    expectedProgress.push(Math.max(0,Math.min(100,homeSources[0].positionMs/homeSources[0].durationMs*100)));
+  assert.ok(expectedProgress.length>0,'Decoded and checkpointed media must expose real source progress');
+  expectedProgress.sort((a,b)=>a-b);
+  const homeProgress=await rpc('POST',`/session/${session}/execute/async`,{script:`
+    const expected=arguments[0],done=arguments[arguments.length-1];
+    let settled=false,last;
+    const finish=pass=>{
+      if(settled)return;settled=true;observer.disconnect();resize.disconnect();
+      clearTimeout(timer);done({pass,...last});
+    };
+    const check=()=>{
+      const bars=Array.from(document.querySelectorAll('[role="progressbar"]'))
+        .filter(node=>node.getClientRects().length);
+      const values=bars.map(node=>Number(node.getAttribute('aria-valuenow'))).sort((a,b)=>a-b);
+      const ranges=bars.every(node=>node.getAttribute('aria-valuemin')==='0'&&node.getAttribute('aria-valuemax')==='100');
+      const tracks=bars.every(node=>{
+        const r=node.getBoundingClientRect(),style=getComputedStyle(node);
+        return r.width>r.height*4&&r.height>0&&parseFloat(style.borderTopWidth)>0
+          &&style.borderTopColor!==style.backgroundColor;
+      });
+      last={values,ranges,tracks};
+      if(values.length===expected.length&&values.every((value,index)=>Math.abs(value-expected[index])<0.001)&&ranges&&tracks)
+        finish(true);
+    };
+    const observer=new MutationObserver(check),resize=new ResizeObserver(check);
+    const timer=setTimeout(()=>finish(false),5000);
+    observer.observe(document.body,{subtree:true,childList:true,attributes:true});
+    resize.observe(document.body);check();
+  `,args:[expectedProgress]});
+  assert.equal(homeProgress.pass,true,JSON.stringify({expectedProgress,...homeProgress}));
+  await writeFile('test-results/desktop/source-progress.json',JSON.stringify(homeProgress));
+  await screenshot('home-source-progress');
   await rpc('DELETE', `/session/${session}`);session=undefined;
   await launch();await click('Home');await resumeWatch();
   await until(()=>script('const v=document.querySelector("video");return v&&Math.abs(v.currentTime-20)<0.5'),'Exact source position after native restart');

@@ -144,6 +144,11 @@ features do not recreate click targets or icon text. `Text` owns complete
 typography roles. `AppShell`, `Panel`, `SettingRow` and shell composition own
 bounded scroll regions and shared surface anatomy. `Dialog`/`ContextPanel`
 retain portal, dismissal, focus restoration and bounded scrolling semantics.
+Read-only progress uses the reference preview's outlined 6px trough and equal
+title/track allocation. The shared `Progress` owner exposes its actual range to
+assistive technology and uses the existing neutral control outline, not a border
+that disappears into the footer. Home source positions and package transfer bytes
+remain native facts; an unknown transfer total has no invented percentage.
 Fields, badges, selectors and disclosures use the same type/material/control
 families. Native minimum touch targets remain 44 logical pixels.
 Native dialog content leaves pan ownership to its scrolling body rather than

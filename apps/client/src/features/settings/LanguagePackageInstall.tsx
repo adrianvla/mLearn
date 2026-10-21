@@ -3,6 +3,7 @@ import type { PackageInstallPhase, PluginSummary, Snapshot } from '@mlearn/contr
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
+import { Progress } from '@mlearn/ui/progress';
 import { Row, Stack, SettingRow } from '@mlearn/ui/layout';
 import type { usePackageInstall } from './usePackageInstall';
 
@@ -53,6 +54,9 @@ export function LanguagePackageInstall({ client, snapshot, install }: {
         {status && <Text variant="caption" muted selectable>
           {status.downloadedBytes} bytes received{status.totalBytes === null ? ' · total not yet declared' : ` / ${status.totalBytes} bytes declared`}
         </Text>}
+        {active && <Progress label={`${packageName ?? install.command.pluginId} installation progress`}
+          value={status.totalBytes !== null && status.totalBytes > 0
+            ? status.downloadedBytes / status.totalBytes * 100 : undefined} />}
         {status?.message && <Text accessibilityRole={status.phase === 'failed' ? 'alert' : undefined} selectable>{status.message}</Text>}
         {active && install.cancelRequested === status.command.commandId && <Text variant="caption">
           Cancellation requested; waiting for native acknowledgement.

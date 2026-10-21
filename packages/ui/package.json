@@ -9,6 +9,7 @@
     "./select": "./src/Select.tsx",
     "./text": "./src/Text.tsx",
     "./badge": "./src/Badge.tsx",
+    "./progress": "./src/Progress.tsx",
     "./layout": "./src/Layout.tsx",
     "./text-field": "./src/TextField.tsx",
     "./dialog": "./src/Dialog.tsx",

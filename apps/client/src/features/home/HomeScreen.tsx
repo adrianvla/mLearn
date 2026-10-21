@@ -7,6 +7,7 @@ import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
 import { Icon } from '@mlearn/ui/icon';
 import { Select } from '@mlearn/ui/select';
+import { Progress } from '@mlearn/ui/progress';
 import { logoSource } from '@mlearn/ui/brand';
 import { useUnistyles } from 'react-native-unistyles';
 import type { SourceRecord, Snapshot } from '@mlearn/contracts';
@@ -164,9 +165,8 @@ export function HomeScreen() {
                 disabled={busy} onPress={() => resume(latestSource)} />
               <View style={styles.previewFooter}>
                 <View style={styles.previewTitle}><Text variant="detail" numberOfLines={1}>{latestSource.title}</Text></View>
-                {latestSource.durationMs > 0 ? <View style={styles.previewProgress}>
-                  <View style={[styles.progressValue, { width: `${Math.min(100, latestSource.positionMs / latestSource.durationMs * 100)}%` }]} />
-                </View> : null}
+                {latestSource.durationMs > 0 ? <Progress label={`Continue ${latestSource.title} progress`}
+                  value={latestSource.positionMs / latestSource.durationMs * 100} style={styles.previewProgress} /> : null}
               </View>
             </> : <>
             <Icon name="play" size={32} color={theme.colors.muted} />
@@ -199,9 +199,8 @@ export function HomeScreen() {
               <View style={styles.sourceText}>
                 <Text selectable numberOfLines={2}>{source.title}</Text>
                 <Text muted variant="detail">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')} · {language ? language.displayName ?? 'Language name unavailable' : 'Language package unavailable'}{source.subtitlePath ? ' · Subtitles' : ''}</Text>
-                {source.durationMs > 0 ? <View style={styles.progress}>
-                  <View style={[styles.progressValue, { width: `${Math.min(100, source.positionMs / source.durationMs * 100)}%` }]} />
-                </View> : null}
+                {source.durationMs > 0 ? <Progress label={`${source.title} progress`}
+                  value={source.positionMs / source.durationMs * 100} /> : null}
               </View>
               </View></Panel></View>
               <View style={styles.sourceAction(width <= 600)}><Button label="Resume" icon="play" size={width <= 600 ? 'default' : 'row'}
@@ -230,7 +229,7 @@ const styles = StyleSheet.create(theme => ({
     paddingHorizontal: theme.spacing.small, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small,
     borderTopWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.controls.field },
   previewTitle: { flex: 1, minWidth: 0 },
-  previewProgress: { width: '48%', height: 6, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 3, overflow: 'hidden' },
+  previewProgress: { flex: 1 },
   recents: { gap: theme.spacing.compact },
   sourceList: { gap: theme.spacing.compact },
   sourceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.spacing.compact },
@@ -240,6 +239,4 @@ const styles = StyleSheet.create(theme => ({
   sourceIcon: (compact: boolean) => ({ alignItems: 'center', justifyContent: 'center', width: compact ? 72 : 140,
     height: compact ? 56 : 72, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 4, backgroundColor: theme.surfaces.glass }),
   sourceText: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
-  progress: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: theme.controls.field, borderWidth: 1, borderColor: theme.colors.border },
-  progressValue: { height: '100%', backgroundColor: theme.colors.accent },
 }));
