@@ -42,6 +42,11 @@ appId: net.kikan.mlearn.v3dev
           timeout: 15000
 # The Files grid exposes a movie preview that can absorb the tap without
 # selecting the document. Use its real list row, not a preview coordinate.
+# Exercise the keyboard-owned modal boundary that previously hid this menu
+# from XCTest; the workspace snapshot setting must preserve real selection.
+- tapOn:
+    text: Search
+    index: 0
 - tapOn: More
 - tapOn: '^List$'
 - takeScreenshot: '${VIDEO_NAME}-media-picker-before-selection'

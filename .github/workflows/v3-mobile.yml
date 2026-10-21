@@ -83,7 +83,7 @@ jobs:
           cp .mlearn/m01-ci-fixtures/watch-fixture.srt "$container/Documents/M01 fixtures/m01-watch.srt"
           cp .mlearn/m01-ci-fixtures/watch-japanese.mp4 "$container/Documents/M01 fixtures/m01-japanese.mp4"
           cp .mlearn/m01-ci-fixtures/watch-japanese.srt "$container/Documents/M01 fixtures/m01-japanese.srt"
-          PATH="$PWD/tests/mobile/ios-driver:$PATH" maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/watch.yaml 2>&1 | tee test-results/mobile/run.log
+          PATH="$PWD/tests/mobile/ios-driver:$PATH" maestro --device "$device" test --config tests/mobile/config.yaml --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/watch.yaml 2>&1 | tee test-results/mobile/run.log
       - name: Ensure build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
