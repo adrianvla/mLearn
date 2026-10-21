@@ -9,13 +9,14 @@ import { Row } from '@mlearn/ui/layout';
 import { Dialog, dialogSidebarWidth } from '@mlearn/ui/dialog';
 import { TextField } from '@mlearn/ui/text-field';
 import { Select } from '@mlearn/ui/select';
-import type { SourceWindow, AnalysisBatch, PluginSummary } from '@mlearn/contracts';
+import type { SourceWindow, AnalysisBatch, PluginSummary, SubtitleDirection } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MediaSurface } from '../../bootstrap/MediaSurface';
 import { AnnotatedText } from '../annotated-text';
 import { Inspector, type Inspection } from '../inspector';
 import { Transcript } from './Transcript';
+import { LiveWordCards } from './LiveWordCards';
 export function WatchScreen() {
     const host = useRuntime();
     const router = useRouter();
@@ -28,6 +29,7 @@ export function WatchScreen() {
     const [subtitleInset, setSubtitleInset] = useState(128);
     const [subtitleHeight, setSubtitleHeight] = useState(0);
     const [toolbarHeight, setToolbarHeight] = useState(64);
+    const [overlayHeight, setOverlayHeight] = useState(0);
     const [window, setWindow] = useState<SourceWindow | null>(null);
     const [batch, setBatch] = useState<AnalysisBatch | null>(null);
     const [transcriptBatch, setTranscriptBatch] = useState<AnalysisBatch | null>(null);
@@ -51,6 +53,9 @@ export function WatchScreen() {
     const [transcriptOpen, setTranscriptOpen] = useState(false);
     const sidebarInset = transcriptOpen && Platform.OS === 'web' && viewport.width >= 720 ? dialogSidebarWidth : 0;
     const [playbackOpen, setPlaybackOpen] = useState(false);
+    const [synchronizationOpen, setSynchronizationOpen] = useState(false);
+    const [liveWordsOpen, setLiveWordsOpen] = useState(false);
+    const liveWordTrigger = useRef<View>(null);
     const [offsetDraft, setOffsetDraft] = useState('0');
     const [playbackError, setPlaybackError] = useState('');
     const [languages, setLanguages] = useState<PluginSummary[]>([]);
@@ -99,6 +104,8 @@ export function WatchScreen() {
         setTranscriptOpen(false);
         setTranscriptBatch(null);
         setPlaybackOpen(false);
+        setSynchronizationOpen(false);
+        setLiveWordsOpen(false);
         void current.ready.then(() => host.client.resumeSource(id)).then(w => {
             if (active && current.isCurrent()) {
                 setWindow(w);
@@ -116,6 +123,7 @@ export function WatchScreen() {
         });
         return () => {
             active = false;
+            setLiveWordsOpen(false);
             if (focused.current === owner) focused.current = null;
             const owned = session.current;
             void owned?.cancel().catch(e => {
@@ -273,6 +281,14 @@ export function WatchScreen() {
         }
         void changeSource(client => client.setSubtitleOffset(id, value), true);
     }
+    function alignSubtitle(direction: SubtitleDirection) {
+        if (!host.available || !window || busy) return;
+        const point = controller.current?.pauseAndRead();
+        const command = host.client.prepareSubtitleAlignment(window.source, point?.positionMs ?? latest.current.position, direction);
+        // Capture this relative intent once. An uncertain receipt is recovered by
+        // reading the saved source, never by silently choosing the following cue.
+        void changeSource(client => client.alignSubtitleOffset(command), true);
+    }
     function seekTranscript(positionMs: number) {
         controller.current?.seekTo(positionMs);
         setInspection(null);
@@ -400,7 +416,6 @@ export function WatchScreen() {
     }
     const inspector = inspection && window && host.available ? (
         <Inspector inspection={inspection} packageId={window.source.packageId} client={host.client}
-            knowledge={(transcriptOpen ? transcriptBatch : batch)?.knowledge ?? []}
             onChanged={changedInspection} onClose={() => setInspection(null)} />
     ) : null;
     const sourceActions = <>
@@ -416,6 +431,12 @@ export function WatchScreen() {
                             icon="subtitles" iconOnly size="compact" variant="media" disabled={busy} onPress={() => void attach()} />
                     ) : null}
                     {window && host.available ? <>
+                      <Button ref={liveWordTrigger} label="Live word translator" icon="globe" iconOnly variant="media" size="compact"
+                        accessibilityState={{ expanded: liveWordsOpen }} disabled={!batch || transcriptOpen}
+                        onPress={() => setLiveWordsOpen(value => !value)} />
+                      {window.source.subtitleRevision ? <Button label="Subtitle synchronization" icon="sync" iconOnly
+                        variant="media" size="compact" accessibilityState={{ expanded: synchronizationOpen }}
+                        onPress={() => setSynchronizationOpen(value => !value)} /> : null}
                       <Transcript key={`${id}:${window.source.subtitleRevision}`} client={host.client}
                         source={window.source} open={transcriptOpen}
                         analysis={transcriptBatch} onAnalysis={setTranscriptBatch} onInspect={setInspection}
@@ -449,6 +470,11 @@ export function WatchScreen() {
                               void changeSource(client => client.setSourceLanguage(window.source.id, plugin.id), true);
                             }
                           }} />
+                        {languages.some(plugin => plugin.id === window.source.packageId && plugin.version !== window.source.packageVersion) ? <>
+                          <Text variant="caption" muted>An updated language package is installed.</Text>
+                          <Button label="Use installed language version" variant="secondary" disabled={busy}
+                            onPress={() => void changeSource(client => client.setSourceLanguage(id, window.source.packageId), true)} />
+                        </> : null}
                         {Platform.OS === 'web' ? <>
                           <Text>Desktop inspection</Text>
                           <Row>{([
@@ -464,6 +490,12 @@ export function WatchScreen() {
                         </> : null}
                         {window.source.subtitleRevision ? <>
                           <Text>Subtitle synchronization</Text>
+                          <Row>
+                            <Button label="Align previous subtitle" icon="previousCue" disabled={busy}
+                              onPress={() => alignSubtitle('previous')} />
+                            <Button label="Align next subtitle" icon="nextCue" disabled={busy}
+                              onPress={() => alignSubtitle('next')} />
+                          </Row>
                           <Text variant="caption" muted>Saved for this source and subtitle association. Positive milliseconds show cues earlier; original subtitle timestamps stay intact.</Text>
                           <TextField testID="subtitle-offset-input" label="Subtitle offset in milliseconds" value={offsetDraft}
                             onChangeText={setOffsetDraft} maxLength={12} autoCorrect={false} />
@@ -475,10 +507,15 @@ export function WatchScreen() {
                           </Row>
                           <Text>Current offset: {window.source.subtitleOffsetMs} ms</Text>
                         </> : null}
-                        {playbackError ? <Text accessibilityRole="alert">{playbackError}</Text> : null}
+                        {playbackError ? <><Text accessibilityRole="alert">{playbackError}</Text>
+                          <Button label="Refresh playback settings" variant="secondary" disabled={busy}
+                            onPress={() => void changeSource(client => client.sourceWindow(id, latest.current.position))} /></> : null}
                       </Dialog>
                     </> : null}
     </>;
+    const showLiveWords = liveWordsOpen && batch && window && host.available && !transcriptOpen;
+    const showSynchronization = window && synchronizationOpen && window.source.subtitleRevision;
+    const overlayInset = showLiveWords || showSynchronization ? overlayHeight + 8 : 0;
     return (
         <View style={[styles.screen(insets.top, insets.bottom), { paddingRight: sidebarInset }]}>
             <View testID="watch-toolbar" style={[styles.toolbar, { top: insets.top, right: sidebarInset,
@@ -508,6 +545,37 @@ export function WatchScreen() {
                     <Button label="Retry saving position" variant="secondary" onPress={() => void persist().catch(() => {})} />
                 </> : null}
             </View>
+            {showLiveWords || showSynchronization ? <View testID="watch-source-overlays"
+                onLayout={event => setOverlayHeight(event.nativeEvent.layout.height)}
+                style={[styles.overlays(viewport.width - sidebarInset < 720),
+                    { top: insets.top + toolbarHeight + 8, right: sidebarInset + 16 }]}>
+            {showLiveWords && batch ? <View style={styles.liveWords}>
+                <LiveWordCards key={JSON.stringify([id, batch.subtitleRevision, batch.packageId, batch.packageVersion, batch.packageRevision])}
+                     client={host.client} batch={batch} cueKey={cueKey} focusFallback={liveWordTrigger}
+                     onClose={() => setLiveWordsOpen(false)} onInspect={value => {
+                        void pauseAndSave().catch(() => {});
+                        setInspection(value);
+                     }} />
+            </View> : null}
+            {showSynchronization && window ? <View style={styles.synchronization(viewport.width - sidebarInset < 720)}>
+                <Row>
+                    <Button label="Align previous subtitle" icon="previousCue" iconOnly size="compact" variant="media"
+                        disabled={busy} onPress={() => alignSubtitle('previous')} />
+                    <Button label={`${(window.source.subtitleOffsetMs / 1000).toFixed(2)} s`}
+                        accessibilityLabel="Subtitle offset" accessibilityValue={{ text: `${window.source.subtitleOffsetMs} milliseconds` }}
+                        size="compact" variant="media" onPress={() => {
+                            setOffsetDraft(String(window.source.subtitleOffsetMs)); setPlaybackOpen(true);
+                        }} />
+                    <Button label="Align next subtitle" icon="nextCue" iconOnly size="compact" variant="media"
+                        disabled={busy} onPress={() => alignSubtitle('next')} />
+                    <Button label="Hide synchronization" icon="close" iconOnly size="compact" variant="media"
+                        onPress={() => setSynchronizationOpen(false)} />
+                </Row>
+                {playbackError ? <><Text tone="media" variant="caption" accessibilityRole="alert">{playbackError}</Text>
+                    <Button label="Refresh synchronization" size="compact" variant="media" disabled={busy}
+                        onPress={() => void changeSource(client => client.sourceWindow(id, latest.current.position))} /></> : null}
+            </View> : null}
+            </View> : null}
             {window && host.available ? <>
                 <View style={styles.stage(Platform.OS === 'web' ? 0 : toolbarHeight)}>
                     <MediaSurface key={window.source.id} uri={host.media.uri(window.source)}
@@ -519,7 +587,7 @@ export function WatchScreen() {
                             setSubtitleInset(value.subtitleBottomInset);
                         }}
                         onProgress={progress} onError={setError} />
-                    {cues.length ? <View pointerEvents="box-none" style={[styles.subtitle(toolbarHeight, subtitleInset), {
+                    {cues.length ? <View pointerEvents="box-none" style={[styles.subtitle(toolbarHeight + overlayInset, subtitleInset), {
                         opacity: transcriptOpen || (Platform.OS !== 'web' && inspection) ? 0 : 1,
                     }]}>
                       <ScrollView testID="subtitle-window" accessibilityLabel="Subtitles"
@@ -536,7 +604,8 @@ export function WatchScreen() {
                                     inspectionMode={window.source.inspectionTrigger}
                                     onInspect={(token, anchor) => {
                                         void pauseAndSave().catch(() => {});
-                                        setInspection({ sourceForm: token.text, context: cue.text, targets: token.targets, anchor });
+                                        setInspection({ sourceForm: token.text, context: cue.text, targets: token.targets, anchor,
+                                            packageRevision: batch?.packageRevision });
                                     }} />
                             );
                         })}
@@ -544,7 +613,7 @@ export function WatchScreen() {
                     </View> : null}
                 </View>
                 <View pointerEvents="box-none"
-                    style={[styles.status, { top: insets.top + toolbarHeight + 8 }, (!window.source.subtitlePath || analysisError || (analysisPending && !batch)) ? styles.feedback : null]}>
+                    style={[styles.status, { top: insets.top + toolbarHeight + 8 + overlayInset }, (!window.source.subtitlePath || analysisError || (analysisPending && !batch)) ? styles.feedback : null]}>
                     {!window.source.subtitlePath ? <Text tone="media">Open a plain UTF-8 SRT file to inspect subtitles.</Text> : null}
                     {analysisPending && !batch && !transcriptOpen ? <Text tone="media" accessibilityLiveRegion="polite">Analyzing subtitles…</Text> : null}
                     {analysisError ? <>
@@ -560,6 +629,17 @@ export function WatchScreen() {
     );
 }
 const styles = StyleSheet.create(theme => ({
+    overlays: (compact: boolean) => ({
+        position: 'absolute', zIndex: 2, left: theme.spacing.medium,
+        flexDirection: compact ? 'column-reverse' : 'row', gap: theme.spacing.small,
+        alignItems: compact ? 'stretch' : 'flex-start',
+    }),
+    liveWords: { flexGrow: 1, flexShrink: 1, minWidth: 0, maxWidth: '100%' },
+    synchronization: (compact: boolean) => ({
+        alignSelf: compact ? 'flex-end' : 'flex-start', flexShrink: 0, maxWidth: '100%', padding: theme.spacing.tiny,
+        borderRadius: theme.radius + 4, backgroundColor: theme.media.panel,
+        _web: { backdropFilter: theme.media.backdrop },
+    }),
     preferenceFeedback: { maxWidth: 320, flexShrink: 1 },
     screen: (top: number, bottom: number) => ({
         flex: 1, paddingTop: top, paddingBottom: bottom, backgroundColor: theme.media.background

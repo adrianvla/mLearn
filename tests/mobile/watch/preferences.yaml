@@ -101,7 +101,8 @@ appId: net.kikan.mlearn.v3dev
 - extendedWaitUntil:
     visible: come
     timeout: 60000
-- tapOn: 'Adjust Meaning knowledge(,.*)?'
+- tapOn: 'Knowledge(,.*)?'
+- tapOn: Meaning
 - scrollUntilVisible:
     element: 'Claim Meaning known'
     direction: DOWN
@@ -115,7 +116,8 @@ appId: net.kikan.mlearn.v3dev
 - extendedWaitUntil:
     visible: come
     timeout: 60000
-- tapOn: 'Adjust Meaning knowledge(,.*)?'
+- tapOn: 'Knowledge(,.*)?'
+- tapOn: Meaning
 - scrollUntilVisible:
     element: 'Withdraw Meaning claim'
     direction: DOWN

@@ -1,6 +1,6 @@
 // Drive the real Tauri binary through WebKit WebDriver, without mocking IPC.
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile, rename } from 'node:fs/promises';
+import { mkdir, writeFile, rename, copyFile } from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -121,13 +121,14 @@ async function observeSourceView(condition) {
     const finish=pass=>{
       if(settled)return;settled=true;observer.disconnect();clearTimeout(timer);
       events.forEach(event=>document.removeEventListener(event,check,true));resolve(pass);
+      window.removeEventListener('resize',check);
     };
     const check=()=>{if(${condition})finish(true);};
     const observer=new MutationObserver(check);
     const timer=setTimeout(()=>finish(false),30000);
     window.__m02View.cancel=()=>finish(false);
     observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true});
-    events.forEach(event=>document.addEventListener(event,check,true));check();
+    events.forEach(event=>document.addEventListener(event,check,true));window.addEventListener('resize',check);check();
   });return true;`);
 }
 async function observedSourceView(description) {
@@ -346,7 +347,22 @@ try {
   await rpc('POST', `/session/${session}/execute/async`, {script:'const done=arguments[arguments.length-1];document.querySelector("video").play().then(()=>done(true)).catch(e=>done(String(e)));',args:[]});
   await until(()=>script('return document.querySelector("video").currentTime>1'),'Playback time advances');
   await script('document.querySelector("video").pause()');
-  await click('Children: untracked');await text('child');await click('Adjust Meaning knowledge: Meaning \u00b7 untracked');
+  const inlineLayout = await script(`return Array.from(document.querySelectorAll('[data-testid="annotated-text"] button'),
+    node=>({label:node.getAttribute('aria-label'),height:node.getBoundingClientRect().height,viewport:innerHeight}));`);
+  assert.ok(inlineLayout.length > 0);
+  assert.ok(inlineLayout.every(word=>word.height > 0 && word.height < word.viewport), JSON.stringify(inlineLayout));
+  await observeSourceView('!!document.querySelector(\'[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])\')');
+  await click('Live word translator');
+  await observedSourceView('Live dictionary cards must come from the actual source analysis');
+  const liveCards = await script(`return Array.from(document.querySelectorAll('[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])'),
+    node=>({label:node.getAttribute('aria-label'),width:node.getBoundingClientRect().width}));`);
+  assert.ok(liveCards.length > 0 && liveCards.length <= 6, JSON.stringify(liveCards));
+  assert.ok(liveCards.every(card=>card.width > 0));
+  await click(liveCards[0].label);
+  await text('Dictionary source');
+  await closeInspector();
+  await click('Live word translator');
+  await click('Children: untracked');await text('child');await click('Knowledge: Untracked');await click('Meaning');
   await click('Claim Meaning known');await text('claimed known');await closeInspector();
   await click('Children: mixed');await closeInspector();
   await script('document.querySelector("video").currentTime=20');
@@ -458,16 +474,16 @@ try {
   await observedSourceView('Transcript must reuse real native token analysis');
   await click('came: untracked');
   await text('come');
-  await click('Adjust Meaning knowledge: Meaning \u00b7 untracked');
-  await observeSourceView('!!document.querySelector(\'[aria-label="Adjust Meaning knowledge: Meaning · claimed known"]\')');
+  await click('Knowledge: Untracked');await click('Meaning');
+  await observeSourceView('!!document.querySelector(\'[aria-label="Knowledge: Mixed"]\')&&document.querySelector(\'[data-testid="inspector-panel"]\')?.textContent.includes("Meaning · claimed known")');
   await click('Claim Meaning known');
   await observedSourceView('Transcript claim must update authoritative Knowledge');
   await closeInspector();
   assert.equal(await script('return document.activeElement?.getAttribute("aria-label")'),'came: mixed');
   await click('came: mixed');
   await text('come');
-  await click('Adjust Meaning knowledge: Meaning \u00b7 claimed known');
-  await observeSourceView('!!document.querySelector(\'[aria-label="Adjust Meaning knowledge: Meaning · untracked"]\')');
+  await click('Knowledge: Mixed');await click('Meaning');
+  await observeSourceView('!!document.querySelector(\'[aria-label="Knowledge: Untracked"]\')&&document.querySelector(\'[data-testid="inspector-panel"]\')?.textContent.includes("Meaning · untracked")');
   await click('Withdraw Meaning claim');
   await observedSourceView('Transcript withdrawal must refresh the same Knowledge projection');
   await closeInspector();
@@ -569,7 +585,7 @@ try {
   }
   // Keep the accepted maximum text scale through the minimum native viewport.
   // A fixed expanded footer previously left no complete dictionary line visible.
-  await click('Adjust Meaning knowledge: Meaning \u00b7 untracked');
+  await click('Knowledge: Untracked');await click('Meaning');
   await script(`window.__m01CompactCheck=new Promise(resolve=>{
    const panel=document.querySelector('[data-testid="inspector-panel"]');
    const body=panel.querySelector('[data-testid="inspector-body"]');
@@ -599,7 +615,7 @@ try {
    await rpc('POST',windowPath,{...originalRect,width:420,height:560});
    const compact=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0],pending=window.__m01CompactCheck;delete window.__m01CompactCheck;pending.then(done);',args:[]});
    assert.equal(compact.pass,true,JSON.stringify(compact));
-   await click('Adjust Meaning knowledge: Meaning \u00b7 untracked');
+   await click('Knowledge: Untracked');
    await screenshot('watch-enlarged-minimum-inspector');
   } finally {
    await rpc('POST',windowPath,originalRect);
@@ -715,6 +731,67 @@ try {
   assert.ok(subsecondVideo?.['element-6066-11e4-a52e-4f735466cecf'],JSON.stringify(subsecondVideo));
   await script('arguments[0].currentTime=0.1',[subsecondVideo]);await click('Children: mixed');await closeInspector();
   await script('arguments[0].currentTime=0.8',[subsecondVideo]);await click('home: untracked');await text('home');await closeInspector();
+  await click('Home');await click('Settings');
+  const themeSelector = await script('return document.querySelector(\'[role="combobox"][aria-label^="Select theme:"]\').getAttribute("aria-label");');
+  await click(themeSelector);await click('Dark Quartz');await click('Home');
+  assert.equal((await native({type:'install_plugin',pluginId:'org.mlearn.japanese'})).type,'installed');
+  const japaneseVideo = path.resolve('.mlearn/m01-ci-fixtures/japanese-watch.mp4');
+  const japaneseSubtitles = path.resolve('.mlearn/m01-ci-fixtures/japanese-watch.srt');
+  await copyFile(fixture,japaneseVideo);
+  await writeFile(japaneseSubtitles,'1\n00:00:00,000 --> 00:00:30,000\n昨日、つまり、明日。銀河(ぎんが)。\n');
+  const japaneseSource = await native({type:'open_source',path:japaneseVideo,packageId:'org.mlearn.japanese'});
+  assert.equal(japaneseSource.type,'source',JSON.stringify(japaneseSource));
+  assert.equal((await native({type:'attach_subtitles',sourceId:japaneseSource.window.source.id,path:japaneseSubtitles})).type,'source');
+  await click('Settings');await click('Home');
+  await observeSourceView('!!document.querySelector(\'button[aria-label^="つまり:"] [data-testid="pronunciation-reading"] span\')');
+  await click('Resume japanese-watch.mp4');
+  await observedSourceView('Real Japanese source must render its package-owned contour');
+  await observeSourceView('!!document.querySelector(\'[data-testid="dialog-surface"] button[aria-label^="つまり:"] [data-testid="pronunciation-reading"] span\')');
+  await click('Transcript');
+  await observedSourceView('Transcript must reuse structured Japanese metadata');
+  const contourStyle = await script(`const word=document.querySelector('[data-testid="dialog-surface"] button[aria-label^="つまり:"]');
+    const glyph=word.querySelector('[data-testid="pronunciation-reading"] span');
+    const rect=word.getBoundingClientRect();
+    return {color:getComputedStyle(glyph).color,sourceColor:getComputedStyle(word.querySelector('span')).color,
+      height:rect.height,viewport:innerHeight};`);
+  assert.equal(contourStyle.color,contourStyle.sourceColor,'Late-mounted contour glyphs must use the active content palette');
+  assert.ok(contourStyle.height > 0 && contourStyle.height < contourStyle.viewport,JSON.stringify(contourStyle));
+  const yesterday = await script('return document.querySelector(\'[data-testid="dialog-surface"] button[aria-label^="昨日:"]\').getAttribute("aria-label");');
+  await click(yesterday);await text('JLPT N5');
+  const pronunciations = await script(`return Array.from(document.querySelectorAll('[data-testid="inspector-panel"] [data-testid="pronunciation-reading"]'),
+    node=>({label:node.getAttribute('aria-label'),width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height}));`);
+  assert.ok(pronunciations.length >= 2 && pronunciations.every(value=>value.width > 0 && value.height > 0),JSON.stringify(pronunciations));
+  await screenshot('native-japanese-ruby-pitch-levels');
+  await closeInspector();await click('Close');await click('Home');
+  await click('Settings');await click('Runtime');
+  const japaneseTheme = (await native({type:'snapshot'})).snapshot;
+  assert.equal((await native({type:'save_theme',document:{...japaneseTheme.theme,textScale:2},
+    expectedRevision:japaneseTheme.revision,commandId:randomUUID()})).type,'saved');
+  await click('Reload native state');await click('Home');
+  await observeSourceView(`Array.from(document.querySelectorAll('button[aria-label^="銀河("]')).some(node=>
+    node.getClientRects().length&&!node.closest('[aria-hidden="true"]')&&getComputedStyle(node).fontSize==='80px')`);
+  await click('Resume japanese-watch.mp4');
+  await observedSourceView('Saved enlarged typography must reach actual Japanese source words');
+  const japaneseRect = await rpc('GET',windowPath);
+  try {
+    await observeSourceView(`innerWidth<=420&&!!document.querySelector('[data-testid="subtitle-window"] button[aria-label^="銀河("]')&&Array.from(document.querySelectorAll('[data-testid="subtitle-window"] button')).every(node=>
+      node.scrollWidth<=node.clientWidth+1&&node.getBoundingClientRect().right<=innerWidth)`);
+    await rpc('POST',windowPath,{...japaneseRect,width:420,height:560});
+    await observedSourceView('Enlarged ruby bases must wrap without horizontal clipping');
+    await screenshot('native-japanese-enlarged-narrow-ruby');
+    await observeSourceView(`(()=>{
+      const rail=document.querySelector('[data-testid="watch-source-overlays"]');
+      const captions=document.querySelector('[data-testid="subtitle-window"]');
+      const card=document.querySelector('[data-testid="live-word-cards"] button:not([aria-label="Hide live word translator"])');
+      return !!rail&&!!captions&&!!card&&captions.getBoundingClientRect().height>0&&
+        captions.getBoundingClientRect().top>=rail.getBoundingClientRect().bottom;
+    })()`);
+    await click('Live word translator');await click('Subtitle synchronization');
+    await observedSourceView('Measured source overlays must not cover enlarged captions');
+    await screenshot('native-japanese-enlarged-source-overlays');
+  } finally {
+    await rpc('POST',windowPath,japaneseRect);
+  }
   console.log('Real Tauri IPC, signed packages, playback/seek, contextual Inspector, shared claims, exact source restart and missing-source recovery passed.');
 } catch (error) {
   if (session) {

@@ -1,5 +1,6 @@
 appId: net.kikan.mlearn.v3dev
 ---
+# Both real language scenarios use the same native picker/player entry.
 - tapOn:
     text: Open local video
     enabled: true
@@ -15,7 +16,7 @@ appId: net.kikan.mlearn.v3dev
           # Files may restore the app container or fixture directory directly.
           # Wait for a usable location, then keep the exact fixture selection below.
           visible:
-            id: '(mLearn v3 Dev, Container|M01 fixtures, Folder|m01-watch, mp4)'
+            id: '(mLearn v3 Dev, Container|M01 fixtures, Folder|${VIDEO_NAME}, mp4)'
           timeout: 15000
 - runFlow:
     when:
@@ -37,11 +38,11 @@ appId: net.kikan.mlearn.v3dev
           id: 'M01 fixtures, Folder'
       - extendedWaitUntil:
           visible:
-            id: 'm01-watch, mp4'
+            id: '${VIDEO_NAME}, mp4'
           timeout: 15000
 - tapOn:
     # The Files cell includes filename/metadata below its interactive preview.
-    id: 'm01-watch, mp4'
+    id: '${VIDEO_NAME}, mp4'
     enabled: true
     point: 50%, 25%
 - extendedWaitUntil:
@@ -72,7 +73,7 @@ appId: net.kikan.mlearn.v3dev
           id: 'DOC.sidebar.item.On My iPhone'
       - extendedWaitUntil:
           visible:
-            id: '(mLearn v3 Dev, Container|M01 fixtures, Folder|m01-watch, mp4)'
+            id: '(mLearn v3 Dev, Container|M01 fixtures, Folder|${VIDEO_NAME}, mp4)'
           timeout: 15000
 - runFlow:
     when:
@@ -94,9 +95,9 @@ appId: net.kikan.mlearn.v3dev
           id: 'M01 fixtures, Folder'
       - extendedWaitUntil:
           visible:
-            id: 'm01-watch, mp4'
+            id: '${VIDEO_NAME}, mp4'
           timeout: 15000
 - tapOn:
-    id: 'm01-watch.srt, srt'
+    id: '${SUBTITLE_NAME}.srt, srt'
     enabled: true
     point: 50%, 25%

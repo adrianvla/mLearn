@@ -88,7 +88,10 @@ live in ignored `.mlearn/visual-parity/manifest.json`.
   The compact volume range has an 80px width, 26px rounded trough and 30px
   thumb; its transparent native input preserves keyboard and pointer semantics.
   Main subtitle type is 40/64px, measured from the reference's 40px/1.6 rule.
-  Authored subtitle newlines and literal readings remain source content.
+  Authored subtitle newlines and literal readings remain authoritative source
+  content. A package may project a ruby base that removes duplicated inline
+  reading markers while retaining original bytes, offsets and context. The
+  renderer must not infer this transformation or substitute a lemma.
   The resumed synchronization composition uses the pictured previous/next
   cue-alignment controls with real cue starts and the existing persisted offset.
   Rust owns alignment decisions; manual editing and reset remain available.
@@ -107,6 +110,25 @@ live in ignored `.mlearn/visual-parity/manifest.json`.
   rather than the rejected candidate's [81,26,81].
 
 ### Shared component families
+
+The resumed linguistic renderer is a specialized source-display owner shared by
+captions, transcript, Inspector and dictionary cards, not a second analysis or
+Knowledge owner. `SubtitleWord.css` measures ruby at 0.45em with centered reading
+and 0.05em letter spacing; `index.css:190,243-244` specifies a 2px contour stroke,
+high `#e8687b` and low `#4e86ca`. Contours consume the package's normalized display
+units and retain pronunciation alternatives rather than interpreting a Japanese
+taxonomy in React. Original UTF-8 source coordinates stay authoritative.
+The edited Inspector pairs pronunciation/reading pills with package-declared
+level badges above the dictionary disclosure. Static metadata is not a claim.
+Absent metadata leaves ordinary source text intact.
+
+`LiveWordTranslator.css` measures compact meaning/reading cards at 300x30px,
+20px horizontal inset, 10px gaps and a two-row flow beneath window chrome.
+Cards use the shared glass material and actual dictionary summaries. A single
+source/revision/package-bound native batch supplies at most six distinct
+targets; bounded history expires after the reference's 30-second lifetime and
+is released on source/package/focus changes. Narrow layouts preserve reachable
+cards and controls rather than clipping the media or Inspector.
 
 `Button` owns action, selection, busy/disabled and icon-only states, including
 compact media and Knowledge variants. `Icon` owns portable vector geometry;

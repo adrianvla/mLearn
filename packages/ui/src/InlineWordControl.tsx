@@ -1,1 +1,1 @@
-export {InlineWordControl} from './InlineWordControl.web';
+export {InlineWordControl, InlineWordContent} from './InlineWordControl.web';

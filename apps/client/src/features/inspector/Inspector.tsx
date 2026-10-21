@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import { ContextPanel } from '@mlearn/ui/context-panel';
@@ -7,26 +7,31 @@ import { Text } from '@mlearn/ui/text';
 import { Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Badge } from '@mlearn/ui/badge';
-import type { LexicalEntry, KnowledgeProjection, ClaimChange } from '@mlearn/contracts';
+import type { ClaimChange } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
+import { Pronunciation } from '../linguistic';
 export type Inspection = {
     sourceForm: string;
     context: string;
     targets: string[];
     anchor: TextAnchor;
+    packageRevision?: string;
+    initialTargetId?: string;
     showContext?: boolean;
     onChanged?: () => Promise<void>;
 };
-export function Inspector({ inspection, packageId, client, knowledge, onChanged, onClose }: {
+export function Inspector({ inspection, packageId, client, onChanged, onClose }: {
     inspection: Inspection;
     packageId: string;
     client: RuntimeClient;
-    knowledge: KnowledgeProjection[];
     onChanged: () => Promise<void>;
     onClose: () => void;
 }) {
-    const [index, setIndex] = useState(0);
-    const [entry, setEntry] = useState<LexicalEntry | null>(null);
+    const [index, setIndex] = useState(() => Math.max(0, inspection.targets.indexOf(inspection.initialTargetId ?? '')));
+    const [result, setResult] = useState<Awaited<ReturnType<RuntimeClient['inspectTarget']>> | null>(null);
+    const entry = result?.entry ?? null;
+    const knowledge = result?.knowledge.projections ?? [];
+    const scope = useRef<object | null>(null);
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [retry, setRetry] = useState<ClaimChange | null>(null);
@@ -34,6 +39,7 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
     const [expandedCapability, setExpandedCapability] = useState<string | null>(null);
     const [showSource, setShowSource] = useState(false);
     const [showAlternatives, setShowAlternatives] = useState(false);
+    const [showPronunciation, setShowPronunciation] = useState(false);
     useLayoutEffect(() => {
         if (!entry || process.env.EXPO_PUBLIC_MLEARN_METRICS !== '1') return;
         const frame = requestAnimationFrame(() => {
@@ -43,43 +49,67 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
     }, [entry]);
     useEffect(() => {
         let active = true;
+        const owner = {};
+        scope.current = owner;
         setError('');
-        setEntry(null);
+        setResult(null);
+        setBusy(false);
         setRetry(null);
         setExpandedCapability(null);
         setShowSource(false);
-        client.inspectTarget(packageId, inspection.targets[index]).then(value => {
+        setShowPronunciation(false);
+        client.inspectTarget(packageId, inspection.targets[index], inspection.packageRevision ?? null).then(value => {
             if (active)
-                setEntry(value.entry);
+                setResult(value);
         }).catch(e => {
             if (active)
                 setError(String(e.message ?? e));
         });
-        return () => { active = false; };
-    }, [client, packageId, inspection.targets, index, lookupVersion]);
+        return () => { active = false; if (scope.current === owner) scope.current = null; };
+    }, [client, packageId, inspection.targets, inspection.packageRevision, index, lookupVersion]);
     async function commit(change: ClaimChange) {
+        const owner = scope.current;
         setBusy(true);
         setError('');
         try {
             await client.changeClaim(change);
+            if (!owner || scope.current !== owner) return;
             setRetry(null);
             await onChanged();
+            if (scope.current !== owner) return;
+            const refreshed = await client.inspectTarget(packageId, change.key.targetId, inspection.packageRevision ?? null);
+            if (scope.current === owner) setResult(refreshed);
         }
         catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
-            setRetry(change);
+            if (owner && scope.current === owner) {
+                setError(e instanceof Error ? e.message : String(e));
+                setRetry(change);
+            }
         }
         finally {
-            setBusy(false);
+            if (owner && scope.current === owner) setBusy(false);
         }
     }
     const activeCapability = entry?.capabilities.find(cap => cap.id === expandedCapability);
     const activeProjection = knowledge.find(projection =>
         projection.key.packageId === packageId && projection.key.targetId === entry?.targetId
         && projection.key.capability === expandedCapability);
+    const claim = result ? ({
+        unavailable: { label: 'Knowledge unavailable', tone: 'neutral', icon: 'circle' },
+        untracked: { label: 'Untracked', tone: 'neutral', icon: 'circle' },
+        claimed_known: { label: 'Known', tone: 'positive', icon: 'checkCircle' },
+        claimed_unknown: { label: 'Unknown', tone: 'negative', icon: 'closeCircle' },
+        mixed: { label: 'Mixed', tone: 'neutral', icon: 'circle' },
+    } as const)[result.knowledge.claim] : null;
     return (
         <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
             popover={entry && activeCapability ? <View style={styles.adjustment}>
+                    <View style={styles.pills}>
+                        {entry.capabilities.map(cap => <Button key={cap.id} size="compact" variant="media"
+                            label={cap.label} disabled={busy}
+                            accessibilityState={{ selected: expandedCapability === cap.id }}
+                            onPress={() => setExpandedCapability(cap.id)} />)}
+                    </View>
                     <Text tone="media">{activeCapability.label} · {activeProjection?.status.replaceAll('_', ' ') ?? 'untracked'}</Text>
                     <Row>
                         <Button size="compact" label="Known" accessibilityLabel={`Claim ${activeCapability.label} known`}
@@ -100,28 +130,23 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
                         <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
                     </> : null}
                 </View> : null}
-            footer={entry ? <>
-                <View style={styles.pills}>
-                    {entry.capabilities.map((cap, capIndex) => {
-                        const projection = knowledge.find(p => p.key.packageId === packageId && p.key.targetId === entry.targetId && p.key.capability === cap.id);
-                        const status = projection?.status.replaceAll('_', ' ') ?? 'untracked';
-                        return <Button key={cap.id} size="compact" variant="pill"
-                            tone={projection?.claim === true ? 'positive' : projection?.claim === false ? 'negative' : 'neutral'}
-                            label={cap.label}
-                            icon={projection?.claim === true ? 'checkCircle' : projection?.claim === false ? 'closeCircle' : 'circle'}
-                            accessibilityLabel={capIndex === 0 ? 'Knowledge' : `Adjust ${cap.label} knowledge`}
-                            accessibilityValue={{ text: `${cap.label} · ${status}` }}
-                            accessibilityState={{ expanded: expandedCapability === cap.id }}
-                            disabled={busy}
-                            onPress={() => setExpandedCapability(value => value === cap.id ? null : cap.id)} />;
-                    })}
-                </View>
-            </> : null}>
+            footer={entry && claim ? <Button size="compact" variant="pill"
+                label={claim.label}
+                tone={claim.tone}
+                icon={claim.icon}
+                accessibilityLabel="Knowledge"
+                accessibilityValue={{ text: claim.label }}
+                accessibilityState={{ expanded: expandedCapability !== null }}
+                disabled={busy || result?.knowledge.claim === 'unavailable'}
+                onPress={() => setExpandedCapability(value => value ? null : entry.capabilities[0]?.id ?? null)} /> : null}>
             {entry ? <>
                 <Text selectable variant="inspectionBody" tone="media">{entry.summary ?? entry.definition}</Text>
-                {entry.reading ? <View style={styles.metadata}>
-                    <Badge label={entry.reading} variant="reading" selectable />
-                </View> : null}
+                <Row>
+                <Pronunciation presentation={entry.presentation} reading={entry.reading} expanded={showPronunciation} />
+                {entry.presentation ? <Button label="Pronunciation details" icon="info" iconOnly size="compact" variant="media"
+                    accessibilityState={{ expanded: showPronunciation }}
+                    onPress={() => setShowPronunciation(value => !value)} /> : null}
+                </Row>
                 {inspection.targets.length > 1 ? <>
                 <Button size="compact" label={`Dictionary alternatives (${inspection.targets.length - 1})`} variant="disclosure"
                     icon={showAlternatives ? 'chevronDown' : 'chevronRight'}

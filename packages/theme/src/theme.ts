@@ -61,6 +61,7 @@ export function resolveTheme(saved: ThemeDocument) {
       canvas: lightSurface ? '#F3F5F7' : '#000000' },
     surfaces: { glass: lightSurface ? '#FFFFFF80' : '#82828233' },
     feedback: { success: lightSurface ? '#2F7D20' : '#58C333' },
+    pronunciation: { high: '#E8687B', low: '#4E86CA', strokeWidth: 2 },
     media: {
       background: '#000000',
       text: '#E8E8E8',
@@ -84,6 +85,12 @@ export function resolveTheme(saved: ThemeDocument) {
       inspectionTitle: textRole(32, 44),
       inspectionBody: textRole(20, 28),
       inspectionReading: textRole(18, 26),
+      dictionaryMeaning: textRole(20, 28),
+      dictionaryReading: textRole(16, 24),
+      // SubtitleWord.css: .45em reading, line-height 1, .05em spacing.
+      subtitleRuby: { ...textRole(18, 18), letterSpacing: 0.9 * document.textScale },
+      bodyRuby: { ...textRole(7.2, 7.2), letterSpacing: 0.36 * document.textScale },
+      inspectionRuby: { ...textRole(14.4, 14.4), letterSpacing: 0.72 * document.textScale },
       mediaTitle: textRole(13, 20),
       subtitle: textRole(40, 64),
       action: textRole(16, 24, '500'),

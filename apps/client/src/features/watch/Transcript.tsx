@@ -136,6 +136,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
         analysis={prepared?.cues.find(value => value.cue.index === cue.index && value.cue.text === cue.text) ?? null}
         annotations={prepared?.annotations ?? []} onInspect={(token, anchor) => onInspect({
           sourceForm: token.text, context: cue.text, targets: token.targets, anchor,
+          packageRevision: prepared?.packageRevision,
           showContext: true, onChanged: refreshAnalysis,
         })} />
     </View>)}

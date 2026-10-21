@@ -14,7 +14,8 @@
     "./dialog": "./src/Dialog.tsx",
     "./provider": "./src/Provider.tsx",
     "./inline-word": "./src/InlineWord.tsx",
-    "./context-panel": "./src/ContextPanel.tsx"
+    "./context-panel": "./src/ContextPanel.tsx",
+    "./dictionary-card": "./src/DictionaryCard.tsx"
   },
   "dependencies": {
     "@mlearn/theme": "3.0.0-dev.0",

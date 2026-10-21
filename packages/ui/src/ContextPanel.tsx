@@ -128,7 +128,7 @@ const styles = StyleSheet.create(theme => ({
         flexGrow: 0, flexShrink: 0, borderTopWidth: 1, borderTopColor: theme.media.border,
         backgroundColor: theme.media.footer
     }, footerContent: {
-        padding: theme.spacing.compact
+        padding: theme.spacing.compact, flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small
     }, popover: {
         position: 'absolute', left: theme.spacing.medium, right: theme.spacing.medium, maxWidth: 360,
         borderWidth: 1, borderColor: theme.media.border, borderRadius: theme.radius / 2,

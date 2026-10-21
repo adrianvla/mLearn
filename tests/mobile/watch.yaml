@@ -39,10 +39,16 @@ name: Watch Inspector Knowledge and native source resume
     when:
       platform: Android
     file: watch/open-android.yaml
+    env:
+      VIDEO_NAME: m01-watch
+      SUBTITLE_NAME: m01-watch
 - runFlow:
     when:
       platform: iOS
     file: watch/open-ios.yaml
+    env:
+      VIDEO_NAME: m01-watch
+      SUBTITLE_NAME: m01-watch
 - extendedWaitUntil:
     visible: 'Children: (untracked|mixed)'
     timeout: 60000
@@ -51,7 +57,8 @@ name: Watch Inspector Knowledge and native source resume
 - extendedWaitUntil:
     visible: child
     timeout: 60000
-- tapOn: 'Adjust Meaning knowledge(,.*)?'
+- tapOn: 'Knowledge(,.*)?'
+- tapOn: Meaning
 - scrollUntilVisible:
     element: 'Claim Meaning unknown'
     direction: DOWN
@@ -89,3 +96,5 @@ name: Watch Inspector Knowledge and native source resume
     when:
       platform: iOS
     file: watch/player-ios.yaml
+- runFlow:
+    file: watch/japanese.yaml

@@ -17,7 +17,7 @@
     "check:contracts": "cargo run -p mlearn-core --features typescript --example export_contracts -- --check",
     "lint": "node tools/checks/architecture.mjs",
     "typecheck": "tsc --noEmit -p apps/client/tsconfig.json",
-    "test": "node --test tools/checks/*.test.mjs && tsx --test packages/*/tests/*.test.ts",
+    "test": "node --test tools/checks/*.test.mjs && tsx --test packages/*/tests/*.test.ts tests/client/*.test.ts",
     "test:native": "npm run build:plugin && cargo test --workspace --exclude mlearn-desktop --exclude mlearn-ffi --exclude mlearn-bindgen",
     "prepare:ios": "node tools/build-mobile.mjs ios",
     "prepare:android": "node tools/build-mobile.mjs android",
