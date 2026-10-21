@@ -735,8 +735,9 @@ try {
   await script('arguments[0].currentTime=0.1',[subsecondVideo]);await click('Children: mixed');await closeInspector();
   await script('arguments[0].currentTime=0.8',[subsecondVideo]);await click('home: untracked');await text('home');await closeInspector();
   await click('Home');await click('Settings');
-  const themeSelector = await script('return document.querySelector(\'[role="combobox"][aria-label^="Select theme:"]\').getAttribute("aria-label");');
-  await click(themeSelector);await click('Dark Quartz');await click('Home');
+  // restoreTheme above saved the actual Dark Quartz base. Wait for that native
+  // snapshot instead of freezing the transient default label during route mount.
+  await click('Select theme: Dark Quartz');await click('Dark Quartz');await click('Home');
   assert.equal((await native({type:'install_plugin',pluginId:'org.mlearn.japanese'})).type,'installed');
   const japaneseVideo = path.resolve('.mlearn/m01-ci-fixtures/japanese-watch.mp4');
   const japaneseSubtitles = path.resolve('.mlearn/m01-ci-fixtures/japanese-watch.srt');
