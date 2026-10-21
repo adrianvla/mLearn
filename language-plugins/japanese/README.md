@@ -23,6 +23,35 @@ Wrong authenticated dictionary identities remain rejected before parsing.
 
 ## Data preparation
 
+### Conversion boundary and package format
+
+The v2 checkout is an optional **import source**, never a runtime dependency.
+`tools/prepare-japanese-enrichment.py --reference <root-of-app-source>` is the
+isolated adapter for its pinned pitch banks and vocabulary file. It reproduces
+the frozen import snapshot in `assets/`; ordinary offline package builds need
+neither the checkout nor its file layout.
+
+`tools/prepare-japanese.py` converts that snapshot and JMdict into the canonical
+v3 `lexicon.sqlite` resource. Its header identifies
+`org.mlearn.japanese.lexicon`, schema version 3, `zlib-json-v1`, and the
+package-owned `org.mlearn.japanese.linguistic` schema version 1. Source pins and
+licenses remain opaque provenance, not guest compatibility rules. The guest
+validates these package formats; the Rust core sees only authenticated resource
+bytes and ordinary v3 capability/result contracts.
+
+The linguistic records use `accent` alternatives with `drop` (the number of
+morae before the drop; zero means no drop) and open `pos` tags, plus `jlpt`
+vocabulary levels. Their written-form/reading key is unambiguous UTF-8
+length-prefixed data. Every distinct pronunciation/tag alternative and valid
+written-form/reading restriction is retained. These Japanese semantics belong
+only to this package. Other languages can use different versioned resources and
+algorithms through the same SDK without importing v2 or modifying the core.
+
+The optional readings, labels and normalized contours sent to the UI are
+bounded **display projections**, not a universal linguistic model or a
+replacement for package-owned data. Opaque versioned package fields remain
+intact in resource values; no core taxonomy reinterprets or rewrites them.
+
 Run `npm run prepare:language-data` once online, then `npm run build:plugin`.
 The explicit preparation command acquires the hash-pinned official Sudachi
 wheel and reconstructs the exact pinned JMdict XML from immutable archive

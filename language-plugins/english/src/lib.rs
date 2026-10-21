@@ -2,8 +2,8 @@
 //! Candidates are lexical senses, not a claim of contextual disambiguation.
 use mlearn_core::{AnalyzedToken, Capability, LexicalEntry};
 use mlearn_language_sdk::{
+    serde_json::{self, json, Value},
     Call,
-    serde_json::{self, Value, json},
 };
 use std::collections::{BTreeMap, BTreeSet};
 use unicode_segmentation::UnicodeSegmentation;
@@ -142,6 +142,7 @@ fn handle(call: Call) -> Result<Value, String> {
                             end: start as u32,
                             text: text[end..start].into(),
                             targets: vec![],
+                            presentation: None,
                         });
                     }
                     words += 1;
@@ -162,6 +163,7 @@ fn handle(call: Call) -> Result<Value, String> {
                         end: end as u32,
                         text: word.into(),
                         targets,
+                        presentation: None,
                     });
                 }
                 if end < text.len() {
@@ -170,6 +172,7 @@ fn handle(call: Call) -> Result<Value, String> {
                         end: text.len() as u32,
                         text: text[end..].into(),
                         targets: vec![],
+                        presentation: None,
                     });
                 }
                 batch.push(tokens);
@@ -200,6 +203,7 @@ fn handle(call: Call) -> Result<Value, String> {
                 target_id: id.into(),
                 headword: parts[3].replace('_', " "),
                 reading: None,
+                presentation: None,
                 part_of_speech: sense["pos"].as_str().ok_or("Invalid sense")?.into(),
                 definition: sense["definition"]
                     .as_str()

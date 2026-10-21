@@ -15,11 +15,14 @@ import sys
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
+import zlib
 
 ROOT = Path(__file__).resolve().parent.parent
 PIN_PATH = ROOT / "language-plugins/japanese/data-pin.json"
 PIN = json.loads(PIN_PATH.read_text())
 ARCHIVE_PIN = json.loads((ROOT / "language-plugins/japanese/archive-pin.json").read_text())
+ENRICHMENT_PIN_PATH = ROOT / "language-plugins/japanese/enrichment-pin.json"
+ENRICHMENT_PIN = json.loads(ENRICHMENT_PIN_PATH.read_text())
 CACHE = Path(os.environ.get("MLEARN_LANGUAGE_SOURCE_CACHE", ROOT / ".mlearn/package-sources"))
 DESTINATION = Path(os.environ.get("MLEARN_JAPANESE_OUTPUT", ROOT / "target/japanese"))
 MAX_VALUE = 65536
@@ -38,7 +41,65 @@ def encoded(value) -> bytes:
     return data
 
 
-def prepare_index(source: Path, destination: Path) -> None:
+def stored(value) -> bytes:
+    # The existing package is already 256.6 MB against a 272.6 MB host ceiling.
+    # Versioned, independently bounded values leave room for authentic enrichment.
+    data = zlib.compress(encoded(value), 9)
+    if len(data) > MAX_VALUE:
+        raise RuntimeError("Compressed lexical record exceeds the resource value limit")
+    return data
+
+
+def reading_key(written: str, reading: str) -> str:
+    reading = "".join(chr(ord(c) - 0x60) if "\u30a1" <= c <= "\u30f6" else c for c in reading)
+    # Length-prefix the original UTF-8 form: no join ambiguity, hash collisions
+    # or 64-byte hexadecimal overhead on each of 124,000 supplemental records.
+    key = f"linguistic/{len(written.encode())}:{written}{reading}"
+    if len(key.encode()) > 256:
+        raise RuntimeError("Linguistic lookup key exceeds the host resource bound")
+    return key
+
+
+def enrichment_source():
+    pin = ENRICHMENT_PIN["artifact"]
+    path = ROOT / "language-plugins/japanese/assets" / pin["path"]
+    if path.stat().st_size != pin["byteLength"] or digest(path) != pin["sha256"]:
+        raise RuntimeError("Frozen Japanese enrichment source pin mismatch")
+    with gzip.open(path, "rb") as stream:
+        data = stream.read(16 * 1024 * 1024 + 1)
+    if len(data) > 16 * 1024 * 1024:
+        raise RuntimeError("Japanese enrichment source exceeds its expansion bound")
+    value = json.loads(data)
+    expected = {key: ENRICHMENT_PIN[key] for key in ("referenceRevision", "pitch", "levels")}
+    if value["schemaVersion"] != 1 or value["sources"] != expected:
+        raise RuntimeError("Incompatible Japanese enrichment source")
+    return value
+
+
+def prepare_enrichment(db, source) -> None:
+    for written, reading, pitches in source["pitch"]:
+        key = reading_key(written, reading)
+        previous = db.execute("SELECT value FROM resource_entries WHERE key=?", (key,)).fetchone()
+        value = json.loads(zlib.decompress(previous[0])) if previous else {"accent": [], "jlpt": []}
+        # Kana normalization can join source rows. Merge every distinct variant;
+        # replacing a stored row must never overwrite a pronunciation alternative.
+        converted = []
+        for pitch in pitches:
+            if set(pitch) != {"position", "tags"}:
+                raise RuntimeError("Unsupported imported pitch fields; update the explicit conversion")
+            converted.append({"drop": pitch["position"], "pos": pitch["tags"]})
+        variants = {json.dumps(accent, sort_keys=True): accent for accent in value["accent"] + converted}
+        value["accent"] = [variants[identity] for identity in sorted(variants)]
+        db.execute("INSERT OR REPLACE INTO resource_entries VALUES (?,?)", (key, stored(value)))
+    for written, reading, level in source["levels"]:
+        key = reading_key(written, reading)
+        previous = db.execute("SELECT value FROM resource_entries WHERE key=?", (key,)).fetchone()
+        value = json.loads(zlib.decompress(previous[0])) if previous else {"accent": [], "jlpt": []}
+        value["jlpt"] = sorted(set(value["jlpt"] + [level]))
+        db.execute("INSERT OR REPLACE INTO resource_entries VALUES (?,?)", (key, stored(value)))
+
+
+def prepare_index(source: Path, destination: Path, enrichment=None) -> None:
     temporary = destination.with_suffix(".part")
     temporary.unlink(missing_ok=True)
     with closing(sqlite3.connect(temporary)) as db:
@@ -97,7 +158,6 @@ def prepare_index(source: Path, destination: Path) -> None:
                 )
                 if len(full_definition.encode()) > 32768:
                     raise RuntimeError("JMdict definition exceeds Inspector contract")
-                db.execute("INSERT INTO resource_entries VALUES (?,?)", ("entry/" + seq, encoded(record)))
                 # Each match retains form/reading/sense restrictions. A reading-only
                 # lookup must not expose senses requiring a different written form.
                 matches = {}
@@ -118,6 +178,10 @@ def prepare_index(source: Path, destination: Path) -> None:
                     if len(("form/" + form).encode()) > 256:
                         raise RuntimeError("JMdict lookup key exceeds ABI limit")
                     db.execute("INSERT INTO candidates VALUES(?,?,?)", (form, target, encoded(value)))
+                # Keep valid written-form/reading pairs, not a joined display string
+                # used as an enrichment join key. Restrictions remain authoritative.
+                record["variants"] = [{"written": form, "reading": reading} for form, reading in sorted(matches)]
+                db.execute("INSERT INTO resource_entries VALUES (?,?)", ("entry/" + seq, stored(record)))
                 entries += 1
                 entry.clear()
                 root.clear()
@@ -129,7 +193,7 @@ def prepare_index(source: Path, destination: Path) -> None:
             if current is not None and form != current:
                 if len(values) > MAX_CANDIDATES:
                     raise RuntimeError(f"Ambiguity exceeds declared bound for {current}")
-                db.execute("INSERT INTO resource_entries VALUES(?,?)", ("form/" + current, encoded(values)))
+                db.execute("INSERT INTO resource_entries VALUES(?,?)", ("form/" + current, stored(values)))
                 form_count += 1
                 values = []
             current = form
@@ -137,10 +201,20 @@ def prepare_index(source: Path, destination: Path) -> None:
         if current is not None:
             if len(values) > MAX_CANDIDATES:
                 raise RuntimeError(f"Ambiguity exceeds declared bound for {current}")
-            db.execute("INSERT INTO resource_entries VALUES(?,?)", ("form/" + current, encoded(values)))
+            db.execute("INSERT INTO resource_entries VALUES(?,?)", ("form/" + current, stored(values)))
             form_count += 1
         db.execute("DROP TABLE candidates")
-        db.execute("INSERT INTO resource_entries VALUES(?,?)", ("metadata", encoded({"schemaVersion": 2, "source": PIN["jmdict"], "entries": entries, "forms": form_count})))
+        if enrichment is not None:
+            prepare_enrichment(db, enrichment)
+        db.execute("INSERT INTO resource_entries VALUES(?,?)", ("metadata", encoded({
+            "schema": "org.mlearn.japanese.lexicon", "schemaVersion": 3, "valueCodec": "zlib-json-v1",
+            "linguisticSchema": {"id": "org.mlearn.japanese.linguistic", "version": 1},
+            "provenance": {
+                "jmdict": PIN["jmdict"], "importArtifact": ENRICHMENT_PIN["artifact"],
+                "sources": {key: ENRICHMENT_PIN[key] for key in ("referenceRevision", "pitch", "levels")},
+            },
+            "entries": entries, "forms": form_count,
+        })))
         db.commit()
         db.execute("VACUUM")
     temporary.replace(destination)
@@ -179,11 +253,12 @@ def main() -> None:
     if archive.stat().st_size != expected_size or digest(archive) != expected_digest:
         raise RuntimeError("Cached JMdict pin mismatch")
     lexical = DESTINATION / "lexicon-v1.sqlite"
-    recipe = hashlib.sha256(Path(__file__).read_bytes() + PIN_PATH.read_bytes()).hexdigest()
+    enrichment = enrichment_source()
+    recipe = hashlib.sha256(Path(__file__).read_bytes() + PIN_PATH.read_bytes() + ENRICHMENT_PIN_PATH.read_bytes()).hexdigest()
     receipt = DESTINATION / "lexicon.recipe.json"
     saved = json.loads(receipt.read_text()) if receipt.exists() else {}
     if not lexical.exists() or saved.get("recipe") != recipe or saved.get("sha256") != digest(lexical):
-        prepare_index(archive, lexical)
+        prepare_index(archive, lexical, enrichment)
         receipt.write_text(json.dumps({"recipe": recipe, "sha256": digest(lexical)}))
     sudachi = PIN["sudachi"]
     dictionary = DESTINATION / "system.dic"

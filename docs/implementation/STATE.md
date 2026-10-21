@@ -10,6 +10,42 @@ This authorization supersedes the historical frozen-review, minimal-restyle
 and unpictured `visual_pending` restrictions below. No new domain milestone,
 merge, release or maintainer acceptance is authorized.
 
+### Runtime-boundary audit - 2026-10-21
+
+The maintainer clarified that v2 is a reference/data source, never a runtime
+dependency. The audit found one leak in the resumed Japanese guest: initialization
+embedded `enrichment-pin.json` and checked the source-import manifest. That
+dependency is removed. The guest now validates only the package-owned
+`org.mlearn.japanese.lexicon` version 3 and
+`org.mlearn.japanese.linguistic` version 1 formats. Legacy source fields are
+converted by explicit tooling into canonical accent-drop/POS/level records;
+they are not interpreted by Rust core or React.
+
+`tools/prepare-japanese-enrichment.py` alone understands the reference-bank
+layout. Normal builds consume its frozen snapshot offline. Source pins,
+licensing and attribution remain provenance, not compatibility switches.
+Generic runtime/frontend inspection found no v2 paths or Japanese taxonomy;
+the shared logo's reference comment describes an embedded asset, not a dependency.
+Existing ABI-v1 compatibility is for installed **v3** packages, not a v2 adapter.
+Bounded UI projections do not replace private linguistic data. Package resource
+codecs retain opaque versioned fields, open tags and pronunciation alternatives.
+
+The new canonical-only metadata regression failed before the fix and now passes.
+All 12 Japanese package-owner tests, two generic linguistic-admission tests,
+the real Japanese Wasm metadata/claim/restart flow, retained ABI-v1 offline flow
+and six Watch persistence/recovery tests pass. The exact source snapshot
+reproduces byte-for-byte: 124,137 source rows, 124,134 pitch pairs and 8,127 level
+rows. Every one of the 124,462 resulting canonical pairs was compared against
+that authenticated snapshot, including every accent/POS variant and level.
+The 131,850,240-byte index remains below the unchanged 128 MiB resource limit.
+The preparation script's previously reproduced final `KeyError: 'definition'`
+remains an explicit baseline finding; its canonical conversion assertions pass.
+
+Shared ruby/metadata, live-card, aggregate Knowledge and synchronization
+presentation changes are being integrated. Typecheck and ownership lint pass,
+but no new visual or consuming-mobile acceptance is claimed. Resume matched
+real-app verification after this boundary repair; M03/M07 remain excluded.
+
 ### Resumed native projection and synchronization checkpoint
 
 Native-only increment: `verified_for_continuation`, not a visually complete
@@ -33,12 +69,9 @@ typecheck, ownership lint, generated-contract checks and whitespace checks pass.
 The three storage-owner tests and the existing seven browser interactions also
 pass. No new desktop/mobile consuming or visual pass is claimed for this increment.
 
-The authentic enriched Japanese package is still being integrated separately:
-the frozen source reproduces byte-for-byte and the offline lexical index builds,
-but real consuming-package and screen verification remain open. The original
-Python preparation proof independently reproduces a pre-existing
-`KeyError: 'definition'`; its incorrect assertion has not been rewritten green.
-M03 capture/Anki and M07 Explain remain excluded.
+The authentic enriched Japanese package now passes its real consuming-runtime
+flow and the boundary audit above. Rendered desktop/mobile verification remains
+open. M03 capture/Anki and M07 Explain remain excluded.
 
 ### Prior verified application
 
