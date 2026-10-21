@@ -181,6 +181,40 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
         12
     );
     assert!(katakana["output"][0][0]["presentation"]["readings"][0]["base"].is_null());
+    let adjective_source = "いい度胸じゃないか";
+    let adjectives = call(
+        &mut runtime,
+        json!({
+            "type":"invoke_plugin", "pluginId":"org.mlearn.japanese",
+            "capability":"text.analyze.v1", "input":{"texts":[adjective_source]}
+        }),
+    );
+    let adjective_tokens = adjectives["output"][0].as_array().unwrap();
+    assert_eq!(
+        adjective_tokens
+            .iter()
+            .map(|token| token["text"].as_str().unwrap())
+            .collect::<String>(),
+        adjective_source
+    );
+    let ii = adjective_tokens
+        .iter()
+        .find(|token| token["text"] == "いい")
+        .unwrap();
+    let targets = ii["targets"].as_array().unwrap();
+    assert!(targets.iter().any(|target| target == "jmdict:2820690"));
+    assert!(!targets.iter().any(|target| target == "jmdict:2571360"));
+    let nai = adjective_tokens
+        .iter()
+        .find(|token| token["text"] == "ない")
+        .unwrap();
+    assert!(
+        nai["targets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|target| target == "jmdict:1529520")
+    );
     let marked_source = "勝(か)った。銀河(ぎんが)の";
     let marked = call(
         &mut runtime,

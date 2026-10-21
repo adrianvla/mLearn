@@ -90,7 +90,9 @@ fn compatible(pos: &[String], lexical: &[String]) -> bool {
         "名詞" => p.contains("noun") || p.contains("numeric") || p.contains("counter"),
         "代名詞" => p.contains("pronoun"),
         "動詞" => p.contains("verb") && !p.contains("auxiliary"),
-        "形容詞" => p.contains("adjective") && !p.contains("na-adjective"),
+        // JMdict's taru and na categories also contain "adjective", but are not
+        // Sudachi keiyoushi. Keep auxiliary adjectives without admitting them.
+        "形容詞" => p.starts_with("adjective (keiyoushi)") || p == "auxiliary adjective",
         "形状詞" => p.contains("na-adjective") || p.contains("adjectival nouns"),
         "副詞" => p.contains("adverb"),
         "助詞" => p.contains("particle"),
@@ -469,6 +471,27 @@ mod tests {
         let mut oov = token();
         oov.oov = true;
         assert!(candidates(&oov, &lookup).unwrap().is_empty());
+    }
+    #[test]
+    fn keiyoushi_excludes_same_reading_taru_homographs() {
+        let adjective = Token {
+            surface: "いい".into(),
+            processed_surface: "いい".into(),
+            lemma: "いい".into(),
+            normalized: "良い".into(),
+            reading: "イイ".into(),
+            pos: vec!["形容詞".into(), "非自立可能".into()],
+            ..token()
+        };
+        let lookup = |_: &str| {
+            Ok(Some(Rc::new(json!([
+                {"id":"jmdict:2571360","reading":"いい",
+                 "pos":["'taru' adjective","adverb taking the 'to' particle"]},
+                {"id":"jmdict:2820690","reading":"いい",
+                 "pos":["adjective (keiyoushi) - yoi/ii class"]}
+            ]))))
+        };
+        assert_eq!(candidates(&adjective, &lookup).unwrap(), ["jmdict:2820690"]);
     }
     #[test]
     fn katakana_dictionary_reading_preserves_half_width_source_association() {
