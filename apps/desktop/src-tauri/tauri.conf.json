@@ -16,10 +16,7 @@
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "transparent": true,
-        "windowEffects": {
-          "effects": ["underWindowBackground"],
-          "state": "followsWindowActiveState"
-        },
+        "create": false,
         "width": 1080,
         "height": 800,
         "minWidth": 420,

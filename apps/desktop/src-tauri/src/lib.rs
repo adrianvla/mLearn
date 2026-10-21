@@ -4,11 +4,13 @@ use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 mod media;
+mod window_material;
 
 struct NativeState {
     runtime: Arc<RuntimeExecutor>,
     permits: Arc<tokio::sync::Semaphore>,
     cancellation: Arc<std::sync::atomic::AtomicU64>,
+    material: Arc<Mutex<window_material::WindowMaterial>>,
 }
 
 fn media_resolver(runtime: &Runtime) -> Result<media::Resolver, String> {
@@ -24,6 +26,7 @@ fn media_resolver(runtime: &Runtime) -> Result<media::Resolver, String> {
 
 #[tauri::command]
 async fn runtime_execute(
+    app: tauri::AppHandle,
     state: tauri::State<'_, NativeState>,
     request: String,
 ) -> Result<String, String> {
@@ -37,18 +40,40 @@ async fn runtime_execute(
         .try_acquire_owned()
         .map_err(|_| "Native runtime is busy; retry after the current operation")?;
     let runtime = state.runtime.clone();
-    tauri::async_runtime::spawn_blocking(move || {
+    let action = window_material::ThemeAction::from_request(&request);
+    let (response, snapshot) = tauri::async_runtime::spawn_blocking(move || {
         let worker_wait = started.elapsed();
         let _permit = permit;
         let response = runtime.execute(&request);
+        let snapshot = action.accepted_snapshot(&runtime, &response);
         if std::env::var_os("MLEARN_PLUGIN_METRICS").is_some() {
-            eprintln!("runtime-ipc worker_wait_us={} elapsed_us={} response_bytes={}",
-                worker_wait.as_micros(), started.elapsed().as_micros(), response.len());
+            eprintln!(
+                "runtime-ipc worker_wait_us={} elapsed_us={} response_bytes={}",
+                worker_wait.as_micros(),
+                started.elapsed().as_micros(),
+                response.len()
+            );
         }
-        response
+        (response, snapshot)
     })
     .await
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    if let Some(snapshot) = snapshot
+        && let Err(error) =
+            window_material::synchronize(&app, state.material.clone(), snapshot).await
+    {
+        eprintln!("Native window material update failed: {error}");
+    }
+    Ok(response)
+}
+
+#[tauri::command]
+fn window_material_active(state: tauri::State<'_, NativeState>) -> Result<bool, String> {
+    state
+        .material
+        .lock()
+        .map(|material| material.active())
+        .map_err(|_| "Window material state poisoned".into())
 }
 
 #[tauri::command]
@@ -94,22 +119,45 @@ pub fn run() {
                 .map(serde_json::from_str)
                 .transpose()?;
             // Desktop never receives bundled executable language modules.
-            let runtime = Runtime::open(&path, CodePolicy::DesktopDownloaded, trust, vec![])
+            let mut runtime = Runtime::open(&path, CodePolicy::DesktopDownloaded, trust, vec![])
                 .map_err(std::io::Error::other)?;
+            let snapshot =
+                window_material::startup_snapshot(&mut runtime).map_err(std::io::Error::other)?;
+            let theme_script = window_material::initialization_script(&snapshot.theme)?;
             let resolver = media_resolver(&runtime).map_err(std::io::Error::other)?;
             let cancellation = runtime.cancellation_handle();
+            let material = Arc::new(Mutex::new(window_material::WindowMaterial::default()));
             let state = NativeState {
                 cancellation,
                 runtime: Arc::new(RuntimeExecutor::new(runtime)),
                 permits: Arc::new(tokio::sync::Semaphore::new(3)),
+                material: material.clone(),
             };
             let server = media_listener.start(resolver)?;
             app.manage(Mutex::new(server));
             app.manage(state);
+            let config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|config| config.label == "main")
+                .ok_or_else(|| std::io::Error::other("Main window configuration is missing"))?;
+            let window = tauri::WebviewWindowBuilder::from_config(app, config)?
+                .visible(false)
+                .initialization_script(theme_script)
+                .build()?;
+            material
+                .lock()
+                .map_err(|_| std::io::Error::other("Window material state poisoned"))?
+                .apply(&window, &snapshot)
+                .map_err(std::io::Error::other)?;
+            window.show()?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             runtime_execute,
+            window_material_active,
             pick_local_file,
             cancel_source_open
         ])
@@ -137,16 +185,27 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let video = root.path().join("source.mp4");
         std::fs::write(&video, b"media authorization fixture").unwrap();
-        let runtime = Runtime::open(root.path(), CodePolicy::DesktopDownloaded, None, vec![]).unwrap();
+        let runtime =
+            Runtime::open(root.path(), CodePolicy::DesktopDownloaded, None, vec![]).unwrap();
         let store = ProfileStore::open(&root.path().join("profile.sqlite3")).unwrap();
-        store.save_source(&SourceRecord {
-            id: "admitted".into(), title: "Source".into(),
-            media_path: video.to_string_lossy().into_owned(), media_revision: "revision".into(),
-            subtitle_path: None, subtitle_revision: None,
-            package_id: "package".into(), package_version: "1".into(),
-            position_ms: 0, duration_ms: 0,
-            subtitle_offset_ms: 0, playback_rate: 1.0, inspection_trigger: Default::default(),
-        }).unwrap();
+        store
+            .save_source(&SourceRecord {
+                id: "admitted".into(),
+                title: "Source".into(),
+                media_path: video.to_string_lossy().into_owned(),
+                media_revision: "revision".into(),
+                subtitle_path: None,
+                subtitle_revision: None,
+                package_id: "package".into(),
+                package_version: "1".into(),
+                position_ms: 0,
+                duration_ms: 0,
+                subtitle_offset_ms: 0,
+                subtitle_offset_revision: 0,
+                playback_rate: 1.0,
+                inspection_trigger: Default::default(),
+            })
+            .unwrap();
         let resolver = media_resolver(&runtime).unwrap();
         let runtime = Arc::new(Mutex::new(runtime));
         let execution = runtime.lock().unwrap();
@@ -159,6 +218,11 @@ mod tests {
         worker.join().unwrap();
 
         // Then it resolves the admitted file without waiting for execution release.
-        assert_eq!(result.expect("media authorization waited for language execution").unwrap(), video.canonicalize().unwrap());
+        assert_eq!(
+            result
+                .expect("media authorization waited for language execution")
+                .unwrap(),
+            video.canonicalize().unwrap()
+        );
     }
 }

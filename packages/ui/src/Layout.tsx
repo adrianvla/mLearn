@@ -19,6 +19,7 @@ export function AppShell({ header, navigation, children }: PropsWithChildren<{
   // padding inside scrolling navigation would disappear as the user scrolls.
   const top = Platform.OS === 'web' && compact ? Math.max(insets.top, 28) : insets.top;
   return <View testID="app-shell" style={styles.shell(top, insets.bottom, compact, windowMaterial)}>
+    {Platform.OS === 'web' ? <View pointerEvents="none" style={styles.material(windowMaterial)} /> : null}
     {navigation ? <ScrollView style={styles.navigationViewport(compact)}
       contentContainerStyle={styles.navigation(compact)} keyboardShouldPersistTaps="handled">
       {navigation}
@@ -63,8 +64,12 @@ const styles = StyleSheet.create((theme) => ({
     borderColor: theme.colors.border,
   }),
   shell: (top: number, bottom: number, compact: boolean, windowMaterial: boolean) => ({
-    flex: 1, minHeight: 0, backgroundColor: windowMaterial && theme.shell.windowTint ? theme.shell.windowTint : theme.shell.navigation,
+    flex: 1, minHeight: 0, backgroundColor: windowMaterial && theme.shell.windowTint ? 'transparent' : theme.shell.navigation,
     paddingTop: top, paddingBottom: bottom, flexDirection: compact ? 'column' : 'row',
+  }),
+  material: (windowMaterial: boolean) => ({
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: windowMaterial && theme.shell.windowTint ? theme.shell.windowTint : 'transparent',
     _web: windowMaterial ? { backdropFilter: theme.shell.windowFilter, WebkitBackdropFilter: theme.shell.windowFilter } : {},
   }),
   navigation: (compact: boolean) => ({

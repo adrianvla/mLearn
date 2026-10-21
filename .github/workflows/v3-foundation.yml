@@ -88,7 +88,7 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -98,7 +98,24 @@ jobs:
         with: { cache-on-failure: true }
       - run: npm ci
       - run: npm run build:web
-      - run: cargo build --locked -p mlearn-desktop
+      - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
+      - run: cargo test --locked -p mlearn-desktop --lib
+      - name: Exercise actual Windows native theme materials
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force verification | Out-Null
+          New-Item -ItemType Directory -Force test-results/window-materials | Out-Null
+          git rev-parse HEAD HEAD^{tree} | Set-Content verification/source.txt
+          powershell.exe -Mta -NoProfile -ExecutionPolicy Bypass -File tests/desktop/window-materials.ps1 2>&1 | Tee-Object test-results/window-materials/run.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Ensure desktop build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows'
+        with:
+          name: windows-native-materials
+          path: |
+            test-results/window-materials
+            verification

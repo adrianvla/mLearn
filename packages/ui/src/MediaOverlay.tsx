@@ -26,6 +26,7 @@ export function MediaOverlay({ children, onClose, closeLabel, variant, testID }:
     return <View {...focus} testID={testID} style={styles.panel(variant, revealed)}
         onPointerEnter={event => { if (event.nativeEvent.pointerType !== 'touch') setHovered(true); }}
         onPointerLeave={() => setHovered(false)}>
+        {Platform.OS === 'web' ? <View pointerEvents="none" style={styles.material(variant, revealed)} /> : null}
         {variant === 'cards' ? close : null}
         <View style={styles.content}>{children}</View>
         {variant === 'synchronization' ? close : null}
@@ -38,6 +39,11 @@ const styles = StyleSheet.create(theme => ({
         maxWidth: '100%', borderRadius: theme.radius + 4,
         backgroundColor: variant === 'synchronization' || revealed ? theme.media.panel : 'transparent',
         padding: variant === 'synchronization' ? 5 : 0,
+        _web: { backgroundColor: 'transparent' },
+    }),
+    material: (variant: 'cards' | 'synchronization', revealed: boolean) => ({
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: theme.radius + 4,
+        backgroundColor: variant === 'synchronization' || revealed ? theme.media.panel : 'transparent',
         _web: { backdropFilter: variant === 'synchronization' || revealed ? theme.media.backdrop : undefined },
     }),
     content: { flexShrink: 1, minWidth: 0 },

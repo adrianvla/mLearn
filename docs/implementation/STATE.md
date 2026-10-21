@@ -12,11 +12,72 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-21
 
+Native theme integration is implemented locally and undergoing platform
+verification, not visually accepted. Accepted Quartz/Dark Quartz preferences now
+drive the desktop host's actual NSVisualEffectView or Windows Mica, with Acrylic
+on older supported Windows versions and opaque fallback when native application
+fails. Slate/custom palettes remain opaque. Startup reads the persisted Rust
+snapshot before showing the window; successful saves synchronize from the
+committed snapshot, with revision ordering and no additional theme preference.
+The renderer receives actual native availability instead of inferring it from
+window chrome. Historical built-in fingerprints have one shared data owner.
+The shared AppShell, ContextPanel and MediaOverlay now put backdrop materials
+in noninteractive background siblings, preventing an ancestor backdrop root
+from blocking nested Inspector/popover blur. The actual Knowledge popover was
+inspected at desktop, narrow and 2x text scale, including scrolling actions and
+focus restoration. The original saved Dark Quartz JSON was restored exactly.
+
+The coherent local candidate passes 11 desktop host unit tests, typecheck,
+ownership lint, all 54 harness / 25 package tests, web export and all eight
+browser interactions. Log: `native-theme-and-backdrop-checks.log`. Tests include
+real temporary persistence, accepted versus rejected theme saves, custom/Slate
+policy and historical startup fingerprints. Native tests also exposed an older
+SourceRecord fixture missing subtitle_offset_revision; its neutral zero field
+is restored without changing assertions. The normal documented desktop launch
+rebuilt and rendered the saved Dark Quartz Home. Read-only LLDB inspection of
+the actual native view is awaiting the maintainer's macOS debugger authorization
+dialog; no authorization interaction was automated. Dynamic macOS transitions
+and compositor captures remain open. Windows UI Automation/DWM transition and
+restart captures are added to the existing foundation Windows job, but have not
+yet run; no Windows visual result is claimed.
+
+Native `39672070585` has completed: Android passes its complete 423.368-second
+flow with zero failures. iOS fails after 225.951 seconds at the first English
+movie's Files dismissal, before the later Japanese boundary. Exact artifacts,
+hierarchy and tap logs are retained under `ci-e494df59-native`. The enabled
+English filename was tapped at (142,349), but the picker remains visible.
+The focused Search field/keyboard and slower hosted interactions are evidence,
+not an established cause. The unchanged local iOS 27 full-flow pass below does
+not waive the hosted iOS 26.5 failure. No speculative picker fix or weakened
+assertion has been introduced.
+
 Status: `implementation_resumed`; current-source hosted acceptance is incomplete,
-not accepted. Current pushed application is `e494df59c83a4fb7d3d1d0899c297ac442231aa7`,
-tree `51fcef0007a6208b309896015e04f7d6ff37ff18`, on existing `agent/m01` / draft #44.
-Changed-source foundation `39672070578`, desktop `39672070821` and native
-`39672070585` are running, each with one persistent completion subscription.
+not accepted. Current pushed application is `fc14fcff81a2a2c72e8593fe2a1be7da61754862`,
+tree `4d50a95db7ed049ff4e5ebc2ef374c0edebf2665`, on existing `agent/m01` / draft #44.
+Changed-source foundation `39672070578` passes all four jobs (Rust, web,
+macOS desktop build and Windows desktop build), with exact HEAD verified.
+Desktop `39672070821` fails in the real consuming flow at
+`native-smoke.mjs:750`: `Timed out: 日本語`, after replacing subtitles and seeking
+from the resumed source position to 2 seconds. Exact job `119472351053` and
+source are verified. Exact artifacts under `ci-e494df59-desktop` show a paused,
+error-free player at 20 seconds with `字幕`, not the requested 2-second cue.
+The raw harness seek raced `MediaPlayer.web.tsx`'s initial metadata seek, the
+same race already guarded in the preference probe. The test now observes the
+visible player's completed native 20-second resume before its raw seek, then
+observes the completed 2-second seek and `日本語`. All original subtitle
+assertions remain. The shared event observer also listens for `loadeddata`;
+there is no sleep, retry, timeout increase or application change. Harness repair
+`fc14fcff` is pushed; syntax, ownership lint and all 54 harness / 25 package/source
+checks pass. Foundation `39673421392` passes all four jobs with exact source
+verified. Desktop `39673421585` now passes the full real consuming flow at exact
+`fc14fcff`; exact source/tree and artifacts are inspected. The formerly failing
+frame now shows `日本語` at 0:02; real Japanese focused-card and 66.67% source
+progress/range receipts also pass. The full receipt confirms IPC, authenticated
+packages, playback/seek, contextual Inspector, shared claims, exact source
+restart and missing-source recovery. Native input paths
+did not change, so the existing
+native run remains valid and was not cancelled or duplicated.
+Native `39672070585` has completed with the separate Android/iOS results above.
 No unchanged workflow was retried. Previous application `a555dc39` foundation
 `39656998985` and real desktop `39656999028` pass. Its native
 `39656998975` has completed: Android passes the full 429.918-second flow; iOS

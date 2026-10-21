@@ -1,6 +1,7 @@
 import type { ThemeDocument } from '@mlearn/contracts';
 import quartz from '../../../resources/themes/quartz.json';
 import darkQuartz from '../../../resources/themes/dark-quartz.json';
+import retiredBuiltIns from '../../../resources/themes/retired-built-ins.json';
 
 export const builtInThemes: readonly ThemeDocument[] = [quartz, darkQuartz];
 export const initialTheme: ThemeDocument = quartz;
@@ -10,30 +11,15 @@ export const initialTheme: ThemeDocument = quartz;
 // custom. Resolve untouched old presentation, never rewrite learner preferences.
 // Remove these fingerprints only after a native schema migration records
 // built-in/custom identity and no supported profile needs whole-document import.
-const retiredBuiltIns = [
-  { id: 'mlearn.quartz', name: 'Quartz', radius: 12, replacement: quartz, colors: {
-    background: '#F1F2F4', surface: '#FFFFFF', text: '#20232A', muted: '#555D6B',
-    accent: '#2458A6', onAccent: '#FFFFFF', border: '#CFD4DC',
-  } },
-  // The first pushed rewrite checkpoint could also be saved as a whole document.
-  { id: 'mlearn.quartz', name: 'Quartz', radius: 8, replacement: quartz, colors: {
-    background: '#F5F5F5', surface: '#EEEEEE', text: '#1A1A1A', muted: '#626262',
-    accent: '#C44700', onAccent: '#FFFFFF', border: '#BFBFBF',
-  } },
-  { id: 'mlearn.slate', name: 'Slate', radius: 12, replacement: darkQuartz, colors: {
-    background: '#15191F', surface: '#20262E', text: '#EDF0F5', muted: '#BAC2CE',
-    accent: '#99BEFF', onAccent: '#15243C', border: '#414B5A',
-  } },
-] as const;
-
 export function resolveBuiltInTheme(document: ThemeDocument): ThemeDocument {
   const retired = retiredBuiltIns.find(preset =>
     document.id === preset.id && document.name === preset.name && document.radius === preset.radius
     && Object.keys(document.extensions).length === 0
     && (['background', 'surface', 'text', 'muted', 'accent', 'onAccent', 'border'] as const)
       .every(key => document.colors[key] === preset.colors[key]));
-  return retired ? { ...document, id: retired.replacement.id, name: retired.replacement.name,
-    colors: { ...retired.replacement.colors }, radius: retired.replacement.radius } : document;
+  const replacement = retired && builtInThemes.find(preset => preset.id === retired.replacementId);
+  return replacement ? { ...document, id: replacement.id, name: replacement.name,
+    colors: { ...replacement.colors }, radius: replacement.radius } : document;
 }
 
 /** Rendering-only projection. Rust is authoritative for accepting and storing theme documents. */

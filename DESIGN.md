@@ -97,9 +97,16 @@ remain historical evidence, not authority for another style variant.
   at 950/550px yield three/two/one activity columns without invented activities.
   Icon tiles and circular play controls use the reference's 25% white outline
   in dark appearance; the preview has a second inset boundary.
-- The running macOS reference uses an under-window native material that follows
-  window activity and system appearance. The desktop host supplies that material;
-  bootstrap injects its availability into the shared shell. Navigation ancestors
+- Quartz and Dark Quartz request actual desktop-native materials. The native
+  desktop owner derives this from accepted theme identity/palette, applies
+  macOS under-window vibrancy or Windows Mica (Acrylic on supported older
+  Windows), and clears it for opaque Slate and independent/custom palettes.
+  Startup reads the same saved native theme before showing the window.
+  Chrome appearance follows the active palette; macOS vibrancy activity follows
+  window activity. The host publishes actual effect availability, not a
+  platform/titlebar guess, so failed/unsupported effects keep an opaque fallback.
+  This is theme behavior, not another setting or styling system.
+  Navigation ancestors
   must remain transparent. Home and Settings navigation reveal the material;
   Settings content and media retain their own opaque canvases. Browser/mobile and
   custom palettes retain their saved opaque background. Matched 1200x700 / 2x
@@ -185,6 +192,17 @@ features do not recreate click targets or icon text. `Text` owns complete
 typography roles. `AppShell`, `Panel`, `SettingRow` and shell composition own
 bounded scroll regions and shared surface anatomy. `Dialog`/`ContextPanel`
 retain portal, dismissal, focus restoration and bounded scrolling semantics.
+The approved nested Inspector preview uses the same translucent panel family:
+the reference Tooltip consumes `rgba(60,60,60,.5)` with a blurred backdrop, not
+the player rail's nearly opaque chrome. The web correction popover consumes
+`media.panel` and `media.backdrop`; native retains its legible opaque fallback
+because that rendering boundary has no backdrop blur.
+Web backdrop layers sit beside interactive content rather than wrapping it.
+Putting backdrop filtering on a content ancestor creates a nested backdrop root:
+attached correction popovers and live cards can then show sharp text through
+their material instead of blurring it. `ContextPanel`, `MediaOverlay` and
+`AppShell` keep their own material layers non-interactive while retaining the
+same native fallback, geometry and focus/hover owners.
 Read-only progress uses the reference preview's outlined 6px trough and equal
 title/track allocation. The shared `Progress` owner exposes its actual range to
 assistive technology and uses the existing neutral control outline, not a border

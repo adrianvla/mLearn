@@ -58,7 +58,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                             <View testID="inspector-panel" style={[
                                 styles.panel,
                                 {
-                                    backgroundColor: anchored ? theme.media.panel : theme.media.chrome,
+                                    backgroundColor: Platform.OS === 'web' ? 'transparent' : anchored ? theme.media.panel : theme.media.chrome,
                                     borderColor: theme.media.border,
                                     borderRadius: theme.radius + 4,
                                     width: panelWidth,
@@ -72,6 +72,8 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                                         : { top: bounds.y + bounds.height + 12 }),
                                 } : { alignSelf: 'center', marginHorizontal: 'auto', marginBottom: 20 },
                             ]}>
+                                {Platform.OS === 'web' ? <View pointerEvents="none"
+                                    style={[styles.material, { backgroundColor: anchored ? theme.media.panel : theme.media.chrome }]} /> : null}
                                 <View style={styles.header} onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
                                         <View style={styles.heading}>
                                             <Primitive.Title asChild>
@@ -113,8 +115,13 @@ const styles = StyleSheet.create(theme => ({
         }
     }, panel: {
         overflow: 'hidden', borderWidth: 1, _web: {
-            backdropFilter: theme.media.backdrop, boxShadow: '0 18px 50px -10px #00000055'
+            boxShadow: '0 18px 50px -10px #00000055'
         }
+    }, material: {
+        // Keep blur off the content ancestor so an attached popover can blur
+        // the dictionary text beneath it, not inherit a nested backdrop root.
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        _web: { backdropFilter: theme.media.backdrop }
     }, header: {
         flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.small, flexShrink: 0,
         paddingHorizontal: theme.spacing.medium, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.small
@@ -132,7 +139,8 @@ const styles = StyleSheet.create(theme => ({
     }, popover: {
         position: 'absolute', left: theme.spacing.medium, right: theme.spacing.medium, maxWidth: 360,
         borderWidth: 1, borderColor: theme.media.border, borderRadius: theme.radius / 2,
-        backgroundColor: theme.media.chrome, _web: { backdropFilter: 'blur(20px)', boxShadow: '0 8px 24px #00000040' }
+        backgroundColor: theme.media.chrome, _web: { backgroundColor: theme.media.panel,
+            backdropFilter: theme.media.backdrop, boxShadow: '0 8px 24px #00000040' }
     }, popoverContent: {
         padding: theme.spacing.small, gap: theme.spacing.small
     }
