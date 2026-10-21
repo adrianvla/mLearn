@@ -34,6 +34,9 @@ The default `portable` feature:
   rather than silently replaced by defaults.
 - Adds the missing 32-bit `usize` FxHash seed using the already present
   upstream `SEED32`. No tokenization or linguistic algorithm is rewritten.
+- Exposes the existing input-preprocessed morpheme surface through a borrowed
+  accessor. Original surface/offset APIs remain unchanged; the package uses
+  this to project ruby bases without substituting dictionary-form lemmas.
 
 The optional `native` feature with `--no-default-features` retains upstream
 host paths for dependency development. The Japanese owner always uses the

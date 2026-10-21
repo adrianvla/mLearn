@@ -1,6 +1,6 @@
 // Generated from mlearn-core. Run npm run codegen; do not edit.
 
-export type ReadingSpan = { start: number, end: number, text: string, attribution: string, };
+export type ReadingSpan = { start: number, end: number, text: string, attribution: string, base?: string, };
 
 export type LinguisticLabel = { id: string, label: string, color: string | null, attribution: string, };
 
@@ -40,7 +40,7 @@ export type Capability = { id: string, label: string, };
 
 export type LanguageDescription = { language: string, label: string, capabilities: Array<Capability>, annotationCapability: string, attribution: string, };
 
-export type AnalyzedToken = { start: number, end: number, text: string, targets: Array<string>, presentation?: LinguisticPresentation, };
+export type AnalyzedToken = { start: number, end: number, text: string, targets: Array<string>, presentation?: LinguisticPresentation, nearbyMeaning?: boolean, };
 
 export type CueAnalysis = { cue: Cue, tokens: Array<AnalyzedToken>, };
 

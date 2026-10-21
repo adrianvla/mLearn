@@ -83,6 +83,13 @@ impl<'a, T: DictionaryAccess> Morpheme<'a, T> {
         Ref::map(inp, |i| i.orig_slice(self.node().bytes_range()))
     }
 
+    /// Input-preprocessed surface, retaining inflection rather than using a lemma.
+    /// Original byte coordinates remain available through begin/end/surface.
+    pub fn current_surface(&self) -> Ref<'_, str> {
+        let inp = self.list.input();
+        Ref::map(inp, |i| i.curr_slice(self.node().bytes_range()))
+    }
+
     pub fn part_of_speech_id(&self) -> u16 {
         self.node().word_info().pos_id()
     }

@@ -74,6 +74,16 @@
 +thiserror = "1.0"
 +unicode-normalization = "0.1"
 +yada = "0.5"
+--- a/sudachi/src/analysis/morpheme.rs
++++ b/sudachi/src/analysis/morpheme.rs
+@@ -85,0 +86,7 @@
++    /// Input-preprocessed surface, retaining inflection rather than using a lemma.
++    /// Original byte coordinates remain available through begin/end/surface.
++    pub fn current_surface(&self) -> Ref<'_, str> {
++        let inp = self.list.input();
++        Ref::map(inp, |i| i.curr_slice(self.node().bytes_range()))
++    }
++
 --- a/sudachi/src/error.rs
 +++ b/sudachi/src/error.rs
 @@ -1,3 +1,4 @@

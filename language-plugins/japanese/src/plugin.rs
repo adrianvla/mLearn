@@ -166,6 +166,13 @@ fn project(
         let presentation = presentation::token(&token, &targets, lookup)?;
         let mut value =
             json!({"start":token.start,"end":token.end,"text":token.surface,"targets":targets});
+        value["nearbyMeaning"] = json!(
+            !token.oov
+                && matches!(
+                    token.pos.first().map(String::as_str).unwrap_or(""),
+                    "名詞" | "動詞" | "形容詞" | "形状詞" | "形容動詞" | "副詞"
+                )
+        );
         if let Some(presentation) = presentation {
             value["presentation"] = presentation;
         }
@@ -437,6 +444,7 @@ mod tests {
             start: 0,
             end: 6,
             surface: "生物".into(),
+            processed_surface: "生物".into(),
             lemma: "生物".into(),
             normalized: "生物".into(),
             reading: "セイブツ".into(),
@@ -468,6 +476,7 @@ mod tests {
             start: 0,
             end: 12,
             surface: "ｶﾞｯﾂ".into(),
+            processed_surface: "ガッツ".into(),
             lemma: "ガッツ".into(),
             normalized: "ガッツ".into(),
             reading: "ガッツ".into(),

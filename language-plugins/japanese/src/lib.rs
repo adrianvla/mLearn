@@ -48,6 +48,8 @@ pub struct Token {
     pub start: usize,
     pub end: usize,
     pub surface: String,
+    /// The same morpheme after package-owned input preprocessing.
+    pub processed_surface: String,
     pub lemma: String,
     pub normalized: String,
     pub reading: String,
@@ -106,6 +108,7 @@ impl JapaneseEngine {
                 start: m.begin(),
                 end: m.end(),
                 surface: m.surface().to_string(),
+                processed_surface: m.current_surface().to_string(),
                 lemma: m.dictionary_form().to_owned(),
                 normalized: m.normalized_form().to_owned(),
                 reading: m.reading_form().to_owned(),

@@ -110,3 +110,16 @@ test('dictionary batches reject mismatched source and target identities',async()
  await assert.rejects(client.inspectTargets('source','r',revision,['target']),{code:'protocol'});
  await assert.rejects(client.inspectTargets('replacement','r',revision,['other']),{code:'protocol'});
 });
+test('optional source bases and nearby meaning eligibility remain typed bounded projections',()=>{
+ const token={start:0,end:12,text:'a(reading)',targets:['t'],partOfSpeech:[],nearbyMeaning:false,
+  presentation:{readings:[{start:0,end:12,text:'reading',base:'a',attribution:'Package'}],labels:[],contours:[]}};
+ const batch={sourceId:'s',subtitleRevision:'r',packageId:'p',packageVersion:'1',packageRevision:'a'.repeat(64),
+  cues:[{cue:{index:0,startMs:0,endMs:1000,text:token.text},tokens:[token]}],knowledge:[],annotations:[]};
+ const response={type:'analysis',batch};
+ assert.equal(isWatchResponse(response),true);
+ for(const nearbyMeaning of [true,null,undefined])assert.equal(isWatchResponse({...response,batch:{...batch,
+  cues:[{...batch.cues[0],tokens:[{...token,nearbyMeaning}]}]}}),true);
+ assert.equal(isWatchResponse({...response,batch:{...batch,cues:[{...batch.cues[0],tokens:[{...token,nearbyMeaning:'yes'}]}]}}),false);
+ for(const base of ['',42,'a'.repeat(513)])assert.equal(isWatchResponse({...response,batch:{...batch,cues:[{...batch.cues[0],
+  tokens:[{...token,presentation:{...token.presentation,readings:[{...token.presentation.readings[0],base}]}}]}]}}),false);
+});

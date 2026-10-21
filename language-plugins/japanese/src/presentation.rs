@@ -246,7 +246,23 @@ pub(super) fn token(
         .map(|value| Some(Rc::new(value)))
         .map_err(|e| e.to_string())
     };
-    build(&token.surface, readings, ruby, tag, &lookup_surface)
+    let mut value = build(&token.surface, readings, ruby, tag, &lookup_surface)?;
+    if ruby.is_some() && token.processed_surface != token.surface {
+        let mut original = token.surface.chars();
+        // Use only an actual input-preprocessed subsequence. Other normalization
+        // (case, width, spelling) must not replace authored source glyphs.
+        if !token.processed_surface.is_empty()
+            && token
+                .processed_surface
+                .chars()
+                .all(|character| original.by_ref().any(|source| source == character))
+        {
+            if let Some(value) = &mut value {
+                value["readings"][0]["base"] = json!(token.processed_surface);
+            }
+        }
+    }
+    Ok(value)
 }
 
 pub(super) fn entry(
@@ -283,6 +299,7 @@ mod tests {
             start: 0,
             end: 3,
             surface: "（".into(),
+            processed_surface: "（".into(),
             lemma: "（".into(),
             normalized: "(".into(),
             reading: "キゴウ".into(),
@@ -348,6 +365,7 @@ mod tests {
             start: 0,
             end: 6,
             surface: "食べ".into(),
+            processed_surface: "食べ".into(),
             lemma: "食べる".into(),
             normalized: "食べる".into(),
             reading: "タベ".into(),
@@ -368,6 +386,18 @@ mod tests {
         assert_eq!(value["readings"][0]["text"], "たべ");
         assert_eq!(value["readings"][0]["end"], 6);
         assert_eq!(value["contours"], json!([]));
+        let annotated = Token {
+            surface: "食(た)べ".into(),
+            end: "食(た)べ".len(),
+            ..token
+        };
+        let display = super::token(&annotated, &[], &|_| {
+            panic!("Inflection must not request lemma pitch")
+        })
+        .unwrap()
+        .unwrap();
+        assert_eq!(display["readings"][0]["base"], "食べ");
+        assert_eq!(display["readings"][0]["end"], annotated.surface.len());
     }
     #[test]
     fn restricted_written_readings_never_inherit_each_others_metadata() {
@@ -396,6 +426,7 @@ mod tests {
             start: 0,
             end: 9,
             surface: "つまり".into(),
+            processed_surface: "つまり".into(),
             lemma: "つまり".into(),
             normalized: "詰まり".into(),
             reading: "ツマリ".into(),

@@ -23,7 +23,7 @@ function installStatus(v: unknown): boolean {
  default:return false;
  }
 }
-function token(v: unknown): boolean { return object(v) && integer(v.start) && integer(v.end) && Number(v.end)>Number(v.start) && string(v.text) && list(v.targets,128,string); }
+function token(v: unknown): boolean { return object(v) && integer(v.start) && integer(v.end) && Number(v.end)>Number(v.start) && string(v.text) && list(v.targets,128,string) && (v.nearbyMeaning===undefined||optionalBoolean(v.nearbyMeaning)); }
 function sense(v: unknown): boolean {
  return object(v) && string(v.heading) && list(v.labels,32,string) && list(v.notes,32,string)
   && list(v.definitions,128,string) && Array.isArray(v.definitions) && v.definitions.length>0;
@@ -36,7 +36,8 @@ function presentation(v: unknown, text: string): boolean {
  const attribution=(a:unknown)=>string(a)&&a.length>0&&a.length<=2048;
  return JSON.stringify(v).length<=8192
   &&list(v.readings,16,r=>object(r)&&integer(r.start)&&integer(r.end)&&Number(r.end)>Number(r.start)
-   &&Number(r.end)<=text.length*4&&string(r.text)&&r.text.length>0&&r.text.length<=512&&attribution(r.attribution))
+   &&Number(r.end)<=text.length*4&&string(r.text)&&r.text.length>0&&r.text.length<=512&&attribution(r.attribution)
+   &&(r.base===undefined||r.base===null||string(r.base)&&r.base.length>0&&r.base.length<=512))
   &&list(v.labels,16,l=>object(l)&&namespaced(l.id)&&string(l.label)&&l.label.length>0&&l.label.length<=512&&color(l.color)&&attribution(l.attribution))
   &&list(v.contours,16,c=>object(c)&&namespaced(c.id)&&string(c.reading)&&c.reading.length>0&&string(c.label)
    &&color(c.color)&&attribution(c.attribution)&&(c.followingHeight===null||typeof c.followingHeight==='number'&&Number.isFinite(c.followingHeight)&&c.followingHeight>=0&&c.followingHeight<=1)

@@ -73,6 +73,13 @@ the second with an empty original span. IgnoreYomigana retains parenthesized
 reading bytes in the corresponding source surface. Small can split compounds
 even in Mode C; this is not a reason to substitute another dictionary.
 
+The optional ruby base projects that same preprocessed surface only when it
+is an ordered subsequence of the original span. This hides duplicate inline
+reading markers without changing source bytes, inflection, offsets or context.
+Width/case normalization is not substituted into the displayed base.
+Automatic nearby meanings use this package's content-word POS eligibility;
+ineligible function words remain available for explicit inspection.
+
 This producer is an isolated Cargo workspace so the application's root
 manifest and lockfile are untouched. `Cargo.lock` pins its complete dependency
 resolution, including the local SDK path. The vendored patch and upstream

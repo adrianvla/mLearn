@@ -180,6 +180,45 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
         katakana["output"][0][0]["presentation"]["readings"][0]["end"],
         12
     );
+    assert!(katakana["output"][0][0]["presentation"]["readings"][0]["base"].is_null());
+    let marked_source = "勝(か)った。銀河(ぎんが)の";
+    let marked = call(
+        &mut runtime,
+        json!({
+            "type":"invoke_plugin", "pluginId":"org.mlearn.japanese",
+            "capability":"text.analyze.v1", "input":{"texts":[marked_source]}
+        }),
+    );
+    let marked_tokens = marked["output"][0].as_array().unwrap();
+    assert_eq!(
+        marked_tokens
+            .iter()
+            .map(|token| token["text"].as_str().unwrap())
+            .collect::<String>(),
+        marked_source
+    );
+    let inflected = marked_tokens
+        .iter()
+        .find(|token| token["text"] == "勝(か)っ")
+        .unwrap();
+    assert_eq!(inflected["presentation"]["readings"][0]["base"], "勝っ");
+    assert_eq!(inflected["nearbyMeaning"], true);
+    let galaxy = marked_tokens
+        .iter()
+        .find(|token| token["text"] == "銀河(ぎんが)")
+        .unwrap();
+    assert_eq!(galaxy["presentation"]["readings"][0]["base"], "銀河");
+    assert_eq!(galaxy["start"], marked_source.find("銀河").unwrap());
+    assert_eq!(galaxy["end"], marked_source.find("の").unwrap());
+    let particle = marked_tokens
+        .iter()
+        .find(|token| token["text"] == "の")
+        .unwrap();
+    assert_eq!(particle["nearbyMeaning"], false);
+    assert!(
+        !particle["targets"].as_array().unwrap().is_empty(),
+        "Automatic-card eligibility must not remove inspection targets"
+    );
     let source = call(
         &mut runtime,
         json!({"type":"open_source","path":video,"packageId":"org.mlearn.japanese"}),

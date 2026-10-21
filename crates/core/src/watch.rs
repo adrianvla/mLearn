@@ -45,7 +45,10 @@ model!(ReadingSpan {
     start: u32,
     end: u32,
     text: String,
-    attribution: String
+    attribution: String,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    #[cfg_attr(feature="typescript",ts(optional))]
+    base: Option<String>
 });
 model!(LinguisticLabel { id:String,label:String,color:Option<String>,attribution:String });
 model!(ContourUnit {
@@ -54,7 +57,7 @@ model!(ContourUnit {
 });
 model!(PronunciationContour { id:String,reading:String,units:Vec<ContourUnit>,following_height:Option<f64>,label:String,color:Option<String>,attribution:String });
 model!(LinguisticPresentation { readings:Vec<ReadingSpan>,labels:Vec<LinguisticLabel>,contours:Vec<PronunciationContour> });
-model!(AnalyzedToken { start:u32,end:u32,text:String,targets:Vec<String>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] presentation:Option<LinguisticPresentation> });
+model!(AnalyzedToken { start:u32,end:u32,text:String,targets:Vec<String>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] presentation:Option<LinguisticPresentation>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] nearby_meaning:Option<bool> });
 model!(CueAnalysis { cue:Cue,tokens:Vec<AnalyzedToken> });
 model!(AnalysisBatch { source_id:String,subtitle_revision:String,package_id:String,package_version:String,package_revision:String,cues:Vec<CueAnalysis>,knowledge:Vec<KnowledgeProjection>,annotations:Vec<OccurrenceKnowledge> });
 model!(LexicalSense { heading:String,labels:Vec<String>,definitions:Vec<String>,notes:Vec<String> });

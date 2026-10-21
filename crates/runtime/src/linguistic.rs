@@ -46,6 +46,17 @@ pub(super) fn validate(
         {
             return Err(invalid());
         }
+        if let Some(base) = &reading.base {
+            let mut source = text[start..next].chars();
+            if base.is_empty()
+                || base.len() > 512
+                || !base
+                    .chars()
+                    .all(|character| source.by_ref().any(|original| original == character))
+            {
+                return Err(invalid());
+            }
+        }
         end = next;
     }
     let prefix = format!("{package}:");
@@ -126,6 +137,11 @@ mod tests {
     }
     #[test]
     fn invalid_coordinates_contours_colors_and_nested_budgets_are_rejected() {
+        let mut value = presentation();
+        value["readings"][0]["base"] = json!("é");
+        assert!(admitted(value.clone()));
+        value["readings"][0]["base"] = json!("invented");
+        assert!(!admitted(value));
         let mut value = presentation();
         value["readings"][0]["end"] = json!(1);
         assert!(!admitted(value));
