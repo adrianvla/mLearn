@@ -85,7 +85,7 @@ async function closeInspector() {
 async function observeSourceView(condition) {
   await script(`window.__m02View={};window.__m02View.promise=new Promise(resolve=>{
     let settled=false;
-    const events=['loadedmetadata','ratechange','seeked','scroll','focusin'];
+    const events=['loadedmetadata','loadeddata','ratechange','seeked','scroll','focusin'];
     const finish=pass=>{
       if(settled)return;settled=true;observer.disconnect();clearTimeout(timer);
       events.forEach(event=>document.removeEventListener(event,check,true));resolve(pass);
@@ -744,9 +744,18 @@ try {
   const unsupported=path.resolve('.mlearn/m01-ci-fixtures/unsupported.srt');
   await writeFile(unsupported,'1\n00:00:00,000 --> 00:00:05,000\n日本語\n\n2\n00:00:10,000 --> 00:00:15,000\n語彙\n\n3\n00:00:20,000 --> 00:00:30,000\n字幕\n');
   assert.equal((await native({type:'attach_subtitles',sourceId:id,path:unsupported})).type,'source');
-  await click('Home');await resumeWatch();
+  await click('Home');
+  // As in the preference probe, a raw element seek must follow real resume
+  // initialization; otherwise loadedmetadata restores 20s over the test's 2s.
+  await observeSourceView(`Array.from(document.querySelectorAll('video')).some(video=>
+    video.getClientRects().length&&video.readyState>=2&&!video.seeking&&Math.abs(video.currentTime-20)<0.01)`);
+  await resumeWatch();
+  await observedSourceView('Raw-subtitle source must finish restoring its native position before the seek');
   await text('English');await text('字幕');
+  await observeSourceView(`Array.from(document.querySelectorAll('video')).some(video=>
+    video.getClientRects().length&&!video.seeking&&Math.abs(video.currentTime-2)<0.01)&&document.body.innerText.includes('日本語')`);
   await script('document.querySelector("video").currentTime=2');
+  await observedSourceView('Raw subtitles must follow the completed two-second seek despite unavailable analysis');
   await text('日本語');
   await screenshot('watch-raw-subtitles-with-analysis-unavailable');
   // Two seeks within the same two-second bucket must still change the cue window.
