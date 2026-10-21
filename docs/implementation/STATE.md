@@ -76,6 +76,21 @@ Desktop light Settings, dark editor and 390px editor captures are inspected.
 Theme/TextField diagnostics are clean; the test file retains its existing LSP
 node:test/node:assert type-resolution diagnostics (the executable suite passes).
 Actual Windows font rendering, controls and native transitions remain pending.
+Follow-up `b7fac91e` / foundation `39688396309` passes Rust, web and macOS;
+Windows app/host tests pass and its new screenshot confirms the sans-serif
+repair, but `Home Settings action` still times out with only renderer panes
+in UIA. The renderer-accessibility flag was ineffective and is removed.
+Pinned Tauri 2.12.3 `show()` only shows the native window; pinned Wry 0.57.0
+ignores its initial WebView2 MoveFocus failure while the host is hidden.
+Windows startup now explicitly restores webview focus after showing the
+material-configured window. This is a focused startup repair hypothesis,
+not a claimed Windows pass; the original UIA controls/DWM assertions remain.
+Local 11 host tests and lib diagnostics pass. Real desktop `39688396439`
+also passes at b7fac91e; its artifact inspection remains open.
+The pending macOS debugger attach ended with `could not pause execution`;
+the previous app/dev process also exited. Native view introspection is
+unverified, not evidence against the implementation. The normal documented
+desktop launch is restarted using the saved profile for compositor verification.
 Actual current native Home/Settings,
 focused live-card backing, card Inspector, nested Knowledge and synchronization
 were inspected. Nested Knowledge visibly blurs dictionary text beneath it;
