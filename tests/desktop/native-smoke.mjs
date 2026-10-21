@@ -512,8 +512,17 @@ try {
   await observeSourceView('document.querySelector("video")?.readyState>=1&&document.querySelector("video").playbackRate===1');
   await resumeWatch();
   await observedSourceView('Reset source preferences must restore the real host');
-  await observeSourceView('Math.abs(document.querySelector("video").currentTime-20)<0.01&&!!document.querySelector(\'[aria-label="home: untracked"]\')');
-  await script('document.querySelector("video").currentTime=20;return true;');
+  // "home" also occurs in the previous cue. The media clock changes before
+  // React publishes its new caption, so that label alone admits the old anchor.
+  await observeSourceView(`Math.abs(document.querySelector("video").currentTime-20)<0.01&&
+    !!document.querySelector('[aria-label="came: untracked"]')?.closest('[data-testid="annotated-text"]')
+      .querySelector('[aria-label="home: untracked"]')`);
+  const seekPublication=await script(`const video=document.querySelector("video");
+    video.currentTime=20;
+    return {currentTime:video.currentTime,
+      cue:document.querySelector('[aria-label="home: untracked"]')?.closest('[data-testid="annotated-text"]').textContent,
+      currentCueReady:!!document.querySelector('[aria-label="came: untracked"]')};`);
+  await writeFile('test-results/desktop/seek-caption-publication.json',JSON.stringify(seekPublication,null,2));
   await observedSourceView('Continue at the exact original second-line occurrence');
   // A second-line occurrence must reserve its entire authored cue and follow
   // the real native window resize, not retain its first captured coordinates.
@@ -524,8 +533,10 @@ try {
   await observedSourceView('The loaded Inspector must clear the entire cue after caption reflow');
   const clearance=await script(`const panel=document.querySelector('[data-testid="inspector-panel"]').getBoundingClientRect();
    const cue=document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').getBoundingClientRect();
-   return {bottom:panel.bottom,cueTop:cue.top};`);
+   return {bottom:panel.bottom,cueTop:cue.top,cue:document.querySelector('button[aria-label="home: untracked"]').closest('[data-testid="annotated-text"]').textContent};`);
+  await writeFile('test-results/desktop/caption-clearance.json',JSON.stringify(clearance,null,2));
   assert.ok(clearance.bottom<=clearance.cueTop,JSON.stringify(clearance));
+  await screenshot('native-second-line-inspector-clearance');
   const windowPath=`/session/${session}/window/rect`;
   const originalRect=await rpc('GET',windowPath);
   await script(`window.__m01ResizeCheck=new Promise(resolve=>{
