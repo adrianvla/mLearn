@@ -53,3 +53,11 @@ opt-level = 3
 debug = 2
 debug-assertions = true
 overflow-checks = true
+
+# Streaming authentication of supported language resources must remain usable
+# during normal development. Retain symbols, assertions and overflow checks.
+[profile.dev.package.sha2]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
