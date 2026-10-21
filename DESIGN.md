@@ -26,6 +26,14 @@ Record measured choices with their reference/state in the existing design/verifi
 
 Semantic theme roles feed accessible shared primitives and meaningful feature compositions. Reuse working APIs, replace insufficient ones and migrate their callers. Application features may own layout, but do not reproduce a private control implementation or font system. Specialized native/window/source adaptation stays narrow. Avoid both monolithic screens and one-component-per-element wrappers.
 
+There is one reference-derived visual system, not selectable interface styles.
+Integrate the maintainer-selected reference presentation without a style name;
+ignore the other reference style variants. The legacy Interface style setting, its
+persisted preference, parallel component implementations and selector
+compatibility machinery are excluded. Approved translucency/material effects
+belong to the shared v3 component system. Quartz/Dark Quartz and custom themes
+remain separate palette/theme choices, not interface-style modes.
+
 The first-class consumers are all existing Home, Settings/package-management, Watch/transcript and Inspector states, not a showcase screen. Home and Watch chrome must visibly match their references; improving internal reuse without changing rejected output fails the task.
 
 ## Evidence
@@ -43,6 +51,14 @@ The isolated development application completed its real EULA and Japanese
 installation. Home was captured at 1200x700 logical pixels / 2x, with Glass and
 Dark Quartz selected through Settings. Captures and the open mismatch ledger
 live in ignored `.mlearn/visual-parity/manifest.json`.
+
+The October 21 clarification supersedes the initial alternate-style selection
+for future reference measurements. The isolated reference now uses the selected
+presentation, with its actual setting read back before capturing Home/Settings.
+Its source style file adds no structural overrides: the base controls, panels
+and palette own the appearance. Integrate those owners directly; do not copy a
+style axis, alternate grouping overrides or a named v3 mode. Earlier captures
+remain historical evidence, not authority for another style variant.
 
 - The edited Settings PNG is 2224x1744. Its dominant content material is
   `#2c2d2b`, navigation `#1b1c1b`, control `#3d3e3d`, border `#4b4c4b`,

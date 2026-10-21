@@ -10,11 +10,306 @@ This authorization supersedes the historical frozen-review, minimal-restyle
 and unpictured `visual_pending` restrictions below. No new domain milestone,
 merge, release or maintainer acceptance is authorized.
 
-### Current application and verification - 2026-10-21
+### Current application and verification - 2026-10-21 19:00 UTC
 
-Application candidate: `02a0de18fa7e5e93690f951234b98c8942d558b8`, tree
-`03c8184e57b53e8f96e505ad78a5234164ae7f4d`, pushed to the existing draft.
-Status remains `implementation_resumed`: consuming checks are pending, not waived.
+Status: `implementation_resumed`; current-source native gates are running,
+not accepted. Current pushed application is `a555dc398176edf88b1dfdbab164751faf141efc`,
+tree `55bb94681e21d2a2a06877f74aa355539220fd68`, on existing `agent/m01` / draft #44.
+Foundation `39656998985` and real desktop `39656999028` pass. Native
+`39656998975` has one persistent completion subscription across its full build
+budget. No build was cancelled or unchanged workflow retried.
+
+Scope clarification, 2026-10-21: the legacy Interface style selector is explicitly
+excluded, including persisted style preferences, parallel implementations and
+selector compatibility machinery. Integrate only the maintainer-selected
+reference presentation without a style name; ignore alternative style variants.
+Themes remain separate. Audit of SettingsScreen, the native ThemeDocument/preferences storage,
+theme projection and shared UI finds no selector or style preference to remove.
+`surfaces.glass` is a shared material role, not a mode; `windowMaterial` is a host
+capability, not a saved user preference. Existing built-in palette migration
+handles theme documents only. Approved materials are preserved. SPEC P13,
+FEATURES OPS-01, REFERENCE, DESIGN and AGENTS record the exclusion. No
+selector-removal runtime change is needed. The actual isolated reference now
+uses the selected presentation, read back through its public setting; Home and
+Settings were inspected and captured as `reference-selected-home-dark.png` and
+`reference-selected-settings-dark.png`. Its source style file adds no structural
+overrides; base shared controls/panels and palette supply the design. Existing v3
+materials already belong to those shared roles, not an alternate mode. No
+runtime style branch or extra component implementation was introduced.
+
+- `4175206` repairs the reproduced iOS test-driver snapshot boundary, not product
+  accessibility. The default XCTest modal optimization hides actual Files
+  controls while Search owns the keyboard. The public
+  `snapshotKeyHonorModalViews: false` workspace setting restores them. The
+  default reproduces missing More; the override passes both real English and
+  Japanese media/subtitle imports on the retained diagnostic device/binary.
+  The ordinary helper deliberately traverses Search/More/List and selects
+  filenames; the workflow passes the config explicitly. These local results do
+  not certify the new source's native flow.
+- `a555dc39` restores the reference's real macOS under-window material through
+  the host/bootstrap/shared-shell owners. The actual defect included opaque
+  router ancestors; a solid sampled background was not a fix. Native appearance
+  follows the system. Built-in light and dark palettes receive measured tints;
+  custom palettes preserve their saved opaque colors. Browser/mobile fallbacks,
+  opaque Settings content and media canvases remain intact.
+- Controlled running-v2/v3 captures use the same 1200x700 logical / 2x window
+  rectangle and background bands. Window-only bitmaps flatten native vibrancy,
+  so the material proof is composited region capture. Actual light WebKit
+  rendering needs a white 75% floor, not Chromium's 50% body value. Shared
+  navigation is transparent and the reference Quartz backdrop filter is retained.
+  Light and dark Home, Settings, loaded idle/focused cards and the courage
+  Inspector were inspected. Current images and identities are in
+  `.mlearn/visual-parity/manifest.json`.
+- Final material source passes native-inclusive typecheck, ownership lint, all
+  54 harness and 25 package/source regressions, web export and eight browser
+  interactions, including transparent router-ancestor protection. Root and
+  Layout diagnostics are clean; theme LSP freshness timed out. CLI typechecking
+  passes, but a freshness timeout is not a clean LSP result.
+- Exact-source desktop artifacts under `ci-a555dc39-desktop` verify source/tree,
+  real progress ranges (66.67%), compact header/source geometry, narrow focused
+  auxiliary cards and the complete IPC/package/playback/Inspector/claim/restart/
+  missing-source flow. Foundation passes all four jobs, including both desktop
+  host builds. One read-only increment gate `st_01a15fd6`, explicitly verified
+  on `chatgpt-subscription/gpt-6.1-sol`, approves `6f840964..a555dc39` with no
+  blocking code findings; this does not grant native or maintainer acceptance.
+- Exact original Dark Quartz JSON was restored through real editor input and
+  read back byte-equivalently as parsed data, with textScale 1 and unchanged
+  extensions. The isolated reference also reads back Dark Quartz. Diagnostic
+  background processes are terminated. The actual original paused test-video.mov
+  is read back at 18.8050003052 seconds, zero offset and 1x; the courage claim and
+  Mixed aggregate remain intact. `final-restoration.json` records this boundary.
+- Previous `59b4b666` foundation `39646152390` passes. Native `39646152404`
+  fails iOS's Files List lookup before the snapshot repair; Android's JUnit
+  records `DeviceServerDiedException` during screenshot at 284.633 seconds,
+  caused by ADB `device offline`, not a demonstrated product assertion failure.
+  Exact failed-job log and Android artifacts are retained under
+  `ci-59b4b666-failed.log` and `ci-59b4b666-android`. Historical receipts below
+  retain their exact-source scope; they are not current-source acceptance.
+
+Next: inspect exact-source workflow receipts and delivered images, resolve any actual failures,
+then reconcile the final gates. No full visual/native acceptance is claimed.
+
+### Historical state before the final material and snapshot repairs
+
+Status: `implementation_resumed`. The maintainer authorized immediate reliable
+acquisition repair and independent visual/functional work, not another pause.
+Current pushed candidate is `59b4b666ad77ab536e43e3379d3b7af9f9ff00c4`, tree
+`c1453a73adf440cb6aa23e08e8739e2d29af323d`, on existing `agent/m01` / draft #44.
+Its foundation `39646152390`, desktop `39646152497` and mobile `39646152404`
+are subscribed. Prior exact-source `6f840964` foundation `39634188618` and
+desktop `39634188632` pass.
+Native `39634188723` has completed: Android passes its 419.609-second consuming
+flow; iOS compiles but fails the first Files `^List$` lookup after 1m51s.
+Its artifact upload also fails `ENOTFOUND`, so no current iOS screenshot or
+hierarchy was delivered. The earlier keyboard-owned hierarchy is evidence of
+the earlier run only. Exact current failed-job logs are retained under
+`.mlearn/visual-parity/ci-6f840964-ios`; unchanged CI was not retried.
+The actual current
+desktop receipt reports source progress 66.67% with valid ranges, and a 344px
+header scroll content inside a 186.19px viewport, leaving 345.81px of the 560px
+window for source content. Prior `e3d8293a` native `39626073010` passes Android's complete
+401.552-second consuming flow. Exact source/tree, JUnit, Japanese ruby and the
+final original-English continuity frame were inspected under
+`.mlearn/visual-parity/ci-e3d8293a-android`.
+Its iOS job fails during CocoaPods installation, before Xcode or
+the app runs: `curl: (6) Could not resolve host: repo1.maven.org`, including
+CocoaPods' two retries. The earlier verified dependency download succeeded;
+this failure is the second download of that same pinned React Native archive.
+Exact source and preparation logs are retained under
+`.mlearn/visual-parity/ci-e3d8293a-ios`. This is neither an application compile
+failure nor a successful recheck of the separate Files accessibility defect.
+No active build was cancelled. The verified presentation increment was pushed
+only after that native run completed; no unchanged failing workflow was retried.
+One read-only code gate, `st_01a15f55`, approves only `48b27c9a..6f840964` on explicitly selected and
+verified `chatgpt-subscription/gpt-6.1-sol`; no premium/model escalation was used.
+Its verdict cannot close the pending consuming mobile or visual gates.
+
+#### Current follow-up after the loaded-card audit
+
+- `35717d9` fixes a reproduced language-package defect: Sudachi keiyoushi
+  incorrectly admitted same-reading JMdict taru adjectives because both English
+  POS labels contain "adjective". The failing unit regression admitted
+  `jmdict:2571360` for いい. The corrected owner retains `jmdict:2820690`
+  and auxiliary adjectives. All 14 guest tests and both actual Wasmi runtime
+  tests pass after rebuilding the signed package as
+  `0.1.3-sudachi20260116-jmdict20261017-pos1`.
+- Normal app Settings installs all 256,972,969 declared bytes from the real signed
+  local catalog. Playback options explicitly adopts the installed version for
+  the saved source. The unchanged paused one-line cue now displays
+  "good; excellent; fine" for いい. 銀河, source bytes, 25.182-second checkpoint,
+  zero offset and the existing 度胸 Meaning claim remain intact. The separate
+  ない ambiguity is authentic dictionary alternatives, not proven contextual
+  ranking; no translation model or arbitrary ranking was added.
+- The loaded wide audit disproved the prior two-column/row-first assumption.
+  Approved card flow fills two rows per column, with 300px cards, 10px gaps and
+  hover-revealed leading dismissal/backing. The shared `MediaOverlay` now owns
+  that material/disclosure and synchronization chrome. Keyboard focus reveals it;
+  touch retains dismissal. Narrow auxiliary cards scroll horizontally, and
+  focusing a card scrolls its actual column into view without another lookup.
+  Actual 1200x700 idle/focused and 420x560 second-card focus frames were inspected.
+- Synchronization now uses the measured 24px numeric role, 30px reference filled
+  arrows and 50px desktop bar; source clearance still consumes measured overlay
+  height. Desktop card inset is 20px, top 48px; native touch sizes remain 44px.
+- Shared Button projects selected/expanded/checked states through supported web
+  ARIA aliases while retaining native state. The new selected-navigation browser
+  test fails before the fix and passes after it. Normal WebKit exposes selected
+  Settings navigation and the real Watch expanded state.
+- Native-inclusive typecheck, ownership lint, web export and all eight browser
+  tests pass for the final UI source. All 54 harness and 24 package/source
+  regressions pass. Desktop consuming assertions now cover expanded state and
+  narrow focused auxiliary-card visibility; the latter is not yet a CI pass.
+  Current-source native builds and consuming UI remain required. No source
+  restoration is claimed until the original test-video workflow is read back.
+
+- `15ae24a` acquires the byte-identical WordNet 3.0 archive from verified NetBSD
+  pkgsrc CDN/distribution mirrors before Princeton. Both observed downloads are
+  11,537,239 bytes with the unchanged pinned SHA-256. Acquisition stages beside
+  the cache, validates before atomic publication, preserves offline mode and
+  bounds connection/transfer/process lifetimes. All four CI consumers retain
+  preparation logs and enforce a 15-minute data-preparation step.
+- The real offline conversion remains byte-identical:
+  `c8d5f5a88dd39d4316af4e5e4c23a1be9b46c121292cfa874282327a2138e2d1`,
+  206,978 lexical senses and 147,306 lemmas. Version, canonical Princeton
+  attribution and license are unchanged. All 54 harness/acquisition and 24
+  package/source regressions pass, including corrupt/truncated/oversized and
+  failed-publication/deadline/offline cases.
+- Fresh running v2/v3 Home comparison exposed a disappearing preview-progress
+  outline. `2dffb05` introduces the shared accessible read-only Progress owner,
+  uses the actual native source positions and package byte totals, and restores
+  the reference's neutral outlined trough/equal title-track composition.
+  Wide and minimum 420x560 Home captures were inspected; the real authenticated
+  English update shows the new transfer track and completes with exact byte
+  counts, removing pending controls. Unknown totals do not invent a percentage.
+  Native-inclusive typecheck, ownership lint, web export and all seven browser
+  interactions pass. The consuming desktop flow now checks real native ranges.
+- Exact-source foundation `39619403964` passes all four jobs. Native run
+  `39619404237` passes Android's complete 430.976-second flow. Actual source,
+  JUnit, verified CDN/digest receipt, Japanese ruby and final English continuity
+  captures are inspected under `.mlearn/visual-parity/ci-2dffb053-android`.
+  iOS completes preparation/build but fails its 113.693-second flow finding
+  `^List$` in Files. The actual screenshot shows List in the open menu while
+  the hierarchy contains only Cancel and keyboard keys, not the menu or files.
+  There is no tutorial in this frame. Exact failure/source evidence is retained
+  under `ci-2dffb053-ios`; reproduction on the retained device is in progress
+  before changing application code or the picker helper.
+  The public UIKit probe identifies the actual `UIDocumentPickerViewController`.
+  Its presentation-style getter remains form-sheet (`2`) both before and after
+  setting full-screen on the next presentation. This did not establish a repair;
+  no Expo dependency or product presentation change was made.
+  The unchanged helper then passes the real CLI on the retained historical
+  binary from both List and an explicitly selected Icons starting state.
+  Actual Icons, subsequent List and successful media/subtitle dismissal images
+  were inspected under `picker-cli-icons-ready-repro/2026-10-21_183447`.
+  The original List preference is restored by the helper. An initial temporary
+  setup failed on Home because it omitted the real entry readiness; only that
+  diagnostic setup was corrected. Neither result certifies current native
+  acceptance or establishes a fix for the hosted accessibility failure.
+- Real desktop `39619403647` catches a genuine accessibility regression:
+  native source progress is 66.67%, but the DOM reports neither ranges nor
+  values. React Native Web does not project the compound `accessibilityValue`
+  prop. The follow-up uses the direct ARIA aliases supported by both native
+  View and RN Web; real macOS accessibility now reports distinct actual source
+  percentages rather than a default 50%. The failing consuming assertion is
+  preserved. Changed-source desktop `39626073084` passes.
+- Enlarged compact Home exposed a fixed header consuming the source workspace.
+  The shared shell now bounds compact header scrolling independently of content,
+  keeps its viewport below desktop traffic lights and preserves stationary wide
+  headers. Actual 420x560, 2x text testing reaches Get language packages by
+  scrolling the header and opens the real package section. The consuming flow
+  now protects the available source workspace and reachable action.
+  Follow-up typecheck, ownership lint, syntax check, 54/24 owner tests, web
+  export and seven browser interactions pass; shared shell diagnostics are clean.
+  The exact original desktop theme is restored/read back at textScale 1.
+- Native Inspector pan investigation has not reproduced an overflowing-body
+  defect. The retained historical binary is diagnostic only. Its attempted
+  large-theme input did not save: inspection exposed corrupted unsubmitted
+  input, which was discarded. Reopening confirms the exact original Quartz
+  document and textScale 1. OS text size is restored to `large`.
+  No speculative responder change or current-source native pass is claimed.
+- A bounded independent pixel audit identifies three further real differences:
+  a continuous full-width live-card backing instead of individual two-column
+  cards, muted Inspector-pill contour endpoints, and video-tinted noun metadata.
+  `6f84096` bounds the real card flow, removes only the enclosing material,
+  retains backed pending/failure states and a shared contrast-safe floating
+  dismissal, and introduces measured pill-only colors plus neutral POS material.
+  It also restores the approved black Watch top rail after directly reproducing
+  unreadable source identity over a white video bar, and removes the redundant
+  nested synchronization-number backing. Wide/narrow real cards, synchronization,
+  dismissal and Inspector were inspected. Native-inclusive typecheck, lint,
+  54/24 tests, web export and seven browser interactions pass. The new consuming
+  title-contrast assertion rejects transparent backing and now passes the actual
+  exact-source Tauri flow `39634188632`. Its source/tree receipt, real progress
+  ranges, compact scrolling, narrow cards and pronunciation/POS Inspector
+  captures were inspected under `ci-6f840964-desktop`. The consuming mobile
+  gate remains pending. LSP freshness timed out on some
+  final shared files; no clean diagnostics are claimed for those timeouts.
+- Secondary v2 Home uses Electron under-window vibrancy with a translucent
+  page. The resolved Tauri 2.12.3 / Wry 0.57.0 transparency path invokes the
+  private WebKit `drawsBackground` key even through the public Tauri effects
+  API. No such adaptation was introduced. Controlled matching-backdrop
+  comparisons and any remaining material limitation must be explicit; a
+  static sampled color cannot certify live backdrop parity.
+
+### Prior verification chronology
+
+Application candidate: `c071d5c08dedee6705874ea79f11e618ded6b136`, tree
+`794ac5cc70aa213c054643d3b2aa15fd00920142`, pushed to the existing draft.
+Status is `paused_incomplete` at an upstream preparation timeout: desktop clearance, native dialog
+scrolling and both-platform ruby alignment are verified. Current harness
+`ac6b9e6f9362375d33846b42c00c6a21e25154a6` is pushed; native run
+`39591442550` completes with Android passing its full 375.44-second flow;
+exact source/tree, JUnit and final English continuity frame were inspected.
+The preceding Android transport failure is rechecked successfully.
+Exact-source foundation `39591442540` also passes. iOS fails at List selection:
+the actual image shows its first-use typing tutorial over the Files menu,
+and the hierarchy exposes `UIContinuousPathIntroductionView` instead of List.
+The same system tutorial is reproduced through Files Search on the retained
+local diagnostic device. The final iOS cross-source return remains pending.
+Continue alone dismisses that tutorial but leaves Files controls absent from
+the actual local hierarchy; that attempted helper change was removed.
+Setup-only `a791e0c4d11cd411ce49e656645ea08a023e21e4` initializes the observed
+keyboard-onboarding preference on the generated CI simulator before its first
+keyboard use. YAML parsing, four mobile configuration checks and whitespace
+checks pass. Native consuming run `39600078919` completed; no app source,
+product assertions or timeouts changed in that candidate. The diagnostic device's original
+onboarding value is restored and read back as true.
+
+The maintainer's stalled-run investigation established actual progress, not an
+overnight deadlock: the run began October 21 at 12:30 UTC, finished its iOS build
+at 13:09:43 and completed the UI step at 13:19:32. Android's complete flow passes
+in 369.431 seconds, with exact source/tree and JUnit retained under
+`.mlearn/visual-parity/ci-a791e0c4-android`. iOS's 130.361-second flow fails the
+original 60-second Watch readiness assertion; its Files list stays open.
+The actual trace selects List successfully, then taps the English row center
+at (196,359), outside its short filename bounds (100,339)-(185,360).
+The new narrow diagnostic repair targets the exact filename child in List mode,
+requires picker dismissal within ten seconds and captures before/after selection
+for both media and subtitles. Helper-only `48b27c9a` is pushed. Its local English
+MP4/SRT and real-annotation flow passes, as do YAML parsing, all four mobile
+configuration tests and whitespace checks.
+The single changed-source native run `39607879380` and foundation
+`39607879436` fail before build/UI in `tools/prepare-wordnet.py:14`:
+Princeton's pinned WordNet archive connection times out (iOS Errno 60;
+Linux Errno 110). The exact URL is
+`https://wordnetcode.princeton.edu/3.0/WordNet-3.0.tar.gz`, expected SHA-256
+`640db279c949a88f61f851dd54ebbb22d003f8b90b85267042ef85a3781d3a52`.
+Current-source iOS acceptance is therefore unverified, not a Files pass.
+Exact source/tree and failure evidence are retained under
+`.mlearn/visual-parity/ci-48b27c9a-ios`; successful earlier Android results remain
+preserved. No unchanged test or broader implementation campaign was relaunched.
+
+The native Files failure was reproduced locally with Maestro 2.11.0 and the
+retained historical binary on owned device
+`6790712D-7A1A-4BFC-A084-45B427A2652A`, not H00. Exact filename/grid taps
+left the movie picker open; animation completion did not repair hosted run
+`39581891266`. Switching the real Files menu to List and tapping the same exact
+file row succeeds. The actual edited `open-ios.yaml` then opened both Japanese
+and English media/subtitle pairs; English annotations also became usable.
+Evidence: `.mlearn/visual-parity/local-picker-{list-selection,japanese-pair,english-pair}-success.png`.
+These local boundary diagnostics do not certify the current application binary.
+The same prior hosted run's Android failure was Maestro
+`DeviceServerDiedException` caused by ADB `device offline`, with transport
+termination in the retained host log, not an application assertion.
 
 Shared captions/transcript now consume real package readings and contours.
 Inspector shows authentic pronunciation alternatives, attributed JLPT metadata
@@ -54,14 +349,153 @@ runner; those tofu captures are not visual acceptance. Verification-only source
 `6157c330` adds the system font prerequisite and coverage check. Real desktop
 `39544257847` passes; its font receipt and actual readable Japanese metadata and
 enlarged source-overlay captures were inspected. macOS glyphs were inspected directly.
-Native `39543218156` remains active; corrected rate-input run `39544717796` from
-`230d30be` is queued behind it. These later commits change only verification/documentation,
-not application inputs. No active hosted build was canceled.
+Native `39543218156` completed: Android passes its full real English/Japanese
+flow (423.417 seconds), while iOS repeats the clipped rate-button failure below.
+Android's source receipt, JUnit and actual metadata, cards, pronunciation details,
+source continuity and synchronization captures were inspected.
+
+That successful flow still exposed a native visual defect: plain words and
+punctuation aligned with ruby readings rather than source bases in both captions
+and transcript. `c9960d14` aligns native source-box bottoms and the shared control's
+content bottom while preserving 44px touch targets. Native shared controls now
+join the app typecheck so they use its real theme registration instead of an
+untyped inferred project; the compiler and fresh native-control diagnostics pass.
+Typecheck, ownership lint, 40/24 owner tests, web export and seven browser
+interactions were rerun successfully. Android run `39549617162` now passes;
+its exact c996 source/tree receipt and actual enlarged caption and transcript
+captures were inspected. Plain words and punctuation now align with ruby source
+bases in both consumers. iOS in the same run repeats the known rate-1 failure
+before reaching Japanese; its baseline after-evidence remains pending.
+
+Rate-input run `39544717796` (`230d30be`) completed: Android passes, iOS still
+fails the rate-1 assertion. Its exact trace shows five centered DOWN swipes with
+unchanged target bounds behind the fixed header, followed by the same clipped tap.
+Centering alone is not a verified repair. A fresh owned iPhone 15 Pro simulator
+(`DCF92FD4-C843-441D-86CD-76D3AB2D25DF`, iOS 27) reuses the retained historical
+binary to diagnose the unchanged Dialog scroll boundary without another build
+or profile copy. This older binary/runtime is not current-source acceptance.
+At a supported enlarged OS text size, ordinary and element-relative swipes both
+leave its overflowing dialog body and scrollbar unchanged. The same `Dialog`
+owner is unchanged from that binary; installed primitive 1.5.2 explicitly claims
+the initial responder above its ScrollView. `c071d5c0` overrides that claim on
+native only. This source correction still needs real native after-evidence;
+no gesture assertion or timeout was relaxed. Native-inclusive typecheck, lint,
+43/24 tests, web export and all seven browser interactions pass after the change.
+Current foundation `39555587192` passes. Desktop `39555587195` fails its loaded
+Inspector whole-cue clearance assertion at `native-smoke.mjs:524`; its actual
+failed frame visibly overlaps the preceding subtitle line. This is not the
+earlier stale-handle failure, and the passing 2fda run does not waive it.
+The exact source/tree receipt, failure image and media state are retained in
+`.mlearn/visual-parity/ci-c071d5c0-desktop`. Harness-only `7a7c234` adds actual
+viewport, cue, token, scroll and panel geometry to failure evidence without
+changing input or assertions; syntax and all three driver regressions pass.
+Its foundation `39558703352` and desktop `39558703481` pass on unchanged app
+source. Exact receipts and actual readable Japanese/narrow captures were
+inspected. That green rerun does not erase the earlier failure.
+The seek readiness condition accepted `home` from either authored cue even though
+the media clock updates before React publishes the new caption. Harness-only
+`af4ecd42` requires `came` and `home` in the same actual second-line cue before
+activation; all loaded-panel clearance, resize and narrow assertions remain.
+Foundation `39559794944` and desktop `39559794929` pass. Their exact source/tree
+receipt and real publication/clearance evidence confirm the diagnosis:
+immediately after seeking, the clock is 20 seconds but the cue is still
+`Children walked home.` and the intended cue is not ready. After waiting for
+the actual `Children came\nhome.` caption, the loaded panel bottom is 444 and
+the entire cue top is 456, leaving 12px clear. The explicit enlarged second-line
+frame was inspected; resize and minimum-window assertions also pass.
+Evidence is retained in `.mlearn/visual-parity/ci-af4ecd42-desktop`.
+No application placement change or relaxed assertion was needed for this race.
+Native `39555587383` remains subscribed; no duplicate mobile run was started.
+Its Android job `119081417327` passes the full real English/Japanese flow
+(368.847 seconds). Exact c071/tree794a provenance, JUnit and current persisted
+rate/offset, aligned caption/transcript and actual pronunciation/level Inspector
+frames were inspected in `.mlearn/visual-parity/ci-c071d5c0-android`.
+iOS job `119081416935` completed with a later Home-selection failure, not the
+old rate failure. Its trace confirms actual rate-button movement from y=65 to
+y=182 after the native responder fix, a safe tap at y=204 and the unchanged
+saved-1x assertion passing. The full preferences/restart/reset flow passes.
+Current iOS caption, transcript and Inspector captures were inspected: ruby
+source bases, plain words and punctuation align, with real alternatives and N5.
+These close the native scroll, rate-input and mixed-ruby repairs.
+The final return to the original English source fails because its second recent
+row is below the enlarged iOS Home viewport. The actual failure frame shows
+the latest Japanese source and its Resume action; selecting that instead would
+test the wrong source. The Japanese flow now scrolls to the original source's
+own Resume action before tapping, keeping all continuity/claim assertions.
+Exact iOS trace, provenance and images are retained in
+`.mlearn/visual-parity/ci-c071d5c0-ios`. No application/data change is needed for
+this test navigation correction. The overall native run remains failed until
+the corrected complete flow passes.
+The correction is committed/pushed as harness-only `50a146df`; YAML parsing,
+all four mobile configuration tests and whitespace checks pass. Its native
+`39562873224` and foundation `39562873286` runs are subscribed. Application
+inputs remain c071; desktop af4 evidence remains applicable.
+The new Android job `119098032153` passes (404.086-second full flow); exact
+50a/tree5ca5 provenance, JUnit and the final original-English continuity frame
+were inspected in `.mlearn/visual-parity/ci-50a146df-android`.
+iOS job `119098031891` was cancelled by the outer 75-minute job limit, not a
+failed product assertion. GitHub's check annotation states that maximum explicitly.
+Preparation reached the UI step after 58 minutes; Maestro's retained trace still
+passes English source/claim/restart checks and begins Japanese when cancellation
+lands. The exact interrupted evidence remains in
+`.mlearn/visual-parity/ci-50a146df-ios`. The outer iOS job budget is now 90 minutes
+to reserve its unchanged 20-minute UI step and evidence upload after the measured
+cold build. No assertion, gesture timeout or product behavior is relaxed.
+That workflow-only correction is committed/pushed as `477a39d3`; YAML parsing
+confirms 90/20-minute job/UI bounds and all four mobile configuration tests pass.
+Native `39572849831` is subscribed durably. Previous completed Android evidence
+is retained; the full iOS return-to-original-source gate remains open.
+That reserved-budget run completed: Android passes; iOS reaches an actual
+assertion failure rather than the outer deadline. The failed frame remains in
+the native Files picker after the Japanese MP4 tap (`step-225`), not a failed
+Rust import or subtitle analysis. Its trace navigates through the app container
+and fixture folder, exposes the destination cell and dispatches the tap while
+that native navigation can still be settling. `open-ios.yaml` now waits for
+native animation completion before each media/subtitle selection; exact file
+targets and the original 60-second app-ready assertion remain unchanged.
+This picker correction still requires real consuming proof. Exact JUnit,
+trace and failed frame are retained in `.mlearn/visual-parity/ci-477a39d3-ios`.
+The picker-only correction is committed/pushed as `5606de36`; YAML parsing,
+four mobile configuration tests and whitespace pass. Native `39581891266` and
+foundation `39581891140` are subscribed durably. App inputs remain c071, so
+the existing native visual and desktop evidence remains applicable.
+The 5606 foundation passes. Android job `119161235933` then failed because
+Maestro lost its emulator connection: JUnit reports `DeviceServerDiedException`
+with `device offline`, and the host ADB trace records transport read failure and
+unregistration. This is retained in `.mlearn/visual-parity/ci-5606de36-android`;
+it is not relabeled as a product assertion failure or erased by older passes.
+The only source delta is the iOS picker helper. No Android/application change
+or retry wrapper was made for this transport loss. iOS job `119161236102`
+remains active under the same durable subscription; after it finishes, recheck
+only the failed Android platform rather than duplicating the active build.
+An expired watcher was renewed for the same run; it was not treated as a build
+failure or a reason to duplicate/cancel the native build.
+The diagnostic driver was stopped and its owned simulator shut down, retaining
+only its small fresh sandbox for follow-up; H00 remains untouched.
+After its current-source diagnosis was verified, only the owned diagnostic
+simulator `DCF92FD4-C843-441D-86CD-76D3AB2D25DF` was deleted and read back absent.
+H00 remains booted and untouched. The normal app and owned temporary run root
+remain available until final verification/cleanup; useful builds and evidence
+are preserved.
+Current-source foundation `39549617192` passes. Desktop `39549617175` failed
+at its second-line word click: WebDriver rejected a detached DOM handle before
+dispatch (`native-smoke.mjs:555`); the real failed frame and logs are retained.
+Harness-only `2fda1762` reacquires only a protocol-declared stale element inside
+the existing 15-second readiness deadline. It preserves real WebDriver clicks
+and propagates intercepted/other failures. The deterministic replacement test
+failed on the original one-shot behavior; all three driver cases now pass,
+including no replay after interception or expiry. The complete 43/24 tests and
+Node syntax checks pass. Foundation `39551043267` and real desktop `39551043215`
+pass. Exact source/tree receipts, completed native flow and readable metadata,
+enlarged source and overlay captures were inspected; the driver repair is verified.
+No app/mobile input changed in that increment.
+No active hosted build was canceled. Current native visual gates remain open.
 
 The retained original iOS job `119023396747` shows a rate-button tap at y=87 while
 the dialog body starts at y=142: accessibility reported a clipped button as visible
 behind the fixed header. The preference flow now centers both rate targets before
 input, like its existing Reset guard; saved-rate assertions are unchanged.
+The latest failure above proves that gesture change is insufficient.
 Native gates remain open until the corrected flow and actual captures pass.
 Prior desktop failures exposed and repaired
 test-side WAL lock acquisition, a stale theme-label query and a reused pre-restart
