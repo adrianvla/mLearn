@@ -85,6 +85,7 @@ export function resolveTheme(saved: ThemeDocument) {
       inspectionTitle: textRole(32, 44),
       inspectionBody: textRole(20, 28),
       inspectionReading: textRole(18, 26),
+      pronunciationPill: textRole(16, 28, '700'),
       dictionaryMeaning: textRole(20, 28),
       dictionaryReading: textRole(16, 24),
       // SubtitleWord.css: .45em reading, line-height 1, .05em spacing.

@@ -4,7 +4,7 @@ import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { PronunciationContour } from '@mlearn/contracts';
 
-type Role = 'subtitleRuby' | 'bodyRuby' | 'inspectionRuby' | 'inspectionReading' | 'subtitle' | 'body';
+type Role = 'subtitleRuby' | 'bodyRuby' | 'inspectionRuby' | 'inspectionReading' | 'pronunciationPill' | 'subtitle' | 'body';
 
 /** Draw package-supplied display heights; no linguistic categories are interpreted. */
 export function PronunciationReading({ contour, variant = 'inspectionReading', pill = false, color }: {
@@ -14,25 +14,28 @@ export function PronunciationReading({ contour, variant = 'inspectionReading', p
     readonly color?: string;
 }) {
     const last = contour.units[contour.units.length - 1];
+    const textVariant = pill ? 'pronunciationPill' : variant;
     const { theme } = useUnistyles();
     const foreground = color ?? (variant === 'body' ? theme.colors.text : variant === 'bodyRuby' ? theme.colors.muted
         : variant === 'subtitle' ? theme.media.text : theme.media.muted);
     return <View testID="pronunciation-reading" style={styles.word(pill)} accessible
         accessibilityLabel={`${contour.reading}. ${contour.label}. ${contour.attribution}`}>
         {contour.units.map((unit, index) => <View key={index} style={styles.unit}>
-            <HeightLine variant={variant} height={unit.height} previous={contour.units[index - 1]?.height ?? unit.height} />
-            <NativeText style={[styles.text(variant), { color: foreground }]}>{unit.text}</NativeText>
+            <HeightLine variant={textVariant} pill={pill} height={unit.height} previous={contour.units[index - 1]?.height ?? unit.height} />
+            <NativeText style={[styles.text(textVariant), { color: foreground }]}>{unit.text}</NativeText>
         </View>)}
-        {last && contour.followingHeight !== null ? <View style={{ width: theme.typography[variant].fontSize / 2 }}>
-            <HeightLine variant={variant} height={contour.followingHeight} previous={last.height} fade />
+        {last && contour.followingHeight !== null ? <View style={pill ? styles.unit : { width: theme.typography[variant].fontSize / 2 }}>
+            <HeightLine variant={textVariant} pill={pill} height={contour.followingHeight} previous={last.height} fade={!pill} />
+            {pill ? <NativeText style={[styles.text(textVariant), { color: foreground }]}>{'\u2726'}</NativeText> : null}
         </View> : null}
     </View>;
 }
 
-function HeightLine({ height, previous, variant, fade = false }: {
+function HeightLine({ height, previous, variant, pill, fade = false }: {
     readonly height: number;
     readonly previous: number;
     readonly variant: Role;
+    readonly pill: boolean;
     readonly fade?: boolean;
 }) {
     const { theme } = useUnistyles();
@@ -43,7 +46,7 @@ function HeightLine({ height, previous, variant, fade = false }: {
         const high = Number.parseInt(theme.pronunciation.high.slice(offset, offset + 2), 16);
         return Math.round(low + (high - low) * height);
     }).join(',')})`;
-    return <View pointerEvents="none" style={styles.graph(variant)}>
+    return <View pointerEvents="none" style={styles.graph(variant, pill)}>
         <Svg width="100%" height="100%" viewBox="0 0 1 32" preserveAspectRatio="none" aria-hidden>
         <Defs>
             <LinearGradient id={`${id}height`} gradientUnits="userSpaceOnUse" x1={0} y1={1} x2={0} y2={31}>
@@ -80,8 +83,9 @@ const styles = StyleSheet.create(theme => ({
         ...theme.typography[variant], flexShrink: 1,
         textAlign: 'center',
     }),
-    // Contours follow glyph height, not the larger source line box.
-    graph: (variant: Role) => ({ position: 'absolute',
-        top: (theme.typography[variant].lineHeight - theme.typography[variant].fontSize) / 2,
-        height: theme.typography[variant].fontSize, left: 0, right: 0, overflow: 'visible' }),
+    // Pills use their compact reading line; source overlays follow glyph height,
+    // not the much larger subtitle line box.
+    graph: (variant: Role, pill: boolean) => ({ position: 'absolute',
+        top: pill ? 0 : (theme.typography[variant].lineHeight - theme.typography[variant].fontSize) / 2,
+        height: theme.typography[variant][pill ? 'lineHeight' : 'fontSize'], left: 0, right: 0, overflow: 'visible' }),
 }));

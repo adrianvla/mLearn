@@ -118,6 +118,11 @@ and 0.05em letter spacing; `index.css:190,243-244` specifies a 2px contour strok
 high `#e8687b` and low `#4e86ca`. Contours consume the package's normalized display
 units and retain pronunciation alternatives rather than interpreting a Japanese
 taxonomy in React. Original UTF-8 source coordinates stay authoritative.
+The approved 1200x700-pixel courage-panel crop uses a distinct 16/28px bold
+pronunciation-pill role, with 4px vertical inset. Its contour spans the compact
+reading line; large source overlays span glyph height rather than the 64px
+subtitle line box. A pill shows the reference continuation mark only when the
+package supplies a following height; source overlays use a fading continuation.
 The edited Inspector pairs pronunciation/reading pills with package-declared
 level badges above the dictionary disclosure. Static metadata is not a claim.
 Absent metadata leaves ordinary source text intact.
