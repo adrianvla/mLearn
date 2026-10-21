@@ -64,6 +64,10 @@ jobs:
           trap cleanup EXIT
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
+          # First-use typing onboarding can cover the Files menu and remove its
+          # controls from XCTest (39591442550). Configure only this disposable
+          # simulator before its first keyboard use; keep all product assertions.
+          xcrun simctl spawn "$device" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
           app=$(find apps/client/ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app"
           xcrun simctl install "$device" "$app"
