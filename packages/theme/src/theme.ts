@@ -61,7 +61,8 @@ export function resolveTheme(saved: ThemeDocument) {
       canvas: lightSurface ? '#F3F5F7' : '#000000' },
     surfaces: { glass: lightSurface ? '#FFFFFF80' : '#82828233' },
     feedback: { success: lightSurface ? '#2F7D20' : '#58C333' },
-    pronunciation: { high: '#E8687B', low: '#4E86CA', strokeWidth: 2 },
+    pronunciation: { high: '#E8687B', low: '#4E86CA', strokeWidth: 2,
+      pill: { high: '#FF4A64', low: '#3387FF' } },
     media: {
       background: '#000000',
       text: '#E8E8E8',
@@ -72,6 +73,7 @@ export function resolveTheme(saved: ThemeDocument) {
       border: '#505050',
       footer: '#FFFFFF08',
       badge: '#FFFFFF20',
+      metadata: '#565656',
     },
     typography: {
       heading: textRole(20, 30, '600'),

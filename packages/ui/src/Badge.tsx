@@ -17,7 +17,8 @@ const styles = StyleSheet.create(theme => ({
   root: (variant: 'reading' | 'label' | 'partOfSpeech') => ({
     maxWidth: '100%',
     borderRadius: variant === 'partOfSpeech' ? 4 : theme.radius + 4,
-    backgroundColor: variant === 'reading' ? theme.pills.neutral.surface : theme.media.badge,
+    backgroundColor: variant === 'reading' ? theme.pills.neutral.surface
+      : variant === 'partOfSpeech' ? theme.media.metadata : theme.media.badge,
     paddingVertical: variant === 'partOfSpeech' ? theme.spacing.tiny * 0.75 : theme.spacing.tiny,
     paddingHorizontal: variant === 'partOfSpeech' ? theme.spacing.small * 0.75 : theme.spacing.compact,
     _web: variant === 'reading' ? { backgroundImage: `linear-gradient(${theme.pills.neutral.top}, ${theme.pills.neutral.surface})` } : {},

@@ -118,6 +118,10 @@ and 0.05em letter spacing; `index.css:190,243-244` specifies a 2px contour strok
 high `#e8687b` and low `#4e86ca`. Contours consume the package's normalized display
 units and retain pronunciation alternatives rather than interpreting a Japanese
 taxonomy in React. Original UTF-8 source coordinates stay authoritative.
+The matched Inspector pill crop has brighter contour endpoints, `#ff4a64` and
+`#3387ff`; these belong to the pill role, not the muted source-overlay palette.
+Part-of-speech metadata has an opaque neutral `#565656` backing in that crop,
+so its fill does not inherit the video hue.
 The approved 1200x700-pixel courage-panel crop uses a distinct 16/28px bold
 pronunciation-pill role, with 4px vertical inset. Its contour spans the compact
 reading line; large source overlays span glyph height rather than the 64px
@@ -154,6 +158,12 @@ families. Native minimum touch targets remain 44 logical pixels.
 Compact shell headers share navigation's bounded 35% viewport budget and can
 scroll independently when enlarged text exceeds it. A fixed header must not
 consume the source workspace; ordinary desktop headers remain stationary.
+Watch retains the approved black top rail so source identity stays readable over
+bright frames. Nearby cards flow in at most two 300px desktop columns without
+an enclosing full-width material; each card owns its backing. Scoped pending and
+failure feedback keeps a dark backing, and floating dismissal remains visible.
+Synchronization uses one shared enclosing material, not a second filled box
+around its numeric offset.
 Native dialog content leaves pan ownership to its scrolling body rather than
 claiming the initial touch above it; controls retain their own activation and
 keyboard/escape behavior.

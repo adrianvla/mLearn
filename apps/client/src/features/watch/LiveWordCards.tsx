@@ -93,8 +93,7 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
     }, [cards]);
     if (!cards.length && !pending && !error) return null;
     return <View testID="live-word-cards" style={styles.panel}>
-        <Button label="Hide live word translator" icon="close" iconOnly variant="media" size="compact" onPress={onClose} />
-        <View style={styles.content}>
+        <View style={[styles.content, pending || error ? styles.feedback : null]}>
             <ScrollView style={styles.scroll(viewport.width < 720 && viewport.height < 650 ? 1 : 2)} contentContainerStyle={styles.cards} keyboardShouldPersistTaps="handled">
                 {cards.map(card => card.result.state === 'available' ?
                     <DictionaryCard key={card.id} meaning={card.result.summary.summary}
@@ -113,16 +112,18 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
             {error ? <><Text variant="caption" tone="media" accessibilityRole="alert">{error}</Text>
                 <Button label="Retry live word lookup" size="compact" variant="media" onPress={() => setReload(value => value + 1)} /></> : null}
         </View>
+        <Button label="Hide live word translator" icon="close" iconOnly variant="mediaFloating" size="compact" onPress={onClose} />
     </View>;
 }
 
 const styles = StyleSheet.create(theme => ({
-    panel: { maxWidth: '100%', flexDirection: 'row', gap: theme.spacing.small,
-        padding: theme.spacing.tiny, borderRadius: theme.radius + 4, backgroundColor: theme.media.panel,
-        _web: { backdropFilter: theme.media.backdrop } },
+    panel: { width: '100%', maxWidth: 600 + theme.spacing.small * 2 + 44,
+        flexDirection: 'row', gap: theme.spacing.small },
     content: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
     scroll: (rows: number) => ({ maxHeight: Math.max(Platform.OS === 'web' ? 30 : 44,
         theme.typography.dictionaryMeaning.lineHeight + (Platform.OS === 'web' ? 0 : theme.spacing.small * 2)) * rows + theme.spacing.small * (rows - 1) }),
     cards: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small },
-    unavailable: { maxWidth: 300, gap: theme.spacing.tiny },
+    feedback: { padding: theme.spacing.small, borderRadius: theme.radius, backgroundColor: theme.media.chrome },
+    unavailable: { maxWidth: 300, gap: theme.spacing.tiny, padding: theme.spacing.small,
+        borderRadius: theme.radius, backgroundColor: theme.media.chrome },
 }));

@@ -284,6 +284,18 @@ try {
   }
   await resumeWatch();
   await until(()=>script('const v=document.querySelector("video");return v&&v.readyState>=2&&v.duration>=29'),'Decoded real H.264/AAC fixture');
+  const titleContrast=await script(`
+    const toolbar=document.querySelector('[data-testid="watch-toolbar"]');
+    const title=toolbar.querySelector('[data-testid="watch-source-title"]');
+    const background=getComputedStyle(toolbar).backgroundColor,color=getComputedStyle(title).color;
+    const channels=value=>value.match(/[\\d.]+/g).map(Number);
+    const luminance=rgb=>rgb.slice(0,3).map(value=>value/255).map(value=>value<=0.04045?value/12.92:((value+0.055)/1.055)**2.4)
+      .reduce((total,value,index)=>total+value*[0.2126,0.7152,0.0722][index],0);
+    const bg=channels(background),fg=channels(color),a=luminance(bg),b=luminance(fg);
+    return {background,color,opaque:bg.length===3||bg[3]===1,ratio:(Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)};
+  `);
+  assert.ok(titleContrast.opaque&&titleContrast.ratio>=4.5,
+    `Source title must remain readable above bright video: ${JSON.stringify(titleContrast)}`);
   // Reject only a real rate write in this explicitly isolated profile. Position
   // checkpoints still commit; IPC and the native rejection remain genuine.
   assert.ok(process.env.XDG_DATA_HOME, 'Native failure checks require an isolated XDG_DATA_HOME');

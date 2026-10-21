@@ -41,17 +41,18 @@ function HeightLine({ height, previous, variant, pill, fade = false }: {
     const { theme } = useUnistyles();
     const id = useId().replaceAll(':', '');
     const y = (value: number) => 1 + (1 - value) * 30;
+    const palette = pill ? theme.pronunciation.pill : theme.pronunciation;
     const color = `rgb(${[1, 3, 5].map(offset => {
-        const low = Number.parseInt(theme.pronunciation.low.slice(offset, offset + 2), 16);
-        const high = Number.parseInt(theme.pronunciation.high.slice(offset, offset + 2), 16);
+        const low = Number.parseInt(palette.low.slice(offset, offset + 2), 16);
+        const high = Number.parseInt(palette.high.slice(offset, offset + 2), 16);
         return Math.round(low + (high - low) * height);
     }).join(',')})`;
     return <View pointerEvents="none" style={styles.graph(variant, pill)}>
         <Svg width="100%" height="100%" viewBox="0 0 1 32" preserveAspectRatio="none" aria-hidden>
         <Defs>
             <LinearGradient id={`${id}height`} gradientUnits="userSpaceOnUse" x1={0} y1={1} x2={0} y2={31}>
-                <Stop offset="0" stopColor={theme.pronunciation.high} />
-                <Stop offset="1" stopColor={theme.pronunciation.low} />
+                <Stop offset="0" stopColor={palette.high} />
+                <Stop offset="1" stopColor={palette.low} />
             </LinearGradient>
             <LinearGradient id={`${id}fade`} gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={1} y2={0}>
                 <Stop offset="0" stopColor={color} />

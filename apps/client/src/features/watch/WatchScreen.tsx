@@ -523,7 +523,7 @@ export function WatchScreen() {
                 <Row>
                     <Button label="Home" icon="arrowLeft" size="compact" variant="media"
                         disabled={busy} onPress={() => void back().catch(() => {})} />
-                    <View style={styles.title}><Text numberOfLines={1} variant="mediaTitle" tone="media">
+                    <View style={styles.title}><Text testID="watch-source-title" numberOfLines={1} variant="mediaTitle" tone="media">
                         {window?.source.title ?? 'Watch'}
                     </Text></View>
                     {busy && host.available ? (
@@ -561,9 +561,9 @@ export function WatchScreen() {
                 <Row>
                     <Button label="Align previous subtitle" icon="previousCue" iconOnly size="compact" variant="media"
                         disabled={busy} onPress={() => alignSubtitle('previous')} />
-                    <Button label={`${(window.source.subtitleOffsetMs / 1000).toFixed(2)} s`}
+                    <Button label={(window.source.subtitleOffsetMs / 1000).toFixed(2)}
                         accessibilityLabel="Subtitle offset" accessibilityValue={{ text: `${window.source.subtitleOffsetMs} milliseconds` }}
-                        size="compact" variant="media" onPress={() => {
+                        size="compact" variant="mediaSelect" onPress={() => {
                             setOffsetDraft(String(window.source.subtitleOffsetMs)); setPlaybackOpen(true);
                         }} />
                     <Button label="Align next subtitle" icon="nextCue" iconOnly size="compact" variant="media"
@@ -644,7 +644,8 @@ const styles = StyleSheet.create(theme => ({
     screen: (top: number, bottom: number) => ({
         flex: 1, paddingTop: top, paddingBottom: bottom, backgroundColor: theme.media.background
     }), toolbar: {
-        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2, backgroundColor: theme.media.background,
+        paddingHorizontal: theme.spacing.medium, paddingVertical: theme.spacing.small, gap: theme.spacing.small
     }, title: {
         flex: 1, flexBasis: 120, minWidth: 0
     }, stage: (toolbarHeight: number) => ({
