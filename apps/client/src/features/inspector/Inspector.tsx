@@ -50,7 +50,7 @@ export function Inspector({ inspection, packageId, client, knowledge, onChanged,
         setShowSource(false);
         client.inspectTarget(packageId, inspection.targets[index]).then(value => {
             if (active)
-                setEntry(value);
+                setEntry(value.entry);
         }).catch(e => {
             if (active)
                 setError(String(e.message ?? e));

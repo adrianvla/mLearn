@@ -16,10 +16,11 @@ test('transcript admission stays bounded and retains untouched source coordinate
 test('structured dictionary senses remain bounded typed values at transport admission',()=>{
  const entry={targetId:'target',headword:'form',reading:null,partOfSpeech:'noun',definition:'complete definition',summary:'nearby meaning',
   attribution:'dictionary',capabilities:[],senses:[{heading:'noun',labels:['source taxonomy'],definitions:['one; intact gloss','second gloss'],notes:[]}]};
- assert.equal(isWatchResponse({type:'entry',entry}),true);
- assert.equal(isWatchResponse({type:'entry',entry:{...entry,senses:null}}),true);
- assert.equal(isWatchResponse({type:'entry',entry:{...entry,senses:[{...entry.senses[0],definitions:'flattened'}]}}),false);
- assert.equal(isWatchResponse({type:'entry',entry:{...entry,senses:new Array(129).fill(entry.senses[0])}}),false);
+ const response={type:'entry',entry,packageVersion:'1',packageRevision:'a'.repeat(64),knowledge:{projections:[],claim:'unavailable'}};
+ assert.equal(isWatchResponse(response),true);
+ assert.equal(isWatchResponse({...response,entry:{...entry,senses:null}}),true);
+ assert.equal(isWatchResponse({...response,entry:{...entry,senses:[{...entry.senses[0],definitions:'flattened'}]}}),false);
+ assert.equal(isWatchResponse({...response,entry:{...entry,senses:new Array(129).fill(entry.senses[0])}}),false);
 });
 test('retry keeps the admitted claim identity and exact payload',async()=>{
  const requests:string[]=[];let attempt=0;
@@ -45,7 +46,7 @@ test('cancellation rejects obsolete analysis without discarding an admitted chec
    if(command.type==='save_position'){entered();await gate;return JSON.stringify({type:'position_saved'});}
    assert.equal(command.type,'analyze_source');
    assert.ok('sourceId'in command&&typeof command.sourceId==='string');
-   return JSON.stringify({type:'analysis',batch:{sourceId:command.sourceId,subtitleRevision:'revision',packageId:'package',packageVersion:'1',cues:[],knowledge:[],annotations:[]}});
+   return JSON.stringify({type:'analysis',batch:{sourceId:command.sourceId,subtitleRevision:'revision',packageId:'package',packageVersion:'1',packageRevision:'a'.repeat(64),cues:[],knowledge:[],annotations:[]}});
   }
  });
  const checkpoint=client.savePosition('old',0,30000);await started;
@@ -68,7 +69,7 @@ test('source and transcript display work share the latest desired read without b
   assert.ok('positionMs'in command&&typeof command.positionMs==='number');
   positions.push(command.positionMs);
   if(command.positionMs===0){entered();await gate;}
-  return JSON.stringify({type:'analysis',batch:{sourceId:'source',subtitleRevision:'revision',packageId:'package',packageVersion:'1',cues:[],knowledge:[],annotations:[]}});
+  return JSON.stringify({type:'analysis',batch:{sourceId:'source',subtitleRevision:'revision',packageId:'package',packageVersion:'1',packageRevision:'a'.repeat(64),cues:[],knowledge:[],annotations:[]}});
  }});
  const first=client.analyzeSource('source',0);await started;
  const second=client.analyzeTranscript('source',null,'came');
@@ -86,4 +87,26 @@ test('old source cleanup cannot cancel its replacement session',async()=>{
  await old.cancel();
  assert.equal(old.isCurrent(),false);assert.equal(current.isCurrent(),true);assert.equal(cancellations,2);
  await current.cancel();assert.equal(current.isCurrent(),false);assert.equal(cancellations,3);
+});
+test('linguistic transport rejects executable colors and excessive nested pronunciation data',()=>{
+ const presentation={readings:[],labels:[{id:'p:level',label:'Level A',color:'#00b84a',attribution:'Vocabulary list'}],
+  contours:[{id:'p:pattern-a',reading:'ab',units:[{text:'a',height:0},{text:'b',height:1}],followingHeight:0,label:'Pattern A',color:null,attribution:'Dictionary'}]};
+ const response={type:'dictionary',batch:{sourceId:'s',subtitleRevision:'r',packageId:'p',packageVersion:'1',packageRevision:'a'.repeat(64),
+  items:[{state:'available',summary:{targetId:'t',headword:'ab',reading:'ab',summary:'meaning',presentation}}]}};
+ assert.equal(isWatchResponse(response),true);
+ const unsafe=structuredClone(response);unsafe.batch.items[0].summary.presentation.labels[0].color='url(unsafe)';
+ assert.equal(isWatchResponse(unsafe),false);
+ const oversized=structuredClone(response);oversized.batch.items[0].summary.presentation.contours[0].units=Array(65).fill({text:'a',height:0});
+ assert.equal(isWatchResponse(oversized),false);
+ const tooManyPatterns=structuredClone(response);tooManyPatterns.batch.items[0].summary.presentation.contours=Array(17).fill(presentation.contours[0]);
+ assert.equal(isWatchResponse(tooManyPatterns),false);
+ assert.equal(isWatchResponse({...response,batch:{...response.batch,items:Array(7).fill(response.batch.items[0])}}),false);
+});
+test('dictionary batches reject mismatched source and target identities',async()=>{
+ const revision='a'.repeat(64);
+ const client=createRuntimeClient({commandId:()=> 'dictionary',execute:async()=>JSON.stringify({type:'dictionary',
+  batch:{sourceId:'source',subtitleRevision:'r',packageId:'p',packageVersion:'1',packageRevision:revision,
+   items:[{state:'unavailable',targetId:'other',message:'Unavailable'}]}})});
+ await assert.rejects(client.inspectTargets('source','r',revision,['target']),{code:'protocol'});
+ await assert.rejects(client.inspectTargets('replacement','r',revision,['other']),{code:'protocol'});
 });

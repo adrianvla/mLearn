@@ -1,7 +1,7 @@
 mod watch;
-pub use watch::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+pub use watch::*;
 
 pub const PROTOCOL_VERSION: u32 = 1;
 
@@ -43,21 +43,42 @@ impl ThemeDocument {
         if self.id.is_empty() || self.id.len() > 128 || self.id.chars().any(char::is_control) {
             return Err("Theme id must contain 1–128 bytes without control characters".into());
         }
-        if self.name.trim().is_empty() || self.name.len() > 256 || self.name.chars().any(char::is_control) {
+        if self.name.trim().is_empty()
+            || self.name.len() > 256
+            || self.name.chars().any(char::is_control)
+        {
             return Err("Theme name must contain 1–256 bytes without control characters".into());
         }
-        let colors = [&self.colors.background, &self.colors.surface, &self.colors.text,
-            &self.colors.muted, &self.colors.accent, &self.colors.on_accent, &self.colors.border];
-        if colors.iter().any(|c| !(c.len() == 7 || c.len() == 9) || !c.starts_with('#') || !c.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)) {
+        let colors = [
+            &self.colors.background,
+            &self.colors.surface,
+            &self.colors.text,
+            &self.colors.muted,
+            &self.colors.accent,
+            &self.colors.on_accent,
+            &self.colors.border,
+        ];
+        if colors.iter().any(|c| {
+            !(c.len() == 7 || c.len() == 9)
+                || !c.starts_with('#')
+                || !c.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+        }) {
             return Err("Theme colors must be #RRGGBB or #RRGGBBAA".into());
         }
-        if self.radius > 48 || !self.text_scale.is_finite() || !(0.8..=2.0).contains(&self.text_scale) {
+        if self.radius > 48
+            || !self.text_scale.is_finite()
+            || !(0.8..=2.0).contains(&self.text_scale)
+        {
             return Err("Theme radius or text scale is outside the supported range".into());
         }
         if !self.spacing_scale.is_finite() || !(0.75..=1.5).contains(&self.spacing_scale) {
             return Err("Theme spacing scale must be between 0.75 and 1.5".into());
         }
-        if serde_json::to_vec(&self.extensions).map_err(|e| e.to_string())?.len() > 16_384 {
+        if serde_json::to_vec(&self.extensions)
+            .map_err(|e| e.to_string())?
+            .len()
+            > 16_384
+        {
             return Err("Theme extensions exceed 16 KiB".into());
         }
         Ok(())
@@ -120,7 +141,13 @@ pub struct PackageInstallCommand {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
-pub enum PackageInstallPhase { Downloading, Validating, Succeeded, Failed, Cancelled }
+pub enum PackageInstallPhase {
+    Downloading,
+    Validating,
+    Succeeded,
+    Failed,
+    Cancelled,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -140,23 +167,123 @@ pub enum Request {
     Snapshot,
     RecentSources,
     AvailablePackages,
-    OpenSource { path: String, #[serde(rename="packageId")] package_id:String },
-    ResumeSource { #[serde(rename="sourceId")] source_id:String },
-    AttachSubtitles { #[serde(rename="sourceId")] source_id:String,path:String },
-    SourceWindow { #[serde(rename="sourceId")] source_id:String,#[serde(rename="positionMs")] position_ms:u32 },
-    Transcript { #[serde(rename="sourceId")] source_id:String,#[serde(rename="afterIndex")] after_index:Option<u32>,query:String },
-    CuePosition { #[serde(rename="sourceId")] source_id:String,#[serde(rename="subtitleRevision")] subtitle_revision:String,#[serde(rename="cueIndex")] cue_index:u32 },
-    SetSubtitleOffset { #[serde(rename="sourceId")] source_id:String,#[serde(rename="offsetMs")] offset_ms:i32 },
-    SetPlaybackRate { #[serde(rename="sourceId")] source_id:String,rate:f64 },
-    SetInspectionTrigger { #[serde(rename="sourceId")] source_id:String,trigger:InspectionTrigger },
-    SetSourceLanguage { #[serde(rename="sourceId")] source_id:String,#[serde(rename="packageId")] package_id:String },
-    SavePosition { #[serde(rename="sourceId")] source_id:String,#[serde(rename="positionMs")] position_ms:u32,#[serde(rename="durationMs")] duration_ms:u32 },
-    AnalyzeSource { #[serde(rename="sourceId")] source_id:String,#[serde(rename="positionMs")] position_ms:u32 },
-    AnalyzeTranscript { #[serde(rename="sourceId")] source_id:String,#[serde(rename="afterIndex")] after_index:Option<u32>,query:String },
-    DescribeLanguage { #[serde(rename="packageId")] package_id:String },
-    InspectTarget { #[serde(rename="packageId")] package_id:String,#[serde(rename="targetId")] target_id:String },
-    Knowledge { keys:Vec<KnowledgeKey> },
-    ChangeClaim { change:ClaimChange },
+    OpenSource {
+        path: String,
+        #[serde(rename = "packageId")]
+        package_id: String,
+    },
+    ResumeSource {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+    },
+    AttachSubtitles {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        path: String,
+    },
+    SourceWindow {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "positionMs")]
+        position_ms: u32,
+    },
+    Transcript {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "afterIndex")]
+        after_index: Option<u32>,
+        query: String,
+    },
+    CuePosition {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "subtitleRevision")]
+        subtitle_revision: String,
+        #[serde(rename = "cueIndex")]
+        cue_index: u32,
+    },
+    SetSubtitleOffset {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "offsetMs")]
+        offset_ms: i32,
+    },
+    AlignSubtitleOffset {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "subtitleRevision")]
+        subtitle_revision: String,
+        #[serde(rename = "expectedOffsetRevision")]
+        expected_offset_revision: u32,
+        #[serde(rename = "positionMs")]
+        position_ms: u32,
+        direction: SubtitleDirection,
+    },
+    SetPlaybackRate {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        rate: f64,
+    },
+    SetInspectionTrigger {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        trigger: InspectionTrigger,
+    },
+    SetSourceLanguage {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "packageId")]
+        package_id: String,
+    },
+    SavePosition {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "positionMs")]
+        position_ms: u32,
+        #[serde(rename = "durationMs")]
+        duration_ms: u32,
+    },
+    AnalyzeSource {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "positionMs")]
+        position_ms: u32,
+    },
+    AnalyzeTranscript {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "afterIndex")]
+        after_index: Option<u32>,
+        query: String,
+    },
+    DescribeLanguage {
+        #[serde(rename = "packageId")]
+        package_id: String,
+    },
+    InspectTarget {
+        #[serde(rename = "packageId")]
+        package_id: String,
+        #[serde(rename = "targetId")]
+        target_id: String,
+        #[serde(rename = "expectedRevision")]
+        expected_revision: Option<String>,
+    },
+    InspectTargets {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "subtitleRevision")]
+        subtitle_revision: String,
+        #[serde(rename = "packageRevision")]
+        package_revision: String,
+        #[serde(rename = "targetIds")]
+        target_ids: Vec<String>,
+    },
+    Knowledge {
+        keys: Vec<KnowledgeKey>,
+    },
+    ChangeClaim {
+        change: ClaimChange,
+    },
     SaveTheme {
         document: ThemeDocument,
         #[serde(rename = "expectedRevision")]
@@ -168,10 +295,18 @@ pub enum Request {
         #[serde(rename = "pluginId")]
         plugin_id: String,
     },
-    InstallPackage { command: PackageInstallCommand },
-    PackageInstallStatus { #[serde(rename = "commandId")] command_id: String },
+    InstallPackage {
+        command: PackageInstallCommand,
+    },
+    PackageInstallStatus {
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
     CurrentPackageInstall,
-    CancelPackageInstall { #[serde(rename = "commandId")] command_id: String },
+    CancelPackageInstall {
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
     InvokePlugin {
         #[serde(rename = "pluginId")]
         plugin_id: String,
@@ -185,24 +320,63 @@ pub enum Request {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Response {
-    Snapshot { snapshot: Snapshot },
-    Sources { sources:Vec<SourceRecord> },
-    Packages { plugins:Vec<PluginSummary> },
-    Source { window:SourceWindow },
-    Transcript { page:TranscriptPage },
-    CuePosition { position:CuePosition },
+    Snapshot {
+        snapshot: Snapshot,
+    },
+    Sources {
+        sources: Vec<SourceRecord>,
+    },
+    Packages {
+        plugins: Vec<PluginSummary>,
+    },
+    Source {
+        window: SourceWindow,
+    },
+    Transcript {
+        page: TranscriptPage,
+    },
+    CuePosition {
+        position: CuePosition,
+    },
     PositionSaved,
-    Analysis { batch:AnalysisBatch },
-    Language { description:LanguageDescription },
-    Entry { entry:LexicalEntry },
-    Knowledge { projections:Vec<KnowledgeProjection> },
-    ClaimChanged { projection:KnowledgeProjection },
-    Saved { revision: u32 },
-    Installed { plugin: PluginSummary },
-    PackageInstallStatus { status: Option<PackageInstallStatus> },
+    Analysis {
+        batch: AnalysisBatch,
+    },
+    Language {
+        description: LanguageDescription,
+    },
+    Entry {
+        entry: LexicalEntry,
+        #[serde(rename = "packageVersion")]
+        package_version: String,
+        #[serde(rename = "packageRevision")]
+        package_revision: String,
+        knowledge: TargetKnowledge,
+    },
+    Dictionary {
+        batch: DictionaryBatch,
+    },
+    Knowledge {
+        projections: Vec<KnowledgeProjection>,
+    },
+    ClaimChanged {
+        projection: KnowledgeProjection,
+    },
+    Saved {
+        revision: u32,
+    },
+    Installed {
+        plugin: PluginSummary,
+    },
+    PackageInstallStatus {
+        status: Option<PackageInstallStatus>,
+    },
     PluginResult {
         #[cfg_attr(feature = "typescript", ts(type = "unknown"))]
         output: serde_json::Value,
     },
-    Error { code: String, message: String },
+    Error {
+        code: String,
+        message: String,
+    },
 }

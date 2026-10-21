@@ -1,5 +1,5 @@
 import { isWatchResponse } from './watchProtocol';
-import type { Request, Response, Snapshot, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand } from '@mlearn/contracts';
+import type { Request, Response, Snapshot, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
 
 export interface Transport {
   execute(request: string): Promise<string>;
@@ -117,6 +117,18 @@ export function createRuntimeClient(transport: Transport) {
       return r.position.positionMs;
     },
     async setSubtitleOffset(sourceId:string,offsetMs:number){const r=await watch({type:'set_subtitle_offset',sourceId,offsetMs});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
+    prepareSubtitleAlignment(source:SourceRecord,positionMs:number,direction:SubtitleDirection):Extract<Request,{type:'align_subtitle_offset'}>{
+      if(source.subtitleRevision===null)throw new RuntimeError('invalid_request','Select subtitles before adjusting synchronization.');
+      return {type:'align_subtitle_offset',sourceId:source.id,subtitleRevision:source.subtitleRevision,
+        expectedOffsetRevision:source.subtitleOffsetRevision,positionMs:Math.round(positionMs),direction};
+    },
+    async alignSubtitleOffset(command:Extract<Request,{type:'align_subtitle_offset'}>){
+      const r=await watch(command);
+      if(r.type!=='source'||r.window.source.id!==command.sourceId||r.window.source.subtitleRevision!==command.subtitleRevision
+        ||r.window.source.subtitleOffsetRevision!==command.expectedOffsetRevision+1)
+        throw new RuntimeError('protocol','Mismatched subtitle alignment');
+      return r.window;
+    },
     async setPlaybackRate(sourceId:string,rate:number){const r=await watch({type:'set_playback_rate',sourceId,rate});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
     async setInspectionTrigger(sourceId:string,trigger:InspectionTrigger){const r=await watch({type:'set_inspection_trigger',sourceId,trigger});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
     async setSourceLanguage(sourceId:string,packageId:string){const r=await watch({type:'set_source_language',sourceId,packageId});if(r.type!=='source')throw new RuntimeError('protocol','Missing source');return r.window;},
@@ -124,7 +136,14 @@ export function createRuntimeClient(transport: Transport) {
     async analyzeSource(sourceId:string,positionMs:number){const r=await watch({type:'analyze_source',sourceId,positionMs});if(r.type!=='analysis')throw new RuntimeError('protocol','Missing analysis');return r.batch;},
     async analyzeTranscript(sourceId:string,afterIndex:number|null,query:string){const r=await watch({type:'analyze_transcript',sourceId,afterIndex,query});if(r.type!=='analysis')throw new RuntimeError('protocol','Missing transcript analysis');return r.batch;},
     async describeLanguage(packageId:string){const r=await watch({type:'describe_language',packageId});if(r.type!=='language')throw new RuntimeError('protocol','Missing language description');return r.description;},
-    async inspectTarget(packageId:string,targetId:string){const r=await watch({type:'inspect_target',packageId,targetId});if(r.type!=='entry')throw new RuntimeError('protocol','Missing entry');return r.entry;},
+    async inspectTarget(packageId:string,targetId:string,expectedRevision:string|null=null){const r=await watch({type:'inspect_target',packageId,targetId,expectedRevision});if(r.type!=='entry'||r.entry.targetId!==targetId||expectedRevision!==null&&r.packageRevision!==expectedRevision)throw new RuntimeError('protocol','Mismatched inspected entry');return r;},
+    async inspectTargets(sourceId:string,subtitleRevision:string,packageRevision:string,targetIds:string[]){
+      const r=await watch({type:'inspect_targets',sourceId,subtitleRevision,packageRevision,targetIds});
+      if(r.type!=='dictionary'||r.batch.sourceId!==sourceId||r.batch.subtitleRevision!==subtitleRevision||r.batch.packageRevision!==packageRevision
+        ||r.batch.items.length!==targetIds.length||r.batch.items.some((item,index)=>(item.state==='available'?item.summary.targetId:item.targetId)!==targetIds[index]))
+        throw new RuntimeError('protocol','Mismatched dictionary batch');
+      return r.batch;
+    },
     async knowledge(keys:KnowledgeKey[]){const r=await watch({type:'knowledge',keys});if(r.type!=='knowledge')throw new RuntimeError('protocol','Missing Knowledge');return r.projections;},
     prepareClaim(key:KnowledgeKey,claim:boolean|null):ClaimChange{return {key,claim,commandId:transport.commandId()};},
     async changeClaim(change:ClaimChange){const r=await watch({type:'change_claim',change});if(r.type!=='claim_changed')throw new RuntimeError('protocol','Missing claim receipt');return r.projection;},

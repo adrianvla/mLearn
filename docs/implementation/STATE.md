@@ -10,9 +10,39 @@ This authorization supersedes the historical frozen-review, minimal-restyle
 and unpictured `visual_pending` restrictions below. No new domain milestone,
 merge, release or maintainer acceptance is authorized.
 
-### Current verification checkpoint
+### Resumed native projection and synchronization checkpoint
 
-Application source `1a9a24c70f66bba0d4362120196a34836e4edc7a`, tree
+Native-only increment: `verified_for_continuation`, not a visually complete
+application or maintainer acceptance. Rust now admits bounded package-owned
+readings, labels and normalized pronunciation contours; native inspection returns
+current granular Knowledge plus a distinct aggregate claim. A source/revision/
+artifact-bound dictionary batch admits at most six distinct targets. Previous/
+next subtitle alignment uses indexed real cue starts, validates before saving,
+and preserves offset/checkpoint identity across restart. Shared generated types,
+transport guards and the existing Inspector entry consumer are migrated together.
+Its persisted monotonic synchronization revision rejects a repeated relative
+intent, including after an offset changes away and back or the app restarts.
+
+The actual legacy-package regressions pass: 18 runtime-owner tests, the retained
+ABI-v1 offline test and six real Watch persistence tests. The new alignment test
+first failed with `Not a Watch action`; its corrected flow passes. The held
+inspection/claim regression initially exposed its fixture's unsupported request
+branch, not a product race; the exact event gate now covers inspection without
+changing its assertions or timeouts. Linguistic admission tests, `npm test`,
+typecheck, ownership lint, generated-contract checks and whitespace checks pass.
+The three storage-owner tests and the existing seven browser interactions also
+pass. No new desktop/mobile consuming or visual pass is claimed for this increment.
+
+The authentic enriched Japanese package is still being integrated separately:
+the frozen source reproduces byte-for-byte and the offline lexical index builds,
+but real consuming-package and screen verification remain open. The original
+Python preparation proof independently reproduces a pre-existing
+`KeyError: 'definition'`; its incorrect assertion has not been rewritten green.
+M03 capture/Anki and M07 Explain remain excluded.
+
+### Prior verified application
+
+Prior application source `1a9a24c70f66bba0d4362120196a34836e4edc7a`, tree
 `3069cd5547ceb35ffc4ae6c7c98134c75d2daee1`, is pushed to the existing draft.
 Exact-source foundation `39481892368`, real desktop `39481892120` and native
 `39481892339` all pass. Native reports bind that same source/tree: Android's
