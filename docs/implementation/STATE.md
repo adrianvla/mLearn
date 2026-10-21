@@ -12,7 +12,7 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-21
 
-Native theme integration is implemented locally and undergoing platform
+Native theme integration `fdcaf52f4cc4257bc00207a148a126098c90bbcb` is pushed and undergoing platform
 verification, not visually accepted. Accepted Quartz/Dark Quartz preferences now
 drive the desktop host's actual NSVisualEffectView or Windows Mica, with Acrylic
 on older supported Windows versions and opaque fallback when native application
@@ -40,6 +40,18 @@ dialog; no authorization interaction was automated. Dynamic macOS transitions
 and compositor captures remain open. Windows UI Automation/DWM transition and
 restart captures are added to the existing foundation Windows job, but have not
 yet run; no Windows visual result is claimed.
+Changed-source foundation `39685611412`, real desktop `39685611328` and native
+mobile `39685611279` are active with quiet completion subscriptions; no active
+build was cancelled or duplicated. Actual current native Home/Settings,
+focused live-card backing, card Inspector, nested Knowledge and synchronization
+were inspected. Nested Knowledge visibly blurs dictionary text beneath it;
+Inspector dismissal restores focus to the originating live card. Captures:
+`native-theme-settings-dark-inactive.png`,
+`native-theme-live-card-nested-material.png` and
+`native-theme-live-card-focused-material.png`. These window captures prove
+shared content composition, not under-window OS vibrancy. The original
+test-video.mov is restored paused at 18.8050003052 seconds, offset zero, rate 1;
+temporary live cards and synchronization are hidden again. No claims changed.
 
 Native `39672070585` has completed: Android passes its complete 423.368-second
 flow with zero failures. iOS fails after 225.951 seconds at the first English
@@ -52,7 +64,7 @@ not waive the hosted iOS 26.5 failure. No speculative picker fix or weakened
 assertion has been introduced.
 
 Status: `implementation_resumed`; current-source hosted acceptance is incomplete,
-not accepted. Current pushed application is `fc14fcff81a2a2c72e8593fe2a1be7da61754862`,
+not accepted. Previous verified application is `fc14fcff81a2a2c72e8593fe2a1be7da61754862`,
 tree `4d50a95db7ed049ff4e5ebc2ef374c0edebf2665`, on existing `agent/m01` / draft #44.
 Changed-source foundation `39672070578` passes all four jobs (Rust, web,
 macOS desktop build and Windows desktop build), with exact HEAD verified.
