@@ -40,14 +40,13 @@ appId: net.kikan.mlearn.v3dev
           visible:
             id: '${VIDEO_NAME}, mp4'
           timeout: 15000
-# Files exposes the destination cell during its folder transition. Wait for
-# the native picker to settle before dispatch, not for an arbitrary delay.
-- waitForAnimationToEnd
+# The Files grid exposes a movie preview that can absorb the tap without
+# selecting the document. Use its real list row, not a preview coordinate.
+- tapOn: More
+- tapOn: '^List$'
 - tapOn:
-    # The Files cell includes filename/metadata below its interactive preview.
     id: '${VIDEO_NAME}, mp4'
     enabled: true
-    point: 50%, 25%
 - extendedWaitUntil:
     visible: '(Open|Replace) subtitles'
     timeout: 60000
@@ -100,8 +99,8 @@ appId: net.kikan.mlearn.v3dev
           visible:
             id: '${VIDEO_NAME}, mp4'
           timeout: 15000
-- waitForAnimationToEnd
+- tapOn: More
+- tapOn: '^List$'
 - tapOn:
     id: '${SUBTITLE_NAME}.srt, srt'
     enabled: true
-    point: 50%, 25%
