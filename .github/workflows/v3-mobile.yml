@@ -12,9 +12,10 @@ concurrency:
 jobs:
   ios:
     runs-on: macos-latest
-    # Cold hosted build 39299585014 consumed 42 minutes before its UI step.
-    # Preserve that step's existing 20-minute bound and time to upload evidence.
-    timeout-minutes: 75
+    # Cold run 39562873224 reached UI setup after 58 minutes, then its 75-minute
+    # job limit cancelled a progressing flow. Reserve the unchanged 20-minute
+    # UI step plus evidence upload after that measured preparation cost.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Record exact mobile source
