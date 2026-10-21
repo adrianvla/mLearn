@@ -164,6 +164,7 @@ pub(super) fn token(
     let reading = hiragana(&token.reading);
     let category = token.pos.first().map(String::as_str).unwrap_or("");
     let ruby = (!token.oov
+        && !token.surface.chars().all(char::is_whitespace)
         // Sudachi's キゴウ class reading names the symbol, not its pronunciation.
         && !matches!(category, "補助記号" | "記号")
         && !reading.is_empty()
@@ -172,7 +173,7 @@ pub(super) fn token(
     .then_some((reading.as_str(), READING_SOURCE));
     let standalone = !token.oov
         && (token.surface == token.lemma || token.pos.get(4).is_some_and(|part| part == "*"))
-        && !matches!(category, "助詞" | "助動詞" | "補助記号" | "記号");
+        && !matches!(category, "助詞" | "助動詞" | "補助記号" | "記号" | "空白");
     if ruby.is_none() && !standalone {
         return Ok(None);
     }
@@ -290,6 +291,16 @@ mod tests {
         };
         let value = token(&symbol, &[], &|_| panic!("Symbols have no lexical lookup")).unwrap();
         assert!(value.is_none());
+        let space = Token {
+            surface: "　".into(),
+            pos: vec!["空白".into()],
+            ..symbol
+        };
+        assert!(
+            token(&space, &[], &|_| panic!("Whitespace has no lexical lookup"))
+                .unwrap()
+                .is_none()
+        );
     }
     #[test]
     fn contours_preserve_morae_variants_and_following_context() {
