@@ -15,7 +15,7 @@ python3 tools/create-watch-fixture.py .mlearn/m01-ci-fixtures
 adb -s "$device" shell mkdir -p /sdcard/Download
 adb -s "$device" push .mlearn/m01-ci-fixtures/watch-fixture.mp4 /sdcard/Download/m01-watch.mp4
 adb -s "$device" push .mlearn/m01-ci-fixtures/watch-fixture.srt /sdcard/Download/m01-watch.srt
-adb -s "$device" push .mlearn/m01-ci-fixtures/watch-fixture.mp4 /sdcard/Download/m01-japanese.mp4
+adb -s "$device" push .mlearn/m01-ci-fixtures/watch-japanese.mp4 /sdcard/Download/m01-japanese.mp4
 adb -s "$device" push .mlearn/m01-ci-fixtures/watch-japanese.srt /sdcard/Download/m01-japanese.srt
 maestro --device "$device" test --format junit --output test-results/mobile/junit.xml \
   --test-output-dir test-results/mobile --debug-output test-results/mobile \

@@ -2,7 +2,7 @@ name: v3 native mobile integration
 on:
   push:
     branches: ['agent/**', rewrite/v3]
-    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/create-watch-fixture.py', 'tools/bindgen/**', 'tools/prepare-plugins.mjs', 'tools/prepare-wordnet.py', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock', 'resources/**', 'Cargo.toml', 'rust-toolchain.toml', 'package.json']
+    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/create-watch-fixture.*', 'tools/bindgen/**', 'tools/prepare-plugins.mjs', 'tools/prepare-wordnet.py', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock', 'resources/**', 'Cargo.toml', 'rust-toolchain.toml', 'package.json']
   workflow_dispatch:
 permissions:
   contents: read
@@ -71,7 +71,7 @@ jobs:
           mkdir -p "$container/Documents/M01 fixtures"
           cp .mlearn/m01-ci-fixtures/watch-fixture.mp4 "$container/Documents/M01 fixtures/m01-watch.mp4"
           cp .mlearn/m01-ci-fixtures/watch-fixture.srt "$container/Documents/M01 fixtures/m01-watch.srt"
-          cp .mlearn/m01-ci-fixtures/watch-fixture.mp4 "$container/Documents/M01 fixtures/m01-japanese.mp4"
+          cp .mlearn/m01-ci-fixtures/watch-japanese.mp4 "$container/Documents/M01 fixtures/m01-japanese.mp4"
           cp .mlearn/m01-ci-fixtures/watch-japanese.srt "$container/Documents/M01 fixtures/m01-japanese.srt"
           PATH="$PWD/tests/mobile/ios-driver:$PATH" maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/watch.yaml 2>&1 | tee test-results/mobile/run.log
       - name: Ensure build did not modify tracked source

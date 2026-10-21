@@ -741,7 +741,7 @@ try {
   assert.equal((await native({type:'install_plugin',pluginId:'org.mlearn.japanese'})).type,'installed');
   const japaneseVideo = path.resolve('.mlearn/m01-ci-fixtures/japanese-watch.mp4');
   const japaneseSubtitles = path.resolve('.mlearn/m01-ci-fixtures/japanese-watch.srt');
-  await copyFile(fixture,japaneseVideo);
+  await copyFile(path.resolve('.mlearn/m01-ci-fixtures/watch-japanese.mp4'),japaneseVideo);
   await writeFile(japaneseSubtitles,'1\n00:00:00,000 --> 00:00:30,000\n昨日、つまり、明日。銀河(ぎんが)。\n');
   const japaneseSource = await native({type:'open_source',path:japaneseVideo,packageId:'org.mlearn.japanese'});
   assert.equal(japaneseSource.type,'source',JSON.stringify(japaneseSource));
@@ -776,11 +776,12 @@ try {
     node.getClientRects().length&&!node.closest('[aria-hidden="true"]')&&getComputedStyle(node).fontSize==='80px')`);
   await click('Resume japanese-watch.mp4');
   await observedSourceView('Saved enlarged typography must reach actual Japanese source words');
-  const japaneseRect = await rpc('GET',windowPath);
+  const japaneseWindowPath = `/session/${session}/window/rect`;
+  const japaneseRect = await rpc('GET',japaneseWindowPath);
   try {
     await observeSourceView(`innerWidth<=420&&!!document.querySelector('[data-testid="subtitle-window"] button[aria-label^="銀河("]')&&Array.from(document.querySelectorAll('[data-testid="subtitle-window"] button')).every(node=>
       node.scrollWidth<=node.clientWidth+1&&node.getBoundingClientRect().right<=innerWidth)`);
-    await rpc('POST',windowPath,{...japaneseRect,width:420,height:560});
+    await rpc('POST',japaneseWindowPath,{...japaneseRect,width:420,height:560});
     await observedSourceView('Enlarged ruby bases must wrap without horizontal clipping');
     await screenshot('native-japanese-enlarged-narrow-ruby');
     await observeSourceView(`(()=>{
@@ -794,7 +795,7 @@ try {
     await observedSourceView('Measured source overlays must not cover enlarged captions');
     await screenshot('native-japanese-enlarged-source-overlays');
   } finally {
-    await rpc('POST',windowPath,japaneseRect);
+    await rpc('POST',japaneseWindowPath,japaneseRect);
   }
   console.log('Real Tauri IPC, signed packages, playback/seek, contextual Inspector, shared claims, exact source restart and missing-source recovery passed.');
 } catch (error) {

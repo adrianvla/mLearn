@@ -39,4 +39,12 @@ let final=URL(fileURLWithPath:directory).appendingPathComponent("watch-fixture.m
 if FileManager.default.fileExists(atPath:final.path){try FileManager.default.removeItem(at:final)}
 let export=AVAssetExportSession(asset:composition,presetName:AVAssetExportPresetMediumQuality)!
 try await export.export(to:final,as:.mp4)
+let japanese=URL(fileURLWithPath:directory).appendingPathComponent("watch-japanese.mp4")
+if FileManager.default.fileExists(atPath:japanese.path){try FileManager.default.removeItem(at:japanese)}
+let japaneseExport=AVAssetExportSession(asset:composition,presetName:AVAssetExportPresetMediumQuality)!
+let identity=AVMutableMetadataItem()
+identity.identifier = .commonIdentifierTitle
+identity.value = "mLearn Japanese fixture" as NSString
+japaneseExport.metadata=[identity]
+try await japaneseExport.export(to:japanese,as:.mp4)
 print("H.264/AAC output with an authored 440Hz tone exported")
