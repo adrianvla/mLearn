@@ -23,9 +23,79 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-22
 
-Status remains `implementation_resumed`, not accepted. Runtime/shared UI inputs
-remain b7fac91e; subsequent changes repair platform verification and Android
-NDK generation, not learner semantics.
+Status remains `implementation_resumed`, not accepted. Next application/helper
+candidate is `0597d4a0264fe933b8336b7a85ddc306d6fbd0c6`, tree
+`61ca8144479f9590511cccfe453263f2b061d850`: approved queued-Inspector source
+cancellation correction `b60adaef` plus tested native document-cell target.
+All other runtime/shared UI inputs remain b7fac91e. Current client export and
+all eight browser interactions pass; hosted native verification and the final
+integration review still gate M03. No outstanding gate is replaced by this
+documentation checkpoint.
+
+Candidate `442e4b96ab45cd08fa8b0894413a83adb5777f40`, tree
+`acb8d4da42c53af5537107eca8094326395a5dd7`, is pushed. Foundation
+`39698852577` passes Rust, web and both desktop jobs. Windows now passes the
+entire real native UIA/DWM sequence: Quartz Mica/light, Dark Quartz Mica/dark,
+opaque Slate, new-process persisted Dark Quartz, and final Quartz/light save.
+All five compositor captures, source/tree, JSON and run log are inspected in
+`ci-442e4b96-windows/`. This resolves the earlier focus-input failure without
+a product focus workaround. Real desktop `39698852567` also passes; exact
+source/tree, complete consuming receipt, actual progress/ranges, focused
+Japanese card and narrow 2x editor are inspected in `ci-442e4b96-desktop/`.
+Native `39698852590` completes with Android passing the full 423.119-second
+English/Japanese workflow. Actual selected NDK30.0.16248370 is verified across
+all 23 consuming modules, including Unistyles; source receipts and real
+Inspector/English-continuity frames are inspected. iOS26.5 fails Japanese
+movie dismissal after563.693s. Its same-state identical label replay fails;
+confirmed keyboard removal followed by the same selection also fails.
+This rules out keyboard-only or transient identical-retry explanations.
+Exact artifacts are retained in `ci-442e4b96-native/`; no failure is waived.
+The enabled native document cell is distinct from its filename descendant.
+Movie selection now targets that cell by exact ID, with all dismissal/product
+assertions and deadlines retained. This is an unverified hosted repair hypothesis,
+not a claimed product defect. Full original-flow verification passes354.254s
+using the actual preserved CI app on the retained iOS27 simulator; no rebuild
+or profile reset. Picker dismissal, Japanese Inspector and restored English
+continuity captures are inspected in `ios-retained-document-cell/`.
+Installing the app relocates its data container, but October21 fixture files and
+native storage (2 sources/2 claims/6 receipts) survive. Do not mistake the changed
+container UUID for data loss. Replay app termination is read back absent from
+launchctl; the owned extracted copy is removed and the compressed artifact
+retained. Hosted26.5 verification remains mandatory.
+Its compiled iOS simulator app is
+preserved locally before UI completes in `ci-442e4b96-ios-binary/`; source/tree
+match this candidate and the archived executable retains mode0755.
+Archive SHA-256:
+`f535904737af7e9694835075d57de07df0f65521032a63119dfa8c0b9ba4ac14`.
+No build is duplicated or cancelled.
+
+Read-only M01/M02 readiness audit identifies a queued Inspector lifetime issue.
+Native in-flight inspection already has source cancellation; the client queue
+was missing that epoch fence. An event-gated client test fails before the fix
+because obsolete inspection enters transport after source cancellation.
+Both single/batch lookups now reuse the existing source epoch fence; admitted
+durable checkpoints and claims remain unaffected. Targeted 12 tests,
+typecheck, ownership lint and all 56 harness / 27 package tests pass.
+Logs: `inspector-queue-cancellation-{red,green}.log`. Independent review
+`st_01a160ff` APPROVE has no blockers and independently passes all 16 existing
+client-suite tests. This two-file correction is committed as `b60adaef`,
+held until the previous native candidate ended, now included in the next push.
+No new native
+cancellation framework is introduced. Review does not waive native gates.
+
+The retained automatically restarted dev window was blank. Its screenshot is
+retained as a failure, not acceptance. Graceful quit releases PID57868 and both
+development ports; a fresh normal documented launch with the same profile
+renders Home, exact Japanese source and genuine Inspector correctly. No product
+startup change or profile reset was needed. Current repaired-client telemetry:
+fresh-process/warm-filesystem Resume to usable captions 581ms, initialization
+416.184ms, Inspector action to frame 75ms, warm reopen 113ms without another
+initialization. The source remains paused18.8050003052s/rate1/offset0 and no
+claims change. Captures `current-integration-normal-{inspector,warm-resume}.png`
+and `current-integration-normal-startup.log` are inspected. Graceful quit exits
+PID78458 and ports8081/7780; builds, evidence and profiles are retained.
+Client LSP freshness times out; actual typecheck and changed-test diagnostics
+pass. No clean LSP result is claimed for the timeout.
 
 Windows foundation `39693981018` (job `119546767596`, c5e89717) verifies actual
 Quartz Mica/light, Dark Quartz Mica/dark, opaque Slate and a new-process
