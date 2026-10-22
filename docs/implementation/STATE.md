@@ -11,15 +11,66 @@ or functional gates may not. See the current PLAN/AGENTS authorization. Preserve
 H00, branch history and draft PR44; stop after the consolidated M07 review
 package for manual acceptance, without merging or self-acceptance.
 
+## Current gate status — 2026-10-22
+
+Status: `paused_incomplete` at the pre-M03 hosted iOS gate. M03–M07 have not
+started. No verified application fix for the hosted Files-to-URL failure has
+been found; the underlying platform cause remains unresolved. Do not mark the
+integration checkpoint green or advance milestones from diagnostic success.
+
+Application source remains `4a7927a0`, tree `06f1d1c3`. Since that candidate,
+the net tracked changes are diagnostic-only files and this checkpoint, not
+application, runtime, protocol, mobile test, or language-plugin changes.
+
+| Gate | Current evidence |
+| --- | --- |
+| Windows/materials | Foundation `39722347849` passes; 13 real host tests and five DWM/save/restart states inspected. |
+| Android consuming flow | Original workflow passes in 422.614 s on the exact candidate, with NDK 30.0.16248370. |
+| Desktop consuming flow | `39722347957` passes the real IPC/package/playback/Inspector/claim/restart/recovery flow. |
+| Local iOS | The same retained app and iOS 26.5/23F77 complete the unchanged fresh-profile workflow in 360.400 s. |
+| Hosted iOS | Still red: real selection reaches LocalStorage, whose document-ID lookup returns `ENOENT`/`-1005` and no URL despite stable readable files and successful inode controls. |
+| APFS diagnostic | Inconclusive for FileProvider: latest run `39749303873` preserves ownership and factory root metadata but times out during managed-configuration data migration, before app installation or UI testing. |
+| Structural/performance | Prior source-bound verification is retained; diagnostic syntax or filesystem probes do not constitute new product or latency acceptance. |
+| Visual | Retained comparisons remain evidence, not maintainer acceptance. Only the two previously recorded cosmetic items are deferred under the October 22 authorization. |
+
+Windows host/API evidence does not supply an actual Windows 10 compositor
+capture, and hosted desktop audio warnings do not certify physical audio output.
+Those previously recorded coverage limits remain explicit.
+
+The deferred cosmetics are paused-player shapes visible through translucent
+mobile Inspector chrome, and an opaque custom Slate theme showing the Theme
+selector placeholder alongside its correct current-theme label. No interface
+style preference, rejected preset restoration, or functional omission is
+authorized by this deferral.
+
+Latest diagnostic source is `ce9ea292`, tree `683be61e`; its retained binary
+receipt still matches `4a7927a0`/`06f1d1c3`. Evidence is
+`ci-ce9ea292-root-metadata/`. The ownership assertion and UID/GID/mode comparison
+pass as 501:20/0775, but boot exceeds its bounded 300 seconds. No original UI
+exit or JUnit exists for that run. Final receipts show its owned device and
+mount removed; local generated regression images/directories are also gone.
+Both retained 26.5 profiles remain available and Shutdown, the original 27
+profile remains Booted, and ports 8081/7780 are free. The shared 26.5 asset is
+Ready under registration `B9DC92F5`; superseded `D157CD04` metadata is Unusable
+and is not deleted because it points to the same retained asset.
+
+Temporary diagnostic code remains explicitly experimental and must not be
+promoted into the normal native workflow without a successful real UI result.
+The hosted gate remains required unless the maintainer explicitly changes it
+or supplies a working supported verification environment. No such change,
+merge, release, or milestone acceptance has been granted.
+
 ## Active visual-parity rewrite - 2026-10-20
 
-Status: `implementation_resumed`, not complete or accepted. Execute
+Status: `paused_incomplete` at the integration gate above, not complete or
+accepted. The authorization remains active. Execute
 [VISUAL-PARITY.md](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44,
 against unchanged `agent/h00`. Requested `4a86df32` was fetched and already
 equalled clean HEAD; no reset, history rewrite or new worktree was used.
 This authorization supersedes the historical frozen-review, minimal-restyle
-and unpictured `visual_pending` restrictions below. No new domain milestone,
-merge, release or maintainer acceptance is authorized.
+and unpictured `visual_pending` restrictions below. Domain milestones remain
+subject to the pre-M03 gate and sequential authorization above; no merge,
+release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-22
 
