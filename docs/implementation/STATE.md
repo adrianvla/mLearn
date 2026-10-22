@@ -73,6 +73,23 @@ Diagnostic implementation is committed as `f4759b0af43bd5178e6501c7f3e7bb1caac76
 tree `532b38ea57f9afe3a1053e8f209684d2c062e135`. Its push paths exclude the
 normal application-build workflows; the diagnostic keeps binary source
 `4a7927a0` distinct from its own harness source.
+That buildless run `39730539643` reproduces the original Japanese dismissal
+failure in 387.076 s, preserving original exit 1 and observation exit 0.
+Initial/final containers match; all four files exist and are readable. Host
+and guest agree that the Japanese file has document ID 3, while provider log
+50816–50817 reports `did=3` cannot resolve and returns no URL. No file-loss or
+wrong-tap explanation fits this observation.
+
+The next controlled diagnostic changes only synthetic fixture preparation:
+set the SDK's tracked-document flag and read its identifiers before Files first
+enumerates it. Disposable local copies demonstrate flags 0 becoming 64 and
+receiving distinct document IDs; the supported BSD command uses octal `0100`,
+not an unsupported symbolic `tracked` argument. Original UI code, deadlines,
+binary and provider remain unchanged. This registration hypothesis is not yet
+a verified hosted repair.
+The controlled registration change is `bab8b4c30b2841c008848936071aa3b8d4beaba8`
+(tree `b5043be154e23c39f7bfa557f7b7e352038eecc9`), still confined to the
+temporary diagnostic. Its original failed control remains independently retained.
 The `4a7927a0` compiled simulator app is retained in `ci-4a7927a0-ios-binary/`
 before UI completion. Source/tree match the candidate, gzip integrity passes,
 and the main executable retains mode 0755 and size 630474056 bytes. Archive
