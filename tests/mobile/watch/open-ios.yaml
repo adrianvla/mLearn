@@ -51,8 +51,8 @@ appId: net.kikan.mlearn.v3dev
 - tapOn: '^List$'
 - takeScreenshot: '${VIDEO_NAME}-media-picker-before-selection'
 - tapOn:
-    # The row's center can fall outside a short filename's actual hit region.
-    text: '^${VIDEO_NAME}$'
+    # Select the document cell, not its non-control filename descendant.
+    id: '${VIDEO_NAME}, mp4'
     enabled: true
 - extendedWaitUntil:
     notVisible:
