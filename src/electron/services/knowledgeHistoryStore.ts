@@ -843,7 +843,6 @@ export class KnowledgeHistoryStore {
           continue;
         }
         const checkpoint = this.checkpoint(key);
-        const archive = this.readArchive(key);
         // `valid` (not `events`) is the seq-aligned row set: malformed drops
         // would otherwise misalign incremental folds and tombstone handling.
         const hasTombstone = valid.some((event) => event.retracts !== undefined || event.kind === 'retraction');
@@ -853,7 +852,7 @@ export class KnowledgeHistoryStore {
           this.rebuildArchivedAttempts(key, retractedIds, Date.now());
           fold = foldRowsAndArchive(rowsWithSeq(this.db, key), this.readArchive(key));
         } else if (!checkpoint) {
-          fold = foldRowsAndArchive(rowsWithSeq(this.db, key), archive);
+          fold = foldRowsAndArchive(rowsWithSeq(this.db, key), this.readArchive(key));
         } else {
           const batchFold = emptyKeyFold();
           valid
@@ -1139,14 +1138,18 @@ export class KnowledgeHistoryStore {
 
   /** Anki re-import idempotency: which of these review ids already exist. */
   hasAnkiReviewIds(language: string, ids: readonly number[]): boolean[] {
+    if (ids.length === 0) return [];
+    const requested = new Set(ids);
     const known = new Set<number>();
-    for (const row of this.db.prepare("SELECT json FROM rows WHERE lang = ? AND json LIKE '%\"ankiReviewId\"%'").all(language) as Array<{ json: string }>) {
-      const event = JSON.parse(row.json) as KnowledgeEvent;
-      if (event.ankiReviewId !== undefined) known.add(event.ankiReviewId);
+    // Stream only identity fields: a one-ID query must not materialize the
+    // language's entire event payload or retain every unrelated review ID.
+    for (const row of this.db.prepare("SELECT json_extract(json, '$.ankiReviewId') AS id FROM rows WHERE lang = ? AND json LIKE '%\"ankiReviewId\"%'").iterate(language) as Iterable<{ id: number | null }>) {
+      if (row.id !== null && requested.has(row.id)) known.add(row.id);
     }
-    for (const row of this.db.prepare('SELECT json FROM archives WHERE lang = ?').all(language) as Array<{ json: string }>) {
-      const archive = JSON.parse(row.json) as KeyArchive;
-      for (const id of archive.ankiReviewIds) known.add(id);
+    for (const row of this.db.prepare("SELECT json_extract(json, '$.ankiReviewIds') AS ids FROM archives WHERE lang = ?").iterate(language) as Iterable<{ ids: string }>) {
+      for (const id of JSON.parse(row.ids) as number[]) {
+        if (requested.has(id)) known.add(id);
+      }
     }
     return ids.map((id) => known.has(id));
   }

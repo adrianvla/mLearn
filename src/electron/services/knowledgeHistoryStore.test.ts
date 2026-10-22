@@ -3,7 +3,7 @@ import { KNOWLEDGE_MEASURABLE_VERSION, type KeyArchive } from '../../shared/know
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KnowledgeEvent, KnowledgeEventLog } from '../../shared/knowledgeEvents';
 import { replayKeyProjection } from '../../shared/utils/projectionReplay';
 import { grammarEvidenceKey, replayGrammarRecognition } from '../../shared/grammar/evidence';
@@ -620,6 +620,40 @@ describe('KnowledgeHistoryStore', () => {
     s.close();
   });
 
+  it('does not decode archived history when appending to a current checkpoint', () => {
+    // Given: a current checkpoint covering a substantial archived rating history.
+    const s = store();
+    const now = Date.UTC(2026, 9, 22);
+    const old = now - 400 * DAY;
+    const history = [
+      ankiReview(old, 1.5, 1),
+      ...Array.from({ length: 200 }, (_, i) => ankiReview(old + (20 + i) * DAY, 2.0, 100 + i)),
+    ];
+    s.appendEvents({ 'xx:checkpoint': history });
+    s.compact(now);
+    expect(Buffer.byteLength(JSON.stringify(s.getArchive('xx:checkpoint')))).toBeGreaterThan(4096);
+    const rating: KnowledgeEvent = {
+      t: now, kind: 'rating', source: 'manual', aspect: 'meaning',
+      quality: 'fluent', easeAfter: 2.5, attemptId: 'fresh-response',
+    };
+    const parse = JSON.parse;
+    let decodedBytes = 0;
+    const spy = vi.spyOn(JSON, 'parse').mockImplementation((text: string) => {
+      decodedBytes += Buffer.byteLength(text);
+      return parse(text);
+    });
+    try {
+      // When: append the next ordinary rating to that checkpoint.
+      s.appendEvents({ 'xx:checkpoint': [rating] });
+      // Then: incremental folding must not replay or decode the archive.
+      expect(decodedBytes).toBeLessThan(4096);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(s.getKnowledgeState('xx:checkpoint').projection).toEqual(replayKeyProjection([...history, rating]));
+    s.close();
+  });
+
   it('ages a native attempt into the archive with a contribution record, then retracts it exactly', () => {
     const s = store();
     const now = Date.now();
@@ -728,6 +762,39 @@ describe('KnowledgeHistoryStore', () => {
     expect(exactId).toBe(true);
     expect(missingId).toBe(false);
     s.close();
+  });
+
+  it('does not decode full history payloads for Anki identity lookups', () => {
+    // Given: large exact payloads, an archived ID, and another language's ID.
+    const s = store();
+    const now = Date.UTC(2026, 9, 22);
+    const old = now - 400 * DAY;
+    const origin = 'x'.repeat(64 * 1024);
+    s.appendEvents({
+      'xx:large': [
+        { ...ankiReview(old, 1.5, 5001), origin },
+        ankiReview(old + 40 * DAY, 1.8, 5002),
+        { ...ankiReview(now - DAY, 2.0, 5003), origin },
+      ],
+      'yy:other': [ankiReview(now, 2.0, 5004)],
+    });
+    s.compact(now);
+    const parse = JSON.parse;
+    let decodedBytes = 0;
+    const spy = vi.spyOn(JSON, 'parse').mockImplementation((text: string) => {
+      decodedBytes += Buffer.byteLength(text);
+      return parse(text);
+    });
+    try {
+      // When: lookup results must preserve input order and duplicate IDs.
+      const result = s.hasAnkiReviewIds('xx', [5003, 5002, 5001, 5004, 9999, 5002]);
+      // Then: membership includes archives without allocating event bodies.
+      expect(result).toEqual([true, true, true, false, false, true]);
+      expect(decodedBytes).toBeLessThan(4096);
+    } finally {
+      spy.mockRestore();
+      s.close();
+    }
   });
 
   it('compaction is incremental: a second pass merges into the existing archive', () => {

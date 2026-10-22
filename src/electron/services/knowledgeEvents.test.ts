@@ -56,6 +56,35 @@ afterEach(() => {
 });
 
 describe('knowledge event storage', () => {
+  it('lets queued IO run during compaction while preserving durable evidence', async () => {
+    const evidence = event(now - 600 * DAY, { kind: 'status', toStatus: 'learning' });
+    await mod.appendKnowledgeEvents({ 'future:responsive-save': [evidence] });
+    let ioRan = false;
+    const io = new Promise<void>(resolve => setImmediate(() => {
+      ioRan = true;
+      resolve();
+    }));
+    await mod.saveKnowledgeEvents();
+    const yieldedBeforeCompletion = ioRan;
+    await io;
+    expect(yieldedBeforeCompletion).toBe(true);
+    expect(mod.getKnowledgeEvents(['future:responsive-save'])['future:responsive-save']).toContainEqual(evidence);
+  });
+
+  it('shares ongoing maintenance instead of queuing another full compaction pass', async () => {
+    const { KnowledgeHistoryStore } = await import('./knowledgeHistoryStore');
+    const compact = vi.spyOn(KnowledgeHistoryStore.prototype, 'compact');
+    try {
+      const first = mod.saveKnowledgeEvents();
+      const overlapping = mod.saveKnowledgeEvents();
+      await first;
+      const completedWork = compact.mock.calls.length;
+      await overlapping;
+      expect(completedWork).toBeGreaterThan(0);
+      expect(compact.mock.calls.length).toBe(completedWork);
+    } finally { compact.mockRestore(); }
+  });
+
   it('routes learning-evidence IPC through the asynchronous reader without rebuilding on the main thread', async () => {
     const { LearningEvidenceReader } = await import('./learningEvidenceReader');
     const { KnowledgeHistoryStore } = await import('./knowledgeHistoryStore');

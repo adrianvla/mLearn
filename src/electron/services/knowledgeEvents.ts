@@ -1,6 +1,7 @@
 import type { FlashcardRatingCommand } from '../../shared/flashcardRating';
 import fs from 'fs';
 import path from 'path';
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import { BrowserWindow, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/constants';
 import type { KnowledgeEventLog } from '../../shared/knowledgeEvents';
@@ -23,6 +24,7 @@ let store: KnowledgeHistoryStore | undefined;
 let learningEvidenceReader: LearningEvidenceReader | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let writeQueue: Promise<void> = Promise.resolve();
+let saveInFlight: Promise<void> | undefined;
 let readyPromise: Promise<void> = Promise.resolve();
 const grammarProjectionCache = new Map<string, { sequence: number; projections: GrammarProjectionMap }>();
 
@@ -157,17 +159,27 @@ export function loadKnowledgeEvents(now = Date.now()): Promise<KnowledgeEventLog
  * committed synchronously by the store; a save flushes the bounded
  * incremental compaction pass.
  */
-export async function saveKnowledgeEvents(): Promise<void> {
+export function saveKnowledgeEvents(): Promise<void> {
+  if (saveInFlight) return saveInFlight;
   const active = ensureStore();
-  return enqueueWrite(async () => {
+  const save = enqueueWrite(async () => {
     try {
-      active.compact(Date.now(), COMPACTION_BUDGET_PER_SAVE);
+      const now = Date.now();
+      // Each key is already an atomic transaction. Yield between small passes
+      // so maintenance cannot hold up rating IPC and completed file writes.
+      for (let key = 0; key < COMPACTION_BUDGET_PER_SAVE; key += 1) {
+        await yieldToEventLoop();
+        active.compact(now, 1);
+      }
       grammarProjectionCache.clear();
       guardianForWrites()?.recordKnowledgeSequence(active.sequenceCounter);
     } catch (error) {
       log.error('Failed to compact knowledge history:', error);
     }
   });
+  saveInFlight = save;
+  void save.finally(() => { saveInFlight = undefined; });
+  return save;
 }
 
 export async function appendKnowledgeEvents(eventsByKey: KnowledgeEventLog): Promise<void> {
