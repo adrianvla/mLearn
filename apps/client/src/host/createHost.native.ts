@@ -4,13 +4,49 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 import { randomUUID } from 'expo-crypto';
 import { createRuntimeClient } from '@mlearn/runtime-client';
 import type { Host } from './types';
+import { captureAuthoredMedia } from './authoredMedia';
+import type { PickedAuthoredMedia } from './authoredMedia';
+import type { MaterialMediaKind } from '@mlearn/contracts';
 
 export function createHost(): Host {
-  const module = requireOptionalNativeModule<{ execute(request: string): Promise<string>;cancelSourceOpen():Promise<void> }>('MlearnNative');
+  const module = requireOptionalNativeModule<{
+    execute(request: string): Promise<string>;
+    cancelSourceOpen():Promise<void>;
+    reserveMediaCapture(id:string):Promise<void>;
+    importPickedMedia(uri:string,name:string):Promise<string>;
+    captureMedia(id:string,request:string):Promise<string>;
+    cancelMediaCapture(id:string):Promise<void>;
+    releaseMediaCapture(path:string):Promise<void>;
+    authoredMediaUri(id:string):Promise<string>;
+    exportAuthoredMedia(id:string):Promise<boolean>;
+  }>('MlearnNative');
   if (!module) return { available: false, label: 'Native module unavailable', reason: 'Build the local Rust module with npm run prepare:ios or prepare:android, then run the native app. Expo Go does not contain this module.' };
   const pickerCache=new Map<string,Directory>();
   function releasePicked(path:string){const directory=pickerCache.get(path);if(directory){directory.delete();pickerCache.delete(path);}return Promise.resolve();}
-  return { available: true, label: 'Expo native', media:{
+  const pickAuthored=async(kind:MaterialMediaKind):Promise<PickedAuthoredMedia|null> => {
+    const mime:Record<MaterialMediaKind,string>={image:'image/*',audio:'audio/*',video:'video/*'};
+    const result=await DocumentPicker.getDocumentAsync({type:mime[kind],copyToCacheDirectory:false,multiple:false});
+    if(result.canceled)return null;
+    const asset=result.assets[0];
+    if(!asset)throw new Error('The picker returned no media.');
+    if(!asset.name||asset.name.length>255||/[\\/]/.test(asset.name)||asset.name==='.'||asset.name==='..'){
+      throw new Error('The selected media has an invalid name.');
+    }
+    const path=await module.importPickedMedia(asset.uri,asset.name);
+    return {path,name:asset.name,kind,release:()=>module.releaseMediaCapture(path)};
+  };
+  return { available: true, label: 'Expo native', authoredMedia:{
+    capture:captureAuthoredMedia({
+      reserve:id=>module.reserveMediaCapture(id),
+      capture:async(id,request)=>JSON.parse(await module.captureMedia(id,JSON.stringify(request))),
+      cancel:id=>module.cancelMediaCapture(id),
+      release:path=>module.releaseMediaCapture(path),
+      commandId:randomUUID,
+    }),
+    pick:pickAuthored,
+    uri:id=>module.authoredMediaUri(id),
+    export:id=>module.exportAuthoredMedia(id),
+  }, media:{
     releasePicked,
     async pick(subtitles){
       for(const pending of pickerCache.keys())await releasePicked(pending);

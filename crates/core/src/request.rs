@@ -1,0 +1,196 @@
+use crate::{AuthoredMediaId, MediaCaptureRequest};
+use crate::{
+    CaptureExclusion, MaterialCaptureBatch, MaterialCreate, MaterialEdit, MaterialId,
+    MaterialQuery, MaterialTarget,
+};
+use crate::{
+    ClaimChange, InspectionTrigger, KnowledgeKey, PackageInstallCommand, SubtitleDirection,
+    ThemeDocument,
+};
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum Request {
+    Snapshot,
+    RecentSources,
+    AvailablePackages,
+    PlanMaterialMedia {
+        request: MediaCaptureRequest,
+    },
+    MaterialMedia {
+        id: AuthoredMediaId,
+    },
+    Materials {
+        query: MaterialQuery,
+    },
+    Material {
+        id: MaterialId,
+    },
+    CreateMaterial {
+        command: MaterialCreate,
+    },
+    UpdateMaterial {
+        command: MaterialEdit,
+    },
+    CaptureMaterials {
+        batch: MaterialCaptureBatch,
+    },
+    MaterialEligibility {
+        targets: Vec<MaterialTarget>,
+    },
+    SetCaptureExclusion {
+        command: CaptureExclusion,
+    },
+    ReturnMaterialSource {
+        id: MaterialId,
+    },
+    OpenSource {
+        path: String,
+        #[serde(rename = "packageId")]
+        package_id: String,
+    },
+    ResumeSource {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+    },
+    AttachSubtitles {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        path: String,
+    },
+    SourceWindow {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "positionMs")]
+        position_ms: u32,
+    },
+    Transcript {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "afterIndex")]
+        after_index: Option<u32>,
+        query: String,
+    },
+    CuePosition {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "subtitleRevision")]
+        subtitle_revision: String,
+        #[serde(rename = "cueIndex")]
+        cue_index: u32,
+    },
+    SetSubtitleOffset {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "offsetMs")]
+        offset_ms: i32,
+    },
+    AlignSubtitleOffset {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "subtitleRevision")]
+        subtitle_revision: String,
+        #[serde(rename = "expectedOffsetRevision")]
+        expected_offset_revision: u32,
+        #[serde(rename = "positionMs")]
+        position_ms: u32,
+        direction: SubtitleDirection,
+    },
+    SetPlaybackRate {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        rate: f64,
+    },
+    SetInspectionTrigger {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        trigger: InspectionTrigger,
+    },
+    SetSourceLanguage {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "packageId")]
+        package_id: String,
+    },
+    SavePosition {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "positionMs")]
+        position_ms: u32,
+        #[serde(rename = "durationMs")]
+        duration_ms: u32,
+    },
+    AnalyzeSource {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "positionMs")]
+        position_ms: u32,
+    },
+    AnalyzeTranscript {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "afterIndex")]
+        after_index: Option<u32>,
+        query: String,
+    },
+    DescribeLanguage {
+        #[serde(rename = "packageId")]
+        package_id: String,
+    },
+    InspectTarget {
+        #[serde(rename = "packageId")]
+        package_id: String,
+        #[serde(rename = "targetId")]
+        target_id: String,
+        #[serde(rename = "expectedRevision")]
+        expected_revision: Option<String>,
+    },
+    InspectTargets {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "subtitleRevision")]
+        subtitle_revision: String,
+        #[serde(rename = "packageRevision")]
+        package_revision: String,
+        #[serde(rename = "targetIds")]
+        target_ids: Vec<String>,
+    },
+    Knowledge {
+        keys: Vec<KnowledgeKey>,
+    },
+    ChangeClaim {
+        change: ClaimChange,
+    },
+    SaveTheme {
+        document: ThemeDocument,
+        #[serde(rename = "expectedRevision")]
+        expected_revision: u32,
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
+    InstallPlugin {
+        #[serde(rename = "pluginId")]
+        plugin_id: String,
+    },
+    InstallPackage {
+        command: PackageInstallCommand,
+    },
+    PackageInstallStatus {
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
+    CurrentPackageInstall,
+    CancelPackageInstall {
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
+    InvokePlugin {
+        #[serde(rename = "pluginId")]
+        plugin_id: String,
+        capability: String,
+        #[cfg_attr(feature = "typescript", ts(type = "unknown"))]
+        input: serde_json::Value,
+    },
+}

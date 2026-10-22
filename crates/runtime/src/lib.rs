@@ -1,14 +1,22 @@
 mod analysis;
+mod capture;
 pub mod catalog;
 mod execution;
 mod guest;
 mod language;
 mod linguistic;
+mod material;
+mod material_media;
+mod material_source;
+mod media_file;
+mod media_format;
+mod media_import;
+mod media_recovery;
 mod packages;
 mod watch;
-use catalog::{verify_artifact, CatalogClient, CatalogTrust, Manifest};
+use catalog::{CatalogClient, CatalogTrust, Manifest, verify_artifact};
 pub use execution::RuntimeExecutor;
-use mlearn_core::{PackageIssue, PluginSummary, Request, Response, Snapshot, PROTOCOL_VERSION};
+use mlearn_core::{PROTOCOL_VERSION, PackageIssue, PluginSummary, Request, Response, Snapshot};
 use mlearn_language_host::{CodeOrigin, CodePolicy, CompiledPlugin};
 use mlearn_storage::{ProfileStore, StorageError};
 use std::{
@@ -138,6 +146,9 @@ impl Runtime {
                 }
             }
         }
+        runtime
+            .recover_material_media()
+            .map_err(|error| error.to_string())?;
         Ok(runtime)
     }
     pub fn cancellation_handle(&self) -> Arc<std::sync::atomic::AtomicU64> {
@@ -229,6 +240,17 @@ impl Runtime {
                     })?;
                 Ok(Response::Saved { revision })
             }
+            request @ (Request::Materials { .. }
+            | Request::PlanMaterialMedia { .. }
+            | Request::MaterialMedia { .. }
+            | Request::Material { .. }
+            | Request::UpdateMaterial { .. }
+            | Request::MaterialEligibility { .. }
+            | Request::SetCaptureExclusion { .. }
+            | Request::ReturnMaterialSource { .. }) => self.material_metadata(
+                request,
+                self.cancellation.load(std::sync::atomic::Ordering::Relaxed),
+            ),
             request => self
                 .watch(
                     request,

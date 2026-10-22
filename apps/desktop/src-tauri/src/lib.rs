@@ -4,9 +4,12 @@ use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 mod media;
+mod media_capture;
 mod window_material;
 
 struct NativeState {
+    captures: Arc<media_capture::Captures>,
+    media_base: String,
     runtime: Arc<RuntimeExecutor>,
     permits: Arc<tokio::sync::Semaphore>,
     cancellation: Arc<std::sync::atomic::AtomicU64>,
@@ -125,15 +128,19 @@ pub fn run() {
                 window_material::startup_snapshot(&mut runtime).map_err(std::io::Error::other)?;
             let theme_script = window_material::initialization_script(&snapshot.theme)?;
             let resolver = media_resolver(&runtime).map_err(std::io::Error::other)?;
+            let authored =
+                media_capture::authored_resolver(&runtime).map_err(std::io::Error::other)?;
             let cancellation = runtime.cancellation_handle();
             let material = Arc::new(Mutex::new(window_material::WindowMaterial::default()));
             let state = NativeState {
+                captures: Arc::new(media_capture::Captures::new()),
+                media_base: media_listener.base_url(),
                 cancellation,
                 runtime: Arc::new(RuntimeExecutor::new(runtime)),
                 permits: Arc::new(tokio::sync::Semaphore::new(3)),
                 material: material.clone(),
             };
-            let server = media_listener.start(resolver)?;
+            let server = media_listener.start_with_authored(resolver, Some(authored))?;
             app.manage(Mutex::new(server));
             app.manage(state);
             let config = app
@@ -159,11 +166,32 @@ pub fn run() {
             runtime_execute,
             window_material_active,
             pick_local_file,
-            cancel_source_open
+            cancel_source_open,
+            media_capture::reserve_media_capture,
+            media_capture::capture_media,
+            media_capture::cancel_media_capture,
+            media_capture::release_media_capture,
+            media_capture::authored_media_uri,
+            media_capture::export_authored_media,
+            media_capture::pick_authored_media
         ])
         .build(tauri::generate_context!())
         .expect("mLearn desktop host failed to start")
         .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = &event {
+                let owner = app.state::<NativeState>().captures.clone();
+                if !owner.shutdown_finished() {
+                    api.prevent_exit();
+                    if owner.begin_shutdown() {
+                        let app = app.clone();
+                        let code = code.unwrap_or(0);
+                        tauri::async_runtime::spawn(async move {
+                            owner.shutdown().await;
+                            app.exit(code);
+                        });
+                    }
+                }
+            }
             if matches!(event, tauri::RunEvent::Exit)
                 && let Ok(mut server) = app.state::<Mutex<media::MediaServer>>().lock()
             {

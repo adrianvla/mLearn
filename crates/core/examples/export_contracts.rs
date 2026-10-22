@@ -3,6 +3,33 @@ fn main() {
     use mlearn_core::*;
     use ts_rs::TS;
     let declarations = [
+        SourceLocator::decl(),
+        SourceAnchor::decl(),
+        MaterialId::decl(),
+        AuthoredMediaId::decl(),
+        MaterialMediaKind::decl(),
+        MediaSegment::decl(),
+        AuthoredMedia::decl(),
+        MaterialAttachment::decl(),
+        MediaCaptureSelection::decl(),
+        MediaCaptureRequest::decl(),
+        MediaCapturePlan::decl(),
+        CapturedMediaFile::decl(),
+        MaterialMediaImport::decl(),
+        MaterialMediaLocation::decl(),
+        MaterialTarget::decl(),
+        MaterialContent::decl(),
+        Material::decl(),
+        MaterialCreate::decl(),
+        MaterialEdit::decl(),
+        MaterialQuery::decl(),
+        MaterialPage::decl(),
+        MaterialWriteResult::decl(),
+        CaptureAvailability::decl(),
+        MaterialEligibility::decl(),
+        CaptureExclusion::decl(),
+        MaterialCaptureBatch::decl(),
+        MaterialCaptureResult::decl(),
         ReadingSpan::decl(),
         LinguisticLabel::decl(),
         ContourUnit::decl(),
@@ -46,7 +73,13 @@ fn main() {
         "// Generated from mlearn-core. Run npm run codegen; do not edit.\n\n{}\n",
         declarations
             .into_iter()
-            .map(|d| format!("export {d}"))
+            .map(|d| {
+                format!("export {d}")
+                    .lines()
+                    .map(str::trim_end)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
             .collect::<Vec<_>>()
             .join("\n\n")
     );

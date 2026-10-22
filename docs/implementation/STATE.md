@@ -1,6 +1,6 @@
 # Current implementation checkpoint
 
-## Active authorization — integration checkpoint before M03–M07
+## Active authorization — sequential M03–M07 implementation
 
 On October 22 the maintainer authorized autonomous sequential M03–M07, with
 independent review and full verification per milestone, and an independent
@@ -14,18 +14,225 @@ package for manual acceptance, without merging or self-acceptance.
 
 ## Current gate status — 2026-10-22
 
-Status: `implementing_M03`. The existing hosted iOS FileProvider acceptance gate
+Status: `verified_for_continuation_M03`. The existing hosted iOS FileProvider acceptance gate
 is **deferred by the maintainer, not passed**. It does not block M03–M07.
 Stop its investigation and launch no further diagnostic workflow variants.
 No verified application fix for the hosted Files-to-URL failure has
 been found; the underlying platform cause remains unresolved. Do not mark the
 hosted acceptance green or claim release readiness. Earlier pre-M03 halt and
 verification-environment-decision conditions are superseded by this explicit
-decision, not by diagnostic success. M04–M07 remain sequentially unopened.
+decision, not by diagnostic success. The maintainer subsequently authorized a
+90-minute high-capacity window (up to32 useful concurrent lanes), followed by
+continued autonomous execution. M04 implementation is isolated from the M03
+candidate; milestone integration order and the architecture gate remain binding.
 
-Application source remains `4a7927a0`, tree `06f1d1c3`. Since that candidate,
-the net tracked changes are diagnostic-only files and this checkpoint, not
-application, runtime, protocol, mobile test, or language-plugin changes.
+Authorization checkpoint `4fdae38a` is pushed on `agent/m01`. M03 application,
+protocol, storage, runtime and native-media changes form the verified milestone
+checkpoint. Local owner/application verification passes with the platform limits
+recorded below. Independent blocker closeout `st_01a16547` returned `APPROVE`;
+the16 scoped repair/test blobs match preserved tree
+`080ea0dcfe45a8194735affb89dbfcaa3ef085dc`. This is continuation permission, not
+maintainer acceptance. The retained `4a7927a0`/`06f1d1c3` binary and platform evidence
+below establish the earlier integration baseline only.
+
+### M03 independent review repairs — current continuation
+
+The independent review returned `REVISE`, identifying forged provenance on reused
+attachments and native staging/output that could exceed128MiB. The runtime now
+validates introduced or changed reused references against authoritative source
+and catalog metadata, while preserving unchanged historical references and
+receipt-first replay. Its real-storage regression failed before the repair and
+passes afterward; all seven affected runtime Material/source tests and library
+Clippy pass.
+
+Apple, Android and desktop producer/import owners now bound admission/copying,
+reject oversized final output and clean partial resources before subsequent
+success. Their owner probes pass; the probes' simulated Android media boundaries
+do not certify native muxer execution. The native host selects without Expo's
+unbounded cache copy, then uses the bounded `importPickedMedia` method on both
+mobile platforms. Fresh Rust FFI preparation and consuming iOS/Android Release
+builds pass. Final changed-source native workflows pass on both retained devices.
+
+Capture retains stable command identities across whole-call uncertain failure.
+Material opening/source-return recovery is action-local, and editor heading
+focus restores to the exact initiating control. Actual desktop focus handoff
+and restoration pass. A genuine missing-file preview fails explicitly; restoring
+the owned QA image and pressing Preview once in the same editor decodes it.
+The original SHA256 is unchanged. Final client/harness tests (56+47), typecheck,
+ownership lint, contracts, web export and17 browser interactions pass.
+
+The refreshed iOS source flow saved/restored all media and exercised native
+controls, then failed because its final test still scrolled DOWN after the
+editor's Return action moved beside its heading. Exact pixels/hierarchy justify
+changing that scroll to UP, without weakening return assertions. A separate
+SpringBoard `EXC_BAD_ACCESS` report is preserved; no app-causality claim is made.
+The refreshed Android flow failed scrolling to Capture frame. A retained
+single-scroll reproduction finds the exact control100% visible and moving with
+gestures, but centering exceeds20s. Actual hierarchy latency reached11.8s on a
+host with13.9GiB swap used; the initial Resume scroll similarly expired while
+the final image showed the real button. These two bounded visibility deadlines
+are now60s, with no sleeps, retries or weaker assertions. The subsequent Android
+flow saves frame and audio, then exposes a real video regression: the bounded
+preflight's second seek rejects the unchanged source as changed. Real numeric
+reproduction proves original request15000000us selects14500000us, while
+re-seeking that derived timestamp selects14461333us. The second seek now replays
+the original request, retaining the equality, size and cancellation guards;
+temporary instrumentation is removed. The rebuilt consuming app passes the
+same focused video reproduction in42s; native size/cleanup owner probes also
+pass after the repair. Final full Android and iOS media workflows pass in161s
+and175s respectively. All3 Android and5 iOS captures were inspected: authored
+media survives restart, iOS native audio/video controls work, and Return restores
+the original source selection and time. The original real source-media flow is
+the tracked regression. Earlier failures remain recorded as failures.
+Focused independent review closeout is approved with no remaining blockers.
+Report: `.omo/evidence/m03-blocker-closeout-gate-review.md`. Publication is the
+immediate next action, followed by integration of the completed private M04 code.
+
+On October22 the maintainer ordered immediate checkpoint/closeout,
+targeted blocker regressions only, and integration of existing M04 work rather
+than another verification or generation campaign. The prepared extra bounded
+picker GUI scenarios are **unrun/incomplete**; owner-level byte/cleanup probes
+and consuming native builds are verified. Windows/Linux consuming builds and
+the local ffmpeg codec smoke remain **unverified**. The hosted iOS FileProvider
+failure remains **deferred/red**. None is relabeled as a pass. Preserve these
+limits and proceed after genuine blocking findings are closed; cosmetic work
+and additional broad review/verification do not hold this checkpoint.
+
+The final native core/storage/runtime regressions and library Clippy pass,
+followed by21 desktop tests passing and one explicitly unrun local ffmpeg codec
+smoke. A real desktop missing-source failure also recovers through its adjacent
+Retry returning to source action to the original frame at0.0s. The temporarily
+held owned source is restored; no learner content was changed.
+
+The same-editor preview regression now also has explicit toggle proof: both
+desktop and narrow browser cases fail on an isolated original-behavior export
+and pass on the fixed export, with authored draft fields preserved. Production
+source was restored immediately after capturing the isolated red bundle;
+typecheck and whitespace checks pass.
+
+M04's frozen Review protocol/policy and shared roles were recovered into the
+parent-owned private `m04-shared` workspace. Seven disjoint package, storage,
+runtime, typed-client, UI, media and integration owners completed source and
+coherent checks there, never in the M03 candidate. The full relevant Rust
+workspace and contracts,56 checker tests,76 client tests,18 Material browser
+cases,20 Review browser cases and8 adjacent browser cases pass. These are private
+implementation results, not main integration, native workflow verification or
+independent acceptance. An additive explicit audio-target binding is M04 scope;
+historical attachments remain unbound, and source/time/text do not imply binding.
+Reader parsing fixtures/prototype, offline macOS Vision measurements, Android
+OCR packaging, Messenger ownership and performance prerequisites are prepared,
+not delivered M05–M07 milestones. The PDF prototype's aggregate loader-memory
+bound and actual iOS/Android OCR quality remain unresolved.
+
+### M03 current implementation and checks
+
+One Rust-owned Material model now has schema-v4 incremental SQLite storage,
+bounded reads, exact/distinct capture identity, independent capture exclusions,
+CAS edits and metadata-only durable receipts. Source anchors preserve original
+source/package/cue/UTF-8 coordinates separately from editable authored content.
+Return restores the source language, selection, time, offset and rate; missing
+or changed source is explicit without disabling unrelated authored edits.
+
+Authored media uses bounded content-addressed files and transactional
+catalog/references, not cache or repeated base64 history. Atomic bounded staging
+journals recover interrupted publication on restart while preserving catalogued
+and shared authored bytes. Native capture/pick/URI/export adapters exist;
+Material media controls and genuine app-level verification are being integrated.
+macOS/iOS use shared AVFoundation; Android uses its native media APIs;
+Linux/Windows use an actual local ffmpeg provider with explicit unavailable
+errors when its executables are absent. Local ffmpeg extraction and those two
+platform builds have not been exercised.
+
+The complete core/storage/runtime test run and library Clippy pass locally.
+Runtime tests use actual temporary SQLite, byte IO, reopened profiles and
+bundled language execution. New regressions caught and repaired startup orphan
+recovery, forged linked-sense edits and stale-edit conflict response codes;
+each failed without its corresponding repair. Storage frame/manual-sense
+regressions and all 12 Material client tests pass. Four bounded source-capture
+tests, standalone Node-typed test checking, app typecheck and architecture lint
+pass; lint first caught and then verified repair of a private feature import.
+Whole-source capture streams existing native pages and six-target dictionary
+batches, retains only the failed group for exact retry, and does not equate
+Knowledge claims with capture eligibility.
+
+Fresh iOS simulator and Android Release application builds pass. Both retained
+devices pass actual manual authoring/restart; iOS also exercises exact-existing
+selection. Android's first attempt exposed a readiness test targeting a label
+instead of the enabled button; the ready-state reproduction and corrected
+semantic-control flow pass without sleeps or weakened assertions.
+
+Normal desktop startup, actual selected-sense capture, preservation of a distinct
+draft and staged frame, image import/export, captured frame/audio/video playback
+and exact source return pass. A real whole-source Japanese capture and its
+idempotent post-restart repeat show existing Material with no duplicate writes.
+The new desktop helper originally caused a development rebuild loop; caching
+actual compiler inputs and publishing only changed bytes repairs normal startup.
+Desktop library tests pass18, with the local ffmpeg codec smoke explicitly
+unrun because its executables are absent. Windows/Linux consuming builds remain
+unverified.
+
+Android's real source-media flow saves a frame but initially rejects the
+end-of-source audio origin. The error and retry controls were below the scroll
+fold, not a hung command. Canonical duration is30000ms; the retained produced
+audio decodes to14973.3ms. Microsecond duration arithmetic alone did not repair
+the actual muxed overrun: production tracing measured end30035ms against the
+canonical30000ms. Explicit empty EOS samples now bound the final muxed sample
+duration. The real Android flow subsequently saved frame, audio and video;
+measured produced endpoints are30000ms for both clips. The full capture,
+restart, protected preview and exact-source-return flow passes in139s on Android
+and131s on retained iOS26. Repeated-phrase selection, a search-field label
+mistaken for the submit action, keyboard obstruction and edge-of-scroll tapping
+were repaired in the new regression without relaxing its media assertions.
+It now authors a unique phrase marker, searches through the actual semantic
+submit button, verifies the restored phrase and scrolls to each attachment.
+Strict source validation remains unchanged. Temporary root debugging was confined to the owned emulator,
+probe files were removed and ordinary shell privileges restored.
+
+A real no-subtitle desktop source also captures, saves and decodes a frame,
+then returns from the saved source-scoped list at0.0s without a fake cue.
+This exposed an empty returned-selection label; the shared Watch presentation
+now names the returned frame time. Its actual fixed native capture is
+`desktop-no-subtitle-return-fixed.png`. Final native bundles build successfully;
+source flows pass148s on Android and129s on iOS. The combined monitor first
+expired during iOS after its successful build; the interrupted flow was rerun
+separately with an explicit deadline, not counted as passed.
+
+Actual native Android audio/video play and pause also pass, with decoded frames
+and advancing playback inspected. The initial probe incorrectly waited past
+the native controls' lifetime; it now uses the existing Watch helper's immediate
+control observation. iOS's compact 64-point audio preview hid AVKit's controls.
+The existing player owner now reserves 200 points on iOS, preserving its native
+play, pause, seek and fullscreen controls. Real audio and video both pass
+Play → Pause → Play on the retained iOS device; decoded video and advancing
+time are inspected in `ios-direct-{audio,video}-{playing,paused}.png`.
+The focused probe uses the installed XCTest driver's native input and
+accessibility states, avoiding the CLI screenshot-settling race with AVKit's
+auto-hide. Its platform guard confirms the actual retained simulator identity.
+Earlier incorrectly bound direct probes selected Android and provide no iOS
+evidence.
+
+The source regression now also requires restored iOS audio/video controls to
+seek forward to 10 seconds and back to zero while paused. Its first integration
+attempt exposed a test scroll target clipped beneath the fixed header, despite
+Maestro reporting it visible; the regression now anchors the real Preview
+button rather than scrolling the AVKit accessibility frame. The focused seek
+regression and complete source-capture/restart/control/source-return flow now
+pass. All five final captures are inspected under
+`ios-material-controls-integrated/2026-10-22_202542/`.
+
+Final client typecheck and ownership lint pass. Rust contract generation now
+trims generator-emitted trailing whitespace; regenerated contracts pass the
+authoritative check. Changed desktop Rust formatting and `git diff --check`
+pass. The broader workspace formatting check remains red on unchanged files,
+independently reproduced in the locked `4fdae38a` review baseline; those
+unrelated files have not been reformatted.
+
+Independent M03 review and milestone push remain pending. No M04 work has
+started. Execution invocations, failures, source-specific evidence and current
+resource handles are retained in the ultrawork notepad; command logs, JUnit
+results and screenshots are under `.mlearn/m03-m07/m03/`.
+
+### Preserved pre-M03 integration evidence
 
 | Gate | Current evidence |
 | --- | --- |
@@ -77,7 +284,7 @@ against unchanged `agent/h00`. Requested `4a86df32` was fetched and already
 equalled clean HEAD; no reset, history rewrite or new worktree was used.
 This authorization supersedes the historical frozen-review, minimal-restyle
 and unpictured `visual_pending` restrictions below. Domain milestones remain
-subject to the pre-M03 gate and sequential authorization above; no merge,
+subject to the sequential authorization above; no merge,
 release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-22

@@ -88,6 +88,23 @@ impl Runtime {
             .map(|s| self.resolve_source_paths(s))
             .map_err(|e| e.to_string())
     }
+    pub(super) fn resumable_source(&self, id: &str, epoch: u64) -> Result<SourceRecord, String> {
+        let source = self.source_record(id)?;
+        let path = self.source_media_path(id)?;
+        if hash(&path, &self.cancellation, epoch)? != source.media_revision {
+            return Err(
+                "Video content changed; open it as a new source. Saved progress is preserved."
+                    .into(),
+            );
+        }
+        if let Some(path) = &source.subtitle_path
+            && source.subtitle_revision.as_deref()
+                != Some(hash(Path::new(path), &self.cancellation, epoch)?.as_str())
+        {
+            return Err("Subtitle file changed; reselect it to update the association. Saved progress is preserved.".into());
+        }
+        Ok(source)
+    }
     pub fn source_media_path(&self, id: &str) -> Result<PathBuf, String> {
         let source = self.source_record(id)?;
         local(&source.media_path, &["mp4", "mov", "m4v", "webm", "mkv"])
@@ -219,17 +236,7 @@ impl Runtime {
                 })
             }
             Request::ResumeSource { source_id } => {
-                let source = self.source_record(&source_id)?;
-                let path = self.source_media_path(&source_id)?;
-                if hash(&path, &self.cancellation, epoch)? != source.media_revision {
-                    return Err("Video content changed; open it as a new source. Saved progress is preserved.".into());
-                }
-                if let Some(path) = &source.subtitle_path
-                    && source.subtitle_revision.as_deref()
-                        != Some(hash(Path::new(path), &self.cancellation, epoch)?.as_str())
-                {
-                    return Err("Subtitle file changed; reselect it to update the association. Saved progress is preserved.".into());
-                }
+                let source = self.resumable_source(&source_id, epoch)?;
                 self.store.save_source(&source).map_err(|e| e.to_string())?;
                 Ok(Response::Source {
                     window: self.window(source.clone(), source.position_ms)?,

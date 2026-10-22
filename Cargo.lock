@@ -2475,6 +2475,7 @@ dependencies = [
 name = "mlearn-desktop"
 version = "3.0.0-dev.0"
 dependencies = [
+ "base64 0.22.1",
  "http-range",
  "hyper",
  "hyper-util",
@@ -4621,6 +4622,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

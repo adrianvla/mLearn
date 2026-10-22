@@ -1,8 +1,8 @@
 use crate::{
+    Installed,
     analysis::AnalysisInput,
     catalog::CatalogClient,
     execution::{Cancellation, Failure},
-    Installed,
 };
 use mlearn_core::{
     AnalyzedToken, ClaimChange, DictionaryResult, LanguageDescription, LexicalEntry,
@@ -31,6 +31,11 @@ pub(super) struct LanguageWork {
     pub action: LanguageAction,
 }
 pub(super) enum LanguageAction {
+    EditMaterial(Box<mlearn_core::MaterialEdit>),
+    Capture {
+        inputs: Vec<crate::capture::CaptureInput>,
+        delivery: crate::capture::CaptureDelivery,
+    },
     Open {
         path: String,
     },
@@ -53,6 +58,7 @@ pub(super) enum LanguageAction {
     },
 }
 pub(super) enum GuestOutput {
+    Capture(Vec<Result<(), String>>),
     Open,
     Description(LanguageDescription),
     Entry(LexicalEntry),
@@ -71,6 +77,26 @@ impl GuestWork {
             Self::Language(work) => {
                 work.cancellation.check()?;
                 let output = match &work.action {
+                    LanguageAction::EditMaterial(command) => {
+                        let target = command.content.target_id.as_deref().ok_or_else(|| {
+                            Failure::Operation("Missing edited target identity".into())
+                        })?;
+                        let entry = work.entry(target)?;
+                        if let Some(sense) = &command.content.sense
+                            && !entry
+                                .senses
+                                .as_ref()
+                                .is_some_and(|senses| senses.contains(sense))
+                        {
+                            return Err(Failure::Operation(
+                                "Selected dictionary sense changed; inspect the item again".into(),
+                            ));
+                        }
+                        GuestOutput::Entry(entry)
+                    }
+                    LanguageAction::Capture { inputs, .. } => {
+                        GuestOutput::Capture(work.check_capture_targets(inputs))
+                    }
                     LanguageAction::Open { .. } | LanguageAction::SelectSourceLanguage { .. } => {
                         work.description()?;
                         GuestOutput::Open
@@ -179,6 +205,8 @@ impl GuestWork {
             Self::Language(work) => match &work.action {
                 LanguageAction::Analyze(_) => "text.analyze.v1",
                 LanguageAction::Inspect { .. }
+                | LanguageAction::EditMaterial(_)
+                | LanguageAction::Capture { .. }
                 | LanguageAction::Summaries { .. }
                 | LanguageAction::Claim(_) => "target.inspect.v1",
                 LanguageAction::Open { .. }
@@ -191,5 +219,7 @@ impl GuestWork {
         }
     }
 }
+#[path = "completion.rs"]
+mod completion;
 #[path = "preparation.rs"]
 mod preparation;

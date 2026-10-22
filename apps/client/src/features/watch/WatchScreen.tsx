@@ -9,7 +9,8 @@ import { Row } from '@mlearn/ui/layout';
 import { Dialog, dialogSidebarWidth } from '@mlearn/ui/dialog';
 import { TextField } from '@mlearn/ui/text-field';
 import { Select } from '@mlearn/ui/select';
-import type { SourceWindow, AnalysisBatch, PluginSummary, SubtitleDirection } from '@mlearn/contracts';
+import type { TextBounds } from '@mlearn/ui/inline-word';
+import type { SourceWindow, SourceAnchor, AnalysisBatch, PluginSummary, SubtitleDirection } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { MediaSurface } from '../../bootstrap/MediaSurface';
@@ -18,11 +19,13 @@ import { Inspector, type Inspection } from '../inspector';
 import { Transcript } from './Transcript';
 import { LiveWordCards } from './LiveWordCards';
 import { MediaOverlay } from '@mlearn/ui/media-overlay';
+import { cueAnchor, emptyMaterial, MaterialEditor } from '../material';
 export function WatchScreen() {
     const host = useRuntime();
     const router = useRouter();
     const params = useLocalSearchParams<{
         id: string;
+        materialId?: string;
     }>();
     const id = typeof params.id === 'string' ? params.id : '';
     const insets = useSafeAreaInsets();
@@ -36,6 +39,11 @@ export function WatchScreen() {
     const [transcriptBatch, setTranscriptBatch] = useState<AnalysisBatch | null>(null);
     const [position, setPosition] = useState(0);
     const [inspection, setInspection] = useState<Inspection | null>(null);
+    const [returnedSelection, setReturnedSelection] = useState<SourceAnchor | null>(null);
+    const returnedCue = useRef<View>(null);
+    const restoredInspection = useRef<SourceAnchor | null>(null);
+    const selectedSource = useRef(returnedSelection);
+    selectedSource.current = returnedSelection;
     const [error, setError] = useState('');
     const [analysisError, setAnalysisError] = useState('');
     const [analysisPending, setAnalysisPending] = useState(false);
@@ -56,6 +64,8 @@ export function WatchScreen() {
     const [playbackOpen, setPlaybackOpen] = useState(false);
     const [synchronizationOpen, setSynchronizationOpen] = useState(false);
     const [liveWordsOpen, setLiveWordsOpen] = useState(false);
+    const [captureOpen, setCaptureOpen] = useState(false);
+    const [subtitleCapture, setSubtitleCapture] = useState<SourceAnchor | null>(null);
     const liveWordTrigger = useRef<View>(null);
     const [offsetDraft, setOffsetDraft] = useState('0');
     const [playbackError, setPlaybackError] = useState('');
@@ -68,9 +78,29 @@ export function WatchScreen() {
     const lastSaved = useRef(0);
     const mounted = useRef(true);
     const session = useRef<ReturnType<RuntimeClient['beginSourceSession']> | null>(null);
+    const consumedReturn = useRef('');
     const activeSource = useRef(id);
     const focused = useRef<object | null>(null);
     activeSource.current = id;
+    useEffect(() => {
+        const node = returnedCue.current;
+        if (!node || !returnedSelection || restoredInspection.current === returnedSelection || !batch
+            || batch.sourceId !== returnedSelection.sourceId || batch.subtitleRevision !== returnedSelection.locator.subtitleRevision
+            || batch.packageId !== returnedSelection.packageId || batch.packageVersion !== returnedSelection.packageVersion) return;
+        const cue = batch.cues.find(item => item.cue.index === returnedSelection.locator.cueIndex && item.cue.text === returnedSelection.text);
+        const token = cue?.tokens.find(item => item.start === returnedSelection.locator.selectionStart && item.end === returnedSelection.locator.selectionEnd);
+        if (!token?.targets.length) return;
+        const current = session.current;
+        const measure = (publish: (bounds: TextBounds) => void) => node.measureInWindow((x, y, width, height) => {
+            if (selectedSource.current === returnedSelection && current?.isCurrent() && returnedCue.current === node) publish({ x, y, width, height });
+        });
+        measure(bounds => {
+            restoredInspection.current = returnedSelection;
+            setInspection({ sourceForm: token.text, context: returnedSelection.text, targets: token.targets,
+                packageRevision: batch.packageRevision, sourceAnchor: returnedSelection,
+                anchor: { ...bounds, measure, restoreFocus: () => node.focus() } });
+        });
+    }, [batch, returnedSelection]);
     const saveFailed = useRef(false);
     const controller = useRef<{
         seekTo: (positionMs: number) => void;
@@ -102,12 +132,25 @@ export function WatchScreen() {
         setWindow(previous => previous?.source.id === id ? previous : null);
         setBatch(null);
         setInspection(null);
+        setReturnedSelection(null);
         setTranscriptOpen(false);
         setTranscriptBatch(null);
         setPlaybackOpen(false);
         setSynchronizationOpen(false);
         setLiveWordsOpen(false);
-        void current.ready.then(() => host.client.resumeSource(id)).then(w => {
+        setCaptureOpen(false);
+        setSubtitleCapture(null);
+        void current.ready.then(async () => {
+            if (typeof params.materialId === 'string' && consumedReturn.current !== params.materialId) {
+                const restored = await host.client.returnMaterialSource(params.materialId);
+                if (active && current.isCurrent()) {
+                    consumedReturn.current = params.materialId;
+                    setReturnedSelection(restored.anchor);
+                }
+                return restored.window;
+            }
+            return host.client.resumeSource(id);
+        }).then(w => {
             if (active && current.isCurrent()) {
                 setWindow(w);
                 setPosition(w.source.positionMs);
@@ -132,7 +175,7 @@ export function WatchScreen() {
                     setError(e instanceof Error ? e.message : String(e));
             });
         };
-    }, [host, id, sourceReload]));
+    }, [host, id, params.materialId, sourceReload]));
     const bucket = Math.floor(position / 2000);
     const subtitleTime = position + (window?.source.subtitleOffsetMs ?? 0);
     const cues = window?.cues.filter(c => c.startMs <= subtitleTime && c.endMs > subtitleTime) ?? [];
@@ -416,8 +459,9 @@ export function WatchScreen() {
         await refreshKnowledge();
     }
     const inspector = inspection && window && host.available ? (
-        <Inspector inspection={inspection} packageId={window.source.packageId} client={host.client}
-            onChanged={changedInspection} onClose={() => setInspection(null)} />
+        <Inspector key={JSON.stringify([inspection.sourceAnchor, inspection.targets, inspection.initialTargetId])}
+            inspection={inspection} packageId={window.source.packageId} client={host.client}
+            onChanged={changedInspection} onClose={() => { setInspection(null); setReturnedSelection(null); }} />
     ) : null;
     const sourceActions = <>
                     {Platform.OS === 'web' && window ? <Select label="Playback rate" variant="media"
@@ -432,6 +476,30 @@ export function WatchScreen() {
                             icon="subtitles" iconOnly size="compact" variant="media" disabled={busy} onPress={() => void attach()} />
                     ) : null}
                     {window && host.available ? <>
+                      <Button label="Material from this source" variant="media" size="compact"
+                        onPress={() => {
+                          void pauseAndSave().then(() => router.push({ pathname: '../materials', params: { sourceId: id } })).catch(() => {});
+                        }} />
+                      <Dialog open={captureOpen} onOpenChange={value => {
+                        setCaptureOpen(value);
+                        if (value) {
+                          void pauseAndSave().catch(() => {});
+                           const point = latest.current.position;
+                           const clock = point + window.source.subtitleOffsetMs;
+                           const cue = window.cues.find(item => item.startMs <= clock && clock < item.endMs);
+                           setSubtitleCapture(cue
+                             ? cueAnchor(window.source, cue, { start: 0, end: new TextEncoder().encode(cue.text).length }, point)
+                             : { sourceId: id, contentRevision: window.source.mediaRevision, packageId: window.source.packageId,
+                               packageVersion: window.source.packageVersion, text: '',
+                               locator: { kind: 'video', subtitleRevision: window.source.subtitleRevision, cueIndex: null,
+                                 selectionStart: 0, selectionEnd: 0, positionMs: Math.round(point),
+                                 subtitleOffsetMs: window.source.subtitleOffsetMs, playbackRate: window.source.playbackRate } });
+                        }
+                       }} title="Capture source" description="Save source text and available media with their original location."
+                         trigger={<Button label={cues.length ? 'Capture subtitle' : 'Capture frame'} variant="media" size="compact" />}>
+                        {subtitleCapture ? <MaterialEditor key={JSON.stringify(subtitleCapture)} client={host.client} authoredMedia={host.authoredMedia}
+                           initial={{ ...emptyMaterial(subtitleCapture.packageId), phrase: subtitleCapture.text || window.source.title, context: subtitleCapture.text, source: subtitleCapture }} /> : null}
+                       </Dialog>
                       <Button ref={liveWordTrigger} label="Live word translator" icon="globe" iconOnly variant="media" size="compact"
                         accessibilityState={{ expanded: liveWordsOpen }} disabled={!batch || transcriptOpen}
                         onPress={() => setLiveWordsOpen(value => !value)} />
@@ -531,6 +599,14 @@ export function WatchScreen() {
                         <Button label="Cancel opening" variant="secondary"
                             onPress={() => void cancelOpening()} />
                     ) : null}
+                    {returnedSelection ? <Text testID="returned-source-selection" tone="media" variant="caption" selectable>
+                        {returnedSelection.locator.cueIndex === null
+                            ? `Returned frame at ${(returnedSelection.locator.positionMs / 1000).toFixed(1)}s`
+                            : `Returned selection: ${new TextDecoder().decode(new TextEncoder().encode(returnedSelection.text)
+                                .slice(returnedSelection.locator.selectionStart, returnedSelection.locator.selectionEnd))}`}
+                    </Text> : null}
+                    {returnedSelection ? <Button label="Clear returned selection" variant="media" size="compact"
+                        onPress={() => { setReturnedSelection(null); setInspection(null); }} /> : null}
                     {Platform.OS !== 'web' ? sourceActions : null}
                 </Row>
                 {error ? <>
@@ -552,7 +628,7 @@ export function WatchScreen() {
                     { top: insets.top + toolbarHeight + (Platform.OS === 'web' ? -2 : 8), right: sidebarInset + 10 }]}>
             {showLiveWords && batch ? <View style={styles.liveWords}>
                 <LiveWordCards key={JSON.stringify([id, batch.subtitleRevision, batch.packageId, batch.packageVersion, batch.packageRevision])}
-                     client={host.client} batch={batch} cueKey={cueKey} focusFallback={liveWordTrigger}
+                     client={host.client} batch={batch} source={window.source} cueKey={cueKey} focusFallback={liveWordTrigger}
                      onClose={() => setLiveWordsOpen(false)} onInspect={value => {
                         void pauseAndSave().catch(() => {});
                         setInspection(value);
@@ -583,7 +659,7 @@ export function WatchScreen() {
                     <MediaSurface key={window.source.id} uri={host.media.uri(window.source)}
                         controls={Platform.OS === 'web' ? sourceActions : undefined}
                         initialPositionMs={window.source.positionMs} playbackRate={window.source.playbackRate}
-                        paused={!!inspection || busy || transcriptOpen || playbackOpen}
+                        paused={!!inspection || !!returnedSelection || busy || transcriptOpen || playbackOpen || captureOpen}
                         onController={value => {
                             controller.current = value;
                             setSubtitleInset(value.subtitleBottomInset);
@@ -601,14 +677,19 @@ export function WatchScreen() {
                             const analysis = batch?.subtitleRevision === window.source.subtitleRevision
                                 ? batch.cues.find(a => a.cue.index === cue.index) : null;
                             return (
-                                <AnnotatedText key={JSON.stringify([window.source.id, window.source.subtitleRevision, window.source.packageId, window.source.packageVersion, cue.index])} rawText={cue.text} analysis={analysis ?? null}
+                                <View key={JSON.stringify([window.source.id, window.source.subtitleRevision, window.source.packageId, window.source.packageVersion, cue.index])}
+                                    ref={returnedSelection?.locator.cueIndex === cue.index ? returnedCue : undefined}
+                                    focusable={returnedSelection?.locator.cueIndex === cue.index} style={styles.cue}>
+                                <AnnotatedText rawText={cue.text} analysis={analysis ?? null}
                                     annotations={batch?.annotations ?? []}
                                     inspectionMode={window.source.inspectionTrigger}
                                     onInspect={(token, anchor) => {
                                         void pauseAndSave().catch(() => {});
                                         setInspection({ sourceForm: token.text, context: cue.text, targets: token.targets, anchor,
+                                            sourceAnchor: cueAnchor(window.source, cue, token, latest.current.position),
                                             packageRevision: batch?.packageRevision });
                                     }} />
+                                </View>
                             );
                         })}
                       </ScrollView>
@@ -631,6 +712,7 @@ export function WatchScreen() {
     );
 }
 const styles = StyleSheet.create(theme => ({
+    cue: { alignSelf: 'stretch' },
     overlays: (compact: boolean) => ({
         position: 'absolute', zIndex: 2, left: theme.spacing.comfortable / 2,
         flexDirection: compact ? 'column-reverse' : 'row', gap: theme.spacing.small,

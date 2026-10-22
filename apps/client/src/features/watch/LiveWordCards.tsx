@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
-import type { AnalysisBatch, DictionaryResult } from '@mlearn/contracts';
+import type { AnalysisBatch, DictionaryResult, SourceAnchor, SourceRecord } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { DictionaryCard } from '@mlearn/ui/dictionary-card';
 import { MediaOverlay } from '@mlearn/ui/media-overlay';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import type { Inspection } from '../inspector';
+import { cueAnchor } from '../material';
 
 type Card = {
     readonly id: string;
@@ -15,13 +16,15 @@ type Card = {
     readonly sourceForm: string;
     readonly context: string;
     readonly alternatives: string[];
+    readonly sourceAnchor: SourceAnchor;
     readonly expiresAt: number;
 };
 
 /** A bounded display history, never a second dictionary or Knowledge authority. */
-export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback, onClose }: {
+export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusFallback, onClose }: {
     readonly client: RuntimeClient;
     readonly batch: AnalysisBatch;
+    readonly source: SourceRecord;
     readonly cueKey: string;
     readonly onInspect: (inspection: Inspection) => void;
     readonly focusFallback: RefObject<View | null>;
@@ -36,7 +39,7 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
     const [error, setError] = useState('');
     const [reload, setReload] = useState(0);
     const consumedReload = useRef(0);
-    const candidates = new Map<string, Pick<Card, 'sourceForm' | 'context' | 'alternatives'>>();
+    const candidates = new Map<string, Pick<Card, 'sourceForm' | 'context' | 'alternatives' | 'sourceAnchor'>>();
     const visible = new Set(cueKey.split(',').map(Number));
     for (const cue of batch.cues) {
         if (!visible.has(cue.cue.index)) continue;
@@ -48,7 +51,8 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
             // next word. The initial dictionary alternative is not a sense rank.
             const target = token.targets[0];
             if (target && candidates.size < 6 && !candidates.has(target))
-                candidates.set(target, { sourceForm: token.text, context: cue.cue.text, alternatives: token.targets });
+                candidates.set(target, { sourceForm: token.text, context: cue.cue.text, alternatives: token.targets,
+                    sourceAnchor: cueAnchor(source, cue.cue, token, Math.max(0, cue.cue.startMs - source.subtitleOffsetMs)) });
         }
     }
     const targets = [...candidates.keys()];
@@ -94,6 +98,21 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
             Math.max(0, Math.min(...cards.map(card => card.expiresAt)) - Date.now()));
         return () => clearTimeout(timer);
     }, [cards]);
+    const sourceIdentity = JSON.stringify([batch.sourceId, batch.subtitleRevision, batch.packageRevision]);
+    const current = useRef<string | null>(sourceIdentity); current.current = sourceIdentity;
+    useEffect(() => () => { current.current = null; }, []);
+    async function inspect(card: Card, anchor: Inspection['anchor']) {
+        const captured = card.sourceAnchor;
+        const cueIndex = captured.locator.cueIndex;
+        if (cueIndex === null || captured.locator.subtitleRevision === null) return;
+        try {
+            const position = await client.cuePosition(captured.sourceId, captured.locator.subtitleRevision, cueIndex);
+            if (current.current !== sourceIdentity) return;
+            onInspect({ sourceForm: card.sourceForm, context: card.context, targets: card.alternatives,
+                initialTargetId: card.id, packageRevision: batch.packageRevision, anchor,
+                sourceAnchor: { ...captured, locator: { ...captured.locator, positionMs: position } } });
+        } catch (cause) { if (current.current === sourceIdentity) setError(cause instanceof Error ? cause.message : String(cause)); }
+    }
     if (!cards.length && !pending && !error) return null;
     const rows = viewport.width < 720 && viewport.height < 650 ? 1 : 2;
     return <MediaOverlay testID="live-word-cards" variant="cards"
@@ -109,10 +128,7 @@ export function LiveWordCards({ client, batch, cueKey, onInspect, focusFallback,
                     <DictionaryCard key={card.id} meaning={card.result.summary.summary}
                         focusFallback={focusFallback}
                         reading={card.result.summary.reading ?? card.result.summary.headword}
-                        onActivate={anchor => onInspect({
-                            sourceForm: card.sourceForm, context: card.context, targets: card.alternatives,
-                            initialTargetId: card.id, packageRevision: batch.packageRevision, anchor,
-                        })} /> :
+                        onActivate={anchor => void inspect(card, anchor)} /> :
                     <View key={card.id} style={styles.unavailable}>
                         <Text variant="caption" tone="media">{card.sourceForm}: {card.result.message}</Text>
                         <Button label="Retry dictionary entry" size="compact" variant="media" onPress={() => setReload(value => value + 1)} />

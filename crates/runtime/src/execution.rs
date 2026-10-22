@@ -251,6 +251,8 @@ impl RuntimeExecutor {
 fn guest_bearing(request: &Request) -> bool {
     match request {
         Request::OpenSource { .. }
+        | Request::CreateMaterial { .. }
+        | Request::CaptureMaterials { .. }
         | Request::SetSourceLanguage { .. }
         | Request::AnalyzeSource { .. }
         | Request::AnalyzeTranscript { .. }
@@ -262,6 +264,13 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::InstallPlugin { .. }
         | Request::InstallPackage { .. } => true,
         Request::Snapshot
+        | Request::PlanMaterialMedia { .. }
+        | Request::MaterialMedia { .. }
+        | Request::Materials { .. }
+        | Request::Material { .. }
+        | Request::MaterialEligibility { .. }
+        | Request::SetCaptureExclusion { .. }
+        | Request::ReturnMaterialSource { .. }
         | Request::RecentSources
         | Request::AvailablePackages
         | Request::ResumeSource { .. }
@@ -279,6 +288,7 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::PackageInstallStatus { .. }
         | Request::CurrentPackageInstall
         | Request::CancelPackageInstall { .. } => false,
+        Request::UpdateMaterial { command } => command.content.target_id.is_some(),
     }
 }
 pub(super) fn parse(request: &str) -> Result<Request, Failure> {

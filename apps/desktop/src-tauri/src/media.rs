@@ -36,6 +36,8 @@ pub(crate) const ORIGINS: &[&str] = &[
 ];
 
 pub(crate) type Resolver = Arc<dyn Fn(&str) -> Result<PathBuf, StatusCode> + Send + Sync>;
+pub(crate) type AuthoredResolver =
+    Arc<dyn Fn(&str) -> Result<(PathBuf, String), StatusCode> + Send + Sync>;
 
 pub(crate) struct MediaListener {
     listener: TcpListener,
@@ -62,7 +64,16 @@ impl MediaListener {
         format!("http://{}/{}/", self.authority, self.token)
     }
 
+    #[cfg(test)]
     pub(crate) fn start(self, resolve: Resolver) -> io::Result<MediaServer> {
+        self.start_with_authored(resolve, None)
+    }
+
+    pub(crate) fn start_with_authored(
+        self,
+        resolve: Resolver,
+        authored: Option<AuthoredResolver>,
+    ) -> io::Result<MediaServer> {
         // One reactor and at most four outstanding filesystem jobs, not a pool per stream.
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -72,7 +83,7 @@ impl MediaListener {
         let thread = std::thread::Builder::new()
             .name("mlearn-media".into())
             .spawn(move || {
-                let result = runtime.block_on(self.serve(resolve, stopped));
+                let result = runtime.block_on(self.serve(resolve, authored, stopped));
                 if let Err(error) = result {
                     eprintln!("Media listener stopped: {error}");
                 }
@@ -84,7 +95,12 @@ impl MediaListener {
         })
     }
 
-    async fn serve(self, resolve: Resolver, mut stopped: oneshot::Receiver<()>) -> io::Result<()> {
+    async fn serve(
+        self,
+        resolve: Resolver,
+        authored: Option<AuthoredResolver>,
+        mut stopped: oneshot::Receiver<()>,
+    ) -> io::Result<()> {
         let listener = tokio::net::TcpListener::from_std(self.listener)?;
         let mut connections = JoinSet::new();
         let resolver_slots = Arc::new(tokio::sync::Semaphore::new(CONNECTIONS));
@@ -108,6 +124,7 @@ impl MediaListener {
                     let authority = self.authority.clone();
                     let prefix = format!("/{}/", self.token);
                     let resolve = resolve.clone();
+                    let authored = authored.clone();
                     let resolver_slots = resolver_slots.clone();
                     #[cfg(test)]
                     let released = self.released.clone();
@@ -118,6 +135,7 @@ impl MediaListener {
                                 authority.clone(),
                                 prefix.clone(),
                                 resolve.clone(),
+                                authored.clone(),
                                 resolver_slots.clone(),
                             )
                         });
@@ -260,10 +278,20 @@ async fn handle(
     authority: String,
     prefix: String,
     resolve: Resolver,
+    authored: Option<AuthoredResolver>,
     resolver_slots: Arc<tokio::sync::Semaphore>,
 ) -> Result<Response<FileBody>, Infallible> {
     Ok(
-        match respond(request, &authority, &prefix, resolve, resolver_slots).await {
+        match respond(
+            request,
+            &authority,
+            &prefix,
+            resolve,
+            authored,
+            resolver_slots,
+        )
+        .await
+        {
             Ok(response) => response,
             Err(status) => empty(status),
         },
@@ -275,6 +303,7 @@ async fn respond(
     authority: &str,
     prefix: &str,
     resolve: Resolver,
+    authored: Option<AuthoredResolver>,
     resolver_slots: Arc<tokio::sync::Semaphore>,
 ) -> Result<Response<FileBody>, StatusCode> {
     let headers = request.headers();
@@ -302,6 +331,9 @@ async fn respond(
         .path()
         .strip_prefix(prefix)
         .ok_or(StatusCode::FORBIDDEN)?;
+    let (is_authored, id) = id
+        .strip_prefix("authored/")
+        .map_or((false, id), |id| (true, id));
     if id.is_empty()
         || id.len() > 128
         || !id
@@ -331,9 +363,15 @@ async fn respond(
         .acquire_owned()
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let path = tokio::task::spawn_blocking(move || {
+    let (path, authored_mime) = tokio::task::spawn_blocking(move || {
         let _slot = slot;
-        resolve(&id)
+        if is_authored {
+            let resolver = authored.ok_or(StatusCode::NOT_FOUND)?;
+            let (path, mime) = resolver(&id)?;
+            Ok((path, Some(mime)))
+        } else {
+            resolve(&id).map(|path| (path, None))
+        }
     })
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)??;
@@ -373,7 +411,7 @@ async fn respond(
     file.seek(io::SeekFrom::Start(start))
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let mime = match path
+    let source_mime = match path
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or_default()
@@ -383,6 +421,27 @@ async fn respond(
         "mkv" => "video/x-matroska",
         _ => "video/mp4",
     };
+    let mime = authored_mime.as_deref().unwrap_or(source_mime);
+    if !matches!(
+        mime,
+        "image/png"
+            | "image/jpeg"
+            | "image/webp"
+            | "image/gif"
+            | "audio/mp4"
+            | "audio/mpeg"
+            | "audio/wav"
+            | "audio/x-wav"
+            | "audio/ogg"
+            | "audio/webm"
+            | "audio/flac"
+            | "video/mp4"
+            | "video/quicktime"
+            | "video/webm"
+            | "video/x-matroska"
+    ) {
+        return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    }
     let mut response = Response::builder()
         .status(if range.is_some() {
             StatusCode::PARTIAL_CONTENT

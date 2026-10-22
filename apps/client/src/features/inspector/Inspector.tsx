@@ -7,14 +7,19 @@ import { Text } from '@mlearn/ui/text';
 import { Row } from '@mlearn/ui/layout';
 import { Button } from '@mlearn/ui/button';
 import { Badge } from '@mlearn/ui/badge';
-import type { ClaimChange } from '@mlearn/contracts';
+import { Dialog } from '@mlearn/ui/dialog';
+import { useRouter } from 'expo-router';
+import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import type { ClaimChange, LexicalSense, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Pronunciation } from '../linguistic';
+import { CaptureList, MaterialEditor, emptyMaterial } from '../material';
 export type Inspection = {
     sourceForm: string;
     context: string;
     targets: string[];
     anchor: TextAnchor;
+    sourceAnchor: SourceAnchor;
     packageRevision?: string;
     initialTargetId?: string;
     showContext?: boolean;
@@ -27,6 +32,11 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
     onChanged: () => Promise<void>;
     onClose: () => void;
 }) {
+    const router = useRouter();
+    const host = useRuntime();
+    const [selectedSense, setSelectedSense] = useState<LexicalSense | null>(null);
+    const [captureOpen, setCaptureOpen] = useState(false);
+    const [captureRefresh, setCaptureRefresh] = useState(0);
     const [index, setIndex] = useState(() => Math.max(0, inspection.targets.indexOf(inspection.initialTargetId ?? '')));
     const [result, setResult] = useState<Awaited<ReturnType<RuntimeClient['inspectTarget']>> | null>(null);
     const entry = result?.entry ?? null;
@@ -58,6 +68,8 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
         setExpandedCapability(null);
         setShowSource(false);
         setShowPronunciation(false);
+        setSelectedSense(null);
+        setCaptureOpen(false);
         client.inspectTarget(packageId, inspection.targets[index], inspection.packageRevision ?? null).then(value => {
             if (active)
                 setResult(value);
@@ -66,7 +78,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
                 setError(String(e.message ?? e));
         });
         return () => { active = false; if (scope.current === owner) scope.current = null; };
-    }, [client, packageId, inspection.targets, inspection.packageRevision, index, lookupVersion]);
+    }, [client, packageId, inspection.targets, inspection.packageRevision, inspection.sourceAnchor, index, lookupVersion]);
     async function commit(change: ClaimChange) {
         const owner = scope.current;
         setBusy(true);
@@ -91,6 +103,12 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
         }
     }
     const activeCapability = entry?.capabilities.find(cap => cap.id === expandedCapability);
+    const materialContent = entry && result ? {
+        ...emptyMaterial(packageId), targetId: entry.targetId, packageRevision: result.packageRevision,
+        sense: selectedSense, phrase: inspection.sourceForm, reading: entry.reading ?? '',
+        meaning: selectedSense?.definitions.join('; ') ?? entry.summary ?? entry.definition,
+        context: inspection.context, source: inspection.sourceAnchor,
+    } : null;
     const activeProjection = knowledge.find(projection =>
         projection.key.packageId === packageId && projection.key.targetId === entry?.targetId
         && projection.key.capability === expandedCapability);
@@ -162,6 +180,9 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
                 </> : null}
                 {entry.senses ? <View style={styles.dictionary}>
                     {entry.senses.map((sense, senseIndex) => <View key={senseIndex} style={styles.sense}>
+                        <Button label={`Select sense ${senseIndex + 1} for capture`} variant="media" size="compact"
+                            accessibilityState={{ selected: selectedSense === sense }}
+                            onPress={() => setSelectedSense(sense)} />
                         {sense.heading ? <View style={styles.metadata}>
                             <Badge label={sense.heading} />
                         </View> : null}
@@ -186,6 +207,17 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
                     {showSource ? <>
                         <Text tone="media" muted variant="caption" selectable>{entry.attribution}</Text>
                         {entry.senses?.map((sense, senseIndex) => <Text key={senseIndex} tone="media" muted variant="caption" selectable>{sense.labels.join(' · ')}</Text>)}
+                    </> : null}
+                    {materialContent ? <>
+                        <CaptureList key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
+                            client={client} candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
+                            onOpenMaterial={id => router.push({ pathname: '../materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } })} />
+                        <Dialog open={captureOpen} onOpenChange={setCaptureOpen} title="Capture Material"
+                            description="Author this Material without changing its source reference or selected dictionary sense."
+                            trigger={<Button label="Edit before capture" size="compact" variant="media" />}>
+                            <MaterialEditor key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])} client={client} authoredMedia={host.available ? host.authoredMedia : null} initial={materialContent}
+                                onSaved={() => setCaptureRefresh(value => value + 1)} />
+                        </Dialog>
                     </> : null}
             </> : !error ? <Text tone="media">Loading entry…</Text> : null}
             {error && !retry ? <>

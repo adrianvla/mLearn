@@ -1,13 +1,13 @@
 import { isWatchResponse } from './watchProtocol';
+import { createMaterialClient } from './materialClient';
+import { RuntimeError } from './errors';
+export { RuntimeError } from './errors';
 import type { Request, Response, Snapshot, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
 
 export interface Transport {
   execute(request: string): Promise<string>;
   commandId(): string;
   cancelSourceOpen?():Promise<void>;
-}
-export class RuntimeError extends Error {
-  constructor(readonly code: string, message: string) { super(message); this.name = 'RuntimeError'; }
 }
 
 export function createRuntimeClient(transport: Transport) {
@@ -51,7 +51,7 @@ export function createRuntimeClient(transport: Transport) {
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     // A queued lookup must not acquire the replacement source's native epoch.
     // Durable claims/checkpoints remain admitted across source cancellation.
-    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles','set_source_language','inspect_target','inspect_targets'].includes(command.type);
+    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source'].includes(command.type);
     const queuedAt=performance.now();
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
@@ -92,6 +92,7 @@ export function createRuntimeClient(transport: Transport) {
     return response.status;
   }
   return {
+    ...createMaterialClient(request, () => transport.commandId()),
     prepareInstall,
     installPackage,
     packageInstallStatus:(commandId:string)=>packageInstallControl('package_install_status',commandId),

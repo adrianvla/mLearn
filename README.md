@@ -44,6 +44,12 @@ npm run android
 
 Preparation bundles the SDK fixture and English/Japanese executables into the **mobile Rust library**, with pinned WordNet and Sudachi/JMdict resources for offline use. No executable-code download interface is enabled for mobile. Desktop obtains executable packages and data from its authenticated catalogue. Subsequent mobile updates are data-only.
 
+Linux and Windows frame/clip capture requires local `ffmpeg` and `ffprobe` on
+`PATH`, with PNG, AAC and libx264 encoders. Missing tools produce an explicit
+unavailable error. macOS and iOS use AVFoundation; Android uses its platform
+media APIs. Saved Material media is copied into Rust-owned authored storage,
+independently of picker and capture temporary files.
+
 Generated Swift/Kotlin bindings, XCFrameworks, native binaries and Expo application projects are reproducible build outputs, not checked-in parallel implementations. Rerun preparation when the Rust interface or bundled plugin changes.
 
 ## Checks

@@ -15,7 +15,8 @@ mlearn-runtime = { path = "../../../crates/runtime" }
 mlearn-language-host = { path = "../../../crates/language-host" }
 serde_json.workspace = true
 serde.workspace = true
-tokio = { version = "1", features = ["sync", "rt", "net", "fs", "io-util", "time", "macros"] }
+base64 = "=0.22.1"
+tokio = { version = "1", features = ["sync", "rt", "net", "fs", "io-util", "time", "macros", "process"] }
 hyper = { version = "1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 uuid = { version = "1", features = ["v4"] }

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
-import type { SourceRecord, TranscriptPage, AnalysisBatch } from '@mlearn/contracts';
+import type { SourceRecord, TranscriptPage, AnalysisBatch, AnalyzedToken, Cue } from '@mlearn/contracts';
+import type { TextAnchor } from '@mlearn/ui/inline-word';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
@@ -10,6 +11,8 @@ import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
 import { AnnotatedText } from '../annotated-text';
 import type { Inspection } from '../inspector';
+import { cueAnchor, emptyMaterial, CaptureList, SourceCapture, type CaptureCandidate } from '../material';
+import { useRouter } from 'expo-router';
 
 export function cueTime(milliseconds: number) {
   const seconds = Math.floor(Math.max(0, milliseconds) / 1000);
@@ -27,10 +30,12 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   onAnalysis: (analysis: AnalysisBatch | null) => void;
   onInspect: (inspection: Inspection) => void;
 }>) {
+  const router = useRouter();
   const [draft, setDraft] = useState('');
   const [query, setQuery] = useState('');
   const [after, setAfter] = useState<number | null>(null);
   const [reload, setReload] = useState(0);
+  const [captureRefresh, setCaptureRefresh] = useState(0);
   const [page, setPage] = useState<TranscriptPage | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -105,6 +110,31 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
 
   const prepared = analysis?.sourceId === source.id && analysis.subtitleRevision === source.subtitleRevision
     && analysis.packageId === source.packageId && analysis.packageVersion === source.packageVersion ? analysis : null;
+  async function inspect(cue: Cue, token: AnalyzedToken, anchor: TextAnchor) {
+    if (!source.subtitleRevision) return;
+    const owner = generation.current;
+    try {
+      const position = await client.cuePosition(source.id, source.subtitleRevision, cue.index);
+      if (current.current !== identity || owner !== generation.current) return;
+      onInspect({ sourceForm: token.text, context: cue.text, targets: token.targets, anchor,
+        sourceAnchor: cueAnchor(source, cue, token, position), packageRevision: prepared?.packageRevision,
+        showContext: true, onChanged: refreshAnalysis });
+    } catch (cause) {
+      if (current.current === identity && owner === generation.current)
+        setNavigationError({ cueIndex: cue.index, message: cause instanceof Error ? cause.message : String(cause) });
+    }
+  }
+  const captureCandidates: CaptureCandidate[] = [];
+  const seen = new Set<string>();
+  for (const analyzed of prepared?.cues ?? []) for (const token of analyzed.tokens) {
+    const targetId = token.targets[0];
+    if (!targetId || seen.has(targetId) || captureCandidates.length >= 128) continue;
+    seen.add(targetId);
+    // The bulk action resolves each selected cue's native media time on demand.
+    captureCandidates.push({ key: targetId, resolveCuePosition: true, content: { ...emptyMaterial(source.packageId),
+      targetId, packageRevision: prepared?.packageRevision ?? null, phrase: token.text, context: analyzed.cue.text,
+      source: cueAnchor(source, analyzed.cue, token, Math.max(0, analyzed.cue.startMs - source.subtitleOffsetMs)) } });
+  }
   return <Dialog open={open} onOpenChange={onOpenChange} title="Transcript" presentation="sidebar"
     description="Exact, case-sensitive subtitle search."
     trigger={<Button label="Transcript" icon="transcript" iconOnly size="compact" variant="media" disabled={!source.subtitleRevision} />}>
@@ -134,12 +164,11 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       {navigationError?.cueIndex === cue.index ? <Text accessibilityRole="alert">{navigationError.message}</Text> : null}
       <AnnotatedText rawText={cue.text} variant="body" inspectionMode={source.inspectionTrigger}
         analysis={prepared?.cues.find(value => value.cue.index === cue.index && value.cue.text === cue.text) ?? null}
-        annotations={prepared?.annotations ?? []} onInspect={(token, anchor) => onInspect({
-          sourceForm: token.text, context: cue.text, targets: token.targets, anchor,
-          packageRevision: prepared?.packageRevision,
-          showContext: true, onChanged: refreshAnalysis,
-        })} />
+        annotations={prepared?.annotations ?? []} onInspect={(token, anchor) => void inspect(cue, token, anchor)} />
     </View>)}
+    <SourceCapture client={client} source={source} onChanged={() => setCaptureRefresh(value => value + 1)} />
+    {captureCandidates.length ? <CaptureList client={client} candidates={captureCandidates} refreshKey={captureRefresh}
+      onOpenMaterial={id => router.push({ pathname: '../materials', params: { id, sourceId: source.id } })} /> : null}
     {children}
   </Dialog>;
 }

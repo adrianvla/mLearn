@@ -20,6 +20,13 @@ impl SourceReader {
     pub fn source(&self, id: &str) -> Result<SourceRecord, StorageError> {
         read_source(&self.connection, id)
     }
+    pub fn authored_media(
+        &self,
+        id: &mlearn_core::AuthoredMediaId,
+    ) -> Result<mlearn_core::AuthoredMedia, StorageError> {
+        crate::material_validation::bounded(&id.0, 512)?;
+        crate::material_media::read_media(&self.connection, id)
+    }
 }
 fn read_source(connection: &rusqlite::Connection, id: &str) -> Result<SourceRecord, StorageError> {
     let json: String =
