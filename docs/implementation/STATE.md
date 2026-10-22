@@ -5,18 +5,23 @@
 On October 22 the maintainer authorized autonomous sequential M03–M07, with
 independent review and full verification per milestone, and an independent
 M01–M04 architecture review/repair before M05. Current integration/native
-translucency/corrections must finish in a verified pushed checkpoint FIRST.
-M03 has not started. Minor cosmetic polish may defer; usability and architectural
+translucency/corrections were verified except the hosted platform failure below.
+The maintainer now explicitly defers that specific gate and orders immediate
+M03 implementation followed by M04–M07. Minor cosmetic polish may defer; usability and architectural
 or functional gates may not. See the current PLAN/AGENTS authorization. Preserve
 H00, branch history and draft PR44; stop after the consolidated M07 review
 package for manual acceptance, without merging or self-acceptance.
 
 ## Current gate status — 2026-10-22
 
-Status: `paused_incomplete` at the pre-M03 hosted iOS gate. M03–M07 have not
-started. No verified application fix for the hosted Files-to-URL failure has
+Status: `implementing_M03`. The existing hosted iOS FileProvider acceptance gate
+is **deferred by the maintainer, not passed**. It does not block M03–M07.
+Stop its investigation and launch no further diagnostic workflow variants.
+No verified application fix for the hosted Files-to-URL failure has
 been found; the underlying platform cause remains unresolved. Do not mark the
-integration checkpoint green or advance milestones from diagnostic success.
+hosted acceptance green or claim release readiness. Earlier pre-M03 halt and
+verification-environment-decision conditions are superseded by this explicit
+decision, not by diagnostic success. M04–M07 remain sequentially unopened.
 
 Application source remains `4a7927a0`, tree `06f1d1c3`. Since that candidate,
 the net tracked changes are diagnostic-only files and this checkpoint, not
@@ -54,16 +59,19 @@ profile remains Booted, and ports 8081/7780 are free. The shared 26.5 asset is
 Ready under registration `B9DC92F5`; superseded `D157CD04` metadata is Unusable
 and is not deleted because it points to the same retained asset.
 
-Temporary diagnostic code remains explicitly experimental and must not be
-promoted into the normal native workflow without a successful real UI result.
-The hosted gate remains required unless the maintainer explicitly changes it
-or supplies a working supported verification environment. No such change,
-merge, release, or milestone acceptance has been granted.
+The temporary diagnostic workflow and observer are retired from the working
+tree; their exact source remains in Git at `ce9ea292`, and retained artifacts,
+logs, compiled binaries and successful local verification are preserved.
+Normal native assertions are unchanged. Perform real functional, persistence,
+architectural and affected-platform checks at each milestone, including local
+iOS where available. Isolate unrelated hosted infrastructure failures rather
+than blocking independent implementation. No merge, release, M08 or milestone
+acceptance has been granted.
 
 ## Active visual-parity rewrite - 2026-10-20
 
-Status: `paused_incomplete` at the integration gate above, not complete or
-accepted. The authorization remains active. Execute
+Status: active authorization, not complete or accepted. M03–M07 now proceed
+under the explicit gate decision above. Execute
 [VISUAL-PARITY.md](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44,
 against unchanged `agent/h00`. Requested `4a86df32` was fetched and already
 equalled clean HEAD; no reset, history rewrite or new worktree was used.

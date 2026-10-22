@@ -1,10 +1,15 @@
 # mLearn engineering contract
 
-## Active authorization — integration first, then M03–M07, 2026-10-22
+## Active authorization — implement M03–M07 now, 2026-10-22
 
-Finish the current integration/native-translucency corrections, preserve compiled
-iOS artifacts, resolve genuine failures, and commit/push a verified checkpoint
-before starting M03. Then execute M03, M04, M05, M06 and M07 sequentially on
+The maintainer explicitly **defers the existing hosted iOS FileProvider gate**.
+It remains an unresolved platform acceptance failure, not passed and not a
+prerequisite for further implementation. Stop that investigation and launch no
+further variants of its diagnostic workflows during M03–M07. Preserve evidence,
+compiled artifacts, successful local verification and original assertions.
+Stale pre-M03 gate conditions in older checkpoints must not reinstate this stop.
+
+Start M03 immediately, then execute M04, M05, M06 and M07 sequentially on
 existing `agent/m01`, draft PR #44, using the complete PLAN/SPEC/FEATURES scope.
 This supersedes the older domain-milestone exclusion and intermediate manual
 review stops, not architectural or verification requirements. Preserve history,
@@ -17,6 +22,11 @@ resolved, and a committed/pushed exact-source evidence checkpoint. After M04,
 perform an independent comprehensive M01–M04 architecture review and repair
 significant structural findings before M05. Record `verified_for_continuation`,
 never maintainer acceptance.
+
+Perform affected-platform verification, including local iOS where available.
+Repair demonstrated product defects; isolate unrelated hosted-infrastructure
+failures without stopping independent work. This specific deferral is not
+release readiness or permission to weaken functional/platform requirements.
 
 Minor pixel polish may defer precisely until after M07; usability, accessibility,
 responsiveness and functional controls may not. After verified M07 deliver one

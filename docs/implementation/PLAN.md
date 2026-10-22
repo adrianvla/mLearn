@@ -1,9 +1,14 @@
 # Review-gated implementation plan
 
-> **Active authorization (2026-10-22):** Finish current integration, native
-> translucency and corrections first; preserve compiled iOS artifacts, resolve
-> genuine failures, and commit/push a verified checkpoint. Only then execute
-> M03–M07 sequentially without intermediate maintainer review stops. Every
+> **Active authorization (2026-10-22, explicit gate decision):** Start M03 now,
+> then execute M04–M07 sequentially without intermediate maintainer review stops.
+> The existing hosted iOS FileProvider acceptance failure is **deferred, not
+> passed**, and is no longer a prerequisite for implementation. Stop that
+> investigation; launch no further variants of its diagnostic workflows during
+> this batch. Preserve evidence, compiled artifacts, successful local platform
+> verification and original assertions. Older pre-M03 conditions cannot reinstate
+> this specific stop. Repair genuine product defects and isolate unrelated hosted
+> infrastructure failures without halting independent work. Every
 > milestone retains complete feature scope, passing relevant checks, real
 > desktop/iOS/Android workflows, shared authority, independent code review and
 > exact-source pushed evidence. Independently review M01–M04 architecture and
@@ -13,6 +18,9 @@
 > H00 are preserved; no M08, merge, release or self-acceptance. This supersedes
 > the conflicting older milestone exclusions and per-unit manual review stops
 > below, not their engineering requirements.
+
+> Affected-platform verification includes local iOS where available. Hosted iOS
+> stays explicitly unresolved/red; its deferral is not release readiness.
 
 > **Active authorization (2026-10-20):** Execute the complete [visual-parity rewrite](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44. Replace the rejected presentation across all currently implemented surfaces; edited images are primary and the corresponding isolated running v2 screen is secondary for unpictured surfaces, including Home. This supersedes the older frozen-review/minimal-restyle/`visual_pending` restrictions and the October 19 feature-expansion batch. Iterate autonomously through the named visual job, not new domain milestones. No merge, release or self-acceptance. The review loop below remains the default for future product increments, not a request to stop between this rewrite's connected slices.
 
