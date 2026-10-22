@@ -88,6 +88,30 @@ test('old source cleanup cannot cancel its replacement session',async()=>{
  assert.equal(old.isCurrent(),false);assert.equal(current.isCurrent(),true);assert.equal(cancellations,2);
  await current.cancel();assert.equal(current.isCurrent(),false);assert.equal(cancellations,3);
 });
+test('source cancellation drops queued Inspector lookups without dropping durable writes',{timeout:5000},async()=>{
+ for(const lookup of [
+  (client:ReturnType<typeof createRuntimeClient>)=>client.inspectTarget('package','target'),
+  (client:ReturnType<typeof createRuntimeClient>)=>client.inspectTargets('source','subtitles','a'.repeat(64),['target']),
+ ]){
+  let release!:()=>void;let entered!:()=>void;
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  const started=new Promise<void>(resolve=>{entered=resolve;});
+  const admitted:string[]=[];
+  const client=createRuntimeClient({commandId:()=> 'inspection-epoch',cancelSourceOpen:async()=>{},execute:async raw=>{
+   const command:unknown=JSON.parse(raw);
+   assert.ok(command&&typeof command==='object'&&'type'in command&&typeof command.type==='string');
+   admitted.push(command.type);
+   if(command.type!=='save_position')throw new Error('Obsolete lookup reached native transport');
+   entered();await gate;return JSON.stringify({type:'position_saved'});
+  }});
+  const checkpoint=client.savePosition('source',4000,30000);await started;
+  const obsolete=lookup(client);
+  const rejected=assert.rejects(obsolete,{code:'cancelled'});
+  try{await client.cancelSourceOpen();}finally{release();}
+  await checkpoint;await rejected;
+  assert.deepEqual(admitted,['save_position']);
+ }
+});
 test('linguistic transport rejects executable colors and excessive nested pronunciation data',()=>{
  const presentation={readings:[],labels:[{id:'p:level',label:'Level A',color:'#00b84a',attribution:'Vocabulary list'}],
   contours:[{id:'p:pattern-a',reading:'ab',units:[{text:'a',height:0},{text:'b',height:1}],followingHeight:0,label:'Pattern A',color:null,attribution:'Dictionary'}]};

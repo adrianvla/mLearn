@@ -49,7 +49,9 @@ export function createRuntimeClient(transport: Transport) {
   async function request(command:Request):Promise<Response>{
     if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='source_window')return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
-    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles','set_source_language'].includes(command.type);
+    // A queued lookup must not acquire the replacement source's native epoch.
+    // Durable claims/checkpoints remain admitted across source cancellation.
+    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles','set_source_language','inspect_target','inspect_targets'].includes(command.type);
     const queuedAt=performance.now();
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
