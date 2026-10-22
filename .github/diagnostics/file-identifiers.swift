@@ -1,4 +1,4 @@
-// Read only after the original UI flow: resource queries may warm provider caches.
+// Resource queries may warm caches; the caller records baseline versus registration contrast.
 import Foundation
 
 var observations: [[String: String]] = []

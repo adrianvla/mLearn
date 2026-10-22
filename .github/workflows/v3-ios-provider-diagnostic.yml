@@ -75,6 +75,17 @@ jobs:
           cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-fixture.srt" "$container/Documents/M01 fixtures/m01-watch.srt"
           cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-japanese.mp4" "$container/Documents/M01 fixtures/m01-japanese.mp4"
           cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-japanese.srt" "$container/Documents/M01 fixtures/m01-japanese.srt"
+          files=("$container/Documents/M01 fixtures/m01-watch.mp4"
+                 "$container/Documents/M01 fixtures/m01-watch.srt"
+                 "$container/Documents/M01 fixtures/m01-japanese.mp4"
+                 "$container/Documents/M01 fixtures/m01-japanese.srt")
+          # Controlled fixture-registration contrast, not a product/test retry.
+          # The preceding run selected the real file but could not resolve did=3.
+          /usr/bin/stat -f '%f %i %d %N' "${files[@]}" > verification/fixture-flags-before.txt
+          # UF_TRACKED = 0x40 = octal 0100; BSD chflags has no "tracked" name.
+          chflags 0100 "${files[@]}"
+          xcrun simctl spawn "$device" "$RUNNER_TEMP/file-identifiers-simulator" "${files[@]}" > verification/registered-file-identifiers.json
+          /usr/bin/stat -f '%f %i %d %N' "${files[@]}" > verification/fixture-flags-registered.txt
           export PATH="$PWD/tests/mobile/ios-driver:$PATH"
           set +e
           maestro --device "$device" test --config tests/mobile/config.yaml --format junit \
