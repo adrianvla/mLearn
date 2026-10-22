@@ -23,14 +23,136 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-22
 
-Status remains `implementation_resumed`, not accepted. Next application/helper
-candidate is `0597d4a0264fe933b8336b7a85ddc306d6fbd0c6`, tree
-`61ca8144479f9590511cccfe453263f2b061d850`: approved queued-Inspector source
-cancellation correction `b60adaef` plus tested native document-cell target.
-All other runtime/shared UI inputs remain b7fac91e. Current client export and
-all eight browser interactions pass; hosted native verification and the final
-integration review still gate M03. No outstanding gate is replaced by this
-documentation checkpoint.
+Independent integration source audit `st_01a1613f` finds one genuine blocker:
+window-vibrancy 0.8.1 discards the older-Windows Acrylic native BOOL on apply and
+clear. The host could therefore report active translucency after an unsuccessful
+native call. Primary verifies the pinned source. Local commit `9180d53e` replaces
+only that unchecked boundary with checked native interop, borrowed module
+ownership and the existing supported-build guard; Mica remains preferred.
+Actual apply failure retains inactive state and accepted opaque RGB/alpha 255,
+and failed clear propagates without pretending the effect was removed.
+Windows-only tests call the real invalid-HWND failure and real owned-window
+apply/clear with checked destruction. Their Windows execution remains pending;
+no Windows red run is invented on this Mac host.
+
+Independent delta review `st_01a1614c` is APPROVE CODE, no remaining scoped
+blocker. Both changed Rust diagnostics, scoped formatting and all 11 Mac host
+tests pass. Fresh normal Mac startup renders saved Dark Quartz and exact
+original theme JSON reads back unchanged; compositor capture
+`checked-acrylic-macos-startup.png` is inspected. Graceful Quit releases PID95922
+and ports8081/7780. No source/claims/preferences are changed. Workspace-wide
+formatting still reports 21 unchanged baseline files; these are recorded in the
+current notepad, not reformatted or suppressed.
+
+Local commit `9f8363b1` aligns the failure-only picker replay with the same
+document-cell selection. Its real preserved-binary diagnostic passes in 32.431 s,
+with dismissal capture inspected and owned app cleaned. These local commits
+were held until exact de7bcfed mobile verification ended, avoiding duplicate
+native compilation. Its iOS failure is now reproduced and repaired locally
+through the shared browsing-state helper below. Windows runtime verification
+of the checked Acrylic boundary and matching hosted iOS 26.5 acceptance still
+gate the prerequisite checkpoint/M03.
+
+Corrected-source compiled iOS artifact from `39706097460` is retained in
+`ci-de7bcfed-ios-binary/`: source `de7bcfedbcf6cca114b5c58997ab437964880747`,
+tree `cfde21a086b4318e97d034c67d76d873e2a1a6fe`. The archived real executable
+retains mode 0755 and size 630474056 bytes. Archive SHA-256:
+`571f1a8905eab4184b88050592848bc4d6ccb325deff1a4cad89248f83ddb818`.
+Archive identity verification needed no extraction or rebuild. A single artifact-triggered midpoint check
+confirms Android job119586366500 succeeded. Its exact-source evidence is retained
+in `ci-de7bcfed-native/android-build-evidence/`: complete original workflow
+passes in 376.477 s with zero failures, source/tree match, and actual Japanese
+Inspector and restored English-continuity compositor frames are inspected.
+iOS119586366668 fails the original Japanese movie-dismissal assertion after
+376.505 s. Exact native row bounds [0,199][393,263] and tap (196,231) are confirmed
+in the log; pre/post captures remain unchanged with focused Files Search and
+keyboard. Document-cell selection therefore does not repair hosted iOS 26.5.
+The old failure-only replay still used the filename target in this source;
+its failure is not a cell-replay result. This run's keyboard experiment fails
+`hideKeyboard` itself, not a subsequent keyboard-hidden movie selection.
+All original failures/exits remain retained in
+`ci-de7bcfed-native/ios-build-evidence/`.
+
+Read-only input-target log investigation `st_01a16171` completed. Initially
+only iOS 27 existed locally; matching iOS 26.5 was acquired through normal Xcode tooling,
+with explicit resource ownership. Reproduction and repair used the retained
+exact app before changing helpers. No application compile or unchanged CI retry
+was needed.
+Native logs prove the touch reaches DocumentManager and completes, not that a
+movie is activated. Failure hierarchy exposes a full-area search-dismiss
+surface; its hit-test role is unverified. Matching runtime acquisition is
+iOS 26.5 build 23F77, confirmed equal to the hosted backend path, now available.
+The retained de7bcfed app is installed on one owned matching iPhone 16 device
+`2CD4B3B7-5ABB-4A12-83D2-4D3E8841953A`; the separate27 profile was not used
+for that reproduction.
+Pinned Maestro2.11.0 is verified. The unchanged full workflow reproduces the
+same Japanese dismissal failure after 262.512 s with original synthetic fixtures
+and assertions, no recompile or acceptance-helper edits. Its native state is
+retained. Apple denies debugger attachment to the protected picker service;
+no hit-test result is claimed or protection bypass attempted. The actual
+search-dismiss action also leaves search/keyboard unchanged. This Xcode has no
+Simulator GUI, so no independent HID result is claimed. Real native text entry
+and Search submission work, but fixture queries return no indexed results.
+Actual native `BackButton` navigates to the parent; re-entering the real fixture
+folder clears the search-owned state. The unchanged movie-cell tap, original
+10-second dismissal and actual player opening then pass in 6.056 s on the same app,
+media and profile; before/after compositor images are inspected.
+
+The shared `watch/open-ios.yaml` now keeps Search/More/List modal coverage,
+then navigates through that real parent/folder transition before selection.
+No movie/player/subtitle/claim/restart assertion or deadline is removed or
+relaxed, and no search-index dependency, coordinates or app workaround is added.
+Full original acceptance `997` passes in 343.522 s on the same retained iOS 26.5 binary
+after fresh-process termination only. Real Japanese browsing/Inspector and final
+English-continuity images are inspected in `ios26_5-browsing-full/`.
+The picker diagnosis is complete; matching hosted verification remains separate.
+
+Cross-runtime iOS 27 first acceptance `999` exposes a real helper regression after
+56.394 s: that runtime uses `DOC.navBarButton.backInHistory`, not `BackButton`.
+Its actual Back action is exercised and inspected: it leaves search in the
+current folder, whereas iOS 26.5 returns the parent. The shared selector now recognizes
+both observed controls and conditionally re-enters the folder only when the
+parent is actually shown. No OS-version branch, coordinate, retry or weakened
+product assertion is added. Corrected full acceptance `1001` passes in 373.352 s
+on the same retained current de7bcfed app and preserved profile. Actual Japanese
+Inspector and final English-continuity frames are inspected in
+`ios27-browsing-corrected-full/`. Final shared-helper regression `1002` also
+passes in 120.340 s on iOS 26.5, exercising both complete movie/subtitle imports and real
+English/Japanese annotations, with inspected frames. This checks the final
+selector/conditional expansion without repeating unrelated claim/restart work.
+Independent source/evidence review `st_01a161ce` APPROVE CODE has no blockers;
+all original product assertions/deadlines and original failing-exit handling
+remain intact. Final exact-source hosted and Windows runtime gates are not
+waived by these local results or the review.
+
+Installer relocation5FE62004 -> D3D91385 does not lose data: main/WAL and all
+four fixture hashes match exactly, logical database hash is unchanged, and
+readonly counts remain 2 sources, 2 claims and 12 claim receipts before app launch.
+Both owned QA apps are terminated/read back absent. The original iOS 27 simulator
+remains booted and intact; the owned iOS 26.5 device is shut down. Retain the matching runtime and new
+fixture device for the same authorized M03–M07 batch instead of recreating this
+large environment each milestone; temporary duplicate exports/extraction and
+probes remain cleanup-owned. Actual Windows Acrylic execution and the next
+exact-source hosted checkpoint still gate M03.
+
+Status remains `implementation_resumed`, not accepted. Pushed consuming source
+is `de7bcfed`, containing approved queued-Inspector source cancellation
+correction `b60adaef` and native document-cell target `0597d4a0`. Its foundation
+`39706097367` passes all four jobs; actual Windows five-state native transitions
+and receipts match source/tree. Desktop `39706097259` passes with exact-source
+complete consuming receipt, progress/ranges and current Inspector flow.
+Local helper checkpoint is `033b4a2a6f6b2df79ea764a785f6dcc2a71d1f2d`, tree
+`80b4db07f377b28ba6163b9bf8708690316fe87c`, including the reviewed Acrylic
+repair, diagnostic alignment and shared browsing-state repair. Current client
+export and all eight
+browser interactions pass. Windows execution of the new boundary and matching
+hosted iOS acceptance still gate M03; documentation does not replace them.
+
+Remaining mobile presentation difference: native player-control shapes can show
+through translucent Inspector chrome during paused-control presentation.
+Actual modal/claim/restart workflows pass; no input interception is established.
+Keep this visible material/readability refinement explicit in the permitted
+post-M07 cosmetic review rather than claim mobile visual acceptance.
 
 Candidate `442e4b96ab45cd08fa8b0894413a83adb5777f40`, tree
 `acb8d4da42c53af5537107eca8094326395a5dd7`, is pushed. Foundation
