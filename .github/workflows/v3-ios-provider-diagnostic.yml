@@ -71,6 +71,7 @@ jobs:
           xcrun simctl spawn "$device" log config --mode level:debug,persist:debug --subsystem com.apple.FileProvider
           xcrun simctl spawn "$device" log config --status --subsystem com.apple.FileProvider \
             > verification/provider-logging-active.txt
+          xcrun simctl spawn "$device" log config --mode level:debug,persist:debug --subsystem com.apple.FileURL
           xcrun simctl spawn "$device" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
           xcrun simctl install "$device" "$RUNNER_TEMP/mlearn-retained-ios/mLearnv3Dev.app"
           python3 tools/create-watch-fixture.py "$RUNNER_TEMP/mlearn-provider-fixtures"
@@ -106,7 +107,7 @@ jobs:
           "$RUNNER_TEMP/file-identifiers-host" "${files[@]}" > verification/host-file-identifiers.json
           xcrun simctl spawn "$device" "$RUNNER_TEMP/file-identifiers-simulator" "${files[@]}" > verification/simulator-file-identifiers.json
           xcrun simctl spawn "$device" log show --last 15m --style compact --info --debug \
-            --predicate 'process == "fileproviderd" OR process CONTAINS[c] "DocumentManager" OR process CONTAINS[c] "mlearn"' \
+            --predicate 'process CONTAINS[c] "FileProvider" OR subsystem BEGINSWITH[c] "com.apple.FileProvider" OR subsystem == "com.apple.FileURL" OR process CONTAINS[c] "DocumentManager" OR process CONTAINS[c] "mlearn"' \
             > verification/provider.log 2>&1
           )
           observation_status=$?

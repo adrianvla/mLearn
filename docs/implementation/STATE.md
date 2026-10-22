@@ -112,6 +112,21 @@ document IDs, read-only `F_GETPATH`, and re-stat identity equality after each
 inode round trip on all four files, from both host and simulator. Both SDK
 builds pass, and Swift diagnostics are clean. No claim is made about the
 FileProvider service's own sandbox or document-ID resolution.
+Hosted reverse-lookup diagnostic `39735492932` fails the original first-English
+dismissal in 174.517 s, preserving original exit 1 and observation exit 0.
+Exact harness `b8d4d7ac` and immutable binary `4a7927a0` receipts match.
+Both host and guest report APFS, valid/supported path-from-ID and document-ID
+capabilities, successful read-only opened paths, and matching inode/device
+round trips for all four files. Generic inode lookup is therefore not the
+observed failure. The selected English movie remains document ID 6.
+`ci-b8d4d7ac-reverse/verification/provider.log:16962–16993` traces the URL
+request into the LocalStorage extension and its `-1005` reply in about 61 ms;
+the final frame remains ordinary list browsing. Earlier collection changes
+report document IDs deleted while their physical files remain present, but
+that is not proof of the cause. The full native stream identifies
+`LocalStorageFileProvider[14380]`; the filtered persisted-debug predicate omitted
+that process. Extend the existing diagnostic predicate to include FileProvider
+processes and subsystems before making another causal claim. M03 stays gated.
 The controlled registration change is `bab8b4c30b2841c008848936071aa3b8d4beaba8`
 (tree `b5043be154e23c39f7bfa557f7b7e352038eecc9`), still confined to the
 temporary diagnostic. Its original failed control remains independently retained.
