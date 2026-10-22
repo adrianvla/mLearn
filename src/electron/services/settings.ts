@@ -297,6 +297,20 @@ function hydrateLanguageFontAssets(languageData: LanguageData, dataRoot: string)
 
 export function loadLangData(admittedRoot = resolveLanguageDataRoot(path.join(getUserDataPath(), 'language-data'))): LanguageDataMap {
   const langData: LanguageDataMap = {};
+  // Legacy frequency data and provider assets can name the same file. Share
+  // its parsed rows within this load, without retaining an old generation.
+  const frequencyPayloads = new Map<string, FrequencyFilePayload>();
+  function readFrequencyPayload(filePath: string): FrequencyFilePayload {
+    const key = path.resolve(filePath);
+    const cached = frequencyPayloads.get(key);
+    if (cached) return cached;
+    const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    const payload: FrequencyFilePayload = Array.isArray(parsed)
+      ? { freq: parsed }
+      : isRecord(parsed) ? parsed : {};
+    frequencyPayloads.set(key, payload);
+    return payload;
+  }
   const candidateDirs = [
     path.join(admittedRoot, 'languages'),
   ];
@@ -333,12 +347,7 @@ export function loadLangData(admittedRoot = resolveLanguageDataRoot(path.join(ge
         const langCode = file.slice(0, -'.freq.json'.length);
         const filePath = path.join(frequencyDir, file);
         try {
-          const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-          const payload: FrequencyFilePayload = Array.isArray(parsed)
-            ? { freq: parsed }
-            : isRecord(parsed)
-              ? parsed
-              : {};
+          const payload = readFrequencyPayload(filePath);
           const data = migrateFrequencyFileIfNeeded(
             filePath,
             payload,
@@ -377,12 +386,7 @@ export function loadLangData(admittedRoot = resolveLanguageDataRoot(path.join(ge
         if (!asset) continue;
         const filePath = path.join(dataRoot, asset.path);
         try {
-          const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-          const payload: FrequencyFilePayload = Array.isArray(parsed)
-            ? { freq: parsed }
-            : isRecord(parsed)
-              ? parsed
-              : {};
+          const payload = readFrequencyPayload(filePath);
           const defaultLevelSystem = provider.defaultLevelSystem
             ? provider.levelSystems?.[provider.defaultLevelSystem]
             : undefined;

@@ -872,6 +872,37 @@ describe('loadLangData', () => {
     expect(langData['ru']?.frequencyProviders?.smartool.levelSystems?.cefr.frequencyLevels.names).toEqual({ '1': 'A1' });
   });
 
+  it('shares parsed frequency rows across legacy and provider views without caching between loads', () => {
+    const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
+    const frequencyPath = path.join(languagesDir, 'zz.freq.json');
+    fs.mkdirSync(languagesDir, { recursive: true });
+    fs.writeFileSync(path.join(languagesDir, 'zz.json'), JSON.stringify({
+      name: 'Future language',
+      frequencyProviders: {
+        first: { name: 'First', assetId: 'frequency', frequencyLevels: { names: { '1': 'First level' } } },
+        second: { name: 'Second', assetId: 'frequency', frequencyLevels: { names: { '1': 'Second level' } } },
+      },
+      languageData: { assets: [{ id: 'frequency', path: 'languages/zz.freq.json' }] },
+    }));
+    fs.writeFileSync(frequencyPath, JSON.stringify({ freq: [['surface', 'reading', 1]] }));
+    const readFile = vi.spyOn(fs, 'readFileSync');
+
+    const loaded = mod.loadLangData().zz;
+
+    expect(loaded.frequencyProviders?.first.freq).toBe(loaded.freq);
+    expect(loaded.frequencyProviders?.second.freq).toBe(loaded.freq);
+    expect(loaded.frequencyProviders?.first.frequencyLevels?.names).toEqual({ '1': 'First level' });
+    expect(loaded.frequencyProviders?.second.frequencyLevels?.names).toEqual({ '1': 'Second level' });
+    expect(readFile.mock.calls.filter(([file]) => file === frequencyPath)).toHaveLength(1);
+
+    fs.writeFileSync(frequencyPath, JSON.stringify({ freq: [['updated', 'reading', 1]] }));
+    const reloaded = mod.loadLangData().zz;
+    expect(reloaded.freq).toEqual([['updated', 'reading', 1]]);
+    expect(reloaded.freq).not.toBe(loaded.freq);
+    expect(reloaded.frequencyProviders?.first.freq).toBe(reloaded.freq);
+    expect(loaded.freq).toEqual([['surface', 'reading', 1]]);
+  });
+
   it('hydrates declared language fonts from installed package assets', () => {
     const languagesDir = path.join(tempDir.tmpDir, 'language-data', 'languages');
     const fontsDir = path.join(tempDir.tmpDir, 'language-data', 'fonts', 'cu');
