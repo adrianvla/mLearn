@@ -87,6 +87,31 @@ receiving distinct document IDs; the supported BSD command uses octal `0100`,
 not an unsupported symbolic `tracked` argument. Original UI code, deadlines,
 binary and provider remain unchanged. This registration hypothesis is not yet
 a verified hosted repair.
+Run `39733308564` now rejects registration alone as a repair: the original
+English movie dismissal fails in 116.013 s (original exit 1; observations exit
+0). Before UI, flags become 64 and guest document IDs are assigned as 3–6.
+After failure those same files and IDs remain readable and unchanged.
+`ci-dfc54253-registration/verification/provider.log:10348–10363` shows the
+correct English selection followed by `localstorage/did=3`, error `-1005`,
+and a nil URL. The final screenshot confirms ordinary list browsing without
+a keyboard. Binary and harness receipts match `4a7927a0` and `dfc54253`.
+No main native-workflow or application repair is justified by this contrast.
+The next investigation must distinguish reverse lookup/filesystem behavior,
+not repeat tap changes or registration retries. M03 remains gated.
+The temporary observer now records native filesystem type/mount/FSID and
+public inode-to-path lookup results with errno. Host and simulator builds
+compile and execute locally on all four retained synthetic files: APFS and
+successful inode lookup are observed. This is not document-ID lookup proof.
+The diagnostic removes forced registration and enables targeted FileProvider
+debug persistence before the original UI flow. YAML and all shell blocks
+validate; hosted execution of this richer probe has not yet run.
+Independent investigation `st_01a16252` confirms this discriminating probe and
+the distinction between inode and document identity. The completed local
+observer also confirms capability validity/support for path-from-ID and
+document IDs, read-only `F_GETPATH`, and re-stat identity equality after each
+inode round trip on all four files, from both host and simulator. Both SDK
+builds pass, and Swift diagnostics are clean. No claim is made about the
+FileProvider service's own sandbox or document-ID resolution.
 The controlled registration change is `bab8b4c30b2841c008848936071aa3b8d4beaba8`
 (tree `b5043be154e23c39f7bfa557f7b7e352038eecc9`), still confined to the
 temporary diagnostic. Its original failed control remains independently retained.

@@ -24,6 +24,7 @@ jobs:
           git rev-parse HEAD HEAD^{tree} > verification/harness-source.txt
           sw_vers > verification/host.txt
           xcodebuild -version >> verification/host.txt
+          mount > verification/host-mounts.txt
           xcrun simctl list runtimes -j > verification/runtimes.json
       - uses: actions/download-artifact@v4
         with:
@@ -65,6 +66,11 @@ jobs:
           echo "$device" > verification/device.txt
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
+          xcrun simctl spawn "$device" log config --status --subsystem com.apple.FileProvider \
+            > verification/provider-logging-before.txt
+          xcrun simctl spawn "$device" log config --mode level:debug,persist:debug --subsystem com.apple.FileProvider
+          xcrun simctl spawn "$device" log config --status --subsystem com.apple.FileProvider \
+            > verification/provider-logging-active.txt
           xcrun simctl spawn "$device" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
           xcrun simctl install "$device" "$RUNNER_TEMP/mlearn-retained-ios/mLearnv3Dev.app"
           python3 tools/create-watch-fixture.py "$RUNNER_TEMP/mlearn-provider-fixtures"
@@ -79,13 +85,9 @@ jobs:
                  "$container/Documents/M01 fixtures/m01-watch.srt"
                  "$container/Documents/M01 fixtures/m01-japanese.mp4"
                  "$container/Documents/M01 fixtures/m01-japanese.srt")
-          # Controlled fixture-registration contrast, not a product/test retry.
-          # The preceding run selected the real file but could not resolve did=3.
+          # The registration contrast failed. Return to original fixture preparation.
           /usr/bin/stat -f '%f %i %d %N' "${files[@]}" > verification/fixture-flags-before.txt
-          # UF_TRACKED = 0x40 = octal 0100; BSD chflags has no "tracked" name.
-          chflags 0100 "${files[@]}"
-          xcrun simctl spawn "$device" "$RUNNER_TEMP/file-identifiers-simulator" "${files[@]}" > verification/registered-file-identifiers.json
-          /usr/bin/stat -f '%f %i %d %N' "${files[@]}" > verification/fixture-flags-registered.txt
+          df "$container" > verification/container-filesystem.txt
           export PATH="$PWD/tests/mobile/ios-driver:$PATH"
           set +e
           maestro --device "$device" test --config tests/mobile/config.yaml --format junit \
@@ -103,7 +105,7 @@ jobs:
                  "$final_container/Documents/M01 fixtures/m01-japanese.srt")
           "$RUNNER_TEMP/file-identifiers-host" "${files[@]}" > verification/host-file-identifiers.json
           xcrun simctl spawn "$device" "$RUNNER_TEMP/file-identifiers-simulator" "${files[@]}" > verification/simulator-file-identifiers.json
-          xcrun simctl spawn "$device" log show --last 15m --style compact \
+          xcrun simctl spawn "$device" log show --last 15m --style compact --info --debug \
             --predicate 'process == "fileproviderd" OR process CONTAINS[c] "DocumentManager" OR process CONTAINS[c] "mlearn"' \
             > verification/provider.log 2>&1
           )
