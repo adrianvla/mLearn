@@ -742,8 +742,23 @@ export const FlashcardProvider: ParentComponent = (props) => {
       throw error;
     }
   };
+  let undoHistoryRefresh: Promise<void> | undefined;
+  let requestedUndoRevision = -1;
+  let loadedUndoRevision = -1;
   const requestCompletedReviewUndos = (): void => {
-    void refreshCompletedReviewUndos().catch(error => log.warn('Failed to load completed review Undo:', error));
+    requestedUndoRevision = Math.max(requestedUndoRevision, store.rev ?? 0);
+    if (undoHistoryRefresh || loadedUndoRevision >= requestedUndoRevision) return;
+    // The commit event and its ACK describe the same durable revision. Fetch
+    // its large pre-images once, and serialize a newer revision behind it.
+    const revision = requestedUndoRevision;
+    undoHistoryRefresh = refreshCompletedReviewUndos().then(() => {
+      loadedUndoRevision = revision;
+      undoHistoryRefresh = undefined;
+      if (!disposed && loadedUndoRevision < requestedUndoRevision) requestCompletedReviewUndos();
+    }, error => {
+      undoHistoryRefresh = undefined;
+      log.warn('Failed to load completed review Undo:', error);
+    });
   };
   const reviewUndoIsApplicable = (record: PendingRetraction): boolean => {
     try {

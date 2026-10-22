@@ -409,6 +409,9 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose: () => v
   const selected = selection.selected;
 
   const filterFields = createMemo<{ fields: FieldConfig<unknown>[]; paletteItems: PaletteItem[] }>(() => {
+    // Browse-only language discovery walks the full learner history. Do not
+    // subscribe it to rating writes while its controls are unmounted.
+    if (activeTab() !== 'browse') return { fields: [], paletteItems: [] };
     const selectedLanguages = filterTokens()
       .filter((token): token is Extract<FilterToken, { kind: 'operand' }> => token.kind === 'operand' && token.field === 'language')
       .map(token => token.value);
@@ -466,6 +469,7 @@ export const FlashcardsContent: Component<{ initialTab?: TabId; onClose: () => v
 
   // Filtered flashcards for browse tab
   const filteredFlashcards = createMemo(() => {
+    if (activeTab() !== 'browse') return [];
     const query = searchQuery().toLowerCase().trim();
     const ast = filterAst();
     const activeAst = ast.ok && ast.ast ? ast.ast : null;

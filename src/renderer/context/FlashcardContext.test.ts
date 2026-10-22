@@ -1271,6 +1271,39 @@ describe('FlashcardProvider', () => {
     dispose();
   });
 
+  it.each(['ack-first', 'event-first'])('loads completed Undo once for a rating with %s delivery', async order => {
+    let acknowledge = (_revision: number): void => {};
+    mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(() => new Promise<number>(resolve => { acknowledge = resolve; }));
+    const { ctx, dispose } = await mountProvider();
+    try {
+      const card = makeCard({ id: 'coalesced-undo', state: 'review', reviews: 2 });
+      seed(makeEmptyStore({ rev: 1, flashcards: { [card.id]: card } }));
+      const result = await ctx.submitRating(card.content.front, [], {
+        persistence: 'background', scheduler: { cardId: card.id, rating: 'good' },
+      });
+      mockBridge.knowledgeEvents.getRatingUndoHistory.mockClear();
+      let finishHistory = (_records: typeof savedReviewUndos): void => {};
+      mockBridge.knowledgeEvents.getRatingUndoHistory.mockImplementation(() => new Promise(resolve => { finishHistory = resolve; }));
+      const command = mockBridge.flashcards.enqueueFlashcardRating.mock.calls.at(-1)?.[0];
+      const notify = mockBridge.flashcards.onFlashcardRatingsCommitted.mock.calls.at(-1)?.[0];
+      expect(command).toBeDefined();
+      expect(notify).toBeDefined();
+      if (order === 'ack-first') {
+        acknowledge(2);
+        await result.persisted;
+      }
+      notify({ rev: 2, patch: command.patch, attemptIds: [result.attemptId] });
+      if (order === 'event-first') {
+        acknowledge(2);
+        await result.persisted;
+      }
+      expect(ctx.store.flashcards[card.id].reviews).toBe(3);
+      expect(mockBridge.knowledgeEvents.getRatingUndoHistory).toHaveBeenCalledTimes(1);
+      finishHistory([]);
+      await Promise.resolve();
+    } finally { dispose(); }
+  });
+
   it('replays only later pending commands after a partial batch commits', async () => {
     const acknowledgements: Array<(revision: number) => void> = [];
     mockBridge.flashcards.enqueueFlashcardRating.mockImplementation(() => new Promise<number>(resolve => acknowledgements.push(resolve)));

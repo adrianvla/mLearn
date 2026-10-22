@@ -21,7 +21,7 @@ import { createEffect, createSignal, type Component } from 'solid-js';
 const [dueCount, setDueCount] = createSignal(0);
 import type { Flashcard } from '../../../shared/types';
 
-const contextFixture = vi.hoisted(() => ({ reviewProps: vi.fn(), switchPosition: vi.fn(async () => {}), nativeContext: vi.fn(), closeWindow: vi.fn() }));
+const contextFixture = vi.hoisted(() => ({ knowledgeReads: vi.fn(), reviewProps: vi.fn(), switchPosition: vi.fn(async () => {}), nativeContext: vi.fn(), closeWindow: vi.fn() }));
 const store = vi.hoisted(() => ({ flashcards: {} as Record<string, unknown> }));
 
 const removeFlashcard = vi.fn(async (id: string) => {
@@ -65,7 +65,7 @@ vi.mock('../../context', () => ({
     getFreqLevelNames: () => ({}),
   }),
   useFlashcards: () => ({
-    store: { meta: {} },
+    store: { meta: {}, get wordKnowledge() { contextFixture.knowledgeReads(); return {}; } },
     switchReviewPosition: contextFixture.switchPosition,
     getAllCards: () => Object.values(store.flashcards) as Flashcard[],
     getCardById: (id: string) => (store.flashcards[id] as Flashcard) ?? null,
@@ -221,6 +221,17 @@ const dialogButton = (label: string) => {
 };
 
 describe('Review window context admission', () => {
+  it('does not scan knowledge for hidden Browse filters until Browse is opened', () => {
+    contextFixture.knowledgeReads.mockClear();
+    const container = document.createElement('div'); document.body.append(container);
+    const dispose = render(() => <FlashcardsContent workspace="flashcards" onClose={() => {}} />, container);
+    try {
+      expect(contextFixture.knowledgeReads).not.toHaveBeenCalled();
+      clickKey(container, 'mlearn.Flashcards.UI.Tabs.Browse');
+      expect(contextFixture.knowledgeReads).toHaveBeenCalled();
+    } finally { dispose(); container.remove(); }
+  });
+
   it('hosts Practise without saved-material tabs and admits its launch context directly', async () => {
     contextFixture.reviewProps.mockClear(); setDueCount(1);
     const container = document.createElement('div'); document.body.append(container);
