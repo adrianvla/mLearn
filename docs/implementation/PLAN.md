@@ -1,5 +1,19 @@
 # Review-gated implementation plan
 
+> **Active authorization (2026-10-22):** Finish current integration, native
+> translucency and corrections first; preserve compiled iOS artifacts, resolve
+> genuine failures, and commit/push a verified checkpoint. Only then execute
+> M03–M07 sequentially without intermediate maintainer review stops. Every
+> milestone retains complete feature scope, passing relevant checks, real
+> desktop/iOS/Android workflows, shared authority, independent code review and
+> exact-source pushed evidence. Independently review M01–M04 architecture and
+> repair significant findings before M05. Defer only precisely recorded
+> nonblocking pixel polish. After verified M07 deliver the consolidated review
+> package and stop for manual acceptance. Existing agent/m01, PR44, history and
+> H00 are preserved; no M08, merge, release or self-acceptance. This supersedes
+> the conflicting older milestone exclusions and per-unit manual review stops
+> below, not their engineering requirements.
+
 > **Active authorization (2026-10-20):** Execute the complete [visual-parity rewrite](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44. Replace the rejected presentation across all currently implemented surfaces; edited images are primary and the corresponding isolated running v2 screen is secondary for unpictured surfaces, including Home. This supersedes the older frozen-review/minimal-restyle/`visual_pending` restrictions and the October 19 feature-expansion batch. Iterate autonomously through the named visual job, not new domain milestones. No merge, release or self-acceptance. The review loop below remains the default for future product increments, not a request to stop between this rewrite's connected slices.
 
 **Goal:** Build the specified mLearn product as connected, usable increments, with a maintainer decision between increments.

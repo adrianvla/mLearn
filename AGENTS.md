@@ -1,5 +1,30 @@
 # mLearn engineering contract
 
+## Active authorization — integration first, then M03–M07, 2026-10-22
+
+Finish the current integration/native-translucency corrections, preserve compiled
+iOS artifacts, resolve genuine failures, and commit/push a verified checkpoint
+before starting M03. Then execute M03, M04, M05, M06 and M07 sequentially on
+existing `agent/m01`, draft PR #44, using the complete PLAN/SPEC/FEATURES scope.
+This supersedes the older domain-milestone exclusion and intermediate manual
+review stops, not architectural or verification requirements. Preserve history,
+H00, profiles, completed work, shared design and genuine native materials.
+
+Each milestone requires relevant passing checks, genuine end-to-end workflows
+including persistence/restart/cancellation/recoverable failures, shared-owner
+proof, applicable native verification, independent code review with blockers
+resolved, and a committed/pushed exact-source evidence checkpoint. After M04,
+perform an independent comprehensive M01–M04 architecture review and repair
+significant structural findings before M05. Record `verified_for_continuation`,
+never maintainer acceptance.
+
+Minor pixel polish may defer precisely until after M07; usability, accessibility,
+responsiveness and functional controls may not. After verified M07 deliver one
+consolidated review package with sources, architecture, subsystem diffs, review
+resolutions, tests/real platform workflows, captures/demos, resource observations,
+remaining discrepancies and prioritized remediation, then stop for manual
+acceptance. No M08, merge, release or self-acceptance.
+
 ## Active authorization — visual-parity rewrite, 2026-10-20
 
 The maintainer has rejected the current visual result and authorized a **large presentation refactor**, not another small restyle or unchanged-layout component cleanup. Execute [VISUAL-PARITY.md](docs/implementation/VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44. This is the current job; read STATE for persisted work/evidence, not as a veto from its older frozen status. No new domain milestone, merge, release or maintainer acceptance is authorized.

@@ -1,5 +1,16 @@
 # Current implementation checkpoint
 
+## Active authorization — integration checkpoint before M03–M07
+
+On October 22 the maintainer authorized autonomous sequential M03–M07, with
+independent review and full verification per milestone, and an independent
+M01–M04 architecture review/repair before M05. Current integration/native
+translucency/corrections must finish in a verified pushed checkpoint FIRST.
+M03 has not started. Minor cosmetic polish may defer; usability and architectural
+or functional gates may not. See the current PLAN/AGENTS authorization. Preserve
+H00, branch history and draft PR44; stop after the consolidated M07 review
+package for manual acceptance, without merging or self-acceptance.
+
 ## Active visual-parity rewrite - 2026-10-20
 
 Status: `implementation_resumed`, not complete or accepted. Execute
@@ -10,7 +21,66 @@ This authorization supersedes the historical frozen-review, minimal-restyle
 and unpictured `visual_pending` restrictions below. No new domain milestone,
 merge, release or maintainer acceptance is authorized.
 
-### Current application and verification - 2026-10-21
+### Current application and verification - 2026-10-22
+
+Status remains `implementation_resumed`, not accepted. Runtime/shared UI inputs
+remain b7fac91e; subsequent changes repair platform verification and Android
+NDK generation, not learner semantics.
+
+Windows foundation `39693981018` (job `119546767596`, c5e89717) verifies actual
+Quartz Mica/light, Dark Quartz Mica/dark, opaque Slate and a new-process
+persisted Dark Quartz startup. DWM backdrop values are respectively 2, 2, 1,
+2; dark values 0, 1, 1, 1; all HRESULTs zero. The final Quartz restoration
+fails before save: editor content stays Dark Quartz. The probe now waits for
+the dialog's real initial Close-button focus, then subscribes before moving
+focus to the editor and sending its single paste. This follows the actual
+pinned modal FocusScope lifecycle. No product focus change, repeated input or
+weakened native assertion is introduced. Final Windows verification is pending.
+
+Android NDK alignment is locally verified. The Expo config mod sets the root
+and every Android application/library module from ANDROID_NDK_HOME metadata.
+Repeated real prebuilds are byte-stable. Release Gradle with the consuming
+init-script assertion passes in 7m8s; all 23 native modules use 27.1.12297006,
+matching Rust. The initial assertion incorrectly included pure-Java Gradle
+plugin builds; its scope was repaired and the failed Gradle step rerun.
+The APK contains exactly arm64-v8a/x86_64 with both Rust bridges; SHA-256
+37c39c71c71ef86b10ac5785717bb23ec59e6b294d46c850ff3b3cbc7e50c5f2.
+The retained API35 ARM64 device installs it with `adb install -r`, preserves
+its profile, and passes the real Runtime/Hello native boundary in 11.371s.
+Its owned emulator is gracefully stopped without wiping data. Evidence:
+`android-aligned-ndk-build-scoped.log`, `android-aligned-ndk-smoke/`.
+
+Hosted native b7fac91e run `39688396167` still fails both UI gates. Android
+builds and exercises English/Japanese annotations and synchronization, then
+loses its ADB connection during the resumed Japanese flow after 371.236s.
+The retained native log records host-17 offline at 23:50:28.830, before
+Maestro teardown at 23:50:30.257; teardown is not the cause. No app crash,
+memory kill or transport root cause is established. Exact artifacts:
+`ci-b7fac91e-android/`. iOS 26.5 again fails Japanese Files dismissal after
+436.46s, with the exact enabled filename and keyboard still visible:
+`ci-b7fac91e-ios/`. Neither is waived by earlier platform passes.
+
+The iOS runner now preserves the original acceptance exit while running
+failure-only same-picker experiments: one identical filename selection,
+then keyboard dismissal plus selection only if the identical attempt fails.
+Original acceptance flows/assertions are unchanged. Actual shell-exit
+regressions pass for success and both diagnostic branches. The retained
+iOS27 simulator/binary validates keyboard removal and selection in 13.606s;
+this is command validation, not reproduction or repair of hosted iOS26.5.
+Its isolated fixture profile now contains that diagnostic selection; no
+learner claims or production profiles were reset. The workflow archives the
+compiled simulator app with source identity before UI testing, preserving
+executable modes and symlinks. A real local retained-binary tar validates
+packaging, but source-bound hosted artifact upload is still pending.
+
+The integrated candidate passes typecheck, ownership lint, 56 harness and
+26 package/source tests, web export and all eight browser interactions.
+Retained terminal run: `bash_957`, exit zero. Android build/runtime checks above
+are separate from full hosted acceptance. Windows focus readiness and iOS
+same-failure diagnostics require their actual platform runners. No active
+build was cancelled, profile wiped or CI assertion relaxed.
+
+Earlier source-bound verification history:
 
 Current runtime/shared UI inputs remain
 `b7fac91ef93a8e25854f0052f689d3d0a794fd1b`; Windows test/evidence repairs and
