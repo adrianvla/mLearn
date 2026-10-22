@@ -147,6 +147,25 @@ Host and simulator helper builds pass, Swift diagnostics are clean, and both
 helpers execute against disposable local directories with all eight source/
 destination byte comparisons passing. YAML and every shell block validate.
 This verifies fixture transport only; the hosted picker outcome is pending.
+Guest creation contrast `39739133200` rejects that hypothesis: the unchanged
+first-English dismissal fails in 88.859 s, preserving original exit 1 and
+observation exit 0. Byte comparisons passed during setup, while document-ID
+lookup still returns `ENOENT`/`-1005` at
+`ci-6a2cdf81-guest-stage/verification/provider.log:21756–21785`.
+All four post-outcome inode controls pass. The temporary staging helper is
+removed and original host-copy preparation restored.
+
+The next bounded diagnostic holds iOS 26.5/23F77, the immutable app, and
+original UI fixed while changing the hosted macOS/Xcode generation to 27,
+matching the generation with successful local runs. `xcode-27` is listed as
+a standard runner in GitHub's hosted-runner reference; this repository is
+public, and no paid larger runner or premium model is selected. Its current
+image has only iOS 27 bundled, so the diagnostic uses the supported
+`xcodebuild -downloadPlatform` command for arm64 iOS 26.5 and explicitly
+requires build 23F77 before continuing. Source/environment and disk receipts
+precede acquisition, the 25-minute job limit stays, and the original failing
+host evidence remains intact. This is an environment contrast, not a product
+fix or permission to substitute iOS 27 for the failed guest version.
 The controlled registration change is `bab8b4c30b2841c008848936071aa3b8d4beaba8`
 (tree `b5043be154e23c39f7bfa557f7b7e352038eecc9`), still confined to the
 temporary diagnostic. Its original failed control remains independently retained.

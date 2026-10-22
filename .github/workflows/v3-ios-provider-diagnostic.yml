@@ -5,7 +5,6 @@ on:
     paths:
       - .github/workflows/v3-ios-provider-diagnostic.yml
       - .github/diagnostics/file-identifiers.swift
-      - .github/diagnostics/stage-watch-fixtures.swift
 permissions:
   contents: read
   actions: read
@@ -14,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   retained-ios:
-    runs-on: macos-latest
+    runs-on: xcode-27
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +26,14 @@ jobs:
           xcodebuild -version >> verification/host.txt
           mount > verification/host-mounts.txt
           xcrun simctl list runtimes -j > verification/runtimes.json
+      - name: Install the exact guest runtime on the matching host generation
+        run: |
+          set -euo pipefail
+          df -h "$RUNNER_TEMP" > verification/disk-before-runtime.txt
+          xcodebuild -downloadPlatform iOS -buildVersion 26.5 -architectureVariant arm64
+          xcrun simctl list runtimes -j > verification/runtimes-after.json
+          python3 -c 'import json; r=json.load(open("verification/runtimes-after.json"))["runtimes"]; assert any(x.get("isAvailable") and x["identifier"]=="com.apple.CoreSimulator.SimRuntime.iOS-26-5" and x["buildversion"]=="23F77" for x in r), "Exact iOS26.5/23F77 runtime is unavailable"'
+          df -h "$RUNNER_TEMP" > verification/disk-after-runtime.txt
       - uses: actions/download-artifact@v4
         with:
           name: ios-simulator-app
@@ -47,14 +54,12 @@ jobs:
           mkdir -p "$RUNNER_TEMP/mlearn-retained-ios"
           tar -xzf .mlearn/retained-ios/test-results/ios-simulator-app.tar.gz -C "$RUNNER_TEMP/mlearn-retained-ios"
       - uses: ./.github/actions/setup-maestro
-      - name: Compile only the standalone diagnostic helpers
+      - name: Compile only the metadata observer
         run: |
           set -euo pipefail
           swiftc .github/diagnostics/file-identifiers.swift -o "$RUNNER_TEMP/file-identifiers-host"
           xcrun --sdk iphonesimulator swiftc -target arm64-apple-ios26.0-simulator \
             .github/diagnostics/file-identifiers.swift -o "$RUNNER_TEMP/file-identifiers-simulator"
-          xcrun --sdk iphonesimulator swiftc -target arm64-apple-ios26.0-simulator \
-            .github/diagnostics/stage-watch-fixtures.swift -o "$RUNNER_TEMP/stage-watch-fixtures"
       - name: Original UI flow followed by read-only provider observations
         timeout-minutes: 20
         run: |
@@ -80,13 +85,11 @@ jobs:
           python3 tools/create-watch-fixture.py "$RUNNER_TEMP/mlearn-provider-fixtures"
           container=$(xcrun simctl get_app_container "$device" net.kikan.mlearn.v3dev data)
           echo "$container" > verification/initial-container.txt
-          # Controlled guest-side creation contrast; no app import or picker bypass.
-          xcrun simctl spawn "$device" "$RUNNER_TEMP/stage-watch-fixtures" \
-            "$RUNNER_TEMP/mlearn-provider-fixtures" "$container/Documents/M01 fixtures"
-          cmp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-fixture.mp4" "$container/Documents/M01 fixtures/m01-watch.mp4"
-          cmp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-fixture.srt" "$container/Documents/M01 fixtures/m01-watch.srt"
-          cmp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-japanese.mp4" "$container/Documents/M01 fixtures/m01-japanese.mp4"
-          cmp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-japanese.srt" "$container/Documents/M01 fixtures/m01-japanese.srt"
+          mkdir -p "$container/Documents/M01 fixtures"
+          cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-fixture.mp4" "$container/Documents/M01 fixtures/m01-watch.mp4"
+          cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-fixture.srt" "$container/Documents/M01 fixtures/m01-watch.srt"
+          cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-japanese.mp4" "$container/Documents/M01 fixtures/m01-japanese.mp4"
+          cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-japanese.srt" "$container/Documents/M01 fixtures/m01-japanese.srt"
           files=("$container/Documents/M01 fixtures/m01-watch.mp4"
                  "$container/Documents/M01 fixtures/m01-watch.srt"
                  "$container/Documents/M01 fixtures/m01-japanese.mp4"
