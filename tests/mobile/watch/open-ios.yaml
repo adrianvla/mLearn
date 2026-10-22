@@ -49,6 +49,28 @@ appId: net.kikan.mlearn.v3dev
     index: 0
 - tapOn: More
 - tapOn: '^List$'
+# Leave the search-owned native surface before selecting a browser row.
+# On iOS26.5 its background rows remain in the expanded snapshot but ignore
+# selection. Real parent/folder navigation restores browsing without a retry.
+- tapOn:
+    id: '^(BackButton|DOC\.navBarButton\.backInHistory)$'
+    enabled: true
+- extendedWaitUntil:
+    visible:
+      # Back can return the parent or leave search at the current location.
+      id: '(M01 fixtures, Folder|${VIDEO_NAME}, mp4)'
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: 'M01 fixtures, Folder'
+    commands:
+      - tapOn:
+          id: 'M01 fixtures, Folder'
+- extendedWaitUntil:
+    visible:
+      id: '${VIDEO_NAME}, mp4'
+    timeout: 15000
 - takeScreenshot: '${VIDEO_NAME}-media-picker-before-selection'
 - tapOn:
     # Select the document cell, not its non-control filename descendant.
