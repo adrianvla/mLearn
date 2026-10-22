@@ -37,6 +37,7 @@ pub(crate) fn prepared_content<'a>(
         content.attachments.push(MaterialAttachment {
             media_id: asset.media.id.clone(),
             segment: asset.segment.clone(),
+            audio_binding: request.audio_binding.clone(),
         });
     }
     Ok(Cow::Owned(content))
@@ -62,6 +63,11 @@ pub(crate) fn replace_references(
     // Check before deleting; the enclosing write transaction makes both changes atomic.
     for attachment in &content.attachments {
         let media = read_media(db, &attachment.media_id)?;
+        if attachment.audio_binding.is_some() && media.kind != MaterialMediaKind::Audio {
+            return Err(StorageError::Invalid(
+                "Only audio can bind a Review target".into(),
+            ));
+        }
         if let Some(segment) = &attachment.segment
             && segment.start_ms == segment.end_ms
             && media.kind != MaterialMediaKind::Image

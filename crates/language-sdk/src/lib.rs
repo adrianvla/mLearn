@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub use serde_json;
 pub const ABI_VERSION: u32 = 1;
 pub const MAX_MESSAGE_BYTES: usize = 262_144;
+pub mod learning;
 
 #[derive(Serialize, Deserialize)]
 pub struct Call {

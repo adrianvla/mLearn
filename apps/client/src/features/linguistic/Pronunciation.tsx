@@ -32,7 +32,7 @@ export function Pronunciation({ presentation, reading, expanded = false }: Pronu
         ) : null}
         {presentation?.labels.map(label => <View key={label.id} style={styles.alternative}
             accessible accessibilityLabel={`${label.label}. ${label.attribution}`}>
-            <Badge label={label.label} color={label.color} variant="label" selectable />
+            <Badge label={label.label} color={label.color} variant="label" tone="media" selectable />
             {expanded ? <Text variant="detail" tone="media" muted selectable>{label.attribution}</Text> : null}
         </View>)}
     </View>;

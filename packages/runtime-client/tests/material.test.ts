@@ -207,6 +207,42 @@ test('authored target language remains distinct from original source language', 
   assert.equal(isMaterialResponse({ type: 'material', material: authored }), true);
 });
 
+test('audio binding preserves explicit target snapshots and rejects changed or nonaudio content', () => {
+  // Given historical authored audio without a listening assertion.
+  const audio: Material = { ...material, content: { ...content,
+    attachments: [{ mediaId: 'audio', segment: null }] },
+    media: [{ id: 'audio', kind: 'audio', name: 'word.wav', mimeType: 'audio/wav', byteLength: 128 }] };
+  assert.equal(isMaterialResponse({ type: 'material', material: audio }), true);
+  const binding = { packageId: content.packageId, targetId: content.targetId, phrase: content.phrase };
+  const bound = { ...audio, content: { ...audio.content, attachments: [
+    { mediaId: 'audio', segment: null, audioBinding: binding },
+  ] } };
+  // When an explicit assertion is transported, then only its exact audio target is admitted.
+  assert.equal(isMaterialResponse({ type: 'material', material: bound }), true);
+  for (const changed of [
+    { ...bound, content: { ...bound.content, phrase: 'Changed phrase' } },
+    { ...bound, content: { ...bound.content, targetId: 'other-target' } },
+    { ...bound, content: { ...bound.content, packageId: 'other-package' } },
+    { ...bound, media: [{ ...audio.media[0], kind: 'image' }] },
+    { ...bound, content: { ...bound.content, attachments: [
+      { mediaId: 'audio', segment: null, audioBinding: { ...binding, phrase: '' } },
+    ] } },
+  ]) assert.equal(isMaterialResponse({ type: 'material', material: changed }), false);
+});
+
+test('source return retains the admitted package version after an installed package update', () => {
+  // Given a historical source anchor and the current installed language version.
+  const source = { id: anchor.sourceId, title: 'video', mediaPath: 'video.mp4', mediaRevision: anchor.contentRevision,
+    packageId: anchor.packageId, packageVersion: '2', subtitlePath: 'captions.srt', subtitleRevision: 'subtitles',
+    positionMs: 1000, durationMs: 10000, subtitleOffsetMs: -250, subtitleOffsetRevision: 1,
+    playbackRate: 1.25, inspectionTrigger: 'click' };
+  const response = { type: 'material_source', window: { source, cues: [], totalCues: 8 }, anchor };
+  // When source restoration crosses the client boundary, then frozen provenance is not rewritten.
+  assert.equal(isMaterialResponse(response), true);
+  assert.equal(response.anchor.packageVersion, '1');
+  assert.equal(response.window.source.packageVersion, '2');
+});
+
 test('manual authoring retains copied sense data after unlinking its target', () => {
   const authored: Material = { ...material, content: { ...content, targetId: null } };
   assert.equal(isMaterialResponse({ type: 'material', material: authored }), true);

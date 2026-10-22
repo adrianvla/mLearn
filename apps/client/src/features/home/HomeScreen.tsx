@@ -144,6 +144,7 @@ export function HomeScreen() {
       <Row>
         <Button label="Settings" icon="settings" size="compact" variant="quiet" onPress={() => router.push('/settings')} />
         <Button label="Material" size="compact" variant="quiet" onPress={() => router.push('../materials')} />
+        <Button label="Review" size="compact" variant="quiet" onPress={() => router.push('../review')} />
         <Button label="Get language packages" icon="package" size="compact" variant="quiet"
           onPress={() => router.push({ pathname: '/settings', params: { section: 'languages' } })} />
       </Row>

@@ -30,6 +30,7 @@ fn create(command: &str, media_id: &str) -> MaterialCreate {
             source: None,
             attachments: vec![MaterialAttachment {
                 media_id: AuthoredMediaId(media_id.into()),
+                audio_binding: None,
                 segment: Some(MediaSegment {
                     source_id: command.into(),
                     content_revision: "v1".into(),
@@ -46,6 +47,39 @@ fn saved(result: MaterialWriteResult) -> Material {
         MaterialWriteResult::Saved { material, .. } => *material,
         other => panic!("{other:?}"),
     }
+}
+
+#[test]
+fn explicit_audio_bindings_persist_and_reject_mismatched_or_non_audio_targets() {
+    // Given target-bound authored audio, not inferred source/time equivalence.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("p");
+    let mut store = ProfileStore::open(&path).unwrap();
+    store.register_authored_media(&media("audio")).unwrap();
+    let mut command = create("bound", "audio");
+    command.content.attachments[0].audio_binding = Some(MaterialAudioBinding {
+        package_id: "package".into(),
+        target_id: None,
+        phrase: "bound".into(),
+    });
+    let item = saved(store.create_material(&command).unwrap());
+    // When reopened, the explicit snapshot survives.
+    drop(store);
+    let mut store = ProfileStore::open(&path).unwrap();
+    assert_eq!(
+        store.material(&item.id).unwrap().content.attachments,
+        item.content.attachments
+    );
+    let mut mismatch = change(&item);
+    mismatch.content.phrase = "other-target".into();
+    assert!(store.update_material(&mismatch).is_err());
+    let mut image = media("image");
+    image.kind = MaterialMediaKind::Image;
+    store.register_authored_media(&image).unwrap();
+    let mut mismatch = change(&item);
+    mismatch.content.attachments[0].media_id = image.id;
+    assert!(store.update_material(&mismatch).is_err());
+    assert_eq!(store.material(&item.id).unwrap(), item);
 }
 
 fn change(item: &Material) -> MaterialEdit {

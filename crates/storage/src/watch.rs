@@ -1,7 +1,6 @@
 use crate::{ProfileStore, StorageError};
-use mlearn_core::{ClaimChange, KnowledgeKey, KnowledgeProjection, SourceRecord};
+use mlearn_core::SourceRecord;
 use rusqlite::{OptionalExtension, params};
-use sha2::{Digest, Sha256};
 use std::path::Path;
 
 /// A live, read-only source view for media work independent of language execution.
@@ -49,112 +48,6 @@ impl ProfileStore {
             .prepare("SELECT document FROM sources ORDER BY touched DESC,id LIMIT 20")?;
         let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
         rows.map(|r| Ok(serde_json::from_str(&r?)?)).collect()
-    }
-    pub fn knowledge(
-        &self,
-        keys: &[KnowledgeKey],
-    ) -> Result<Vec<KnowledgeProjection>, StorageError> {
-        if keys.len() > 256 {
-            return Err(StorageError::Invalid(
-                "Knowledge batch exceeds 256 targets".into(),
-            ));
-        }
-        let mut stmt=self.connection.prepare_cached("SELECT claim,revision FROM claims WHERE package_id=?1 AND target_id=?2 AND capability=?3")?;
-        keys.iter()
-            .map(|key| {
-                let row: Option<(Option<bool>, u32)> = stmt
-                    .query_row(
-                        params![key.package_id, key.target_id, key.capability],
-                        |r| Ok((r.get(0)?, r.get(1)?)),
-                    )
-                    .optional()?;
-                let (claim, revision) = row.unwrap_or((None, 0));
-                // No assessment or prediction is fabricated from claims, exposure or absence.
-                Ok(KnowledgeProjection {
-                    key: key.clone(),
-                    claim,
-                    assessed: None,
-                    prediction: None,
-                    revision,
-                    status: match claim {
-                        Some(true) => "claimed_known",
-                        Some(false) => "claimed_unknown",
-                        None => "untracked",
-                    }
-                    .into(),
-                })
-            })
-            .collect()
-    }
-    pub fn change_claim(
-        &mut self,
-        change: &ClaimChange,
-    ) -> Result<KnowledgeProjection, StorageError> {
-        if change.command_id.is_empty()
-            || change.command_id.len() > 128
-            || [
-                &change.key.package_id,
-                &change.key.target_id,
-                &change.key.capability,
-            ]
-            .iter()
-            .any(|v| v.is_empty() || v.len() > 512)
-        {
-            return Err(StorageError::Invalid("Invalid claim identity".into()));
-        }
-        let digest = Sha256::digest(serde_json::to_vec(change)?).to_vec();
-        let tx = self
-            .connection
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let previous: Option<(Vec<u8>, String)> = tx
-            .query_row(
-                "SELECT digest,projection FROM claim_receipts WHERE command_id=?1",
-                [&change.command_id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()?;
-        if let Some((old, result)) = previous {
-            if old != digest {
-                return Err(StorageError::Invalid(
-                    "Command identity reused for different claim".into(),
-                ));
-            }
-            return Ok(serde_json::from_str(&result)?);
-        }
-        tx.execute(
-            "UPDATE knowledge_revision SET revision=revision+1 WHERE id=1",
-            [],
-        )?;
-        let revision = tx.query_row(
-            "SELECT revision FROM knowledge_revision WHERE id=1",
-            [],
-            |r| r.get(0),
-        )?;
-        tx.execute("INSERT INTO claims(package_id,target_id,capability,claim,revision) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(package_id,target_id,capability) DO UPDATE SET claim=excluded.claim,revision=excluded.revision",params![change.key.package_id,change.key.target_id,change.key.capability,change.claim,revision])?;
-        let projection = KnowledgeProjection {
-            key: change.key.clone(),
-            claim: change.claim,
-            assessed: None,
-            prediction: None,
-            revision,
-            status: match change.claim {
-                Some(true) => "claimed_known",
-                Some(false) => "claimed_unknown",
-                None => "untracked",
-            }
-            .into(),
-        };
-        tx.execute(
-            "INSERT INTO claim_receipts(command_id,digest,projection) VALUES(?1,?2,?3)",
-            params![
-                change.command_id,
-                digest,
-                serde_json::to_string(&projection)?
-            ],
-        )?;
-        // Receipts live with durable commands: retry identity must survive restart.
-        tx.commit()?;
-        Ok(projection)
     }
 }
 impl ProfileStore {

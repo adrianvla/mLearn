@@ -41,6 +41,16 @@ pub(crate) fn content(value: &MaterialContent) -> Result<String, StorageError> {
     let mut ids = HashSet::new();
     for attachment in &value.attachments {
         bounded(&attachment.media_id.0, 512)?;
+        if let Some(binding) = &attachment.audio_binding
+            && (value.phrase.trim().is_empty()
+                || binding.package_id != value.package_id
+                || binding.target_id != value.target_id
+                || binding.phrase != value.phrase)
+        {
+            return Err(StorageError::Invalid(
+                "Audio target binding does not match Material".into(),
+            ));
+        }
         if !ids.insert(&attachment.media_id.0) {
             return Err(StorageError::Invalid(
                 "Duplicate Material attachment".into(),

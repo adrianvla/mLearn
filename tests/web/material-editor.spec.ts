@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { Material, SourceAnchor, SourceWindow } from '@mlearn/contracts';
+import type { Material, MaterialEdit, SourceAnchor, SourceWindow } from '@mlearn/contracts';
 import { initialTheme } from '../../packages/theme/src/theme';
 
 // Exercise the exported app, real shared controls and RuntimeClient. Only the
@@ -33,6 +33,7 @@ declare global {
       failReturn: boolean;
       failList: boolean;
       failPreview: boolean;
+      commands: MaterialEdit[];
       holdOpen: boolean;
       releaseOpen?: () => void;
     };
@@ -67,15 +68,19 @@ test.afterAll(async () => {
   console.log(`Material fixture teardown: ${origin} closed; Playwright owns disposable browser contexts.`);
 });
 
-async function start(page: Page, selected = '', failOpen = false, withMedia = false) {
+async function start(page: Page, selected = '', failOpen = false, withMedia = false, audio = false) {
   const items: Material[] = withMedia ? materials.map((material, index) => index === 0 ? {
     ...material,
     media: [{ id: 'preview-image', kind: 'image', name: 'preview.gif', mimeType: 'image/gif', byteLength: 42 }],
     content: { ...material.content, attachments: [{ mediaId: 'preview-image', segment: null }] },
   } : material) : materials;
-  await page.addInitScript(({ materials, theme, anchor, sourceWindow, failOpen }) => {
+  await page.addInitScript(({ materials, theme, anchor, sourceWindow, failOpen, audio }) => {
+    if (audio) {
+      materials[0].media = [{ id: 'audio', kind: 'audio', name: 'word.wav', mimeType: 'audio/wav', byteLength: 128 }];
+      materials[0].content.attachments = [{ mediaId: 'audio', segment: null }];
+    }
     const state: Window['__materialTest'] = {
-      requests: [], failOpen, failReturn: false, failList: false, failPreview: false, holdOpen: false,
+      requests: [], commands: [], failOpen, failReturn: false, failList: false, failPreview: false, holdOpen: false,
     };
     Object.assign(window, {
       isTauri: true, __MLEARN_MEDIA_BASE__: 'http://127.0.0.1/fixture-media/',
@@ -92,7 +97,7 @@ async function start(page: Page, selected = '', failOpen = false, withMedia = fa
             return 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
           }
           if (command !== 'runtime_execute') throw new Error(`Unexpected host call: ${command}`);
-          const request: { type: string; id?: string } = JSON.parse(args.request ?? '');
+          const request: { type: string; id?: string; command?: MaterialEdit } = JSON.parse(args.request ?? '');
           state.requests.push(request);
           const failure = (message: string) => JSON.stringify({ type: 'error', code: 'unavailable', message });
           switch (request.type) {
@@ -108,6 +113,19 @@ async function start(page: Page, selected = '', failOpen = false, withMedia = fa
               if (state.holdOpen) await new Promise<void>(resolve => { state.releaseOpen = resolve; });
               if (state.failOpen) { state.failOpen = false; return failure('Open unavailable'); }
               return JSON.stringify({ type: 'material', material: materials.find(item => item.id === request.id) });
+            case 'update_material': {
+              const command = request.command;
+              if (!command) throw new Error('Missing authored edit');
+              state.commands.push(command);
+              const existing = materials.find(item => item.id === command.id);
+              if (!existing) throw new Error('Missing authored item');
+              const saved = { ...existing, content: command.content, excluded: command.excluded,
+                revision: command.expectedRevision + 1 };
+              materials.splice(materials.indexOf(existing), 1, saved);
+              return JSON.stringify({ type: 'material_written', outcome: {
+                status: 'saved', material: saved, committedRevision: saved.revision, reused: false,
+              } });
+            }
             case 'return_material_source':
               if (state.failReturn) { state.failReturn = false; return failure('Source unavailable'); }
               return JSON.stringify({ type: 'material_source', window: sourceWindow, anchor });
@@ -116,7 +134,7 @@ async function start(page: Page, selected = '', failOpen = false, withMedia = fa
         },
       },
     });
-  }, { materials: items, theme: initialTheme, anchor, sourceWindow, failOpen });
+  }, { materials: items, theme: initialTheme, anchor, sourceWindow, failOpen, audio });
   await page.goto(`${origin}/materials${selected}`);
   await expect(page.getByRole('button', { name: 'Edit First', exact: true })).toBeVisible();
 }
@@ -136,6 +154,30 @@ test('failed preview retries in the same editor without losing authored fields',
   await expect(image).toHaveJSProperty('naturalWidth', 1);
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByTestId('material-notes')).toHaveValue('Keep this draft');
+});
+
+test('audio binding requires explicit authoring and phrase edits revoke it', async ({ page }, testInfo) => {
+  // Given a historical unbound audio attachment in the real Material editor.
+  await start(page, '', false, false, true);
+  await page.getByRole('button', { name: 'Edit First', exact: true }).click();
+  const bind = page.getByRole('button', { name: 'Use word.wav for listening', exact: true });
+  await expect(bind).toHaveAttribute('aria-pressed', 'false');
+  await bind.click();
+  await expect(bind).toHaveAttribute('aria-pressed', 'true');
+  // When the authored phrase changes, its previous listening assertion expires.
+  await page.getByTestId('material-phrase').fill('Different phrase');
+  await expect(bind).toHaveAttribute('aria-pressed', 'false');
+  await bind.click();
+  await page.screenshot({ path: testInfo.outputPath('explicit-audio-binding.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  // Then the durable command contains only the newly affirmed target snapshot.
+  await expect(page.getByTestId('material-result')).toBeVisible();
+  const commands = await page.evaluate(() => window.__materialTest.commands);
+  expect(commands).toHaveLength(1);
+  expect(commands[0].content.attachments[0].audioBinding).toEqual({
+    packageId: 'package', targetId: null, phrase: 'Different phrase',
+  });
+  await expect(bind).toHaveAttribute('aria-pressed', 'true');
 });
 
 for (const trigger of ['Add Material', 'Edit Second']) {

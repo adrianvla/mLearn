@@ -1,5 +1,6 @@
 import { isWatchResponse } from './watchProtocol';
 import { createMaterialClient } from './materialClient';
+import { createReviewClient } from './reviewClient';
 import { RuntimeError } from './errors';
 export { RuntimeError } from './errors';
 import type { Request, Response, Snapshot, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
@@ -51,7 +52,7 @@ export function createRuntimeClient(transport: Transport) {
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     // A queued lookup must not acquire the replacement source's native epoch.
     // Durable claims/checkpoints remain admitted across source cancellation.
-    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source'].includes(command.type);
+    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source','return_review_source'].includes(command.type);
     const queuedAt=performance.now();
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
@@ -93,6 +94,7 @@ export function createRuntimeClient(transport: Transport) {
   }
   return {
     ...createMaterialClient(request, () => transport.commandId()),
+    ...createReviewClient(request, () => transport.commandId()),
     prepareInstall,
     installPackage,
     packageInstallStatus:(commandId:string)=>packageInstallControl('package_install_status',commandId),

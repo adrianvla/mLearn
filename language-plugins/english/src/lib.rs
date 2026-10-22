@@ -7,6 +7,8 @@ use mlearn_language_sdk::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use unicode_segmentation::UnicodeSegmentation;
+mod review;
+const PACKAGE: &str = "org.mlearn.english";
 fn capabilities() -> Vec<Capability> {
     vec![
         Capability {
@@ -16,6 +18,10 @@ fn capabilities() -> Vec<Capability> {
         Capability {
             id: "org.mlearn.english:meaning".into(),
             label: "Meaning".into(),
+        },
+        Capability {
+            id: "org.mlearn.english:listening".into(),
+            label: "Listening recognition".into(),
         },
     ]
 }
@@ -106,6 +112,7 @@ fn candidates(
 }
 fn handle(call: Call) -> Result<Value, String> {
     match call.capability.as_str() {
+        "learning.probes.v1" => review::generate(call.input, &read),
         "language.describe.v1" => Ok(
             json!({"language":"en","label":"English — WordNet 3.0","capabilities":capabilities(),"annotationCapability":"org.mlearn.english:meaning","attribution":"Princeton WordNet 3.0. All senses are alternatives; no contextual sense disambiguation."}),
         ),
@@ -188,23 +195,11 @@ fn handle(call: Call) -> Result<Value, String> {
                 .get("targetId")
                 .and_then(Value::as_str)
                 .ok_or("Expected targetId")?;
-            let parts: Vec<_> = id.splitn(4, ':').collect();
-            if parts.len() != 4 || parts[0] != "wn30" {
-                return Err("Unknown English target identity".into());
-            }
-            let known = read(&format!("lemma/{}", parts[3].to_lowercase()))?
-                .ok_or("Target lemma missing")?;
-            if !known
-                .as_array()
-                .is_some_and(|a| a.iter().any(|v| v.as_str() == Some(id)))
-            {
-                return Err("Target is not a declared lexical sense".into());
-            }
-            let sense =
-                read(&format!("sense/{}:{}", parts[1], parts[2]))?.ok_or("Sense missing")?;
+            let sense = validate_target(id, &read)?;
+            let headword = id.splitn(4, ':').nth(3).ok_or("Target lemma missing")?;
             Ok(json!(LexicalEntry {
                 target_id: id.into(),
-                headword: parts[3].replace('_', " "),
+                headword: headword.replace('_', " "),
                 reading: None,
                 presentation: None,
                 part_of_speech: sense["pos"].as_str().ok_or("Invalid sense")?.into(),
@@ -220,6 +215,25 @@ fn handle(call: Call) -> Result<Value, String> {
         }
         _ => Err("Unsupported English capability".into()),
     }
+}
+fn validate_target(
+    id: &str,
+    lookup: &impl Fn(&str) -> Result<Option<Value>, String>,
+) -> Result<Value, String> {
+    let parts: Vec<_> = id.splitn(4, ':').collect();
+    if parts.len() != 4 || parts[0] != "wn30" {
+        return Err("Unknown English target identity".into());
+    }
+    let known = lookup(&format!("lemma/{}", parts[3].to_lowercase()))?
+        .ok_or("Target lemma missing")?;
+    if !known.as_array().is_some_and(|values| values.iter().any(|value| value.as_str() == Some(id))) {
+        return Err("Target is not a declared lexical sense".into());
+    }
+    let sense = lookup(&format!("sense/{}:{}", parts[1], parts[2]))?.ok_or("Sense missing")?;
+    if !sense["pos"].is_string() || !sense["definition"].is_string() {
+        return Err("Invalid lexical sense".into());
+    }
+    Ok(sense)
 }
 mlearn_language_sdk::export_plugin!(handle);
 #[cfg(test)]

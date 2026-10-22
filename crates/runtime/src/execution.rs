@@ -1,12 +1,12 @@
 use crate::{
-    Runtime,
     guest::{GuestOutput, GuestWork, Prepared},
+    Runtime,
 };
 use mlearn_core::{Request, Response};
 use std::{
     sync::{
-        Arc, Mutex, TryLockError,
         atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc, Mutex, TryLockError,
     },
     time::Instant,
 };
@@ -250,6 +250,10 @@ impl RuntimeExecutor {
 }
 fn guest_bearing(request: &Request) -> bool {
     match request {
+        Request::Review { command } => matches!(
+            command,
+            mlearn_core::ReviewCommand::Start { .. } | mlearn_core::ReviewCommand::Next { .. }
+        ),
         Request::OpenSource { .. }
         | Request::CreateMaterial { .. }
         | Request::CaptureMaterials { .. }
@@ -264,6 +268,9 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::InstallPlugin { .. }
         | Request::InstallPackage { .. } => true,
         Request::Snapshot
+        | Request::ReviewSession { .. }
+        | Request::ReviewSessions
+        | Request::ReturnReviewSource { .. }
         | Request::PlanMaterialMedia { .. }
         | Request::MaterialMedia { .. }
         | Request::Materials { .. }

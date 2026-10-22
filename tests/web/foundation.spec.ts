@@ -79,6 +79,13 @@ test('Home exposes the native boundary without fabricated recents',async({page})
  await page.mouse.move(0, 0);
  await expect(page.getByText('The browser preview has no native runtime.',{exact:false})).toBeVisible();
  await expect(page.getByRole('button',{name:'Run hello',exact:true})).toHaveCount(0);
+ const review = page.waitForURL(url => url.pathname === '/review', { timeout: 5000 });
+ await page.getByRole('button', { name: 'Review', exact: true }).click();
+ await review;
+ await expect(page.getByRole('heading', { name: 'Review', exact: true })).toBeVisible();
+ await expect(page.getByRole('alert').filter({ hasText: 'The browser preview has no native runtime.' })).toBeVisible();
+ await page.getByRole('button', { name: 'Home', exact: true }).click();
+ await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
  await page.getByRole('button',{name:'Settings',exact:true}).click();
  await page.getByRole('button',{name:'Runtime',exact:true}).click();
  await expect(page.getByRole('button',{name:'Run hello',exact:true})).toBeDisabled();

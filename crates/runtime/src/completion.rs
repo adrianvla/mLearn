@@ -1,7 +1,7 @@
 use crate::{
-    Installed, Runtime,
     execution::Failure,
     guest::{GuestOutput, GuestWork, LanguageAction},
+    Installed, Runtime,
 };
 use mlearn_core::{Request, Response};
 use std::sync::Arc;
@@ -13,6 +13,12 @@ impl Runtime {
         output: &mut GuestOutput,
     ) -> Result<(Response, Option<Installed>), Failure> {
         match work {
+            GuestWork::Review(work) => {
+                let GuestOutput::Review(admissions) = output else {
+                    return Err(Failure::Operation("Missing Review probe result".into()));
+                };
+                Ok((self.complete_review(work, admissions)?, None))
+            }
             GuestWork::Language(work) => {
                 work.cancellation.check()?;
                 let current = self

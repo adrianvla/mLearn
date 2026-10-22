@@ -4,11 +4,11 @@ import type {} from '@mlearn/theme/runtime';
 import type { ResolvedTheme } from '@mlearn/theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'media' | 'mediaFloating' | 'mediaSelect' | 'mediaSync' | 'pill' | 'navigation' | 'select' | 'disclosure' | 'preview' | 'dictionary';
-export type ButtonTone = 'neutral' | 'positive' | 'negative';
+export type ButtonTone = 'neutral' | 'positive' | 'negative' | 'warning';
 export type ButtonSize = 'default' | 'compact' | 'row';
 
 export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, tone: ButtonTone, selected = false) {
-  return variant === 'pill' ? theme.pills[tone].text
+  return variant === 'pill' || tone === 'warning' ? theme.pills[tone].text
     : variant === 'navigation' && !selected ? theme.colors.muted
     : variant === 'dictionary' || variant === 'mediaSync' ? theme.media.muted
     : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' || variant === 'disclosure' ? theme.media.text : theme.colors.text;
@@ -34,10 +34,10 @@ export default StyleSheet.create(theme => ({
       flexDirection: 'row', gap: theme.spacing.small, maxWidth: '100%',
       borderRadius: variant === 'preview' ? 999 : variant === 'pill' ? theme.radius + 4 : theme.radius,
       borderWidth: borderless ? 0 : 1,
-      borderColor: variant === 'navigation' && !selected ? 'transparent'
+      borderColor: tone === 'warning' ? theme.pills.warning.top : variant === 'navigation' && !selected ? 'transparent'
         : variant === 'preview' ? theme.controls.outline
         : variant === 'primary' ? theme.colors.accent : variant === 'media' || variant === 'mediaFloating' ? theme.media.border : theme.colors.border,
-      backgroundColor: selectedSurface ? theme.controls.selected
+      backgroundColor: tone === 'warning' ? theme.pills.warning.surface : selectedSurface ? theme.controls.selected
         : variant === 'preview' ? theme.surfaces.glass
         : variant === 'select' || variant === 'secondary' ? theme.controls.field
         : transparent ? 'transparent' : variant === 'pill' ? theme.pills[tone].surface
@@ -70,7 +70,7 @@ export default StyleSheet.create(theme => ({
   detail: { ...theme.typography.dictionaryReading, flexShrink: 1, maxWidth: '40%', color: theme.media.muted },
   disabled: { opacity: 0.5 },
   hover: (variant: ButtonVariant, tone: ButtonTone) => ({
-    backgroundColor: variant === 'primary' ? `${theme.colors.accent.slice(0, 7)}33`
+    backgroundColor: tone === 'warning' ? theme.pills.warning.top : variant === 'primary' ? `${theme.colors.accent.slice(0, 7)}33`
       : variant === 'pill' ? theme.pills[tone].top
       : variant === 'mediaFloating' ? theme.media.border
       : variant === 'media' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'disclosure' ? theme.media.badge : theme.controls.hover,

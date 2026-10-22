@@ -1,4 +1,4 @@
-use crate::{Runtime, execution::Failure};
+use crate::{execution::Failure, Runtime};
 use mlearn_core::{MaterialId, Response, SourceAnchor, SourceLocator, SourceRecord};
 
 impl Runtime {
@@ -102,9 +102,17 @@ impl Runtime {
             .store
             .material(id)
             .map_err(|e| Failure::Operation(e.to_string()))?;
-        let mut anchor = material.content.source.ok_or_else(|| {
+        let anchor = material.content.source.ok_or_else(|| {
             Failure::Operation("This authored item has no source association".into())
         })?;
+        self.return_source_anchor(anchor, epoch)
+    }
+
+    pub(super) fn return_source_anchor(
+        &mut self,
+        anchor: SourceAnchor,
+        epoch: u64,
+    ) -> Result<Response, Failure> {
         self.anchored_source(&anchor)?;
         let mut source = self.resumable_source(&anchor.source_id, epoch)?;
         source.package_id = anchor.package_id.clone();
@@ -129,7 +137,6 @@ impl Runtime {
                     Failure::Operation("Subtitle synchronization revision exhausted".into())
                 })?;
         }
-        anchor.package_version = source.package_version.clone();
         let window = self.window(source.clone(), position_ms)?;
         self.store
             .save_source(&source)

@@ -14,7 +14,7 @@ export function InlineWordContent({ segments, variant = 'body', status }: Inline
     ];
     return <span style={{
         ...source, ...sourceWeb, lineHeight: `${source.lineHeight}px`,
-        color: status === 'claimed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
+        color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
         whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
         ...(variant === 'subtitle' ? { textShadow: `0 1px 4px ${theme.media.background}` } : {}),
     }}>{segments.map((segment, index) => segment.reading ? <ruby key={index} style={{
@@ -27,7 +27,7 @@ export function InlineWordContent({ segments, variant = 'body', status }: Inline
                 variant={variant === 'subtitle' ? 'subtitleRuby' : variant === 'inspectionTitle' ? 'inspectionRuby' : 'bodyRuby'} /> : segment.reading.text}
         </rt><rp>)</rp>
     </ruby> : segment.contour ? <PronunciationReading key={index} contour={segment.contour}
-        color={status === 'claimed_known' ? theme.feedback.success : undefined}
+        color={status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : undefined}
         variant={variant === 'inspectionTitle' ? 'inspectionReading' : variant} /> : segment.text)}</span>;
 }
 
@@ -129,6 +129,6 @@ export function InlineWordControl({ text, children, accessibilityLabel, status, 
             activate();
         }}
       style={{
-        display: 'inline', maxWidth: '100%', border: 0, padding: '0 1px', margin: 0, background: 'transparent', font: 'inherit', lineHeight: 'inherit', minHeight: 44, cursor: 'pointer', color: status === 'claimed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text, textDecorationLine: status === 'claimed_unknown' || status === 'mixed' ? 'underline' : 'none', textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid'
+        display: 'inline', maxWidth: '100%', border: 0, padding: '0 1px', margin: 0, background: 'transparent', font: 'inherit', lineHeight: 'inherit', minHeight: 44, cursor: 'pointer', color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text, textDecorationLine: status === 'claimed_unknown' || status === 'assessed_unknown' || status === 'mixed' ? 'underline' : 'none', textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid'
     }}>{children ?? text}</button>;
 }

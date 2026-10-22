@@ -9,6 +9,55 @@ impl Runtime {
     pub(crate) fn prepare(&mut self, request: Request, epoch: u64) -> Result<Prepared, Failure> {
         let cancellation = Cancellation::source(self.cancellation.clone(), epoch);
         match request {
+            Request::Review { command } => self.prepare_review(command),
+            Request::ReviewSession { session_id } => {
+                Ok(Prepared::Immediate(Box::new(Response::ReviewSession {
+                    session: self
+                        .store
+                        .review_session(&session_id)
+                        .map_err(crate::review::storage_failure)?,
+                })))
+            }
+            Request::ReviewSessions => {
+                Ok(Prepared::Immediate(Box::new(Response::ReviewSessions {
+                    sessions: self
+                        .store
+                        .review_sessions()
+                        .map_err(crate::review::storage_failure)?,
+                })))
+            }
+            Request::ReturnReviewSource {
+                session_id,
+                encounter_id,
+            } => {
+                cancellation.check()?;
+                let session = self
+                    .store
+                    .review_session(&session_id)
+                    .map_err(crate::review::storage_failure)?;
+                if !session.encounter.as_ref().is_some_and(|encounter| {
+                    encounter.id == encounter_id
+                        && encounter
+                            .conditions
+                            .assistance
+                            .contains(&mlearn_core::ReviewAssistance::Source)
+                }) {
+                    return Err(Failure::Protocol(
+                        "invalid_review",
+                        "Record source assistance for the current Review encounter before returning".into(),
+                    ));
+                }
+                let anchor = self
+                    .store
+                    .review_source(&session_id, &encounter_id)
+                    .map_err(crate::review::storage_failure)?
+                    .ok_or_else(|| {
+                        Failure::Operation("This Review encounter has no source association".into())
+                    })?;
+                Ok(Prepared::Immediate(Box::new(
+                    self.return_source_anchor(anchor, epoch)?,
+                )))
+            }
             Request::UpdateMaterial { command } => self.prepare_material_edit(command),
             Request::CreateMaterial { command } => self.prepare_material_capture(
                 mlearn_core::MaterialCaptureBatch {

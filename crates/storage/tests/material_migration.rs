@@ -50,7 +50,7 @@ fn sequential_migrations_preserve_existing_state_and_reject_newer_versions() {
         // When opened by the current owner.
         let mut store = ProfileStore::open(&path).unwrap();
         store.create_material(&create("new")).unwrap();
-        // Then v4 is durable and historical settings remain intact.
+        // Then the current schema is durable and historical settings remain intact.
         if version > 0 {
             assert_eq!(store.preferences().unwrap().1.name, "retained");
         }
@@ -59,9 +59,9 @@ fn sequential_migrations_preserve_existing_state_and_reject_newer_versions() {
         assert_eq!(
             db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            4
+            5
         );
-        db.pragma_update(None, "user_version", 5).unwrap();
+        db.pragma_update(None, "user_version", 6).unwrap();
         drop(db);
         assert!(ProfileStore::open(&path).is_err());
     }

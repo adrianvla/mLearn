@@ -1,5 +1,51 @@
 // Generated from mlearn-core. Run npm run codegen; do not edit.
 
+export type ReviewSessionId = string;
+
+export type ReviewEncounterId = string;
+
+export type ReviewAttemptId = string;
+
+export type ReviewWorkId = string;
+
+export type AttemptQuality = "missed" | "struggled" | "fluent";
+
+export type ResponseMethod = "remembered" | "worked_out";
+
+export type ReviewDirection = "written" | "focused" | "audio";
+
+export type ReviewTarget = { id: string, label: string, mnemonic: string | null, key: KnowledgeKey | null, };
+
+export type ReviewProbe = { id: string, contractVersion: number, direction: ReviewDirection, cue: string, answer: string, targets: Array<ReviewTarget>, supplied: Array<KnowledgeKey>, requiredMedia: AuthoredMediaId | null, };
+
+export type ReviewMode = { "kind": "continuous" } | { "kind": "finite", limit: number, };
+
+export type ReviewSessionState = "active" | "paused" | "complete" | "unavailable";
+
+export type ReviewDelivery = "not_required" | "pending" | "started" | "completed" | "interrupted" | "failed";
+
+export type ReviewAssistance = "inspector" | "source" | "prior_disclosure" | "repeated_exposure";
+
+export type ReviewConditions = { revealed: boolean, exposureCount: number, assistance: Array<ReviewAssistance>, delivery: ReviewDelivery, };
+
+export type ReviewEncounter = { id: ReviewEncounterId, workId: ReviewWorkId, materialId: MaterialId, materialRevision: number, packageId: string, packageVersion: string, packageRevision: string, probeId: string, probeContractVersion: number, direction: ReviewDirection, cue: string, answer: string | null, targets: Array<ReviewTarget>, supplied: Array<KnowledgeKey>, requiredMedia: AuthoredMediaId | null, source: SourceAnchor | null, conditions: ReviewConditions, correction: boolean, };
+
+export type ReviewSession = { id: ReviewSessionId, revision: number, mode: ReviewMode, state: ReviewSessionState, completed: number, total: number | null, encounter: ReviewEncounter | null, canUndo: boolean, message: string | null, };
+
+export type ReviewStart = { commandId: string, sessionId: ReviewSessionId, mode: ReviewMode, };
+
+export type ReviewMutation = { commandId: string, sessionId: ReviewSessionId, expectedRevision: number, };
+
+export type ReviewGrade = { targetId: string, quality: AttemptQuality | null, method: ResponseMethod, easy: boolean, };
+
+export type ReviewResponse = { encounterId: ReviewEncounterId, grades: Array<ReviewGrade>, };
+
+export type ReviewCommand = { "kind": "start", start: ReviewStart, } | { "kind": "next", mutation: ReviewMutation, } | { "kind": "reveal", mutation: ReviewMutation, encounterId: ReviewEncounterId, } | { "kind": "delivery", mutation: ReviewMutation, encounterId: ReviewEncounterId, delivery: ReviewDelivery, } | { "kind": "assistance", mutation: ReviewMutation, encounterId: ReviewEncounterId, assistance: ReviewAssistance, } | { "kind": "submit", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "undo", mutation: ReviewMutation, } | { "kind": "correct", mutation: ReviewMutation, response: ReviewResponse, } | { "kind": "pause", mutation: ReviewMutation, } | { "kind": "resume", mutation: ReviewMutation, };
+
+export type ReviewCommit = { commandId: string, committedRevision: number, session: ReviewSession, };
+
+export type ReviewSchedule = { dueAt: number, intervalSeconds: number, revision: number, ownerAttempt: ReviewAttemptId | null, };
+
 export type SourceLocator = { "kind": "video", subtitleRevision: string | null, cueIndex: number | null, selectionStart: number, selectionEnd: number, positionMs: number, subtitleOffsetMs: number, playbackRate: number, };
 
 export type SourceAnchor = { sourceId: string, contentRevision: string, packageId: string, packageVersion: string,
@@ -18,11 +64,17 @@ export type MediaSegment = { sourceId: string, contentRevision: string, startMs:
 
 export type AuthoredMedia = { id: AuthoredMediaId, kind: MaterialMediaKind, name: string, mimeType: string, byteLength: number, };
 
+export type MaterialAudioBinding = { packageId: string, targetId: string | null, phrase: string, };
+
 export type MaterialAttachment = { mediaId: AuthoredMediaId,
 /**
  * Origin belongs to this use of the bytes, not the shared asset.
  */
-segment: MediaSegment | null, };
+segment: MediaSegment | null,
+/**
+ * An explicit authored assertion, valid only for this exact target/phrase.
+ */
+audioBinding?: MaterialAudioBinding | null, };
 
 export type MediaCaptureSelection = { "kind": "frame", positionMs: number, } | { "kind": "audio", startMs: number, endMs: number, } | { "kind": "video", startMs: number, endMs: number, } | { "kind": "cue", subtitleRevision: string, cueIndex: number, mediaKind: MaterialMediaKind, };
 
@@ -32,7 +84,7 @@ export type MediaCapturePlan = { sourceId: string, contentRevision: string, path
 
 export type CapturedMediaFile = { path: string, kind: MaterialMediaKind, name: string, segment: MediaSegment, };
 
-export type MaterialMediaImport = { path: string, kind: MaterialMediaKind, name: string, segment: MediaSegment | null, };
+export type MaterialMediaImport = { path: string, kind: MaterialMediaKind, name: string, segment: MediaSegment | null, audioBinding?: MaterialAudioBinding | null, };
 
 export type MaterialMediaLocation = { media: AuthoredMedia, path: string, };
 
@@ -138,6 +190,6 @@ export type PackageInstallStatus = { command: PackageInstallCommand, phase: Pack
 
 export type Snapshot = { protocolVersion: number, revision: number, theme: ThemeDocument, codePolicy: string, catalogConfigured: boolean, availablePlugins: Array<PluginSummary>, installedPlugins: Array<PluginSummary>, packageIssues?: Array<PackageIssue>, };
 
-export type Request = { "type": "snapshot" } | { "type": "recent_sources" } | { "type": "available_packages" } | { "type": "plan_material_media", request: MediaCaptureRequest, } | { "type": "material_media", id: AuthoredMediaId, } | { "type": "materials", query: MaterialQuery, } | { "type": "material", id: MaterialId, } | { "type": "create_material", command: MaterialCreate, } | { "type": "update_material", command: MaterialEdit, } | { "type": "capture_materials", batch: MaterialCaptureBatch, } | { "type": "material_eligibility", targets: Array<MaterialTarget>, } | { "type": "set_capture_exclusion", command: CaptureExclusion, } | { "type": "return_material_source", id: MaterialId, } | { "type": "open_source", path: string, packageId: string, } | { "type": "resume_source", sourceId: string, } | { "type": "attach_subtitles", sourceId: string, path: string, } | { "type": "source_window", sourceId: string, positionMs: number, } | { "type": "transcript", sourceId: string, afterIndex: number | null, query: string, } | { "type": "cue_position", sourceId: string, subtitleRevision: string, cueIndex: number, } | { "type": "set_subtitle_offset", sourceId: string, offsetMs: number, } | { "type": "align_subtitle_offset", sourceId: string, subtitleRevision: string, expectedOffsetRevision: number, positionMs: number, direction: SubtitleDirection, } | { "type": "set_playback_rate", sourceId: string, rate: number, } | { "type": "set_inspection_trigger", sourceId: string, trigger: InspectionTrigger, } | { "type": "set_source_language", sourceId: string, packageId: string, } | { "type": "save_position", sourceId: string, positionMs: number, durationMs: number, } | { "type": "analyze_source", sourceId: string, positionMs: number, } | { "type": "analyze_transcript", sourceId: string, afterIndex: number | null, query: string, } | { "type": "describe_language", packageId: string, } | { "type": "inspect_target", packageId: string, targetId: string, expectedRevision: string | null, } | { "type": "inspect_targets", sourceId: string, subtitleRevision: string, packageRevision: string, targetIds: Array<string>, } | { "type": "knowledge", keys: Array<KnowledgeKey>, } | { "type": "change_claim", change: ClaimChange, } | { "type": "save_theme", document: ThemeDocument, expectedRevision: number, commandId: string, } | { "type": "install_plugin", pluginId: string, } | { "type": "install_package", command: PackageInstallCommand, } | { "type": "package_install_status", commandId: string, } | { "type": "current_package_install" } | { "type": "cancel_package_install", commandId: string, } | { "type": "invoke_plugin", pluginId: string, capability: string, input: unknown, };
+export type Request = { "type": "review", command: ReviewCommand, } | { "type": "review_session", sessionId: ReviewSessionId, } | { "type": "review_sessions" } | { "type": "return_review_source", sessionId: ReviewSessionId, encounterId: ReviewEncounterId, } | { "type": "snapshot" } | { "type": "recent_sources" } | { "type": "available_packages" } | { "type": "plan_material_media", request: MediaCaptureRequest, } | { "type": "material_media", id: AuthoredMediaId, } | { "type": "materials", query: MaterialQuery, } | { "type": "material", id: MaterialId, } | { "type": "create_material", command: MaterialCreate, } | { "type": "update_material", command: MaterialEdit, } | { "type": "capture_materials", batch: MaterialCaptureBatch, } | { "type": "material_eligibility", targets: Array<MaterialTarget>, } | { "type": "set_capture_exclusion", command: CaptureExclusion, } | { "type": "return_material_source", id: MaterialId, } | { "type": "open_source", path: string, packageId: string, } | { "type": "resume_source", sourceId: string, } | { "type": "attach_subtitles", sourceId: string, path: string, } | { "type": "source_window", sourceId: string, positionMs: number, } | { "type": "transcript", sourceId: string, afterIndex: number | null, query: string, } | { "type": "cue_position", sourceId: string, subtitleRevision: string, cueIndex: number, } | { "type": "set_subtitle_offset", sourceId: string, offsetMs: number, } | { "type": "align_subtitle_offset", sourceId: string, subtitleRevision: string, expectedOffsetRevision: number, positionMs: number, direction: SubtitleDirection, } | { "type": "set_playback_rate", sourceId: string, rate: number, } | { "type": "set_inspection_trigger", sourceId: string, trigger: InspectionTrigger, } | { "type": "set_source_language", sourceId: string, packageId: string, } | { "type": "save_position", sourceId: string, positionMs: number, durationMs: number, } | { "type": "analyze_source", sourceId: string, positionMs: number, } | { "type": "analyze_transcript", sourceId: string, afterIndex: number | null, query: string, } | { "type": "describe_language", packageId: string, } | { "type": "inspect_target", packageId: string, targetId: string, expectedRevision: string | null, } | { "type": "inspect_targets", sourceId: string, subtitleRevision: string, packageRevision: string, targetIds: Array<string>, } | { "type": "knowledge", keys: Array<KnowledgeKey>, } | { "type": "change_claim", change: ClaimChange, } | { "type": "save_theme", document: ThemeDocument, expectedRevision: number, commandId: string, } | { "type": "install_plugin", pluginId: string, } | { "type": "install_package", command: PackageInstallCommand, } | { "type": "package_install_status", commandId: string, } | { "type": "current_package_install" } | { "type": "cancel_package_install", commandId: string, } | { "type": "invoke_plugin", pluginId: string, capability: string, input: unknown, };
 
-export type Response = { "type": "material_media_plan", plan: MediaCapturePlan, } | { "type": "material_media", location: MaterialMediaLocation, } | { "type": "materials", page: MaterialPage, } | { "type": "material", material: Material, } | { "type": "material_written", outcome: MaterialWriteResult, } | { "type": "material_captured", results: Array<MaterialCaptureResult>, } | { "type": "material_eligibility", items: Array<MaterialEligibility>, } | { "type": "capture_exclusion_changed", item: MaterialEligibility, } | { "type": "material_source", window: SourceWindow, anchor: SourceAnchor, } | { "type": "snapshot", snapshot: Snapshot, } | { "type": "sources", sources: Array<SourceRecord>, } | { "type": "packages", plugins: Array<PluginSummary>, } | { "type": "source", window: SourceWindow, } | { "type": "transcript", page: TranscriptPage, } | { "type": "cue_position", position: CuePosition, } | { "type": "position_saved" } | { "type": "analysis", batch: AnalysisBatch, } | { "type": "language", description: LanguageDescription, } | { "type": "entry", entry: LexicalEntry, packageVersion: string, packageRevision: string, knowledge: TargetKnowledge, } | { "type": "dictionary", batch: DictionaryBatch, } | { "type": "knowledge", projections: Array<KnowledgeProjection>, } | { "type": "claim_changed", projection: KnowledgeProjection, } | { "type": "saved", revision: number, } | { "type": "installed", plugin: PluginSummary, } | { "type": "package_install_status", status: PackageInstallStatus | null, } | { "type": "plugin_result", output: unknown, } | { "type": "error", code: string, message: string, };
+export type Response = { "type": "review", commit: ReviewCommit, } | { "type": "review_session", session: ReviewSession, } | { "type": "review_sessions", sessions: Array<ReviewSession>, } | { "type": "material_media_plan", plan: MediaCapturePlan, } | { "type": "material_media", location: MaterialMediaLocation, } | { "type": "materials", page: MaterialPage, } | { "type": "material", material: Material, } | { "type": "material_written", outcome: MaterialWriteResult, } | { "type": "material_captured", results: Array<MaterialCaptureResult>, } | { "type": "material_eligibility", items: Array<MaterialEligibility>, } | { "type": "capture_exclusion_changed", item: MaterialEligibility, } | { "type": "material_source", window: SourceWindow, anchor: SourceAnchor, } | { "type": "snapshot", snapshot: Snapshot, } | { "type": "sources", sources: Array<SourceRecord>, } | { "type": "packages", plugins: Array<PluginSummary>, } | { "type": "source", window: SourceWindow, } | { "type": "transcript", page: TranscriptPage, } | { "type": "cue_position", position: CuePosition, } | { "type": "position_saved" } | { "type": "analysis", batch: AnalysisBatch, } | { "type": "language", description: LanguageDescription, } | { "type": "entry", entry: LexicalEntry, packageVersion: string, packageRevision: string, knowledge: TargetKnowledge, } | { "type": "dictionary", batch: DictionaryBatch, } | { "type": "knowledge", projections: Array<KnowledgeProjection>, } | { "type": "claim_changed", projection: KnowledgeProjection, } | { "type": "saved", revision: number, } | { "type": "installed", plugin: PluginSummary, } | { "type": "package_install_status", status: PackageInstallStatus | null, } | { "type": "plugin_result", output: unknown, } | { "type": "error", code: string, message: string, };

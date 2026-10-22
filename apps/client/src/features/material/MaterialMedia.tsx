@@ -23,13 +23,17 @@ type ExportState =
 
 const IMPORT_KINDS = ['image', 'audio', 'video'] as const;
 
-export function MaterialMedia({ host, source, base, attachments, staged, disabled, onStage, onDiscardStaged, onRemoveAttachment, onBusyChange }: {
+export function MaterialMedia({ host, source, base, attachments, staged, disabled, canBindAudio, boundStaged, onBindStaged, onBindAttachment, onStage, onDiscardStaged, onRemoveAttachment, onBusyChange }: {
   readonly host: MaterialMediaHost;
   readonly source: SourceAnchor | null;
   readonly base: Material | undefined;
   readonly attachments: readonly MaterialAttachment[];
   readonly staged: readonly StagedMedia[];
   readonly disabled: boolean;
+  readonly canBindAudio: boolean;
+  readonly boundStaged: readonly string[];
+  readonly onBindStaged: (key: string, bound: boolean) => void;
+  readonly onBindAttachment: (mediaId: AuthoredMediaId, bound: boolean) => void;
   readonly onBusyChange: (pending: boolean) => void;
   readonly onStage: (item: StagedMedia) => void;
   readonly onDiscardStaged: (key: string) => void;
@@ -163,6 +167,8 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
       <Button label="Cancel capture" size="compact" variant="quiet" onPress={() => abort.current?.abort()} />
     </Row> : null}
     {full ? <Text variant="caption" muted>Material supports up to {MAX_ATTACHMENTS} attachments.</Text> : null}
+    {staged.some(item => item.kind === 'audio') || attachments.some(item => mediaById.get(item.mediaId)?.kind === 'audio')
+      ? <Text variant="caption" muted>For listening, select audio that speaks this phrase. Changing the phrase clears the selection.</Text> : null}
     {staged.map(item => <View key={item.key} style={styles.attachment}>
       <Row>
         <Badge label={`Pending ${item.kind}`} />
@@ -170,6 +176,9 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
       </Row>
       {item.segment ? <Text variant="caption" muted>Source range {formatRangeMs(item.segment.startMs, item.segment.endMs)}</Text> : null}
       <Row>
+        {item.kind === 'audio' ? <Button label={`Use ${item.name} for listening`} size="compact" variant="secondary"
+          disabled={disabled || !canBindAudio} accessibilityState={{ selected: boundStaged.includes(item.key) }}
+          onPress={() => onBindStaged(item.key, !boundStaged.includes(item.key))} /> : null}
         <Button label={`Remove ${item.name}`} size="compact" variant="quiet" disabled={disabled}
           onPress={() => onDiscardStaged(item.key)} />
       </Row>
@@ -181,6 +190,9 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
       const exportState = exportStates[attachment.mediaId];
       return <View key={attachment.mediaId} style={styles.attachment}>
         <Row>
+          {metadata?.kind === 'audio' ? <Button label={`Use ${name} for listening`} size="compact" variant="secondary"
+            disabled={disabled || !canBindAudio} accessibilityState={{ selected: attachment.audioBinding != null }}
+            onPress={() => onBindAttachment(attachment.mediaId, attachment.audioBinding == null)} /> : null}
           {metadata ? <Badge label={metadata.kind} /> : <Badge label="attachment" />}
           <Text selectable>{name}</Text>
           {metadata ? <Text variant="caption" muted>{formatBytes(metadata.byteLength)}</Text> : null}

@@ -40,6 +40,10 @@ export function isSourceAnchor(value: unknown): value is SourceAnchor {
 }
 function attachment(value: unknown) {
   if (!object(value) || !text(value.mediaId)) return false;
+  if (value.audioBinding !== undefined && value.audioBinding !== null
+    && (!object(value.audioBinding) || !text(value.audioBinding.packageId)
+      || !nullable(value.audioBinding.targetId, text) || !text(value.audioBinding.phrase, 2048)
+      || value.audioBinding.phrase.trim().length === 0)) return false;
   const segment = value.segment;
   return segment === null || object(segment) && text(segment.sourceId) && text(segment.contentRevision)
     && uint(segment.startMs) && uint(segment.endMs) && segment.startMs <= segment.endMs;
@@ -51,6 +55,9 @@ export function isMaterialContent(value: unknown): value is MaterialContent {
     && text(value.meaning, 32768, false) && text(value.context, 32768, false) && text(value.notes, 32768, false)
     && strings(value.examples, 16, 4096) && nullable(value.source, isSourceAnchor)
     && list(value.attachments, 8, attachment)
+    && value.attachments.every(item => object(item) && (item.audioBinding === undefined || item.audioBinding === null
+      || object(item.audioBinding) && item.audioBinding.packageId === value.packageId
+        && item.audioBinding.targetId === value.targetId && item.audioBinding.phrase === value.phrase))
     && new Set(value.attachments.map(item => object(item) ? item.mediaId : null)).size === value.attachments.length
     && (value.phrase.trim().length > 0 || value.attachments.length > 0) && encodedBytes(value) <= 65536;
 }
@@ -66,6 +73,7 @@ function material(value: unknown) {
   const ids = assets.map(item => object(item) ? item.id : null);
   return new Set(ids).size === ids.length && ids.length === value.content.attachments.length
     && value.content.attachments.every(item => ids.includes(item.mediaId)
+      && (item.audioBinding == null || assets.some(asset => object(asset) && asset.id === item.mediaId && asset.kind === 'audio'))
       && (item.segment === null || item.segment.startMs < item.segment.endMs
         || assets.some(asset => object(asset) && asset.id === item.mediaId && asset.kind === 'image')));
 }
@@ -115,7 +123,7 @@ export function isMaterialResponse(value: unknown): value is MaterialResponse {
       const source = value.window.source;
       const anchor = value.anchor;
       return source.id === anchor.sourceId && source.mediaRevision === anchor.contentRevision
-        && source.packageId === anchor.packageId && source.packageVersion === anchor.packageVersion
+        && source.packageId === anchor.packageId
         && source.positionMs === anchor.locator.positionMs && source.subtitleRevision === anchor.locator.subtitleRevision
         && source.subtitleOffsetMs === anchor.locator.subtitleOffsetMs && source.playbackRate === anchor.locator.playbackRate;
     }

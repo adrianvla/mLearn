@@ -11,6 +11,8 @@ use std::{
 };
 #[path = "presentation.rs"]
 mod presentation;
+#[path = "review.rs"]
+mod review;
 
 thread_local! {
     static ENGINE: RefCell<Option<JapaneseEngine>> = const { RefCell::new(None) };
@@ -49,7 +51,9 @@ fn validate_lexicon_metadata(metadata: &Value) -> Result<(), String> {
 fn capabilities() -> Value {
     json!([
         {"id":format!("{PACKAGE}:written-recognition"),"label":"Written recognition"},
-        {"id":format!("{PACKAGE}:meaning"),"label":"Meaning"}
+        {"id":format!("{PACKAGE}:meaning"),"label":"Meaning"},
+        {"id":format!("{PACKAGE}:reading"),"label":"Reading"},
+        {"id":format!("{PACKAGE}:listening"),"label":"Listening recognition"}
     ])
 }
 fn read(key: &str) -> Result<Option<Value>, String> {
@@ -213,13 +217,7 @@ fn inspect_entry(
     value: Value,
     lookup: &impl Fn(&str) -> Result<Option<Rc<Value>>, String>,
 ) -> Result<Value, String> {
-    let entry: DictionaryEntry = serde_json::from_value(value).map_err(|e| e.to_string())?;
-    if entry.target_id != target
-        || entry.senses.is_empty()
-        || entry.senses.iter().any(|sense| sense.glosses.is_empty())
-    {
-        return Err("JMdict entry identity or senses are invalid".into());
-    }
+    let entry = validate_entry(target, value)?;
     let presentation = presentation::entry(&entry.headword, &entry.variants, lookup)?;
     let readings = entry
         .variants
@@ -295,8 +293,20 @@ fn inspect_entry(
     }))
 }
 
+fn validate_entry(target: &str, value: Value) -> Result<DictionaryEntry, String> {
+    let entry: DictionaryEntry = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    if entry.target_id != target
+        || entry.senses.is_empty()
+        || entry.senses.iter().any(|sense| sense.glosses.is_empty())
+    {
+        return Err("JMdict entry identity or senses are invalid".into());
+    }
+    Ok(entry)
+}
+
 fn handle(call: Call) -> Result<Value, String> {
     match call.capability.as_str() {
+        "learning.probes.v1" => review::generate(call.input, &read),
         "language.describe.v1" => Ok(
             json!({"language":"ja","label":"Japanese","capabilities":capabilities(),"annotationCapability":format!("{PACKAGE}:meaning"),"attribution":ATTRIBUTION}),
         ),

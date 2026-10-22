@@ -1,9 +1,17 @@
+mod knowledge;
 mod material;
 mod material_identity;
 mod material_media;
 mod material_read;
 mod material_receipts;
 mod material_validation;
+mod review;
+mod review_admission;
+mod review_attempt;
+mod review_evidence;
+mod review_read;
+mod review_receipts;
+mod review_state;
 mod watch;
 pub use material_media::PreparedAuthoredMedia;
 use mlearn_core::{PackageInstallCommand, PluginSummary, Response, ThemeDocument};
@@ -40,7 +48,7 @@ impl ProfileStore {
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let version: u32 =
             transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 4 {
+        if version > 5 {
             return Err(StorageError::Invalid(
                 "Profile was created by a newer application".into(),
             ));
@@ -60,6 +68,9 @@ impl ProfileStore {
         }
         if version < 4 {
             material::migrate(&transaction)?;
+        }
+        if version < 5 {
+            review::migrate(&transaction)?;
         }
         // Schema version and initial row become durable together, including first startup.
         transaction.commit()?;

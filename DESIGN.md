@@ -44,6 +44,33 @@ Unimplemented capabilities or missing trustworthy reference states stay explicit
 
 Update this file during implementation with actual reference-derived component contracts, replacing hypotheses with evidence. Completion follows VISUAL-PARITY's separate visual, structural, functional and performance gates; only the maintainer grants acceptance.
 
+## Review shared roles, 2026-10-22
+
+M04 has no approved Review screenshot. Its secondary reference is
+`/Users/adrian/dev/mlearn-ts` revision
+`1788f9c74dc73dd884b687ec80d9550c3ebf6c6b`, not a sibling of the private
+implementation checkout. `FlashcardDisplay.css` centers a 500px card and gives
+the visible face a 300px minimum. The supplied M04 reference contract specifies
+40px ordinary cues, 24px examples and 20px focused cues; shared Text roles
+`reviewCue`, `reviewExample` and `reviewFocused` own these dimensions and scale
+with the learner's text preference. `RatingMatrix.css` uses 8px gaps and delegates
+all interactive state to Button; native actions retain 44px targets.
+
+`Button.css:156-164` supplies Struggled's warning treatment: yellow
+`rgba(241,196,15,.25)` surface and `.4` border/hover, with `--color-warning`
+foreground (`#f1c40f` in `styles/index.css:30`, `#7a5b00` in light
+`themes/quartz.css:10`). This belongs to shared Button tone `warning`, not
+feature-local button styles. Review rendering and responsive interaction proof
+remain pending; these role definitions alone do not establish visual acceptance.
+
+Review capability labels use the shared Badge `label` variant with content tone:
+the existing control surface and content foreground follow the active theme.
+Linguistic labels over source media explicitly retain media tone. This keeps
+light Review labels legible without changing Inspector/Watch metadata materials
+or introducing a feature-local pill. Material's explicit listening selection is
+a shared selected Button beside each actual audio attachment; editing the phrase
+clears that selection before another durable save.
+
 ## Measured foundation, 2026-10-20
 
 Reference revision: `1788f9c74dc73dd884b687ec80d9550c3ebf6c6b`.

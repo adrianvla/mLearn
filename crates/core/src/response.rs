@@ -14,6 +14,15 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Response {
+    Review {
+        commit: crate::ReviewCommit,
+    },
+    ReviewSession {
+        session: crate::ReviewSession,
+    },
+    ReviewSessions {
+        sessions: Vec<crate::ReviewSession>,
+    },
     MaterialMediaPlan {
         plan: MediaCapturePlan,
     },

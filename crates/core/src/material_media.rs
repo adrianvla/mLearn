@@ -39,10 +39,22 @@ pub struct AuthoredMedia {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct MaterialAudioBinding {
+    pub package_id: String,
+    pub target_id: Option<String>,
+    pub phrase: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct MaterialAttachment {
     pub media_id: AuthoredMediaId,
     /// Origin belongs to this use of the bytes, not the shared asset.
     pub segment: Option<MediaSegment>,
+    /// An explicit authored assertion, valid only for this exact target/phrase.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_binding: Option<MaterialAudioBinding>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -114,6 +126,8 @@ pub struct MaterialMediaImport {
     pub kind: MaterialMediaKind,
     pub name: String,
     pub segment: Option<MediaSegment>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_binding: Option<MaterialAudioBinding>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

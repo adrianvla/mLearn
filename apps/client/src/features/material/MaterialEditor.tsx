@@ -30,6 +30,7 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
   const [retry, setRetry] = useState<MaterialCreate | MaterialEdit | null>(null);
   const [duplicates, setDuplicates] = useState<Material[]>([]);
   const [staged, setStaged] = useState<readonly StagedMedia[]>([]);
+  const [boundStaged, setBoundStaged] = useState<readonly string[]>([]);
   const stagedRef = useRef<readonly StagedMedia[]>([]);
   stagedRef.current = staged;
   const inFlight = useRef<readonly StagedMedia[] | null>(null);
@@ -49,6 +50,7 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
     if (replaced) releaseStaged(replaced);
     stagedRef.current = [...stagedRef.current.filter(existing => existing.key !== item.key), item];
     setStaged(stagedRef.current);
+    setBoundStaged(previous => previous.filter(key => key !== item.key));
     setReceipt('');
   }
   function discardStaged(key: string) {
@@ -56,6 +58,7 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
     if (item) releaseStaged(item);
     stagedRef.current = stagedRef.current.filter(existing => existing.key !== key);
     setStaged(stagedRef.current);
+    setBoundStaged(previous => previous.filter(value => value !== key));
   }
   function removeAttachment(mediaId: AuthoredMediaId) {
     setDraft(previous => ({ ...previous, attachments: previous.attachments.filter(item => item.mediaId !== mediaId) }));
@@ -64,7 +67,10 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
   function field(key: 'phrase' | 'reading' | 'meaning' | 'context' | 'notes', label: string, maxLength: number, multiline = false) {
     return <TextField label={label} testID={`material-${key}`} value={draft[key]} maxLength={maxLength}
       multiline={multiline} editable={!pending && !retry} onChangeText={value => {
-        setDraft(previous => ({ ...previous, [key]: value })); setReceipt('');
+        setDraft(previous => ({ ...previous, [key]: value,
+          attachments: key === 'phrase' ? previous.attachments.map(item => ({ ...item, audioBinding: null })) : previous.attachments }));
+        if (key === 'phrase') setBoundStaged([]);
+        setReceipt('');
       }} />;
   }
   async function save(command: MaterialCreate | MaterialEdit, imports: readonly StagedMedia[]) {
@@ -84,7 +90,10 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
         return;
       }
       setRetry(null);
-      if (accepted) setStaged(previous => previous.filter(item => !imports.includes(item)));
+      if (accepted) {
+        setStaged(previous => previous.filter(item => !imports.includes(item)));
+        setBoundStaged(previous => previous.filter(key => !imports.some(item => item.key === key)));
+      }
       switch (outcome.status) {
         case 'duplicate': setDuplicates(outcome.items); break;
         case 'saved':
@@ -118,7 +127,12 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
     try {
       const prepared = base ? client.prepareMaterialEdit(base, draft, excluded) : client.prepareMaterial(draft, distinct);
       const imports = stagedRef.current;
-      const command = imports.length ? { ...prepared, mediaImports: imports.map(mediaImportOf) } : prepared;
+      const command = imports.length ? { ...prepared, mediaImports: imports.map(item => ({
+        ...mediaImportOf(item),
+        ...(boundStaged.includes(item.key) ? { audioBinding: {
+          packageId: draft.packageId, targetId: draft.targetId, phrase: draft.phrase,
+        } } : {}),
+      })) } : prepared;
       void save(command, imports);
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   }
@@ -165,6 +179,17 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
     </View> : null}
     {authoredMedia ? <MaterialMedia host={authoredMedia} source={draft.source} base={base}
       attachments={draft.attachments} staged={staged} disabled={pending || !!retry}
+      canBindAudio={draft.phrase.trim().length > 0} boundStaged={boundStaged}
+      onBindStaged={(key, bound) => {
+        setBoundStaged(previous => bound ? [...previous.filter(value => value !== key), key] : previous.filter(value => value !== key));
+        setReceipt('');
+      }}
+      onBindAttachment={(mediaId, bound) => {
+        setDraft(previous => ({ ...previous, attachments: previous.attachments.map(item => item.mediaId === mediaId
+          ? { ...item, audioBinding: bound ? { packageId: previous.packageId, targetId: previous.targetId, phrase: previous.phrase } : null }
+          : item) }));
+        setReceipt('');
+      }}
       onBusyChange={setMediaPending}
       onStage={stage} onDiscardStaged={discardStaged} onRemoveAttachment={removeAttachment} /> : null}
     {base ? <Row><Button label={excluded ? 'Include Material' : 'Exclude Material'} variant="secondary"
@@ -186,6 +211,7 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
           // The abandoned draft's staged imports were never saved; release them.
           for (const entry of stagedRef.current) releaseStaged(entry);
           setStaged([]);
+          setBoundStaged([]);
           setBase(item); setDraft(item.content); setExcluded(item.excluded); setDuplicates([]);
           setReceipt('Existing Material selected.'); onSaved?.(item);
         }} />)}

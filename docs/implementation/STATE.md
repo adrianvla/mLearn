@@ -14,7 +14,11 @@ package for manual acceptance, without merging or self-acceptance.
 
 ## Current gate status — 2026-10-22
 
-Status: `verified_for_continuation_M03`. The existing hosted iOS FileProvider acceptance gate
+Status: `verified_M04_foundation`. M03 is published as `fbfb1a59` on `agent/m01`.
+M04 source and its M01–M04 architecture repairs are independently approved and
+verified for continuation. The checkpoint carrying this record is the M04
+publication unit; M05 starts only after its push.
+The existing hosted iOS FileProvider acceptance gate
 is **deferred by the maintainer, not passed**. It does not block M03–M07.
 Stop its investigation and launch no further diagnostic workflow variants.
 No verified application fix for the hosted Files-to-URL failure has
@@ -85,8 +89,9 @@ media survives restart, iOS native audio/video controls work, and Return restore
 the original source selection and time. The original real source-media flow is
 the tracked regression. Earlier failures remain recorded as failures.
 Focused independent review closeout is approved with no remaining blockers.
-Report: `.omo/evidence/m03-blocker-closeout-gate-review.md`. Publication is the
-immediate next action, followed by integration of the completed private M04 code.
+Report: `.omo/evidence/m03-blocker-closeout-gate-review.md`. Publication is complete;
+the remote confirms `fbfb1a59cbee3173d95ff9e06bbc6c336fc5e7c8`.
+The completed private M04 implementation is now adopted into the main workspace.
 
 On October22 the maintainer ordered immediate checkpoint/closeout,
 targeted blocker regressions only, and integration of existing M04 work rather
@@ -116,8 +121,67 @@ runtime, typed-client, UI, media and integration owners completed source and
 coherent checks there, never in the M03 candidate. The full relevant Rust
 workspace and contracts,56 checker tests,76 client tests,18 Material browser
 cases,20 Review browser cases and8 adjacent browser cases pass. These are private
-implementation results, not main integration, native workflow verification or
-independent acceptance. An additive explicit audio-target binding is M04 scope;
+implementation results, not native workflow verification or independent
+acceptance. Parent adoption validated64 source-manifest hashes, imported the
+existing77 implementation/test paths, generated contracts from the adopted Rust
+authority and merged the two Material fixture/test additions without losing
+M03 preview recovery. Main typecheck, ownership lint, contracts and targeted
+regressions pass:36 Rust cases,41 client/media/input cases,20 Review browser
+cases and20 merged Material browser cases. The completed team is retired; no
+M04 implementation was regenerated.
+
+Both retained consuming native apps build and install from the adopted source.
+The new finite Review workflow passes on Android in84s and iOS in66s: real
+Material creation,1/1 completion, Undo to0/1, pause/process restart, exact saved
+session resume and correction back to1/1 rather than2/1. All6 captures were
+inspected. The earlier iOS failure is preserved: its label selector left the
+limit unchanged; selecting the actual numeric input fixes only the test, without
+weakening an assertion or changing/rebuilding the app.
+
+Normal desktop startup uses the retained v3dev profile. Actual authenticated
+package updates enable the new tasks without deleting data. A finite3 session
+demonstrates durable Reveal, shortcut3, Undo/correction, process restart and the
+same saved-session ID. Source return restores the Japanese selection at11.2s;
+the shared annotated word shows native `assessed unknown` after Struggled.
+
+A real3.4s clip captured from that source is explicitly bound through Material
+and persisted. Normal continuous Review reaches its listening encounter after
+existing due work. The user-initiated player commits native `delivery: completed`,
+enables Reveal, and presents Listening recognition/Meaning targets. Pausing
+preserves completed delivery and revealed state. Read-only native aggregates
+confirm62 explicit Untested attempts created0 learning observations; no mastery
+was fabricated while advancing the retained queue. These verify playback and
+data/control flow, not speech quality or comprehension.
+
+Actual captures and native JUnit results are under `.mlearn/m03-m07/m04/`.
+The combined independent M04/M01–M04 gate initially returned `REJECT` with two reproduced
+blockers: Close Adjust overwrote explicit grades/Untested, and session Pause
+caused invalid audio-cleanup writes that disabled Resume. No additional
+architecture blocker was established. Report:
+`.omo/evidence/m04-foundation-gate-review.md`. Root regressions reproduce both;
+repairs preserve drafts independently of expansion and commit nonterminal audio
+interruption atomically with native Pause, with cleanup acknowledging that state.
+The ready-audio regression also exposed stale pending UI when the saved-session
+route renews focus during a write; its flight cleanup now clears current-focus
+pending state. The same reviewer approved repaired tree
+`21de44758a4f284fe76c23f61f9c0f4b512b3829`, closing both blockers and the directly
+exposed pending-state regression. Targeted proof includes18 client/media cases,
+11 real-storage Review cases,32 routed browser cases, typecheck, ownership lint
+and warning-free storage-library Clippy. Real desktop audio Pause/Resume recovers
+without a failed save. A native Untested/Close Adjust/bulk response retains null;
+immediate exact Undo retracts that QA attempt. Screenshot:
+`desktop-audio-pause-resumed.png` under the milestone evidence directory.
+Both repaired consuming iOS/Android builds and installations pass. Their bundles
+postdate the final UI repair. Targeted retained-device Review workflows pass on
+Android in85.626s and iOS in62.443s, with zero failures. All six final captures were
+inspected: completion, paused Undo, process restart/resume and correction remain
+usable. Exact JUnit/captures are `android-review-repaired*` and
+`ios-review-repaired*`; red/green closeout receipts are under `gate-closeout/`.
+No further source-review or native blocker remains before M04 publication and
+the M05 source-boundary extension. Native mobile audio-delivery callbacks and
+physical-device/hardware-keyboard behavior are not separately certified by the
+written native workflow or browser audio tests; this limit remains explicit.
+An additive explicit audio-target binding is M04 scope;
 historical attachments remain unbound, and source/time/text do not imply binding.
 Reader parsing fixtures/prototype, offline macOS Vision measurements, Android
 OCR packaging, Messenger ownership and performance prerequisites are prepared,

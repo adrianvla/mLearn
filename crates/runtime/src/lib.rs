@@ -13,10 +13,11 @@ mod media_format;
 mod media_import;
 mod media_recovery;
 mod packages;
+mod review;
 mod watch;
-use catalog::{CatalogClient, CatalogTrust, Manifest, verify_artifact};
+use catalog::{verify_artifact, CatalogClient, CatalogTrust, Manifest};
 pub use execution::RuntimeExecutor;
-use mlearn_core::{PROTOCOL_VERSION, PackageIssue, PluginSummary, Request, Response, Snapshot};
+use mlearn_core::{PackageIssue, PluginSummary, Request, Response, Snapshot, PROTOCOL_VERSION};
 use mlearn_language_host::{CodeOrigin, CodePolicy, CompiledPlugin};
 use mlearn_storage::{ProfileStore, StorageError};
 use std::{

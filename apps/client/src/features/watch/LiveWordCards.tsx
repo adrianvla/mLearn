@@ -46,7 +46,7 @@ export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusF
         for (const token of cue.tokens) {
             if (token.nearbyMeaning === false || batch.annotations.some(annotation =>
                 annotation.cueIndex === cue.cue.index && annotation.tokenStart === token.start
-                && annotation.status === 'claimed_known')) continue;
+                && (annotation.status === 'claimed_known' || annotation.status === 'assessed_known'))) continue;
             // One card per lexical group, not six homographs crowding out the
             // next word. The initial dictionary alternative is not a sense rank.
             const target = token.targets[0];

@@ -16,6 +16,7 @@ pub(super) enum Prepared {
     Work(GuestWork),
 }
 pub(super) enum GuestWork {
+    Review(Box<crate::review::ReviewWork>),
     Language(Box<LanguageWork>),
     Install {
         root: PathBuf,
@@ -58,6 +59,7 @@ pub(super) enum LanguageAction {
     },
 }
 pub(super) enum GuestOutput {
+    Review(Vec<mlearn_core::ReviewAdmission>),
     Capture(Vec<Result<(), String>>),
     Open,
     Description(LanguageDescription),
@@ -74,6 +76,7 @@ pub(super) enum GuestOutput {
 impl GuestWork {
     pub fn run(&self) -> Result<GuestOutput, Failure> {
         match self {
+            Self::Review(work) => Ok(GuestOutput::Review(work.run()?)),
             Self::Language(work) => {
                 work.cancellation.check()?;
                 let output = match &work.action {
@@ -197,11 +200,12 @@ impl GuestWork {
     pub fn finish(&self, result: Result<Response, Failure>) -> Result<Response, Failure> {
         match self {
             Self::Install { transfer, .. } => transfer.finish(result),
-            Self::Language(_) | Self::Catalog(_) => result,
+            Self::Language(_) | Self::Review(_) | Self::Catalog(_) => result,
         }
     }
     pub fn capability(&self) -> &str {
         match self {
+            Self::Review(_) => "learning.probes.v1",
             Self::Language(work) => match &work.action {
                 LanguageAction::Analyze(_) => "text.analyze.v1",
                 LanguageAction::Inspect { .. }
