@@ -8,15 +8,23 @@ import { fileURLToPath } from 'node:url';
 import { patchVideoView } from '../patch-expo-video.mjs';
 
 const configPath = new URL('../../apps/client/app.config.js', import.meta.url);
-function applyAppConfig(properties) {
+function applyAppConfig(properties, projectBuildGradle) {
   const config = { name: 'mLearn v3 Dev', modResults: properties };
   // Expo supplies this lifecycle hook during prebuild. Run the real config's
   // transformation while isolating the framework loader from this Node test.
   const context = createContext({
     module: { exports: {} },
     require(specifier) {
+      if (specifier === '@expo/config-plugins/build/utils/generateCode')
+        return createRequire(import.meta.url)(specifier);
       assert.equal(specifier, 'expo/config-plugins');
-      return { withGradleProperties: (value, action) => action(value) };
+      return {
+        withGradleProperties: (value, action) => action(value),
+        withProjectBuildGradle(value, action) {
+          if (projectBuildGradle) value.projectBuildGradle = action({ modResults: projectBuildGradle }).modResults;
+          return value;
+        },
+      };
     },
   });
   if (!existsSync(configPath)) return config; // Expo's static app.json path.
@@ -37,6 +45,17 @@ test('Android prebuild only advertises ABIs supplied by the Rust bridge', () => 
   ]);
   assert.deepEqual(properties.filter(item => item.key !== 'reactNativeArchitectures'), original.slice(0, 2));
   assert.deepEqual(JSON.parse(JSON.stringify(applyAppConfig(properties).modResults)), properties);
+});
+
+test('Android toolchain generation preserves the project and is stable across repeated prebuilds', () => {
+  const original = 'buildscript { repositories { google() } }\napply plugin: "expo-root-project"\napply plugin: "com.facebook.react.rootproject"\n';
+  const first = applyAppConfig([], { language: 'groovy', contents: original }).projectBuildGradle;
+  assert.ok(first, 'The consuming project must receive the native toolchain mod');
+  assert.ok(first.contents.includes(original.split('\n')[0]));
+  assert.ok(first.contents.endsWith(original.split('\n').slice(1).join('\n')));
+  const second = applyAppConfig([], { ...first }).projectBuildGradle;
+  assert.equal(second.contents, first.contents);
+  assert.throws(() => applyAppConfig([], { language: 'kotlin', contents: original }));
 });
 
 test('normal Metro development observes shared theme resources outside workspace packages', () => {

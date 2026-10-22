@@ -51,6 +51,18 @@ jobs:
           workspace=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
           scheme=$(basename "$workspace" .xcworkspace)
           xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { tail -150 build.log; exit 1; }
+          app=$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$app"
+          tar -czf ../../../test-results/ios-simulator-app.tar.gz -C "$(dirname "$app")" "$(basename "$app")"
+      - name: Retain the source-bound compiled simulator app before UI testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          compression-level: 0
+          retention-days: 7
+          path: |
+            test-results/ios-simulator-app.tar.gz
+            verification/source.txt
       - uses: ./.github/actions/setup-maestro
       - name: Exercise actual iOS UI and Rust persistence
         timeout-minutes: 20
@@ -83,7 +95,7 @@ jobs:
           cp .mlearn/m01-ci-fixtures/watch-fixture.srt "$container/Documents/M01 fixtures/m01-watch.srt"
           cp .mlearn/m01-ci-fixtures/watch-japanese.mp4 "$container/Documents/M01 fixtures/m01-japanese.mp4"
           cp .mlearn/m01-ci-fixtures/watch-japanese.srt "$container/Documents/M01 fixtures/m01-japanese.srt"
-          PATH="$PWD/tests/mobile/ios-driver:$PATH" maestro --device "$device" test --config tests/mobile/config.yaml --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/watch.yaml 2>&1 | tee test-results/mobile/run.log
+          bash tests/mobile/run-ios.sh "$device"
       - name: Ensure build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
@@ -134,6 +146,7 @@ jobs:
         run: |
           ndk=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
           test -n "$ndk"
+          cp "$ndk/source.properties" verification/selected-ndk.properties
           echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ndk" >> "$GITHUB_ENV"
       - name: Prepare native Kotlin bindings and libraries
@@ -150,7 +163,8 @@ jobs:
           cd android
           grep -qx 'reactNativeArchitectures=arm64-v8a,x86_64' gradle.properties
           # D8 merge exhausted Expo's 2 GiB default in run39081460041.
-          ./gradlew :app:assembleRelease --no-daemon --console=plain \
+          ./gradlew :app:assembleRelease --no-daemon --console=plain --info \
+            --init-script ../../../tests/mobile/verify-ndk.gradle \
             '-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m' \
             > build.log 2>&1 || { tail -150 build.log; exit 1; }
       - name: Verify APK contains complete Rust ABIs
