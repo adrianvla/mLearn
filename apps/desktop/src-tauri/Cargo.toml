@@ -27,6 +27,10 @@ mlearn-core = {path="../../../crates/core"}
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 window-vibrancy = "=0.8.1"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_System_LibraryLoader", "Win32_UI_WindowsAndMessaging"] }
+windows-version = "0.1.7"
+
 [dev-dependencies]
 mlearn-storage = { path = "../../../crates/storage" }
 sha2.workspace = true

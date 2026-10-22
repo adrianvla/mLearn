@@ -7,6 +7,10 @@ use tauri::{Emitter, Manager, WebviewWindow};
 
 const EVENT: &str = "window-material-changed";
 
+#[cfg(target_os = "windows")]
+#[path = "window_acrylic.rs"]
+mod acrylic;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RetiredTheme {
@@ -122,19 +126,18 @@ impl WindowMaterial {
             // existing native dependency directly so fallback status is truthful.
             self.effect = apply_effect(window, desired);
         }
-        let [r, g, b] = if self.active() {
-            [0, 0, 0]
-        } else {
-            desired.background
-        };
         window
-            .set_background_color(Some(tauri::window::Color(
-                r,
-                g,
-                b,
-                if self.active() { 0 } else { 255 },
-            )))
+            .set_background_color(Some(self.background(desired)))
             .map_err(|error| error.to_string())
+    }
+
+    fn background(&self, appearance: Appearance) -> tauri::window::Color {
+        if self.active() {
+            tauri::window::Color(0, 0, 0, 0)
+        } else {
+            let [r, g, b] = appearance.background;
+            tauri::window::Color(r, g, b, 255)
+        }
     }
 
     fn clear(&mut self, window: &WebviewWindow) -> Result<(), String> {
@@ -152,7 +155,7 @@ impl WindowMaterial {
             }
             #[cfg(target_os = "windows")]
             Effect::Acrylic => {
-                window_vibrancy::clear_acrylic(window).map_err(|error| error.to_string())?
+                acrylic::set(window.hwnd().map_err(|error| error.to_string())?.0, None)?
             }
         }
         self.effect = Effect::Opaque;
@@ -162,36 +165,40 @@ impl WindowMaterial {
 
 #[cfg(target_os = "macos")]
 fn apply_effect(window: &WebviewWindow, _: Appearance) -> Effect {
-    match window_vibrancy::apply_vibrancy(
-        window,
-        window_vibrancy::NSVisualEffectMaterial::UnderWindowBackground,
-        Some(window_vibrancy::NSVisualEffectState::FollowsWindowActiveState),
-        None,
-    ) {
-        Ok(()) => Effect::Vibrancy,
-        Err(error) => {
-            eprintln!("Native window material unavailable; using opaque background: {error}");
-            Effect::Opaque
-        }
-    }
+    effect_or_opaque(
+        window_vibrancy::apply_vibrancy(
+            window,
+            window_vibrancy::NSVisualEffectMaterial::UnderWindowBackground,
+            Some(window_vibrancy::NSVisualEffectState::FollowsWindowActiveState),
+            None,
+        )
+        .map(|()| Effect::Vibrancy)
+        .map_err(|error| error.to_string()),
+    )
 }
 
 #[cfg(target_os = "windows")]
 fn apply_effect(window: &WebviewWindow, appearance: Appearance) -> Effect {
-    match window_vibrancy::apply_mica(window, Some(appearance.dark)) {
-        Ok(()) => Effect::Mica,
-        Err(window_vibrancy::Error::UnsupportedPlatformVersion(_)) => {
-            let [r, g, b] = appearance.background;
-            match window_vibrancy::apply_acrylic(window, Some((r, g, b, 125))) {
-                Ok(()) => Effect::Acrylic,
-                Err(error) => {
-                    eprintln!(
-                        "Native window material unavailable; using opaque background: {error}"
-                    );
-                    Effect::Opaque
-                }
+    effect_or_opaque(
+        match window_vibrancy::apply_mica(window, Some(appearance.dark)) {
+            Ok(()) => Ok(Effect::Mica),
+            Err(window_vibrancy::Error::UnsupportedPlatformVersion(_)) => {
+                let [r, g, b] = appearance.background;
+                window
+                    .hwnd()
+                    .map_err(|error| error.to_string())
+                    .and_then(|hwnd| acrylic::set(hwnd.0, Some([r, g, b, 125])))
+                    .map(|()| Effect::Acrylic)
             }
-        }
+            Err(error) => Err(error.to_string()),
+        },
+    )
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn effect_or_opaque(result: Result<Effect, String>) -> Effect {
+    match result {
+        Ok(effect) => effect,
         Err(error) => {
             eprintln!("Native window material unavailable; using opaque background: {error}");
             Effect::Opaque
@@ -299,6 +306,22 @@ pub(super) async fn synchronize(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn rejected_native_acrylic_keeps_an_opaque_background_and_reports_clear_failure() {
+        let appearance = appearance(&PRESETS.as_ref().unwrap()[1]).unwrap();
+        let applied = acrylic::set(std::ptr::null_mut(), Some([17, 34, 51, 125]));
+        let material = WindowMaterial {
+            effect: effect_or_opaque(applied.map(|()| Effect::Acrylic)),
+            ..Default::default()
+        };
+        assert!(!material.active());
+        let color = material.background(appearance);
+        let [r, g, b] = appearance.background;
+        assert_eq!((color.0, color.1, color.2, color.3), (r, g, b, 255));
+        assert!(acrylic::set(std::ptr::null_mut(), None).is_err());
+    }
 
     #[test]
     fn only_translucent_palettes_enable_material_without_reclassifying_custom_themes() {
