@@ -202,6 +202,22 @@ gates. This is not yet a hosted FileProvider repair.
 The local feasibility device, detached image, and staging directory are now
 removed with absence verified. YAML and all shell blocks validate; executable
 cleanup controls preserve original failure and reject detach failure.
+Hosted APFS contrast `39743794079` is inconclusive: the run is cancelled after
+the setup/UI step exceeds 20 minutes, without reaching Maestro or producing
+an original test exit/JUnit. Boot status spends 12 minutes 12 seconds waiting
+for System App before reporting Finished; later setup never reaches the app
+test. The small retained setup artifact verifies the distinct APFS mount and
+source/runtime identity, not a FileProvider result. Volume ownership was not
+recorded, and bounded startup diagnostics are needed before another contrast.
+The ownership probe now identifies a concrete setup mismatch: default mounted
+images disable ownership, while the baseline Data volume enables it. Explicit
+`diskutil image attach --mountOptions nobrowse,owners` is exercised locally
+and enables ownership; its disposable image/mount are removed and absence
+verified. The diagnostic now requires `GlobalPermissionsEnabled` before boot,
+records root ownership/mode, bounds boot and installation subprocesses, and
+retains their output plus final host/device state. Original UI deadlines and
+outcome gates remain unchanged. This repairs the experiment's setup invariant,
+not yet the FileProvider failure.
 The controlled registration change is `bab8b4c30b2841c008848936071aa3b8d4beaba8`
 (tree `b5043be154e23c39f7bfa557f7b7e352038eecc9`), still confined to the
 temporary diagnostic. Its original failed control remains independently retained.

@@ -71,8 +71,8 @@ jobs:
           mounted_at=""
           cleanup() {
             status=$?
-            xcrun simctl io "$device" screenshot test-results/mobile/final-state.png || true
-            xcrun simctl shutdown "$device" || true
+            python3 -c 'import subprocess,sys; subprocess.run(["xcrun","simctl","io",sys.argv[1],"screenshot","test-results/mobile/final-state.png"],timeout=30)' "$device" || true
+            python3 -c 'import subprocess,sys; subprocess.run(["xcrun","simctl","shutdown",sys.argv[1]],timeout=30)' "$device" || true
             if [ -n "$mounted_at" ]; then
               hdiutil detach "$mounted_at" || exit 1
             fi
@@ -83,20 +83,26 @@ jobs:
           }
           trap cleanup EXIT
           echo "$device" > verification/device.txt
+          /usr/bin/stat -f '%u %g %p %N' "$userdata" > verification/userdata-owner-before.txt
           # Isolate the complete new userdata filesystem, not a Documents subfolder.
           hdiutil create -size 8g -fs APFS -type SPARSE -volname mLearnDiagnostic "$image"
           mkdir -p "$staging"
-          hdiutil attach "$image" -nobrowse -mountpoint "$staging"
+          diskutil image attach --mountPoint "$staging" --mountOptions nobrowse,owners "$image"
           mounted_at="$staging"
           ditto "$userdata" "$staging"
           hdiutil detach "$staging"
           mounted_at=""
-          hdiutil attach "$image" -nobrowse -mountpoint "$userdata"
+          diskutil image attach --mountPoint "$userdata" --mountOptions nobrowse,owners "$image"
           mounted_at="$userdata"
           df -h "$userdata" > verification/userdata-volume.txt
+          diskutil info -plist "$userdata" > verification/userdata-disk-info.plist
+          python3 -c 'import plistlib; d=plistlib.load(open("verification/userdata-disk-info.plist","rb")); assert d["GlobalPermissionsEnabled"], "Userdata volume ownership must be enabled"'
+          /usr/bin/stat -f '%u %g %p %N' "$userdata" > verification/userdata-owner-after.txt
+          cmp verification/userdata-owner-before.txt verification/userdata-owner-after.txt
           hdiutil info > verification/userdata-images-mounted.txt
           xcrun simctl boot "$device"
-          xcrun simctl bootstatus "$device" -b
+          python3 -c 'import subprocess,sys; subprocess.run(["xcrun","simctl","bootstatus",sys.argv[1],"-b"],check=True,timeout=300)' "$device" \
+            2>&1 | tee verification/bootstatus.log
           xcrun simctl spawn "$device" log config --status --subsystem com.apple.FileProvider \
             > verification/provider-logging-before.txt
           xcrun simctl spawn "$device" log config --mode level:debug,persist:debug --subsystem com.apple.FileProvider
@@ -104,7 +110,8 @@ jobs:
             > verification/provider-logging-active.txt
           xcrun simctl spawn "$device" log config --mode level:debug,persist:debug --subsystem com.apple.FileURL
           xcrun simctl spawn "$device" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
-          xcrun simctl install "$device" "$RUNNER_TEMP/mlearn-retained-ios/mLearnv3Dev.app"
+          python3 -c 'import subprocess,sys; subprocess.run(["xcrun","simctl","install",sys.argv[1],sys.argv[2]],check=True,timeout=120)' \
+            "$device" "$RUNNER_TEMP/mlearn-retained-ios/mLearnv3Dev.app" 2>&1 | tee verification/install.log
           python3 tools/create-watch-fixture.py "$RUNNER_TEMP/mlearn-provider-fixtures"
           container=$(xcrun simctl get_app_container "$device" net.kikan.mlearn.v3dev data)
           echo "$container" > verification/initial-container.txt
@@ -145,6 +152,15 @@ jobs:
           echo "$observation_status" > verification/observation-exit.txt
           if [ "$original_status" -ne 0 ]; then exit "$original_status"; fi
           exit "$observation_status"
+      - name: Record final diagnostic host and device state
+        if: always()
+        run: |
+          set -euo pipefail
+          ps -axo pid,ppid,pcpu,pmem,comm > verification/final-processes.txt
+          mount > verification/final-mounts.txt
+          df -h "$RUNNER_TEMP" > verification/final-disk.txt
+          python3 -c 'import subprocess; subprocess.run(["xcrun","simctl","list","devices","-j"],check=True,timeout=30)' \
+            > verification/final-devices.json
       - name: Ensure diagnostic did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
