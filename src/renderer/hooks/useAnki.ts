@@ -102,7 +102,19 @@ export async function ankiRequest<T>(proxyUrl: string, action: string, params?: 
   });
 
   if (!response.ok) {
-    throw new Error(`AnkiConnect request failed: ${response.status}`);
+    // The proxy uses HTTP errors for transport failures; retain its diagnostic
+    // instead of turning every unavailable Anki instance into an opaque 500.
+    const detail = await response.text();
+    let message = detail;
+    try {
+      const payload: unknown = JSON.parse(detail);
+      if (typeof payload === 'object' && payload !== null && 'error' in payload && typeof payload.error === 'string') {
+        message = payload.error;
+      }
+    } catch {
+      // Non-JSON HTTP errors retain the response text.
+    }
+    throw new Error(`AnkiConnect ${action} request failed: ${response.status}${message ? `: ${message}` : ''}`);
   }
 
   const data: AnkiResponse<T> = await response.json();
@@ -353,23 +365,13 @@ export function useAnki() {
   /** Get detailed info for cards by their IDs */
   const getCardsInfo = async (cardIds: number[]): Promise<AnkiCardInfo[]> => {
     if (cardIds.length === 0) return [];
-    try {
-      return await ankiRequest<AnkiCardInfo[]>(getProxyUrl(), 'cardsInfo', { cards: cardIds });
-    } catch (e) {
-      log.error('Failed to get cards info:', e);
-      return [];
-    }
+    return ankiRequest<AnkiCardInfo[]>(getProxyUrl(), 'cardsInfo', { cards: cardIds });
   };
 
-  /** Full review history (revlog) per card, keyed by cardId. Empty map on failure. */
+  /** Full review history (revlog) per card, keyed by cardId. Failures reject. */
   const getReviewsOfCards = async (cardIds: number[]): Promise<Record<string, AnkiReviewEntry[]>> => {
     if (cardIds.length === 0) return {};
-    try {
-      return await ankiRequest<Record<string, AnkiReviewEntry[]>>(getProxyUrl(), 'getReviewsOfCards', { cards: cardIds });
-    } catch (e) {
-      log.error('Failed to get reviews of cards:', e);
-      return {};
-    }
+    return ankiRequest<Record<string, AnkiReviewEntry[]>>(getProxyUrl(), 'getReviewsOfCards', { cards: cardIds });
   };
 
   /** Set ease factors for multiple cards (Anki integer scale, e.g. 2500 = 2.5×) */

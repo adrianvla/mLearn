@@ -119,6 +119,41 @@ describe('ankiWordsCache', () => {
     unregister();
   });
 
+  it('shares an in-flight refresh through completion of review sync', async () => {
+    mockGetAnkiWordStatuses.mockResolvedValue([{ word: 'entry', cardId: 42 }]);
+    const { refreshAnkiWordsCache, registerAnkiReviewSync } = await import('./ankiWordsCache');
+    let release!: () => void;
+    let entered!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    const sync = vi.fn(async () => { entered(); await pending; });
+    const unregister = registerAnkiReviewSync(sync);
+    const options = { language: 'example' };
+    const first = refreshAnkiWordsCache(options);
+    await started;
+
+    const second = refreshAnkiWordsCache(options);
+    release();
+    await Promise.all([first, second]);
+
+    expect(mockGetAnkiWordStatuses).toHaveBeenCalledTimes(1);
+    expect(sync).toHaveBeenCalledTimes(1);
+    unregister();
+  });
+
+  it('exposes review-sync failure without discarding usable cached words', async () => {
+    mockGetAnkiWordStatuses.mockResolvedValue([{ word: 'entry', cardId: 42 }]);
+    const { refreshAnkiWordsCache, registerAnkiReviewSync, getAnkiCacheLastError } = await import('./ankiWordsCache');
+    const unregister = registerAnkiReviewSync(async () => { throw new Error('revlog unavailable'); });
+    const options = { language: 'example' };
+
+    const words = await refreshAnkiWordsCache(options);
+
+    expect(words.has('entry')).toBe(true);
+    expect(getAnkiCacheLastError(options)).toBe('revlog unavailable');
+    unregister();
+  });
+
   it('returns null when none of the candidate forms exist in Anki', async () => {
     const { refreshAnkiWordsCache, findWordInAnkiCache } = await import('./ankiWordsCache');
     await refreshAnkiWordsCache();

@@ -1,10 +1,19 @@
 import fs from 'fs';
+import { createServer } from 'http';
 import path from 'path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Settings } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 
-const userDataPath = '/tmp/mlearn-anki-service-test';
+const { userDataPath, realFetch } = await vi.hoisted(async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const os = await import('os');
+  return {
+    userDataPath: fs.mkdtempSync(path.join(os.tmpdir(), 'anki-service-')),
+    realFetch: globalThis.fetch,
+  };
+});
 let mockSettings: Settings;
 
 vi.mock('../utils/platform', () => ({
@@ -69,6 +78,10 @@ const compoundCard = {
 };
 
 describe('ankiService', () => {
+  afterAll(() => {
+    fs.rmSync(userDataPath, { recursive: true, force: true });
+    vi.unstubAllGlobals();
+  });
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -176,5 +189,47 @@ describe('ankiService', () => {
     const result = await refreshAnkiCards();
 
     expect(result).toEqual({ ok: false, source: 'anki', reason: 'no_valid_cards' });
+  });
+
+  it('bounds cardsInfo requests while retaining every card', async () => {
+    const ids = Array.from({ length: 1201 }, (_, i) => i + 1);
+    const batches: number[][] = [];
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      const request = JSON.parse(String(init?.body));
+      if (request.action === 'findCards') return ankiResponse(ids);
+      batches.push(request.params.cards);
+      return ankiResponse(request.params.cards.map((cardId: number) => ({
+        ...japaneseCard, cardId, fields: { Japanese: { value: `word${cardId}` } },
+      })));
+    });
+    const { refreshAnkiCards, getAnkiWordsPayload } = await import('./ankiService');
+
+    const result = await refreshAnkiCards();
+
+    expect(result.ok).toBe(true);
+    expect(batches.map(batch => batch.length)).toEqual([500, 500, 201]);
+    expect(getAnkiWordsPayload().cards).toHaveLength(ids.length);
+  });
+
+  it('rejects HTTP errors over a real socket even with a success-shaped body', async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(500, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ result: [101], error: null }));
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
+      mockSettings.ankiConnectUrl = `http://127.0.0.1:${address.port}`;
+      vi.stubGlobal('fetch', realFetch);
+      const { refreshAnkiCards } = await import('./ankiService');
+
+      const result = await refreshAnkiCards();
+
+      expect(result).toEqual({ ok: false, source: 'anki', reason: 'connection_failed' });
+      expect(fs.existsSync(path.join(userDataPath, 'anki-cache.json'))).toBe(false);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    }
   });
 });

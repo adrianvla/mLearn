@@ -84,6 +84,9 @@ async function ankiInvoke<T>(action: string, params: Record<string, unknown>, se
       method: 'POST',
       body: JSON.stringify({ action, params, version: ANKI_CONNECT_VERSION }),
     });
+    if (!response.ok) {
+      throw new Error(`AnkiConnect ${action} request failed: ${response.status}: ${await response.text()}`);
+    }
     const payload = await response.json() as { result?: T; error?: string | null };
     if (payload.error) {
       throw new Error(payload.error);
@@ -246,16 +249,19 @@ export async function refreshAnkiCards(settings = loadSettings()): Promise<AnkiR
       : { ok: false, source: 'anki', reason: 'connection_failed' };
   }
 
-  const rawCards = await ankiInvoke<AnkiCard[]>('cardsInfo', { cards: cardIds }, settings);
-  if (!rawCards) {
-    return loadJsonCache(settings)
-      ? { ok: true, source: 'cache', reason: 'connection_failed' }
-      : { ok: false, source: 'anki', reason: 'connection_failed' };
+  const normalizedCards: AnkiCard[] = [];
+  for (let offset = 0; offset < cardIds.length; offset += 500) {
+    const rawCards = await ankiInvoke<AnkiCard[]>('cardsInfo', { cards: cardIds.slice(offset, offset + 500) }, settings);
+    if (!rawCards) {
+      return loadJsonCache(settings)
+        ? { ok: true, source: 'cache', reason: 'connection_failed' }
+        : { ok: false, source: 'anki', reason: 'connection_failed' };
+    }
+    for (const card of rawCards) {
+      const normalized = normalizeCardFields(card, settings);
+      if (normalized) normalizedCards.push(normalized);
+    }
   }
-
-  const normalizedCards = rawCards
-    .map((card) => normalizeCardFields(card, settings))
-    .filter((card): card is AnkiCard => Boolean(card));
 
   if (normalizedCards.length === 0) {
     allCards = [];

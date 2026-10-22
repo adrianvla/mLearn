@@ -197,6 +197,7 @@ function startEntryFetch(
         try {
           await syncChangedReviews(options.language, cards);
         } catch (error) {
+          entry.lastError = error instanceof Error ? error.message : String(error);
           log.warn('Anki review evidence refresh failed:', error);
         }
       }
@@ -288,6 +289,8 @@ export function getActiveAnkiWordsCacheSignature(): string {
 }
 
 export async function refreshAnkiWordsCache(options?: AnkiWordsCacheOptions): Promise<Set<string>> {
+  const inFlight = cachesBySignature.get(getCacheSignature(options))?.fetchPromise;
+  if (inFlight) return inFlight;
   if (options) {
     cachesBySignature.delete(getCacheSignature(options));
     if (activeCacheSignature === getCacheSignature(options)) activeCacheSignature = '';

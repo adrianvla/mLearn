@@ -270,6 +270,36 @@ export async function importAnkiReviewHistory(
   }
   if (byWord.size === 0) return { words: 0, imported: 0, skipped: 0, importedWords: [] };
 
+  // Finish and release each group before loading another group's rendered
+  // cards and full revlogs. Keep a word's cards together for ordering/counts.
+  const result: AnkiReviewImportResult = { words: 0, imported: 0, skipped: 0, importedWords: [] };
+  let batch = new Map<string, number[]>();
+  let batchCards = 0;
+  const flush = async (): Promise<void> => {
+    if (batch.size === 0) return;
+    const imported = await importReviewBatch(language, deps, batch);
+    result.words += imported.words;
+    result.imported += imported.imported;
+    result.skipped += imported.skipped;
+    result.importedWords.push(...imported.importedWords);
+    batch = new Map();
+    batchCards = 0;
+  };
+  for (const [word, ids] of byWord) {
+    const uniqueIds = [...new Set(ids)];
+    if (batchCards + uniqueIds.length > REVIEW_BATCH_SIZE) await flush();
+    batch.set(word, uniqueIds);
+    batchCards += uniqueIds.length;
+  }
+  await flush();
+  return result;
+}
+
+async function importReviewBatch(
+  language: string,
+  deps: AnkiReviewImportDeps,
+  byWord: ReadonlyMap<string, number[]>,
+): Promise<AnkiReviewImportResult> {
   const allCardIds = [...new Set([...byWord.values()].flat())];
   const reviewsByCard = new Map<number, AnkiReviewEntry[]>();
   for (let i = 0; i < allCardIds.length; i += REVIEW_BATCH_SIZE) {

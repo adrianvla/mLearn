@@ -1,5 +1,5 @@
 import { createRoot } from 'solid-js';
-import { useAnki } from './useAnki';
+import { ankiRequest, useAnki } from './useAnki';
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -64,6 +64,21 @@ describe('useAnki', () => {
     mockGetAnkiWords.mockReset();
     mockResolveFlashcardImage.mockReset();
     mockBlob.text.mockReset();
+  });
+
+  it('preserves the failed action and proxy error detail on HTTP failure', async () => {
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'connect ECONNREFUSED 127.0.0.1:8765' }), { status: 500 }));
+
+    await expect(ankiRequest('http://localhost/anki', 'getReviewsOfCards', { cards: [1] }))
+      .rejects.toThrow('AnkiConnect getReviewsOfCards request failed: 500: connect ECONNREFUSED 127.0.0.1:8765');
+  });
+
+  it('rejects failed review and template reads instead of reporting empty success', async () => {
+    mockFetch.mockRejectedValue(new Error('offline'));
+    const hook = createRoot(dispose => { const result = useAnki(); dispose(); return result; });
+
+    await expect(hook.getReviewsOfCards([1])).rejects.toThrow('offline');
+    await expect(hook.getCardsInfo([1])).rejects.toThrow('offline');
   });
 
   it('starts with isConnected false', () => {

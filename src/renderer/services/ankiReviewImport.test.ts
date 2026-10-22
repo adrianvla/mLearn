@@ -476,4 +476,18 @@ describe('importAnkiReviewHistory', () => {
     expect(fetchReviews.mock.calls[1][0]).toHaveLength(500);
     expect(fetchReviews.mock.calls[2][0]).toHaveLength(200);
   });
+
+  it('persists the first batch before fetching the next batch of histories', async () => {
+    const statuses = Array.from({ length: 501 }, (_, i) => ({ word: `w${i}`, cardId: i + 1 }));
+    const fetchReviews = vi.fn(async (ids: number[]) => {
+      if (ids[0] === 501) expect(mocks.appendEvents).toHaveBeenCalled();
+      return Object.fromEntries(ids.map(cid => [cid, [review({ id: cid, cid })]]));
+    });
+
+    const result = await importAnkiReviewHistory('example', { statuses, fetchReviews });
+
+    expect(result.imported).toBe(501);
+    expect(result.words).toBe(501);
+    expect(result.importedWords).toHaveLength(501);
+  });
 });
