@@ -65,13 +65,36 @@ jobs:
         run: |
           set -euo pipefail
           device=$(xcrun simctl create "mLearn provider $GITHUB_RUN_ID" com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-26-5)
+          userdata="$HOME/Library/Developer/CoreSimulator/Devices/$device/data"
+          image="$RUNNER_TEMP/mlearn-userdata.sparseimage"
+          staging="$RUNNER_TEMP/mlearn-userdata-mount"
+          mounted_at=""
           cleanup() {
+            status=$?
             xcrun simctl io "$device" screenshot test-results/mobile/final-state.png || true
             xcrun simctl shutdown "$device" || true
-            xcrun simctl delete "$device" || true
+            if [ -n "$mounted_at" ]; then
+              hdiutil detach "$mounted_at" || exit 1
+            fi
+            xcrun simctl delete "$device" || exit 1
+            if [ -f "$image" ]; then rm "$image"; fi
+            if [ -d "$staging" ]; then rmdir "$staging"; fi
+            exit "$status"
           }
           trap cleanup EXIT
           echo "$device" > verification/device.txt
+          # Isolate the complete new userdata filesystem, not a Documents subfolder.
+          hdiutil create -size 8g -fs APFS -type SPARSE -volname mLearnDiagnostic "$image"
+          mkdir -p "$staging"
+          hdiutil attach "$image" -nobrowse -mountpoint "$staging"
+          mounted_at="$staging"
+          ditto "$userdata" "$staging"
+          hdiutil detach "$staging"
+          mounted_at=""
+          hdiutil attach "$image" -nobrowse -mountpoint "$userdata"
+          mounted_at="$userdata"
+          df -h "$userdata" > verification/userdata-volume.txt
+          hdiutil info > verification/userdata-images-mounted.txt
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
           xcrun simctl spawn "$device" log config --status --subsystem com.apple.FileProvider \

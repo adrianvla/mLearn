@@ -181,6 +181,27 @@ Both retained 26.5 devices remain available and Shutdown, and the original 27
 runtime remains Ready. No shared asset is deleted to prune the stale entry.
 The hosted command now uses the exact build selector, retaining its independent
 post-install build assertion. This correction has no hosted UI result yet.
+Exact-build host contrast `39741368708` does reach the original UI, but fails
+first-English dismissal in 85.795 s. Source and retained-binary receipts match;
+actual host is macOS 27.0.1/Xcode 27A266a and guest is available 26.5/23F77.
+Original exit 1 and observation exit 0 remain separate.
+`ci-2018853c-host27/verification/provider.log:27127–27155` shows the same
+document-ID `ENOENT`, `-1005`, and nil URL. The final frame is inspected.
+Changing host/toolchain generation alone is therefore insufficient.
+
+The next filesystem contrast is confined to a new disposable simulator's
+complete userdata on an owned 8 GiB sparse APFS image, not a mounted folder
+inside Documents or a mutation of retained profiles. Ordinary inode controls
+passed, so filesystem causality is still a hypothesis. Local image preparation,
+remounting, actual 26.5 simulator boot, retained-app installation, and real
+container lookup pass. The container is on the new APFS volume with 1.2 GiB
+used; no app rebuild occurred. The disposable device is shut down and the
+image detached before cleanup. The temporary hosted workflow now applies
+this same isolated userdata preparation, preserving original UI and outcome
+gates. This is not yet a hosted FileProvider repair.
+The local feasibility device, detached image, and staging directory are now
+removed with absence verified. YAML and all shell blocks validate; executable
+cleanup controls preserve original failure and reject detach failure.
 The controlled registration change is `bab8b4c30b2841c008848936071aa3b8d4beaba8`
 (tree `b5043be154e23c39f7bfa557f7b7e352038eecc9`), still confined to the
 temporary diagnostic. Its original failed control remains independently retained.
