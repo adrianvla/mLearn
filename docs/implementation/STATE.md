@@ -23,6 +23,78 @@ merge, release or maintainer acceptance is authorized.
 
 ### Current application and verification - 2026-10-22
 
+Pushed candidate `4a7927a0ca66f4882badc0aee9ea928c21509144`, tree
+`06f1d1c38616d892b1e2f4ff601507bfac0d89a4`, includes the independently reviewed
+Acrylic and native browsing repairs. The tracked worktree was clean at push.
+Foundation `39722347849` passes all four jobs. Windows actually runs all 13
+host tests, including rejected native Acrylic and owned-window apply/clear/
+destruction; both new tests pass. Its source receipt, five native DWM/save/
+restart states and all five compositor captures are inspected in
+`ci-4a7927a0-windows/`. The Acrylic execution gate is closed.
+
+Desktop consuming run `39722347957` also passes with matching source/tree and
+the complete real IPC/package/playback/seek/Inspector/claim/restart/recovery
+receipt. Actual progress is 66.67%, with tracks/ranges passing. Home progress,
+focused Japanese card and narrow 2x theme-editor captures are inspected in
+`ci-4a7927a0-desktop/`. Headless runner audio/portal/DRI warnings remain in the
+retained log; this is not physical audio-output certification.
+
+Native run `39722347870` fails in the original iOS UI workflow after 134.486 s:
+the first English movie remains visible after the unchanged dismissal deadline.
+This is not the earlier Japanese keyboard-focused state: actual before/failure
+captures show list browsing with no keyboard, and the new Back/folder transition
+executed. The failed hierarchy contains one English movie cell at
+[0,327][393,391], with no search-dismiss container. Original failure, hierarchy,
+logs and diagnostic exits remain retained in
+`ci-4a7927a0-native/ios-build-evidence/`.
+Diagnosis continues on the retained binary and matching runtime; no unchanged
+CI rerun, assertion relaxation or new application build is scheduled.
+Independent native timeline analysis, checked against the original log, shows
+the intended movie was selected before FileProvider failed to resolve
+`localstorage/did=6` with error `-1005`, returning no URL. This refutes a missing
+or wholly consumed tap for this failure; the underlying identifier-resolution
+cause is still unknown. An unchanged full-flow reproduction on a new disposable
+profile and the same retained binary passes in 360.400 s; actual Japanese
+Inspector and final English frames are inspected. A clean profile alone does
+not explain the hosted failure. The owned local QA app is terminated and its
+device shut down; both earlier retained profiles remain preserved.
+
+A bounded buildless hosted diagnostic now reuses the immutable failed-source
+binary, preserving its source/hash separately from diagnostic source. The
+original unchanged UI flow runs before metadata probes, and its failing exit
+cannot become green because a later probe succeeds. Host and simulator
+Foundation observers report physical files and file/document/volume identities.
+Both observers compile and execute on the local synthetic fixtures; the
+simulator SDK launcher correction removes the initial sysroot warning. YAML
+and every shell block validate; YAML LSP/actionlint are not installed, so no
+such diagnostic pass is claimed. This temporary diagnostic is not an app fix,
+an acceptance retry, or permission to start M03.
+Diagnostic implementation is committed as `f4759b0af43bd5178e6501c7f3e7bb1caac768a0`,
+tree `532b38ea57f9afe3a1053e8f209684d2c062e135`. Its push paths exclude the
+normal application-build workflows; the diagnostic keeps binary source
+`4a7927a0` distinct from its own harness source.
+The `4a7927a0` compiled simulator app is retained in `ci-4a7927a0-ios-binary/`
+before UI completion. Source/tree match the candidate, gzip integrity passes,
+and the main executable retains mode 0755 and size 630474056 bytes. Archive
+SHA-256 is `a261f39dd44c5b9868af5fe94990b6ada262d5ee6e7aecdd8142572065942b2c`.
+No extraction or rebuild was required for verification. The artifact-triggered
+midpoint confirms Android job `119638455776` succeeded. Its retained original
+workflow passes in 422.614 s with zero failures; source/tree match and selected
+NDK is 30.0.16248370. Actual Japanese Inspector and restored English-continuity
+frames are inspected in `ci-4a7927a0-native/android-build-evidence/`.
+Hosted iOS acceptance still gates
+the prerequisite checkpoint; M03 has not started.
+Earlier owned duplicate export, extracted app, generated fixtures and
+eight temporary probes are removed with absence readback. Both installed
+runtimes remain Ready; retained iOS 27 stays booted and the owned iOS 26.5
+fixture device stays shut down for reuse within the authorized batch.
+Compiled archives, native profiles and all original failed/passing evidence
+remain preserved.
+The new clean-profile reproduction extraction, fixtures and standalone observer
+binaries remain cleanup-owned until the resolver diagnosis ends.
+
+#### Repair history and earlier-source evidence
+
 Independent integration source audit `st_01a1613f` finds one genuine blocker:
 window-vibrancy 0.8.1 discards the older-Windows Acrylic native BOOL on apply and
 clear. The host could therefore report active translucency after an unsuccessful
