@@ -30,7 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           df -h "$RUNNER_TEMP" > verification/disk-before-runtime.txt
-          xcodebuild -downloadPlatform iOS -buildVersion 26.5 -architectureVariant arm64
+          xcodebuild -downloadPlatform iOS -buildVersion 23F77 -architectureVariant arm64
           xcrun simctl list runtimes -j > verification/runtimes-after.json
           python3 -c 'import json; r=json.load(open("verification/runtimes-after.json"))["runtimes"]; assert any(x.get("isAvailable") and x["identifier"]=="com.apple.CoreSimulator.SimRuntime.iOS-26-5" and x["buildversion"]=="23F77" for x in r), "Exact iOS26.5/23F77 runtime is unavailable"'
           df -h "$RUNNER_TEMP" > verification/disk-after-runtime.txt

@@ -166,6 +166,21 @@ requires build 23F77 before continuing. Source/environment and disk receipts
 precede acquisition, the 25-minute job limit stays, and the original failing
 host evidence remains intact. This is an environment contrast, not a product
 fix or permission to substitute iOS 27 for the failed guest version.
+Host contrast `39740572008` stops before app download and UI: Xcode's
+version-only acquisition installs release-candidate build `23F73`, then the
+explicit `23F77` check fails as intended. Actual hosted macOS is 27.0.1,
+Xcode is 27.0/27A266a, and initial free disk is 39 GiB. No picker outcome
+or capacity failure is inferred. Cached Apple metadata distinguishes the
+`23F73` release-candidate and final `23F77` entries despite their shared
+26.5 version. Exact-build selection must be corrected, not the guest gate.
+The explicit `-buildVersion 23F77` selector is now verified locally with exit 0
+and the expected final runtime. It re-registers the existing asset: new image
+`B9DC92F5-DF29-485A-B70E-9A8F288B1E18` is Ready, with the same asset path and
+size; old registration `D157CD04-F12F-422D-8C66-F92E4051DC84` becomes Unusable.
+Both retained 26.5 devices remain available and Shutdown, and the original 27
+runtime remains Ready. No shared asset is deleted to prune the stale entry.
+The hosted command now uses the exact build selector, retaining its independent
+post-install build assertion. This correction has no hosted UI result yet.
 The controlled registration change is `bab8b4c30b2841c008848936071aa3b8d4beaba8`
 (tree `b5043be154e23c39f7bfa557f7b7e352038eecc9`), still confined to the
 temporary diagnostic. Its original failed control remains independently retained.
