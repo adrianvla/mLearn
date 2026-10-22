@@ -69,10 +69,13 @@ jobs:
           image="$RUNNER_TEMP/mlearn-userdata.sparseimage"
           staging="$RUNNER_TEMP/mlearn-userdata-mount"
           mounted_at=""
+          boot_started=false
           cleanup() {
             status=$?
-            python3 -c 'import subprocess,sys; subprocess.run(["xcrun","simctl","io",sys.argv[1],"screenshot","test-results/mobile/final-state.png"],timeout=30)' "$device" || true
-            python3 -c 'import subprocess,sys; subprocess.run(["xcrun","simctl","shutdown",sys.argv[1]],timeout=30)' "$device" || true
+            if [ "$boot_started" = true ]; then
+              python3 -c 'import subprocess,sys; subprocess.run(["xcrun","simctl","io",sys.argv[1],"screenshot","test-results/mobile/final-state.png"],timeout=30)' "$device" || true
+              python3 -c 'import subprocess,sys; subprocess.run(["xcrun","simctl","shutdown",sys.argv[1]],timeout=30)' "$device" || true
+            fi
             if [ -n "$mounted_at" ]; then
               hdiutil detach "$mounted_at" || exit 1
             fi
@@ -90,6 +93,9 @@ jobs:
           diskutil image attach --mountPoint "$staging" --mountOptions nobrowse,owners "$image"
           mounted_at="$staging"
           ditto "$userdata" "$staging"
+          # ditto merges children but does not copy an existing volume root's mode.
+          python3 -c 'import os,stat,sys; s=os.stat(sys.argv[1]); os.chown(sys.argv[2],s.st_uid,s.st_gid); os.chmod(sys.argv[2],stat.S_IMODE(s.st_mode))' \
+            "$userdata" "$staging"
           hdiutil detach "$staging"
           mounted_at=""
           diskutil image attach --mountPoint "$userdata" --mountOptions nobrowse,owners "$image"
@@ -101,6 +107,7 @@ jobs:
           cmp verification/userdata-owner-before.txt verification/userdata-owner-after.txt
           hdiutil info > verification/userdata-images-mounted.txt
           xcrun simctl boot "$device"
+          boot_started=true
           python3 -c 'import subprocess,sys; subprocess.run(["xcrun","simctl","bootstatus",sys.argv[1],"-b"],check=True,timeout=300)' "$device" \
             2>&1 | tee verification/bootstatus.log
           xcrun simctl spawn "$device" log config --status --subsystem com.apple.FileProvider \

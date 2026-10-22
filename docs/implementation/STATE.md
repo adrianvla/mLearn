@@ -218,6 +218,18 @@ records root ownership/mode, bounds boot and installation subprocesses, and
 retains their output plus final host/device state. Original UI deadlines and
 outcome gates remain unchanged. This repairs the experiment's setup invariant,
 not yet the FileProvider failure.
+Run `39748092986` stops before boot at the root metadata guard: factory userdata
+is UID/GID 501:20, mode `0775`, but the mounted root is `0755`. Ownership itself
+is enabled. `ditto` merges children without preserving an existing volume
+root's mode. The guard remains; the diagnostic now explicitly copies the
+factory root UID/GID/mode onto only the staged volume root before remounting.
+Pre-boot cleanup skips screenshot/shutdown on an unbooted device. No app or
+original UI result is claimed from this setup failure.
+The small local regression reproduces `0775` becoming `0755` before the fix,
+then verifies UID/GID/mode equality after the fix and an ownership-enabled
+remount. All generated regression resources are removed with absence checked.
+Hosted final receipts also confirm its failed device and mount were released.
+YAML, shell/Python syntax, and both cleanup branches pass their relevant checks.
 The controlled registration change is `bab8b4c30b2841c008848936071aa3b8d4beaba8`
 (tree `b5043be154e23c39f7bfa557f7b7e352038eecc9`), still confined to the
 temporary diagnostic. Its original failed control remains independently retained.
