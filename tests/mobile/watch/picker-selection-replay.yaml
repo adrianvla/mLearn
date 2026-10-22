@@ -6,7 +6,7 @@ appId: net.kikan.mlearn.v3dev
     id: '${VIDEO_NAME}, mp4'
 - takeScreenshot: '${DIAGNOSTIC_STAGE}-picker-before-selection'
 - tapOn:
-    text: '^${VIDEO_NAME}$'
+    id: '${VIDEO_NAME}, mp4'
     enabled: true
 - extendedWaitUntil:
     notVisible:
