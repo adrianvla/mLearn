@@ -55,11 +55,13 @@ public static class NativeMaterialQa {
       StructureChangedEventHandler structure = delegate { check(); };
       AutomationPropertyChangedEventHandler property = delegate { check(); };
       AutomationEventHandler opened = delegate { check(); };
+      AutomationFocusChangedEventHandler focused = delegate { check(); };
       Automation.AddStructureChangedEventHandler(root, TreeScope.Subtree, structure);
       Automation.AddAutomationPropertyChangedEventHandler(root, TreeScope.Subtree, property,
         AutomationElement.NameProperty, AutomationElement.IsEnabledProperty, AutomationElement.IsOffscreenProperty,
         ValuePattern.ValueProperty);
       Automation.AddAutomationEventHandler(WindowPattern.WindowOpenedEvent, root, TreeScope.Subtree, opened);
+      Automation.AddAutomationFocusChangedEventHandler(focused);
       try {
         trigger();
         check();
@@ -71,6 +73,7 @@ public static class NativeMaterialQa {
         Automation.RemoveStructureChangedEventHandler(root, structure);
         Automation.RemoveAutomationPropertyChangedEventHandler(root, property);
         Automation.RemoveAutomationEventHandler(WindowPattern.WindowOpenedEvent, root, opened);
+        Automation.RemoveAutomationFocusChangedEventHandler(focused);
       }
     }
   }
@@ -135,18 +138,28 @@ public static class NativeMaterialQa {
 
   static void Save(AutomationElement window, string document, string theme) {
     Console.WriteLine("Saving native theme: " + theme);
-    AutomationElement editor = Wait("Theme JSON editor", window, delegate { return Find(window, "Theme JSON", ValuePattern.Pattern); },
+    AutomationElement dialog = Wait("Custom theme dialog", window, delegate { return Find(window, "Custom theme", WindowPattern.Pattern); },
       delegate { Invoke(window, "Edit theme JSON"); });
+    AutomationElement editor = Wait("Theme JSON editor", dialog,
+      delegate { return Find(dialog, "Theme JSON", ValuePattern.Pattern); }, delegate {});
+    // The modal's effect owns initial focus. Await that handoff before moving
+    // it; early UIA SetFocus can otherwise be overwritten after input dispatch.
+    Wait("dialog initial keyboard focus", dialog, delegate {
+      AutomationElement close = Find(dialog, "Close", InvokePattern.Pattern);
+      return close != null && close.Current.HasKeyboardFocus ? close : null;
+    }, delegate {});
     IntPtr handle = new IntPtr(window.Current.NativeWindowHandle);
     SetForegroundWindow(handle);
     if (GetForegroundWindow() != handle)
       throw new InvalidOperationException("The owned test window cannot receive native input");
-    editor.SetFocus();
+    Wait("Theme JSON keyboard focus", dialog,
+      delegate { return editor.Current.HasKeyboardFocus ? editor : null; },
+      delegate { editor.SetFocus(); });
     string input = document.Replace("\r\n", "\n");
     Exception inputFailure = null;
     string receivedInput = "";
     try {
-      Wait("complete " + theme + " editor input", window, delegate {
+      Wait("complete " + theme + " editor input", dialog, delegate {
         receivedInput = ((ValuePattern)editor.GetCurrentPattern(ValuePattern.Pattern)).Current.Value;
         return receivedInput.Replace("\r\n", "\n") == input ? editor : null;
       }, delegate {
@@ -172,7 +185,7 @@ public static class NativeMaterialQa {
     // closes the editor and restores the enabled placeholder selector.
     string selection = theme == "Slate" ? "Select" : theme;
     Wait("saved " + theme + " selector", window, delegate { return Find(window, "Select theme: " + selection, null); },
-      delegate { Invoke(window, "Save custom theme"); });
+      delegate { Invoke(dialog, "Save custom theme"); });
   }
 
   static MaterialCapture Capture(AutomationElement target, string theme, string path, bool translucent, bool dark) {
@@ -266,7 +279,7 @@ public static class NativeMaterialQa {
           tree.AppendLine("pid=" + info.ProcessId + " handle=" + info.NativeWindowHandle +
             " role=" + info.ControlType.ProgrammaticName + " name=" + info.Name +
             " id=" + info.AutomationId + " enabled=" + info.IsEnabled +
-            " offscreen=" + info.IsOffscreen +
+            " offscreen=" + info.IsOffscreen + " focused=" + info.HasKeyboardFocus +
             " invoke=" + element.TryGetCurrentPattern(InvokePattern.Pattern, out pattern) +
             " patterns=" + String.Join(",", Array.ConvertAll(element.GetSupportedPatterns(), supported => supported.ProgrammaticName)));
           for (AutomationElement child = TreeWalker.ControlViewWalker.GetFirstChild(element);
