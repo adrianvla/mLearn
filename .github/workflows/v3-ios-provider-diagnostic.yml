@@ -1,0 +1,114 @@
+name: v3 retained iOS FileProvider diagnostic
+on:
+  push:
+    branches: [agent/m01]
+    paths:
+      - .github/workflows/v3-ios-provider-diagnostic.yml
+      - .github/diagnostics/file-identifiers.swift
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: v3-ios-provider-diagnostic-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  retained-ios:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record diagnostic harness and hosted environment
+        run: |
+          set -euo pipefail
+          mkdir -p verification test-results/mobile
+          git rev-parse HEAD HEAD^{tree} > verification/harness-source.txt
+          sw_vers > verification/host.txt
+          xcodebuild -version >> verification/host.txt
+          xcrun simctl list runtimes -j > verification/runtimes.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: ios-simulator-app
+          run-id: 39722347870
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .mlearn/retained-ios
+      - name: Verify and extract the immutable failed-source app
+        run: |
+          set -euo pipefail
+          {
+            IFS= read -r source
+            IFS= read -r tree
+          } < .mlearn/retained-ios/verification/source.txt
+          test "$source" = 4a7927a0ca66f4882badc0aee9ea928c21509144
+          test "$tree" = 06f1d1c38616d892b1e2f4ff601507bfac0d89a4
+          cp .mlearn/retained-ios/verification/source.txt verification/binary-source.txt
+          echo 'a261f39dd44c5b9868af5fe94990b6ada262d5ee6e7aecdd8142572065942b2c  .mlearn/retained-ios/test-results/ios-simulator-app.tar.gz' | shasum -a 256 -c -
+          mkdir -p "$RUNNER_TEMP/mlearn-retained-ios"
+          tar -xzf .mlearn/retained-ios/test-results/ios-simulator-app.tar.gz -C "$RUNNER_TEMP/mlearn-retained-ios"
+      - uses: ./.github/actions/setup-maestro
+      - name: Compile only the metadata observer
+        run: |
+          set -euo pipefail
+          swiftc .github/diagnostics/file-identifiers.swift -o "$RUNNER_TEMP/file-identifiers-host"
+          xcrun --sdk iphonesimulator swiftc -target arm64-apple-ios26.0-simulator \
+            .github/diagnostics/file-identifiers.swift -o "$RUNNER_TEMP/file-identifiers-simulator"
+      - name: Original UI flow followed by read-only provider observations
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl create "mLearn provider $GITHUB_RUN_ID" com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-26-5)
+          cleanup() {
+            xcrun simctl io "$device" screenshot test-results/mobile/final-state.png || true
+            xcrun simctl shutdown "$device" || true
+            xcrun simctl delete "$device" || true
+          }
+          trap cleanup EXIT
+          echo "$device" > verification/device.txt
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl spawn "$device" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
+          xcrun simctl install "$device" "$RUNNER_TEMP/mlearn-retained-ios/mLearnv3Dev.app"
+          python3 tools/create-watch-fixture.py "$RUNNER_TEMP/mlearn-provider-fixtures"
+          container=$(xcrun simctl get_app_container "$device" net.kikan.mlearn.v3dev data)
+          echo "$container" > verification/initial-container.txt
+          mkdir -p "$container/Documents/M01 fixtures"
+          cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-fixture.mp4" "$container/Documents/M01 fixtures/m01-watch.mp4"
+          cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-fixture.srt" "$container/Documents/M01 fixtures/m01-watch.srt"
+          cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-japanese.mp4" "$container/Documents/M01 fixtures/m01-japanese.mp4"
+          cp "$RUNNER_TEMP/mlearn-provider-fixtures/watch-japanese.srt" "$container/Documents/M01 fixtures/m01-japanese.srt"
+          export PATH="$PWD/tests/mobile/ios-driver:$PATH"
+          set +e
+          maestro --device "$device" test --config tests/mobile/config.yaml --format junit \
+            --output test-results/mobile/junit.xml --test-output-dir test-results/mobile \
+            --debug-output test-results/mobile tests/mobile/watch.yaml 2>&1 | tee test-results/mobile/run.log
+          original_status=$?
+          echo "$original_status" > verification/original-exit.txt
+          (
+          set -e
+          final_container=$(xcrun simctl get_app_container "$device" net.kikan.mlearn.v3dev data)
+          echo "$final_container" > verification/final-container.txt
+          files=("$final_container/Documents/M01 fixtures/m01-watch.mp4"
+                 "$final_container/Documents/M01 fixtures/m01-watch.srt"
+                 "$final_container/Documents/M01 fixtures/m01-japanese.mp4"
+                 "$final_container/Documents/M01 fixtures/m01-japanese.srt")
+          "$RUNNER_TEMP/file-identifiers-host" "${files[@]}" > verification/host-file-identifiers.json
+          xcrun simctl spawn "$device" "$RUNNER_TEMP/file-identifiers-simulator" "${files[@]}" > verification/simulator-file-identifiers.json
+          xcrun simctl spawn "$device" log show --last 15m --style compact \
+            --predicate 'process == "fileproviderd" OR process CONTAINS[c] "DocumentManager" OR process CONTAINS[c] "mlearn"' \
+            > verification/provider.log 2>&1
+          )
+          observation_status=$?
+          set -e
+          echo "$observation_status" > verification/observation-exit.txt
+          if [ "$original_status" -ne 0 ]; then exit "$original_status"; fi
+          exit "$observation_status"
+      - name: Ensure diagnostic did not modify tracked source
+        if: always()
+        run: git diff --exit-code HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retained-ios-provider-evidence
+          retention-days: 7
+          path: |
+            verification
+            test-results/mobile
