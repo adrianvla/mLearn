@@ -127,6 +127,26 @@ that is not proof of the cause. The full native stream identifies
 `LocalStorageFileProvider[14380]`; the filtered persisted-debug predicate omitted
 that process. Extend the existing diagnostic predicate to include FileProvider
 processes and subsystems before making another causal claim. M03 stays gated.
+Extension trace `39737137054` now shows the missing detail. The original flow
+fails first-English dismissal in 215.025 s, with original exit 1 and observation
+exit 0. Exact `0c0da6b2` harness and retained `4a7927a0` binary match.
+`ci-0c0da6b2-extension/verification/provider.log:16457–16514` resolves document
+ID 6 via a cached VFS handle and host-proxy inode open. The later real
+selection at lines 25715–25725 repeatedly receives `ENOENT` while resolving
+that same document ID, then returns `-1005`; physical files/IDs and native
+inode round trips remain unchanged. The final screenshot is inspected.
+This is a provider document-lookup failure, not evidence of a missing tap,
+blocked app importer, or a slow operation that a longer deadline would repair.
+
+The next isolated contrast stages byte-identical generated fixtures through
+a simulator-native Foundation helper instead of host `mkdir`/`cp`, retaining
+the real picker and all original assertions. It tests guest-side file creation
+and identity lifecycle; it is not yet a proven repair. The helper belongs
+only to the temporary diagnostic until the hosted original flow verifies it.
+Host and simulator helper builds pass, Swift diagnostics are clean, and both
+helpers execute against disposable local directories with all eight source/
+destination byte comparisons passing. YAML and every shell block validate.
+This verifies fixture transport only; the hosted picker outcome is pending.
 The controlled registration change is `bab8b4c30b2841c008848936071aa3b8d4beaba8`
 (tree `b5043be154e23c39f7bfa557f7b7e352038eecc9`), still confined to the
 temporary diagnostic. Its original failed control remains independently retained.
