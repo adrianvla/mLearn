@@ -178,7 +178,21 @@ without rebuilding or transporting a private key in an artifact. Windows results
 are pending; this addition is not Windows acceptance, and the tuned Japanese
 Windows path still needs its own actual execution.
 
-Next: checkpoint the preserved M06 source and continue remaining native platform
+The source checkpoint is committed/pushed as
+`ed21b1e00260cd9a33fa6f541c571d9580448241` (tree
+`407cffec7349a4e2c0b1b5f34465b9d5ddd1458b`), status `implementing_M06`,
+not milestone acceptance. Exact-source runs: foundation `40033573961`, normal
+mobile `40033574011`, normal Linux desktop `40033573960`. No FileProvider
+diagnostic variant was dispatched.
+
+The first foundation web job `120687492950` failed in `npm test`: authored
+ReviewAudio and CaptureList browser tests could not find Playwright Chromium.
+The workflow installed the browser only afterward. Logs were retrieved before
+repair; the prerequisite step is now moved before `npm test`, preserving all
+assertions. Native jobs in that run continue independently. The workflow repair
+still needs its hosted result; no local application rebuild is relevant to it.
+
+Next: finish hosted verification of the source checkpoint and remaining native platform
 verification and review. Windows execution, mobile quality/device acceptance,
 full manga corpus coverage and model-license discrepancies remain open.
 
