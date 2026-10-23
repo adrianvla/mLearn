@@ -151,6 +151,20 @@ For the initial mobile implementation, iOS recognition uses Apple's native Visio
 
 Desktop specialist OCR and mobile native OCR need not produce identical strings or box boundaries, but each must make the reader's stated interactions work on representative material. Compare image preprocessing, detection, crop transforms, reading order, vertical orientation, annotation filtering, confidence and source hit-region alignment. Record qualitative recognition differences, particularly on difficult Japanese manga, before calling a mobile provider adequate.
 
+Desktop inference is Python-free and Rust-owned through ONNX Runtime. The tuned
+Japanese path retains Paddle detection, package-owned vertical regrouping,
+original-resolution crops and complete MangaOCR autoregressive decoding with
+pinned preprocessing/tokenization. Apple Vision does not replace that path.
+MangaOCR is Japanese-only and is selected by that language package, not a
+generic recognizer or fallback for other languages. Other packages retain their
+generic/package-selected OCR path without a language registry in core.
+Python is permitted only for offline reference/conversion. Models and native
+runtime resources are optional, pinned, integrity/license-verified installations,
+not Cargo/test downloads. Acceleration uses actual available macOS CoreML,
+Windows and Linux GPU providers with reliable CPU fallback; inference sessions
+are bounded, reusable, cancellable and unloadable. Validate real macOS/Windows
+recognition and compare representative native outputs to the original pipeline.
+
 Annotated text is a shared semantic pipeline for subtitles, documents, OCR output and conversation messages. Native work analyzes a relevant bounded range, resolves stable source spans/targets and reads Knowledge for distinct targets in batches. The UI presents those results rather than assembling a separate knowledge query per word. Cache keys include the relevant source/content and package/analysis context; obsolete results cannot apply to a new source. Knowledge revisions update affected view data without automatically retokenizing the source. Source raw text can render while analysis is pending; it must not fabricate knowledge or hide processing errors.
 
 Keep source content dominant. Selection/hover/tap opens fast contextual inspection; returning preserves location and playback. Recognition, annotation and dictionary preparation occur as bounded native work, not a full parse or model initialization triggered by every hover. Missing optional assets degrade locally with an actionable state, not an app-wide permanent skeleton.

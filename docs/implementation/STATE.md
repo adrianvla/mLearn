@@ -14,10 +14,230 @@ package for manual acceptance, without merging or self-acceptance.
 
 ## Current gate status — 2026-10-23
 
-Status: `verified_M05_for_continuation`. M03 is published as `fbfb1a59` on `agent/m01`.
+### Crash recovery and resource constraints
+
+The current task is M06 OCR followed by M07, not the obsolete visual-parity
+objective still stored in the goal service. M03–M05 must not be repeated.
+The maintainer reported a watchdog panic with OmO around 13 GiB RSS, QEMU
+around 12 GiB RSS, 21 swapfiles and compressor exhaustion. No devices,
+reference applications or test servers may restart automatically on resume.
+Use serial local work, one Cargo job, bounded diagnostics and targeted device
+runs with shutdown; prefer GitHub Actions for broad native verification.
+This does not weaken any functional or architectural gate.
+
+Recovery stopped restored monitors `mon_MH4AFEHHYT9JZNDX`,
+`mon_M31W23XKAN1P7HRY` and `mon_CYDW6ED4CE8FW60M`.
+The Android launcher `mon_HFQ4QSM9DMKNB59M` was already absent; no Android
+QEMU was running. Owned desktop dev session `bash_101` was terminated.
+The isolated reference Electron orphan PID 7942 was identified by its retained
+QA profile and terminated; the owned H00 simulator
+`2C4A73B3-435F-4CD0-86E4-09F549DC3B4F` was shut down without erasure.
+Unrelated processes, all workspaces, profiles and artifacts were preserved.
+
+The bounded memory audit measured 67% system-wide free memory and 4,455 MiB
+swap use. OmO's `vmmap` footprint was about 2.0 GiB with a 6.6 GiB peak,
+while `ps` reported about 4.7 GiB RSS. The eval heap was only about 7.5 MB
+before GC and 3.7 MB afterward; GC did not materially reduce the footprint.
+The larger native/other-context allocation remains unexplained; do not treat
+the small eval heap or green pressure as proof that the earlier growth is fixed.
+No heap dump, session reset, broad model load or emulator restart was performed.
+After owned QA cleanup, free memory increased to 76% and swap use fell to
+3,021 MiB; no matching emulator, reference-profile, dev-server or OCR-probe
+process remained. A further bounded map showed WebKit malloc at about 185 MiB
+resident plus 181 MiB swapped, which does not explain the whole footprint.
+
+Recovered terminal evidence proves the native M06 run completed **exit 0**:
+`mon_B4VJ0F74M905AH13` reported authenticated installation, all six image
+cases, cancellation/display/restart and `DESKTOP_OCR_VERIFIED`.
+Its existing `native-onnx-qa/desktop-ocr-results.json` is 48,288 bytes and
+records native profile `org.mlearn.paddle-manga.onnx.v1`, immutable restart
+persistence and a successful real model test. Do not rerun this completed
+workflow because the session's final receipt was interrupted.
+Case latencies were 2,673 / 1,975 / 1,883 / 3,267 / 716 / 649 ms.
+The executor revision was
+`e5bf5ba78cbabc7ec88d995715b0b5d7ae994e782830aeb39346a6faac4573f4`;
+resource profile revision was
+`2b91a213cc5cc8feaf61b7465f425a72d7344ade1794eb55821a409a3cda8299`.
+These are actual native-owner workflows, not consuming GUI/device acceptance.
+Current implementation also passed 37 native worker tests, six host OCR tests
+and scoped strict Clippy before the restart. CoreML traces contain executed
+CoreML nodes, beyond provider registration alone. Earlier evidence below is
+historical where it predates these results.
+
+Recovery is complete. The maintainer also reiterated that MangaOCR is exclusive
+to the Japanese package; generic OCR for other packages must not use it as a
+fallback or introduce language-code dispatch in core.
+
+Next: checkpoint the preserved M06 source and continue remaining generic
+desktop OCR/rasterization, platform
+verification and review. Windows execution, mobile quality/device acceptance,
+full manga corpus coverage and model-license discrepancies remain open.
+
+### Earlier M06 incremental evidence
+
+Status: `implementing_M06`. M05 is published as
+`620c0fafaf95f8844577e1df1eca7e9c4d905314` on `agent/m01`, with its independent
+continuation closeout committed. M03 is published as `fbfb1a59`, M04 as
+`f5f350ab62880378c23485552fc5aa306c033eba`. None is maintainer acceptance.
+
+The current desktop M06 requirement is Python-free Rust-owned ONNX inference:
+Paddle detection, package-owned vertical regrouping, original-resolution crops
+and complete MangaOCR autoregressive recognition. Apple Vision is not a
+replacement for tuned Japanese manga OCR. Python is permitted only for offline
+reference/conversion, never the application runtime, sidecar, installation
+prerequisite or fallback. The earlier packaged-Python desktop unit below is
+preserved reference evidence, not a verified native desktop implementation.
+Optional pinned, integrity/license-verified resources must not download during
+Cargo builds or ordinary tests. macOS CoreML, Windows acceleration and a viable
+Linux GPU path require actual capability detection and reliable CPU fallback;
+bounded reusable sessions must support cancellation and unloading. Native
+quality/performance comparison and real macOS/Windows OCR remain open gates.
+
+Independent Reader review's three reproduced defects are repaired: native
+topToBottom and package-derived missing orientation now produce vertical hit
+targets; Contents/rail navigation aborts native OCR; original PDF presentation
+does not admit hidden document-text analysis. Typecheck, ownership lint,
+consuming web export and 27 Reader/Material workflows pass; four vertical
+alignment cases pass at desktop/narrow widths, with captures inspected.
+The Japanese package passes all five OCR tests. Before/after evidence is in
+`qa/{vertical-before,navigation-before,presentation-before,review-repairs,vertical-final}`.
+
+`NATIVE-REFERENCE.md` recovers the exact tuned stages and Python ML inventory;
+`NATIVE-CANDIDATES.md` audits all four requested candidates. The native
+`crates/desktop-ocr` session owner compiles with ORT rc.10, default downloads
+disabled and explicit optional runtime loading. Actual Mayocream FP32 graphs
+at `24b12778d85800835e2ca409236de281b8ab7b9f` load through retained native
+ORT 1.24.2; both register CoreML, which is not yet proof of accelerated node
+execution. Four-beam native CPU recognition of the original-resolution
+vertical crop returns the preserved raw golden `日 本 語 を 読 む`.
+Its encoder/decode observations are 204.5/271.6 ms, not end-to-end app budgets.
+Nineteen beam/preprocessing tests and strict Clippy pass. All four synthetic
+color/scale tensors match the original Pillow 12.1.1/ViTImageProcessorPil
+bit-for-bit. Native-only signed inventory tests pass 10/10 and reject the
+superseded Python executor. Detector conversion/integration, warm worker
+lifetime, native app quality and Windows execution remain incomplete.
+
+M06's Rust owner, Vision adapter and bundled Android adapter are implemented.
+Their evidence is `.mlearn/m03-m07/m06-ocr/{RUST,VISION,ANDROID}.md`; the shared
+wire and integration ownership are in that directory's `PLAN.md`. The original
+OCR owner passed 149 tests, scoped Clippy, formatting and generated contracts;
+subsequent shared-practice integration has its separate owner evidence below.
+Vision's scoped iOS16.4/macOS13 checks and real standalone fixture/geometry/
+cancellation checks pass. Root's additive original-pixel display crop also
+typechecks for both targets; the Expo module parses. Android's display-admission
+regression failed before repair: a running SDK task blocked source navigation.
+Independent bounded display/inference gates and two bounded execution lanes now
+pass all ten geometry/lifetime tests. These are not consuming-app or offline-device
+acceptance.
+
+Typed OCR clients, native host adapters and the first real image Reader are
+connected. Original pixels cross the DOM boundary once per visible source,
+separately from bounded token/Knowledge updates. Ordinary document and image
+words share one native/DOM anchor lifetime owner and the existing Inspector/
+Capture path. Fit/spread/direction controls, original-page progress, cached
+recognition, provider selection and explicit crop input are wired. Source-pixel
+magnification has hold/release/wheel and a touch toggle; publisher readings can
+be concealed without removing source data. Source words reuse CaptureList for
+eligibility/exclusion, capture and saved-Material navigation, and the existing
+Inspector for native Knowledge. Locate highlights the exact original token.
+`ImageSourceWords` owns bounded view filtering/pagination only; Rust remains
+authoritative. Knowledge refresh retains useful source hit targets while pending.
+
+Root's twelve Reader browser workflows pass at desktop/narrow widths; the latest
+compact source-word row also passes both affected layout workflows and was
+visually inspected at both widths. They substitute native IPC and do not prove
+recognition quality or native persistence. Typecheck and ownership lint pass.
+Earlier scoped checks passed 37 architecture and nine client regressions.
+Evidence is under `.mlearn/m03-m07/m06-ocr/qa/`, including
+`source-word-sidebar-final/` and `source-word-density/`. A reproduced shared
+Inspector contrast failure over white pixels is repaired in its shared material
+role. A subsequent source-locate capture exposed white selection material washing
+out actual glyphs; DocumentViewport and ImageViewport now use the same translucent
+source-selection role instead of the selected-button material. Before/after
+captures preserve readable original pixels. The current complete Node run passes
+62 checker tests and 94 client/theme tests, including the shared theme regressions.
+
+The shared encounter owner now has explicit finite selected Word Practice,
+distinct from scheduled Review, with purpose-qualified evidence and frozen
+Source Return. Its owner verification is in `PRACTICE.md`. Root's actual Reader
+entry now freezes source-selected membership, retries identical uncertain
+admission and opens the returned shared encounter. Typecheck/lint/build and
+23 Reader/Material workflows pass; the source-to-practice capture was inspected.
+Recognition details now edits real text/corner coordinates through the native
+revision-checked correction command, preserves uncertain retry identity, loads
+current saved recognition explicitly, and displays immutable raw/parent evidence.
+Desktop/narrow workflows verify those effects without recopying original pixels.
+The first strengthened post-correction readiness run failed on both sizes:
+old shared-anchor passive cleanup erased the newly rendered identity before the
+child's ready publication. The shared lifetime owner now invalidates only its
+own identity; the complete 25-workflow Reader/Material rerun passes, with
+typecheck/lint/build also passing. Before/after evidence is in
+`qa/readiness-before-fix/` and `qa/readiness-after-fix/`. Genuine native consuming
+workflows and final continuation review remain incomplete.
+
+Actual crop/provider tests exposed a shared Select portal below its owning
+Dialog: the dialog's body intercepted option clicks. Select now mounts its web
+portal in the owning dialog's stacking/focus scope; native portal behavior is
+unchanged. The CaptureList test presentation adapter was extended for its real
+InlineWord consumer and dynamic Unistyles roles without weakening retry checks.
+The crop/navigation boundary tests now pass. The first navigation fixture
+incorrectly returned a window beginning at page 1 for a requested page 2; it now
+honors the actual typed native window contract instead of bypassing validation.
+
+Native OCR recovery had a genuine terminal-identity mismatch: adapters cancel
+failed SDK jobs, while UI retry reused their forbidden cancelled IDs; a lost
+committed receipt could also rerun inference. A bounded Rust-owned `ocr_recovery`
+read now distinguishes unknown/pending/cancelled/completed by the original
+request. Completed recovery returns its immutable committed revision, not later
+corrections. Explicit retry uses a fresh action only after native cancellation
+is confirmed; uncertain pending work retains identity. Both regressions fail
+on pre-recovery consuming bytes and pass after repair. Evidence:
+`qa/retry-before-fix/`, `qa/retry-after-fix/`. Final root checks pass 29
+Reader/Material workflows, 14 real-SQLite OCR tests, 39 runtime unit and 11
+document workflows, strict core/storage/runtime library Clippy and contract
+freshness. No native recognition-quality claim comes from browser IPC fixtures.
+
+On 2026-10-23 the maintainer clarified that there is no separately required OCR
+text mirror: the approved behavior is interactive OCR text aligned over the
+original image, source-coordinate alignment, crop recognition, annotation
+controls and an independent source-image magnifier/zoom. OCR-04, PLAN and
+REFERENCE now reflect that correction without dropping those functions.
+The obsolete mirror task/reference blocker is retired. `MIRROR.md` preserves
+the actual overlay/annotation/lens source evidence with its former blocker
+explicitly superseded. Continue M06 through its remaining implementation and
+native verification gates; there is no external-reference blocker here.
+Desktop's retained Paddle/MangaOCR path and authenticated installable v3 provider
+now have verified unit handback in `DESKTOP-IMPLEMENTATION.md`. It reuses the
+signed catalog/resource-transfer owner, real pinned detection/recognition,
+package-owned geometry/reading/context interpretation and a separate display
+lane. Real image/PDF/crop, cancellation/reaping and offline fresh-process restore
+pass. Standalone first-action latency (25.4s), restore validation (13.5s) and
+peak neural RSS (about 1.73GB) remain integration observations, not app budgets
+or acceptance. Root still owns model-management UI, actual consuming workflows
+and platform quality. System Vision must not silently replace this provider.
+
+Current iOS Rust/mobile bindings and both simulator architectures are prepared
+successfully, retaining existing build outputs. UniFFI emits its existing
+old-style-config warning; it was not suppressed. Consuming Release build
+`mon_A2K9SKW9D5RMAF9F` / `bash_48` is active after successful retained Pod
+installation. The existing H00 iOS27 simulator
+`2C4A73B3-435F-4CD0-86E4-09F549DC3B4F` is booted, not recreated.
+Android retained AVDs include `mlearn-h00-api35-20261016`; none was booted by
+this step. Source `.mlearn/preflight/env.sh` in each shell: the first device probe
+without that environment could not locate adb; the documented-path probe passed.
+
+Effective Rust/Android/reference-lane routing was subscription GPT6.1 Sol,
+medium. The Vision completion receipt reports subscription GPT6.1 Sol Fast
+fallback; preserve that distinction from its earlier selected-route note.
+The host restarted during integration. Reuse retained source/build/evidence and
+restored owned reference/emulator monitors; do not infer device readiness or
+repeat completed M05 gates. Current root scratch/cache lives under
+`.mlearn/m03-m07/m06-ocr/run/`.
+
+### Published M05 verification record
+
 M04 source and its M01–M04 architecture repairs are independently approved and
-verified for continuation. The checkpoint carrying this record is the M05
-publication unit; M06 starts only after its push.
+verified for continuation. M05 was published only after its continuation checks.
 M04 publication `f5f350ab62880378c23485552fc5aa306c033eba` is now pushed.
 M05 is independently verified for continuation, not maintainer-accepted.
 The real bounded TXT/EPUB parser

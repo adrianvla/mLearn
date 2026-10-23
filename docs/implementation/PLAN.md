@@ -220,13 +220,27 @@ Each row is a review boundary. The executor reads its feature IDs, shared contra
 
 ### M06 — image/PDF OCR and complete image-reading interaction
 
-**Deliver:** on-device recognition, image/folder pages, crop recognition, aligned text and recognized-text mirror presentation, annotation hiding, magnifier, spread/collation/fit controls, OCR queue/cache/retry and unknown-word side actions.
+**Deliver:** on-device recognition, image/folder pages, crop recognition, interactive OCR text aligned over the original image, annotation hiding/reveal, independent source-image magnifier/zoom, spread/collation/fit controls, OCR queue/cache/retry and unknown-word side actions. No separate mirrored text view is required.
+
+**Desktop executor gate:** use Rust-owned ONNX Runtime with no runtime Python,
+sidecar Python, installer Python requirement or Python fallback. Preserve Paddle
+detection -> package-owned vertical regrouping -> original-resolution crops ->
+complete MangaOCR autoregressive decoding/tokenization. Audit the maintainer's
+specified Rust implementations and ONNX exports instead of adopting their build
+downloads or incomplete decoding. Pin model/preprocessing/tokenizer provenance
+and licenses; optional resource installation must not run during Cargo/tests.
+Detect actual CoreML/Windows/Linux GPU support and retain reliable CPU fallback
+with bounded reusable, cancellable, unloadable sessions. Compare original
+Python reference outputs on the same representative corpus and exercise real
+macOS and Windows OCR. Existing packaged-Python evidence is reference only.
+Inventory other Python inference needed by implemented features; advanced
+speech/TTS remains in its proper milestones.
 
 **Consumes:** Reader source coordinates, shared text/Knowledge/Inspector/Capture and a native model/provider resource owner. The initial iOS provider is Apple's Vision text recognition through a Swift Expo native-module adapter; Android must use real offline OCR, with bundled ML Kit Text Recognition v2 as the first candidate to evaluate. Supported language/script information is obtained from the executing provider rather than a hardcoded core map. Use shared normalized image coordinates and source orientation, preserve provider identity and recognition candidates, and let installed language packages postprocess available OCR results without choosing a hardcoded per-language engine in core. Desktop retains its independently tuned OCR paths. Do not port MangaOCR/PaddleOCR/Python or force ONNX on mobile as a prerequisite to the first release.
 
 **Reference and fidelity gate:** inspect `archive/v2-final` `src/root-of-app/routes/ocr.py` and `src/renderer/utils/ocrUtils.ts`, including real language runtime metadata, detection/recognition separation, downscaling, vertical regrouping, crop coordinates, box/annotation filtering and caching. The Japanese desktop path runs PaddleOCR detection then MangaOCR recognition; this tuned behavior is a reference, not a mobile implementation mandate. Keep a small representative corpus with vertical manga/ruby, horizontal mixed text, glare/low contrast, one crop and a two-page spread. Compare recognized content, source geometry, hit behavior and processing/lifetime costs; do not demand byte-identical outputs from unrelated OCR models.
 
-**Review:** use a real licensed/sanitized image/PDF with main text and annotations, then a spread. Crop/reprocess, resize, hide/reveal annotations, magnify, inspect and capture on each page. Verify exact mirrored-presentation behavior against the selected reference before acceptance. Test native Vision/Android OCR offline on actual supported languages and record unsupported ones; test cancellation/retry and image/orientation transforms on both mobile platforms. No custom neural model port or cosmetic mobile redesign is part of this unit.
+**Review:** use a real licensed/sanitized image/PDF with main text and annotations, then a spread. Crop/reprocess, resize, hide/reveal annotations, magnify, inspect and capture on each page. Verify interactive OCR alignment over original pixels across fit, resize, zoom, orientation, crops and spreads, with lookup/correction/Capture resolving the same source coordinates; verify the independent image magnifier samples source pixels. Test native Vision/Android OCR offline on actual supported languages and record unsupported ones; test cancellation/retry and image/orientation transforms on both mobile platforms. No custom neural model port or cosmetic mobile redesign is part of this unit.
 
 ### M07 — People, temporary conversations and contextual explanations
 

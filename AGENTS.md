@@ -1,5 +1,55 @@
 # mLearn engineering contract
 
+## Active execution-resource constraint — 16 GB Mac, 2026-10-23
+
+The maintainer reported a kernel watchdog panic after severe memory exhaustion,
+including OmO at about 13 GiB RSS and Android QEMU at about 12 GiB RSS.
+Restoring the stopped session had restarted an owned Android emulator.
+
+- Never automatically restart Android emulators, iOS simulators, reference
+  applications or persistent test servers when resuming. Inspect surviving
+  jobs first; stop only unnecessary processes whose ownership is established.
+  Do not register persistent launch monitors that replay these workloads.
+- Keep local work serial when substantial: one build, inference run or targeted
+  device verification at a time. Use one Cargo build job locally. Prefer the
+  existing GitHub Actions workflows for broad native integration checks.
+  Local device runs must be targeted and shut down afterward without erasing
+  profiles, evidence, compiled artifacts or unrelated/user-owned processes.
+- Record memory pressure, OmO/workload RSS and swap before, during and after
+  substantial work. Investigate unexplained growth rather than accumulating
+  more jobs. Keep diagnostic output bounded; do not load full histories or
+  large heap dumps into the session as a recovery shortcut.
+- Resume actual M06 OCR on `agent/m01`, then M07 under the existing
+  authorization. Obsolete visual-parity goal metadata is not the active task.
+  Reuse completed M03–M05 and recovered passing M06 evidence. Make frequent
+  durable checkpoints and keep PR #44 open and unmerged.
+
+These are execution constraints, not waivers of tests, architecture or milestone
+acceptance. Preserve original assertions and record remaining verification gaps.
+
+## Active desktop OCR requirement — Python-free inference, 2026-10-23
+
+M06 desktop OCR must execute through Rust-owned ONNX Runtime, not Python,
+a packaged Python sidecar, an installation prerequisite or a Python fallback.
+Python remains allowed for offline conversion/reference testing only. Preserve
+the tuned Japanese Paddle detection -> package-owned vertical regrouping ->
+original-resolution crops -> MangaOCR pipeline; macOS Vision is not its
+replacement. MangaOCR is selected only by the Japanese package. Other language packages use
+their generic/package-selected OCR path, never MangaOCR as a fallback; do not
+add language-code dispatch to core.
+Audit the specified Rust implementations and ONNX model exports, pin
+preprocessing, complete decoding/tokenization and provenance, and compare
+real outputs against the original pipeline. Optional resources require verified
+integrity/licenses and must not download during normal Cargo builds/tests.
+Detect actual macOS CoreML, Windows and Linux GPU availability with reliable CPU
+fallback, bounded reusable cancellable/unloadable sessions, and real macOS and
+Windows functional OCR verification. Reuse existing OCR resource/source owners.
+Inventory Python ML dependencies of already implemented product functionality;
+advanced speech/TTS stays in its appropriate milestones. Preserve earlier
+packaged-Python results only as offline reference evidence. Continue M06–M07 on
+the existing branch/PR with verified committed/pushed increments, without merge
+or self-acceptance.
+
 ## Active authorization — implement M03–M07 now, 2026-10-22
 
 The maintainer explicitly **defers the existing hosted iOS FileProvider gate**.

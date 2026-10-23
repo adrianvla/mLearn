@@ -94,7 +94,7 @@ A 15–30 second clip is preferable to many stills for popup flicker, reveal/rat
 
 ### Small interactions that need a deliberate reference
 
-Include the reader's recognized-text mirror state and a short open/use/close sequence; its exact intended interaction is required but was not established by the currently inspected files. Ordinary OCR hit areas and the image-only magnifier are separate features, not substitutes. Also capture annotation hide/reveal, crop re-recognition, source ruby, first-page pairing/collation and a relevant unknown-word sidebar where these are important to the preferred workflow.
+Include the Reader's interactive OCR text aligned over the original image and its source-coordinate behavior through fit, resize, zoom, orientation, crops and spreads. Capture the separate image magnifier/zoom tool sampling original source pixels. The maintainer clarified on 2026-10-23 that no separate mirrored text view is required; its earlier roadmap distinction was unsupported and is not an external-reference blocker. Also capture annotation hide/reveal, crop re-recognition, source ruby, first-page pairing/collation and a relevant unknown-word sidebar where these are important to the preferred workflow.
 
 For Watch, include subtitle timing adjustment, embedded/alternate tracks, clipping/capture and any rate/repeat behavior to preserve. For learning, include the actual single/double-key grading behavior and a correction/resume sequence. For Messenger, include People/contact creation independently of a chat, task-focused versus persistent entry, actual message/context actions and the execution inspector.
 
