@@ -14,6 +14,30 @@ package for manual acceptance, without merging or self-acceptance.
 
 ## Current gate status — 2026-10-23
 
+### Hosted continuation after d8a24bed
+
+Foundation run `40039665884` passed Rust and clean web typechecking, but
+eight Reader web cases reported hidden source-token buttons (51 passed).
+A fresh one-worker local export of the same source passed all 29 Reader/image
+tests; no UI fix or relaxed assertion has been applied. Hosted screenshot/trace
+inspection remains pending. Linux desktop run `40039665883` reached the actual
+application and failed at `native-smoke.mjs:604`: the enabled visible `Meaning`
+control was unavailable after opening Knowledge. This is not the earlier APT
+timeout and remains unresolved.
+
+The complete detector job `120707495737` log shows all three pinned downloads
+succeeded. Pip rejected `paddle2onnx==2.1.0` with `onnx==1.23.2` because its
+metadata requires ONNX 1.16.1–1.17.0. The workflow now explicitly resolves the
+converter's other dependencies and installs the retained converter with
+`--no-deps`, preserving the measured four version pins, input hashes and
+conversion assertions. Execution compatibility is not yet verified. Independent
+macOS/generic Windows jobs may run after Rust succeeds despite detector failure;
+the detector job and required Japanese artifact remain failing gates rather
+than being waived. YAML parsing and `git diff --check` passed.
+
+Mobile run `40039665858` remains in progress. No device or reference app was
+started during these repairs.
+
 ### Crash recovery and resource constraints
 
 The current task is M06 OCR followed by M07, not the obsolete visual-parity

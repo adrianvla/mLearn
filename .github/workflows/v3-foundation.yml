@@ -104,7 +104,10 @@ jobs:
           for file in inference.json inference.pdiparams inference.yml; do
             curl --fail --location --max-time 300 "$base/$file" --output "$directory/source/$file"
           done
-          python -m pip install --disable-pip-version-check paddle2onnx==2.1.0 paddlepaddle==3.2.2 onnx==1.23.2 numpy==2.3.5
+          # Retain the measured ONNX pin despite paddle2onnx's <=1.17 metadata.
+          # Resolve its other dependencies explicitly; bypass only its resolver.
+          python -m pip install --disable-pip-version-check paddlepaddle==3.2.2 onnx==1.23.2 numpy==2.3.5 onnxoptimizer==0.3.13 'polygraphy>=0.49.20' packaging
+          python -m pip install --disable-pip-version-check --no-deps paddle2onnx==2.1.0
           # The converter rejects any mismatch against all three measured input
           # hashes before export. Python is absent from the consuming app path.
           python tools/convert-desktop-detector.py "$directory/source" "$directory/detector.onnx" 2>&1 | tee "$directory/conversion.log"
@@ -123,6 +126,9 @@ jobs:
             target/native-ocr-detector/PaddleOCR-LICENSE.txt
   desktop:
     needs: [rust, ocr-detector]
+    # Detector failure must not skip independent builds and generic OCR.
+    # The detector job and missing Japanese artifact remain failing gates.
+    if: ${{ !cancelled() && needs.rust.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
