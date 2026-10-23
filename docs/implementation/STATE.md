@@ -45,8 +45,98 @@ failure, preserving and rethrowing the original assertion. LSP and all five
 local document Reader tests pass; hosted geometry is still needed before a
 product repair.
 
-Mobile run `40039665858` remains in progress. No device or reference app was
-started during these repairs.
+Foundation run `40040864691` completed: Rust, pinned detector conversion and
+macOS desktop build/tests passed. Windows job `120713091191` passed eight
+document tests, including image admission/registry/restart publication, but
+three byte-addressed text-fixture tests failed before the OCR probe started.
+Its log shows CRLF-converted fixture bytes being parsed as one LF-only paragraph.
+The parser explicitly advertises LF blank-line paragraphs and preserves original
+source bytes; this is not evidence to normalize source IDs.
+
+The exact checkout failure was reproduced without modifying the real fixture:
+`git -c core.autocrlf=true checkout-index --temp` produced 178 bytes and
+13 CRLFs from the 165-byte authored fixture. `.gitattributes` now marks only
+`tests/fixtures/reader/journey.txt` as `-text`. The same checkout operation then
+produced exactly the original 165 bytes with no CRLFs. Both generated temporary
+copies were removed. The existing parser byte-container test and all 11 runtime
+document tests pass locally; hosted Windows execution remains pending.
+No product parser or assertion was changed.
+
+Linux failure evidence now includes Inspector control bounds, expanded/disabled
+state and center-hit labels alongside the existing geometry capture. Node syntax,
+LSP diagnostics and diff whitespace checks pass. The native scenario has not
+been rerun locally; this records the missing diagnostic, not an interaction fix.
+
+Mobile run `40039665858` remains in progress. Its repaired Swift binding step
+passed. Android compilation and pre-UI upload passed; source-bound artifact
+`android-compiled-app` (`12539538398`, 693914688 bytes) is retained on GitHub.
+No device or reference app was started during these CI-only repairs.
+
+### Finite offline Android OCR verification
+
+After the preceding CI-only work, one retained API 35 / Android 15 arm64 emulator
+was deliberately cold-booted with 2 GiB guest RAM, two cores, software graphics,
+no window/audio and no snapshot load/save. The retained release APK has SHA256
+`478078a5cc17292676aa624c40ff02e51081fd63fada54a49c7fb1bca407ce33`.
+Its exact build commit was not independently recovered, so this is provider/
+persistence evidence for that binary, not latest-source mobile acceptance.
+No second device, reference application or local model process was started.
+
+The real image picker imported `tests/fixtures/ocr/vision/horizontal-mixed.png`.
+Wi-Fi and mobile data were disabled before the first recognition; Android
+reported `Active default network: none` both before inference and after restart.
+The protected airplane-mode broadcast was rejected by Android; it is not used
+as proof of disconnection. Bundled `ML Kit Japanese` recognized exactly
+`Open the blue book. 42` and `日本語の本を読む。`. The real Recognition details
+dialog retained provider identity, source-corner percentages and revision 2.
+After Home, process stop, launch and reopening the saved source, the unchanged
+recognition revision and English line were present without rerunning inference.
+Both bounded provider and restart Maestro flows exited 0.
+
+Evidence lives in `.mlearn/m03-m07/m06-ocr/run/`: the
+`android-offline-provider.yaml` / `android-offline-restart.yaml` invocations,
+`android-provider` / `android-restart` command receipts and captures, plus
+`android-recognized.xml`, `android-recognized.png` and
+`android-offline-restarted.png`. Captures were inspected directly. The initial
+Maestro Home tap did not open the picker; a real touch at the inspected enabled
+control did. The recognition toolbar required scrolling its bounded header.
+These observations are preserved, not silently counted as flawless automation.
+The source used the English package, which explicitly rejects the Japanese
+analysis span; native recognition succeeded independently. This does not prove
+all five bundled scripts' quality, Japanese annotation integration or iOS OCR.
+
+The app was stopped, test-device networking restored and the emulator shut down.
+Its owning session `bash_229` exited 0; subsequent `adb devices` was empty and
+no matching QEMU/browser profile process remained. The twenty-minute shutdown
+watch was cancelled only after that shutdown. Host memory was 62% free during
+OCR; QEMU RSS reached about 4.2 GiB despite the 2 GiB guest cap. After shutdown,
+free memory was 84%, swap use 3975 MiB and OmO RSS about 6.7 GiB. OmO growth remains
+unexplained; releasing eval references did not resolve it. No further local
+device/model runs should overlap this investigation.
+
+### Retained original/native golden comparison
+
+The six original Python-reference inputs and current native report inputs have
+equal SHA256 identities. All recognized region texts and ordering match exactly;
+source geometry matches exactly except a one-original-pixel shift in the ruby
+region and one spread region. The geometric illustration still produces `○口`
+in both implementations; it is not a successful no-text rejection.
+
+| Fixture | Original observed ms | Native observed ms | Maximum corner drift |
+|---|---:|---:|---:|
+| vertical-ruby.png | 25413 | 3806 | 1 px |
+| horizontal-mixed.png | 9527 | 1981 | 0 px |
+| low-contrast-glare.png | 9489 | 1880 | 0 px |
+| spread.png | 10413 | 3318 | 1 px |
+| spread-right-crop.png | 8871 | 720 | 0 px |
+| no-text.png | 9113 | 670 | 0 px |
+
+Sources are `desktop-unit-qa/desktop-ocr-results.json` and
+`native-onnx-qa-current/desktop-ocr-results.json` beneath the existing M06 root.
+These are retained consuming-owner observations, not a controlled speedup
+claim: initialization/provider conditions differ. No Python process or new
+inference run was used for this comparison. Real manga-corpus quality and
+broader same-condition performance acceptance remain open.
 
 ### Crash recovery and resource constraints
 

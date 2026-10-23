@@ -874,10 +874,14 @@ try {
     await writeFile('test-results/desktop/failure.txt', String(body));
     await script(`return {
       viewport:{width:innerWidth,height:innerHeight,scrollX,scrollY},
-      regions:Array.from(document.querySelectorAll('[data-testid="inspector-panel"],[data-testid="annotated-text"],[data-testid="subtitle-window"],[data-testid="subtitle-window"] button')).map(node=>{
+      regions:Array.from(document.querySelectorAll('[data-testid="inspector-panel"],[data-testid="inspector-panel"] button,[data-testid="annotated-text"],[data-testid="subtitle-window"],[data-testid="subtitle-window"] button')).map(node=>{
         const style=getComputedStyle(node);
+        const rect=node.getBoundingClientRect();
+        const hit=document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
         return {testId:node.getAttribute('data-testid'),label:node.getAttribute('aria-label'),
-          rect:node.getBoundingClientRect().toJSON(),scrollTop:node.scrollTop,scrollHeight:node.scrollHeight,
+          expanded:node.getAttribute('aria-expanded'),disabled:node.getAttribute('aria-disabled'),
+          hitLabel:hit?.closest('button')?.getAttribute('aria-label')??null,
+          rect:rect.toJSON(),scrollTop:node.scrollTop,scrollHeight:node.scrollHeight,
           position:style.position,top:style.top,bottom:style.bottom,maxHeight:style.maxHeight,
           transform:style.transform};
       })
