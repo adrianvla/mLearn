@@ -190,22 +190,41 @@ impl CaptureGuard<'_> {
         kind: MaterialMediaKind,
         cancelled: &watch::Receiver<bool>,
     ) -> Result<serde_json::Value, String> {
+        let output = self.stage_file(path, SELECTION_BYTES, cancelled)?;
+        Ok(
+            serde_json::json!({"path":output,"name":path.file_name().and_then(|name| name.to_str()),"kind":kind}),
+        )
+    }
+
+    fn stage_file(
+        &mut self,
+        path: &Path,
+        maximum_bytes: u64,
+        cancelled: &watch::Receiver<bool>,
+    ) -> Result<PathBuf, String> {
         if *cancelled.borrow() {
             return Err("Media selection cancelled".into());
         }
         let name = path
             .file_name()
             .ok_or("Selected media has no filename")?
-            .to_string_lossy();
+            .to_str()
+            .ok_or("Invalid selected filename")?;
+        if name.len() > 255 || name.contains(['/', '\\', '\0']) {
+            return Err("Invalid selected filename".into());
+        }
         let mut input = std::fs::File::open(path).map_err(|e| e.to_string())?;
         let before = input.metadata().map_err(|e| e.to_string())?;
-        if !before.is_file() || before.len() == 0 || before.len() > SELECTION_BYTES {
-            return Err("Select an ordinary media file up to 128 MiB".into());
+        if !before.is_file() || before.len() == 0 || before.len() > maximum_bytes {
+            return Err(format!(
+                "Select an ordinary file up to {} MiB",
+                maximum_bytes / 1024 / 1024
+            ));
         }
         std::fs::create_dir_all(&self.directory).map_err(|e| e.to_string())?;
-        let output = self.directory.join(name.as_ref());
+        let output = self.directory.join(name);
         let mut destination = std::fs::File::create(&output).map_err(|e| e.to_string())?;
-        let bytes = copy_selection(&mut input, &mut destination, cancelled)?;
+        let bytes = copy_selection_bounded(&mut input, &mut destination, maximum_bytes, cancelled)?;
         if bytes != before.len() || input.metadata().map_err(|e| e.to_string())?.len() != bytes {
             return Err("Media changed while copying; select it again".into());
         }
@@ -218,13 +237,23 @@ impl CaptureGuard<'_> {
             .map_err(|_| "Media files poisoned")?
             .insert(output.clone());
         self.published = true;
-        Ok(serde_json::json!({"path":output,"name":name,"kind":kind}))
+        Ok(output)
     }
 }
 
+#[cfg(test)]
 fn copy_selection(
     input: &mut impl Read,
     output: &mut impl Write,
+    cancelled: &watch::Receiver<bool>,
+) -> Result<u64, String> {
+    copy_selection_bounded(input, output, SELECTION_BYTES, cancelled)
+}
+
+fn copy_selection_bounded(
+    input: &mut impl Read,
+    output: &mut impl Write,
+    maximum_bytes: u64,
     cancelled: &watch::Receiver<bool>,
 ) -> Result<u64, String> {
     let mut buffer = [0; 65536];
@@ -233,7 +262,11 @@ fn copy_selection(
         if *cancelled.borrow() {
             return Err("Media selection cancelled".into());
         }
-        let count = input.read(&mut buffer).map_err(|e| e.to_string())?;
+        let remaining =
+            usize::try_from((maximum_bytes - bytes + 1).min(65536)).map_err(|e| e.to_string())?;
+        let count = input
+            .read(&mut buffer[..remaining])
+            .map_err(|e| e.to_string())?;
         if *cancelled.borrow() {
             return Err("Media selection cancelled".into());
         }
@@ -242,13 +275,55 @@ fn copy_selection(
         }
         // Metadata is admission only: the selected file can grow during copying.
         bytes += u64::try_from(count).map_err(|e| e.to_string())?;
-        if bytes > SELECTION_BYTES {
-            return Err("Selected media exceeds 128 MiB".into());
+        if bytes > maximum_bytes {
+            return Err(format!(
+                "Selected file exceeds {} MiB",
+                maximum_bytes / 1024 / 1024
+            ));
         }
         output
             .write_all(&buffer[..count])
             .map_err(|e| e.to_string())?;
     }
+}
+
+#[tauri::command]
+pub(crate) async fn pick_document(
+    state: tauri::State<'_, super::NativeState>,
+) -> Result<Option<String>, String> {
+    let owner = state.captures.clone();
+    let job_id = uuid::Uuid::new_v4().to_string();
+    owner.reserve(job_id.clone())?;
+    let cancelled = owner.cancellation(&job_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut guard = CaptureGuard {
+            owner: &owner,
+            id: &job_id,
+            directory: owner.root.join(uuid::Uuid::new_v4().to_string()),
+            published: false,
+        };
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Documents", &["txt", "epub", "pdf"])
+            .pick_file()
+        else {
+            return Ok(None);
+        };
+        if !matches!(
+            path.extension()
+                .and_then(|ext| ext.to_str())
+                .map(str::to_ascii_lowercase)
+                .as_deref(),
+            Some("txt" | "epub" | "pdf")
+        ) {
+            return Err("Select a TXT, EPUB or PDF document".into());
+        }
+        let output = guard.stage_file(&path, 8 * 1024 * 1024, &cancelled)?;
+        Ok(Some(
+            output.to_str().ok_or("Invalid document path")?.to_owned(),
+        ))
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 impl Drop for CaptureGuard<'_> {

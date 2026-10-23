@@ -14,6 +14,25 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Response {
+    Document {
+        window: crate::DocumentWindow,
+    },
+    Documents {
+        sources: Vec<crate::DocumentRecord>,
+    },
+    DocumentContents {
+        page: crate::DocumentContentsPage,
+    },
+    DocumentAnalysis {
+        batch: crate::DocumentAnalysisBatch,
+    },
+    DocumentResource {
+        location: crate::DocumentResourceLocation,
+    },
+    DocumentMaterialSource {
+        window: crate::DocumentWindow,
+        anchor: SourceAnchor,
+    },
     Review {
         commit: crate::ReviewCommit,
     },

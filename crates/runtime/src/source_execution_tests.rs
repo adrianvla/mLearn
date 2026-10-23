@@ -121,7 +121,8 @@ fn with_held_guest<T>(
     action: impl FnOnce() -> T,
 ) -> (T, Value) {
     let capability = match &request {
-        Request::AnalyzeSource { .. } => "text.analyze.v1",
+        Request::AnalyzeSource { .. } | Request::AnalyzeDocument { .. } => "text.analyze.v1",
+        Request::OpenDocument { .. } => "document.parse",
         Request::ChangeClaim { .. } | Request::InspectTarget { .. } => "target.inspect.v1",
         _ => panic!("This fixture holds analysis, inspection or claim completion"),
     };
@@ -170,6 +171,87 @@ fn foreground_attempt(
     let before_release = response.recv_timeout(Duration::from_secs(2));
     (before_release, worker, response)
 }
+
+#[test]
+fn cancelled_document_import_discards_real_parsed_bytes_before_publication_and_recovers() {
+    let (directory, executor, _) = fixture();
+    let selected = directory.path().join("reader.txt");
+    std::fs::write(&selected, "Children walked home.\n\nA bridge.").unwrap();
+    let request = Request::OpenDocument {
+        path: selected.to_string_lossy().into_owned(),
+        package_id: "org.mlearn.english".into(),
+    };
+    let (_, result) = with_held_guest(&executor, request.clone(), || {
+        executor
+            .cancellation_handle()
+            .fetch_add(1, Ordering::Relaxed);
+    });
+    assert_eq!(result["code"], "cancelled");
+    let runtime = executor.runtime.lock().unwrap();
+    assert!(runtime.store.recent_documents().unwrap().is_empty());
+    assert_eq!(
+        std::fs::read_dir(runtime.root.join("document-staging"))
+            .unwrap()
+            .count(),
+        0
+    );
+    assert!(!runtime.root.join("documents").exists());
+    drop(runtime);
+
+    let recovered: Value =
+        serde_json::from_str(&executor.execute(&serde_json::to_string(&request).unwrap())).unwrap();
+    assert_eq!(recovered["type"], "document", "{recovered}");
+    assert_eq!(
+        recovered["window"]["blocks"][0]["text"],
+        "Children walked home."
+    );
+}
+
+#[test]
+fn unchanged_document_language_retains_analysis_without_readmitting_guest_work() {
+    let (directory, executor, _) = fixture();
+    let selected = directory.path().join("reader.txt");
+    std::fs::write(&selected, "Children walked home.").unwrap();
+    let opened: Value = serde_json::from_str(
+        &executor.execute(
+            &json!({"type":"open_document","path":selected,"packageId":"org.mlearn.english"})
+                .to_string(),
+        ),
+    )
+    .unwrap();
+    assert_eq!(opened["type"], "document", "{opened}");
+    let id = opened["window"]["source"]["id"].as_str().unwrap();
+    let analyzed: Value = serde_json::from_str(
+        &executor
+            .execute(&json!({"type":"analyze_document","sourceId":id,"position":null}).to_string()),
+    )
+    .unwrap();
+    assert_eq!(analyzed["type"], "document_analysis", "{analyzed}");
+    let mut runtime = executor.runtime.lock().unwrap();
+    let key = runtime.analysis_cache.front().unwrap().0.clone();
+
+    let prepared = runtime
+        .prepare(
+            Request::SetDocumentLanguage {
+                source_id: id.into(),
+                package_id: "org.mlearn.english".into(),
+            },
+            0,
+        )
+        .unwrap();
+
+    let crate::guest::Prepared::Immediate(response) = prepared else {
+        panic!("Unchanged document language readmitted guest work");
+    };
+    assert!(matches!(*response, mlearn_core::Response::Document { .. }));
+    assert!(
+        runtime
+            .analysis_cache
+            .iter()
+            .any(|(cached, _)| cached == &key)
+    );
+}
+
 #[test]
 fn unchanged_source_language_keeps_analysis_without_guest_execution() {
     // Given real cached morphology for the currently installed package/version.

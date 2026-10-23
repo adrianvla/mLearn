@@ -1,3 +1,4 @@
+use base64::Engine;
 use mlearn_language_host::CodePolicy;
 use mlearn_runtime::{Runtime, RuntimeExecutor, catalog::CatalogTrust};
 use std::sync::{Arc, Mutex};
@@ -14,6 +15,36 @@ struct NativeState {
     permits: Arc<tokio::sync::Semaphore>,
     cancellation: Arc<std::sync::atomic::AtomicU64>,
     material: Arc<Mutex<window_material::WindowMaterial>>,
+    documents: media::DocumentResolver,
+}
+
+fn document_resolver(runtime: &Runtime) -> Result<media::DocumentResolver, String> {
+    let reader = Mutex::new(runtime.document_resource_reader()?);
+    Ok(Arc::new(move |source, resource| {
+        let reader = reader
+            .lock()
+            .map_err(|_| tauri::http::StatusCode::SERVICE_UNAVAILABLE)?;
+        reader(source, resource).map_err(|_| tauri::http::StatusCode::NOT_FOUND)
+    }))
+}
+
+#[tauri::command]
+async fn document_image_uri(
+    state: tauri::State<'_, NativeState>,
+    source_id: String,
+    resource_id: String,
+) -> Result<String, String> {
+    let resolver = state.documents.clone();
+    let location = tauri::async_runtime::spawn_blocking(move || resolver(&source_id, &resource_id))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|_| "Document image is unavailable")?;
+    Ok(format!(
+        "{}document/{}/{}",
+        state.media_base,
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(location.source_id),
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(location.resource_id)
+    ))
 }
 
 fn media_resolver(runtime: &Runtime) -> Result<media::Resolver, String> {
@@ -100,8 +131,10 @@ async fn pick_local_file(subtitles: bool) -> Result<Option<String>, String> {
     .await
     .map_err(|e| e.to_string())
 }
+
 pub fn run() {
-    let media_listener = media::MediaListener::bind().expect("Cannot bind local media transport");
+    let mut media_listener =
+        media::MediaListener::bind().expect("Cannot bind local media transport");
     // This script runs at document start, before the synchronous MediaHost.uri
     // consumer. Do not expose the capability to a navigated external document.
     let media_script = format!(
@@ -130,6 +163,8 @@ pub fn run() {
             let resolver = media_resolver(&runtime).map_err(std::io::Error::other)?;
             let authored =
                 media_capture::authored_resolver(&runtime).map_err(std::io::Error::other)?;
+            let documents = document_resolver(&runtime).map_err(std::io::Error::other)?;
+            media_listener.documents = Some(documents.clone());
             let cancellation = runtime.cancellation_handle();
             let material = Arc::new(Mutex::new(window_material::WindowMaterial::default()));
             let state = NativeState {
@@ -139,6 +174,7 @@ pub fn run() {
                 runtime: Arc::new(RuntimeExecutor::new(runtime)),
                 permits: Arc::new(tokio::sync::Semaphore::new(3)),
                 material: material.clone(),
+                documents,
             };
             let server = media_listener.start_with_authored(resolver, Some(authored))?;
             app.manage(Mutex::new(server));
@@ -166,6 +202,8 @@ pub fn run() {
             runtime_execute,
             window_material_active,
             pick_local_file,
+            media_capture::pick_document,
+            document_image_uri,
             cancel_source_open,
             media_capture::reserve_media_capture,
             media_capture::capture_media,

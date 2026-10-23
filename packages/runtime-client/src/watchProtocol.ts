@@ -1,4 +1,4 @@
-import type { Response } from '@mlearn/contracts';
+import type { AnalyzedToken, Response } from '@mlearn/contracts';
 type RecordValue = Record<string, unknown>;
 function object(v: unknown): v is RecordValue { return !!v && typeof v === 'object' && !Array.isArray(v); }
 const string = (v: unknown): v is string => typeof v === 'string' && v.length <= 32768;
@@ -24,6 +24,10 @@ function installStatus(v: unknown): boolean {
  }
 }
 function token(v: unknown): boolean { return object(v) && integer(v.start) && integer(v.end) && Number(v.end)>Number(v.start) && string(v.text) && list(v.targets,128,string) && (v.nearbyMeaning===undefined||optionalBoolean(v.nearbyMeaning)); }
+export { projection as isKnowledgeProjection };
+export function isAnalyzedToken(value: unknown): value is AnalyzedToken {
+ return token(value)&&object(value)&&typeof value.text==='string'&&presentation(value.presentation,value.text);
+}
 function sense(v: unknown): boolean {
  return object(v) && string(v.heading) && list(v.labels,32,string) && list(v.notes,32,string)
   && list(v.definitions,128,string) && Array.isArray(v.definitions) && v.definitions.length>0;
@@ -74,7 +78,7 @@ export function isWatchResponse(v: unknown): v is Response {
    &&string(item.summary.summary)&&Array.from(item.summary.summary).length<=512&&presentation(item.summary.presentation,item.summary.headword)));
  case 'knowledge':return list(v.projections,256,projection);
  case 'claim_changed':return projection(v.projection);
- case 'analysis':return object(v.batch) && ['sourceId','subtitleRevision','packageId','packageVersion'].every(k=>string((v.batch as RecordValue)[k])) && revision(v.batch.packageRevision) && list(v.batch.knowledge,256,projection) && list(v.batch.annotations,8192,a=>object(a)&&integer(a.cueIndex)&&integer(a.tokenStart)&&string(a.status)) && list(v.batch.cues,16,a=>object(a)&&cue(a.cue)&&list(a.tokens,512,t=>token(t)&&object(t)&&typeof t.text==='string'&&presentation(t.presentation,t.text)));
+ case 'analysis':return object(v.batch) && ['sourceId','subtitleRevision','packageId','packageVersion'].every(k=>string((v.batch as RecordValue)[k])) && revision(v.batch.packageRevision) && list(v.batch.knowledge,256,projection) && list(v.batch.annotations,8192,a=>object(a)&&integer(a.cueIndex)&&integer(a.tokenStart)&&string(a.status)) && list(v.batch.cues,16,a=>object(a)&&cue(a.cue)&&list(a.tokens,512,isAnalyzedToken));
  default:return false;
  }
 }

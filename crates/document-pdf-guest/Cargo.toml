@@ -1,0 +1,17 @@
+[package]
+name = "mlearn-document-pdf-guest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../LICENSE"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+mlearn-language-sdk = { path = "../language-sdk" }
+lopdf = { version = "=0.46.0", default-features = false }

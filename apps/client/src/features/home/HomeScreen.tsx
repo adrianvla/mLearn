@@ -10,7 +10,7 @@ import { Select } from '@mlearn/ui/select';
 import { Progress } from '@mlearn/ui/progress';
 import { logoSource } from '@mlearn/ui/brand';
 import { useUnistyles } from 'react-native-unistyles';
-import type { SourceRecord, Snapshot } from '@mlearn/contracts';
+import type { DocumentRecord, SourceRecord, Snapshot } from '@mlearn/contracts';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 export function HomeScreen() {
     const busyRef = useRef(false);
@@ -20,6 +20,9 @@ export function HomeScreen() {
     const router = useRouter();
     const [opening, setOpening] = useState(false);
     const [sources, setSources] = useState<SourceRecord[]>([]);
+    const [documents, setDocuments] = useState<DocumentRecord[]>([]);
+    const [openingDocument, setOpeningDocument] = useState(false);
+    const documentIntent = useRef<object | null>(null);
     const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
     const [selected, setSelected] = useState('');
     const [error, setError] = useState('');
@@ -28,25 +31,27 @@ export function HomeScreen() {
     async function refresh() {
         if (!host.available)
             return;
-        const [s, r] = await Promise.all([host.client.snapshot(), host.client.recentSources()]);
+        const [s, r, d] = await Promise.all([host.client.snapshot(), host.client.recentSources(), host.client.recentDocuments()]);
         setSnapshot(s);
         setSources(r);
+        setDocuments(d);
         setSelected(value => value || s.installedPlugins.find(p => p.capabilities.includes('text.analyze.v1'))?.id || '');
     }
     useFocusEffect(useCallback(() => {
         let active = true;
         if (host.available)
-            Promise.all([host.client.snapshot(), host.client.recentSources()]).then(([s, r]) => {
+            Promise.all([host.client.snapshot(), host.client.recentSources(), host.client.recentDocuments()]).then(([s, r, d]) => {
                 if (active) {
                     setSnapshot(s);
                     setSources(r);
+                    setDocuments(d);
                     setSelected(value => value || s.installedPlugins.find(p => p.capabilities.includes('text.analyze.v1'))?.id || '');
                 }
             }).catch(e => {
                 if (active)
                     setError(e.message);
             });
-        return () => { active = false; };
+        return () => { active = false; documentIntent.current = null; };
     }, [host]));
     async function action(fn: () => Promise<void>) {
         if (busyRef.current)
@@ -74,11 +79,15 @@ export function HomeScreen() {
             if (!active)
                 return;
             if (paths.length !== 1) {
-                setError('Drop one video at a time.');
+                setError('Drop one video or document at a time.');
                 return;
             }
             if (!selected) {
-                setError('Select a language package before opening the dropped video.');
+                setError('Select a language package before opening the dropped source.');
+                return;
+            }
+            if (/\.(?:txt|epub|pdf)$/i.test(paths[0])) {
+                void action(() => openDocument(paths[0]));
                 return;
             }
             void action(async () => { const opened = await host.client.openSource(paths[0], selected); router.push({
@@ -120,6 +129,29 @@ export function HomeScreen() {
         }
         finally {
             setOpening(false);
+        }
+    }
+    async function openDocument(droppedPath?: string) {
+        if (!host.available) return;
+        const intent = {}; documentIntent.current = intent;
+        const session = host.client.beginSourceSession();
+        setOpeningDocument(true);
+        try {
+            await session.ready;
+            const path = droppedPath ?? await host.documents.pick();
+            if (!path) return;
+            let opened;
+            try {
+                if (documentIntent.current !== intent || !session.isCurrent()) return;
+                opened = await host.client.openDocument(path, selected);
+            } finally {
+                if (!droppedPath) await host.documents.releasePicked(path);
+            }
+            if (documentIntent.current === intent && session.isCurrent())
+                router.push({ pathname: '../reader', params: { id: opened.source.id } });
+        } finally {
+            if (documentIntent.current === intent) documentIntent.current = null;
+            setOpeningDocument(false);
         }
     }
     const languages = snapshot?.installedPlugins.filter(p => p.capabilities.includes('text.analyze.v1')) ?? [];
@@ -189,7 +221,44 @@ export function HomeScreen() {
           </> : null}
         </Panel>
         </View>
+        <View style={styles.activity(activityWidth)}>
+        <Panel>
+          <View style={styles.activityHeader}>
+            <View style={styles.activityText}>
+              <Text variant="section" accessibilityRole="header">Reader</Text>
+              <Text variant="caption" muted>TXT, EPUB and extracted PDF text.</Text>
+            </View>
+          </View>
+          <View style={styles.preview}>
+            {documents[0] ? <>
+              <Text numberOfLines={3}>{documents[0].title}</Text>
+              <Button label={`Continue ${documents[0].title}`} variant="secondary" disabled={busy}
+                onPress={() => { const source = documents[0]; if (source) router.push({ pathname: '../reader', params: { id: source.id } }); }} />
+            </> : <Text muted>Open a document to read.</Text>}
+          </View>
+          <Row><Button testID="reader-open-document" label="Open document" variant="quiet" size="compact" disabled={busy || !selected}
+            busy={openingDocument} onPress={() => void action(() => openDocument())} />
+            {openingDocument ? <Button label="Cancel document opening" variant="secondary" size="compact" onPress={() => {
+              documentIntent.current = null;
+              if (host.available) void host.client.cancelSourceOpen().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)));
+            }} /> : null}</Row>
+          {!selected ? <Text muted>Install a language package before opening a source.</Text> : null}
+        </Panel>
         </View>
+        </View>
+        {documents.length ? <View style={styles.recents}>
+          <Text variant="section" accessibilityRole="header">Recent documents</Text>
+          {documents.map(source => <View key={source.id} style={styles.sourceRow}>
+            <View style={styles.sourceMain}><Panel inset="compact">
+              <Text numberOfLines={2}>{source.title}</Text>
+              <Text variant="detail" muted>{source.format.toUpperCase()} · {languages.find(language => language.id === source.packageId)?.displayName ?? source.packageId}</Text>
+              {source.position ? <Text variant="detail" muted>{source.position.resource} · byte {source.position.offset}</Text> : null}
+            </Panel></View>
+            <View style={styles.sourceAction(width <= 600)}><Button label="Resume" variant="secondary"
+              accessibilityLabel={`Resume ${source.title}`} disabled={busy}
+              onPress={() => router.push({ pathname: '../reader', params: { id: source.id } })} /></View>
+          </View>)}
+        </View> : null}
         <View style={styles.recents}>
           <Text variant="section" accessibilityRole="header">Recent sources</Text>
           <View style={styles.sourceList}>{sources.length ? sources.map(source => {

@@ -20,12 +20,17 @@ import { Transcript } from './Transcript';
 import { LiveWordCards } from './LiveWordCards';
 import { MediaOverlay } from '@mlearn/ui/media-overlay';
 import { cueAnchor, emptyMaterial, MaterialEditor } from '../material';
+type VideoSelection = SourceAnchor & {
+    readonly locator: Extract<SourceAnchor['locator'], { kind: 'video' }>;
+};
 export function WatchScreen() {
     const host = useRuntime();
     const router = useRouter();
     const params = useLocalSearchParams<{
         id: string;
         materialId?: string;
+        reviewSessionId?: string;
+        reviewEncounterId?: string;
     }>();
     const id = typeof params.id === 'string' ? params.id : '';
     const insets = useSafeAreaInsets();
@@ -39,7 +44,7 @@ export function WatchScreen() {
     const [transcriptBatch, setTranscriptBatch] = useState<AnalysisBatch | null>(null);
     const [position, setPosition] = useState(0);
     const [inspection, setInspection] = useState<Inspection | null>(null);
-    const [returnedSelection, setReturnedSelection] = useState<SourceAnchor | null>(null);
+    const [returnedSelection, setReturnedSelection] = useState<VideoSelection | null>(null);
     const returnedCue = useRef<View>(null);
     const restoredInspection = useRef<SourceAnchor | null>(null);
     const selectedSource = useRef(returnedSelection);
@@ -141,16 +146,37 @@ export function WatchScreen() {
         setCaptureOpen(false);
         setSubtitleCapture(null);
         void current.ready.then(async () => {
+            if (typeof params.reviewSessionId === 'string' && typeof params.reviewEncounterId === 'string') {
+                const restored = await host.client.returnReviewSource(params.reviewSessionId, params.reviewEncounterId);
+                if (restored.type !== 'material_source' || restored.window.source.id !== id
+                    || restored.anchor.locator.kind !== 'video')
+                    throw new Error('This Review encounter does not return to the selected video.');
+                if (active && current.isCurrent())
+                    setReturnedSelection({ ...restored.anchor, locator: restored.anchor.locator });
+                return restored.window;
+            }
             if (typeof params.materialId === 'string' && consumedReturn.current !== params.materialId) {
                 const restored = await host.client.returnMaterialSource(params.materialId);
+                if (restored.type === 'document_material_source') {
+                    if (active && current.isCurrent()) {
+                        router.replace({ pathname: '../reader', params: {
+                            id: restored.window.source.id, materialId: params.materialId,
+                        } });
+                    }
+                    return null;
+                }
+                if (restored.anchor.locator.kind !== 'video') {
+                    throw new Error('The returned source is not a video location.');
+                }
                 if (active && current.isCurrent()) {
                     consumedReturn.current = params.materialId;
-                    setReturnedSelection(restored.anchor);
+                    setReturnedSelection({ ...restored.anchor, locator: restored.anchor.locator });
                 }
                 return restored.window;
             }
             return host.client.resumeSource(id);
         }).then(w => {
+            if (!w) return;
             if (active && current.isCurrent()) {
                 setWindow(w);
                 setPosition(w.source.positionMs);
@@ -175,7 +201,7 @@ export function WatchScreen() {
                     setError(e instanceof Error ? e.message : String(e));
             });
         };
-    }, [host, id, params.materialId, sourceReload]));
+    }, [host, id, params.materialId, params.reviewSessionId, params.reviewEncounterId, sourceReload]));
     const bucket = Math.floor(position / 2000);
     const subtitleTime = position + (window?.source.subtitleOffsetMs ?? 0);
     const cues = window?.cues.filter(c => c.startMs <= subtitleTime && c.endMs > subtitleTime) ?? [];

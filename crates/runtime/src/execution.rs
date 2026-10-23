@@ -1,12 +1,12 @@
 use crate::{
-    guest::{GuestOutput, GuestWork, Prepared},
     Runtime,
+    guest::{GuestOutput, GuestWork, Prepared},
 };
 use mlearn_core::{Request, Response};
 use std::{
     sync::{
-        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex, TryLockError,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     time::Instant,
 };
@@ -29,7 +29,7 @@ impl From<String> for Failure {
 }
 #[derive(Clone)]
 pub(super) struct Cancellation {
-    value: Arc<AtomicU64>,
+    pub(super) value: Arc<AtomicU64>,
     pub epoch: u64,
 }
 impl Cancellation {
@@ -255,6 +255,9 @@ fn guest_bearing(request: &Request) -> bool {
             mlearn_core::ReviewCommand::Start { .. } | mlearn_core::ReviewCommand::Next { .. }
         ),
         Request::OpenSource { .. }
+        | Request::OpenDocument { .. }
+        | Request::SetDocumentLanguage { .. }
+        | Request::AnalyzeDocument { .. }
         | Request::CreateMaterial { .. }
         | Request::CaptureMaterials { .. }
         | Request::SetSourceLanguage { .. }
@@ -268,6 +271,12 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::InstallPlugin { .. }
         | Request::InstallPackage { .. } => true,
         Request::Snapshot
+        | Request::ResumeDocument { .. }
+        | Request::RecentDocuments
+        | Request::DocumentWindow { .. }
+        | Request::DocumentContents { .. }
+        | Request::CheckpointDocument { .. }
+        | Request::DocumentResource { .. }
         | Request::ReviewSession { .. }
         | Request::ReviewSessions
         | Request::ReturnReviewSource { .. }

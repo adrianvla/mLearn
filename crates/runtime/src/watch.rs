@@ -1,6 +1,6 @@
 use crate::Runtime;
+use crate::source_file::revision as hash;
 use mlearn_core::*;
-use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     fs,
@@ -17,21 +17,6 @@ fn check(cancellation: &AtomicU64, epoch: u64) -> Result<(), String> {
 }
 #[path = "subtitles.rs"]
 mod subtitles;
-fn hash(path: &Path, cancellation: &AtomicU64, epoch: u64) -> Result<String, String> {
-    let mut file = fs::File::open(path)
-        .map_err(|e| format!("Source unavailable; reselect the original file: {e}"))?;
-    let mut hash = Sha256::new();
-    let mut buffer = [0; 65536];
-    loop {
-        check(cancellation, epoch)?;
-        let count = file.read(&mut buffer).map_err(|e| e.to_string())?;
-        if count == 0 {
-            break;
-        }
-        hash.update(&buffer[..count]);
-    }
-    Ok(format!("{:x}", hash.finalize()))
-}
 fn local(path: &str, extensions: &[&str]) -> Result<PathBuf, String> {
     if path.len() > 4096 {
         return Err("Path is too long".into());

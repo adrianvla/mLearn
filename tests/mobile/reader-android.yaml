@@ -1,0 +1,110 @@
+appId: net.kikan.mlearn.v3dev
+name: Reader imports real PDF text and retains original empty-page identity
+---
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- extendedWaitUntil:
+    visible: Material
+    timeout: 60000
+- scrollUntilVisible:
+    element: Open local video
+    direction: UP
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      text: Open local video
+      enabled: true
+    timeout: 60000
+# Keep gestures inside the body below the fixed header. Full-screen flings can
+# skip the import action between hierarchy captures.
+- repeat:
+    times: 12
+    while:
+      notVisible:
+        id: reader-open-document
+    commands:
+      - swipe:
+          start: 50%, 85%
+          end: 50%, 65%
+          duration: 500
+- extendedWaitUntil:
+    visible:
+      id: reader-open-document
+      enabled: true
+    timeout: 15000
+- tapOn:
+    id: reader-open-document
+- extendedWaitUntil:
+    visible: Show roots
+    timeout: 15000
+- tapOn: Show roots
+- tapOn:
+    id: android:id/title
+    text: Downloads
+- extendedWaitUntil:
+    visible: m05-journey.pdf
+    timeout: 15000
+- tapOn: m05-journey.pdf
+- extendedWaitUntil:
+    visible:
+      id: reader-title
+      text: m05-journey.pdf
+    timeout: 60000
+- tapOn: Contents
+- tapOn: Page 1
+- extendedWaitUntil:
+    visible:
+      id: reader-document-ready
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: reader-position
+      text: '.*pdf-page:0.*'
+    timeout: 60000
+- takeScreenshot: reader-pdf-first-page
+- tapOn: Next passage
+- extendedWaitUntil:
+    visible:
+      id: reader-position
+      text: '.*pdf-page:1.*'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: reader-document-ready
+    timeout: 60000
+- assertVisible: Text unavailable for this source block.
+- takeScreenshot: reader-pdf-empty-original-page
+- tapOn: Next passage
+- extendedWaitUntil:
+    visible:
+      id: reader-position
+      text: '.*pdf-page:2.*'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: reader-document-ready
+    timeout: 60000
+- takeScreenshot: reader-pdf-last-page
+- tapOn: Save position
+- tapOn: Home
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- scrollUntilVisible:
+    element: Resume m05-journey.pdf
+    direction: DOWN
+    timeout: 60000
+- tapOn: Resume m05-journey.pdf
+- extendedWaitUntil:
+    visible:
+      id: reader-position
+      text: '.*pdf-page:2.*'
+    timeout: 60000
+- extendedWaitUntil:
+    visible:
+      id: reader-document-ready
+    timeout: 60000
+- takeScreenshot: reader-pdf-restarted-position

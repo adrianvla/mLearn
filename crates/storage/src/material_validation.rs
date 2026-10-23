@@ -73,6 +73,28 @@ pub(crate) fn content(value: &MaterialContent) -> Result<String, StorageError> {
             return Err(StorageError::Invalid("Source text exceeds bounds".into()));
         }
         match &source.locator {
+            SourceLocator::Document {
+                parser_revision,
+                resource,
+                block_id,
+                context_start,
+                selection_start,
+                selection_end,
+            } => {
+                bounded(parser_revision, 512)?;
+                bounded(resource, 2048)?;
+                bounded(block_id, 2048)?;
+                let start = usize::try_from(*selection_start)
+                    .map_err(|error| StorageError::Invalid(error.to_string()))?;
+                let end = usize::try_from(*selection_end)
+                    .map_err(|error| StorageError::Invalid(error.to_string()))?;
+                if start >= end
+                    || source.text.get(start..end).is_none()
+                    || context_start.checked_add(*selection_end).is_none()
+                {
+                    return Err(StorageError::Invalid("Invalid document source span".into()));
+                }
+            }
             SourceLocator::Video {
                 subtitle_revision,
                 cue_index,

@@ -1,6 +1,11 @@
 mod analysis;
 mod capture;
 pub mod catalog;
+mod document;
+mod document_import;
+mod document_projection;
+mod document_recovery;
+mod document_transport;
 mod execution;
 mod guest;
 mod language;
@@ -14,10 +19,11 @@ mod media_import;
 mod media_recovery;
 mod packages;
 mod review;
+mod source_file;
 mod watch;
-use catalog::{verify_artifact, CatalogClient, CatalogTrust, Manifest};
+use catalog::{CatalogClient, CatalogTrust, Manifest, verify_artifact};
 pub use execution::RuntimeExecutor;
-use mlearn_core::{PackageIssue, PluginSummary, Request, Response, Snapshot, PROTOCOL_VERSION};
+use mlearn_core::{PROTOCOL_VERSION, PackageIssue, PluginSummary, Request, Response, Snapshot};
 use mlearn_language_host::{CodeOrigin, CodePolicy, CompiledPlugin};
 use mlearn_storage::{ProfileStore, StorageError};
 use std::{
@@ -55,7 +61,7 @@ pub struct Runtime {
     installs: Arc<packages::InstallOwner>,
     installed: BTreeMap<String, Installed>,
     package_issues: BTreeMap<String, String>,
-    analysis_cache: std::collections::VecDeque<(String, Vec<mlearn_core::CueAnalysis>)>,
+    analysis_cache: std::collections::VecDeque<(String, Vec<Vec<mlearn_core::AnalyzedToken>>)>,
 }
 fn summary(manifest: &Manifest) -> PluginSummary {
     PluginSummary {
@@ -149,6 +155,9 @@ impl Runtime {
         }
         runtime
             .recover_material_media()
+            .map_err(|error| error.to_string())?;
+        runtime
+            .recover_document_files()
             .map_err(|error| error.to_string())?;
         Ok(runtime)
     }

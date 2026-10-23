@@ -18,6 +18,21 @@ pub struct SourceAnchor {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum SourceLocator {
+    Document {
+        #[serde(rename = "parserRevision")]
+        parser_revision: String,
+        resource: String,
+        #[serde(rename = "blockId")]
+        block_id: String,
+        /// Byte offset of SourceAnchor.text in the original canonical block.
+        #[serde(rename = "contextStart")]
+        context_start: u32,
+        /// UTF-8 selection offsets into SourceAnchor.text, not display geometry.
+        #[serde(rename = "selectionStart")]
+        selection_start: u32,
+        #[serde(rename = "selectionEnd")]
+        selection_end: u32,
+    },
     Video {
         #[serde(rename = "subtitleRevision")]
         subtitle_revision: Option<String>,

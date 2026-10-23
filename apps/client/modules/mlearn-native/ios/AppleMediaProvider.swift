@@ -76,12 +76,13 @@ enum AppleMediaProvider {
 
   // Check the opened file before creating a copy, then bound each write as well:
   // provider metadata can be stale and the source can grow during the read.
-  static func copyMedia(from source: URL, to destination: URL) throws {
+  static func copyMedia(from source: URL, to destination: URL, maximumBytes: UInt64 = maximumBytes, checkCancelled: () throws -> Void = {}) throws {
+    try checkCancelled()
     let input = try FileHandle(forReadingFrom: source)
     defer { do { try input.close() } catch { NSLog("Media input close failed: %@", error.localizedDescription) } }
     let size = try input.seekToEnd()
     guard size > 0, size <= maximumBytes else {
-      throw MediaProviderError.failed("Selected media must be nonempty and at most 128 MiB.")
+      throw MediaProviderError.failed("Selected file must be nonempty and at most \(maximumBytes / 1024 / 1024) MiB.")
     }
     try input.seek(toOffset: 0)
     guard FileManager.default.createFile(atPath: destination.path, contents: nil) else {
@@ -97,14 +98,18 @@ enum AppleMediaProvider {
     let output = try FileHandle(forWritingTo: destination)
     defer { do { try output.close() } catch { NSLog("Media output close failed: %@", error.localizedDescription) } }
     var written: UInt64 = 0
-    while let data = try input.read(upToCount: 64 * 1024), !data.isEmpty {
+    while true {
+      try checkCancelled()
+      // Bound provider reads as well as writes, with one excess-byte lookahead.
+      guard let data = try input.read(upToCount: Int(min(64 * 1024, maximumBytes - written + 1))), !data.isEmpty else { break }
       guard UInt64(data.count) <= maximumBytes - written else {
-        throw MediaProviderError.failed("Selected media exceeds the 128 MiB limit.")
+        throw MediaProviderError.failed("Selected file exceeds the \(maximumBytes / 1024 / 1024) MiB limit.")
       }
       try output.write(contentsOf: data)
       written += UInt64(data.count)
     }
-    try validateFile(destination)
+    try checkCancelled()
+    guard written > 0 else { throw MediaProviderError.failed("The selected file is empty.") }
     complete = true
   }
 

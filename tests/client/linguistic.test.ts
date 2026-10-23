@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readingSegments } from '../../apps/client/src/features/linguistic/readingSegments';
+import { readingSegments } from '@mlearn/ui/reading-segments';
 
 test('reading spans map original UTF-8 bytes without splitting non-BMP source or newlines', () => {
   const source = '日本😀\n語';

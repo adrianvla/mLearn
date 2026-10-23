@@ -61,8 +61,66 @@ test('allows primitive implementation only in its owner', () => {
 test('prevents UI from importing runtime services', () => {
   assert.ok(checkSource('packages/ui/src/Button.tsx', "import { createClient } from '@mlearn/runtime-client';").length);
 });
-test('permits DOM in the specialist document package', () => {
-  assert.deepEqual(checkSource('packages/reader-dom/src/Document.tsx', 'const A = () => <ruby>字<rt>じ</rt></ruby>;'), []);
+test('permits document markup only in the actual specialist renderer and shared flow owner', () => {
+  const markup = 'const A = () => <div role="document"><figure><img src={uri}/><figcaption>Source</figcaption></figure><span>Text</span></div>;';
+  assert.deepEqual(checkSource('apps/client/src/features/reader/DocumentCanvas.tsx', markup), []);
+  assert.deepEqual(checkSource('packages/ui/src/InlineWordDocument.tsx', 'const A = () => <section>{children}</section>;'), []);
+  assert.deepEqual(checkSource('packages/ui/src/InlineWordDocument.tsx', 'const A = () => <figure><img src={uri}/><figcaption>Source</figcaption></figure>; const canvas = document.createElement("canvas");'), []);
+  assert.ok(checkSource('packages/ui/src/InlineWordDocument.tsx', 'const A = () => <button>Read</button>;').length);
+  assert.ok(checkSource('apps/client/src/features/reader/ReaderScreen.tsx', markup).length);
+  assert.ok(checkSource('apps/client/src/features/reader/CanvasEscape.tsx', markup).length);
+  assert.ok(checkSource('packages/reader-dom/src/Document.tsx', markup).length);
+});
+
+test('document boundary cannot become another control or runtime owner', () => {
+  const file = 'apps/client/src/features/reader/DocumentCanvas.tsx';
+  for (const source of [
+    'const A = () => <button>Inspect</button>;',
+    'const A = () => <span role="button" />;',
+    'const A = () => <div onClick={inspect} />;',
+    'const A = React.createElement("button", {});',
+    'import { createRuntimeClient } from "@mlearn/runtime-client";',
+    'import { useRuntime } from "../../bootstrap/RuntimeProvider";',
+    'import { createHost } from "../../host/createHost";',
+    'const dom = { unstable_useExpoModulesBridge: true };',
+  ]) assert.ok(checkSource(file, source).length, source);
+  assert.deepEqual(checkSource(file, 'import type { DocumentBlock } from "@mlearn/contracts"; const dom = { unstable_useExpoModulesBridge: false };'), []);
+});
+
+test('isolated document imports cannot eagerly initialize native themed widgets', () => {
+  const file = 'packages/ui/src/Document.tsx';
+  assert.deepEqual(checkSource(file, 'export { DocumentWord } from "./InlineWordDocument";'), []);
+  for (const source of [
+    'export { InlineWord as DocumentWord } from "./InlineWord";',
+    'export * from "./PronunciationReading";',
+    'import { StyleSheet as Styles } from "react-native-unistyles";',
+    'const theme = require("./PronunciationReading");',
+  ]) assert.ok(checkSource(file, source).length, source);
+  assert.ok(checkSource('apps/client/src/features/reader/DocumentCanvas.tsx',
+    'import { InlineWord } from "@mlearn/ui/inline-word";').length);
+  assert.deepEqual(checkSource('apps/client/src/features/reader/DocumentCanvas.tsx',
+    'import { DocumentWord } from "@mlearn/ui/document";'), []);
+});
+
+test('accepted document appearance payloads do not authorize feature-local typography', () => {
+  const file = 'apps/client/src/features/reader/ReaderScreen.tsx';
+  assert.deepEqual(checkSource(file, 'changeAppearance({ fontSize: Math.min(48, current + 2), lineHeight: 1.8 });'), []);
+  for (const source of [
+    'const style = { fontSize: 24 };',
+    'const style = { ["fontSize"]: 24 };',
+    'const { size: fontSize } = metrics; const style = { fontSize };',
+    'changeAppearance({ fontSize: 24, backgroundColor: "red" });',
+    'otherOwner({ fontSize: 24 });',
+  ]) assert.ok(checkSource(file, source).length, source);
+  assert.ok(checkSource(feature, 'changeAppearance({ fontSize: 24 });').length);
+});
+
+test('only accepted shared-font display data crosses the document WebView boundary', () => {
+  const file = 'apps/client/src/features/reader/DocumentViewport.tsx';
+  assert.deepEqual(checkSource(file, 'const A = () => <DocumentCanvas display={{ fontFamily: theme.typography.body._web.fontFamily }} />;'), []);
+  assert.ok(checkSource(file, 'const A = () => <DocumentCanvas display={{ fontFamily: "custom" }} />;').length);
+  assert.ok(checkSource(file, 'const styles = { fontFamily: theme.typography.body._web.fontFamily };').length);
+  assert.ok(checkSource(feature, 'const A = () => <DocumentCanvas display={{ fontFamily: theme.typography.body._web.fontFamily }} />;').length);
 });
 
 test('only the actual media and inline-control rendering boundaries admit specialist DOM',()=>{

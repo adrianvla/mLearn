@@ -20,6 +20,27 @@ pub(crate) fn identity(content: &MaterialContent) -> Result<Identity, StorageErr
             let mut source = content.source.clone();
             if let Some(anchor) = &mut source {
                 match &mut anchor.locator {
+                    SourceLocator::Document {
+                        context_start,
+                        selection_start,
+                        selection_end,
+                        ..
+                    } => {
+                        let start = usize::try_from(*selection_start)
+                            .map_err(|error| StorageError::Invalid(error.to_string()))?;
+                        let end = usize::try_from(*selection_end)
+                            .map_err(|error| StorageError::Invalid(error.to_string()))?;
+                        let selected = anchor.text.get(start..end).ok_or_else(|| {
+                            StorageError::Invalid("Invalid document capture coordinates".into())
+                        })?;
+                        *context_start =
+                            context_start.checked_add(*selection_start).ok_or_else(|| {
+                                StorageError::Invalid("Document capture coordinate overflow".into())
+                            })?;
+                        *selection_end -= *selection_start;
+                        *selection_start = 0;
+                        anchor.text = selected.into();
+                    }
                     SourceLocator::Video {
                         position_ms,
                         subtitle_offset_ms,

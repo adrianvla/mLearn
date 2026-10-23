@@ -167,7 +167,9 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
     <Row><Button label="Add example" size="compact" variant="secondary" disabled={pending || !!retry || draft.examples.length >= 16}
       onPress={() => setDraft(previous => ({ ...previous, examples: [...previous.examples, ''] }))} /></Row>
     {draft.source ? <View style={styles.reference}>
-      <Text variant="caption" muted>Source reference · {draft.source.sourceId} · {draft.source.locator.cueIndex === null
+      <Text variant="caption" muted>Source reference · {draft.source.sourceId} · {draft.source.locator.kind === 'document'
+        ? `${draft.source.locator.resource} · ${draft.source.locator.blockId} · bytes ${draft.source.locator.contextStart + draft.source.locator.selectionStart}–${draft.source.locator.contextStart + draft.source.locator.selectionEnd}`
+        : draft.source.locator.cueIndex === null
         ? `frame at ${(draft.source.locator.positionMs / 1000).toFixed(1)}s`
         : `cue ${draft.source.locator.cueIndex + 1}`}</Text>
       <Text selectable>{draft.source.text}</Text>

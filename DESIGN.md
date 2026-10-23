@@ -44,6 +44,24 @@ Unimplemented capabilities or missing trustworthy reference states stay explicit
 
 Update this file during implementation with actual reference-derived component contracts, replacing hypotheses with evidence. Completion follows VISUAL-PARITY's separate visual, structural, functional and performance gates; only the maintainer grants acceptance.
 
+## Reader source flow, 2026-10-22
+
+The approved Reader images establish a compact stationary control rail, a
+separately scrolling source navigator, the large source canvas and a compact
+position footer. Existing shared controls own their materials and interaction
+states. Parser fidelity details remain accessible without becoming a permanent
+multiline toolbar. Source text retains the user's accepted document font and
+spacing; it does not acquire a separate application theme.
+
+`DocumentCanvas` is the single scrolling content owner on desktop and inside
+the native Expo DOM boundary. Original blocks progress on the canvas's logical
+block axis with a 24px content gap and may not shrink into one another.
+Horizontal passages wrap to the available source width; vertical passages
+retain their intrinsic column width and bounded reading height. Mixed authored
+writing directions must not overlap or place an image under a neighboring
+passage. CSS ruby in the shared inline owner retains original source leaves for
+UTF-8 position measurement. A rendered page/column is never source identity.
+
 ## Review shared roles, 2026-10-22
 
 M04 has no approved Review screenshot. Its secondary reference is

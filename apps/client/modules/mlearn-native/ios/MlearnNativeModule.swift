@@ -50,6 +50,18 @@ public class MlearnNativeModule: Module {
     AsyncFunction("importPickedMedia") { (uri: String, name: String) throws -> String in
       try self.captures.importPicked(uri, name: name)
     }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("importPickedDocument") { (uri: String, name: String) throws -> String in
+      try self.captures.importPicked(uri, name: name, document: true)
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("documentImageUri") { (sourceId: String, resourceId: String) throws -> String in
+      let response = try self.mediaResponse(["type": "document_resource", "sourceId": sourceId, "resourceId": resourceId], expected: "document_resource")
+      guard let location = response["location"] else { throw MediaProviderError.failed("Missing document image location.") }
+      let image = try JSONDecoder().decode(DocumentImageLocation.self, from: JSONSerialization.data(withJSONObject: location))
+      guard image.sourceId == sourceId, image.resourceId == resourceId else {
+        throw MediaProviderError.failed("Document image identity changed.")
+      }
+      return try image.uri()
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
     AsyncFunction("cancelMediaCapture") { (id: String) in self.captures.cancel(id) }
       .runOnQueue(DispatchQueue.global(qos: .userInitiated))
     AsyncFunction("releaseMediaCapture") { (path: String) throws in try self.captures.release(path) }

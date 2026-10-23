@@ -40,7 +40,14 @@ pub(super) enum LanguageAction {
     Open {
         path: String,
     },
+    OpenDocument {
+        root: PathBuf,
+        path: String,
+    },
     SelectSourceLanguage {
+        source_id: String,
+    },
+    SelectDocumentLanguage {
         source_id: String,
     },
     Describe,
@@ -62,6 +69,7 @@ pub(super) enum GuestOutput {
     Review(Vec<mlearn_core::ReviewAdmission>),
     Capture(Vec<Result<(), String>>),
     Open,
+    Document(Box<crate::document_import::PreparedDocument>),
     Description(LanguageDescription),
     Entry(LexicalEntry),
     Dictionary(Vec<DictionaryResult>),
@@ -80,6 +88,16 @@ impl GuestWork {
             Self::Language(work) => {
                 work.cancellation.check()?;
                 let output = match &work.action {
+                    LanguageAction::OpenDocument { root, path } => {
+                        work.description()?;
+                        GuestOutput::Document(Box::new(crate::document_import::prepare(
+                            root,
+                            path,
+                            &work.package.manifest.id,
+                            &work.package.manifest.version,
+                            &work.cancellation,
+                        )?))
+                    }
                     LanguageAction::EditMaterial(command) => {
                         let target = command.content.target_id.as_deref().ok_or_else(|| {
                             Failure::Operation("Missing edited target identity".into())
@@ -100,7 +118,9 @@ impl GuestWork {
                     LanguageAction::Capture { inputs, .. } => {
                         GuestOutput::Capture(work.check_capture_targets(inputs))
                     }
-                    LanguageAction::Open { .. } | LanguageAction::SelectSourceLanguage { .. } => {
+                    LanguageAction::Open { .. }
+                    | LanguageAction::SelectSourceLanguage { .. }
+                    | LanguageAction::SelectDocumentLanguage { .. } => {
                         work.description()?;
                         GuestOutput::Open
                     }
@@ -161,11 +181,7 @@ impl GuestWork {
                         let tokens = if input.cached.is_some() {
                             None
                         } else {
-                            let texts = input
-                                .cues
-                                .iter()
-                                .map(|c| c.text.as_str())
-                                .collect::<Vec<_>>();
+                            let texts = input.texts();
                             Some(
                                 serde_json::from_value(work.invoke(
                                     "text.analyze.v1",
@@ -213,8 +229,10 @@ impl GuestWork {
                 | LanguageAction::Capture { .. }
                 | LanguageAction::Summaries { .. }
                 | LanguageAction::Claim(_) => "target.inspect.v1",
+                LanguageAction::OpenDocument { .. } => "document.parse",
                 LanguageAction::Open { .. }
                 | LanguageAction::SelectSourceLanguage { .. }
+                | LanguageAction::SelectDocumentLanguage { .. }
                 | LanguageAction::Describe => "language.describe.v1",
                 LanguageAction::Invoke { capability, .. } => capability,
             },

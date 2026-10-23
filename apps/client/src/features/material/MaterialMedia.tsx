@@ -65,7 +65,7 @@ export function MaterialMedia({ host, source, base, attachments, staged, disable
   const full = attachments.length + staged.length >= MAX_ATTACHMENTS;
   const busy = disabled || pickPending !== null || capturePending !== null;
   const captures: { readonly label: string; readonly request: MediaCaptureRequest }[] = [];
-  if (source) {
+  if (source?.locator.kind === 'video') {
     captures.push({
       label: 'Capture frame',
       request: { sourceId: source.sourceId, contentRevision: source.contentRevision, selection: { kind: 'frame', positionMs: source.locator.positionMs } },

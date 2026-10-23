@@ -1,6 +1,61 @@
 use super::*;
 
 #[test]
+fn document_selection_has_its_own_cap_and_reuses_capture_release_owner() {
+    // Given a document one byte over its own cap but valid for Material.
+    let source = tempfile::tempdir().unwrap();
+    let selected = source.path().join("book.epub");
+    let file = std::fs::File::create(&selected).unwrap();
+    let limit = 8 * 1024 * 1024;
+    file.set_len(limit + 1).unwrap();
+    let owner = Captures::new();
+    owner.reserve("document".into()).unwrap();
+    let cancelled = owner.cancellation("document").unwrap();
+    let mut guard = CaptureGuard {
+        owner: &owner,
+        id: "document",
+        directory: owner.root.join("document"),
+        published: false,
+    };
+    // When document admission runs through the real staging owner.
+    assert!(guard.stage_file(&selected, limit, &cancelled).is_err());
+    drop(guard);
+    // Then failed staging releases admission and leaves no partial or output lease.
+    assert!(owner.outputs.lock().unwrap().is_empty());
+    assert!(!owner.root.join("document").exists());
+
+    owner.reserve("material".into()).unwrap();
+    let cancelled = owner.cancellation("material").unwrap();
+    let mut material = CaptureGuard {
+        owner: &owner,
+        id: "material",
+        directory: owner.root.join("material"),
+        published: false,
+    };
+    let output = material
+        .stage_selection(&selected, MaterialMediaKind::Image, &cancelled)
+        .unwrap();
+    drop(material);
+    owner.release(output["path"].as_str().unwrap()).unwrap();
+    file.set_len(limit).unwrap();
+    owner.reserve("exact-document".into()).unwrap();
+    let cancelled = owner.cancellation("exact-document").unwrap();
+    let mut exact = CaptureGuard {
+        owner: &owner,
+        id: "exact-document",
+        directory: owner.root.join("exact-document"),
+        published: false,
+    };
+    let output = exact.stage_file(&selected, limit, &cancelled).unwrap();
+    assert_eq!(output.file_name().unwrap(), "book.epub");
+    assert_eq!(std::fs::metadata(&output).unwrap().len(), limit);
+    drop(exact);
+    owner.release(output.to_str().unwrap()).unwrap();
+    assert!(!output.parent().unwrap().exists());
+    assert!(owner.outputs.lock().unwrap().is_empty());
+}
+
+#[test]
 fn oversized_selection_is_rejected_before_staging_and_next_selection_succeeds() {
     // Given a real sparse selection beyond the per-file admission bound.
     let source = tempfile::tempdir().unwrap();

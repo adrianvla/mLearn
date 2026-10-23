@@ -16,6 +16,43 @@ struct Fixture {
 }
 
 impl Fixture {
+    fn document(bytes: Vec<u8>, mime: &str, declared_length: u32) -> Self {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("source-image.bin");
+        std::fs::write(&path, &bytes).unwrap();
+        let mut listener = MediaListener::bind().unwrap();
+        let address = listener.listener.local_addr().unwrap();
+        let route = format!(
+            "/{}/document/{}/{}",
+            listener.token,
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode("document-source"),
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode("OPS/images/diagram.svg")
+        );
+        let mime = mime.to_owned();
+        listener.documents = Some(Arc::new(move |source, resource| {
+            if source != "document-source" || resource != "OPS/images/diagram.svg" {
+                return Err(StatusCode::NOT_FOUND);
+            }
+            Ok(mlearn_core::DocumentResourceLocation {
+                source_id: source.into(),
+                resource_id: resource.into(),
+                path: path.to_string_lossy().into_owned(),
+                mime_type: mime.clone(),
+                byte_length: declared_length,
+            })
+        }));
+        let server = listener
+            .start(Arc::new(|_| Err(StatusCode::NOT_FOUND)))
+            .unwrap();
+        Self {
+            _root: root,
+            _server: server,
+            address,
+            path: route,
+            bytes,
+        }
+    }
+
     fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("synthetic.webm");
@@ -68,6 +105,77 @@ impl Fixture {
         let mut bytes = Vec::new();
         reader.read_to_end(&mut bytes).unwrap();
         (status, headers, bytes)
+    }
+}
+
+#[test]
+fn document_image_get_and_range_use_registry_mime_and_existing_http_protection() {
+    // Given a registered image whose resource ID contains a real EPUB path.
+    let bytes = br#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><path d="M0 0h1v1H0z"/></svg>"#.to_vec();
+    let fixture = Fixture::document(
+        bytes.clone(),
+        "image/svg+xml",
+        u32::try_from(bytes.len()).unwrap(),
+    );
+    // When the image is fetched through the actual capability listener.
+    let (status, headers, body) =
+        fixture.request("GET", &fixture.path, "Origin: tauri://localhost\r\n");
+    // Then actual image bytes/MIME and origin/CSP protection reach the renderer.
+    assert_eq!(status, 200);
+    assert_eq!(body, bytes);
+    assert_eq!(headers["content-type"], "image/svg+xml");
+    assert_eq!(headers["access-control-allow-origin"], "tauri://localhost");
+    assert_eq!(
+        headers["content-security-policy"],
+        "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+    );
+    assert_eq!(headers["cache-control"], "no-store");
+    let (status, headers, body) = fixture.request("GET", &fixture.path, "Range: bytes=2-7\r\n");
+    assert_eq!(status, 206);
+    assert_eq!(body, bytes[2..8]);
+    assert_eq!(
+        headers["content-range"],
+        format!("bytes 2-7/{}", bytes.len())
+    );
+    assert_eq!(
+        fixture
+            .request("GET", &fixture.path, "Origin: https://evil.invalid\r\n")
+            .0,
+        403
+    );
+    assert_eq!(
+        fixture
+            .request("GET", &format!("{}?path=/etc/passwd", fixture.path), "")
+            .0,
+        403
+    );
+    assert_eq!(
+        fixture
+            .request(
+                "GET",
+                &fixture.path.replace("document/", "document/../"),
+                ""
+            )
+            .0,
+        404
+    );
+}
+
+#[test]
+fn document_transport_rejects_nonimages_oversized_and_changed_bytes() {
+    // Given canonical source bytes and invalid image size/identity metadata.
+    for (mime, declared, actual, expected) in [
+        ("application/pdf", 3, 3, 415),
+        ("image/png", 0, 3, 415),
+        ("image/png", 2 * 1024 * 1024 + 1, 3, 415),
+        ("image/png", 3, 4, 404),
+    ] {
+        let fixture = Fixture::document(vec![42; actual], mime, declared);
+        // When fetched as a purported document image.
+        let (status, _, body) = fixture.request("GET", &fixture.path, "");
+        // Then no source bytes are returned.
+        assert_eq!(status, expected);
+        assert!(body.is_empty());
     }
 }
 

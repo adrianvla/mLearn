@@ -7,6 +7,8 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const prep = spawn(process.execPath, ['tools/prepare-plugins.mjs'], { cwd: root, stdio: 'inherit' });
 await new Promise((resolve, reject) => { prep.once('error', reject); prep.once('exit', (code) => code === 0 ? resolve() : reject(new Error('Plugin preparation failed'))); });
+const documents = spawn(process.execPath, ['tools/prepare-documents.mjs'], { cwd: root, stdio: 'inherit' });
+await new Promise((resolve, reject) => { documents.once('error', reject); documents.once('exit', code => code === 0 ? resolve() : reject(new Error('Document parser preparation failed'))); });
 const directory = path.join(root, 'target/plugin-cdn');
 const server = createServer(async (request, response) => {
   try {

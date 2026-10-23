@@ -211,7 +211,10 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
                     {materialContent ? <>
                         <CaptureList key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
                             client={client} candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
-                            onOpenMaterial={id => router.push({ pathname: '../materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } })} />
+                            onOpenMaterial={id => {
+                                onClose();
+                                router.push({ pathname: '../materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
+                            }} />
                         <Dialog open={captureOpen} onOpenChange={setCaptureOpen} title="Capture Material"
                             description="Author this Material without changing its source reference or selected dictionary sense."
                             trigger={<Button label="Edit before capture" size="compact" variant="media" />}>

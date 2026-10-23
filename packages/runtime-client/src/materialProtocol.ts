@@ -1,5 +1,6 @@
 import type { MaterialContent, Response, SourceAnchor } from '@mlearn/contracts';
 import { isWatchResponse } from './watchProtocol';
+import { isDocumentWindow } from './documentProtocol';
 
 const encoder = new TextEncoder();
 export const encodedBytes = (value: unknown) => encoder.encode(JSON.stringify(value)).length;
@@ -26,6 +27,15 @@ export function isSourceAnchor(value: unknown): value is SourceAnchor {
   if (!object(value) || !text(value.sourceId) || !text(value.contentRevision) || !text(value.packageId)
     || !text(value.packageVersion) || !text(value.text, 32768, false) || !object(value.locator)) return false;
   const locator = value.locator;
+  if (locator.kind === 'document') {
+    const bytes = encoder.encode(value.text);
+    return text(locator.parserRevision) && text(locator.resource) && text(locator.blockId)
+      && uint(locator.contextStart) && uint(locator.selectionStart) && uint(locator.selectionEnd)
+      && locator.selectionStart < locator.selectionEnd && locator.selectionEnd <= bytes.length
+      && locator.contextStart + locator.selectionEnd <= 4294967295
+      && [locator.selectionStart, locator.selectionEnd].every(offset =>
+        offset === bytes.length || (bytes[offset] & 0xc0) !== 0x80);
+  }
   const frameWithoutText = value.text === '' && locator.cueIndex === null
     && locator.selectionStart === 0 && locator.selectionEnd === 0;
   if (locator.kind !== 'video' || !nullable(locator.subtitleRevision, text) || !nullable(locator.cueIndex, uint)
@@ -87,7 +97,7 @@ function eligibility(value: unknown) {
   }
 }
 export type MaterialResponse = Extract<Response, { type: 'materials' | 'material' | 'material_written' | 'material_captured'
-  | 'material_eligibility' | 'capture_exclusion_changed' | 'material_source' }>;
+  | 'material_eligibility' | 'capture_exclusion_changed' | 'material_source' | 'document_material_source' }>;
 /** Admit nested Material data from unknown before exposing generated Rust types. */
 export function isMaterialResponse(value: unknown): value is MaterialResponse {
   if (!object(value)) return false;
@@ -122,10 +132,21 @@ export function isMaterialResponse(value: unknown): value is MaterialResponse {
         || !object(value.window.source)) return false;
       const source = value.window.source;
       const anchor = value.anchor;
+      const locator = anchor.locator;
+      if (locator.kind !== 'video') return false;
       return source.id === anchor.sourceId && source.mediaRevision === anchor.contentRevision
         && source.packageId === anchor.packageId
-        && source.positionMs === anchor.locator.positionMs && source.subtitleRevision === anchor.locator.subtitleRevision
-        && source.subtitleOffsetMs === anchor.locator.subtitleOffsetMs && source.playbackRate === anchor.locator.playbackRate;
+        && source.positionMs === locator.positionMs && source.subtitleRevision === locator.subtitleRevision
+        && source.subtitleOffsetMs === locator.subtitleOffsetMs && source.playbackRate === locator.playbackRate;
+    }
+    case 'document_material_source': {
+      if (!isSourceAnchor(value.anchor) || value.anchor.locator.kind !== 'document' || !isDocumentWindow(value.window)) return false;
+      const source = value.window.source;
+      const locator = value.anchor.locator;
+      return source.id === value.anchor.sourceId && source.contentRevision === value.anchor.contentRevision
+        && source.packageId === value.anchor.packageId && source.parserRevision === locator.parserRevision
+        && source.position?.resource === locator.resource && source.position.blockId === locator.blockId
+        && source.position.offset === locator.contextStart + locator.selectionStart;
     }
     default: return false;
   }

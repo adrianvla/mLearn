@@ -85,7 +85,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
       for (const candidate of selected) {
         const source = candidate.content.source;
         let content = candidate.content;
-        if (candidate.resolveCuePosition && source && source.locator.cueIndex !== null && source.locator.subtitleRevision !== null) {
+        if (candidate.resolveCuePosition && source?.locator.kind === 'video' && source.locator.cueIndex !== null && source.locator.subtitleRevision !== null) {
           const key = JSON.stringify([source.sourceId, source.locator.subtitleRevision, source.locator.cueIndex]);
           let position = positions.get(key);
           if (position === undefined) {

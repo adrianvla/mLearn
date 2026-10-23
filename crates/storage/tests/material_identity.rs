@@ -78,7 +78,10 @@ fn exact_origin_reuses_but_another_context_requires_explicit_distinct_command() 
         subtitle_offset_ms,
         playback_rate,
         ..
-    } = &mut same.content.source.as_mut().unwrap().locator;
+    } = &mut same.content.source.as_mut().unwrap().locator
+    else {
+        panic!("Expected a video origin");
+    };
     *position_ms = 9000;
     *subtitle_offset_ms = 2000;
     *playback_rate = 1.5;
@@ -89,7 +92,10 @@ fn exact_origin_reuses_but_another_context_requires_explicit_distinct_command() 
     );
     let mut another = capture("another");
     let SourceLocator::Video { cue_index, .. } =
-        &mut another.content.source.as_mut().unwrap().locator;
+        &mut another.content.source.as_mut().unwrap().locator
+    else {
+        panic!("Expected a video origin");
+    };
     *cue_index = Some(2);
     assert!(
         matches!(store.create_material(&another).unwrap(), MaterialWriteResult::Duplicate { items } if items.len() == 1 && items[0].id == first.id)
@@ -129,6 +135,70 @@ fn duplicate_receipt_retains_candidate_ids_but_reads_current_records() {
             items: vec![current]
         }
     );
+}
+
+#[test]
+fn document_capture_identity_uses_the_original_passage_not_context_window_or_quote() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("profile");
+    let mut store = ProfileStore::open(&path).unwrap();
+    let mut first = capture("document");
+    first.content.phrase = "東京".into();
+    first.content.source = Some(SourceAnchor {
+        source_id: "book".into(),
+        content_revision: "book-v1".into(),
+        package_id: "example.language".into(),
+        package_version: "v1".into(),
+        text: "🌱 東京へ歩く。".into(),
+        locator: SourceLocator::Document {
+            parser_revision: "parser-v1".into(),
+            resource: "chapter.xhtml".into(),
+            block_id: "bridge-two".into(),
+            context_start: 0,
+            selection_start: 5,
+            selection_end: 11,
+        },
+    });
+    let original = saved(store.create_material(&first).unwrap());
+    let mut smaller = first.clone();
+    smaller.command_id = "smaller-window".into();
+    let anchor = smaller.content.source.as_mut().unwrap();
+    anchor.text = "東京へ".into();
+    anchor.locator = SourceLocator::Document {
+        parser_revision: "parser-v1".into(),
+        resource: "chapter.xhtml".into(),
+        block_id: "bridge-two".into(),
+        context_start: 5,
+        selection_start: 0,
+        selection_end: 6,
+    };
+    drop(store);
+    let mut store = ProfileStore::open(&path).unwrap();
+    assert!(matches!(store.create_material(&smaller).unwrap(),
+        MaterialWriteResult::Saved { reused: true, material, .. } if material.id == original.id));
+    let mut elsewhere = smaller.clone();
+    elsewhere.command_id = "other-passage".into();
+    let SourceLocator::Document { block_id, .. } =
+        &mut elsewhere.content.source.as_mut().unwrap().locator
+    else {
+        panic!("Expected a document origin");
+    };
+    *block_id = "bridge-one".into();
+    assert!(matches!(store.create_material(&elsewhere).unwrap(),
+        MaterialWriteResult::Duplicate { items } if items.len() == 1 && items[0].id == original.id));
+    smaller.command_id = "invalid-scalar".into();
+    let valid_content = smaller.content.clone();
+    let SourceLocator::Document {
+        selection_start, ..
+    } = &mut smaller.content.source.as_mut().unwrap().locator
+    else {
+        panic!("Expected a document origin");
+    };
+    *selection_start = 1;
+    assert!(store.create_material(&smaller).is_err());
+    smaller.content = valid_content;
+    assert!(matches!(store.create_material(&smaller).unwrap(),
+        MaterialWriteResult::Saved { reused: true, material, .. } if material.id == original.id));
 }
 
 #[test]

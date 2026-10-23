@@ -12,12 +12,166 @@ or functional gates may not. See the current PLAN/AGENTS authorization. Preserve
 H00, branch history and draft PR44; stop after the consolidated M07 review
 package for manual acceptance, without merging or self-acceptance.
 
-## Current gate status — 2026-10-22
+## Current gate status — 2026-10-23
 
-Status: `verified_M04_foundation`. M03 is published as `fbfb1a59` on `agent/m01`.
+Status: `verified_M05_for_continuation`. M03 is published as `fbfb1a59` on `agent/m01`.
 M04 source and its M01–M04 architecture repairs are independently approved and
-verified for continuation. The checkpoint carrying this record is the M04
-publication unit; M05 starts only after its push.
+verified for continuation. The checkpoint carrying this record is the M05
+publication unit; M06 starts only after its push.
+M04 publication `f5f350ab62880378c23485552fc5aa306c033eba` is now pushed.
+M05 is independently verified for continuation, not maintainer-accepted.
+The real bounded TXT/EPUB parser
+and paged PDF Wasm guest are integrated into the root workspace and lock.
+The normal workspace guest is 1,873,755 bytes with SHA256
+`c432e917c4ea1a42a57ff6c799b6b35448db2e9a114316884263c4312d7387a1`.
+The earlier standalone verification produced hash
+`454e421213de1f9c6d39c731da73e0dfa86d6f67d152c801cc289f3f0f5f4418`;
+the normal artifact was reproduced and its 29 parser tests rerun successfully.
+Root parser tests pass 30/30; the reproduced Fresh fuel-slicing regression and
+existing deterministic execution-cancellation test pass 2/2. Startup/ABI fuel
+is deducted before granting the remaining 32M allowance in 1M resumable slices.
+The production-only ZIP check exposed a missing compression backend hidden by
+test dependency unification; selecting zip's explicit pure-Rust zlib backend
+fixes the actual runtime compilation. Document storage tests pass 13/13.
+
+Root now owns asynchronous document admission, immutable source/image
+publication, a bounded crash-recovery journal, revision-bound return anchors,
+and shared analysis/Knowledge integration. Authored `horizontal-tb`,
+`vertical-rl` and `vertical-lr` are distinct from user appearance choices.
+Image alternative text is not linguistically analyzed. Real EPUB import,
+partial ruby, image bytes, duplicate passage restoration, profile relocation
+and Material return tests pass; PDF import preserves all three original pages
+including the text-unavailable page. Its first analysis regression exposed
+unnecessary all-capability Knowledge expansion on a short real page. The shared
+owner now requests only the annotation capability. The connected parser/runtime
+run passes all suites, including 27 runtime library tests and seven real document
+integration tests; cancellation/recovery and unchanged-language cache reuse pass.
+The real desktop application has imported EPUB and TXT through its native
+picker, displayed authored partial ruby/mixed writing modes and original image
+bytes, captured Tokyo through the shared Inspector, opened the saved Material,
+and returned to the exact seed block at byte 5. Rendered overlap, disabled
+within-window navigation, default-serif image captions and a surviving Inspector
+portal were reproduced and repaired in their responsible owners. The old export
+fails the portal regression; the repaired export passes all four Reader browser
+tests, including a genuine bounded PNG thumbnail and unmounted hidden document.
+Typecheck, ownership lint, contract generation, all 30 web workflows, 59 checker
+tests and 80 client tests pass. Both consuming native builds pass on retained
+arm64 simulator/emulator targets. They are not final-source native acceptance:
+the first iOS build exceeded its watcher deadline during dependency compilation;
+the retained arm64 continuation completed. Current Rust/UI repairs are being
+rebuilt into both candidates without recreating environments.
+The real English-selected mixed-language TXT exposed a separate analysis failure:
+one unsupported neighboring paragraph rejects the visible supported paragraph.
+Its connected regression failed first, then passed after limiting document
+admission to the visible stable source passage. Unsupported selected-language
+text still returns an explicit error rather than invented targets.
+The independent backend audit reproduced four further defects: torn journal
+startup failure, dropped container/inline contents anchors, unrelated navigation
+links aborting import, and a duplicate import returning the previous language.
+Atomic journal publication and legacy interrupted-write cleanup, exact UTF-8
+authored-anchor mappings, contents-only link extraction/local-fragment resolution
+and the existing explicit-language mutation owner repair these findings. Their
+connected parser/runtime regressions pass. This audit is not the final M05 gate.
+Real desktop PDF import and original graphics-only page navigation work without
+inventing text or running OCR. The real Android import's permission-denied
+failure was isolated to hard-link publication and repaired with atomic no-replace
+rename. The actual PDF import/navigation/restart workflow passed, with its first,
+empty original second and final third pages inspected directly. Preserve the
+earlier red operation-specific runs.
+The initial local iOS EPUB flow passed footer/resume assertions, but direct image
+inspection exposed a blank document surface. That run is not rendering acceptance.
+The shipped native DOM bundle reproduced an eager Unistyles theme-registry error
+in an isolated browser. Shared inline activation/focus/hover now has one theme-free
+DOM element owner used by both themed controls and the document entry; source
+reading segmentation also has one pure owner. The repaired shipped bundle renders
+the authored ruby with no boot errors and correct viewport geometry. A new boundary
+regression rejects eager themed imports; 60 checker tests, 80 client tests and all
+30 web workflows pass after extraction. Direct retained-device iOS QA selected
+the real EPUB in Files and verified native source text, authored ruby, original
+SVG image, Japanese analysis, Inspector capture, saved Material and highlighted
+Return to source. Changing to vertical/serif/26 and restarting preserved the
+seed passage and those appearance values. The final installed iOS candidate
+also passes manual Inspector/Open saved/Return with the old document unmounted.
+The iOS Maestro import attempt remains red at Files selection; manual selection
+dismisses the same picker successfully. Its stronger content assertions remain
+intact. This is not a passing hosted FileProvider gate.
+The operation-specific Android red capture identifies `hard_link` publication,
+not picker access or parsing, as the permission-denied operation. Android now
+uses atomic no-replace rename through Rustix; other platforms retain hard links.
+The root checks and all seven document tests pass. The document capture regression
+also admits the captured passage to real Review and returns its frozen original
+anchor and duplicate-passage byte offset through `return_review_source`.
+Both final consuming Release arm64 builds pass. Typecheck, ownership lint and
+all four Reader web workflows pass after the final blur lifecycle adjustment.
+The repeated Android flow exposed two test preconditions, not import regressions:
+duplicate import correctly restores its saved third page, and Home can retain a
+scrolled position. The flow now explicitly navigates to the first original page
+and locates the import entry from the upper Home section. The final consuming
+candidate passes that complete flow 1/1 in 55 seconds
+(`android-final-navigation-junit.xml`); its original first page and restarted third
+page captures were inspected directly. The original H00 Device Hub selection is
+restored without sending any input to that device.
+Hosted FileProvider diagnostics remain deferred.
+Disk pressure reached 2.8 GiB free. Only the obsolete task-owned
+`m04-shared/target` cache was released after verifying it was a separate directory
+unused by running work; free space returned to 16 GiB. Its source/evidence,
+root Cargo/native outputs, profiles and retained devices remain intact.
+Desktop continuity QA added `continuity.txt`, using the same Children target as
+the Watch fixture. Its original Meaning claim was known; QA changed it to unknown
+in Reader, observed claimed unknown in Watch, restored known there, and observed
+claimed known back in Reader. The original claim is restored.
+Native artifacts are under `.mlearn/m03-m07/m05-reader/qa/`: `ios-original-image.png`,
+`ios-appearance-settings.png`, `ios-restarted-ruby.png`, `ios-final-inspector.png`,
+`ios-final-material.png` and `ios-final-return.png`. Android's first passing run is
+`android-rename-junit.xml`; all red runs are retained separately.
+The final independent M05 gate rejected frozen source tree
+`a0e4ee117cb04a5284a517381848ed9168356223` against M04 using the retained locked
+review worktree. Effective route is `chatgpt-subscription/gpt-6.1-sol`, not a paid
+or premium escalation. Superseded standalone parser prototype sources are removed;
+the production parser/tests and original fixture generator remain.
+Its sole blocker B1 is a real Review-to-Reader handoff defect: Review returns the
+frozen encounter anchor, but Reader then follows `materialId` and re-fetches the
+mutable authored association. A new connected Review navigation regression
+reproduced the failure after that association was cleared. Review now routes its
+session/encounter identity; Reader and the existing Watch consumer resolve that
+same frozen source. Ordinary Material Return keeps its separate current-source
+semantics. The repaired export passes all 31 web workflows, typecheck, ownership
+lint and strict typing of the new test fixture. The actual desktop saved Review
+also returns to its video at 11.2 seconds with the original selected token; capture
+is `desktop-review-frozen-video-return.png`. Both repaired consuming native builds
+pass. A bounded independent B1 closeout and affected native smoke run remain open.
+The first repaired iOS resume smoke passed footer/appearance assertions but its
+source screenshot preceded DOM layout and was blank. It is not body-rendering
+acceptance. `DocumentViewport` now exposes busy/loading until the existing DOM
+visible-block callback confirms actual source layout; native checks wait for that
+event-derived ready surface before capture. The five Reader web workflows,
+typecheck and ownership lint pass with this signal. Android's renewed test missed
+the import action with a full-screen fling; waiting for the enabled language-bound
+action and bounded body-only gestures passes the complete flow in 54 seconds.
+Both final readiness-aware native candidates now build, install and pass their
+local checks: iOS saved EPUB/reflow resume 1/1 in 19 seconds, Android actual PDF
+picker, all original pages and restart 1/1 in 52 seconds. The Android flow waits
+for actual DOM readiness after every page transition and restart. Final iOS
+source/ruby/serif/26 and Android first/empty/restarted source images were inspected
+directly under `qa/ios-render-ready/` and `qa/android-ready-navigation/`.
+The final iOS main bundle SHA256 is
+`5227fc3167350ddc7c02aa783344fee2800467206569c6c3f232add43f84303d`;
+the installed Android APK SHA256 is
+`e16f2ccf36f7ca613c069e8514ea1b84ae50b4ed9fac59fc0da4eb419c263af4`.
+Application code matches the B1-closeout tree
+`fc0a51fb23b0f0142a26339ea913c8942f5ba5ad`; subsequent changes only strengthen
+native test readiness assertions and update this record. All prior red captures
+remain retained rather than relabeled. H00 remains selected and untouched.
+Independent closeout now approves final reviewed tree
+`72d34083dedcb02d8d09666165850dc65748dde1` with no remaining blocker.
+`.omo/evidence/m05-reader-gate-review.md` preserves the original B1 rejection,
+its independently reproduced repair, and inspected final native captures.
+Local native verification and continuation review are complete; no final
+visual-parity, hosted Files acceptance or maintainer acceptance is claimed.
+Publish M05 before M06;
+preserve the deferred hosted iOS gate below. Parser/storage lane evidence is retained under
+`/var/folders/f2/d3_jzj917kg6sqsc9tgc80200000gn/T/tmp.zHcXwfdacR`.
+
 The existing hosted iOS FileProvider acceptance gate
 is **deferred by the maintainer, not passed**. It does not block M03–M07.
 Stop its investigation and launch no further diagnostic workflow variants.

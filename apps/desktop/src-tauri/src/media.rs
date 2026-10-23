@@ -1,4 +1,5 @@
 //! Process-local media transport. Only the runtime resolver can supply a path.
+use base64::Engine;
 use hyper::{
     Request, Response, StatusCode,
     body::{Body, Bytes, Frame, Incoming, SizeHint},
@@ -38,11 +39,15 @@ pub(crate) const ORIGINS: &[&str] = &[
 pub(crate) type Resolver = Arc<dyn Fn(&str) -> Result<PathBuf, StatusCode> + Send + Sync>;
 pub(crate) type AuthoredResolver =
     Arc<dyn Fn(&str) -> Result<(PathBuf, String), StatusCode> + Send + Sync>;
+pub(crate) type DocumentResolver = Arc<
+    dyn Fn(&str, &str) -> Result<mlearn_core::DocumentResourceLocation, StatusCode> + Send + Sync,
+>;
 
 pub(crate) struct MediaListener {
     listener: TcpListener,
     authority: String,
     token: String,
+    pub(crate) documents: Option<DocumentResolver>,
     #[cfg(test)]
     released: Option<std::sync::mpsc::Sender<()>>,
 }
@@ -55,6 +60,7 @@ impl MediaListener {
             authority: listener.local_addr()?.to_string(),
             listener,
             token: uuid::Uuid::new_v4().simple().to_string(),
+            documents: None,
             #[cfg(test)]
             released: None,
         })
@@ -125,6 +131,7 @@ impl MediaListener {
                     let prefix = format!("/{}/", self.token);
                     let resolve = resolve.clone();
                     let authored = authored.clone();
+                    let documents = self.documents.clone();
                     let resolver_slots = resolver_slots.clone();
                     #[cfg(test)]
                     let released = self.released.clone();
@@ -136,6 +143,7 @@ impl MediaListener {
                                 prefix.clone(),
                                 resolve.clone(),
                                 authored.clone(),
+                                documents.clone(),
                                 resolver_slots.clone(),
                             )
                         });
@@ -279,6 +287,7 @@ async fn handle(
     prefix: String,
     resolve: Resolver,
     authored: Option<AuthoredResolver>,
+    documents: Option<DocumentResolver>,
     resolver_slots: Arc<tokio::sync::Semaphore>,
 ) -> Result<Response<FileBody>, Infallible> {
     Ok(
@@ -288,6 +297,7 @@ async fn handle(
             &prefix,
             resolve,
             authored,
+            documents,
             resolver_slots,
         )
         .await
@@ -304,6 +314,7 @@ async fn respond(
     prefix: &str,
     resolve: Resolver,
     authored: Option<AuthoredResolver>,
+    documents: Option<DocumentResolver>,
     resolver_slots: Arc<tokio::sync::Semaphore>,
 ) -> Result<Response<FileBody>, StatusCode> {
     let headers = request.headers();
@@ -331,14 +342,35 @@ async fn respond(
         .path()
         .strip_prefix(prefix)
         .ok_or(StatusCode::FORBIDDEN)?;
+    let document_ids = id
+        .strip_prefix("document/")
+        .map(|ids| {
+            let (source, resource) = ids.split_once('/').ok_or(StatusCode::NOT_FOUND)?;
+            let decode = |value: &str| {
+                if value.is_empty() || value.len() > 684 {
+                    return Err(StatusCode::NOT_FOUND);
+                }
+                let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+                    .decode(value)
+                    .map_err(|_| StatusCode::NOT_FOUND)?;
+                let value = String::from_utf8(bytes).map_err(|_| StatusCode::NOT_FOUND)?;
+                if value.len() > 512 {
+                    return Err(StatusCode::NOT_FOUND);
+                }
+                Ok(value)
+            };
+            Ok::<_, StatusCode>((decode(source)?, decode(resource)?))
+        })
+        .transpose()?;
     let (is_authored, id) = id
         .strip_prefix("authored/")
         .map_or((false, id), |id| (true, id));
-    if id.is_empty()
-        || id.len() > 128
-        || !id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    if document_ids.is_none()
+        && (id.is_empty()
+            || id.len() > 128
+            || !id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'))
     {
         return Err(StatusCode::NOT_FOUND);
     }
@@ -363,14 +395,29 @@ async fn respond(
         .acquire_owned()
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-    let (path, authored_mime) = tokio::task::spawn_blocking(move || {
+    let (path, authored_mime, document_length) = tokio::task::spawn_blocking(move || {
         let _slot = slot;
-        if is_authored {
+        if let Some((source, resource)) = document_ids {
+            let location = documents.ok_or(StatusCode::NOT_FOUND)?(&source, &resource)?;
+            if !matches!(
+                location.mime_type.as_str(),
+                "image/png" | "image/jpeg" | "image/gif" | "image/webp" | "image/svg+xml"
+            ) || location.byte_length == 0
+                || location.byte_length > 2 * 1024 * 1024
+            {
+                return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+            }
+            Ok((
+                PathBuf::from(location.path),
+                Some(location.mime_type),
+                Some(u64::from(location.byte_length)),
+            ))
+        } else if is_authored {
             let resolver = authored.ok_or(StatusCode::NOT_FOUND)?;
             let (path, mime) = resolver(&id)?;
-            Ok((path, Some(mime)))
+            Ok((path, Some(mime), None))
         } else {
-            resolve(&id).map(|path| (path, None))
+            resolve(&id).map(|path| (path, None, None))
         }
     })
     .await
@@ -384,6 +431,9 @@ async fn respond(
         return Err(StatusCode::NOT_FOUND);
     }
     let length = metadata.len();
+    if document_length.is_some_and(|expected| expected != length || length > 2 * 1024 * 1024) {
+        return Err(StatusCode::NOT_FOUND);
+    }
     // RFC 9110: Range is defined for GET, and is ignored on HEAD.
     let range = if request.method() == hyper::Method::GET && !headers.contains_key("if-range") {
         let values = headers.get_all("range");
@@ -428,6 +478,7 @@ async fn respond(
             | "image/jpeg"
             | "image/webp"
             | "image/gif"
+            | "image/svg+xml"
             | "audio/mp4"
             | "audio/mpeg"
             | "audio/wav"
@@ -454,6 +505,13 @@ async fn respond(
         .header("cache-control", "no-store")
         .header("referrer-policy", "no-referrer")
         .header("x-content-type-options", "nosniff");
+    if document_length.is_some() {
+        // SVG may be a source image, never an active same-origin document.
+        response = response.header(
+            "content-security-policy",
+            "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        );
+    }
     if let Some(origin) = headers.get("origin") {
         response = response
             .header("access-control-allow-origin", origin)

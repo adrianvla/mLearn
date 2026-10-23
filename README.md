@@ -60,11 +60,14 @@ npm run typecheck
 npm run lint               # AST ownership/boundary checks
 npm run build:web
 npm run test:web           # Playwright interactions and automated accessibility
-npm run test:native        # builds sample Wasm, then Rust runtime/storage/plugin tests
+npm run test:native        # builds language/document Wasm, then Rust owner tests
 npm run check:contracts
 ```
 
 When Rust boundary types change, run `npm run codegen` and commit the generated contracts. The root npm and Cargo lockfiles are authoritative.
+Before direct Cargo checks that compile the runtime from a clean checkout, run
+`npm run build:documents` to build its bounded PDF Wasm guest. The ordinary desktop,
+mobile preparation and `test:native` commands already include this step.
 
 ## Packages
 

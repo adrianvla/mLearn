@@ -9,6 +9,56 @@ impl Runtime {
     pub(crate) fn prepare(&mut self, request: Request, epoch: u64) -> Result<Prepared, Failure> {
         let cancellation = Cancellation::source(self.cancellation.clone(), epoch);
         match request {
+            Request::OpenDocument { path, package_id } => {
+                cancellation.check()?;
+                self.language_work(
+                    &package_id,
+                    LanguageAction::OpenDocument {
+                        root: self.root.clone(),
+                        path,
+                    },
+                    cancellation,
+                )
+            }
+            request @ (Request::ResumeDocument { .. }
+            | Request::RecentDocuments
+            | Request::DocumentWindow { .. }
+            | Request::DocumentContents { .. }
+            | Request::CheckpointDocument { .. }
+            | Request::DocumentResource { .. }) => Ok(Prepared::Immediate(Box::new(
+                self.document_request(request, &cancellation)?,
+            ))),
+            Request::AnalyzeDocument {
+                source_id,
+                position,
+            } => {
+                cancellation.check()?;
+                let input = self.prepare_document_analysis(&source_id, position.as_ref())?;
+                let package_id = input.package_id().to_owned();
+                self.language_work(&package_id, LanguageAction::Analyze(input), cancellation)
+            }
+            Request::SetDocumentLanguage {
+                source_id,
+                package_id,
+            } => {
+                cancellation.check()?;
+                let source = self.document_record(&source_id)?;
+                if source.package_id == package_id
+                    && self
+                        .installed
+                        .get(&package_id)
+                        .is_some_and(|package| package.manifest.version == source.package_version)
+                {
+                    return Ok(Prepared::Immediate(Box::new(Response::Document {
+                        window: self.document_window(&source_id, source.position.as_ref())?,
+                    })));
+                }
+                self.language_work(
+                    &package_id,
+                    LanguageAction::SelectDocumentLanguage { source_id },
+                    cancellation,
+                )
+            }
             Request::Review { command } => self.prepare_review(command),
             Request::ReviewSession { session_id } => {
                 Ok(Prepared::Immediate(Box::new(Response::ReviewSession {
@@ -75,7 +125,7 @@ impl Runtime {
             } => {
                 cancellation.check()?;
                 let input = self.prepare_analysis(&source_id, position_ms)?;
-                let package_id = input.source.package_id.clone();
+                let package_id = input.package_id().to_owned();
                 self.language_work(&package_id, LanguageAction::Analyze(input), cancellation)
             }
             Request::AnalyzeTranscript {
@@ -85,7 +135,7 @@ impl Runtime {
             } => {
                 cancellation.check()?;
                 let input = self.prepare_transcript_analysis(&source_id, after_index, &query)?;
-                let package_id = input.source.package_id.clone();
+                let package_id = input.package_id().to_owned();
                 self.language_work(&package_id, LanguageAction::Analyze(input), cancellation)
             }
             Request::OpenSource { path, package_id } => {

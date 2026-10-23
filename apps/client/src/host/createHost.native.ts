@@ -14,6 +14,8 @@ export function createHost(): Host {
     cancelSourceOpen():Promise<void>;
     reserveMediaCapture(id:string):Promise<void>;
     importPickedMedia(uri:string,name:string):Promise<string>;
+    importPickedDocument(uri:string,name:string):Promise<string>;
+    documentImageUri(sourceId:string,resourceId:string):Promise<string>;
     captureMedia(id:string,request:string):Promise<string>;
     cancelMediaCapture(id:string):Promise<void>;
     releaseMediaCapture(path:string):Promise<void>;
@@ -35,7 +37,19 @@ export function createHost(): Host {
     const path=await module.importPickedMedia(asset.uri,asset.name);
     return {path,name:asset.name,kind,release:()=>module.releaseMediaCapture(path)};
   };
-  return { available: true, label: 'Expo native', authoredMedia:{
+  return { available: true, label: 'Expo native', documents:{
+    async pick(){
+      const result=await DocumentPicker.getDocumentAsync({type:['text/plain','application/epub+zip','application/pdf'],copyToCacheDirectory:false,multiple:false});
+      if(result.canceled)return null;
+      const asset=result.assets[0];
+      if(!asset)throw new Error('The picker returned no document.');
+      return module.importPickedDocument(asset.uri,asset.name);
+    },
+    releasePicked:path=>module.releaseMediaCapture(path),
+    // A data URI works inside Expo DOM's isolated WebView; native file URLs do not.
+    // Resolve IDs again natively rather than allowing renderer-supplied file paths.
+    uri:location=>module.documentImageUri(location.sourceId,location.resourceId),
+  }, authoredMedia:{
     capture:captureAuthoredMedia({
       reserve:id=>module.reserveMediaCapture(id),
       capture:async(id,request)=>JSON.parse(await module.captureMedia(id,JSON.stringify(request))),

@@ -103,14 +103,16 @@ export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusF
     useEffect(() => () => { current.current = null; }, []);
     async function inspect(card: Card, anchor: Inspection['anchor']) {
         const captured = card.sourceAnchor;
-        const cueIndex = captured.locator.cueIndex;
-        if (cueIndex === null || captured.locator.subtitleRevision === null) return;
+        const locator = captured.locator;
+        if (locator.kind !== 'video') return;
+        const cueIndex = locator.cueIndex;
+        if (cueIndex === null || locator.subtitleRevision === null) return;
         try {
-            const position = await client.cuePosition(captured.sourceId, captured.locator.subtitleRevision, cueIndex);
+            const position = await client.cuePosition(captured.sourceId, locator.subtitleRevision, cueIndex);
             if (current.current !== sourceIdentity) return;
             onInspect({ sourceForm: card.sourceForm, context: card.context, targets: card.alternatives,
                 initialTargetId: card.id, packageRevision: batch.packageRevision, anchor,
-                sourceAnchor: { ...captured, locator: { ...captured.locator, positionMs: position } } });
+                sourceAnchor: { ...captured, locator: { ...locator, positionMs: position } } });
         } catch (cause) { if (current.current === sourceIdentity) setError(cause instanceof Error ? cause.message : String(cause)); }
     }
     if (!cards.length && !pending && !error) return null;

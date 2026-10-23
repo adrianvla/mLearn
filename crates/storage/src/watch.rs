@@ -19,6 +19,17 @@ impl SourceReader {
     pub fn source(&self, id: &str) -> Result<SourceRecord, StorageError> {
         read_source(&self.connection, id)
     }
+    pub fn document(&self, id: &str) -> Result<Option<mlearn_core::DocumentRecord>, StorageError> {
+        crate::document_validation::bounded(id, 512)?;
+        crate::document_read::read_record(&self.connection, id)
+    }
+    pub fn document_resource(
+        &self,
+        id: &str,
+        resource_id: &str,
+    ) -> Result<Option<mlearn_core::DocumentResourceLocation>, StorageError> {
+        crate::document_read::read_resource(&self.connection, id, resource_id)
+    }
     pub fn authored_media(
         &self,
         id: &mlearn_core::AuthoredMediaId,

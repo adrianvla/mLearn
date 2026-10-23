@@ -13,6 +13,46 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Request {
+    OpenDocument {
+        path: String,
+        #[serde(rename = "packageId")]
+        package_id: String,
+    },
+    ResumeDocument {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+    },
+    RecentDocuments,
+    DocumentWindow {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        position: Option<crate::DocumentPosition>,
+    },
+    DocumentContents {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        after: Option<u32>,
+    },
+    CheckpointDocument {
+        checkpoint: crate::DocumentCheckpoint,
+    },
+    SetDocumentLanguage {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "packageId")]
+        package_id: String,
+    },
+    AnalyzeDocument {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        position: Option<crate::DocumentPosition>,
+    },
+    DocumentResource {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "resourceId")]
+        resource_id: String,
+    },
     Review {
         command: crate::ReviewCommand,
     },

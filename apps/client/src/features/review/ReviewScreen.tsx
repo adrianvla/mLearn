@@ -167,7 +167,8 @@ function ReviewWorkspace({ client, media }: {
       if (!marked || scope.current !== active) return;
       const result = await client.returnReviewSource(value.id, encounter.id);
       if (active && scope.current === active)
-        router.push({ pathname: '/watch', params: { id: result.window.source.id, materialId: encounter.materialId } });
+        router.push({ pathname: result.type === 'document_material_source' ? '../reader' : '/watch',
+          params: { id: result.window.source.id, reviewSessionId: value.id, reviewEncounterId: encounter.id } });
     } catch (cause) {
       if (scope.current === active) setReturnError(messageOf(cause));
     } finally {

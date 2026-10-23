@@ -1,0 +1,267 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Image, ScrollView, View, useWindowDimensions } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet } from 'react-native-unistyles';
+import type { DocumentAppearance } from '@mlearn/contracts';
+import type { RuntimeClient } from '@mlearn/runtime-client';
+import { Button } from '@mlearn/ui/button';
+import { Text } from '@mlearn/ui/text';
+import { Row } from '@mlearn/ui/layout';
+import { Select } from '@mlearn/ui/select';
+import { Dialog } from '@mlearn/ui/dialog';
+import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { Inspector, type Inspection } from '../inspector';
+import { blockPosition, documentAnchor } from './documentFlow';
+import { DocumentViewport } from './DocumentViewport';
+import { useReader } from './useReader';
+
+export function ReaderScreen() {
+    const host = useRuntime();
+    const params = useLocalSearchParams<{ id: string; materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
+    const router = useRouter();
+    if (!host.available) return <View style={styles.unavailable}>
+        <Button label="Home" variant="quiet" onPress={() => router.replace('/')} />
+        <Text accessibilityRole="alert">{host.reason}</Text>
+    </View>;
+    return <ReaderWorkspace client={host.client} id={typeof params.id === 'string' ? params.id : ''}
+        materialId={typeof params.materialId === 'string' ? params.materialId : undefined}
+        reviewSessionId={typeof params.reviewSessionId === 'string' ? params.reviewSessionId : undefined}
+        reviewEncounterId={typeof params.reviewEncounterId === 'string' ? params.reviewEncounterId : undefined} />;
+}
+
+function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncounterId }: {
+    readonly client: RuntimeClient; readonly id: string; readonly materialId?: string;
+    readonly reviewSessionId?: string; readonly reviewEncounterId?: string;
+}) {
+    const reader = useReader(client, id, materialId, reviewSessionId, reviewEncounterId);
+    const router = useRouter();
+    const host = useRuntime();
+    const viewport = useWindowDimensions();
+    const insets = useSafeAreaInsets();
+    const [inspection, setInspection] = useState<Inspection | null>(null);
+    const [focused, setFocused] = useState(true);
+    const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+    useFocusEffect(useCallback(() => {
+        setFocused(true);
+        return () => { setFocused(false); setInspection(null); setThumbnails({}); };
+    }, []));
+    const [optionsOpen, setOptionsOpen] = useState(false);
+    const [contentsOpen, setContentsOpen] = useState(false);
+    const [railOpen, setRailOpen] = useState(true);
+    const [navigationError, setNavigationError] = useState('');
+    const [contentsAfter, setContentsAfter] = useState<number | null>(null);
+    const source = reader.window?.source;
+    const sourceIdentity = JSON.stringify([id, source?.contentRevision, source?.parserRevision,
+        source?.packageId, source?.packageVersion, reader.window?.blocks.map(block => [block.resource, block.id])]);
+    useEffect(() => { setInspection(null); }, [sourceIdentity, reader.pending]);
+    useEffect(() => { setThumbnails({}); }, [sourceIdentity]);
+    const current = useRef(sourceIdentity); current.current = sourceIdentity;
+    const sourceWindow = reader.window;
+    const visibleBlock = Math.max(0, sourceWindow?.blocks.findIndex(block =>
+        block.resource === reader.position?.resource && block.id === reader.position.blockId) ?? 0);
+    const previousBlock = sourceWindow?.blocks[visibleBlock - 1];
+    const nextBlock = sourceWindow?.blocks[visibleBlock + 1];
+    const previous = sourceWindow && previousBlock
+        ? blockPosition(sourceWindow.source, previousBlock) : sourceWindow?.previous;
+    const next = sourceWindow && nextBlock
+        ? blockPosition(sourceWindow.source, nextBlock) : sourceWindow?.next;
+    async function home() {
+        try { await reader.persist(); router.replace('/'); }
+        catch (cause) { setNavigationError(cause instanceof Error ? cause.message : String(cause)); }
+    }
+    function changeAppearance(change: Partial<DocumentAppearance>) {
+        if (!source || reader.pending) return;
+        setInspection(null);
+        reader.appearance({ ...source.appearance, ...change });
+    }
+    const wide = viewport.width >= 900;
+    const rail = wide && railOpen && sourceWindow;
+    const navigation = <Row>
+        <Button label="Previous passage" icon="arrowLeft" iconOnly
+            variant="secondary" size="compact" disabled={reader.pending || !previous}
+            onPress={() => { setInspection(null); if (previous) void reader.navigate(previous); }} />
+        <Button label="Next passage" icon="chevronRight" iconOnly
+            variant="secondary" size="compact" disabled={reader.pending || !next}
+            onPress={() => { setInspection(null); if (next) void reader.navigate(next); }} />
+    </Row>;
+    const contents = <>
+        {reader.contentsPending ? <Text accessibilityLiveRegion="polite">Loading contents…</Text> : null}
+        {reader.contentsError ? <><Text accessibilityRole="alert">{reader.contentsError}</Text>
+            <Button label="Retry contents" variant="secondary" disabled={reader.contentsPending}
+                onPress={() => void reader.loadContents(contentsAfter)} /></> : null}
+        {reader.contents?.items.map(item => <Button key={JSON.stringify(item.position)}
+            label={item.label} variant="secondary" disabled={reader.pending}
+            accessibilityState={{ selected: reader.position?.resource === item.position.resource
+                && reader.position.blockId === item.position.blockId }}
+            onPress={() => { setContentsOpen(false); void reader.navigate(item.position); }} />)}
+        {reader.contents && !reader.contents.items.length ? <Text muted>No contents entries in this document.</Text> : null}
+        <Row><Button label="First contents" variant="quiet" disabled={reader.contentsPending || contentsAfter === null}
+            onPress={() => { setContentsAfter(null); void reader.loadContents(); }} />
+            <Button label="More contents" variant="quiet" disabled={reader.contentsPending || reader.contents?.nextOffset == null}
+                onPress={() => {
+                    const next = reader.contents?.nextOffset;
+                    if (next != null) { setContentsAfter(next); void reader.loadContents(next); }
+                }} /></Row>
+    </>;
+    return <View style={styles.screen(insets.top, insets.bottom)}>
+        <ScrollView style={styles.headerScroll} contentContainerStyle={[styles.header,
+            { paddingLeft: host.available ? Math.max(8, host.windowControlsWidth ?? 0) : 8 }]}
+            keyboardShouldPersistTaps="handled">
+            <Row>
+                <Button label="Home" icon="arrowLeft" size="compact" variant="secondary"
+                    disabled={reader.pending} onPress={() => void home()} />
+                {wide ? <Button label={railOpen ? 'Hide source navigation' : 'Show source navigation'}
+                    size="compact" variant="quiet" accessibilityState={{ expanded: !!rail }}
+                    onPress={() => setRailOpen(value => !value)} /> : null}
+                <View style={styles.title}><Text variant="navigation" numberOfLines={1}
+                    accessibilityRole="header" testID="reader-title">{source?.title ?? 'Reader'}</Text></View>
+                {navigation}
+                {reader.pending ? <Button label="Cancel loading" variant="secondary" size="compact"
+                    onPress={() => void reader.cancel()} /> : null}
+                <Dialog title="Contents" description="Navigate to the original document location."
+                    open={contentsOpen} onOpenChange={open => {
+                        setContentsOpen(open); setInspection(null);
+                        if (open) void reader.loadContents(contentsAfter);
+                    }} trigger={<Button label="Contents" variant="secondary" size="compact" disabled={!source} />}>
+                    {contents}
+                </Dialog>
+                <Dialog title="Reader appearance" description="Changes are saved for this source and preserve its visible text position."
+                    open={optionsOpen} onOpenChange={open => { setOptionsOpen(open); setInspection(null); }}
+                    trigger={<Button label="View options" icon="settings" variant="secondary" size="compact" disabled={!source || reader.pending} />}>
+                    {source ? <>
+                        <Text variant="groupTitle">Writing</Text>
+                        <Row>{([
+                            ['auto', 'Automatic'], ['horizontal', 'Horizontal'], ['vertical', 'Vertical'],
+                        ] as const).map(([writingMode, label]) => <Button key={writingMode} label={label}
+                            disabled={reader.pending}
+                            variant="secondary" accessibilityState={{ selected: source.appearance.writingMode === writingMode }}
+                            onPress={() => changeAppearance({ writingMode })} />)}</Row>
+                        <Text variant="caption" muted>Automatic follows authored writing direction. Without an authored direction, text flows horizontally.</Text>
+                        <Text variant="groupTitle">Font</Text>
+                        <Row>{([
+                            ['source', 'Source default'], ['serif', 'Serif'], ['sans', 'Sans serif'],
+                        ] as const).map(([font, label]) => <Button key={font} label={label}
+                            disabled={reader.pending}
+                            variant="secondary" accessibilityState={{ selected: source.appearance.font === font }}
+                            onPress={() => changeAppearance({ font })} />)}</Row>
+                        <Text>Text size · {source.appearance.fontSize}</Text>
+                        <Row>
+                            <Button label="Smaller text" variant="secondary" disabled={reader.pending || source.appearance.fontSize <= 12}
+                                onPress={() => changeAppearance({ fontSize: Math.max(12, source.appearance.fontSize - 2) })} />
+                            <Button label="Larger text" variant="secondary" disabled={reader.pending || source.appearance.fontSize >= 48}
+                                onPress={() => changeAppearance({ fontSize: Math.min(48, source.appearance.fontSize + 2) })} />
+                        </Row>
+                        <Text>Line height · {source.appearance.lineHeight.toFixed(1)}</Text>
+                        <Row>
+                            <Button label="Tighter lines" variant="secondary" disabled={reader.pending || source.appearance.lineHeight <= 1}
+                                onPress={() => changeAppearance({ lineHeight: Math.max(1, Math.round((source.appearance.lineHeight - 0.1) * 10) / 10) })} />
+                            <Button label="Looser lines" variant="secondary" disabled={reader.pending || source.appearance.lineHeight >= 2.5}
+                                onPress={() => changeAppearance({ lineHeight: Math.min(2.5, Math.round((source.appearance.lineHeight + 0.1) * 10) / 10) })} />
+                        </Row>
+                        <Text>Letter spacing · {source.appearance.letterSpacing.toFixed(1)}</Text>
+                        <Row>
+                            <Button label="Tighter letters" variant="secondary" disabled={reader.pending || source.appearance.letterSpacing <= -1}
+                                onPress={() => changeAppearance({ letterSpacing: Math.max(-1, source.appearance.letterSpacing - 0.5) })} />
+                            <Button label="Looser letters" variant="secondary" disabled={reader.pending || source.appearance.letterSpacing >= 4}
+                                onPress={() => changeAppearance({ letterSpacing: Math.min(4, source.appearance.letterSpacing + 0.5) })} />
+                        </Row>
+                        <Text variant="groupTitle">Source language</Text>
+                        <Select testID="reader-language-select" label="Document source language" value={source.packageId} disabled={reader.pending}
+                            options={reader.languages.map(plugin => ({ value: plugin.id, label: plugin.displayName ?? plugin.id,
+                                testID: `reader-language-${plugin.id}` }))}
+                            onValueChange={packageId => { if (packageId !== source.packageId) void reader.setLanguage(packageId); }} />
+                        {reader.languages.some(plugin => plugin.id === source.packageId && plugin.version !== source.packageVersion)
+                            ? <Button label="Use installed language version" variant="secondary" disabled={reader.pending}
+                                onPress={() => void reader.setLanguage(source.packageId)} /> : null}
+                        <Button label="App appearance" variant="quiet" onPress={() => { setOptionsOpen(false); router.push('/settings'); }} />
+                        {source.fidelity.length ? <>
+                            <Text variant="groupTitle">Source fidelity</Text>
+                            <Text variant="detail" muted selectable testID="reader-fidelity">{source.fidelity.join('\n\n')}</Text>
+                        </> : null}
+                    </> : null}
+                </Dialog>
+            </Row>
+            {reader.error ? <View style={styles.feedback}><Text accessibilityRole="alert">{reader.error}</Text>
+                <Row><Button label="Retry document" variant="secondary" size="compact" onPress={reader.retry} />
+                    <Button label="Reselect from Home" variant="quiet" size="compact" onPress={() => void home()} /></Row></View> : null}
+            {navigationError ? <Text accessibilityRole="alert">{navigationError}</Text> : null}
+        </ScrollView>
+        <View style={styles.workspace}>
+            {rail && sourceWindow ? <ScrollView style={styles.rail} contentContainerStyle={styles.railContent}>
+                {sourceWindow.blocks.map(block => <View key={JSON.stringify([block.resource, block.id])} style={styles.preview}>
+                    {block.image && thumbnails[block.image.resourceId] ? <Image
+                        source={{ uri: thumbnails[block.image.resourceId] }} style={styles.thumbnail} resizeMode="contain"
+                        accessibilityLabel={block.image.alt || 'Source image thumbnail'} /> : null}
+                    <Text variant="detail" numberOfLines={7}>{block.image ? block.image.alt || 'Image' : block.text || 'Text unavailable'}</Text>
+                    <Button label={block.page === null ? 'Read passage' : `Page ${block.page + 1}`}
+                        accessibilityLabel={`Read ${block.resource} ${block.id}`} size="compact" variant="secondary"
+                        accessibilityState={{ selected: reader.position?.resource === block.resource && reader.position.blockId === block.id }}
+                        disabled={reader.pending} onPress={() => void reader.navigate(blockPosition(sourceWindow.source, block))} />
+                </View>)}
+            </ScrollView> : null}
+            {sourceWindow && focused ? <DocumentViewport window={sourceWindow} batch={reader.batch} target={reader.position}
+                returned={reader.returned} inspecting={inspection !== null} onPosition={reader.onPosition}
+                onThumbnail={(resourceId, uri) => setThumbnails(previous => previous[resourceId] === uri
+                    ? previous : { ...previous, [resourceId]: uri })}
+                onNavigate={direction => {
+                    if (reader.pending) return;
+                    const point = direction === 'next' ? next : previous;
+                    if (point) void reader.navigate(point);
+                }}
+                onInspect={(resource, blockId, start, anchor) => {
+                    const batch = reader.batch;
+                    const block = batch?.blocks.find(item => item.resource === resource && item.blockId === blockId
+                        && item.tokens.some(token => token.start === start));
+                    const token = block?.tokens.find(item => item.start === start);
+                    if (!batch || !block || !token?.targets.length || reader.pending) return;
+                    setInspection({ sourceForm: token.text, context: block.text, targets: token.targets, anchor,
+                        sourceAnchor: documentAnchor(sourceWindow.source, block, token), packageRevision: batch.packageRevision });
+                }} /> : !sourceWindow ? <View style={styles.empty}><Text accessibilityLiveRegion="polite">
+                    {reader.pending ? 'Opening document…' : 'Document unavailable. Retry opening it or reselect it from Home.'}
+                </Text></View> : null}
+        </View>
+        <View style={styles.status}>
+            <Row>
+                <View style={styles.position}><Text variant="detail" muted testID="reader-position">
+                    {reader.position ? `${reader.position.resource} · ${reader.position.blockId} · byte ${reader.position.offset}` : 'No visible position'}
+                </Text></View>
+                {source ? <Text variant="detail" muted>{source.format.toUpperCase()} · {source.totalBlocks} source blocks</Text> : null}
+                {reader.analysisPending ? <Text variant="detail" accessibilityLiveRegion="polite">Analyzing visible text…</Text> : null}
+                <Button label="Save position" variant="quiet" size="compact" disabled={!source}
+                    onPress={() => void reader.persist().catch(() => { /* Reader save feedback owns recovery. */ })} />
+            </Row>
+            {reader.analysisError ? <Row><Text variant="caption" accessibilityRole="alert">{reader.analysisError}</Text>
+                <Button label="Retry analysis" variant="secondary" size="compact" onPress={reader.retryAnalysis} /></Row> : null}
+            {reader.saveError ? <Row><Text variant="caption" accessibilityRole="alert">Progress not saved: {reader.saveError}</Text>
+                <Button label="Retry saving position" variant="secondary" size="compact"
+                    onPress={() => void reader.persist().catch(() => { /* Visible feedback retains the failed save. */ })} /></Row> : null}
+        </View>
+        {inspection && source && host.available ? <Inspector inspection={inspection} packageId={source.packageId} client={client}
+            onChanged={async () => {
+                const identity = current.current;
+                await reader.refreshKnowledge();
+                if (current.current !== identity) return;
+            }} onClose={() => setInspection(null)} /> : null}
+    </View>;
+}
+const styles = StyleSheet.create(theme => ({
+    screen: (top: number, bottom: number) => ({ flex: 1, paddingTop: top, paddingBottom: bottom,
+        backgroundColor: theme.colors.background }),
+    unavailable: { flex: 1, padding: theme.spacing.large, gap: theme.spacing.medium },
+    headerScroll: { flexGrow: 0, flexShrink: 1, maxHeight: '35%' },
+    header: { paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.small, gap: theme.spacing.small,
+        borderBottomWidth: 1, borderColor: theme.colors.border },
+    title: { flexGrow: 1, flexShrink: 1, flexBasis: 120, minWidth: 0 },
+    workspace: { flex: 1, minHeight: 0, flexDirection: 'row' },
+    rail: { width: 160, flexGrow: 0, flexShrink: 0, borderRightWidth: 1, borderColor: theme.colors.border },
+    railContent: { padding: theme.spacing.small, gap: theme.spacing.small },
+    preview: { padding: theme.spacing.small, gap: theme.spacing.small, borderWidth: 1,
+        borderColor: theme.colors.border, borderRadius: theme.radius, backgroundColor: theme.surfaces.glass },
+    thumbnail: { width: '100%', height: 120 },
+    empty: { flex: 1, padding: theme.spacing.large },
+    feedback: { gap: theme.spacing.small },
+    status: { paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.tiny,
+        borderTopWidth: 1, borderColor: theme.colors.border, maxHeight: '30%', gap: theme.spacing.tiny },
+    position: { flex: 1, minWidth: 0 },
+}));

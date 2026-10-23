@@ -18,14 +18,19 @@ final class NativeMediaCaptures {
     defer { lock.unlock() }
     guard !closed, outputs.count + (active == nil ? 0 : 1) < 8 else { throw MediaProviderError.failed("Release pending media selections before picking more files.") }
     guard !name.isEmpty, name.utf8.count <= 255, name != ".", name != "..",
-          !name.contains("/"), !name.contains("\\") else { throw MediaProviderError.failed("Invalid selected media filename.") }
+          !name.contains("/"), !name.contains("\\"), !name.contains("\0") else { throw MediaProviderError.failed("Invalid selected media filename.") }
     let directory = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let path = directory.appendingPathComponent(name).path
     outputs.insert(path)
     return path
   }
-  func importPicked(_ uri: String, name: String) throws -> String {
+  func importPicked(_ uri: String, name: String, document: Bool = false) throws -> String {
+    if document {
+      guard ["txt", "epub", "pdf"].contains(URL(fileURLWithPath: name).pathExtension.lowercased()) else {
+        throw MediaProviderError.failed("Select a TXT, EPUB or PDF document.")
+      }
+    }
     guard let source = URL(string: uri), source.isFileURL else {
       throw MediaProviderError.failed("The picker returned an invalid file URL.")
     }
@@ -36,7 +41,16 @@ final class NativeMediaCaptures {
       var coordinationError: NSError?
       var copyError: Error?
       NSFileCoordinator().coordinate(readingItemAt: source, options: .withoutChanges, error: &coordinationError) { readable in
-        do { try AppleMediaProvider.copyMedia(from: readable, to: URL(fileURLWithPath: path)) }
+        do {
+          try AppleMediaProvider.copyMedia(from: readable, to: URL(fileURLWithPath: path),
+            maximumBytes: document ? 8 * 1024 * 1024 : AppleMediaProvider.maximumBytes,
+            checkCancelled: {
+              self.lock.lock()
+              let available = !self.closed && self.outputs.contains(path)
+              self.lock.unlock()
+              guard available else { throw CancellationError() }
+            })
+        }
         catch { copyError = error }
       }
       if let error = coordinationError { throw error }

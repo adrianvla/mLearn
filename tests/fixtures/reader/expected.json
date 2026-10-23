@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "offsetUnit": "utf8_byte_half_open_per_block",
+  "blocks": [
+    {"href":"EPUB/start.xhtml","id":"opening","text":"A small journey","readings":[]},
+    {"href":"EPUB/start.xhtml","id":"seed","text":"🌱 東京へ歩く。","readings":[{"start":5,"end":11,"text":"とうきょう"}]},
+    {"href":"EPUB/start.xhtml","id":"again","text":"同じ道を、もう一度。","readings":[]},
+    {"href":"EPUB/start.xhtml","id":"partial","text":"取り戻す。","readings":[{"start":0,"end":3,"text":"と"},{"start":6,"end":9,"text":"もど"}]},
+    {"href":"EPUB/return.xhtml","id":"crossing","text":"A second crossing","readings":[]},
+    {"href":"EPUB/return.xhtml","id":"bridge-one","text":"The small bridge is quiet.","readings":[]},
+    {"href":"EPUB/return.xhtml","id":"bridge-two","text":"The small bridge is quiet.","readings":[]}
+  ],
+  "restore": {
+    "href":"EPUB/return.xhtml",
+    "blockId":"bridge-two",
+    "start":4,
+    "end":16,
+    "quote":"small bridge"
+  },
+  "pdf": {
+    "pageCount":3,
+    "page0Text":"Start here. Return to the small bridge.\nThe same bridge is still here.",
+    "selectionStartUTF16":26,
+    "selectionLengthUTF16":12,
+    "selectionText":"small bridge",
+    "selectionContainerPDFPoints":[48,700,500,40],
+    "page1HasText":false,
+    "page2Text":"Turn the page.",
+    "page2Rotation":90,
+    "page2CropBox":[24,36,564,720]
+  }
+}

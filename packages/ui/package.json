@@ -15,6 +15,8 @@
     "./dialog": "./src/Dialog.tsx",
     "./provider": "./src/Provider.tsx",
     "./inline-word": "./src/InlineWord.tsx",
+    "./document": "./src/Document.tsx",
+    "./reading-segments": "./src/readingSegments.ts",
     "./context-panel": "./src/ContextPanel.tsx",
     "./dictionary-card": "./src/DictionaryCard.tsx",
     "./media-overlay": "./src/MediaOverlay.tsx"

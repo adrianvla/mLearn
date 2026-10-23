@@ -25,18 +25,19 @@ internal class MediaCapture(private val root: File) {
   // not after an unbounded temporary file has already consumed disk space.
   private class LimitedOutput(
     private val output: OutputStream,
+    private val maximumBytes: Long = MAX_MEDIA_BYTES,
     private val checkCancelled: () -> Unit,
   ) : OutputStream() {
     private var written = 0L
     override fun write(value: Int) {
       checkCancelled()
-      check(written < MAX_MEDIA_BYTES) { "Media exceeds the 128 MiB limit." }
+      check(written < maximumBytes) { "Selected file exceeds its byte limit." }
       output.write(value)
       written++
     }
     override fun write(buffer: ByteArray, offset: Int, count: Int) {
       checkCancelled()
-      check(count.toLong() <= MAX_MEDIA_BYTES - written) { "Media exceeds the 128 MiB limit." }
+      check(count.toLong() <= maximumBytes - written) { "Selected file exceeds its byte limit." }
       output.write(buffer, offset, count)
       written += count
     }
@@ -54,12 +55,15 @@ internal class MediaCapture(private val root: File) {
   @Synchronized private fun reservePick(name: String): String {
     check(!closed && outputs.size + (if (active == null) 0 else 1) < 8) { "Release pending media selections before picking more files." }
     check(name.isNotEmpty() && name.toByteArray(Charsets.UTF_8).size <= 255 &&
-      name != "." && name != ".." && !name.contains('/') && !name.contains('\\')) { "Invalid selected media filename." }
+      name != "." && name != ".." && !name.contains('/') && !name.contains('\\') && !name.contains('\u0000')) { "Invalid selected media filename." }
     val directory = File(root, UUID.randomUUID().toString())
     check(directory.mkdirs()) { "Cannot create selected media directory." }
     return File(directory, name).absolutePath.also { outputs.add(it) }
   }
-  fun copyPicked(name: String, openInput: () -> InputStream, checkCancelled: () -> Unit): String {
+  fun copyPicked(name: String, openInput: () -> InputStream, checkCancelled: () -> Unit): String =
+    copyPicked(name, openInput, MAX_MEDIA_BYTES, checkCancelled)
+
+  fun copyPicked(name: String, openInput: () -> InputStream, maximumBytes: Long, checkCancelled: () -> Unit): String {
     val path = reservePick(name)
     var published = false
     try {
@@ -72,14 +76,14 @@ internal class MediaCapture(private val root: File) {
       }
       openInput().use { input ->
         output.outputStream().use { stream ->
-          val limited = LimitedOutput(stream, checkCopy)
+          val limited = LimitedOutput(stream, maximumBytes, checkCopy)
           val buffer = ByteArray(64 * 1024)
           var copied = 0L
           while (true) {
             checkCopy()
             // Read only one lookahead byte at the limit, including when the
             // provider omits or lies about its advertised content length.
-            val count = input.read(buffer, 0, minOf(buffer.size.toLong(), MAX_MEDIA_BYTES - copied + 1).toInt())
+            val count = input.read(buffer, 0, minOf(buffer.size.toLong(), maximumBytes - copied + 1).toInt())
             if (count < 0) break
             limited.write(buffer, 0, count)
             copied += count
@@ -88,7 +92,7 @@ internal class MediaCapture(private val root: File) {
       }
       synchronized(this) {
         checkCopy()
-        check(output.length() in 1..MAX_MEDIA_BYTES) { "The selected media is empty or exceeds the 128 MiB limit." }
+        check(output.length() in 1..maximumBytes) { "The selected file is empty or exceeds its byte limit." }
         published = true
       }
       return path

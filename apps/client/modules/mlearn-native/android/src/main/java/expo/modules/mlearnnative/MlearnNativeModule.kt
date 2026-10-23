@@ -78,6 +78,29 @@ class MlearnNativeModule : Module() {
         check(!mediaClosed.get()) { "Media selection cancelled by module destruction." }
       }
     }.runOnQueue(mediaScope)
+    AsyncFunction("importPickedDocument") { uri: String, name: String ->
+      check(name.substringAfterLast('.', "").lowercase() in setOf("txt", "epub", "pdf")) {
+        "Select a TXT, EPUB or PDF document."
+      }
+      val source = Uri.parse(uri)
+      check(source.scheme == "content") { "The document picker must return a content URI." }
+      val context = appContext.reactContext ?: error("React context is unavailable")
+      mediaCaptures.copyPicked(name, {
+        checkNotNull(context.contentResolver.openInputStream(source)) { "Cannot open the selected document." }
+      }, maximumBytes = 8L * 1024 * 1024) {
+        check(!mediaClosed.get()) { "Document selection cancelled by module destruction." }
+      }
+    }.runOnQueue(mediaScope)
+    AsyncFunction("documentImageUri") { sourceId: String, resourceId: String ->
+      val location = mediaResponse(
+        JSONObject().put("type", "document_resource").put("sourceId", sourceId).put("resourceId", resourceId),
+        "document_resource"
+      ).getJSONObject("location")
+      check(location.getString("sourceId") == sourceId && location.getString("resourceId") == resourceId) {
+        "Document image identity changed."
+      }
+      documentImageUri(location)
+    }.runOnQueue(mediaScope)
     AsyncFunction("cancelMediaCapture") { id: String -> mediaCaptures.cancel(id) }.runOnQueue(cancellationScope)
     AsyncFunction("releaseMediaCapture") { path: String -> mediaCaptures.release(path) }.runOnQueue(mediaScope)
     AsyncFunction("captureMedia") { id: String, request: String ->

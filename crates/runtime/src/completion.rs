@@ -1,7 +1,7 @@
 use crate::{
+    Installed, Runtime,
     execution::Failure,
     guest::{GuestOutput, GuestWork, LanguageAction},
-    Installed, Runtime,
 };
 use mlearn_core::{Request, Response};
 use std::sync::Arc;
@@ -30,8 +30,10 @@ impl Runtime {
                 {
                     return Err(Failure::Cancelled);
                 }
+                if let LanguageAction::Analyze(input) = &work.action {
+                    self.validate_analysis_source(input)?;
+                }
                 let source = match &work.action {
-                    LanguageAction::Analyze(input) => Some(&input.source),
                     LanguageAction::Summaries { source, .. } => Some(source),
                     _ => None,
                 };
@@ -48,6 +50,37 @@ impl Runtime {
                     }
                 }
                 let response = match (&work.action, output) {
+                    (LanguageAction::OpenDocument { .. }, GuestOutput::Document(prepared)) => {
+                        prepared.publish(&self.root, &work.cancellation)?;
+                        let projection = &prepared.projection;
+                        let mut source = self
+                            .store
+                            .import_document(
+                                &projection.record,
+                                &projection.blocks,
+                                &projection.contents,
+                                &projection.resources,
+                            )
+                            .map_err(|error| Failure::Operation(error.to_string()))?;
+                        prepared.committed();
+                        if source.package_id != work.package.manifest.id
+                            || source.package_version != work.package.manifest.version
+                        {
+                            source = self
+                                .store
+                                .set_document_language(
+                                    &source.id,
+                                    &work.package.manifest.id,
+                                    &work.package.manifest.version,
+                                )
+                                .map_err(|error| Failure::Operation(error.to_string()))?;
+                            self.analysis_cache
+                                .retain(|(key, _)| !key.starts_with(&source.id));
+                        }
+                        Response::Document {
+                            window: self.document_window(&source.id, source.position.as_ref())?,
+                        }
+                    }
                     (LanguageAction::EditMaterial(command), GuestOutput::Entry(_)) => {
                         Response::MaterialWritten {
                             outcome: self.write_material_edit(command)?,
@@ -70,6 +103,21 @@ impl Runtime {
                         self.analysis_cache
                             .retain(|(key, _)| !key.starts_with(source_id));
                         Response::Source { window }
+                    }
+                    (LanguageAction::SelectDocumentLanguage { source_id }, GuestOutput::Open) => {
+                        let source = self
+                            .store
+                            .set_document_language(
+                                source_id,
+                                &work.package.manifest.id,
+                                &work.package.manifest.version,
+                            )
+                            .map_err(|error| Failure::Operation(error.to_string()))?;
+                        self.analysis_cache
+                            .retain(|(key, _)| !key.starts_with(source_id));
+                        Response::Document {
+                            window: self.document_window(source_id, source.position.as_ref())?,
+                        }
                     }
                     (LanguageAction::Open { path }, GuestOutput::Open) => {
                         let response = self.watch(

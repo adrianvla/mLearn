@@ -1,6 +1,6 @@
 import { InlineWord, InlineWordContent } from '@mlearn/ui/inline-word';
 import type { LinguisticWordProps } from './LinguisticWord.types';
-import { readingSegments } from './readingSegments';
+import { readingSegments } from '@mlearn/ui/reading-segments';
 
 export type { LinguisticWordProps, LinguisticVariant } from './LinguisticWord.types';
 
@@ -12,8 +12,7 @@ export function LinguisticWord({ text, presentation, variant = 'body', activatio
         // Ambiguous variants remain fully available in Inspector.
         return { ...segment, contour: contours?.length === 1 ? contours[0] : undefined };
     });
-    const content = <InlineWordContent segments={segments}
-        variant={variant} status={activation?.status} />;
+    const content = <InlineWordContent segments={segments} variant={variant} status={activation?.status} />;
     if (!activation) return content;
     const readings = presentation?.readings.map(reading => `${reading.text}. ${reading.attribution}`).join('; ');
     return <InlineWord {...activation} text={text} variant={variant === 'subtitle' ? 'subtitle' : 'body'}

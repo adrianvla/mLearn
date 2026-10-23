@@ -24,6 +24,11 @@ export function createHost(): Host {
     label: 'Tauri desktop',
     windowControlsWidth,
     initialTheme: window.__MLEARN_INITIAL_THEME__,
+    documents:{
+      pick:()=>invoke<string|null>('pick_document'),
+      releasePicked:path=>invoke<void>('release_media_capture',{path}),
+      uri:location=>invoke<string>('document_image_uri',{sourceId:location.sourceId,resourceId:location.resourceId}),
+    },
     authoredMedia:{
       capture:captureAuthoredMedia({
         reserve:jobId=>invoke<void>('reserve_media_capture',{jobId}),
