@@ -35,6 +35,16 @@ macOS/generic Windows jobs may run after Rust succeeds despite detector failure;
 the detector job and required Japanese artifact remain failing gates rather
 than being waived. YAML parsing and `git diff --check` passed.
 
+CI checkpoint `90e8ee7ca023feb2a8842b4b24c7c0e5bdaa517b` is pushed.
+Its foundation run `40040864691` detector job `120711369916` succeeded,
+verifying installation and actual pinned conversion; downstream native jobs
+remain pending. The Reader failure screenshot shows vertical source glyphs
+overlapping despite present token markup. A diagnostic attachment now records
+token/descendant/ancestor bounds and computed styles on the existing visibility
+failure, preserving and rethrowing the original assertion. LSP and all five
+local document Reader tests pass; hosted geometry is still needed before a
+product repair.
+
 Mobile run `40039665858` remains in progress. No device or reference app was
 started during these repairs.
 

@@ -181,7 +181,26 @@ async function start(page: Page, reviewReturn = false) {
   }
   await page.goto('/reader?id=reader-source');
   await expect(page.getByTestId('reader-title')).toHaveText(source.source.title);
-  await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+  const token = page.getByRole('button', { name: '東京: untracked', exact: true });
+  try {
+    await expect(token).toBeVisible();
+  } catch (error) {
+    const geometry = await token.evaluate(node => {
+      const elements: Element[] = [...node.querySelectorAll('*')];
+      for (let parent: Element | null = node; parent; parent = parent.parentElement) elements.push(parent);
+      return elements.map(element => {
+        const style = getComputedStyle(element);
+        return { tag: element.tagName, rect: element.getBoundingClientRect().toJSON(),
+          display: style.display, visibility: style.visibility, font: style.font,
+          writingMode: style.writingMode, width: style.width, height: style.height,
+          maxWidth: style.maxWidth, overflow: style.overflow };
+      });
+    });
+    await test.info().attach('source-token-geometry', {
+      body: JSON.stringify(geometry, null, 2), contentType: 'application/json',
+    });
+    throw error;
+  }
 }
 
 test('mixed writing modes do not overlap and next navigates within the loaded source window', async ({ page }) => {
