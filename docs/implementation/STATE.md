@@ -192,6 +192,114 @@ repair; the prerequisite step is now moved before `npm test`, preserving all
 assertions. Native jobs in that run continue independently. The workflow repair
 still needs its hosted result; no local application rebuild is relevant to it.
 
+The same source's Rust job `120687492825` passed, including the portable helper
+tests on Linux. The macOS desktop job `120689684088` failed compiling the shared
+Apple OCR provider at lines 246/278: Swift could not infer `autoreleasepool`'s
+generic result. Exact job logs were retrieved before editing. A fresh unmodified
+local typecheck with the actual helper flags passed on Swift 6.4 / Xcode 27,
+so local cached output is not the explanation. The leading hypothesis is
+toolchain-sensitive result/name-shadow inference; an unavailable Vision API
+would instead have produced a member/availability diagnostic, which these logs
+do not contain. Both closures now explicitly name `Raster` and `Self.raster`.
+Fresh local macOS/iOS compilation and a new hosted build are the verification
+gates; the fix is not yet certified by the old failure.
+
+Hosted Japanese verification is also being connected, not substituted by the
+generic Windows run. The exact original detector is reproducible from
+`PaddlePaddle/PP-OCRv6_medium_det@8e0f56fb2ef86b461d99cfc7ac5c137738985f61`:
+its parameter digest, program and YAML match all three measured retained pins.
+A separate hosted offline conversion step uses the original pinned tool versions
+and publishes only the Apache-licensed detector plus its provenance/license.
+Windows then acquires the exact FP32 Manga encoder/decoder/vocabulary directly,
+retains the original tokenizer card's unresolved license declarations, signs its
+separate native profile and runs the original six-case/crop/PDF/cancellation/
+restart owner verifier. No Python enters Windows runtime/installation or the
+recognizer. Model-test reports now include bounded real backend/initialization
+metrics so CPU fallback/registration is observable without claiming GPU execution.
+These new hosted steps remain unexecuted until the next source push.
+
+### Hosted failures and bounded repairs — 2026-10-23
+
+Foundation `40033573961` completed with the known web prerequisite failure,
+the Swift inference failure and a genuine Windows import failure. Windows
+compiled the app and passed the portable raster/helper tests; pinned resource
+preparation and authenticated generic model installation also succeeded.
+Job `120689684129` then returned `Document file operation failed: Access is
+denied. (os error 5)` from `import_image_collection`, before OCR inference.
+Both image and text/document preparation opened their staging directory as a
+regular file to fsync after journal rename. That is not a portable Windows
+operation. The shared `write_journal` owner now uses `atomicwrites` 0.4.4:
+write-through atomic replacement on Windows and parent-directory fsync on Unix,
+not a skipped durability step. All 11 existing document import/recovery/restart
+tests and strict runtime Clippy pass locally. The same document suite now runs
+before Windows OCR in CI; its Windows result remains pending.
+
+The explicit Swift result/callee repair passed fresh macOS and both arm64 and
+x86_64 iOS-simulator typechecks, plus the consuming native probe build. No
+simulator was booted. Its hosted-compiler verification is still pending.
+
+The browser prerequisite repair was pushed as
+`5317dd52643d6ff17ca407a3b33cd28197c4a651`; run `40034002013` passed `npm test`
+and then exposed a clean-host type error in Material's programmatic heading
+focus: native `TextProps` does not declare web `tabIndex`. Local nonincremental
+typechecking also accepted the old code, so do not assert a diagnosed local-cache
+cause. Shared `Text` now explicitly owns the bounded web-only focus prop and
+does not forward it to native Text. No cast/suppression or feature-local
+primitive was added. All 64 Node / 96 client tests, nonincremental typecheck,
+ownership lint, one-worker web export and both real Add/Edit keyboard-focus/
+exact-trigger-restoration browser tests passed; their temporary server closed.
+
+Both real native owner profiles then passed all six cases, original-pixel crop,
+PDF, cancellation/child reap and persistence after the journal change, executor
+`8683e158d0f8e1f6c18631cc3f8e04b68d4e30edd2a13acfa14223298c2a0ca2`.
+The preceding `cc3813ba` reports were archived beside the current reports.
+This run also exercised real automatic CPU fallback: CoreML graph saving
+failed, while detector/recognizer initialization stayed at one and both complete
+workflows succeeded. Disk had 26 GiB available and plentiful inodes, so disk
+exhaustion was not demonstrated; the accelerator-save cause remains unresolved.
+Command peaks were 582,942,720 / 881,934,336 bytes; free memory 68%, swap
+2,973 MiB and final OmO RSS about 1.51 GiB.
+
+The failure additionally exposed private temporary paths in fallback metrics.
+A serialized-metrics regression reproduced that leak (exit 101). Native graph
+initialization/execution now retains typed ORT errors until the boundary and
+publishes only provider, stage and error code in successful CPU-fallback metrics,
+not raw runtime messages. Fatal action errors still reach their initiating
+action. The repair passed 54 native tests, both real helper subprocess tests and
+strict native-crate Clippy. The exact retained original-pixel crop
+`[177,36,41,217]` again returned raw `青 い 本 で す`. That subsequent direct run
+registered CoreML successfully for encoder and decoder; it is not a new
+node-execution profile or an explanation of the earlier full-worker save
+failures. Do not present the earlier full workflow as proof of this later
+diagnostic edit. Final memory was 67% free, swap 2,973 MiB and OmO RSS about
+1.39 GiB.
+
+The retained full iOS log
+`.mlearn/m03-m07/m06-ocr/hosted-ed21-ios/apps/client/ios/build.log`
+confirms the same two `autoreleasepool` inference diagnostics at provider lines
+246/278 in the consuming Pods build under Xcode 26.6. The console's final
+150 lines had omitted them; no extra iOS repair was guessed from that truncated
+console. The existing explicit `Raster`/`Self.raster` fix targets both actual
+desktop and iOS failures.
+
+Normal Linux desktop run `40033573960` timed out after 40 minutes in its initial
+APT update/install step, before application build or UI execution. Its last
+package progress was the Ubuntu mirror; no product failure was demonstrated.
+That infrastructure result remains recorded and is not renamed a native pass.
+No cancellation command or FileProvider diagnostic variant was issued.
+
+Android job `120687492845` successfully built the Release APK and verified both
+Rust ABIs. Its UI step failed before emulator boot or application execution:
+SDK Manager reported `Error on ZipFile unknown archive` while installing
+`system-images;android-35;google_apis;x86_64`. No `host-adb-start.log` or Maestro
+run log exists because the project script never ran. The retained console is
+`.mlearn/m03-m07/m06-ocr/hosted-ed21-android/android-job.log`, with compiled-app
+build evidence beside it. This is hosted SDK acquisition failure, not an app or
+ADB-ownership diagnosis; no product assertion was weakened. The workflow now
+retains the source-bound compiled APK before UI setup, as iOS already does, so a
+later SDK/picker failure cannot discard an otherwise useful build. The old run
+did not retain that APK; do not claim it remains retrievable from that runner.
+
 Next: finish hosted verification of the source checkpoint and remaining native platform
 verification and review. Windows execution, mobile quality/device acceptance,
 full manga corpus coverage and model-license discrepancies remain open.

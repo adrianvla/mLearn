@@ -1009,7 +1009,8 @@ pub(crate) async fn test_owned(
         Ok::<_, String>(
             json!({"detectedRegions":detected.detections.len(),"rawRecognition":text,
             "elapsedMs":started.elapsed().as_secs_f64()*1000.0,"profileRevision":profile_revision,
-            "executorRevision":mlearn_desktop_ocr::executor_revision()}),
+            "executorRevision":mlearn_desktop_ocr::executor_revision(),
+            "execution":{"detector":detected.metrics,"recognizer":recognized.metrics}}),
         )
     };
     let outcome = tokio::select! {

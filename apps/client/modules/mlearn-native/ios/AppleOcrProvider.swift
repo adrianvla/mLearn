@@ -243,7 +243,8 @@ enum AppleOcrProvider {
       let request = modern(plan.recognitionLanguages)
       provider = info(id: modernId, languages: request.supportedRecognitionLanguages.map { $0.minimalIdentifier })
       try validateLanguages(plan.recognitionLanguages, supported: provider.languages)
-      let raster = try autoreleasepool { try raster(path: plan.path, mimeType: plan.mimeType, pageIndex: plan.pageIndex, crop: plan.crop, job: job) }
+      // Keep the result and static callee explicit across Swift toolchains.
+      let raster: Raster = try autoreleasepool { try Self.raster(path: plan.path, mimeType: plan.mimeType, pageIndex: plan.pageIndex, crop: plan.crop, job: job) }
       try job.check(); try Task.checkCancellation()
       let observations = try await request.perform(on: raster.image, orientation: .up)
       try job.check(); try Task.checkCancellation()
@@ -275,7 +276,7 @@ enum AppleOcrProvider {
       let request = legacy(plan.recognitionLanguages)
       provider = info(id: legacyId, languages: try request.supportedRecognitionLanguages())
       try validateLanguages(plan.recognitionLanguages, supported: provider.languages)
-      let raster = try autoreleasepool { try raster(path: plan.path, mimeType: plan.mimeType, pageIndex: plan.pageIndex, crop: plan.crop, job: job) }
+      let raster: Raster = try autoreleasepool { try Self.raster(path: plan.path, mimeType: plan.mimeType, pageIndex: plan.pageIndex, crop: plan.crop, job: job) }
       return try await withTaskCancellationHandler(operation: {
         try job.check(); try Task.checkCancellation()
         return try autoreleasepool {

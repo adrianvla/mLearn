@@ -83,8 +83,46 @@ jobs:
             Cargo.lock
             packages/contracts/src/generated.ts
             verification
+  ocr-detector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Convert the exact original tuned detector offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          directory=target/native-ocr-detector
+          mkdir -p "$directory/source"
+          base=https://huggingface.co/PaddlePaddle/PP-OCRv6_medium_det/resolve/8e0f56fb2ef86b461d99cfc7ac5c137738985f61
+          for file in inference.json inference.pdiparams inference.yml; do
+            curl --fail --location --max-time 300 "$base/$file" --output "$directory/source/$file"
+          done
+          python -m pip install --disable-pip-version-check paddle2onnx==2.1.0 paddlepaddle==3.2.2 onnx==1.23.2 numpy==2.3.5
+          # The converter rejects any mismatch against all three measured input
+          # hashes before export. Python is absent from the consuming app path.
+          python tools/convert-desktop-detector.py "$directory/source" "$directory/detector.onnx" 2>&1 | tee "$directory/conversion.log"
+          sha256sum "$directory/detector.onnx" > "$directory/detector.sha256"
+          sha256sum "$directory"/source/inference.* > "$directory/inputs.sha256"
+          curl --fail --location --max-time 60 https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/v3.7.0/LICENSE --output "$directory/PaddleOCR-LICENSE.txt"
+          printf '3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e  %s\n' "$directory/PaddleOCR-LICENSE.txt" | sha256sum --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-ocr-detector
+          path: |
+            target/native-ocr-detector/detector.onnx
+            target/native-ocr-detector/detector.sha256
+            target/native-ocr-detector/inputs.sha256
+            target/native-ocr-detector/conversion.log
+            target/native-ocr-detector/PaddleOCR-LICENSE.txt
   desktop:
-    needs: rust
+    needs: [rust, ocr-detector]
     strategy:
       fail-fast: false
       matrix:
@@ -122,8 +160,22 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
+          cargo test --locked -p mlearn-runtime --test document
           cargo build --locked -p mlearn-desktop --features ocr-probe --example ocr_probe
           node tools/verify-desktop-ocr.mjs test-results/native-ocr generic
+      - uses: actions/download-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: native-ocr-detector
+          path: target/native-ocr-detector
+      - name: Execute the original tuned Japanese pipeline on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          ./tools/prepare-windows-ocr.ps1 -Profile manga -DetectorDirectory target/native-ocr-detector
+          node tools/verify-desktop-ocr.mjs test-results/native-ocr-manga
       - uses: actions/upload-artifact@v4
         if: always() && runner.os == 'Windows'
         with:
@@ -131,8 +183,12 @@ jobs:
           path: |
             test-results/native-ocr/desktop-ocr-results.json
             test-results/native-ocr/native-pixel-display.png
-            target/native-ocr-qa/package/artifacts.json
-            target/native-ocr-qa/models/provenance.json
+            test-results/native-ocr-manga/desktop-ocr-results.json
+            test-results/native-ocr-manga/native-pixel-display.png
+            target/native-ocr-qa/package-generic/artifacts.json
+            target/native-ocr-qa/package-manga/artifacts.json
+            target/native-ocr-qa/models-generic/provenance.json
+            target/native-ocr-qa/models-manga/provenance.json
       - name: Exercise actual Windows native theme materials
         if: runner.os == 'Windows'
         shell: pwsh

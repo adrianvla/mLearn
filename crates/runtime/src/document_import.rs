@@ -37,6 +37,18 @@ fn write(path: &Path, bytes: &[u8]) -> Result<(), Failure> {
     file.sync_all().map_err(io_error)
 }
 
+fn write_journal(staging: &Path, journal: &DocumentJournal) -> Result<(), Failure> {
+    let pending = staging.join("journal.pending");
+    write(
+        &pending,
+        &serde_json::to_vec(journal).map_err(|error| Failure::Operation(error.to_string()))?,
+    )?;
+    // Windows cannot open a directory like a regular file for the Unix fsync
+    // sequence. Use the library's write-through rename there, retaining parent
+    // directory fsync on Unix rather than weakening journal publication.
+    atomicwrites::replace_atomic(&pending, &staging.join("journal.json")).map_err(io_error)
+}
+
 /// Own the same staged publication and recovery path as text/EPUB/PDF imports.
 pub(super) fn prepare_images(
     root: &Path,
@@ -238,19 +250,7 @@ pub(super) fn prepare_images(
         resources,
     };
     write(&staging.path().join("source"), &bytes)?;
-    write(
-        &staging.path().join("journal.pending"),
-        &serde_json::to_vec(&journal).map_err(|error| Failure::Operation(error.to_string()))?,
-    )?;
-    fs::rename(
-        staging.path().join("journal.pending"),
-        staging.path().join("journal.json"),
-    )
-    .map_err(io_error)?;
-    fs::File::open(staging.path())
-        .map_err(io_error)?
-        .sync_all()
-        .map_err(io_error)?;
+    write_journal(staging.path(), &journal)?;
     Ok(PreparedDocument {
         projection,
         staging,
@@ -409,19 +409,7 @@ pub(super) fn prepare(
         }
     }
     projection.resources = resources.into_values().collect();
-    write(
-        &staging.path().join("journal.pending"),
-        &serde_json::to_vec(&journal).map_err(|error| Failure::Operation(error.to_string()))?,
-    )?;
-    fs::rename(
-        staging.path().join("journal.pending"),
-        staging.path().join("journal.json"),
-    )
-    .map_err(io_error)?;
-    fs::File::open(staging.path())
-        .map_err(io_error)?
-        .sync_all()
-        .map_err(io_error)?;
+    write_journal(staging.path(), &journal)?;
     Ok(PreparedDocument {
         projection,
         staging,

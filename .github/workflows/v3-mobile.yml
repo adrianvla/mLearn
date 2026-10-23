@@ -179,6 +179,15 @@ jobs:
                   assert f'lib/{abi}/libmlearn_ffi.so' in names, f'Missing Rust bridge for {abi}'
               print('APK native ABIs and bundled Rust bridges:', sorted(abis))
           PYAPK
+      - name: Retain the source-bound compiled Android app before UI testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-compiled-app
+          compression-level: 0
+          retention-days: 7
+          path: |
+            apps/client/android/app/build/outputs/apk/release/app-release.apk
+            verification/source.txt
       - uses: ./.github/actions/setup-maestro
       - name: Enable emulator acceleration on the disposable runner
         run: |
