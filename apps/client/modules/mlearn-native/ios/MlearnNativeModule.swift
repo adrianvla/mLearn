@@ -6,6 +6,7 @@ public class MlearnNativeModule: Module {
   private var bridgeInstance: RuntimeBridge?
   private let initializationLock = NSLock()
   private let captures = NativeMediaCaptures()
+  private let ocr = NativeOcrRequests()
   private var mediaExport: AuthoredMediaExport?
   private weak var mediaExportController: UIDocumentPickerViewController?
   private var mediaExportPending = false
@@ -39,6 +40,21 @@ public class MlearnNativeModule: Module {
     Name("MlearnNative")
     OnDestroy {
       self.captures.close()
+      let cancelledOcr = self.ocr.close()
+      self.initializationLock.lock()
+      let runtime = self.bridgeInstance
+      self.initializationLock.unlock()
+      if let runtime, !cancelledOcr.isEmpty {
+        DispatchQueue.global(qos: .userInitiated).async {
+          for id in cancelledOcr {
+            do {
+              let request = String(decoding: try JSONSerialization.data(withJSONObject:
+                ["type": "cancel_ocr", "requestId": id]), as: UTF8.self)
+              _ = try runtime.execute(request: request)
+            } catch { NSLog("OCR teardown cancellation failed: %@", error.localizedDescription) }
+          }
+        }
+      }
       DispatchQueue.main.async {
         self.mediaClosed = true
         self.mediaExportController?.dismiss(animated: false)
@@ -46,6 +62,19 @@ public class MlearnNativeModule: Module {
         self.mediaExport = nil
       }
     }
+    AsyncFunction("ocrProviders") { () throws -> String in
+      String(decoding: try JSONEncoder().encode(AppleOcrProvider.providers()), as: UTF8.self)
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("reserveOcr") { (id: String) throws in try self.ocr.reserve(id) }
+    AsyncFunction("recognizeImage") { (id: String, request: String) async throws -> String in
+      try await self.ocr.recognize(id, requestJSON: request) { try self.bridge().execute(request: $0) }
+    }
+    AsyncFunction("cancelOcr") { (id: String) throws in
+      try self.ocr.cancel(id) { try self.bridge().execute(request: $0) }
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
+    AsyncFunction("imagePageUri") { (sourceId: String, resourceId: String, crop: String?) throws -> String in
+      try self.ocr.imagePageUri(sourceId, resourceId: resourceId, cropJSON: crop) { try self.bridge().execute(request: $0) }
+    }.runOnQueue(DispatchQueue.global(qos: .userInitiated))
     AsyncFunction("reserveMediaCapture") { (id: String) throws in try self.captures.reserve(id) }
     AsyncFunction("importPickedMedia") { (uri: String, name: String) throws -> String in
       try self.captures.importPicked(uri, name: name)

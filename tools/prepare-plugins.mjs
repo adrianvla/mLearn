@@ -6,6 +6,13 @@ import path from 'node:path';
 import { existsSync, createReadStream } from 'node:fs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const destination = path.join(root, 'target/plugin-cdn');
+let plugins;
+if (process.argv.includes('--sign-bundle')) {
+  // Hosted native verification consumes the exact bundle built by the Rust
+  // job. Only its disposable development key/expiry change on this host.
+  plugins = JSON.parse(await readFile(path.join(destination, 'bundle.json'), 'utf8'));
+} else {
 const dataPrep=spawnSync('python3',['tools/prepare-wordnet.py','--offline'],{cwd:root,stdio:'inherit'});
 if(dataPrep.status!==0) throw new Error('WordNet resource preparation failed');
 const japanesePrep=spawnSync('python3',['tools/prepare-japanese.py','--offline'],{cwd:root,stdio:'inherit'});
@@ -16,7 +23,6 @@ const japaneseBuild = spawnSync('cargo', ['build', '--manifest-path','language-p
 if (japaneseBuild.error || japaneseBuild.status !== 0) throw japaneseBuild.error ?? new Error('Japanese plugin build failed');
 const target = process.env.CARGO_TARGET_DIR ? path.resolve(root,process.env.CARGO_TARGET_DIR) : path.join(root,'target');
 const japaneseTarget = process.env.CARGO_TARGET_DIR ? target : path.join(root,'language-plugins/japanese/target');
-const destination = path.join(root, 'target/plugin-cdn');
 await mkdir(path.join(destination, 'modules'), { recursive: true });
 await mkdir(path.join(destination, 'data'), { recursive: true });
 const code = await readFile(path.join(target, 'wasm32-unknown-unknown/release/mlearn_example_hello.wasm'));
@@ -45,7 +51,8 @@ const japanese={...japaneseIdentity,code:await fileArtifact(path.join(japaneseTa
   'sudachi.dic':await fileArtifact(path.join(root,'target/japanese/system.dic'),'data','dic'),
   'lexicon.sqlite':await fileArtifact(path.join(root,'target/japanese/lexicon-v1.sqlite'),'data','sqlite'),
 }};
-const plugins=[manifest,english,japanese];
+plugins=[manifest,english,japanese];
+}
 const payload = Buffer.from(JSON.stringify({ schemaVersion: 1, expiresAt: Math.floor(Date.now() / 1000) + 172800, plugins }));
 const privatePath = path.join(root, '.mlearn/dev-publisher.pem');
 await mkdir(path.dirname(privatePath), { recursive: true });
@@ -59,4 +66,6 @@ const publicKey = spki.subarray(spki.length - 32).toString('base64');
 await writeFile(path.join(destination, 'catalog.json'), JSON.stringify({ payload: payload.toString('base64'), signature: sign(null, payload, privateKey).toString('base64') }));
 await writeFile(path.join(destination, 'bundle.json'), JSON.stringify(plugins));
 await writeFile(path.join(root, '.mlearn/dev-trust.json'), JSON.stringify({ url: 'http://127.0.0.1:7780/catalog.json', publicKey }));
-console.log('Built hello, English and Japanese. Desktop authenticates/downloads code and data; mobile bundles executable plugins and resource inputs.');
+console.log(process.argv.includes('--sign-bundle')
+  ? 'Signed the existing built plugin bundle for local native verification.'
+  : 'Built hello, English and Japanese. Desktop authenticates/downloads code and data; mobile bundles executable plugins and resource inputs.');

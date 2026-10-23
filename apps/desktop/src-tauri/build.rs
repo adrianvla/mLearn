@@ -67,6 +67,53 @@ fn main() {
             "cargo:rustc-env=MLEARN_APPLE_MEDIA_HELPER={}",
             helper.display()
         );
+        let ocr_provider = native.join("ios/AppleOcrProvider.swift");
+        let ocr_entry = root.join("../native/OcrHelper.swift");
+        println!("cargo:rerun-if-changed={}", ocr_provider.display());
+        println!("cargo:rerun-if-changed={}", ocr_entry.display());
+        let ocr = output.join("mlearn-ocr");
+        let ocr_recipe = output.join("ocr-inputs");
+        let mut ocr_inputs = include_bytes!("build.rs").to_vec();
+        ocr_inputs.extend(std::fs::read(&ocr_provider).expect("Read shared Apple OCR provider"));
+        ocr_inputs.extend(std::fs::read(&ocr_entry).expect("Read desktop OCR entry"));
+        ocr_inputs.extend(target.as_bytes());
+        if !ocr.is_file()
+            || std::fs::read(&ocr_recipe).ok().as_deref() != Some(ocr_inputs.as_slice())
+        {
+            let status = std::process::Command::new("xcrun")
+                .args([
+                    "swiftc",
+                    "-parse-as-library",
+                    "-swift-version",
+                    "5",
+                    "-O",
+                    "-target",
+                    &format!("{arch}-apple-macos13.0"),
+                ])
+                .arg(&ocr_provider)
+                .arg(&ocr_entry)
+                .arg("-o")
+                .arg(&ocr)
+                .status()
+                .expect("Compile bundled Apple OCR helper");
+            assert!(status.success(), "Apple OCR helper failed to compile");
+            let signed = std::process::Command::new("codesign")
+                .args(["--force", "--sign", "-"])
+                .arg(&ocr)
+                .status()
+                .expect("Sign development OCR helper");
+            assert!(signed.success(), "Apple OCR helper signing failed");
+            std::fs::write(&ocr_recipe, ocr_inputs).expect("Record OCR compiler inputs");
+        }
+        let published = binaries.join(format!("mlearn-ocr-{target}"));
+        let bytes = std::fs::read(&ocr).expect("Read compiled OCR helper");
+        if std::fs::read(&published).ok().as_deref() != Some(bytes.as_slice()) {
+            std::fs::copy(&ocr, &published).expect("Publish bundled OCR helper");
+        }
+        println!(
+            "cargo:rustc-env=MLEARN_APPLE_OCR_HELPER={}",
+            published.display()
+        );
     }
     println!("cargo:rerun-if-env-changed=MLEARN_RELEASE_CATALOG_TRUST");
     let trust_file =

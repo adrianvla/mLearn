@@ -90,3 +90,26 @@ test('web text roles retain a sans-serif fallback when the reference font is una
     assert.match(web.fontFamily, /,\s*sans-serif$/);
   }
 });
+
+test('Inspector copy remains legible over both black media and white source images', () => {
+  const media = resolveTheme(initialTheme).media;
+  const channels = (color: string) => [1, 3, 5].map(offset => Number.parseInt(color.slice(offset, offset + 2), 16));
+  const compose = (color: string, backdrop: number[]) => {
+    const alpha = Number.parseInt(color.slice(7, 9), 16) / 255;
+    return channels(color).map((value, index) => value * alpha + backdrop[index] * (1 - alpha));
+  };
+  const luminance = (rgb: number[]) => rgb.map(value => {
+    const channel = value / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  }).reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+  for (const source of [0, 255]) {
+    const panel = compose(media.panel, [source, source, source]);
+    for (const background of [panel, compose(media.footer, panel)]) {
+      for (const foreground of [media.text, media.muted]) {
+        const a = luminance(channels(foreground)), b = luminance(background);
+        assert.ok((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) >= 4.5,
+          `Inspector foreground ${foreground} is unreadable over source brightness ${source}`);
+      }
+    }
+  }
+});

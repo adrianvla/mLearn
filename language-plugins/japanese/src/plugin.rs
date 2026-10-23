@@ -9,6 +9,8 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
+#[path = "ocr.rs"]
+mod ocr;
 #[path = "presentation.rs"]
 mod presentation;
 #[path = "review.rs"]
@@ -306,6 +308,10 @@ fn validate_entry(target: &str, value: Value) -> Result<DictionaryEntry, String>
 
 fn handle(call: Call) -> Result<Value, String> {
     match call.capability.as_str() {
+        "image.ocr.profile.v1" => Ok(ocr::profile()),
+        "image.ocr.geometry.v1" => ocr::geometry(call.input),
+        "image.ocr.recognition.v1" => ocr::recognition(call.input),
+        "image.ocr.postprocess.v1" => ocr::postprocess(call.input),
         "learning.probes.v1" => review::generate(call.input, &read),
         "language.describe.v1" => Ok(
             json!({"language":"ja","label":"Japanese","capabilities":capabilities(),"annotationCapability":format!("{PACKAGE}:meaning"),"attribution":ATTRIBUTION}),

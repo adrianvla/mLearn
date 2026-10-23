@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactElement } from 'react';
+import { createContext, useCallback, useState, type PropsWithChildren, type ReactElement } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -8,11 +8,16 @@ import { Text } from './Text';
 
 type Props = PropsWithChildren<{ open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; trigger: ReactElement; presentation?: 'dialog' | 'sidebar' }>;
 export const dialogSidebarWidth = 320;
+export const DialogPortalContext = createContext<HTMLElement | null>(null);
 export function Dialog({ open, onOpenChange, title, description, trigger, children, presentation = 'dialog' }: Props) {
   const { height, width } = useWindowDimensions();
   const sidebar = presentation === 'sidebar' && Platform.OS === 'web' && width >= 720;
   const { theme } = useUnistyles();
-  return <Primitive.Root open={open} onOpenChange={onOpenChange}>
+  const [portal, setPortal] = useState<HTMLElement | null>(null);
+  const contentRef = useCallback((node: View | null) => {
+    setPortal(Platform.OS === 'web' && typeof HTMLElement !== 'undefined' && node instanceof HTMLElement ? node : null);
+  }, []);
+  return <DialogPortalContext.Provider value={portal}><Primitive.Root open={open} onOpenChange={onOpenChange}>
     <Primitive.Trigger asChild>{trigger}</Primitive.Trigger>
     <Primitive.Portal>
       <Primitive.Overlay asChild>
@@ -25,7 +30,7 @@ export function Dialog({ open, onOpenChange, title, description, trigger, childr
               // Native Content claims the initial responder by default.
               // Leave pan ownership to its ScrollView, not the wrapper.
               onStartShouldSetResponder={Platform.OS === 'web' ? undefined : () => false}>
-              <View style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
+              <View ref={contentRef} style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
                 <View style={styles.header}>
                   <View style={styles.title}><Primitive.Title asChild><Text variant={sidebar ? 'section' : 'heading'}>{title}</Text></Primitive.Title></View>
                   <Primitive.Close asChild><Button label="Close" icon="close" iconOnly variant="quiet" size="compact" /></Primitive.Close>
@@ -41,7 +46,7 @@ export function Dialog({ open, onOpenChange, title, description, trigger, childr
         </View>
       </Primitive.Overlay>
     </Primitive.Portal>
-  </Primitive.Root>;
+  </Primitive.Root></DialogPortalContext.Provider>;
 }
 const styles = StyleSheet.create((theme) => ({
   // Style the native View itself: RN Primitives adds unstyled DOM wrappers on web.

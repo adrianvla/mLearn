@@ -27,8 +27,8 @@ final class NativeMediaCaptures {
   }
   func importPicked(_ uri: String, name: String, document: Bool = false) throws -> String {
     if document {
-      guard ["txt", "epub", "pdf"].contains(URL(fileURLWithPath: name).pathExtension.lowercased()) else {
-        throw MediaProviderError.failed("Select a TXT, EPUB or PDF document.")
+      guard ["txt", "epub", "pdf", "jpg", "jpeg", "png", "gif", "webp"].contains(URL(fileURLWithPath: name).pathExtension.lowercased()) else {
+        throw MediaProviderError.failed("Select a TXT, EPUB, PDF or supported source image.")
       }
     }
     guard let source = URL(string: uri), source.isFileURL else {

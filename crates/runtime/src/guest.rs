@@ -44,6 +44,11 @@ pub(super) enum LanguageAction {
         root: PathBuf,
         path: String,
     },
+    OpenImageCollection {
+        root: PathBuf,
+        paths: Vec<String>,
+        title: String,
+    },
     SelectSourceLanguage {
         source_id: String,
     },
@@ -59,6 +64,7 @@ pub(super) enum LanguageAction {
         targets: Vec<String>,
     },
     Claim(ClaimChange),
+    PostprocessOcr(mlearn_core::OcrPage),
     Analyze(AnalysisInput),
     Invoke {
         capability: String,
@@ -78,6 +84,7 @@ pub(super) enum GuestOutput {
         description: LanguageDescription,
     },
     Plugin(Value),
+    OcrRegions(Vec<mlearn_core::OcrRegion>),
     Installed(Option<Installed>),
     Catalog(Vec<crate::catalog::Manifest>),
 }
@@ -88,6 +95,24 @@ impl GuestWork {
             Self::Language(work) => {
                 work.cancellation.check()?;
                 let output = match &work.action {
+                    LanguageAction::OpenImageCollection { root, paths, title } => {
+                        work.description()?;
+                        GuestOutput::Document(Box::new(crate::document_import::prepare_images(
+                            root,
+                            paths,
+                            title,
+                            &work.package.manifest.id,
+                            &work.package.manifest.version,
+                            &work.cancellation,
+                        )?))
+                    }
+                    LanguageAction::PostprocessOcr(page) => GuestOutput::OcrRegions(
+                        serde_json::from_value(work.invoke(
+                            "image.ocr.postprocess.v1",
+                            serde_json::json!({"page":page}),
+                        )?)
+                        .map_err(|error| Failure::Operation(error.to_string()))?,
+                    ),
                     LanguageAction::OpenDocument { root, path } => {
                         work.description()?;
                         GuestOutput::Document(Box::new(crate::document_import::prepare(
@@ -229,7 +254,9 @@ impl GuestWork {
                 | LanguageAction::Capture { .. }
                 | LanguageAction::Summaries { .. }
                 | LanguageAction::Claim(_) => "target.inspect.v1",
-                LanguageAction::OpenDocument { .. } => "document.parse",
+                LanguageAction::OpenDocument { .. }
+                | LanguageAction::OpenImageCollection { .. } => "document.parse",
+                LanguageAction::PostprocessOcr(_) => "image.ocr.postprocess.v1",
                 LanguageAction::Open { .. }
                 | LanguageAction::SelectSourceLanguage { .. }
                 | LanguageAction::SelectDocumentLanguage { .. }

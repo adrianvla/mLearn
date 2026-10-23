@@ -84,6 +84,7 @@ jobs:
             packages/contracts/src/generated.ts
             verification
   desktop:
+    needs: rust
     strategy:
       fail-fast: false
       matrix:
@@ -101,6 +102,37 @@ jobs:
       - run: npm run build:web
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
       - run: cargo test --locked -p mlearn-desktop --lib
+      - name: Verify portable offline PDF rasterization
+        run: cargo test --locked -p mlearn-desktop-ocr --all-targets
+      - uses: actions/download-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: foundation-build-data
+          path: native-ocr-foundation
+      - name: Prepare pinned authenticated Windows OCR inputs
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force target/plugin-cdn | Out-Null
+          Copy-Item native-ocr-foundation/target/plugin-cdn/* target/plugin-cdn -Recurse -Force
+          ./tools/prepare-windows-ocr.ps1
+      - name: Execute real Windows OCR and persistence workflows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          cargo build --locked -p mlearn-desktop --features ocr-probe --example ocr_probe
+          node tools/verify-desktop-ocr.mjs test-results/native-ocr generic
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows'
+        with:
+          name: windows-native-ocr
+          path: |
+            test-results/native-ocr/desktop-ocr-results.json
+            test-results/native-ocr/native-pixel-display.png
+            target/native-ocr-qa/package/artifacts.json
+            target/native-ocr-qa/models/provenance.json
       - name: Exercise actual Windows native theme materials
         if: runner.os == 'Windows'
         shell: pwsh

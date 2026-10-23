@@ -169,6 +169,8 @@ export function MaterialEditor({ client, authoredMedia, initial, material, onSav
     {draft.source ? <View style={styles.reference}>
       <Text variant="caption" muted>Source reference · {draft.source.sourceId} · {draft.source.locator.kind === 'document'
         ? `${draft.source.locator.resource} · ${draft.source.locator.blockId} · bytes ${draft.source.locator.contextStart + draft.source.locator.selectionStart}–${draft.source.locator.contextStart + draft.source.locator.selectionEnd}`
+        : draft.source.locator.kind === 'image'
+        ? `${draft.source.locator.resourceId} · region ${draft.source.locator.regionId} · recognition ${draft.source.locator.ocrRevision}`
         : draft.source.locator.cueIndex === null
         ? `frame at ${(draft.source.locator.positionMs / 1000).toFixed(1)}s`
         : `cue ${draft.source.locator.cueIndex + 1}`}</Text>

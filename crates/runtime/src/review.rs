@@ -17,6 +17,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+#[path = "review_practice.rs"]
+mod practice;
+
 pub(super) struct ReviewWork {
     command: ReviewCommand,
     packages: BTreeMap<String, Installed>,
@@ -53,16 +56,20 @@ impl Runtime {
         }
         let now = now()?;
         let limit = match &command {
-            ReviewCommand::Start { start } => match start.mode {
+            ReviewCommand::Start { start } => match &start.mode {
                 ReviewMode::Continuous => 1,
-                ReviewMode::Finite { limit } if (1..=128).contains(&limit) => {
-                    usize::try_from(limit).map_err(|e| Failure::Operation(e.to_string()))?
+                ReviewMode::Finite { limit } if (1..=128).contains(limit) => {
+                    usize::try_from(*limit).map_err(|e| Failure::Operation(e.to_string()))?
                 }
                 ReviewMode::Finite { .. } => {
                     return Err(Failure::Protocol(
                         "invalid_review",
                         "Finite Review requires one to 128 encounters".into(),
                     ));
+                }
+                ReviewMode::Practice { items } => {
+                    self.validate_practice(items)?;
+                    items.len() * 8
                 }
             },
             ReviewCommand::Next { mutation } => {
@@ -86,7 +93,7 @@ impl Runtime {
                 }
                 match session.mode {
                     ReviewMode::Continuous => 1,
-                    ReviewMode::Finite { .. } => {
+                    ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => {
                         let commit = self
                             .store
                             .review_next(mutation, None, now)
@@ -131,6 +138,11 @@ impl Runtime {
         {
             return Ok(Response::Review { commit });
         }
+        if let ReviewCommand::Start { start } = &work.command
+            && let ReviewMode::Practice { items } = &start.mode
+        {
+            self.validate_practice(items)?;
+        }
         for admission in admissions {
             let package = self.installed.get(&admission.package_id).ok_or_else(|| {
                 Failure::Operation("Review language package became unavailable; retry".into())
@@ -169,6 +181,11 @@ impl Runtime {
 impl ReviewWork {
     pub(super) fn run(&self) -> Result<Vec<ReviewAdmission>, Failure> {
         let store = ProfileStore::open(&self.profile).map_err(storage_failure)?;
+        if let ReviewCommand::Start { start } = &self.command
+            && let ReviewMode::Practice { items } = &start.mode
+        {
+            return self.run_practice(&store, items);
+        }
         let session_id = match &self.command {
             ReviewCommand::Start { start } => &start.session_id,
             ReviewCommand::Next { mutation } => &mutation.session_id,
@@ -441,24 +458,44 @@ mod tests {
 
     #[test]
     fn admitted_review_commit_is_independent_of_source_navigation_cancellation() {
-        // Given genuine package output already admitted for durable Review work.
-        let directory = tempfile::tempdir().unwrap();
-        let mut runtime = runtime_with_package(directory.path());
-        let Prepared::Work(work) = runtime.prepare_review(start_command()).unwrap() else {
-            panic!("Expected real package work");
-        };
-        let mut output = work.run().unwrap();
-        runtime
-            .cancellation_handle()
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        // When completing after an unrelated source navigation cancels source work.
-        let (response, retired) = runtime.complete(&work, &mut output).unwrap();
-        drop(retired);
-        // Then the durable Review action still commits its genuine admitted content.
-        let Response::Review { commit } = response else {
-            panic!("Expected Review commit")
-        };
-        assert_eq!(commit.session.encounter.unwrap().cue, "a phrase");
+        for practice in [false, true] {
+            // Given genuine package output already admitted for durable Review work.
+            let directory = tempfile::tempdir().unwrap();
+            let mut runtime = runtime_with_package(directory.path());
+            let mut command = start_command();
+            if practice {
+                let material = runtime
+                    .store
+                    .review_due_materials(None, 0, 1)
+                    .unwrap()
+                    .remove(0)
+                    .material;
+                let ReviewCommand::Start { start } = &mut command else {
+                    unreachable!()
+                };
+                start.mode = ReviewMode::Practice {
+                    items: vec![mlearn_core::PracticeItem {
+                        material_id: material.id,
+                        source: None,
+                    }],
+                };
+            }
+            let Prepared::Work(work) = runtime.prepare_review(command).unwrap() else {
+                panic!("Expected real package work");
+            };
+            let mut output = work.run().unwrap();
+            runtime
+                .cancellation_handle()
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            // When completing after an unrelated source navigation cancels source work.
+            let (response, retired) = runtime.complete(&work, &mut output).unwrap();
+            drop(retired);
+            // Then the durable Review action still commits its genuine admitted content.
+            let Response::Review { commit } = response else {
+                panic!("Expected Review commit")
+            };
+            assert_eq!(commit.session.encounter.unwrap().cue, "a phrase");
+        }
     }
 
     #[test]

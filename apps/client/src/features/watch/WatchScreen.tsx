@@ -157,7 +157,7 @@ export function WatchScreen() {
             }
             if (typeof params.materialId === 'string' && consumedReturn.current !== params.materialId) {
                 const restored = await host.client.returnMaterialSource(params.materialId);
-                if (restored.type === 'document_material_source') {
+                if (restored.type !== 'material_source') {
                     if (active && current.isCurrent()) {
                         router.replace({ pathname: '../reader', params: {
                             id: restored.window.source.id, materialId: params.materialId,

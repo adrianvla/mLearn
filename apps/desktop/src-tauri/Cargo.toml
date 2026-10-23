@@ -5,6 +5,8 @@ edition.workspace = true
 rust-version.workspace = true
 description = "mLearn universal application desktop host"
 license-file = "../../../LICENSE"
+[features]
+ocr-probe = []
 [lib]
 name = "mlearn_desktop"
 crate-type = ["rlib"]
@@ -12,6 +14,7 @@ crate-type = ["rlib"]
 tauri-build = { version = "2.7.2", features = [] }
 [dependencies]
 mlearn-runtime = { path = "../../../crates/runtime" }
+mlearn-desktop-ocr = { path = "../../../crates/desktop-ocr" }
 mlearn-language-host = { path = "../../../crates/language-host" }
 serde_json.workspace = true
 serde.workspace = true
@@ -24,6 +27,8 @@ tauri = { version = "2.12.3", features = [] }
 http-range = "0.1.5"
 rfd = "0.15.4"
 mlearn-core = {path="../../../crates/core"}
+tempfile = "3"
+sha2.workspace = true
 
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 window-vibrancy = "=0.8.1"
@@ -33,6 +38,7 @@ windows-sys = { version = "0.61.2", features = ["Win32_System_LibraryLoader", "W
 windows-version = "0.1.7"
 
 [dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
 mlearn-storage = { path = "../../../crates/storage" }
 sha2.workspace = true
 tempfile = "3"

@@ -113,7 +113,7 @@ export function MaterialScreen() {
       const result = await host.client.returnMaterialSource(material.id);
       if (scope && owner.current === scope && returnRequest.current === request) {
         setReturning(null);
-        router.push({ pathname: result.type === 'document_material_source' ? '../reader' : '/watch',
+        router.push({ pathname: result.type === 'material_source' ? '/watch' : '../reader',
           params: { id: result.window.source.id, materialId: material.id } });
       }
     } catch (cause) {

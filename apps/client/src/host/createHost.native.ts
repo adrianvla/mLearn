@@ -2,11 +2,12 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File,Directory,Paths } from 'expo-file-system';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { randomUUID } from 'expo-crypto';
-import { createRuntimeClient } from '@mlearn/runtime-client';
+import { createRuntimeClient, RuntimeError } from '@mlearn/runtime-client';
 import type { Host } from './types';
 import { captureAuthoredMedia } from './authoredMedia';
 import type { PickedAuthoredMedia } from './authoredMedia';
 import type { MaterialMediaKind } from '@mlearn/contracts';
+import { createImageOcrHost } from './imageOcr';
 
 export function createHost(): Host {
   const module = requireOptionalNativeModule<{
@@ -16,6 +17,11 @@ export function createHost(): Host {
     importPickedMedia(uri:string,name:string):Promise<string>;
     importPickedDocument(uri:string,name:string):Promise<string>;
     documentImageUri(sourceId:string,resourceId:string):Promise<string>;
+    ocrProviders():Promise<string>;
+    reserveOcr(id:string):Promise<void>;
+    recognizeImage(id:string,request:string):Promise<string>;
+    cancelOcr(id:string):Promise<void>;
+    imagePageUri(sourceId:string,resourceId:string,crop:string|null):Promise<string>;
     captureMedia(id:string,request:string):Promise<string>;
     cancelMediaCapture(id:string):Promise<void>;
     releaseMediaCapture(path:string):Promise<void>;
@@ -38,6 +44,34 @@ export function createHost(): Host {
     return {path,name:asset.name,kind,release:()=>module.releaseMediaCapture(path)};
   };
   return { available: true, label: 'Expo native', documents:{
+    supportsFolders:false,
+    async pickImages(folder,signal){
+      if(folder)throw new RuntimeError('unavailable','Select image files on this device; folder selection is not supported.');
+      const result=await DocumentPicker.getDocumentAsync({type:'image/*',copyToCacheDirectory:false,multiple:true});
+      if(result.canceled)return null;
+      if(result.assets.length>128)throw new RuntimeError('invalid_request','Select at most 128 source images.');
+      const directory=new Directory(Paths.cache,'mlearn-images',randomUUID());directory.create({intermediates:true});
+      const paths:string[]=[];
+      let total=0;
+      const release=()=>{if(directory.exists)directory.delete();return Promise.resolve();};
+      try {
+        for(const [index,asset] of result.assets.entries()){
+          if(signal?.aborted)throw new RuntimeError('cancelled','Image selection cancelled.');
+          const staged=await module.importPickedDocument(asset.uri,asset.name);
+          try {
+            if(signal?.aborted)throw new RuntimeError('cancelled','Image selection cancelled.');
+            const file=new File(`file://${staged.split('/').map(encodeURIComponent).join('/')}`);
+            total+=file.size;
+            if(total>64*1024*1024)throw new RuntimeError('invalid_request','Image collection exceeds its 64 MiB import limit.');
+            const page=new Directory(directory,String(index).padStart(4,'0'));page.create();
+            const destination=new File(page,asset.name);
+            await file.move(destination);
+            paths.push(decodeURIComponent(destination.uri.replace(/^file:\/\//,'')));
+          } finally {await module.releaseMediaCapture(staged);}
+        }
+        return {paths,title:result.assets[0]?.name??'Image collection',release};
+      } catch(cause){await release();throw cause;}
+    },
     async pick(){
       const result=await DocumentPicker.getDocumentAsync({type:['text/plain','application/epub+zip','application/pdf'],copyToCacheDirectory:false,multiple:false});
       if(result.canceled)return null;
@@ -49,7 +83,13 @@ export function createHost(): Host {
     // A data URI works inside Expo DOM's isolated WebView; native file URLs do not.
     // Resolve IDs again natively rather than allowing renderer-supplied file paths.
     uri:location=>module.documentImageUri(location.sourceId,location.resourceId),
-  }, authoredMedia:{
+  }, ocr:createImageOcrHost({
+    providers:()=>module.ocrProviders(),
+    reserve:id=>module.reserveOcr(id),
+    recognize:(id,request)=>module.recognizeImage(id,JSON.stringify(request)),
+    cancel:id=>module.cancelOcr(id),
+    uri:(sourceId,resourceId,crop)=>module.imagePageUri(sourceId,resourceId,crop ? JSON.stringify(crop) : null),
+  }), authoredMedia:{
     capture:captureAuthoredMedia({
       reserve:id=>module.reserveMediaCapture(id),
       capture:async(id,request)=>JSON.parse(await module.captureMedia(id,JSON.stringify(request))),

@@ -5,21 +5,23 @@ import type { InlineDocumentFlow, InlineWordProps } from './InlineWord.types';
 import { DocumentWordContent, InlineWordElement } from './InlineWordElement.web';
 import { readingSegments } from './readingSegments';
 
-export function DocumentWord({ text, presentation, display, status, sourceStart, highlighted, onActivate }: {
+export function DocumentWord({ text, presentation, display, status, sourceStart, highlighted, hiddenText = false, onActivate }: {
     readonly text: string;
     readonly presentation?: LinguisticPresentation | null;
     readonly display: InlineDocumentFlow;
     readonly status: string;
     readonly sourceStart: number;
     readonly highlighted: boolean;
+    readonly hiddenText?: boolean;
     readonly onActivate: InlineWordProps['onActivate'];
 }) {
     const readings = presentation?.readings.map(reading => `${reading.text}. ${reading.attribution}`).join('; ');
+    const content = <DocumentWordContent segments={readingSegments(text, presentation?.readings ?? [])}
+        documentFlow={display} sourceStart={sourceStart} highlighted={highlighted} hiddenText={hiddenText} />;
     return <InlineWordElement text={text} status={status} onActivate={onActivate} documentFlow={display}
         color={display.color} knownColor={display.knownColor}
         accessibilityLabel={`${text}: ${status.replaceAll('_', ' ')}${readings ? `. ${readings}` : ''}`}>
-        <DocumentWordContent segments={readingSegments(text, presentation?.readings ?? [])}
-            documentFlow={display} sourceStart={sourceStart} highlighted={highlighted} />
+        {content}
     </InlineWordElement>;
 }
 

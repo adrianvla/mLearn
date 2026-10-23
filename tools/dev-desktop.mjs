@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { startCatalog } from './catalog-server.mjs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -10,17 +9,9 @@ await new Promise((resolve, reject) => { prep.once('error', reject); prep.once('
 const documents = spawn(process.execPath, ['tools/prepare-documents.mjs'], { cwd: root, stdio: 'inherit' });
 await new Promise((resolve, reject) => { documents.once('error', reject); documents.once('exit', code => code === 0 ? resolve() : reject(new Error('Document parser preparation failed'))); });
 const directory = path.join(root, 'target/plugin-cdn');
-const server = createServer(async (request, response) => {
-  try {
-    const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://127.0.0.1').pathname);
-    const relative = pathname.replace(/^\/+/, '');
-    if (relative.split('/').some((part) => !/^[a-zA-Z0-9._-]+$/.test(part) || part === '..' || part === '.')) throw new Error('Invalid path');
-    const data = await readFile(path.join(directory, relative));
-    response.writeHead(200, { 'Content-Type': relative.endsWith('.json') ? 'application/json' : 'application/wasm', 'Content-Length': data.length });
-    response.end(data);
-  } catch { response.writeHead(404); response.end(); }
-});
-await new Promise((resolve, reject) => { server.once('error', reject); server.listen(7780, '127.0.0.1', resolve); });
+// Native OCR archives are much larger than language modules. Use the same
+// streaming fixture owner as native-resource verification, not a whole-file buffer.
+const server = await startCatalog(directory);
 console.log('Local development plugin catalog: http://127.0.0.1:7780/catalog.json');
 // Tauri accepts CI=true, but Metro disables file watching in CI. A local
 // development launch must consume edits rather than repeatedly serve an old graph.

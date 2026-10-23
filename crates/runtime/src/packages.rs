@@ -101,8 +101,11 @@ impl InstallTransfer {
     }
     pub fn cancellation(&self) -> Cancellation { Cancellation::source(self.entry.epoch.clone(), 0) }
     pub fn total(&self, manifest: &Manifest) -> Result<(), String> {
-        self.check()?;
         let total = manifest.assets.values().try_fold(manifest.code.byte_length, |sum, artifact| sum.checked_add(artifact.byte_length).ok_or("Package size overflow"))?;
+        self.total_bytes(total)
+    }
+    pub fn total_bytes(&self, total: usize) -> Result<(), String> {
+        self.check()?;
         self.entry.record.lock().map_err(|_| "Package install lock poisoned")?.status.total_bytes = Some(u32::try_from(total).map_err(|_| "Package size overflow")?);
         Ok(())
     }

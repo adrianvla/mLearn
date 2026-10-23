@@ -1,4 +1,4 @@
-import type { Response, ReviewCommand, ReviewEncounter, ReviewSession } from '@mlearn/contracts';
+import type { PracticeItem, Response, ReviewCommand, ReviewEncounter, ReviewMode, ReviewSession } from '@mlearn/contracts';
 import { encodedBytes, isSourceAnchor } from './materialProtocol';
 
 const encoder = new TextEncoder();
@@ -35,11 +35,17 @@ function target(value: unknown): value is ReviewEncounter['targets'][number] {
     && nullable(value.mnemonic, item => typeof item === 'string' && encoder.encode(item).length <= 16384)
     && nullable(value.key, key);
 }
-function mode(value: unknown) {
+function practiceItem(value: unknown): value is PracticeItem {
+  return record(value, ['materialId', 'source']) && text(value.materialId)
+    && nullable(value.source, isSourceAnchor);
+}
+function mode(value: unknown): value is ReviewMode {
   if (!object(value)) return false;
   switch (value.kind) {
     case 'continuous': return record(value, ['kind']);
     case 'finite': return record(value, ['kind', 'limit']) && positive(value.limit) && value.limit <= 128;
+    case 'practice': return record(value, ['kind', 'items']) && list(value.items, 128, practiceItem)
+      && value.items.length > 0 && new Set(value.items.map(item => item.materialId)).size === value.items.length;
     default: return false;
   }
 }
@@ -76,9 +82,15 @@ export function isReviewSession(value: unknown): value is ReviewSession {
     || !nullable(value.total, uint) || !nullable(value.encounter, encounter) || typeof value.canUndo !== 'boolean'
     || !nullable(value.message, item => text(item, 32768))) return false;
   if (typeof value.total === 'number' && value.completed > value.total) return false;
-  return record(value.mode, ['kind']) ? value.total === null
-    : record(value.mode, ['kind', 'limit']) && uint(value.mode.limit)
-      && uint(value.total) && value.total <= value.mode.limit;
+  const currentEncounter = value.encounter;
+  switch (value.mode.kind) {
+    case 'continuous': return value.total === null;
+    case 'finite': return uint(value.total) && value.total <= value.mode.limit;
+    case 'practice': return uint(value.total) && value.total >= value.mode.items.length
+      && value.total <= value.mode.items.length * 8
+      && (currentEncounter === null || encounter(currentEncounter)
+        && value.mode.items.some(item => item.materialId === currentEncounter.materialId));
+  }
 }
 function mutation(value: unknown) {
   return record(value, ['commandId', 'sessionId', 'expectedRevision'])

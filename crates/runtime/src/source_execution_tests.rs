@@ -121,8 +121,10 @@ fn with_held_guest<T>(
     action: impl FnOnce() -> T,
 ) -> (T, Value) {
     let capability = match &request {
-        Request::AnalyzeSource { .. } | Request::AnalyzeDocument { .. } => "text.analyze.v1",
-        Request::OpenDocument { .. } => "document.parse",
+        Request::AnalyzeSource { .. }
+        | Request::AnalyzeDocument { .. }
+        | Request::AnalyzeOcr { .. } => "text.analyze.v1",
+        Request::OpenDocument { .. } | Request::ImportImageCollection { .. } => "document.parse",
         Request::ChangeClaim { .. } | Request::InspectTarget { .. } => "target.inspect.v1",
         _ => panic!("This fixture holds analysis, inspection or claim completion"),
     };
@@ -204,6 +206,160 @@ fn cancelled_document_import_discards_real_parsed_bytes_before_publication_and_r
     assert_eq!(
         recovered["window"]["blocks"][0]["text"],
         "Children walked home."
+    );
+}
+
+#[test]
+fn cancelled_image_import_releases_staged_originals_without_replacing_the_library() {
+    // Given actual image bytes and a real parsed collection held before publication.
+    let (directory, executor, _) = fixture();
+    let image = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/ocr/vision/horizontal-mixed.png");
+    let request = Request::ImportImageCollection {
+        paths: vec![image.to_string_lossy().into_owned()],
+        title: "Cancelled collection".into(),
+        package_id: "org.mlearn.english".into(),
+    };
+    // When source navigation invalidates completion through the existing barrier.
+    let (_, result) = with_held_guest(&executor, request.clone(), || {
+        executor
+            .cancellation_handle()
+            .fetch_add(1, Ordering::Relaxed);
+    });
+    // Then no original/assets were published, and a fresh action can recover.
+    assert_eq!(result["code"], "cancelled");
+    let runtime = executor.runtime.lock().unwrap();
+    assert!(runtime.store.recent_documents().unwrap().is_empty());
+    assert_eq!(
+        std::fs::read_dir(directory.path().join("profile/document-staging"))
+            .unwrap()
+            .count(),
+        0
+    );
+    assert!(!directory.path().join("profile/document-assets").exists());
+    drop(runtime);
+    let recovered: Value =
+        serde_json::from_str(&executor.execute(&serde_json::to_string(&request).unwrap())).unwrap();
+    assert_eq!(recovered["type"], "document");
+}
+
+#[test]
+fn correction_while_real_ocr_analysis_returns_rejects_stale_publication_and_keeps_current_knowledge()
+ {
+    // Given a real imported source, deterministic native boundary evidence, and actual package analysis.
+    let (_directory, executor, _) = fixture();
+    let image = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/ocr/vision/horizontal-mixed.png");
+    let opened:Value = serde_json::from_str(&executor.execute(&json!({
+        "type":"import_image_collection","paths":[image],"title":"Held analysis","packageId":"org.mlearn.english",
+    }).to_string())).unwrap();
+    assert_eq!(opened["type"], "document", "{opened}");
+    let source = &opened["window"]["source"];
+    let planned:Value = serde_json::from_str(&executor.execute(&json!({
+        "type":"plan_ocr","request":{"requestId":"held-ocr","sourceId":source["id"],"contentRevision":source["contentRevision"],
+            "resourceId":"image-0","providerId":"fixture","recognitionLanguages":["en"],"crop":null},
+    }).to_string())).unwrap();
+    assert_eq!(planned["type"], "ocr_plan", "{planned}");
+    let recognized:Value = serde_json::from_str(&executor.execute(&json!({
+        "type":"complete_ocr","result":{"requestId":"held-ocr",
+            "provider":{"id":"fixture","label":"Test boundary","revision":"1","availability":"ready",
+                "languages":["en"],"scripts":["Latn"],"languageProvenance":"deterministic fixture, not recognition","reason":null},
+            "width":720,"height":300,"crop":null,"regions":[{"id":"0","text":"Children walked home.",
+                "quad":{"topLeft":{"x":0.1,"y":0.1},"topRight":{"x":0.6,"y":0.1},
+                    "bottomRight":{"x":0.6,"y":0.3},"bottomLeft":{"x":0.1,"y":0.3}},
+                "candidates":[],"language":null,"orientation":null,"readingOf":null}]},
+    }).to_string())).unwrap();
+    assert_eq!(recognized["type"], "ocr_page", "{recognized}");
+    let mut correction = recognized["page"]["regions"][0].clone();
+    correction["text"] = json!("A bridge.");
+    // When correction commits after genuine morphology returns but before it publishes.
+    let (_, analyzed) = with_held_guest(
+        &executor,
+        Request::AnalyzeOcr {
+            source_id: source["id"].as_str().unwrap().into(),
+            resource_id: "image-0".into(),
+            ocr_revision: 1,
+            region_ids: vec!["0".into()],
+        },
+        || {
+            let corrected:Value = serde_json::from_str(&executor.execute(&json!({
+            "type":"correct_ocr","correction":{"commandId":"while-analyzing","sourceId":source["id"],
+                "contentRevision":source["contentRevision"],"resourceId":"image-0","expectedRevision":1,"region":correction},
+        }).to_string())).unwrap();
+            assert_eq!(corrected["type"], "ocr_page", "{corrected}");
+        },
+    );
+    // Then stale analysis is neither published nor cached under the new revision.
+    assert_eq!(analyzed["code"], "cancelled");
+    let runtime = executor.runtime.lock().unwrap();
+    assert!(
+        runtime
+            .prepare_ocr_analysis(source["id"].as_str().unwrap(), "image-0", 2, &["0".into()])
+            .unwrap()
+            .cached
+            .is_none()
+    );
+    drop(runtime);
+    let refreshed:Value = serde_json::from_str(&executor.execute(&json!({
+        "type":"analyze_ocr","sourceId":source["id"],"resourceId":"image-0","ocrRevision":2,"regionIds":["0"],
+    }).to_string())).unwrap();
+    assert_eq!(refreshed["type"], "ocr_analysis", "{refreshed}");
+    assert_eq!(refreshed["batch"]["regions"][0]["text"], "A bridge.");
+    let runtime = executor.runtime.lock().unwrap();
+    assert!(
+        runtime
+            .prepare_ocr_analysis(source["id"].as_str().unwrap(), "image-0", 2, &["0".into()])
+            .unwrap()
+            .cached
+            .is_some()
+    );
+    drop(runtime);
+    // Package interpretation is an optional separate projection. A matching
+    // persisted artifact projection is reused without invoking that capability.
+    let mut runtime = executor.runtime.lock().unwrap();
+    let source_id = source["id"].as_str().unwrap();
+    let base = runtime.required_ocr_page(source_id, "image-0", 2).unwrap();
+    let package = runtime.installed.get("org.mlearn.english").unwrap();
+    let package = mlearn_core::OcrPackageProjection {
+        package_id: package.manifest.id.clone(),
+        package_version: package.manifest.version.clone(),
+        package_revision: package.revision().unwrap(),
+    };
+    let projected = runtime
+        .store
+        .project_ocr(&base, &base.regions, &package)
+        .unwrap();
+    let cached = runtime
+        .prepare(
+            Request::PostprocessOcr {
+                source_id: source_id.into(),
+                resource_id: "image-0".into(),
+                ocr_revision: 2,
+            },
+            0,
+        )
+        .unwrap();
+    let crate::guest::Prepared::Immediate(response) = cached else {
+        panic!("Cached interpretation readmitted package work");
+    };
+    assert!(matches!(*response,mlearn_core::Response::OcrPage {page} if page == projected));
+    // A changed authenticated manifest identity invalidates derived data only.
+    runtime
+        .installed
+        .get_mut("org.mlearn.english")
+        .unwrap()
+        .manifest
+        .display_name = Some("Changed manifest identity".into());
+    assert_eq!(
+        runtime.current_ocr_page(source_id, "image-0").unwrap(),
+        Some(base)
+    );
+    assert!(
+        runtime
+            .prepare_ocr_analysis(source_id, "image-0", 2, &["0".into()])
+            .unwrap()
+            .cached
+            .is_none()
     );
 }
 

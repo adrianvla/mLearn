@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { DocumentAnalysisBatch, DocumentPosition, DocumentWindow, SourceAnchor } from '@mlearn/contracts';
-import type { TextAnchor, TextBounds } from '@mlearn/ui/inline-word';
+import type { TextAnchor } from '@mlearn/ui/inline-word';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import DocumentCanvas, { type DocumentCanvasRef, type DocumentImageView } from './DocumentCanvas';
+import { useSourceAnchor } from './useSourceAnchor';
 
 /** Only this adapter turns WebView-local CSS pixels into native viewport
  * coordinates. Functions stay here; the DOM bridge carries rectangles/IDs.
@@ -34,11 +35,8 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
     const source = window.source;
     const identity = JSON.stringify([source.id, source.contentRevision, source.parserRevision,
         source.packageId, source.packageVersion, window.blocks.map(block => [block.resource, block.id])]);
-    const active = useRef(identity); active.current = identity;
-    const occurrence = useRef(0);
-    const subscribers = useRef(new Set<() => void>());
-    const measurements = useRef(new Map<number, (bounds: TextBounds) => void>());
-    const sequence = useRef(0);
+    const anchors = useSourceAnchor(identity, container, canvas);
+    const active = anchors.active;
     const imageIds = [...new Set(window.blocks.flatMap(block => block.image ? [block.image.resourceId] : []))];
     const imageKey = JSON.stringify(imageIds);
     const images = imageState.identity === identity ? imageState.items : [];
@@ -67,39 +65,6 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
         })();
         return () => { live = false; };
     }, [host, identity, imageKey, imageReload]);
-    useEffect(() => {
-        active.current = identity;
-        measurements.current.clear(); subscribers.current.clear();
-        return () => { active.current = ''; measurements.current.clear(); subscribers.current.clear(); };
-    }, [identity]);
-    function adapt(bounds: TextBounds, publish: (bounds: TextBounds) => void) {
-        if (Platform.OS === 'web') publish(bounds);
-        else container.current?.measureInWindow((x, y) => {
-            if (active.current === identity) publish({ ...bounds, x: x + bounds.x, y: y + bounds.y });
-        });
-    }
-    function nativeAnchor(bounds: TextBounds): TextAnchor {
-        const ownedOccurrence = occurrence.current;
-        const ownsAnchor = () => active.current === identity && occurrence.current === ownedOccurrence;
-        return {
-            ...bounds,
-            measure: publish => {
-                if (!ownsAnchor()) return;
-                // ContextPanel can ask again before an asynchronous reply. Keep
-                // only its latest request, never an unbounded callback queue.
-                measurements.current.clear();
-                const request = ++sequence.current;
-                measurements.current.set(request, publish);
-                canvas.current?.measure(request);
-            },
-            subscribe: listener => {
-                if (!ownsAnchor()) return () => {};
-                subscribers.current.add(listener);
-                return () => { subscribers.current.delete(listener); measurements.current.clear(); };
-            },
-            restoreFocus: () => { if (ownsAnchor()) canvas.current?.restoreFocus(); },
-        };
-    }
     const selection = returned?.locator.kind === 'document' ? {
         resource: returned.locator.resource, blockId: returned.locator.blockId,
         start: returned.locator.contextStart + returned.locator.selectionStart,
@@ -112,7 +77,7 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
             blocks={window.blocks} batch={batch} appearance={source.appearance} target={target} inspecting={inspecting}
             selection={selection} images={images}
             display={{ background: theme.shell.canvas, color: theme.colors.text, knownColor: theme.feedback.success,
-                selectionColor: theme.controls.selected,
+                selectionColor: theme.source.selection,
                 muted: theme.colors.muted, selection: theme.controls.selected,
                 fontFamily: theme.typography.body._web.fontFamily, textScale: theme.textScale, caption: theme.typography.detail }}
             dom={{ useExpoDOMWebView: true, unstable_useExpoModulesBridge: false, scrollEnabled: false,
@@ -126,22 +91,10 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
             }}
             onInspect={async (key, selectedOccurrence, resource, blockId, start, bounds) => {
                 if (key !== active.current) return;
-                occurrence.current = selectedOccurrence;
-                adapt(bounds, measured => {
-                    if (occurrence.current !== selectedOccurrence) return;
-                    handlers.current.onInspect(resource, blockId, start, nativeAnchor(measured));
-                });
+                anchors.activate(selectedOccurrence, bounds, anchor => handlers.current.onInspect(resource, blockId, start, anchor));
             }}
             onMeasured={async (key, selectedOccurrence, request, bounds) => {
-                if (key !== active.current || occurrence.current !== selectedOccurrence) return;
-                adapt(bounds, measured => {
-                    if (occurrence.current !== selectedOccurrence) return;
-                    if (request === 0) { for (const listener of subscribers.current) listener(); }
-                    else {
-                        const publish = measurements.current.get(request);
-                        measurements.current.delete(request); publish?.(measured);
-                    }
-                });
+                if (key === active.current) anchors.measured(selectedOccurrence, request, bounds);
             }}
             onImageError={async (key, resourceId) => {
                 if (key === active.current) updateImages(previous => previous.map(item => item.resourceId === resourceId
@@ -156,7 +109,7 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
     return <View ref={container} style={styles.viewport}
         testID={renderedIdentity === identity ? 'reader-document-ready' : 'reader-document-loading'}
         accessibilityState={{ busy: renderedIdentity !== identity }}
-        onLayout={() => { for (const listener of subscribers.current) listener(); }}>
+        onLayout={anchors.notify}>
         {content}
         {renderedIdentity !== identity ? <View pointerEvents="none" style={styles.loading}>
             <Text variant="caption" accessibilityLiveRegion="polite">Loading document…</Text>

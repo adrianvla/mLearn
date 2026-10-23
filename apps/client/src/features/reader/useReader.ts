@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import type { DocumentAnalysisBatch, DocumentAppearance, DocumentCheckpoint, DocumentContentsPage, DocumentPosition,
-    DocumentWindow, PluginSummary, SourceAnchor } from '@mlearn/contracts';
+    DocumentWindow, OcrPage, PluginSummary, SourceAnchor } from '@mlearn/contracts';
 import { RuntimeError, type RuntimeClient } from '@mlearn/runtime-client';
 import { blockPosition, byteLength, positionKey } from './documentFlow';
 
@@ -11,13 +11,14 @@ type Session = ReturnType<RuntimeClient['beginSourceSession']>;
 
 /** The view holds only the current bounded window and native projections. */
 export function useReader(client: RuntimeClient, id: string, materialId?: string,
-    reviewSessionId?: string, reviewEncounterId?: string) {
+    reviewSessionId?: string, reviewEncounterId?: string, originalPages: boolean | null = null) {
     const [window, setWindow] = useState<DocumentWindow | null>(null);
     const [batch, setBatch] = useState<DocumentAnalysisBatch | null>(null);
     const [contents, setContents] = useState<DocumentContentsPage | null>(null);
     const [languages, setLanguages] = useState<PluginSummary[]>([]);
     const [position, setPosition] = useState<DocumentPosition | null>(null);
     const [returned, setReturned] = useState<SourceAnchor | null>(null);
+    const [returnedPage, setReturnedPage] = useState<OcrPage | null>(null);
     const [pending, setPending] = useState(false);
     const [analysisPending, setAnalysisPending] = useState(false);
     const [contentsPending, setContentsPending] = useState(false);
@@ -81,8 +82,9 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
             if (state !== 'active' && scope.current === active)
                 void persist().catch(() => { /* Save recovery remains beside Reader progress. */ });
         });
-        setPending(true); setError(''); setBatch(null); setReturned(null); setContents(null);
+        setPending(true); setError(''); setBatch(null); setReturned(null); setReturnedPage(null); setContents(null);
         let returning: SourceAnchor | null = null;
+        let image: OcrPage | null = null;
         void owned.ready.then(async () => {
             // Review owns a frozen source; ordinary Material Return follows the
             // current authored association instead.
@@ -90,9 +92,10 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
                 ? await client.returnReviewSource(reviewSessionId, reviewEncounterId)
                 : materialId ? await client.returnMaterialSource(materialId) : null;
             if (result) {
-                if (result.type !== 'document_material_source' || result.window.source.id !== id)
+                if (result.type === 'material_source' || result.window.source.id !== id)
                     throw new RuntimeError('invalid_request', 'This source return does not match the selected document.');
                 returning = result.anchor;
+                if (result.type === 'image_material_source') image = result.page;
                 return result.window;
             }
             return client.resumeDocument(id);
@@ -103,7 +106,7 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
                 target = { parserRevision: returning.locator.parserRevision, resource: returning.locator.resource,
                     blockId: returning.locator.blockId, offset: returning.locator.contextStart + returning.locator.selectionStart };
             }
-            publish(value, target); setReturned(returning);
+            publish(value, target); setReturned(returning); setReturnedPage(image);
         }).catch((cause: unknown) => {
             if (scope.current === active && owned.isCurrent()) setError(message(cause));
         }).finally(() => { if (scope.current === active) setPending(false); });
@@ -126,12 +129,15 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
 
     const identity = window ? JSON.stringify([window.source.id, window.source.contentRevision,
         window.source.parserRevision, window.source.packageId, window.source.packageVersion]) : '';
+    const imageMode = window?.source.format === 'images' || window?.source.format === 'pdf'
+        && (originalPages ?? returnedPage !== null);
     const admissionKey = positionKey(admission);
     useEffect(() => {
         const value = current.current;
         const owned = session.current;
         const active = scope.current;
         if (!value || !active || !owned?.isCurrent() || pending) return;
+        if (imageMode) { setAnalysisPending(false); return; }
         let live = true;
         setAnalysisPending(true); setAnalysisError('');
         void client.analyzeDocument(value.source.id, admission).then(result => {
@@ -144,7 +150,7 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
                 setAnalysisError(message(cause));
         }).finally(() => { if (live && scope.current === active) setAnalysisPending(false); });
         return () => { live = false; };
-    }, [client, identity, admissionKey, pending, analysisReload]);
+    }, [client, identity, admissionKey, pending, analysisReload, imageMode]);
 
     async function change(read: () => Promise<DocumentWindow>, point?: DocumentPosition | null) {
         const active = scope.current;
@@ -160,7 +166,7 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
             if (scope.current !== active || operation.current !== intent) return;
             const value = await read();
             if (scope.current === active && operation.current === intent && owned.isCurrent()) {
-                publish(value, point); setReturned(null);
+                publish(value, point); setReturned(null); setReturnedPage(null);
             }
         } catch (cause) {
             if (scope.current === active && operation.current === intent) setError(message(cause));
@@ -225,7 +231,7 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
         const active = scope.current;
         const owned = session.current;
         const first = value?.blocks[0];
-        if (!value || !active || !first || !owned?.isCurrent()) return;
+        if (!value || !active || !first || !owned?.isCurrent() || imageMode) return;
         // The existing native analysis owner caches immutable tokenization under
         // source/package/chunk identity and refreshes Knowledge on every read.
         // Reuse that owner rather than reimplementing its status merge in React.
@@ -234,7 +240,7 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
         if (scope.current === active && owned.isCurrent())
             setBatch(previous => previous === value ? refreshed : previous);
     }
-    return { window, batch, contents, languages, position, returned, pending, analysisPending, contentsPending,
+    return { window, batch, contents, languages, position, returned, returnedPage, imageMode, pending, analysisPending, contentsPending,
         error, analysisError, contentsError, saveError, persist, navigate, cancel, onPosition, appearance,
         loadContents, refreshKnowledge, retry: () => setReload(value => value + 1),
         retryAnalysis: () => setAnalysisReload(value => value + 1),

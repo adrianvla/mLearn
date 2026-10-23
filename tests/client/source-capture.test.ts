@@ -68,9 +68,11 @@ test('whole-source capture batches eligible known words with canonical source an
   assert.equal(captured.flat().length, 14);
   const content = captured[0][0].content;
   assert.equal(content.meaning, 'meaning of word0');
-  assert.equal(content.source?.locator.positionMs, 1000);
-  assert.equal(content.source?.locator.subtitleOffsetMs, 500);
-  assert.equal(content.source?.locator.playbackRate, 1.25);
+  const locator = content.source?.locator;
+  assert.ok(locator?.kind === 'video');
+  assert.equal(locator.positionMs, 1000);
+  assert.equal(locator.subtitleOffsetMs, 500);
+  assert.equal(locator.playbackRate, 1.25);
 });
 
 test('source capture skips saved/excluded targets and retains only failed original commands', async () => {
@@ -188,12 +190,19 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
         builder.onLoad({ filter: /.*/, namespace: 'presentation' }, () => ({
           loader: 'tsx', resolveDir: resolve('.'), contents: `
             import React from 'react';
+            import { initialTheme, resolveTheme } from './packages/theme/src/theme';
             export const View = ({ children }) => <div>{children}</div>;
             export const Row = View;
             export const Text = ({ children, accessibilityRole }) => <span role={accessibilityRole}>{children}</span>;
             export const Button = ({ label, disabled, onPress }) => <button disabled={disabled} onClick={onPress}>{label}</button>;
+            export const InlineWord = ({ text, onActivate }) => <button onClick={event => {
+              const node = event.currentTarget;
+              onActivate({ ...node.getBoundingClientRect().toJSON(),
+                measure: publish => publish(node.getBoundingClientRect()), restoreFocus: () => node.focus() });
+            }}>{text}</button>;
             export const Badge = ({ label }) => <span>{label}</span>;
-            export const StyleSheet = { create: () => ({}) };
+            export const StyleSheet = { create: definition => typeof definition === 'function'
+              ? definition(resolveTheme(initialTheme)) : definition };
           `,
         }));
       },

@@ -14,6 +14,44 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Response {
+    ImagePage {
+        page: crate::ImagePageDescriptor,
+    },
+    ImageReaderSettings {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        settings: crate::ImageReaderSettings,
+    },
+    ImagePageLocation {
+        location: crate::ImagePageLocation,
+    },
+    OcrPlan {
+        plan: crate::OcrPlan,
+    },
+    OcrPage {
+        page: crate::OcrPage,
+    },
+    OcrCached {
+        page: Option<crate::OcrPage>,
+    },
+    OcrRecovery {
+        recovery: crate::OcrRecovery,
+    },
+    OcrCancelled {
+        #[serde(rename = "requestId")]
+        request_id: String,
+    },
+    OcrEvidence {
+        evidence: crate::OcrEvidence,
+    },
+    OcrAnalysis {
+        batch: crate::OcrAnalysisBatch,
+    },
+    ImageMaterialSource {
+        window: crate::DocumentWindow,
+        page: crate::OcrPage,
+        anchor: SourceAnchor,
+    },
     Document {
         window: crate::DocumentWindow,
     },

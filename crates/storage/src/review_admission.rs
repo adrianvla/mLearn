@@ -27,6 +27,54 @@ pub(crate) fn validate_admission(value: &ReviewAdmission) -> Result<(), StorageE
     Ok(())
 }
 
+pub(crate) fn practice_items(items: &[PracticeItem]) -> Result<(), StorageError> {
+    let mut ids = std::collections::BTreeSet::new();
+    if !(1..=128).contains(&items.len())
+        || items.iter().any(|item| {
+            item.material_id.0.is_empty()
+                || item.material_id.0.len() > 512
+                || !ids.insert(&item.material_id.0)
+        })
+    {
+        return Err(StorageError::Invalid(
+            "Word Practice requires 1..128 unique saved Materials".into(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn practice_material(
+    db: &Connection,
+    id: &MaterialId,
+) -> Result<Material, StorageError> {
+    let material = crate::material_read::read_material(db, id).map_err(|error| match error {
+        StorageError::Sql(rusqlite::Error::QueryReturnedNoRows) => {
+            StorageError::Invalid("Selected Word Practice Material is unavailable".into())
+        }
+        error => error,
+    })?;
+    let excluded = match &material.content.target_id {
+        Some(target_id) => matches!(
+            crate::material_read::eligibility(
+                db,
+                &MaterialTarget {
+                    package_id: material.content.package_id.clone(),
+                    target_id: target_id.clone(),
+                },
+            )?
+            .availability,
+            CaptureAvailability::Excluded | CaptureAvailability::Existing { excluded: true, .. }
+        ),
+        None => false,
+    };
+    if material.excluded || excluded {
+        return Err(StorageError::Invalid(
+            "Selected Word Practice Material is excluded".into(),
+        ));
+    }
+    Ok(material)
+}
+
 pub(crate) fn due(db: &Connection, value: &ReviewAdmission, now: i64) -> Result<(), StorageError> {
     if review_read::schedule(db, value)?.is_some_and(|schedule| schedule.due_at > now) {
         return Err(StorageError::Conflict);
@@ -44,8 +92,8 @@ pub(crate) fn next(
             "Finish the admitted encounter before advancing".into(),
         ));
     }
-    let admission = match session.mode {
-        ReviewMode::Finite { .. } => {
+    let admission = match &session.mode {
+        ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => {
             let json: Option<String> = db.query_row(
                 "SELECT admission FROM review_work WHERE session_id=?1 AND admitted=0 ORDER BY position LIMIT 1",
                 [&session.id.0], |r| r.get(0),
@@ -140,13 +188,13 @@ pub(crate) fn next(
         session.encounter = Some(encounter);
         session.state = ReviewSessionState::Active;
     } else {
-        session.state = match session.mode {
-            ReviewMode::Finite { .. } => ReviewSessionState::Complete,
+        session.state = match &session.mode {
+            ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => ReviewSessionState::Complete,
             ReviewMode::Continuous => ReviewSessionState::Unavailable,
         };
-        session.message = match session.mode {
+        session.message = match &session.mode {
             ReviewMode::Continuous => Some("No due Review work is available".into()),
-            ReviewMode::Finite { .. } => None,
+            ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => None,
         };
     }
     Ok(())

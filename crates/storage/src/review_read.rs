@@ -1,6 +1,6 @@
-use crate::{ProfileStore, StorageError, material_read::read_material};
+use crate::{material_read::read_material, ProfileStore, StorageError};
 use mlearn_core::*;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{params, Connection, OptionalExtension};
 
 pub(crate) fn session(
     db: &Connection,
@@ -95,6 +95,19 @@ pub(crate) fn projection(
 }
 
 impl ProfileStore {
+    pub fn review_practice_materials(
+        &self,
+        items: &[PracticeItem],
+    ) -> Result<Vec<Material>, StorageError> {
+        crate::review_admission::practice_items(items)?;
+        items
+            .iter()
+            .map(|item| {
+                crate::review_admission::practice_material(&self.connection, &item.material_id)
+            })
+            .collect()
+    }
+
     pub fn review_work_untested(
         &self,
         session: &ReviewSessionId,

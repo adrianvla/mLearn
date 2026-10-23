@@ -1,0 +1,41 @@
+[package]
+name = "mlearn-desktop-ocr"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "../../LICENSE"
+publish = false
+
+[dependencies]
+mlearn-core = { path = "../core" }
+# Explicit runtime resource loading: Cargo must never fetch native libraries or
+# model weights. The signed optional installation supplies ONNX Runtime.
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "load-dynamic"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp", "tiff"] }
+imageproc = { version = "0.25", default-features = false }
+geo = { version = "0.31", default-features = false }
+clipper2-rust = "=1.2.0"
+num-traits = "0.2"
+# Portable PDF rasterization is shipped Rust code, not a model download or an
+# interpreter sidecar. Default features provide standard fonts and CMaps offline.
+hayro = "=0.8.0"
+base64 = "0.22"
+
+[dev-dependencies]
+tempfile = "3"
+flate2 = "1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["coreml"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["directml"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["cuda", "rocm"] }
+libc = "0.2"

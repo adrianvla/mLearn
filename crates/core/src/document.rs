@@ -18,6 +18,7 @@ pub enum DocumentFormat {
     Text,
     Epub,
     Pdf,
+    Images,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

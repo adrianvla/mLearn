@@ -22,6 +22,8 @@ export function HomeScreen() {
     const [sources, setSources] = useState<SourceRecord[]>([]);
     const [documents, setDocuments] = useState<DocumentRecord[]>([]);
     const [openingDocument, setOpeningDocument] = useState(false);
+    const [openingImages, setOpeningImages] = useState<'files' | 'folder' | null>(null);
+    const imageSelection = useRef<AbortController | null>(null);
     const documentIntent = useRef<object | null>(null);
     const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
     const [selected, setSelected] = useState('');
@@ -51,7 +53,10 @@ export function HomeScreen() {
                 if (active)
                     setError(e.message);
             });
-        return () => { active = false; documentIntent.current = null; };
+        return () => {
+            active = false; documentIntent.current = null;
+            imageSelection.current?.abort(); imageSelection.current = null;
+        };
     }, [host]));
     async function action(fn: () => Promise<void>) {
         if (busyRef.current)
@@ -78,6 +83,11 @@ export function HomeScreen() {
         host.media.subscribeDrop(paths => {
             if (!active)
                 return;
+            if (paths.length && paths.every(path => /\.(?:png|jpe?g|gif|webp)$/i.test(path))) {
+                if (!selected) { setError('Select a language package before opening the dropped source.'); return; }
+                void action(() => openImages(false, paths));
+                return;
+            }
             if (paths.length !== 1) {
                 setError('Drop one video or document at a time.');
                 return;
@@ -154,6 +164,30 @@ export function HomeScreen() {
             setOpeningDocument(false);
         }
     }
+    async function openImages(folder: boolean, droppedPaths?: string[]) {
+        if (!host.available) return;
+        const intent = {}; documentIntent.current = intent;
+        const controller = new AbortController(); imageSelection.current = controller;
+        const session = host.client.beginSourceSession();
+        setOpeningImages(folder ? 'folder' : 'files');
+        try {
+            await session.ready;
+            if (documentIntent.current !== intent || !session.isCurrent() || controller.signal.aborted) return;
+            const picked = droppedPaths ? null : await host.documents.pickImages(folder, controller.signal);
+            const paths = droppedPaths ?? picked?.paths;
+            if (!paths) return;
+            try {
+                if (documentIntent.current !== intent || !session.isCurrent() || controller.signal.aborted) return;
+                const opened = await host.client.importImages(paths, picked?.title ?? 'Image collection', selected);
+                if (documentIntent.current === intent && session.isCurrent() && !controller.signal.aborted)
+                    router.push({ pathname: '../reader', params: { id: opened.source.id } });
+            } finally { await picked?.release(); }
+        } finally {
+            if (documentIntent.current === intent) documentIntent.current = null;
+            if (imageSelection.current === controller) imageSelection.current = null;
+            setOpeningImages(null);
+        }
+    }
     const languages = snapshot?.installedPlugins.filter(p => p.capabilities.includes('text.analyze.v1')) ?? [];
     const latestSource = sources[0];
     const columns = width <= 550 ? 1 : width <= 950 ? 2 : 3;
@@ -226,7 +260,7 @@ export function HomeScreen() {
           <View style={styles.activityHeader}>
             <View style={styles.activityText}>
               <Text variant="section" accessibilityRole="header">Reader</Text>
-              <Text variant="caption" muted>TXT, EPUB and extracted PDF text.</Text>
+              <Text variant="caption" muted>TXT, EPUB, PDF and image pages.</Text>
             </View>
           </View>
           <View style={styles.preview}>
@@ -238,8 +272,14 @@ export function HomeScreen() {
           </View>
           <Row><Button testID="reader-open-document" label="Open document" variant="quiet" size="compact" disabled={busy || !selected}
             busy={openingDocument} onPress={() => void action(() => openDocument())} />
-            {openingDocument ? <Button label="Cancel document opening" variant="secondary" size="compact" onPress={() => {
+            <Button testID="reader-open-images" label="Open images" variant="quiet" size="compact" disabled={busy || !selected}
+                busy={openingImages === 'files'} onPress={() => void action(() => openImages(false))} />
+            {host.available && host.documents.supportsFolders ? <Button label="Open image folder" variant="quiet" size="compact"
+                disabled={busy || !selected} busy={openingImages === 'folder'}
+                onPress={() => void action(() => openImages(true))} /> : null}
+            {openingDocument || openingImages ? <Button label={openingImages ? 'Cancel image opening' : 'Cancel document opening'} variant="secondary" size="compact" onPress={() => {
               documentIntent.current = null;
+              imageSelection.current?.abort();
               if (host.available) void host.client.cancelSourceOpen().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)));
             }} /> : null}</Row>
           {!selected ? <Text muted>Install a language package before opening a source.</Text> : null}

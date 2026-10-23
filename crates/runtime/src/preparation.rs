@@ -9,6 +9,89 @@ impl Runtime {
     pub(crate) fn prepare(&mut self, request: Request, epoch: u64) -> Result<Prepared, Failure> {
         let cancellation = Cancellation::source(self.cancellation.clone(), epoch);
         match request {
+            Request::ImportImageCollection {
+                paths,
+                title,
+                package_id,
+            } => {
+                cancellation.check()?;
+                self.language_work(
+                    &package_id,
+                    LanguageAction::OpenImageCollection {
+                        root: self.root.clone(),
+                        paths,
+                        title,
+                    },
+                    cancellation,
+                )
+            }
+            Request::AnalyzeOcr {
+                source_id,
+                resource_id,
+                ocr_revision,
+                region_ids,
+            } => {
+                cancellation.check()?;
+                let input =
+                    self.prepare_ocr_analysis(&source_id, &resource_id, ocr_revision, &region_ids)?;
+                let package = input.package_id().to_owned();
+                self.language_work(&package, LanguageAction::Analyze(input), cancellation)
+            }
+            Request::PostprocessOcr {
+                source_id,
+                resource_id,
+                ocr_revision,
+            } => {
+                cancellation.check()?;
+                let source = self.document_record(&source_id)?;
+                let current = self
+                    .current_ocr_page(&source_id, &resource_id)?
+                    .ok_or_else(|| {
+                        Failure::Operation(
+                            "Recognize this page before package interpretation".into(),
+                        )
+                    })?;
+                let page = self
+                    .store
+                    .ocr_base_page(&source_id, &resource_id)
+                    .map_err(|error| Failure::Operation(error.to_string()))?
+                    .ok_or_else(|| {
+                        Failure::Operation("Original OCR evidence is unavailable".into())
+                    })?;
+                if ocr_revision != page.ocr_revision && ocr_revision != current.ocr_revision {
+                    return Err(Failure::Operation(
+                        "OCR page changed; refresh before package interpretation".into(),
+                    ));
+                }
+                let evidence = self
+                    .store
+                    .ocr_evidence(&source_id, &resource_id, current.ocr_revision)
+                    .map_err(|error| Failure::Operation(error.to_string()))?;
+                if evidence.package.is_some() {
+                    // current_ocr_page has already checked the package artifact.
+                    return Ok(Prepared::Immediate(Box::new(Response::OcrPage {
+                        page: current,
+                    })));
+                }
+                self.language_work(
+                    &source.package_id,
+                    LanguageAction::PostprocessOcr(page),
+                    cancellation,
+                )
+            }
+            request @ (Request::ImagePageLocation { .. }
+            | Request::PlanOcr { .. }
+            | Request::OcrRecovery { .. }
+            | Request::CompleteOcr { .. }
+            | Request::CancelOcr { .. }
+            | Request::ReadOcr { .. }
+            | Request::OcrEvidence { .. }
+            | Request::CorrectOcr { .. }
+            | Request::ImagePage { .. }
+            | Request::ImageReaderSettings { .. }
+            | Request::SaveImageReaderSettings { .. }) => Ok(Prepared::Immediate(Box::new(
+                self.ocr_request(request, &cancellation)?,
+            ))),
             Request::OpenDocument { path, package_id } => {
                 cancellation.check()?;
                 self.language_work(

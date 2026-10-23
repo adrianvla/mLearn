@@ -75,13 +75,37 @@ impl ProfileStore {
         if let Some(value) = receipt(&tx, &command)? {
             return Ok(value);
         }
-        let maximum = match start.mode {
+        let maximum = match &start.mode {
             ReviewMode::Continuous => 1,
-            ReviewMode::Finite { limit } if (1..=128).contains(&limit) => limit,
+            ReviewMode::Finite { limit } if (1..=128).contains(limit) => *limit,
             ReviewMode::Finite { .. } => {
                 return Err(StorageError::Invalid(
                     "Finite Review limit must be 1..128".into(),
                 ));
+            }
+            ReviewMode::Practice { items } => {
+                review_admission::practice_items(items)?;
+                // Package admission supplies at most eight compatible probes per Material.
+                if admissions.len() > items.len() * 8 {
+                    return Err(StorageError::Invalid("Word Practice probe bound exceeded".into()));
+                }
+                for item in items {
+                    let material = review_admission::practice_material(&tx, &item.material_id)?;
+                    if !admissions.iter().any(|value| value.material_id == item.material_id)
+                        || admissions.iter().any(|value| {
+                            value.material_id == item.material_id
+                                && (value.material_revision != material.revision
+                                    || value.package_id != material.content.package_id
+                                    || value.source != item.source.clone().or_else(|| material.content.source.clone()))
+                        })
+                    {
+                        return Err(StorageError::Invalid("Selected Word Practice membership changed or is unavailable".into()));
+                    }
+                }
+                if admissions.iter().any(|value| !items.iter().any(|item| item.material_id == value.material_id)) {
+                    return Err(StorageError::Invalid("Word Practice cannot broaden selected membership".into()));
+                }
+                u32::try_from(admissions.len()).map_err(|error| StorageError::Invalid(error.to_string()))?
             }
         };
         let exists: bool = tx.query_row(
@@ -97,7 +121,7 @@ impl ProfileStore {
         let mut session = ReviewSession {
             id: start.session_id.clone(),
             revision: 1,
-            mode: start.mode,
+            mode: start.mode.clone(),
             state: ReviewSessionState::Active,
             completed: 0,
             total: None,
@@ -115,15 +139,20 @@ impl ProfileStore {
                 break;
             }
             review_admission::validate_admission(admission)?;
-            review_admission::due(&tx, admission, now)?;
+            if !matches!(&start.mode, ReviewMode::Practice { .. }) {
+                review_admission::due(&tx, admission, now)?;
+            }
             let inserted = tx.execute("INSERT OR IGNORE INTO review_work(session_id,work_id,position,admission) VALUES(?1,?2,?3,?4)",
                 params![session.id.0, admission.work_id.0, count, serde_json::to_string(admission)?])?;
             if inserted > 0 {
                 count += 1;
             }
         }
-        session.total = match start.mode {
-            ReviewMode::Finite { .. } => Some(count),
+        if matches!(&start.mode, ReviewMode::Practice { .. }) && count != maximum {
+            return Err(StorageError::Invalid("Duplicate Word Practice work".into()));
+        }
+        session.total = match &start.mode {
+            ReviewMode::Finite { .. } | ReviewMode::Practice { .. } => Some(count),
             ReviewMode::Continuous => None,
         };
         review_admission::next(&tx, &mut session, None)?;

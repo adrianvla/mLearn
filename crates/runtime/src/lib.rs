@@ -17,6 +17,10 @@ mod media_file;
 mod media_format;
 mod media_import;
 mod media_recovery;
+pub mod native_ocr;
+mod ocr;
+pub mod ocr_package;
+mod ocr_source;
 mod packages;
 mod review;
 mod source_file;
@@ -62,6 +66,7 @@ pub struct Runtime {
     installed: BTreeMap<String, Installed>,
     package_issues: BTreeMap<String, String>,
     analysis_cache: std::collections::VecDeque<(String, Vec<Vec<mlearn_core::AnalyzedToken>>)>,
+    ocr_admission: Option<(String, u64)>,
 }
 fn summary(manifest: &Manifest) -> PluginSummary {
     PluginSummary {
@@ -85,7 +90,9 @@ impl Runtime {
             policy.authorize(CodeOrigin::Bundle)?;
         }
         std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
-        let store = ProfileStore::open(&root.join("profile.sqlite3")).map_err(|e| e.to_string())?;
+        let mut store =
+            ProfileStore::open(&root.join("profile.sqlite3")).map_err(|e| e.to_string())?;
+        store.interrupt_ocr().map_err(|error| error.to_string())?;
         let catalog = trust.map(CatalogClient::new).transpose()?.map(Arc::new);
         let mut runtime = Self {
             store,
@@ -97,6 +104,7 @@ impl Runtime {
             installed: BTreeMap::new(),
             package_issues: BTreeMap::new(),
             analysis_cache: std::collections::VecDeque::new(),
+            ocr_admission: None,
         };
         if policy == CodePolicy::DesktopDownloaded {
             for (id, stored) in runtime

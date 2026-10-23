@@ -65,7 +65,7 @@ function ReviewWorkspace({ client, media }: {
       const restored = requested ? await client.reviewSession(requested) : null;
       if (scope.current !== active || readOwner.current !== read) return;
       setSessions(values);
-      if (restored && (!current.current || current.current.id === restored.id && current.current.revision <= restored.revision)) {
+      if (restored && (current.current?.id !== restored.id || current.current.revision <= restored.revision)) {
         current.current = restored; setSession(restored);
       }
     } catch (cause) {
@@ -167,7 +167,7 @@ function ReviewWorkspace({ client, media }: {
       if (!marked || scope.current !== active) return;
       const result = await client.returnReviewSource(value.id, encounter.id);
       if (active && scope.current === active)
-        router.push({ pathname: result.type === 'document_material_source' ? '../reader' : '/watch',
+        router.push({ pathname: result.type === 'material_source' ? '/watch' : '../reader',
           params: { id: result.window.source.id, reviewSessionId: value.id, reviewEncounterId: encounter.id } });
     } catch (cause) {
       if (scope.current === active) setReturnError(messageOf(cause));
@@ -203,20 +203,25 @@ function ReviewWorkspace({ client, media }: {
     await advance(await mutate({ kind: encounter.correction ? 'correct' : 'submit', response: { encounterId: encounter.id, grades } }));
   }
   const finiteValid = /^[1-9]\d{0,2}$/.test(limit) && Number(limit) <= 128;
+  const purpose = session?.mode.kind === 'practice' ? 'Word Practice' : 'Review';
+  const requestedSession = typeof params.sessionId === 'string' && params.sessionId.length > 0;
   return <AppShell header={<Row>
     <Button label="Home" variant="quiet" disabled={pending || returning}
       onPress={() => router.replace('/')} />
-    <Text variant="heading" accessibilityRole="header">Review</Text>
+    <Text variant="heading" accessibilityRole="header">{purpose}</Text>
     {session ? <Text variant="caption" muted>{session.total === null ? `${session.completed} reviewed` : `${session.completed} / ${session.total}`}</Text> : null}
   </Row>}>
     <View style={styles.workspace}>
       {readError ? <Panel><Text accessibilityRole="alert">{readError}</Text><Button label="Retry Review sessions" onPress={() => void refresh()} /></Panel> : null}
       {loading ? <Text accessibilityLiveRegion="polite">Loading Review sessions…</Text> : null}
-      {!session ? <Panel>
+      {!session && !requestedSession ? <Panel>
         <Button label="Start Review" disabled={blocked} onPress={() => void start(false)} />
         <Row><TextField label="Finite Review limit" value={limit} onChangeText={setLimit} keyboardType="number-pad" maxLength={4} />
           <Button label="Start finite Review" disabled={blocked || !finiteValid} onPress={() => void start(true)} /></Row>
-      </Panel> : <>
+      </Panel> : session ? <>
+        {session.mode.kind === 'practice' ? <Text variant="caption" muted>
+          {session.mode.items.length} selected Materials
+        </Text> : null}
         <Row>
           {session.state === 'active' ? <Button label="Pause" disabled={blocked} onPress={() => void mutate({ kind: 'pause' })} />
             : session.state === 'paused' ? <Button label="Resume" disabled={blocked} onPress={() => void mutate({ kind: 'resume' })} /> : null}
@@ -228,9 +233,9 @@ function ReviewWorkspace({ client, media }: {
             onPress={() => { current.current = null; setSession(null); router.setParams({ sessionId: '' }); }} />
         </Row>
         {session.message ? <Text accessibilityLiveRegion="polite">{session.message}</Text> : null}
-        {session.state === 'paused' ? <Panel><Text>Review paused</Text></Panel>
-          : session.state === 'complete' ? <Panel><Text>Review complete</Text></Panel>
-          : session.state === 'unavailable' ? <Panel><Text>Review unavailable</Text></Panel>
+        {session.state === 'paused' ? <Panel><Text>{purpose} paused</Text></Panel>
+          : session.state === 'complete' ? <Panel><Text>{purpose} complete</Text></Panel>
+          : session.state === 'unavailable' ? <Panel><Text>{purpose} unavailable</Text></Panel>
           : encounter ? <>
             <View style={styles.face} testID="review-cue">
               <Text variant="caption" muted>{encounter.direction === 'audio' ? 'Listen' : encounter.direction === 'focused' ? 'Focused recall' : 'Recall'}</Text>
@@ -250,16 +255,17 @@ function ReviewWorkspace({ client, media }: {
               onPress={() => void returnSource()} /> : null}
             {returnError ? <Text accessibilityRole="alert">{returnError}</Text> : null}
           </> : null}
-      </>}
-      {pending ? <Text accessibilityLiveRegion="polite">Saving Review…</Text> : null}
+      </> : null}
+      {pending ? <Text accessibilityLiveRegion="polite">Saving {purpose}…</Text> : null}
       {error ? <Panel><Text accessibilityRole="alert">{error}</Text>
         {failed ? <Button label="Retry Review save" busy={pending} onPress={() => {
           void execute(failed).then(value => failed.kind === 'submit' || failed.kind === 'correct' ? advance(value) : undefined);
         }} /> : null}</Panel> : null}
       {!session && sessions.length ? <Stack><Text variant="section">Recent sessions</Text>
         {sessions.map(value => <Panel key={value.id}>
-          <Text>{value.mode.kind === 'finite' ? 'Finite Review' : 'Continuous Review'} · {value.state} · {value.completed} reviewed</Text>
-          <Button label={`Open Review ${value.id}`} disabled={blocked} onPress={() => void open(value.id)} />
+          <Text>{value.mode.kind === 'practice' ? 'Word Practice' : value.mode.kind === 'finite' ? 'Finite Review' : 'Continuous Review'} · {value.state} · {value.total === null ? value.completed : `${value.completed} / ${value.total}`}</Text>
+          {value.mode.kind === 'practice' ? <Text variant="caption" muted>{value.mode.items.length} selected Materials</Text> : null}
+          <Button label={`Open ${value.mode.kind === 'practice' ? 'Word Practice' : 'Review'} ${value.id}`} disabled={blocked} onPress={() => void open(value.id)} />
         </Panel>)}</Stack> : null}
     </View>
   </AppShell>;

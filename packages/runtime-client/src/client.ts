@@ -2,8 +2,11 @@ import { isWatchResponse } from './watchProtocol';
 import { createMaterialClient } from './materialClient';
 import { createReviewClient } from './reviewClient';
 import { createDocumentClient } from './documentClient';
+import { createOcrClient } from './ocrClient';
 import { RuntimeError } from './errors';
 export { RuntimeError } from './errors';
+export { isPackageInstallStatus } from './watchProtocol';
+export { isOcrPage, isOcrProvider, isOcrRect, isOcrResponse } from './ocrProtocol';
 import type { Request, Response, Snapshot, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
 
 export interface Transport {
@@ -41,7 +44,7 @@ export function createRuntimeClient(transport: Transport) {
     }
   }
   function displayRead(command:Request):Promise<Response>{
-    const lane=command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'?analysis:windows;
+    const lane=command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'?analysis:windows;
     return new Promise((resolve,reject)=>{
       const read={command,epoch:sourceEpoch,queuedAt:performance.now(),resolve,reject};
       if(lane.running){lane.desired?.reject(cancelled());lane.desired=read;}
@@ -49,11 +52,11 @@ export function createRuntimeClient(transport: Transport) {
     });
   }
   async function request(command:Request):Promise<Response>{
-    if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='source_window'||command.type==='document_window')return displayRead(command);
+    if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'||command.type==='source_window'||command.type==='document_window')return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     // A queued lookup must not acquire the replacement source's native epoch.
     // Durable claims/checkpoints remain admitted across source cancellation.
-    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','set_document_language','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source','return_review_source'].includes(command.type);
+    const epoch=sourceEpoch;const sourceAction=['open_source','resume_source','open_document','resume_document','import_image_collection','image_page','read_ocr','ocr_evidence','postprocess_ocr','set_document_language','document_contents','document_resource','attach_subtitles','set_source_language','inspect_target','inspect_targets','return_material_source','return_review_source'].includes(command.type);
     const queuedAt=performance.now();
     pending++;const previous=tail;let release=()=>{};tail=new Promise<void>(resolve=>{release=resolve;});
     await previous;
@@ -97,6 +100,7 @@ export function createRuntimeClient(transport: Transport) {
     ...createMaterialClient(request, () => transport.commandId()),
     ...createReviewClient(request, () => transport.commandId()),
     ...createDocumentClient(request),
+    ...createOcrClient(request, () => transport.commandId()),
     prepareInstall,
     installPackage,
     packageInstallStatus:(commandId:string)=>packageInstallControl('package_install_status',commandId),

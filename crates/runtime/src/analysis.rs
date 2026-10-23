@@ -6,6 +6,12 @@ use mlearn_core::*;
 use std::{collections::BTreeSet, time::Instant};
 
 pub(super) enum AnalysisSource {
+    Ocr {
+        source: DocumentRecord,
+        page: Box<OcrPage>,
+        regions: Vec<OcrRegion>,
+        admitted_revision: Option<u32>,
+    },
     Video {
         source: SourceRecord,
         cues: Vec<Cue>,
@@ -30,6 +36,7 @@ impl AnalysisInput {
         match &self.source {
             AnalysisSource::Video { source, .. } => &source.package_id,
             AnalysisSource::Document { source, .. } => &source.package_id,
+            AnalysisSource::Ocr { source, .. } => &source.package_id,
         }
     }
     pub fn texts(&self) -> Vec<&str> {
@@ -41,10 +48,74 @@ impl AnalysisInput {
                 .iter()
                 .map(|slice| &slice.block.text[slice.start..slice.end])
                 .collect(),
+            AnalysisSource::Ocr { regions, .. } => {
+                regions.iter().map(|region| region.text.as_str()).collect()
+            }
         }
     }
 }
 impl Runtime {
+    pub(super) fn prepare_ocr_analysis(
+        &self,
+        source_id: &str,
+        resource_id: &str,
+        revision: u32,
+        ids: &[String],
+    ) -> Result<AnalysisInput, Failure> {
+        if ids.is_empty()
+            || ids.len() > 16
+            || ids.iter().collect::<BTreeSet<_>>().len() != ids.len()
+        {
+            return Err(Failure::Operation(
+                "OCR analysis requires 1–16 distinct visible regions".into(),
+            ));
+        }
+        let source = self.document_record(source_id)?;
+        let page = self.required_ocr_page(source_id, resource_id, revision)?;
+        let admitted_revision = self
+            .current_ocr_page(source_id, resource_id)?
+            .as_ref()
+            .map(|page| page.ocr_revision);
+        let regions = ids
+            .iter()
+            .map(|id| {
+                page.regions
+                    .iter()
+                    .find(|region| &region.id == id)
+                    .cloned()
+                    .ok_or_else(|| Failure::Operation("OCR analysis region is unavailable".into()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if regions
+            .iter()
+            .map(|region| region.text.len())
+            .sum::<usize>()
+            > 4096
+        {
+            return Err(Failure::Operation(
+                "OCR analysis range exceeds 4 KiB; select fewer regions".into(),
+            ));
+        }
+        let key = format!(
+            "{}|{}|{}|{}|{}|{}|{:?}",
+            source.id,
+            source.content_revision,
+            resource_id,
+            revision,
+            source.package_id,
+            source.package_version,
+            ids
+        );
+        self.analysis_input(
+            AnalysisSource::Ocr {
+                source,
+                page: Box::new(page),
+                regions,
+                admitted_revision,
+            },
+            key,
+        )
+    }
     pub(super) fn prepare_analysis(
         &self,
         id: &str,
@@ -155,6 +226,7 @@ impl Runtime {
             AnalysisSource::Document { source, .. } => {
                 (&source.package_id, &source.package_version)
             }
+            AnalysisSource::Ocr { source, .. } => (&source.package_id, &source.package_version),
         };
         let installed = self.installed.get(package_id).ok_or_else(|| {
             Failure::Operation("Language package unavailable; install it and retry".into())
@@ -162,6 +234,9 @@ impl Runtime {
         if &installed.manifest.version != version {
             return Err(Failure::Operation("Saved source requires its original package version; reselect the source language explicitly".into()));
         }
+        // Package version is not artifact identity. Include the authenticated
+        // manifest revision, separately from immutable source/OCR evidence.
+        let cache_key = format!("{cache_key}|{}", installed.revision()?);
         let cached = self
             .analysis_cache
             .iter()
@@ -201,6 +276,22 @@ impl Runtime {
                         && current.package_id == source.package_id
                         && current.package_version == source.package_version
                 }),
+            AnalysisSource::Ocr {
+                source,
+                page,
+                admitted_revision,
+                ..
+            } => {
+                let current = self.document_record(&source.id)?;
+                current.content_revision == source.content_revision
+                    && current.package_id == source.package_id
+                    && current.package_version == source.package_version
+                    && self
+                        .current_ocr_page(&source.id, &page.resource_id)?
+                        .as_ref()
+                        .map(|value| value.ocr_revision)
+                        == *admitted_revision
+            }
         };
         if valid {
             Ok(())
@@ -298,6 +389,47 @@ impl Runtime {
             .ok_or(Failure::Cancelled)?
             .revision()?;
         match &input.source {
+            AnalysisSource::Ocr {
+                source,
+                page,
+                regions,
+                ..
+            } => {
+                let mut annotations = Vec::new();
+                let regions = regions
+                    .iter()
+                    .zip(analyses)
+                    .zip(statuses)
+                    .map(|((region, tokens), statuses)| {
+                        annotations.extend(tokens.iter().zip(statuses).map(|(token, status)| {
+                            OcrOccurrenceKnowledge {
+                                region_id: region.id.clone(),
+                                token_start: token.start,
+                                status,
+                            }
+                        }));
+                        OcrAnalyzedRegion {
+                            region_id: region.id.clone(),
+                            text: region.text.clone(),
+                            tokens,
+                        }
+                    })
+                    .collect();
+                Ok(Response::OcrAnalysis {
+                    batch: OcrAnalysisBatch {
+                        source_id: source.id.clone(),
+                        content_revision: source.content_revision.clone(),
+                        resource_id: page.resource_id.clone(),
+                        ocr_revision: page.ocr_revision,
+                        package_id: source.package_id.clone(),
+                        package_version: source.package_version.clone(),
+                        package_revision,
+                        regions,
+                        knowledge,
+                        annotations,
+                    },
+                })
+            }
             AnalysisSource::Video { source, cues } => {
                 let annotations = cues
                     .iter()
@@ -384,6 +516,13 @@ fn validate(
     batches: &[Vec<AnalyzedToken>],
     package: &str,
 ) -> Result<Vec<Vec<AnalyzedToken>>, Failure> {
+    if serde_json::to_vec(batches)
+        .map_err(|error| Failure::Operation(error.to_string()))?
+        .len()
+        > 262144
+    {
+        return Err(Failure::Operation("Analysis batch exceeds 256 KiB".into()));
+    }
     if batches.len() != texts.len() {
         return Err(Failure::Operation(
             "Package returned the wrong analysis batch length".into(),

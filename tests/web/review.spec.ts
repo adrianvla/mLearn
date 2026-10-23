@@ -63,15 +63,19 @@ test.afterAll(async () => {
   await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 });
 
-async function start(page: Page, dark: boolean, finite = false, audio = false) {
+async function start(page: Page, dark: boolean, finite = false, audio = false, practice = false) {
   page.on('pageerror', error => console.error('Review browser error:', error.message));
   page.on('console', message => { if (message.type() === 'error') console.error('Review browser console:', message.text()); });
   // Only the native IPC boundary is mocked. Session persistence, receipts and
   // failures belong to this fixture, never to the production screen.
-  await page.addInitScript(({ encounter, theme }) => {
+  await page.addInitScript(({ encounter, theme, practice }) => {
     const stored = sessionStorage.getItem('review-fixture');
     const state: Window['__reviewTest'] = {
-      session: stored ? JSON.parse(stored) : null, commands: [], fail: false, hold: false,
+      session: stored ? JSON.parse(stored) : practice ? {
+        id: 'selected-practice', revision: 1,
+        mode: { kind: 'practice', items: [{ materialId: encounter.materialId, source: null }] },
+        state: 'active', completed: 0, total: 1, encounter, canUndo: false, message: null,
+      } : null, commands: [], fail: false, hold: false,
     };
     const receipts = new Map<string, { revision: number }>();
     let previous: ReviewEncounter | null = null;
@@ -151,9 +155,12 @@ async function start(page: Page, dark: boolean, finite = false, audio = false) {
     });
   }, { encounter: audio ? { ...encounter, direction: 'audio', requiredMedia: 'authored-audio',
     conditions: { ...encounter.conditions, delivery: 'pending' } } satisfies ReviewEncounter : encounter,
-    theme: dark ? builtInThemes[1] : initialTheme });
-  await page.goto(`${origin}/review`);
-  if (finite) {
+    theme: dark ? builtInThemes[1] : initialTheme, practice });
+  await page.goto(`${origin}/review${practice ? '?sessionId=selected-practice' : ''}`);
+  if (practice) {
+    // Reader already admitted this native session; entering Review must only resume it.
+    await expect(page.getByTestId('review-cue')).toBeVisible();
+  } else if (finite) {
     const field = page.getByRole('textbox', { name: 'Finite Review limit', exact: true });
     const button = page.getByRole('button', { name: 'Start finite Review', exact: true });
     await field.fill('0'); await expect(button).toBeDisabled();
@@ -163,6 +170,26 @@ async function start(page: Page, dark: boolean, finite = false, audio = false) {
   await expect(page.getByTestId('review-cue')).toBeVisible();
 }
 const submitCount = (page: Page) => page.evaluate(() => window.__reviewTest.commands.filter(command => command.kind === 'submit').length);
+
+test('selected Word Practice opens its admitted session and resumes without starting scheduled Review', async ({ page }, info) => {
+  await start(page, info.project.name.endsWith('dark'), false, false, true);
+  await expect(page.getByRole('heading', { name: 'Word Practice', exact: true })).toBeVisible();
+  await expect(page.getByText('0 / 1', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start Review', exact: true })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('practice-cue.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Resume', exact: true }).click();
+  await expect(page.getByTestId('review-answer')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Reveal', exact: true }).click();
+  await page.getByRole('button', { name: 'Fluent', exact: true }).click();
+  await expect(page.getByText('1 / 1', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next', exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => window.__reviewTest.commands.some(command => command.kind === 'start'))).toBe(false);
+  const submitted = await page.evaluate(() => window.__reviewTest.commands.find(command => command.kind === 'submit'));
+  expect(submitted?.mutation.sessionId).toBe('selected-practice');
+  await page.screenshot({ path: info.outputPath('practice-complete.png'), fullPage: true });
+});
 
 for (const playing of [false, true]) {
   test(`session Pause interrupts ${playing ? 'started' : 'ready'} audio and leaves Resume usable`, async ({ page }, info) => {

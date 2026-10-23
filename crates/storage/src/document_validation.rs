@@ -94,10 +94,13 @@ pub(crate) fn projection(
         DocumentFormat::Text | DocumentFormat::Epub if record.total_pages != 0 => {
             return Err(invalid("Reflowable document cannot have source pages"));
         }
-        DocumentFormat::Pdf if record.total_pages == 0 => {
+        DocumentFormat::Pdf | DocumentFormat::Images if record.total_pages == 0 => {
             return Err(invalid("PDF source page count is missing"));
         }
-        DocumentFormat::Text | DocumentFormat::Epub | DocumentFormat::Pdf => {}
+        DocumentFormat::Text
+        | DocumentFormat::Epub
+        | DocumentFormat::Pdf
+        | DocumentFormat::Images => {}
     }
     let mut resource_ids = HashSet::new();
     for resource in resources {
@@ -153,7 +156,7 @@ pub(crate) fn projection(
             }
         }
         match record.format {
-            DocumentFormat::Pdf => {
+            DocumentFormat::Pdf | DocumentFormat::Images => {
                 let page = block
                     .page
                     .ok_or_else(|| invalid("PDF block lacks source page"))?;

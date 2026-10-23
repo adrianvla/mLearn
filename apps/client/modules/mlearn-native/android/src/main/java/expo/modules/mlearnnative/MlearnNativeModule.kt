@@ -24,6 +24,12 @@ class MlearnNativeModule : Module() {
   private val executionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(3))
   private var bridgeInstance: RuntimeBridge? = null
   private val mediaScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
+  private val ocrJob = SupervisorJob()
+  // Separate admission gates bound one SDK input and one source display raster.
+  // Display must run while a non-interruptible SDK task retains its own input.
+  private val ocrScope = CoroutineScope(ocrJob + Dispatchers.IO.limitedParallelism(2))
+  private val ocrAdmission = Any()
+  private val ocr by lazy { OcrHost { request -> bridge().execute(request) } }
   private val mediaCaptures by lazy {
     val context = appContext.reactContext ?: error("React context is unavailable")
     MediaCapture(File(context.cacheDir, "mlearn-capture-${java.util.UUID.randomUUID()}"))
@@ -56,6 +62,22 @@ class MlearnNativeModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MlearnNative")
     OnDestroy {
+      val cancelledOcr = synchronized(ocrAdmission) {
+        ocr.close().also {
+          // Every admitted child is registered before closing this supervisor.
+          // Drain it so even queued work runs its resource-release finally.
+          ocrJob.complete()
+        }
+      }
+      // Keep cancellation on its existing lane. An in-flight SDK task retains
+      // its single slot/bitmap until real completion after module teardown.
+      cancellationScope.launch {
+        try {
+          if (cancelledOcr != null) ocr.cancelRuntime(cancelledOcr)
+        } catch (error: Exception) {
+          android.util.Log.e("MlearnNative", "Cannot cancel runtime OCR on destruction", error)
+        } finally { cancellationScope.cancel() }
+      }
       mediaClosed.set(true)
       mediaCaptures.close()
       pendingExport?.let {
@@ -65,7 +87,48 @@ class MlearnNativeModule : Module() {
         removeExport(it.file)
       }
       pendingExport = null
-      mediaScope.cancel(); cancellationScope.cancel(); executionScope.cancel()
+      mediaScope.cancel(); executionScope.cancel()
+    }
+    AsyncFunction("ocrProviders") { ocr.providers() }
+    AsyncFunction("reserveOcr") { id: String -> ocr.reserve(id) }
+    AsyncFunction("recognizeImage") { id: String, request: String, promise: Promise ->
+      try {
+        synchronized(ocrAdmission) {
+          val ticket = ocr.start(id)
+          // Admission precedes queueing, so repeated renderer calls cannot build
+          // an unbounded queue behind the one non-interruptible SDK operation.
+          ocrScope.launch {
+            try {
+              val result = ocr.recognize(ticket, request)
+              ocr.publish(ticket) { promise.resolve(result) }
+            }
+            catch (error: Exception) { promise.reject("ERR_OCR", error.message, error) }
+            finally { ocr.finish(ticket) }
+          }
+        }
+      } catch (error: Exception) { promise.reject("ERR_OCR", error.message, error) }
+    }
+    AsyncFunction("cancelOcr") { id: String, promise: Promise ->
+      ocr.invalidate(id)
+      cancellationScope.launch {
+        try { ocr.cancelRuntime(id); promise.resolve(null) }
+        catch (error: Exception) { promise.reject("ERR_OCR_CANCEL", error.message, error) }
+      }
+    }
+    AsyncFunction("imagePageUri") { sourceId: String, resourceId: String, crop: String?, promise: Promise ->
+      try {
+        synchronized(ocrAdmission) {
+          val ticket = ocr.reserveDisplay()
+          ocrScope.launch {
+            try {
+              val result = ocr.imagePageUri(ticket, sourceId, resourceId, crop)
+              ocr.publish(ticket) { promise.resolve(result) }
+            }
+            catch (error: Exception) { promise.reject("ERR_OCR_IMAGE", error.message, error) }
+            finally { ocr.finish(ticket) }
+          }
+        }
+      } catch (error: Exception) { promise.reject("ERR_OCR_IMAGE", error.message, error) }
     }
     AsyncFunction("reserveMediaCapture") { id: String -> mediaCaptures.reserve(id) }
     AsyncFunction("importPickedMedia") { uri: String, name: String ->
@@ -79,8 +142,8 @@ class MlearnNativeModule : Module() {
       }
     }.runOnQueue(mediaScope)
     AsyncFunction("importPickedDocument") { uri: String, name: String ->
-      check(name.substringAfterLast('.', "").lowercase() in setOf("txt", "epub", "pdf")) {
-        "Select a TXT, EPUB or PDF document."
+      check(name.substringAfterLast('.', "").lowercase() in setOf("txt", "epub", "pdf", "jpg", "jpeg", "png", "gif", "webp")) {
+        "Select a TXT, EPUB, PDF or supported image document."
       }
       val source = Uri.parse(uri)
       check(source.scheme == "content") { "The document picker must return a content URI." }

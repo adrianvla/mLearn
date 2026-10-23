@@ -33,9 +33,9 @@ export function isDocumentPosition(value: unknown): value is DocumentPosition {
 export function isDocumentRecord(value: unknown): value is DocumentRecord {
   return object(value) && text(value.id) && text(value.title, 4096) && text(value.documentPath, 4096)
     && text(value.contentRevision) && text(value.parserRevision) && text(value.packageId) && text(value.packageVersion)
-    && typeof value.format === 'string' && ['text', 'epub', 'pdf'].includes(value.format) && uint(value.totalBlocks) && value.totalBlocks <= 1024
+    && typeof value.format === 'string' && ['text', 'epub', 'pdf', 'images'].includes(value.format) && uint(value.totalBlocks) && value.totalBlocks <= 1024
     && uint(value.totalPages) && value.totalPages <= 1024
-    && (value.format === 'pdf' ? value.totalPages > 0 : value.totalPages === 0)
+    && (value.format === 'pdf' || value.format === 'images' ? value.totalPages > 0 : value.totalPages === 0)
     && nullable(value.position, isDocumentPosition)
     && (value.position === null || isDocumentPosition(value.position) && value.position.parserRevision === value.parserRevision)
     && isDocumentAppearance(value.appearance) && nullable(value.progression, text)
@@ -61,7 +61,8 @@ export function isDocumentWindow(value: unknown): value is DocumentWindow {
   for (const item of value.blocks) {
     if (!object(item) || typeof item.text !== 'string' || !Array.isArray(item.readings)) return false;
     const id = JSON.stringify([item.resource, item.id]);
-    if (ids.has(id) || (source.format === 'pdf' ? !uint(item.page) || item.page >= source.totalPages : item.page !== null)) return false;
+    if (ids.has(id) || (source.format === 'pdf' || source.format === 'images'
+      ? !uint(item.page) || item.page >= source.totalPages : item.page !== null)) return false;
     ids.add(id);
     payload += encoder.encode(item.text).length;
     for (const reading of item.readings) {

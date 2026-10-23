@@ -1,4 +1,4 @@
-import type { AnalyzedToken, Response } from '@mlearn/contracts';
+import type { AnalyzedToken, PackageInstallStatus, Response } from '@mlearn/contracts';
 type RecordValue = Record<string, unknown>;
 function object(v: unknown): v is RecordValue { return !!v && typeof v === 'object' && !Array.isArray(v); }
 const string = (v: unknown): v is string => typeof v === 'string' && v.length <= 32768;
@@ -12,11 +12,12 @@ function capability(v: unknown): boolean { return object(v) && string(v.id) && s
 function key(v: unknown): boolean { return object(v) && string(v.packageId) && string(v.targetId) && string(v.capability); }
 function projection(v: unknown): boolean { return object(v) && key(v.key) && optionalBoolean(v.claim) && optionalBoolean(v.assessed) && (v.prediction===null || typeof v.prediction==='number' && Number.isFinite(v.prediction)) && integer(v.revision) && string(v.status); }
 function plugin(v: unknown): boolean { return object(v) && string(v.id) && string(v.version) && list(v.capabilities,64,string); }
-function installStatus(v: unknown): boolean {
+export function isPackageInstallStatus(v: unknown, maximumBytes = 272629760): v is PackageInstallStatus {
+ const bytes = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= maximumBytes;
  if(!object(v)||!object(v.command)||!string(v.command.commandId)||v.command.commandId.length<1||v.command.commandId.length>128||!string(v.command.pluginId)||v.command.pluginId.length<1||v.command.pluginId.length>128)return false;
- if(!integer(v.downloadedBytes)||v.downloadedBytes>272629760||!optionalString(v.message)||(typeof v.message==='string'&&v.message.length>2048))return false;
+ if(!bytes(v.downloadedBytes)||!optionalString(v.message)||(typeof v.message==='string'&&v.message.length>2048))return false;
  if(v.totalBytes===null){if(v.downloadedBytes!==0)return false;}
- else if(!integer(v.totalBytes)||v.totalBytes>272629760||v.downloadedBytes>v.totalBytes)return false;
+ else if(!bytes(v.totalBytes)||v.downloadedBytes>v.totalBytes)return false;
  switch(v.phase){
  case 'downloading':case 'failed':case 'cancelled':return true;
  case 'validating':case 'succeeded':return v.totalBytes!==null&&v.downloadedBytes===v.totalBytes;
@@ -65,7 +66,7 @@ export function isWatchResponse(v: unknown): v is Response {
  case 'sources':return list(v.sources,20,source);
  case 'packages':return list(v.plugins,64,plugin);
  case 'installed':return plugin(v.plugin);
- case 'package_install_status':return v.status===null||installStatus(v.status);
+ case 'package_install_status':return v.status===null||isPackageInstallStatus(v.status);
  case 'source':return object(v.window) && source(v.window.source) && integer(v.window.totalCues) && list(v.window.cues,16,cue);
  case 'transcript':return object(v.page) && string(v.page.sourceId) && string(v.page.subtitleRevision) && list(v.page.cues,16,cue) && (v.page.nextIndex===null||integer(v.page.nextIndex));
  case 'cue_position':return object(v.position) && string(v.position.sourceId) && string(v.position.subtitleRevision) && integer(v.position.cueIndex) && integer(v.position.positionMs);

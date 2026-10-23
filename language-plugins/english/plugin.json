@@ -1,1 +1,1 @@
-{"id":"org.mlearn.english","displayName":"English","version":"0.1.1-wn30-review1","abiVersion":1,"capabilities":["language.describe.v1","text.analyze.v1","target.inspect.v1","learning.probes.v1"]}
+{"id":"org.mlearn.english","displayName":"English","version":"0.1.3-wn30-ocr2","abiVersion":1,"capabilities":["language.describe.v1","text.analyze.v1","target.inspect.v1","learning.probes.v1","image.ocr.profile.v1","image.ocr.geometry.v1","image.ocr.recognition.v1","image.ocr.postprocess.v1"]}

@@ -18,6 +18,22 @@ pub struct SourceAnchor {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum SourceLocator {
+    Image {
+        #[serde(rename = "resourceId")]
+        resource_id: String,
+        #[serde(rename = "pageIndex")]
+        page_index: Option<u32>,
+        #[serde(rename = "ocrRevision")]
+        ocr_revision: u32,
+        #[serde(rename = "regionId")]
+        region_id: String,
+        #[serde(rename = "contextStart")]
+        context_start: u32,
+        #[serde(rename = "selectionStart")]
+        selection_start: u32,
+        #[serde(rename = "selectionEnd")]
+        selection_end: u32,
+    },
     Document {
         #[serde(rename = "parserRevision")]
         parser_revision: String,

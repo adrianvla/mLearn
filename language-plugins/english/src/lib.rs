@@ -7,6 +7,7 @@ use mlearn_language_sdk::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use unicode_segmentation::UnicodeSegmentation;
+mod ocr;
 mod review;
 const PACKAGE: &str = "org.mlearn.english";
 fn capabilities() -> Vec<Capability> {
@@ -112,6 +113,10 @@ fn candidates(
 }
 fn handle(call: Call) -> Result<Value, String> {
     match call.capability.as_str() {
+        "image.ocr.profile.v1" => Ok(ocr::profile()),
+        "image.ocr.geometry.v1" => ocr::geometry(call.input),
+        "image.ocr.recognition.v1" => ocr::recognition(call.input),
+        "image.ocr.postprocess.v1" => ocr::postprocess(call.input),
         "learning.probes.v1" => review::generate(call.input, &read),
         "language.describe.v1" => Ok(
             json!({"language":"en","label":"English — WordNet 3.0","capabilities":capabilities(),"annotationCapability":"org.mlearn.english:meaning","attribution":"Princeton WordNet 3.0. All senses are alternatives; no contextual sense disambiguation."}),
@@ -224,9 +229,12 @@ fn validate_target(
     if parts.len() != 4 || parts[0] != "wn30" {
         return Err("Unknown English target identity".into());
     }
-    let known = lookup(&format!("lemma/{}", parts[3].to_lowercase()))?
-        .ok_or("Target lemma missing")?;
-    if !known.as_array().is_some_and(|values| values.iter().any(|value| value.as_str() == Some(id))) {
+    let known =
+        lookup(&format!("lemma/{}", parts[3].to_lowercase()))?.ok_or("Target lemma missing")?;
+    if !known
+        .as_array()
+        .is_some_and(|values| values.iter().any(|value| value.as_str() == Some(id)))
+    {
         return Err("Target is not a declared lexical sense".into());
     }
     let sense = lookup(&format!("sense/{}:{}", parts[1], parts[2]))?.ok_or("Sense missing")?;

@@ -122,6 +122,12 @@ impl ProfileStore {
                     serde_json::to_string(block)?
                 ],
             )?;
+            if let Some(page) = block.page {
+                tx.execute(
+                    "INSERT OR IGNORE INTO document_pages VALUES(?1,?2,?3,?4)",
+                    params![record.id, page, block.resource, block.id],
+                )?;
+            }
         }
         for (ordinal, entry) in contents.iter().enumerate() {
             tx.execute(

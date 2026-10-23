@@ -13,6 +13,83 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum Request {
+    ImagePage {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "pageIndex")]
+        page_index: u32,
+    },
+    ImageReaderSettings {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+    },
+    SaveImageReaderSettings {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        settings: crate::ImageReaderSettings,
+    },
+    ImportImageCollection {
+        paths: Vec<String>,
+        title: String,
+        #[serde(rename = "packageId")]
+        package_id: String,
+    },
+    ImagePageLocation {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "resourceId")]
+        resource_id: String,
+    },
+    PlanOcr {
+        request: crate::OcrRequest,
+    },
+    OcrRecovery {
+        request: crate::OcrRequest,
+    },
+    CompleteOcr {
+        result: crate::OcrNativeResult,
+    },
+    CancelOcr {
+        #[serde(rename = "requestId")]
+        request_id: String,
+    },
+    ReadOcr {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "resourceId")]
+        resource_id: String,
+        #[serde(rename = "ocrRevision")]
+        ocr_revision: Option<u32>,
+    },
+    OcrEvidence {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "resourceId")]
+        resource_id: String,
+        #[serde(rename = "ocrRevision")]
+        ocr_revision: u32,
+    },
+    CorrectOcr {
+        correction: crate::OcrCorrection,
+    },
+    AnalyzeOcr {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "resourceId")]
+        resource_id: String,
+        #[serde(rename = "ocrRevision")]
+        ocr_revision: u32,
+        #[serde(rename = "regionIds")]
+        region_ids: Vec<String>,
+    },
+    PostprocessOcr {
+        #[serde(rename = "sourceId")]
+        source_id: String,
+        #[serde(rename = "resourceId")]
+        resource_id: String,
+        #[serde(rename = "ocrRevision")]
+        ocr_revision: u32,
+    },
     OpenDocument {
         path: String,
         #[serde(rename = "packageId")]

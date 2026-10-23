@@ -81,12 +81,18 @@ record!(ReviewAdmission {
     scheduler_version: u32
 });
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+record!(PracticeItem {
+    material_id: MaterialId,
+    source: Option<SourceAnchor>
+});
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum ReviewMode {
     Continuous,
     Finite { limit: u32 },
+    Practice { items: Vec<PracticeItem> },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]

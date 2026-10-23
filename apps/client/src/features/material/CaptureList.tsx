@@ -7,20 +7,25 @@ import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { Row } from '@mlearn/ui/layout';
 import { Badge } from '@mlearn/ui/badge';
+import { InlineWord, type TextAnchor } from '@mlearn/ui/inline-word';
 
 export type CaptureCandidate = {
   readonly key: string;
   readonly content: MaterialContent;
   readonly resolveCuePosition?: boolean;
+  readonly knowledgeStatus?: string;
 };
 type Entry = { readonly candidate: CaptureCandidate; readonly command: MaterialCreate; readonly result?: MaterialCaptureResult };
 
 /** One bounded availability read and one capture owner for every source surface. */
-export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0 }: {
+export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate }: {
   readonly client: RuntimeClient;
   readonly candidates: readonly CaptureCandidate[];
   readonly onOpenMaterial?: (id: string) => void;
   readonly refreshKey?: number;
+  readonly tone?: 'content' | 'media';
+  readonly onInspect?: (candidate: CaptureCandidate, anchor: TextAnchor) => void;
+  readonly onLocate?: (candidate: CaptureCandidate) => void;
 }) {
   const [availability, setAvailability] = useState<MaterialEligibility[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -31,7 +36,7 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   const [exclusionRetry, setExclusionRetry] = useState<CaptureExclusion | null>(null);
   const owner = useRef<object | null>(null);
   const lock = useRef(false);
-  const identity = JSON.stringify(candidates);
+  const identity = JSON.stringify(candidates.map(({ key, content, resolveCuePosition }) => ({ key, content, resolveCuePosition })));
   // Reject callbacks immediately on a new source/range, before effect cleanup.
   const current = useRef(identity); current.current = identity;
   useEffect(() => {
@@ -138,46 +143,54 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   }
   const eligible = candidates.filter(candidate => available(candidate)?.state === 'eligible' && !entries.some(item => item.candidate.key === candidate.key));
   const failed = entries.filter(item => !item.result || item.result.state === 'failed');
+  const primary = tone === 'media' ? 'media' : 'primary';
+  const secondary = tone === 'media' ? 'media' : 'secondary';
+  const quiet = tone === 'media' ? 'media' : 'quiet';
   return <View style={styles.list}>
-    <Row><Button label="Capture all eligible in this view" size="compact" disabled={pending || !eligible.length} onPress={() => begin(eligible)} />
-      {failed.length ? <Button label={`Retry failed captures (${failed.length})`} size="compact" disabled={pending} onPress={() => void capture(failed)} /> : null}</Row>
+    <Row><Button label="Capture all eligible in this view" variant={primary} size="compact" disabled={pending || !eligible.length} onPress={() => begin(eligible)} />
+      {failed.length ? <Button label={`Retry failed captures (${failed.length})`} variant={primary} size="compact" disabled={pending} onPress={() => void capture(failed)} /> : null}</Row>
     {candidates.map(candidate => {
       const item = entries.find(entry => entry.candidate.key === candidate.key);
       const result = item?.result;
       const status = available(candidate);
       const excluded = status?.state === 'excluded' || status?.state === 'existing' && status.excluded;
-      return <View key={candidate.key} style={styles.item}>
-        <Text selectable>{candidate.content.phrase}</Text>
-        {status ? <Badge label={excluded ? 'Capture excluded' : status.state === 'existing' ? 'Existing Material' : 'Eligible'} /> : <Text muted variant="caption">Checking capture availability…</Text>}
+      return <View key={candidate.key} style={styles.item(tone === 'media')}>
+        <Row>{onInspect ? <InlineWord text={candidate.content.phrase} status={candidate.knowledgeStatus ?? 'pending'}
+          variant="body" onActivate={anchor => onInspect(candidate, anchor)} />
+          : <Text tone={tone} selectable>{candidate.content.phrase}</Text>}
+        {status ? <Badge label={excluded ? 'Capture excluded' : status.state === 'existing' ? 'Existing Material' : 'Eligible'} /> : <Text tone={tone} muted variant="caption">Checking capture availability…</Text>}</Row>
         <Row>
-          {!item && status?.state === 'eligible' ? <Button label={`Capture ${candidate.content.phrase}`} size="compact" disabled={pending} onPress={() => begin([candidate])} /> : null}
-          {status?.state === 'existing' ? <Button label={`Open saved ${candidate.content.phrase}`} variant="secondary" size="compact"
+          {onLocate ? <Button label={`Locate ${candidate.content.phrase}`} variant={secondary} size="compact"
+            onPress={() => onLocate(candidate)} /> : null}
+          {!item && status?.state === 'eligible' ? <Button label={`Capture ${candidate.content.phrase}`} variant={primary} size="compact" disabled={pending} onPress={() => begin([candidate])} /> : null}
+          {status?.state === 'existing' ? <Button label={`Open saved ${candidate.content.phrase}`} variant={secondary} size="compact"
             onPress={() => onOpenMaterial?.(status.materialId)} /> : null}
           {!item && status?.state === 'existing' && !excluded ? <Button label={`Capture this context: ${candidate.content.phrase}`}
-            size="compact" variant="secondary" disabled={pending} onPress={() => void begin([candidate])} /> : null}
+            size="compact" variant={secondary} disabled={pending} onPress={() => void begin([candidate])} /> : null}
           {status && candidate.content.targetId ? <Button label={excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`}
-            variant="quiet" size="compact" disabled={pending} onPress={() => {
+            variant={quiet} size="compact" disabled={pending} onPress={() => {
               if (candidate.content.targetId) void exclude(client.prepareCaptureExclusion({ packageId: candidate.content.packageId, targetId: candidate.content.targetId }, !excluded));
             }} /> : null}
         </Row>
-        {result?.state === 'saved' ? <Text accessibilityLiveRegion="polite">{result.reused ? 'Reused' : 'Saved'} · {result.materialId} · revision {result.committedRevision}</Text> : null}
-        {item && (!result || result.state === 'failed') ? <>{result?.state === 'failed' ? <Text accessibilityRole="alert">{result.message}</Text> : null}
-          <Button label={`Retry capture ${candidate.content.phrase}`} disabled={pending} onPress={() => void capture([item])} /></> : null}
+        {result?.state === 'saved' ? <Text tone={tone} accessibilityLiveRegion="polite">{result.reused ? 'Reused' : 'Saved'} · {result.materialId} · revision {result.committedRevision}</Text> : null}
+        {item && (!result || result.state === 'failed') ? <>{result?.state === 'failed' ? <Text tone={tone} accessibilityRole="alert">{result.message}</Text> : null}
+          <Button label={`Retry capture ${candidate.content.phrase}`} variant={primary} disabled={pending} onPress={() => void capture([item])} /></> : null}
         {result?.state === 'duplicate' ? <>
-          <Text>Choose existing Material or keep this context distinct.</Text>
-          {result.materialIds.map(id => <Button key={id} label={`Use existing ${id}`} variant="secondary" disabled={pending}
+          <Text tone={tone}>Choose existing Material or keep this context distinct.</Text>
+          {result.materialIds.map(id => <Button key={id} label={`Use existing ${id}`} variant={secondary} disabled={pending}
             onPress={() => void reuse(candidate, id)} />)}
-          <Button label={`Keep distinct ${candidate.content.phrase}`} disabled={pending} onPress={() => begin([candidate], true)} />
+          <Button label={`Keep distinct ${candidate.content.phrase}`} variant={primary} disabled={pending} onPress={() => begin([candidate], true)} />
         </> : null}
       </View>;
     })}
-    {error ? <><Text accessibilityRole="alert">{error}</Text>
-      {exclusionRetry ? <Button label="Retry capture exclusion" disabled={pending} onPress={() => void exclude(exclusionRetry)} /> : null}</> : null}
-    {availabilityError ? <><Text accessibilityRole="alert">{availabilityError}</Text>
-      <Button label="Retry availability" disabled={pending} onPress={() => setReload(value => value + 1)} /></> : null}
+    {error ? <><Text tone={tone} accessibilityRole="alert">{error}</Text>
+      {exclusionRetry ? <Button label="Retry capture exclusion" variant={primary} disabled={pending} onPress={() => void exclude(exclusionRetry)} /> : null}</> : null}
+    {availabilityError ? <><Text tone={tone} accessibilityRole="alert">{availabilityError}</Text>
+      <Button label="Retry availability" variant={primary} disabled={pending} onPress={() => setReload(value => value + 1)} /></> : null}
   </View>;
 }
 const styles = StyleSheet.create(theme => ({
   list: { gap: theme.spacing.compact, minWidth: 0 },
-  item: { gap: theme.spacing.small, paddingVertical: theme.spacing.small, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  item: (media: boolean) => ({ gap: theme.spacing.small, paddingVertical: theme.spacing.small,
+    borderBottomWidth: 1, borderBottomColor: media ? theme.media.border : theme.colors.border }),
 }));

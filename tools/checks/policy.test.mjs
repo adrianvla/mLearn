@@ -123,6 +123,39 @@ test('only accepted shared-font display data crosses the document WebView bounda
   assert.ok(checkSource(feature, 'const A = () => <DocumentCanvas display={{ fontFamily: theme.typography.body._web.fontFamily }} />;').length);
 });
 
+test('image source permits measured geometry and crop gestures without becoming a control or host owner', () => {
+  const file = 'apps/client/src/features/reader/ImageCanvas.tsx';
+  assert.deepEqual(checkSource(file, `
+    function textStyle(region, width, height) { return { fontSize: Math.min(width, height) }; }
+    const A = () => <div role="document" style={{ fontFamily: display.fontFamily }}>
+      <div data-source-image={resource} onPointerDown={beginCrop}><img src={uri}/></div>
+      <div data-ocr-region={region.id} style={{ lineHeight: 1 }} />
+    </div>;
+    const canvas = document.createElement('canvas');
+  `), []);
+  for (const source of [
+    'const A = () => <button>Inspect</button>;',
+    'const A = () => <div onPointerDown={openInspector}>Word</div>;',
+    'const A = () => <div data-source-image={resource} onClick={openInspector}>Word</div>;',
+    'const A = () => <div data-source-image={resource} role="button">Word</div>;',
+    'const A = () => <div style={{ fontSize: 20, lineHeight: 1 }}>Ordinary UI</div>;',
+    'const A = () => <div style={{ fontFamily: "custom" }}>Ordinary UI</div>;',
+    'const button = document.createElement("button");',
+    'import { createRuntimeClient } from "@mlearn/runtime-client";',
+    'export { useRuntime as pixels } from "../../bootstrap/RuntimeProvider";',
+    'const dom = { unstable_useExpoModulesBridge: true };',
+  ]) assert.ok(checkSource(file, source).length, source);
+  assert.ok(checkSource('apps/client/src/features/reader/ImageCanvasEscape.tsx',
+    'const A = () => <div data-source-image={resource} onPointerDown={beginCrop}/>;').length);
+});
+
+test('image viewport forwards only the shared source text role', () => {
+  const file = 'apps/client/src/features/reader/ImageViewport.tsx';
+  assert.deepEqual(checkSource(file,
+    'const A = () => <ImageCanvas display={{ fontFamily: theme.typography.body._web.fontFamily }} />;'), []);
+  assert.ok(checkSource(file, 'const A = () => <ImageCanvas display={{ fontFamily: "custom" }} />;').length);
+});
+
 test('only the actual media and inline-control rendering boundaries admit specialist DOM',()=>{
  const video='export const Player=()=> <video controls />;';
  assert.equal(checkSource('apps/client/src/host/MediaPlayer.web.tsx',video).length,0);

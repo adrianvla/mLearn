@@ -50,7 +50,11 @@ impl Runtime {
                     }
                 }
                 let response = match (&work.action, output) {
-                    (LanguageAction::OpenDocument { .. }, GuestOutput::Document(prepared)) => {
+                    (
+                        LanguageAction::OpenDocument { .. }
+                        | LanguageAction::OpenImageCollection { .. },
+                        GuestOutput::Document(prepared),
+                    ) => {
                         prepared.publish(&self.root, &work.cancellation)?;
                         let projection = &prepared.projection;
                         let mut source = self
@@ -79,6 +83,22 @@ impl Runtime {
                         }
                         Response::Document {
                             window: self.document_window(&source.id, source.position.as_ref())?,
+                        }
+                    }
+                    (LanguageAction::PostprocessOcr(page), GuestOutput::OcrRegions(regions)) => {
+                        Response::OcrPage {
+                            page: self
+                                .store
+                                .project_ocr(
+                                    page,
+                                    regions,
+                                    &mlearn_core::OcrPackageProjection {
+                                        package_id: work.package.manifest.id.clone(),
+                                        package_version: work.package.manifest.version.clone(),
+                                        package_revision: work.package.revision()?,
+                                    },
+                                )
+                                .map_err(|error| Failure::Operation(error.to_string()))?,
                         }
                     }
                     (LanguageAction::EditMaterial(command), GuestOutput::Entry(_)) => {

@@ -1,12 +1,12 @@
 use crate::{
-    Runtime,
     guest::{GuestOutput, GuestWork, Prepared},
+    Runtime,
 };
 use mlearn_core::{Request, Response};
 use std::{
     sync::{
-        Arc, Mutex, TryLockError,
         atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc, Mutex, TryLockError,
     },
     time::Instant,
 };
@@ -255,6 +255,9 @@ fn guest_bearing(request: &Request) -> bool {
             mlearn_core::ReviewCommand::Start { .. } | mlearn_core::ReviewCommand::Next { .. }
         ),
         Request::OpenSource { .. }
+        | Request::ImportImageCollection { .. }
+        | Request::AnalyzeOcr { .. }
+        | Request::PostprocessOcr { .. }
         | Request::OpenDocument { .. }
         | Request::SetDocumentLanguage { .. }
         | Request::AnalyzeDocument { .. }
@@ -271,6 +274,17 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::InstallPlugin { .. }
         | Request::InstallPackage { .. } => true,
         Request::Snapshot
+        | Request::ImagePage { .. }
+        | Request::ImageReaderSettings { .. }
+        | Request::SaveImageReaderSettings { .. }
+        | Request::ImagePageLocation { .. }
+        | Request::PlanOcr { .. }
+        | Request::OcrRecovery { .. }
+        | Request::CompleteOcr { .. }
+        | Request::CancelOcr { .. }
+        | Request::ReadOcr { .. }
+        | Request::OcrEvidence { .. }
+        | Request::CorrectOcr { .. }
         | Request::ResumeDocument { .. }
         | Request::RecentDocuments
         | Request::DocumentWindow { .. }

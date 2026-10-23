@@ -8,4 +8,5 @@ crate-type=["cdylib","rlib"]
 [dependencies]
 mlearn-language-sdk={path="../../crates/language-sdk"}
 mlearn-core={path="../../crates/core"}
+serde.workspace=true
 unicode-segmentation="1.13.3"

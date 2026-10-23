@@ -25,6 +25,12 @@ pub(crate) fn identity(content: &MaterialContent) -> Result<Identity, StorageErr
                         selection_start,
                         selection_end,
                         ..
+                    }
+                    | SourceLocator::Image {
+                        context_start,
+                        selection_start,
+                        selection_end,
+                        ..
                     } => {
                         let start = usize::try_from(*selection_start)
                             .map_err(|error| StorageError::Invalid(error.to_string()))?;

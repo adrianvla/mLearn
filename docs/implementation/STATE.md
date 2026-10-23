@@ -68,8 +68,117 @@ Recovery is complete. The maintainer also reiterated that MangaOCR is exclusive
 to the Japanese package; generic OCR for other packages must not use it as a
 fallback or introduce language-code dispatch in core.
 
-Next: checkpoint the preserved M06 source and continue remaining generic
-desktop OCR/rasterization, platform
+### Generic native OCR continuation — 2026-10-23
+
+The English package now independently selects `org.mlearn.paddle-ctc.onnx.v1`
+and declares its own profile/geometry/recognition stages. Only Japanese selects
+MangaOCR. Shared Rust inference dispatches authenticated executor contracts, not
+language codes; neither recognizer falls back to the other.
+Generic inference uses pinned RapidOCR 3.9.2 PP-OCRv6 small ONNX detector and
+CTC recognizer, with their distinct RGB normalization, global resize/padding,
+DB thresholds/dilation, cubic perspective crops, tall-line rotation, embedded
+18,710-class alphabet and blank/repeat decoding. English owns line ordering
+and preserves raw whitespace; stored confidence is actual CTC confidence.
+Raw empty/low-confidence observations remain evidence rather than silently
+disappearing under Rapid's presentation filter. Selected crops bypass detection.
+Authenticated model-envelope admission now rejects a catalog/executor mismatch;
+the new regression failed before the repair and passes afterward.
+The local development publisher preserves both authenticated native profiles
+and rejects a tampered existing catalog.
+
+Serial checks passed: 47 native OCR tests, strict native-crate Clippy,
+three English OCR tests, 11 native resource tests and the publisher test.
+The exact consuming native probe built successfully. Existing Sudachi dependency
+warnings remain unchanged. No device or reference application was launched.
+The one-shot generic owner run completed exit 0, including authenticated install,
+six images, source crop/display, image-only PDF, genuine cancellation with child
+reap and immutable persistence across restart. Its temporary loopback catalog
+closed afterward; it is not a persistent launcher.
+Evidence: `.mlearn/m03-m07/m06-ocr/generic-native-qa/desktop-ocr-results.json`.
+The real English line was `Open the blue book. 42`, confidence `0.99973`;
+PDF recognition returned two regions. Package-supported language remains English,
+not an invented claim that all of the multilingual model's scripts are supported.
+Executor revision:
+`401684fba3444c04a642bb245e3081d56d5835521cd286b8182a5c56fe66a12c`;
+authenticated resource revision:
+`657f0e030892e9cc3587af834e7f5b24b0c8c0fd1c1425eb844a9732d28340a1`.
+The command's maximum resident size was 579,747,840 bytes. Swap stayed at
+3,005 MiB, system free memory was 66%, and OmO RSS was about 2.63 GiB afterward.
+This is bounded headless native-owner verification, not consuming UI or Windows
+acceptance, and does not prove the earlier OmO growth fixed.
+
+### Portable PDF and independent native review — 2026-10-23
+
+Non-Apple image/PDF display now uses the same cancellable, deadline-bounded
+kill/reap helper owner as PDF preparation for inference. Its Rust process mode
+starts before GUI/runtime initialization, requires no optional OCR installation,
+and ships pinned Hayro 0.8.0 CPU rendering with offline standard fonts/CMaps.
+The renderer's Vello dependency disables default features, including an implicit
+thread pool. Admitted PDFs retain the existing 8 MiB encoded / 16 megapixel page
+bounds, upright rotation/crop-box coordinates, white background and exact
+original-pixel crop semantics. Warned unsupported content is an explicit error,
+not a fabricated blank image. This is not a claim of universal PDF compatibility.
+
+The portable helper rendered the actual image-only PDF to a complete 720×300
+page, inspected beside its original horizontal fixture: both English and Japanese
+lines are present, upright and unclipped. Rotation, crop box, missing/malformed
+pages and oversized embedded images have owner tests; two subprocess tests run
+the shipped helper and compare cropped PNG pixels exactly.
+Evidence: `.mlearn/m03-m07/m06-ocr/run/portable-pdf-page.png`.
+
+One independent read-only native review identified two blockers. Both were
+reproduced before repair (each test exited 101), then passed after repair:
+
+- Inline `BI/ID/EI` images bypassed XObject budgeting. Page and reachable Form
+  inline images now share the same pre-decode dimension/pixel budget, including
+  PDF abbreviated keys. Compressed oversized-inline fixtures protect both
+  side-length and pixel bounds. The non-Apple one-shot process additionally
+  establishes a 512 MiB OS allocation boundary (Windows job object / Linux data
+  limit) before parsing; those platform-specific calls remain subject to hosted
+  execution, not certified by macOS tests.
+- Dropping alpha exposed invisible RGB values and could erase black text over
+  transparent black. One upright-raster owner now composites PNG/WebP/GIF alpha
+  onto white before RGB inference/display. Transparent, opaque and partially
+  transparent edge values are protected without changing opaque source pixels.
+
+Current serial results: 53 native worker/raster tests, two shipped-helper
+subprocess tests, six affected desktop owner tests and strict native-crate Clippy
+passed. The coherent JavaScript integration run passed 64 Node checks, 96
+TypeScript/client tests, typecheck, ownership lint and generated-contract checks.
+The full native consuming probe built. Updated **both-profile** owner workflows
+completed exit 0 against executor
+`cc3813baeb9010a7ea223fd3fb28ca93fe8039521b925195868767933b7c19ba`.
+Each exercised all six fixtures, original-pixel crop/display, image-only PDF,
+cancellation with child reap, explicit white-page empty detection, and immutable
+restart persistence. The new Rust-only fixture checker also proved the magnifier
+is an exact 375×250 crop. Reports are
+`.mlearn/m03-m07/m06-ocr/generic-native-qa-current/desktop-ocr-results.json`
+and `.mlearn/m03-m07/m06-ocr/native-onnx-qa-current/desktop-ocr-results.json`;
+older reports remain preserved. Resource revisions are unchanged from the
+per-profile records above. Command peaks were 582,877,184 bytes (generic) and
+878,493,696 bytes (tuned Japanese). Final OmO RSS was about 1.12 GiB; swap stayed
+at 2,989 MiB and free memory 62%.
+
+The Manga path still reads the geometric `no-text.png` fixture as `○口`, exactly
+as the retained Python reference report does; its English fixture errors also
+remain reference behavior, not a generic-recognizer substitution. Do not turn
+pipeline parity or a passing workflow into a claim of perfect no-text rejection
+or completed real-manga corpus quality. The explicit blank white page produces
+zero regions in both providers.
+No device, reference application or persistent server was launched. After the
+native build, OmO RSS was about 1.45 GiB, system free memory 62%, swap 2,989 MiB;
+the earlier memory-growth cause remains unresolved.
+
+The foundation workflow now includes portable raster tests and a real Windows
+generic-CTC owner workflow, using pinned Microsoft ONNX Runtime 1.24.2 DirectML
+and DirectML 1.15.4 archives plus pinned RapidOCR models. Resource acquisition is
+an explicit hosted QA step; application runtime/installation remain Python-free.
+The already-built plugin bundle can be signed under a disposable hosted key
+without rebuilding or transporting a private key in an artifact. Windows results
+are pending; this addition is not Windows acceptance, and the tuned Japanese
+Windows path still needs its own actual execution.
+
+Next: checkpoint the preserved M06 source and continue remaining native platform
 verification and review. Windows execution, mobile quality/device acceptance,
 full manga corpus coverage and model-license discrepancies remain open.
 

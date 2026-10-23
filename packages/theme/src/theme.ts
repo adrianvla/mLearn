@@ -60,6 +60,7 @@ export function resolveTheme(saved: ThemeDocument) {
       canvas: lightSurface ? '#F3F5F7' : '#000000' },
     surfaces: { glass: lightSurface ? '#FFFFFF80' : '#82828233' },
     feedback: { success: lightSurface ? '#2F7D20' : '#58C333' },
+    source: { selection: `${document.colors.accent.slice(0, 7)}33` },
     pronunciation: { high: '#E8687B', low: '#4E86CA', strokeWidth: 2,
       pill: { high: '#FF4A64', low: '#3387FF' } },
     media: {
@@ -67,7 +68,9 @@ export function resolveTheme(saved: ThemeDocument) {
       text: '#E8E8E8',
       muted: '#A6A6A6',
       chrome: '#1C1C1CE6',
-      panel: '#3C3C3C80',
+      // Keep the dark-media luminance while preserving copy contrast over white
+      // page pixels. The blur remains shared with media and source inspection.
+      panel: '#212121EB',
       backdrop: 'blur(20px) saturate(2)',
       border: '#505050',
       footer: '#FFFFFF08',

@@ -38,7 +38,8 @@ pub(crate) fn submit(
     db.execute("INSERT INTO review_attempts(id,session_id,encounter_id,active,response,conditions,previous_schedule,created_at) VALUES(?1,?2,?3,1,?4,?5,?6,?7)",
         params![attempt.0, session.id.0, encounter.id.0, serde_json::to_string(response)?,
             serde_json::to_string(&encounter.conditions)?, previous.as_ref().map(serde_json::to_string).transpose()?, now])?;
-    if let Some((quality, easy)) = review_evidence::quality(response) {
+    if !matches!(&session.mode, ReviewMode::Practice { .. })
+        && let Some((quality, easy)) = review_evidence::quality(response) {
         review_evidence::write_schedule(
             db,
             &admission,
@@ -91,10 +92,10 @@ pub(crate) fn undo(db: &Connection, session: &mut ReviewSession) -> Result<(), S
     let previous: Option<ReviewSchedule> =
         previous.map(|v| serde_json::from_str(&v)).transpose()?;
     let response: ReviewResponse = serde_json::from_str(&response)?;
-    let restored = current
+    let restored = !matches!(&session.mode, ReviewMode::Practice { .. }) && (current
         .as_ref()
         .is_some_and(|s| s.owner_attempt.as_ref() == Some(&attempt))
-        || (review_evidence::quality(&response).is_none() && current == previous);
+        || (review_evidence::quality(&response).is_none() && current == previous));
     if restored {
         review_evidence::write_schedule(db, &admission, previous.as_ref())?;
     }

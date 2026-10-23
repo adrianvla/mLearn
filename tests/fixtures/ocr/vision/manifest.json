@@ -1,0 +1,349 @@
+[
+  {
+    "drawnText" : [
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          40,
+          40,
+          374.07999999999998,
+          32
+        ],
+        "role" : "main",
+        "text" : "Open the blue book. 42"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          40,
+          125,
+          306,
+          34
+        ],
+        "role" : "main",
+        "text" : "日本語の本を読む。"
+      }
+    ],
+    "glare" : false,
+    "height" : 300,
+    "id" : "horizontal-mixed",
+    "shapeOnly" : false,
+    "width" : 720
+  },
+  {
+    "drawnText" : [
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          40,
+          60,
+          216.75,
+          30
+        ],
+        "role" : "main",
+        "text" : "LEFT PAGE 01"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          40,
+          160,
+          219.44999999999999,
+          30
+        ],
+        "role" : "main",
+        "text" : "The blue book."
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          540,
+          60,
+          236.55000000000001,
+          30
+        ],
+        "role" : "main",
+        "text" : "RIGHT PAGE 02"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          540,
+          160,
+          172.64999999999995,
+          30
+        ],
+        "role" : "main",
+        "text" : "Read again."
+      }
+    ],
+    "glare" : false,
+    "height" : 450,
+    "id" : "spread",
+    "shapeOnly" : false,
+    "width" : 1000
+  },
+  {
+    "drawnText" : [
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          310,
+          40,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "日"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          310,
+          84,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "本"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          310,
+          128,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "語"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          310,
+          172,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "を"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          310,
+          216,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "読"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          310,
+          260,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "む"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          180,
+          40,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "青"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          180,
+          84,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "い"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          180,
+          128,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "本"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          180,
+          172,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "で"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          180,
+          216,
+          36,
+          36
+        ],
+        "role" : "main",
+        "text" : "す"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          355,
+          43,
+          14,
+          14
+        ],
+        "role" : "publisher-reading",
+        "text" : "に"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          355,
+          61,
+          14,
+          14
+        ],
+        "role" : "publisher-reading",
+        "text" : "ほ"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          355,
+          79,
+          14,
+          14
+        ],
+        "role" : "publisher-reading",
+        "text" : "ん"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          355,
+          97,
+          14,
+          14
+        ],
+        "role" : "publisher-reading",
+        "text" : "ご"
+      }
+    ],
+    "glare" : false,
+    "height" : 420,
+    "id" : "vertical-ruby",
+    "shapeOnly" : false,
+    "width" : 480
+  },
+  {
+    "drawnText" : [
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          40,
+          40,
+          374.07999999999998,
+          32
+        ],
+        "role" : "main",
+        "text" : "Open the blue book. 42"
+      },
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          40,
+          125,
+          306,
+          34
+        ],
+        "role" : "main",
+        "text" : "日本語の本を読む。"
+      }
+    ],
+    "glare" : true,
+    "height" : 300,
+    "id" : "low-contrast-glare",
+    "shapeOnly" : false,
+    "width" : 720
+  },
+  {
+    "drawnText" : [
+
+    ],
+    "glare" : false,
+    "height" : 300,
+    "id" : "no-text",
+    "shapeOnly" : true,
+    "width" : 600
+  },
+  {
+    "drawnText" : [
+      {
+        "font" : "HiraginoSans-W3",
+        "frameTopLeftPixels" : [
+          40,
+          60,
+          197.69400000000002,
+          42
+        ],
+        "role" : "main",
+        "text" : "नमस्ते पुस्तक"
+      }
+    ],
+    "glare" : false,
+    "height" : 220,
+    "id" : "devanagari",
+    "shapeOnly" : false,
+    "width" : 720
+  },
+  {
+    "cropTopLeftPixels" : [
+      520,
+      35,
+      450,
+      100
+    ],
+    "height" : 100,
+    "id" : "spread-right-crop",
+    "parent" : "spread",
+    "width" : 450
+  },
+  {
+    "height" : 720,
+    "id" : "horizontal-rotated-clockwise",
+    "parent" : "horizontal-mixed",
+    "pixelRotation" : "clockwise90",
+    "recognitionOrientation" : "left",
+    "width" : 300
+  },
+  {
+    "height" : 300,
+    "id" : "pdf-page-1",
+    "pageIndex" : 0,
+    "parent" : "image-only.pdf",
+    "rasterScale" : 1,
+    "width" : 720
+  }
+]

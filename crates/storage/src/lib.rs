@@ -8,6 +8,8 @@ mod material_media;
 mod material_read;
 mod material_receipts;
 mod material_validation;
+mod ocr;
+mod ocr_validation;
 mod review;
 mod review_admission;
 mod review_attempt;
@@ -51,7 +53,7 @@ impl ProfileStore {
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let version: u32 =
             transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 6 {
+        if version > 8 {
             return Err(StorageError::Invalid(
                 "Profile was created by a newer application".into(),
             ));
@@ -77,6 +79,12 @@ impl ProfileStore {
         }
         if version < 6 {
             document::migrate(&transaction)?;
+        }
+        if version < 7 {
+            ocr::migrate(&transaction)?;
+        }
+        if version < 8 {
+            ocr::migrate_pages(&transaction)?;
         }
         // Schema version and initial row become durable together, including first startup.
         transaction.commit()?;

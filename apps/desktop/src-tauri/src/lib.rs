@@ -6,6 +6,9 @@ use tauri::Manager;
 
 mod media;
 mod media_capture;
+mod ocr;
+#[cfg(feature = "ocr-probe")]
+pub mod ocr_probe;
 mod window_material;
 
 struct NativeState {
@@ -16,6 +19,8 @@ struct NativeState {
     cancellation: Arc<std::sync::atomic::AtomicU64>,
     material: Arc<Mutex<window_material::WindowMaterial>>,
     documents: media::DocumentResolver,
+    ocr: Arc<ocr::OcrJobs>,
+    ocr_models: Arc<mlearn_runtime::native_ocr::NativeOcrModels>,
 }
 
 fn document_resolver(runtime: &Runtime) -> Result<media::DocumentResolver, String> {
@@ -155,8 +160,9 @@ pub fn run() {
                 .map(serde_json::from_str)
                 .transpose()?;
             // Desktop never receives bundled executable language modules.
-            let mut runtime = Runtime::open(&path, CodePolicy::DesktopDownloaded, trust, vec![])
-                .map_err(std::io::Error::other)?;
+            let mut runtime =
+                Runtime::open(&path, CodePolicy::DesktopDownloaded, trust.clone(), vec![])
+                    .map_err(std::io::Error::other)?;
             let snapshot =
                 window_material::startup_snapshot(&mut runtime).map_err(std::io::Error::other)?;
             let theme_script = window_material::initialization_script(&snapshot.theme)?;
@@ -175,6 +181,11 @@ pub fn run() {
                 permits: Arc::new(tokio::sync::Semaphore::new(3)),
                 material: material.clone(),
                 documents,
+                ocr: Arc::new(ocr::OcrJobs::new()),
+                ocr_models: Arc::new(
+                    mlearn_runtime::native_ocr::NativeOcrModels::new(&path, trust.clone())
+                        .map_err(std::io::Error::other)?,
+                ),
             };
             let server = media_listener.start_with_authored(resolver, Some(authored))?;
             app.manage(Mutex::new(server));
@@ -211,20 +222,38 @@ pub fn run() {
             media_capture::release_media_capture,
             media_capture::authored_media_uri,
             media_capture::export_authored_media,
-            media_capture::pick_authored_media
+            media_capture::pick_authored_media,
+            ocr::ocr_providers,
+            ocr::reserve_ocr,
+            ocr::recognize_image,
+            ocr::cancel_ocr,
+            ocr::image_page_uri,
+            ocr::pick_images,
+            ocr::ocr_models,
+            ocr::install_ocr_model,
+            ocr::cancel_ocr_model_install,
+            ocr::ocr_model_install_status,
+            ocr::remove_ocr_model,
+            ocr::test_ocr_model
         ])
         .build(tauri::generate_context!())
         .expect("mLearn desktop host failed to start")
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { code, api, .. } = &event {
                 let owner = app.state::<NativeState>().captures.clone();
-                if !owner.shutdown_finished() {
+                let ocr = app.state::<NativeState>().ocr.clone();
+                ocr.begin_shutdown();
+                if let Err(error) = app.state::<NativeState>().ocr_models.cancel_install() {
+                    eprintln!("OCR model shutdown cancellation failed: {error}");
+                }
+                if !owner.shutdown_finished() || !ocr.shutdown_finished() {
                     api.prevent_exit();
                     if owner.begin_shutdown() {
                         let app = app.clone();
                         let code = code.unwrap_or(0);
                         tauri::async_runtime::spawn(async move {
                             owner.shutdown().await;
+                            ocr.drain().await;
                             app.exit(code);
                         });
                     }

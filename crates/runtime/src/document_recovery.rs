@@ -42,6 +42,7 @@ impl DocumentJournal {
             DocumentFormat::Text => "txt",
             DocumentFormat::Epub => "epub",
             DocumentFormat::Pdf => "pdf",
+            DocumentFormat::Images => "images",
         };
         Ok(root
             .join("documents")

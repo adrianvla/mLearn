@@ -1,6 +1,6 @@
 use mlearn_language_host::CodePolicy;
-use mlearn_runtime::{BundledPlugin, Runtime, catalog::Manifest};
-use serde_json::{Value, json};
+use mlearn_runtime::{catalog::Manifest, BundledPlugin, Runtime};
+use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -64,13 +64,11 @@ fn document_analysis_isolates_the_visible_passage_from_unsupported_neighboring_t
     let blocks = analyzed["batch"]["blocks"].as_array().unwrap();
     assert_eq!(blocks.len(), 1);
     assert_eq!(blocks[0]["text"], "A small journey");
-    assert!(
-        blocks[0]["tokens"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|token| !token["targets"].as_array().unwrap().is_empty())
-    );
+    assert!(blocks[0]["tokens"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|token| !token["targets"].as_array().unwrap().is_empty()));
     let unsupported: Value = serde_json::from_str(&runtime.execute(&json!({
         "type":"analyze_document","sourceId":source["id"],"position":{
             "parserRevision":source["parserRevision"],"resource":"text","blockId":"byte:17","offset":0,
@@ -226,12 +224,10 @@ fn imported_epub_retains_authored_ruby_images_flow_and_exact_progress_after_prof
     );
     let image_bytes = std::fs::read(resource["location"]["path"].as_str().unwrap()).unwrap();
     assert!(!image_bytes.is_empty());
-    assert!(
-        resource["location"]["mimeType"]
-            .as_str()
-            .unwrap()
-            .starts_with("image/")
-    );
+    assert!(resource["location"]["mimeType"]
+        .as_str()
+        .unwrap()
+        .starts_with("image/"));
     drop(runtime);
     std::fs::remove_file(original).unwrap();
     let relocated = directory.path().join("relocated");
@@ -350,12 +346,10 @@ fn pdf_import_preserves_original_blank_page_identity_without_fabricated_text_or_
     assert_eq!(blocks[1]["text"], "");
     assert_eq!(blocks[1]["image"], Value::Null);
     assert_eq!(blocks[2]["page"], 2);
-    assert!(
-        blocks[2]["text"]
-            .as_str()
-            .unwrap()
-            .contains("Turn the page.")
-    );
+    assert!(blocks[2]["text"]
+        .as_str()
+        .unwrap()
+        .contains("Turn the page."));
     let analysis = call(
         &mut runtime,
         json!({
@@ -456,4 +450,382 @@ fn document_capture_returns_the_original_duplicate_passage_and_rejects_changed_o
     assert_eq!(rejected["type"], "error");
     let preserved = call(&mut runtime, json!({"type":"material","id":id}));
     assert_eq!(preserved["material"]["content"]["source"], anchor);
+}
+
+fn image_fixture(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("../../tests/fixtures/ocr/vision/{name}.png"))
+}
+
+// The nondeterministic native provider is mocked only at its real wire boundary.
+// These observations exercise Rust ownership; they do not claim OCR recognition.
+fn ocr_result(id: &str) -> Value {
+    json!({
+        "requestId":id,
+        "provider":{"id":"fixture-provider","label":"Test boundary","revision":"1","availability":"ready",
+            "languages":["en"],"scripts":["Latn"],"languageProvenance":"deterministic test fixture","reason":null},
+        "width":720,"height":300,"crop":null,
+        "regions":[
+            {"id":"0","text":"Children walked home.",
+                "quad":{"topLeft":{"x":0.1,"y":0.1},"topRight":{"x":0.5,"y":0.11},
+                    "bottomRight":{"x":0.5,"y":0.2},"bottomLeft":{"x":0.1,"y":0.2}},
+                "candidates":[{"text":"Children walked home.","confidence":null}],
+                "language":null,"orientation":null,"readingOf":null},
+            {"id":"1","text":"A😀 bridge",
+                "quad":{"topLeft":{"x":0.7,"y":0.4},"topRight":{"x":0.9,"y":0.4},
+                    "bottomRight":{"x":0.9,"y":0.6},"bottomLeft":{"x":0.7,"y":0.6}},
+                "candidates":[],"language":null,"orientation":null,"readingOf":null},
+        ]
+    })
+}
+
+fn ocr_request(source: &Value, id: &str) -> Value {
+    json!({"requestId":id,"sourceId":source["id"],"contentRevision":source["contentRevision"],
+        "resourceId":"image-0","providerId":"fixture-provider","recognitionLanguages":["en"],"crop":null})
+}
+
+#[test]
+fn image_collection_ocr_uses_shared_analysis_and_frozen_capture_review_return_after_correction() {
+    // Given a real source-owned imported raster and actual installed language package.
+    let directory = tempfile::tempdir().unwrap();
+    let profile = directory.path().join("profile");
+    let mut runtime = open(&profile);
+    let imported = call(
+        &mut runtime,
+        json!({
+            "type":"import_image_collection","paths":[image_fixture("horizontal-mixed"),image_fixture("no-text")],
+            "title":"Two source pages","packageId":"org.mlearn.english",
+        }),
+    );
+    let source = imported["window"]["source"].clone();
+    assert_eq!(source["format"], "images");
+    assert_eq!(source["totalPages"], 2);
+    let request = ocr_request(&source, "recognize");
+    assert_eq!(
+        call(
+            &mut runtime,
+            json!({"type":"ocr_recovery","request":request})
+        )["recovery"]["state"],
+        "unknown"
+    );
+    let plan = call(&mut runtime, json!({"type":"plan_ocr","request":request}));
+    assert_eq!(plan["plan"]["pageIndex"], Value::Null);
+    assert!(Path::new(plan["plan"]["path"].as_str().unwrap()).starts_with(&profile));
+    assert_eq!(
+        call(
+            &mut runtime,
+            json!({"type":"ocr_recovery","request":request})
+        )["recovery"]["state"],
+        "pending"
+    );
+    let output = ocr_result("recognize");
+    let recognized = call(&mut runtime, json!({"type":"complete_ocr","result":output}));
+    let page = recognized["page"].clone();
+    let analyzed = call(
+        &mut runtime,
+        json!({
+            "type":"analyze_ocr","sourceId":source["id"],"resourceId":"image-0","ocrRevision":1,"regionIds":["0"],
+        }),
+    );
+    assert_eq!(
+        analyzed["batch"]["regions"][0]["text"],
+        "Children walked home."
+    );
+    assert!(!analyzed["batch"]["knowledge"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+    let key = analyzed["batch"]["knowledge"][0]["key"].clone();
+    call(
+        &mut runtime,
+        json!({"type":"change_claim","change":{"commandId":"ocr-claim","key":key,"claim":false}}),
+    );
+    let refreshed = call(
+        &mut runtime,
+        json!({
+            "type":"analyze_ocr","sourceId":source["id"],"resourceId":"image-0","ocrRevision":1,"regionIds":["0"],
+        }),
+    );
+    assert_eq!(refreshed["batch"]["regions"], analyzed["batch"]["regions"]);
+    assert!(refreshed["batch"]["knowledge"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["key"] == key && item["claim"] == false));
+    let anchor = json!({
+        "sourceId":source["id"],"contentRevision":source["contentRevision"],
+        "packageId":source["packageId"],"packageVersion":source["packageVersion"],"text":"A😀 bridge",
+        "locator":{"kind":"image","resourceId":"image-0","pageIndex":0,"ocrRevision":1,"regionId":"1",
+            "contextStart":0,"selectionStart":6,"selectionEnd":12},
+    });
+    for (index, locator) in [
+        json!({"kind":"image","resourceId":"image-0","pageIndex":0,"ocrRevision":1,"regionId":"1",
+            "contextStart":0,"selectionStart":2,"selectionEnd":5}),
+        json!({"kind":"image","resourceId":"image-0","pageIndex":0,"ocrRevision":999,"regionId":"1",
+            "contextStart":0,"selectionStart":6,"selectionEnd":12}),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut invalid = anchor.clone();
+        invalid["locator"] = locator;
+        let rejected:Value = serde_json::from_str(&runtime.execute(&json!({
+            "type":"create_material","command":{"commandId":format!("invalid-image-selection-{index}"),"distinct":false,
+                "content":{"packageId":"org.mlearn.english","targetId":null,"packageRevision":null,"sense":null,
+                    "phrase":"bridge","reading":"","meaning":"a crossing","context":"","notes":"","examples":[],"attachments":[],"source":invalid}},
+        }).to_string())).unwrap();
+        assert_eq!(rejected["type"], "error");
+    }
+    let written = call(
+        &mut runtime,
+        json!({
+            "type":"create_material","command":{"commandId":"capture-image","distinct":false,"content":{
+                "packageId":"org.mlearn.english","targetId":null,"packageRevision":null,"sense":null,
+                "phrase":"bridge","reading":"","meaning":"a crossing","context":"","notes":"","examples":[],"attachments":[],"source":anchor}},
+        }),
+    );
+    let id = written["outcome"]["material"]["id"].clone();
+    let started = call(
+        &mut runtime,
+        json!({"type":"review","command":{"kind":"start","start":{
+            "commandId":"start-image-review","sessionId":"image-review","mode":{"kind":"finite","limit":1},
+        }}}),
+    );
+    let session = started["commit"]["session"].clone();
+    assert_eq!(session["encounter"]["source"], anchor);
+    let mut correction = page["regions"][1].clone();
+    correction["text"] = json!("Different corrected text");
+    call(
+        &mut runtime,
+        json!({"type":"correct_ocr","correction":{
+            "commandId":"correct-image","sourceId":source["id"],"contentRevision":source["contentRevision"],
+            "resourceId":"image-0","expectedRevision":1,"region":correction,
+        }}),
+    );
+    drop(runtime);
+    // When Material and the exact Review encounter resume after correction/restart.
+    let mut runtime = open(&profile);
+    let current = call(
+        &mut runtime,
+        json!({"type":"read_ocr","sourceId":source["id"],"resourceId":"image-0","ocrRevision":null}),
+    );
+    assert_eq!(current["page"]["ocrRevision"], 2);
+    assert_eq!(
+        call(
+            &mut runtime,
+            json!({"type":"ocr_recovery","request":request})
+        )["recovery"],
+        json!({"state":"completed","page":page})
+    );
+    let returned = call(
+        &mut runtime,
+        json!({"type":"return_material_source","id":id}),
+    );
+    assert_eq!(returned["type"], "image_material_source");
+    assert_eq!(returned["anchor"], anchor);
+    assert_eq!(returned["page"], page);
+    let frozen_analysis = call(
+        &mut runtime,
+        json!({
+            "type":"analyze_ocr","sourceId":source["id"],"resourceId":"image-0","ocrRevision":1,"regionIds":["0"],
+        }),
+    );
+    assert_eq!(frozen_analysis["batch"]["ocrRevision"], 1);
+    assert_eq!(
+        frozen_analysis["batch"]["regions"],
+        analyzed["batch"]["regions"]
+    );
+    let resumed = call(
+        &mut runtime,
+        json!({"type":"review_session","sessionId":session["id"]}),
+    );
+    assert_eq!(resumed["session"]["encounter"], session["encounter"]);
+    call(
+        &mut runtime,
+        json!({"type":"review","command":{"kind":"assistance","mutation":{
+        "commandId":"image-source-assistance","sessionId":session["id"],"expectedRevision":session["revision"],
+    },"encounterId":session["encounter"]["id"],"assistance":"source"}}),
+    );
+    let review_return = call(
+        &mut runtime,
+        json!({
+            "type":"return_review_source","sessionId":session["id"],"encounterId":session["encounter"]["id"],
+        }),
+    );
+    // Then neither path silently substitutes the newer corrected region.
+    assert_eq!(review_return["type"], "image_material_source");
+    assert_eq!(review_return["page"], page);
+    assert_eq!(review_return["anchor"], anchor);
+    let evidence = call(
+        &mut runtime,
+        json!({"type":"ocr_evidence","sourceId":source["id"],"resourceId":"image-0","ocrRevision":1}),
+    );
+    assert_eq!(evidence["evidence"]["result"], output);
+    std::fs::write(plan["plan"]["path"].as_str().unwrap(), b"changed").unwrap();
+    let failed: Value = serde_json::from_str(
+        &runtime.execute(&json!({"type":"return_material_source","id":id}).to_string()),
+    )
+    .unwrap();
+    assert_eq!(failed["type"], "error");
+    assert_eq!(
+        call(&mut runtime, json!({"type":"material","id":id}))["material"]["content"]["source"],
+        anchor
+    );
+}
+
+#[test]
+fn image_registry_relocates_and_interrupted_ocr_can_retry_without_exposing_arbitrary_paths() {
+    // Given an owned collection and in-flight request in a disposable profile.
+    let directory = tempfile::tempdir().unwrap();
+    let profile = directory.path().join("original");
+    let moved = directory.path().join("moved");
+    let mut runtime = open(&profile);
+    let imported = call(
+        &mut runtime,
+        json!({"type":"import_image_collection","paths":[image_fixture("horizontal-mixed")],
+        "title":"Retained image","packageId":"org.mlearn.english"}),
+    );
+    let source = imported["window"]["source"].clone();
+    let request = ocr_request(&source, "interrupted");
+    call(&mut runtime, json!({"type":"plan_ocr","request":request}));
+    drop(runtime);
+    std::fs::rename(&profile, &moved).unwrap();
+    // When the original callback races a restarted/relocated runtime.
+    let mut runtime = open(&moved);
+    assert_eq!(
+        call(
+            &mut runtime,
+            json!({"type":"ocr_recovery","request":request})
+        )["recovery"]["state"],
+        "cancelled"
+    );
+    let stale: Value =
+        serde_json::from_str(&runtime.execute(
+            &json!({"type":"complete_ocr","result":ocr_result("interrupted")}).to_string(),
+        ))
+        .unwrap();
+    assert_eq!(stale["type"], "error");
+    let plan = call(
+        &mut runtime,
+        json!({"type":"plan_ocr","request":ocr_request(&source,"retry")}),
+    );
+    assert!(Path::new(plan["plan"]["path"].as_str().unwrap()).starts_with(&moved));
+    let completed = call(
+        &mut runtime,
+        json!({"type":"complete_ocr","result":ocr_result("retry")}),
+    );
+    assert_eq!(completed["page"]["ocrRevision"], 1);
+    let unregistered: Value = serde_json::from_str(
+        &runtime.execute(
+            &json!({
+                "type":"image_page_location","sourceId":source["id"],"resourceId":"/etc/passwd",
+            })
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    // Then only registered immutable source pages resolve.
+    assert_eq!(unregistered["type"], "error");
+    let location = call(
+        &mut runtime,
+        json!({"type":"image_page_location","sourceId":source["id"],"resourceId":"image-0"}),
+    );
+    assert_eq!(location["location"]["path"], plan["plan"]["path"]);
+}
+
+#[test]
+fn image_collection_admission_failure_leaves_previous_library_and_staging_recoverable() {
+    // Given a source collection already admitted from a deterministic filename order.
+    let directory = tempfile::tempdir().unwrap();
+    let selected = directory.path().join("selected");
+    std::fs::create_dir(&selected).unwrap();
+    std::fs::copy(image_fixture("no-text"), selected.join("02.png")).unwrap();
+    std::fs::copy(image_fixture("horizontal-mixed"), selected.join("10.png")).unwrap();
+    let mut runtime = open(&directory.path().join("profile"));
+    let imported = call(
+        &mut runtime,
+        json!({"type":"import_image_collection","paths":[selected],
+        "title":"Ordered folder","packageId":"org.mlearn.english"}),
+    );
+    let source = &imported["window"]["source"];
+    let first = call(
+        &mut runtime,
+        json!({"type":"image_page","sourceId":source["id"],"pageIndex":0}),
+    );
+    let page = call(
+        &mut runtime,
+        json!({"type":"image_page","sourceId":source["id"],"pageIndex":1}),
+    );
+    assert_eq!(first["page"]["resourceId"], "image-0");
+    assert_eq!(page["page"]["resourceId"], "image-1");
+    let bad = directory.path().join("bad.png");
+    std::fs::write(&bad, b"not an image").unwrap();
+    // When a subsequent import fails after staging a valid first image.
+    let rejected: Value = serde_json::from_str(
+        &runtime.execute(
+            &json!({
+                "type":"import_image_collection","paths":[image_fixture("horizontal-mixed"),bad],
+                "title":"Rejected","packageId":"org.mlearn.english",
+            })
+            .to_string(),
+        ),
+    )
+    .unwrap();
+    // Then the existing collection remains usable and staging owns no leaked files.
+    assert_eq!(rejected["type"], "error");
+    assert_eq!(
+        call(&mut runtime, json!({"type":"recent_documents"}))["sources"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        std::fs::read_dir(directory.path().join("profile/document-staging"))
+            .unwrap()
+            .count(),
+        0
+    );
+    let location = call(
+        &mut runtime,
+        json!({"type":"image_page_location","sourceId":source["id"],"resourceId":"image-0"}),
+    );
+    assert_eq!(
+        std::fs::read(location["location"]["path"].as_str().unwrap()).unwrap(),
+        std::fs::read(image_fixture("no-text")).unwrap()
+    );
+}
+
+#[test]
+fn pdf_page_locations_use_original_registry_indices_without_automatic_ocr_of_authored_text() {
+    // Given the M05 PDF containing authored text and a genuinely blank source page.
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime = open(directory.path());
+    let imported = call(
+        &mut runtime,
+        json!({"type":"open_document","path":fixture("pdf"),"packageId":"org.mlearn.english"}),
+    );
+    let source = &imported["window"]["source"];
+    // When a bounded original page descriptor and raster location are requested.
+    let descriptor = call(
+        &mut runtime,
+        json!({"type":"image_page","sourceId":source["id"],"pageIndex":1}),
+    );
+    let location = call(
+        &mut runtime,
+        json!({"type":"image_page_location","sourceId":source["id"],"resourceId":descriptor["page"]["resourceId"]}),
+    );
+    // Then host rasterization uses original page 1, and text pages remain unrecognized.
+    assert_eq!(location["location"]["pageIndex"], 1);
+    assert_eq!(location["location"]["mimeType"], "application/pdf");
+    assert_eq!(location["location"]["path"], source["documentPath"]);
+    let text_descriptor = call(
+        &mut runtime,
+        json!({"type":"image_page","sourceId":source["id"],"pageIndex":0}),
+    );
+    let cached = call(
+        &mut runtime,
+        json!({"type":"read_ocr","sourceId":source["id"],"resourceId":text_descriptor["page"]["resourceId"],"ocrRevision":null}),
+    );
+    assert_eq!(cached["page"], Value::Null);
 }

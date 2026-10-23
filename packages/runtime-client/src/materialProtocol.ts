@@ -1,6 +1,7 @@
 import type { MaterialContent, Response, SourceAnchor } from '@mlearn/contracts';
 import { isWatchResponse } from './watchProtocol';
 import { isDocumentWindow } from './documentProtocol';
+import { isOcrPage } from './ocrProtocol';
 
 const encoder = new TextEncoder();
 export const encodedBytes = (value: unknown) => encoder.encode(JSON.stringify(value)).length;
@@ -27,9 +28,13 @@ export function isSourceAnchor(value: unknown): value is SourceAnchor {
   if (!object(value) || !text(value.sourceId) || !text(value.contentRevision) || !text(value.packageId)
     || !text(value.packageVersion) || !text(value.text, 32768, false) || !object(value.locator)) return false;
   const locator = value.locator;
-  if (locator.kind === 'document') {
+  if (locator.kind === 'document' || locator.kind === 'image') {
     const bytes = encoder.encode(value.text);
-    return text(locator.parserRevision) && text(locator.resource) && text(locator.blockId)
+    const location = locator.kind === 'document'
+      ? text(locator.parserRevision) && text(locator.resource) && text(locator.blockId)
+      : text(locator.resourceId) && nullable(locator.pageIndex, uint) && uint(locator.ocrRevision)
+        && locator.ocrRevision > 0 && text(locator.regionId);
+    return location
       && uint(locator.contextStart) && uint(locator.selectionStart) && uint(locator.selectionEnd)
       && locator.selectionStart < locator.selectionEnd && locator.selectionEnd <= bytes.length
       && locator.contextStart + locator.selectionEnd <= 4294967295
@@ -97,7 +102,7 @@ function eligibility(value: unknown) {
   }
 }
 export type MaterialResponse = Extract<Response, { type: 'materials' | 'material' | 'material_written' | 'material_captured'
-  | 'material_eligibility' | 'capture_exclusion_changed' | 'material_source' | 'document_material_source' }>;
+  | 'material_eligibility' | 'capture_exclusion_changed' | 'material_source' | 'document_material_source' | 'image_material_source' }>;
 /** Admit nested Material data from unknown before exposing generated Rust types. */
 export function isMaterialResponse(value: unknown): value is MaterialResponse {
   if (!object(value)) return false;
@@ -147,6 +152,26 @@ export function isMaterialResponse(value: unknown): value is MaterialResponse {
         && source.packageId === value.anchor.packageId && source.parserRevision === locator.parserRevision
         && source.position?.resource === locator.resource && source.position.blockId === locator.blockId
         && source.position.offset === locator.contextStart + locator.selectionStart;
+    }
+    case 'image_material_source': {
+      if (!isSourceAnchor(value.anchor) || value.anchor.locator.kind !== 'image'
+        || !isDocumentWindow(value.window) || !isOcrPage(value.page)) return false;
+      const anchor = value.anchor;
+      const locator = value.anchor.locator;
+      const source = value.window.source;
+      const page = value.page;
+      const selected = page.regions.find(region => region.id === locator.regionId);
+      if (!selected) return false;
+      const bytes = encoder.encode(selected.text);
+      const context = encoder.encode(anchor.text);
+      const original = bytes.subarray(locator.contextStart, locator.contextStart + context.length);
+      return source.id === anchor.sourceId && page.sourceId === anchor.sourceId
+        && source.contentRevision === anchor.contentRevision && page.contentRevision === anchor.contentRevision
+        && source.packageId === anchor.packageId && page.resourceId === locator.resourceId
+        && page.ocrRevision === locator.ocrRevision && original.length === context.length
+        && value.window.blocks.some(block => block.page === locator.pageIndex
+          && source.position?.resource === block.resource && source.position.blockId === block.id)
+        && original.every((byte, index) => byte === context[index]);
     }
     default: return false;
   }

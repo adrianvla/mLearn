@@ -99,7 +99,7 @@ export function createMaterialClient(request: (command: Request) => Promise<unkn
     },
     async returnMaterialSource(id: string) {
       const r = await read({ type: 'return_material_source', id });
-      if (r.type !== 'material_source' && r.type !== 'document_material_source') throw malformed();
+      if (r.type !== 'material_source' && r.type !== 'document_material_source' && r.type !== 'image_material_source') throw malformed();
       return r;
     },
   };

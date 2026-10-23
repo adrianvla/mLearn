@@ -3,7 +3,7 @@ import { Image, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet } from 'react-native-unistyles';
-import type { DocumentAppearance } from '@mlearn/contracts';
+import type { DocumentAppearance, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
@@ -15,6 +15,12 @@ import { Inspector, type Inspection } from '../inspector';
 import { blockPosition, documentAnchor } from './documentFlow';
 import { DocumentViewport } from './DocumentViewport';
 import { useReader } from './useReader';
+import { useImageReader } from './useImageReader';
+import { ImageViewport } from './ImageViewport';
+import { ImageReaderControls, type ImageCropDraft } from './ImageReaderControls';
+import { imageAnchor, imageContext } from './imageFlow';
+import { ImageSourceWords } from './ImageSourceWords';
+import { ImageRecognition } from './ImageRecognition';
 
 export function ReaderScreen() {
     const host = useRuntime();
@@ -34,7 +40,8 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
     readonly client: RuntimeClient; readonly id: string; readonly materialId?: string;
     readonly reviewSessionId?: string; readonly reviewEncounterId?: string;
 }) {
-    const reader = useReader(client, id, materialId, reviewSessionId, reviewEncounterId);
+    const [imageView, setImageView] = useState<boolean | null>(null);
+    const reader = useReader(client, id, materialId, reviewSessionId, reviewEncounterId, imageView);
     const router = useRouter();
     const host = useRuntime();
     const viewport = useWindowDimensions();
@@ -51,6 +58,10 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
     const [railOpen, setRailOpen] = useState(true);
     const [navigationError, setNavigationError] = useState('');
     const [contentsAfter, setContentsAfter] = useState<number | null>(null);
+    const [cropMode, setCropMode] = useState(false);
+    const [cropDraft, setCropDraft] = useState<ImageCropDraft | null>(null);
+    const [magnifier, setMagnifier] = useState(false);
+    const [highlighted, setHighlighted] = useState<SourceAnchor | null>(null);
     const source = reader.window?.source;
     const sourceIdentity = JSON.stringify([id, source?.contentRevision, source?.parserRevision,
         source?.packageId, source?.packageVersion, reader.window?.blocks.map(block => [block.resource, block.id])]);
@@ -60,6 +71,16 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
     const sourceWindow = reader.window;
     const visibleBlock = Math.max(0, sourceWindow?.blocks.findIndex(block =>
         block.resource === reader.position?.resource && block.id === reader.position.blockId) ?? 0);
+    const imageMode = reader.imageMode;
+    const pageIndex = sourceWindow?.blocks[visibleBlock]?.page
+        ?? (reader.returned?.locator.kind === 'image' ? reader.returned.locator.pageIndex ?? 0 : 0);
+    const imageReader = useImageReader(host.available ? host : null, source, pageIndex,
+        imageMode && focused, reader.returnedPage,
+        reader.languages.some(plugin => plugin.id === source?.packageId && plugin.capabilities.includes('image.ocr.postprocess.v1')),
+        reader.navigate);
+    const imageRevision = JSON.stringify(imageReader.pages.map(item => [item.descriptor.resourceId, item.page?.ocrRevision]));
+    useEffect(() => { setImageView(null); }, [id, materialId, reviewSessionId, reviewEncounterId]);
+    useEffect(() => { setInspection(null); setCropMode(false); setCropDraft(null); setMagnifier(false); setHighlighted(null); }, [imageRevision]);
     const previousBlock = sourceWindow?.blocks[visibleBlock - 1];
     const nextBlock = sourceWindow?.blocks[visibleBlock + 1];
     const previous = sourceWindow && previousBlock
@@ -78,12 +99,15 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
     const wide = viewport.width >= 900;
     const rail = wide && railOpen && sourceWindow;
     const navigation = <Row>
-        <Button label="Previous passage" icon="arrowLeft" iconOnly
-            variant="secondary" size="compact" disabled={reader.pending || !previous}
-            onPress={() => { setInspection(null); if (previous) void reader.navigate(previous); }} />
-        <Button label="Next passage" icon="chevronRight" iconOnly
-            variant="secondary" size="compact" disabled={reader.pending || !next}
-            onPress={() => { setInspection(null); if (next) void reader.navigate(next); }} />
+        <Button label={imageMode ? 'Previous page' : 'Previous passage'} icon="arrowLeft" iconOnly
+            variant="secondary" size="compact" disabled={reader.pending || (imageMode
+                ? imageReader.pending || !imageReader.indices.length || imageReader.indices[0] === 0 : !previous)}
+            onPress={() => { setInspection(null); if (imageMode) void imageReader.go('previous'); else if (previous) void reader.navigate(previous); }} />
+        <Button label={imageMode ? 'Next page' : 'Next passage'} icon="chevronRight" iconOnly
+            variant="secondary" size="compact" disabled={reader.pending || (imageMode
+                ? imageReader.pending || !imageReader.indices.length
+                    || imageReader.indices[imageReader.indices.length - 1] + 1 >= (source?.totalPages ?? 0) : !next)}
+            onPress={() => { setInspection(null); if (imageMode) void imageReader.go('next'); else if (next) void reader.navigate(next); }} />
     </Row>;
     const contents = <>
         {reader.contentsPending ? <Text accessibilityLiveRegion="polite">Loading contents…</Text> : null}
@@ -94,7 +118,7 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
             label={item.label} variant="secondary" disabled={reader.pending}
             accessibilityState={{ selected: reader.position?.resource === item.position.resource
                 && reader.position.blockId === item.position.blockId }}
-            onPress={() => { setContentsOpen(false); void reader.navigate(item.position); }} />)}
+            onPress={() => { setContentsOpen(false); void (imageMode ? imageReader.navigate(item.position) : reader.navigate(item.position)); }} />)}
         {reader.contents && !reader.contents.items.length ? <Text muted>No contents entries in this document.</Text> : null}
         <Row><Button label="First contents" variant="quiet" disabled={reader.contentsPending || contentsAfter === null}
             onPress={() => { setContentsAfter(null); void reader.loadContents(); }} />
@@ -130,6 +154,7 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                     open={optionsOpen} onOpenChange={open => { setOptionsOpen(open); setInspection(null); }}
                     trigger={<Button label="View options" icon="settings" variant="secondary" size="compact" disabled={!source || reader.pending} />}>
                     {source ? <>
+                        {!imageMode ? <>
                         <Text variant="groupTitle">Writing</Text>
                         <Row>{([
                             ['auto', 'Automatic'], ['horizontal', 'Horizontal'], ['vertical', 'Vertical'],
@@ -166,6 +191,7 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                             <Button label="Looser letters" variant="secondary" disabled={reader.pending || source.appearance.letterSpacing >= 4}
                                 onPress={() => changeAppearance({ letterSpacing: Math.min(4, source.appearance.letterSpacing + 0.5) })} />
                         </Row>
+                        </> : null}
                         <Text variant="groupTitle">Source language</Text>
                         <Select testID="reader-language-select" label="Document source language" value={source.packageId} disabled={reader.pending}
                             options={reader.languages.map(plugin => ({ value: plugin.id, label: plugin.displayName ?? plugin.id,
@@ -182,6 +208,26 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                     </> : null}
                 </Dialog>
             </Row>
+            {source?.format === 'pdf' ? <Row><Button
+                label={imageMode ? 'Read available PDF text' : 'View original PDF pages'} variant="secondary" size="compact"
+                onPress={() => { setInspection(null); setImageView(!imageMode); }} /></Row> : null}
+            {imageMode ? <ImageReaderControls reader={imageReader} cropMode={cropMode} cropDraft={cropDraft} magnifier={magnifier}
+                onCropMode={enabled => { setCropMode(enabled); if (enabled) setMagnifier(false); }}
+                onMagnifier={enabled => { setMagnifier(enabled); if (enabled) setCropMode(false); }}
+                onBeforeAction={() => setInspection(null)}>
+            {source ? <ImageSourceWords client={client} source={source} pages={imageReader.pages}
+                onBeforeOpen={() => { setInspection(null); setMagnifier(false); }}
+                onInspect={setInspection} onAnalyze={imageReader.analyze}
+                onLocate={anchor => {
+                    const locator = anchor.locator;
+                    if (locator.kind !== 'image') return;
+                    const item = imageReader.pages.find(item => item.descriptor.resourceId === locator.resourceId);
+                    if (item) { setInspection(null); reader.onPosition(item.descriptor.position, true); setHighlighted(anchor); }
+                }} /> : null}
+            <ImageRecognition client={client} reader={imageReader} onBeforeOpen={() => {
+                setInspection(null); setMagnifier(false); setCropMode(false);
+            }} />
+            </ImageReaderControls> : null}
             {reader.error ? <View style={styles.feedback}><Text accessibilityRole="alert">{reader.error}</Text>
                 <Row><Button label="Retry document" variant="secondary" size="compact" onPress={reader.retry} />
                     <Button label="Reselect from Home" variant="quiet" size="compact" onPress={() => void home()} /></Row></View> : null}
@@ -197,10 +243,36 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                     <Button label={block.page === null ? 'Read passage' : `Page ${block.page + 1}`}
                         accessibilityLabel={`Read ${block.resource} ${block.id}`} size="compact" variant="secondary"
                         accessibilityState={{ selected: reader.position?.resource === block.resource && reader.position.blockId === block.id }}
-                        disabled={reader.pending} onPress={() => void reader.navigate(blockPosition(sourceWindow.source, block))} />
+                        disabled={reader.pending} onPress={() => {
+                            const position = blockPosition(sourceWindow.source, block);
+                            void (imageMode ? imageReader.navigate(position) : reader.navigate(position));
+                        }} />
                 </View>)}
             </ScrollView> : null}
-            {sourceWindow && focused ? <DocumentViewport window={sourceWindow} batch={reader.batch} target={reader.position}
+            {sourceWindow && focused && imageMode && imageReader.settings ? <ImageViewport source={sourceWindow.source}
+                pages={imageReader.pages} settings={imageReader.settings} returned={highlighted ?? reader.returned} cropMode={cropMode} magnifier={magnifier}
+                onRetry={imageReader.retry}
+                onDismissInspection={() => setInspection(null)}
+                onMagnify={(resourceId, crop) => host.available ? host.ocr.uri(sourceWindow.source.id, resourceId, crop)
+                    : Promise.reject(new Error('Native source pixels are unavailable.'))}
+                onThumbnail={(resourceId, uri) => setThumbnails(previous => previous[resourceId] === uri
+                    ? previous : { ...previous, [resourceId]: uri })}
+                onCrop={(resourceId, crop) => { setCropMode(false); setCropDraft({ resourceId, crop }); }}
+                onNavigate={direction => { if (!reader.pending) { setInspection(null); void imageReader.go(direction); } }}
+                onInspect={(resourceId, regionId, start, anchor) => {
+                    const item = imageReader.pages.find(page => page.descriptor.resourceId === resourceId);
+                    const region = item?.page?.regions.find(value => value.id === regionId);
+                    const analyzed = item?.batch?.regions.find(value => value.regionId === regionId);
+                    const token = analyzed?.tokens.find(value => value.start === start);
+                    if (!item?.page || !item.batch || !region || !token?.targets.length || reader.pending
+                        || item.batch.packageId !== sourceWindow.source.packageId
+                        || item.batch.packageVersion !== sourceWindow.source.packageVersion) return;
+                    const nearby = imageContext(item.page, region);
+                    reader.onPosition(item.descriptor.position, true);
+                    setInspection({ sourceForm: token.text, context: nearby, targets: token.targets, anchor,
+                        sourceAnchor: imageAnchor(sourceWindow.source, item.page, item.descriptor.pageIndex, region, token),
+                        packageRevision: item.batch.packageRevision });
+                }} /> : sourceWindow && focused && !imageMode ? <DocumentViewport window={sourceWindow} batch={reader.batch} target={reader.position}
                 returned={reader.returned} inspecting={inspection !== null} onPosition={reader.onPosition}
                 onThumbnail={(resourceId, uri) => setThumbnails(previous => previous[resourceId] === uri
                     ? previous : { ...previous, [resourceId]: uri })}
@@ -224,10 +296,12 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
         <View style={styles.status}>
             <Row>
                 <View style={styles.position}><Text variant="detail" muted testID="reader-position">
-                    {reader.position ? `${reader.position.resource} · ${reader.position.blockId} · byte ${reader.position.offset}` : 'No visible position'}
+                    {imageMode && imageReader.pages.length ? `Page ${imageReader.pages.map(item => item.descriptor.pageIndex + 1).join('–')} of ${source?.totalPages ?? 0}`
+                        : reader.position ? `${reader.position.resource} · ${reader.position.blockId} · byte ${reader.position.offset}` : 'No visible position'}
                 </Text></View>
                 {source ? <Text variant="detail" muted>{source.format.toUpperCase()} · {source.totalBlocks} source blocks</Text> : null}
-                {reader.analysisPending ? <Text variant="detail" accessibilityLiveRegion="polite">Analyzing visible text…</Text> : null}
+                {(imageMode ? imageReader.pages.some(item => item.analyzing) : reader.analysisPending)
+                    ? <Text variant="detail" accessibilityLiveRegion="polite">Analyzing visible text…</Text> : null}
                 <Button label="Save position" variant="quiet" size="compact" disabled={!source}
                     onPress={() => void reader.persist().catch(() => { /* Reader save feedback owns recovery. */ })} />
             </Row>
@@ -240,7 +314,8 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
         {inspection && source && host.available ? <Inspector inspection={inspection} packageId={source.packageId} client={client}
             onChanged={async () => {
                 const identity = current.current;
-                await reader.refreshKnowledge();
+                if (imageMode) await imageReader.refreshKnowledge();
+                else await reader.refreshKnowledge();
                 if (current.current !== identity) return;
             }} onClose={() => setInspection(null)} /> : null}
     </View>;

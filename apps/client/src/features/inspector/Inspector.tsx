@@ -210,7 +210,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
                     </> : null}
                     {materialContent ? <>
                         <CaptureList key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
-                            client={client} candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
+                            client={client} tone="media" candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
                             onOpenMaterial={id => {
                                 onClose();
                                 router.push({ pathname: '../materials', params: { id, sourceId: inspection.sourceAnchor.sourceId } });
@@ -225,7 +225,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
             </> : !error ? <Text tone="media">Loading entry…</Text> : null}
             {error && !retry ? <>
                 <Text tone="media" accessibilityRole="alert">{error}</Text>
-                <Button size="compact" label="Retry lookup" disabled={busy}
+                <Button size="compact" variant="media" label="Retry lookup" disabled={busy}
                     onPress={() => setLookupVersion(v => v + 1)} />
             </> : null}
         </ContextPanel>

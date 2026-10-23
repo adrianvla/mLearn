@@ -38,4 +38,6 @@ export type InlineWordContentProps = {
     readonly documentFlow?: InlineDocumentFlow;
     readonly sourceStart?: number;
     readonly highlighted?: boolean;
+    /** Image hit areas keep original pixels rather than repainting OCR glyphs. */
+    readonly hiddenText?: boolean;
 };

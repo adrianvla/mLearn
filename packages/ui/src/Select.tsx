@@ -1,14 +1,17 @@
 import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
+import { useContext } from 'react';
 import * as Primitive from '@rn-primitives/select';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Icon } from './Icon';
 import { Button } from './Button';
 import { Text } from './Text';
+import { DialogPortalContext } from './Dialog';
 
 type Option = { readonly value: string; readonly label: string; readonly testID?: string };
 
 /** A labelled, keyboard/touch accessible selection with one portable owner. */
-export function Select({ label, value, options, onValueChange, disabled = false, placeholder = 'Select', variant = 'default', testID }: {
+export function Select({ label, value, options, onValueChange, disabled = false, placeholder = 'Select', variant = 'default',
+  size = 'default', testID }: {
   readonly label: string;
   readonly value: string;
   readonly options: readonly Option[];
@@ -16,9 +19,11 @@ export function Select({ label, value, options, onValueChange, disabled = false,
   readonly disabled?: boolean;
   readonly placeholder?: string;
   readonly variant?: 'default' | 'media';
+  readonly size?: 'default' | 'compact';
   readonly testID?: string;
 }) {
   const { theme } = useUnistyles();
+  const portal = useContext(DialogPortalContext);
   const { height, width } = useWindowDimensions();
   const selected = options.find(option => option.value === value);
   const items = options.map(option => <Primitive.Item key={option.value} value={option.value}
@@ -37,11 +42,13 @@ export function Select({ label, value, options, onValueChange, disabled = false,
       <Button testID={testID} label={selected?.label ?? placeholder} accessibilityLabel={label}
         role="combobox" accessibilityRole="combobox"
         accessibilityValue={{ text: selected?.label ?? placeholder }}
-        variant={variant === 'media' ? 'mediaSelect' : 'select'} size={variant === 'media' ? 'compact' : 'default'}
+        variant={variant === 'media' ? 'mediaSelect' : 'select'} size={variant === 'media' ? 'compact' : size}
         icon="chevronDown" iconPosition="trailing"
         disabled={disabled || !options.length} />
     </Primitive.Trigger>
-    <Primitive.Portal>
+    {/* Web Select positions its content outside Overlay. Keep that portal in
+        the owning dialog's stacking/focus scope rather than behind its body. */}
+    <Primitive.Portal container={portal ?? undefined}>
       <Primitive.Overlay style={styles.overlay}>
         <Primitive.Content sideOffset={4} asChild>
           <View style={[styles.content, {

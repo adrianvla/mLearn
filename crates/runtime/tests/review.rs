@@ -1,7 +1,12 @@
 use mlearn_language_host::CodePolicy;
-use mlearn_runtime::{catalog::Manifest, BundledPlugin, Runtime};
-use serde_json::{json, Value};
+use mlearn_runtime::{BundledPlugin, Runtime, catalog::Manifest};
+use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::Path};
+
+#[path = "support/review_practice.rs"]
+mod practice;
+#[path = "support/review_practice_target.rs"]
+mod practice_target;
 
 fn open(root: &Path, packages: bool) -> Runtime {
     let artifacts = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");

@@ -9,6 +9,18 @@ pub fn key(capability: &str) -> KnowledgeKey {
     }
 }
 
+pub fn practice(items: &[ReviewAdmission]) -> ReviewMode {
+    ReviewMode::Practice {
+        items: items
+            .iter()
+            .map(|item| PracticeItem {
+                material_id: item.material_id.clone(),
+                source: item.source.clone(),
+            })
+            .collect(),
+    }
+}
+
 pub fn admission(store: &mut ProfileStore, command: &str) -> ReviewAdmission {
     let result = store
         .create_material(&MaterialCreate {

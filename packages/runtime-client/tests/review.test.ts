@@ -28,6 +28,35 @@ function gate<T>() {
 }
 const protocol = (error: unknown) => error instanceof RuntimeError && error.code === 'protocol';
 
+test('Word Practice validates explicit membership and preserves a prepared selection across retry', async () => {
+  // Given an exact selected native membership and an uncertain transport result.
+  const items = [{ materialId: 'material', source: null }];
+  const requests: Request[] = [];
+  const practice: ReviewSession = { ...session, mode: { kind: 'practice', items: structuredClone(items) }, total: 2 };
+  const client = createReviewClient(async request => {
+    requests.push(structuredClone(request));
+    if (requests.length === 1) throw new RuntimeError('transport', 'Receipt lost');
+    return { type: 'review', commit: { commandId: 'once', committedRevision: 1, session: { ...practice, id: 'once' } } };
+  }, () => 'once');
+  const command = client.prepareReviewStart({ kind: 'practice', items });
+  items[0].materialId = 'different';
+  // When the same prepared intent is retried after the selection changes in its caller.
+  await assert.rejects(client.review(command), { code: 'transport' });
+  const result = await client.review(command);
+  // Then exact selected scope survives and malformed/broadened projections are rejected.
+  assert.deepEqual(requests[0], requests[1]);
+  assert.deepEqual(result.session.mode, practice.mode);
+  assert.equal(isReviewResponse({ type: 'review_session', session: practice }), true);
+  assert.equal(isReviewResponse({ type: 'review_session', session: { ...practice, encounter: { ...encounter, materialId: 'outside' } } }), false);
+  for (const invalid of [[], [{ materialId: 'material', source: null }, { materialId: 'material', source: null }],
+    [{ materialId: '', source: null }], [{ materialId: 'material', source: { invented: true } }],
+    Array.from({ length: 129 }, (_, index) => ({ materialId: `m${index}`, source: null }))]) {
+    assert.equal(isReviewCommand({ kind: 'start', start: {
+      commandId: 'start', sessionId: 's', mode: { kind: 'practice', items: invalid },
+    } }), false);
+  }
+});
+
 test('Review rejects leaked answers malformed rows and incompatible delivery at the wire boundary', () => {
   // Given an admitted hidden-answer encounter.
   assert.equal(isReviewResponse({ type: 'review_session', session }), true);

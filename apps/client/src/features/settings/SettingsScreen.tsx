@@ -15,6 +15,7 @@ import { Icon } from '@mlearn/ui/icon';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
 import { LanguagePackageInstall } from './LanguagePackageInstall';
 import { usePackageInstall } from './usePackageInstall';
+import { OcrModels } from './OcrModels';
 
 type FeedbackTarget = 'runtime' | 'plugin' | 'theme';
 type Feedback = { target: FeedbackTarget; message: string; error: boolean };
@@ -157,6 +158,9 @@ export function SettingsScreen() {
             : <Text muted>{snapshot?.codePolicy === 'mobile-bundled' ? 'Language code is included with this app.' : 'No trusted language catalog is configured.'}</Text>}
           {feedbackAt('plugin')}
         </>}
+      </Section> : null}
+      {section === 'languages' && host.available && host.ocrModels ? <Section title="OCR models">
+        <OcrModels models={host.ocrModels} />
       </Section> : null}
       {section === 'runtime' ? <Section title="Runtime">
       <Text>{host.label}</Text>

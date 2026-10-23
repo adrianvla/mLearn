@@ -13,7 +13,7 @@ export function DocumentWordContent(props: InlineWordContentProps) {
         return <span data-source-start={start} data-source-end={sourceOffset}
             style={{ background: props.highlighted ? props.documentFlow?.selectionColor : undefined }}>{segment.content ?? segment.text}</span>;
     };
-    return <span style={{ font: 'inherit', color: 'inherit', whiteSpace: 'pre-wrap' }}>
+    return <span style={{ font: 'inherit', color: props.hiddenText ? 'transparent' : 'inherit', whiteSpace: 'pre-wrap' }}>
         {props.segments.map((segment, index) => segment.reading
             ? <ruby key={index} style={{ rubyPosition: 'over', rubyAlign: 'center' }}>
                 {source(segment)}<rp>(</rp><rt title={segment.reading.attribution}
@@ -24,6 +24,7 @@ export function DocumentWordContent(props: InlineWordContentProps) {
             : <span key={index}>{source(segment)}</span>)}
     </span>;
 }
+
 export function InlineWordElement({ text, children, accessibilityLabel, status, onActivate, inspectionMode = 'click',
     documentFlow, color, knownColor }: InlineWordProps & { readonly color: string; readonly knownColor: string }) {
     const ref = useRef<HTMLButtonElement>(null);
