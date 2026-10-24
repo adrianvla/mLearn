@@ -42,9 +42,9 @@ returned REJECT with one deterministic OPS-04 protocol blocker: the successful
 native model-test command returns a string, but Settings required an array.
 Its full-scope findings are retained in `.omo/evidence/m06-gate-review.md`.
 The read-only locked review checkout was removed after report delivery; other
-worktrees were preserved. The bounded repair below passes root checks but still
-requires a fresh independent delta review. Both that review and affected mobile
-integration remain gates before M07.
+worktrees were preserved. The bounded repair below passes root checks and fresh
+independent delta review `st_01a16c32` now APPROVES B1 closure with no blockers.
+Affected mobile integration remains a separate gate before M07.
 The final-source foundation artifacts are retained in `hosted-8934-foundation/`.
 Source receipts match commit `8934e158` and tree
 `074ef23ea2a7c098d2142e5fa36bc9ed4c9a5bca`. Both Windows generic and tuned native
@@ -87,9 +87,16 @@ out, so those are not claimed clean. No extra language server was installed.
 The verified repair is committed as `18791267`; a fresh locked delta-review
 checkout is `/private/tmp/mlearn-m06-review-18791267`. The first review's
 REJECT verdict remains intact until a separate reviewer verifies B1's closure.
-Fresh scoped reviewer `st_01a16c32` is now running read-only on that checkout,
-on the same approved route. It checks only B1 and the repair delta plus current
-evidence, without repeating the full milestone audit or launching models/builds.
+Fresh scoped reviewer `st_01a16c32` completed read-only on that checkout, on the
+same approved route, and returned APPROVE for B1 closure with HIGH confidence
+and no blockers. It independently checked the actual response/fixture equality,
+producer/adapter/Settings trace, malformed-input coverage, all check receipts
+and both result captures. Its verdict is appended to the original report without
+erasing the initial rejection. No models/builds/devices were launched by review.
+Both completed M06 review checkouts were removed after clean-status checks;
+the worktree-list read-back confirms neither remains. Unrelated worktrees,
+profiles and artifacts were preserved. M06 is still not marked
+`verified_for_continuation` while affected platform verification is pending.
 
 ### Current native continuation and expanded offline checks
 

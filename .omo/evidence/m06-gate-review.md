@@ -25,14 +25,15 @@ validation, exercise actual native command output through createOcrModelsHost,
 and verify the Settings result. Returning an array from Rust was one suggested
 option, not a requirement to change the producer rather than its consumer.
 
-Resolution: **ROOT REPAIR VERIFIED; INDEPENDENT DELTA REVIEW PENDING**.
+Resolution: **CLOSED BY INDEPENDENT DELTA REVIEW**.
 Root reproduced the adapter and all three Settings failures with the captured
 actual native response, then retained the existing bounded single-crop string
 producer contract and corrected the adapter validation. Malformed responses
 remain rejected. The captured fixture exactly matches source job `120773804588`.
 All 161 owner/checker tests, typecheck, lint, export and 29 Settings/image
 workflows pass; desktop/narrow result captures were inspected. Native inference
-was not changed or rerun. A fresh delta review remains required.
+was not changed or rerun. Fresh reviewer `st_01a16c32` independently approved
+the closure at `18791267e3c59297a66d79febfdf8503dccf8aaa`; see below.
 
 ## Other requirement conclusions
 
@@ -75,3 +76,33 @@ It directly checked programming and AI-slop perspectives; the concrete
 false-confidence finding is the invented mock response in B1.
 This report grants no continuation verification, maintainer acceptance, merge,
 release or M07 completion.
+
+## Fresh B1 delta review
+
+Reviewer: `omo-native-gate-reviewer`, task `st_01a16c32`,
+`chatgpt-subscription/gpt-6.1-sol`. Verdict: **APPROVE - B1 delta**.
+Confidence: **HIGH**. Blockers: **none**.
+
+The reviewer read the complete four-file product delta, unchanged one-crop Rust
+producer and unchanged Settings consumer. The adapter now accepts the producer's
+string while retaining nonempty/32768-code-unit/no-NUL validation, integer
+region-count bounds, finite nonnegative elapsed time and total response limit.
+Inference, resources, provider execution and diagnostic ownership are unchanged.
+
+It independently deep-compared the captured fixture with the genuine Windows
+modelTest response and found them equal, including diagnostics/revision IDs.
+It inspected the before-fix client failure and visible Settings protocol error;
+the unrelated test-loader failure was not counted. It audited the 65 checker,
+96 client/theme and 29 browser passes, static/export logs, and both inspected
+desktop/narrow result captures. Captured-response replay is not another model run.
+
+The direct programming and overfit/slop check found no new production
+abstraction, normalization, dependency, type escape, concrete regression,
+security issue or false-confidence defect. Tests retain malformed response
+rejection and assert observable boundary behavior rather than implementation text.
+
+The reviewer wrote no files and ran no tests, builds, models, devices or downloads.
+Fresh test-file LSP remains unverified. This closes B1 only; affected mobile
+integration remains root-owned, and the deferred hosted iOS FileProvider failure
+remains unresolved. Neither review grants whole-M06 verification, maintainer
+acceptance, merge, release or M07 completion.
