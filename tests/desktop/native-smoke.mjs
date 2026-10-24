@@ -417,8 +417,9 @@ try {
       const input=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[data-testid="subtitle-offset-input"]'});
       const inputId=input['element-6066-11e4-a52e-4f735466cecf'];
       // WebKit's clear can leave React's controlled value intact: the second
-      // iteration appended 625 to 375. Replace through real keyboard events.
-      await rpc('POST',`/session/${session}/element/${inputId}/value`,{text:`\uE009a\uE000\uE003${offset}`});
+      // iteration appended 625 to 375. Release Control with its second key code:
+      // WebKit's send-keys path does not interpret NULL as a modifier release.
+      await rpc('POST',`/session/${session}/element/${inputId}/value`,{text:`\uE009a\uE009\uE003${offset}`});
       assert.equal(await script('return document.querySelector(\'[data-testid="subtitle-offset-input"]\').value'),String(offset),
         'Native input replacement must retain exactly the requested offset');
       await click('Apply subtitle offset');

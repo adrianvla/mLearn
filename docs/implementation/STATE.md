@@ -41,6 +41,8 @@ Rust, detector conversion, web, macOS and Windows. Source-bound mobile run
 then the native Files picker is blank and `Browse` is not found; the exact
 failure remains preserved within the deferred hosted FileProvider acceptance
 gate, not reported as a pass. No diagnostic variant was launched.
+The latest desktop input-harness rerun remains red; its exact captured failure
+and primary-source modifier repair are recorded below. M06 remains open.
 Single independent M06 reviewer `st_01a16c25`
 returned REJECT with one deterministic OPS-04 protocol blocker: the successful
 native model-test command returns a string, but Settings required an array.
@@ -131,6 +133,17 @@ preservation; the exact outputs and scope are recorded in
 `run/model-test-newsource-response-check.md`. This response replay is not another
 inference run and does not erase the failed desktop controlled-input run.
 The `9ceba482` harness rerun remains a separate open gate.
+
+That rerun (`40063718304`, job `120782447356`) now fails its strengthened
+exact-value assertion before Apply: actual empty string versus expected `375`.
+Its screenshot confirms the empty field. The NULL-code sequence is not a pass.
+The raw WebKit Session.cpp implementation was then inspected in full: this
+send-keys path toggles a modifier on its second occurrence and does not map
+U+E000 to modifier release, leaving Control active until end-of-command cleanup.
+The candidate replaces that NULL with a second Control code before Backspace
+and digits. Primary source identity and the exact observed limit are in
+`run/webkit-send-keys-primary.md`. Syntax, clean LSP and driver tests pass;
+the actual hosted interaction remains required. Both failed captures are kept.
 
 Mobile run `40060531803`, source `8934e158`, Android job `120773365649` passes
 the complete Watch/Inspector/Knowledge/native-source-resume workflow in 383.944
