@@ -76,6 +76,16 @@ text-leaf attachment again identifies WenQuanYi. The disposable web runner now
 removes that legacy package after installing Noto, matching the native Linux
 harness's usable CJK-font environment. The unchanged browser checks remain the
 verification gate; this second prerequisite adjustment is not yet passed.
+That correction is now verified by foundation run `40047165680`, source
+`b7ea856d3371c1e520e1efb09ba01e797c6e41dd`, tree
+`a18a2b8e70926b64f73cf68009f7b637653c8047`: all 59 browser workflows pass,
+including the eight previously failing cases. Rust, detector conversion, macOS
+and Windows jobs also pass. The source receipt, Linux font inventory and narrow
+Reader/image captures are retained under `hosted-b7ea-web`; both captures were
+inspected. No product sizing hack, renderer branch or assertion relaxation was
+needed. Temporary Chromium font/geometry diagnostics are removed now that their
+evidence has resolved the cause. The unchanged five-case Reader suite passes
+again locally against the matching product export, with fresh clean diagnostics.
 
 Foundation run `40040864691` completed: Rust, pinned detector conversion and
 macOS desktop build/tests passed. Windows job `120713091191` passed eight
