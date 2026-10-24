@@ -18,11 +18,24 @@ M03–M05 and the M01–M04 architecture gate are `verified_for_continuation`;
 M06 remains in progress and M07 has not started. Code/test checkpoint
 `b3ec2cfd` includes the green foundation/font repairs, source-bound online iOS
 OCR/restart/Inspector/Capture/return evidence and the independently passed
-disconnected iOS provider check below. All local iOS simulators and Android
-emulators are shut down after their finite QA runs; do not automatically restart
-them on resumption. Source-bound Android offline collection/vertical/spread/crop
-and saved-position restart evidence is retained below. Next: finish the mobile
-PDF/orientation/cancellation/recovery matrix and independent M06 review before M07.
+disconnected iOS provider check below. Android's finite source-bound offline
+collection/vertical/spread/crop, correction/recovery, PDF/restart, eight-orientation
+and actual pending cancellation/fresh-retry checks now pass. Its emulator is shut
+down, and both completed iOS sessions have also stopped their device.
+Do not automatically restart devices on resumption. Native iOS post-admission
+cancellation, malformed-input recovery and all 15 offline recognition/transform
+cases pass at `6ce6be1a`. Its foundation run also passes all five jobs. Local iOS
+numeric-input automation did not establish its intended invalid-alignment case;
+those failures are preserved, not reported as recovery. The real desktop workflow
+now passes at `7a7dfa04`. The reversible iOS missing-image/retry case passes in
+full, preserving recognition revision 4 and exact original bytes. Latest Android
+run `40056615548` compiled successfully and passed source resume plus persisted
+playback rate, then lost the Maestro device server during hierarchy collection;
+its exact failed JUnit and device logs remain intact. A separate demonstrated
+empty-viewport false-busy defect is repaired with a failing-before/passing-after
+browser regression; the full 26-case image suite, typecheck, architecture lint
+and fresh web export pass. Affected new-source native verification and independent
+M06 review remain pending before M07.
 The following continuation evidence preserves earlier failures and their
 specific resolutions; it is not a set of new investigation instructions.
 
@@ -46,7 +59,21 @@ of a pre-cancelled job and a malformed image before fresh successful recognition
 Pre-cancellation is not evidence of in-flight cancellation. Both iOS-simulator
 and macOS aggregate Swift builds pass with warnings treated as errors; local
 fixture generation passes and generated inputs were inspected. Actual expanded
-offline iOS execution remains pending. Helper-only changes route to the dedicated
+offline iOS execution now passes in run `40053773717`, job `120752054758`,
+source `4b074aeaa6776fa686164b845eb61ef66bc749c4`: all 15 genuine recognition
+cases pass on arm64 iOS 26.5 / 23F77 after the observed network disconnection.
+All eight EXIF variants produce both exact mixed-language lines at upright
+720x300 dimensions; every source-display comparison has zero mean absolute
+pixel error against the independent ImageIO decoder. Actual orientation provider
+calls range from 1293 to 3001 ms, not app end-to-end latency. Pre-cancelled and
+malformed inputs are rejected before successful fresh recognition; original
+empty-image, image-only PDF and mapped crop observations remain intact.
+Network restoration is observed afterward. Evidence, generated inputs and
+display captures are retained in `hosted-4b07-ios-offline/`; selected actual
+display captures were inspected. The eight locally generated JPEG hashes exactly
+match that hosted corpus, enabling identical Android inputs without another
+model download. Android orientation execution and in-flight cancellation are
+still open. Helper-only changes route to the dedicated
 workflow rather than rebuilding both full applications and desktop models.
 The dedicated workflow also runs the existing primary-exit and hosted-only
 network-guard tests. Four focused tests and architecture lint pass; all three
@@ -289,6 +316,194 @@ is empty and no emulator/QEMU process remains. Emulator and memory-watch session
 later reached their limits; no live device or guard remains. Host memory is 61%
 free afterward. Actual image-only PDF OCR, EXIF variants and remaining mobile
 recovery/cancellation interactions are still open; this run does not close M06.
+
+#### Finite correction and orientation continuation — 2026-10-24
+
+A new explicitly bounded session of the same retained API 35 device uses the
+same source-bound APK, without clearing its profile. Wi-Fi/data are disabled
+before app launch; `run/android-matrix-offline.txt` again records no active
+default network. The cropped spread reopens at page 3 with saved revision 4.
+An actual invalid alignment save is rejected beside its action with
+`OCR region corners must describe a convex source quad`; the draft remains
+editable. A subsequent valid correction changes native `LEFT PAGE O1` to authored
+`LEFT PAGE 01` and saves revision 5. The numeric automation leaves a valid
+top-left X of 2.4042%, not the intended restored 4.2%; this is not evidence of
+unchanged alignment. After stop/launch/resume, corrected text and the retained
+right-page crop remain present. Package interpretation creates derived revision
+6 while preserving authored text/geometry/candidates, as enforced by the existing
+storage projection boundary. The original script's final revision-5 assertion
+fails against that legitimate derived revision and is retained. The follow-up
+passes against the observed revision 6 and opens parent revision 5's genuine
+correction evidence, whose parent is revision 4. Captures were inspected.
+Receipts are under `run/android-native-{matrix-open,correction,
+correction-provenance}`.
+
+All eight byte-identical EXIF JPEGs are then imported through the normal
+multi-select picker in orientation order. Real offline Android display and ML Kit
+Japanese recognition pass for every page: both exact mixed-language strings are
+present in each saved result. The matrix takes 187.209 seconds; all eight original
+source-display captures were inspected and show upright, unmirrored source pixels.
+This closes mobile EXIF inference/display transforms together with the independent
+iOS pixel comparison above. Android evidence is under
+`run/android-orientation-{select,matrix}`. Image-only PDF and cancellation
+execution remain in progress.
+
+The same offline app then imports the unchanged image-only PDF through the
+native document picker, explicitly switches from available text to original
+PDF pages and recognizes the actual raster with bundled ML Kit Japanese.
+Both exact mixed-language lines are saved at recognition revision 2.
+Save position, app stop/launch, Home resume and return to original pages retain
+both recognized regions without another recognition. The recognition/restart
+workflow passes in 50.487 seconds; import/original-page and result/restart
+captures were inspected. Evidence is under `run/android-pdf-{open,recognize}`.
+This closes actual Android image-only PDF recognition and persistence, separate
+from the existing iOS/desktop component PDF results. Cancellation is still open.
+
+A bounded 2880x2400 dense source, rendered from the unchanged mixed-language
+fixture, has SHA256
+`de2d01ed9ce8a157764b7c80f6ca24df91870542af783b84f0c8d869eeb4bbd6`.
+The ordinary Maestro cancellation attempt does not observe the transient Cancel
+control before recognition completes. An immediate-navigation follow-up exits
+successfully, but its captures show revision 2 becoming revision 4 with no pending
+state at interruption; it is navigation/re-recognition evidence, not cancellation
+proof. Both attempts remain preserved under `run/android-cancel-*`.
+The completed device session is stopped and its Wi-Fi/data settings restored.
+
+A small self-targeted Android instrumentation probe now subscribes to actual
+accessibility events before activating Recognize page, scrolls the actual pending
+Cancel control into view when necessary, and activates that control through native
+accessibility. It checks preservation of the previous saved revision and explicit
+fresh retry, without sleeps, animation settling or backend-result injection.
+Its source and manifest are in `tests/mobile/ocr/`; compilation against the retained
+Android SDK and APK signature verification pass. Java LSP is unavailable, so no
+Java language-server result is claimed. A separate ten-minute, memory-guarded
+device session was explicitly launched for this probe; actual execution is now
+verified: the pending Cancel control is observed and activated after the
+subscription. Saved revision 4 remains revision 4 after cancellation; an explicit
+fresh recognition produces revision 6, the sole new native result plus package
+projection. The probe requires that exact revision span to reject a late cancelled
+publication hiding behind the fresh result. Pending/cancelled/retried captures were
+inspected; the dense source uses the English package, so its Japanese analysis
+limitation remains visible and is not claimed as successful annotation.
+The executing product APK hash still matches the source-bound `16529035…a175`
+binary above; it was not replaced. The test-only APK hash is
+`87e84d81bdc6224cb62202056475c575d52363c45abb68cd941e261dbed314e9`.
+Actual artifacts and `report.json` are in `run/android-cancel-probe/actual/`,
+with its marker/report in `execution.log`. The test-only package is removed after
+retrieval, product app stopped, device Wi-Fi/data restored and emulator shut down.
+The same dense input is staged in the retained iOS app's owned QA folder, but its
+simulator's subsequent finite session imports it successfully through Files.
+Apple Vision completes genuine recognition before Maestro observes the brief
+pending Cancel state; that failed interaction remains preserved and is not
+claimed as cancellation. Source display and saved recognition are real.
+
+The Apple checker now observes the precise worker-admission boundary instead:
+an `MLEARN_OCR_CHECKS`-only one-shot observer runs after the real cancellation
+closure is installed and its lock released. It cancels the actual admitted job,
+joins the real worker and then requires successful fresh recognition. The observer
+is compiled out of ordinary application builds; there is no sleep, fake provider,
+result injection or altered recognition pipeline. Normal iOS-module compilation
+without the flag and full checker compilation for iOS/macOS with it pass with
+warnings treated as errors. Runner guard tests and architecture lint also pass.
+Actual disconnected execution now passes in run `40056615413`, job
+`120760882952`, source `6ce6be1ae70bfa25a1ad29d85738dbf41b4d8df8`, on
+iOS 26.5 / 23F77. The report records pre-cancelled, post-admission-cancelled and
+malformed-image rejections, followed by all 15 successful real recognition cases.
+All eight orientation display comparisons still have zero pixel error.
+Network unreachability and restoration were observed. This is native
+post-admission cancellation, not a claim that GUI automation caught the transient
+control. Evidence is in `hosted-6ce6-ios-offline/`.
+
+The two finite local iOS sessions ended at their guarded limits and all devices
+are stopped. Numeric-field attempts did not reach the intended invalid polygon:
+the visible label and editable input are separate accessibility nodes, insertion
+at the existing caret did not replace the complete value, and generic keyboard
+dismissal differs from the app's explicit Done accessory. Their red receipts
+remain under `run/ios-ocr-*`; no product correction/recovery pass is inferred.
+
+The next source-retry probe is `run/ios-source-retry.mjs`. It touches only the
+newly authored dense source's canonical copied image, whose exact SHA256 is
+`de2d01ed9ce8a157764b7c80f6ca24df91870542af783b84f0c8d869eeb4bbd6`.
+Its source ID is `document-f57b71f9636c58d9c39a59625b9373581024dcd33e8aba9db2ef8e7ae26ea412`,
+resource `image-0`, Japanese package, saved revision 4 (read-only SQLite query).
+After ordinary Home startup, the probe temporarily renames that canonical
+`document-assets/2fc4f9a7f1d5f2438b8e66fca307ac3842aa6a1a7197f01738730f09701299b5/`
+file to the same path plus `.m06-recovery-held`, observes the real image error,
+restores it in `finally`, verifies original bytes and exercises explicit Retry.
+It keeps a second copy in `run/ios-missing-source/original-source.bin`; no database
+or original QA input is edited. The script refuses an existing held file or an
+already booted device, has a four-minute abort/memory guard and always shuts down
+its owned device. If interrupted, inspect/restore the held file before any boot;
+never overwrite an unexpected replacement.
+
+The first run exposed the expected missing-file error, but its Retry tap targeted
+an accessibility node below the clipped header viewport, not the visible button.
+Both new browser retry cases (1080 and 390 widths) pass on unchanged product code:
+restored pixels and cached analysis return without repeating recognition.
+In the corrected native run, `run/ios-missing-source-visible/recovered/`,
+explicit visible Retry completes, `reader-image-ready` passes and the inspected
+capture shows the original dense source with cached interactive annotations.
+The subsequent Recognition details tap again targeted an offscreen header node
+after the header reset to its top; its revision assertion failed without opening
+the dialog. The final probe scrolls both controls into view and retains separate
+evidence under `run/ios-missing-source-complete/`. No product initialization repair
+is justified by these observations; the speculative repair task is dropped.
+All completed fault sessions restore the exact original hash in `finally` and
+shut down their owned simulator. Failed automation receipts remain intact.
+
+The final full native case passes: explicit Retry displays original pixels and
+cached annotations, the real Recognition details dialog reports Apple Vision
+recognition revision 4, and the runner verifies the same input/restored SHA256
+above. Its `report.json`, both JUnit reports and inspected captures are retained
+in `run/ios-missing-source-complete/`. This source-bound retained application
+does not include the later viewport status repair below.
+
+Capture inspection found a separate actual presentation defect: when source URI
+loading had failed and no pages existed, ImageViewport still reported busy and
+displayed its image-render loader. The source-load error/retry already belongs to
+ImageReaderControls. The viewport now reports an empty, non-busy state when it
+has no pages, reserving image-render loading feedback for actual pending pixels.
+Both width-specific regression assertions fail on the preceding export
+(`qa/false-loading-red/`) and all 26 image Reader cases pass after the fix
+(`qa/loading-fix/`, 14.5 seconds). Fresh typecheck, architecture lint and export
+also pass; the repaired narrow error capture was inspected. No error is suppressed
+and native recognition, persistence and retry ownership are unchanged.
+The verified product/test increment is committed and pushed as `8934e158`;
+new-source native and foundation verification is subscribed. This is a repair
+checkpoint, not M06 `verified_for_continuation` or maintainer acceptance.
+
+Android job `120762608084` in run `40056615548`, exact source `6ce6be1a`,
+fails with `maestro.android.DeviceServerDiedException` during `viewHierarchy`,
+not a failed product assertion. The actual command receipt shows ordinary
+Watch/Inspector/Knowledge work, app stop/relaunch, source resume and persisted
+`Playback rate · 1.25×` all completed; the next scroll for saved offset was still
+running when transport ended. Full device logs show memory-pressure cleanup
+earlier and driver-package removal at shutdown; they do not establish why the
+connection died. Do not claim that removal caused the initial failure or mark
+this run passed. Artifacts are in `hosted-6ce6-android/` and the complete job log
+is `run/hosted-6ce6-android-job.log`. New-source verification will retain the
+original assertions; no product repair is inferred from this driver failure.
+
+### Real desktop pointer-origin continuation
+
+Run `40056615377`, source `6ce6be1a`, failed at native-smoke line 528 with
+`WebDriverError: stale element reference` during the Shift/pointer action sequence.
+The test retained a token element handle across asynchronous rendering/input
+ticks. Checkpoint `7a7dfa04` targets the same hit-tested token center in viewport
+coordinates, preserving actual Shift/pointer actions and the original Inspector
+assertion; it adds no retry or delay and changes no application code.
+Syntax, LSP and all three driver ownership tests pass. Real native execution in
+run `40057789254`, job `120764503613`, source
+`7a7dfa0457c4515253f13e9ee44611d4ccc24c85`, now passes. Its first watch ended on
+a GitHub API TCP timeout while the job was still running; the rearmed authoritative
+completion check confirms success, not another product failure. The exact job log
+and native artifact are retained under `run/hosted-7a7d-desktop-job.log` and
+`hosted-7a7d-desktop/`.
+
+Native mobile run `40053773772`, source `4b074aea`, passes Android and compiles
+iOS; the original iOS primary flow again fails at `id: m01-watch, mp4 is not
+visible`, the explicitly deferred FileProvider gate. No diagnostic replay was
+launched. The exact JUnit/job log is in `hosted-4b07-ios/` and `run/`.
 
 #### Earlier provider-only run
 
