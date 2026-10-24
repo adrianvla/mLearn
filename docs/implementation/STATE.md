@@ -54,8 +54,8 @@ launchers were released with retained read-back receipts.
 #### Current continuation: published repairs and native comparison, 2026-10-24
 
 Source-entry migration is verified for continuation, not final visual or
-maintainer acceptance. Todo 164/206: matched native Home compound/material
-comparison is recorded. Theme persistence, Settings recovery, Watch/Inspector,
+maintainer acceptance. Todo 165/206: matched native Home compound/material
+comparison and native built-in/custom theme restart are recorded. Settings recovery, Watch/Inspector,
 performance and delivery gates remain open. No new backend/milestone.
 
 Functionality source is committed as0217bcd98c7cec66e8b00ee5bd8634be6a1d3de0,
@@ -119,16 +119,41 @@ unchanged-analysis cache hit. This is not final Japanese/package-switch proof.
 Actual Settings at 1000x760 and its shared theme selector are captured. Approved
 edited Settings images override the live reference's translucent content;
 candidate opaque content is retained. Choosing Quartz through real UI commits
-native preferences revision 2. Its restart/custom-theme round trip is incomplete:
-the existing 3 GiB root RSS guard fired at 3399040 KiB, despite 60% system free and
-flat 968.75 MiB swap. The owned candidate/Metro/catalog were immediately stopped;
-all relevant app PIDs/ports are absent. A subsequent prelaunch gate refused at
-3417664 KiB without starting another workload. No cap was relaxed. Bounded vmmap
-shows 2.6 GiB physical footprint and historical 8.7 GiB peak; explicit collection
-reclaims memory transiently but does not diagnose/fix the growth. A read-only
-capacity observer may wake continuation; it never relaunches apps. Preserve
-current QA Quartz until the deliberate round trip can finish and restore the
-QA profile's original Dark Quartz. No live/default learner profile changed.
+native preferences revision 2. Normal native restart then displays saved Quartz.
+Invalid JSON remains editable in the same native dialog, reports its error beside
+Save and leaves revision 2 unchanged. Correcting it saves the actual custom
+document at revision 3, including background #223344, radius 10 and text scale 1.1.
+Another normal native restart preserves those exact fields. Explicit preset
+selection restores original Dark Quartz at revision 4; no database write/profile
+reset, rejected Slate restoration or live/default profile modification.
+
+This real flow exposed a selector defect: custom themes displayed Select or a
+misleading built-in label when retaining a built-in ID. Settings now represents
+the complete current custom document with a view-only option in the existing
+shared Select; explicit preset choice still uses the native save owner.
+Actual-Rust regressions fail before the repair, including same-ID/same-name
+custom colors. All 10 relevant browser checks pass in 5.3 s, covering real
+restart/reset, 390px/1080px dialog containment, keyboard/focus and accessibility;
+typecheck, ownership lint and web export pass. Native repaired/restarted custom
+selector and restored Dark Quartz captures are directly inspected. Test-file
+LSP requests time out; Settings LSP is clean. This scoped delta has root
+self-review, not a new milestone/maintainer approval. Final broad gates remain.
+
+Earlier RSS-only guards and refused prelaunches remain evidence. Investigation
+shows about 5.7 GiB resident but only 2.4 GiB physical footprint, with 74-75%
+system free: clean resident mappings made that guard too coarse. The diagnostic
+now retains a strict 3 GiB physical-footprint ceiling and 25% free-memory floor,
+fails closed on missing measurements and still records RSS/swap. It never
+relaunches workloads. This is a measurement correction, not a leak repair.
+After the serial native round trip, the owned app/Metro/catalog and observer
+are released; ports are absent, footprint 2.5 GiB, RSS 3259200 KiB, 63% free,
+swap 1515.69 MiB. The unowned static server remains untouched.
+
+Native signed catalog check and Japanese module/data installation also succeed:
+0.1.6-sudachi20260116-jmdict20261017-ocr2, 257075561 bytes received/declared.
+It completes before capture; no pending/cancellation frame is fabricated and
+no optional OCR model download/inference runs. Actual package/error/pending
+coverage and final Watch/Inspector/package-switch measurements remain open.
 
 Hosted iOS repeats the exact already-deferred m01-watch,mp4 FileProvider failure;
 it is unresolved, not passed, and no diagnostic variant was launched. Android

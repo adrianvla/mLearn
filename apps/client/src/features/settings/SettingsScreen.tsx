@@ -88,6 +88,17 @@ export function SettingsScreen() {
   const installed = snapshot?.installedPlugins.find((plugin) => plugin.id === 'example.hello');
   const canSave = host.available && snapshot !== null && !busy;
   const displayedTheme = resolveBuiltInTheme(snapshot?.theme ?? previewTheme);
+  const selectedPreset = builtInThemes.find(preset =>
+    preset.id === displayedTheme.id && preset.name === displayedTheme.name
+    && preset.schemaVersion === displayedTheme.schemaVersion && preset.radius === displayedTheme.radius
+    && preset.textScale === displayedTheme.textScale && preset.spacingScale === displayedTheme.spacingScale
+    && Object.keys(displayedTheme.extensions).length === 0
+    && (['background', 'surface', 'text', 'muted', 'accent', 'onAccent', 'border'] as const)
+      .every(key => preset.colors[key] === displayedTheme.colors[key]));
+  const themeOptions = builtInThemes.map(preset => ({ value: preset.id, label: preset.name }));
+  // A custom document may keep a preset ID. Its view-only value must still
+  // let choosing that preset replace the custom document through native save.
+  if (!selectedPreset) themeOptions.push({ value: 'custom', label: `${displayedTheme.name} (custom)` });
   const sections = [
     { value: 'appearance', label: 'Appearance', icon: 'palette', terms: 'appearance theme custom palette text size spacing radius' },
     { value: 'languages', label: 'Languages', icon: 'globe', terms: 'language packages install catalog update' },
@@ -118,8 +129,8 @@ export function SettingsScreen() {
         <SettingRow label="Theme" description={
           <Text variant="detail" muted>{snapshot ? `Current: ${displayedTheme.name}. Saved in the native SQLite profile.` : 'Preview only. Native storage is not connected.'}</Text>
         }>
-          <Select label="Select theme" value={displayedTheme.id}
-            options={builtInThemes.map(preset => ({ value: preset.id, label: preset.name }))}
+          <Select label="Select theme" value={selectedPreset?.id ?? 'custom'}
+            options={themeOptions}
             disabled={busy} onValueChange={id => {
               const preset = builtInThemes.find(value => value.id === id);
               if (!preset) return;
