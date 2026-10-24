@@ -1,0 +1,33 @@
+name: v3 offline iOS OCR
+on:
+  push:
+    branches: ['agent/**', rewrite/v3]
+    paths: ['.github/workflows/v3-ios-ocr.yml', 'tests/mobile/ocr/**', 'tests/fixtures/ocr/vision/**', 'apps/client/modules/mlearn-native/ios/AppleOcrProvider.swift']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v3-ios-ocr-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ios-ocr:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Record exact native OCR source
+        run: |
+          mkdir -p test-results/ios-offline-ocr
+          GIT_MASTER=1 git rev-parse HEAD HEAD^{tree} > test-results/ios-offline-ocr/source.txt
+      - name: Exercise actual iOS provider after disconnecting the disposable host
+        run: node tests/mobile/ocr/verify-ios-offline.mjs
+      - name: Ensure verification did not modify tracked source
+        if: always()
+        run: GIT_MASTER=1 git diff --exit-code HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-offline-ocr
+          path: test-results/ios-offline-ocr

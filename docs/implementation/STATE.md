@@ -285,6 +285,28 @@ both retained runtimes have no booted devices. Only afterward were its shutdown
 deadline and memory guard cancelled. No Android emulator, local model or
 reference application ran alongside it.
 
+An independent `v3 offline iOS OCR` workflow now targets the remaining offline
+proof. Its verifier refuses ordinary and self-hosted machines before launching
+any tool. Only on a disposable GitHub-hosted Mac, it compiles the actual Apple
+provider, creates its own simulator and subscribes to the native network-path
+transition before disabling previously enabled host network services. Recognition
+starts only after iOS reports `unsatisfied`, without an earlier inference warmup.
+It records real horizontal/vertical/glare/spread/empty/PDF/crop observations,
+input hashes, executing capabilities and original-source crop coordinates.
+Every attempted service change is restoration-owned, including uncertain command
+failure; successful completion also awaits iOS's real online transition.
+The owned simulator is shut down/deleted and source-bound evidence uploaded.
+This does not touch the deferred Files acceptance workflow.
+
+Local preflight passes: the actual simulator executable links without warnings
+and `vtool` identifies `IOSSIMULATOR`, SDK27.0; the hosted-only guard regression
+and full `npm test` pass (65 tooling and 96 client tests). YAML parsing and Node
+syntax checks pass. SourceKit cannot resolve this standalone check's sibling
+provider types; aggregate compiler verification supplies that context. Fresh
+JavaScript diagnostics time out for the new orchestration file, so no clean
+fresh LSP result is claimed there. Hosted offline execution remains pending;
+neither this compile nor the guard test certifies offline iOS recognition.
+
 ### Retained original/native golden comparison
 
 The six original Python-reference inputs and current native report inputs have
