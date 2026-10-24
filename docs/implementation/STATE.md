@@ -137,6 +137,12 @@ The iOS consuming simulator build also passed and retained source-bound artifact
 the existing missing Files picker item (`m01-watch, mp4`), not a compiler failure;
 the hosted FileProvider acceptance deferral remains explicit. No new picker
 diagnostic variant was created or manually dispatched.
+The existing `run-ios.sh` still automatically launched its old identical/keyboard
+picker replays after a primary failure. That diagnostic tail is now removed for
+the authorized deferral. The primary Watch flow, every assertion and all retained
+replay files/evidence remain untouched; `set -euo pipefail` preserves its failure.
+Shell syntax and isolated primary-exit fixtures prove statuses 7 and 0 remain
+7 and 0. No diagnostic replay or device was launched by those fixture checks.
 
 Android job `120707495228` later failed inside `watch/preferences.yaml` at
 step 118, after returning Home and restarting the app: the exact saved source's
