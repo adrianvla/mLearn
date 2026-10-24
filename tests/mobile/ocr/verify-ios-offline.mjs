@@ -19,6 +19,7 @@ const sdk = (await command('xcrun', ['--sdk', 'iphonesimulator', '--show-sdk-pat
 const arch = process.arch === 'arm64' ? 'arm64' : 'x86_64';
 const binary = path.join(root, 'apple-ocr-checks');
 await command('xcrun', ['--sdk', 'iphonesimulator', 'swiftc', '-warnings-as-errors', '-swift-version', '5',
+  '-D', 'MLEARN_OCR_CHECKS',
   '-target', `${arch}-apple-ios18.0-simulator`, '-sdk', sdk,
   '-module-cache-path', path.join(process.env.RUNNER_TEMP, 'mlearn-ios-ocr-module-cache'),
   'apps/client/modules/mlearn-native/ios/AppleOcrProvider.swift',

@@ -124,11 +124,16 @@ private enum AppleOcrChecks {
     let malformed = fixtures.appendingPathComponent("malformed.png")
     try Data([0, 1, 2, 3]).write(to: malformed, options: .atomic)
     var rejections: [String] = []
-    for file in ["horizontal-mixed.png", "malformed.png"] {
+    for (file, kind) in [
+      ("horizontal-mixed.png", "pre-cancelled-job"),
+      ("horizontal-mixed.png", "post-admission-cancelled-job"),
+      ("malformed.png", "malformed-image"),
+    ] {
       let job = OcrRecognitionJob()
-      let cancelled = file == "horizontal-mixed.png"
-      if cancelled { job.cancel() }
-      let plan = AppleOcrPlan(requestId: "rejection-\(file)", sourceId: "fixture",
+      let cancelled = kind != "malformed-image"
+      if kind == "pre-cancelled-job" { job.cancel() }
+      if kind == "post-admission-cancelled-job" { job.onWorkInstalled = { job.cancel() } }
+      let plan = AppleOcrPlan(requestId: "rejection-\(kind)", sourceId: "fixture",
         contentRevision: "original", resourceId: file, path: fixtures.appendingPathComponent(file).path,
         mimeType: "image/png", pageIndex: nil, crop: nil,
         providerId: AppleOcrProvider.modernId, recognitionLanguages: ["ja", "en"])
@@ -136,7 +141,7 @@ private enum AppleOcrChecks {
         _ = try await AppleOcrProvider.recognize(plan: plan, job: job)
         throw CheckError.failed("Rejected input unexpectedly produced recognition")
       } catch is CancellationError where cancelled {
-        rejections.append("pre-cancelled-job")
+        rejections.append(kind)
       } catch OcrProviderError.failed where !cancelled {
         rejections.append("malformed-image")
       }

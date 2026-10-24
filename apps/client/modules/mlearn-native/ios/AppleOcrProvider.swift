@@ -118,6 +118,11 @@ final class OcrRecognitionJob: @unchecked Sendable {
   private let lock = NSLock()
   private var cancelled = false
   private var cancelWork: (() -> Void)?
+#if MLEARN_OCR_CHECKS
+  // The native checker can cancel after real worker admission without sleeps
+  // or depending on the duration of an OS recognition request.
+  var onWorkInstalled: (() -> Void)?
+#endif
 
   func check() throws {
     lock.lock(); defer { lock.unlock() }
@@ -127,8 +132,15 @@ final class OcrRecognitionJob: @unchecked Sendable {
     lock.lock()
     let stopped = cancelled
     if !stopped { cancelWork = work }
+#if MLEARN_OCR_CHECKS
+    let notify = work != nil && !stopped ? onWorkInstalled : nil
+    onWorkInstalled = nil
+#endif
     lock.unlock()
     if stopped { work?(); throw CancellationError() }
+#if MLEARN_OCR_CHECKS
+    notify?()
+#endif
   }
   func cancel() {
     lock.lock()
