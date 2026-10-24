@@ -34,10 +34,62 @@ playback rate, then lost the Maestro device server during hierarchy collection;
 its exact failed JUnit and device logs remain intact. A separate demonstrated
 empty-viewport false-busy defect is repaired with a failing-before/passing-after
 browser regression; the full 26-case image suite, typecheck, architecture lint
-and fresh web export pass. Affected new-source native verification and independent
-M06 review remain pending before M07.
+and fresh web export pass. Exact repair source `8934e158` now passes the real
+desktop workflow (`40060531796`) and all five foundation jobs (`40060531785`):
+Rust, detector conversion, web, macOS and Windows. New-source mobile verification
+(`40060531803`) remains running. Single independent M06 reviewer `st_01a16c25`
+returned REJECT with one deterministic OPS-04 protocol blocker: the successful
+native model-test command returns a string, but Settings required an array.
+Its full-scope findings are retained in `.omo/evidence/m06-gate-review.md`.
+The read-only locked review checkout was removed after report delivery; other
+worktrees were preserved. The bounded repair below passes root checks but still
+requires a fresh independent delta review. Both that review and affected mobile
+integration remain gates before M07.
+The final-source foundation artifacts are retained in `hosted-8934-foundation/`.
+Source receipts match commit `8934e158` and tree
+`074ef23ea2a7c098d2142e5fa36bc9ed4c9a5bca`. Both Windows generic and tuned native
+reports were read: actual cancellation, six inputs, cropped/PDF recognition and
+restart persistence pass. DirectML initialization is unavailable and both execute
+on the recorded CPU fallback. Exact vertical Japanese/ruby remains intact;
+generic mixed text is exact, while MangaOCR's English degradation and graphic
+`○口` false positive remain observable model limitations, not accuracy successes.
 The following continuation evidence preserves earlier failures and their
 specific resolutions; it is not a set of new investigation instructions.
+
+### Independent review blocker B1 and bounded repair
+
+The actual native `modelTest` response from Windows job `120773804588` is now
+retained as `tests/fixtures/ocr/native-model-test.json`; parsed content was
+independently compared with the source artifact and matches exactly. Feeding
+that response through the existing createOcrModelsHost reproduces the protocol
+error. All three Settings UI workflows also reproduce the visible error before
+the fix (`run/model-test-contract-red-client.log`, `run/model-test-ui-red.log`,
+`qa/model-test-ui-red/`). The first browser attempt failed earlier on the test
+runner's CommonJS import.meta handling; that loader failure was corrected and
+is not counted as a product reproduction.
+
+The repair preserves the existing native command's single-crop string result:
+the adapter validates a nonempty bounded string with no NUL, rather than an
+invented array, and returns it without joining. Null/array/empty/NUL/oversized
+responses remain rejected. Native model execution, inference resources and
+provider semantics are unchanged. The original mocked array is removed from
+both client and browser suites in favor of the captured real response.
+
+`npm test` passes 65 checker and 96 client/theme tests. Fresh typecheck,
+architecture lint and web export pass; all 29 Settings/image browser workflows
+pass in 15.6 seconds. Actual Settings result captures at desktop and narrow
+widths were inspected and display the native recognized text and work metrics
+beside Test model. Evidence is `run/model-test-contract-green-*` and
+`qa/model-test-contract-green/`. This is real exported Settings/host-adapter
+execution against a captured genuine command result, not a new inference run.
+The host adapter has clean LSP diagnostics; fresh test-file LSP requests timed
+out, so those are not claimed clean. No extra language server was installed.
+The verified repair is committed as `18791267`; a fresh locked delta-review
+checkout is `/private/tmp/mlearn-m06-review-18791267`. The first review's
+REJECT verdict remains intact until a separate reviewer verifies B1's closure.
+Fresh scoped reviewer `st_01a16c32` is now running read-only on that checkout,
+on the same approved route. It checks only B1 and the repair delta plus current
+evidence, without repeating the full milestone audit or launching models/builds.
 
 ### Current native continuation and expanded offline checks
 
