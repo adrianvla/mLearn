@@ -2,7 +2,7 @@ name: v3 foundation
 on:
   push:
     branches: ['agent/**', rewrite/v3]
-    paths: ['.github/workflows/v3-foundation.yml', 'apps/**', 'packages/**', 'resources/**', 'tools/**', 'tests/**', 'language-plugins/**', 'crates/**', 'package.json', 'package-lock.json', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'tsconfig*', 'playwright.config.ts']
+    paths: ['.github/workflows/v3-foundation.yml', 'apps/**', 'packages/**', 'resources/**', 'tools/**', 'tests/**', '!tests/mobile/ocr/**', 'language-plugins/**', 'crates/**', 'package.json', 'package-lock.json', 'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'tsconfig*', 'playwright.config.ts']
   workflow_dispatch:
 permissions:
   contents: read

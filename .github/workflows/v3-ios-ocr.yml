@@ -2,7 +2,7 @@ name: v3 offline iOS OCR
 on:
   push:
     branches: ['agent/**', rewrite/v3]
-    paths: ['.github/workflows/v3-ios-ocr.yml', 'tests/mobile/ocr/**', 'tests/fixtures/ocr/vision/**', 'apps/client/modules/mlearn-native/ios/AppleOcrProvider.swift']
+    paths: ['.github/workflows/v3-ios-ocr.yml', 'tests/mobile/ocr/**', 'tools/checks/mobile-driver.test.mjs', 'tests/fixtures/ocr/vision/**', 'apps/client/modules/mlearn-native/ios/AppleOcrProvider.swift']
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,6 +21,8 @@ jobs:
         run: |
           mkdir -p test-results/ios-offline-ocr
           GIT_MASTER=1 git rev-parse HEAD HEAD^{tree} > test-results/ios-offline-ocr/source.txt
+      - name: Verify native runner exits and hosted-only network guard
+        run: node --test tools/checks/mobile-driver.test.mjs
       - name: Exercise actual iOS provider after disconnecting the disposable host
         run: node tests/mobile/ocr/verify-ios-offline.mjs
       - name: Ensure verification did not modify tracked source
