@@ -383,6 +383,7 @@ try {
       const originalSet=callbacks.set;
       const gate={originalSet,release:null,entered:null,checkpoint:null,delivered:false,checkpointArmed:false};
       gate.entered=new Promise(resolve=>gate.enter=resolve);
+      gate.resumed=new Promise(resolve=>gate.resume=resolve);
       gate.checkpoint=new Promise(resolve=>gate.saved=resolve);
       const held=new Promise(resolve=>gate.release=resolve);
       window.__m02Preference=gate;
@@ -397,19 +398,25 @@ try {
           if(!gate.delivered&&response?.type==='source'&&response.window.source.id===sourceId&&response.window.source.subtitleOffsetMs===offset){
             gate.delivered=true;gate.enter();void held.then(()=>callback(data));return;
           }
-          callback(data);
+          if(gate.delivered&&response?.type==='source'&&response.window.source.id===sourceId){
+            gate.resume(response.window.source);
+          }
           if(gate.checkpointArmed&&response?.type==='position_saved'){
             // A resumed player's earlier checkpoint can finish after a new seek.
             // Signal the exact durable position, not whichever acknowledgement
             // happens to arrive first.
+            // Read before delivering the acknowledgement: delivery can admit
+            // the next queued action alongside both display lanes and exhaust
+            // all three native permits before this raw harness read arrives.
             void window.__TAURI_INTERNALS__.invoke('runtime_execute',{request:JSON.stringify({type:'recent_sources'})}).then(raw=>{
               const saved=JSON.parse(raw);
               if(saved.type!=='sources')throw new Error(raw);
               if(saved.sources.find(source=>source.id===sourceId)?.positionMs===position){
-                gate.checkpointArmed=false;gate.saved(data);
+                gate.checkpointArmed=false;gate.saved({ack:data,recent:saved});
               }
-            }).catch(error=>gate.saved(JSON.stringify({type:'error',message:String(error)})));
-          }
+            }).catch(error=>gate.saved({ack:JSON.stringify({type:'error',message:String(error)})}))
+              .finally(()=>callback(data));
+          }else callback(data);
         });
       };return true;`,[offset,id,checkpoint]);
     try {
@@ -435,14 +442,15 @@ try {
       }
       await script('window.__m02Preference.release();return true;');
       if (leave === 'blur') await resumeWatch();
-      // Raw harness IPC bypasses the client's bounded admission queue. Let the
-      // mounted source finish initialization before adding a separate read.
+      // Observe the real replacement-source receipt instead of racing a raw
+      // recent_sources request against the client's action and display lanes.
+      const resumed=await rpc('POST',`/session/${session}/execute/async`,{
+        script:'const done=arguments[0];const timer=setTimeout(()=>done(null),10000);window.__m02Preference.resumed.then(source=>{clearTimeout(timer);done(source);});',args:[],
+      });
+      assert.ok(resumed,'The resumed source must remain persisted');
+      assert.equal(resumed.subtitleOffsetMs,offset);
       await observeSourceView(`!!document.querySelector('[aria-label="Children: mixed"]')&&!document.querySelector('[aria-label="Cancel opening"]')&&document.querySelector("video")?.readyState>=2&&!document.querySelector("video").seeking`);
       await observedSourceView('Cancelled or blurred preference work must leave a usable Watch');
-      const resumedSources=await native({type:'recent_sources'});
-      assert.equal(resumedSources.type,'sources',JSON.stringify(resumedSources));
-      const resumed=resumedSources.sources.find(source=>source.id===id);
-      assert.ok(resumed,'The resumed source must remain persisted');
       // This probe sets HTMLVideoElement.currentTime directly, unlike the product
       // controller which queues seeks until metadata. First observe real resume
       // initialization so it cannot overwrite the test's subsequent raw seek.
@@ -452,9 +460,9 @@ try {
       const saved=await rpc('POST',`/session/${session}/execute/async`,{
         script:'const done=arguments[0];const timer=setTimeout(()=>done(null),10000);window.__m02Preference.checkpoint.then(value=>{clearTimeout(timer);done(value);});',args:[],
       });
-      const recent=await native({type:'recent_sources'});
       const media=await script('const video=document.querySelector("video");return {positionMs:Math.round(video.currentTime*1000),readyState:video.readyState,seeking:video.seeking};');
-      assert.equal(JSON.parse(saved ?? '{}').type,'position_saved',`Fresh media checkpoints must persist after preference cancellation: ${JSON.stringify({leave,checkpoint,media,source:recent.sources.find(source=>source.id===id),saved})}`);
+      assert.equal(JSON.parse(saved?.ack ?? '{}').type,'position_saved',`Fresh media checkpoints must persist after preference cancellation: ${JSON.stringify({leave,checkpoint,media,saved})}`);
+      const recent=saved.recent;
       assert.equal(recent.sources.find(source=>source.id===id).positionMs,checkpoint);
       assert.equal(recent.sources.find(source=>source.id===id).subtitleOffsetMs,offset);
     } finally {

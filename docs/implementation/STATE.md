@@ -145,6 +145,24 @@ and digits. Primary source identity and the exact observed limit are in
 `run/webkit-send-keys-primary.md`. Syntax, clean LSP and driver tests pass;
 the actual hosted interaction remains required. Both failed captures are kept.
 
+Source `619826f5`, desktop run `40064486549`, job `120784760308`, now passes
+the exact `375` input check, real preference admission and cancellation. It
+fails later at line 443: the harness's raw `recent_sources` request receives
+`Native runtime is busy; retry after the current operation`. This is not a
+passing complete keyboard scenario: the second `625` iteration is not reached.
+The actual capture shows the usable Watch at 20 seconds. Full log and artifacts
+are retained in `run/hosted-6198-desktop-job.log` and `hosted-6198-desktop/`.
+
+The test now subscribes to the actual replacement-source response instead of
+issuing that unsynchronized read. At a checkpoint acknowledgement, its existing
+durable read is issued before delivering the acknowledgement to the client:
+delivery can admit another queued action alongside both display lanes, exhausting
+the host's three permits before a raw harness request arrives. The actual read
+result and unchanged acknowledgement are returned together, avoiding a second
+unsynchronized read after the checkpoint. No retry, sleep, fabricated response,
+native admission change or weakened persistence assertion is introduced. This
+candidate remains unverified until the real desktop workflow passes.
+
 Mobile run `40060531803`, source `8934e158`, Android job `120773365649` passes
 the complete Watch/Inspector/Knowledge/native-source-resume workflow in 383.944
 seconds. iOS job `120773365844` fails at `Element not found: Text matching regex:
