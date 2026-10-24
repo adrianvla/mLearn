@@ -51,12 +51,12 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
-#### Current continuation: verified CI repairs, native comparison ready, 2026-10-24
+#### Current continuation: published repairs and native comparison, 2026-10-24
 
 Source-entry migration is verified for continuation, not final visual or
-maintainer acceptance. Todo162/206: Home compound/material comparison remains
-open against the isolated reference, then the remaining theme, Settings,
-Watch/Inspector, performance and delivery gates. No new backend/milestone.
+maintainer acceptance. Todo 164/206: matched native Home compound/material
+comparison is recorded. Theme persistence, Settings recovery, Watch/Inspector,
+performance and delivery gates remain open. No new backend/milestone.
 
 Functionality source is committed as0217bcd98c7cec66e8b00ee5bd8634be6a1d3de0,
 `feat: add shared conversation and source workflows`, on agent/m01.
@@ -88,7 +88,11 @@ integration misses: web39 cases lacked authenticated native fixtures, and the
 opt-in Windows OCR verifier omitted the new clipboard state field. Rust,
 detector conversion, macOS desktop and real Linux native integration passed.
 
-Local verified repairs, awaiting fresh published CI:
+Verified repairs are published through b10eb253b5ffeb0832fd574afd8bace4b7050f9e;
+PR #44 readback is OPEN/draft with that exact head. Foundation run 40127558237
+and Linux native desktop run 40127558041 both pass, including the original Windows
+Japanese pipeline and clean-CI authenticated browser preparation. Mobile
+run 40127558027 remains subscribed. These scoped repairs are not M07 acceptance:
 - 9161077 initializes the gated OCR state and compiles all desktop lib features
   in CI. Offline ocr-probe example check passes15.69s, no inference.
 - 1476a70 prepares pinned signed plugin/document fixtures and the real Rust QA
@@ -103,6 +107,28 @@ Local verified repairs, awaiting fresh published CI:
   and the iOS picker flow are unchanged. APK b4834bf2... and bundled JS70e1207e...
   match the earlier source-entry consuming binary. Source aggregate now
   ba737f61315ce0569e1ee7538aff36e932caf94a5fba141af9935b34779f97ea.
+
+Actual native/composited Home pairs are retained at 1920x960 and 960x960 against
+unchanged isolated reference 1ab95600. Read/Watch title actions open source entry;
+their nested previews resume the retained document/video instead. Shared
+typography, activity anatomy, preview controls and native materials follow the
+reference; absent legacy activities/metrics are not fabricated. English native
+Watch resume-to-caption is 80 ms with 41 ms request-to-frame, followed by an
+unchanged-analysis cache hit. This is not final Japanese/package-switch proof.
+
+Actual Settings at 1000x760 and its shared theme selector are captured. Approved
+edited Settings images override the live reference's translucent content;
+candidate opaque content is retained. Choosing Quartz through real UI commits
+native preferences revision 2. Its restart/custom-theme round trip is incomplete:
+the existing 3 GiB root RSS guard fired at 3399040 KiB, despite 60% system free and
+flat 968.75 MiB swap. The owned candidate/Metro/catalog were immediately stopped;
+all relevant app PIDs/ports are absent. A subsequent prelaunch gate refused at
+3417664 KiB without starting another workload. No cap was relaxed. Bounded vmmap
+shows 2.6 GiB physical footprint and historical 8.7 GiB peak; explicit collection
+reclaims memory transiently but does not diagnose/fix the growth. A read-only
+capacity observer may wake continuation; it never relaunches apps. Preserve
+current QA Quartz until the deliberate round trip can finish and restore the
+QA profile's original Dark Quartz. No live/default learner profile changed.
 
 Hosted iOS repeats the exact already-deferred m01-watch,mp4 FileProvider failure;
 it is unresolved, not passed, and no diagnostic variant was launched. Android
