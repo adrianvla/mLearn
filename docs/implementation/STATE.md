@@ -80,6 +80,17 @@ passed. Android compilation and pre-UI upload passed; source-bound artifact
 `android-compiled-app` (`12539538398`, 693914688 bytes) is retained on GitHub.
 No device or reference app was started during these CI-only repairs.
 
+Android job `120707495228` later failed inside `watch/preferences.yaml` at
+step 118, after returning Home and restarting the app: the exact saved source's
+Resume row was below the visible Watch/Reader cards. The failure capture and
+hierarchy show Home with `m01-watch.mp4` present, not lost persistence or a
+crashed application. Earlier real claims, withdrawal, subtitle-offset entry and
+transcript inspection had completed. Both the nested restart path and the main
+Watch flow now scroll to the exact Resume action before tapping it; all existing
+source/playback assertions remain intact. YAML parsing and whitespace checks
+pass. A real rerun is pending; no local device was restarted for this repair.
+Evidence is retained under `hosted-d8-android/test-results/mobile` in the M06 root.
+
 ### Finite offline Android OCR verification
 
 After the preceding CI-only work, one retained API 35 / Android 15 arm64 emulator
@@ -121,6 +132,12 @@ OCR; QEMU RSS reached about 4.2 GiB despite the 2 GiB guest cap. After shutdown,
 free memory was 84%, swap use 3975 MiB and OmO RSS about 6.7 GiB. OmO growth remains
 unexplained; releasing eval references did not resolve it. No further local
 device/model runs should overlap this investigation.
+The subsequent bounded `vmmap` summary records a 1.4 GiB current physical
+footprint and a 12.3 GiB peak, distinct from the approximately 6.7 GiB RSS.
+Most resident mapping size is in `App-Specific Tag 1`; WebKit malloc is about
+63 MiB resident plus 303.5 MiB swapped. This does not identify the allocator or
+prove the earlier growth fixed. The original summary is
+`run/omo-memory-after-android.txt`; no heap dump or agent restart was attempted.
 
 ### Retained original/native golden comparison
 
