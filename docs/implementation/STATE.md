@@ -54,9 +54,55 @@ launchers were released with retained read-back receipts.
 #### Current continuation: published repairs and native comparison, 2026-10-24
 
 Source-entry migration is verified for continuation, not final visual or
-maintainer acceptance. Todo 166/206: matched native Home, built-in/custom theme
+maintainer acceptance. Todo 166/207: matched native Home, built-in/custom theme
 restart and Settings recovery comparisons are recorded. Watch/Inspector,
 performance, affected-platform and delivery gates remain open. No new milestone.
+
+Latest published product source `7be174cd9b3e659e0215e2de284499f9344e3bea`
+passes foundation `40134355296` in all five jobs, including actual macOS and
+Windows desktop/OCR, and Linux native desktop `40134355283`. The first
+foundation observer's API timeout was transport failure, not a failed CI run.
+Exact-source mobile `40134355303` remains subscribed; do not duplicate it.
+
+Older mobile `40131298998` has two distinct failures, not a blanket FileProvider
+deferral: Android JUnit records `DeviceServerDiedException` during
+`viewHierarchy` after playback/persistence captures, without a failing product
+assertion. iOS reaches the real playback dialog, then `scrollUntilVisible`
+keeps swiping until timeout because `centerElement: true` requires centering
+Reset at the end of its scroll extent. The retained trace shows the enabled
+target fully visible at y723..767 for four iterations; its actual capture and
+native hierarchy agree. The test repair requires full visibility without
+impossible centering at all three Reset scrolls. Actual taps, saved-value
+assertions, restart checks and other assertions remain intact. Both edited
+YAML flows parse without errors using the installed parser; native replay is
+pending, not claimed passed. YAML LSP is unavailable; no dependency was added.
+Evidence lives under `.mlearn/m03-m07/m07-messenger/mobile-selector-2c60e3e/`.
+
+Normal one-job offline consuming desktop startup at `7be174c` passes, with an
+8.82-second dev build. In the retained isolated profile, Japanese source import
+and subtitle attachment use the original 223.0417-second test-video.mov/test.srt
+through real native pickers, with owned-player mute and source-local -6350 ms
+saved through normal controls. Native caption frames take 13/57/30/54/56 ms
+request-to-frame in these observed actions; the transcript frame takes 130 ms.
+These are fresh-process/warm-filesystem observations, not the final repeated
+performance budget. Source hashes remain unchanged.
+
+Actual candidate/reference Watch baseline captures use the same originals,
+real 1512x948 logical windows and 3024x1896 backing images; the approved image
+has one additional logical row, which remains explicit. Reference source
+`1ab95600` is unchanged and uses only its retained disposable profile. Current
+candidate transcript and live/synchronization captures show unresolved
+composition differences: wide source/Capture text actions crowd the icon rail,
+the source title occupies the otherwise sparse header, and transcript/capture
+composition still needs comparison with the approved vocabulary sidebar.
+Trace and reuse the existing Transcript/SourceCapture/CaptureList owners; do not
+invent another Knowledge or Capture owner. Preserve authored subtitle line
+breaks required by VID-03 rather than silently flattening source text to match
+an edited frame. This is baseline evidence, not visual acceptance.
+Both deliberate local app runs were stopped; release verification follows.
+Observed root footprint stays 2.6 GiB; native host RSS is 295056 KiB, reference
+RSS 395792 KiB before shutdown, system free memory 58–64 percent and swap falls
+from 1491.69 to 1467.69 MiB. No device, model inference or download was launched.
 
 Functionality source is committed as0217bcd98c7cec66e8b00ee5bd8634be6a1d3de0,
 `feat: add shared conversation and source workflows`, on agent/m01.

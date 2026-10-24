@@ -6,7 +6,9 @@ appId: net.kikan.mlearn.v3dev
 - scrollUntilVisible:
     element: Reset synchronization
     direction: DOWN
-    centerElement: true
+    # This is near the scroll extent. Requiring viewport centering continues
+    # swiping after the complete control is visible and cannot move farther.
+    centerElement: false
 - tapOn: Reset synchronization
 - scrollUntilVisible:
     element: 'Current offset: 0 ms'
@@ -154,14 +156,14 @@ appId: net.kikan.mlearn.v3dev
     direction: DOWN
 - assertVisible: 'Current offset: 500 ms'
 - takeScreenshot: native-source-settings-after-restart
-# On the hosted iOS 26.5 viewport, the persisted-offset label can be exposed
-# while Reset remains clipped by the fixed footer. Accessibility visibility alone
-# still skipped scrolling in 39299585014. Move the target away from the viewport
-# edge before tapping; keep the reset-value assertion below.
+# The trailing persisted-offset label above confirms that Reset is inside the
+# visible scroll extent. Do not demand centering a control at that extent:
+# 40131298998 exposed the full target at y723..767, then timed out still swiping.
+# Keep the actual tap and saved-reset-value assertion below.
 - scrollUntilVisible:
     element: Reset synchronization
     direction: DOWN
-    centerElement: true
+    centerElement: false
 - tapOn: Reset synchronization
 - scrollUntilVisible:
     element: 'Current offset: 0 ms'

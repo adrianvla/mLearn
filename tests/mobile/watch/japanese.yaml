@@ -115,7 +115,7 @@ appId: net.kikan.mlearn.v3dev
 - scrollUntilVisible:
     element: Reset synchronization
     direction: DOWN
-    centerElement: true
+    centerElement: false
 - tapOn: Reset synchronization
 - extendedWaitUntil:
     visible: 'Current offset: 0 ms'
