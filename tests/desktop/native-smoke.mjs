@@ -416,8 +416,11 @@ try {
       await click('Playback options');
       const input=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[data-testid="subtitle-offset-input"]'});
       const inputId=input['element-6066-11e4-a52e-4f735466cecf'];
-      await rpc('POST',`/session/${session}/element/${inputId}/clear`,{});
-      await rpc('POST',`/session/${session}/element/${inputId}/value`,{text:String(offset)});
+      // WebKit's clear can leave React's controlled value intact: the second
+      // iteration appended 625 to 375. Replace through real keyboard events.
+      await rpc('POST',`/session/${session}/element/${inputId}/value`,{text:`\uE009a\uE000\uE003${offset}`});
+      assert.equal(await script('return document.querySelector(\'[data-testid="subtitle-offset-input"]\').value'),String(offset),
+        'Native input replacement must retain exactly the requested offset');
       await click('Apply subtitle offset');
       assert.equal(await rpc('POST',`/session/${session}/execute/async`,{
         script:'const done=arguments[0];const timer=setTimeout(()=>done(false),10000);window.__m02Preference.entered.then(()=>{clearTimeout(timer);done(true);});',args:[],
