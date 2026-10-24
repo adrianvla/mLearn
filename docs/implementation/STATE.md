@@ -14,6 +14,42 @@ package for manual acceptance, without merging or self-acceptance.
 
 ## Current gate status — 2026-10-24
 
+M03–M06 and the M01–M04 architecture gate are now
+`verified_for_continuation`, not maintainer-accepted. M06 product source is
+`18791267e3c59297a66d79febfdf8503dccf8aaa`; the final native-smoke repair source
+is `f27f4e5594e3188c1002ea743a5d610f75720dd8`. Subsequent changes are evidence
+documentation only. M07 is next; no merge, release or M08 is authorized.
+
+M06 verification closes with the original full independent review and fresh
+B1 closure review, 161 owner/checker tests, typecheck, architecture lint, web
+export, 29 Settings/image interactions, all five final-source foundation jobs,
+actual Linux desktop workflows, actual Windows/macOS OCR, retained offline
+Android/iOS OCR matrices and source-bound consuming mobile builds. Reviewed-source
+Android job `120781725575` now passes the complete real Watch/Inspector/Knowledge
+and native source-resume workflow: JUnit has one test, zero failures, 479.959
+seconds. Its source/tree receipt matches `18791267` /
+`e38148b3ef541cd0239a9bca47c7f740ecc418c0`; actual restarted playback settings
+and Japanese live-card Inspector captures were inspected.
+Evidence is `hosted-1879-mobile/android-build-evidence/` and
+`run/hosted-1879-android-job.log`. Both source-bound consuming applications
+compiled successfully and were retained by run `40062981295`; its metadata and
+artifact identities are recorded in `run/hosted-1879-mobile-continuation-metadata.json`
+and `run/hosted-1879-mobile-artifacts.json`.
+
+Hosted iOS job `120781725240` completed with the exact existing picker failure:
+`Assertion is false: id: m01-watch, mp4 is not visible`. The complete log is
+`run/hosted-1879-ios-job.log`; completed job/source metadata is
+`run/hosted-1879-mobile-metadata.json`. It is not reported green and does not
+reinstate the expressly deferred FileProvider prerequisite. Earlier hosted iOS
+failures remain unresolved and retained. No diagnostic variant, local device restart or extra inference was
+launched to close this checkpoint. Physical-device coverage and general model
+accuracy remain unproven; CPU fallback is not acceleration evidence. The
+specified model limitations and minor visual discrepancies remain explicit.
+Both independent review worktrees and owned local OCR verification devices/
+launchers were released with retained read-back receipts.
+
+### Historical M06 continuation record
+
 M03–M05 and the M01–M04 architecture gate are `verified_for_continuation`;
 M06 remains in progress and M07 has not started. Code/test checkpoint
 `b3ec2cfd` includes the green foundation/font repairs, source-bound online iOS
@@ -43,8 +79,8 @@ failure remains preserved within the deferred hosted FileProvider acceptance
 gate, not reported as a pass. No diagnostic variant was launched.
 The latest desktop input-harness rerun now passes at `f27f4e55`; its retained
 source receipt and genuine captures were inspected. Earlier failed captures
-and their bounded repairs remain recorded below. M06 remains open while the
-remaining platform/foundation subscriptions complete.
+and their bounded repairs remain recorded below. All five foundation jobs now
+pass at that same source. M06 remains open while mobile integration completes.
 Single independent M06 reviewer `st_01a16c25`
 returned REJECT with one deterministic OPS-04 protocol blocker: the successful
 native model-test command returns a string, but Settings required an array.
@@ -176,6 +212,23 @@ Evidence is retained in `hosted-f27f-desktop/` and
 `run/hosted-f27f-desktop-job.log`; the source receipt, final success line and
 actual modifier-Inspector/source-restart captures were inspected. These are
 Linux Tauri observations, not new mobile or physical-device evidence.
+
+Final candidate foundation run `40065130965` also passes all five jobs at exact
+source `f27f4e55`: web `120788484843`, detector `120788485006`, Rust
+`120788485091`, Windows `120789364473`, macOS `120789364672`. Its complete
+job/source metadata is `run/hosted-f27f-foundation-metadata.json`. The product
+has not changed since independently approved `18791267`; subsequent source
+changes are the two reproduced native-smoke repairs and checkpoint evidence.
+Mobile run `40062981295` remains separately monitored, not inferred green from
+these desktop/foundation results.
+Both final-source Windows native OCR reports are retained in
+`hosted-f27f-foundation/windows-native-ocr/` and were parsed and inspected.
+Each covers six fixture inputs, actual cropped/PDF recognition, `OCR cancelled`
+and `restartPersistence: true`. Both model tests return the existing scalar
+string contract. DirectML initialization is unavailable and the recorded actual
+execution is CPU fallback. Vertical Japanese/ruby remains exact; generic mixed
+text is exact, low-contrast losses remain, and tuned English degradation plus
+the graphic `○口` false positive remain limitations rather than accuracy passes.
 
 Mobile run `40060531803`, source `8934e158`, Android job `120773365649` passes
 the complete Watch/Inspector/Knowledge/native-source-resume workflow in 383.944

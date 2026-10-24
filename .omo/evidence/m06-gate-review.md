@@ -106,3 +106,23 @@ Fresh test-file LSP remains unverified. This closes B1 only; affected mobile
 integration remains root-owned, and the deferred hosted iOS FileProvider failure
 remains unresolved. Neither review grants whole-M06 verification, maintainer
 acceptance, merge, release or M07 completion.
+
+## Root integration closure after review
+
+Root verified consuming integration after both independent verdicts, without
+changing those verdicts or claiming reviewer acceptance. Android job
+`120781725575`, run `40062981295`, source `18791267`, passes the complete primary
+workflow with zero JUnit failures; its source/tree receipt and real persisted
+settings/Japanese Inspector captures were inspected. Both source-bound mobile
+applications compile; hosted iOS job `120781725240` fails at the existing
+`id: m01-watch, mp4 is not visible` FileProvider assertion. The full job log is
+retained; this expressly deferred gate remains unpassed. No diagnostic variant
+was launched.
+
+Final harness source `f27f4e55` passes Linux desktop run `40065130974` and all
+five foundation jobs in `40065130965`. Its two test-only repairs preserve actual
+native results, cancellation/blur and durable state assertions. Windows generic/
+tuned reports again retain real cancellation, crop/PDF, six inputs, restart and
+scalar model-test results. Artifacts and exact source identities are indexed in
+STATE. Root records M06 `verified_for_continuation`, not maintainer acceptance,
+with the hosted iOS failure and model/platform limits preserved.
