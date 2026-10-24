@@ -25,6 +25,71 @@ fn create(command: &str) -> MaterialCreate {
 }
 
 #[test]
+fn message_sources_preserve_revision_bound_utf8_selections() {
+    // Given a real original message span and a separate authored Material row.
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("p")).unwrap();
+    let mut command = create("message-source");
+    command.content.phrase = "語".into();
+    command.content.source = Some(SourceAnchor {
+        source_id: "conversation".into(),
+        content_revision: "message-content-revision".into(),
+        package_id: "package".into(),
+        package_version: "v1".into(),
+        text: "日本語".into(),
+        locator: SourceLocator::Message {
+            conversation_id: ConversationId("conversation".into()),
+            message_id: MessageId("message".into()),
+            message_revision: 2,
+            context_start: 0,
+            selection_start: 6,
+            selection_end: 9,
+        },
+    });
+    // When the valid revision/selection is saved, its original coordinates survive.
+    let MaterialWriteResult::Saved { material, .. } = store.create_material(&command).unwrap()
+    else {
+        panic!("The first message capture must be saved");
+    };
+    assert_eq!(
+        store.material(&material.id).unwrap().content.source,
+        command.content.source
+    );
+    // Then cross-conversation, unknown-revision and split-codepoint spans cannot
+    // acquire a second Material row or a durable command receipt.
+    for (id, revision, start) in [
+        ("other-conversation", 2, 6),
+        ("conversation", 0, 6),
+        ("conversation", 2, 7),
+    ] {
+        let mut invalid = command.clone();
+        invalid.command_id = "invalid-message-source".into();
+        invalid.content.source.as_mut().unwrap().locator = SourceLocator::Message {
+            conversation_id: ConversationId(id.into()),
+            message_id: MessageId("message".into()),
+            message_revision: revision,
+            context_start: 0,
+            selection_start: start,
+            selection_end: 9,
+        };
+        assert!(store.create_material(&invalid).is_err());
+    }
+    assert_eq!(
+        store
+            .materials(&MaterialQuery {
+                after: None,
+                query: "".into(),
+                source_id: None,
+                include_excluded: true,
+            })
+            .unwrap()
+            .items
+            .len(),
+        1
+    );
+}
+
+#[test]
 fn large_pages_obey_encoded_budget_without_skipping_records() {
     // Given more than one page of near-limit records.
     let dir = tempfile::tempdir().unwrap();

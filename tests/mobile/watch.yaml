@@ -24,7 +24,7 @@ name: Watch Inspector Knowledge and native source resume
     # Readiness belongs to the interactive owner, not its Text child: Android
     # reports the disabled placeholder Text as enabled before packages arrive.
     visible:
-      text: Open local video
+      id: home-open-watch
       enabled: true
     timeout: 60000
 - tapOn:

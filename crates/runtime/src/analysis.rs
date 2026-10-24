@@ -1,11 +1,17 @@
 use crate::{
-    Runtime,
     execution::{Cancellation, Failure},
+    Runtime,
 };
 use mlearn_core::*;
 use std::{collections::BTreeSet, time::Instant};
 
 pub(super) enum AnalysisSource {
+    Conversation {
+        conversation: Conversation,
+        package_version: String,
+        messages: Vec<ConversationMessage>,
+        original: Option<SourceAnchor>,
+    },
     Ocr {
         source: DocumentRecord,
         page: Box<OcrPage>,
@@ -34,6 +40,15 @@ pub(super) struct AnalysisInput {
 impl AnalysisInput {
     pub fn package_id(&self) -> &str {
         match &self.source {
+            AnalysisSource::Conversation {
+                conversation,
+                original,
+                ..
+            } => original
+                .as_ref()
+                .map_or(conversation.package_id.as_str(), |source| {
+                    source.package_id.as_str()
+                }),
             AnalysisSource::Video { source, .. } => &source.package_id,
             AnalysisSource::Document { source, .. } => &source.package_id,
             AnalysisSource::Ocr { source, .. } => &source.package_id,
@@ -41,6 +56,10 @@ impl AnalysisInput {
     }
     pub fn texts(&self) -> Vec<&str> {
         match &self.source {
+            AnalysisSource::Conversation { messages, .. } => messages
+                .iter()
+                .map(|message| message.text.as_str())
+                .collect(),
             AnalysisSource::Video { cues, .. } => {
                 cues.iter().map(|cue| cue.text.as_str()).collect()
             }
@@ -216,12 +235,23 @@ impl Runtime {
         );
         self.analysis_input(AnalysisSource::Document { source, slices }, key)
     }
-    fn analysis_input(
+    pub(super) fn analysis_input(
         &self,
         source: AnalysisSource,
         cache_key: String,
     ) -> Result<AnalysisInput, Failure> {
         let (package_id, version) = match &source {
+            AnalysisSource::Conversation {
+                conversation,
+                package_version,
+                original,
+                ..
+            } => (
+                original
+                    .as_ref()
+                    .map_or(&conversation.package_id, |source| &source.package_id),
+                package_version,
+            ),
             AnalysisSource::Video { source, .. } => (&source.package_id, &source.package_version),
             AnalysisSource::Document { source, .. } => {
                 (&source.package_id, &source.package_version)
@@ -258,6 +288,41 @@ impl Runtime {
     }
     pub(super) fn validate_analysis_source(&self, input: &AnalysisInput) -> Result<(), Failure> {
         let valid = match &input.source {
+            AnalysisSource::Conversation {
+                conversation,
+                messages,
+                original,
+                ..
+            } => {
+                if let Some(original) = original {
+                    let (_, frozen) = self.validate_message_anchor(original, false)?;
+                    if messages.len() != 1
+                        || messages[0].content_revision != frozen.content_revision
+                    {
+                        return Err(Failure::Cancelled);
+                    }
+                    return Ok(());
+                }
+                let current = self
+                    .store
+                    .read_conversation(&conversation.id)
+                    .map_err(|error| Failure::Operation(error.to_string()))?;
+                if current.discarded || current.package_id != conversation.package_id {
+                    false
+                } else {
+                    let mut unchanged = true;
+                    for message in messages {
+                        let current = self
+                            .store
+                            .read_conversation_message(&message.id)
+                            .map_err(|error| Failure::Operation(error.to_string()))?;
+                        unchanged &= current.revision == message.revision
+                            && current.content_revision == message.content_revision
+                            && current.status == ConversationContentStatus::Complete;
+                    }
+                    unchanged
+                }
+            }
             AnalysisSource::Video { source, .. } => {
                 let current = self.source_record(&source.id)?;
                 current.media_revision == source.media_revision
@@ -389,6 +454,48 @@ impl Runtime {
             .ok_or(Failure::Cancelled)?
             .revision()?;
         match &input.source {
+            AnalysisSource::Conversation {
+                conversation,
+                package_version,
+                messages,
+                ..
+            } => {
+                let mut annotations = Vec::new();
+                let messages = messages
+                    .iter()
+                    .zip(analyses)
+                    .zip(statuses)
+                    .map(|((message, tokens), statuses)| {
+                        annotations.extend(tokens.iter().zip(statuses).map(|(token, status)| {
+                            MessageOccurrenceKnowledge {
+                                message_id: message.id.clone(),
+                                token_start: token.start,
+                                status,
+                            }
+                        }));
+                        MessageAnalysis {
+                            message_id: message.id.clone(),
+                            message_revision: message.revision,
+                            content_revision: message.content_revision.clone(),
+                            text: message.text.clone(),
+                            tokens,
+                        }
+                    })
+                    .collect();
+                Ok(Response::Conversation {
+                    result: ConversationResult::Analysis {
+                        batch: ConversationAnalysisBatch {
+                            conversation_id: conversation.id.clone(),
+                            package_id: input.package_id().into(),
+                            package_version: package_version.clone(),
+                            package_revision,
+                            messages,
+                            knowledge,
+                            annotations,
+                        },
+                    },
+                })
+            }
             AnalysisSource::Ocr {
                 source,
                 page,

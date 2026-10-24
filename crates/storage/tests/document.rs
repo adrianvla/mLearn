@@ -210,11 +210,9 @@ fn invalid_scalar_stale_or_missing_checkpoints_leave_saved_state_unchanged() {
         ..position("bridge-1", 0)
     };
     assert!(store.document_window(&record.id, Some(&stale)).is_err());
-    assert!(
-        store
-            .document_window(&record.id, Some(&position("missing", 0)))
-            .is_err()
-    );
+    assert!(store
+        .document_window(&record.id, Some(&position("missing", 0)))
+        .is_err());
     // Then rejection preserves the original passage and appearance.
     assert_eq!(store.document(&record.id).unwrap(), Some(saved));
 }
@@ -232,25 +230,19 @@ fn immutable_projection_identity_rejects_content_parser_and_block_changes() {
     // When a deterministic ID is reused with another revision or projection.
     let mut changed = record.clone();
     changed.content_revision = "content-two".into();
-    assert!(
-        store
-            .import_document(&changed, &blocks, &[], &resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&changed, &blocks, &[], &resources)
+        .is_err());
     changed = record.clone();
     changed.parser_revision = "parser-two".into();
-    assert!(
-        store
-            .import_document(&changed, &blocks, &[], &resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&changed, &blocks, &[], &resources)
+        .is_err());
     let mut changed_blocks = blocks.clone();
     changed_blocks[2].text.push('!');
-    assert!(
-        store
-            .import_document(&record, &changed_blocks, &[], &resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&record, &changed_blocks, &[], &resources)
+        .is_err());
     // Then original projection, location and appearance remain authoritative.
     assert_eq!(store.document(&record.id).unwrap(), Some(saved));
     assert_eq!(
@@ -329,11 +321,9 @@ fn full_size_block_and_readings_fit_without_loading_later_corpus() {
     // Then the legal block is returned alone with a stable next locator.
     assert_eq!(window.blocks, blocks[..1]);
     assert_eq!(window.next, Some(position("bridge-1", 0)));
-    assert!(
-        store
-            .document_window(&record.id, window.next.as_ref())
-            .is_err()
-    );
+    assert!(store
+        .document_window(&record.id, window.next.as_ref())
+        .is_err());
 }
 
 #[test]
@@ -382,11 +372,9 @@ fn failed_projection_write_rolls_back_document_blocks_and_registered_resources()
     let db = rusqlite::Connection::open(&path).unwrap();
     db.execute_batch("CREATE TRIGGER fail_document_navigation BEFORE INSERT ON document_navigation BEGIN SELECT RAISE(ABORT,'disk failure fixture'); END;").unwrap();
     // When complete projection admission fails.
-    assert!(
-        store
-            .import_document(&record, &blocks, &contents, &resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&record, &blocks, &contents, &resources)
+        .is_err());
     // Then no partial record, block or resource survives, and retry is safe.
     assert_eq!(store.document(&record.id).unwrap(), None);
     assert_eq!(
@@ -463,7 +451,7 @@ fn schema_six_migration_retains_review_material_and_accepted_settings() {
     assert_eq!(
         db.pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
             .unwrap(),
-        8
+        9
     );
     let (record, blocks, resources) = fixture(1);
     store
@@ -614,11 +602,9 @@ fn byte_budget_stops_window_before_eight_blocks_and_pdf_pages_stay_source_metada
     let mut invalid_resources = resources.clone();
     invalid_resources[0].source_id = invalid.id.clone();
     blocks[2].page = Some(3);
-    assert!(
-        store
-            .import_document(&invalid, &blocks, &[], &invalid_resources)
-            .is_err()
-    );
+    assert!(store
+        .import_document(&invalid, &blocks, &[], &invalid_resources)
+        .is_err());
     assert_eq!(store.document(&invalid.id).unwrap(), None);
 }
 

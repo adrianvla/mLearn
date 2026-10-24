@@ -12,6 +12,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.app.Activity
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
 import expo.modules.kotlin.Promise
 import org.json.JSONObject
@@ -61,6 +64,14 @@ class MlearnNativeModule : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("MlearnNative")
+    AsyncFunction("copyText") { text: String ->
+      require(text.toByteArray(Charsets.UTF_8).size <= 32_768 && !text.contains('\u0000')) {
+        "Clipboard text exceeds its supported size."
+      }
+      val context = appContext.reactContext ?: error("React context is unavailable")
+      val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+      clipboard.setPrimaryClip(ClipData.newPlainText("", text))
+    }
     OnDestroy {
       val cancelledOcr = synchronized(ocrAdmission) {
         ocr.close().also {

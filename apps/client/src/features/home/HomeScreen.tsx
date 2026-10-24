@@ -1,34 +1,31 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Image, View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
-import { AppShell, Panel, Row } from '@mlearn/ui/layout';
+import { AppShell, Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { Button } from '@mlearn/ui/button';
-import { Icon } from '@mlearn/ui/icon';
+import { ActivityCard } from '@mlearn/ui/activity-card';
+import { SourceRow } from '@mlearn/ui/source-row';
 import { Select } from '@mlearn/ui/select';
 import { Progress } from '@mlearn/ui/progress';
 import { logoSource } from '@mlearn/ui/brand';
 import { useUnistyles } from 'react-native-unistyles';
 import type { DocumentRecord, SourceRecord, Snapshot } from '@mlearn/contracts';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { useSourceImport } from '../source-entry';
 export function HomeScreen() {
-    const busyRef = useRef(false);
     const host = useRuntime();
     const { width } = useWindowDimensions();
     const { theme } = useUnistyles();
     const router = useRouter();
-    const [opening, setOpening] = useState(false);
     const [sources, setSources] = useState<SourceRecord[]>([]);
     const [documents, setDocuments] = useState<DocumentRecord[]>([]);
-    const [openingDocument, setOpeningDocument] = useState(false);
-    const [openingImages, setOpeningImages] = useState<'files' | 'folder' | null>(null);
-    const imageSelection = useRef<AbortController | null>(null);
-    const documentIntent = useRef<object | null>(null);
     const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
     const [selected, setSelected] = useState('');
     const [error, setError] = useState('');
-    const [busy, setBusy] = useState(false);
+    const sourceImport = useSourceImport(selected);
+    const busy = sourceImport.busy;
     const [contentWidth, setContentWidth] = useState(0);
     async function refresh() {
         if (!host.available)
@@ -54,144 +51,15 @@ export function HomeScreen() {
                     setError(e.message);
             });
         return () => {
-            active = false; documentIntent.current = null;
-            imageSelection.current?.abort(); imageSelection.current = null;
+            active = false;
         };
     }, [host]));
-    async function action(fn: () => Promise<void>) {
-        if (busyRef.current)
-            return;
-        busyRef.current = true;
-        setBusy(true);
-        setError('');
-        try {
-            await fn();
-        }
-        catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
-        }
-        finally {
-            busyRef.current = false;
-            setBusy(false);
-        }
-    }
-    useFocusEffect(useCallback(() => {
-        if (!host.available || !host.media.subscribeDrop)
-            return;
-        let active = true;
-        let stop: (() => void) | undefined;
-        host.media.subscribeDrop(paths => {
-            if (!active)
-                return;
-            if (paths.length && paths.every(path => /\.(?:png|jpe?g|gif|webp)$/i.test(path))) {
-                if (!selected) { setError('Select a language package before opening the dropped source.'); return; }
-                void action(() => openImages(false, paths));
-                return;
-            }
-            if (paths.length !== 1) {
-                setError('Drop one video or document at a time.');
-                return;
-            }
-            if (!selected) {
-                setError('Select a language package before opening the dropped source.');
-                return;
-            }
-            if (/\.(?:txt|epub|pdf)$/i.test(paths[0])) {
-                void action(() => openDocument(paths[0]));
-                return;
-            }
-            void action(async () => { const opened = await host.client.openSource(paths[0], selected); router.push({
-                pathname: '/watch', params: {
-                    id: opened.source.id
-                }
-            }); });
-        }).then(unsubscribe => {
-            if (active)
-                stop = unsubscribe;
-            else
-                unsubscribe();
-        }).catch(e => {
-            if (active)
-                setError(e.message);
-        });
-        return () => { active = false; stop?.(); };
-    }, [host, selected]));
-    async function open() {
-        if (!host.available)
-            return;
-        setOpening(true);
-        try {
-            const path = await host.media.pick(false);
-            if (!path)
-                return;
-            let opened;
-            try {
-                opened = await host.client.openSource(path, selected);
-            }
-            finally {
-                await host.media.releasePicked(path);
-            }
-            router.push({
-                pathname: '/watch', params: {
-                    id: opened.source.id
-                }
-            });
-        }
-        finally {
-            setOpening(false);
-        }
-    }
-    async function openDocument(droppedPath?: string) {
-        if (!host.available) return;
-        const intent = {}; documentIntent.current = intent;
-        const session = host.client.beginSourceSession();
-        setOpeningDocument(true);
-        try {
-            await session.ready;
-            const path = droppedPath ?? await host.documents.pick();
-            if (!path) return;
-            let opened;
-            try {
-                if (documentIntent.current !== intent || !session.isCurrent()) return;
-                opened = await host.client.openDocument(path, selected);
-            } finally {
-                if (!droppedPath) await host.documents.releasePicked(path);
-            }
-            if (documentIntent.current === intent && session.isCurrent())
-                router.push({ pathname: '../reader', params: { id: opened.source.id } });
-        } finally {
-            if (documentIntent.current === intent) documentIntent.current = null;
-            setOpeningDocument(false);
-        }
-    }
-    async function openImages(folder: boolean, droppedPaths?: string[]) {
-        if (!host.available) return;
-        const intent = {}; documentIntent.current = intent;
-        const controller = new AbortController(); imageSelection.current = controller;
-        const session = host.client.beginSourceSession();
-        setOpeningImages(folder ? 'folder' : 'files');
-        try {
-            await session.ready;
-            if (documentIntent.current !== intent || !session.isCurrent() || controller.signal.aborted) return;
-            const picked = droppedPaths ? null : await host.documents.pickImages(folder, controller.signal);
-            const paths = droppedPaths ?? picked?.paths;
-            if (!paths) return;
-            try {
-                if (documentIntent.current !== intent || !session.isCurrent() || controller.signal.aborted) return;
-                const opened = await host.client.importImages(paths, picked?.title ?? 'Image collection', selected);
-                if (documentIntent.current === intent && session.isCurrent() && !controller.signal.aborted)
-                    router.push({ pathname: '../reader', params: { id: opened.source.id } });
-            } finally { await picked?.release(); }
-        } finally {
-            if (documentIntent.current === intent) documentIntent.current = null;
-            if (imageSelection.current === controller) imageSelection.current = null;
-            setOpeningImages(null);
-        }
-    }
     const languages = snapshot?.installedPlugins.filter(p => p.capabilities.includes('text.analyze.v1')) ?? [];
     const latestSource = sources[0];
     const columns = width <= 550 ? 1 : width <= 950 ? 2 : 3;
-    const activityWidth = ((contentWidth || Math.min(1184, width - 48)) - theme.spacing.comfortable * (columns - 1)) / columns;
+    const availableWidth = contentWidth || Math.min(1184, width - 48);
+    const activityWidth = (availableWidth - theme.spacing.comfortable * (columns - 1)) / columns;
+    const recentWidth = width <= 800 ? availableWidth : (availableWidth - theme.spacing.compact) / 2;
     function resume(source: SourceRecord) {
       if (process.env.EXPO_PUBLIC_MLEARN_METRICS === '1')
         console.info(`annotation-ui phase=resume_action timestamp_ms=${Date.now()}`);
@@ -210,25 +78,29 @@ export function HomeScreen() {
       <Row>
         <Button label="Settings" icon="settings" size="compact" variant="quiet" onPress={() => router.push('/settings')} />
         <Button label="Material" size="compact" variant="quiet" onPress={() => router.push('../materials')} />
-        <Button label="Review" size="compact" variant="quiet" onPress={() => router.push('../review')} />
         <Button label="Get language packages" icon="package" size="compact" variant="quiet"
           onPress={() => router.push({ pathname: '/settings', params: { section: 'languages' } })} />
       </Row>
     </>}>
-      {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : <>
+      {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : null}
         {snapshot?.packageIssues?.length ? <Text accessibilityRole="alert">Some language packages are unavailable. Open Settings to repair them; other installed packages remain usable.</Text> : null}
         <View style={styles.activities} onLayout={event => setContentWidth(event.nativeEvent.layout.width)}>
-        <View style={styles.activity(activityWidth)}>
-        <Panel>
-          <View style={styles.activityHeader}>
-            <View style={styles.icon}><Icon name="video" size={22} color={theme.colors.text} /></View>
-            <View style={styles.activityText}>
-              <Text variant="section" accessibilityRole="header">Watch</Text>
-              <Text variant="caption" muted>Watch with subtitles and contextual lookup.</Text>
-            </View>
-          </View>
-          <View style={styles.preview}>
-            {latestSource ? <>
+        <View testID="home-read-activity" style={styles.activity(activityWidth)}>
+        <ActivityCard title="Read" testID="home-open-read" icon="book" description="Read and look up language in context."
+          disabled={busy || !selected} onPress={() => router.push({ pathname: '/reader', params: { packageId: selected } })}>
+          {documents[0] ? <Button label={documents[0].title} accessibilityLabel={`Continue ${documents[0].title}`}
+            variant="sourcePreview" disabled={busy} onPress={() => {
+              const source = documents[0];
+              if (source) router.push({ pathname: '/reader', params: { id: source.id } });
+            }} /> : <Button label="Open or import material" accessibilityLabel="Open document entry"
+              variant="sourcePreview" disabled={busy || !selected}
+              onPress={() => router.push({ pathname: '/reader', params: { packageId: selected } })} />}
+        </ActivityCard>
+        </View>
+        <View testID="home-watch-activity" style={styles.activity(activityWidth)}>
+        <ActivityCard title="Watch" testID="home-open-watch" icon="video" description="Watch with subtitles and contextual lookup."
+          disabled={busy || !selected} onPress={() => router.push({ pathname: '/watch', params: { packageId: selected } })}>
+          {latestSource ? <View style={styles.preview}>
               <Button label={`Continue ${latestSource.title}`} icon="play" iconOnly variant="preview"
                 disabled={busy} onPress={() => resume(latestSource)} />
               <View style={styles.previewFooter}>
@@ -236,91 +108,60 @@ export function HomeScreen() {
                 {latestSource.durationMs > 0 ? <Progress label={`Continue ${latestSource.title} progress`}
                   value={latestSource.positionMs / latestSource.durationMs * 100} style={styles.previewProgress} /> : null}
               </View>
-            </> : <>
-            <Icon name="play" size={32} color={theme.colors.muted} />
-            <Button label="Open local video" variant="quiet" disabled={busy || !selected} busy={busy} onPress={() => void action(open)} />
-            </>}
-          </View>
+          </View> : <Button label="Open or import material" accessibilityLabel="Open video entry" icon="play"
+            variant="sourcePreview" disabled={busy || !selected}
+            onPress={() => router.push({ pathname: '/watch', params: { packageId: selected } })} />}
+        </ActivityCard>
+        </View>
+        <View testID="home-conversation-activity" style={styles.activity(activityWidth)}>
+        <ActivityCard title="Messenger" icon="conversation" description="Continue your conversations."
+          onPress={() => router.push('../messenger')}>
           <Row>
-            {latestSource ? <Button label="Open local video" icon="video" size="compact" variant="quiet"
-              disabled={busy || !selected} busy={busy} onPress={() => void action(open)} /> : null}
-            {opening ? <Button label="Cancel opening" variant="secondary" onPress={() => {
-              if (host.available) void host.client.cancelSourceOpen().catch(e => setError(e.message));
-            }} /> : null}
+            <Button testID="home-open-conversation" label="Conversation" variant="quiet" size="compact" onPress={() => router.push('../messenger')} />
           </Row>
-          {!selected ? <Text muted>Install a language package before opening a source.</Text> : null}
-          {error ? <>
-            <Text accessibilityRole="alert">{error}</Text>
-            <Row><Button label="Retry sources" variant="secondary" disabled={busy} onPress={() => void action(refresh)} /></Row>
-          </> : null}
-        </Panel>
+        </ActivityCard>
         </View>
-        <View style={styles.activity(activityWidth)}>
-        <Panel>
-          <View style={styles.activityHeader}>
-            <View style={styles.activityText}>
-              <Text variant="section" accessibilityRole="header">Reader</Text>
-              <Text variant="caption" muted>TXT, EPUB, PDF and image pages.</Text>
-            </View>
-          </View>
-          <View style={styles.preview}>
-            {documents[0] ? <>
-              <Text numberOfLines={3}>{documents[0].title}</Text>
-              <Button label={`Continue ${documents[0].title}`} variant="secondary" disabled={busy}
-                onPress={() => { const source = documents[0]; if (source) router.push({ pathname: '../reader', params: { id: source.id } }); }} />
-            </> : <Text muted>Open a document to read.</Text>}
-          </View>
-          <Row><Button testID="reader-open-document" label="Open document" variant="quiet" size="compact" disabled={busy || !selected}
-            busy={openingDocument} onPress={() => void action(() => openDocument())} />
-            <Button testID="reader-open-images" label="Open images" variant="quiet" size="compact" disabled={busy || !selected}
-                busy={openingImages === 'files'} onPress={() => void action(() => openImages(false))} />
-            {host.available && host.documents.supportsFolders ? <Button label="Open image folder" variant="quiet" size="compact"
-                disabled={busy || !selected} busy={openingImages === 'folder'}
-                onPress={() => void action(() => openImages(true))} /> : null}
-            {openingDocument || openingImages ? <Button label={openingImages ? 'Cancel image opening' : 'Cancel document opening'} variant="secondary" size="compact" onPress={() => {
-              documentIntent.current = null;
-              imageSelection.current?.abort();
-              if (host.available) void host.client.cancelSourceOpen().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)));
-            }} /> : null}</Row>
-          {!selected ? <Text muted>Install a language package before opening a source.</Text> : null}
-        </Panel>
+        <View testID="home-review-activity" style={styles.activity(activityWidth)}>
+        <ActivityCard title="Review" accessibilityLabel="Open Review" icon="book" onPress={() => router.push('../review')}>
+          <Row>
+            <Button testID="home-open-review" label="Review" variant="quiet" size="compact" onPress={() => router.push('../review')} />
+          </Row>
+        </ActivityCard>
         </View>
         </View>
+        {sourceImport.opening ? <Row>
+          <Text accessibilityLiveRegion="polite">Opening dropped source…</Text>
+          <Button label="Cancel opening" variant="secondary" onPress={sourceImport.cancel} />
+        </Row> : null}
+        {sourceImport.error ? <Text accessibilityRole="alert">{sourceImport.error}</Text> : null}
+        {error ? <>
+          <Text accessibilityRole="alert">{error}</Text>
+          <Button label="Retry sources" variant="secondary" disabled={busy}
+            onPress={() => void refresh().then(() => setError('')).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : String(cause)))} />
+        </> : null}
+        {host.available ? <>
         {documents.length ? <View style={styles.recents}>
           <Text variant="section" accessibilityRole="header">Recent documents</Text>
-          {documents.map(source => <View key={source.id} style={styles.sourceRow}>
-            <View style={styles.sourceMain}><Panel inset="compact">
-              <Text numberOfLines={2}>{source.title}</Text>
-              <Text variant="detail" muted>{source.format.toUpperCase()} · {languages.find(language => language.id === source.packageId)?.displayName ?? source.packageId}</Text>
-              {source.position ? <Text variant="detail" muted>{source.position.resource} · byte {source.position.offset}</Text> : null}
-            </Panel></View>
-            <View style={styles.sourceAction(width <= 600)}><Button label="Resume" variant="secondary"
-              accessibilityLabel={`Resume ${source.title}`} disabled={busy}
-              onPress={() => router.push({ pathname: '../reader', params: { id: source.id } })} /></View>
-          </View>)}
+          <View style={styles.sourceList}>{documents.map(source => <View key={source.id} style={styles.recent(recentWidth)}>
+            <SourceRow title={source.title} icon="book" disabled={busy}
+              detail={`${source.format.toUpperCase()} · ${languages.find(language => language.id === source.packageId)?.displayName ?? source.packageId}${source.position ? ` · ${source.position.resource} · byte ${source.position.offset}` : ''}`}
+              onPress={() => router.push({ pathname: '../reader', params: { id: source.id } })} />
+          </View>)}</View>
         </View> : null}
         <View style={styles.recents}>
           <Text variant="section" accessibilityRole="header">Recent sources</Text>
           <View style={styles.sourceList}>{sources.length ? sources.map(source => {
             const language = languages.find(p => p.id === source.packageId);
             const seconds = Math.floor(source.positionMs / 1000);
-            return <View key={source.id} style={styles.sourceRow}>
-              <View style={styles.sourceMain}><Panel inset="compact"><View style={styles.sourceInfo}>
-              <View style={styles.sourceIcon(width <= 650)}><Icon name="video" size={24} color={theme.colors.muted} /></View>
-              <View style={styles.sourceText}>
-                <Text selectable numberOfLines={2}>{source.title}</Text>
-                <Text muted variant="detail">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')} · {language ? language.displayName ?? 'Language name unavailable' : 'Language package unavailable'}{source.subtitlePath ? ' · Subtitles' : ''}</Text>
-                {source.durationMs > 0 ? <Progress label={`${source.title} progress`}
-                  value={source.positionMs / source.durationMs * 100} /> : null}
-              </View>
-              </View></Panel></View>
-              <View style={styles.sourceAction(width <= 600)}><Button label="Resume" icon="play" size={width <= 600 ? 'default' : 'row'}
-                accessibilityLabel={`Resume ${source.title}`} variant="secondary" disabled={busy}
-                onPress={() => resume(source)} /></View>
+            return <View key={source.id} style={styles.recent(recentWidth)}>
+              <SourceRow title={source.title} icon="video" disabled={busy}
+                detail={`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')} · ${language ? language.displayName ?? 'Language name unavailable' : 'Language package unavailable'}${source.subtitlePath ? ' · Subtitles' : ''}`}
+                progress={source.durationMs > 0 ? source.positionMs / source.durationMs * 100 : undefined}
+                onPress={() => resume(source)} />
             </View>;
           }) : <Text muted>No recent sources. Open a local video to begin.</Text>}</View>
         </View>
-      </>}
+        </> : null}
     </AppShell>;
 }
 
@@ -331,9 +172,6 @@ const styles = StyleSheet.create(theme => ({
   languages: { width: 300, maxWidth: '100%', flexShrink: 1, minWidth: 0 },
   activities: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.comfortable, marginTop: theme.spacing.compact },
   activity: (width: number) => ({ width, minWidth: 0, maxWidth: '100%' }),
-  activityHeader: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.compact },
-  activityText: { flex: 1, minWidth: 0 },
-  icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.controls.outline, borderRadius: theme.radius, backgroundColor: theme.surfaces.glass },
   preview: { minHeight: 160, alignItems: 'center', justifyContent: 'center', gap: theme.spacing.small, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radius, backgroundColor: theme.surfaces.glass, overflow: 'hidden',
     _web: { boxShadow: `inset 0 0 0 1px ${theme.colors.border}` } },
   previewFooter: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: theme.spacing.tiny,
@@ -342,12 +180,6 @@ const styles = StyleSheet.create(theme => ({
   previewTitle: { flex: 1, minWidth: 0 },
   previewProgress: { flex: 1 },
   recents: { gap: theme.spacing.compact },
-  sourceList: { gap: theme.spacing.compact },
-  sourceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.spacing.compact },
-  sourceMain: { flex: 1, minWidth: 0 },
-  sourceInfo: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.compact },
-  sourceAction: (compact: boolean) => ({ width: compact ? '100%' : undefined }),
-  sourceIcon: (compact: boolean) => ({ alignItems: 'center', justifyContent: 'center', width: compact ? 72 : 140,
-    height: compact ? 56 : 72, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 4, backgroundColor: theme.surfaces.glass }),
-  sourceText: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
+  sourceList: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.compact },
+  recent: (width: number) => ({ width, maxWidth: '100%', minWidth: 0 }),
 }));

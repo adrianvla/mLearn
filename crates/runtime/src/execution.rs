@@ -84,16 +84,28 @@ impl Drop for CallPermit<'_> {
 /// Shared native scheduling boundary. Guest admission stays outside Runtime.
 /// Hosts call execute on blocking workers; display coalescing stays in the client.
 pub struct RuntimeExecutor {
-    pub(super) runtime: Mutex<Runtime>,
+    pub(super) runtime: Arc<Mutex<Runtime>>,
+    conversations: crate::conversation_execution::ConversationOwner,
     pub(super) guest: Mutex<()>,
     admitted: AtomicUsize,
     cancellation: Arc<AtomicU64>,
 }
 impl RuntimeExecutor {
+    #[cfg(test)]
+    pub(crate) fn observe_generation(
+        &self,
+    ) -> (
+        tokio::sync::oneshot::Receiver<()>,
+        tokio::sync::oneshot::Receiver<()>,
+    ) {
+        self.conversations.observe()
+    }
+
     pub fn new(runtime: Runtime) -> Self {
         let cancellation = runtime.cancellation_handle();
         Self {
-            runtime: Mutex::new(runtime),
+            runtime: Arc::new(Mutex::new(runtime)),
+            conversations: crate::conversation_execution::ConversationOwner::default(),
             guest: Mutex::new(()),
             admitted: AtomicUsize::new(0),
             cancellation,
@@ -119,6 +131,16 @@ impl RuntimeExecutor {
         encode(parse(request).and_then(|request| self.execute_request(request)))
     }
     fn execute_request(&self, request: Request) -> Result<Response, Failure> {
+        let request = match request {
+            Request::Conversation { command } => match command {
+                command @ (mlearn_core::ConversationCommand::AnalyzeVisibleMessages { .. }
+                | mlearn_core::ConversationCommand::AnalyzeMessageSource { .. }) => {
+                    Request::Conversation { command }
+                }
+                command => return self.conversations.execute(self.runtime.clone(), command),
+            },
+            request => request,
+        };
         let started = std::env::var_os("MLEARN_PLUGIN_METRICS")
             .is_some()
             .then(Instant::now);
@@ -250,6 +272,11 @@ impl RuntimeExecutor {
 }
 fn guest_bearing(request: &Request) -> bool {
     match request {
+        Request::Conversation { command } => matches!(
+            command,
+            mlearn_core::ConversationCommand::AnalyzeVisibleMessages { .. }
+                | mlearn_core::ConversationCommand::AnalyzeMessageSource { .. }
+        ),
         Request::Review { command } => matches!(
             command,
             mlearn_core::ReviewCommand::Start { .. } | mlearn_core::ReviewCommand::Next { .. }

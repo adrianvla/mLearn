@@ -35,8 +35,11 @@ export function AppShell({ header, navigation, children }: PropsWithChildren<{
     </View>
   </View>;
 }
-export function Panel({ children, inset = 'standard' }: PropsWithChildren<{ inset?: 'standard' | 'compact' }>) {
-  return <View style={styles.panel(inset === 'compact')}>{children}</View>;
+export function Panel({ children, inset = 'standard', material = 'glass' }: PropsWithChildren<{
+  readonly inset?: 'standard' | 'compact' | 'spacious';
+  readonly material?: 'glass' | 'solid';
+}>) {
+  return <View style={styles.panel(inset, material)}>{children}</View>;
 }
 export function Stack({ children }: PropsWithChildren) { return <View style={styles.stack}>{children}</View>; }
 export function Section({ title, children }: PropsWithChildren<{ readonly title: string }>) {
@@ -95,8 +98,11 @@ const styles = StyleSheet.create((theme) => ({
   shellBody: (sidebar: boolean) => ({ flexGrow: 1, paddingLeft: sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,
     paddingRight: sidebar ? theme.spacing.section : theme.spacing.large, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.large, alignItems: 'center' }),
   shellContent: { width: '100%', maxWidth: 1184, gap: theme.spacing.comfortable },
-  panel: (compact: boolean) => ({ backgroundColor: theme.surfaces.glass, borderRadius: theme.radius + 4, borderWidth: 1, borderColor: theme.colors.border,
-    padding: compact ? theme.spacing.small + theme.spacing.tiny / 2 : theme.spacing.medium, gap: theme.spacing.compact }),
+  panel: (inset: 'standard' | 'compact' | 'spacious', material: 'glass' | 'solid') => ({
+    backgroundColor: material === 'solid' ? theme.colors.surface : theme.surfaces.glass,
+    borderRadius: theme.radius + 4, borderWidth: 1, borderColor: theme.colors.border,
+    padding: inset === 'compact' ? theme.spacing.small + theme.spacing.tiny / 2
+      : inset === 'spacious' ? theme.spacing.large : theme.spacing.medium, gap: theme.spacing.compact }),
   stack: { gap: theme.spacing.compact },
   section: { gap: theme.spacing.small },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },

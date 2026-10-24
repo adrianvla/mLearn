@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Material, MaterialContent, MaterialCreate, SourceAnchor } from '@mlearn/contracts';
+import type { Material, MaterialContent, MaterialCreate, SourceAnchor, Response } from '@mlearn/contracts';
 import { createRuntimeClient, RuntimeError } from '../src/client';
-import { encodedBytes, isMaterialResponse } from '../src/materialProtocol';
+import { encodedBytes, isMaterialResponse, isSourceAnchor } from '../src/materialProtocol';
 
 const anchor: SourceAnchor = { sourceId: 'source', contentRevision: 'media-revision', packageId: 'package', packageVersion: '1',
   text: ' e\u0301 日本語', locator: { kind: 'video', subtitleRevision: 'subtitles', cueIndex: 7, selectionStart: 5, selectionEnd: 14,
@@ -37,6 +37,47 @@ test('Material responses reject malformed nested values and invalid UTF-8 coordi
     // Then no generated Material type is admitted.
     assert.equal(isMaterialResponse(value), false);
   }
+});
+
+test('message source anchors retain conversation revision and original UTF-8 coordinates', () => {
+  const message = { sourceId: 'conversation', contentRevision: 'message-revision',
+    packageId: 'package', packageVersion: '1', text: '日本語',
+    locator: { kind: 'message', conversationId: 'conversation', messageId: 'message',
+      messageRevision: 2, contextStart: 0, selectionStart: 6, selectionEnd: 9 } };
+  assert.equal(isSourceAnchor(message), true);
+  for (const locator of [
+    { ...message.locator, conversationId: 'another-conversation' },
+    { ...message.locator, messageRevision: 0 },
+    { ...message.locator, selectionStart: 7 },
+    { ...message.locator, contextStart: 4294967295 },
+  ]) {
+    assert.equal(isSourceAnchor({ ...message, locator }), false);
+  }
+});
+
+test('frozen message Return admits only the original conversation revision and text', async () => {
+  const response = {
+    type: 'conversation_material_source',
+    conversation: { id: 'conversation', revision: 3, kind: 'thread', title: 'Saved source',
+      purpose: '', packageId: 'package', participants: ['person'], discarded: true },
+    message: { id: 'message', conversationId: 'conversation', sequence: 1, revision: 2,
+      role: 'assistant', participantId: 'person', replyTo: null, text: '日本語',
+      contentRevision: 'a'.repeat(64), createdAtMs: 1000, status: 'complete',
+      generationId: 'generation', sources: [] },
+    anchor: { sourceId: 'conversation', contentRevision: 'a'.repeat(64), packageId: 'package',
+      packageVersion: '1', text: '日本語', locator: { kind: 'message',
+        conversationId: 'conversation', messageId: 'message', messageRevision: 2,
+        contextStart: 0, selectionStart: 6, selectionEnd: 9 } },
+  } satisfies Response;
+  const client = createRuntimeClient({ commandId: () => 'command', execute: async () => JSON.stringify(response) });
+  assert.deepEqual(await client.returnMaterialSource('material'), response);
+  for (const invalid of [
+    { ...response, conversation: { ...response.conversation, id: 'unrelated' } },
+    { ...response, message: { ...response.message, id: 'unrelated' } },
+    { ...response, message: { ...response.message, revision: 3 } },
+    { ...response, message: { ...response.message, text: '別の文' } },
+    { ...response, message: { ...response.message, status: 'invalidated' } },
+  ]) assert.equal(isMaterialResponse(invalid), false);
 });
 
 test('Material reads validate requested record cursor and target identities', async () => {

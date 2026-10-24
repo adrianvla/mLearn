@@ -38,7 +38,7 @@ pub(crate) fn hold_guest_result(capability: &str) {
         }
     });
 }
-fn fixture() -> (tempfile::TempDir, Arc<RuntimeExecutor>, SourceRecord) {
+pub(crate) fn fixture() -> (tempfile::TempDir, Arc<RuntimeExecutor>, SourceRecord) {
     let directory = tempfile::tempdir().unwrap();
     let profile = directory.path().join("profile");
     let cdn = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/plugin-cdn");

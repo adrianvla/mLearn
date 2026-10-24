@@ -38,6 +38,12 @@ public class MlearnNativeModule: Module {
 
   public func definition() -> ModuleDefinition {
     Name("MlearnNative")
+    AsyncFunction("copyText") { (text: String) throws in
+      guard text.utf8.count <= 32_768, !text.contains("\0") else {
+        throw MediaProviderError.failed("Clipboard text exceeds its supported size.")
+      }
+      UIPasteboard.general.string = text
+    }.runOnQueue(DispatchQueue.main)
     OnDestroy {
       self.captures.close()
       let cancelledOcr = self.ocr.close()

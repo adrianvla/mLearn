@@ -92,7 +92,8 @@ export function useReader(client: RuntimeClient, id: string, materialId?: string
                 ? await client.returnReviewSource(reviewSessionId, reviewEncounterId)
                 : materialId ? await client.returnMaterialSource(materialId) : null;
             if (result) {
-                if (result.type === 'material_source' || result.window.source.id !== id)
+                if (result.type === 'material_source' || result.type === 'conversation_material_source'
+                    || result.window.source.id !== id)
                     throw new RuntimeError('invalid_request', 'This source return does not match the selected document.');
                 returning = result.anchor;
                 if (result.type === 'image_material_source') image = result.page;

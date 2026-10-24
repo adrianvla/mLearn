@@ -166,9 +166,18 @@ function ReviewWorkspace({ client, media }: {
       const marked = await mutate({ kind: 'assistance', encounterId: encounter.id, assistance: 'source' });
       if (!marked || scope.current !== active) return;
       const result = await client.returnReviewSource(value.id, encounter.id);
-      if (active && scope.current === active)
-        router.push({ pathname: result.type === 'material_source' ? '/watch' : '../reader',
-          params: { id: result.window.source.id, reviewSessionId: value.id, reviewEncounterId: encounter.id } });
+      if (active && scope.current === active) {
+        if (result.type === 'conversation_material_source') {
+          router.push({ pathname: '../messenger', params: {
+            id: result.conversation.id, messageId: result.message.id,
+            messageSequence: String(result.message.sequence),
+            reviewSessionId: value.id, reviewEncounterId: encounter.id,
+          } });
+        } else {
+          router.push({ pathname: result.type === 'material_source' ? '/watch' : '../reader',
+            params: { id: result.window.source.id, reviewSessionId: value.id, reviewEncounterId: encounter.id } });
+        }
+      }
     } catch (cause) {
       if (scope.current === active) setReturnError(messageOf(cause));
     } finally {

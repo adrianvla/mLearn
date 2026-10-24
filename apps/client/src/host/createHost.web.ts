@@ -25,6 +25,7 @@ export function createHost(): Host {
   return {
     available: true,
     label: 'Tauri desktop',
+    copyText:text=>invoke<void>('copy_text',{text}),
     windowControlsWidth,
     initialTheme: window.__MLEARN_INITIAL_THEME__,
     documents:{

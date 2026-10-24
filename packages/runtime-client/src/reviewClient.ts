@@ -63,7 +63,8 @@ export function createReviewClient(request: (command: Request) => Promise<unknow
     async returnReviewSource(sessionId: string, encounterId: string) {
       const value = await request({ type: 'return_review_source', sessionId, encounterId });
       if (!isMaterialResponse(value) || value.type !== 'material_source'
-        && value.type !== 'document_material_source' && value.type !== 'image_material_source') throw malformed();
+        && value.type !== 'document_material_source' && value.type !== 'image_material_source'
+        && value.type !== 'conversation_material_source') throw malformed();
       return value;
     },
   };

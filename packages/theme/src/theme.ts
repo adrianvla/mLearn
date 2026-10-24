@@ -29,6 +29,16 @@ export function resolveTheme(saved: ThemeDocument) {
   const lightSurface = 0.2126 * (rgb >> 16) + 0.7152 * ((rgb >> 8) & 255) + 0.0722 * (rgb & 255) >= 128;
   const builtInPalette = builtInThemes.some(preset => document.id === preset.id
     && Object.entries(preset.colors).every(([key, value]) => document.colors[key as keyof ThemeDocument['colors']] === value));
+  const canvas = lightSurface ? '#F3F5F7' : '#000000';
+  const secondary = lightSurface ? '#FFFFFF99' : `${document.colors.text.slice(0, 7)}26`;
+  const authored = `#${[1, 3, 5].map(offset => {
+    const base = Number.parseInt(secondary.slice(offset, offset + 2), 16);
+    const alpha = Number.parseInt(secondary.slice(7, 9), 16) / 255;
+    const background = Number.parseInt(canvas.slice(offset, offset + 2), 16);
+    const accent = Number.parseInt(document.colors.accent.slice(offset, offset + 2), 16);
+    return Math.round((base * alpha + background * (1 - alpha)) * 0.9 + accent * 0.1)
+      .toString(16).padStart(2, '0');
+  }).join('')}`;
   const textRole = (fontSize: number, lineHeight: number, fontWeight: '400' | '500' | '600' | '700' = '400') => ({
     fontFamily: 'Helvetica Neue',
     fontSize: fontSize * document.textScale,
@@ -57,8 +67,8 @@ export function resolveTheme(saved: ThemeDocument) {
       // Chromium's body tint; matched composited reference captures set this alpha.
       windowTint: builtInPalette ? lightSurface ? '#FFFFFFBF' : '#00000061' : undefined,
       windowFilter: builtInPalette && lightSurface ? 'blur(8px) saturate(0.82) contrast(0.92) brightness(1.04)' : undefined,
-      canvas: lightSurface ? '#F3F5F7' : '#000000' },
-    surfaces: { glass: lightSurface ? '#FFFFFF80' : '#82828233' },
+      canvas },
+    surfaces: { glass: lightSurface ? '#FFFFFF80' : '#82828233', secondary, authored },
     feedback: { success: lightSurface ? '#2F7D20' : '#58C333' },
     source: { selection: `${document.colors.accent.slice(0, 7)}33` },
     pronunciation: { high: '#E8687B', low: '#4E86CA', strokeWidth: 2,
@@ -81,6 +91,9 @@ export function resolveTheme(saved: ThemeDocument) {
       heading: textRole(20, 30, '600'),
       shellTitle: textRole(20, 30, '700'),
       navigation: textRole(16, 24),
+      listTitle: textRole(16, 24, '600'),
+      sourceTitle: textRole(16, 24, '500'),
+      entryTitle: textRole(24, 36, '700'),
       section: textRole(18, 27, '600'),
       groupTitle: textRole(15.2, 23, '600'),
       body: textRole(16, 24),

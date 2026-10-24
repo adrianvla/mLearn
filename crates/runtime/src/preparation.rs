@@ -9,6 +9,7 @@ impl Runtime {
     pub(crate) fn prepare(&mut self, request: Request, epoch: u64) -> Result<Prepared, Failure> {
         let cancellation = Cancellation::source(self.cancellation.clone(), epoch);
         match request {
+            Request::Conversation { command } => self.prepare_conversation(command, cancellation),
             Request::ImportImageCollection {
                 paths,
                 title,

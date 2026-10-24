@@ -1,10 +1,11 @@
 import { createContext, useCallback, useState, type PropsWithChildren, type ReactElement } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, View, useWindowDimensions } from 'react-native';
+import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
 import { Button } from './Button';
 import { Text } from './Text';
+import { KeyboardAvoidingView } from './KeyboardAvoidingView';
 
 type Props = PropsWithChildren<{ open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; trigger: ReactElement; presentation?: 'dialog' | 'sidebar' }>;
 export const dialogSidebarWidth = 320;

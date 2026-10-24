@@ -18,6 +18,20 @@ pub struct SourceAnchor {
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum SourceLocator {
+    Message {
+        #[serde(rename = "conversationId")]
+        conversation_id: crate::ConversationId,
+        #[serde(rename = "messageId")]
+        message_id: crate::MessageId,
+        #[serde(rename = "messageRevision")]
+        message_revision: u32,
+        #[serde(rename = "contextStart")]
+        context_start: u32,
+        #[serde(rename = "selectionStart")]
+        selection_start: u32,
+        #[serde(rename = "selectionEnd")]
+        selection_end: u32,
+    },
     Image {
         #[serde(rename = "resourceId")]
         resource_id: String,

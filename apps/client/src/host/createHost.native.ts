@@ -12,6 +12,7 @@ import { createImageOcrHost } from './imageOcr';
 export function createHost(): Host {
   const module = requireOptionalNativeModule<{
     execute(request: string): Promise<string>;
+    copyText(text:string):Promise<void>;
     cancelSourceOpen():Promise<void>;
     reserveMediaCapture(id:string):Promise<void>;
     importPickedMedia(uri:string,name:string):Promise<string>;
@@ -43,7 +44,7 @@ export function createHost(): Host {
     const path=await module.importPickedMedia(asset.uri,asset.name);
     return {path,name:asset.name,kind,release:()=>module.releaseMediaCapture(path)};
   };
-  return { available: true, label: 'Expo native', documents:{
+  return { available: true, label: 'Expo native', copyText:text=>module.copyText(text), documents:{
     supportsFolders:false,
     async pickImages(folder,signal){
       if(folder)throw new RuntimeError('unavailable','Select image files on this device; folder selection is not supported.');

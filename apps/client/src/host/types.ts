@@ -16,6 +16,7 @@ export type DocumentHost = {
   uri(location:import('@mlearn/contracts').DocumentResourceLocation):Promise<string>;
 };
 export type Host = { available: true; client: RuntimeClient; media:MediaHost; documents:DocumentHost; ocr:ImageOcrHost; authoredMedia:AuthoredMediaHost; label: string; windowControlsWidth?: number;
+  copyText:(text:string)=>Promise<void>;
   ocrModels?: OcrModelsHost;
   initialTheme?: import('@mlearn/contracts').ThemeDocument;
   subscribeWindowMaterial?:(handler:(active:boolean)=>void)=>Promise<()=>void>;

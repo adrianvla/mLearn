@@ -7,9 +7,9 @@ import type { CueAnalysis, OccurrenceKnowledge, AnalyzedToken } from '@mlearn/co
 import { LinguisticWord } from '../linguistic';
 /** Presentation only. One native batch owns analysis and all target projections. */
 export function AnnotatedText({ analysis, rawText, annotations, onInspect, inspectionMode, variant = 'subtitle' }: {
-    analysis: CueAnalysis | null;
+    analysis: (Pick<CueAnalysis, 'tokens'> & { readonly cue?: Pick<CueAnalysis['cue'], 'index'> }) | null;
     rawText: string;
-    annotations: OccurrenceKnowledge[];
+    annotations: (Pick<OccurrenceKnowledge, 'tokenStart' | 'status'> & { readonly cueIndex?: number })[];
     onInspect: (token: AnalyzedToken, anchor: TextAnchor) => void;
     inspectionMode?: InspectionMode;
     variant?: 'subtitle' | 'body';
@@ -39,7 +39,8 @@ export function AnnotatedText({ analysis, rawText, annotations, onInspect, inspe
     variant={variant}
     activation={token.targets.length ? {
         inspectionMode,
-        status: annotations.find(a => a.cueIndex === analysis?.cue.index && a.tokenStart === token.start)?.status ?? 'untracked',
+        status: annotations.find(a => (a.cueIndex === undefined || a.cueIndex === analysis?.cue?.index)
+            && a.tokenStart === token.start)?.status ?? 'untracked',
         onActivate: anchor => inspect(token, anchor),
     } : undefined} />;
     }

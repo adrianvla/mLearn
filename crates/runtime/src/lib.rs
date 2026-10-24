@@ -1,6 +1,9 @@
 mod analysis;
 mod capture;
 pub mod catalog;
+mod conversation;
+mod conversation_execution;
+mod conversation_provider;
 mod document;
 mod document_import;
 mod document_projection;
@@ -92,6 +95,9 @@ impl Runtime {
         std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
         let mut store =
             ProfileStore::open(&root.join("profile.sqlite3")).map_err(|e| e.to_string())?;
+        store
+            .interrupt_conversation_generations()
+            .map_err(|error| error.to_string())?;
         store.interrupt_ocr().map_err(|error| error.to_string())?;
         let catalog = trust.map(CatalogClient::new).transpose()?.map(Arc::new);
         let mut runtime = Self {

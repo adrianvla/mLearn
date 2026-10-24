@@ -104,7 +104,12 @@ impl LanguageWork {
         anchor: &SourceAnchor,
     ) -> Result<(), Failure> {
         let (selection_start, selection_end) = match &anchor.locator {
-            SourceLocator::Video {
+            SourceLocator::Message {
+                selection_start,
+                selection_end,
+                ..
+            }
+            | SourceLocator::Video {
                 selection_start,
                 selection_end,
                 ..

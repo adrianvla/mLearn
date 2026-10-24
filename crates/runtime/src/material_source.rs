@@ -13,7 +13,9 @@ impl Runtime {
             ));
         }
         match &anchor.locator {
-            SourceLocator::Document { .. } | SourceLocator::Image { .. } => {
+            SourceLocator::Message { .. }
+            | SourceLocator::Document { .. }
+            | SourceLocator::Image { .. } => {
                 return Err(Failure::Operation(
                     "Expected a video source location".into(),
                 ));
@@ -82,6 +84,10 @@ impl Runtime {
     }
 
     pub(super) fn validate_capture_source(&self, anchor: &SourceAnchor) -> Result<(), Failure> {
+        if matches!(&anchor.locator, SourceLocator::Message { .. }) {
+            self.validate_message_anchor(anchor, true)?;
+            return Ok(());
+        }
         if matches!(&anchor.locator, SourceLocator::Image { .. }) {
             self.validate_image_anchor(anchor, true)?;
             return Ok(());
@@ -134,6 +140,14 @@ impl Runtime {
         anchor: SourceAnchor,
         epoch: u64,
     ) -> Result<Response, Failure> {
+        if matches!(&anchor.locator, SourceLocator::Message { .. }) {
+            let (conversation, message) = self.validate_message_anchor(&anchor, false)?;
+            return Ok(Response::ConversationMaterialSource {
+                conversation,
+                message,
+                anchor,
+            });
+        }
         if matches!(&anchor.locator, SourceLocator::Image { .. }) {
             return self.return_image_anchor(anchor, epoch);
         }

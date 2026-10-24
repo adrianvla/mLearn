@@ -2,6 +2,8 @@ appId: net.kikan.mlearn.v3dev
 ---
 # Both real language scenarios use the same native picker/player entry.
 - tapOn:
+    id: home-open-watch
+- tapOn:
     text: Open local video
     enabled: true
 - tapOn: Show roots

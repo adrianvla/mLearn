@@ -11,6 +11,9 @@ const paths = {
   sync: 'M20 7v5h-5M4 17v-5h5M6.1 8a7 7 0 0 1 11.6-2L20 9M4 15l2.3 3A7 7 0 0 0 17.9 16',
   play: 'm8 5 11 7-11 7Z',
   pause: 'M8 5v14M16 5v14',
+  stop: 'M6 6h12v12H6Z',
+  send: 'm22 2-7 20-5.5-7.5L2 9Zm0 0L9.5 14.5',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
   volume: 'm11 5-6 5H2v4h3l6 5Zm4 3a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14',
   volumeOff: 'm11 5-6 5H2v4h3l6 5Zm5 4 6 6m0-6-6 6',
   expand: 'M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5',
@@ -29,6 +32,7 @@ const paths = {
   close: 'm6 6 12 12M6 18 18 6',
   video: 'M3 5h12v14H3Zm12 5 6-4v12l-6-4',
   book: 'M12 5C8 2 4 3 2 4v15c3-1 7-1 10 1 3-2 7-2 10-1V4c-3-1-7-1-10 1Zm0 0v15',
+  conversation: 'M5 11h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2ZM14 5a2 2 0 1 1-4 0 2 2 0 1 1 4 0M12 7v4M8 15.5v1M16 15.5v1',
   search: 'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Zm-1 5 6 6',
   clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2',
 } as const;

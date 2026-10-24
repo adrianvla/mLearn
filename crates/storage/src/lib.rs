@@ -1,3 +1,6 @@
+mod conversation;
+mod conversation_generation;
+mod conversation_read;
 mod document;
 mod document_read;
 mod document_validation;
@@ -53,7 +56,7 @@ impl ProfileStore {
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let version: u32 =
             transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 8 {
+        if version > 9 {
             return Err(StorageError::Invalid(
                 "Profile was created by a newer application".into(),
             ));
@@ -85,6 +88,9 @@ impl ProfileStore {
         }
         if version < 8 {
             ocr::migrate_pages(&transaction)?;
+        }
+        if version < 9 {
+            conversation::migrate(&transaction)?;
         }
         // Schema version and initial row become durable together, including first startup.
         transaction.commit()?;

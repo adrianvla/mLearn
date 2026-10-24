@@ -20,7 +20,13 @@ pub(crate) fn identity(content: &MaterialContent) -> Result<Identity, StorageErr
             let mut source = content.source.clone();
             if let Some(anchor) = &mut source {
                 match &mut anchor.locator {
-                    SourceLocator::Document {
+                    SourceLocator::Message {
+                        context_start,
+                        selection_start,
+                        selection_end,
+                        ..
+                    }
+                    | SourceLocator::Document {
                         context_start,
                         selection_start,
                         selection_end,

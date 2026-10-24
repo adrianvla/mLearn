@@ -73,6 +73,31 @@ pub(crate) fn content(value: &MaterialContent) -> Result<String, StorageError> {
             return Err(StorageError::Invalid("Source text exceeds bounds".into()));
         }
         match &source.locator {
+            SourceLocator::Message {
+                conversation_id,
+                message_id,
+                message_revision,
+                context_start,
+                selection_start,
+                selection_end,
+            } => {
+                bounded(&conversation_id.0, 512)?;
+                bounded(&message_id.0, 512)?;
+                let start = usize::try_from(*selection_start)
+                    .map_err(|error| StorageError::Invalid(error.to_string()))?;
+                let end = usize::try_from(*selection_end)
+                    .map_err(|error| StorageError::Invalid(error.to_string()))?;
+                if conversation_id.0 != source.source_id
+                    || *message_revision == 0
+                    || start >= end
+                    || source.text.get(start..end).is_none()
+                    || context_start.checked_add(*selection_end).is_none()
+                {
+                    return Err(StorageError::Invalid(
+                        "Invalid revision-bound message source span".into(),
+                    ));
+                }
+            }
             SourceLocator::Image {
                 resource_id,
                 page_index,

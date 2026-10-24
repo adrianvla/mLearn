@@ -29,6 +29,7 @@ rfd = "0.15.4"
 mlearn-core = {path="../../../crates/core"}
 tempfile = "3"
 sha2.workspace = true
+arboard = { version = "=3.6.1", default-features = false, features = ["wayland-data-control"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "windows"))'.dependencies]
 window-vibrancy = "=0.8.1"

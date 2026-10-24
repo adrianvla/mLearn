@@ -20,10 +20,17 @@ import { Transcript } from './Transcript';
 import { LiveWordCards } from './LiveWordCards';
 import { MediaOverlay } from '@mlearn/ui/media-overlay';
 import { cueAnchor, emptyMaterial, MaterialEditor } from '../material';
+import { SourceEntryScreen } from '../source-entry';
 type VideoSelection = SourceAnchor & {
     readonly locator: Extract<SourceAnchor['locator'], { kind: 'video' }>;
 };
 export function WatchScreen() {
+    const params = useLocalSearchParams<{ id?: string; packageId?: string; materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
+    if (!params.id && !params.materialId && !params.reviewSessionId && !params.reviewEncounterId)
+        return <SourceEntryScreen kind="video" preferredPackage={typeof params.packageId === 'string' ? params.packageId : undefined} />;
+    return <WatchWorkspace />;
+}
+function WatchWorkspace() {
     const host = useRuntime();
     const router = useRouter();
     const params = useLocalSearchParams<{
@@ -159,9 +166,16 @@ export function WatchScreen() {
                 const restored = await host.client.returnMaterialSource(params.materialId);
                 if (restored.type !== 'material_source') {
                     if (active && current.isCurrent()) {
-                        router.replace({ pathname: '../reader', params: {
-                            id: restored.window.source.id, materialId: params.materialId,
-                        } });
+                        if (restored.type === 'conversation_material_source') {
+                            router.replace({ pathname: '../messenger', params: {
+                                id: restored.conversation.id, materialId: params.materialId,
+                                messageId: restored.message.id, messageSequence: String(restored.message.sequence),
+                            } });
+                        } else {
+                            router.replace({ pathname: '../reader', params: {
+                                id: restored.window.source.id, materialId: params.materialId,
+                            } });
+                        }
                     }
                     return null;
                 }

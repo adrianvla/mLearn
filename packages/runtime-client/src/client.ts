@@ -3,6 +3,7 @@ import { createMaterialClient } from './materialClient';
 import { createReviewClient } from './reviewClient';
 import { createDocumentClient } from './documentClient';
 import { createOcrClient } from './ocrClient';
+import { createConversationClient } from './conversationClient';
 import { RuntimeError } from './errors';
 export { RuntimeError } from './errors';
 export { isPackageInstallStatus } from './watchProtocol';
@@ -44,7 +45,8 @@ export function createRuntimeClient(transport: Transport) {
     }
   }
   function displayRead(command:Request):Promise<Response>{
-    const lane=command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'?analysis:windows;
+    const lane=command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'
+      ||command.type==='conversation'&&(command.command.action==='analyze_visible_messages'||command.command.action==='analyze_message_source')?analysis:windows;
     return new Promise((resolve,reject)=>{
       const read={command,epoch:sourceEpoch,queuedAt:performance.now(),resolve,reject};
       if(lane.running){lane.desired?.reject(cancelled());lane.desired=read;}
@@ -52,7 +54,8 @@ export function createRuntimeClient(transport: Transport) {
     });
   }
   async function request(command:Request):Promise<Response>{
-    if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'||command.type==='source_window'||command.type==='document_window')return displayRead(command);
+    if(command.type==='analyze_source'||command.type==='analyze_transcript'||command.type==='analyze_document'||command.type==='analyze_ocr'||command.type==='source_window'||command.type==='document_window'
+      ||command.type==='conversation'&&(command.command.action==='analyze_visible_messages'||command.command.action==='analyze_message_source'))return displayRead(command);
     if(pending>=8)throw new RuntimeError('busy','Native request queue is full; retry the action.');
     // A queued lookup must not acquire the replacement source's native epoch.
     // Durable claims/checkpoints remain admitted across source cancellation.
@@ -97,6 +100,7 @@ export function createRuntimeClient(transport: Transport) {
     return response.status;
   }
   return {
+    ...createConversationClient(request, () => transport.commandId(), execute),
     ...createMaterialClient(request, () => transport.commandId()),
     ...createReviewClient(request, () => transport.commandId()),
     ...createDocumentClient(request),

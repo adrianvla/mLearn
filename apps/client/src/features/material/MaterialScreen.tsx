@@ -113,8 +113,15 @@ export function MaterialScreen() {
       const result = await host.client.returnMaterialSource(material.id);
       if (scope && owner.current === scope && returnRequest.current === request) {
         setReturning(null);
-        router.push({ pathname: result.type === 'material_source' ? '/watch' : '../reader',
-          params: { id: result.window.source.id, materialId: material.id } });
+        if (result.type === 'conversation_material_source') {
+          router.push({ pathname: '../messenger', params: {
+            id: result.conversation.id, messageId: result.message.id,
+            messageSequence: String(result.message.sequence), materialId: material.id,
+          } });
+        } else {
+          router.push({ pathname: result.type === 'material_source' ? '/watch' : '../reader',
+            params: { id: result.window.source.id, materialId: material.id } });
+        }
       }
     } catch (cause) {
       if (owner.current === scope && returnRequest.current === request)

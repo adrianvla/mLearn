@@ -21,11 +21,14 @@ import { ImageReaderControls, type ImageCropDraft } from './ImageReaderControls'
 import { imageAnchor, imageContext } from './imageFlow';
 import { ImageSourceWords } from './ImageSourceWords';
 import { ImageRecognition } from './ImageRecognition';
+import { SourceEntryScreen } from '../source-entry';
 
 export function ReaderScreen() {
     const host = useRuntime();
-    const params = useLocalSearchParams<{ id: string; materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
+    const params = useLocalSearchParams<{ id: string; packageId?: string; materialId?: string; reviewSessionId?: string; reviewEncounterId?: string }>();
     const router = useRouter();
+    if (!params.id && !params.materialId && !params.reviewSessionId && !params.reviewEncounterId)
+        return <SourceEntryScreen kind="document" preferredPackage={typeof params.packageId === 'string' ? params.packageId : undefined} />;
     if (!host.available) return <View style={styles.unavailable}>
         <Button label="Home" variant="quiet" onPress={() => router.replace('/')} />
         <Text accessibilityRole="alert">{host.reason}</Text>

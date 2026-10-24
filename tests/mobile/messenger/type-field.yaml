@@ -1,0 +1,25 @@
+appId: net.kikan.mlearn.v3dev
+---
+# The retained iOS driver requires each character to be acknowledged. This
+# helper observes the real native field, without sleeps or keyboard retries.
+- tapOn:
+    id: ${FIELD}
+- evalScript: ${output.entered = ''; output.characterIndex = 0}
+- repeat:
+    times: ${VALUE.length}
+    commands:
+      - inputText: ${VALUE[output.characterIndex]}
+      - evalScript: ${output.entered += VALUE[output.characterIndex]; output.characterIndex += 1}
+      - assertVisible:
+          id: ${FIELD}
+          text: ${output.entered}
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Done
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard

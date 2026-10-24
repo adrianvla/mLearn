@@ -14,6 +14,7 @@ import type { ClaimChange, LexicalSense, SourceAnchor } from '@mlearn/contracts'
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Pronunciation } from '../linguistic';
 import { CaptureList, MaterialEditor, emptyMaterial } from '../material';
+import { SourceActions } from '../explanation';
 export type Inspection = {
     sourceForm: string;
     context: string;
@@ -25,12 +26,13 @@ export type Inspection = {
     showContext?: boolean;
     onChanged?: () => Promise<void>;
 };
-export function Inspector({ inspection, packageId, client, onChanged, onClose }: {
+export function Inspector({ inspection, packageId, client, onChanged, onClose, readOnlySourceReason }: {
     inspection: Inspection;
     packageId: string;
     client: RuntimeClient;
     onChanged: () => Promise<void>;
     onClose: () => void;
+    readOnlySourceReason?: string;
 }) {
     const router = useRouter();
     const host = useRuntime();
@@ -148,7 +150,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
                         <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
                     </> : null}
                 </View> : null}
-            footer={entry && claim ? <Button size="compact" variant="pill"
+            footer={<>{entry && claim ? <Button size="compact" variant="pill"
                 label={claim.label}
                 tone={claim.tone}
                 icon={claim.icon}
@@ -156,7 +158,10 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
                 accessibilityValue={{ text: claim.label }}
                 accessibilityState={{ expanded: expandedCapability !== null }}
                 disabled={busy || result?.knowledge.claim === 'unavailable'}
-                onPress={() => setExpandedCapability(value => value ? null : entry.capabilities[0]?.id ?? null)} /> : null}>
+                onPress={() => setExpandedCapability(value => value ? null : entry.capabilities[0]?.id ?? null)} /> : null}
+                <SourceActions client={client} source={inspection.sourceAnchor} tone="media"
+                    explanationDisabledReason={readOnlySourceReason} />
+            </>}>
             {entry ? <>
                 <Text selectable variant="inspectionBody" tone="media">{entry.summary ?? entry.definition}</Text>
                 <Row>
@@ -208,7 +213,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose }:
                         <Text tone="media" muted variant="caption" selectable>{entry.attribution}</Text>
                         {entry.senses?.map((sense, senseIndex) => <Text key={senseIndex} tone="media" muted variant="caption" selectable>{sense.labels.join(' · ')}</Text>)}
                     </> : null}
-                    {materialContent ? <>
+                    {materialContent && !readOnlySourceReason ? <>
                         <CaptureList key={JSON.stringify([inspection.sourceAnchor, entry.targetId, selectedSense])}
                             client={client} tone="media" candidates={[{ key: entry.targetId, content: materialContent }]} refreshKey={captureRefresh}
                             onOpenMaterial={id => {

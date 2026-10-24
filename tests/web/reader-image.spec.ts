@@ -320,6 +320,9 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
   }, { theme: initialTheme, orientation, pdf });
   await page.goto(home ? '/' : '/reader?id=scan-book');
   if (home) {
+    // The card's independent Continue preview covers its center. Activate the
+    // visible header, as a pointer user does when choosing a new source.
+    await page.getByRole('button', { name: 'Read', exact: true }).click({ position: { x: 24, y: 24 } });
     await expect(page.getByRole('button', { name: 'Open images', exact: true })).toBeEnabled();
     return;
   }
@@ -394,6 +397,7 @@ test(`Home admits an actual selected image ${folder ? 'folder' : 'collection'} t
   const bounds = await entry.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  if (folder) expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('home-image-entry.png') });
   await entry.click();
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
@@ -406,6 +410,19 @@ test(`Home admits an actual selected image ${folder ? 'folder' : 'collection'} t
   await page.screenshot({ path: testInfo.outputPath('home-image-admitted.png') });
 });
 }
+
+test('source entry requires an explicit replacement for an unavailable language', async ({ page }) => {
+  await start(page, true);
+  for (const [route, action] of [['reader', 'Open document'], ['watch', 'Open local video']]) {
+    await page.goto(`/${route}?packageId=unavailable-package`);
+    await expect(page.getByRole('alert')).toHaveText('The selected source language is unavailable. Choose an installed package.');
+    await expect(page.getByRole('button', { name: action, exact: true })).toBeDisabled();
+    await page.getByRole('combobox', { name: /^Source language:/ }).click();
+    await page.getByRole('option', { name: 'Fixture language', exact: true }).click();
+    await expect(page.getByRole('button', { name: action, exact: true })).toBeEnabled();
+    expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+  }
+});
 
 test('cancelled native image selection cannot admit or navigate a late picker result', async ({ page }) => {
   await start(page, true);

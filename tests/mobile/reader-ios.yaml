@@ -10,10 +10,12 @@ name: Reader opens local EPUB and preserves authored source readings
     timeout: 60000
 - scrollUntilVisible:
     element:
-      id: reader-open-document
-    direction: DOWN
+      id: home-open-read
+    direction: UP
     timeout: 60000
     centerElement: false
+- tapOn:
+    id: home-open-read
 - extendedWaitUntil:
     visible:
       id: reader-open-document

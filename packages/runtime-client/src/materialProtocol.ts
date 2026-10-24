@@ -1,7 +1,10 @@
-import type { MaterialContent, Response, SourceAnchor } from '@mlearn/contracts';
+import type { MaterialContent, Response } from '@mlearn/contracts';
 import { isWatchResponse } from './watchProtocol';
 import { isDocumentWindow } from './documentProtocol';
 import { isOcrPage } from './ocrProtocol';
+import { isSourceAnchor } from './sourceProtocol';
+import { isConversation, isConversationMessage } from './conversationProtocol';
+export { isSourceAnchor } from './sourceProtocol';
 
 const encoder = new TextEncoder();
 export const encodedBytes = (value: unknown) => encoder.encode(JSON.stringify(value)).length;
@@ -23,35 +26,6 @@ function sense(value: unknown) {
   return object(value) && text(value.heading, 32768, false) && strings(value.labels, 32, 32768)
     && strings(value.definitions, 128, 32768) && Array.isArray(value.definitions) && value.definitions.length > 0
     && strings(value.notes, 32, 32768);
-}
-export function isSourceAnchor(value: unknown): value is SourceAnchor {
-  if (!object(value) || !text(value.sourceId) || !text(value.contentRevision) || !text(value.packageId)
-    || !text(value.packageVersion) || !text(value.text, 32768, false) || !object(value.locator)) return false;
-  const locator = value.locator;
-  if (locator.kind === 'document' || locator.kind === 'image') {
-    const bytes = encoder.encode(value.text);
-    const location = locator.kind === 'document'
-      ? text(locator.parserRevision) && text(locator.resource) && text(locator.blockId)
-      : text(locator.resourceId) && nullable(locator.pageIndex, uint) && uint(locator.ocrRevision)
-        && locator.ocrRevision > 0 && text(locator.regionId);
-    return location
-      && uint(locator.contextStart) && uint(locator.selectionStart) && uint(locator.selectionEnd)
-      && locator.selectionStart < locator.selectionEnd && locator.selectionEnd <= bytes.length
-      && locator.contextStart + locator.selectionEnd <= 4294967295
-      && [locator.selectionStart, locator.selectionEnd].every(offset =>
-        offset === bytes.length || (bytes[offset] & 0xc0) !== 0x80);
-  }
-  const frameWithoutText = value.text === '' && locator.cueIndex === null
-    && locator.selectionStart === 0 && locator.selectionEnd === 0;
-  if (locator.kind !== 'video' || !nullable(locator.subtitleRevision, text) || !nullable(locator.cueIndex, uint)
-    || !uint(locator.selectionStart) || !uint(locator.selectionEnd)
-    || !frameWithoutText && locator.selectionStart >= locator.selectionEnd
-    || !uint(locator.positionMs) || typeof locator.subtitleOffsetMs !== 'number' || !Number.isInteger(locator.subtitleOffsetMs)
-    || Math.abs(locator.subtitleOffsetMs) > 86400000 || typeof locator.playbackRate !== 'number'
-    || !Number.isFinite(locator.playbackRate) || locator.playbackRate < 0.5 || locator.playbackRate > 2) return false;
-  const bytes = encoder.encode(value.text);
-  return locator.selectionEnd <= bytes.length && [locator.selectionStart, locator.selectionEnd].every(
-    offset => offset === bytes.length || (bytes[offset] & 0xc0) !== 0x80);
 }
 function attachment(value: unknown) {
   if (!object(value) || !text(value.mediaId)) return false;
@@ -102,11 +76,28 @@ function eligibility(value: unknown) {
   }
 }
 export type MaterialResponse = Extract<Response, { type: 'materials' | 'material' | 'material_written' | 'material_captured'
-  | 'material_eligibility' | 'capture_exclusion_changed' | 'material_source' | 'document_material_source' | 'image_material_source' }>;
+  | 'material_eligibility' | 'capture_exclusion_changed' | 'material_source' | 'document_material_source' | 'image_material_source'
+  | 'conversation_material_source' }>;
 /** Admit nested Material data from unknown before exposing generated Rust types. */
 export function isMaterialResponse(value: unknown): value is MaterialResponse {
   if (!object(value)) return false;
   switch (value.type) {
+    case 'conversation_material_source': {
+      if (!isSourceAnchor(value.anchor) || value.anchor.locator.kind !== 'message'
+        || !isConversation(value.conversation) || !isConversationMessage(value.message)) return false;
+      const anchor = value.anchor;
+      const locator = anchor.locator;
+      const message = value.message;
+      if (locator.kind !== 'message') return false;
+      const context = encoder.encode(anchor.text);
+      const original = encoder.encode(message.text).subarray(locator.contextStart,
+        locator.contextStart + context.length);
+      return value.conversation.id === anchor.sourceId && message.conversationId === anchor.sourceId
+        && message.id === locator.messageId && message.revision === locator.messageRevision
+        && message.contentRevision === anchor.contentRevision && message.status === 'complete'
+        && original.length === context.length
+        && original.every((byte, index) => byte === context[index]);
+    }
     case 'material': return material(value.material);
     case 'materials': return object(value.page) && list(value.page.items, 24, material) && nullable(value.page.next, text);
     case 'material_written': {

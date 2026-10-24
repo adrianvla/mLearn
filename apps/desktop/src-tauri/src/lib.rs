@@ -12,6 +12,7 @@ pub mod ocr_probe;
 mod window_material;
 
 struct NativeState {
+    clipboard: Mutex<Option<arboard::Clipboard>>,
     captures: Arc<media_capture::Captures>,
     media_base: String,
     runtime: Arc<RuntimeExecutor>,
@@ -21,6 +22,28 @@ struct NativeState {
     documents: media::DocumentResolver,
     ocr: Arc<ocr::OcrJobs>,
     ocr_models: Arc<mlearn_runtime::native_ocr::NativeOcrModels>,
+}
+
+#[tauri::command]
+fn copy_text(state: tauri::State<'_, NativeState>, text: String) -> Result<(), String> {
+    if text.len() > 32_768 || text.contains('\0') {
+        return Err("Clipboard text exceeds its supported size".into());
+    }
+    let mut slot = state
+        .clipboard
+        .lock()
+        .map_err(|_| "Clipboard owner lock poisoned")?;
+    let mut clipboard = match slot.take() {
+        Some(clipboard) => clipboard,
+        None => arboard::Clipboard::new().map_err(|_| "Clipboard is unavailable; retry Copy")?,
+    };
+    let result = clipboard
+        .set_text(text)
+        .map_err(|_| "Copy failed; retry the action".into());
+    // X11/Wayland serve the selected text from this live owner. Dropping a
+    // temporary clipboard here would discard it before another app can paste.
+    *slot = Some(clipboard);
+    result
 }
 
 fn document_resolver(runtime: &Runtime) -> Result<media::DocumentResolver, String> {
@@ -174,6 +197,7 @@ pub fn run() {
             let cancellation = runtime.cancellation_handle();
             let material = Arc::new(Mutex::new(window_material::WindowMaterial::default()));
             let state = NativeState {
+                clipboard: Mutex::new(None),
                 captures: Arc::new(media_capture::Captures::new()),
                 media_base: media_listener.base_url(),
                 cancellation,
@@ -210,6 +234,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            copy_text,
             runtime_execute,
             window_material_active,
             pick_local_file,
