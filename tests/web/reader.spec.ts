@@ -189,7 +189,7 @@ async function start(page: Page, reviewReturn = false) {
     await cdp.send('CSS.enable');
     const document = await cdp.send('DOM.getDocument');
     const node = await cdp.send('DOM.querySelector', {
-      nodeId: document.root.nodeId, selector: 'button[aria-label="東京: untracked"]',
+      nodeId: document.root.nodeId, selector: 'button[aria-label="東京: untracked"] [data-source-start]',
     });
     const fonts = await cdp.send('CSS.getPlatformFontsForNode', { nodeId: node.nodeId });
     await test.info().attach('source-token-platform-fonts', {

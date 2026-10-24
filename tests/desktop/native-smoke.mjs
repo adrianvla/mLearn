@@ -573,6 +573,7 @@ try {
   await screenshot('native-second-line-inspector-clearance');
   const windowPath=`/session/${session}/window/rect`;
   const originalRect=await rpc('GET',windowPath);
+  const originalViewport=await script('return {width:innerWidth,height:innerHeight};');
   await script(`window.__m01ResizeCheck=new Promise(resolve=>{
    const panel=document.querySelector('[data-testid="inspector-panel"]');
    const word=document.querySelector('button[aria-label="home: untracked"]');
@@ -597,7 +598,18 @@ try {
    const resized=await rpc('POST',`/session/${session}/execute/async`,{script:'const done=arguments[0],pending=window.__m01ResizeCheck;delete window.__m01ResizeCheck;pending.then(done);',args:[]});
    assert.equal(resized.pass,true,JSON.stringify(resized));
   } finally {
+   // The native resize command can return before WebKit and React restore the
+   // anchored panel. Subscribe before restoring, as for the enlargement above.
+   await observeSourceView(`innerWidth===${originalViewport.width}&&innerHeight===${originalViewport.height}&&(()=>{
+    const panel=document.querySelector('[data-testid="inspector-panel"]');
+    const word=document.querySelector('button[aria-label="home: untracked"]');
+    if(!panel||!word)return false;
+    const p=panel.getBoundingClientRect(),w=word.getBoundingClientRect();
+    const cue=word.closest('[data-testid="annotated-text"]').getBoundingClientRect();
+    return Math.abs(p.left+p.width/2-w.left-w.width/2)<2&&p.bottom<=cue.top&&p.left>=0&&p.right<=innerWidth;
+   })()`);
    await rpc('POST',windowPath,originalRect);
+   await observedSourceView('Restored native viewport and anchored Inspector must settle before its next action');
   }
   // Keep the accepted maximum text scale through the minimum native viewport.
   // A fixed expanded footer previously left no complete dictionary line visible.

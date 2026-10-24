@@ -52,6 +52,10 @@ No minimum-size workaround was applied. A Chromium platform-font attachment now
 identifies the actual shaping font before the unchanged visibility assertion.
 The affected local Reader test passes with that diagnostic; fresh LSP requests
 timed out, so fresh LSP validation is not claimed for the diagnostic addition.
+The first platform-font probe queried the button and returned no direct-text
+fonts. It now queries its actual `[data-source-start]` text leaf. A real local
+Reader run returns `Hiragino Sans / HiraginoSans-W3`, two glyphs; the corrected
+Linux font result remains pending.
 
 Foundation run `40040864691` completed: Rust, pinned detector conversion and
 macOS desktop build/tests passed. Windows job `120713091191` passed eight
@@ -74,6 +78,13 @@ Linux failure evidence now includes Inspector control bounds, expanded/disabled
 state and center-hit labels alongside the existing geometry capture. Node syntax,
 LSP diagnostics and diff whitespace checks pass. The native scenario has not
 been rerun locally; this records the missing diagnostic, not an interaction fix.
+Run `40042402948` reproduced the Linux failure with Knowledge enabled,
+hit-testable and still `aria-expanded=false` after the click. Its immediately
+preceding window restoration had no event-driven viewport/layout acknowledgment.
+The scenario now subscribes before restoring and requires the original viewport
+and source-anchored panel geometry before its next action. Syntax, fresh LSP
+and whitespace checks pass; this candidate race repair is not claimed verified
+until the actual Linux scenario passes.
 
 Mobile run `40039665858` remains in progress. Its repaired Swift binding step
 passed. Android compilation and pre-UI upload passed; source-bound artifact
