@@ -51,10 +51,10 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
-#### Current continuation: functionality checkpoint, native capture blocked, 2026-10-24
+#### Current continuation: verified CI repairs, native comparison ready, 2026-10-24
 
 Source-entry migration is verified for continuation, not final visual or
-maintainer acceptance. Todo159/203: Home compound/material comparison remains
+maintainer acceptance. Todo162/206: Home compound/material comparison remains
 open against the isolated reference, then the remaining theme, Settings,
 Watch/Inspector, performance and delivery gates. No new backend/milestone.
 
@@ -82,23 +82,52 @@ Preflight: root footprint2.7 GiB (historical peak8.7),69% free,
 1048.75 MiB swap,6.1 GiB disk available. One Cargo job, serial checks, no devices/
 apps/dev servers. The selected checks and source receipt are in M07 PLAN.
 
-Current next-step access blocker: Quartz capabilities report capture=false,
-displayCount0, stopPath=host-relay, stopReason=secure-input-active, while capture/
-input/AX permissions are granted and screenLocked=false. No desktop app was
-launched into that state. The desktop question timed out; the user instructed
-best-judgment continuation without asking it again this turn. A fresh capability
-read is unchanged. Native comparison stays blocked; recheck when access changes;
-do not bypass it or substitute browser screenshots for native material proof.
-Full goal remains active and incomplete, not accepted or merged.
+The functionality and documentation increments were published as0217bcd/5e86056,
+with PR44 read back OPEN/draft on agent/m01. Exact-source CI exposed two new
+integration misses: web39 cases lacked authenticated native fixtures, and the
+opt-in Windows OCR verifier omitted the new clipboard state field. Rust,
+detector conversion, macOS desktop and real Linux native integration passed.
+
+Local verified repairs, awaiting fresh published CI:
+- 9161077 initializes the gated OCR state and compiles all desktop lib features
+  in CI. Offline ocr-probe example check passes15.69s, no inference.
+- 1476a70 prepares pinned signed plugin/document fixtures and the real Rust QA
+  executable before hosted browser tests. Missing trust now rejects before
+  acquiring a catalog listener. Its actual startup regression is red1!=0 before
+  repair, then66 checker/115 client, typecheck/lint/syntax pass. The new case
+  also passes under pinned Node22.23.3.
+- 1e65caa adds only the missing UP scroll before the existing Android Watch
+  action. Hosted step182 and a retained-binary replay both fail on the clipped
+  target; the repaired actual helper then passes62.641s (JUnit1/0), including
+  real picker/player/subtitles and Japanese annotations. All original assertions
+  and the iOS picker flow are unchanged. APK b4834bf2... and bundled JS70e1207e...
+  match the earlier source-entry consuming binary. Source aggregate now
+  ba737f61315ce0569e1ee7538aff36e932caf94a5fba141af9935b34779f97ea.
+
+Hosted iOS repeats the exact already-deferred m01-watch,mp4 FileProvider failure;
+it is unresolved, not passed, and no diagnostic variant was launched. Android
+replay used only the retained AVD/profile, no rebuild/data clear. Actual captures
+were inspected. Emulator/app/owned ADB are released; guard exits0 with sampled
+free50-58%, root RSS1167072-2303312 KiB, swap968.75 MiB unchanged. Profiles,
+authored fixtures and compiled artifacts remain. These are scoped functional
+proofs, not final visual, performance or M07 acceptance.
+
+Native capture is available: system_profiler and the actual display registry
+show existing display3 Virtual16:9,1920x1080 logical/3840x2160 pixels; a direct
+native display->screenshot succeeds. The capability summary's zero-display/
+capturefalse fields are inconsistent, not a valid veto. No OS/display change
+or new permission was needed. Do not repeat the timed-out display question.
+Full goal remains active/incomplete. Resume matched real native comparison.
 Independent next-launch preflight is retained: reference revision1ab95600,
 clean tracked tree, MLEARN_USER_DATA first-import override confirmed, cleanup
 script removes only dist-electron/electron and shared. Isolated reference
 profile remains dark-quartz with the selected reference presentation; OCR/voice/
 LLM disabled. No interface-style selector will be ported. Candidate uses the
-existing m07qa identifier/profile with Rust app_data_dir authority. All devices,
-apps and development servers remain off.
+existing m07qa identifier/profile with Rust app_data_dir authority. No device,
+candidate or reference app is running. Preexisting static PID2637 remains
+untouched because exact ownership is unproven.
 
-Current bounded native step: the headroom subscription passed five samples at
+Earlier source-entry native evidence: the headroom subscription passed five samples at
 2867 MiB physical/68% free. A serial Android consuming UI rebuild then passes50s,
 with one worker,2 GiB Gradle heap and1 GiB Node heap. No Rust rebuild/device ran
 alongside it. APK SHA256

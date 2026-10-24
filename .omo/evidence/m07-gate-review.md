@@ -181,3 +181,19 @@ persistence/performance, remaining affected-platform and consolidated milestone
 gates remain open. Quartz currently has no capturable display; no browser
 fixture is being counted as native visual evidence. Hosted iOS FileProvider
 remains expressly deferred and unresolved. No M07/visual/maintainer acceptance.
+
+## Subsequent root CI integration repairs
+
+Exact published-source foundation40120051384 exposed a missing gated
+NativeState initializer and missing web-native fixture preparation; mobile
+40120051374 exposed an offscreen Android Home action and the same expressly
+deferred hosted iOS picker assertion. These are retained failed results, not
+replaced by earlier unrelated passes.
+
+Root repairs9161077/1476a70/1e65caa preserve model pins and all original
+assertions. Feature compilation passes; the new missing-trust listener regression
+is genuinely red then green, with66 checker/115 client/typecheck/lint passing.
+The actual retained Android binary reproduces the clipped Watch action, then
+its unchanged picker/player/Japanese path passes62.641s after the bounded scroll.
+Device/resource release is verified; fresh hosted CI remains required.
+This is root repair evidence, not a new independent approval or M07 acceptance.
