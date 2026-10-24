@@ -64,9 +64,11 @@ appId: net.kikan.mlearn.v3dev
 - launchApp:
     clearState: false
     permissions: {}
-- extendedWaitUntil:
-    visible: Resume m01-watch.mp4
+- scrollUntilVisible:
+    element: Resume m01-watch.mp4
+    direction: DOWN
     timeout: 60000
+    centerElement: true
 - tapOn: Resume m01-watch.mp4
 - extendedWaitUntil:
     visible: 'Children: mixed'

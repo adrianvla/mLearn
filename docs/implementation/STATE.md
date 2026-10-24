@@ -109,6 +109,20 @@ regression failed before the canonical guard and passes afterward. All 12 native
 resource-owner tests, fresh Rust diagnostics and strict Runtime Clippy pass.
 The Windows job now runs that existing owner suite before its real OCR probes.
 Hosted tuned execution is still pending.
+That gate now passes in foundation run `40045175574`, source
+`71ef009043dbde0dfea00ccd6b13ebdfb8a9c7d3`, Windows job `120726520494`.
+Its retained `windows-native-ocr` artifact (`12541382731`) contains both actual
+generic and tuned Japanese results: authenticated installation, six image
+fixtures, cropped recognition, image-only PDF, cancellation and restart
+persistence. Both vertical Japanese lines and ruby are recognized correctly.
+The generic mixed page preserves both expected lines; MangaOCR retains its
+documented English degradation and graphic no-text false positive (`○口`).
+DirectML initialization fails on this hosted machine and execution explicitly
+falls back to CPU; this is not GPU verification. Together with the retained
+macOS native-owner runs below, functional macOS/Windows OCR execution is
+verified, not consuming GUI acceptance or general recognition accuracy.
+The same run passes Rust, pinned detector conversion and macOS build/tests;
+its separate web font failure remains open.
 
 Linux failure evidence now includes Inspector control bounds, expanded/disabled
 state and center-hit labels alongside the existing geometry capture. Node syntax,
@@ -161,6 +175,17 @@ Watch flow now scroll to the exact Resume action before tapping it; all existing
 source/playback assertions remain intact. YAML parsing and whitespace checks
 pass. A real rerun is pending; no local device was restarted for this repair.
 Evidence is retained under `hosted-d8-android/test-results/mobile` in the M06 root.
+The corrected preferences restart now completes in source `0abce8e1`, run
+`40043214031`, Android job `120721816047`. That run also completes real playback,
+inspection-triggered pause and the 15-second native seek before finding the same
+offscreen Resume assumption in `watch/player-android.yaml` after its own restart.
+Its failure screenshot again shows Home and the retained video, not data loss.
+The remaining Android/iOS player and Japanese restart consumers now scroll to
+their exact saved-source action before tapping it; their original position,
+language, Knowledge and offset assertions remain unchanged. All three YAML
+files parse cleanly and the whitespace check passes. Device execution of this
+additional correction is still pending. Evidence is retained under
+`hosted-0abce-android/test-results/mobile`.
 
 ### Finite offline Android OCR verification
 
@@ -209,6 +234,56 @@ Most resident mapping size is in `App-Specific Tag 1`; WebKit malloc is about
 63 MiB resident plus 303.5 MiB swapped. This does not identify the allocator or
 prove the earlier growth fixed. The original summary is
 `run/omo-memory-after-android.txt`; no heap dump or agent restart was attempted.
+
+### Finite iOS OCR quality and restart verification — 2026-10-24
+
+The retained H00 iOS27 simulator was deliberately booted alone for bounded QA,
+with a fifteen-minute shutdown deadline. It uses the compiled simulator app from
+source `d8a24bede425f3b8a4b984c92d99e685550af787`, artifact `12540261602`;
+subsequent changes do not alter its client, shared UI or Apple provider source.
+The ordinary Files picker imported the unchanged 720x300 horizontal mixed image
+from the app's dedicated `M06 OCR quality` folder without erasing the profile.
+
+The initial global `scrollUntilVisible: ja` dismissed the language menu before
+inference. Two gestures wholly inside the observed menu bounds scroll normally
+and select the actual advertised `ja` option. No shared Select repair is justified
+by that harness mistake. Real Apple Vision recognition then produced exactly
+`Open the blue book. 42` and `日本語の本を読む。`, saved as revision 2 with provider
+and original-source corner coordinates.
+
+After inspecting both regions, the app was stopped and relaunched, and the
+saved image reopened through Home. Both exact lines, provider and revision 2
+persist without another recognition request. The bounded recognition and
+contained-navigation restart flows exit 0; their captures were inspected.
+An initial Home scroll targeted the image instead of its separate header; that
+failed receipt remains preserved. The corrected gesture stays inside the header.
+Evidence is under `run/ios-menu-open`, `run/ios-menu-swipe`,
+`run/ios-menu-recognize`, `run/ios-vision-restart` and
+`run/ios-vision-restart-contained` in the M06 root.
+
+This is online simulator execution, not disconnected iOS or physical-device
+evidence. The Simulator shares host networking; no host network setting was
+changed and no cosmetic status-bar override is treated as an offline test.
+Broader iOS quality, offline execution and full M06 integration remain open.
+The real image overlay also opens the shared Japanese Inspector (`日本`, Japan,
+native readings and JLPT metadata). The initial expected `日本語` token was a
+harness assumption: the actual package analyzes this occurrence as `日本` + `語`.
+Its retained accessibility hierarchy identifies the genuine controls and bounds.
+Capture saves `日本` through the existing Material owner with its original OCR
+context. Return restores the original image and visibly highlights exactly `日本`.
+The first return check wrongly requested Watch's `returned-source-selection`
+test ID, which Reader does not render; its failing receipt remains preserved.
+The follow-up actual-target check exits 0, reopens the same Inspector, finds
+Existing Material and reopens the saved `日本` editor without another capture.
+Captures in `run/ios-vision-source-touch`, `run/ios-vision-capture` and
+`run/ios-vision-return-check` were inspected. This is shared-owner integration
+evidence, not a claim that the initial exploratory scripts all passed.
+
+The final flow returned Home with the prior English selection and stopped the
+app. H00 was then shut down explicitly; `simctl list devices booted -j` confirms
+both retained runtimes have no booted devices. Only afterward were its shutdown
+deadline and memory guard cancelled. No Android emulator, local model or
+reference application ran alongside it.
 
 ### Retained original/native golden comparison
 

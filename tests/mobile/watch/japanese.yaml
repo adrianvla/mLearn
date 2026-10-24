@@ -97,6 +97,11 @@ appId: net.kikan.mlearn.v3dev
 - launchApp:
     clearState: false
     permissions: {}
+- scrollUntilVisible:
+    element: Resume m01-japanese.mp4
+    direction: DOWN
+    timeout: 60000
+    centerElement: true
 - tapOn: Resume m01-japanese.mp4
 - extendedWaitUntil:
     visible: '今日: untracked.*'
