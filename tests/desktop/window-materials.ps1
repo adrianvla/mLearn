@@ -181,9 +181,9 @@ public static class NativeMaterialQa {
         input.Replace("\r", "\\r").Replace("\n", "\\n") + Environment.NewLine +
         "Received: " + receivedInput.Replace("\r", "\\r").Replace("\n", "\\n"), error);
     }
-    // Custom palettes are not built-in selector options; their saved state
-    // closes the editor and restores the enabled placeholder selector.
-    string selection = theme == "Slate" ? "Select" : theme;
+    // The opaque custom palette closes the editor and remains named in the
+    // selector instead of falling back to an unselected placeholder.
+    string selection = theme == "Slate" ? "Slate (custom)" : theme;
     Wait("saved " + theme + " selector", window, delegate { return Find(window, "Select theme: " + selection, null); },
       delegate { Invoke(dialog, "Save custom theme"); });
   }
