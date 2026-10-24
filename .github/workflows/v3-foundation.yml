@@ -37,6 +37,20 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build:web
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with: { cache-on-failure: true }
+      - name: Prepare authenticated native browser fixtures
+        timeout-minutes: 15
+        env:
+          CARGO_BUILD_JOBS: '1'
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run prepare:language-data 2>&1 | tee verification/prepare-language-data.log
+          npm run build:plugin
+          npm run build:documents
+          cargo build --locked -p mlearn-runtime --example runtime_browser_qa
       - run: npm run test:web
       - name: Ensure checks did not modify tracked source
         if: always()

@@ -87,6 +87,17 @@ npm run test:native        # builds language/document Wasm, then Rust owner test
 npm run check:contracts
 ```
 
+The native-backed Messenger browser tests need authenticated language fixtures
+and the Rust QA executable. From a clean checkout, prepare them before
+`npm run test:web`:
+
+```sh
+npm run prepare:language-data
+npm run build:plugin
+npm run build:documents
+cargo build --locked -p mlearn-runtime --example runtime_browser_qa
+```
+
 When Rust boundary types change, run `npm run codegen` and commit the generated contracts. The root npm and Cargo lockfiles are authoritative.
 Before direct Cargo checks that compile the runtime from a clean checkout, run
 `npm run build:documents` to build its bounded PDF Wasm guest. The ordinary desktop,

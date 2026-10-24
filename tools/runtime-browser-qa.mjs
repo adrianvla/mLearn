@@ -84,9 +84,9 @@ function nativeHost(binary, profile, trust) {
 
 export async function startRuntimeBrowserQa({ profile, binary = 'target/debug/examples/runtime_browser_qa',
   responseText = 'Children walked home.' }) {
+  const trust = JSON.parse(await readFile('.mlearn/dev-trust.json', 'utf8'));
   await mkdir(profile, { recursive: true });
   const catalog = await startCatalog(path.resolve('target/plugin-cdn'), 0);
-  const trust = JSON.parse(await readFile('.mlearn/dev-trust.json', 'utf8'));
   trust.url = `http://127.0.0.1:${catalog.address().port}/catalog.json`;
   let core = nativeHost(path.resolve(binary), path.resolve(profile), trust);
   try { await core.ready; } catch (error) {
