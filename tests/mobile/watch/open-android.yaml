@@ -1,6 +1,12 @@
 appId: net.kikan.mlearn.v3dev
 ---
 # Both real language scenarios use the same native picker/player entry.
+- scrollUntilVisible:
+    element:
+      id: home-open-watch
+    direction: UP
+    timeout: 30000
+    centerElement: false
 - tapOn:
     id: home-open-watch
 - tapOn:
