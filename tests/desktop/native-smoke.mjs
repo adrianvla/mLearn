@@ -523,13 +523,23 @@ try {
   }
   assert.equal(beforeHover.type,'analysis',JSON.stringify(beforeHover));
   assert.ok(beforeHover.batch.knowledge.some(projection=>projection.claim===true));
-  const child=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[aria-label="Children: mixed"]'});
   await observeSourceView('!!document.querySelector(\'[data-testid="inspector-panel"] [aria-label="Dictionary source"]\')');
+  // Modifier/Knowledge rendering can replace the token node between input
+  // ticks. A real pointer targets viewport geometry, not a retained DOM handle.
+  const child=await script(`
+    const control=document.querySelector('[aria-label="Children: mixed"]');
+    if(!control)return null;
+    const rect=control.getBoundingClientRect();
+    const x=Math.round(rect.x+rect.width/2),y=Math.round(rect.y+rect.height/2);
+    const hit=document.elementFromPoint(x,y);
+    return {x,y,ready:!!rect.width&&!!rect.height&&!!hit&&control.contains(hit)};
+  `);
+  assert.equal(child?.ready,true,JSON.stringify(child));
   await rpc('POST',`/session/${session}/actions`,{actions:[
     {type:'key',id:'inspection-modifier',actions:[{type:'keyDown',value:'\uE008'},{type:'pause',duration:0},{type:'keyUp',value:'\uE008'}]},
     {type:'pointer',id:'inspection-pointer',parameters:{pointerType:'mouse'},actions:[
       {type:'pointerMove',duration:0,origin:'viewport',x:0,y:0},
-      {type:'pointerMove',duration:0,origin:child,x:0,y:0},
+      {type:'pointerMove',duration:0,origin:'viewport',x:child.x,y:child.y},
       {type:'pause',duration:0},
     ]},
   ]});
