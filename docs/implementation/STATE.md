@@ -41,8 +41,10 @@ Rust, detector conversion, web, macOS and Windows. Source-bound mobile run
 then the native Files picker is blank and `Browse` is not found; the exact
 failure remains preserved within the deferred hosted FileProvider acceptance
 gate, not reported as a pass. No diagnostic variant was launched.
-The latest desktop input-harness rerun remains red; its exact captured failure
-and primary-source modifier repair are recorded below. M06 remains open.
+The latest desktop input-harness rerun now passes at `f27f4e55`; its retained
+source receipt and genuine captures were inspected. Earlier failed captures
+and their bounded repairs remain recorded below. M06 remains open while the
+remaining platform/foundation subscriptions complete.
 Single independent M06 reviewer `st_01a16c25`
 returned REJECT with one deterministic OPS-04 protocol blocker: the successful
 native model-test command returns a string, but Settings required an array.
@@ -162,6 +164,18 @@ result and unchanged acknowledgement are returned together, avoiding a second
 unsynchronized read after the checkpoint. No retry, sleep, fabricated response,
 native admission change or weakened persistence assertion is introduced. This
 candidate remains unverified until the real desktop workflow passes.
+
+That real workflow now passes: run `40065130974`, job `120786658416`, source
+`f27f4e5594e3188c1002ea743a5d610f75720dd8`, tree
+`65a90dfbffdffb9bc4bc65116ded4b0462c56f6b`. Both cancel/blur iterations complete,
+including exact `375`/`625` keyboard input, actual preference admission, recovered
+Watch, native position acknowledgements and durable offset/position assertions.
+The complete native IPC, signed package, playback/seek, contextual Inspector,
+shared claims, exact source restart and missing-source recovery workflow passes.
+Evidence is retained in `hosted-f27f-desktop/` and
+`run/hosted-f27f-desktop-job.log`; the source receipt, final success line and
+actual modifier-Inspector/source-restart captures were inspected. These are
+Linux Tauri observations, not new mobile or physical-device evidence.
 
 Mobile run `40060531803`, source `8934e158`, Android job `120773365649` passes
 the complete Watch/Inspector/Knowledge/native-source-resume workflow in 383.944
