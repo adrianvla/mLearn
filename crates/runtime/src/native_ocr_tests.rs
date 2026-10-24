@@ -96,6 +96,10 @@ fn authenticated_archives_unpack_only_inventory_bytes_and_reject_tampering() {
         fs::read(output.path().join("runtime/lib/dependency")).unwrap(),
         b"read-only runtime"
     );
+    assert_eq!(
+        fs::read(output.path().join("models/manga/weights")).unwrap(),
+        b"actual fixture bytes"
+    );
     fs::write(input.path().join("models.zip"), b"tampered").unwrap();
     let replacement = tempfile::tempdir().unwrap();
     assert!(unpack(input.path(), replacement.path(), &profile, None).is_err());
@@ -105,7 +109,27 @@ fn native_inventory_rejects_unlisted_path_traversal() {
     assert!(safe_relative("../outside").is_err());
     assert!(safe_relative("/outside").is_err());
     assert!(safe_relative("nested/../../outside").is_err());
+    assert!(safe_relative(r"manga\weights").is_err());
     assert!(safe_relative("runtime/libonnxruntime.so").is_ok());
+}
+
+#[test]
+fn native_inventory_rejects_noncanonical_zip_paths() {
+    let input = tempfile::tempdir().unwrap();
+    let mut profile = fixture(input.path());
+    (profile.models, profile.models_index_sha256) = archive(
+        input.path(),
+        "models",
+        &[
+            ("manga//weights", b"aliased fixture bytes"),
+            (
+                "profile.json",
+                br#"{"schemaVersion":1,"executor":"paddle-manga-onnx-v1"}"#,
+            ),
+        ],
+    );
+    let output = tempfile::tempdir().unwrap();
+    assert!(unpack(input.path(), output.path(), &profile, None).is_err());
 }
 
 #[test]

@@ -166,6 +166,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
+          cargo test --locked -p mlearn-runtime --lib native_ocr::tests
           cargo test --locked -p mlearn-runtime --test document
           cargo build --locked -p mlearn-desktop --features ocr-probe --example ocr_probe
           node tools/verify-desktop-ocr.mjs test-results/native-ocr generic

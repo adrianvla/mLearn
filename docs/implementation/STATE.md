@@ -73,6 +73,22 @@ produced exactly the original 165 bytes with no CRLFs. Both generated temporary
 copies were removed. The existing parser byte-container test and all 11 runtime
 document tests pass locally; hosted Windows execution remains pending.
 No product parser or assertion was changed.
+The following source's Windows document suite and full generic OCR/persistence
+probe pass in run `40042948769`, job `120719470068`. Its tuned Japanese probe
+instead fails before inference with `Unsafe native artifact path`: ZIP's
+`enclosed_name()` constructs host-native separators, and the extractor used
+that Windows path as the portable inventory key. The publisher already emits
+forward-slash names; it was not the faulty owner.
+
+Extraction now validates the original ZIP name, retains that portable inventory
+identity and separately checks the enclosed filesystem path has exactly the same
+canonical slash-separated identity. Backslashes, aliases, traversal, symlinks,
+unlisted files and tampered bytes remain rejected. Existing nested-install
+coverage now checks both runtime and model bytes; a noncanonical ZIP-name
+regression failed before the canonical guard and passes afterward. All 12 native
+resource-owner tests, fresh Rust diagnostics and strict Runtime Clippy pass.
+The Windows job now runs that existing owner suite before its real OCR probes.
+Hosted tuned execution is still pending.
 
 Linux failure evidence now includes Inspector control bounds, expanded/disabled
 state and center-hit labels alongside the existing geometry capture. Node syntax,
@@ -85,11 +101,22 @@ The scenario now subscribes before restoring and requires the original viewport
 and source-anchored panel geometry before its next action. Syntax, fresh LSP
 and whitespace checks pass; this candidate race repair is not claimed verified
 until the actual Linux scenario passes.
+That candidate now passes the complete unchanged Linux desktop scenario:
+run `40043476671`, native job `120719684628`, source
+`87be689d1ec27af341a279c522a4b943a740e82d`, tree
+`3597f03133c9c950efce804d928c8bedff9942fa`. The source receipt, captures and
+results are retained under `hosted-87be-linux`. Knowledge input after window
+restoration is repaired; this is not whole-M06 OCR UI acceptance.
 
 Mobile run `40039665858` remains in progress. Its repaired Swift binding step
 passed. Android compilation and pre-UI upload passed; source-bound artifact
 `android-compiled-app` (`12539538398`, 693914688 bytes) is retained on GitHub.
 No device or reference app was started during these CI-only repairs.
+The iOS consuming simulator build also passed and retained source-bound artifact
+`ios-simulator-app` (`12540261602`, 277056390 bytes). Its later UI failure is
+the existing missing Files picker item (`m01-watch, mp4`), not a compiler failure;
+the hosted FileProvider acceptance deferral remains explicit. No new picker
+diagnostic variant was created or manually dispatched.
 
 Android job `120707495228` later failed inside `watch/preferences.yaml` at
 step 118, after returning Home and restarting the app: the exact saved source's
@@ -171,8 +198,37 @@ Sources are `desktop-unit-qa/desktop-ocr-results.json` and
 `native-onnx-qa-current/desktop-ocr-results.json` beneath the existing M06 root.
 These are retained consuming-owner observations, not a controlled speedup
 claim: initialization/provider conditions differ. No Python process or new
-inference run was used for this comparison. Real manga-corpus quality and
-broader same-condition performance acceptance remain open.
+inference run was used for this six-case comparison.
+
+The retained 1909 Tokyo Puck scan was separately reduced into an explicitly
+owned input, not silently resized by the product: 2800×4032 pixels, 3954711
+bytes, SHA256
+`be22a4b22f5b3af996c8b7590cb8f539507958b7e2c650c530a6bf6da42ae108`.
+Its unmodified 3982×5734 original remains retained. The exact admitted-input crop
+`[470,780,80,970]` was recognized sequentially by the native CPU recognizer and
+the pinned original CPU MangaOCR adapter, both with one framework thread.
+The original weights and adapter were checked against their retained SHA256
+pins before loading. Offline flags disabled downloads; the reference script
+stays under ignored `run/native-corpus`, outside every product execution path.
+
+Both produced identical raw text and all 25 token IDs. Direct visual inspection
+shows the historic caption is poorly transcribed in both; this is a shared model
+limitation, not a newly introduced native mismatch or an accuracy success.
+The native model initialization was 391.59 ms and encoder/decoder work was
+1135.91 ms; original initialization including its constructor warmup was
+426.02 ms and measured crop recognition was 237.17 ms. Native steady crop
+recognition is slower in this CPU sample. Complete process wall times were
+3.01 / 4.63 seconds, with maximum RSS 628834304 / 943095808 bytes respectively.
+Different import/warmup contracts prohibit claiming a controlled speedup from
+these wall times. No GPU, device or concurrent model process was used.
+
+Exact outputs, token IDs, pins, resource receipts, the comparison script and
+preview/caption captures live under `run/native-corpus`. Native verifier SHA256:
+`0b3d51928548ee61c1a049a4d6851cf85990a324ff3ad7be95ebc5d2945ad7d6`.
+Both successful processes exited 0. Two earlier CLI invocations were rejected
+before inference because the model directory/absolute-path admission was wrong;
+their failure receipts are retained and no admission rule was relaxed.
+Final consuming-UI and platform acceptance remains separate.
 
 ### Crash recovery and resource constraints
 

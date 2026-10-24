@@ -745,16 +745,26 @@ fn unpack_cancellable(
         for i in 0..archive.len() {
             check()?;
             let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+            // Inventory identity uses the ZIP name, not enclosed_name's native
+            // PathBuf separators (backslashes for nested files on Windows).
+            let key = entry.name().map_err(|e| e.to_string())?.into_owned();
+            safe_relative(&key)?;
             let path = entry.enclosed_name().ok_or("Unsafe native archive entry")?;
-            let key = path.to_str().ok_or("Non-UTF8 native archive path")?;
-            safe_relative(key)?;
+            if path
+                .to_str()
+                .ok_or("Non-UTF8 native archive path")?
+                .replace('\\', "/")
+                != key
+            {
+                return Err("Noncanonical native archive path".into());
+            }
             if key == "inventory.json" {
                 continue;
             }
-            if !entry.is_file() || entry.is_symlink() || !seen.insert(key.to_owned()) {
+            if !entry.is_file() || entry.is_symlink() || !seen.insert(key.clone()) {
                 return Err("Native archives require unique ordinary files".into());
             }
-            let expected = inventory.get(key).ok_or("Unlisted native artifact")?;
+            let expected = inventory.get(&key).ok_or("Unlisted native artifact")?;
             if entry.size() != expected.byte_length as u64 {
                 return Err("Native artifact inventory size mismatch".into());
             }
