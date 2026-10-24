@@ -39,6 +39,7 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
     const pixels = useRef(pixelIdentity); pixels.current = pixelIdentity;
     const identity = JSON.stringify([pixelIdentity, source.packageId, source.packageVersion,
         pages.map(item => [item.descriptor.resourceId, item.page?.ocrRevision, item.batch?.packageRevision])]);
+    const loading = pages.length > 0 && rendered !== identity && failure !== identity;
     const anchors = useSourceAnchor(identity, container, canvas);
     const selected = returned?.locator.kind === 'image' ? {
         resourceId: returned.locator.resourceId, ocrRevision: returned.locator.ocrRevision, regionId: returned.locator.regionId,
@@ -89,10 +90,10 @@ export function ImageViewport({ source, pages, settings, returned, cropMode, mag
         theme.media.text, theme.media.chrome, theme.media.border, theme.typography.detail,
         theme.feedback.success, theme.source.selection, theme.typography.body._web.fontFamily]);
     return <View ref={container} collapsable={false} style={styles.viewport} onLayout={anchors.notify}
-        testID={rendered === identity ? 'reader-image-ready' : 'reader-image-loading'}
-        accessibilityState={{ busy: rendered !== identity && failure !== identity }}>
+        testID={pages.length === 0 ? 'reader-image-empty' : rendered === identity ? 'reader-image-ready' : 'reader-image-loading'}
+        accessibilityState={{ busy: loading }}>
         {content}
-        {rendered !== identity && failure !== identity ? <View pointerEvents="none" style={styles.feedback}>
+        {loading ? <View pointerEvents="none" style={styles.feedback}>
             <Text variant="caption" accessibilityLiveRegion="polite">Opening image…</Text>
         </View> : null}
         {failure === identity ? <View style={styles.feedback}>

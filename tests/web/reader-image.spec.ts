@@ -9,6 +9,7 @@ declare global { interface Window {
   __imageOcrControl: { hold: boolean; fail: 'cancelled' | 'committed' | null;
     entered: Promise<void>; finished: Promise<void>; release?: () => void };
   __imageImportControl: { hold: boolean; entered: Promise<void>; release?: () => void };
+  __imageUriControl: { available: boolean };
   __documentAnalysisControl: { first: Promise<void>; second: Promise<void> };
 } }
 
@@ -96,11 +97,13 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
     let markPicker: () => void = () => {};
     const importControl: Window['__imageImportControl'] = { hold: false,
       entered: new Promise<void>(resolve => { markPicker = resolve; }) };
+    const imageUriControl = { available: true };
     const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
     Object.assign(window, {
       isTauri: true, __MLEARN_MEDIA_BASE__: 'http://127.0.0.1/fixture-media/', __imageReaderRequests: requests,
       __imageOcrControl: ocrControl,
       __imageImportControl: importControl,
+      __imageUriControl: imageUriControl,
       __documentAnalysisControl: documentAnalysisControl,
       __TAURI_INTERNALS__: {
         metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
@@ -158,6 +161,7 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
           }
           if (command === 'image_page_uri') {
             requests.push({ type: command, resourceId: args.resourceId, crop: args.crop ?? null });
+            if (!imageUriControl.available) throw new Error('fixture-original-unavailable');
             const uri = originals.get(String(args.resourceId));
             if (!uri) throw new Error('Unknown original image');
             if (object(args.crop)) {
@@ -325,6 +329,28 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
   }
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
   await expect(page.getByRole('button', { name: orientation ? '日本語: untracked' : '東京: untracked', exact: true })).toBeVisible();
+}
+
+for (const width of [1080, 390]) {
+test(`source image retry recovers original pixels without repeating recognition at ${width}`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+  await start(page, true);
+  await page.evaluate(() => { window.__imageUriControl.available = false; });
+  await page.getByRole('button', { name: 'Open images', exact: true }).click();
+  const retry = page.getByRole('button', { name: 'Retry image action', exact: true });
+  await expect(retry).toBeVisible();
+  await expect(page.getByTestId('reader-image-loading')).not.toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('source-unavailable.png') });
+  await page.evaluate(() => { window.__imageUriControl.available = true; });
+  await retry.click();
+  await expect(page.getByTestId('reader-image-ready')).toBeVisible();
+  await expect(page.getByRole('button', { name: '東京: untracked', exact: true })).toBeVisible();
+  const requests = await page.evaluate(() => window.__imageReaderRequests);
+  expect(requests.filter(request => request.type === 'image_page_uri')).toHaveLength(2);
+  expect(requests.filter(request => request.type === 'analyze_ocr')).toHaveLength(1);
+  expect(requests.filter(request => request.type === 'recognize_image')).toHaveLength(0);
+  await page.screenshot({ path: testInfo.outputPath('source-recovered.png') });
+});
 }
 
 test('original PDF presentation does not analyze hidden document text during source navigation', async ({ page }) => {
