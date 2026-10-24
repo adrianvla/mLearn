@@ -12,7 +12,17 @@ or functional gates may not. See the current PLAN/AGENTS authorization. Preserve
 H00, branch history and draft PR44; stop after the consolidated M07 review
 package for manual acceptance, without merging or self-acceptance.
 
-## Current gate status — 2026-10-23
+## Current gate status — 2026-10-24
+
+M03–M05 and the M01–M04 architecture gate are `verified_for_continuation`;
+M06 remains in progress and M07 has not started. Code/test checkpoint
+`b3ec2cfd` includes the green foundation/font repairs, source-bound online iOS
+OCR/restart/Inspector/Capture/return evidence and the independently passed
+disconnected iOS provider check below. All local simulators/emulators are shut
+down. Next: finish source-bound Android offline/integration QA, the remaining
+M06 platform/recovery matrix and independent milestone review before M07.
+The following continuation evidence preserves earlier failures and their
+specific resolutions; it is not a set of new investigation instructions.
 
 ### Hosted continuation after d8a24bed
 
@@ -316,6 +326,28 @@ provider types; aggregate compiler verification supplies that context. Fresh
 JavaScript diagnostics time out for the new orchestration file, so no clean
 fresh LSP result is claimed there. Hosted offline execution remains pending;
 neither this compile nor the guard test certifies offline iOS recognition.
+The genuine offline run now passes: workflow `40049009440`, job `120737201485`,
+source `67a845c0ec6d55100853fd7ff0024866c73e7efd`, tree
+`7345e65ada3becbc90053f422c9680e7151890d8`. It executes arm64 iOS26.5/23F77,
+SDK26.5 under Xcode26.6, not this workstation's iOS27 runtime. The native log
+records online readiness, actual offline confirmation, completed recognition
+and restored networking. During inference, `scutil --nwi` reports no IPv4 or
+IPv6 states and both Not Reachable; afterward en0 is Reachable.
+
+All seven real provider cases complete. Horizontal, glare and image-only PDF
+preserve both exact English/Japanese lines; vertical text preserves both main
+columns and `にほんご`; the shape-only source is genuinely empty. The spread
+misreads left `01` as `O1`, an explicit recognition limitation. The selected crop
+returns only `RIGHT PAGE 02` with original 1000x450 source dimensions and mapped
+right-page geometry. Both providers' exact executing language inventories are
+retained; thirty are advertised, but only Japanese/English quality is exercised.
+In particular this iOS26.5 inventory does not advertise Hindi or Bengali; macOS
+probe support must not be projected onto it. Evidence, binary, input hashes and
+environment/source receipts are retained under `hosted-67a8-ios-offline`.
+Successful exit also includes network restoration and owned-device deletion.
+This is real disconnected iOS provider execution, not an offline app GUI or
+physical-device claim; the separate online app flow supplies bridge/persistence
+and shared-owner evidence.
 
 ### Retained original/native golden comparison
 
