@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,4 +30,50 @@ test('unrelated consuming-app builds and XCTest invocations pass through unchang
     ['build', '-workspace', '/app path/mLearn.xcworkspace'],
     ['test-without-building', '-xctestrun', '/app path/mLearn.xctestrun'],
   ]) assert.deepEqual(await forwarded(t, args), args);
+});
+
+test('native acceptance preserves its primary exit without deferred picker replays', async t => {
+  const runner = fileURLToPath(new URL('../../tests/mobile/run-ios.sh', import.meta.url));
+  for (const original of [0, 7, 3]) {
+    const root = await mkdtemp(path.join(tmpdir(), 'mlearn primary acceptance-'));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const calls = path.join(root, 'calls.jsonl');
+    await writeFile(path.join(root, 'maestro'), `#!/usr/bin/env node
+const fs = require('node:fs');
+const args = process.argv.slice(2), flow = args.at(-1);
+fs.appendFileSync(process.env.TEST_CALLS, JSON.stringify(args) + '\\n');
+const code = Number(flow.endsWith('/watch.yaml') ? process.env.ORIGINAL_EXIT : 99);
+const output = args[args.indexOf('--output') + 1];
+fs.writeFileSync(output, '<testsuites><testsuite>' + (code ? '<failure>Assertion is false: id: m01-japanese, mp4 is not visible</failure>' : '') + '</testsuite></testsuites>');
+process.exit(code);
+`, { mode: 0o755 });
+    const result = spawnSync('bash', [runner, 'retained-test-device'], {
+      cwd: root, encoding: 'utf8', timeout: 10000,
+      env: { ...process.env, PATH: `${root}${path.delimiter}${process.env.PATH}`,
+        TEST_CALLS: calls, ORIGINAL_EXIT: String(original) },
+    });
+    assert.equal(result.status, original, result.stderr || result.error?.message);
+    const invocations = (await readFile(calls, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+    assert.equal(invocations.length, 1);
+    assert.equal(invocations[0].at(-1), 'tests/mobile/watch.yaml');
+    assert.deepEqual(invocations[0].slice(0, 2), ['--device', 'retained-test-device']);
+  }
+});
+
+test('offline iOS verification refuses ordinary and self-hosted machines before launching tools', async t => {
+  const verifier = fileURLToPath(new URL('../../tests/mobile/ocr/verify-ios-offline.mjs', import.meta.url));
+  const root = await mkdtemp(path.join(tmpdir(), 'mlearn offline guard-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  for (const name of ['sudo', 'xcrun']) {
+    await writeFile(path.join(root, name), '#!/bin/sh\n: > invoked\nexit 99\n', { mode: 0o755 });
+  }
+  for (const github of ['false', 'true']) {
+    const result = spawnSync(process.execPath, [verifier, path.join(root, 'output')], {
+      cwd: root, encoding: 'utf8', timeout: 5000,
+      env: { ...process.env, PATH: root, GITHUB_ACTIONS: github,
+        RUNNER_ENVIRONMENT: 'self-hosted', RUNNER_OS: 'macOS' },
+    });
+    assert.equal(result.status, 1, result.stderr || result.error?.message);
+    assert.deepEqual((await readdir(root)).sort(), ['sudo', 'xcrun']);
+  }
 });

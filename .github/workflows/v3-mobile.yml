@@ -2,7 +2,7 @@ name: v3 native mobile integration
 on:
   push:
     branches: ['agent/**', rewrite/v3]
-    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/bindgen/**', 'tools/prepare-plugins.mjs', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock', 'resources/**', 'Cargo.toml', 'rust-toolchain.toml', 'package.json']
+    paths: ['.github/workflows/v3-mobile.yml', 'crates/**', 'tools/build-mobile.mjs', 'tools/create-watch-fixture.*', 'tools/bindgen/**', 'tools/prepare-plugins.mjs', 'tools/prepare-documents.mjs', 'tools/prepare-wordnet.py', 'language-plugins/**', 'apps/client/**', 'tests/mobile/**', '!tests/mobile/ocr/**', '.github/actions/setup-maestro/**', 'packages/**', 'package-lock.json', 'Cargo.lock', 'resources/**', 'Cargo.toml', 'rust-toolchain.toml', 'package.json']
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,7 +12,10 @@ concurrency:
 jobs:
   ios:
     runs-on: macos-latest
-    timeout-minutes: 55
+    # Cold run 39562873224 reached UI setup after 58 minutes, then its 75-minute
+    # job limit cancelled a progressing flow. Reserve the unchanged 20-minute
+    # UI step plus evidence upload after that measured preparation cost.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Record exact mobile source
@@ -26,6 +29,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
       - run: npm ci
+      - name: Acquire and verify pinned language data
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run prepare:language-data 2>&1 | tee verification/prepare-language-data.log
       - name: Prepare and typecheck native Swift bindings
         shell: bash
         run: |
@@ -42,6 +51,18 @@ jobs:
           workspace=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
           scheme=$(basename "$workspace" .xcworkspace)
           xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { tail -150 build.log; exit 1; }
+          app=$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$app"
+          tar -czf ../../../test-results/ios-simulator-app.tar.gz -C "$(dirname "$app")" "$(basename "$app")"
+      - name: Retain the source-bound compiled simulator app before UI testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          compression-level: 0
+          retention-days: 7
+          path: |
+            test-results/ios-simulator-app.tar.gz
+            verification/source.txt
       - uses: ./.github/actions/setup-maestro
       - name: Exercise actual iOS UI and Rust persistence
         timeout-minutes: 20
@@ -60,10 +81,21 @@ jobs:
           trap cleanup EXIT
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
+          # First-use typing onboarding can cover the Files menu and remove its
+          # controls from XCTest (39591442550). Configure only this disposable
+          # simulator before its first keyboard use; keep all product assertions.
+          xcrun simctl spawn "$device" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
           app=$(find apps/client/ios/build/Build/Products/Release-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app"
           xcrun simctl install "$device" "$app"
-          PATH="$PWD/tests/mobile/ios-driver:$PATH" maestro --device "$device" test --format junit --output test-results/mobile/junit.xml --test-output-dir test-results/mobile --debug-output test-results/mobile tests/mobile/foundation.yaml 2>&1 | tee test-results/mobile/run.log
+          python3 tools/create-watch-fixture.py .mlearn/m01-ci-fixtures
+          container=$(xcrun simctl get_app_container "$device" net.kikan.mlearn.v3dev data)
+          mkdir -p "$container/Documents/M01 fixtures"
+          cp .mlearn/m01-ci-fixtures/watch-fixture.mp4 "$container/Documents/M01 fixtures/m01-watch.mp4"
+          cp .mlearn/m01-ci-fixtures/watch-fixture.srt "$container/Documents/M01 fixtures/m01-watch.srt"
+          cp .mlearn/m01-ci-fixtures/watch-japanese.mp4 "$container/Documents/M01 fixtures/m01-japanese.mp4"
+          cp .mlearn/m01-ci-fixtures/watch-japanese.srt "$container/Documents/M01 fixtures/m01-japanese.srt"
+          bash tests/mobile/run-ios.sh "$device"
       - name: Ensure build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
@@ -84,6 +116,9 @@ jobs:
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    # Trace the first server lifetime: prior failures lost ADB before app launch.
+    env:
+      ADB_TRACE: transport,sockets,auth,services
     steps:
       - uses: actions/checkout@v4
       - name: Record exact mobile source
@@ -99,11 +134,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
       - run: npm ci
+      - name: Acquire and verify pinned language data
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run prepare:language-data 2>&1 | tee verification/prepare-language-data.log
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: cargo install cargo-ndk --locked
       - name: Select installed Android NDK
         run: |
           ndk=$(find "$ANDROID_HOME/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
           test -n "$ndk"
+          cp "$ndk/source.properties" verification/selected-ndk.properties
           echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=$ndk" >> "$GITHUB_ENV"
       - name: Prepare native Kotlin bindings and libraries
@@ -119,7 +162,11 @@ jobs:
           npx expo prebuild --platform android --no-install 2>&1 | tee ../../verification/prebuild-android.log
           cd android
           grep -qx 'reactNativeArchitectures=arm64-v8a,x86_64' gradle.properties
-          ./gradlew :app:assembleRelease --no-daemon --console=plain > build.log 2>&1 || { tail -150 build.log; exit 1; }
+          # D8 merge exhausted Expo's 2 GiB default in run39081460041.
+          ./gradlew :app:assembleRelease --no-daemon --console=plain --info \
+            --init-script ../../../tests/mobile/verify-ndk.gradle \
+            '-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m' \
+            > build.log 2>&1 || { tail -150 build.log; exit 1; }
       - name: Verify APK contains complete Rust ABIs
         run: |
           python3 - <<'PYAPK'
@@ -132,6 +179,15 @@ jobs:
                   assert f'lib/{abi}/libmlearn_ffi.so' in names, f'Missing Rust bridge for {abi}'
               print('APK native ABIs and bundled Rust bridges:', sorted(abis))
           PYAPK
+      - name: Retain the source-bound compiled Android app before UI testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-compiled-app
+          compression-level: 0
+          retention-days: 7
+          path: |
+            apps/client/android/app/build/outputs/apk/release/app-release.apk
+            verification/source.txt
       - uses: ./.github/actions/setup-maestro
       - name: Enable emulator acceleration on the disposable runner
         run: |
@@ -147,10 +203,18 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
-          script: bash tests/mobile/run-android.sh
+          script: |
+            ps -C adb -o pid,ppid,lstart,args > test-results/mobile/host-adb-process.log
+            bash tests/mobile/run-android.sh
       - name: Ensure build did not modify tracked source
         if: always()
         run: git diff --exit-code HEAD
+      - name: Preserve host ADB transport diagnostics
+        if: always()
+        run: |
+          mkdir -p test-results/mobile
+          find /tmp "$RUNNER_TEMP" -maxdepth 1 -type f -name 'adb.*.log' \
+            -print -exec cp {} test-results/mobile/ \;
       - uses: actions/upload-artifact@v4
         if: always()
         with:

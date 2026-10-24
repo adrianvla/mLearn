@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "artifact": {
+    "path": "enrichment-v1.json.gz",
+    "byteLength": 1177551,
+    "sha256": "e1ef73e05391f4aaa60b10ba98ad27d9d667c1e6d7ef6aa0be87ed6c8f472946"
+  },
+  "referenceRevision": "1788f9c74dc73dd884b687ec80d9550c3ebf6c6b",
+  "pitch": {
+    "title": "Kanjium Pitch Accents",
+    "revision": "pitch1",
+    "url": "https://github.com/toasted-nutbread/yomichan-pitch-accent-dictionary",
+    "upstream": "https://github.com/mifunetoshiro/kanjium",
+    "license": "CC-BY-SA-4.0",
+    "attribution": "Pitch accent data by Uros Ozvatic / Kanjium, repackaged by toasted-nutbread. Normalized and indexed for mLearn; pronunciation alternatives are retained.",
+    "banks": [
+      {"path":"term_meta_bank_1.json","byteLength":891919,"sha256":"f9f037fbd2e01569d8faa31ddb79c5f520fefab35f98b3689aad1d7483ace7a5"},
+      {"path":"term_meta_bank_2.json","byteLength":909065,"sha256":"087ea999a37ac60cc23c712764a2b450a7d262eee5195fce03814494ea58cef3"},
+      {"path":"term_meta_bank_3.json","byteLength":804786,"sha256":"8be11ff168134b929f0c0e708839d049bfceb947fc2a052ac2d0e45c9ea43369"},
+      {"path":"term_meta_bank_4.json","byteLength":798622,"sha256":"ad49cfd30703f39fbd06506e9ad24c4a61df3b91a2058cd2a76ffde15873bb91"},
+      {"path":"term_meta_bank_5.json","byteLength":791380,"sha256":"74abe47b9c9181921a4019c33a960d635e50e0abf295775676ba7f531b28dbee"},
+      {"path":"term_meta_bank_6.json","byteLength":793176,"sha256":"c67f7086a2bfb401845c5b9217cdcd57b559c1a5851250643bdd78f7b1d58246"},
+      {"path":"term_meta_bank_7.json","byteLength":800857,"sha256":"fd454aed8b010a900030f779b81c557e92d3f226c1a2ebf01032dc9f34dc5e9e"},
+      {"path":"term_meta_bank_8.json","byteLength":783388,"sha256":"9b30b03680980af7aaef9e0700f4cff9aa1acd9490a122d6063fb698fb4db6e0"},
+      {"path":"term_meta_bank_9.json","byteLength":791898,"sha256":"3d3516e7754f1cd84a720015a03b309273bc2545ce3696c3255d9063f6d3d516"},
+      {"path":"term_meta_bank_10.json","byteLength":795390,"sha256":"1beba4daa0610079109e326cf88c6ee6c98c056b8ae9a8afb62b469e745eee72"},
+      {"path":"term_meta_bank_11.json","byteLength":791631,"sha256":"35a0dd754ed7b0654540e5ef38bf48fa50fc8b71e0b6ddde4a4b1f159819258a"},
+      {"path":"term_meta_bank_12.json","byteLength":789382,"sha256":"d0cb5cea683dad3451a01e5496b2cb27badd464727ced745b0995b492234972f"},
+      {"path":"term_meta_bank_13.json","byteLength":326800,"sha256":"f5aff726e5e9c9398bf073ed5064dddf9f060cbd65781f7c4b05578715d3635b"}
+    ]
+  },
+  "levels": {
+    "path": "languages/ja.freq.json",
+    "byteLength": 480020,
+    "sha256": "2c1b5e48bb76793bc20ae2ff11e01aa9f24ed5ce4991144144f84b36427d182a",
+    "url": "https://github.com/adrianvla/mLearn/blob/1788f9c74dc73dd884b687ec80d9550c3ebf6c6b/scripts/language-data/source/root-of-app/languages/ja.freq.json",
+    "attribution": "JLPT vocabulary list from the approved mLearn reference. Levels apply to listed written-form/reading pairs, not an official syllabus."
+  }
+}

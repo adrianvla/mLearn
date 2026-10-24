@@ -1,5 +1,29 @@
 # Review-gated implementation plan
 
+> **Active authorization (2026-10-22, explicit gate decision):** Start M03 now,
+> then execute M04–M07 sequentially without intermediate maintainer review stops.
+> The existing hosted iOS FileProvider acceptance failure is **deferred, not
+> passed**, and is no longer a prerequisite for implementation. Stop that
+> investigation; launch no further variants of its diagnostic workflows during
+> this batch. Preserve evidence, compiled artifacts, successful local platform
+> verification and original assertions. Older pre-M03 conditions cannot reinstate
+> this specific stop. Repair genuine product defects and isolate unrelated hosted
+> infrastructure failures without halting independent work. Every
+> milestone retains complete feature scope, passing relevant checks, real
+> desktop/iOS/Android workflows, shared authority, independent code review and
+> exact-source pushed evidence. Independently review M01–M04 architecture and
+> repair significant findings before M05. Defer only precisely recorded
+> nonblocking pixel polish. After verified M07 deliver the consolidated review
+> package and stop for manual acceptance. Existing agent/m01, PR44, history and
+> H00 are preserved; no M08, merge, release or self-acceptance. This supersedes
+> the conflicting older milestone exclusions and per-unit manual review stops
+> below, not their engineering requirements.
+
+> Affected-platform verification includes local iOS where available. Hosted iOS
+> stays explicitly unresolved/red; its deferral is not release readiness.
+
+> **Active authorization (2026-10-20):** Execute the complete [visual-parity rewrite](VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44. Replace the rejected presentation across all currently implemented surfaces; edited images are primary and the corresponding isolated running v2 screen is secondary for unpictured surfaces, including Home. This supersedes the older frozen-review/minimal-restyle/`visual_pending` restrictions and the October 19 feature-expansion batch. Iterate autonomously through the named visual job, not new domain milestones. No merge, release or self-acceptance. The review loop below remains the default for future product increments, not a request to stop between this rewrite's connected slices.
+
 **Goal:** Build the specified mLearn product as connected, usable increments, with a maintainer decision between increments.
 
 **Architecture:** One universal React/Expo client calls a native Rust application. Knowledge, source context, annotated text, Inspector, Capture, learning sessions, settings and resource ownership are shared capabilities, not separately rebuilt services for each screen.
@@ -196,13 +220,27 @@ Each row is a review boundary. The executor reads its feature IDs, shared contra
 
 ### M06 — image/PDF OCR and complete image-reading interaction
 
-**Deliver:** on-device recognition, image/folder pages, crop recognition, aligned text and recognized-text mirror presentation, annotation hiding, magnifier, spread/collation/fit controls, OCR queue/cache/retry and unknown-word side actions.
+**Deliver:** on-device recognition, image/folder pages, crop recognition, interactive OCR text aligned over the original image, annotation hiding/reveal, independent source-image magnifier/zoom, spread/collation/fit controls, OCR queue/cache/retry and unknown-word side actions. No separate mirrored text view is required.
+
+**Desktop executor gate:** use Rust-owned ONNX Runtime with no runtime Python,
+sidecar Python, installer Python requirement or Python fallback. Preserve Paddle
+detection -> package-owned vertical regrouping -> original-resolution crops ->
+complete MangaOCR autoregressive decoding/tokenization. Audit the maintainer's
+specified Rust implementations and ONNX exports instead of adopting their build
+downloads or incomplete decoding. Pin model/preprocessing/tokenizer provenance
+and licenses; optional resource installation must not run during Cargo/tests.
+Detect actual CoreML/Windows/Linux GPU support and retain reliable CPU fallback
+with bounded reusable, cancellable, unloadable sessions. Compare original
+Python reference outputs on the same representative corpus and exercise real
+macOS and Windows OCR. Existing packaged-Python evidence is reference only.
+Inventory other Python inference needed by implemented features; advanced
+speech/TTS remains in its proper milestones.
 
 **Consumes:** Reader source coordinates, shared text/Knowledge/Inspector/Capture and a native model/provider resource owner. The initial iOS provider is Apple's Vision text recognition through a Swift Expo native-module adapter; Android must use real offline OCR, with bundled ML Kit Text Recognition v2 as the first candidate to evaluate. Supported language/script information is obtained from the executing provider rather than a hardcoded core map. Use shared normalized image coordinates and source orientation, preserve provider identity and recognition candidates, and let installed language packages postprocess available OCR results without choosing a hardcoded per-language engine in core. Desktop retains its independently tuned OCR paths. Do not port MangaOCR/PaddleOCR/Python or force ONNX on mobile as a prerequisite to the first release.
 
 **Reference and fidelity gate:** inspect `archive/v2-final` `src/root-of-app/routes/ocr.py` and `src/renderer/utils/ocrUtils.ts`, including real language runtime metadata, detection/recognition separation, downscaling, vertical regrouping, crop coordinates, box/annotation filtering and caching. The Japanese desktop path runs PaddleOCR detection then MangaOCR recognition; this tuned behavior is a reference, not a mobile implementation mandate. Keep a small representative corpus with vertical manga/ruby, horizontal mixed text, glare/low contrast, one crop and a two-page spread. Compare recognized content, source geometry, hit behavior and processing/lifetime costs; do not demand byte-identical outputs from unrelated OCR models.
 
-**Review:** use a real licensed/sanitized image/PDF with main text and annotations, then a spread. Crop/reprocess, resize, hide/reveal annotations, magnify, inspect and capture on each page. Verify exact mirrored-presentation behavior against the selected reference before acceptance. Test native Vision/Android OCR offline on actual supported languages and record unsupported ones; test cancellation/retry and image/orientation transforms on both mobile platforms. No custom neural model port or cosmetic mobile redesign is part of this unit.
+**Review:** use a real licensed/sanitized image/PDF with main text and annotations, then a spread. Crop/reprocess, resize, hide/reveal annotations, magnify, inspect and capture on each page. Verify interactive OCR alignment over original pixels across fit, resize, zoom, orientation, crops and spreads, with lookup/correction/Capture resolving the same source coordinates; verify the independent image magnifier samples source pixels. Test native Vision/Android OCR offline on actual supported languages and record unsupported ones; test cancellation/retry and image/orientation transforms on both mobile platforms. No custom neural model port or cosmetic mobile redesign is part of this unit.
 
 ### M07 — People, temporary conversations and contextual explanations
 

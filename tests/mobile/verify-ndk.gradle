@@ -1,0 +1,22 @@
+// Validate the real consuming AGP configuration, not generated source spelling.
+def selectedHome = System.getenv('ANDROID_NDK_HOME')
+if (!selectedHome) throw new GradleException('NDK verification requires ANDROID_NDK_HOME')
+def ndkProperties = new Properties()
+new File(selectedHome, 'source.properties').withInputStream { ndkProperties.load(it) }
+def expectedVersion = ndkProperties.getProperty('Pkg.Revision')?.trim()
+if (!expectedVersion) throw new GradleException('Selected Android NDK lacks Pkg.Revision')
+
+gradle.projectsEvaluated {
+  // Init scripts also run in the included pure-Java Gradle-plugin builds.
+  if (!gradle.rootProject.plugins.hasPlugin('expo-root-project')) return
+  def modules = gradle.rootProject.allprojects.findAll {
+    it.plugins.hasPlugin('com.android.application') || it.plugins.hasPlugin('com.android.library')
+  }
+  if (modules.empty) throw new GradleException('No consuming Android modules were configured')
+  modules.each { module ->
+    def actualVersion = module.extensions.getByName('android').ndkVersion
+    if (actualVersion != expectedVersion)
+      throw new GradleException("NDK mismatch for ${module.path}: ${actualVersion}, expected ${expectedVersion}")
+    logger.lifecycle("Native NDK ${module.path}: ${actualVersion}")
+  }
+}

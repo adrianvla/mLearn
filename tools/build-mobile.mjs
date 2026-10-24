@@ -17,6 +17,7 @@ function output(command, args) {
   return result.stdout.trim();
 }
 run(process.execPath, ['tools/prepare-plugins.mjs']);
+run(process.execPath, ['tools/prepare-documents.mjs']);
 run('cargo', ['build', '--locked', '-p', 'mlearn-ffi', '--features', 'mobile-bundle']);
 const library = path.join(root, 'target/debug', process.platform === 'darwin' ? 'libmlearn_ffi.dylib' : process.platform === 'win32' ? 'mlearn_ffi.dll' : 'libmlearn_ffi.so');
 const moduleRoot = path.join(root, 'apps/client/modules/mlearn-native');

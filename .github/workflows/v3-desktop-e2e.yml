@@ -17,6 +17,8 @@ jobs:
       WEBKIT_DISABLE_COMPOSITING_MODE: '1'
       XDG_DATA_HOME: ${{ github.workspace }}/.mlearn/e2e-data
       XDG_CONFIG_HOME: ${{ github.workspace }}/.mlearn/e2e-config
+      MLEARN_MEDIA_TRACE: ${{ github.workspace }}/test-results/desktop/media-requests.log
+      GST_DEBUG: '2,webkitwebsrc:5'
     steps:
       - uses: actions/checkout@v4
       - name: Record exact source under native acceptance
@@ -29,8 +31,23 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
-      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus-x11
+      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus-x11 ffmpeg gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-tools fontconfig fonts-noto-cjk
+      - name: Verify real Japanese glyph coverage
+        run: |
+          fc-list :lang=ja file > verification/cjk-fonts.txt
+          test -s verification/cjk-fonts.txt
       - run: npm ci
+      - name: Acquire and verify pinned language data
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run prepare:language-data 2>&1 | tee verification/prepare-language-data.log
+      - run: python3 tools/create-watch-fixture.py .mlearn/m01-ci-fixtures
+      - name: Verify actual fixture decoder chain
+        run: |
+          for element in qtdemux h264parse avdec_h264; do gst-inspect-1.0 "$element"; done > verification/gstreamer-chain.txt
+          gst-launch-1.0 -q filesrc location=.mlearn/m01-ci-fixtures/watch-fixture.mp4 ! qtdemux name=d d.video_0 ! h264parse ! avdec_h264 ! fakesink
       - run: npm run build:plugin
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
       - run: cargo install tauri-driver --locked

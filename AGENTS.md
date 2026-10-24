@@ -1,19 +1,130 @@
 # mLearn engineering contract
 
+## Active execution-resource constraint — 16 GB Mac, 2026-10-23
+
+On October 24 the maintainer reported a second exhaustion incident: OmO used
+12.5 GB RAM, macOS showed 0 bytes available and 6.5 GB swap, and killing the
+harness did not release the allocation. The maintainer restarted everything.
+All pre-restart workloads are gone. This is an OmO memory incident; do not
+attribute it to a device/model workload without evidence. Keep recovery reads
+and image batches small, inspect current physical footprint as well as RSS,
+and do not resume substantial verification while unexplained growth continues.
+
+The maintainer reported a kernel watchdog panic after severe memory exhaustion,
+including OmO at about 13 GiB RSS and Android QEMU at about 12 GiB RSS.
+Restoring the stopped session had restarted an owned Android emulator.
+
+- Never automatically restart Android emulators, iOS simulators, reference
+  applications or persistent test servers when resuming. Inspect surviving
+  jobs first; stop only unnecessary processes whose ownership is established.
+  Do not register persistent launch monitors that replay these workloads.
+- Keep local work serial when substantial: one build, inference run or targeted
+  device verification at a time. Use one Cargo build job locally. Prefer the
+  existing GitHub Actions workflows for broad native integration checks.
+  Local device runs must be targeted and shut down afterward without erasing
+  profiles, evidence, compiled artifacts or unrelated/user-owned processes.
+- Record memory pressure, OmO/workload RSS and swap before, during and after
+  substantial work. Investigate unexplained growth rather than accumulating
+  more jobs. Keep diagnostic output bounded; do not load full histories or
+  large heap dumps into the session as a recovery shortcut.
+- Resume actual M06 OCR on `agent/m01`, then M07 under the existing
+  authorization. Obsolete visual-parity goal metadata is not the active task.
+  Reuse completed M03–M05 and recovered passing M06 evidence. Make frequent
+  durable checkpoints and keep PR #44 open and unmerged.
+
+These are execution constraints, not waivers of tests, architecture or milestone
+acceptance. Preserve original assertions and record remaining verification gaps.
+
+## Active desktop OCR requirement — Python-free inference, 2026-10-23
+
+M06 desktop OCR must execute through Rust-owned ONNX Runtime, not Python,
+a packaged Python sidecar, an installation prerequisite or a Python fallback.
+Python remains allowed for offline conversion/reference testing only. Preserve
+the tuned Japanese Paddle detection -> package-owned vertical regrouping ->
+original-resolution crops -> MangaOCR pipeline; macOS Vision is not its
+replacement. MangaOCR is selected only by the Japanese package. Other language packages use
+their generic/package-selected OCR path, never MangaOCR as a fallback; do not
+add language-code dispatch to core.
+Audit the specified Rust implementations and ONNX model exports, pin
+preprocessing, complete decoding/tokenization and provenance, and compare
+real outputs against the original pipeline. Optional resources require verified
+integrity/licenses and must not download during normal Cargo builds/tests.
+Detect actual macOS CoreML, Windows and Linux GPU availability with reliable CPU
+fallback, bounded reusable cancellable/unloadable sessions, and real macOS and
+Windows functional OCR verification. Reuse existing OCR resource/source owners.
+Inventory Python ML dependencies of already implemented product functionality;
+advanced speech/TTS stays in its appropriate milestones. Preserve earlier
+packaged-Python results only as offline reference evidence. Continue M06–M07 on
+the existing branch/PR with verified committed/pushed increments, without merge
+or self-acceptance.
+
+## Active authorization — implement M03–M07 now, 2026-10-22
+
+The maintainer explicitly **defers the existing hosted iOS FileProvider gate**.
+It remains an unresolved platform acceptance failure, not passed and not a
+prerequisite for further implementation. Stop that investigation and launch no
+further variants of its diagnostic workflows during M03–M07. Preserve evidence,
+compiled artifacts, successful local verification and original assertions.
+Stale pre-M03 gate conditions in older checkpoints must not reinstate this stop.
+
+Start M03 immediately, then execute M04, M05, M06 and M07 sequentially on
+existing `agent/m01`, draft PR #44, using the complete PLAN/SPEC/FEATURES scope.
+This supersedes the older domain-milestone exclusion and intermediate manual
+review stops, not architectural or verification requirements. Preserve history,
+H00, profiles, completed work, shared design and genuine native materials.
+
+Each milestone requires relevant passing checks, genuine end-to-end workflows
+including persistence/restart/cancellation/recoverable failures, shared-owner
+proof, applicable native verification, independent code review with blockers
+resolved, and a committed/pushed exact-source evidence checkpoint. After M04,
+perform an independent comprehensive M01–M04 architecture review and repair
+significant structural findings before M05. Record `verified_for_continuation`,
+never maintainer acceptance.
+
+Perform affected-platform verification, including local iOS where available.
+Repair demonstrated product defects; isolate unrelated hosted-infrastructure
+failures without stopping independent work. This specific deferral is not
+release readiness or permission to weaken functional/platform requirements.
+
+Minor pixel polish may defer precisely until after M07; usability, accessibility,
+responsiveness and functional controls may not. After verified M07 deliver one
+consolidated review package with sources, architecture, subsystem diffs, review
+resolutions, tests/real platform workflows, captures/demos, resource observations,
+remaining discrepancies and prioritized remediation, then stop for manual
+acceptance. No M08, merge, release or self-acceptance.
+
+## Active authorization — visual-parity rewrite, 2026-10-20
+
+The maintainer has rejected the current visual result and authorized a **large presentation refactor**, not another small restyle or unchanged-layout component cleanup. Execute [VISUAL-PARITY.md](docs/implementation/VISUAL-PARITY.md) on existing `agent/m01`, draft PR #44. This is the current job; read STATE for persisted work/evidence, not as a veto from its older frozen status. No new domain milestone, merge, release or maintainer acceptance is authorized.
+
+- **Target:** matched app/reference screenshots should not look like different UIs. Replace the rejected v3 theme/presets, insufficient primitives and actual screen compositions where necessary. The previous DESIGN numeric/style choices are not authority; rebuild [DESIGN.md](DESIGN.md) from measured reference evidence. Reusing the old appearance under a shared component name fails this job.
+- **Reference hierarchy:** edited `docs/product/screenshots/` images first; for current surfaces they do not cover, the corresponding isolated running `../mlearn-ts` screen is now the secondary visual reference. This explicitly supersedes older PLAN/REFERENCE/DESIGN instructions excluding unpictured legacy layouts. Home may not remain generic under `visual_pending`. Legacy architectural defects and fake capabilities must not be copied.
+- **Scope:** all currently implemented UI, including Home, Settings/package management, Watch/window/player chrome, captions/transcript, Inspector/corrections and their controls/dialog/error/pending states. Preserve the existing React/Expo/Tauri/Unistyles boundaries, real Rust semantics and repaired Wasmi performance. This is not an authorization to implement the absent Reader/Messenger/Review backends.
+- **Iteration:** autonomously capture, compare, repair the responsible shared owner, exercise and recapture. No fixed pass count, task counter or functional test pass substitutes for visual conformity. Continue while useful repair work remains; a real quota/access/tool blocker means `paused_incomplete` or `blocked`, not success. Never spin or buy capacity to satisfy “forever.” No unapproved paid route or premium-model escalation.
+- **Delivery:** normal app startup with persisted built-in theme handling must show the reference-derived result. Do not restore the rejected Slate appearance after QA or wipe custom themes/profiles. Preserve meaningful tests/data; remove superseded styling after migrating callers. Commit verified work to the existing draft PR and stop for final maintainer acceptance only after the job's gates pass, or explicitly report an incomplete blocker.
+
+This active authorization overrides conflicting historical frozen-review, minimal-restyle and unpictured-layout wording; unrelated engineering, safety and product-semantic constraints below remain in force. The visual job has not been implemented merely by updating this contract.
+
 ## Read and resolve scope
 
 - [Product specification](docs/product/SPEC.md) and [feature catalogue](docs/product/FEATURES.md) define required behavior and exclusions. [Reference map](docs/product/REFERENCE.md) identifies historical evidence, known traps, and the [21 approved UI screenshots](docs/product/screenshots/) already present in the repository. `README.md` documents commands; `docs/architecture/foundation.md` records the initial implementation, not the complete product.
 - Implement the specification, not every behavior found in old code. A conflicting implementation is a defect; do not weaken the specification or its acceptance checks to make it pass. Product changes require the maintainer's decision. Choose ordinary implementation details yourself; record only consequential assumptions. An unresolved product choice blocks that choice, not unrelated work.
-- Browse `../mlearn-ts` read-only when available; record its actual revision. Otherwise use Git history, including `archive/v2-final` (`1788f9c74dc73dd884b687ec80d9550c3ebf6c6b`). The tag is the T2 reference, not a correctness oracle. Select functional and visual references separately. Earlier plans, comments and completion reports do not override this contract or the product specification.
+- Study `../mlearn-ts` source, CSS dependencies, computed styles and actual interactions; record its revision. Running `npm run dev` there is authorized after verifying its script and a supported isolated disposable profile. Preserve tracked reference source/lockfiles and live learner data; do not invent an isolation flag. The maintainer describes that UI as roughly 90% of the intended direction, with architectural debt. Edited screenshots win where it differs. Otherwise use `archive/v2-final` (`1788f9c74dc73dd884b687ec80d9550c3ebf6c6b`) as a reference, not a correctness oracle. Earlier reports do not override this contract or product requirements.
 - Before replacing a feature, trace its real entry, producer, consumer, persistence and failure behavior. A type, setting, test fixture or unreachable function is not a delivered capability. Preserve accepted workflows and data meaning; do not translate the old architecture, compatibility scaffolding or defects.
 
 ## Review-gated delivery
 
 - Execute [PLAN.md](docs/implementation/PLAN.md) using the current [STATE.md](docs/implementation/STATE.md). Establish the development/native harness in H00 before starting product increments. Use the maintainer-selected development model/effort; record its effective setting instead of assuming it was applied.
-- Implement one connected delivery unit, verify it, freeze its candidate and stop for maintainer review. Requested changes stay in that unit. Start the next unit only after explicit acceptance of the named source/scope; an automated reviewer or green tests cannot provide that acceptance. Do not continue future feature implementation while awaiting review.
+- Default: implement one connected unit, verify it and stop for maintainer review. Exception: a maintainer-authorized bounded batch may traverse its named units after the foundation gate below, retaining per-unit scope/evidence for one combined review. Record `verified_for_continuation`, not `accepted`. A reviewer cannot grant maintainer acceptance. Do not pause for routine human approvals inside an authorized batch, advance beyond its ceiling, merge or extend the authorization indefinitely.
 - Each unit consumes and extends the product's existing capabilities. Knowledge, SourceContext, AnnotatedText, Inspector, Capture, learning sessions and providers do not get separate owners per screen. When a second real consumer arrives, demonstrate reuse and cross-surface consistency; do not invent a fake consumer or a universal widget framework to justify abstraction.
 - Record every wanted small behavior in the feature catalogue before closing its area. A broad Reader/Review/Messenger label, missing screenshot or a minimal successful path cannot retire menu actions, modes, shortcuts, context operations or recovery behavior. Unclear required behavior stays explicitly unresolved until traced or reviewed.
 - Final mobile visual design can remain pending until the maintainer's design pass. Native builds, accessible controls, touch/input, source continuity and domain behavior remain requirements during feature work; desktop acceptance does not certify mobile functionality. Desktop browser overlays/extensions and transparent utility windows are out of scope on both mobile platforms for this release; do not build nominal mobile counterparts or require a share-sheet workaround for parity. In-app inspection and ordinary supported media import remain separate requirements.
+
+## Foundation gate before extension
+
+- Inspect actual owners and the next real consumer. Fix **propagating debt** before its dependants: wrong authority/identity, unsafe lifetimes or migrations, duplicated semantics, unusable shared UI, or a contract the next feature would cement incorrectly. Separate this from contained visual refinements and explicit product decisions. Do not demand a debt-free universe, count components, or invent a framework for distant features.
+- Record only concrete findings: evidence, owner, effect on the next consumer, repair/regression result and advance/repair decision. Protect useful existing work. Test the real connected flow and its relevant failure/cancellation/restart paths; an unrelated passing run does not explain a failure. Audit changes to acceptance wording too: a missing capability must not be renamed out of the requirements.
+- Within an authorized batch, repair blockers and re-evaluate autonomously. Advance when dependency readiness is demonstrated; remaining nonblocking gaps stay explicit. Use change-appropriate checks during integration and the complete relevant regressions/native workflows for the final candidate. No new consumer may require a parallel implementation of an existing semantic owner.
 
 ## Code ownership
 
@@ -37,12 +148,13 @@
 
 ## UI and component boundaries
 
-- `@mlearn/ui` owns interactive primitives and their accessibility behavior. Features use that API, not new `Btn`/`CustomButton` implementations, raw clickable DOM, or direct imports from headless-control libraries. Static `View`/`Text` composition and feature-local layout are fine. Specialist document/media input exceptions need an explicit owner.
+- **Component-first implementation:** before changing UI, inspect the existing `@mlearn/ui` API and its actual callers. Reuse or replace insufficient semantic controls; do not recreate a button, pill/badge, disclosure, field, dialog or focus/hover behavior with feature-local styling. A large visual rewrite may replace primitive APIs and screen compositions, migrating affected callers in the same batch. Static `View` composition and feature-local layout are fine; specialist document/media rendering needs a narrow explicit owner. No raw clickable DOM or feature imports from headless-control libraries. Reuse is not permission to preserve rejected output.
 - A component must own semantics, state/lifecycle, meaningful reuse, a platform adaptation or substantial composition. Do not wrap each element, create a component per style rule, or add pass-through layers that merely rename props. The shared control boundary is justified; a chain of wrappers around it is not. Prefer composition over a universal configurable widget framework.
-- Use Unistyles, colocated styles and semantic theme values. No Tailwind, NativeWind or UnoCSS layer. CSS/DOM is limited to explicitly owned specialist content. User-created theme IDs are runtime data. Retire the old Tactile/Flat setting and implementation branches; do not migrate obsolete modes into the new theme model.
-- **The maintainer's deliberately edited reference images are the approved visual specification for the states they depict.** Match their component arrangement, controls, hierarchy, typography intent, density and relative geometry closely while preserving real content behavior, accessibility and responsive constraints. Do not reconstruct the old CSS, demand identical pixels at different text sizes or stall on incidental alignment.
+- Use Unistyles, colocated layout styles and semantic theme values. Shared text roles own font family, size, line-height and weight; add missing roles to the shared typography/Text boundary instead of styling ordinary `NativeText` separately in each feature. Shared surface/control roles own material, color, radius and state treatments. Geometry belonging to source content or a measured layout may remain local. No Tailwind/NativeWind/UnoCSS or route-specific CSS override layer. User theme IDs remain runtime data. Integrate only the maintainer-selected reference presentation as one shared system without a style name; ignore alternate reference styles. Do not port the Interface style selector, persist a style preference or retain parallel style implementations/selector compatibility. Themes remain separate and approved materials remain shared component behavior.
+- **The maintainer's deliberately edited reference images are the approved visual specification for the states they depict.** Match arrangement, hierarchy, typography, density, materials and relative geometry while preserving real behavior, accessibility and responsiveness. Study legacy CSS and rendered measurements to understand the mechanism; do not transplant brittle overrides or staged DOM. During visual-parity work, actual comparisons decide whether a difference is immaterial rasterization or unfinished UI; a blanket “minor alignment” claim cannot waive it.
+- **One design system applies to ALL product UI.** Approved images define typography, density, materials, action hierarchy and interaction conventions; merely importing `Button` and `Text` does not establish conformity. Compose real source rows, selectors, settings sections and linguistic content around those conventions. Different layouts and intentional media contrast are valid; isolated theme islands and generic form scaffolding are not. Prove shared changes in both media and non-media contexts. Do not turn every token into a user setting or extract one component per element.
 - The supplied designs can be **artificially staged states**: the maintainer restyled and repositioned the running v2 UI through DevTools, sometimes while the original application was unstable. A screenshot is an authoritative visual target, **not evidence that v2 actually implemented the depicted behavior or that its DOM, CSS overrides, layout measurements, IPC, state or performance can be reused**. Implement the intended presentation using the clean shared UI/runtime boundaries; independently exercise it with real data, input and persistence. Never reproduce DevTools-only conditions to make an acceptance screenshot pass.
-- **An unprovided/unedited legacy screen is not a visual reference.** Its appearance is intentionally unselected; do not copy it, derive a replacement from neighboring v2 screens, or fill the gap with generated dashboard copy, generic cards or decorative elements. A required catalogue feature without an approved image still needs its underlying behavior, but its visible composition is `visual_pending`: use only the simplest usable interim presentation necessary for functional review and ask the maintainer for the intended layout at that feature's review gate. Do not claim final visual acceptance.
+- For current surfaces without an edited screenshot, use the secondary running-v2 visual reference authorized above. Home is included, not exempt. Where the reference cannot be established or requires unavailable product behavior, record the exact blocked state and continue independent work; do not label a generic replacement visually complete. Derive package labels from authoritative metadata and preserve stable IDs. No fabricated metrics, slogans, decorative filler or unsupported actions. Resolve ordinary presentation details through reference evidence, not repeated maintainer interruptions.
 - Absence of a control from an edited image does not authorize silently deleting its independently required feature; nor does a legacy feature authorize inserting an unpictured control into the approved composition. Surface the placement/scope conflict for the maintainer to decide. For features absent from both edited references and the product catalogue, do not reconstruct legacy UI by default.
 - Labels name an action, object or real state. Add explanations only where they help a decision or recovery. Do not add taglines, promotional hero sections, fabricated metrics, roadmap tiles or decorative descriptions to working screens. Replace integration-placeholder content as real features arrive.
 - Keep results and errors beside the initiating action. Preserve keyboard/IME/modal ownership and touch accessibility. Reuse a stable pending/error/empty pattern where useful; do not create an automatic skeleton framework or a bespoke skeleton for every component.
@@ -56,6 +168,13 @@
 - Keep development profiles separate from v2 and production. `net.kikan.mlearn.v3dev` must not become the legacy `net.kikan.mlearn` identifier accidentally. Display names and window titles may be `mLearn` without changing storage identity. Do not write to the live v2 profile or implicitly import it. Test import/recovery against isolated copies.
 - Every growing cache, worker, subscription, pending command and large buffer needs an owner and release/eviction behavior. Batch hot paths; avoid per-item IPC and repeated asset/database scans. Hidden screens do not keep recomputing full collections. Model sessions and thread pools must share a resource policy rather than each consuming all device resources.
 - Cancellation must release work and prevent stale publication. Distinguish pending, unavailable, failed and empty. Keep useful existing state and explicit retry where safe; do not hide errors with empty arrays, fabricated results or unbounded retries.
+
+## Interactive performance acceptance
+
+- Measure the normal documented development launch as well as an optimized consuming app; an isolated release owner benchmark does not certify the user's dev workflow. Keep plugin/data/input identities equal, record effective Cargo profile and flags, and compare repeated fresh-process, warm, reopen and package-switch cases. A process restart is not proof of cold filesystem caches.
+- Trace user action to usable annotations/Inspector, separating queue/admission wait, guest initialization, resource reads, actual capability calls, Knowledge/storage work, IPC and first usable render. Include capability/owner and initialization/eviction counts without private text or paths. An `initialize` span is not steady-state tokenization; a fast guest call is not end-to-end responsiveness. Reuse existing metrics and add only the missing spans.
+- Establish measured latency and work-count budgets for representative visible-cue and transcript operations before claiming readiness. If unoptimized interpreter execution dominates, test an optimized dev profile/package override with debug information and safety checks retained; verify where generic hot code is instantiated. Do not claim a Cargo flag fixed performance without the same real-app before/after measurements. Do not remove authentication, fuel/memory limits or cancellation, replace the engine, hide the loader, or move the same delay to startup as a substitute for diagnosis.
+- UI rerenders, pointer movement, progress ticks and unchanged cue selections must not needlessly reinitialize language resources or repeat morphology. Inspect actual cache hits, invalidation and session/guest eviction before changing policy. Reuse immutable analysis under source/content/package identity with bounded memory, while refreshing current Knowledge independently. Preserve stale-result rejection and responsive foreground operations; do not introduce an unbounded cache or keep cancelled work alive merely to improve a timing.
 
 ## Tests that protect behavior
 
@@ -78,6 +197,8 @@
 
 - Run broader regression suites once a coherent batch is integrated and before its acceptance. Do not rebuild every platform or launch simulators for unrelated edits. Reuse completed evidence only when its source, inputs and affected scope still match. Never claim a native workflow from browser tests or claim physical-device behavior from a simulator.
 - Use current scripts in `package.json`/`README.md`: `npm test`, `npm run typecheck`, `npm run lint`, `npm run build:web`, `npm run test:web`, `npm run test:native`, `npm run check:contracts`. Select the checks appropriate to the change; generated native binaries must include the source being tested.
-- Keep one compact implementation checkpoint for the current batch: accepted requirements, commits, actual verification, unresolved blockers and next action. On resumption, read Git and that checkpoint before repeating work. Do not create report trees, recursive review campaigns or competing writers to the same interface. Do not repeatedly cancel and restart a slow build because unrelated files changed.
+- Keep one compact current checkpoint: authorization, source, per-unit verification, blockers and next action. Read Git and that record before repeating work. Clearly separate historical reports from current instructions; do not create report trees, recursive review campaigns or competing writers to an interface. Do not cancel slow builds for unrelated edits.
+- Verification is the agent's work, not debugging homework for the maintainer. For a UI repair, record the reference-to-owner mapping and affected real callers in the existing checkpoint. Verify the structural fix in the diff and the rendered result: changing a shared role must reach its consumers without patching each screen. Strengthen existing boundary checks with allowed/forbidden examples when preventing a demonstrated escape; component/file counts prove nothing. Inspect approved and current images directly at comparable viewport, text scale and interaction/content state; check decoded dimensions and links. Capture the normal final app with source/UI/plugin identity. Check Home, Settings, Watch and Inspector, including pending/error/expanded states. Code, performance, function and visual conformity are separate gates; passing containment/accessibility or one attractive popup cannot waive another visibly rejected surface.
+- Reserve resources for final verification. Inspect effective routing; no unapproved premium-reviewer fleets, Astra escalation or metered-provider switch. Use event-driven build/CI waits, not repeated large-model polling. Remaining quota is capacity, not a target to exhaust; follow the active batch's limits and checkpoint before interruption.
 - A failing check is not erased by a later passing unrelated run. Investigate, fix or record an independently reproduced baseline issue with its affected scope. Do not silently skip, weaken or rebaseline tests to obtain green status. Test counts, documentation and placeholders do not complete a user workflow.
 - Use npm/Cargo workspaces and their lockfiles. Keep changes in coherent, reviewable maintainer checkpoints rather than committing every generated file or trivial step. Do not modify reference branches, force-push, discard uncommitted work, kill processes by name, publish packages or replace user data without authorization.

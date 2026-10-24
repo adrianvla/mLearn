@@ -1,0 +1,182 @@
+appId: net.kikan.mlearn.v3dev
+---
+# Use the real source/player, native settings owner and process restart. The
+# authored second cue starts at15s; +500ms moves its navigation target to14.5s.
+- tapOn: Playback options
+- scrollUntilVisible:
+    element: Reset synchronization
+    direction: DOWN
+    centerElement: true
+- tapOn: Reset synchronization
+- scrollUntilVisible:
+    element: 'Current offset: 0 ms'
+    direction: DOWN
+- extendedWaitUntil:
+    visible: 'Current offset: 0 ms'
+    timeout: 15000
+- scrollUntilVisible:
+    element: 'Playback rate 1\.25'
+    direction: UP
+    centerElement: true
+- tapOn: 'Playback rate 1\.25'
+- extendedWaitUntil:
+    visible: 'Playback rate · 1\.25×'
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: subtitle-offset-input
+    direction: DOWN
+- tapOn:
+    id: subtitle-offset-input
+- eraseText: 1
+- inputText: '5'
+- assertVisible:
+    id: subtitle-offset-input
+    text: '5'
+- inputText: '0'
+- assertVisible:
+    id: subtitle-offset-input
+    text: '50'
+- inputText: '0'
+- assertVisible:
+    id: subtitle-offset-input
+    text: '500'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Done
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element: Apply subtitle offset
+    direction: DOWN
+- tapOn: Apply subtitle offset
+- extendedWaitUntil:
+    visible: 'Current offset: 500 ms'
+    timeout: 15000
+- takeScreenshot: persisted-source-playback-settings
+- tapOn: Close
+- tapOn: Transcript
+- tapOn:
+    id: transcript-search-input
+- inputText: 'c'
+- assertVisible:
+    id: transcript-search-input
+    text: 'c'
+- inputText: 'a'
+- assertVisible:
+    id: transcript-search-input
+    text: 'ca'
+- inputText: 'm'
+- assertVisible:
+    id: transcript-search-input
+    text: 'cam'
+- inputText: 'e'
+- assertVisible:
+    id: transcript-search-input
+    text: 'came'
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: Done
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- tapOn: Search
+- extendedWaitUntil:
+    visible: 'Go to cue 2 at 0:14'
+    timeout: 15000
+- assertNotVisible: 'Go to cue 1.*'
+- takeScreenshot: native-transcript-search
+- extendedWaitUntil:
+    visible: 'came: untracked'
+    timeout: 60000
+- tapOn: 'came: untracked'
+- extendedWaitUntil:
+    visible: come
+    timeout: 60000
+- tapOn: 'Knowledge(,.*)?'
+- tapOn: Meaning
+- scrollUntilVisible:
+    element: 'Claim Meaning known'
+    direction: DOWN
+- tapOn: 'Claim Meaning known'
+- extendedWaitUntil:
+    visible: 'Meaning · claimed known'
+    timeout: 15000
+- tapOn: Close Inspector
+- assertVisible: 'came: mixed'
+- tapOn: 'came: mixed'
+- extendedWaitUntil:
+    visible: come
+    timeout: 60000
+- tapOn: 'Knowledge(,.*)?'
+- tapOn: Meaning
+- scrollUntilVisible:
+    element: 'Withdraw Meaning claim'
+    direction: DOWN
+- tapOn: 'Withdraw Meaning claim'
+- extendedWaitUntil:
+    visible: 'Meaning · untracked'
+    timeout: 15000
+- tapOn: Close Inspector
+- assertVisible: 'came: untracked'
+- tapOn: 'Go to cue 2 at 0:14'
+- extendedWaitUntil:
+    visible: 'came: untracked'
+    timeout: 15000
+- assertVisible: 'Children: mixed'
+- tapOn: Home
+- stopApp
+- launchApp:
+    clearState: false
+    permissions: {}
+- scrollUntilVisible:
+    element: Resume m01-watch.mp4
+    direction: DOWN
+    timeout: 30000
+    centerElement: false
+- tapOn: Resume m01-watch.mp4
+- extendedWaitUntil:
+    visible: Playback options
+    timeout: 60000
+- tapOn: Playback options
+- assertVisible: 'Playback rate · 1\.25×'
+- scrollUntilVisible:
+    element: 'Current offset: 500 ms'
+    direction: DOWN
+- assertVisible: 'Current offset: 500 ms'
+- takeScreenshot: native-source-settings-after-restart
+# On the hosted iOS 26.5 viewport, the persisted-offset label can be exposed
+# while Reset remains clipped by the fixed footer. Accessibility visibility alone
+# still skipped scrolling in 39299585014. Move the target away from the viewport
+# edge before tapping; keep the reset-value assertion below.
+- scrollUntilVisible:
+    element: Reset synchronization
+    direction: DOWN
+    centerElement: true
+- tapOn: Reset synchronization
+- scrollUntilVisible:
+    element: 'Current offset: 0 ms'
+    direction: DOWN
+- extendedWaitUntil:
+    visible: 'Current offset: 0 ms'
+    timeout: 15000
+- scrollUntilVisible:
+    element: 'Playback rate 1'
+    direction: UP
+    # iOS AX can expose this button behind the dialog's fixed header.
+    # Center the actual hit target, as for Reset above; keep the saved-rate check.
+    centerElement: true
+- tapOn: 'Playback rate 1'
+- extendedWaitUntil:
+    visible: 'Playback rate · 1×'
+    timeout: 15000
+- tapOn: Close

@@ -7,7 +7,7 @@ const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': '
 createServer(async (request, response) => {
   try {
     const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://127.0.0.1').pathname);
-    const target = path.resolve(root, `.${pathname === '/' ? '/index.html' : pathname}`);
+    const target = path.resolve(root, `.${pathname === '/' || !path.extname(pathname) ? '/index.html' : pathname}`);
     if (!target.startsWith(`${root}${path.sep}`)) throw new Error('Invalid path');
     const bytes = await readFile(target);
     response.writeHead(200, { 'Content-Type': types[path.extname(target)] ?? 'application/octet-stream', 'Content-Length': bytes.length });

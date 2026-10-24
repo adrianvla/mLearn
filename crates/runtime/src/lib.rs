@@ -1,130 +1,286 @@
+mod analysis;
+mod capture;
 pub mod catalog;
+mod conversation;
+mod conversation_execution;
+mod conversation_provider;
+mod document;
+mod document_import;
+mod document_projection;
+mod document_recovery;
+mod document_transport;
+mod execution;
+mod guest;
+mod language;
+mod linguistic;
+mod material;
+mod material_media;
+mod material_source;
+mod media_file;
+mod media_format;
+mod media_import;
+mod media_recovery;
+pub mod native_ocr;
+mod ocr;
+pub mod ocr_package;
+mod ocr_source;
+mod packages;
+mod review;
+mod source_file;
+mod watch;
 use catalog::{CatalogClient, CatalogTrust, Manifest, verify_artifact};
-use mlearn_core::{PluginSummary, Request, Response, Snapshot, PROTOCOL_VERSION};
-use mlearn_language_host::{AssetMap, CodeOrigin, CodePolicy, CompiledPlugin};
+pub use execution::RuntimeExecutor;
+use mlearn_core::{PROTOCOL_VERSION, PackageIssue, PluginSummary, Request, Response, Snapshot};
+use mlearn_language_host::{CodeOrigin, CodePolicy, CompiledPlugin};
 use mlearn_storage::{ProfileStore, StorageError};
-use std::{collections::BTreeMap, path::{Path, PathBuf}, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 pub struct BundledPlugin {
     pub manifest: Manifest,
     pub code: Vec<u8>,
-    pub assets: BTreeMap<String, Vec<u8>>,
+    pub assets: BTreeMap<String, std::borrow::Cow<'static, [u8]>>,
 }
-struct Installed { manifest: Manifest, compiled: CompiledPlugin }
+#[derive(Clone)]
+struct Installed {
+    manifest: Manifest,
+    compiled: Arc<CompiledPlugin>,
+}
+impl Installed {
+    fn revision(&self) -> Result<String, execution::Failure> {
+        use sha2::{Digest, Sha256};
+        let bytes = serde_json::to_vec(&self.manifest)
+            .map_err(|e| execution::Failure::Operation(e.to_string()))?;
+        Ok(format!("{:x}", Sha256::digest(bytes)))
+    }
+}
 
-/// Independent of Tauri, Expo and React. Native hosts schedule calls on blocking workers.
+/// Independent of Tauri, Expo and React. Native hosts use RuntimeExecutor.
 pub struct Runtime {
     store: ProfileStore,
+    cancellation: Arc<std::sync::atomic::AtomicU64>,
     root: PathBuf,
     policy: CodePolicy,
-    catalog: Option<CatalogClient>,
+    catalog: Option<Arc<CatalogClient>>,
+    installs: Arc<packages::InstallOwner>,
     installed: BTreeMap<String, Installed>,
+    package_issues: BTreeMap<String, String>,
+    analysis_cache: std::collections::VecDeque<(String, Vec<Vec<mlearn_core::AnalyzedToken>>)>,
+    ocr_admission: Option<(String, u64)>,
 }
-
 fn summary(manifest: &Manifest) -> PluginSummary {
-    PluginSummary { id: manifest.id.clone(), version: manifest.version.clone(), capabilities: manifest.capabilities.clone() }
+    PluginSummary {
+        id: manifest.id.clone(),
+        display_name: manifest.display_name.clone(),
+        version: manifest.version.clone(),
+        capabilities: manifest.capabilities.clone(),
+    }
 }
-
 impl Runtime {
-    pub fn open(root: &Path, policy: CodePolicy, trust: Option<CatalogTrust>, bundled: Vec<BundledPlugin>) -> Result<Self, String> {
-        if policy == CodePolicy::MobileBundled && trust.is_some() { return Err("Mobile executable catalogs are prohibited".into()); }
-        if !bundled.is_empty() { policy.authorize(CodeOrigin::Bundle)?; }
+    pub fn open(
+        root: &Path,
+        policy: CodePolicy,
+        trust: Option<CatalogTrust>,
+        bundled: Vec<BundledPlugin>,
+    ) -> Result<Self, String> {
+        if policy == CodePolicy::MobileBundled && trust.is_some() {
+            return Err("Mobile executable catalogs are prohibited".into());
+        }
+        if !bundled.is_empty() {
+            policy.authorize(CodeOrigin::Bundle)?;
+        }
         std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
-        let store = ProfileStore::open(&root.join("profile.sqlite3")).map_err(|e| e.to_string())?;
-        let catalog = trust.map(CatalogClient::new).transpose()?;
-        let mut runtime = Self { store, root: root.into(), policy, catalog, installed: BTreeMap::new() };
+        let mut store =
+            ProfileStore::open(&root.join("profile.sqlite3")).map_err(|e| e.to_string())?;
+        store
+            .interrupt_conversation_generations()
+            .map_err(|error| error.to_string())?;
+        store.interrupt_ocr().map_err(|error| error.to_string())?;
+        let catalog = trust.map(CatalogClient::new).transpose()?.map(Arc::new);
+        let mut runtime = Self {
+            store,
+            cancellation: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            root: root.into(),
+            policy,
+            catalog,
+            installs: Arc::new(packages::InstallOwner::default()),
+            installed: BTreeMap::new(),
+            package_issues: BTreeMap::new(),
+            analysis_cache: std::collections::VecDeque::new(),
+            ocr_admission: None,
+        };
         if policy == CodePolicy::DesktopDownloaded {
-            for stored in runtime.store.plugin_manifests().map_err(|e| e.to_string())? {
-                let manifest: Manifest = serde_json::from_str(&stored).map_err(|e| e.to_string())?;
-                manifest.validate()?;
-                let code = runtime.read_blob(&manifest.code)?;
-                let assets = manifest.assets.iter().map(|(key, value)| Ok((key.clone(), Arc::<[u8]>::from(runtime.read_blob(value)?)))).collect::<Result<AssetMap, String>>()?;
-                let compiled = CompiledPlugin::new(&code, assets)?;
-                runtime.installed.insert(manifest.id.clone(), Installed { manifest, compiled });
+            for (id, stored) in runtime
+                .store
+                .plugin_manifests()
+                .map_err(|e| e.to_string())?
+            {
+                let restored = (|| -> Result<Installed, String> {
+                    let manifest: Manifest =
+                        serde_json::from_str(&stored).map_err(|e| e.to_string())?;
+                    manifest.validate()?;
+                    if manifest.id != id {
+                        return Err("Stored package identity does not match its manifest".into());
+                    }
+                    let code = packages::read_blob(root, &manifest.code)?;
+                    let compiled = Arc::new(packages::compile(root, &manifest, &code)?);
+                    Ok(Installed { manifest, compiled })
+                })();
+                match restored {
+                    Ok(installed) => {
+                        runtime.installed.insert(id, installed);
+                    }
+                    Err(message) => {
+                        runtime.package_issues.insert(id, message);
+                    }
+                }
             }
         }
+        let mut bundled_ids = std::collections::BTreeSet::new();
         for plugin in bundled {
-            plugin.manifest.validate()?;
-            verify_artifact(&plugin.manifest.code, &plugin.code)?;
-            let mut assets = AssetMap::new();
-            for (key, artifact) in &plugin.manifest.assets {
-                let bytes = plugin.assets.get(key).ok_or("Bundled asset missing")?;
-                verify_artifact(artifact, bytes)?;
-                assets.insert(key.clone(), Arc::from(bytes.clone()));
+            let id = plugin.manifest.id.clone();
+            if !bundled_ids.insert(id.clone()) {
+                return Err("Duplicate bundled plugin id".into());
             }
-            let compiled = CompiledPlugin::new(&plugin.code, assets)?;
-            if runtime.installed.insert(plugin.manifest.id.clone(), Installed { manifest: plugin.manifest, compiled }).is_some() { return Err("Duplicate bundled plugin id".into()); }
+            let restored = (|| -> Result<Installed, String> {
+                plugin.manifest.validate()?;
+                verify_artifact(&plugin.manifest.code, &plugin.code)?;
+                for (key, artifact) in &plugin.manifest.assets {
+                    let bytes = plugin.assets.get(key).ok_or("Bundled asset missing")?;
+                    packages::write_blob(root, artifact, bytes)?;
+                }
+                let compiled = Arc::new(packages::compile(root, &plugin.manifest, &plugin.code)?);
+                Ok(Installed {
+                    manifest: plugin.manifest,
+                    compiled,
+                })
+            })();
+            match restored {
+                Ok(installed) => {
+                    runtime.installed.insert(id, installed);
+                }
+                Err(message) => {
+                    runtime.package_issues.insert(id, message);
+                }
+            }
         }
+        runtime
+            .recover_material_media()
+            .map_err(|error| error.to_string())?;
+        runtime
+            .recover_document_files()
+            .map_err(|error| error.to_string())?;
         Ok(runtime)
     }
-
-    fn read_blob(&self, artifact: &catalog::Artifact) -> Result<Vec<u8>, String> {
-        let path = self.root.join("plugin-blobs").join(&artifact.sha256);
-        if std::fs::metadata(&path).map_err(|e| e.to_string())?.len() != artifact.byte_length as u64 { return Err("Installed plugin blob has changed".into()); }
-        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-        verify_artifact(artifact, &bytes)?;
-        Ok(bytes)
+    pub fn cancellation_handle(&self) -> Arc<std::sync::atomic::AtomicU64> {
+        self.cancellation.clone()
     }
-    fn write_blob(&self, artifact: &catalog::Artifact, bytes: &[u8]) -> Result<(), String> {
-        verify_artifact(artifact, bytes)?;
-        let directory = self.root.join("plugin-blobs");
-        std::fs::create_dir_all(&directory).map_err(|e| e.to_string())?;
-        let path = directory.join(&artifact.sha256);
-        if path.exists() { self.read_blob(artifact)?; return Ok(()); }
-        let temporary = directory.join(format!("{}.part", artifact.sha256));
-        {
-            use std::io::Write;
-            let mut file = std::fs::File::create(&temporary).map_err(|e| e.to_string())?;
-            file.write_all(bytes).map_err(|e| e.to_string())?;
-            file.sync_all().map_err(|e| e.to_string())?;
+    /// Synchronous owner compatibility, using the same preparation and completion as native hosts.
+    pub fn execute(&mut self, request: &str) -> String {
+        execution::encode(execution::parse(request).and_then(|request| {
+            let epoch = self.cancellation.load(std::sync::atomic::Ordering::Relaxed);
+            match self.prepare(request, epoch)? {
+                guest::Prepared::Immediate(response) => Ok(*response),
+                guest::Prepared::Work(work) => {
+                    let result = (|| {
+                        let mut output = work.run()?;
+                        #[cfg(test)]
+                        watch::source_execution_tests::hold_guest_result(work.capability());
+                        let (response, retired) = self.complete(&work, &mut output)?;
+                        drop(retired);
+                        Ok(response)
+                    })();
+                    self.finish_work(&work, result)
+                }
+            }
+        }))
+    }
+    fn finish_work(
+        &mut self,
+        work: &guest::GuestWork,
+        result: Result<Response, execution::Failure>,
+    ) -> Result<Response, execution::Failure> {
+        let result = work.finish(result);
+        if let (guest::GuestWork::Install { transfer, .. }, Err(error)) = (work, &result) {
+            let command = transfer.command()?;
+            if !command.command_id.starts_with("native:") {
+                self.store
+                    .record_install_failure(&command, &execution::error_response(error))
+                    .map_err(|e| execution::Failure::Operation(e.to_string()))?;
+            }
         }
-        std::fs::rename(temporary, path).map_err(|e| e.to_string())?;
-        Ok(())
+        result
     }
-    fn install(&mut self, id: &str) -> Result<PluginSummary, String> {
-        self.policy.authorize(CodeOrigin::Download)?;
-        let catalog = self.catalog.as_ref().ok_or("No trusted desktop plugin catalog configured")?;
-        let manifest = catalog.manifests()?.into_iter().find(|m| m.id == id).ok_or("Plugin is not in the trusted catalog")?;
-        let code = catalog.artifact(&manifest.code)?;
-        let mut assets = AssetMap::new();
-        for (key, artifact) in &manifest.assets {
-            let bytes = catalog.artifact(artifact)?;
-            self.write_blob(artifact, &bytes)?;
-            assets.insert(key.clone(), Arc::from(bytes));
-        }
-        let compiled = CompiledPlugin::new(&code, assets)?;
-        self.write_blob(&manifest.code, &code)?;
-        self.store.activate_plugin(&manifest.id, &serde_json::to_string(&manifest).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-        let result = summary(&manifest);
-        self.installed.insert(manifest.id.clone(), Installed { manifest, compiled });
-        Ok(result)
-    }
-    fn dispatch(&mut self, request: Request) -> Result<Response, (String, String)> {
-        let failure = |message: String| ("operation_failed".into(), message);
+    fn metadata(&mut self, request: Request) -> Result<Response, execution::Failure> {
+        use execution::Failure;
         match request {
             Request::Snapshot => {
-                let (revision, theme) = self.store.preferences().map_err(|e| failure(e.to_string()))?;
-                Ok(Response::Snapshot { snapshot: Snapshot { protocol_version: PROTOCOL_VERSION, revision, theme, code_policy: self.policy.label().into(), catalog_configured: self.catalog.is_some(), available_plugins: vec![], installed_plugins: self.installed.values().map(|p| summary(&p.manifest)).collect() } })
+                let (revision, theme) = self
+                    .store
+                    .preferences()
+                    .map_err(|e| Failure::Operation(e.to_string()))?;
+                Ok(Response::Snapshot {
+                    snapshot: Snapshot {
+                        protocol_version: PROTOCOL_VERSION,
+                        revision,
+                        theme,
+                        code_policy: self.policy.label().into(),
+                        catalog_configured: self.catalog.is_some(),
+                        available_plugins: vec![],
+                        installed_plugins: self
+                            .installed
+                            .values()
+                            .map(|p| summary(&p.manifest))
+                            .collect(),
+                        package_issues: self
+                            .package_issues
+                            .iter()
+                            .map(|(package_id, message)| PackageIssue {
+                                package_id: package_id.clone(),
+                                message: message.clone(),
+                            })
+                            .collect(),
+                    },
+                })
             }
-            Request::SaveTheme { document, expected_revision, command_id } => {
-                let revision = self.store.save_theme(&document, expected_revision, &command_id).map_err(|e| {
-                    let code = if matches!(e, StorageError::Conflict) { "conflict" } else { "invalid_settings" };
-                    (code.into(), e.to_string())
-                })?;
+            Request::SaveTheme {
+                document,
+                expected_revision,
+                command_id,
+            } => {
+                let revision = self
+                    .store
+                    .save_theme(&document, expected_revision, &command_id)
+                    .map_err(|e| {
+                        let code = if matches!(e, StorageError::Conflict) {
+                            "conflict"
+                        } else {
+                            "invalid_settings"
+                        };
+                        Failure::Protocol(code, e.to_string())
+                    })?;
                 Ok(Response::Saved { revision })
             }
-            Request::InstallPlugin { plugin_id } => Ok(Response::Installed { plugin: self.install(&plugin_id).map_err(failure)? }),
-            Request::InvokePlugin { plugin_id, capability, input } => {
-                let plugin = self.installed.get(&plugin_id).ok_or_else(|| failure("Plugin not installed".into()))?;
-                if !plugin.manifest.capabilities.contains(&capability) { return Err(failure("Plugin does not declare this capability".into())); }
-                Ok(Response::PluginResult { output: plugin.compiled.invoke(&capability, input).map_err(failure)? })
-            }
+            request @ (Request::Materials { .. }
+            | Request::PlanMaterialMedia { .. }
+            | Request::MaterialMedia { .. }
+            | Request::Material { .. }
+            | Request::UpdateMaterial { .. }
+            | Request::MaterialEligibility { .. }
+            | Request::SetCaptureExclusion { .. }
+            | Request::ReturnMaterialSource { .. }) => self.material_metadata(
+                request,
+                self.cancellation.load(std::sync::atomic::Ordering::Relaxed),
+            ),
+            request => self
+                .watch(
+                    request,
+                    self.cancellation.load(std::sync::atomic::Ordering::Relaxed),
+                )
+                .map_err(Failure::Operation),
         }
-    }
-    pub fn execute(&mut self, request: &str) -> String {
-        let result = if request.len() > 262_144 { Err(("request_too_large".into(), "Request exceeds 256 KiB".into())) }
-            else { serde_json::from_str::<Request>(request).map_err(|e| ("invalid_request".into(), e.to_string())).and_then(|request| self.dispatch(request)) };
-        let response = result.unwrap_or_else(|(code, message)| Response::Error { code, message: message.chars().take(2048).collect() });
-        serde_json::to_string(&response).expect("Runtime response types are JSON serializable")
     }
 }
