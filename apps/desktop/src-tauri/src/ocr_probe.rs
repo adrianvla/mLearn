@@ -107,6 +107,7 @@ pub async fn run(
         .ok_or("Imported source lacks identity")?
         .to_owned();
     let state = NativeState {
+        clipboard: Mutex::new(None),
         captures: Arc::new(crate::media_capture::Captures::new()),
         media_base: String::new(),
         runtime: runtime.clone(),

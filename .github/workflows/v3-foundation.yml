@@ -153,7 +153,7 @@ jobs:
       - run: npm ci
       - run: npm run build:web
       - run: npm run tauri -w @mlearn/desktop -- build --debug --no-bundle
-      - run: cargo test --locked -p mlearn-desktop --lib
+      - run: cargo test --locked -p mlearn-desktop --lib --all-features
       - name: Verify portable offline PDF rasterization
         run: cargo test --locked -p mlearn-desktop-ocr --all-targets
       - uses: actions/download-artifact@v4
