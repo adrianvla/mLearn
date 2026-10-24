@@ -54,9 +54,9 @@ launchers were released with retained read-back receipts.
 #### Current continuation: published repairs and native comparison, 2026-10-24
 
 Source-entry migration is verified for continuation, not final visual or
-maintainer acceptance. Todo 165/206: matched native Home compound/material
-comparison and native built-in/custom theme restart are recorded. Settings recovery, Watch/Inspector,
-performance and delivery gates remain open. No new backend/milestone.
+maintainer acceptance. Todo 166/206: matched native Home, built-in/custom theme
+restart and Settings recovery comparisons are recorded. Watch/Inspector,
+performance, affected-platform and delivery gates remain open. No new milestone.
 
 Functionality source is committed as0217bcd98c7cec66e8b00ee5bd8634be6a1d3de0,
 `feat: add shared conversation and source workflows`, on agent/m01.
@@ -135,8 +135,8 @@ Actual-Rust regressions fail before the repair, including same-ID/same-name
 custom colors. All 10 relevant browser checks pass in 5.3 s, covering real
 restart/reset, 390px/1080px dialog containment, keyboard/focus and accessibility;
 typecheck, ownership lint and web export pass. Native repaired/restarted custom
-selector and restored Dark Quartz captures are directly inspected. Test-file
-LSP requests time out; Settings LSP is clean. This scoped delta has root
+selector and restored Dark Quartz captures are directly inspected. Earlier
+test-file LSP requests timed out; current test/Settings diagnostics are clean. This scoped delta has root
 self-review, not a new milestone/maintainer approval. Final broad gates remain.
 
 Earlier RSS-only guards and refused prelaunches remain evidence. Investigation
@@ -152,8 +152,38 @@ swap 1515.69 MiB. The unowned static server remains untouched.
 Native signed catalog check and Japanese module/data installation also succeed:
 0.1.6-sudachi20260116-jmdict20261017-ocr2, 257075561 bytes received/declared.
 It completes before capture; no pending/cancellation frame is fabricated and
-no optional OCR model download/inference runs. Actual package/error/pending
-coverage and final Watch/Inspector/package-switch measurements remain open.
+no optional OCR model download/inference runs.
+
+Real package recovery now has actual-Rust/SQLite/HTTP proof: catalog rejection
+and retry, an authenticated artifact body held pending, cancellation closing
+that socket, explicit retry/activation and installed data after core restart.
+Only external HTTP availability is controlled; native status is never mocked.
+Error/pending/cancelled/installed frames are directly inspected. This adapter
+explicitly does not supply native window/media/clipboard/OCR services; native
+material and modal evidence remains the separate consuming-app verification.
+
+The test exposed two real execution-boundary issues. Its QA-only stdin host
+serialized install ahead of status/cancel; it now has three scoped workers,
+a bounded 32-message queue and whole-line output serialization, preserving
+RuntimeExecutor admission/guest limits. Then cancellation reached terminal UI
+state but left its HTTP socket open: the private current-thread catalog reactor
+parked before connection cleanup ran. One always-driven Tokio I/O worker and
+one blocking worker fix the identical failing close assertion, without changing
+timeouts, signatures, sizes, hashes or pooling. Only Tokio's existing
+rt-multi-thread feature is added. Owner build peaks are 374/476 MB, one Cargo job.
+All 50 runtime owner tests, 66 checker/115 client tests, typecheck/lint and 11
+related browser cases pass; the settled install/restart case also passes after
+removing an unrelated in-flight catalog refresh. Rust example formatting and
+current diagnostics pass. Root self-review finds no additional scoped blocker.
+Affected native builds/replay remain required for this dependency-feature delta.
+
+Source 2c60e3e CI passes web/Rust/detector/macOS and real Linux integration.
+Windows fails only its stale saved-Slate selector expectation; the existing
+native probe now expects Slate (custom), retaining every DWM/input/persistence/
+restart assertion. No local Windows pass is claimed. Previous repair-run
+40127558027 Android passes; iOS repeats exactly the deferred FileProvider
+assertion. No diagnostic variant is launched. Final Watch/Inspector, normal
+package-switch measurements and consolidated acceptance remain open.
 
 Hosted iOS repeats the exact already-deferred m01-watch,mp4 FileProvider failure;
 it is unresolved, not passed, and no diagnostic variant was launched. Android

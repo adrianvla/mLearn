@@ -274,15 +274,18 @@ impl CatalogClient {
         if !base.username().is_empty() || base.password().is_some() || base.fragment().is_some() {
             return Err("Invalid catalog URL".into());
         }
-        // The current-thread reactor is parked between calls, so it cannot observe
-        // an idle peer closing. Do not reuse those undriven idle connections.
+        // Catalog transfers are serialized; do not retain idle transfer sockets.
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(20))
             .pool_max_idle_per_host(0)
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|e| e.to_string())?;
-        let io = tokio::runtime::Builder::new_current_thread()
+        // HTTP connection cleanup must keep running after a cancelled blocking
+        // call returns; a parked current-thread reactor leaves its socket open.
+        let io = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .max_blocking_threads(1)
             .enable_all()
             .build()
             .map_err(|e| e.to_string())?;
@@ -458,7 +461,7 @@ impl Drop for CatalogClient {
                 error.into_inner()
             }
         };
-        // All requests finish under the mutex; this private current-thread
+        // All requests finish under the mutex; this private catalog
         // reactor owns no application work. Normal Runtime drop panics when a
         // native async host releases its final owner inside a Tokio task.
         if let Some(reactor) = reactor.take() {

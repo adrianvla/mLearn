@@ -1,5 +1,5 @@
 // UI acceptance adapter: real Rust/SQLite/language execution; only the external
-// text provider is deterministic. Native window/media/clipboard claims require
+// text provider/catalog availability is controlled. Native window/media/clipboard claims require
 // the separate consuming-platform harness and are never fabricated here.
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -86,7 +86,24 @@ export async function startRuntimeBrowserQa({ profile, binary = 'target/debug/ex
   responseText = 'Children walked home.' }) {
   const trust = JSON.parse(await readFile('.mlearn/dev-trust.json', 'utf8'));
   await mkdir(profile, { recursive: true });
-  const catalog = await startCatalog(path.resolve('target/plugin-cdn'), 0);
+  let catalogMode = 'complete', heldCatalog = null;
+  const catalogEvents = new EventEmitter();
+  const catalog = await startCatalog(path.resolve('target/plugin-cdn'), 0, async (request, response, byteLength) => {
+    if (catalogMode === 'fail') {
+      response.writeHead(503);
+      response.end();
+    } else if (catalogMode === 'hold' && !request.url?.endsWith('.json')) {
+      if (heldCatalog) throw new Error('Only one catalog response may remain active');
+      heldCatalog = response;
+      const closed = new Promise(resolve => response.once('close', resolve));
+      response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': byteLength });
+      response.flushHeaders();
+      catalogEvents.emit('started');
+      await closed;
+      heldCatalog = null;
+      catalogEvents.emit('closed');
+    }
+  });
   trust.url = `http://127.0.0.1:${catalog.address().port}/catalog.json`;
   let core = nativeHost(path.resolve(binary), path.resolve(profile), trust);
   try { await core.ready; } catch (error) {
@@ -164,7 +181,14 @@ export async function startRuntimeBrowserQa({ profile, binary = 'target/debug/ex
       if (!['complete', 'hold', 'fail'].includes(value)) throw new Error('Unknown external provider fixture mode');
       mode = value;
     },
-    metadata: () => ({ providerRequests, activeProvider: held !== null, counts: Object.fromEntries(counts) }),
+    catalogMode(value) {
+      if (!['complete', 'hold', 'fail'].includes(value)) throw new Error('Unknown catalog fixture mode');
+      catalogMode = value;
+    },
+    nextCatalogStart: () => once(catalogEvents, 'started', { signal: AbortSignal.timeout(5000) }),
+    nextCatalogClose: () => once(catalogEvents, 'closed', { signal: AbortSignal.timeout(5000) }),
+    metadata: () => ({ providerRequests, activeProvider: held !== null, activeCatalog: heldCatalog !== null,
+      counts: Object.fromEntries(counts) }),
     nextProviderStart: () => once(providerEvents, 'started', { signal: AbortSignal.timeout(5000) }),
     nextProviderClose: () => once(providerEvents, 'closed', { signal: AbortSignal.timeout(5000) }),
     releaseProvider() {

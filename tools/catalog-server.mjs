@@ -4,7 +4,7 @@ import { stat } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 
-export async function startCatalog(directory, port = 7780) {
+export async function startCatalog(directory, port = 7780, beforeResponse) {
   const server = createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://127.0.0.1').pathname);
@@ -13,6 +13,8 @@ export async function startCatalog(directory, port = 7780) {
       const file = path.join(directory, relative);
       const info = await stat(file);
       if (!info.isFile()) throw new Error('Not a file');
+      if (beforeResponse) await beforeResponse(request, response, info.size);
+      if (response.destroyed || response.writableEnded) return;
       response.writeHead(200, { 'Content-Type': relative.endsWith('.json') ? 'application/json' : 'application/octet-stream', 'Content-Length': info.size });
       const input = createReadStream(file);
       input.on('error', () => response.destroy());
