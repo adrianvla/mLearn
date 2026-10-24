@@ -56,10 +56,9 @@ export function createOcrModelsHost(invoke: (command: string, args?: Record<stri
             if (!object(value) || typeof value.detectedRegions !== 'number' || !Number.isInteger(value.detectedRegions)
                 || value.detectedRegions < 0 || value.detectedRegions > 512
                 || typeof value.elapsedMs !== 'number' || !Number.isFinite(value.elapsedMs) || value.elapsedMs < 0
-                || !Array.isArray(value.rawRecognition) || value.rawRecognition.length > 512
-                || !value.rawRecognition.every(item => typeof item === 'string' && item.length <= 32768)
+                || !text(value.rawRecognition, 32768)
                 || JSON.stringify(value).length > 524288) throw malformed();
-            return { detectedRegions: value.detectedRegions, rawRecognition: value.rawRecognition.join('\n'), elapsedMs: value.elapsedMs };
+            return { detectedRegions: value.detectedRegions, rawRecognition: value.rawRecognition, elapsedMs: value.elapsedMs };
         },
     };
 }

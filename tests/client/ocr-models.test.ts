@@ -1,9 +1,13 @@
 /// <reference types="node" />
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { isPackageInstallStatus, RuntimeError } from '@mlearn/runtime-client';
 import { createOcrModelsHost } from '../../apps/client/src/host/ocrModels';
 
+// Actual test_ocr_model output from 8934e158, Windows job 120773804588,
+// windows-native-ocr/test-results/native-ocr/desktop-ocr-results.json:modelTest.
+const nativeModelTest: unknown = JSON.parse(readFileSync(new URL('../fixtures/ocr/native-model-test.json', import.meta.url), 'utf8'));
 const phase = { command: { commandId: 'native-install', pluginId: 'profile' }, phase: 'downloading',
     downloadedBytes: 800_000_000, totalBytes: 1_328_861_776, message: null };
 const row = { profile: { id: 'profile', label: 'Native detector and recognizer', target: 'macos-aarch64',
@@ -19,7 +23,7 @@ test('native OCR inventory projects bounded metadata and large native transfers 
         commands.push({ command, args });
         if (command === 'ocr_models') return inventory;
         if (command === 'ocr_model_install_status' || command === 'cancel_ocr_model_install') return inventory.installation;
-        if (command === 'test_ocr_model') return { detectedRegions: 2, rawRecognition: ['first', 'second'], elapsedMs: 1234 };
+        if (command === 'test_ocr_model') return nativeModelTest;
         return null;
     });
     const result = await host.list();
@@ -30,7 +34,7 @@ test('native OCR inventory projects bounded metadata and large native transfers 
     assert.equal(isPackageInstallStatus(phase), false);
     assert.equal(isPackageInstallStatus(phase, 4 * 1024 ** 3), true);
     await host.install('profile'); await host.remove('profile'); await host.cancel();
-    assert.deepEqual(await host.test('profile'), { detectedRegions: 2, rawRecognition: 'first\nsecond', elapsedMs: 1234 });
+    assert.deepEqual(await host.test('profile'), { detectedRegions: 3, rawRecognition: '日本語を読む', elapsedMs: 845.2719 });
     assert.deepEqual(commands.filter(item => item.command === 'install_ocr_model' || item.command === 'remove_ocr_model'),
         [{ command: 'install_ocr_model', args: { profileId: 'profile' } },
             { command: 'remove_ocr_model', args: { profileId: 'profile' } }]);
@@ -49,6 +53,8 @@ test('native OCR host rejects duplicate profiles, inconsistent state and malform
         value = invalid;
         await assert.rejects(host.list(), (cause: unknown) => cause instanceof RuntimeError && cause.code === 'protocol');
     }
-    value = { detectedRegions: 1, rawRecognition: [null], elapsedMs: 1 };
-    await assert.rejects(host.test('profile'), (cause: unknown) => cause instanceof RuntimeError && cause.code === 'protocol');
+    for (const rawRecognition of [null, [], ['invented array'], '', 'nul\0', 'x'.repeat(32769)]) {
+        value = { detectedRegions: 1, rawRecognition, elapsedMs: 1 };
+        await assert.rejects(host.test('profile'), (cause: unknown) => cause instanceof RuntimeError && cause.code === 'protocol');
+    }
 });

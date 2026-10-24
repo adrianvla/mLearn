@@ -1,12 +1,16 @@
 /// <reference types="node" />
 import { test, expect, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { initialTheme } from '../../packages/theme/src/theme';
 
+// Preserve the actual native response, rather than inventing its transport shape.
+const nativeModelTest: unknown = JSON.parse(readFileSync(join(__dirname, '../fixtures/ocr/native-model-test.json'), 'utf8'));
 declare global { interface Window {
   __ocrModelNative: { complete?: () => void; installed: boolean; calls: string[] };
 } }
 async function start(page: Page, offline = false) {
-  await page.addInitScript(({ theme, offline }) => {
+  await page.addInitScript(({ theme, offline, modelTest }) => {
     const state: Window['__ocrModelNative'] = { installed: offline, calls: [] };
     let status: null | { command: { commandId: string; pluginId: string }; phase: string;
       downloadedBytes: number; totalBytes: number; message: string | null } = null;
@@ -50,7 +54,7 @@ async function start(page: Page, offline = false) {
             return response();
           }
           if (command === 'remove_ocr_model') { state.installed = false; return null; }
-          if (command === 'test_ocr_model') return { detectedRegions: 2, rawRecognition: ['Native example text'], elapsedMs: 1234 };
+          if (command === 'test_ocr_model') return modelTest;
           if (command !== 'runtime_execute') throw new Error(`Unexpected native action ${command}`);
           const request = JSON.parse(String(args.request));
           if (request.type === 'snapshot') return JSON.stringify({ type: 'snapshot', snapshot: {
@@ -62,7 +66,7 @@ async function start(page: Page, offline = false) {
         },
       },
     });
-  }, { theme: initialTheme, offline });
+  }, { theme: initialTheme, offline, modelTest: nativeModelTest });
   await page.goto('/settings?section=languages');
   await expect(page.getByText('OCR models', { exact: true })).toBeVisible();
   await expect(page.getByText('Native detector and recognizer', { exact: true }).first()).toBeVisible();
@@ -86,8 +90,8 @@ test(`native OCR models install, cancel, test and remove through their genuine h
   });
   await expect(page.getByRole('button', { name: 'Test Native detector and recognizer', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Test Native detector and recognizer', exact: true }).click();
-  await expect(page.getByText('2 detected regions · 1234 ms engine work', { exact: true })).toBeVisible();
-  await expect(page.getByText('Native example text', { exact: true })).toBeVisible();
+  await expect(page.getByText('3 detected regions · 845.2719 ms engine work', { exact: true })).toBeVisible();
+  await expect(page.getByText('日本語を読む', { exact: true })).toBeVisible();
   const removal = await page.getByRole('button', { name: 'Remove Native detector and recognizer', exact: true }).boundingBox();
   expect(removal).not.toBeNull();
   expect(removal!.x + removal!.width).toBeLessThanOrEqual(viewport.width);
@@ -103,5 +107,5 @@ test('installed native OCR models stay usable when catalog discovery fails offli
   await start(page, true);
   await expect(page.getByRole('alert')).toContainText('Catalog unavailable while offline');
   await page.getByRole('button', { name: 'Test Native detector and recognizer', exact: true }).click();
-  await expect(page.getByText('Native example text', { exact: true })).toBeVisible();
+  await expect(page.getByText('日本語を読む', { exact: true })).toBeVisible();
 });

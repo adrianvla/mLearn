@@ -1,0 +1,27 @@
+{
+  "detectedRegions": 3,
+  "elapsedMs": 845.2719,
+  "execution": {
+    "detector": {
+      "backend": {
+        "fallbackReason": "DmlExecutionProvider initialization failed (RuntimeException)",
+        "registeredProvider": "CPUExecutionProvider"
+      },
+      "detectorInitializations": 1,
+      "detectorMs": 604.2464
+    },
+    "recognizer": {
+      "backend": {
+        "recognizer": {
+          "fallbackReason": "DmlExecutionProvider initialization failed (RuntimeException)",
+          "registeredProvider": "CPUExecutionProvider"
+        }
+      },
+      "recognitionMs": [66.0461],
+      "recognizerInitializations": 1
+    }
+  },
+  "executorRevision": "ff0cdcf4db970ce94365ea3114ccd2a18c5f7c46257c2d92ef75d0539d207891",
+  "profileRevision": "b477be70f3e809745ff75e2d7282a8067275f0cef8102c398fc5d395b245ee70",
+  "rawRecognition": "日本語を読む"
+}
