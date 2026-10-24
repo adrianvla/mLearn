@@ -516,7 +516,7 @@ function WatchWorkspace() {
                             icon="subtitles" iconOnly size="compact" variant="media" disabled={busy} onPress={() => void attach()} />
                     ) : null}
                     {window && host.available ? <>
-                      <Button label="Material from this source" variant="media" size="compact"
+                      <Button label="Material from this source" icon="book" iconOnly variant="media" size="compact"
                         onPress={() => {
                           void pauseAndSave().then(() => router.push({ pathname: '../materials', params: { sourceId: id } })).catch(() => {});
                         }} />
@@ -536,7 +536,7 @@ function WatchWorkspace() {
                                  subtitleOffsetMs: window.source.subtitleOffsetMs, playbackRate: window.source.playbackRate } });
                         }
                        }} title="Capture source" description="Save source text and available media with their original location."
-                         trigger={<Button label={cues.length ? 'Capture subtitle' : 'Capture frame'} variant="media" size="compact" />}>
+                         trigger={<Button label={cues.length ? 'Capture subtitle' : 'Capture frame'} icon="camera" iconOnly variant="media" size="compact" />}>
                         {subtitleCapture ? <MaterialEditor key={JSON.stringify(subtitleCapture)} client={host.client} authoredMedia={host.authoredMedia}
                            initial={{ ...emptyMaterial(subtitleCapture.packageId), phrase: subtitleCapture.text || window.source.title, context: subtitleCapture.text, source: subtitleCapture }} /> : null}
                        </Dialog>

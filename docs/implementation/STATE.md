@@ -104,6 +104,28 @@ Observed root footprint stays 2.6 GiB; native host RSS is 295056 KiB, reference
 RSS 395792 KiB before shutdown, system free memory 58–64 percent and swap falls
 from 1491.69 to 1467.69 MiB. No device, model inference or download was launched.
 
+The first measured Watch repair replaces the two wide Material/Capture text
+actions with existing shared icon-only Buttons, preserving their accessible
+labels and behavior; the camera path belongs to shared Icon. Normal native
+startup builds in 6.45 seconds and renders the repair at 1512x948 and 500x850.
+The wide rail now matches the reference's icon hierarchy; the narrow rail wraps
+inside the window without overlap. Actual icon activation opens the real
+Capture source editor with the selected Japanese cue/source anchor, and the
+Material action opens the source-filtered list. Returning via Home resumes the
+same Japanese source at 25.2 seconds despite the Home language being English.
+The resumed source retains -6350 ms synchronization; this is not a new source
+language authority or a fake capture result.
+
+Native compositor captures `candidate-watch-icon-rail.png`,
+`candidate-watch-icon-rail-narrow.png` and `candidate-watch-capture-rail.png`
+and bounded inspection derivatives are retained beside the before captures.
+Both touched-owner diagnostics are clean. All 66 checker/115 client tests,
+typecheck, architecture lint, consuming web export and 18 existing foundation/
+dialog/Material browser interactions pass. Native replay on other platforms
+and remaining Watch/Inspector comparison gates remain open. The owned app and
+Metro were stopped after this targeted run; footprint was 2.7 GiB, host RSS
+293600 KiB, system free61% and swap1459.69 MiB. No new local device was launched.
+
 Functionality source is committed as0217bcd98c7cec66e8b00ee5bd8634be6a1d3de0,
 `feat: add shared conversation and source workflows`, on agent/m01.
 This records the existing connected Rust/protocol/native/UI increment, not
