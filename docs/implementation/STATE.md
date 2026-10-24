@@ -45,6 +45,14 @@ failure, preserving and rethrowing the original assertion. LSP and all five
 local document Reader tests pass; hosted geometry is still needed before a
 product repair.
 
+Run `40041166945` reproduced the Reader failure. Its attached geometry shows
+the vertical CJK source spans and button have zero height while visible, with
+positive ancestor geometry; this is not a hidden ancestor or zero-width control.
+No minimum-size workaround was applied. A Chromium platform-font attachment now
+identifies the actual shaping font before the unchanged visibility assertion.
+The affected local Reader test passes with that diagnostic; fresh LSP requests
+timed out, so fresh LSP validation is not claimed for the diagnostic addition.
+
 Foundation run `40040864691` completed: Rust, pinned detector conversion and
 macOS desktop build/tests passed. Windows job `120713091191` passed eight
 document tests, including image admission/registry/restart publication, but

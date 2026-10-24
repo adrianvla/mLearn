@@ -182,6 +182,22 @@ async function start(page: Page, reviewReturn = false) {
   await page.goto('/reader?id=reader-source');
   await expect(page.getByTestId('reader-title')).toHaveText(source.source.title);
   const token = page.getByRole('button', { name: '東京: untracked', exact: true });
+  await expect(token).toBeAttached();
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('DOM.enable');
+    await cdp.send('CSS.enable');
+    const document = await cdp.send('DOM.getDocument');
+    const node = await cdp.send('DOM.querySelector', {
+      nodeId: document.root.nodeId, selector: 'button[aria-label="東京: untracked"]',
+    });
+    const fonts = await cdp.send('CSS.getPlatformFontsForNode', { nodeId: node.nodeId });
+    await test.info().attach('source-token-platform-fonts', {
+      body: JSON.stringify(fonts, null, 2), contentType: 'application/json',
+    });
+  } finally {
+    await cdp.detach();
+  }
   try {
     await expect(token).toBeVisible();
   } catch (error) {
