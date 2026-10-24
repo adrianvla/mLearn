@@ -44,6 +44,116 @@ Unimplemented capabilities or missing trustworthy reference states stay explicit
 
 Update this file during implementation with actual reference-derived component contracts, replacing hypotheses with evidence. Completion follows VISUAL-PARITY's separate visual, structural, functional and performance gates; only the maintainer grants acceptance.
 
+## Messenger composition, 2026-10-24
+
+### Home activity composition
+
+The current isolated reference at `1ab95600bee97017635afe538af4e890e0cded3a`
+places Read, Watch and Messenger across the first activity row, with review
+below. Its `WelcomeFeatureCard.css` uses the existing 16px inset, 40px icon tile,
+18px title and shared surfaces; `welcome.css` retains the 950/550px breakpoints.
+Home must present the now-implemented Reader, Messenger and Review as real
+activities rather than leaving only Watch/Reader cards and header shortcuts.
+Keep Material, Settings and package management reachable. Do not copy absent
+Learning Plan/Statistics/Evaluate backends or fabricate a learning-progress
+summary. Existing source/document resume, import, cancellation and error actions
+remain real controls. Shared ActivityCard owns the icon/header anatomy,
+row fill, main action, hover material and whole-card keyboard focus.
+Its web main action is a sibling stretched button, never a parent of preview
+buttons. React Native Web Views create stacking contexts, so the independent
+content region, not a deeply nested button, must rise above that action.
+Native uses a separate44px header action instead of a sibling overlay that
+could cover descendant touch targets. No feature-local Pressable or parallel
+Button variant is needed. AppShell remains the bounded scroll owner.
+Narrow layouts stack these same
+activities and preserve keyboard/touch access to their entry points.
+
+Window-only native captures flatten vibrancy and are layout evidence, not proof
+of a canvas/material mismatch. Native AXFocused is false on the reference too;
+do not diagnose a v3 focus defect from that flag. Use composited matched native
+captures for the material gate before changing shared theme or host behavior.
+
+Recent documents and media share SourceRow: one full continuation target with
+the actual reference's 10px inset, 12px gap, 140x72px fallback media region,
+16px medium title, 12px metadata and 6px shared progress track. The measured
+reference parent uses two columns above800px, one below; the media region
+narrows to72px at650px and56px high below600px, where the percentage is hidden.
+The `sourceTitle` shared Text role owns its500 weight. Native progress is shown
+only from actual position/duration; documents without an authoritative total
+show unknown progress, not a fabricated percentage. Preserve native ordering
+within document/media groups: current bounded projections expose no common
+last-opened timestamp, so do not invent dates or a mixed-recency order.
+
+The reference's main Read action opens its empty Reader screen; import controls
+belong there, not in tall Home card footers. `ReaderWelcomeCard.css` supplies the
+600px maximum, 24px inset/title and centered wrapping action group. Empty
+Reader/Watch share SourceEntryScreen; existing previews still resume their exact
+source. Shared `sourcePreview` owns the rectangular Home preview control,
+`entryTitle` owns its destination's heading, and Panel owns the spacious inset.
+Keep native traffic-light/safe-area clearance and scrolling in the entry layout.
+Mobile exposes only its supported picker actions; no nominal dropzone/folder
+capability is fabricated.
+
+The new entry's black source canvas exposed a real light-theme contrast failure:
+glass white backing yielded 3.66:1 muted copy. Shared Panel's solid material
+option and a theme-surface header keep palette copy on its corresponding
+backing. The full entry Axe scan now passes in both Reader and Watch; this
+contrast repair is not a final reference-material acceptance claim.
+SourceEntryScreen and Home drops share the same source-import lifecycle owner,
+with current-session guards, cancellation and staged release. An unavailable
+explicit package remains unselected until the user chooses a replacement.
+Errors and cancellation stay beside the initiating action; contextual
+Material/Review source routes bypass the empty entry.
+
+The approved `messenger-home.png` is 2424x1744 at 2x. Its roughly 300 logical
+pixel rail, 64px current-conversation header, 20px main inset and bottom composer
+are separate from the scrolling message history. The header's trailing
+ellipsis owns secondary conversation actions. Provider configuration, developer
+Runtime Inspector, history search and Thread discard remain real reachable
+actions there; they must not become permanently stacked toolbars above the
+messages. History search expands only when requested. Shared Dialog, Button,
+TextField and Select own these controls and their focus/portal behavior.
+
+The rail rows require actual bounded native latest-message/date projections,
+not invented previews or a renderer history scan. Absent authored avatars must
+not be replaced with unrelated artwork. Chats/People selection follows the
+reference's filled segmented region rather than independent outlined buttons.
+These contracts require fresh matched captures; their documentation is not a
+visual-parity pass.
+
+`ChatBubble.css:64–80` uses the secondary translucent surface for received
+content and a 10% accent mixture for authored content, not source-selection
+highlight. Shared theme surfaces own this material. The native projection
+composites the accent against the actual canvas consistently on all hosts.
+The reference has 8px vertical/12px horizontal bubble padding, 16px ordinary
+corners and a 4px lower speaker-side corner. Composer backing uses the shared
+glass material (`ConversationAgent.css:313–321`), not the darker field-on-black
+result. These are presentation roles, not new user theme settings.
+
+`RoomSidebar.css` gives rows 8px vertical padding and a 4px copy gap,
+with a borderless secondary surface for selection. The row's title, purpose,
+actual latest text and date are distinct slots. Shared Button's navigation-row
+anatomy owns them; `listTitle` owns the 16px semibold title. Shared segmented
+selection uses one secondary backing, 4px inset and equal-width selected
+segments, retaining native 44px touch targets and compact desktop controls.
+
+Native keyboard geometry remains owned by React Native's avoiding view. The
+shared UI boundary resolves Unistyles values before handing it styles; direct
+shadow-node binding must not overwrite its transient height/flex/padding.
+Android native evidence reproduced a correct 577.9px keyboard layout being
+reset to 914.3px while the avoiding state still held a 336.4px inset. The
+shared boundary prevents that reset. Safe-area padding belongs to the outer
+screen, separately from the keyboard workspace. Messenger and shared Dialog
+consume this same adaptation; do not compensate with route-specific keyboard
+heights or native window-policy changes.
+
+When the conversation rail collapses on macOS, its header still reserves the
+host's existing `windowControlsWidth`, like Reader and Watch. Native evidence
+at 420px showed the Back hit target overlapping the minimize control; visibility
+alone did not protect navigation. The shared host boundary supplies clearance,
+not a new screen-specific platform check. Mobile and ordinary browser hosts
+report zero and retain their existing header inset.
+
 ## Reader source flow, 2026-10-22
 
 The approved Reader images establish a compact stationary control rail, a

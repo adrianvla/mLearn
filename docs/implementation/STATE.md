@@ -18,7 +18,8 @@ M03–M06 and the M01–M04 architecture gate are now
 `verified_for_continuation`, not maintainer-accepted. M06 product source is
 `18791267e3c59297a66d79febfdf8503dccf8aaa`; the final native-smoke repair source
 is `f27f4e5594e3188c1002ea743a5d610f75720dd8`. Subsequent changes are evidence
-documentation only. M07 is next; no merge, release or M08 is authorized.
+documentation only through M06 checkpoint `9640c9e4`. M07 is now in progress;
+no merge, release or M08 is authorized.
 
 M06 verification closes with the original full independent review and fresh
 B1 closure review, 161 owner/checker tests, typecheck, architecture lint, web
@@ -47,6 +48,854 @@ accuracy remain unproven; CPU fallback is not acceleration evidence. The
 specified model limitations and minor visual discrepancies remain explicit.
 Both independent review worktrees and owned local OCR verification devices/
 launchers were released with retained read-back receipts.
+
+### M07 current implementation
+
+#### Current continuation: functionality checkpoint, native capture blocked, 2026-10-24
+
+Source-entry migration is verified for continuation, not final visual or
+maintainer acceptance. Todo159/203: Home compound/material comparison remains
+open against the isolated reference, then the remaining theme, Settings,
+Watch/Inspector, performance and delivery gates. No new backend/milestone.
+
+Functionality source is committed as0217bcd98c7cec66e8b00ee5bd8634be6a1d3de0,
+`feat: add shared conversation and source workflows`, on agent/m01.
+This records the existing connected Rust/protocol/native/UI increment, not
+visual or M07 milestone acceptance. PR44 remains the existing draft target,
+base agent/h00; publication/readback receipts belong to M07 PLAN and the visual
+manifest. Existing independent approvals remain scoped to their repaired deltas;
+the shared source-entry/control delta received root self-review and real native
+verification, not a newly claimed independent verdict.
+Exact-source checks pass core5/runtime50/storage35, checker65/client115 and
+all browser101, plus contracts/typecheck/lint/web build; source aggregate
+b222f0c17933831f7d2fe3f171cc1835f7b620c9f5d8de9b8bac564c703aceb7.
+The remaining35 browser cases pass15.9s after five healthy admission samples,
+with unchanged source, served index and bundle hashes; resource watch exits0.
+The earlier CI=1 refusal on occupied4173 and RSS guard exit70 are retained,
+not erased. No assertion/config/cap was relaxed. Root RSS later falls below
+the same3 GiB cap without restart; final sample1899936 KiB, footprint2.8 GiB,
+58% free,1016.75 MiB swap. Preexisting static PID2637 remains untouched because
+exact ownership is unproven. Its read-only served bytes match current dist.
+No native app/device/reference application was launched in this checkpoint.
+Effective root route: chatgpt-subscription/gpt-6.1-sol, medium, no escalation.
+Preflight: root footprint2.7 GiB (historical peak8.7),69% free,
+1048.75 MiB swap,6.1 GiB disk available. One Cargo job, serial checks, no devices/
+apps/dev servers. The selected checks and source receipt are in M07 PLAN.
+
+Current next-step access blocker: Quartz capabilities report capture=false,
+displayCount0, stopPath=host-relay, stopReason=secure-input-active, while capture/
+input/AX permissions are granted and screenLocked=false. No desktop app was
+launched into that state. The desktop question timed out; the user instructed
+best-judgment continuation without asking it again this turn. A fresh capability
+read is unchanged. Native comparison stays blocked; recheck when access changes;
+do not bypass it or substitute browser screenshots for native material proof.
+Full goal remains active and incomplete, not accepted or merged.
+Independent next-launch preflight is retained: reference revision1ab95600,
+clean tracked tree, MLEARN_USER_DATA first-import override confirmed, cleanup
+script removes only dist-electron/electron and shared. Isolated reference
+profile remains dark-quartz with the selected reference presentation; OCR/voice/
+LLM disabled. No interface-style selector will be ported. Candidate uses the
+existing m07qa identifier/profile with Rust app_data_dir authority. All devices,
+apps and development servers remain off.
+
+Current bounded native step: the headroom subscription passed five samples at
+2867 MiB physical/68% free. A serial Android consuming UI rebuild then passes50s,
+with one worker,2 GiB Gradle heap and1 GiB Node heap. No Rust rebuild/device ran
+alongside it. APK SHA256
+b4834bf2c5458481c79a8063d9c3c0e9b75a5fc807e02b7306ac979c44092ed8;
+JS70e1207e3ed33b582bf2a224cad03fc97b7bd2ba3df979de204adb0ac8b2d160.
+Both ABIs and the bundle are present; no Gradle daemon survives. Build memory
+guard stayed63–68% free and was released.
+
+Only then was retained emulator5556 deliberately booted at2 GiB guest/2 cores,
+without snapshots/window/audio. It was bash_23/PID8162, guarded by bash_22;
+both are now released. Install -r succeeds without data clearing. Missing owned
+15713-byte m05-journey.pdf was copied from the CC0 fixture; host/device hash
+4dfbed3f5ca686720d2e0176565d8b73fb1fa821844d975a116a537fb65d13b9 matches.
+Airplane0/WiFi1 unchanged. Original native PDF import/page identity/restart flow
+is now bash_29/mon_31HTPCA623797A9W, native-android-source-entry-reader.
+That Reader flow passes48.777s, JUnit1/0, exit0. All four native1080x2400 frames
+were inspected individually: original Page1 text, honest graphics-only Page2,
+Page3 text and exact Page3 restoration after process restart. No blank native
+Reader or lost PDF position. Serial Home flow is now bash_31 /
+mon_DK9CTFCSB1FMVXCS, native-android-source-entry-home; it passes57.208s,
+JUnit1/0, exit0. All seven1080x2400 frames were inspected individually:
+Reader/Watch entry headers and controls visible; independent Chats/Review,
+restarted Home and SourceRow→actual Page3 PDF display remain usable.
+During Reader flow system free61%, swap1080.75 MiB,
+QEMU RSS4489136 KiB, OmO RSS1260832 KiB, Maestro Java RSS276576 KiB.
+The guest2 GiB setting does not imply a2 GiB emulator process.
+Owned app force-stop and emulator exit0; ADB is empty, owned idle server released,
+QEMU absent, no booted iOS simulator. Original airplane0/WiFi1 unchanged.
+Post-release physical2.9 GB/peak8.7 GB,63% free,1072.75 MiB swap. Receipts:
+android-source-entry-shutdown.log and android-source-entry-release.log.
+iOS headroom then passes five samples at1433 MiB physical/72% free; before boot
+system free73%, swap1064.75 MiB and no other native workload. The exact retained
+JS hash was rechecked unchanged. H00 settled no-picker entry flow is now
+bash_40/mon_72ZEF1MVGSSE4PQ9, native-ios-source-entry-settled, under memory guard
+bash_39/mon_GYYWSBSQ4XZWMPD0. It passes63.474s, JUnit1/0, exit0, with no rebuild
+or data clearing. All seven frames inspected individually: Watch header now
+visible, but this run's Reader-entry frame omits its header/status bar despite
+the earlier same-binary Reader frame showing it. Do not assume product or
+capture cause. Other navigation/restart/recents remain usable; image is still
+opening, not new OCR/loaded-image acceptance. App termination/H00 shutdown pass0,
+no booted devices, guard released,59% free/1056.75 MiB swap.
+The separate no-picker Reader-only control passes13.107s, JUnit1/0, exit0.
+Direct simctl capture after Maestro exits shows the real full header/status bar,
+Home button and document/image actions on the unchanged binary:
+ios-reader-entry-simctl.png,1206x2622, SHA256
+4d345565ae7ab66d8d31ba28219a3652f5858c1afe93d498159f8ab76d22f458.
+Earlier inconsistent in-flow frames remain retained; no stable missing-header
+product defect was established and no style change was made. App termination/
+H00 shutdown pass0, no booted devices, guard released,60% free/1056.75 MiB swap.
+Both the capture blocker and source-entry task are closed at this scoped
+evidence level. No native/reference/development-server workload is live.
+The following recovery paragraphs preserve earlier source-bound observations.
+
+Recovery update: the maintainer reports OmO12.5 GB, 0 bytes available and6.5 GB
+swap before a complete workstation restart. All old process/monitor handles
+are historical; no app/device/reference/server was automatically restored.
+Post-restart owned browser run bash_5 was explicitly stopped after this report;
+its new unavailable-package test remains unverified. No native workload is live.
+`post-restart-memory-receipt.log` records main OmO1758 RSS2489792 KiB,
+physical footprint3.6 GB/peak5.9 GB, RPC host2005 footprint317.1 MB,
+57% free memory and0 swap. These are current observations, not a diagnosis of
+the lost12.5 GB allocation. Avoid large output/image batches and further
+substantial work until memory behavior is understood.
+
+The bounded idle observation completed with no product workload: main RSS
+2810448→3306240 KiB over six samples, physical footprint3.2 GB/peak8.7 GB,
+62% free memory and1128.75 MiB swap. This does not establish allocation cause.
+Historical gateway M06 messages were replayed during recovery; none authorized
+new work or restarted its obsolete Python/model/Practice tracks.
+The stopped browser run had already exposed a test-locator error: the shared
+Select is named `Source language: Select`, not exactly `Source language`.
+Its rendered invalid-package alert and disabled import are correct. Corrected
+the locator to its established accessible-name prefix. The focused recheck
+actually completed before the stop request:1 pass in2.0s, exit0, recorded in
+`source-entry-language-focused.log`. Both Reader and Watch require an explicit
+replacement and pass the unmodified Axe scan. The full interrupted run is not
+reported green.
+The requested visual commit4a86df32 is already an ancestor of current9640c9e4
+(`REQUESTED_COMMIT_ANCESTOR_EXIT=0`); do not merge it again or disturb dirty M07.
+The conservative RSS guard subsequently tripped6057200 KiB and a stop was sent;
+the post-stop receipt shows current physical footprint2.7 GB, peak8.7 GB,
+67% free memory,1128.75 MiB swap and no surviving product workload. RSS and
+physical footprint differ substantially; neither this recovery nor the passing
+focused test diagnoses or fixes the harness. Native devices remain off.
+The bounded recovery static run passes diff check, typecheck and architecture
+lint (`source-entry-recovery-static.log`, exit0). The specified temporary
+notepad was missing after restart; recreated that exact path from retained
+STATE/PLAN/manifest evidence rather than inventing its lost historical text.
+A bounded headroom subscription is now active as `mon_0MJNZJVAWZ2YZVE1`,
+`bash_15`, log `post-restart-headroom.log`: five consecutive samples at no more
+than3 GiB main physical footprint and at least60% system free memory admit only
+one retained UI build, not concurrent devices or a leak-fix claim. It launches
+no application/build itself. If ready, the next native step is the retained
+Android UI refresh with one worker and a2 GiB Gradle heap, then release/readback
+before considering a device. If unstable, preserve `paused_incomplete` rather
+than restarting workloads. No model, inference, Cargo or simulator is needed
+to take these headroom samples.
+
+The pre-restart iOS flow completed successfully: JUnit1/0,82.875s and all seven
+captures survived in `native-ios-source-entry/2026-10-24_174126/`.
+All were inspected. Reader entry and restarted Home render; Watch's capture
+contains its card but no visible header/status bar, and the final Reader is
+still opening. Do not count those two frames as complete settled visual proof.
+The flow now requests bounded animation settlement before captures and asserts
+Watch Home visibility. Its YAML parses; this capture-only revision is unrun.
+No repeated iOS build or FileProvider diagnostic is needed for that revision.
+
+Dirty M07 remains on `agent/m01`, pushed M06 baseline `9640c9e4`, draft PR44.
+Current task: move existing import controls from the oversized Home footers to
+the reference-derived empty Reader/Watch screens, without adding a backend.
+`features/source-entry` now exports SourceEntryScreen and useSourceImport.
+Home drops and both entry kinds share the same picker/staging/release/session/
+cancellation owner; Home no longer contains a parallel import pipeline.
+Empty routes preserve contextual Material/Review restoration; explicit invalid
+package context cannot silently select another language. Shared sourcePreview,
+spacious Panel and entryTitle roles supply the measured presentation.
+Initial lint caught private cross-feature imports; public exports repaired it.
+Typecheck, architecture lint, export and all33 affected browser workflows now
+pass in `source-entry-solid-workflows.log`. The initial run had five timeouts:
+the stretched Read target's center is deliberately covered by its independent
+Continue preview. Trace evidence shows that interception; the test now clicks
+the visible header without forcing input or weakening admission assertions.
+The next run passes25/26 and exposes a real light-theme contrast defect:
+translucent white Panel over the black source canvas gives muted copy3.66:1.
+Shared Panel now owns a solid material option for these two entry kinds; the
+native theme surface also backs their header. The existing full Axe assertion
+passes after the repair, together with image retry and late-picker cancellation.
+
+Normal isolated desktop `bash_1048`, PID56272, window641 is deliberately live
+for this delta (`normal-desktop-source-entry.log`). Reader and Watch entry
+rendered at420/1200x700 with all controls contained. Native video picker Cancel
+restores enabled entry; reopening and selecting the retained m07-qa-watch.mov
+opens actual0:30 playback and Children walked home. annotations. AXOpen returned
+an accessibility error while closing the picker, so the actual resulting source
+route, not that return code, supplies the product evidence. No duplicate open
+was dispatched. The local iOS consuming UI rebuild is `bash_1061`,
+`mon_PM6Z6PCAR07TF9DQ`, `ios-source-entry-build.log`. Entry-specific native
+captures remain pending. YAML parser validates all four affected mobile flows;
+yaml-language-server is unavailable, not a passing LSP check.
+
+Before this new entry delta, coherent Home owners passed 65 checker, 115 client
+and 7 browser cases. Native owner flows pass on iOS (51.102s, JS
+`d3fb4f342a186844a76f15d189535833063df6a7a21c1057250748ad19afadae`)
+and Android (45.746s, APK
+`8e1f4cd602c877c47079ad27e09648cbe7dd17621afd5008a340d98878a60b0f`).
+All five frames per platform were inspected; both select actual
+dense-cancellation.png through SourceRow. Android shows its real pixels; iOS
+capture is still opening, so neither flow is new OCR-quality acceptance.
+Both devices are shut down; ADB absence is confirmed. Android airplane0/WiFi1
+was not changed. Two byte-identical Gradle packaging copies were removed only
+after cmp/SHA proof, preserving canonical ABIs, APK, symbols and evidence.
+`home-owners-packaging-cache-release.log` records identities; disk is now3.3 GiB.
+Earlier native bundles do not certify the new entry-screen delta.
+
+Next: finish the retained iOS UI build, deliberately run the bounded Home flow
+including Reader/Watch entry and release H00; then refresh and verify Android.
+No automatic device/reference/server restart, no FileProvider diagnostics,
+M08, merge, release or acceptance. Full visual/theme/performance/delivery
+gates remain open; durable inputs are M07 PLAN and the visual mismatch manifest.
+
+#### Earlier Home-owner checkpoint (historical)
+
+Current presentation delta: Home now places Read, Watch and Messenger in the
+first activity row, with Review below, using shared growing Panels. Existing
+imports, continuation actions and native-unavailable behavior remain connected.
+Typecheck, ownership lint and web export pass in `home-composition-checks.log`.
+Normal desktop renders at1200x700 and420x700 have been inspected; scrolling to
+Conversation and Review opens the genuine native surfaces and Home returns.
+All7 affected foundation/real-core browser workflows pass in
+`home-composition-workflows.log`, including row/stack geometry and narrow entry.
+Both revised mobile YAML flows parse with the existing yaml dependency.
+Native iOS Home verification passes37.664s (1 test/0 failures):
+Conversation/Review entry, Home return and process restart on retained H00.
+All3 genuine frames were inspected. H00 is now shut down without profile
+clearing; `native-ios-home-release.log` confirms no booted device.
+The earlier generation-owner mobile hashes and workflows below predate this
+Home delta and do not certify it.
+
+Desktop verification `bash_958`, PID41023, window569 has been deliberately
+released; readback confirms no process or8081/7780 listener. Its log is
+`normal-desktop-home-composition.log`. The retained iOS consuming Release
+rebuild is now `bash_965` (`mon_3KB8GMYA7T7EFQNX`), with log
+`ios-home-composition-build.log` and passed. Its JS SHA-256 is
+`1835fcba28cf66e9ea4dc568ee1e614a90438bc01a33abe48f074f02f0f57cfa`.
+The retained Android consuming UI rebuild passes38s, log
+`android-home-composition-build.log`, APK SHA-256
+`42f3e43890a3c9dce442e5bdc1e151fc034ca064830635185630c791d3ba6ef1`.
+`native-android-home-ready` passes35.922s (1/0), with genuine hydrated Home,
+Review and Chats frames inspected. The earlier passing28.908s run captured
+pre-snapshot light state and is not appearance proof. The harness now waits for
+the existing enabled language selector, not a delay. Both devices are released,
+ADB/simctl empty; original Android airplane0/WiFi1 remains unchanged.
+The isolated reference launcher and its verified detached Electron PID37592
+have both been released; its release monitor reported
+`OWNED_REFERENCE_DETACHED_RELEASED`. Do not automatically restart either app.
+Window-only captures flatten native vibrancy; material comparisons require an
+unobscured composited capture. AX focus flags alone established no host defect.
+
+Current deliberate comparison launches: v3 `bash_996`
+(`mon_YP1RDGYR8FQD3SC4`), PID45964/window580, and isolated reference `bash_999`
+(`mon_DBCJSA7H3XC2JBB7`), PID46259/window591. Both are1200x700 at360,126.
+Reference revision1ab95600, clean, retained isolated selected presentation,
+Dark Quartz; OCR/voice/LLM disabled. Foreground compositor captures are
+`candidate-home-composited-1200.png` and
+`reference-home-composited-matched-1200.png`. The raise helper left Electron
+foreground; under explicit control grant, native PID-specific visibility/
+activation confirmed the candidate foreground before capture and restored both
+apps afterward. No product focus fix was inferred.
+
+The shared conversation glyph was corrected to the actual rounded robot path.
+Reference focus visibly outlines the whole Messenger card; the new regression
+fails without its main action (`home-compound-red.log`). Shared ActivityCard
+now owns all4 main actions/header/focus/hover materials; native uses a separate
+44px header target. First nested-Button stacking was wrong: actual Reader
+Continue pointer input opened import instead. Cancelled that picker, removed
+the added Button context/styles, and lifted the independent content region at
+ActivityCard because RN Web View defaults to zIndex0. The same pointer now
+opens the genuine continuity.txt Reader; main Messenger separately opens Chats.
+Wide/focused/narrow renders were inspected; narrow layout capture is
+`home-compound-narrow-layout.png`. The unused Panel fill addition was removed.
+
+Typecheck/lint/export pass for the repaired owner. Failed interaction runs
+remain retained. A later test reached duplicate hidden Home routes after
+Reader return because Expo retains stack screens; geometry now starts from an
+ordinary page.goto Home with the same persistent Rust backend, not a reset or
+an arbitrary first match. `home-compound-route-green.log` passes all7 cases
+in7.7s. Shared SourceRow subsequently replaces passive recent Panels plus
+separate Resume controls for both real document/media consumers. Its wide
+rows were compared with the actual reference two-column grid; metadata and
+actual/unknown progress remain real, with no invented dates or percentages.
+After that delta, `home-integrated-green.log` passes65 checker +115 client +7
+browser cases with typecheck/lint/export. LSP currently times out; do not claim
+fresh diagnostics. Existing mobile consuming proofs predate ActivityCard/
+SourceRow and do not certify their new native boundaries.
+
+Both comparison launchers reached their bounds; PID45964/PID46259 and all
+8081/7780/3000/7752/7753 listeners are absent. Do not automatically restart them.
+An attempted late Reader window capture therefore failed; do not cite
+reference-reader-entry-layout.png as an existing capture. The running Reader
+entry was inspected in session frame50 and its ReaderWelcomeCard/CSS read:
+import actions belong on the empty Reader screen, not Home card footers.
+The new todo tracks relocating existing import presentation with one shared
+lifetime owner, preserving Home drop, staging release, cancellation, source
+identity and all required formats. No entry-screen implementation yet.
+
+Temporary Home resize logs showed inactive viewport420/measured1152, then real
+foreground resize1200/columns3 and1198/measured1150/card370. No host/viewport fix
+was made from this inactive-capture artifact. Temporary instrumentation is
+removed and its sole tail monitor killed. The next consuming iOS build covers
+the coherent ActivityCard/SourceRow batch before further presentation changes,
+reusing unchanged Rust bridges and retained profiles.
+That build is now `bash_1028` (`mon_7WJ432Z8C930Y9ZN`), log
+`ios-home-owners-build.log`; no simulator is booted during it.
+Current Home compound/material, theme restoration, Settings/Watch/Inspector
+matched states and final performance/regression gates remain explicit todo
+tasks. No material/visual acceptance is claimed from the successful mobile flow.
+
+Dirty M07 remains on pushed M06 baseline `9640c9e4`, branch `agent/m01`, draft
+PR44. The single reviewer approved the original uncertain-admission/Person
+projection repairs and the later edited-question/pending-intent repair.
+Both Stop/Close races fail before the epoch guard; all 24 affected cases pass
+after it with LSP, typecheck, ownership lint and export. Full integration passes
+65 checker +115 client +100 browser cases (`final-intent-integration.log`).
+Only the subsequent stable search test ID/harness corrections follow that full
+run; their LSP/typecheck/lint and both consuming native workflows pass.
+No Rust/protocol/FFI owner changed in this final presentation repair.
+
+Final iOS consuming JS SHA-256:
+`28172f99af2ef221bc86533e294d040af660e750be2bc088c3ba5aba52051f09`.
+`native-ios-observed-intent` passes in 224.734 seconds: persistence/restart,
+keyboard/input, three actual native requests, held-stream Stop and the edited
+Why plural? request under the same message/package/revision anchor. Immediate
+independent simulator clipboard readback differs before Copy and matches the
+40-byte fixture response exactly afterward. Only private-baseline hashes/lengths
+are recorded. Actual request JSON is in `native-ios-observed-intent-receipt.json`.
+
+Final Android APK SHA-256:
+`a63a6545dedc38bfb52c70fdc68b5254454c763cc1ce3fd2d3f99b02f0432210`;
+bundled JS:
+`c075cc3a8ae0ac6a90debb1cc0a35c05642ccbe1ca8e6e59a3cd4ec97ba4cbbb`.
+Both arm64-v8a/x86_64 bridges are present; consuming build passes in 28 seconds.
+`native-android-filtered-intent` passes in 242.124 seconds with actual system
+Paste, restart, three native requests, held-stream cancellation and the edited
+question/source anchor in received JSON. Receipt:
+`native-android-filtered-intent-receipt.json`. Both platforms' saved request
+bodies were compared exactly with the actual fixture receipts. Native keyboard,
+streaming, edited-dialog, Paste and fresh composited captures were inspected.
+
+Failed native inputs remain preserved: an iOS below-selector hit an older row;
+retained Knowledge was mixed rather than untracked; Android's new Person was
+below the pre-search viewport. The corrected harness filters real People,
+preserves Knowledge/profile data and observes Copy immediately. No assertion
+about required product behavior was removed. The emulator renderer error remains
+in its log; subsequent real frames and the complete workflow passed.
+
+H00 and emulator5556 are shut down; both device lists are empty. Original
+Android airplane0/WiFi1 remain unchanged. Fixture41235 is stopped, no listener
+or held stream remains. Host clipboard restoration never overwrote a non-QA
+value. `native-final-resource-release.log` records 75% memory free, swap used
+4,526.62 MiB and 4.9 GiB disk free. Keep substantial work serial and never
+automatically restart devices, reference apps or persistent servers.
+
+Final normal desktop is deliberately running as bash_931 /
+mon_MD5R9P0CSQ3GTV2R, PID35919/window532, using the existing isolated
+`net.kikan.mlearn.v3dev.m07qa` profile and the documented npm command.
+`normal-desktop-final-intent.log` records the normal dev build (54.90 seconds,
+existing optimized package overrides with debug/safety checks retained) and
+actual UI/plugin metrics. Binary SHA-256:
+`b997f8b7a01e54dcebee9d1a30d870486fc59bd451e136023166d50dae5cf6af`.
+Default 1080x800 Home and Settings read back saved Dark Quartz and authenticated
+English0.1.3-wn30-ocr2. Current English measurements: first usable captions87ms,
+warm reopen60ms, Inspector49ms, transcript59ms; request-to-frame39/29ms.
+Matching/empty/recovered transcript searches and cue2/cue1 navigation pass;
+paused0/rate1 are restored. One nonempty morphology call is followed by cached
+two-cue reads with current Knowledge refresh. Cheap stateless English Fresh
+slot initialization/eviction is visible; Japanese heavy-resource behavior is
+not certified by these English timings. Metrics watch: bash_934 /
+mon_5SCFN09D1FN8DDG5. Actual frames are `desktop-final-*.png`.
+
+The current clean `../mlearn-ts` reference revision is
+`1ab95600bee97017635afe538af4e890e0cded3a`, not the older historical1788f9c
+captures. Its inspected user-data override targets only the retained isolated
+reference profile, with the selected presentation/Dark Quartz, no cloud tokens
+and disabled OCR/voice/LLM. A deliberate npm dev launch is starting as
+bash_941 / mon_EMZJDC8T1K09VS6G (`reference-final-comparison.log`); Vite3000 is
+ready, actual reference Home is not yet certified. Ports3000/7752/7753 were
+unoccupied before launch; never let legacy port cleanup kill another owner.
+Edited screenshots remain primary; match actual state/viewport/theme/focus.
+
+Storage recovery preserved all fixture bytes before exact-root cleanup.
+The 297-profile gzip archive SHA-256 is
+`a82877515ba0b3f46bdbd66b585d4b7daa81e1111923fdf578015221cf1c66b5`.
+The final 66-root xz archive (65 UUID profiles plus retained browser-preflight)
+SHA-256 is `4aa9845f860aede11958a6a819546f054eb5c69d9078b0c5bd4a9854bb169bc4`.
+Both integrity/full membership checks passed; only exact archived UUID roots
+were removed. Named preflight, evidence, native builds and learner profiles
+remain. M07 PLAN contains exact invocations, failures and restoration recipes.
+
+Next: finish matched visual/narrow/custom-theme/restart and remaining
+Japanese/package-switch/performance comparisons, repair demonstrated defects,
+then commit/push the verified M07 checkpoint and deliver the consolidated
+package with owned-resource cleanup. M07 is not yet verified for continuation,
+committed, pushed or maintainer-accepted. Historical source-bound progress below
+does not override this compact checkpoint or reopen the deferred FileProvider gate.
+
+M07 starts from pushed M06 checkpoint `9640c9e4`. Its complete requirement and
+reference trace is recorded in `.mlearn/m03-m07/m07-messenger/PLAN.md`, including
+the two approved Messenger screenshots and real smaller reference actions.
+Legacy inactive reply/edit/delete/regeneration controls are not counted as
+delivered. Root owns runtime/provider/source integration; the client surface is
+being implemented separately against the generated Rust boundary.
+
+The content unit now has schema9 incremental SQLite People, direct/temporary
+conversations, bounded history/search/drafts, idempotent authored mutations,
+generation publication, dependency invalidation and frozen message versions.
+Its 16 real-storage owner tests pass. Explanation content admission is one
+transaction with one reused software Assistant identity, not a person per turn.
+Session credentials are not stored. This is owner proof, not a complete M07 UI.
+
+Root added the actual native HTTP/SSE transport with bounded text/frame/body
+sizes, credential-free diagnostics, no redirects, cancellation and honest
+incomplete/refused/tool/limit failures. All five transport tests pass, including
+real local HTTP streaming and post-delta cancellation. No real paid/remote model
+was called. The integrated native generation worker, original request traces
+and source-grounded execution are implemented but still need connected runtime
+tests and actual UI/platform verification.
+
+Message sources extend SourceAnchor, native Capture/Return and scoped practice
+rather than creating another owner. Four Material storage boundary tests and
+all 15 Material client tests pass, including message revision/UTF-8/cross-source
+rejection. Message analysis extends the existing native package/cache/Knowledge
+pipeline without fabricated video cues; the shared AnnotatedText accepts native
+message token batches while retaining existing cue-scoped media annotations.
+The fresh Rust source/analysis/worker diagnostics are clean. Fresh test-file
+TypeScript LSP reports orphan Node-test configuration errors; no clean result is
+claimed for that file, and no extra dependency was installed.
+
+The first transport test attempt stopped at missing exhaustive runtime arms
+while the content contract was being integrated; no transport behavior ran in
+that attempt. The real dispatch/analysis integration then compiled and the five
+transport tests passed in 0.02 seconds. Logs are `provider-tests.log`,
+`material-storage-tests.log` and `material-client-tests.log` in the M07 directory.
+Generated contracts and their conformance check now pass. All eight connected
+runtime tests pass, including actual external-source edit -> failed explanation
+publication -> released pending HTTP read. That defect was reproduced first
+(`explanation-origin-red.log`) and repaired at the shared worker's source
+validation/cancellation boundary, not in individual screens. Publication is
+bounded/coalesced, request/response traces exclude keys, terminal source checks
+and publication share the native lock, and timing uses one monotonic job clock.
+
+Immutable captured message analysis is an explicit native action, not a
+relaxation of current-message freshness. The real original is restored and
+analyzed after an authored edit; current stale inspection and forged original
+hashes still fail. Material and Review Return admit the same source response.
+The shared source protocol was extracted when conversation became its second
+consumer, avoiding a Material/conversation validator cycle. All 32 focused
+conversation/Material/message client tests pass. The integrated client
+typecheck, ownership lint and web export also pass.
+
+Normal Home now reaches Conversation without provider readiness. The compact
+composer size belongs to shared TextField (44-pixel minimum, 120-pixel cap from
+the reference mechanism), not a route CSS escape. Copy is a real host operation:
+desktop retains its arboard text clipboard owner, iOS uses the main-thread
+pasteboard, Android its native clipboard service. Desktop Cargo check passes;
+the new mobile bridge methods still require consuming native builds/flows.
+Swift LSP lacks the Expo module context and Kotlin LSP is unavailable; neither
+is represented as a successful mobile build.
+
+The exported-UI workflow now passes through a bounded JSON-lines QA host
+using the actual RuntimeExecutor, SQLite, authenticated desktop downloads and
+language execution. Only the external text provider is deterministic. The
+normal UI creates contacts/chats/configuration/messages and opens real prepared
+language/Inspector; no fake native domain responses or staged DOM. Test entry
+points, exact invocation and 1212x872/390x844 captures are recorded before the
+run in the M07 PLAN. This is not Tauri window/media/clipboard or native mobile
+acceptance. Catalog preflight passed with the actual `available_packages`
+action; an earlier unsupported diagnostic action is retained separately.
+
+The normal actual-core Messenger workflow passes at desktop and phone widths,
+including eager native analysis, real Inspector lookup and composer growth and
+collapse. Captures in `qa-native-core-autosize` were inspected. They establish
+functionality and compact composer behavior, not final reference conformity:
+the rail composition and extra secondary tool rows still need repair.
+The complete storage regression suite passes (`storage-regressions.log`);
+existing unused `practice` fixture warnings remain unsuppressed.
+
+Actual native oversized UTF-8 draft rejection reproduced a recovery defect:
+correcting the text left Send disabled and retained the rejected save command.
+The draft owner now releases only explicitly rejected `invalid_conversation`
+commands and clears their recovery state on editing; uncertain receipts retain
+the original command. The keyboard-send regression failed before the repair
+(`draft-recovery-keyboard.log`), then passed with the normal desktop/phone
+workflow, typecheck, architecture lint and fresh export in
+`draft-recovery-green.log` (two browser tests, 4.1 seconds). The separate real
+native committed-write/lost-acknowledgement regression also passes with the
+validation case (`draft-receipt.log`, two tests, 3.6 seconds): the exact original
+save command is replayed and only one provider turn is admitted. The actual-core
+UI matrix for partial-response Stop, process-crash interruption and provider
+failure with explicit retry now passes with both draft cases
+(`stream-recovery-routes.log`, five tests, 9.7 seconds). Initial matrix failures
+were harness assumptions: reload retains the Messenger route, and retry retains
+the old cancelled/failed message dialog while appending a fresh response. The
+corrected checks await the actual native admission and completed prepared reply,
+preserve the old record and assert one authored message and two provider calls.
+
+Real-core People/Thread workflows also pass (`content-ui.log`, two tests,
+5.1 seconds): edit/archive/restore, direct-chat identity/history reuse, two-Person
+temporary Thread, title/participant changes, acknowledged draft persistence
+through process crash and reload, discard and independent Person retention.
+Streaming/history work remains open for authored edit/delete/reply, bounded
+search and prepend/tail behavior. None of these passes certifies visual parity.
+
+The actual-core source workflow now passes (`source-ui.log`, two tests,
+4.9 seconds): native language preparation -> Inspector -> Capture -> authored
+message edit -> native process crash/restart -> Material Return restores and
+reanalyzes the original immutable message, not the new text. Contextual
+explanation admits the exact selected UTF-8 span and full original sentence
+through the native generation owner. Both captured dialogs were inspected;
+they are usable, but the surrounding Messenger composition remains visually
+unfinished. Browser coverage does not certify platform clipboard behavior.
+
+The longer history workflow reproduced and repaired a live-tail defect.
+Actual geometry proved FlatList's estimated scroll-to-end moved to 24 rather
+than the measured 184 tail. The owner now uses real content/viewport extents.
+The temporary geometry probes were removed. A second exposed readiness defect
+left message action triggers interactive while their dialog refused to open;
+the shared message-action trigger now exposes its actual busy state.
+All seven history/recovery tests pass (`history-actions.log`, 15.5 seconds),
+including 21 actual UI sends, native 40-message reopening and two-message
+prepend without forcing the learner back to the latest response. Previous
+failed logs/captures remain evidence, not erased runs.
+
+The reference-derived header disclosure removes permanent Provider/Runtime
+Inspector/history-search rows from normal chat composition while keeping all
+actions reachable. All 12 connected actual-core workflows pass after the change
+(`compact-header.log`, 27 seconds), with typecheck/lint/export. Desktop output
+was inspected. Normal Settings selection of Dark Quartz then native process
+crash/restart preserves its SQLite theme identity and chat content. Fresh
+desktop, phone and expanded Inspector captures in `qa-dark-restart` were
+inspected (`dark-restart.log`, 3.7 seconds); the sparse rail and message
+materials still differ from the reference, so no visual-parity pass is claimed.
+
+Actual Runtime Inspector UI now passes with the source workflows
+(`runtime-trace-ui.log`, three tests, 6.8 seconds): saved prompt/request/delta/
+response and original input identities are read natively without a second
+generation. Recorded request content has no Authorization/Bearer data.
+Reference ChatBubble/ConversationAgent material evidence is now in DESIGN;
+the shared secondary/authored surface projection and composer backing now pass
+the complete npm owner/checker suite (114 client tests plus checker tests),
+typecheck, architecture lint, web export and four actual-core UI/source cases
+(`message-materials.log`). Fresh light/dark desktop/phone output was inspected
+in `qa-message-materials`; no generic source-selection tint is used for
+authored bubbles.
+
+The remaining sparse rail is being repaired at its actual owners. Native
+conversation pages now project at most one latest-message preview per returned
+conversation (160 Unicode scalars, at most 640 UTF-8 bytes), actual status and
+original timestamp. Empty conversations invent no preview; deleted messages
+reveal no deleted text. A first test caught SQL double-to-JSON timestamp
+rounding; the query now retains the original JSON numeric representation.
+The native/client projection and generated-contract checks pass in
+`preview-owner-exact.log`; the initial failure is retained in
+`preview-owner.log`. Shared Button owns proper stacked navigation-row copy/date
+slots, and shared segmented selection replaces the feature's outlined tabs.
+The rebuilt actual-core binary and consuming UI now pass the full 13-case
+connected matrix (`native-previews.log`, 31.1 seconds), complete npm tests,
+typecheck, architecture lint and web export. Fresh dark desktop/phone rail
+captures were inspected in `qa-native-previews`: native text/date projections,
+stacked selected rows and filled shared segments are visible. Authored avatars
+are not invented when the Person has none. Remaining reference discrepancies
+and the other implemented surfaces still require their final comparison pass.
+
+Affected local iOS preparation/consuming build is now running with Xcode 27,
+the existing iOS consuming workspace and all Rust mobile targets are retained;
+no simulator is booted. Disk has only 12 GiB free, so native builds must reuse
+the existing caches and run sequentially after the current rendering check,
+without recreating acceptance environments or deleting retained evidence.
+
+Additional adversarial QA reproduced a real uncertain-send defect:
+new input authored after a lost draft receipt remained trapped behind the
+original send's recovery state (`later-draft-red.log`). Send now retains its
+acknowledged stage, recovers the exact original save/send/clear command and
+preserves later input rather than clearing it. Blur/background autosave cannot
+race that owning recovery action with a stale pre-clear revision. The full
+six-case acknowledgement-loss matrix (draft/send/clear, with and without later
+input), native Stop/crash/provider failure, People/Thread persistence and
+history workflows now pass (`draft-ownership.log`, 14 tests, 30.2 seconds)
+with fresh typecheck/lint/export. Intermediate failed assertions and the
+demonstrated blur conflict remain retained; no tolerance or native bound was
+weakened.
+
+Standalone `tests/mobile/messenger.yaml` and its acknowledged-character input
+helper are now running. They cover real native contact creation,
+provider configuration, generated-message copy and process restart without a
+media picker. The provider is to be a local deterministic HTTP/SSE fixture,
+not a paid model. New native input test IDs are on the actual shared fields.
+The original iOS preparation and consuming build both passed, then the final
+incremental consuming build also passed (`ios-final-ui-build.log`,
+`BUILD SUCCEEDED` at line 10557) after the draft repair and real field IDs.
+The complete browser regression suite passes on that final presentation:
+65 checker tests, 115 client/owner tests, typecheck, architecture lint, web
+export and all 79 browser tests in 1.2 minutes (`full-web.log`). These include
+the other shared-control consumers, not only Messenger.
+
+The deliberate standalone iOS scenario uses retained project device
+`2C4A73B3-435F-4CD0-86E4-09F549DC3B4F` and the existing preflight Maestro/
+Java17 toolchain, not a new simulator or installation. Native provider fixture
+is owned loopback port 41235; its Bun server lives in the active eval kernel
+as `nativeProviderServer` with `nativeProviderRequests`. Do not restart that
+server or device on resumption. Native iOS UI now passes (`native-ios.log`,
+one actual flow, 3m9s): create fields with acknowledged native input, select
+English, save local provider configuration, execute the real Rust request,
+copy its generated message through UIPasteboard and reopen the persisted
+conversation after process restart. The loopback fixture observed exactly one
+provider request. `xcrun simctl pbpaste` read back exactly
+`Children walked home.` after restart. The packaged JS bundle SHA-256 is
+`c58e83dbd5d41e5cf9a48a61a1b4b51e7ead2bfa8be93a9be70a62d18a5f79a1`.
+The restarted view and actual copied-message dialog captures were inspected.
+Maestro's first completed-message screenshot had missing compositor regions
+and is retained as invalid visual evidence, not a product-state pass. A fresh
+native `final-composited.png` was captured and inspected before shutdown.
+The owned provider stopped, and `simctl list devices booted` confirms no
+remaining booted device after shutting down only the deliberate H00 target.
+
+Android preparation and the retained consuming build now pass
+(`android-consuming-build.log`, `BUILD SUCCESSFUL in 1m9s`). APK inventory
+contains exactly arm64-v8a/x86_64, both `libmlearn_ffi.so` bridges and the real
+`assets/index.android.bundle`. The exact local SDK/NDK27.1/retained Java17
+invocation is recorded in the M07 PLAN.
+
+Standalone Android UI is running deliberately on retained AVD
+`mlearn-h00-api35-20261016`, port5556, without wiping data or loading/saving a
+snapshot. The first run created the actual Person, then stopped at a harness
+selector mismatch before any provider call: Android exposes the select as
+`Language for direct conversation, English`, not the iOS label alone. Its exact
+log, screenshot and native hierarchy are retained under `native-android`.
+The selector now matches the labelled value, and each run uses a distinct
+explicit QA Person with a checked matching conversation dialog.
+
+The next native run demonstrated a product defect: typing hid the composer
+behind Gboard. Geometry probes proved native keyboard coordinates and avoiding
+state were correct, but direct Unistyles shadow binding reset the calculated
+height from 577.9 to 914.3 logical pixels while its bottom state remained 336.4.
+Shared UI now resolves styles through `withUnistyles` before React Native's
+avoiding view; both Messenger and Dialog consume it. Safe-area padding belongs
+to the outer screen. The same failing native keyboard visibility regression now
+passes with the composer above Gboard, and its capture was inspected
+(`android-keyboard-boundary.log`, `native-android-keyboard-boundary`).
+All temporary geometry probes were removed. The full 79 browser regressions,
+65 checker tests, 115 client tests, typecheck/lint/export pass for that shared
+boundary (`keyboard-owner-web.log`).
+
+Remaining Android retries exposed harness errors, not new product assertions:
+dynamic erase counts were unsupported, deleting from a tapped mid-field caret
+damaged retained input, and an extra hideKeyboard/Back after system Copy
+navigated Home. Their complete logs/captures remain retained. The flow now
+waits for actual provider settings readiness and reuses exact already-saved QA
+values instead of destructive caret workarounds. A native editor Copy seeds
+a different clipboard value before the app's Copy message, so no-op clipboard
+code cannot pass by coincidence. The actual system Paste must insert the
+generated text into the real composer. `native-android-system-copy.log` reached
+the actual failed-generation state: zero fixture requests, emulator airplane
+mode enabled and no IP route. This is retained environment-failure evidence,
+not a functional pass. Disabled airplane mode and enabled Wi-Fi only on the
+owned QA emulator; readback confirms AndroidWifi at 10.0.2.16 and its host
+subnet route. The unchanged standalone flow on the same installed APK is now
+verified under `M07_ANDROID_NETWORK_RESTORED_EXIT=0` /
+`native-android-network-restored.log` (2 minutes 56 seconds). Exactly one real
+native request reached the fixture. System Paste inserted the generated text
+over the distinct editor-copy baseline, and both messages survived app restart.
+The keyboard-open Paste capture and completed-message frame were inspected.
+The immediate restart capture had missing compositor regions; it is not valid
+visual evidence. Fresh `native-android-network-restored/final-composited.png`
+shows the complete persisted conversation and was inspected. Android's original
+airplane setting was restored before shutting down only the owned AVD.
+`bash_786` exited 0; `adb devices` is empty and port41235 has no listener after
+stopping the owned fixture. No profile or evidence was deleted.
+
+Provider error-state QA also reproduced a real recovery defect: an explicitly
+rejected endpoint left fields read-only (`provider-editability-red.log`).
+Native validation precedes admission, so only those definite validation
+outcomes now release their command for correction. Uncertain receipts still
+retain the exact configuration and command ID. Both real-core provider cases
+and all ten draft/generation recovery cases pass (`provider-owner.log`,
+12 tests, 23.5 seconds) with typecheck/lint/export. Its native consuming
+Android app has been rebuilt and its connected workflow passes. Final-source
+iOS consuming build also passes (`ios-shared-keyboard-build.log`, actual
+`BUILD SUCCEEDED`). Bundled JS SHA-256 is
+`6c2f041f475d9897b8b5af87cdd64c2390936e4602be0c795cf8c0b75db0615d`.
+Only the retained H00 device was deliberately booted and updated without
+clearing its profile. The standalone final-source flow is running under
+`M07_IOS_SHARED_KEYBOARD_FLOW_EXIT` / `native-ios-shared-keyboard.log`.
+The first run stopped before any request because iOS long press positioned a
+caret without a Copy menu; its exact screenshot confirms visible composer and
+Send above the keyboard. The YAML-only correction uses iOS word-selection
+double tap, preserving Android's proven long press. Final flow is now running
+under `native-ios-editor-copy.log`; that attempt also stopped at missing Copy
+before any provider request. Independent verbose simctl readback now explicitly
+confirms an empty system pasteboard. This distinct empty baseline makes a no-op
+app Copy detectable without guessing more editor gestures. Android retains its
+successful native editor baseline. The final iOS flow is running under
+`M07_IOS_EMPTY_BASELINE_EXIT` / `native-ios-empty-baseline.log`; its post-copy
+system readback equals the actual generated response `Children walked home.`.
+The full final-source iOS flow passes in 2 minutes 27 seconds, with exactly one
+native provider request. Keyboard-open composer, copied-message dialog and
+persisted restarted conversation captures were inspected. The owned fixture
+stopped; H00 was terminated/shut down and `simctl list devices booted` is empty.
+ADB devices and listeners on 41235/7780/8081 were also empty before advancing.
+Shared native keyboard repair is now verified on both affected platforms.
+
+The recorded normal desktop scenario has started using the supported isolated
+identifier `net.kikan.mlearn.v3dev.m07qa`, normal documented dev launch and
+existing Cargo profile, not a separate renderer or invented profile flag.
+`normal-desktop-dev.log` / monitor `mon_22H2BPYYTRSNNNBZ`, `bash_831` owns this
+launch. Do not restart it on resumption. Finish native desktop interaction,
+matched comparison and performance checks, then release only its owned tree.
+
+Normal native desktop now runs PID10282, window380, 1080x800 logical,
+after a successful 45.65-second dev consuming build. Its real isolated profile
+is `~/Library/Application Support/net.kikan.mlearn.v3dev.m07qa`, confirmed on
+disk. Actual Settings installed authenticated English 0.1.3-wn30-ocr2,
+26,017,613 bytes. Person/direct-chat creation, rejected file-URL provider
+feedback and in-dialog correction, real send/analysis/Inspector, Capture and
+Material Return all execute through the native host. The local external SSE
+fixture has received four requests: one chat reply and one grounded explanation
+each from message, Reader and Watch. This is not a bundled-model claim.
+For all three source surfaces, native selected-text clipboard readback equals
+`Children` and full context equals `Children walked home.`. The text-only
+clipboard was preserved/restored without logging its original contents.
+Reader used actual `tests/fixtures/reader/continuity.txt` via the macOS picker.
+Watch used a byte-identical retained movie/SRT pair selected through native rows.
+The Go to Folder sheet did not accept confirmation through the available input
+routes; its parent Cancel correctly released pending import. No product fix or
+picker success is inferred from those failed attempts. Visible owned copies
+`tests/fixtures/reader/m07-qa-watch.mov` and `.srt` then imported successfully;
+their SHA-256 equality to the original fixtures is recorded in the session.
+Keep these copies for the remaining restart checks, then remove only these two.
+
+Actual native captures are `desktop-native-settings-packages.png`,
+`desktop-native-provider-rejected.png`, `desktop-native-message-inspector.png`,
+`desktop-native-grounded-explanation.png`,
+`desktop-native-captured-message-return.png`,
+`desktop-native-reader-explanation.png` and
+`desktop-native-watch-explanation.png` under the M07 evidence directory.
+The actual message Inspector and Watch explanation were personally inspected.
+Normal-dev metrics show message Inspect action-to-commit 41 ms, Watch Inspect
+42 ms and caption request-to-frame 42 ms for this English input. These are
+individual measured stages, not a fresh/warm/restart performance acceptance.
+Full matched visual comparisons, source-bound repeat/restart measurements and
+final regression/review/checkpoint work remain. The app and fixture port41235
+are deliberately still owned for those checks; foreground control is released.
+
+The requested temporary visual notepad was absent. Restored its exact path as
+an explicitly new index, without inventing missing historical prose.
+`.mlearn/visual-parity/surfaces.md` and `manifest.json` now point to this current
+checkpoint and label preserved pre-M03 evidence as historical. Their old hosted
+gate/exclusion wording must not reinstate the deferred stop or certify M07.
+
+Normal native restart is now verified: old PID10282 and ports7780/8081 were
+released before deliberate launch `bash_849` / `mon_0BYPGRKK1B88G8QT`.
+Current app is PID13334/window479 with the same isolated profile. First Home
+and Settings show persisted Dark Quartz; authored/generated chat content,
+three explanation Threads, endpoint/model and native execution trace survive.
+Opening the saved trace makes no provider request; bounded request JSON and
+absence of Authorization/Bearer were checked. Native fixture requests remain4.
+Captures include `desktop-native-dark-home-after-restart.png` and
+`desktop-native-runtime-trace-after-restart.png`.
+
+Integrated checks pass before the subsequently discovered narrow-layout fix:
+65 checker tests, 115 client tests, typecheck, ownership lint, contracts,
+web export and all81 browser scenarios (`integrated-final-web.log`).
+All affected core/runtime/storage owner suites pass
+(`integrated-final-rust.log`). Existing unused `practice` fixture warnings
+remain visible and unsuppressed.
+
+Actual 420x700 native inspection found Messenger Back overlapping the macOS
+minimize hit region: Back x440–474/y85–118, minimize x451–467/y78–94.
+The new existing-suite regression fails with x20 instead of the host's80px
+reservation (`narrow-chrome-red.log`). The collapsed header now consumes the
+existing host windowControlsWidth, matching Reader/Watch; mobile/browser-zero
+hosts keep the same inset. Native Back moves to x500–534 and its real action
+opens Chats without minimizing. LSP is clean. Focused type/lint/export/layout
+verification is running under `M07_NARROW_CHROME_GREEN_EXIT`,
+`narrow-chrome-green.log`, `bash_859` / `mon_YFTHQWY2N2VR95JF`.
+The focused narrow regression now passes in 3.3 seconds with typecheck,
+ownership lint and export (`narrow-chrome-green.log`). The stable real-window
+frame was inspected with Back visibly clear of traffic lights and retained as
+`desktop-native-messenger-narrow-chrome-fixed-stable.png`. No updated
+mobile-binary claim is made for this newer macOS host-reservation delta.
+
+One independent read-only M07 implementation reviewer completed with REJECT:
+`st_01a16d8f`, name `m07-independent-gate`. Inputs and root manual QA matrix are
+in the adjacent M07 `REVIEW.md`. Explicit requested route is
+`chatgpt-subscription/gpt-6.1-sol`, matching inspected root PI_PROVIDER/PI_MODEL;
+no premium/Astra routing or new worktree. The two concrete findings are retained
+in `.omo/evidence/m07-gate-review.md`: uncertain explanation admission escaped
+cancellation, and Person changes left current attribution/status stale.
+Both now fail real-core regressions (`review-blockers-red.log`).
+Root retains all implementation/QA/resource ownership. This is not a
+review claiming the original visual goal complete. Final visual/performance
+and consolidated-delivery gates remain open alongside the independent review.
+
+Initial targeted repairs pass `contact-projection-green.log` (2 scenarios)
+and `explanation-close-green.log` (4 scenarios), with typecheck/lint/export.
+Person changes refresh native participants, retained bounded message pages,
+current generation and analysis without replacing drafts or jumping history.
+Both save and archive/restore use that path. The editor stays mounted until
+dependent refresh succeeds; a final publication-order delta needs re-export.
+Explanation presentation flights retain the exact admission closure, shared
+in-flight resolution and Stop promise. Cleanup recovers that native receipt
+before cancellation, retains uncertainty across close/source/reopen and does
+not prepare a new recovery command.
+
+The expanded 17-scenario matrix passes 13 and exposes test-input errors:
+the added second turn requires two preserved response matches, not a strict
+single locator; hard page.goto destroys browser JavaScript without running
+React cleanup and does not model a native source transition. The source-exit
+case now uses the actual Provider settings in Chats SPA action. Those failed
+artifacts remain under `qa-review-recovery-matrix`. The rebuilt rerun passes
+all 17 scenarios in 33.4 seconds. Three additional pending-Close cases then
+pass all 20 in 39.7 seconds (`review-pending-close.log`), including each
+admission/owner/history receipt loss both before and after Close.
+
+Root's affected native repair QA also passes on the retained normal app.
+Current message attribution changes to M07 desktop tutor and native response
+status becomes invalidated immediately after Person edit, without navigation.
+A fresh actual response followed by archive invalidates both replies in place.
+Frames `desktop-native-person-edit-reconciled.png` and
+`desktop-native-person-archive-reconciled.png` preserve this state. An actual
+Reader explanation was held by the external SSE fixture; native Close releases
+its HTTP stream, and reopen shows cancelled without another request. Captures
+are `desktop-native-explanation-held-stream.png` and
+`desktop-native-explanation-cancelled-reopened.png`. Native fixture requests
+now total 6; no external stream remains held, but its listener is still owned.
+Both implementation blockers are closed by the same reviewer's scoped APPROVE
+(st_01a16d8f), preserved in `.omo/evidence/m07-gate-review.md`. No second
+reviewer or model switch. Root independently verified full integration:
+`M07_REVIEW_FINAL_INTEGRATION_EXIT=0`, `review-final-integration.log`,
+65 checker +115 client +96 browser scenarios, typecheck/lint/export all pass.
+Final-source consuming builds also pass: actual BUILD SUCCEEDED in
+`ios-review-repairs-build.log`, BUILD SUCCESSFUL in 30 seconds in
+`android-review-repairs-build.log`. APK contains both arm64-v8a/x86_64 Rust
+bridges and the consuming JS bundle. iOS JS SHA-256:
+`3430dedf796ef7d2834fadfa483fd09779332ebf5052225f8f0b1a740d3663be`;
+APK SHA-256:
+`9e321656b9736dceda9cf164844b383688214e5411a8096315310b2f22605ade`.
+The normal app remains PID13334/window479, dev launch bash_849, isolated
+profile unchanged. It is currently at the cancelled/reopened Reader explanation.
+Native SSE fixture41235 remains owned, configured to hold new responses, with
+no active response after the successful cancellation. Do not silently restart
+or send to it on resumption. The recorded final-source mobile scenario now
+reconfigures this idle owned fixture deliberately, then boots only the retained
+H00 target; inspect that scenario's new handle before any resumption action.
+
+M07 changes remain uncommitted and unverified as a milestone. Actual screenshot
+inspection/repair, broader regressions, native workflows, independent review and
+the complete consolidated delivery package remain. No acceptance/continuation claim.
 
 ### Historical M06 continuation record
 

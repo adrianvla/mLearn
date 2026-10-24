@@ -2,7 +2,7 @@
 
 This branch contains a cross-platform integration foundation, **not the completed language-learning application**.
 
-One Expo application renders with React Native on iOS/Android and React Native Web inside Tauri on desktop. A portable Rust runtime owns persisted settings and a bounded Wasmi plugin host. The M01 candidate adds local Watch sources, UTF-8 SRT subtitles, genuine English WordNet and Japanese Sudachi/JMdict packages, contextual Inspector and explicit Knowledge claims. Its current source, verification and review disposition are in [STATE.md](docs/implementation/STATE.md); these are not parity or maintainer-acceptance claims.
+One Expo application renders with React Native on iOS/Android and React Native Web inside Tauri on desktop. Rust owns settings, learner state, Material, learning sessions, document preparation and bounded Wasmi language execution. Watch, Reader/OCR and the in-progress Conversation increment reuse the same language analysis, Inspector, Knowledge and Capture owners. Current source, verified scope and unresolved gates are in [STATE.md](docs/implementation/STATE.md); these are not parity or maintainer-acceptance claims.
 
 ## Start on desktop
 
@@ -26,6 +26,29 @@ The development command builds the sample plugin, starts a **local signed CDN fi
 In the Tauri window, choose **Get language packages** and install **org.mlearn.english** or **org.mlearn.japanese**. Select the matching package on Home, open a local video and attach its UTF-8 SRT subtitles. Select a subtitle word to inspect genuine entries/readings and change a granular Knowledge claim. Home lists actual sources and saved positions. **Settings** retains the H00 theme/runtime diagnostics. Unsupported analysis or host codecs produce explicit errors; import success alone does not establish decoding support.
 
 The ordinary browser preview (`npm run dev:web`) explicitly has **no native backend**. Visual theme previews work there; it does not pretend to save settings or execute a plugin.
+
+## Conversation
+
+Open **Conversation** from Home. **People** stores reusable identities independently
+of chats; Message opens the same person's direct conversation in the selected
+installed language. **New Thread** creates temporary task-focused continuity with
+an explicit purpose and participants. Saved content remains readable without a
+working provider.
+
+Open **Conversation actions → Provider** to configure an OpenAI-compatible chat
+completions base URL and model. Rust saves the endpoint/model; an optional API key
+is held only for the current native process. No bundled local LLM or default cloud
+provider is supplied. Requests run only when sending or asking for an explanation.
+Send/Stop, explicit response retry, drafts, history search, reply/edit/delete and
+participant changes use the native storage/generation owner.
+
+Visible completed messages prepare their language analysis before inspection.
+**Show analysis** reveals it; Inspector supports the same Knowledge and Capture
+workflow as other sources. Material Return restores its captured message revision
+even after the current message changes. **Message actions → Inspect execution**
+opens actual native prompt/request/response records without issuing another
+generation. Platform verification and remaining visual discrepancies for this
+increment are tracked in STATE.
 
 ## Mobile development
 
@@ -92,7 +115,10 @@ mobile preparation and `test:native` commands already include this step.
 
 Desktop release builds do **not** trust the generated development publisher key and contain **no executable language plugin**. Supply `MLEARN_RELEASE_CATALOG_TRUST` at build time as single-line JSON containing `url` (HTTPS) and `publicKey` (base64 Ed25519 public key). With no configured publisher, the UI reports that installation is unavailable. This repository does not publish a production CDN or contain a release signing key.
 
-All v3 development identities and profile paths are separate from v2. SQLite also owns bounded source recents, subtitle cues, playback checkpoints and explicit capability claims. Claims do not create assessments, predictions or cards. No real v2 profile import or review evidence storage is implemented.
+All v3 development identities and profile paths are separate from v2. SQLite owns
+bounded source projections, authored Material, explicit capability claims and
+learning-session evidence. Claims do not create assessments, predictions or
+Material. A real v2 profile import is not implemented.
 
 The experimental plugin ABI now supports immutable indexed resources: 4 MiB executable, up to 32 MiB per SQLite resource / 40 MiB total package data, 8 MiB ordinary guest-readable assets, 64 MiB guest memory and bounded messages/fuel. The generic host admits only primary-key resource lookups, not guest SQL or access to learner storage. WordNet is 24.4 MiB; guest calls fetch bounded entries instead of copying the dictionary into Wasm or React. Broader analyzer benchmarks remain required before declaring a production SDK. No claim of full language support, native device acceptance, or T2 feature parity is made by the presence of a green build.
 

@@ -2,6 +2,14 @@
 
 ## Active execution-resource constraint — 16 GB Mac, 2026-10-23
 
+On October 24 the maintainer reported a second exhaustion incident: OmO used
+12.5 GB RAM, macOS showed 0 bytes available and 6.5 GB swap, and killing the
+harness did not release the allocation. The maintainer restarted everything.
+All pre-restart workloads are gone. This is an OmO memory incident; do not
+attribute it to a device/model workload without evidence. Keep recovery reads
+and image batches small, inspect current physical footprint as well as RSS,
+and do not resume substantial verification while unexplained growth continues.
+
 The maintainer reported a kernel watchdog panic after severe memory exhaustion,
 including OmO at about 13 GiB RSS and Android QEMU at about 12 GiB RSS.
 Restoring the stopped session had restarted an owned Android emulator.
