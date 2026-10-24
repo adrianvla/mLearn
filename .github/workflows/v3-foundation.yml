@@ -25,6 +25,12 @@ jobs:
         with: { node-version: '22', cache: npm }
       - run: npm ci
       - run: npx playwright install chromium --with-deps
+      - name: Provide Linux CJK fonts for vertical source text
+        run: |
+          sudo apt-get install -y fonts-noto-cjk
+          fc-list :lang=ja file > verification/cjk-fonts.txt
+          fc-match 'Arial:lang=ja' > verification/cjk-font-match.txt
+          test -s verification/cjk-fonts.txt
       - run: npm test
       - run: npm run typecheck
       - run: npm run lint

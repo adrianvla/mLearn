@@ -56,6 +56,20 @@ The first platform-font probe queried the button and returned no direct-text
 fonts. It now queries its actual `[data-source-start]` text leaf. A real local
 Reader run returns `Hiragino Sans / HiraginoSans-W3`, two glyphs; the corrected
 Linux font result remains pending.
+The corrected Linux text-leaf probe selects `WenQuanYi Zen Hei`; the package log
+pins Ubuntu `fonts-wqy-zenhei` 0.9.45-8. That exact font's `東` vertical advance
+is zero (`vmtx=[0,841]`, units-per-em 1024). The retained font SHA256 is
+`79c18ebe7b811951e8311bad7103ebeae8c337ed9988ea69e8a78a66cfe029b9`.
+A disposable local custom-font probe did not reproduce Linux's zero height:
+macOS supplies different metric fallback. No system font was installed or
+application style changed for that diagnostic. Its temporary browser/server
+closed; font inspection used an isolated pinned tool, not the reference env.
+
+The web CI job now installs the same `fonts-noto-cjk` prerequisite already used
+by native Linux verification and records font availability/matching. README
+documents the shared prerequisite. YAML parsing passes; unchanged real Reader
+tests must still verify positive usable geometry on Ubuntu. No minimum-size
+workaround, CJK-specific renderer branch or relaxed visibility check was added.
 
 Foundation run `40040864691` completed: Rust, pinned detector conversion and
 macOS desktop build/tests passed. Windows job `120713091191` passed eight

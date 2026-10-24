@@ -6,7 +6,7 @@ One Expo application renders with React Native on iOS/Android and React Native W
 
 ## Start on desktop
 
-Prerequisites: Node.js 22+ and npm, stable Rust with the `wasm32-unknown-unknown` target, curl for initial language-data acquisition, and Tauri's native platform build prerequisites. On macOS use Xcode command-line tools. Linux needs installed system fonts covering the displayed scripts; native Japanese verification uses Ubuntu's `fonts-noto-cjk`.
+Prerequisites: Node.js 22+ and npm, stable Rust with the `wasm32-unknown-unknown` target, curl for initial language-data acquisition, and Tauri's native platform build prerequisites. On macOS use Xcode command-line tools. Linux needs installed system fonts covering the displayed scripts; Japanese web and native verification use Ubuntu's `fonts-noto-cjk`.
 
 ```sh
 npm ci
