@@ -36,8 +36,12 @@ empty-viewport false-busy defect is repaired with a failing-before/passing-after
 browser regression; the full 26-case image suite, typecheck, architecture lint
 and fresh web export pass. Exact repair source `8934e158` now passes the real
 desktop workflow (`40060531796`) and all five foundation jobs (`40060531785`):
-Rust, detector conversion, web, macOS and Windows. New-source mobile verification
-(`40060531803`) remains running. Single independent M06 reviewer `st_01a16c25`
+Rust, detector conversion, web, macOS and Windows. Source-bound mobile run
+`40060531803` now passes Android's full primary workflow. Its iOS app compiles,
+then the native Files picker is blank and `Browse` is not found; the exact
+failure remains preserved within the deferred hosted FileProvider acceptance
+gate, not reported as a pass. No diagnostic variant was launched.
+Single independent M06 reviewer `st_01a16c25`
 returned REJECT with one deterministic OPS-04 protocol blocker: the successful
 native model-test command returns a string, but Settings required an array.
 Its full-scope findings are retained in `.omo/evidence/m06-gate-review.md`.
@@ -97,6 +101,46 @@ Both completed M06 review checkouts were removed after clean-status checks;
 the worktree-list read-back confirms neither remains. Unrelated worktrees,
 profiles and artifacts were preserved. M06 is still not marked
 `verified_for_continuation` while affected platform verification is pending.
+
+### Desktop controlled-input continuation after B1
+
+Run `40062981268`, source `18791267`, job `120780254659`, fails the existing
+native preference-admission assertion at native-smoke line 422, not Settings
+model testing. The retained failure capture shows subtitle offset `375625`:
+the second iteration's requested `625` was appended to the first `375` after
+WebDriver clear. Original source receipt, job log, capture and failure state are
+in `hosted-1879-desktop/` and `run/hosted-1879-desktop-job.log`.
+
+The harness now replaces the value using native Control+A/release/Backspace
+and digit key events, and checks the exact field value before Apply. It preserves
+the original native response, cancellation and route-blur assertions; it adds no
+retry, delay, response fabrication or product change. Syntax, clean LSP, three
+driver ownership tests and whitespace checks pass. The real Linux rerun remains
+required; those local checks do not certify the native input repair.
+The candidate harness-only repair is committed and pushed as `9ceba482`;
+desktop run `40063718304` and foundation run `40063718367` are monitored.
+No application source changed after the
+independently approved `18791267` product repair.
+That product repair now also passes all five jobs in foundation run
+`40062981300`: detector conversion, Rust, web, macOS and Windows. Exact-source
+metadata is `run/hosted-1879-foundation-metadata.json`; artifacts are
+retained in `hosted-1879-foundation/`. Source/tree receipts were inspected, as
+were both new genuine native modelTest outputs. Root passed both unmodified
+bodies through the repaired production createOcrModelsHost and confirmed text
+preservation; the exact outputs and scope are recorded in
+`run/model-test-newsource-response-check.md`. This response replay is not another
+inference run and does not erase the failed desktop controlled-input run.
+The `9ceba482` harness rerun remains a separate open gate.
+
+Mobile run `40060531803`, source `8934e158`, Android job `120773365649` passes
+the complete Watch/Inspector/Knowledge/native-source-resume workflow in 383.944
+seconds. iOS job `120773365844` fails at `Element not found: Text matching regex:
+Browse`; its actual capture shows a blank native picker immediately after
+Open local video, rather than the earlier missing-file grid state. Both exact
+JUnits and full logs are retained in `hosted-8934-mobile/` and `run/`.
+This is a preserved hosted Files/FileProvider failure, not proof of its cause or
+successful iOS acceptance. No helper change, diagnostic variant or replay is
+launched for that deferred gate.
 
 ### Current native continuation and expanded offline checks
 
