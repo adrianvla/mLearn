@@ -18,11 +18,40 @@ M03–M05 and the M01–M04 architecture gate are `verified_for_continuation`;
 M06 remains in progress and M07 has not started. Code/test checkpoint
 `b3ec2cfd` includes the green foundation/font repairs, source-bound online iOS
 OCR/restart/Inspector/Capture/return evidence and the independently passed
-disconnected iOS provider check below. All local simulators/emulators are shut
-down. Next: finish source-bound Android offline/integration QA, the remaining
-M06 platform/recovery matrix and independent milestone review before M07.
+disconnected iOS provider check below. All local iOS simulators and Android
+emulators are shut down after their finite QA runs; do not automatically restart
+them on resumption. Source-bound Android offline collection/vertical/spread/crop
+and saved-position restart evidence is retained below. Next: finish the mobile
+PDF/orientation/cancellation/recovery matrix and independent M06 review before M07.
 The following continuation evidence preserves earlier failures and their
 specific resolutions; it is not a set of new investigation instructions.
+
+### Current native continuation and expanded offline checks
+
+Foundation run `40049585630`, source `3334669dd4867e7f338030fa14c38ff7a97bd4d3`,
+completed successfully after removal of the resolved Reader diagnostics.
+Mobile run `40049009419`, source `67a845c0`, now passes Android's complete
+Watch/Inspector/Knowledge/native-source-resume workflow (457.295 seconds,
+zero failures). Its original iOS primary flow still fails at
+`id: m01-watch, mp4 is not visible`, preserving the deferred FileProvider gate;
+no diagnostic replay was launched. Both JUnit reports and full job logs are
+retained under `hosted-67a8-{android,ios}` and `run/`.
+
+The dedicated offline Apple checker now generates all eight EXIF orientation
+inputs through independent Core Image inverse transforms, validates their
+written ImageIO orientation tags, checks real recognition and compares the
+provider's displayed source pixels with ImageIO's transformed decoder. It
+records actual provider-call latency and source hashes, and checks rejection
+of a pre-cancelled job and a malformed image before fresh successful recognition.
+Pre-cancellation is not evidence of in-flight cancellation. Both iOS-simulator
+and macOS aggregate Swift builds pass with warnings treated as errors; local
+fixture generation passes and generated inputs were inspected. Actual expanded
+offline iOS execution remains pending. Helper-only changes route to the dedicated
+workflow rather than rebuilding both full applications and desktop models.
+The dedicated workflow also runs the existing primary-exit and hosted-only
+network-guard tests. Four focused tests and architecture lint pass; all three
+workflow documents parse successfully. No YAML language server is installed,
+so YAML LSP validation is not claimed.
 
 ### Hosted continuation after d8a24bed
 
@@ -208,6 +237,60 @@ additional correction is still pending. Evidence is retained under
 `hosted-0abce-android/test-results/mobile`.
 
 ### Finite offline Android OCR verification
+
+#### Source-bound run — 2026-10-24
+
+A subsequent finite run uses the actual retained APK from source
+`0abce8e1a176e7735736862c90a15f93ca8aea4c`, tree
+`0592a0475676581229f488c8da0c488356736ee3`, artifact `12541581849`.
+Its APK SHA256 is
+`16529035a1d0df0287b6e91beba678e66351686289eb33d04e9723612c33a175`.
+Client/shared UI/mobile-adapter source is unchanged since this build; later
+Rust native-resource extraction changes exist, so this is not substituted for
+the current-source hosted mobile build. Installation preserves the retained
+profile; Wi-Fi/data were disabled before launch and the original corpus was
+staged in its own QA Downloads folder. `dumpsys connectivity` reports
+`Active default network: none` before the first recognition. Three original
+image hashes were verified on-device before normal picker selection.
+
+The normal picker imports all three images, retaining their selected order:
+horizontal mixed, vertical/ruby, then spread. Bundled ML Kit Japanese recognizes
+both exact horizontal lines and the vertical `日本語を読む`; it introduces spaces
+in the other main column and ruby. The package identifies publisher readings,
+so their control appears. Spread recognition retains four actual observations;
+left `01` is misread as `O1`, a recorded model limitation, not silently corrected.
+
+A real drag on the original spread creates a crop at approximately left 51.87%,
+top 7.04%, width 44.94%, height 24.66%. Re-recognition retains the other three
+observations and replaces the right title with `RIGHT PAGE 02`. The saved page
+is revision 4; its namespaced crop ID is `3:line-0`, with original-image top-left
+coordinates 54.2%, 13.7778% (about 542,62 in the 1000x450 source). Storage's
+existing crop namespace preserves request-local provider IDs in raw evidence
+without colliding with retained projection IDs. Explicit Save position followed
+by app stop/launch and Home resume reopens page 3 of 3 without another recognition.
+That restart checks source position, not a fresh inspection of crop revision 4.
+
+The exploratory failures are preserved: ADB staging left the three new MediaStore
+rows pending, so only those completed QA transfers were published; picker labels
+include filename plus size/date, not a bare filename. A new publisher-reading row
+also moved Recognition details below the header viewport, requiring a contained
+scroll. The crop script's expected `01` failed against the actual native `O1`;
+the follow-up checks the retained native observation without claiming it matches
+ground truth. No application code or original fixture was modified, and no OCR
+result was injected or manually edited; the real crop recognition produced the
+new saved OCR revision.
+Successful command receipts/captures are under `run/android-source-{open,
+select-labeled,recognize,vertical-spread,crop-check}`; failed attempts remain beside
+them. Captures were inspected directly.
+
+The final flow stopped the app before its twenty-minute deadline. The deadline
+restored test-device Wi-Fi/data settings and shut down its owned AVD; `adb devices`
+is empty and no emulator/QEMU process remains. Emulator and memory-watch sessions
+later reached their limits; no live device or guard remains. Host memory is 61%
+free afterward. Actual image-only PDF OCR, EXIF variants and remaining mobile
+recovery/cancellation interactions are still open; this run does not close M06.
+
+#### Earlier provider-only run
 
 After the preceding CI-only work, one retained API 35 / Android 15 arm64 emulator
 was deliberately cold-booted with 2 GiB guest RAM, two cores, software graphics,
