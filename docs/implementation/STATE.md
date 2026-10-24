@@ -70,6 +70,12 @@ by native Linux verification and records font availability/matching. README
 documents the shared prerequisite. YAML parsing passes; unchanged real Reader
 tests must still verify positive usable geometry on Ubuntu. No minimum-size
 workaround, CJK-specific renderer branch or relaxed visibility check was added.
+Run `40045175574` still fails the same eight Reader cases: installing Noto alone
+does not displace WenQuanYi in Chromium's actual glyph fallback. The retained
+text-leaf attachment again identifies WenQuanYi. The disposable web runner now
+removes that legacy package after installing Noto, matching the native Linux
+harness's usable CJK-font environment. The unchanged browser checks remain the
+verification gate; this second prerequisite adjustment is not yet passed.
 
 Foundation run `40040864691` completed: Rust, pinned detector conversion and
 macOS desktop build/tests passed. Windows job `120713091191` passed eight
