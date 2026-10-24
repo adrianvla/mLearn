@@ -143,6 +143,13 @@ the authorized deferral. The primary Watch flow, every assertion and all retaine
 replay files/evidence remain untouched; `set -euo pipefail` preserves its failure.
 Shell syntax and isolated primary-exit fixtures prove statuses 7 and 0 remain
 7 and 0. No diagnostic replay or device was launched by those fixture checks.
+Foundation run `40045951891` stopped before browser verification because the
+existing runner test still required those removed diagnostic invocations. That
+test now exercises primary statuses 0, 7 and 3, requires exactly one Watch
+invocation on the selected device, and preserves each primary exit unchanged.
+The focused runner suite and full `npm test` pass (64 tooling and 96 client
+tests); fresh JavaScript diagnostics are clean. The web font correction still
+needs its unchanged hosted browser checks; no device was started for this fix.
 
 Android job `120707495228` later failed inside `watch/preferences.yaml` at
 step 118, after returning Home and restarting the app: the exact saved source's
