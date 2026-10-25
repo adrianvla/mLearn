@@ -11,10 +11,11 @@ const target = path.resolve(root, process.env.CARGO_TARGET_DIR ?? 'target');
 // it supplies neither predictable random bytes nor ambient JS/WASI imports.
 const flags = [process.env.CARGO_ENCODED_RUSTFLAGS ?? '', '--cfg', 'getrandom_backend="unsupported"']
   .filter(Boolean).join('\x1f');
+const jobs = process.env.CARGO_BUILD_JOBS ?? '2';
 const child = spawn('cargo', ['build', '--locked', '-p', 'mlearn-document-pdf-guest',
-  '--target', 'wasm32-unknown-unknown', '--release', '--lib', '-j', '2'], {
+  '--target', 'wasm32-unknown-unknown', '--release', '--lib', '-j', jobs], {
   cwd: root, stdio: 'inherit',
-  env: { ...process.env, CARGO_TARGET_DIR: target, CARGO_BUILD_JOBS: '2', CARGO_ENCODED_RUSTFLAGS: flags },
+  env: { ...process.env, CARGO_TARGET_DIR: target, CARGO_BUILD_JOBS: jobs, CARGO_ENCODED_RUSTFLAGS: flags },
 });
 const code = await new Promise((resolve, reject) => {
   child.once('error', reject);

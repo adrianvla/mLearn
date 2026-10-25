@@ -51,6 +51,18 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Normal-launch document preparation job budget — 2026-10-25
+
+The normal desktop launch exposed `prepare-documents.mjs` overriding
+`CARGO_BUILD_JOBS=1` with CLI `-j 2` and environment `2`. It now forwards the
+configured value to both, retaining the existing default when unset.
+A child-process boundary probe fails before the fix and passes for one job,
+the unset default and an explicit override afterward, without launching Cargo.
+Node syntax, architecture lint and LSP diagnostics pass. Real offline one-job
+preparation then completes in 0.35 seconds and preserves the 1,873,755-byte guest
+SHA256 `c432e917c4ea1a42a57ff6c799b6b35448db2e9a114316884263c4312d7387a1`.
+The original red/green/integration logs remain in the existing M07 directory.
+
 #### Memory-accounting correction and resumed verification — 2026-10-25
 
 The maintainer reports Activity Monitor staying around 2.5 GB. A direct
