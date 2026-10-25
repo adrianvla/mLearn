@@ -53,6 +53,59 @@ launchers were released with retained read-back receipts.
 
 #### Disk recovery and verified Settings header repair — 2026-10-25
 
+Published source `f5caf675` now passes Linux desktop `40202743902` and all
+five foundation jobs in `40202743976`, including Windows and macOS. Mobile
+`40202743824` passes Android job `121197163468`; iOS job `121197163601` fails
+the original deferred `id: m01-watch, mp4 is not visible` assertion after
+1 minute 36 seconds. The exact selected failure log is retained; no additional
+FileProvider diagnostic variant was launched.
+
+The continued matched Watch comparison found a separate real content defect:
+the live card for negative `ない` displayed “dead.” The existing Japanese ABI
+regression reproduces first target `jmdict:1518450` instead of normalized-form
+`jmdict:1529520`. The working package repair prefers normalized-spelling matches
+while preserving every alternative identity; package revision 0.1.7 makes the
+changed executable explicit. All 26 package unit tests, both real Japanese ABI
+tests, offline bundle regeneration, Rust diagnostics and architecture lint pass.
+After the maintainer restarted OmO, fresh admission allowed genuine native
+verification: Settings installed signed package 0.1.7 and Playback options
+explicitly activated it for the saved source. The real live card now reads
+“nonexistent; not being (there)” rather than “dead.” The installed executable is
+`bf6242174d590e12f99f53d98699d3100a5bd57baa937d9cd4347f2f795da66a`;
+both dictionary assets and the native host binary remain unchanged.
+The desktop tool frame and narrow real-card output were personally inspected.
+All 41 tables outside package installation, source state and SQLite sequence
+metadata remain equivalent under ordered row hashing. Only plugins, install
+receipts, sources and the install receipt sequence change. The source is
+restored to 22000 ms / -6350 ms / rate 1, explicitly using package 0.1.7.
+Dark Quartz and view revision 9 / JLPT / Auto remain. Captures, exact readings
+and red/green logs remain in the existing M07 evidence directory.
+
+The earlier resource pause is preserved, not a product failure or goal
+completion. Before the restart, OmO RSS was 8,536,160 KiB despite charged
+footprint 2.7 GiB, 85% system availability and 3,408.19 MiB swap. Bounded
+`vmmap` inspection places 8.1 GiB resident / 2.7 GiB dirty in OmO's
+App-Specific Tag 1 region; it does not establish why that resident allocation
+persists. No emulator or model workload explained that allocation. The ignored
+local admission guard now requires both RSS and charged footprint below the
+existing 3 GiB ceiling, with three healthy samples; shell syntax and diff checks
+pass. Subscriptions only observe resources and never restart a workload.
+The admitted native run completed and released its app, launcher, guard and
+8081/7780 listeners. A subsequent deliberate restart was terminated when the
+new harness again reached 3 GiB charged footprint; no fresh-process UI
+persistence claim comes from that interrupted attempt. A desktop file captured
+after live-card expiry is retained as an expired attempt, not meaning proof.
+The direct desktop tool frame and narrow files establish the observed repair,
+not a completed final capture matrix.
+
+Separate narrow-focus clipping remains open: focusing a second-column live
+card leaves its rightmost 20 pixels outside the 500-pixel window. Repair and
+recapture are required before Watch parity can close. Remaining work includes
+publication of the verified content increment, that layout repair, durable
+matched captures and the still-open Inspector, performance, M07/platform,
+review-package and cleanup gates. The harness memory issue is not reported
+fixed by a restart or by these product tests.
+
 The maintainer freed disk space by removing simulator runtimes and Rust
 incremental cache; OmO deleted neither. Fresh native continuation now passes
 SQLite `quick_check`, real restart of the retained profile, JLPT/Always restoration,

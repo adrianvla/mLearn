@@ -118,9 +118,16 @@ fn candidates(
     if token.oov {
         return Ok(vec![]);
     }
-    let mut targets = BTreeSet::new();
-    // Dictionary form and normalized form are alternatives, never identity merges.
-    for form in BTreeSet::from([token.lemma.as_str(), token.normalized.as_str()]) {
+    let mut targets = Vec::new();
+    // Prefer the tokenizer's normalized spelling over same-reading homographs
+    // from the dictionary form. Keep every alternative as a separate identity.
+    for (index, form) in [token.normalized.as_str(), token.lemma.as_str()]
+        .into_iter()
+        .enumerate()
+    {
+        if index == 1 && token.lemma == token.normalized {
+            continue;
+        }
         if form.len() + 5 > 256 {
             continue;
         }
@@ -137,8 +144,11 @@ fn candidates(
                     token.surface == token.lemma || token.pos.get(4).is_some_and(|p| p == "*");
                 let reading_matches =
                     !uninflected || hiragana(&token.reading) == hiragana(&candidate.reading);
-                if reading_matches && compatible(&token.pos, &candidate.pos) {
-                    targets.insert(candidate.id);
+                if reading_matches
+                    && compatible(&token.pos, &candidate.pos)
+                    && !targets.contains(&candidate.id)
+                {
+                    targets.push(candidate.id);
                 }
             }
         }
@@ -146,7 +156,7 @@ fn candidates(
     if targets.len() > 128 {
         return Err("Too many lexical alternatives".into());
     }
-    Ok(targets.into_iter().collect())
+    Ok(targets)
 }
 
 fn project(
@@ -509,6 +519,36 @@ mod tests {
             ]))))
         };
         assert_eq!(candidates(&adjective, &lookup).unwrap(), ["jmdict:2820690"]);
+    }
+    #[test]
+    fn normalized_spelling_precedes_homographs_without_losing_alternatives() {
+        let negative = Token {
+            surface: "ない".into(),
+            processed_surface: "ない".into(),
+            lemma: "ない".into(),
+            normalized: "無い".into(),
+            reading: "ナイ".into(),
+            pos: vec!["形容詞".into(), "非自立可能".into()],
+            ..token()
+        };
+        let lookup = |key: &str| {
+            Ok(Some(Rc::new(match key {
+                "form/無い" => json!([
+                    {"id":"jmdict:1529520","reading":"ない",
+                     "pos":["adjective (keiyoushi)","auxiliary adjective"]}
+                ]),
+                "form/ない" => json!([
+                    {"id":"jmdict:1518450","reading":"ない","pos":["adjective (keiyoushi)"]},
+                    {"id":"jmdict:1529520","reading":"ない",
+                     "pos":["adjective (keiyoushi)","auxiliary adjective"]}
+                ]),
+                _ => panic!("Unexpected form lookup: {key}"),
+            })))
+        };
+        assert_eq!(
+            candidates(&negative, &lookup).unwrap(),
+            ["jmdict:1529520", "jmdict:1518450"]
+        );
     }
     #[test]
     fn katakana_dictionary_reading_preserves_half_width_source_association() {

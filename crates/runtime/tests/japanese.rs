@@ -1,6 +1,6 @@
 use mlearn_language_host::CodePolicy;
-use mlearn_runtime::{BundledPlugin, Runtime, catalog::Manifest};
-use serde_json::{Value, json};
+use mlearn_runtime::{catalog::Manifest, BundledPlugin, Runtime};
+use serde_json::{json, Value};
 use std::{collections::BTreeMap, path::PathBuf};
 
 fn bundle() -> Vec<BundledPlugin> {
@@ -99,13 +99,12 @@ fn japanese_transcript_metadata_fits_the_existing_guest_budget() {
             text
         );
     }
-    assert!(
-        cues.iter()
-            .flat_map(|cue| cue["tokens"].as_array().unwrap())
-            .any(|token| token["presentation"]["contours"]
-                .as_array()
-                .is_some_and(|values| !values.is_empty()))
-    );
+    assert!(cues
+        .iter()
+        .flat_map(|cue| cue["tokens"].as_array().unwrap())
+        .any(|token| token["presentation"]["contours"]
+            .as_array()
+            .is_some_and(|values| !values.is_empty())));
 }
 #[test]
 fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
@@ -167,13 +166,11 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
             json!({"type":"inspect_target","packageId":"org.mlearn.japanese","targetId":target}),
         );
         assert_eq!(entry["entry"]["targetId"], target);
-        assert!(
-            entry["entry"]["reading"]
-                .as_str()
-                .unwrap()
-                .split(" / ")
-                .any(|value| value == reading)
-        );
+        assert!(entry["entry"]["reading"]
+            .as_str()
+            .unwrap()
+            .split(" / ")
+            .any(|value| value == reading));
     }
     assert_eq!(
         katakana["output"][0][0]["presentation"]["readings"][0]["text"],
@@ -211,13 +208,15 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
         .iter()
         .find(|token| token["text"] == "ない")
         .unwrap();
-    assert!(
-        nai["targets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|target| target == "jmdict:1529520")
+    assert_eq!(
+        nai["targets"][0], "jmdict:1529520",
+        "The normalized negative form must precede the dead homograph in nearby meanings"
     );
+    assert!(nai["targets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|target| target == "jmdict:1529520"));
     let marked_source = "勝(か)った。銀河(ぎんが)の";
     let marked = call(
         &mut runtime,
@@ -288,20 +287,16 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
         .collect::<Vec<_>>();
     let yesterday = tokens.iter().find(|token| token["text"] == "昨日").unwrap();
     assert_eq!(yesterday["presentation"]["readings"][0]["text"], "きのう");
-    assert!(
-        yesterday["presentation"]["labels"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|label| label["label"] == "JLPT N5")
-    );
-    assert!(
-        yesterday["presentation"]["contours"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|contour| contour["reading"] == "きのう")
-    );
+    assert!(yesterday["presentation"]["labels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|label| label["label"] == "JLPT N5"));
+    assert!(yesterday["presentation"]["contours"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|contour| contour["reading"] == "きのう"));
     if std::env::var_os("MLEARN_JAPANESE_SRT").is_none() {
         let alias_batch = call(
             &mut runtime,
@@ -326,14 +321,12 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
         );
     }
     let target = "jmdict:1579260"; // Actual pinned JMdict entry for 昨日, not a gloss hash.
-    assert!(
-        before["batch"]["cues"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .flat_map(|c| c["tokens"].as_array().unwrap())
-            .any(|t| t["targets"].as_array().unwrap().contains(&json!(target)))
-    );
+    assert!(before["batch"]["cues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|c| c["tokens"].as_array().unwrap())
+        .any(|t| t["targets"].as_array().unwrap().contains(&json!(target))));
     let entry = call(
         &mut runtime,
         json!({"type":"inspect_target","packageId":"org.mlearn.japanese","targetId":target}),
@@ -343,16 +336,12 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
     let pronunciations = entry["entry"]["presentation"]["contours"]
         .as_array()
         .unwrap();
-    assert!(
-        pronunciations
-            .iter()
-            .any(|contour| contour["reading"] == "きのう")
-    );
-    assert!(
-        pronunciations
-            .iter()
-            .any(|contour| contour["reading"] == "さくじつ")
-    );
+    assert!(pronunciations
+        .iter()
+        .any(|contour| contour["reading"] == "きのう"));
+    assert!(pronunciations
+        .iter()
+        .any(|contour| contour["reading"] == "さくじつ"));
     let dictionary = call(
         &mut runtime,
         json!({"type":"inspect_targets","sourceId":id,
@@ -370,18 +359,14 @@ fn japanese_real_abi_claim_withdraw_restart_preserves_source_and_entries() {
             .unwrap()
             .is_empty()
     );
-    assert!(
-        entry["entry"]["reading"]
-            .as_str()
-            .unwrap()
-            .contains("きのう")
-    );
-    assert!(
-        entry["entry"]["definition"]
-            .as_str()
-            .unwrap()
-            .contains("yesterday")
-    );
+    assert!(entry["entry"]["reading"]
+        .as_str()
+        .unwrap()
+        .contains("きのう"));
+    assert!(entry["entry"]["definition"]
+        .as_str()
+        .unwrap()
+        .contains("yesterday"));
     let senses = entry["entry"]["senses"]
         .as_array()
         .expect("JMdict sense groups must survive the package/runtime boundary");
