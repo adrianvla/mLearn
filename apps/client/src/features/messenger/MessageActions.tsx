@@ -63,7 +63,7 @@ export function MessageActions({ actions, message, conversation, packageVersion,
     ? messageAnchor(message, conversation.packageId, packageVersion, { start: 0, end: new TextEncoder().encode(message.text).length })
     : null;
   return <View>
-    <Dialog open={open} onOpenChange={value => { if (!actions.busy) setOpen(value); }}
+    <Dialog open={open} onOpenChange={setOpen}
       title={message.role === 'user' ? 'Your message' : 'Message'}
       description={`Message ${message.sequence} · ${message.status}`}
       trigger={<Button label="Message actions" icon="more" iconOnly variant="quiet" size="compact" disabled={actions.busy} />}>

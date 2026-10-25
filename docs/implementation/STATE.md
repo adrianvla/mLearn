@@ -51,6 +51,29 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Hosted Messenger dismissal regression — 2026-10-25
+
+Foundation run `40222306761`, web job `121256324092`, failed the original
+provider-recovery assertion that the Message dialog closes after Retry response.
+The unchanged local case passes, so it did not retire that failure. Holding
+the actual post-admission conversation read now reproduces the same visible
+dialog after Close: MessageActions rejects every open-state change while
+`actions.busy` remains true. Close was visibly enabled but ignored.
+
+MessageActions now permits dismissal while the existing action owner finishes
+its native retry/refresh. Its mutation controls remain disabled while busy;
+closing neither cancels nor duplicates the admitted generation. The existing
+provider-failure test subscribes to a held refresh before triggering Retry,
+checks Close before releasing it in finally, then preserves all original
+authored-turn, pending-admission, completion and provider-request-count
+assertions. No sleep, wider timeout or weakened assertion is introduced.
+The red fails with visible-versus-hidden; the repair passes all 32 affected
+Messenger recovery and contextual source-action interactions. Typecheck,
+ownership lint and web export pass, and the resulting real-browser screenshot
+was inspected. Evidence is `hosted-dismissal-held-red*` and
+`hosted-dismissal-green*` in the existing M07 directory. Native UI/platform
+coverage remains part of the open exact-source milestone verification.
+
 #### Inspector footer and shared-material correction — 2026-10-25
 
 Reader follow-up: the maintainer requires one top-toolbar row, responsive

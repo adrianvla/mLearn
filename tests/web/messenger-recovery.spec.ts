@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { expect } from '@playwright/test';
+import { EventEmitter, once } from 'node:events';
 import { test, openNativeConversation } from './messenger-native-fixture';
 
 test('a rejected oversized draft can be corrected without replaying the rejected intent', async ({ page, nativeCore }) => {
@@ -73,7 +74,7 @@ for (const loss of ['draft', 'send', 'clear'] as const) {
 }
 
 for (const recovery of ['stop', 'restart', 'provider failure'] as const) {
-  test(`${recovery} retains the authored turn and permits an explicit fresh response`, async ({ page, nativeCore }) => {
+  test(`${recovery} retains the authored turn and permits an explicit fresh response`, async ({ page, nativeCore }, testInfo) => {
     test.setTimeout(60_000);
     await openNativeConversation(page, nativeCore);
     nativeCore.providerMode(recovery === 'provider failure' ? 'fail' : 'hold');
@@ -96,6 +97,28 @@ for (const recovery of ['stop', 'restart', 'provider failure'] as const) {
     nativeCore.providerMode('complete');
     await page.getByRole('button', { name: 'Message actions', exact: true }).last().click();
     const message = page.getByRole('dialog', { name: 'Message', exact: true });
+    const refreshEvents = new EventEmitter();
+    const heldRefresh = recovery === 'provider failure'
+      ? once(refreshEvents, 'held', { signal: AbortSignal.timeout(15000) }) : null;
+    if (heldRefresh) {
+      let admitted = false;
+      await page.route(`${nativeCore.url}/invoke`, async route => {
+        const payload = route.request().postDataJSON();
+        const command = typeof payload.args?.request === 'string' ? JSON.parse(payload.args.request).command : null;
+        if (command?.action === 'retry_generation') {
+          const response = await route.fetch();
+          admitted = true;
+          await route.fulfill({ response });
+        } else if (admitted && command?.action === 'get_conversation') {
+          admitted = false;
+          const response = await route.fetch();
+          const released = once(refreshEvents, 'released', { signal: AbortSignal.timeout(15000) });
+          refreshEvents.emit('held');
+          await released;
+          await route.fulfill({ response });
+        } else await route.continue();
+      });
+    }
     const retried = page.waitForResponse(response => {
       if (response.url() !== `${nativeCore.url}/invoke` || response.request().method() !== 'POST') return false;
       const payload = response.request().postDataJSON();
@@ -106,12 +129,18 @@ for (const recovery of ['stop', 'restart', 'provider failure'] as const) {
     expect(JSON.parse((await (await retried).json()).value)).toMatchObject({
       type: 'conversation', result: { kind: 'generation', generation: { status: 'pending' } },
     });
-    await message.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(message).toBeHidden();
+    try {
+      if (heldRefresh) await heldRefresh;
+      await message.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(message).toBeHidden();
+    } finally {
+      refreshEvents.emit('released');
+    }
     await expect(page.getByTestId('conversation-history').getByText('Children walked home.', { exact: true }).last()).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show analysis', exact: true }).last()).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
     await expect(page.getByTestId('conversation-history').getByText('Preserve my authored message', { exact: true })).toHaveCount(1);
     expect(nativeCore.metadata().providerRequests).toBe(2);
+    if (heldRefresh) await page.screenshot({ path: testInfo.outputPath('message-dismissed-after-admitted-retry.png') });
   });
 }
