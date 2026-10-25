@@ -207,13 +207,27 @@ impl GuestWork {
                             None
                         } else {
                             let texts = input.texts();
-                            Some(
-                                serde_json::from_value(work.invoke(
-                                    "text.analyze.v1",
-                                    serde_json::json!({"texts":texts}),
-                                )?)
-                                .map_err(|e| Failure::Operation(e.to_string()))?,
-                            )
+                            let mut analyses = Vec::with_capacity(texts.len());
+                            // Independent source spans must not spend one another's
+                            // guest-call fuel allowance. Keep each call bounded and
+                            // cancellable; publish only the complete validated batch.
+                            for text in texts {
+                                let batch: Vec<Vec<AnalyzedToken>> =
+                                    serde_json::from_value(work.invoke(
+                                        "text.analyze.v1",
+                                        serde_json::json!({"texts":[text]}),
+                                    )?)
+                                    .map_err(|e| Failure::Operation(e.to_string()))?;
+                                let [analysis]: [Vec<AnalyzedToken>; 1] =
+                                    batch.try_into().map_err(|_| {
+                                        Failure::Operation(
+                                            "Package returned the wrong analysis batch length"
+                                                .into(),
+                                        )
+                                    })?;
+                                analyses.push(analysis);
+                            }
+                            Some(analyses)
                         };
                         GuestOutput::Analysis {
                             tokens,

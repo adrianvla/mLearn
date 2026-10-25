@@ -49,6 +49,9 @@ fn japanese_transcript_metadata_fits_the_existing_guest_budget() {
         "図書館で新しい本を借りて読みます。",
         "天気が良いので公園を歩きたいです。",
     ];
+    // Exercise a full native transcript page, not a short page that hides
+    // unrelated source spans competing for one guest-call fuel allowance.
+    let texts = texts.into_iter().cycle().take(16).collect::<Vec<_>>();
     let subtitle = dir.path().join("authored.srt");
     let srt = texts
         .iter()

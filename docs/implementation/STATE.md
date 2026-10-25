@@ -71,19 +71,38 @@ and 500-pixel after-captures were inspected; the narrow Home action remains
 usable and its bounds no longer intersect the description. Captures and exact
 invocations are indexed in the existing ignored M07 `PLAN.md`.
 
-M07 remains incomplete: a real six-cue Japanese transcript batch exhausts its
-unchanged 64-million fuel allowance, and explicit retry reproduces it. A one-cue
-search succeeds. Repair that shared analysis owner without weakening the guard.
+The subsequent transcript repair is also verified locally. A full 16-cue
+Japanese owner regression reproduced exhaustion before the fix. Independent
+source spans now retain separate bounded guest calls while one complete,
+source-validated result and Knowledge batch are published. Fuel/memory limits,
+package authentication, cancellation, output bounds and cache ownership remain.
+The Japanese, source/cancellation, conversation, OCR, Watch and document runs
+pass (57 test executions); no test assertion was weakened.
+
+The original six-cue native failure now completes uncached and on cached reopen,
+with one reusable guest initialization, no failed calls and at most 20,300,038
+fuel per call under the existing 64-million ceiling. Its 34 Knowledge keys
+remain one batch. Actual desktop and 500-pixel first/last-cue captures were
+inspected, with real reading/pitch/stars and Capture controls. All 44 non-source
+domain tables remain unchanged across this analysis; the source table changes
+during media resume, while the original source document and 22000 ms / -6350 ms
+values remain unchanged. Auto / JLPT / view revision 9 is retained.
+Native binary SHA256:
+`b06dfc366f30e8542ab41853fa7b8ac1c054236a870be2b53ff1d30072a712d5`.
+The runtime guest blob is `2fbd51435544a4e4a2ebdaa5d263a4ea194b100a`;
+the authenticated Japanese code remains `4355190664c4216a8d2e0ff2228fe66ad2d173b6515803793dca870bdac2e8c5`.
+
+Full M07 visual/performance/platform gates remain incomplete.
 Source `97df66b0` passed Linux native CI and foundation web/Rust/detector/macOS;
 Windows still failed before publishing its configured application window.
 Both mobile builds succeeded, but Android's Maestro connection died during
 Playback options and iOS hit the explicitly deferred FileProvider assertion.
 Neither failure is reported green or resolved by the header repair.
 
-Both targeted native launchers/apps, their 8081/7780 listeners and resource
+All targeted native launchers/apps, their 8081/7780 listeners and resource
 guards are now stopped with readback receipts. The unrelated 4173 server remains
-untouched. Latest disk free is 50 GiB; root charged footprint is 2598 MB and swap
-2873.75 MiB. These scoped results do not close full visual/performance/platform
+untouched. Latest disk free is 49 GiB; root charged footprint is 2638 MB and swap
+2849.75 MiB. These scoped results do not close full visual/performance/platform
 acceptance, remaining cleanup or the consolidated M07 review package.
 
 #### Historical native continuation pause: disk exhaustion
