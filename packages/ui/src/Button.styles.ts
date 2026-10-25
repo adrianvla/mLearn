@@ -4,7 +4,7 @@ import type {} from '@mlearn/theme/runtime';
 import type { ResolvedTheme } from '@mlearn/theme';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'media' | 'mediaFloating' | 'mediaSelect' | 'mediaSync' | 'pill' | 'navigation' | 'segment' | 'select' | 'disclosure' | 'preview' | 'sourcePreview' | 'dictionary';
-export type ButtonTone = 'neutral' | 'positive' | 'negative' | 'warning';
+export type ButtonTone = 'neutral' | 'positive' | 'negative' | 'warning' | 'info';
 export type ButtonSize = 'default' | 'compact' | 'row';
 
 export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, tone: ButtonTone, selected = false) {
@@ -53,6 +53,7 @@ export default StyleSheet.create(theme => ({
         ...(variant === 'pill' ? {
           backgroundImage: `linear-gradient(${theme.pills[tone].top}, ${theme.pills[tone].surface})`,
           boxShadow: 'inset 0 1px 0 #FFFFFF08',
+          ...(size === 'compact' ? { minHeight: 28, paddingVertical: 5, paddingHorizontal: 10, borderRadius: theme.radius + 2 } : {}),
         } : {}),
         ...(variant === 'dictionary' ? { minHeight: 30, paddingVertical: 0, backdropFilter: theme.media.backdrop } : {}),
         ...(variant === 'mediaSync' ? { minHeight: 40, minWidth: iconOnly ? 40 : 100 * theme.textScale,
@@ -64,7 +65,7 @@ export default StyleSheet.create(theme => ({
   label: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean) => ({
     ...theme.typography[variant === 'mediaSync' ? 'subtitleOffset' : variant === 'dictionary' ? 'dictionaryMeaning' : variant === 'disclosure' ? 'inspectionBody'
       : variant === 'navigation' ? 'navigation' : variant === 'select' || variant === 'sourcePreview' ? 'caption'
-      : variant === 'pill' ? 'knowledgeAction' : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' ? 'mediaAction'
+      : variant === 'pill' ? size === 'compact' ? 'compactPill' : 'knowledgeAction' : variant === 'media' || variant === 'mediaFloating' || variant === 'mediaSelect' ? 'mediaAction'
       : size === 'default' ? 'action' : 'compactAction'],
     flexShrink: 1, ...(variant === 'dictionary' ? { flex: 1, minWidth: 0 } : {}),
     color: buttonForeground(theme, variant, tone, selected),

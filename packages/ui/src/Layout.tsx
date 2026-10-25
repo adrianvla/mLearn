@@ -37,7 +37,7 @@ export function AppShell({ header, navigation, children }: PropsWithChildren<{
 }
 export function Panel({ children, inset = 'standard', material = 'glass' }: PropsWithChildren<{
   readonly inset?: 'standard' | 'compact' | 'spacious';
-  readonly material?: 'glass' | 'solid';
+  readonly material?: 'glass' | 'solid' | 'card';
 }>) {
   return <View style={styles.panel(inset, material)}>{children}</View>;
 }
@@ -98,8 +98,8 @@ const styles = StyleSheet.create((theme) => ({
   shellBody: (sidebar: boolean) => ({ flexGrow: 1, paddingLeft: sidebar ? theme.spacing.section + theme.spacing.small : theme.spacing.large,
     paddingRight: sidebar ? theme.spacing.section : theme.spacing.large, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.large, alignItems: 'center' }),
   shellContent: { width: '100%', maxWidth: 1184, gap: theme.spacing.comfortable },
-  panel: (inset: 'standard' | 'compact' | 'spacious', material: 'glass' | 'solid') => ({
-    backgroundColor: material === 'solid' ? theme.colors.surface : theme.surfaces.glass,
+  panel: (inset: 'standard' | 'compact' | 'spacious', material: 'glass' | 'solid' | 'card') => ({
+    backgroundColor: material === 'solid' ? theme.colors.surface : material === 'card' ? theme.surfaces.card : theme.surfaces.glass,
     borderRadius: theme.radius + 4, borderWidth: 1, borderColor: theme.colors.border,
     padding: inset === 'compact' ? theme.spacing.small + theme.spacing.tiny / 2
       : inset === 'spacious' ? theme.spacing.large : theme.spacing.medium, gap: theme.spacing.compact }),

@@ -132,6 +132,14 @@ fn build(
     if ruby.is_none() && levels.is_empty() && contours.is_empty() {
         return Ok(None);
     }
+    // v2's five declared JLPT levels rank hardest -> easiest as 1 -> 5.
+    // Multiple source memberships retain all labels; inline stars show the hardest.
+    let inline_levels = levels.first().map(|level| {
+        json!({
+            "scaleId":format!("{PACKAGE}:jlpt-vocabulary"),"level":format!("N{level}"),
+            "label":format!("JLPT N{level}"),"rank":level,"attribution":LEVEL_SOURCE
+        })
+    });
     let labels = levels.into_iter().map(|level| {
         // Package-owned level display, measured from the reference label palette.
         let color = match level {
@@ -153,6 +161,9 @@ fn build(
     value["readings"] = Value::Array(readings);
     value["labels"] = Value::Array(labels);
     value["contours"] = Value::Array(contours.into_values().collect());
+    if let Some(level) = inline_levels {
+        value["levels"] = json!([level]);
+    }
     Ok(Some(value))
 }
 
@@ -358,6 +369,13 @@ mod tests {
         .unwrap();
         assert_eq!(value["contours"].as_array().unwrap().len(), 2);
         assert_eq!(value["labels"][0]["label"], "JLPT N3");
+        assert_eq!(
+            value["levels"][0],
+            json!({
+                "scaleId":"org.mlearn.japanese:jlpt-vocabulary","level":"N3",
+                "label":"JLPT N3","rank":3,"attribution":LEVEL_SOURCE
+            })
+        );
     }
     #[test]
     fn inflected_surface_ruby_does_not_borrow_lemma_accent() {

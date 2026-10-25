@@ -19,6 +19,7 @@
     "./keyboard-avoiding-view": "./src/KeyboardAvoidingView.tsx",
     "./provider": "./src/Provider.tsx",
     "./inline-word": "./src/InlineWord.tsx",
+    "./level-stars": "./src/LevelStars.tsx",
     "./document": "./src/Document.tsx",
     "./reading-segments": "./src/readingSegments.ts",
     "./context-panel": "./src/ContextPanel.tsx",

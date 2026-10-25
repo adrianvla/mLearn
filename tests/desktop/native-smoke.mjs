@@ -480,6 +480,21 @@ try {
   const shifted=await native({type:'source_window',sourceId:id,positionMs:14500});
   assert.equal(shifted.window.cues.find(cue=>cue.index===1).startMs,15000);
   await click('Transcript');
+  // Vocabulary is a companion sidebar, not the reading-only Transcript mode:
+  // the real source captions must remain visible beside its word controls.
+  await observeSourceView(`(()=>{
+    const captions=document.querySelector('[data-testid="subtitle-window"]');
+    if(!captions||!captions.textContent.trim())return false;
+    for(let node=captions;node;node=node.parentElement){
+      const style=getComputedStyle(node);
+      if(style.opacity==='0'||style.visibility==='hidden'||style.display==='none')return false;
+    }
+    return true;
+  })()`);
+  await click('Sidebar content: Transcript');await click('Vocabulary');
+  await observedSourceView('Vocabulary must preserve the current real source captions');
+  await screenshot('native-vocabulary-with-source-captions');
+  await click('Sidebar content: Vocabulary');await click('Transcript');
   const search=await rpc('POST',`/session/${session}/element`,{using:'css selector',value:'[aria-label="Search transcript"]'});
   const searchId=search['element-6066-11e4-a52e-4f735466cecf'];
   await rpc('POST',`/session/${session}/element/${searchId}/value`,{text:'came'});

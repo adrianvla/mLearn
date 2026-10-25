@@ -661,7 +661,7 @@ fn additive_page_registry_migration_preserves_existing_sources_ocr_and_preferenc
     drop(store);
     let path = directory.path().join("profile.sqlite3");
     let db = rusqlite::Connection::open(&path).unwrap();
-    db.execute_batch("DROP TABLE document_pages; DROP TABLE ocr_cancellations;
+    db.execute_batch("DROP TABLE view_preference_receipts; DROP TABLE view_preferences; DROP TABLE document_pages; DROP TABLE ocr_cancellations;
         CREATE INDEX document_source_pages ON document_blocks(source_id,json_extract(block,'$.page'),ordinal);
         PRAGMA user_version=7;").unwrap();
     drop(db);

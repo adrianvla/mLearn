@@ -1,8 +1,11 @@
+/// <reference types="node" />
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import type { AnalysisBatch, MaterialCreate, SourceRecord } from '@mlearn/contracts';
+import type { AnalysisBatch, MaterialCreate, SourceAnchor, SourceRecord } from '@mlearn/contracts';
 import { captureSourcePage } from '../../apps/client/src/features/material/captureSource';
+import { cueAnchor, emptyMaterial } from '../../apps/client/src/features/material/content';
+import { prepareSourcePractice } from '../../apps/client/src/features/material/sourcePractice';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import { resolve } from 'node:path';
@@ -126,6 +129,153 @@ test('changed source identity and nonadvancing pages cannot admit capture', asyn
   assert.equal((await captureSourcePage(client, source, 0, new AbortController().signal)).done, true);
 });
 
+test('source practice freezes saved eligible video selections at native cue positions', async () => {
+  const cue = { index: 3, startMs: 1500, endMs: 4000, text: '前 勇気 次' };
+  const candidates = ['courage', 'next', 'excluded', 'unsaved'].map((targetId, index) => ({
+    key: targetId, resolveCuePosition: true,
+    content: { ...emptyMaterial(source.packageId), phrase: index ? '次' : '勇気', targetId,
+      source: cueAnchor(source, cue, index ? { start: 11, end: 14 } : { start: 4, end: 10 }, 1000) },
+  }));
+  const positions: unknown[][] = [];
+  const client: Parameters<typeof prepareSourcePractice>[0] = {
+    async materialEligibility(targets) {
+      return targets.map(target => ({ target, availability: target.targetId === 'unsaved' ? { state: 'eligible' }
+        : { state: 'existing', materialId: target.targetId, excluded: target.targetId === 'excluded' } }));
+    },
+    async cuePosition(...args) { positions.push(args); return 900; },
+    prepareReviewStart(mode) { return { kind: 'start', start: { commandId: 'start', sessionId: 'practice', mode } }; },
+  };
+  const command = await prepareSourcePractice(client, candidates, new AbortController().signal);
+  assert.equal(command.kind, 'start');
+  assert.ok(command.kind === 'start' && command.start.mode.kind === 'practice');
+  const items = command.start.mode.items;
+  assert.deepEqual(items.map(item => item.materialId), ['courage', 'next']);
+  assert.deepEqual(positions, [[source.id, source.subtitleRevision, cue.index]]);
+  const anchor = items[0].source;
+  assert.ok(anchor?.locator.kind === 'video');
+  assert.equal(anchor.text, cue.text);
+  assert.equal(anchor.locator.positionMs, 900);
+  assert.equal(anchor.locator.selectionStart, 4);
+  assert.equal(anchor.locator.selectionEnd, 10);
+  assert.equal(anchor.locator.subtitleOffsetMs, source.subtitleOffsetMs);
+});
+
+test('source practice preserves the Reader image selection and original region position', async () => {
+  const anchor: SourceAnchor = { sourceId: 'image-source', contentRevision: 'images-1',
+    packageId: source.packageId, packageVersion: '1', text: '前 勇気 次',
+    locator: { kind: 'image', resourceId: 'page-1', pageIndex: 0, ocrRevision: 1,
+      regionId: 'region', contextStart: 20, selectionStart: 4, selectionEnd: 10 } };
+  const command = await prepareSourcePractice({
+    async materialEligibility(targets) { return targets.map(target => ({
+      target, availability: { state: 'existing', materialId: 'saved', excluded: false },
+    })); },
+    async cuePosition() { throw new Error('An image must not resolve a video cue.'); },
+    prepareReviewStart(mode) { return { kind: 'start', start: { commandId: 'start', sessionId: 'practice', mode } }; },
+  }, [{ key: 'courage', content: { ...emptyMaterial(source.packageId), targetId: 'courage', source: anchor } }],
+  new AbortController().signal);
+  assert.ok(command.kind === 'start' && command.start.mode.kind === 'practice');
+  assert.deepEqual(command.start.mode.items[0].source, { ...anchor, text: '勇気',
+    locator: { ...anchor.locator, contextStart: 24, selectionStart: 0, selectionEnd: 6 } });
+});
+
+test('source practice cancellation admits no session after an in-flight position read', { timeout: 5000 }, async () => {
+  const controller = new AbortController();
+  let entered!: () => void;
+  const reading = new Promise<void>(resolve => { entered = resolve; });
+  let release!: () => void;
+  const completion = new Promise<void>(resolve => { release = resolve; });
+  const candidate = { key: 'word', resolveCuePosition: true, content: { ...emptyMaterial(source.packageId),
+    targetId: 'word', source: cueAnchor(source, { index: 0, startMs: 1500, endMs: 4000, text: 'word' }, { start: 0, end: 4 }, 1000) } };
+  const pending = prepareSourcePractice({
+    async materialEligibility(targets) { return targets.map(target => ({
+      target, availability: { state: 'existing', materialId: 'saved', excluded: false },
+    })); },
+    async cuePosition() { entered(); await completion; return 1000; },
+    prepareReviewStart() { throw new Error('Cancelled preparation must not admit a session.'); },
+  }, [candidate], controller.signal);
+  await reading;
+  controller.abort();
+  release();
+  await assert.rejects(pending, /preparation stopped/);
+});
+
+test('shared source practice retries the original admission after an uncertain reply', { timeout: 30000 }, async (t: TestContext) => {
+  const bundle = await build({
+    stdin: { contents: `
+      import React from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { useSourcePractice } from './apps/client/src/features/material/useSourcePractice';
+      import { emptyMaterial, cueAnchor } from './apps/client/src/features/material/content';
+      import { createRuntimeClient } from './packages/runtime-client/src/client';
+      const source = ${JSON.stringify(source)};
+      window.mount = mode => {
+        let next = 0, attempts = 0;
+        const commands = [], receipts = new Map();
+        const client = createRuntimeClient({
+          commandId: () => 'command-' + next++,
+          execute: async raw => {
+            const request = JSON.parse(raw);
+            if (request.type === 'material_eligibility') return JSON.stringify({
+              type: 'material_eligibility', items: request.targets.map(target => ({
+                target, availability: { state: 'existing', materialId: 'saved', excluded: false }
+              }))
+            });
+            if (request.type !== 'review') throw new Error('Unexpected request: ' + request.type);
+            const command = request.command;
+            commands.push(structuredClone(command));
+            const first = attempts++ === 0;
+            if (first && mode === 'before') throw new Error('Rejected before commit');
+            if (!receipts.has(command.start.commandId)) receipts.set(command.start.commandId, {
+              commandId: command.start.commandId, committedRevision: 1, session: {
+                id: command.start.sessionId, revision: 1, mode: command.start.mode,
+                state: 'active', completed: 0, total: 1, encounter: null, canUndo: false, message: null
+              }
+            });
+            if (first && mode === 'after') throw new Error('Committed but reply rejected');
+            return JSON.stringify({ type: 'review', commit: receipts.get(command.start.commandId) });
+          }
+        });
+        const candidates = [{ key: 'word', content: { ...emptyMaterial(source.packageId),
+          targetId: 'word', phrase: 'word', source: cueAnchor(source,
+            { index: 0, startMs: 1500, endMs: 4000, text: 'word' }, { start: 0, end: 4 }, 1000) } }];
+        window.practiceState = () => ({ commands, prepared: next, committed: receipts.size });
+        function Fixture() {
+          const [session, setSession] = React.useState('');
+          const practice = useSourcePractice(client, candidates, 'source', setSession);
+          return <><button disabled={practice.pending} onClick={() => practice.start()}>Start</button>
+            <span role="alert">{practice.error}</span><output>{session}</output></>;
+        }
+        createRoot(document.getElementById('root')).render(<Fixture />);
+      };
+    `, resolveDir: resolve('.'), loader: 'tsx' },
+    bundle: true, write: false, format: 'iife', platform: 'browser', jsx: 'automatic',
+    define: { 'process.env.NODE_ENV': '"production"', 'process.env.EXPO_PUBLIC_MLEARN_METRICS': '"0"' },
+  });
+  const script = bundle.outputFiles[0];
+  assert.ok(script);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const mode of ['before', 'after'] as const) await t.test(mode, async () => {
+      const page = await browser.newPage();
+      page.setDefaultTimeout(3000);
+      try {
+        await page.setContent('<div id="root"></div>');
+        await page.addScriptTag({ content: script.text });
+        await page.evaluate(mode => Reflect.get(window, 'mount')(mode), mode);
+        await page.getByRole('button', { name: 'Start', exact: true }).click();
+        await expect(page.getByRole('alert')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
+        await page.getByRole('button', { name: 'Start', exact: true }).click();
+        await expect(page.locator('output')).toHaveText('command-1');
+        const state = await page.evaluate(() => Reflect.get(window, 'practiceState')());
+        assert.equal(state.prepared, 2);
+        assert.equal(state.committed, 1);
+        assert.equal(state.commands.length, 2);
+        assert.deepEqual(state.commands[1], state.commands[0]);
+      } finally { await page.close(); }
+    });
+  } finally { await browser.close(); }
+});
+
 test('CaptureList retries uncertain writes with their prepared identities, separately from availability reads', { timeout: 30000 }, async (t: TestContext) => {
   // Only native presentation primitives are substituted; React, CaptureList and
   // the typed runtime client execute unchanged in an isolated browser.
@@ -134,9 +284,11 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
       import React from 'react';
       import { createRoot } from 'react-dom/client';
       import { CaptureList } from './apps/client/src/features/material/CaptureList';
+      import { Transcript } from './apps/client/src/features/watch/Transcript';
       import { emptyMaterial, cueAnchor } from './apps/client/src/features/material/content';
       import { createRuntimeClient } from './packages/runtime-client/src/client';
       const source = ${JSON.stringify(source)};
+      const analysis = ${JSON.stringify({ ...fixture(2).batch, packageRevision: 'a'.repeat(64) })};
       window.mount = (mode) => {
         let next = 0, attempts = 0, reads = 0;
         const commands = [], receipts = new Map();
@@ -144,6 +296,21 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           commandId: () => 'command-' + next++,
           execute: async raw => {
             const request = JSON.parse(raw);
+            if (request.type === 'analyze_transcript') return JSON.stringify({ type: 'analysis', batch: analysis });
+            if (request.type === 'transcript') return JSON.stringify({ type: 'transcript', page: {
+              sourceId: source.id, subtitleRevision: source.subtitleRevision,
+              cues: analysis.cues.map(item => item.cue), nextIndex: null
+            } });
+            if (request.type === 'cue_position') return JSON.stringify({ type: 'cue_position', position: {
+              sourceId: source.id, subtitleRevision: source.subtitleRevision, cueIndex: request.cueIndex, positionMs: 1000
+            } });
+            if (request.type === 'inspect_targets') return JSON.stringify({ type: 'dictionary', batch: {
+              sourceId: source.id, subtitleRevision: source.subtitleRevision, packageId: source.packageId,
+              packageVersion: source.packageVersion, packageRevision: analysis.packageRevision,
+              items: request.targetIds.map(targetId => ({ state: 'available', summary: {
+                targetId, headword: targetId, reading: 'reading ' + targetId, summary: 'meaning ' + targetId, presentation: null
+              } }))
+            } });
             if (request.type === 'material_eligibility') {
               if (mode === 'availability' && reads++ === 0) throw new Error('Availability unavailable');
               return JSON.stringify({ type: 'material_eligibility', items: request.targets.map(target => ({
@@ -169,7 +336,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           const first = attempts++ === 0;
           if (first && mode === 'before') throw new Error('Rejected before commit');
           const results = await capture(batch);
-          if (first && mode === 'after') throw new Error('Committed but reply rejected');
+          if (first && (mode === 'after' || mode === 'cards')) throw new Error('Committed but reply rejected');
           return results;
         };
         const candidates = ['word0', 'word1'].map((phrase, index) => ({
@@ -178,7 +345,22 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
               { start: 0, end: phrase.length }, 1000) }
         }));
         window.captureState = () => ({ commands, prepared: next, committed: receipts.size });
-        createRoot(document.getElementById('root')).render(React.createElement(CaptureList, { client, candidates }));
+        if (mode === 'transcript' || mode === 'vocabulary-focus') {
+          function SourceTranscript() {
+            const [vocabulary, setVocabulary] = React.useState(false);
+            return <Transcript client={client} source={source} vocabulary={vocabulary} onVocabularyChange={setVocabulary}
+            open={true} onOpenChange={() => {}} onSeek={() => {}} analysis={analysis}
+            onAnalysis={() => {}} onInspect={inspection => {
+              window.sourceInspection = inspection;
+              window.dispatchEvent(new Event('source-inspected'));
+            }} />;
+          }
+          createRoot(document.getElementById('root')).render(<SourceTranscript />);
+          return;
+        }
+        createRoot(document.getElementById('root')).render(React.createElement(CaptureList, {
+          client, candidates, presentation: mode === 'cards' ? 'cards' : 'rows'
+        }));
       };
     `, resolveDir: resolve('.') , loader: 'tsx' },
     bundle: true, write: false, format: 'iife', platform: 'browser', jsx: 'automatic',
@@ -186,20 +368,45 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
     plugins: [{
       name: 'native-presentation',
       setup(builder) {
-        builder.onResolve({ filter: /^(react-native(-unistyles)?|@mlearn\/ui\/.*)$/ }, args => ({ path: args.path, namespace: 'presentation' }));
+        builder.onResolve({ filter: /material$/ }, args =>
+          args.path === '../material' && args.importer.endsWith('/watch/Transcript.tsx')
+            ? { path: args.path, namespace: 'capture-owner' } : undefined);
+        builder.onLoad({ filter: /.*/, namespace: 'capture-owner' }, () => ({
+          loader: 'ts', resolveDir: resolve('.'), contents: `
+            export { cueAnchor, emptyMaterial } from './apps/client/src/features/material/content';
+            export { CaptureList } from './apps/client/src/features/material/CaptureList';
+            export { SourceCapture } from './apps/client/src/features/material/SourceCapture';
+            export { useSourcePractice } from './apps/client/src/features/material/useSourcePractice';
+          `,
+        }));
+        builder.onResolve({ filter: /^(react-native(-unistyles)?|expo-router|@mlearn\/ui\/.*)$/ }, args =>
+          args.path === '@mlearn/ui/reading-segments'
+            ? { path: resolve('packages/ui/src/readingSegments.ts') }
+            : { path: args.path, namespace: 'presentation' });
         builder.onLoad({ filter: /.*/, namespace: 'presentation' }, () => ({
           loader: 'tsx', resolveDir: resolve('.'), contents: `
             import React from 'react';
             import { initialTheme, resolveTheme } from './packages/theme/src/theme';
             export const View = ({ children }) => <div>{children}</div>;
             export const Row = View;
+            export const Panel = View;
+            export const Platform = { OS: 'web' };
+            export const useRouter = () => ({ push() {} });
+            export const Dialog = ({ open, trigger, children }) => <>{trigger}{open ? <section>{children}</section> : null}</>;
+            export const TextField = ({ label, value, onChangeText }) => <input aria-label={label} value={value} onChange={event => onChangeText(event.target.value)} />;
+            export const Select = ({ label, value, options, onValueChange }) => <select aria-label={label} value={value} onChange={event => onValueChange(event.target.value)}>
+              {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>;
             export const Text = ({ children, accessibilityRole }) => <span role={accessibilityRole}>{children}</span>;
-            export const Button = ({ label, disabled, onPress }) => <button disabled={disabled} onClick={onPress}>{label}</button>;
-            export const InlineWord = ({ text, onActivate }) => <button onClick={event => {
+            export const Button = React.forwardRef(({ label, accessibilityLabel, disabled, onPress }, ref) =>
+              <button ref={ref} aria-label={accessibilityLabel ?? label} disabled={disabled} onClick={onPress}>{label}</button>);
+            export const InlineWordContent = ({ segments }) => <span>{segments.map(segment => segment.text).join('')}</span>;
+            export const PronunciationReading = ({ reading }) => <span>{reading}</span>;
+            export const InlineWord = ({ text, children, onActivate }) => <button onClick={event => {
               const node = event.currentTarget;
               onActivate({ ...node.getBoundingClientRect().toJSON(),
                 measure: publish => publish(node.getBoundingClientRect()), restoreFocus: () => node.focus() });
-            }}>{text}</button>;
+            }}>{children ?? text}</button>;
             export const Badge = ({ label }) => <span>{label}</span>;
             export const StyleSheet = { create: definition => typeof definition === 'function'
               ? definition(resolveTheme(initialTheme)) : definition };
@@ -212,7 +419,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
   assert.ok(script);
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const mode of ['before', 'after', 'availability'] as const) await t.test(mode, async () => {
+    for (const mode of ['before', 'after', 'availability', 'cards', 'transcript', 'vocabulary-focus'] as const) await t.test(mode, async () => {
       const page = await browser.newPage();
       page.setDefaultTimeout(3000);
       const errors: string[] = [];
@@ -224,6 +431,32 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           const mount = Reflect.get(window, 'mount');
           mount(mode);
         }, mode);
+        if (mode === 'vocabulary-focus') {
+          await page.getByRole('combobox', { name: 'Sidebar content', exact: true }).selectOption('vocabulary');
+          const inspected = page.evaluate(() => new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Source inspection was not published')), 3000);
+            window.addEventListener('source-inspected', () => { clearTimeout(timeout); resolve(); }, { once: true });
+          }));
+          await page.getByRole('button', { name: 'word0', exact: true }).click();
+          await inspected;
+          await page.getByRole('button', { name: 'Unknown words', exact: true }).click();
+          await expect(page.getByRole('button', { name: 'word0', exact: true })).toHaveCount(0);
+          await page.evaluate(() => Reflect.get(window, 'sourceInspection').anchor.restoreFocus());
+          await expect(page.getByRole('button', { name: 'Transcript', exact: true })).toBeFocused();
+          return;
+        }
+        if (mode === 'transcript') {
+          await page.getByRole('button', { name: 'Capture word0', exact: true }).click();
+          await expect(page.getByText('Saved · saved-command-0 · revision 1', { exact: true })).toBeVisible();
+          const state = await page.evaluate(() => Reflect.get(window, 'captureState')());
+          const content = state.commands[0][0].content;
+          assert.equal(content.meaning, 'meaning word0');
+          assert.equal(content.reading, 'reading word0');
+          assert.equal(content.source.locator.positionMs, 1000);
+          assert.equal(content.source.locator.selectionStart, 0);
+          assert.equal(content.source.locator.selectionEnd, 5);
+          return;
+        }
         if (mode === 'availability') {
           await page.getByRole('button', { name: 'Retry availability', exact: true }).click();
         }

@@ -13,15 +13,18 @@ import { builtInThemes, initialTheme, parseThemePreview, resolveBuiltInTheme } f
 import { Select } from '@mlearn/ui/select';
 import { Icon } from '@mlearn/ui/icon';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { useViewPreferences } from '../../bootstrap/ViewPreferences';
 import { LanguagePackageInstall } from './LanguagePackageInstall';
 import { usePackageInstall } from './usePackageInstall';
 import { OcrModels } from './OcrModels';
+import { InlineLevelScaleSetting } from './InlineLevelScaleSetting';
 
 type FeedbackTarget = 'runtime' | 'plugin' | 'theme';
 type Feedback = { target: FeedbackTarget; message: string; error: boolean };
 
 export function SettingsScreen() {
   const host = useRuntime();
+  const viewPreferences = useViewPreferences();
   const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
   const { theme } = useUnistyles();
@@ -47,6 +50,7 @@ export function SettingsScreen() {
     host.client.snapshot().then((value) => {
       if (!active) return;
       setSnapshot(value);
+      viewPreferences.publish(value.viewPreferences ?? null);
       setThemeJson(JSON.stringify(value.theme, null, 2));
       applyTheme(value.theme);
     }).catch((cause: unknown) => { if (active) report('runtime', cause instanceof Error ? cause.message : String(cause), true); });
@@ -57,6 +61,7 @@ export function SettingsScreen() {
     if (!host.available) return;
     const value = await host.client.snapshot();
     setSnapshot(value);
+    viewPreferences.publish(value.viewPreferences ?? null);
     setThemeJson(JSON.stringify(value.theme, null, 2));
     applyTheme(value.theme);
   }
@@ -100,7 +105,7 @@ export function SettingsScreen() {
   // let choosing that preset replace the custom document through native save.
   if (!selectedPreset) themeOptions.push({ value: 'custom', label: `${displayedTheme.name} (custom)` });
   const sections = [
-    { value: 'appearance', label: 'Appearance', icon: 'palette', terms: 'appearance theme custom palette text size spacing radius' },
+    { value: 'appearance', label: 'Appearance', icon: 'palette', terms: 'appearance theme custom palette text size spacing radius curriculum level scale stars' },
     { value: 'languages', label: 'Languages', icon: 'globe', terms: 'language packages install catalog update' },
     { value: 'runtime', label: 'Runtime', icon: 'settings', terms: 'runtime native plugin diagnostics sdk hello' },
   ] as const;
@@ -151,6 +156,7 @@ export function SettingsScreen() {
           </Dialog>
         </SettingRow>
         {!editing && feedbackAt('theme')}
+        {host.available && snapshot ? <InlineLevelScaleSetting client={host.client} snapshot={snapshot} onSaved={refresh} /> : null}
       </Section> : null}
       {section === 'languages' ? <Section title="Language packages">
         {!host.available ? <Text accessibilityRole="alert">{host.reason}</Text> : <>

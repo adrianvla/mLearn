@@ -27,6 +27,21 @@ impl LanguageWork {
                 "Invalid package capability schema".into(),
             ));
         }
+        let mut scales = std::collections::BTreeSet::new();
+        let declared_scales = description.level_scales.as_deref().unwrap_or_default();
+        if declared_scales.len() > 16
+            || declared_scales.iter().any(|scale| {
+                !scale.id.starts_with(&format!("{id}:"))
+                    || scale.id.len() > 512
+                    || !scales.insert(&scale.id)
+                    || scale.label.is_empty()
+                    || scale.label.len() > 128
+                    || scale.attribution.is_empty()
+                    || scale.attribution.len() > 2048
+            })
+        {
+            return Err(Failure::Operation("Invalid package level scales".into()));
+        }
         Ok(description)
     }
     pub(super) fn entry(&self, target: &str) -> Result<LexicalEntry, Failure> {

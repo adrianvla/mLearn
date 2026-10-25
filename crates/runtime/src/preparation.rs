@@ -386,7 +386,9 @@ impl Runtime {
             | Request::SetInspectionTrigger { .. }
             | Request::SavePosition { .. }
             | Request::Knowledge { .. }
-            | Request::SaveTheme { .. }) => {
+            | Request::SaveTheme { .. }
+            | Request::SaveInlineLevelScale { .. }
+            | Request::SaveStarCollapse { .. }) => {
                 Ok(Prepared::Immediate(Box::new(self.metadata(request)?)))
             }
         }

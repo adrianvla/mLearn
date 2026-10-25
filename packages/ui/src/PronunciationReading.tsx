@@ -4,21 +4,22 @@ import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { PronunciationContour } from '@mlearn/contracts';
 
-type Role = 'subtitleRuby' | 'bodyRuby' | 'inspectionRuby' | 'inspectionReading' | 'pronunciationPill' | 'subtitle' | 'body';
+type Role = 'subtitleRuby' | 'bodyRuby' | 'inspectionRuby' | 'inspectionReading' | 'pronunciationPill' | 'compactPill' | 'subtitle' | 'body';
 
 /** Draw package-supplied display heights; no linguistic categories are interpreted. */
-export function PronunciationReading({ contour, variant = 'inspectionReading', pill = false, color }: {
+export function PronunciationReading({ contour, variant = 'inspectionReading', pill = false, color, compact = false }: {
     readonly contour: PronunciationContour;
     readonly variant?: Role;
     readonly pill?: boolean;
     readonly color?: string;
+    readonly compact?: boolean;
 }) {
     const last = contour.units[contour.units.length - 1];
-    const textVariant = pill ? 'pronunciationPill' : variant;
+    const textVariant = pill ? compact ? 'compactPill' : 'pronunciationPill' : variant;
     const { theme } = useUnistyles();
     const foreground = color ?? (variant === 'body' ? theme.colors.text : variant === 'bodyRuby' ? theme.colors.muted
         : variant === 'subtitle' ? theme.media.text : theme.media.muted);
-    return <View testID="pronunciation-reading" style={styles.word(pill)} accessible
+    return <View testID="pronunciation-reading" style={styles.word(pill, compact)} accessible
         accessibilityLabel={`${contour.reading}. ${contour.label}. ${contour.attribution}`}>
         {contour.units.map((unit, index) => <View key={index} style={styles.unit}>
             <HeightLine variant={textVariant} pill={pill} height={unit.height} previous={contour.units[index - 1]?.height ?? unit.height} />
@@ -68,11 +69,11 @@ function HeightLine({ height, previous, variant, pill, fade = false }: {
 }
 
 const styles = StyleSheet.create(theme => ({
-    word: (pill: boolean) => ({
+    word: (pill: boolean, compact: boolean) => ({
         maxWidth: '100%', flexDirection: 'row', alignItems: 'stretch',
         ...(pill ? {
-            borderRadius: theme.radius + 4, backgroundColor: theme.pills.neutral.surface,
-            paddingHorizontal: theme.spacing.small, paddingVertical: theme.spacing.tiny,
+            borderRadius: theme.radius + (compact ? 2 : 4), backgroundColor: theme.pills.neutral.surface,
+            paddingHorizontal: compact ? 10 : theme.spacing.small, paddingVertical: compact ? 5 : theme.spacing.tiny,
         } : {}),
         _web: {
             display: 'inline-flex', verticalAlign: 'baseline',

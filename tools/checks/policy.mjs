@@ -7,6 +7,7 @@ const appearanceFields = new Set(['writingMode', 'font', 'fontSize', 'lineHeight
 const documentTags = new Set(['div', 'span', 'figure', 'figcaption', 'img']);
 const documentFlowTags = new Set(['section', 'header', 'figure', 'figcaption', 'img', 'canvas']);
 const imageTags = new Set([...documentTags, 'canvas']);
+const adornmentTags = new Set(['span', 'svg', 'path']);
 
 export function checkSource(filename, source) {
   const file = filename.replaceAll('\\', '/');
@@ -18,12 +19,14 @@ export function checkSource(filename, source) {
   const imageCanvas = file === 'apps/client/src/features/reader/ImageCanvas.tsx';
   const sourceCanvas = documentCanvas || imageCanvas;
   const documentFlow = file === 'packages/ui/src/InlineWordDocument.tsx';
+  const adornment = file === 'packages/ui/src/LevelStars.web.tsx';
   const isolatedDocument = [
     'packages/ui/src/Document.tsx', 'packages/ui/src/InlineWordDocument.tsx',
     'packages/ui/src/InlineWordElement.web.tsx', 'packages/ui/src/InlineWord.types.ts',
     'packages/ui/src/readingSegments.ts', 'packages/ui/src/SourceImage.tsx',
+    'packages/ui/src/LevelStars.web.tsx', 'packages/ui/src/LevelStars.types.ts',
   ].includes(file);
-  const dom = sourceCanvas || documentFlow || file === 'apps/client/src/host/MediaPlayer.web.tsx'
+  const dom = sourceCanvas || documentFlow || adornment || file === 'apps/client/src/host/MediaPlayer.web.tsx'
     || file === 'packages/ui/src/InlineWordControl.web.tsx' || file === 'packages/ui/src/InlineWordElement.web.tsx'
     || file === 'packages/ui/src/SourceImage.tsx';
   const errors = [];
@@ -41,7 +44,8 @@ export function checkSource(filename, source) {
   };
   const checkImport = (node, specifier) => {
     if (isolatedDocument && !new Set(['react', '@mlearn/contracts', './InlineWord.types',
-      './InlineWordDocument', './InlineWordElement.web', './readingSegments', './SourceImage']).has(specifier))
+      './InlineWordDocument', './InlineWordElement.web', './readingSegments', './SourceImage',
+      './LevelStars.web', './LevelStars.types']).has(specifier))
       fail(node, 'Isolated document controls consume display data without booting a native theme registry.');
     if (sourceCanvas && specifier === '@mlearn/ui/inline-word')
       fail(node, 'Use the theme-free shared document entry inside the native DOM runtime.');
@@ -82,8 +86,8 @@ export function checkSource(filename, source) {
         if (!owner && node.arguments[0].text === 'react-native') fail(node, 'Use named native layout imports; dynamic native access bypasses shared text/control ownership.');
       }
       if (!dom && /(?:^|\.)createElement$/.test(callee) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])) fail(node, 'DOM elements belong in the document renderer, not universal UI.');
-      if ((sourceCanvas || documentFlow) && /(?:^|\.)createElement$/.test(callee) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])
-        && !(imageCanvas ? imageTags.has(node.arguments[0].text) : documentCanvas
+      if ((sourceCanvas || documentFlow || adornment) && /(?:^|\.)createElement$/.test(callee) && node.arguments[0] && ts.isStringLiteral(node.arguments[0])
+        && !(adornment ? adornmentTags.has(node.arguments[0].text) : imageCanvas ? imageTags.has(node.arguments[0].text) : documentCanvas
           ? documentTags.has(node.arguments[0].text) : documentFlowTags.has(node.arguments[0].text))) fail(node, 'Document markup does not replace shared semantic controls.');
     }
     if (feature && (ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node))) {
@@ -123,8 +127,8 @@ export function checkSource(filename, source) {
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const name = node.tagName.getText(ast);
       if (!dom && /^[a-z]/.test(name)) fail(node, 'Universal UI uses React Native primitives, not raw HTML.');
-      if ((sourceCanvas || documentFlow) && /^[a-z]/.test(name)) {
-        if (!(imageCanvas ? imageTags.has(name) : documentCanvas ? documentTags.has(name) : documentFlowTags.has(name))) fail(node, 'Document markup does not replace shared semantic controls.');
+      if ((sourceCanvas || documentFlow || adornment) && /^[a-z]/.test(name)) {
+        if (!(adornment ? adornmentTags.has(name) : imageCanvas ? imageTags.has(name) : documentCanvas ? documentTags.has(name) : documentFlowTags.has(name))) fail(node, 'Document markup does not replace shared semantic controls.');
         for (const attribute of node.attributes.properties) {
           const sourceGesture = imageCanvas && name === 'div' && ts.isJsxAttribute(attribute)
             && attribute.name.getText(ast) === 'onPointerDown'

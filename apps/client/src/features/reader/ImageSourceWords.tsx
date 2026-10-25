@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
-import type { DocumentRecord, OcrPage, ReviewCommand, SourceAnchor } from '@mlearn/contracts';
+import type { DocumentRecord, OcrPage, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
@@ -8,7 +8,7 @@ import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { useRouter } from 'expo-router';
 import type { Inspection } from '../inspector';
-import { CaptureList, emptyMaterial, type CaptureCandidate } from '../material';
+import { CaptureList, emptyMaterial, useSourcePractice, type CaptureCandidate } from '../material';
 import { imageAnalysisWindow, imageAnchor, imageContext } from './imageFlow';
 import type { ImageReaderPage } from './useImageReader';
 
@@ -29,18 +29,10 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
     const [unknownOnly, setUnknownOnly] = useState(true);
     const [offset, setOffset] = useState(0);
     const trigger = useRef<View>(null);
-    const [practicing, setPracticing] = useState(false);
-    const [practiceError, setPracticeError] = useState('');
-    const practiceCommand = useRef<ReviewCommand | null>(null);
-    const practiceOperation = useRef(0);
-    const practiceLock = useRef(false);
     const scope = JSON.stringify([source.id, source.contentRevision, source.packageId, source.packageVersion,
         pages.map(page => [page.descriptor.resourceId, page.page?.ocrRevision, page.batch?.packageRevision])]);
-    const currentScope = useRef(scope); currentScope.current = scope;
     useEffect(() => {
-        setOpen(false); setOffset(0); setPracticing(false); setPracticeError('');
-        practiceCommand.current = null; practiceLock.current = false; practiceOperation.current++;
-        return () => { practiceOperation.current++; };
+        setOpen(false); setOffset(0);
     }, [scope]);
     const words = useMemo(() => {
         if (!open) return [];
@@ -60,6 +52,7 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
                     if (unknownOnly && (status === 'claimed_known' || status === 'assessed_known')) continue;
                     seen.add(targetId);
                     result.push({ candidate: { key: targetId, knowledgeStatus: status,
+                        presentation: token.presentation,
                         content: { ...emptyMaterial(source.packageId), targetId, phrase: token.text,
                             packageRevision: item.batch.packageRevision, context: imageContext(item.page, region),
                             source: imageAnchor(source, item.page, item.descriptor.pageIndex, region, token) } },
@@ -72,51 +65,12 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
     const membership = words.map(word => word.candidate.key).join('\0');
     useEffect(() => { setOffset(0); }, [membership]);
     const visible = words.slice(offset, offset + 128);
-    const selection = JSON.stringify([scope, offset, visible.map(word => word.candidate.key)]);
-    const currentSelection = useRef(selection); currentSelection.current = selection;
     const visibleKeys = useRef(new Set<string>());
     visibleKeys.current = new Set(visible.map(word => word.candidate.key));
-    async function practice() {
-        if (practiceLock.current) return;
-        practiceLock.current = true;
-        const operation = ++practiceOperation.current;
-        const active = () => operation === practiceOperation.current && currentScope.current === scope;
-        setPracticing(true); setPracticeError('');
-        try {
-            let command = practiceCommand.current;
-            if (!command) {
-                const candidates = visible.map(word => word.candidate);
-                const targets = candidates.flatMap(candidate => candidate.content.targetId
-                    ? [{ packageId: source.packageId, targetId: candidate.content.targetId }] : []);
-                const eligibility = await client.materialEligibility(targets);
-                if (!active() || currentSelection.current !== selection) return;
-                const items = candidates.flatMap(candidate => {
-                    const saved = eligibility.find(item => item.target.targetId === candidate.content.targetId)?.availability;
-                    const anchor = candidate.content.source;
-                    if (saved?.state !== 'existing' || saved.excluded || !anchor || anchor.locator.kind !== 'image') return [];
-                    const { selectionStart, selectionEnd, contextStart } = anchor.locator;
-                    // Keep the exact selected UTF-8 source bytes without copying
-                    // a full region into each finite membership entry.
-                    const text = new TextDecoder().decode(new TextEncoder().encode(anchor.text).subarray(selectionStart, selectionEnd));
-                    return [{ materialId: saved.materialId, source: { ...anchor, text,
-                        locator: { ...anchor.locator, contextStart: contextStart + selectionStart,
-                            selectionStart: 0, selectionEnd: selectionEnd - selectionStart } } }];
-                });
-                if (!items.length) { setPracticeError('Capture eligible words before starting Word Practice.'); return; }
-                command = client.prepareReviewStart({ kind: 'practice', items });
-                practiceCommand.current = command;
-            }
-            const { session } = await client.review(command);
-            if (!active()) return;
-            practiceCommand.current = null;
-            setOpen(false);
-            router.push({ pathname: '../review', params: { sessionId: session.id } });
-        } catch (cause) {
-            if (active()) setPracticeError(cause instanceof Error ? cause.message : String(cause));
-        } finally {
-            if (active()) { practiceLock.current = false; setPracticing(false); }
-        }
-    }
+    const practice = useSourcePractice(client, visible.map(word => word.candidate), scope, sessionId => {
+        setOpen(false);
+        router.push({ pathname: '../review', params: { sessionId } });
+    });
     return <Dialog title="Page words" description="Source-linked words in the current analyzed regions."
         presentation="sidebar" open={open} onOpenChange={value => {
             if (value) onBeforeOpen();
@@ -158,11 +112,12 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
         {words.length ? <Text variant="caption" muted>
             Words {offset + 1}–{offset + visible.length} of {words.length}
         </Text> : <Text>No matching words in the analyzed regions.</Text>}
-        <Button label={practiceCommand.current ? 'Retry original Word Practice request' : 'Practice saved words in this view'}
-            variant="secondary" size="compact" busy={practicing} disabled={!visible.length && !practiceCommand.current}
-            onPress={() => void practice()} />
-        {practiceError ? <Text variant="caption" accessibilityRole="alert">{practiceError}</Text> : null}
+        <Button label={practice.retry ? 'Retry original Word Practice request' : 'Practice saved words in this view'}
+             variant="secondary" size="compact" busy={practice.pending} disabled={!visible.length && !practice.retry}
+             onPress={() => void practice.start()} />
+        {practice.error ? <Text variant="caption" accessibilityRole="alert">{practice.error}</Text> : null}
         <CaptureList client={client} candidates={visible.map(word => word.candidate)}
+            presentation="cards"
             onInspect={(candidate, anchor) => {
                 const word = visible.find(word => word.candidate.key === candidate.key);
                 const sourceAnchor = candidate.content.source;

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { PronunciationContour } from '@mlearn/contracts';
+import type { InlineLevel, PronunciationContour, StarCollapse } from '@mlearn/contracts';
 
 export type TextBounds = { x: number; y: number; width: number; height: number };
 export type TextAnchor = TextBounds & {
@@ -13,6 +13,8 @@ export type InlineDocumentFlow = {
     readonly color: string;
     readonly knownColor: string;
     readonly selectionColor?: string;
+    readonly inlineLevelScale?: string | null;
+    readonly starCollapse?: StarCollapse;
 };
 export type InlineWordProps = {
     readonly text: string;
@@ -24,6 +26,8 @@ export type InlineWordProps = {
     readonly variant?: 'subtitle' | 'body';
     readonly onActivate: (anchor: TextAnchor) => void;
     readonly documentFlow?: InlineDocumentFlow;
+    readonly level?: InlineLevel;
+    readonly starCollapse?: StarCollapse;
 };
 export type InlineWordContentProps = {
     readonly segments: readonly {
@@ -35,6 +39,8 @@ export type InlineWordContentProps = {
     }[];
     readonly variant?: 'subtitle' | 'body' | 'inspectionTitle';
     readonly status?: string;
+    readonly level?: InlineLevel;
+    readonly starCollapse?: StarCollapse;
     readonly documentFlow?: InlineDocumentFlow;
     readonly sourceStart?: number;
     readonly highlighted?: boolean;

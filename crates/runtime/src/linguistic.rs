@@ -30,6 +30,7 @@ pub(super) fn validate(
         || value.readings.len() > 16
         || value.labels.len() > 16
         || value.contours.len() > 16
+        || value.levels.as_deref().unwrap_or_default().len() > 16
     {
         return Err(invalid());
     }
@@ -61,6 +62,21 @@ pub(super) fn validate(
     }
     let prefix = format!("{package}:");
     let mut ids = BTreeSet::new();
+    for level in value.levels.as_deref().unwrap_or_default() {
+        if !level.scale_id.starts_with(&prefix)
+            || level.scale_id.len() > 512
+            || !ids.insert(&level.scale_id)
+            || level.level.is_empty()
+            || level.level.len() > 128
+            || level.label.is_empty()
+            || level.label.len() > 512
+            || !(1..=7).contains(&level.rank)
+            || !attribution(&level.attribution)
+        {
+            return Err(invalid());
+        }
+    }
+    ids.clear();
     for label in &value.labels {
         if !label.id.starts_with(&prefix)
             || label.id.len() > 512
@@ -134,6 +150,24 @@ mod tests {
         let parsed: LinguisticPresentation = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(parsed).unwrap(), value);
         assert_eq!(validate(&None, "plain text", "org.example").unwrap(), 0);
+    }
+    #[test]
+    fn inline_levels_are_package_owned_bounded_and_unique_per_scale() {
+        let mut value = presentation();
+        value["levels"] = json!([{"scaleId":"org.example:unknown-course","level":"stage-amber",
+            "label":"Amber","rank":4,"attribution":"Course author"}]);
+        assert!(admitted(value.clone()));
+        let parsed: LinguisticPresentation = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+        value["levels"][0]["rank"] = json!(8);
+        assert!(!admitted(value.clone()));
+        value["levels"][0]["rank"] = json!(4);
+        value["levels"][0]["scaleId"] = json!("different.package:course");
+        assert!(!admitted(value.clone()));
+        value["levels"][0]["scaleId"] = json!("org.example:unknown-course");
+        let duplicate = value["levels"][0].clone();
+        value["levels"].as_array_mut().unwrap().push(duplicate);
+        assert!(!admitted(value));
     }
     #[test]
     fn invalid_coordinates_contours_colors_and_nested_budgets_are_rejected() {

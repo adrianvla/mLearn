@@ -342,6 +342,8 @@ fn guest_bearing(request: &Request) -> bool {
         | Request::SetInspectionTrigger { .. }
         | Request::Knowledge { .. }
         | Request::SaveTheme { .. }
+        | Request::SaveInlineLevelScale { .. }
+        | Request::SaveStarCollapse { .. }
         | Request::PackageInstallStatus { .. }
         | Request::CurrentPackageInstall
         | Request::CancelPackageInstall { .. } => false,

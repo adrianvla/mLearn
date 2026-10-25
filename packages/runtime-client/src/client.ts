@@ -8,7 +8,7 @@ import { RuntimeError } from './errors';
 export { RuntimeError } from './errors';
 export { isPackageInstallStatus } from './watchProtocol';
 export { isOcrPage, isOcrProvider, isOcrRect, isOcrResponse } from './ocrProtocol';
-import type { Request, Response, Snapshot, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
+import type { Request, Response, Snapshot, StarCollapse, ThemeDocument, KnowledgeKey, ClaimChange, InspectionTrigger, PackageInstallCommand, SubtitleDirection, SourceRecord } from '@mlearn/contracts';
 
 export interface Transport {
   execute(request: string): Promise<string>;
@@ -165,7 +165,30 @@ export function createRuntimeClient(transport: Transport) {
     async snapshot(): Promise<Snapshot> {
       const response = await request({ type: 'snapshot' });
       if (response.type !== 'snapshot' || response.snapshot.protocolVersion !== 1) throw new RuntimeError('protocol', 'Unsupported native protocol.');
+      const view=response.snapshot.viewPreferences;
+      if(view!==undefined&&view!==null&&(!Number.isInteger(view.revision)||view.revision<0||view.revision>4294967295
+        ||!['auto','always','never'].includes(view.starCollapse)
+        ||view.inlineLevelScale!==null&&(typeof view.inlineLevelScale!=='string'||view.inlineLevelScale.length>512||!view.inlineLevelScale.includes(':'))))
+        throw new RuntimeError('protocol','Malformed native view preferences.');
       return response.snapshot;
+    },
+    prepareInlineLevelScale(scaleId:string|null,expectedRevision:number):Extract<Request,{type:'save_inline_level_scale'}> {
+      return {type:'save_inline_level_scale',scaleId,expectedRevision,commandId:transport.commandId()};
+    },
+    async saveInlineLevelScale(command:Extract<Request,{type:'save_inline_level_scale'}>):Promise<number> {
+      const response=await request(command);
+      if(response.type!=='saved'||!Number.isInteger(response.revision)||response.revision!==command.expectedRevision+1)
+        throw new RuntimeError('protocol','Missing view preference commit receipt.');
+      return response.revision;
+    },
+    prepareStarCollapse(collapse:StarCollapse,expectedRevision:number):Extract<Request,{type:'save_star_collapse'}> {
+      return {type:'save_star_collapse',collapse,expectedRevision,commandId:transport.commandId()};
+    },
+    async saveStarCollapse(command:Extract<Request,{type:'save_star_collapse'}>):Promise<number> {
+      const response=await request(command);
+      if(response.type!=='saved'||!Number.isInteger(response.revision)||response.revision!==command.expectedRevision+1)
+        throw new RuntimeError('protocol','Missing view preference commit receipt.');
+      return response.revision;
     },
     async saveTheme(document: ThemeDocument, expectedRevision: number): Promise<number> {
       const response = await request({ type: 'save_theme', document, expectedRevision, commandId: transport.commandId() });

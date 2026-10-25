@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
-import type { SourceRecord, TranscriptPage, AnalysisBatch, AnalyzedToken, Cue } from '@mlearn/contracts';
+import type { SourceRecord, TranscriptPage, AnalysisBatch, AnalyzedToken, Cue, DictionaryResult } from '@mlearn/contracts';
 import type { TextAnchor } from '@mlearn/ui/inline-word';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
@@ -9,9 +9,10 @@ import { Dialog } from '@mlearn/ui/dialog';
 import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
+import { Select } from '@mlearn/ui/select';
 import { AnnotatedText } from '../annotated-text';
 import type { Inspection } from '../inspector';
-import { cueAnchor, emptyMaterial, CaptureList, SourceCapture, type CaptureCandidate } from '../material';
+import { cueAnchor, emptyMaterial, CaptureList, SourceCapture, useSourcePractice, type CaptureCandidate } from '../material';
 import { useRouter } from 'expo-router';
 
 export function cueTime(milliseconds: number) {
@@ -20,7 +21,8 @@ export function cueTime(milliseconds: number) {
 }
 
 /** Bounded source navigation. Cue text/timestamps are never rewritten for display. */
-export function Transcript({ client, source, open, onOpenChange, onSeek, analysis, onAnalysis, onInspect, children }: PropsWithChildren<{
+export function Transcript({ client, source, open, onOpenChange, onSeek, analysis, onAnalysis, onInspect,
+  vocabulary, onVocabularyChange, children }: PropsWithChildren<{
   client: RuntimeClient;
   source: SourceRecord;
   open: boolean;
@@ -29,6 +31,8 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   analysis: AnalysisBatch | null;
   onAnalysis: (analysis: AnalysisBatch | null) => void;
   onInspect: (inspection: Inspection) => void;
+  vocabulary: boolean;
+  onVocabularyChange: (vocabulary: boolean) => void;
 }>) {
   const router = useRouter();
   const [draft, setDraft] = useState('');
@@ -36,6 +40,13 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   const [after, setAfter] = useState<number | null>(null);
   const [reload, setReload] = useState(0);
   const [captureRefresh, setCaptureRefresh] = useState(0);
+  const [unknownOnly, setUnknownOnly] = useState(false);
+  const [dictionary, setDictionary] = useState<{ identity: string; items: DictionaryResult[] } | null>(null);
+  const [dictionaryPending, setDictionaryPending] = useState(false);
+  const [dictionaryError, setDictionaryError] = useState('');
+  const [dictionaryReload, setDictionaryReload] = useState(0);
+  const trigger = useRef<View>(null);
+  const visibleWords = useRef(new Set<string>());
   const [page, setPage] = useState<TranscriptPage | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -128,17 +139,55 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   const seen = new Set<string>();
   for (const analyzed of prepared?.cues ?? []) for (const token of analyzed.tokens) {
     const targetId = token.targets[0];
-    if (!targetId || seen.has(targetId) || captureCandidates.length >= 128) continue;
+    const status = prepared?.annotations.find(annotation => annotation.cueIndex === analyzed.cue.index
+      && annotation.tokenStart === token.start)?.status ?? 'pending';
+    if (!targetId || vocabulary && token.nearbyMeaning === false || seen.has(targetId) || captureCandidates.length >= 128
+      || vocabulary && unknownOnly && (status === 'claimed_known' || status === 'assessed_known')) continue;
     seen.add(targetId);
     // The bulk action resolves each selected cue's native media time on demand.
-    captureCandidates.push({ key: targetId, resolveCuePosition: true, content: { ...emptyMaterial(source.packageId),
+    captureCandidates.push({ key: targetId, knowledgeStatus: status, presentation: token.presentation, resolveCuePosition: true, content: { ...emptyMaterial(source.packageId),
       targetId, packageRevision: prepared?.packageRevision ?? null, phrase: token.text, context: analyzed.cue.text,
       source: cueAnchor(source, analyzed.cue, token, Math.max(0, analyzed.cue.startMs - source.subtitleOffsetMs)) } });
   }
-  return <Dialog open={open} onOpenChange={onOpenChange} title="Transcript" presentation="sidebar"
-    description="Exact, case-sensitive subtitle search."
-    trigger={<Button label="Transcript" icon="transcript" iconOnly size="compact" variant="media" disabled={!source.subtitleRevision} />}>
-    <TextField testID="transcript-search-input" label="Search transcript" variant="search" value={draft} onChangeText={setDraft}
+  const dictionaryIdentity = JSON.stringify([prepared?.sourceId, prepared?.subtitleRevision,
+    prepared?.packageRevision, captureCandidates.map(candidate => candidate.key)]);
+  useEffect(() => {
+    if (!open || !prepared) return;
+    let active = true;
+    setDictionary({ identity: dictionaryIdentity, items: [] });
+    setDictionaryPending(true); setDictionaryError('');
+    void (async () => {
+      const items: DictionaryResult[] = [];
+      for (let offset = 0; offset < captureCandidates.length; offset += 6) {
+        const batch = await client.inspectTargets(source.id, prepared.subtitleRevision, prepared.packageRevision,
+          captureCandidates.slice(offset, offset + 6).map(candidate => candidate.key));
+        if (!active) return;
+        items.push(...batch.items);
+      }
+      if (active) setDictionary({ identity: dictionaryIdentity, items });
+    })().catch((cause: unknown) => {
+      if (active) setDictionaryError(cause instanceof Error ? cause.message : String(cause));
+    }).finally(() => { if (active) setDictionaryPending(false); });
+    return () => { active = false; };
+  }, [client, open, dictionaryIdentity, dictionaryReload]);
+  const dictionaryItems = dictionary?.identity === dictionaryIdentity ? dictionary.items : [];
+  const resolvedCandidates = captureCandidates.flatMap(candidate => {
+    const entry = dictionaryItems.find(item => item.state === 'available' && item.summary.targetId === candidate.key);
+    return entry?.state === 'available' ? [{ ...candidate, content: { ...candidate.content,
+      reading: entry.summary.reading ?? '', meaning: entry.summary.summary } }] : [];
+  });
+  visibleWords.current = new Set(resolvedCandidates.map(candidate => candidate.key));
+  const practice = useSourcePractice(client, resolvedCandidates, identity, sessionId => {
+    onOpenChange(false);
+    router.push({ pathname: '../review', params: { sessionId } });
+  });
+  return <Dialog open={open} onOpenChange={onOpenChange} title={vocabulary ? 'Vocabulary' : 'Transcript'} presentation="sidebar"
+    description={vocabulary ? '' : 'Exact, case-sensitive subtitle search.'}
+    trigger={<Button ref={trigger} label="Transcript" icon="transcript" iconOnly size="compact" variant="media" disabled={!source.subtitleRevision} />}>
+    <Select label="Sidebar content" value={vocabulary ? 'vocabulary' : 'transcript'}
+      options={[{ value: 'transcript', label: 'Transcript' }, { value: 'vocabulary', label: 'Vocabulary' }]}
+      onValueChange={value => onVocabularyChange(value === 'vocabulary')} />
+    {!vocabulary ? <><TextField testID="transcript-search-input" label="Search transcript" variant="search" value={draft} onChangeText={setDraft}
       maxLength={128} autoCapitalize="none" autoCorrect={false} />
     <Row>
       <Button label="Search" size="compact" disabled={pending} onPress={() => {
@@ -148,7 +197,10 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
         onPress={() => { setPage(null); setAfter(null); }} />
       <Button label="Next page" icon="chevronRight" iconOnly size="compact" variant="secondary" disabled={pending || page?.nextIndex == null}
         onPress={() => { setAfter(page?.nextIndex ?? null); setPage(null); }} />
-    </Row>
+    </Row></> : <Text variant="detail" muted accessibilityLiveRegion="polite">
+      {dictionaryPending || dictionary?.identity !== dictionaryIdentity ? 'Loading words…'
+        : dictionaryError ? 'Words unavailable' : `${resolvedCandidates.length} words in this range`}
+    </Text>}
     {pending ? <Text accessibilityLiveRegion="polite">Loading transcript…</Text> : null}
     {analysisPending ? <Text accessibilityLiveRegion="polite">Analyzing transcript…</Text> : null}
     {error ? <><Text accessibilityRole="alert">{error}</Text>
@@ -157,7 +209,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       <Button label="Retry transcript analysis" onPress={() => void refreshAnalysis().catch((cause: unknown) =>
         setAnalysisError(cause instanceof Error ? cause.message : String(cause)))} /></> : null}
     {!pending && !error && page?.cues.length === 0 ? <Text>No matching cues in this subtitle file.</Text> : null}
-    {page?.cues.map(cue => <View key={cue.index} style={styles.cue}>
+    {!vocabulary ? page?.cues.map(cue => <View key={cue.index} style={styles.cue}>
       <View style={styles.cueTime}><Button label={cueTime(cue.startMs - source.subtitleOffsetMs)}
         accessibilityLabel={`Go to cue ${cue.index + 1} at ${cueTime(cue.startMs - source.subtitleOffsetMs)}`}
         size="compact" variant="quiet" disabled={navigating} onPress={() => void seek(cue.index)} /></View>
@@ -165,9 +217,38 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       <AnnotatedText rawText={cue.text} variant="body" inspectionMode={source.inspectionTrigger}
         analysis={prepared?.cues.find(value => value.cue.index === cue.index && value.cue.text === cue.text) ?? null}
         annotations={prepared?.annotations ?? []} onInspect={(token, anchor) => void inspect(cue, token, anchor)} />
-    </View>)}
-    <SourceCapture client={client} source={source} onChanged={() => setCaptureRefresh(value => value + 1)} />
-    {captureCandidates.length ? <CaptureList client={client} candidates={captureCandidates} refreshKey={captureRefresh}
+    </View>) : <><Row>
+      <Button label="Practice" accessibilityLabel={practice.retry ? 'Retry original Word Practice request' : 'Practice saved words in this view'}
+        size="compact" variant="secondary" busy={practice.pending} disabled={dictionaryPending || !resolvedCandidates.length && !practice.retry}
+        onPress={() => void practice.start()} />
+      <Button label="All" accessibilityLabel="All words" size="compact" variant="pill" accessibilityState={{ selected: !unknownOnly }}
+        onPress={() => setUnknownOnly(false)} />
+      <Button label="Unknown" accessibilityLabel="Unknown words" size="compact" variant="pill" accessibilityState={{ selected: unknownOnly }}
+        onPress={() => setUnknownOnly(true)} />
+    </Row>
+    {practice.error ? <Text accessibilityRole="alert">{practice.error}</Text> : null}</>}
+    {dictionaryPending ? <Text variant="caption" accessibilityLiveRegion="polite">Loading dictionary entries…</Text> : null}
+    {dictionaryError ? <><Text accessibilityRole="alert">{dictionaryError}</Text>
+      <Button label="Retry source dictionary" size="compact" onPress={() => setDictionaryReload(value => value + 1)} /></> : null}
+    {dictionaryItems.map(item => item.state === 'unavailable'
+      ? <Text key={item.targetId} variant="caption">{item.message}</Text> : null)}
+    {!vocabulary ? <SourceCapture client={client} source={source} onChanged={() => setCaptureRefresh(value => value + 1)} /> : null}
+    {resolvedCandidates.length ? <CaptureList client={client} candidates={resolvedCandidates} refreshKey={captureRefresh}
+      presentation={vocabulary ? 'cards' : 'rows'}
+      onInspect={vocabulary ? (candidate, anchor) => {
+        const locator = candidate.content.source?.locator;
+        if (locator?.kind !== 'video') return;
+        const analyzed = prepared?.cues.find(cue => cue.cue.index === locator.cueIndex);
+        const token = analyzed?.tokens.find(token => token.targets.includes(candidate.key));
+        if (analyzed && token) void inspect(analyzed.cue, token, { ...anchor, restoreFocus: () => {
+          if (visibleWords.current.has(candidate.key)) anchor.restoreFocus();
+          else trigger.current?.focus();
+        } });
+      } : undefined}
+      onLocate={vocabulary ? candidate => {
+        const locator = candidate.content.source?.locator;
+        if (locator?.kind === 'video' && locator.cueIndex !== null) void seek(locator.cueIndex);
+      } : undefined}
       onOpenMaterial={id => router.push({ pathname: '../materials', params: { id, sourceId: source.id } })} /> : null}
     {children}
   </Dialog>;

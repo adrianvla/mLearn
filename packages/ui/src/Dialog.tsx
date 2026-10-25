@@ -33,7 +33,7 @@ export function Dialog({ open, onOpenChange, title, description, trigger, childr
               onStartShouldSetResponder={Platform.OS === 'web' ? undefined : () => false}>
               <View ref={contentRef} style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
                 <View style={styles.header}>
-                  <View style={styles.title}><Primitive.Title asChild><Text variant={sidebar ? 'section' : 'heading'}>{title}</Text></Primitive.Title></View>
+                  <View style={styles.title}><Primitive.Title asChild><Text variant={sidebar ? 'sidebarTitle' : 'heading'} muted={sidebar}>{title}</Text></Primitive.Title></View>
                   <Primitive.Close asChild><Button label="Close" icon="close" iconOnly variant="quiet" size="compact" /></Primitive.Close>
                 </View>
                 <Primitive.Description asChild><Text muted variant="caption">{description}</Text></Primitive.Description>
@@ -60,7 +60,8 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: sidebar ? 'flex-end' : 'center', justifyContent: 'center' }),
   sidebarOverlay: { alignItems: 'flex-end', padding: 0, backgroundColor: 'transparent' },
   sidebarBounds: { width: dialogSidebarWidth, maxWidth: '100%', height: '100%' },
-  sidebarContent: (height: number) => ({ height, maxHeight: height, borderTopWidth: 0, borderBottomWidth: 0, borderRightWidth: 0 }),
+  sidebarContent: (height: number) => ({ height, maxHeight: height, padding: theme.spacing.medium,
+    borderTopWidth: 0, borderBottomWidth: 0, borderRightWidth: 0 }),
   header: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },
   title: { flex: 1, minWidth: 0 },
   // Content crosses a third-party asChild/portal boundary. Resolve its palette

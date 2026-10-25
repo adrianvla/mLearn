@@ -51,18 +51,150 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Native continuation paused incomplete: disk exhaustion
+
+The connected vocabulary and cosmetic-display source is ready for an evidence
+checkpoint, not M07 acceptance. The latest generated-contract check, web
+export, typecheck, architecture lint, 30 affected client/renderer/source tests
+and Rust preference/migration/runtime checks pass. Earlier full runs and
+cross-consumer browser evidence remain scoped as described below.
+
+Actual native collapse controls exercised Auto -> Always -> Never -> Auto ->
+Always while preserving selected JLPT, all 45 non-view tables and theme
+revision 4. View revisions 3–7 change alone; their common domain hash is
+`76e1f0a4364a3eff1b153f60aaf1521e192a0d2203700c1af0ef5a4ebcc614c8`.
+The real original source shows orange `4` plus one star under 今度 in
+`star-collapse-always-word.png`; both Settings selectors were captured and
+inspected. Normal Home navigation then saved 22000 ms / -6350 ms offset.
+
+The deliberate restart compiled successfully in 5.87 seconds but WebKit could
+not create its ServiceWorkers directory: `NSPOSIXErrorDomain Code=28`,
+`No space left on device`. It was stopped immediately; no app, build or owned
+8081/7780 listener remains, and the guard was released. The view remains
+durably revision 7 / JLPT / Always. Restarted UI, native Never/Auto comparison,
+final narrow controls and restoration to Auto remain unverified.
+
+Disk readback is 237 MiB available. `target/debug/incremental` is 14.9 GiB;
+no cache, compiled artifact, profile, model or evidence was deleted. Permission
+was requested to remove only that regenerable compiler cache. Until space is
+resolved, launch no further local build/app/device workload. Preserve
+`target/debug/mlearn-desktop`, SHA256
+`bfa84038591fe4fe4b14f690c822bda6b520f3680595daaffcc242d4a3b6a0d2`.
+Source checkpoint/publication and hosted verification can proceed independently;
+the full visual/M07/platform/performance/cleanup goal remains open.
+
 #### Current continuation: published repairs and native comparison, 2026-10-24
 
 Source-entry migration is verified for continuation, not final visual or
-maintainer acceptance. Todo 166/207: matched native Home, built-in/custom theme
+maintainer acceptance. Todo 168/212: matched native Home, built-in/custom theme
 restart and Settings recovery comparisons are recorded. Watch/Inspector,
 performance, affected-platform and delivery gates remain open. No new milestone.
 
-Latest published product source `7be174cd9b3e659e0215e2de284499f9344e3bea`
-passes foundation `40134355296` in all five jobs, including actual macOS and
-Windows desktop/OCR, and Linux native desktop `40134355283`. The first
-foundation observer's API timeout was transport failure, not a failed CI run.
-Exact-source mobile `40134355303` remains subscribed; do not duplicate it.
+Latest published product source `de9a04e038e5bb00d8707938ea88e5cf37f88b04`
+passes foundation `40137435031` in all five jobs, including actual macOS and
+Windows desktop/OCR, and Linux native desktop `40137435083`. Its mobile run
+`40137435041` confirms Android success; iOS job `121006339504` fails the exact
+deferred FileProvider assertion `id: m01-watch, mp4 is not visible`
+(one test, one failure, 89.488 seconds). Its JUnit and original screenshots/logs
+are retained in `mobile-watch-de9/ios-build-evidence/`. No picker diagnostic
+variant was launched. Earlier `7be174c` also passes foundation/Linux/Android, but
+iOS `40134355303` fails before any picker: its initial Home language tap never
+exposes `language-org.mlearn.english`. The real screenshot, native hierarchy
+and Maestro log are retained under `mobile-catalog-7be174c/`; this is distinct
+from the expressly deferred FileProvider assertion. No missing-portal-host fix
+is justified: the installed primitive and actual UIProvider have the required
+root host. Local retained simulators were inspected only; all remain shut down.
+
+The uncommitted connected vocabulary increment reuses CaptureList, the native
+dictionary batches and existing finite Review admission. Shared source-practice
+preparation/lifetime code has two genuine consumers, Watch and image Reader;
+original image provenance and full video cue UTF-8 offsets remain intact.
+Native individual capture first exposed a genuine old producer defect: empty
+reading/meaning fields caused “no supported Word Practice probe.” Canonical
+dictionary-backed capture now admits one selected Japanese Material/two probes;
+Return opens the same word in Inspector at 21.1499996185 seconds with -6350 ms
+synchronization. The incomplete earlier QA Material is retained and excluded
+through its real control, not silently rewritten.
+
+The actual Transcript producer regression is red without dictionary fields
+(`''` versus `meaning word0`) and green after restoration. A filtered-word focus
+regression is red before source-trigger fallback and green afterward. Their
+real-React/typed-client tests also cover lost receipts, cancellation and image
+normalization. Checkpoint checks pass 66 checker/124 client tests, typecheck,
+architecture lint, web export and 45 cross-consumer browser interactions.
+Original and failed evidence remains in the M07 directory. LSP freshness
+requests time out; those are not reported as passing diagnostics.
+
+Shared source cards, compact pills and real package metadata were iterated at
+1512x948 and 500x850 with raw compositor captures and actual controls. Pixel
+measurement then found generic glass too bright: approved card #2F2F2F versus
+candidate #3D3E3C. A subtle shared card material and compact Badge/Pronunciation
+roles now have a real final 1512x948 native render in
+`watch-vocabulary-compact-final.png` (bounded inspection derivative beside it).
+Compact readings, package labels and subdued cards were inspected after actual
+Vocabulary selection; launcher `bash_327` was stopped afterward.
+Subsequent scale-integrated desktop and narrow source/Transcript captures were
+also inspected. The last full client run passes 133 tests, typecheck, contracts
+and export; the isolated shared-star rendering exception passes 38 architecture
+tests and lint, followed by 45 affected browser interactions (22.9 seconds).
+The first lint failure remains recorded, not erased. These checks precede the
+latest collapse-setting and caption-coexistence changes described below.
+Do not close the whole Watch comparison task.
+
+The final native render was stopped when OmO footprint crossed the unchanged
+3 GiB ceiling (3.2 GiB sample); another idle admission saw 3.0 GiB. No owned app
+or dev listener remains. Bounded readback falls to 2.7 GiB with 63–64% system
+free and 1610.19 MiB swap. Eval's reachable JS heap is about 5.3 MiB; explicit
+collection barely changes RSS and is not a leak repair. Preserve guard-stop
+receipts rather than raise limits. A read-only admission subscription now waits
+for three healthy samples under the same ceiling/free-memory floor, without
+restarting any workload. Subsequent healthy admission allowed corrected contract
+generation and one-job Rust checks: storage preferences 5/5, runtime cosmetic
+restart 1/1 and linguistic admission 3/3 pass. Another resource stop occurred
+after those checks finished; no build or app remains running. A fresh read-only
+admission is active before further substantial checks.
+Source edits, new helper files, originals, profiles
+and compiled artifacts remain intact; memory admission and final verification
+are pending, not a completed or maintainer-accepted M07.
+
+The maintainer's focused inline-star extension is in progress within M07.
+Actual v2 FrequencyStars and its geometry tests were read: seven-rank palette,
+6/10/14 px sizes, same-line half-gap clearance, number-plus-one-star collapse,
+and a shared ref-counted ResizeObserver. A separate Rust-owned view preference
+and bounded optional package display scales/values now extend the existing
+annotation metadata, without adding goal or scheduler mechanisms. Japanese
+declares only its already sourced JLPT vocabulary scale; BJT, university and
+custom curricula are not fabricated. All learning authority stays independent.
+The selector and shared renderer have actual native proof: authenticated local
+Japanese update, saved selection null -> JLPT -> null -> JLPT, revisions 0–3,
+and five magenta source stars plus compact number/one-star Transcript display.
+All 45 non-view SQLite tables remain byte-value identical across those preference
+writes; aggregate row hash is
+`5e0739c0d8297d62c07c3a0e9abf54d4650f749bbbd28c15026d6726059d1add`.
+Theme remains Dark Quartz revision 4. Raw `inline-scale-*.png` and bounded
+inspection derivatives are retained. The normal native dev build passed in
+34.61 seconds; its owned launcher was stopped afterward.
+The first codegen attempt rejected `ts(optional)` on Vec; optional vectors were
+corrected to Option and subsequent codegen passed. No generated file was
+edited by hand. The maintainer then explicitly confirmed v2's collapse setting.
+Actual defaults are Auto and 8px clearance, with Auto/Always/Never controls.
+Schema 11 adds that cosmetic policy while preserving schema-10 scale/receipts;
+future-schema rejection targets 12. Historical migration fixtures now remove
+newer view tables before downgrading instead of changing production migration
+to tolerate impossible historical schemas. After this refinement, affected
+storage suites pass 10/13/1/14/6, runtime restart 1, typecheck/lint and 30
+client/renderer/source interactions. The final export is in progress; actual
+native collapse-mode/restart and affected-platform verification remain pending.
+
+Native Vocabulary exposed a real connected presentation defect: it inherited
+Transcript's source-caption suppression. The before image is
+`inline-scale-vocabulary-desktop.png`. Watch now owns the mode and suppresses
+source/analysis only for reading Transcript or a covering narrow modal.
+`inline-scale-vocabulary-caption-repaired.png` shows real captions and stars
+beside Vocabulary after the repair. Existing native smoke now asserts this
+coexistence; its hosted replay has not yet run. No source text/newlines were
+flattened to imitate staged reference text. Frame 25:05 was reached by ordinary
+native seeking to 25.22 seconds, not injected UI/media state.
 
 Older mobile `40131298998` has two distinct failures, not a blanket FileProvider
 deferral: Android JUnit records `DeviceServerDiedException` during

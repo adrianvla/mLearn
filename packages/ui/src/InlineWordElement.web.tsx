@@ -2,6 +2,7 @@
 // phrasing layout while providing browser keyboard activation and real focus.
 import { useLayoutEffect, useRef } from 'react';
 import type { InlineWordContentProps, InlineWordProps } from './InlineWord.types';
+import { LevelStars } from './LevelStars.web';
 
 /** Static ruby is the same inline source boundary without button semantics. */
 export function DocumentWordContent(props: InlineWordContentProps) {
@@ -26,7 +27,7 @@ export function DocumentWordContent(props: InlineWordContentProps) {
 }
 
 export function InlineWordElement({ text, children, accessibilityLabel, status, onActivate, inspectionMode = 'click',
-    documentFlow, color, knownColor }: InlineWordProps & { readonly color: string; readonly knownColor: string }) {
+    documentFlow, color, knownColor, level, starCollapse }: InlineWordProps & { readonly color: string; readonly knownColor: string }) {
     const ref = useRef<HTMLButtonElement>(null);
     const entered = useRef(false);
     const activatedOnHover = useRef(false);
@@ -123,6 +124,7 @@ export function InlineWordElement({ text, children, accessibilityLabel, status, 
             activate();
         }}
       style={{
-        display: 'inline', maxWidth: '100%', border: 0, padding: documentFlow ? 0 : '0 1px', margin: 0, background: 'transparent', font: 'inherit', lineHeight: 'inherit', minHeight: documentFlow ? undefined : 44, cursor: 'pointer', color: status === 'claimed_known' || status === 'assessed_known' ? knownColor : color, textDecorationLine: status === 'claimed_unknown' || status === 'assessed_unknown' || status === 'mixed' ? 'underline' : 'none', textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid'
-    }}>{children ?? text}</button>;
+        display: level ? 'inline-block' : 'inline', position: level ? 'relative' : undefined,
+        maxWidth: '100%', border: 0, padding: documentFlow ? 0 : '0 1px', margin: 0, background: 'transparent', font: 'inherit', lineHeight: 'inherit', minHeight: documentFlow ? undefined : 44, cursor: 'pointer', color: status === 'claimed_known' || status === 'assessed_known' ? knownColor : color, textDecorationLine: status === 'claimed_unknown' || status === 'assessed_unknown' || status === 'mixed' ? 'underline' : 'none', textDecorationStyle: status === 'mixed' ? 'dotted' : 'solid'
+    }}>{children ?? text}{level ? <LevelStars rank={level.rank} collapse={starCollapse} label={`${level.label}. ${level.attribution}`} /> : null}</button>;
 }

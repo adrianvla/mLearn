@@ -244,7 +244,9 @@ export default function DocumentCanvas({ ref, identity, parserRevision, blocks, 
                         // Authored readings wrap occurrences; inferred readings are
                         // displayed only on a whole uncovered token.
                         return <DocumentWord key={phrase.start} text={phrase.text} display={display} highlighted={selected}
-                            presentation={!segment.reading && phrase.text === token.text ? token.presentation : undefined}
+                            presentation={phrase.text === token.text
+                                ? segment.reading && token.presentation ? { ...token.presentation, readings: [] } : token.presentation
+                                : undefined}
                             status={status} onActivate={anchor => activate(block.resource, block.id, token.start, anchor)}
                             sourceStart={phrase.start} />;
                     }),

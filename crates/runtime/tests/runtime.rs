@@ -67,6 +67,40 @@ fn malformed_requests_have_explicit_errors() {
 }
 
 #[test]
+fn inline_scale_command_is_cosmetic_and_survives_runtime_restart() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut runtime =
+        Runtime::open(directory.path(), CodePolicy::MobileBundled, None, vec![]).unwrap();
+    let before: serde_json::Value =
+        serde_json::from_str(&runtime.execute(r#"{"type":"snapshot"}"#)).unwrap();
+    let command = r#"{"type":"save_inline_level_scale","scaleId":"org.example:university","expectedRevision":0,"commandId":"cosmetic-only"}"#;
+    for _ in 0..2 {
+        let reply: serde_json::Value = serde_json::from_str(&runtime.execute(command)).unwrap();
+        assert_eq!(reply, serde_json::json!({"type":"saved","revision":1}));
+    }
+    let collapse = r#"{"type":"save_star_collapse","collapse":"always","expectedRevision":1,"commandId":"compact-only"}"#;
+    for _ in 0..2 {
+        let reply: serde_json::Value = serde_json::from_str(&runtime.execute(collapse)).unwrap();
+        assert_eq!(reply, serde_json::json!({"type":"saved","revision":2}));
+    }
+    let invalid: serde_json::Value = serde_json::from_str(&runtime.execute(
+        r#"{"type":"save_star_collapse","collapse":"unknown","expectedRevision":2,"commandId":"invalid"}"#
+    )).unwrap();
+    assert_eq!(invalid["code"], "invalid_request");
+    drop(runtime);
+    let mut runtime =
+        Runtime::open(directory.path(), CodePolicy::MobileBundled, None, vec![]).unwrap();
+    let mut after: serde_json::Value =
+        serde_json::from_str(&runtime.execute(r#"{"type":"snapshot"}"#)).unwrap();
+    assert_eq!(
+        after["snapshot"]["viewPreferences"],
+        serde_json::json!({"revision":2,"inlineLevelScale":"org.example:university","starCollapse":"always"})
+    );
+    after["snapshot"]["viewPreferences"] = before["snapshot"]["viewPreferences"].clone();
+    assert_eq!(after, before);
+}
+
+#[test]
 fn damaged_package_does_not_block_settings_recents_or_other_installed_code() {
     // Given two real packages and durable preferences/source state.
     let directory = tempfile::tempdir().unwrap();

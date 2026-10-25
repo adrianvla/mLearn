@@ -11,28 +11,29 @@ export type PronunciationProps = {
     readonly reading?: string | null;
     /** The consumer owns its disclosure control; all alternatives remain visible. */
     readonly expanded?: boolean;
+    readonly size?: 'default' | 'compact';
 };
 
 /** Static package metadata; no language categories, lookup, or learner state. */
-export function Pronunciation({ presentation, reading, expanded = false }: PronunciationProps) {
+export function Pronunciation({ presentation, reading, expanded = false, size = 'default' }: PronunciationProps) {
     if (!presentation?.contours.length && !presentation?.labels.length && !presentation?.readings.length && !reading) return null;
     return <View style={styles.metadata}>
         {presentation?.contours.length ? presentation.contours.map(contour =>
             <View key={contour.id} style={styles.alternative}>
-                <PronunciationReading contour={contour} pill />
+                <PronunciationReading contour={contour} pill compact={size === 'compact'} />
                 {expanded ? <Text variant="detail" tone="media" muted selectable>{contour.label} · {contour.attribution}</Text> : null}
             </View>
-        ) : reading ? <Badge label={reading} variant="reading" selectable /> :
+        ) : reading ? <Badge label={reading} variant="reading" size={size} selectable /> :
             presentation?.readings.map(span => <View key={`${span.start}-${span.end}`} accessible
                 accessibilityLabel={`${span.text}. ${span.attribution}`}>
-                <Badge label={span.text} variant="reading" selectable />
+                <Badge label={span.text} variant="reading" size={size} selectable />
             </View>)}
         {expanded ? presentation?.readings.map(span =>
             <Text key={`source-${span.start}-${span.end}`} variant="detail" tone="media" muted selectable>{span.text} · {span.attribution}</Text>
         ) : null}
         {presentation?.labels.map(label => <View key={label.id} style={styles.alternative}
             accessible accessibilityLabel={`${label.label}. ${label.attribution}`}>
-            <Badge label={label.label} color={label.color} variant="label" tone="media" selectable />
+            <Badge label={label.label} color={label.color} variant="label" tone="media" size={size} selectable />
             {expanded ? <Text variant="detail" tone="media" muted selectable>{label.attribution}</Text> : null}
         </View>)}
     </View>;

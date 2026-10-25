@@ -72,7 +72,9 @@ function WatchWorkspace() {
     const [saveError, setSaveError] = useState('');
     const [busy, setBusy] = useState(false);
     const [transcriptOpen, setTranscriptOpen] = useState(false);
+    const [vocabulary, setVocabulary] = useState(false);
     const sidebarInset = transcriptOpen && Platform.OS === 'web' && viewport.width >= 720 ? dialogSidebarWidth : 0;
+    const sourceCovered = transcriptOpen && (!vocabulary || sidebarInset === 0);
     const [playbackOpen, setPlaybackOpen] = useState(false);
     const [synchronizationOpen, setSynchronizationOpen] = useState(false);
     const [liveWordsOpen, setLiveWordsOpen] = useState(false);
@@ -226,7 +228,7 @@ function WatchWorkspace() {
     const packageId = window?.source.packageId;
     const packageVersion = window?.source.packageVersion;
     useEffect(() => {
-        if (!host.available || !ready || !window || !subtitleRevision || transcriptOpen)
+        if (!host.available || !ready || !window || !subtitleRevision || sourceCovered)
             return;
         let active = true;
         const current = session.current;
@@ -241,9 +243,9 @@ function WatchWorkspace() {
                 setError(e.message);
         });
         return () => { active = false; };
-    }, [host, id, ready, subtitleRevision, subtitleOffset, packageId, packageVersion, bucket, cueKey, sourceReload, transcriptOpen]);
+    }, [host, id, ready, subtitleRevision, subtitleOffset, packageId, packageVersion, bucket, cueKey, sourceReload, sourceCovered]);
     useEffect(() => {
-        if (!host.available || !ready || !window || !subtitleRevision || transcriptOpen)
+        if (!host.available || !ready || !window || !subtitleRevision || sourceCovered)
             return;
         let active = true;
         const current = session.current;
@@ -264,7 +266,7 @@ function WatchWorkspace() {
             }
         }).finally(() => { if (active) setAnalysisPending(false); });
         return () => { active = false; setAnalysisPending(false); };
-    }, [host, id, ready, subtitleRevision, subtitleOffset, packageId, packageVersion, bucket, cueKey, analysisReload, sourceReload, transcriptOpen]);
+    }, [host, id, ready, subtitleRevision, subtitleOffset, packageId, packageVersion, bucket, cueKey, analysisReload, sourceReload, sourceCovered]);
     async function persist(positionMs = latest.current.position, durationMs = latest.current.duration) {
         if (!host.available || !Number.isFinite(durationMs) || durationMs <= 0)
             return;
@@ -547,7 +549,7 @@ function WatchWorkspace() {
                         variant="media" size="compact" accessibilityState={{ expanded: synchronizationOpen }}
                         onPress={() => setSynchronizationOpen(value => !value)} /> : null}
                       <Transcript key={`${id}:${window.source.subtitleRevision}`} client={host.client}
-                        source={window.source} open={transcriptOpen}
+                        source={window.source} open={transcriptOpen} vocabulary={vocabulary} onVocabularyChange={setVocabulary}
                         analysis={transcriptBatch} onAnalysis={setTranscriptBatch} onInspect={setInspection}
                         onOpenChange={value => {
                           setInspection(null); setTranscriptOpen(value);
@@ -706,7 +708,7 @@ function WatchWorkspace() {
                         }}
                         onProgress={progress} onError={setError} />
                     {cues.length ? <View pointerEvents="box-none" style={[styles.subtitle(toolbarHeight + overlayInset, subtitleInset), {
-                        opacity: transcriptOpen || (Platform.OS !== 'web' && inspection) ? 0 : 1,
+                        opacity: sourceCovered || (Platform.OS !== 'web' && inspection) ? 0 : 1,
                     }]}>
                       <ScrollView testID="subtitle-window" accessibilityLabel="Subtitles"
                         style={[styles.subtitleScroll, { height: subtitleHeight }]}
@@ -738,7 +740,7 @@ function WatchWorkspace() {
                 <View pointerEvents="box-none"
                     style={[styles.status, { top: insets.top + toolbarHeight + 8 + overlayInset }, (!window.source.subtitlePath || analysisError || (analysisPending && !batch)) ? styles.feedback : null]}>
                     {!window.source.subtitlePath ? <Text tone="media">Open a plain UTF-8 SRT file to inspect subtitles.</Text> : null}
-                    {analysisPending && !batch && !transcriptOpen ? <Text tone="media" accessibilityLiveRegion="polite">Analyzing subtitles…</Text> : null}
+                    {analysisPending && !batch && !sourceCovered ? <Text tone="media" accessibilityLiveRegion="polite">Analyzing subtitles…</Text> : null}
                     {analysisError ? <>
                         <Text tone="media" accessibilityRole="alert">{analysisError}</Text>
                         <Button label="Retry analysis" variant="secondary" onPress={() => setAnalysisReload(v => v + 1)} />

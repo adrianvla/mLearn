@@ -200,8 +200,10 @@ fn version_eight_migration_preserves_existing_profile_rows() {
         db.execute_batch(&format!("DROP TABLE {table};")).unwrap();
     }
     db.pragma_update(None, "user_version", 8).unwrap();
+    db.execute_batch("DROP TABLE view_preference_receipts; DROP TABLE view_preferences;")
+        .unwrap();
     drop(db);
-    // When schema nine is installed and reopened.
+    // When the current schema is installed and reopened.
     let store = ProfileStore::open(&path).unwrap();
     // Then unrelated data and receipts remain intact and migration is durable.
     assert_eq!(store.preferences().unwrap().1.name, "preserved");
@@ -214,7 +216,7 @@ fn version_eight_migration_preserves_existing_profile_rows() {
     assert_eq!(
         db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
             .unwrap(),
-        9
+        11
     );
     assert_eq!(
         db.query_row(
@@ -225,7 +227,7 @@ fn version_eight_migration_preserves_existing_profile_rows() {
         .unwrap(),
         1
     );
-    db.pragma_update(None, "user_version", 10).unwrap();
+    db.pragma_update(None, "user_version", 12).unwrap();
     drop(db);
     assert!(ProfileStore::open(&path).is_err());
 }

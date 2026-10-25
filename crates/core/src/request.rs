@@ -304,6 +304,21 @@ pub enum Request {
         #[serde(rename = "commandId")]
         command_id: String,
     },
+    SaveInlineLevelScale {
+        #[serde(rename = "scaleId")]
+        scale_id: Option<String>,
+        #[serde(rename = "expectedRevision")]
+        expected_revision: u32,
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
+    SaveStarCollapse {
+        collapse: crate::StarCollapse,
+        #[serde(rename = "expectedRevision")]
+        expected_revision: u32,
+        #[serde(rename = "commandId")]
+        command_id: String,
+    },
     InstallPlugin {
         #[serde(rename = "pluginId")]
         plugin_id: String,

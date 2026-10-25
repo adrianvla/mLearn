@@ -17,13 +17,34 @@ pub use ocr::*;
 pub use request::Request;
 pub use response::Response;
 pub use review::*;
-pub use review_policy::{REVIEW_POLICY_VERSION, review_compatible, review_schedule};
+pub use review_policy::{review_compatible, review_schedule, REVIEW_POLICY_VERSION};
 use serde::{Deserialize, Serialize};
 pub use source::{SourceAnchor, SourceLocator};
 use std::collections::BTreeMap;
 pub use watch::*;
 
 pub const PROTOCOL_VERSION: u32 = 1;
+
+/// Cosmetic annotation selection, independent of learner evidence and review.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub enum StarCollapse {
+    #[default]
+    Auto,
+    Always,
+    Never,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct ViewPreferences {
+    pub revision: u32,
+    pub inline_level_scale: Option<String>,
+    #[serde(default)]
+    pub star_collapse: StarCollapse,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -134,6 +155,9 @@ pub struct Snapshot {
     pub protocol_version: u32,
     pub revision: u32,
     pub theme: ThemeDocument,
+    #[serde(default)]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub view_preferences: Option<ViewPreferences>,
     pub code_policy: String,
     pub catalog_configured: bool,
     pub available_plugins: Vec<PluginSummary>,

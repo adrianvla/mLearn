@@ -66,6 +66,7 @@ The catalogue describes the intended product, not current implementation status.
 | INS-11 | Control reading annotations and linguistic coloring | Publisher readings are distinct from inferred readings; captions and transcript share package-driven ruby/contours with aligned source baselines, preserved punctuation and reachable native targets; color/annotation visibility can reflect the relevant capability without flashing false Unknown states | M02 |
 | INS-12 | Inspect a long or ambiguous entry | Content scrolls within usable bounds while primary actions remain reachable; missing lookup has a scoped retry | M02 |
 | INS-13 | Open nearby dictionary cards from a source | Real eligible-word summaries open the same Inspector; pending, retry and close are usable; bounded history is released on source/package changes; eligibility and known-meaning filtering use package declarations and native Knowledge, not fabricated translation or per-token backend work | M02 |
+| INS-14 | Select the curriculum scale for inline stars | One persisted cosmetic scale is shown at a time using package-owned levels; preserve v2 FrequencyStars palette, count, compact position and persisted Auto/Always/Never number-plus-star collapse (Auto uses the original 8px clearance). Switching or hiding the scale or changing collapse changes no goals, Knowledge, scheduling, practice membership or progress; absent curricula are not fabricated. This display preference does not implement M12 goal management | M07 |
 
 ## Watch and subtitles
 

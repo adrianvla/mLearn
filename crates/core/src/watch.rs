@@ -38,7 +38,20 @@ model!(Capability {
     id: String,
     label: String
 });
-model!(LanguageDescription { language:String,label:String,capabilities:Vec<Capability>,annotation_capability:String,attribution:String });
+model!(LevelScale {
+    id: String,
+    label: String,
+    attribution: String
+});
+model!(InlineLevel {
+    scale_id: String,
+    level: String,
+    label: String,
+    rank: u32,
+    attribution: String
+});
+model!(LanguageDescription { language:String,label:String,capabilities:Vec<Capability>,annotation_capability:String,attribution:String,
+    #[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] level_scales:Option<Vec<LevelScale>> });
 // Packages own linguistic meaning. These bounded display values contain neither
 // executable layout nor a core-maintained inventory of language-specific features.
 model!(ReadingSpan {
@@ -56,7 +69,8 @@ model!(ContourUnit {
     height: f64
 });
 model!(PronunciationContour { id:String,reading:String,units:Vec<ContourUnit>,following_height:Option<f64>,label:String,color:Option<String>,attribution:String });
-model!(LinguisticPresentation { readings:Vec<ReadingSpan>,labels:Vec<LinguisticLabel>,contours:Vec<PronunciationContour> });
+model!(LinguisticPresentation { readings:Vec<ReadingSpan>,labels:Vec<LinguisticLabel>,contours:Vec<PronunciationContour>,
+    #[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] levels:Option<Vec<InlineLevel>> });
 model!(AnalyzedToken { start:u32,end:u32,text:String,targets:Vec<String>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] presentation:Option<LinguisticPresentation>,#[serde(default,skip_serializing_if="Option::is_none")] #[cfg_attr(feature="typescript",ts(optional))] nearby_meaning:Option<bool> });
 model!(CueAnalysis { cue:Cue,tokens:Vec<AnalyzedToken> });
 model!(AnalysisBatch { source_id:String,subtitle_revision:String,package_id:String,package_version:String,package_revision:String,cues:Vec<CueAnalysis>,knowledge:Vec<KnowledgeProjection>,annotations:Vec<OccurrenceKnowledge> });

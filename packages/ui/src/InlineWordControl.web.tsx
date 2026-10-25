@@ -2,19 +2,21 @@ import { useUnistyles } from 'react-native-unistyles';
 import type { InlineWordContentProps, InlineWordProps } from './InlineWord.types';
 import { DocumentWordContent, InlineWordElement } from './InlineWordElement.web';
 import { PronunciationReading } from './PronunciationReading';
+import { LevelStars } from './LevelStars.web';
 
 export function InlineWordContent(props: InlineWordContentProps) {
     if (props.documentFlow) return <DocumentWordContent {...props} />;
     return <ThemedWordContent {...props} />;
 }
 
-function ThemedWordContent({ segments, variant = 'body', status }: InlineWordContentProps) {
+function ThemedWordContent({ segments, variant = 'body', status, level, starCollapse }: InlineWordContentProps) {
     const { theme } = useUnistyles();
     const { _web: sourceWeb, ...source } = theme.typography[variant];
     const { _web: rubyWeb, ...ruby } = theme.typography[
         variant === 'subtitle' ? 'subtitleRuby' : variant === 'inspectionTitle' ? 'inspectionRuby' : 'bodyRuby'
     ];
     return <span style={{
+        display: level ? 'inline-block' : undefined, position: level ? 'relative' : undefined,
         ...source, ...sourceWeb, lineHeight: `${source.lineHeight}px`,
         color: status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : variant === 'body' ? theme.colors.text : theme.media.text,
         whiteSpace: 'pre-wrap', overflowWrap: 'anywhere',
@@ -30,7 +32,8 @@ function ThemedWordContent({ segments, variant = 'body', status }: InlineWordCon
         </rt><rp>)</rp>
     </ruby> : segment.contour ? <PronunciationReading key={index} contour={segment.contour}
         color={status === 'claimed_known' || status === 'assessed_known' ? theme.feedback.success : undefined}
-        variant={variant === 'inspectionTitle' ? 'inspectionReading' : variant} /> : segment.text)}</span>;
+        variant={variant === 'inspectionTitle' ? 'inspectionReading' : variant} /> : segment.text)}
+        {level ? <LevelStars rank={level.rank} collapse={starCollapse} label={`${level.label}. ${level.attribution}`} /> : null}</span>;
 }
 
 export function InlineWordControl(props: InlineWordProps) {

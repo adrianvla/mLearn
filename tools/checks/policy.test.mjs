@@ -165,3 +165,19 @@ test('only the actual media and inline-control rendering boundaries admit specia
  assert.equal(checkSource('apps/client/src/host/createHost.native.ts',"import {File} from 'expo-file-system';").length,0);
  assert.ok(checkSource('apps/client/src/host/createHost.native.ts',"import {openDatabaseSync} from 'expo-sqlite';").length);
 });
+
+test('inline star geometry is an inert theme-free rendering boundary, not another control owner',()=>{
+ const file='packages/ui/src/LevelStars.web.tsx';
+ assert.deepEqual(checkSource(file,'import { useRef } from "react"; import { LEVEL_STARS } from "./LevelStars.types"; const A=()=> <span role="img"><svg><path d={path}/></svg></span>;'),[]);
+ assert.deepEqual(checkSource('packages/ui/src/InlineWordElement.web.tsx','import { LevelStars } from "./LevelStars.web";'),[]);
+ for(const source of [
+  'const A=()=> <button>word</button>;',
+  'const A=()=> <span role="button"/>;',
+  'const A=()=> <span onClick={activate}/>;',
+  'const A=()=> React.createElement("button",{});',
+  'import { StyleSheet } from "react-native-unistyles";',
+  'export * from "./PronunciationReading";',
+  'const theme=require("./PronunciationReading");',
+ ]) assert.ok(checkSource(file,source).length,source);
+ assert.ok(checkSource('packages/ui/src/StarEscape.web.tsx','const A=()=> <svg><path/></svg>;').length);
+});

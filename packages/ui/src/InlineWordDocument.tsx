@@ -19,6 +19,8 @@ export function DocumentWord({ text, presentation, display, status, sourceStart,
     const content = <DocumentWordContent segments={readingSegments(text, presentation?.readings ?? [])}
         documentFlow={display} sourceStart={sourceStart} highlighted={highlighted} hiddenText={hiddenText} />;
     return <InlineWordElement text={text} status={status} onActivate={onActivate} documentFlow={display}
+        level={hiddenText ? undefined : presentation?.levels?.find(value => value.scaleId === display.inlineLevelScale)}
+        starCollapse={display.starCollapse}
         color={display.color} knownColor={display.knownColor}
         accessibilityLabel={`${text}: ${status.replaceAll('_', ' ')}${readings ? `. ${readings}` : ''}`}>
         {content}

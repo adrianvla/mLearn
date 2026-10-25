@@ -38,7 +38,7 @@ fn sequential_migrations_preserve_existing_state_and_reject_newer_versions() {
             store.save_theme(&theme, 0, "settings").unwrap();
             drop(store);
             let db = rusqlite::Connection::open(&path).unwrap();
-            db.execute_batch("DROP TABLE material_assets; DROP TABLE materials; DROP TABLE authored_media; DROP TABLE capture_exclusions; DROP TABLE material_receipts;").unwrap();
+            db.execute_batch("DROP TABLE material_assets; DROP TABLE materials; DROP TABLE authored_media; DROP TABLE capture_exclusions; DROP TABLE material_receipts; DROP TABLE view_preference_receipts; DROP TABLE view_preferences;").unwrap();
             if version < 3 {
                 db.execute_batch("DROP TABLE install_receipts;").unwrap();
             }
@@ -59,9 +59,9 @@ fn sequential_migrations_preserve_existing_state_and_reject_newer_versions() {
         assert_eq!(
             db.pragma_query_value(None, "user_version", |r| r.get::<_, u32>(0))
                 .unwrap(),
-            9
+            11
         );
-        db.pragma_update(None, "user_version", 10).unwrap();
+        db.pragma_update(None, "user_version", 12).unwrap();
         drop(db);
         assert!(ProfileStore::open(&path).is_err());
     }

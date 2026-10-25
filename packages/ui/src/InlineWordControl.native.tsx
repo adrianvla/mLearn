@@ -3,9 +3,10 @@ import { Pressable, Text as NativeText, View, AccessibilityInfo, findNodeHandle 
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { InlineWordContentProps, InlineWordProps, TextBounds } from './InlineWord.types';
 import { PronunciationReading } from './PronunciationReading';
+import { LevelStars } from './LevelStars';
 
 /** Native has no ruby primitive; each reading/source pair is one flow item. */
-export function InlineWordContent({ segments, variant = 'body', status }: InlineWordContentProps) {
+export function InlineWordContent({ segments, variant = 'body', status, level, starCollapse }: InlineWordContentProps) {
     const { theme } = useUnistyles();
     return <View style={contentStyles.flow}>
         {segments.map((segment, index) => segment.reading ?
@@ -20,6 +21,7 @@ export function InlineWordContent({ segments, variant = 'body', status }: Inline
                 variant={variant === 'inspectionTitle' ? 'inspectionReading' : variant} /> :
                 <NativeText key={index} style={contentStyles.source(variant, status)}>{segment.text}</NativeText>
         )}
+        {level ? <LevelStars rank={level.rank} collapse={starCollapse} label={`${level.label}. ${level.attribution}`} /> : null}
     </View>;
 }
 
@@ -43,7 +45,7 @@ const contentStyles = StyleSheet.create(theme => ({
 /** A real inline view keeps each word independently reachable by TalkBack/VoiceOver.
  * Nested NativeText onPress works by touch but collapses into its parent's AX node.
  */
-export function InlineWordControl({ text, children, accessibilityLabel, status, onActivate, variant = 'subtitle' }: InlineWordProps) {
+export function InlineWordControl({ text, children, accessibilityLabel, status, onActivate, variant = 'subtitle', level, starCollapse }: InlineWordProps) {
     const ref = useRef<View>(null);
     const restoreFocus = () => {
         const tag = findNodeHandle(ref.current);
@@ -60,7 +62,8 @@ export function InlineWordControl({ text, children, accessibilityLabel, status, 
       accessibilityLabel={accessibilityLabel ?? `${text}: ${status.replaceAll('_', ' ')}`}
       onPress={activate}
       style={styles.target}>
-    {children ?? <NativeText style={styles.word(status, variant)}>{text}</NativeText>}</Pressable>;
+    {children ?? <NativeText style={styles.word(status, variant)}>{text}</NativeText>}
+    {level ? <LevelStars rank={level.rank} collapse={starCollapse} label={`${level.label}. ${level.attribution}`} /> : null}</Pressable>;
 }
 const styles = StyleSheet.create(theme => ({
     target: {

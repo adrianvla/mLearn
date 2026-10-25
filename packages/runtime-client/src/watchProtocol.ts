@@ -9,6 +9,11 @@ function list(v: unknown, limit: number, guard: (v: unknown) => boolean): boolea
 function source(v: unknown): boolean { return object(v) && ['id','title','mediaPath','mediaRevision','packageId','packageVersion'].every(k=>string(v[k])) && optionalString(v.subtitlePath) && optionalString(v.subtitleRevision) && integer(v.positionMs) && integer(v.durationMs) && integer(v.subtitleOffsetRevision) && Number.isInteger(v.subtitleOffsetMs) && Math.abs(Number(v.subtitleOffsetMs))<=86400000 && typeof v.playbackRate==='number' && v.playbackRate>=0.5 && v.playbackRate<=2 && typeof v.inspectionTrigger==='string' && ['click','immediate','delayed','modifier'].includes(v.inspectionTrigger); }
 function cue(v: unknown): boolean { return object(v) && integer(v.index) && integer(v.startMs) && integer(v.endMs) && Number(v.endMs)>Number(v.startMs) && string(v.text); }
 function capability(v: unknown): boolean { return object(v) && string(v.id) && string(v.label); }
+function levelScale(v: unknown): boolean {
+ return object(v)&&string(v.id)&&v.id.includes(':')&&v.id.length<=512
+  &&string(v.label)&&v.label.length>0&&v.label.length<=128
+  &&string(v.attribution)&&v.attribution.length>0&&v.attribution.length<=2048;
+}
 function key(v: unknown): boolean { return object(v) && string(v.packageId) && string(v.targetId) && string(v.capability); }
 function projection(v: unknown): boolean { return object(v) && key(v.key) && optionalBoolean(v.claim) && optionalBoolean(v.assessed) && (v.prediction===null || typeof v.prediction==='number' && Number.isFinite(v.prediction)) && integer(v.revision) && string(v.status); }
 function plugin(v: unknown): boolean { return object(v) && string(v.id) && string(v.version) && list(v.capabilities,64,string); }
@@ -44,6 +49,9 @@ function presentation(v: unknown, text: string): boolean {
    &&Number(r.end)<=text.length*4&&string(r.text)&&r.text.length>0&&r.text.length<=512&&attribution(r.attribution)
    &&(r.base===undefined||r.base===null||string(r.base)&&r.base.length>0&&r.base.length<=512))
   &&list(v.labels,16,l=>object(l)&&namespaced(l.id)&&string(l.label)&&l.label.length>0&&l.label.length<=512&&color(l.color)&&attribution(l.attribution))
+  &&(v.levels===undefined||v.levels===null||list(v.levels,16,l=>object(l)&&namespaced(l.scaleId)
+   &&string(l.level)&&l.level.length>0&&l.level.length<=128&&string(l.label)&&l.label.length>0&&l.label.length<=512
+   &&integer(l.rank)&&Number(l.rank)>=1&&Number(l.rank)<=7&&attribution(l.attribution)))
   &&list(v.contours,16,c=>object(c)&&namespaced(c.id)&&string(c.reading)&&c.reading.length>0&&string(c.label)
    &&color(c.color)&&attribution(c.attribution)&&(c.followingHeight===null||typeof c.followingHeight==='number'&&Number.isFinite(c.followingHeight)&&c.followingHeight>=0&&c.followingHeight<=1)
    &&list(c.units,64,u=>object(u)&&string(u.text)&&u.text.length>0&&u.text.length<=32&&typeof u.height==='number'&&Number.isFinite(u.height)&&u.height>=0&&u.height<=1)
@@ -71,7 +79,8 @@ export function isWatchResponse(v: unknown): v is Response {
  case 'transcript':return object(v.page) && string(v.page.sourceId) && string(v.page.subtitleRevision) && list(v.page.cues,16,cue) && (v.page.nextIndex===null||integer(v.page.nextIndex));
  case 'cue_position':return object(v.position) && string(v.position.sourceId) && string(v.position.subtitleRevision) && integer(v.position.cueIndex) && integer(v.position.positionMs);
  case 'position_saved':return true;
- case 'language':return object(v.description) && string(v.description.language) && string(v.description.label) && string(v.description.annotationCapability) && string(v.description.attribution) && list(v.description.capabilities,8,capability);
+ case 'language':return object(v.description) && string(v.description.language) && string(v.description.label) && string(v.description.annotationCapability) && string(v.description.attribution) && list(v.description.capabilities,8,capability)
+  &&(v.description.levelScales===undefined||v.description.levelScales===null||list(v.description.levelScales,16,levelScale));
  case 'entry':return entry(v.entry)&&string(v.packageVersion)&&revision(v.packageRevision)&&targetKnowledge(v.knowledge);
  case 'dictionary':return object(v.batch)&&['sourceId','subtitleRevision','packageId','packageVersion'].every(k=>string((v.batch as RecordValue)[k]))
   &&revision(v.batch.packageRevision)&&list(v.batch.items,6,item=>object(item)&&(item.state==='unavailable'&&string(item.targetId)&&string(item.message)

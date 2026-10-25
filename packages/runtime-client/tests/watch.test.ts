@@ -126,6 +126,24 @@ test('linguistic transport rejects executable colors and excessive nested pronun
  assert.equal(isWatchResponse(tooManyPatterns),false);
  assert.equal(isWatchResponse({...response,batch:{...response.batch,items:Array(7).fill(response.batch.items[0])}}),false);
 });
+
+ test('multiple curriculum display values remain independent bounded metadata',()=>{
+  const levels=[
+   {scaleId:'p:exam',level:'stage-one',label:'Stage One',rank:4,attribution:'Exam author'},
+   {scaleId:'p:course',level:'lesson-3',label:'Lesson 3',rank:2,attribution:'University'},
+  ];
+  const token={start:0,end:4,text:'word',targets:['t'],presentation:{readings:[],labels:[],contours:[],levels}};
+  const batch={sourceId:'s',subtitleRevision:'r',packageId:'p',packageVersion:'1',packageRevision:'a'.repeat(64),
+   cues:[{cue:{index:0,startMs:0,endMs:1000,text:'word'},tokens:[token]}],knowledge:[],annotations:[]};
+  const response={type:'analysis',batch};
+  assert.equal(isWatchResponse(response),true);
+  assert.deepEqual(response.batch.cues[0].tokens[0].presentation.levels,levels);
+  for(const rank of [0,8,1.5]){
+   const invalid=structuredClone(response);
+   invalid.batch.cues[0].tokens[0].presentation.levels[0].rank=rank;
+   assert.equal(isWatchResponse(invalid),false);
+  }
+ });
 test('dictionary batches reject mismatched source and target identities',async()=>{
  const revision='a'.repeat(64);
  const client=createRuntimeClient({commandId:()=> 'dictionary',execute:async()=>JSON.stringify({type:'dictionary',

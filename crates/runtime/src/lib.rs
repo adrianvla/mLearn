@@ -227,6 +227,11 @@ impl Runtime {
                         protocol_version: PROTOCOL_VERSION,
                         revision,
                         theme,
+                        view_preferences: Some(
+                            self.store
+                                .view_preferences()
+                                .map_err(|e| Failure::Operation(e.to_string()))?,
+                        ),
                         code_policy: self.policy.label().into(),
                         catalog_configured: self.catalog.is_some(),
                         available_plugins: vec![],
@@ -261,6 +266,46 @@ impl Runtime {
                             "invalid_settings"
                         };
                         Failure::Protocol(code, e.to_string())
+                    })?;
+                Ok(Response::Saved { revision })
+            }
+            Request::SaveInlineLevelScale {
+                scale_id,
+                expected_revision,
+                command_id,
+            } => {
+                let revision = self
+                    .store
+                    .save_inline_level_scale(scale_id.as_deref(), expected_revision, &command_id)
+                    .map_err(|e| {
+                        Failure::Protocol(
+                            if matches!(e, StorageError::Conflict) {
+                                "conflict"
+                            } else {
+                                "invalid_settings"
+                            },
+                            e.to_string(),
+                        )
+                    })?;
+                Ok(Response::Saved { revision })
+            }
+            Request::SaveStarCollapse {
+                collapse,
+                expected_revision,
+                command_id,
+            } => {
+                let revision = self
+                    .store
+                    .save_star_collapse(collapse, expected_revision, &command_id)
+                    .map_err(|e| {
+                        Failure::Protocol(
+                            if matches!(e, StorageError::Conflict) {
+                                "conflict"
+                            } else {
+                                "invalid_settings"
+                            },
+                            e.to_string(),
+                        )
                     })?;
                 Ok(Response::Saved { revision })
             }

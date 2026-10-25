@@ -6,6 +6,7 @@ import type { TextAnchor } from '@mlearn/ui/inline-word';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { useRuntime } from '../../bootstrap/RuntimeProvider';
+import { useInlineLevelScale, useStarCollapse } from '../../bootstrap/ViewPreferences';
 import DocumentCanvas, { type DocumentCanvasRef, type DocumentImageView } from './DocumentCanvas';
 import { useSourceAnchor } from './useSourceAnchor';
 
@@ -24,6 +25,8 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
     readonly onNavigate: (direction: 'previous' | 'next') => void;
 }) {
     const host = useRuntime();
+    const inlineLevelScale = useInlineLevelScale();
+    const starCollapse = useStarCollapse();
     const { theme } = useUnistyles();
     const container = useRef<View>(null);
     const canvas = useRef<DocumentCanvasRef>(null);
@@ -77,6 +80,7 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
             blocks={window.blocks} batch={batch} appearance={source.appearance} target={target} inspecting={inspecting}
             selection={selection} images={images}
             display={{ background: theme.shell.canvas, color: theme.colors.text, knownColor: theme.feedback.success,
+                inlineLevelScale, starCollapse,
                 selectionColor: theme.source.selection,
                 muted: theme.colors.muted, selection: theme.controls.selected,
                 fontFamily: theme.typography.body._web.fontFamily, textScale: theme.textScale, caption: theme.typography.detail }}
@@ -104,7 +108,7 @@ export function DocumentViewport({ window, batch, target, returned, inspecting, 
                 if (key === active.current) handlers.current.onThumbnail(resourceId, uri);
             }}
             onNavigate={async (key, direction) => { if (key === active.current) handlers.current.onNavigate(direction); }} />,
-        [identity, window, batch, imageState, inspecting, theme.shell.canvas, theme.colors.text, theme.feedback.success,
+        [identity, window, batch, imageState, inspecting, inlineLevelScale, starCollapse, theme.shell.canvas, theme.colors.text, theme.feedback.success,
             theme.colors.muted, theme.controls.selected, theme.typography.body._web.fontFamily, theme.textScale]);
     return <View ref={container} style={styles.viewport}
         testID={renderedIdentity === identity ? 'reader-document-ready' : 'reader-document-loading'}

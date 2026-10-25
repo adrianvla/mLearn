@@ -289,6 +289,17 @@ remain historical evidence, not authority for another style variant.
   cue-alignment controls with real cue starts and the existing persisted offset.
   Rust owns alignment decisions; manual editing and reset remain available.
   Apply/Reset must not be substituted for the distinct alignment actions.
+  Inline curriculum stars retain the actual v2 `FrequencyStars.tsx` and
+  `SubtitleWord.css` presentation: centered beneath the word at bottom -10px
+  with 5px inset, 10px stars (6/14px compact/large variants), the original SVG
+  and seven color filters. Automatic collapse compares the full star-row width
+  with the word plus half of each same-line neighboring gap, then shows the
+  visual rank and one star. One shared observer owns web geometry subscriptions.
+  The v2 application default retains an 8px gap; Auto, Always and Never are
+  persisted cosmetic collapse modes, independently of the selected curriculum.
+  A package supplies the scale identity, level label and bounded visual rank;
+  Appearance selects one persisted cosmetic scale, independently of every
+  learning goal, Knowledge value, review choice and progress record.
 - Inspector uses 32/44 title, 20/28 definitions and 18/26 readings at 1x
   text scale, translucent dark material, 1px neutral boundary, independently
   scrolling dictionary content and an attached action footer. Knowledge
