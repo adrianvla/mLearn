@@ -51,7 +51,42 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
-#### Native continuation paused incomplete: disk exhaustion
+#### Disk recovery and verified Settings header repair — 2026-10-25
+
+The maintainer freed disk space by removing simulator runtimes and Rust
+incremental cache; OmO deleted neither. Fresh native continuation now passes
+SQLite `quick_check`, real restart of the retained profile, JLPT/Always restoration,
+Dark Quartz revision 4 and exact source resume at 22000 ms / -6350 ms.
+Native Never and Auto were then inspected in real captions and filtered
+transcript. View revision 9 / JLPT / Auto is the final persisted state.
+All 45 non-view tables remain unchanged across each cosmetic preference write.
+The prior disk-full launch below is retained as failed historical evidence.
+
+The responsive pass reproduced Settings' absolutely positioned Home action
+overlapping its description. The new layout regression fails on the old source
+(264 square pixels of overlap), then passes with an in-flow title/description
+column and shared Home control. Typecheck, ownership lint, web export and all
+9 affected foundation/dialog browser interactions pass. Actual native desktop
+and 500-pixel after-captures were inspected; the narrow Home action remains
+usable and its bounds no longer intersect the description. Captures and exact
+invocations are indexed in the existing ignored M07 `PLAN.md`.
+
+M07 remains incomplete: a real six-cue Japanese transcript batch exhausts its
+unchanged 64-million fuel allowance, and explicit retry reproduces it. A one-cue
+search succeeds. Repair that shared analysis owner without weakening the guard.
+Source `97df66b0` passed Linux native CI and foundation web/Rust/detector/macOS;
+Windows still failed before publishing its configured application window.
+Both mobile builds succeeded, but Android's Maestro connection died during
+Playback options and iOS hit the explicitly deferred FileProvider assertion.
+Neither failure is reported green or resolved by the header repair.
+
+Both targeted native launchers/apps, their 8081/7780 listeners and resource
+guards are now stopped with readback receipts. The unrelated 4173 server remains
+untouched. Latest disk free is 50 GiB; root charged footprint is 2598 MB and swap
+2873.75 MiB. These scoped results do not close full visual/performance/platform
+acceptance, remaining cleanup or the consolidated M07 review package.
+
+#### Historical native continuation pause: disk exhaustion
 
 The connected vocabulary and cosmetic-display source is ready for an evidence
 checkpoint, not M07 acceptance. The latest generated-contract check, web

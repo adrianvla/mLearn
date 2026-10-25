@@ -112,12 +112,14 @@ export function SettingsScreen() {
 
   return <AppShell header={<>
     <View style={styles.header}>
-      <View style={styles.title}><Icon name="settings" size={20} color={theme.colors.text} />
-        <Text variant="heading" accessibilityRole="header">Settings</Text></View>
+      <View style={styles.heading}>
+        <View style={styles.title}><Icon name="settings" size={20} color={theme.colors.text} />
+          <Text variant="heading" accessibilityRole="header">Settings</Text></View>
+        <View style={styles.description}><Text muted variant="caption">Configure mLearn to your preferences</Text></View>
+      </View>
       <View style={styles.home}><Button label="Home" icon="arrowLeft" iconOnly={width < 700} variant="quiet"
         onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /></View>
     </View>
-    <View style={styles.description}><Text muted variant="caption">Configure mLearn to your preferences</Text></View>
   </>} navigation={<>
     <View style={styles.search}><TextField label="Search settings" variant="search" value={search} maxLength={128}
       onChangeText={setSearch} placeholder="Search settings…" autoCorrect={false} /></View>
@@ -212,8 +214,9 @@ export function SettingsScreen() {
 }
 
 const styles = StyleSheet.create(theme => ({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: theme.spacing.medium },
-  home: { position: 'absolute', top: 0, right: 0 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: theme.spacing.medium },
+  heading: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
+  home: { flexShrink: 0 },
   description: { paddingLeft: 20 + theme.spacing.compact },
   title: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.compact },
   search: { width: '100%', marginBottom: theme.spacing.compact },

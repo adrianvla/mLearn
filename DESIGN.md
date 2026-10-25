@@ -73,6 +73,13 @@ of a canvas/material mismatch. Native AXFocused is false on the reference too;
 do not diagnose a v3 focus defect from that flag. Use composited matched native
 captures for the material gate before changing shared theme or host behavior.
 
+Layout: Settings header - keep the Home action clear of wrapping description
+text -> the existing AppShell header with an in-flow action and a shrinking
+title/description column; scroll owner: app-shell-header. The action must reserve
+its width instead of absolutely covering the description. Keep shared typography,
+spacing and controls; neither a fixed description height nor clipped copy is a
+responsive repair.
+
 Recent documents and media share SourceRow: one full continuation target with
 the actual reference's 10px inset, 12px gap, 140x72px fallback media region,
 16px medium title, 12px metadata and 6px shared progress track. The measured

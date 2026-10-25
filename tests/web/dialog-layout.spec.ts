@@ -1,5 +1,22 @@
 import { test, expect } from '@playwright/test';
 
+test('Settings header keeps its Home action clear of the description', async ({ page }) => {
+  await page.setViewportSize({ width: 500, height: 850 });
+  await page.goto('/settings');
+  const home = page.getByRole('button', { name: 'Home', exact: true });
+  const description = page.getByText('Configure mLearn to your preferences', { exact: true });
+  await expect(home).toBeVisible();
+  await expect(description).toBeVisible();
+  const actionBounds = await home.boundingBox();
+  const descriptionBounds = await description.boundingBox();
+  if (!actionBounds || !descriptionBounds) throw new Error('Settings header is not laid out');
+  const overlapWidth = Math.max(0, Math.min(actionBounds.x + actionBounds.width,
+    descriptionBounds.x + descriptionBounds.width) - Math.max(actionBounds.x, descriptionBounds.x));
+  const overlapHeight = Math.max(0, Math.min(actionBounds.y + actionBounds.height,
+    descriptionBounds.y + descriptionBounds.height) - Math.max(actionBounds.y, descriptionBounds.y));
+  expect(overlapWidth * overlapHeight).toBe(0);
+});
+
 for (const viewport of [{ width: 1080, height: 900 }, { width: 390, height: 740 }]) {
   test(`dialog is centered and remains inside ${viewport.width}px viewport`, async ({ page }) => {
     await page.setViewportSize(viewport);
