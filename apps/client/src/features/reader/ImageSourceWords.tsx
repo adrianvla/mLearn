@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { View } from 'react-native';
 import type { DocumentRecord, OcrPage, SourceAnchor } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
@@ -15,25 +15,26 @@ import type { ImageReaderPage } from './useImageReader';
 /** Native source projections feed the same Capture/Inspector owners as a
  * transcript. Filtering and pagination are view state, not learner authority.
  */
-export function ImageSourceWords({ client, source, pages, onInspect, onLocate, onBeforeOpen, onAnalyze }: {
+export function ImageSourceWords({ client, source, pages, onInspect, onLocate, open, onOpenChange, triggerRef, focusTarget, onAnalyze }: {
     readonly client: RuntimeClient;
     readonly source: DocumentRecord;
     readonly pages: readonly ImageReaderPage[];
     readonly onInspect: (inspection: Inspection) => void;
     readonly onLocate: (source: SourceAnchor) => void;
-    readonly onBeforeOpen: () => void;
+    readonly open: boolean;
+    readonly onOpenChange: (open: boolean) => void;
+    readonly triggerRef: RefObject<View | null>;
+    readonly focusTarget: () => View | null;
     readonly onAnalyze: (page: OcrPage, offset: number) => Promise<void>;
 }) {
     const router = useRouter();
-    const [open, setOpen] = useState(false);
     const [unknownOnly, setUnknownOnly] = useState(true);
     const [offset, setOffset] = useState(0);
-    const trigger = useRef<View>(null);
     const scope = JSON.stringify([source.id, source.contentRevision, source.packageId, source.packageVersion,
         pages.map(page => [page.descriptor.resourceId, page.page?.ocrRevision, page.batch?.packageRevision])]);
     useEffect(() => {
-        setOpen(false); setOffset(0);
-    }, [scope]);
+        onOpenChange(false); setOffset(0);
+    }, [scope, onOpenChange]);
     const words = useMemo(() => {
         if (!open) return [];
         const seen = new Set<string>();
@@ -68,15 +69,11 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
     const visibleKeys = useRef(new Set<string>());
     visibleKeys.current = new Set(visible.map(word => word.candidate.key));
     const practice = useSourcePractice(client, visible.map(word => word.candidate), scope, sessionId => {
-        setOpen(false);
+        onOpenChange(false);
         router.push({ pathname: '../review', params: { sessionId } });
     });
     return <Dialog title="Page words" description="Source-linked words in the current analyzed regions."
-        presentation="sidebar" open={open} onOpenChange={value => {
-            if (value) onBeforeOpen();
-            setOpen(value);
-        }} trigger={<Button ref={trigger} label="Page words" variant="secondary" size="compact"
-            disabled={!pages.some(page => page.batch)} />}>
+        presentation="sidebar" open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}>
         <Row>
             <Button label="Unknown words" variant="secondary" size="compact" accessibilityState={{ selected: unknownOnly }}
                 onPress={() => setUnknownOnly(true)} />
@@ -126,14 +123,14 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
                     targets: word.targets, packageRevision: word.packageRevision, sourceAnchor, showContext: true,
                     anchor: { ...anchor, restoreFocus: () => {
                         if (visibleKeys.current.has(candidate.key)) anchor.restoreFocus();
-                        else trigger.current?.focus();
+                        else triggerRef.current?.focus();
                     } } });
             }}
             onLocate={candidate => {
-                if (candidate.content.source) { setOpen(false); onLocate(candidate.content.source); }
+                if (candidate.content.source) { onOpenChange(false); onLocate(candidate.content.source); }
             }}
             onOpenMaterial={id => {
-                setOpen(false); router.push({ pathname: '../materials', params: { id, sourceId: source.id } });
+                onOpenChange(false); router.push({ pathname: '../materials', params: { id, sourceId: source.id } });
             }} />
         {words.length > 128 ? <Row>
             <Button label="Previous words" variant="secondary" disabled={offset === 0}

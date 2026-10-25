@@ -13,18 +13,27 @@ export function useSourcePractice(client: RuntimeClient, candidates: readonly Ca
   const owner = useRef<object | null>(null);
   const operation = useRef<AbortController | null>(null);
   const command = useRef<ReviewCommand | null>(null);
+  const commandContext = useRef({ client, scope, identity });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(false);
   useEffect(() => {
     const next = {}; owner.current = next;
-    command.current = null; setPending(false); setError(''); setRetry(false);
+    // Hiding an empty projection cancels its preparation, not a prepared
+    // admission's receipt. A different source/client or selection retires it.
+    if (commandContext.current.client !== client || commandContext.current.scope !== scope
+      || candidates.length > 0 && commandContext.current.identity !== identity) {
+      command.current = null; commandContext.current = { client, scope, identity };
+    }
+    setPending(false);
+    if (!command.current) setError('');
+    setRetry(command.current !== null);
     return () => {
       if (owner.current === next) {
         owner.current = null; operation.current?.abort(); operation.current = null;
       }
     };
-  }, [client, identity]);
+  }, [client, identity, scope, candidates.length]);
   async function start() {
     if (operation.current) return;
     const controller = new AbortController();
@@ -35,6 +44,7 @@ export function useSourcePractice(client: RuntimeClient, candidates: readonly Ca
     try {
       const prepared = command.current ?? await prepareSourcePractice(client, candidates, controller.signal);
       if (!active()) return;
+      if (!command.current) commandContext.current = { client, scope, identity };
       command.current = prepared;
       const { session } = await client.review(prepared);
       if (!active()) return;

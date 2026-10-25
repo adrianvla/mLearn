@@ -56,10 +56,16 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
     const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
     useFocusEffect(useCallback(() => {
         setFocused(true);
-        return () => { setFocused(false); setInspection(null); setOptionsOpen(false); setContentsOpen(false); setThumbnails({}); };
+        return () => { setFocused(false); setInspection(null); setOptionsOpen(false); setContentsOpen(false);
+            setRecognitionOpen(false); setWordsOpen(false); setThumbnails({}); };
     }, []));
     const [optionsOpen, setOptionsOpen] = useState(false);
     const [contentsOpen, setContentsOpen] = useState(false);
+    const [recognitionOpen, setRecognitionOpen] = useState(false);
+    const [wordsOpen, setWordsOpen] = useState(false);
+    const optionsTrigger = useRef<View>(null);
+    const recognitionTrigger = useRef<View>(null);
+    const wordsTrigger = useRef<View>(null);
     const [railOpen, setRailOpen] = useState(true);
     const [navigationError, setNavigationError] = useState('');
     const [contentsAfter, setContentsAfter] = useState<number | null>(null);
@@ -71,7 +77,7 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
     const source = reader.window?.source;
     const sourceIdentity = JSON.stringify([id, source?.contentRevision, source?.parserRevision,
         source?.packageId, source?.packageVersion, reader.window?.blocks.map(block => [block.resource, block.id])]);
-    useEffect(() => { setInspection(null); }, [sourceIdentity, reader.pending]);
+    useEffect(() => { setInspection(null); setRecognitionOpen(false); setWordsOpen(false); }, [sourceIdentity, reader.pending]);
     useEffect(() => { setThumbnails({}); }, [sourceIdentity]);
     const current = useRef(sourceIdentity); current.current = sourceIdentity;
     const sourceWindow = reader.window;
@@ -164,7 +170,7 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                 </Dialog>
                 <Dialog title="Reader appearance" description="Changes are saved for this source and preserve its visible text position."
                     open={optionsOpen} onOpenChange={open => { setOptionsOpen(open); setInspection(null); }}
-                    trigger={<Button label="View options" icon="settings" iconOnly={compact} variant="secondary" size="compact" disabled={!source || reader.pending} />}>
+                    trigger={<Button ref={optionsTrigger} label="View options" icon="settings" iconOnly={compact} variant="secondary" size="compact" disabled={!source || reader.pending} />}>
                     {source?.format === 'pdf' ? <Button
                         label={imageMode ? 'Read available PDF text' : 'View original PDF pages'} variant="secondary" size="compact"
                         onPress={() => { setInspection(null); setImageView(!imageMode); setOptionsOpen(false); }} /> : null}
@@ -172,19 +178,14 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                         layoutInline={layoutInline}
                         onCropMode={enabled => { setCropMode(enabled); if (enabled) setMagnifier(false); }}
                         onMagnifier={enabled => { setMagnifier(enabled); if (enabled) setCropMode(false); }}
-                        onBeforeAction={() => setInspection(null)} onReturnToSource={() => setOptionsOpen(false)}>
-                        {source ? <ImageSourceWords client={client} source={source} pages={imageReader.pages}
-                            onBeforeOpen={() => { setInspection(null); setMagnifier(false); }}
-                            onInspect={setInspection} onAnalyze={imageReader.analyze}
-                            onLocate={anchor => {
-                                const locator = anchor.locator;
-                                if (locator.kind !== 'image') return;
-                                const item = imageReader.pages.find(item => item.descriptor.resourceId === locator.resourceId);
-                                if (item) { setOptionsOpen(false); setInspection(null); reader.onPosition(item.descriptor.position, true); setHighlighted(anchor); }
-                            }} /> : null}
-                        <ImageRecognition client={client} reader={imageReader} onBeforeOpen={() => {
-                            setInspection(null); setMagnifier(false); setCropMode(false);
-                        }} />
+                        onBeforeAction={() => setInspection(null)} onReturnToSource={() => setOptionsOpen(false)}
+                        onCropConsumed={() => setCropDraft(null)}>
+                        <Button ref={wordsTrigger} label="Page words" variant="secondary" size="compact"
+                            disabled={!imageReader.pages.some(page => page.batch)}
+                            onPress={() => { setInspection(null); setMagnifier(false); setWordsOpen(true); }} />
+                        <Button ref={recognitionTrigger} label="Recognition details" variant="secondary" size="compact"
+                            disabled={!imageReader.pages.some(page => page.page?.regions.length)}
+                            onPress={() => { setInspection(null); setMagnifier(false); setCropMode(false); setRecognitionOpen(true); }} />
                     </ImageReaderControls> : null}
                     {source ? <>
                         {!imageMode ? <>
@@ -325,6 +326,20 @@ function ReaderWorkspace({ client, id, materialId, reviewSessionId, reviewEncoun
                 <Button label="Retry saving position" variant="secondary" size="compact"
                     onPress={() => void reader.persist().catch(() => { /* Visible feedback retains the failed save. */ })} /></Row> : null}
         </View>
+        {imageMode && source ? <>
+            <ImageRecognition client={client} reader={imageReader} open={recognitionOpen} onOpenChange={setRecognitionOpen}
+                focusTarget={() => focused ? recognitionTrigger.current ?? optionsTrigger.current : null} />
+            <ImageSourceWords client={client} source={source} pages={imageReader.pages} open={wordsOpen}
+                onOpenChange={setWordsOpen} triggerRef={wordsTrigger}
+                focusTarget={() => focused ? wordsTrigger.current ?? optionsTrigger.current : null}
+                onInspect={setInspection} onAnalyze={imageReader.analyze}
+                onLocate={anchor => {
+                    const locator = anchor.locator;
+                    if (locator.kind !== 'image') return;
+                    const item = imageReader.pages.find(item => item.descriptor.resourceId === locator.resourceId);
+                    if (item) { setOptionsOpen(false); setInspection(null); reader.onPosition(item.descriptor.position, true); setHighlighted(anchor); }
+                }} />
+        </> : null}
         {inspection && source && host.available ? <Inspector inspection={inspection} packageId={source.packageId} client={client}
             onChanged={async () => {
                 const identity = current.current;

@@ -487,6 +487,12 @@ test('source practice retries one frozen request and opens its actually admitted
   const words = page.getByRole('dialog', { name: 'Page words', exact: true });
   await words.getByRole('button', { name: 'Practice saved words in this view', exact: true }).click();
   await expect(words.getByRole('alert')).toContainText('Practice admission receipt lost');
+  await words.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Page words', exact: true })).toBeFocused();
+  await (await readerOptions(page)).getByRole('button', { name: 'Close', exact: true }).click();
+  await readerOptions(page);
+  await page.getByRole('button', { name: 'Page words', exact: true }).click();
+  await expect(words.getByRole('alert')).toContainText('Practice admission receipt lost');
   await words.getByRole('button', { name: 'Retry original Word Practice request', exact: true }).click();
   await expect(page).toHaveURL(/\/review\?sessionId=/);
   await expect(page.getByText('Word Practice', { exact: true }).first()).toBeVisible();
@@ -513,6 +519,13 @@ test(`recognition correction retains uncertain identity, refreshes alignment and
   await dialog.getByRole('textbox', { name: 'Top left X', exact: true }).fill('15');
   await dialog.getByRole('button', { name: 'Save correction', exact: true }).click();
   await expect(dialog.getByRole('alert')).toContainText('Correction receipt lost');
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Recognition details', exact: true })).toBeFocused();
+  await (await readerOptions(page)).getByRole('button', { name: 'Close', exact: true }).click();
+  await readerOptions(page);
+  await page.getByRole('button', { name: 'Recognition details', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Correction receipt lost');
+  await expect(dialog.getByRole('textbox', { name: 'Recognized text', exact: true })).toHaveValue('東京都');
   await dialog.getByRole('button', { name: 'Retry same correction', exact: true }).click();
   await expect(dialog.getByText(/recognition revision 2/)).toBeVisible();
   await dialog.getByRole('textbox', { name: 'Recognized text', exact: true }).fill('Unsaved draft');
@@ -535,6 +548,34 @@ test(`recognition correction retains uncertain identity, refreshes alignment and
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
   await expect(page.getByRole('button', { name: '東京都: untracked', exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'image_page_uri' && request.crop === null).length)).toBe(1);
+});
+}
+
+for (const width of [1080, 393]) {
+test(`cancelled dragged crop does not reopen recognition with Reader options at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  await start(page);
+  await readerOptions(page);
+  await page.getByRole('button', { name: 'Select crop', exact: true }).click();
+  const image = await page.getByRole('img', { name: 'Page 1', exact: true }).boundingBox();
+  if (!image) throw new Error('Original image geometry is unavailable');
+  await page.mouse.move(image.x + image.width * 0.25, image.y + image.height * 0.4);
+  await page.mouse.down();
+  await page.mouse.move(image.x + image.width * 0.6, image.y + image.height * 0.7);
+  await page.mouse.up();
+  const recognition = page.getByRole('dialog', { name: 'Recognize source image', exact: true });
+  await expect(recognition).toBeVisible();
+  expect(Number(await recognition.getByRole('textbox', { name: 'Left (%)', exact: true }).inputValue())).toBeCloseTo(25, 0);
+  expect(Number(await recognition.getByRole('textbox', { name: 'Width (%)', exact: true }).inputValue())).toBeCloseTo(35, 0);
+  await recognition.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Recognize', exact: true })).toBeFocused();
+  await (await readerOptions(page)).getByRole('button', { name: 'Close', exact: true }).click();
+  const options = await readerOptions(page);
+  await expect(options).toBeVisible();
+  await expect(recognition).toHaveCount(0);
+  await expect(options.getByRole('combobox', { name: /^Page reading direction:/ })).toBeVisible();
+  expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'recognize_image'))).toHaveLength(0);
+  await page.screenshot({ path: testInfo.outputPath('crop-cancelled-options-reopened.png') });
 });
 }
 

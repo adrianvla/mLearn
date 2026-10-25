@@ -1,5 +1,5 @@
-import { createContext, useCallback, useState, type PropsWithChildren, type ReactElement } from 'react';
-import { Platform, ScrollView, View, useWindowDimensions } from 'react-native';
+import { createContext, useCallback, useEffect, useRef, useState, type PropsWithChildren, type ReactElement } from 'react';
+import { AccessibilityInfo, Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type {} from '@mlearn/theme/runtime';
@@ -7,10 +7,12 @@ import { Button } from './Button';
 import { Text } from './Text';
 import { KeyboardAvoidingView } from './KeyboardAvoidingView';
 
-type Props = PropsWithChildren<{ open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; trigger: ReactElement; presentation?: 'dialog' | 'sidebar' }>;
+type Props = PropsWithChildren<{
+  open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; presentation?: 'dialog' | 'sidebar';
+} & ({ trigger: ReactElement; focusTarget?: never } | { trigger?: never; focusTarget: () => View | null })>;
 export const dialogSidebarWidth = 320;
 export const DialogPortalContext = createContext<HTMLElement | null>(null);
-export function Dialog({ open, onOpenChange, title, description, trigger, children, presentation = 'dialog' }: Props) {
+export function Dialog({ open, onOpenChange, title, description, trigger, focusTarget, children, presentation = 'dialog' }: Props) {
   const { height, width } = useWindowDimensions();
   const sidebar = presentation === 'sidebar' && Platform.OS === 'web' && width >= 720;
   const { theme } = useUnistyles();
@@ -18,8 +20,21 @@ export function Dialog({ open, onOpenChange, title, description, trigger, childr
   const contentRef = useCallback((node: View | null) => {
     setPortal(Platform.OS === 'web' && typeof HTMLElement !== 'undefined' && node instanceof HTMLElement ? node : null);
   }, []);
+  const restoreFocus = useCallback(() => {
+    const target = focusTarget?.();
+    if (!target) return;
+    if (Platform.OS === 'web') target.focus();
+    else AccessibilityInfo.sendAccessibilityEvent(target, 'focus');
+  }, [focusTarget]);
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    const closed = wasOpen.current && !open;
+    wasOpen.current = open;
+    // Native Content has no onCloseAutoFocus; normally Trigger owns this return.
+    if (Platform.OS !== 'web' && closed) restoreFocus();
+  }, [open, restoreFocus]);
   return <DialogPortalContext.Provider value={portal}><Primitive.Root open={open} onOpenChange={onOpenChange}>
-    <Primitive.Trigger asChild>{trigger}</Primitive.Trigger>
+    {trigger ? <Primitive.Trigger asChild>{trigger}</Primitive.Trigger> : null}
     <Primitive.Portal>
       <Primitive.Overlay asChild>
         <View style={[styles.overlay, sidebar && styles.sidebarOverlay]}>
@@ -28,6 +43,7 @@ export function Dialog({ open, onOpenChange, title, description, trigger, childr
             style={styles.keyboardFrame(sidebar)}>
           <View style={[styles.bounds, sidebar && styles.sidebarBounds]}>
             <Primitive.Content asChild
+              onCloseAutoFocus={focusTarget ? event => { event.preventDefault(); restoreFocus(); } : undefined}
               // Native Content claims the initial responder by default.
               // Leave pan ownership to its ScrollView, not the wrapper.
               onStartShouldSetResponder={Platform.OS === 'web' ? undefined : () => false}>

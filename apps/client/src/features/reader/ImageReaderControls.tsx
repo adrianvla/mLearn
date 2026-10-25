@@ -33,7 +33,7 @@ export function ImageLayoutControls({ reader, onBeforeAction }: {
 /** Source image controls share ordinary application semantics/materials.
  * Coordinates remain unsubmitted input until the explicit recognition action.
  */
-export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, onCropMode, onMagnifier, onBeforeAction, onReturnToSource, layoutInline = false, children }: {
+export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, onCropMode, onMagnifier, onBeforeAction, onReturnToSource, onCropConsumed, layoutInline = false, children }: {
     readonly reader: ReturnType<typeof useImageReader>;
     readonly cropMode: boolean;
     readonly cropDraft: ImageCropDraft | null;
@@ -42,6 +42,7 @@ export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, on
     readonly onMagnifier: (enabled: boolean) => void;
     readonly onBeforeAction: () => void;
     readonly onReturnToSource: () => void;
+    readonly onCropConsumed: () => void;
     readonly layoutInline?: boolean;
     readonly children?: ReactNode;
 }) {
@@ -55,7 +56,8 @@ export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, on
         setCoordinates({ x: String(cropDraft.crop.x * 100), y: String(cropDraft.crop.y * 100),
             width: String(cropDraft.crop.width * 100), height: String(cropDraft.crop.height * 100) });
         setRecognitionOpen(true);
-    }, [cropDraft]);
+        onCropConsumed();
+    }, [cropDraft, onCropConsumed]);
     const settings = reader.settings;
     const provider = reader.providers.find(value => value.id === reader.providerId);
     const activeResource = reader.pages.some(page => page.descriptor.resourceId === selectedResource)

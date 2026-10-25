@@ -51,6 +51,109 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Reader lifetime review continuation — 2026-10-25
+
+The same reviewer subsequently closes B1/B2 but rejects B3: the triggerless
+dialogs rely on web-only close autofocus and lose the native Trigger's
+accessibility-focus return. Root reproduces the missing native event in
+`dialog-native-focus-red.log`, using the real shared Dialog/React effects with
+native host operations recorded at the adapter boundary. The repair makes
+triggerless callers provide a current focus target; shared Dialog owns web focus
+and the installed native `AccessibilityInfo.sendAccessibilityEvent(..., 'focus')`
+on an actual open-to-closed transition. Reader returns no target after route
+blur, and keeps the originating Button or options Button fallback. No timeout,
+per-feature native handling or second control owner is added. The focused
+regression passes both iOS/Android branches, latest-target changes, repeated
+closed renders and absent/blurred targets; typecheck, ownership lint and affected
+LSP checks pass (`dialog-native-focus-green.log`). This is native-adapter seam
+coverage, not a VoiceOver/TalkBack device claim. The current web export and all
+37 affected Reader/image/shared-dialog scenarios pass in
+`dialog-native-focus-web.log`; root inspected narrow cancelled-crop options and
+wide correction-recovery captures and opened them in Preview. The same reviewer
+appends B3 approval with no blockers while preserving both earlier negative
+verdicts and their fixes. B1/B2 were closed by the preceding delta verdict.
+The production-only diff SHA256 is
+`86097f1d0f40088a66fd7b9abfefdd4e859f902398eecc7e411df624ab73c453`.
+
+Fresh admission subsequently passes three healthy samples. During/after the
+focused checks, root charged footprint is 1307/1338 MB, system availability is
+79/77%, and swap remains 2129.31 MiB; RSS is recorded separately. A retained
+debug native host (PID 33423) now consumes the current exported UI without
+Cargo/Metro. Its open database is verified as the isolated
+`net.kikan.mlearn.v3dev.m07qa` profile. The real image picker is open for
+`~/mlearn-test-corpus/loadable/0.png`, but foreground sheet targeting is refused
+and its native AXOpen action fails. Root asks the maintainer only to make that
+file selection, not to debug the application. No successful image admission,
+crop or native accessibility outcome is claimed yet. The owned host, ephemeral
+8081 frontend and streaming 7780 catalog must be released after this bounded
+case; unrelated 4173 remains untouched. Final platform, performance and M07
+acceptance gates remain open.
+
+The bounded independent delta review of `0639c5ce..dcfb1d39` rejects two
+presentation-lifetime regressions: options dismissal destroys the uncertain
+correction command/draft, and a cancelled dragged crop reopens recognition
+whenever options remount. Its retained report is
+`.omo/evidence/m07-inspector-reader-delta-gate-review.md`. This is not approval
+or milestone acceptance; the earlier passing layout checks did not cover
+these close/reopen boundaries.
+
+Root reproduces both at desktop/narrow widths and an adjacent uncertain
+Word Practice receipt loss: all five strengthened image-reader cases fail
+before repair. The existing shared-practice owner test also fails both
+before/after-commit modes when its word projection is hidden and restored.
+Original command equality, revision, coordinates and no-inference assertions
+remain intact. Red evidence is `reader-lifetimes-red*` and
+`reader-practice-owner-red.log` in the existing M07 directory.
+
+The current repair keeps correction and Page words owners mounted for the
+Reader/source lifetime while their ordinary shared Button triggers remain in
+View options. Programmatic shared Dialog callers must supply focus restoration;
+there is no global force-mount or second button owner. Drag requests are
+consumed after the active recognition form receives its coordinates. Shared
+practice keeps its prepared receipt across a hidden empty projection, while
+retiring it for a different client/source or changed nonempty selection.
+Owner epochs still cancel stale preparation/publication. The final serial
+integration passes 67 checker and 135 client tests plus all 83 affected
+Reader/image/Watch/shared-dialog/Messenger browser scenarios. A replacement
+selection also proves a different nonempty membership starts a fresh intent,
+rather than retaining the earlier prepared command indefinitely. Source
+typecheck, ownership lint, web export and all six affected-owner LSP checks
+pass. The narrow cancelled-crop/reopened-options and correction-evidence
+captures were inspected; close actions restore their actual originating
+buttons. Evidence is `reader-lifetimes-green*` and
+`reader-lifetimes-final*`. A bounded native crop/cancel/reopen check uses the
+actual `~/mlearn-test-corpus/loadable/0.png`; independent re-approval and final
+consuming verification remain required. That normal-launch attempt stopped
+before import after OmO's guard reported a transient 3.2 GiB charged footprint.
+The owned app and dev servers were released immediately. Subsequent native
+footprint is 2857 MB charged / 1253 MB reclaimable, 67% system availability,
+2062.38 MiB swap and 45 GiB free disk; this is not an exhaustion or proved
+leak diagnosis. No model/inference or device workload was started. The fresh
+read-only admission for the narrower retained-host/exported-UI check remained
+held at the unchanged 3 GiB limit: subsequent samples reported 3.0–3.3 GiB
+charged, 67–68% system availability and unchanged 2062.38 MiB swap. The repetitive
+admission watcher was stopped without launching the retained host or servers.
+No threshold was raised. Native crop/cancel/reopen therefore remains unverified;
+the corpus image is 1023 by 1024 and no import or crop success is claimed.
+The same independent reviewer is auditing the repaired delta and recorded
+browser/owner evidence, with this native gap explicit. Published `dcfb1d39`
+foundation and desktop CI pass; its mobile run `40228690709` remains in progress
+for both platforms under the existing completion subscription.
+
+The remaining Watch comparison now has a genuine compositor capture,
+`watch-compositor-inspector-live-cards.png`, at 1512 by 950 logical pixels.
+The actual original video pixels, live dictionary cards, synchronization and
+pill-footer Inspector were inspected together. Earlier window-only captures'
+black video is not a demonstrated playback defect. The first region capture
+included Preview after foreground protection restored it; the subsequent
+capture verified the exact QA process was frontmost and restored the previous
+window afterward. No reference app, staged DOM or fabricated Knowledge state
+was used. Current-source samples are 614 ms Home resume to usable captions,
+45 ms warm caption commit, and 72/46 ms Inspector action to commit; these do
+not close the repeated performance/package-switch budget gate. Source playback
+was restored through the real UI with an observed 22000 ms acknowledgement.
+The owned app/launcher/guard were then stopped before Reader integration checks.
+
 #### Hosted Messenger dismissal regression — 2026-10-25
 
 Foundation run `40222306761`, web job `121256324092`, failed the original

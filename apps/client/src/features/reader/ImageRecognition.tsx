@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { View } from 'react-native';
 import type { OcrCorrection, OcrEvidence, OcrQuad, OcrRegion } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
@@ -16,12 +17,13 @@ const coordinateLabels = ['Top left X', 'Top left Y', 'Top right X', 'Top right 
 /** Edits are drafts until the native revision-checked correction commits.
  * Reading evidence and loading the current version are explicit, separate acts.
  */
-export function ImageRecognition({ client, reader, onBeforeOpen }: {
+export function ImageRecognition({ client, reader, open, onOpenChange, focusTarget }: {
     readonly client: RuntimeClient;
     readonly reader: ReturnType<typeof useImageReader>;
-    readonly onBeforeOpen: () => void;
+    readonly open: boolean;
+    readonly onOpenChange: (open: boolean) => void;
+    readonly focusTarget: () => View | null;
 }) {
-    const [open, setOpen] = useState(false);
     const [selectedKey, setSelectedKey] = useState('');
     const regions = reader.pages.flatMap(item => item.page ? item.page.regions.map(region => ({
         key: JSON.stringify([item.descriptor.resourceId, region.id]), page: item.page!, region,
@@ -106,8 +108,7 @@ export function ImageRecognition({ client, reader, onBeforeOpen }: {
         } finally { if (current.current === identity) setEvidencePending(false); }
     }
     return <Dialog title="Recognition and alignment" description="Save source corrections or inspect their original recognition evidence."
-        open={open} onOpenChange={value => { if (value) onBeforeOpen(); setOpen(value); }}
-        trigger={<Button label="Recognition details" variant="secondary" size="compact" disabled={!regions.length} />}>
+        open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}>
         <Select label="Recognized region" value={selected?.key ?? ''} disabled={pending}
             options={regions.map(value => ({ value: value.key,
                 label: `Page ${value.pageIndex + 1}: ${Array.from(value.region.text).slice(0, 48).join('')}` }))}

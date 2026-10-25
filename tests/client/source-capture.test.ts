@@ -217,7 +217,7 @@ test('shared source practice retries the original admission after an uncertain r
             const request = JSON.parse(raw);
             if (request.type === 'material_eligibility') return JSON.stringify({
               type: 'material_eligibility', items: request.targets.map(target => ({
-                target, availability: { state: 'existing', materialId: 'saved', excluded: false }
+                target, availability: { state: 'existing', materialId: target.targetId === 'other' ? 'saved-other' : 'saved', excluded: false }
               }))
             });
             if (request.type !== 'review') throw new Error('Unexpected request: ' + request.type);
@@ -231,7 +231,7 @@ test('shared source practice retries the original admission after an uncertain r
                 state: 'active', completed: 0, total: 1, encounter: null, canUndo: false, message: null
               }
             });
-            if (first && mode === 'after') throw new Error('Committed but reply rejected');
+            if (first && mode !== 'before') throw new Error('Committed but reply rejected');
             return JSON.stringify({ type: 'review', commit: receipts.get(command.start.commandId) });
           }
         });
@@ -241,8 +241,15 @@ test('shared source practice retries the original admission after an uncertain r
         window.practiceState = () => ({ commands, prepared: next, committed: receipts.size });
         function Fixture() {
           const [session, setSession] = React.useState('');
-          const practice = useSourcePractice(client, candidates, 'source', setSession);
+          const [visible, setVisible] = React.useState(true);
+          const [replacement, setReplacement] = React.useState(false);
+          const selection = replacement ? candidates.map(candidate => ({
+            ...candidate, key: 'other', content: { ...candidate.content, targetId: 'other' }
+          })) : candidates;
+          const practice = useSourcePractice(client, visible ? selection : [], 'source', setSession);
           return <><button disabled={practice.pending} onClick={() => practice.start()}>Start</button>
+            <button onClick={() => setVisible(value => !value)}>{visible ? 'Hide words' : 'Show words'}</button>
+            <button onClick={() => setReplacement(true)}>Replace words</button>
             <span role="alert">{practice.error}</span><output>{session}</output></>;
         }
         createRoot(document.getElementById('root')).render(<Fixture />);
@@ -255,7 +262,7 @@ test('shared source practice retries the original admission after an uncertain r
   assert.ok(script);
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const mode of ['before', 'after'] as const) await t.test(mode, async () => {
+    for (const mode of ['before', 'after', 'replacement'] as const) await t.test(mode, async () => {
       const page = await browser.newPage();
       page.setDefaultTimeout(3000);
       try {
@@ -264,13 +271,23 @@ test('shared source practice retries the original admission after an uncertain r
         await page.evaluate(mode => Reflect.get(window, 'mount')(mode), mode);
         await page.getByRole('button', { name: 'Start', exact: true }).click();
         await expect(page.getByRole('alert')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
+        await page.getByRole('button', { name: 'Hide words', exact: true }).click();
+        await page.getByRole('button', { name: 'Show words', exact: true }).click();
+        await expect(page.getByRole('alert')).toContainText(mode === 'before' ? 'Rejected before commit' : 'Committed but reply rejected');
+        if (mode === 'replacement') {
+          await page.getByRole('button', { name: 'Replace words', exact: true }).click();
+          await expect(page.getByRole('alert')).toBeEmpty();
+        }
         await page.getByRole('button', { name: 'Start', exact: true }).click();
-        await expect(page.locator('output')).toHaveText('command-1');
+        await expect(page.locator('output')).toHaveText(mode === 'replacement' ? 'command-3' : 'command-1');
         const state = await page.evaluate(() => Reflect.get(window, 'practiceState')());
-        assert.equal(state.prepared, 2);
-        assert.equal(state.committed, 1);
+        assert.equal(state.prepared, mode === 'replacement' ? 4 : 2);
+        assert.equal(state.committed, mode === 'replacement' ? 2 : 1);
         assert.equal(state.commands.length, 2);
-        assert.deepEqual(state.commands[1], state.commands[0]);
+        if (mode === 'replacement') {
+          assert.notDeepEqual(state.commands[1], state.commands[0]);
+          assert.equal(state.commands[1].start.mode.items[0].materialId, 'saved-other');
+        } else assert.deepEqual(state.commands[1], state.commands[0]);
       } finally { await page.close(); }
     });
   } finally { await browser.close(); }
