@@ -38,8 +38,60 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     const overlay = page.getByTestId('live-word-cards');
     const cards = overlay.getByRole('button', { name: / · / });
     await expect(cards).toHaveCount(4);
+    // OCR readability must not replace the reference's translucent video cards.
+    const material = await cards.first().evaluate(node => getComputedStyle(node).backgroundColor);
+    const channels = material.match(/\d+(?:\.\d+)?/g)?.map(Number);
+    expect(channels).toHaveLength(4);
+    expect(channels?.[3]).toBeLessThanOrEqual(0.6);
     const last = cards.last();
+    const containedAfterFocus = last.evaluate(element => {
+      const overlay = element.closest('[data-testid="live-word-cards"]');
+      if (!overlay) throw new Error('Live word overlay is missing');
+      let scroller = element.parentElement;
+      while (scroller && scroller !== overlay
+        && !['auto', 'scroll'].includes(getComputedStyle(scroller).overflowX))
+        scroller = scroller.parentElement;
+      if (!scroller || scroller === overlay) throw new Error('Live word scroll owner is missing');
+      return new Promise<void>((resolve, reject) => {
+        const check = () => {
+          const close = overlay.querySelector('[aria-label="Hide live word translator"]');
+          const card = element.getBoundingClientRect();
+          const bounds = overlay.getBoundingClientRect();
+          if (document.activeElement === element && close && close.getAttribute('aria-disabled') !== 'true'
+            && !close.hasAttribute('disabled')
+            && card.left >= bounds.left && card.right <= bounds.right) {
+            cleanup();
+            resolve();
+          }
+        };
+        const observer = new ResizeObserver(check);
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          const close = overlay.querySelector('[aria-label="Hide live word translator"]');
+          reject(new Error(`Focused card did not fit after close-control layout: ${JSON.stringify({
+            focused: document.activeElement === element,
+            closeDisabled: close?.getAttribute('aria-disabled'),
+            cardRight: element.getBoundingClientRect().right,
+            overlayRight: overlay.getBoundingClientRect().right,
+          })}`));
+        }, 5000);
+        const cleanup = () => {
+          window.clearTimeout(timeout);
+          observer.disconnect();
+          overlay.removeEventListener('scroll', check, true);
+          overlay.removeEventListener('focusin', check);
+        };
+        // Close disclosure resizes the actual scroll owner; its corrective
+        // scroll is asynchronous. Subscribe before focus, not for a fixed delay.
+        observer.observe(scroller);
+        observer.observe(element);
+        overlay.addEventListener('scroll', check, true);
+        overlay.addEventListener('focusin', check);
+        check();
+      });
+    });
     await last.focus();
+    await containedAfterFocus;
     await expect(overlay.getByRole('button', { name: 'Hide live word translator', exact: true })).toBeEnabled();
     const container = await overlay.boundingBox();
     const focused = await last.boundingBox();

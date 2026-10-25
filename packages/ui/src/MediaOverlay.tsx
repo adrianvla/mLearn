@@ -44,7 +44,10 @@ const styles = StyleSheet.create(theme => ({
     material: (variant: 'cards' | 'synchronization', revealed: boolean) => ({
         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: theme.radius + 4,
         backgroundColor: variant === 'synchronization' || revealed ? theme.media.panel : 'transparent',
-        _web: { backdropFilter: variant === 'synchronization' || revealed ? theme.media.backdrop : undefined },
+        _web: {
+            backgroundColor: variant === 'synchronization' || revealed ? theme.media.translucentPanel : 'transparent',
+            backdropFilter: variant === 'synchronization' || revealed ? theme.media.backdrop : undefined,
+        },
     }),
     content: { flexShrink: 1, minWidth: 0 },
     close: (revealed: boolean, variant: 'cards' | 'synchronization') => ({

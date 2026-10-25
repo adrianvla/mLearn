@@ -170,6 +170,17 @@ states. Parser fidelity details remain accessible without becoming a permanent
 multiline toolbar. Source text retains the user's accepted document font and
 spacing; it does not acquire a separate application theme.
 
+Layout: Reader - one stationary, non-wrapping toolbar retains Home, the source
+title, previous/next navigation, Contents and View options. At compact widths
+the actions keep accessible names with icon-only shared Buttons. Image fit and
+page layout appear inline only with sufficient toolbar width; lower-priority
+image and document controls remain available in View options. This follows
+v2 ReaderNav's fit/layout priority without copying its DOM-moving machinery.
+The body and source navigator own their existing scroll regions. The position
+footer uses one compact row without extra vertical padding; native controls
+retain their shared touch targets and safe-area inset. Errors retain explicit
+recovery alongside their affected region rather than disappearing in overflow.
+
 `DocumentCanvas` is the single scrolling content owner on desktop and inside
 the native Expo DOM boundary. Original blocks progress on the canvas's logical
 block axis with a 24px content gap and may not shrink into one another.
@@ -374,9 +385,22 @@ bounded scroll regions and shared surface anatomy. `Dialog`/`ContextPanel`
 retain portal, dismissal, focus restoration and bounded scrolling semantics.
 The approved nested Inspector preview uses the same translucent panel family:
 the reference Tooltip consumes `rgba(60,60,60,.5)` with a blurred backdrop, not
-the player rail's nearly opaque chrome. The web correction popover consumes
-`media.panel` and `media.backdrop`; native retains its legible opaque fallback
+the player rail's nearly opaque chrome. `media.translucentPanel` and
+`media.backdrop` own web video/message Inspector panels, their correction
+popovers, dictionary cards and synchronization overlays. `media.panel` retains
+the high-contrast backing for image/document inspection and native fallbacks;
+one white-page contrast repair must not make all video glass opaque. The
+shared Inspector selects that contrast requirement from the existing source
+locator, without a theme preference or another domain owner. Narrow sheets
+retain their chrome backing. Native retains its legible opaque fallback
 because that rendering boundary has no backdrop blur.
+Layout: Inspector - the anchor chooses the bounded panel position; header and
+footer remain outside the scrolling dictionary body. Footer actions use the
+shared pill Button in one non-wrapping row; the footer owns horizontal scrolling
+when those actions exceed its width, including on mobile. Dictionary sense
+selection remains in the body pending a separate interaction design decision.
+The attached correction
+popover owns its own bounded scroll region above the footer.
 Web backdrop layers sit beside interactive content rather than wrapping it.
 Putting backdrop filtering on a content ancestor creates a nested backdrop root:
 attached correction popovers and live cards can then show sharp text through

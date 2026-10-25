@@ -11,10 +11,29 @@ import type { useImageReader } from './useImageReader';
 
 export type ImageCropDraft = { readonly resourceId: string; readonly crop: OcrRect };
 
+export function ImageLayoutControls({ reader, onBeforeAction }: {
+    readonly reader: ReturnType<typeof useImageReader>;
+    readonly onBeforeAction: () => void;
+}) {
+    const settings = reader.settings;
+    if (!settings) return null;
+    function change(value: Partial<ImageReaderSettings>) {
+        onBeforeAction(); void reader.changeSettings(value);
+    }
+    return <Row wrap={false}>
+        <Select label="Image fit" size="compact" value={settings.fit} disabled={reader.saving}
+            options={[{ value: 'contain', label: 'Fit page' }, { value: 'height', label: 'Fit height' }, { value: 'width', label: 'Fit width' }]}
+            onValueChange={value => { if (value === 'contain' || value === 'height' || value === 'width') change({ fit: value }); }} />
+        <Select label="Page layout" size="compact" value={settings.paired ? 'paired' : 'single'} disabled={reader.saving}
+            options={[{ value: 'single', label: 'Single page' }, { value: 'paired', label: 'Double page' }]}
+            onValueChange={value => change({ paired: value === 'paired' })} />
+    </Row>;
+}
+
 /** Source image controls share ordinary application semantics/materials.
  * Coordinates remain unsubmitted input until the explicit recognition action.
  */
-export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, onCropMode, onMagnifier, onBeforeAction, children }: {
+export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, onCropMode, onMagnifier, onBeforeAction, onReturnToSource, layoutInline = false, children }: {
     readonly reader: ReturnType<typeof useImageReader>;
     readonly cropMode: boolean;
     readonly cropDraft: ImageCropDraft | null;
@@ -22,6 +41,8 @@ export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, on
     readonly onCropMode: (enabled: boolean) => void;
     readonly onMagnifier: (enabled: boolean) => void;
     readonly onBeforeAction: () => void;
+    readonly onReturnToSource: () => void;
+    readonly layoutInline?: boolean;
     readonly children?: ReactNode;
 }) {
     const [recognitionOpen, setRecognitionOpen] = useState(false);
@@ -46,12 +67,7 @@ export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, on
     }
     return <>
         {settings ? <Row>
-            <Select label="Image fit" size="compact" value={settings.fit} disabled={reader.saving}
-                options={[{ value: 'contain', label: 'Fit page' }, { value: 'height', label: 'Fit height' }, { value: 'width', label: 'Fit width' }]}
-                onValueChange={value => { if (value === 'contain' || value === 'height' || value === 'width') change({ fit: value }); }} />
-            <Select label="Page layout" size="compact" value={settings.paired ? 'paired' : 'single'} disabled={reader.saving}
-                options={[{ value: 'single', label: 'Single page' }, { value: 'paired', label: 'Double page' }]}
-                onValueChange={value => change({ paired: value === 'paired' })} />
+            {!layoutInline ? <ImageLayoutControls reader={reader} onBeforeAction={onBeforeAction} /> : null}
             <Select label="Page reading direction" size="compact" value={settings.direction} disabled={reader.saving}
                 options={[{ value: 'ltr', label: 'Left to right' }, { value: 'rtl', label: 'Right to left' }]}
                 onValueChange={value => change({ direction: value === 'rtl' ? 'rtl' : 'ltr' })} />
@@ -71,10 +87,10 @@ export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, on
             <Button label={cropMode ? 'Cancel crop selection' : 'Select crop'} variant="secondary" size="compact"
                 disabled={reader.pending || !reader.pages.length}
                 accessibilityState={{ selected: cropMode }}
-                onPress={() => { onBeforeAction(); onCropMode(!cropMode); }} />
+                onPress={() => { onBeforeAction(); onCropMode(!cropMode); onReturnToSource(); }} />
             <Button label="Image magnifier" variant="secondary" size="compact" disabled={reader.pending || !reader.pages.length}
                 accessibilityState={{ selected: magnifier }}
-                onPress={() => { onBeforeAction(); onMagnifier(!magnifier); }} />
+                onPress={() => { onBeforeAction(); onMagnifier(!magnifier); onReturnToSource(); }} />
             {children}
             <Dialog title="Recognize source image" description="Results and crop geometry are saved with the original source."
                 open={recognitionOpen} onOpenChange={open => {
@@ -111,10 +127,19 @@ export function ImageReaderControls({ reader, cropMode, cropDraft, magnifier, on
                     onPress={() => {
                         setRecognitionOpen(false); onCropMode(false);
                         void reader.recognize(activeResource, region ? crop : null);
+                        onReturnToSource();
                     }} />
             </Dialog>
-            {reader.recognizing ? <Button label="Cancel recognition" variant="secondary" size="compact" onPress={reader.cancel} /> : null}
         </Row> : null}
+    </>;
+}
+
+export function ImageReaderFeedback({ reader, cropMode, magnifier }: {
+    readonly reader: ReturnType<typeof useImageReader>;
+    readonly cropMode: boolean;
+    readonly magnifier: boolean;
+}) {
+    return <>
         {reader.pending ? <Text variant="caption" accessibilityLiveRegion="polite">Opening source pages…</Text> : null}
         {reader.recognizing ? <Text variant="caption" accessibilityLiveRegion="polite">Recognizing on device…</Text> : null}
         {cropMode ? <Text variant="caption">Drag over the original image, or enter an accessible region in Recognize.</Text> : null}

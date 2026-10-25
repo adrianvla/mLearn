@@ -51,6 +51,102 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Inspector footer and shared-material correction — 2026-10-25
+
+Reader follow-up: the maintainer requires one top-toolbar row, responsive
+overflow for secondary controls and a shorter bottom bar. Read-only v2
+`ReaderNav.tsx` prioritizes fit/layout before language/import/spread controls;
+`ReaderNav.css` establishes its bounded single-row composition. Shared
+`StatusBar.css` uses a compact 30 px status rail. Reader now retains Home,
+title, previous/next, Contents and View options in one row, switching ordinary
+shared Buttons to labelled icon-only controls at compact widths. Fit/layout
+selectors appear inline only when the measured toolbar width permits; other
+image controls move into the existing View options dialog. No control is
+deleted. Pending/error/retry feedback and recognition cancellation remain
+outside overflow. The normal web footer is now 33 px rather than 41 px, without
+reducing shared native touch targets or safe-area handling.
+
+First integration retained 37 passes and exposed three failures: pixel retry
+in two widths and the admitted source-practice screen obscured by Reader's
+still-open parent dialog. The latter now closes Reader dialogs on route blur.
+Pixel retry now explicitly reloads the failed spread when accepted settings
+already exist; it no longer depends on a transient null-settings render during
+full initialization. Existing exact URI/recognition counts and frozen practice
+identity assertions remain intact. The final serial run passes all 40 affected
+Reader/image/Watch interactions, including recognition cancellation from
+keyboard/rail/Contents, uncertain correction/recovery, nested Inspector,
+white-page contrast, pill footer scrolling and resize containment. All 67
+checker and 134 client tests, typecheck, ownership lint and web export pass.
+Wide/narrow first renders and the narrow overflow dialog were inspected.
+Current-source normal desktop verification now passes on the isolated M07 QA
+profile. Real `continuity.txt` retains its original source text/position and
+settings. At 1280 and 500 px, Home, previous/next, Contents and View options
+share y=58 and 32 px height; the Save position action remains in the compact
+bottom rail. Native options open/dismiss normally. Captures
+`reader-native-final-wide.png` and `reader-native-final-narrow.png` were
+inspected and opened in Preview. This is macOS evidence, not a fresh iOS or
+Android run.
+
+The maintainer identifies every Inspector footer action as the existing shared
+pill Button, with one horizontal row and scrolling overflow on mobile. The
+body's sense-selection controls remain unchanged pending interaction design;
+a sense selector plus one Add action is a proposal, not a delivered decision.
+Read-only v2 `WordHover.tsx:763` places Knowledge, resource/capture and Explain
+in that footer; `WordHover.css:155` explicitly owns horizontal overflow and
+non-wrapping pill content. Its dictionary alternatives and metadata stay in
+the body. The approved Inspector image remains the visual authority.
+
+`ContextPanel` now owns horizontal footer scrolling. Shared `Row` accepts a
+non-wrapping composition without feature-local control styling. Inspector's
+existing `SourceActions` media presentation selects `Button variant="pill"`;
+Explain uses its existing informational tone and shared icon. Content-context
+callers retain their ordinary presentation. Red browser regressions reproduce
+the mismatched material/radius at desktop width and the second footer row at
+393 px. Both pass after the repair, including keyboard access to the trailing
+offscreen action. Typecheck, ownership lint, web export, affected-file LSP
+diagnostics and the original white-page contrast/accessibility check pass.
+Both rendered captures were inspected and opened in Preview. The final native
+Reader Inspector also passes narrow/wide/re-narrow resizing: its close control
+is contained after the overlay measurement repair, all four footer actions
+share y=839 and 28 px height in the 500 px window, and actual horizontal
+scrolling moves Explain from x=586 to x=564, fully inside the panel. Dismissal
+restores the original Children token's focus. The real source remains Untracked;
+no Knowledge claims, captures or provider requests were made. Retained evidence
+is `inspector-final-native-reader-{wide,narrow}.png` and
+`inspector-final-native-footer-scrolled.png`; the narrow/scrolled captures were
+inspected and the latter opened in Preview. Owned native launchers and ports
+are released after verification.
+The first native resize exposed a panel retaining its earlier desktop width.
+ContextPanel now measures its actual overlay instead of relying only on cached
+window dimensions; the desktop-to-narrow browser regression passes. Native
+footer bounds before that correction share the same y/28 px height, but their
+clipped panel is not a passing narrow-native capture. The paused video also
+appeared black in that launch; it does not certify background-material parity.
+The QA source still points to `/Users/adrian/mlearn-test-corpus/test-video.mov`.
+That launch has ended and the original 22000/223042/-6350/1 playback values
+were read back through the source document's actual JSON storage schema.
+During the final native run, charged OmO footprint remained 2.7–2.8 GiB,
+system availability 63–64%, and swap 2086.38 MiB. RSS was logged separately.
+
+The adjacent material repair separates reference-derived translucent video
+glass from the opaque image/document backing; it does not weaken the original
+white-page contrast assertion. Its preceding four-case Watch/image run passes,
+including focused-card containment synchronized with actual layout events.
+The earlier normal native wide/narrow/correction captures were inspected.
+Full final-source platform and milestone acceptance remain open.
+
+The button audit finds Inspector's existing actions already consume the shared
+Button; their wrong variants and wrapping composition caused the reported
+inconsistency. A feature-source literal scan finds no raw button/Pressable,
+Touchable, local Btn or button-style escape. The TypeScript-AST ownership guard
+also passes. This does not establish a debt-free UI package: `ActivityCard`
+and `SourceRow` each own independent Pressable hover/focus/disabled behavior,
+and Button contains specialist dictionary/source-preview layout. A separate
+repair proposal is to consolidate activation behavior while preserving those
+compound controls and their nested/native hit regions, rather than replacing
+them with another parallel button implementation. No broad primitive rewrite
+is included in this footer repair.
+
 #### Normal-launch document preparation job budget — 2026-10-25
 
 The normal desktop launch exposed `prepare-documents.mjs` overriding

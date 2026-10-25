@@ -48,7 +48,9 @@ export function Section({ title, children }: PropsWithChildren<{ readonly title:
     <View>{children}</View>
   </View>;
 }
-export function Row({ children }: PropsWithChildren) { return <View style={styles.row}>{children}</View>; }
+export function Row({ children, wrap = true }: PropsWithChildren<{ readonly wrap?: boolean }>) {
+  return <View style={styles.row(wrap)}>{children}</View>;
+}
 /** Keep related setting information and actions together as the row wraps. */
 export function SettingRow({ label, description, children }: PropsWithChildren<{
   readonly label: string;
@@ -107,7 +109,7 @@ const styles = StyleSheet.create((theme) => ({
   section: { gap: theme.spacing.small },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },
   sectionMarker: { width: 2, height: theme.typography.groupTitle.fontSize, borderRadius: 1, backgroundColor: theme.colors.muted },
-  row: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: theme.spacing.compact },
+  row: (wrap: boolean) => ({ flexDirection: 'row', flexWrap: wrap ? 'wrap' : 'nowrap', alignItems: 'center', gap: theme.spacing.compact }),
   setting: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.medium, paddingVertical: theme.spacing.compact, borderBottomWidth: 1, borderColor: theme.colors.border },
   settingLabel: { flex: 1, minWidth: 0, flexBasis: 180, gap: theme.spacing.tiny / 2 },
 }));

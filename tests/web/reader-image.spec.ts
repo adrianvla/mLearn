@@ -15,6 +15,13 @@ declare global { interface Window {
 
 // These are real exported controls/pixels/geometry with substituted native IPC.
 // Recognition quality and persistence are verified separately through real hosts.
+async function readerOptions(page: Page) {
+  const dialog = page.getByRole('dialog', { name: 'Reader appearance', exact: true });
+  if (!await dialog.isVisible())
+    await page.getByRole('button', { name: 'View options', exact: true }).click();
+  return dialog;
+}
+
 async function start(page: Page, home = false, orientation: 'topToBottom' | 'vertical-rl' | null = null, pdf = false) {
   await page.addInitScript(({ theme, orientation, pdf }) => {
     const source: DocumentWindow = {
@@ -327,11 +334,44 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
     return;
   }
   if (pdf) {
+    await readerOptions(page);
     await expect(page.getByRole('button', { name: 'View original PDF pages', exact: true })).toBeVisible();
     return;
   }
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
   await expect(page.getByRole('button', { name: orientation ? '日本語: untracked' : '東京: untracked', exact: true })).toBeVisible();
+}
+
+for (const width of [1500, 1080, 393]) {
+test(`Reader toolbar stays one row and retains overflow controls at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  await start(page);
+  const home = await page.getByRole('button', { name: 'Home', exact: true }).boundingBox();
+  for (const name of ['Previous page', 'Next page', 'Contents', 'View options']) {
+    const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+    if (!home || !box) throw new Error('Reader navigation geometry is unavailable');
+    expect(box.y).toBe(home.y);
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+  }
+  const toolbar = await page.getByTestId('reader-toolbar').boundingBox();
+  const footer = await page.getByTestId('reader-status').boundingBox();
+  if (!toolbar || !footer) throw new Error('Reader chrome geometry is unavailable');
+  expect(footer.height).toBeLessThan(toolbar.height);
+  if (width === 1500) {
+    await expect(page.getByRole('combobox', { name: /^Image fit:/ })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: /^Page layout:/ })).toBeVisible();
+  }
+  await page.screenshot({ path: testInfo.outputPath('reader-single-row.png') });
+  await page.getByRole('button', { name: 'View options', exact: true }).click();
+  if (width !== 1500) {
+    await expect(page.getByRole('combobox', { name: /^Image fit:/ })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: /^Page layout:/ })).toBeVisible();
+  }
+  await expect(page.getByRole('combobox', { name: /^Page reading direction:/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Recognize', exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('reader-overflow-options.png') });
+});
 }
 
 for (const width of [1080, 390]) {
@@ -364,6 +404,7 @@ test('original PDF presentation does not analyze hidden document text during sou
   await page.getByRole('button', { name: 'Next page', exact: true }).click();
   await expect(page.getByTestId('reader-position')).toHaveText('Page 2 of 3');
   expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'analyze_document').length)).toBe(1);
+  await readerOptions(page);
   await page.getByRole('button', { name: 'Read available PDF text', exact: true }).click();
   await page.evaluate(() => window.__documentAnalysisControl.second);
   expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'analyze_document').length)).toBe(2);
@@ -441,6 +482,7 @@ test('cancelled native image selection cannot admit or navigate a late picker re
 
 test('source practice retries one frozen request and opens its actually admitted shared encounter', async ({ page }, testInfo) => {
   await start(page);
+  await readerOptions(page);
   await page.getByRole('button', { name: 'Page words', exact: true }).click();
   const words = page.getByRole('dialog', { name: 'Page words', exact: true });
   await words.getByRole('button', { name: 'Practice saved words in this view', exact: true }).click();
@@ -463,6 +505,7 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
 test(`recognition correction retains uncertain identity, refreshes alignment and exposes original evidence on ${viewport.name}`, async ({ page }, testInfo) => {
   await page.setViewportSize(viewport);
   await start(page);
+  await readerOptions(page);
   await page.getByRole('button', { name: 'Recognition details', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Recognition and alignment', exact: true });
   await page.screenshot({ path: testInfo.outputPath('recognition-region-draft.png') });
@@ -488,6 +531,7 @@ test(`recognition correction retains uncertain identity, refreshes alignment and
     region: { text: '東京都', quad: { topLeft: { x: 0.15 } } } } });
   await page.screenshot({ path: testInfo.outputPath('recognition-correction-evidence.png') });
   await page.keyboard.press('Escape');
+  await (await readerOptions(page)).getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByTestId('reader-image-ready')).toBeVisible();
   await expect(page.getByRole('button', { name: '東京都: untracked', exact: true })).toBeVisible();
   expect(await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'image_page_uri' && request.crop === null).length)).toBe(1);
@@ -496,6 +540,7 @@ test(`recognition correction retains uncertain identity, refreshes alignment and
 
 test('explicit crop recognition uses original coordinates and keeps unrelated saved regions and source pixels', async ({ page }) => {
   await start(page);
+  await readerOptions(page);
   await page.getByRole('button', { name: 'Recognize', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Recognize source image', exact: true });
   await dialog.getByRole('combobox', { name: /^Recognition provider:/ }).click();
@@ -518,6 +563,7 @@ for (const entry of ['keyboard', 'rail', 'contents'] as const) {
 test(`${entry} source navigation cancels running recognition without waiting for SDK completion or publishing its stale result`, async ({ page }) => {
   await start(page);
   await page.evaluate(() => { window.__imageOcrControl.hold = true; });
+  await readerOptions(page);
   await page.getByRole('button', { name: 'Recognize', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Recognize source image', exact: true });
   await dialog.getByRole('combobox', { name: /^Recognition provider:/ }).click();
@@ -552,6 +598,7 @@ for (const failure of ['cancelled', 'committed'] as const) {
 test(`recognition retry resolves native ${failure} state without resurrecting or duplicating inference`, async ({ page }) => {
   await start(page);
   await page.evaluate(failure => { window.__imageOcrControl.fail = failure; }, failure);
+  await readerOptions(page);
   await page.getByRole('button', { name: 'Recognize', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Recognize source image', exact: true });
   await dialog.getByRole('combobox', { name: /^Recognition provider:/ }).click();
@@ -559,6 +606,7 @@ test(`recognition retry resolves native ${failure} state without resurrecting or
   await dialog.getByRole('button', { name: 'Recognize page', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText(failure === 'cancelled' ? 'cancelled before publication' : 'completion receipt lost');
   await page.getByRole('button', { name: 'Retry image action', exact: true }).click();
+  await readerOptions(page);
   await page.getByRole('button', { name: 'Recognition details', exact: true }).click();
   await expect(page.getByText(/recognition revision 2/)).toBeVisible();
   const requests = await page.evaluate(() => window.__imageReaderRequests);
@@ -576,11 +624,15 @@ test('original image targets open shared Inspector and RTL pairing preserves ori
   await expect(page.getByTestId('inspector-panel').getByText('Tokyo', { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('image-reader-desktop-inspector.png') });
   await page.keyboard.press('Escape');
+  await readerOptions(page);
   await page.getByRole('combobox', { name: /^Page layout:/ }).click();
   await page.getByRole('option', { name: 'Double page', exact: true }).click();
+  await (await readerOptions(page)).getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('img', { name: /^Page [12]$/ })).toHaveCount(2);
+  await readerOptions(page);
   await page.getByRole('combobox', { name: /^Page reading direction:/ }).click();
   await page.getByRole('option', { name: 'Right to left', exact: true }).click();
+  await (await readerOptions(page)).getByRole('button', { name: 'Close', exact: true }).click();
   const first = await page.getByRole('img', { name: 'Page 1', exact: true }).boundingBox();
   const second = await page.getByRole('img', { name: 'Page 2', exact: true }).boundingBox();
   expect(first).not.toBeNull(); expect(second).not.toBeNull();
@@ -601,6 +653,48 @@ test('narrow image fit keeps a real source and its interactive region inside the
   expect(word!.y + word!.height).toBeLessThanOrEqual(image!.y + image!.height + 1);
   await page.screenshot({ path: testInfo.outputPath('image-reader-narrow.png') });
 });
+
+for (const width of [1080, 393]) {
+test(`Inspector footer keeps shared pill actions on one scrolling row at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  await start(page);
+  await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  const footer = page.getByTestId('inspector-footer');
+  const knowledge = footer.getByRole('button', { name: /^Knowledge/ });
+  await expect(knowledge).toBeVisible();
+  const actions = footer.getByRole('button');
+  await expect(actions).toHaveCount(4);
+  const geometry = await actions.evaluateAll(nodes => nodes.map(node => {
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return { top: rect.top, radius: style.borderRadius, material: style.backgroundImage };
+  }));
+  for (const action of geometry) {
+    expect(action.top).toBe(geometry[0].top);
+    expect(action.radius).toBe(geometry[0].radius);
+    expect(action.material).toContain('linear-gradient');
+  }
+  const overflow = await footer.evaluate(node => node.scrollWidth > node.clientWidth);
+  expect(overflow).toBe(width === 393);
+  const explain = footer.getByRole('button', { name: 'Explain', exact: true });
+  await explain.focus();
+  const trailing = await explain.boundingBox();
+  const viewport = await footer.boundingBox();
+  if (!trailing || !viewport) throw new Error('Inspector footer geometry is unavailable');
+  expect(trailing.x).toBeGreaterThanOrEqual(viewport.x);
+  expect(trailing.x + trailing.width).toBeLessThanOrEqual(viewport.x + viewport.width);
+  if (width === 1080) {
+    await page.setViewportSize({ width: 393, height: 900 });
+    const close = page.getByRole('button', { name: 'Close Inspector', exact: true });
+    await expect(close).toBeInViewport();
+    const panel = await page.getByTestId('inspector-panel').boundingBox();
+    if (!panel) throw new Error('Resized Inspector geometry is unavailable');
+    expect(panel.x).toBeGreaterThanOrEqual(0);
+    expect(panel.x + panel.width).toBeLessThanOrEqual(393);
+  }
+  await page.screenshot({ path: testInfo.outputPath(`inspector-footer-${width}.png`) });
+});
+}
 
 test('source Inspector capture actions remain readable on their shared media material', async ({ page }, testInfo) => {
   await start(page);
@@ -636,7 +730,9 @@ test('publisher concealment changes only its actual pixel region and keyboard re
   const original = await region.screenshot();
   const source = await page.getByRole('img', { name: 'Page 1', exact: true }).getAttribute('src');
   const admitted = await page.evaluate(() => window.__imageReaderRequests.length);
+  await readerOptions(page);
   await page.getByRole('button', { name: 'Hide publisher readings', exact: true }).click();
+  await (await readerOptions(page)).getByRole('button', { name: 'Close', exact: true }).click();
   const reveal = page.getByRole('button', { name: 'Reveal reading annotation', exact: true });
   await expect(reveal).toBeVisible();
   const concealed = await region.screenshot({ path: testInfo.outputPath('publisher-reading-concealed.png') });
@@ -679,6 +775,7 @@ for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: '
 test(`page word operations reuse shared capture and Inspector and locate the exact original token on ${viewport.name}`, async ({ page }, testInfo) => {
   await page.setViewportSize(viewport);
   await start(page);
+  await readerOptions(page);
   await page.getByRole('button', { name: 'Page words', exact: true }).click();
   const words = page.getByRole('dialog', { name: 'Page words', exact: true });
   await expect(words.getByRole('button', { name: 'Open saved 東京', exact: true })).toBeVisible();

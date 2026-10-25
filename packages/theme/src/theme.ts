@@ -82,6 +82,7 @@ export function resolveTheme(saved: ThemeDocument) {
       // Keep the dark-media luminance while preserving copy contrast over white
       // page pixels. The blur remains shared with media and source inspection.
       panel: '#212121EB',
+      translucentPanel: '#3C3C3C80',
       backdrop: 'blur(20px) saturate(2)',
       border: '#505050',
       footer: '#FFFFFF08',

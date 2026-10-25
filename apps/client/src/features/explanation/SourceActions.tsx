@@ -54,7 +54,7 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
   const selected = new TextDecoder().decode(bytes.subarray(
     source.locator.selectionStart, source.locator.selectionEnd,
   ));
-  const variant = tone === 'media' ? 'media' : 'quiet';
+  const variant = tone === 'media' ? 'pill' : 'quiet';
 
   function report(cause: unknown) {
     const message = cause instanceof Error ? cause.message : String(cause);
@@ -252,14 +252,16 @@ export function SourceActions({ client, source, tone = 'content', explanationDis
     } catch (cause) { report(cause); }
   }
   return <View>
-    <Row>
+    <Row wrap={tone !== 'media'}>
       <Button label="Copy selected text" variant={variant} size="compact" disabled={!selected}
         onPress={() => void copy(selected)} />
       <Button label="Copy context" variant={variant} size="compact" disabled={!source.text}
         onPress={() => void copy(source.text)} />
       <Dialog open={open} onOpenChange={changeOpen} title="Explain selected text"
         description="Feedback is linked to the original source, not learner evidence."
-        trigger={<Button label="Explain" variant={variant} size="compact" disabled={!selected || !!explanationDisabledReason} />}>
+        trigger={<Button label="Explain" variant={variant} size="compact"
+          tone={tone === 'media' ? 'info' : undefined} icon={tone === 'media' ? 'conversation' : undefined}
+          disabled={!selected || !!explanationDisabledReason} />}>
         <Text selectable>{selected}</Text>
         <Button label={contextOpen ? 'Hide original context' : 'Show original context'} variant="quiet"
           accessibilityState={{ expanded: contextOpen }} onPress={() => setContextOpen(value => !value)} />

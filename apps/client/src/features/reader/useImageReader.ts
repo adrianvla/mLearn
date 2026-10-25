@@ -34,6 +34,7 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
     const [recognizing, setRecognizing] = useState(false);
     const [error, setError] = useState('');
     const [reload, setReload] = useState(0);
+    const [pageReload, setPageReload] = useState(0);
     const scope = useRef<object | null>(null);
     const currentPages = useRef(pages); currentPages.current = pages;
     const operation = useRef<{ readonly owner: object; readonly controller: AbortController } | null>(null);
@@ -141,7 +142,7 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         })().catch((cause: unknown) => { if (live && scope.current === owner) setError(message(cause)); })
             .finally(() => { if (live && scope.current === owner) setPending(false); });
         return () => { live = false; };
-    }, [host, sourceKey, enabled, spreadKey, settings === null, frozen, canInterpret]);
+    }, [host, sourceKey, enabled, spreadKey, settings === null, frozen, canInterpret, pageReload]);
 
     async function changeSettings(change: Partial<ImageReaderSettings>) {
         if (!host || !source || !settings || settingsFlight.current) return;
@@ -236,6 +237,10 @@ export function useImageReader(host: ImageHost | null, source: DocumentRecord | 
         retry: () => {
             const previous = retry.current;
             if (previous) void recognize(previous.request.resourceId, previous.request.crop, true);
+            // A failed pixel load already has accepted settings. Retry that
+            // spread directly, rather than depending on a transient null
+            // settings render during full initialization.
+            else if (settings) setPageReload(value => value + 1);
             else setReload(value => value + 1);
         },
         retryPage: (item: ImageReaderPage) => { if (item.page) void receive(item.page, item.page === frozen); },

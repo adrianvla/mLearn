@@ -6,7 +6,7 @@ import { Text } from './Text';
 import { Button } from './Button';
 import type { TextAnchor } from './InlineWord';
 import type { TextBounds } from './InlineWord.types';
-export function ContextPanel({ title, anchor, onClose, children, footer, popover, sourceContext, alwaysShowContext = false }: PropsWithChildren<{
+export function ContextPanel({ title, anchor, onClose, children, footer, popover, sourceContext, alwaysShowContext = false, opaque = false }: PropsWithChildren<{
     title: string;
     anchor: TextAnchor;
     onClose: () => void;
@@ -14,9 +14,13 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
     popover?: ReactNode;
     sourceContext?: string;
     alwaysShowContext?: boolean;
+    opaque?: boolean;
 }>) {
-    const { width, height } = useWindowDimensions();
+    const window = useWindowDimensions();
+    const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
+    const { width, height } = viewport ?? window;
     const { theme } = useUnistyles();
+    const material = opaque ? theme.media.panel : theme.media.translucentPanel;
     const [bounds, setBounds] = useState<TextBounds>(anchor);
     const [headerHeight, setHeaderHeight] = useState(0);
     const [footerHeight, setFooterHeight] = useState(0);
@@ -50,7 +54,10 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
         <Primitive.Root open onOpenChange={open => { if (!open) onClose(); }}>
             <Primitive.Portal>
                 <Primitive.Overlay asChild>
-                    <View style={styles.overlay}>
+                    <View style={styles.overlay} onLayout={event => {
+                        const { width, height } = event.nativeEvent.layout;
+                        setViewport(current => current?.width === width && current.height === height ? current : { width, height });
+                    }}>
                         <Primitive.Content asChild onCloseAutoFocus={event => {
                             event.preventDefault();
                             anchor.restoreFocus();
@@ -73,7 +80,7 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                                 } : { alignSelf: 'center', marginHorizontal: 'auto', marginBottom: 20 },
                             ]}>
                                 {Platform.OS === 'web' ? <View pointerEvents="none"
-                                    style={[styles.material, { backgroundColor: anchored ? theme.media.panel : theme.media.chrome }]} /> : null}
+                                    style={[styles.material, { backgroundColor: anchored ? material : theme.media.chrome }]} /> : null}
                                 <View style={styles.header} onLayout={event => setHeaderHeight(event.nativeEvent.layout.height)}>
                                         <View style={styles.heading}>
                                             <Primitive.Title asChild>
@@ -90,12 +97,13 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                                     {children}
                                 </ScrollView>
                                 {footer ? <ScrollView testID="inspector-footer"
+                                    horizontal
                                     onLayout={event => setFooterHeight(event.nativeEvent.layout.height)}
                                     style={[styles.footer, { maxHeight: Math.max(64, Math.min(maxHeight / 2, maxHeight - headerHeight - 64)) }]}
                                     contentContainerStyle={styles.footerContent} keyboardShouldPersistTaps="handled">
                                     {footer}
                                 </ScrollView> : null}
-                                {popover ? <ScrollView style={[styles.popover, { bottom: footerHeight,
+                                {popover ? <ScrollView style={[styles.popover(opaque), { bottom: footerHeight,
                                     maxHeight: Math.max(80, maxHeight - headerHeight - footerHeight) }]}
                                     contentContainerStyle={styles.popoverContent} keyboardShouldPersistTaps="handled">
                                     {popover}
@@ -135,13 +143,13 @@ const styles = StyleSheet.create(theme => ({
         flexGrow: 0, flexShrink: 0, borderTopWidth: 1, borderTopColor: theme.media.border,
         backgroundColor: theme.media.footer
     }, footerContent: {
-        padding: theme.spacing.compact, flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.small
-    }, popover: {
+        padding: theme.spacing.compact, flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: theme.spacing.small
+    }, popover: (opaque: boolean) => ({
         position: 'absolute', left: theme.spacing.medium, right: theme.spacing.medium, maxWidth: 360,
         borderWidth: 1, borderColor: theme.media.border, borderRadius: theme.radius / 2,
-        backgroundColor: theme.media.chrome, _web: { backgroundColor: theme.media.panel,
+        backgroundColor: theme.media.chrome, _web: { backgroundColor: opaque ? theme.media.panel : theme.media.translucentPanel,
             backdropFilter: theme.media.backdrop, boxShadow: '0 8px 24px #00000040' }
-    }, popoverContent: {
+    }), popoverContent: {
         padding: theme.spacing.small, gap: theme.spacing.small
     }
 }));

@@ -123,6 +123,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
     } as const)[result.knowledge.claim] : null;
     return (
         <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
+            opaque={inspection.sourceAnchor.locator.kind === 'image' || inspection.sourceAnchor.locator.kind === 'document'}
             popover={entry && activeCapability ? <View style={styles.adjustment}>
                     <View style={styles.pills}>
                         {entry.capabilities.map(cap => <Button key={cap.id} size="compact" variant="media"
