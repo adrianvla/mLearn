@@ -352,6 +352,10 @@ source/revision/package-bound native batch supplies at most six distinct
 targets; bounded history expires after the reference's 30-second lifetime and
 is released on source/package/focus changes. Narrow layouts preserve reachable
 cards and controls rather than clipping the media or Inspector.
+Layout: Live word cards - the horizontal ScrollView owns column scrolling;
+the shared overlay owns close-control disclosure. After disclosure or viewport
+resize changes the scroll viewport, keep the focused column fully visible.
+Column width includes room for the scroll content's horizontal padding.
 
 `Button` owns action, selection, busy/disabled and icon-only states, including
 compact media and Knowledge variants. The selected reference's text ghost

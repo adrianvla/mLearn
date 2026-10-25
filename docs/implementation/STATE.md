@@ -51,6 +51,68 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Memory-accounting correction and resumed verification — 2026-10-25
+
+The maintainer reports Activity Monitor staying around 2.5 GB. A direct
+`footprint -p 82251` probe reconciles that with the larger RSS: 1867 MB charged,
+4924 MB reclaimable, 6808416 KiB RSS and 80% system availability. The earlier
+agent-added RSS cutoff was unnecessarily treating reclaimable residency as
+charged allocation; those readings do not establish a current leak or require
+another harness restart. Earlier actual exhaustion incidents remain valid.
+
+The ignored guard now retains RSS diagnostics and the same three-sample
+admission, 3 GiB charged-footprint ceiling and 25% minimum system availability,
+but removes the extra RSS-only rejection. Shell syntax and fresh admission
+pass. The helper build and checks below complete under the corrected guard.
+No simulator, app or persistent server is automatically restarted. Earlier
+resource-blocked records, including goal metadata, describe the superseded
+interpretation, not a new request for maintainer recovery.
+
+#### Verified live-card focus closure — 2026-10-25
+
+The current-source `runtime_browser_qa` built offline with one Cargo job in
+8.94 seconds, executable SHA256
+`6515955d8a5772b46be93d6c4f1410fdee276e6a86a0be41f56062ca49ff6ade`.
+Its real `save_position` returned `position_saved`, exit 0. The source is now
+restored to 22000 ms / duration 223042 ms / offset -6350 ms / rate 1 /
+Japanese 0.1.7, with view revision 9 / JLPT / Auto unchanged. Read-only integrity
+is `ok`. All 44 non-source tables exactly match the preserved pre-capture digest
+`a3e1e896c898ec65466e17457786bda19f8c9798111124da4ab4d55902070eb8`.
+The baseline JSON retains the receipt and exact row-hashing method. System
+SQLite BLOBs must be reconstructed as Uint8Array before comparison with the
+original Bun serialization; the initial plain-CLI mismatch was a reader
+representation difference, not a data change.
+
+The three 1200/500/320-pixel focused-layout cases now pass again in 3.7 seconds
+against that current-source helper. The narrow screenshots are byte-identical
+to the already inspected passing captures; the new desktop capture was
+personally inspected. `live-card-focus-current-owner-green.log` and its sibling
+results directory preserve this run without overwriting the original red/green
+evidence. Together with the previously inspected actual Japanese native desktop
+and 500-pixel captures, typecheck, architecture lint and web export, this closes
+the bounded focus repair, not the full visual, performance or M07 gates.
+
+Native files `live-card-native-after-desktop.png` and
+`live-card-native-after-500-focused.png` show the real Japanese source/package.
+At 500 pixels the focused card ends at x=900 inside the x=920 window edge;
+the reading and close control are complete. The old-helper schema rejection,
+initial representation mismatch, interrupted resource attempts and expired
+capture remain in the durable notepad/logs, not overwritten as passes.
+Post-check OmO footprint is 2131 MB, reclaimable memory 4513 MB, RSS
+6022832 KiB, system availability 75% and swap 2150.38 MiB. The guard was
+released after checks; 8081/7780 have no listeners and unrelated 4173 remains
+untouched. No app, device, inference or reference workload was launched.
+
+Published lexical source `a055ad4f` passes all five foundation jobs in
+`40208892956`, Android `121215675568` in `40208893225`, and desktop
+`40208893129` attempt 2 / native `121228398995`. Desktop attempt 1 exceeded
+40 minutes during apt installation before product tests; the unchanged-source
+retry passed. iOS `121215675777` repeats the deferred
+`id: m01-watch, mp4 is not visible` assertion after 1 minute 48 seconds.
+Exact receipts and logs remain in the existing M07 evidence directory.
+These earlier CI results do not certify the subsequent focus source. Overall
+visual, performance, affected-platform and M07 gates remain incomplete.
+
 #### Disk recovery and verified Settings header repair — 2026-10-25
 
 Published source `f5caf675` now passes Linux desktop `40202743902` and all

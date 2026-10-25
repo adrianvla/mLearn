@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import type { AnalysisBatch, DictionaryResult, SourceAnchor, SourceRecord } from '@mlearn/contracts';
@@ -32,8 +32,16 @@ export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusF
 }) {
     const viewport = useWindowDimensions();
     const [cards, setCards] = useState<readonly Card[]>([]);
-    const [cardWidth, setCardWidth] = useState(300);
+    const [scrollWidth, setScrollWidth] = useState(320);
+    const cardWidth = Math.max(0, Math.min(300, scrollWidth - 20));
     const scroll = useRef<ScrollView>(null);
+    const focusedColumn = useRef<number | null>(null);
+    useLayoutEffect(() => {
+        // Focus reveals the close control after the initial focus scroll.
+        // Reapply it against the resulting viewport and resized columns.
+        if (focusedColumn.current !== null)
+            scroll.current?.scrollTo({ x: focusedColumn.current * (cardWidth + 10), animated: false });
+    }, [scrollWidth, cardWidth]);
     const history = useRef<readonly Card[]>([]);
     const [pending, setPending] = useState(false);
     const [error, setError] = useState('');
@@ -121,11 +129,15 @@ export function LiveWordCards({ client, batch, source, cueKey, onInspect, focusF
         closeLabel="Hide live word translator" onClose={onClose}>
         <View style={[styles.content, pending || error ? styles.feedback : null]}>
             <ScrollView ref={scroll} horizontal style={styles.scroll} contentContainerStyle={styles.cards}
-                onLayout={event => setCardWidth(Math.min(300, event.nativeEvent.layout.width))}
+                onLayout={event => setScrollWidth(event.nativeEvent.layout.width)}
                 keyboardShouldPersistTaps="handled">
                 {Array.from({ length: Math.ceil(cards.length / rows) }, (_, column) =>
                     <View key={column} style={[styles.column, { width: cardWidth }]}
-                        onFocus={() => scroll.current?.scrollTo({ x: column * (cardWidth + 10), animated: false })}>
+                        onFocus={() => {
+                            focusedColumn.current = column;
+                            scroll.current?.scrollTo({ x: column * (cardWidth + 10), animated: false });
+                        }}
+                        onBlur={() => { focusedColumn.current = null; }}>
                     {cards.slice(column * rows, (column + 1) * rows).map(card => card.result.state === 'available' ?
                     <DictionaryCard key={card.id} meaning={card.result.summary.summary}
                         focusFallback={focusFallback}
