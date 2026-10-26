@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, View, useWindowDimensions } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Icon, type IconName } from './Icon';
 import { Progress } from './Progress';
@@ -18,7 +18,10 @@ export function SourceRow({ title, detail, icon, progress, disabled = false, onP
   const { width } = useWindowDimensions();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
+  // UIKit groups these descendants; its value keeps detail separate from the
+  // action label. Android would append that value to the label instead.
   return <Pressable accessibilityRole="button" accessibilityLabel={`Resume ${title}`}
+    accessibilityValue={Platform.OS === 'ios' ? { text: detail } : undefined}
     disabled={disabled} onPress={onPress}
     onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
     onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}

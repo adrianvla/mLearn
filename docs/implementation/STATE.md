@@ -51,6 +51,50 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### iOS source-row metadata accessibility candidate — 2026-10-26
+
+The older exact604c9954 mobile40343044633 is terminal: Android121642544970
+passes; iOS121642545459 fails after318.772s at player-ios.yaml's original
+`0:20 · English · Subtitles` assertion. This is NOT the deferred FileProvider
+failure: real picker, claim/settings/restart/playback/paused20s stages completed.
+Source/tree receipt604c9954/7743640a, JUnit, command trace, exactstep211image/
+hierarchy and preceding paused-seek image are retained under
+`ci-604c9954-ios/`; original artifact12663410334 (83452092bytes) is retained
+as `ci-604c9954-ios-evidence.zip`. Both actual frames are inspected; failed
+Home frame is opened in Preview. No app save-position defect is inferred.
+
+The Home recent-source row is partly below the viewport. Its native hierarchy
+exposes only `Resume m01-watch.mp4`, bounds24,771–369,849, no metadata value.
+SourceRow's labelled Pressable groups/hides its child detail Text. Repair that
+shared accessibility owner: expose the existing detail as UIKit value, keeping
+the stable action label and Rust-derived source projection. iOSonly because
+installed ReactNative BaseViewManager.java439–446 merges Android value into
+contentDescription, which would change the existing action identity.
+Pinned Maestro2.11.0 IOSDriver maps UIKit value to text when titleempty;
+Filters.textMatches checks that text. No renderer clock/persistence authority,
+new theme setting, fabricated progress or data migration.
+The existing iOS flow scrolls/centers the real Resume row, retains the exact
+original20s assertion and all restart assertions, and adds a Home evidence frame.
+
+Psych parses both YAMLdocuments; typecheck/lint/webexport and all7existing
+foundation/real-core Home/source cases pass in6.8s (`source-row-ios-checks.log`).
+Browser proof does not certify UIKit. Fresh SourceRow LSP repeatedly times out;
+yaml-ls is not installed. Neither is reported clean; no package is installed.
+All27guard samples safe/pressure1, maxfootprint3670847512/minheadroom5837406208,
+swap4319543296/swap-out16247193600 unchanged. Guard662 stopped; no local
+device/app/reference/native build or model was launched. Reference geometry
+measurement is paused before execution in favor of this demonstrated native
+functional gate. Exact native entry/wrapper/action recipe is in current PLAN.
+Candidate native verification remains required from the standard source-bound
+workflow; no FileProvider variant or unchanged manual rerun is launched.
+Repair task stays open; ledger211/245closed,34open.
+
+Other CI receipts: 8bade6b2 desktop40347729831 is direct-confirmed success.
+be006f2c foundation40346002717 has four native/Rust/detector successes, but
+web121652965707 exceeds20min during CJK-font installation before web checks;
+original `ci-be006f2c-web-cancelled.log` is retained, not reported green.
+Current glyph-source foundation/mobile observers remain source-scoped.
+
 #### Synchronization glyph scale verified on native — 2026-10-26
 
 Shared Button mediaSync glyph now uses the reference's effective20px size,
