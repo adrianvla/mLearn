@@ -9,13 +9,15 @@ import { KeyboardAvoidingView } from './KeyboardAvoidingView';
 
 type Props = PropsWithChildren<{
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; presentation?: 'dialog' | 'sidebar';
+  modal?: boolean;
   floatingControls?: (focusTarget: () => View | null) => ReactNode;
 } & ({ trigger: ReactElement; focusTarget?: () => View | null } | { trigger?: never; focusTarget: () => View | null })>;
 export const dialogSidebarWidth = 320;
 export const DialogPortalContext = createContext<HTMLElement | null>(null);
-export function Dialog({ open, onOpenChange, title, description, trigger, focusTarget, children, floatingControls, presentation = 'dialog' }: Props) {
+export function Dialog({ open, onOpenChange, title, description, trigger, focusTarget, children, floatingControls, presentation = 'dialog', modal = true }: Props) {
   const { height, width } = useWindowDimensions();
-  const sidebar = presentation === 'sidebar' && Platform.OS === 'web' && width >= 720;
+  const webSidebar = presentation === 'sidebar' && Platform.OS === 'web';
+  const sidebar = webSidebar && width >= 720;
   const { theme } = useUnistyles();
   const [portal, setPortal] = useState<HTMLElement | null>(null);
   const closeTarget = useRef<View>(null);
@@ -35,16 +37,16 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
     // Native Content has no onCloseAutoFocus; normally Trigger owns this return.
     if (Platform.OS !== 'web' && closed) restoreFocus();
   }, [open, restoreFocus]);
-  return <DialogPortalContext.Provider value={portal}><Primitive.Root open={open} onOpenChange={onOpenChange}>
-    {trigger ? <Primitive.Trigger asChild>{trigger}</Primitive.Trigger> : null}
-    <Primitive.Portal>
-      <Primitive.Overlay asChild>
-        <View style={[styles.overlay, sidebar && styles.sidebarOverlay]}>
+  // Keep the same nonmodal content owner across the drawer breakpoint so
+  // resizing cannot discard pending capture receipts inside the sidebar.
+  const frame = <View pointerEvents={sidebar ? 'box-none' : 'auto'} style={[styles.overlay, sidebar && styles.sidebarOverlay]}>
           <KeyboardAvoidingView enabled={Platform.OS !== 'web'}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardFrame(sidebar)}>
           <View style={[styles.bounds, sidebar && styles.sidebarBounds]}>
             <Primitive.Content asChild
+              onOpenAutoFocus={sidebar && !modal ? event => event.preventDefault() : undefined}
+              onInteractOutside={sidebar && !modal ? event => event.preventDefault() : undefined}
               onCloseAutoFocus={focusTarget ? event => { event.preventDefault(); restoreFocus(); } : undefined}
               // Native Content claims the initial responder by default.
               // Leave pan ownership to its ScrollView, not the wrapper.
@@ -63,8 +65,14 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
             </Primitive.Content>
           </View>
           </KeyboardAvoidingView>
-        </View>
-      </Primitive.Overlay>
+        </View>;
+  return <DialogPortalContext.Provider value={portal}><Primitive.Root open={open} onOpenChange={onOpenChange}
+    {...(Platform.OS === 'web' ? { modal } : {})}>
+    {trigger ? <Primitive.Trigger asChild>{trigger}</Primitive.Trigger> : null}
+    <Primitive.Portal>
+      {/* Radix clones its direct portal child. Keep themed frame styles below
+          that boundary, as they are below Overlay for ordinary dialogs. */}
+      {webSidebar && !modal ? <View pointerEvents="box-none">{frame}</View> : <Primitive.Overlay asChild>{frame}</Primitive.Overlay>}
     </Primitive.Portal>
   </Primitive.Root></DialogPortalContext.Provider>;
 }
@@ -75,7 +83,7 @@ const styles = StyleSheet.create((theme) => ({
   bounds: { width: '100%', maxWidth: 640, maxHeight: '100%', flexShrink: 1 },
   // RN Primitives' web overlay ref must remain a DOM-backed View, not the
   // KeyboardAvoidingView class instance. The keyboard owner stays inside it.
-  keyboardFrame: (sidebar: boolean) => ({ flex: 1, width: '100%',
+  keyboardFrame: (sidebar: boolean) => ({ flex: 1, width: sidebar ? dialogSidebarWidth : '100%',
     alignItems: sidebar ? 'flex-end' : 'center', justifyContent: 'center' }),
   sidebarOverlay: { alignItems: 'flex-end', padding: 0, backgroundColor: 'transparent' },
   sidebarBounds: { width: dialogSidebarWidth, maxWidth: '100%', height: '100%' },

@@ -51,6 +51,88 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Desktop sidebar modality repair in verification — 2026-10-26
+
+The current Watch comparison reproduced a distinct usability defect: opening
+Vocabulary hid the source from accessibility and blocked caption inspection.
+The original 1200px regression fails at the source Home action under the modal
+sidebar (`sidebar-nonmodal-red.log`). The shared owner is `packages/ui/src/Dialog.tsx`;
+its other actual sidebar consumer is Reader `ImageSourceWords`.
+
+Watch sidebars now retain one nonmodal content owner across the 720px drawer
+breakpoint. Ordinary web dialogs and native dialogs retain modal behavior.
+Reader's Page words keeps its existing nested modal workflow; the first broader
+run reproduced three failures when that child was incorrectly nonmodal beneath
+Reader appearance. Dialog now exposes modality independently from its geometry,
+and only Watch requests nonmodal behavior.
+The pinned RN Primitives 1.5.2 web Root previously dropped Radix's `modal` prop;
+`tools/patch-rn-dialog.mjs` forwards it through the existing private context and
+guards all four consumed web/type artifacts by exact upstream hashes.
+Postinstall applies it alongside the existing ExpoVideo repair. Native runtime
+artifacts are not patched. Its unit test, typecheck and ownership lint pass.
+
+The first passing interaction render exposed a misplaced frame in document
+flow. A plain portal boundary now keeps Unistyles frame styles below Radix's
+direct-child clone. The strengthened regression verifies the right 320px pane
+and full viewport height. Six Watch/ordinary-dialog desktop and narrow checks
+pass; the corrected wide capture was inspected. These fixture captures
+explicitly lack native media decoding and do not certify full visual parity.
+The first broader run had 46 passes and four failures: the three nested-modal
+failures above and an invalid Watch fixture expectation of successful capture
+without native duration. Watch now checks preservation of the actual recoverable
+capture error across resizing; Reader's existing capture-capable fixture checks
+the real committed receipt across the same breakpoint. The corrected product
+source passes 49/50 checks; the remaining failure sampled the resized bounds
+before React applied desktop geometry (the failure capture already shows the
+correct pane). The assertion now waits for the actual full-height/compact
+layout state before reading bounds, without a sleep. The final serial run
+passes all 50 checks in 29.0 seconds (`sidebar-modality-verified.log`).
+It covers both real sidebar consumers, ordinary dialogs, source inspection,
+capture/error state across resizing, practice retry identity and focus return.
+Wide and compact Watch captures were inspected; the wide pane remains at the
+right edge with the source available. Exported renderer SHA-256 is
+`1d830f0783db0a3cc3bb934d9912a5b0dd734e80e5c1549646e7a7d4c4c267b3`.
+Both owner suites pass (79 infrastructure and 136 client/package cases).
+The consuming debug macOS build succeeds in 8.31 seconds. In the retained
+`net.kikan.mlearn.v3dev.m07qa` profile, native caption activation opens Inspector
+with Vocabulary retained; dismissal returns focus to the original caption token.
+Capture `sidebar-modality-native-source-inspector.png` was inspected.
+
+That real-surface check exposes another blocker: Play receives focus, but the
+old Watch `paused` prop still forces pause whenever `transcriptOpen` is true.
+The source remains at 22 seconds. The condition now forces pause only for a
+covering compact/native sidebar; desktop panes retain the initial pause on
+opening but permit explicit playback afterward. Final-source typecheck,
+ownership lint, web export and all nine Watch/foundation browser checks pass
+(7.7 seconds). The second consuming debug build succeeds in 6.51 seconds.
+Its renderer SHA-256 is
+`f7ec2093a41ccac919ea7427efba7ca09431935ce03c3a4a7e272868d03d2253`;
+the `mlearn-desktop` executable SHA-256 is
+`ca4d1deb5303cd6519afa2bdcf7ebd870f90da3233036dcbdc8022885bae0868`.
+In the actual macOS app, clicking Play beside Vocabulary changes the control
+to Pause and advances from 22.000 to 27.696 seconds; explicit Pause stops at
+33.795 seconds. A real seek then moves to 19.849 seconds with the pane retained.
+Opening offset options and closing returns focus to the same -6350ms control.
+`sidebar-playback-native-synchronization.png` was inspected. Home returns with
+the saved source progress; the app exits normally (code 0).
+
+The first app exited cleanly before the next serial build;
+its bundle and evidence are retained. OmO physical footprint is 2,181,166,232
+bytes afterward, pressure is normal, host headroom is 6,732,513,280 bytes and
+swap-out remains 28,479,864,832 bytes. The first app's sampled footprint was
+183,747,832 bytes; these measurements do not diagnose the earlier OmO spike.
+During final native verification, OmO physical footprint is 2,353,624,216
+bytes, app footprint 188,253,456 bytes, host headroom 6,578,733,056 bytes,
+pressure normal and swap-out unchanged. The expired bounded guard was
+replaced while the owned app ran; the replacement guard was stopped after
+normal app exit. No device, inference or reference workload ran. Both native
+candidate bundles and the original source-bound bundle remain retained.
+This closes the demonstrated source-access/playback blocker, not the
+remaining header/control/content-order differences against the edited
+Vocabulary reference. Full Watch visual conformity, Inspector comparisons,
+Windows input cause and the distinct iOS verification remain open.
+No native/reference application, device or model was started for this repair.
+
 #### Current source-bound platform follow-up — 2026-10-26
 
 Sidebar checkpoint `c4ce513b351121e4803178a6567487b6b677a3af` and the separate
@@ -92,8 +174,13 @@ The diagnostic-only paths do not trigger mobile; that workflow explicitly has
 `cancel-in-progress: false`. The bounded repeated-input probe is published as
 `91b5a0e78457873acb38f484e6c9f79f10ed7224`, tree
 `6c5b09719d2e2253efa674eb090de57b56b1883f`. PR #44 remains OPEN/draft.
-Its foundation run `40414695189` remains pending; consuming desktop run
-`40414696033` passes. Application/UI source is unchanged by both QA increments.
+Its foundation run `40414695189` passes all five jobs; consuming desktop run
+`40414696033` passes. Artifact `12695942848` is retained under
+`ci-91b5a0e-windows-materials/`; exact source/tree receipt and run log verify
+all four repeated cycles, twelve input operations and the original five
+material/restart checks. This is bounded passing evidence, not an identified
+fix for the intermittent input loss. Application/UI source is unchanged by
+both QA increments.
 
 Preserved mobile run `40405789643` is now terminal at actual product source
 `c4ce513b`, tree `e29ddeec`. Android job `121863064558` passes in 66m46s:

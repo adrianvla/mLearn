@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "postinstall": "node tools/patch-expo-video.mjs",
+    "postinstall": "node tools/patch-expo-video.mjs && node tools/patch-rn-dialog.mjs",
     "dev:web": "npm run web -w @mlearn/client",
     "dev:desktop": "npm run tauri -w @mlearn/desktop -- dev",
     "build:web": "npm run export:web -w @mlearn/client",

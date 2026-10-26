@@ -718,7 +718,7 @@ function WatchWorkspace() {
                     <MediaSurface key={window.source.id} uri={host.media.uri(window.source)}
                         controls={Platform.OS === 'web' ? sourceActions : undefined}
                         initialPositionMs={window.source.positionMs} playbackRate={window.source.playbackRate}
-                        paused={!!inspection || !!returnedSelection || busy || transcriptOpen || playbackOpen || captureOpen}
+                        paused={!!inspection || !!returnedSelection || busy || (transcriptOpen && sidebarInset === 0) || playbackOpen || captureOpen}
                         onController={value => {
                             controller.current = value;
                             setSubtitleInset(value.subtitleBottomInset);

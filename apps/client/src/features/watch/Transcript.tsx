@@ -182,7 +182,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     onOpenChange(false);
     router.push({ pathname: '../review', params: { sessionId } });
   });
-  return <Dialog open={open} onOpenChange={onOpenChange} title={vocabulary ? 'Vocabulary' : 'Transcript'} presentation="sidebar"
+  return <Dialog open={open} onOpenChange={onOpenChange} title={vocabulary ? 'Vocabulary' : 'Transcript'} presentation="sidebar" modal={false}
     description={vocabulary ? '' : 'Exact, case-sensitive subtitle search.'}
     floatingControls={floatingControls}
     trigger={<Button ref={trigger} label="Transcript" icon="transcript" iconOnly size="compact" variant="media" disabled={!source.subtitleRevision} />}>

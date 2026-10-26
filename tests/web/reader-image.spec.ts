@@ -889,6 +889,13 @@ test(`page word operations reuse shared capture and Inspector and locate the exa
   await expect(page.getByTestId('inspector-panel').getByText('Tokyo', { exact: true }).first()).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(words).toBeVisible();
+  await words.getByRole('button', { name: 'Capture this context: 東京', exact: true }).click();
+  const receipt = words.getByText('Saved · captured-tokyo · revision 1', { exact: true });
+  await expect(receipt).toBeVisible();
+  await page.setViewportSize({ width: viewport.width === 1280 ? 390 : 1280, height: viewport.height });
+  await expect(receipt).toBeVisible();
+  await page.setViewportSize(viewport);
+  await expect(receipt).toBeVisible();
   await words.getByRole('button', { name: 'Locate 東京', exact: true }).click();
   await expect(words).toHaveCount(0);
   const original = page.locator('[data-ocr-region="line-0"] [data-source-start="0"][data-source-end="6"]');

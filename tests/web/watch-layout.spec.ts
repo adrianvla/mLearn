@@ -148,9 +148,33 @@ test(`focused live word card fits the ${width}px overlay when its close control 
       await page.getByRole('option', { name: 'Vocabulary', exact: true }).click();
       const vocabulary = page.getByRole('dialog', { name: 'Vocabulary', exact: true });
       await expect(vocabulary).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
+      await page.getByTestId('subtitle-window').getByText('cat', { exact: true }).click();
+      await expect(page.getByTestId('inspector-panel')).toBeVisible();
+      await page.getByRole('button', { name: 'Close Inspector', exact: true }).click();
+      await expect(vocabulary).toBeVisible();
+      await vocabulary.getByRole('button', { name: 'Capture cat', exact: true }).click();
+      // This transport has no native media duration: preserve its real
+      // recoverable capture failure rather than manufacturing a saved receipt.
+      const captureError = vocabulary.getByRole('alert');
+      await expect(captureError).toHaveText('Video duration unavailable; wait for media or reselect it');
+      await page.setViewportSize({ width: 390, height: 850 });
+      await expect(vocabulary).not.toHaveCSS('height', '850px');
+      await expect(captureError).toHaveText('Video duration unavailable; wait for media or reselect it');
+      const drawerBounds = await vocabulary.boundingBox();
+      if (!drawerBounds) throw new Error('Compact vocabulary drawer is not laid out');
+      expect(drawerBounds.x).toBeGreaterThanOrEqual(0);
+      expect(drawerBounds.x + drawerBounds.width).toBeLessThanOrEqual(390);
+      await page.screenshot({ path: info.outputPath('vocabulary-compact-retained-error.png') });
+      await page.setViewportSize({ width, height: 850 });
+      await expect(vocabulary).toHaveCSS('height', '850px');
+      await expect(captureError).toHaveText('Video duration unavailable; wait for media or reselect it');
       const sidebarBounds = await vocabulary.boundingBox();
       const synchronizationBounds = await page.getByRole('button', { name: /^Subtitle offset:/, includeHidden: true }).boundingBox();
       if (!sidebarBounds || !synchronizationBounds) throw new Error('Vocabulary synchronization is not laid out');
+      expect(sidebarBounds.x).toBe(width - 320);
+      expect(sidebarBounds.y).toBe(0);
+      expect(sidebarBounds.height).toBe(850);
       await page.screenshot({ path: info.outputPath('vocabulary-synchronization.png') });
       expect(synchronizationBounds.x).toBeGreaterThanOrEqual(sidebarBounds.x);
       const offsetInk = await page.getByRole('button', { name: /^Subtitle offset:/ })
