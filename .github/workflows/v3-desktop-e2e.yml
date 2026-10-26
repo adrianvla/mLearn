@@ -31,7 +31,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { cache-on-failure: true }
-      - run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus-x11 ffmpeg gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-tools fontconfig fonts-noto-cjk
+      - name: Install bounded Linux native dependencies
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tools/configure-ci-apt.sh
+          timeout 120s sudo apt-get update
+          packages=(libwebkit2gtk-4.1-dev libgstreamer-plugins-bad1.0-dev libappindicator3-dev librsvg2-dev patchelf webkit2gtk-driver xvfb dbus-x11 ffmpeg gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-tools fontconfig fonts-noto-cjk)
+          timeout 360s sudo apt-get --download-only install -y "${packages[@]}"
+          sudo apt-get --no-download install -y "${packages[@]}"
       - name: Verify real Japanese glyph coverage
         run: |
           fc-list :lang=ja file > verification/cjk-fonts.txt

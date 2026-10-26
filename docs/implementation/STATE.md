@@ -51,6 +51,68 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Bound recurring CJK-font acquisition; overlay anatomy candidate — 2026-10-26
+
+Three source-bound web jobs (88ebc0a3, be006f2c and cfafc611) exceed the
+20-minute job limit downloading the same 61.2 MB fonts-noto-cjk archive
+from Azure's Ubuntu mirror. Job 121674173479, log lines 445–446, records
+that boundary; its application checks never ran. The independent 8bade6b2
+web job passes, so no product or test change is justified.
+Both Linux consumers now use `tools/configure-ci-apt.sh` and Ubuntu's primary
+HTTPS archive through the existing local APT mirror-list mechanism, preserving
+authenticated metadata/package hashes and every package/font/Japanese assertion.
+The helper records before/used mirror lists and the 30-second HTTP/HTTPS,
+two-retry policy. Foundation bounds font download at 180 seconds and records
+the installed version; desktop bounds update/download at 120/360 seconds.
+Both install verified cached archives with --no-download; step limits are
+5/12 minutes, with fail-fast Bash and unchanged job limits.
+Both complete YAML files, exact acquisition shells, helper bash -n
+and diff checks pass (`cjk-shared-acquisition-checks.log`); Bash LSP is
+unavailable and no dependency was installed.
+Actual Ubuntu acquisition remains required; macOS did not execute apt or
+install packages. No manual workflow is dispatched.
+
+Overlay anatomy remains a separate local candidate: MediaOverlay owns typed
+synchronization controls, 10 px body inset/gaps and leading close, with feedback
+below its wrapping row; Watch migrates its actual controls. First native build
+693 and app 695 proved cue geometry but exposed a 40 x 32 close and missing
+1 px header. Actual PanelHeader.css specifies a 1 px hidden / 50 px disclosed
+header, 5 px leading inset, divider and 40 x 40 close.
+Red run 706 proves 221 expected / 220 actual.
+The second shared repair moves padding into the body and uses mediaSync close
+semantics (54 px header / 44 px target on native touch). Green run 707 passes
+typecheck, ownership lint, export and three responsive cases in 4.0 seconds.
+Fresh LSP checks report no errors in the three changed TypeScript files.
+All six idle/focused 1200/500/320 px frames were inspected. Assertions cover
+221 px idle, 40 x 40 close, fixed cue positions, dismissal and card containment.
+Native build 716 passes in 7.24 seconds after fresh 1536 MiB admission, with
+one Cargo job under guard 715; peak RSS is 1,027,391,488 bytes.
+Bundle mLearn M07 Sync Header QA
+uses retained isolated identifier net.kikan.mlearn.v3dev.m07qa.
+Executable SHA256 d40209792640b22878b0c6c45293ac3e9e491515e49e76feb421374719b1a1a4;
+UI SHA256 bbf801a0384cf8c5ded620266709794d0901731e85ee49787f49f96289e2887c.
+Launch 719's fresh admission holds before launching the app; earlier readiness
+does not authorize a stale launch. Guard 715 is stopped after the build.
+Final native after proof, full Watch/sidebar/Inspector and final gates remain
+open; no budget/reserve reduction and no emulator/model/reference launch.
+The planned isolated reference launch 680 also held before any process;
+reference source remains clean and settings SHA256 unchanged
+130fb58b57b132474dde4399188d9dc3480d759df834281177a8dcf88f52aa94.
+
+The cfafc611 foundation Rust/detector/macOS/Windows jobs pass, including all
+five Windows material states with the unchanged keyboard harness. Original
+8bade6b2 Quartz replacement loss is retained with screenshot/UIA: the owned
+HWND remains foreground, the editor focused and JSON unchanged. Its cause
+remains unexplained. Separate desktop job 121674171820 cancels after 40 minutes
+of Azure package acquisition, before any app build/test; its log records a font
+retry at 16:17:11 UTC and cancellation at 16:22:58 UTC on October 26.
+Older iOS job 121664227372 fails at 16:21:59 UTC at the expressly deferred
+picker gate, before metadata verification; its Android job 121664226842 passes.
+Mobile run 40351977298 remains in progress at cfafc611: iOS 121697307639 and
+Android 121697308039 started at 16:22:36 UTC. Observer 670 expired, not either
+job; observer 709 continues that run without rerunning or cancelling.
+Ledger: 211/246 closed, 35 open.
+
 #### iOS source-row metadata accessibility candidate — 2026-10-26
 
 The older exact604c9954 mobile40343044633 is terminal: Android121642544970

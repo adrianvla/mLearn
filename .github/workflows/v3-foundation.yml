@@ -24,10 +24,17 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm }
       - run: npm ci
+      - name: Configure bounded Ubuntu acquisition
+        run: bash tools/configure-ci-apt.sh
       - run: npx playwright install chromium --with-deps
       - name: Provide Linux CJK fonts for vertical source text
+        timeout-minutes: 5
+        shell: bash
         run: |
-          sudo apt-get install -y fonts-noto-cjk
+          set -euo pipefail
+          timeout 180s sudo apt-get --download-only install -y fonts-noto-cjk
+          sudo apt-get --no-download install -y fonts-noto-cjk
+          dpkg-query -W -f='${binary:Package} ${Version}\n' fonts-noto-cjk | tee verification/cjk-font-package.txt
           # Playwright's legacy WenQuanYi face has zero CJK vertical advances.
           sudo apt-get remove -y fonts-wqy-zenhei
           fc-list :lang=ja file > verification/cjk-fonts.txt
