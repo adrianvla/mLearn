@@ -51,6 +51,60 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Synchronization glyph scale verified on native — 2026-10-26
+
+Shared Button mediaSync glyph now uses the reference's effective20px size,
+not the nominal30px SubtitleSync rule; identical SVG path/opacity and existing
+hit geometry remain. Red expected20/actual30, green3responsive cases in3.9s,
+typecheck/lint/export and Button/test LSP all pass. Native proof now also passes.
+All exact entry points, commands and actions were recorded in current PLAN
+before each scenario; the earlier2GiB admission hold remains retained.
+
+Read-only admission619 became stale before launch: fresh headroom6257115136
+did not cover2GiB plus4GiBreserve. Use the measured matching cached build581
+maximumRSS1029144576 to estimate1536MiBadditional (~56%allowance), while
+leaving reserve/pressure/swap/growth guards unchanged. Fresh3sample admission
+passes. Offline single-job debug build626 passes7.33s, maximumRSS1028276224.
+This is a workload estimate, not RSS admission or a guaranteed peak.
+`watch-glyph-native-measured-build.log` preserves the actual run.
+Bundle `target/debug/bundle/macos/mLearn M07 Watch Glyph QA.app` uses isolated
+m07qa identifier; executable SHA256
+`68875e53311b6fe82a12f0a31425bf6d033cecd95ba36e56d6094b3c46f30634`;
+UI `index-5393161ba95dfa0b40a7174ed5423607.js` SHA256
+`7f4f4aada129370f92445fb630dd014d97719bda11dbf4bd10986dd0bad9834e`.
+
+Fresh1024MiB admission precedes app51275/window1318. Actual Continue ->
+paused25.22s -> synchronization is inspected at1512x949 and500x850.
+Same-scale native500x150region and approved reference are compared directly:
+glyph ink size now matches; overall panel width/control spacing still differs
+and is not declared visually complete. Full windows and narrow containment
+are inspected/opened in Preview. Offset focus reveals enabled Hide; pressing it
+closes synchronization. Actual slider22s/Home restores22000/-6350/rate1,
+confirmed read-only. No alignment/Material/claim mutation.
+Native captures and SHA256:
+`watch-glyph-native-wide.png`3024x1898
+`561098852671a73ea2c3d4012334804f7bba4403d1100e6cf285046bf5ba483a`;
+`watch-glyph-native-narrow.png`1000x1700
+`318da9fb5878429e4ed5433d8bb6d42bd7235477317bf3a67572cdf257251fdc`;
+`watch-glyph-native-region.png`500x150
+`9800d1da4e0edc07ec149e63fda553c0b36310baf7a8bfdb838c21d3aab5e230`.
+
+All52guard samples safe/pressure1: maximum footprint3710136344,
+minimum headroom5450432512; swap4344709120 and swap-out16247193600
+unchanged. App628/guard625 stopped; control released/computer closed;
+PID51275 and ports8081/7780/58359 absent. Post-stop physical3675631640,
+headroom6276169728/pressure1. No device/reference/model/server launched.
+The glyph increment is verified, not whole Watch/Inspector/M07/final acceptance.
+
+Separately, exact diagnostic-source be006f2c desktop40346002844/
+job121652966062 passes the complete original Linux native workflow.
+Application source is unchanged from604c9954; only tested timeout provenance
+changed. Original604ctimeout remains unexplained and retained, not reported
+fixed or erased. No speculative app fix, assertion weakening or extra workflow
+variant is justified by that non-reproduced failure.
+The optional deeper timeout investigation is dropped, not marked repaired;
+ledger211/245closed,34open includes historical dropped items.
+
 #### Source-bound desktop timeout evidence; glyph delta awaiting native admission — 2026-10-26
 
 Automatic desktop run40343043589/job121642541443 fails on exact

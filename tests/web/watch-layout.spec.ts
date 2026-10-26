@@ -41,6 +41,14 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     const sourceOverlays = await page.getByTestId('watch-source-overlays').boundingBox();
     const nextCue = await page.getByRole('button', { name: 'Align next subtitle', exact: true }).boundingBox();
     if (!sourceOverlays || !nextCue) throw new Error('Synchronization overlay is not laid out');
+    const cueGlyph = await page.getByRole('button', { name: 'Align next subtitle', exact: true }).locator('svg').boundingBox();
+    if (!cueGlyph) throw new Error('Synchronization glyph is not laid out');
+    // The reference's shared icon-button rule overrides SubtitleSync's
+    // nominal 30px SVG to 20px. Preserve the larger interactive target.
+    expect(cueGlyph.width).toBe(20);
+    expect(cueGlyph.height).toBe(20);
+    expect(nextCue.width).toBeGreaterThanOrEqual(40);
+    expect(nextCue.height).toBeGreaterThanOrEqual(40);
     // Without live cards, flex row's default start alignment must not move
     // synchronization away from the source's right edge on wide windows.
     expect(nextCue.x).toBeGreaterThan(sourceOverlays.x + sourceOverlays.width / 2);
