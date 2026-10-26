@@ -89,7 +89,35 @@ sleep, API substitute or material assertion is removed. This changes the
 repeated-modal-lifetime stimulus to obtain a failing trace, not a count-based
 acceptance claim. The extended Windows scenario still requires execution.
 The diagnostic-only paths do not trigger mobile; that workflow explicitly has
-`cancel-in-progress: false`. Current mobile run `40405789643` remains observed.
+`cancel-in-progress: false`. The bounded repeated-input probe is published as
+`91b5a0e78457873acb38f484e6c9f79f10ed7224`, tree
+`6c5b09719d2e2253efa674eb090de57b56b1883f`. PR #44 remains OPEN/draft.
+Its foundation run `40414695189` remains pending; consuming desktop run
+`40414696033` passes. Application/UI source is unchanged by both QA increments.
+
+Preserved mobile run `40405789643` is now terminal at actual product source
+`c4ce513b`, tree `e29ddeec`. Android job `121863064558` passes in 66m46s:
+21:36:37 to 22:43:23 UTC. Preparation reaches the unchanged UI step at
+22:33:26, already beyond the old 55-minute job limit. The UI step passes
+in 9m50s; JUnit has one test, zero failures, 382.462 seconds. This verifies
+the published 90-minute job allowance without changing its 20-minute UI
+deadline or assertions. The Android-budget task is closed.
+Artifact `12695355497` is retained under
+`.mlearn/m03-m07/m07-messenger/ci-c4ce513-android/`. Exact source receipt,
+JUnit and all 16 native captures were inspected in small batches: saved and
+restarted rate/offset, actual playback/seek, Knowledge claim, transcript search,
+Japanese readings/prosody/synchronization/live-card Inspector and independent
+English source continuity. These are functional native evidence, not completed
+desktop visual parity or physical-device certification.
+
+iOS job `121863064345` fails the specifically deferred original picker gate:
+`Assertion is false: id: m01-watch, mp4 is not visible`.
+Artifact `12694805642`, exact source receipt and JUnit (one test, one failure,
+123.368 seconds) are retained under `ci-c4ce513-ios/`; failed-step log is
+`ci-c4ce513-ios-failed.log`. This does not verify the later SourceRow/UIKit
+metadata repair. No FileProvider variant, workflow rerun or local device was
+started. Windows input cause, that distinct iOS verification and all remaining
+Watch/Inspector comparisons stay open. Ledger is 215/250, not M07 acceptance.
 
 A deliberate isolated-reference measurement was admitted, then stopped
 immediately when its live guard observed OmO PID 82251 physical footprint
