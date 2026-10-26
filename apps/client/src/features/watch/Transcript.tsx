@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import type { SourceRecord, TranscriptPage, AnalysisBatch, AnalyzedToken, Cue, DictionaryResult } from '@mlearn/contracts';
@@ -22,7 +22,7 @@ export function cueTime(milliseconds: number) {
 
 /** Bounded source navigation. Cue text/timestamps are never rewritten for display. */
 export function Transcript({ client, source, open, onOpenChange, onSeek, analysis, onAnalysis, onInspect,
-  vocabulary, onVocabularyChange, children }: PropsWithChildren<{
+  vocabulary, onVocabularyChange, floatingControls, children }: PropsWithChildren<{
   client: RuntimeClient;
   source: SourceRecord;
   open: boolean;
@@ -33,6 +33,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   onInspect: (inspection: Inspection) => void;
   vocabulary: boolean;
   onVocabularyChange: (vocabulary: boolean) => void;
+  floatingControls?: (focusTarget: () => View | null) => ReactNode;
 }>) {
   const router = useRouter();
   const [draft, setDraft] = useState('');
@@ -183,6 +184,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
   });
   return <Dialog open={open} onOpenChange={onOpenChange} title={vocabulary ? 'Vocabulary' : 'Transcript'} presentation="sidebar"
     description={vocabulary ? '' : 'Exact, case-sensitive subtitle search.'}
+    floatingControls={floatingControls}
     trigger={<Button ref={trigger} label="Transcript" icon="transcript" iconOnly size="compact" variant="media" disabled={!source.subtitleRevision} />}>
     <Select label="Sidebar content" value={vocabulary ? 'vocabulary' : 'transcript'}
       options={[{ value: 'transcript', label: 'Transcript' }, { value: 'vocabulary', label: 'Vocabulary' }]}

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useEffect, useRef, useState, type PropsWithChildren, type ReactElement } from 'react';
+import { createContext, useCallback, useEffect, useRef, useState, type PropsWithChildren, type ReactElement, type ReactNode } from 'react';
 import { AccessibilityInfo, Platform, ScrollView, View, useWindowDimensions } from 'react-native';
 import * as Primitive from '@rn-primitives/dialog';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -9,14 +9,16 @@ import { KeyboardAvoidingView } from './KeyboardAvoidingView';
 
 type Props = PropsWithChildren<{
   open: boolean; onOpenChange: (open: boolean) => void; title: string; description: string; presentation?: 'dialog' | 'sidebar';
-} & ({ trigger: ReactElement; focusTarget?: never } | { trigger?: never; focusTarget: () => View | null })>;
+  floatingControls?: (focusTarget: () => View | null) => ReactNode;
+} & ({ trigger: ReactElement; focusTarget?: () => View | null } | { trigger?: never; focusTarget: () => View | null })>;
 export const dialogSidebarWidth = 320;
 export const DialogPortalContext = createContext<HTMLElement | null>(null);
-export function Dialog({ open, onOpenChange, title, description, trigger, focusTarget, children, presentation = 'dialog' }: Props) {
+export function Dialog({ open, onOpenChange, title, description, trigger, focusTarget, children, floatingControls, presentation = 'dialog' }: Props) {
   const { height, width } = useWindowDimensions();
   const sidebar = presentation === 'sidebar' && Platform.OS === 'web' && width >= 720;
   const { theme } = useUnistyles();
   const [portal, setPortal] = useState<HTMLElement | null>(null);
+  const closeTarget = useRef<View>(null);
   const contentRef = useCallback((node: View | null) => {
     setPortal(Platform.OS === 'web' && typeof HTMLElement !== 'undefined' && node instanceof HTMLElement ? node : null);
   }, []);
@@ -50,12 +52,13 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
               <View ref={contentRef} style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
                 <View style={styles.header}>
                   <View style={styles.title}><Primitive.Title asChild><Text variant={sidebar ? 'sidebarTitle' : 'heading'} muted={sidebar}>{title}</Text></Primitive.Title></View>
-                  <Primitive.Close asChild><Button label="Close" icon="close" iconOnly variant="quiet" size="compact" /></Primitive.Close>
+                  <Primitive.Close asChild><Button ref={closeTarget} label="Close" icon="close" iconOnly variant="quiet" size="compact" /></Primitive.Close>
                 </View>
                 <Primitive.Description asChild><Text muted variant="caption">{description}</Text></Primitive.Description>
                 <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
                   {children}
                 </ScrollView>
+                {sidebar ? floatingControls?.(() => closeTarget.current) : null}
               </View>
             </Primitive.Content>
           </View>

@@ -139,6 +139,75 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     await page.screenshot({ path: info.outputPath('focused-live-card.png') });
     expect(focused.x).toBeGreaterThanOrEqual(container.x);
     expect(focused.x + focused.width).toBeLessThanOrEqual(container.x + container.width);
+    if (width === 1200) {
+      await page.getByRole('button', { name: 'Subtitle synchronization', exact: true }).click();
+      await page.getByRole('button', { name: 'Transcript', exact: true }).click();
+      const sidebar = page.getByRole('dialog', { name: 'Transcript', exact: true });
+      await expect(sidebar).toBeVisible();
+      await sidebar.getByRole('combobox', { name: /^Sidebar content:/ }).click();
+      await page.getByRole('option', { name: 'Vocabulary', exact: true }).click();
+      const vocabulary = page.getByRole('dialog', { name: 'Vocabulary', exact: true });
+      await expect(vocabulary).toBeVisible();
+      const sidebarBounds = await vocabulary.boundingBox();
+      const synchronizationBounds = await page.getByRole('button', { name: /^Subtitle offset:/, includeHidden: true }).boundingBox();
+      if (!sidebarBounds || !synchronizationBounds) throw new Error('Vocabulary synchronization is not laid out');
+      await page.screenshot({ path: info.outputPath('vocabulary-synchronization.png') });
+      expect(synchronizationBounds.x).toBeGreaterThanOrEqual(sidebarBounds.x);
+      const offsetInk = await page.getByRole('button', { name: /^Subtitle offset:/ })
+        .getByText('0.00', { exact: true }).evaluate(node => getComputedStyle(node).color);
+      const contrast = await page.getByRole('button', { name: 'Hide synchronization', exact: true, includeHidden: true })
+        .locator('..').locator('..').evaluate((panel, ink) => {
+          const material = panel.firstElementChild;
+          const surface = panel.closest('[data-testid="dialog-surface"]');
+          if (!material || !surface) throw new Error('Synchronization material or sidebar surface is missing');
+          const color = (css: string) => {
+            const values = css.match(/\d+(?:\.\d+)?/g)?.map(Number);
+            const [red, green, blue, alpha = 1] = values ?? [];
+            if (red === undefined || green === undefined || blue === undefined)
+              throw new Error(`Unsupported computed color: ${css}`);
+            return { red, green, blue, alpha };
+          };
+          const foreground = color(ink);
+          const tint = color(getComputedStyle(material).backgroundColor);
+          const backdrop = color(getComputedStyle(surface).backgroundColor);
+          const luminance = (channels: [number, number, number]) => {
+            const linear = (value: number) => {
+              const channel = value / 255;
+              return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+            };
+            return linear(channels[0]) * 0.2126 + linear(channels[1]) * 0.7152 + linear(channels[2]) * 0.0722;
+          };
+          const foregroundLuminance = luminance([foreground.red, foreground.green, foreground.blue]);
+          const backgroundLuminance = luminance([
+            tint.red * tint.alpha + backdrop.red * (1 - tint.alpha),
+            tint.green * tint.alpha + backdrop.green * (1 - tint.alpha),
+            tint.blue * tint.alpha + backdrop.blue * (1 - tint.alpha),
+          ]);
+          return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05)
+            / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+        }, offsetInk);
+      // The shared synchronization value uses the large 24px text role.
+      expect(contrast).toBeGreaterThanOrEqual(3);
+      await page.getByRole('button', { name: /^Subtitle offset:/ }).click();
+      const playback = page.getByRole('dialog', { name: 'Playback and subtitles', exact: true });
+      await expect(playback).toBeVisible();
+      await playback.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(vocabulary).toBeVisible();
+      await expect(page.getByRole('button', { name: /^Subtitle offset:/ })).toBeFocused();
+      await page.screenshot({ path: info.outputPath('sidebar-playback-return.png') });
+      await page.getByRole('button', { name: /^Subtitle offset:/ }).hover();
+      await page.getByRole('button', { name: 'Hide synchronization', exact: true }).click();
+      await expect(page.getByRole('button', { name: /^Subtitle offset:/ })).toBeHidden();
+      await expect(vocabulary).toBeVisible();
+      await expect(vocabulary.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+      await page.screenshot({ path: info.outputPath('vocabulary-after-sync-close.png') });
+      await vocabulary.getByRole('button', { name: 'Close', exact: true }).click();
+      const playbackTrigger = page.getByRole('button', { name: 'Playback options', exact: true });
+      await playbackTrigger.click();
+      await expect(playback).toBeVisible();
+      await playback.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(playbackTrigger).toBeFocused();
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

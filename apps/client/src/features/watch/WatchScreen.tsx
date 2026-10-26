@@ -81,6 +81,10 @@ function WatchWorkspace() {
     const [captureOpen, setCaptureOpen] = useState(false);
     const [subtitleCapture, setSubtitleCapture] = useState<SourceAnchor | null>(null);
     const liveWordTrigger = useRef<View>(null);
+    const synchronizationTrigger = useRef<View>(null);
+    const offsetTrigger = useRef<View>(null);
+    const playbackTrigger = useRef<View>(null);
+    const playbackOpener = useRef<'toolbar' | 'offset'>('toolbar');
     const [offsetDraft, setOffsetDraft] = useState('0');
     const [playbackError, setPlaybackError] = useState('');
     const [languages, setLanguages] = useState<PluginSummary[]>([]);
@@ -505,6 +509,30 @@ function WatchWorkspace() {
             inspection={inspection} packageId={window.source.packageId} client={host.client}
             onChanged={changedInspection} onClose={() => { setInspection(null); setReturnedSelection(null); }} />
     ) : null;
+    const overlayTop = insets.top + toolbarHeight + (Platform.OS === 'web' ? -2 : 8);
+    const renderSynchronizationControls = (focusTarget?: () => View | null) => window && synchronizationOpen && window.source.subtitleRevision ? (
+        <MediaOverlay variant="synchronization" closeLabel="Hide synchronization"
+            backdrop={sidebarInset > 0 ? 'surface' : 'source'}
+            focusTarget={focusTarget}
+            onClose={() => setSynchronizationOpen(false)}
+            controls={<>
+                <Button label="Align previous subtitle" icon="previousCue" iconOnly size="compact" variant="mediaSync"
+                    disabled={busy} onPress={() => alignSubtitle('previous')} />
+                <Button ref={offsetTrigger} label={(window.source.subtitleOffsetMs / 1000).toFixed(2)}
+                    accessibilityLabel="Subtitle offset" accessibilityValue={{ text: `${window.source.subtitleOffsetMs} milliseconds` }}
+                    size="compact" variant="mediaSync" onPress={() => {
+                        playbackOpener.current = 'offset';
+                        setOffsetDraft(String(window.source.subtitleOffsetMs)); setPlaybackOpen(true);
+                    }} />
+                <Button label="Align next subtitle" icon="nextCue" iconOnly size="compact" variant="mediaSync"
+                    disabled={busy} onPress={() => alignSubtitle('next')} />
+            </>}>
+            {playbackError ? <><Text tone="media" variant="caption" accessibilityRole="alert">{playbackError}</Text>
+                <Button label="Refresh synchronization" size="compact" variant="media" disabled={busy}
+                    onPress={() => void changeSource(client => client.sourceWindow(id, latest.current.position))} /></> : null}
+        </MediaOverlay>
+    ) : null;
+    const sourceSynchronization = sidebarInset === 0 ? renderSynchronizationControls(() => synchronizationTrigger.current) : null;
     const sourceActions = <>
                     {Platform.OS === 'web' && window ? <Select label="Playback rate" variant="media"
                       value={String(window.source.playbackRate)} disabled={busy}
@@ -545,11 +573,13 @@ function WatchWorkspace() {
                       <Button ref={liveWordTrigger} label="Live word translator" icon="globe" iconOnly variant="media" size="compact"
                         accessibilityState={{ expanded: liveWordsOpen }} disabled={!batch || transcriptOpen}
                         onPress={() => setLiveWordsOpen(value => !value)} />
-                      {window.source.subtitleRevision ? <Button label="Subtitle synchronization" icon="sync" iconOnly
+                      {window.source.subtitleRevision ? <Button ref={synchronizationTrigger} label="Subtitle synchronization" icon="sync" iconOnly
                         variant="media" size="compact" accessibilityState={{ expanded: synchronizationOpen }}
                         onPress={() => setSynchronizationOpen(value => !value)} /> : null}
                       <Transcript key={`${id}:${window.source.subtitleRevision}`} client={host.client}
                         source={window.source} open={transcriptOpen} vocabulary={vocabulary} onVocabularyChange={setVocabulary}
+                        floatingControls={sidebarInset > 0 && synchronizationOpen && window.source.subtitleRevision ? focusTarget => <View
+                          style={styles.sidebarSynchronization(overlayTop)}>{renderSynchronizationControls(focusTarget)}</View> : undefined}
                         analysis={transcriptBatch} onAnalysis={setTranscriptBatch} onInspect={setInspection}
                         onOpenChange={value => {
                           setInspection(null); setTranscriptOpen(value);
@@ -564,8 +594,10 @@ function WatchWorkspace() {
                           setPlaybackError('');
                           void pauseAndSave().catch(() => {});
                         }
-                      }} title="Playback and subtitles" description="Changes are saved for this video."
-                        trigger={<Button label="Playback options" icon="settings" iconOnly variant="media" size="compact" />}>
+                       }} title="Playback and subtitles" description="Changes are saved for this video."
+                         focusTarget={() => playbackOpener.current === 'offset' ? offsetTrigger.current : playbackTrigger.current}
+                         trigger={<Button ref={playbackTrigger} label="Playback options" icon="settings" iconOnly variant="media" size="compact"
+                           onPress={() => { playbackOpener.current = 'toolbar'; }} />}>
                         {Platform.OS !== 'web' ? <><Text>Playback rate · {window.source.playbackRate}×</Text>
                         <Row>{[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map(rate =>
                           <Button key={rate} label={`${rate}×`} accessibilityLabel={`Playback rate ${rate}`}
@@ -627,8 +659,7 @@ function WatchWorkspace() {
                     </> : null}
     </>;
     const showLiveWords = liveWordsOpen && batch && window && host.available && !transcriptOpen;
-    const showSynchronization = window && synchronizationOpen && window.source.subtitleRevision;
-    const overlayInset = showLiveWords || showSynchronization ? overlayHeight + 8 : 0;
+    const overlayInset = showLiveWords || sourceSynchronization ? overlayHeight + 8 : 0;
     return (
         <View style={[styles.screen(insets.top, insets.bottom), { paddingRight: sidebarInset }]}>
             <View testID="watch-toolbar" style={[styles.toolbar, { top: insets.top, right: sidebarInset,
@@ -666,10 +697,10 @@ function WatchWorkspace() {
                     <Button label="Retry saving position" variant="secondary" onPress={() => void persist().catch(() => {})} />
                 </> : null}
             </View>
-            {showLiveWords || showSynchronization ? <View testID="watch-source-overlays"
+            {showLiveWords || sourceSynchronization ? <View testID="watch-source-overlays"
                 onLayout={event => setOverlayHeight(event.nativeEvent.layout.height)}
                 style={[styles.overlays(viewport.width - sidebarInset < 720),
-                    { top: insets.top + toolbarHeight + (Platform.OS === 'web' ? -2 : 8), right: sidebarInset + 10 }]}>
+                     { top: overlayTop, right: sidebarInset + 10 }]}>
             {showLiveWords && batch ? <View style={styles.liveWords}>
                 <LiveWordCards key={JSON.stringify([id, batch.subtitleRevision, batch.packageId, batch.packageVersion, batch.packageRevision])}
                      client={host.client} batch={batch} source={window.source} cueKey={cueKey} focusFallback={liveWordTrigger}
@@ -678,24 +709,8 @@ function WatchWorkspace() {
                         setInspection(value);
                      }} />
             </View> : null}
-            {showSynchronization && window ? <View style={styles.synchronization(viewport.width - sidebarInset < 720)}>
-              <MediaOverlay variant="synchronization" closeLabel="Hide synchronization"
-                onClose={() => setSynchronizationOpen(false)}
-                controls={<>
-                    <Button label="Align previous subtitle" icon="previousCue" iconOnly size="compact" variant="mediaSync"
-                        disabled={busy} onPress={() => alignSubtitle('previous')} />
-                    <Button label={(window.source.subtitleOffsetMs / 1000).toFixed(2)}
-                        accessibilityLabel="Subtitle offset" accessibilityValue={{ text: `${window.source.subtitleOffsetMs} milliseconds` }}
-                        size="compact" variant="mediaSync" onPress={() => {
-                            setOffsetDraft(String(window.source.subtitleOffsetMs)); setPlaybackOpen(true);
-                        }} />
-                    <Button label="Align next subtitle" icon="nextCue" iconOnly size="compact" variant="mediaSync"
-                        disabled={busy} onPress={() => alignSubtitle('next')} />
-                </>}>
-                {playbackError ? <><Text tone="media" variant="caption" accessibilityRole="alert">{playbackError}</Text>
-                    <Button label="Refresh synchronization" size="compact" variant="media" disabled={busy}
-                        onPress={() => void changeSource(client => client.sourceWindow(id, latest.current.position))} /></> : null}
-              </MediaOverlay>
+            {sourceSynchronization ? <View style={styles.synchronization(viewport.width - sidebarInset < 720)}>
+              {sourceSynchronization}
             </View> : null}
             </View> : null}
             {window && host.available ? <>
@@ -766,6 +781,9 @@ const styles = StyleSheet.create(theme => ({
     liveWords: { flexGrow: 1, flexShrink: 1, minWidth: 0, maxWidth: '100%' },
     synchronization: (compact: boolean) => ({
         alignSelf: compact ? 'flex-end' : 'flex-start', flexShrink: 0, maxWidth: '100%',
+    }),
+    sidebarSynchronization: (top: number) => ({
+        position: 'absolute', top, right: 10, maxWidth: '100%',
     }),
     preferenceFeedback: { maxWidth: 320, flexShrink: 1 },
     screen: (top: number, bottom: number) => ({

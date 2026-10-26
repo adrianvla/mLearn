@@ -51,6 +51,61 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Sidebar synchronization placement and focus verified — 2026-10-26
+
+The same Watch synchronization controls now render within the open desktop
+Transcript/Vocabulary sidebar's Dialog focus scope, rather than underneath its
+modal layer. Dialog owns the floating slot and header return target; MediaOverlay
+owns disclosure, backdrop contrast and dismissal. There is no second control
+implementation or feature-local button styling. Light-sidebar contrast is
+protected at the existing large-text threshold; source translucency is preserved.
+Playback options resolve the actual toolbar/offset opener through live refs,
+and widget dismissal returns to the retained sidebar Close action.
+
+Evidence base remains `.mlearn/m03-m07/m07-messenger/`. The original
+`watch-sidebar-focus-red.log` reproduces the lost offset focus. Owner checks
+and 50 Watch/dialog/foundation/Reader-image cases pass before the final
+live-opener refinement (`watch-sidebar-focus-green.log`). The final tree passes
+typecheck, architecture lint, web export and all nine Watch/foundation cases
+in 7.6 seconds (`watch-sidebar-current-focus.log`). Desktop and 320px captures
+were inspected; the wide case asserts sidebar containment, readable contrast,
+both playback return targets and retained parent focus after dismissal.
+
+Fresh 1536 MiB admission precedes one-job native build 816: dev profile,
+7.49 seconds, maximum compiler RSS 1,027,145,728 bytes. Bundle
+`target/debug/bundle/macos/mLearn M07 Sidebar Focus QA.app` retains the isolated
+`net.kikan.mlearn.v3dev.m07qa` identity. Executable SHA256:
+`618f3772d1265b08f7d02fb97a496c935d01dfb315665fac5c06c075f3a7abfa`.
+Embedded UI SHA256:
+`982b40442d15cc4b93d3a8781d95b8bb10db4aa7373701ea74d5b4bc7737d08e`.
+The final read-back log binds all five changed source files to this native proof.
+
+After fresh 1024 MiB app admission, PID 93343/window 1475 resumed the actual
+test-video.mov at paused 22 seconds. Native AX/keyboard actions opened
+synchronization, Transcript, Sidebar content and Vocabulary, then the actual
+offset/options dialog. Closing options focused `Subtitle offset: -6350
+milliseconds`; dismissing synchronization focused the sidebar Close button.
+The Vocabulary group remained present in the atomic native observation.
+Closing the sidebar, opening options from the toolbar and closing again focused
+`Playback options`. No focus was manually restored between action and read-back.
+Native full frames and inspected crops are `watch-sidebar-native-options-return*`
+and `watch-sidebar-native-dismiss-focus*`. Home return succeeds.
+
+Read-only SQLite confirms unchanged position/duration/offset/rate
+`22000|223042|-6350|1.0`. Cmd+Q exits app 817 with code 0, PS confirms PID absent,
+guard 805 is stopped and the desktop session is closed. Final same-PID OmO
+sample is physical footprint 4,091,129,808 bytes, RSS 4,502,339,584 bytes,
+available 6,884,212,736 bytes, pressure 1. Compiler/app admission logs and
+`watch-sidebar-focus-resource.jsonl` retain the resource observations; the
+earlier unexplained OmO spike is not declared fixed.
+
+This closes the demonstrated sidebar usability/focus defect, not whole
+Watch/Inspector visual parity or M07 acceptance. Self-review found one shared
+control owner, bounded live view refs and no domain/protocol/persistence change.
+The ordinary source-bound mobile run must still verify the Android job-budget
+repair and existing iOS SourceRow change. The specifically deferred iOS picker
+failure stays unresolved; no diagnostic variant or device restart was launched.
+
 #### CJK acquisition and synchronization anatomy verified — 2026-10-26
 
 Evidence base: `.mlearn/m03-m07/m07-messenger/`.

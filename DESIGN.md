@@ -67,6 +67,15 @@ role's fixed secondary ink. SubtitleSync.css specifies a 70% white close glyph
 and Dark Quartz's 15% white intense hover surface. These belong to the shared
 media palette; cue controls reuse that hover while retaining secondary ink.
 
+When the desktop Transcript/Vocabulary sidebar is open, the same synchronization
+control set moves into Dialog's floating slot, inside its modal/focus scope.
+It must not remain an inaccessible source overlay or acquire a parallel copy.
+MediaOverlay uses the shared opaque media panel over a light sidebar so the
+large offset remains readable; source-backed translucency stays unchanged.
+Closing playback options returns to its actual offset or toolbar opener through
+live view refs. Dismissing the widget returns to the sidebar header Close action
+or source synchronization trigger, without closing the parent sidebar.
+
 Match viewport, scale, theme, data, media time and state. Compare full windows and individual UI regions using 1:1 side-by-side and overlay/difference inspection, then exercise the real interactions. A numerical match dominated by the video background is not evidence of matched chrome. Do not mask UI differences, rebaseline to v3 or substitute generated/staged UI.
 
 Unimplemented capabilities or missing trustworthy reference states stay explicitly incomplete; no fake actions/data. Preserve responsive and native touch/keyboard behavior and the repaired native performance. Do not confuse accessibility containment, code review or successful builds with visual conformity.
