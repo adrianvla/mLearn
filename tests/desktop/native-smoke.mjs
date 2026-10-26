@@ -7,19 +7,13 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { startCatalog } from '../../tools/catalog-server.mjs';
-import { clickControl, WebDriverError } from './webdriver.mjs';
+import { clickControl, WebDriverError, rpc } from './webdriver.mjs';
 
 await mkdir('test-results/desktop', { recursive: true });
 const catalog = await startCatalog(path.resolve('target/plugin-cdn'));
 const driver = spawn('tauri-driver', ['--port', '4444'], { stdio: 'inherit' });
 let session;
 let restoreTheme;
-async function rpc(method, endpoint, body) {
-  const response = await fetch(`http://127.0.0.1:4444${endpoint}`, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30000) });
-  const result = await response.json();
-  if (!response.ok || typeof result.value?.error === 'string') throw new WebDriverError(result);
-  return result.value;
-}
 async function until(work, description, timeout = 30000) {
   const deadline = Date.now() + timeout;
   let last;

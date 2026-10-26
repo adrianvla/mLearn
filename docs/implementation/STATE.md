@@ -51,6 +51,51 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Source-bound desktop timeout evidence; glyph delta awaiting native admission — 2026-10-26
+
+Automatic desktop run40343043589/job121642541443 fails on exact
+604c9954/tree7743640a during real IPC/plugin/restart verification.
+Exact-source foundation40343043608 separately passes all5jobs:
+Rust121642541624, detector121642541867, web121642541939,
+macOS121645644869 and Windows121645644876. The earlier font-download timeout
+therefore remains historical; no font/workflow repair was made or is claimed.
+Mobile40343044633 remains on its existing observer.
+Original failed log is `ci-604c9954-desktop-failure.log`; original54.97MB
+artifact12660832111 is retained as `ci-604c9954-desktop-evidence.zip`.
+Only source receipt and immediate failure files are extracted under
+`ci-604c9954-desktop/`. The actual failure image is inspected/opened in Preview:
+paused source20s, raw字幕 and explicit unsupported-English analysis error.
+Media diagnostic has readyState4/networkState1/currentTime20,
+pausedtrue/errornull/duration30. Earlier restart/progress/Inspector captures
+exist, but the final raw-subtitle scenario does not pass.
+The last exception is a bare fetch DOMException TimeoutError with no awaiting
+scenario or request endpoint. Original code does not establish which RPC
+timed out; no application defect or infrastructure-only cause is inferred.
+
+The existing rpc owner moves beside clickControl/WebDriverError in
+tests/desktop/webdriver.mjs. A typed WebDriverTransportError retains method,
+endpoint, original cause and caller stack without recording scripts/payloads.
+No request replay, deadline extension, assertion change or native retry is added.
+Five targeted desktop-driver tests pass, including no-replay timeout identity
+and distinct native protocol rejection; both harness syntax checks, architecture
+lint and all3changed-file LSP diagnostics pass.
+Evidence: `desktop-timeout-provenance-checks.log`. Actual Linux diagnosis
+remains open until source-bound execution identifies the failed operation.
+
+Independent local glyph delta: reference Button.css357–362 overrides the
+nominal30px SubtitleSync SVG to20px; path/opacity already match. Shared
+Button mediaSync now uses20px while hit targets remain unchanged. Existing
+watch-layout regression fails expected20/actual30 before repair; all3responsive
+cases pass after in3.9s, including20x20glyph and>=40x40desktop hit assertions.
+Typecheck/lint/export and Button/test LSP pass; all3standalone frames inspected.
+This delta is not native-verified or included in the timeout-provenance commit.
+Fresh2048MiB build admission608 exits70 without starting a build: pressure1,
+stable swap-out16247193600, headroom5939249152–5992677376 is insufficient
+after the explicit budget and unchanged4294967296host reserve.
+No app/device/reference/inference is launched. Guard605 is stopped.
+No reserve reduction or automatic workload launcher is introduced.
+Full Watch/Inspector/M07/final gates remain open; ledger210/245closed,35open.
+
 #### Watch comparison exposes standalone synchronization misalignment — 2026-10-26
 
 The alignment increment is now verified on genuine native wide/narrow

@@ -7,6 +7,28 @@ export class WebDriverError extends Error {
   }
 }
 
+export class WebDriverTransportError extends Error {
+  constructor(method, endpoint, cause) {
+    super(`WebDriver ${method} ${endpoint} transport failed`, { cause });
+    this.method = method;
+    this.endpoint = endpoint;
+  }
+}
+
+export async function rpc(method, endpoint, body) {
+  let response;
+  try {
+    response = await fetch(`http://127.0.0.1:4444${endpoint}`, { method, headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30000) });
+  } catch (error) {
+    // A fetch timeout's own stack loses the awaiting scenario. Retain that
+    // caller and endpoint without recording scripts, payloads or profile data.
+    throw new WebDriverTransportError(method, endpoint, error);
+  }
+  const result = await response.json();
+  if (!response.ok || typeof result.value?.error === 'string') throw new WebDriverError(result);
+  return result.value;
+}
+
 export async function clickControl(rpc, session, label) {
   const deadline = Date.now() + 15000;
   for (;;) {
