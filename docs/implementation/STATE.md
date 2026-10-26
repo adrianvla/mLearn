@@ -70,8 +70,24 @@ The existing native keyboard/clipboard path, complete-input equality and all
 material/restart assertions remain intact. A bounded diagnostic delta records
 own clipboard equality, observed value changes and native foreground/focus/
 caret handles alongside UIA focus. This is not a verified fix.
-PowerShell, Windows UIA and a `.ps1` language server are unavailable locally;
-diff checks pass, but actual Windows compilation/execution remains required.
+PowerShell, Windows UIA and a `.ps1` language server are unavailable locally.
+Diagnostic source `e99f5dcc6cb9a98790ff799296ba4e6a8e25a203` now passes all
+five foundation jobs in run `40410634669`, including actual Windows compilation
+and material execution. Its real desktop run `40410634672` also passes.
+Artifact `12694167204` verifies source/tree `e99f5dcc`/`b4757ce3` and all five
+native material/restart states. Logs, JSON and every frame were inspected.
+Clipboard equality and foreground ownership are correct in this passing run;
+zero native caret handles are normal here. The value trace observes the old
+document before the complete replacement, correctly handled by the existing
+event-driven wait. This passing run does not identify the earlier input-loss
+cause; the Windows repair remains open.
+
+The next bounded reproduction adds four alternating Dark Quartz/Slate modal
+reopen/edit/save cycles before the original restart/restore checks. Every
+input/save assertion still terminates immediately on failure; no action retry,
+sleep, API substitute or material assertion is removed. This changes the
+repeated-modal-lifetime stimulus to obtain a failing trace, not a count-based
+acceptance claim. The extended Windows scenario still requires execution.
 The diagnostic-only paths do not trigger mobile; that workflow explicitly has
 `cancel-in-progress: false`. Current mobile run `40405789643` remains observed.
 

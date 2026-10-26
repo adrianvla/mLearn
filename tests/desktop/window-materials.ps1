@@ -264,6 +264,13 @@ public static class NativeMaterialQa {
       captures.Add(Capture(window, "Dark Quartz", Path.Combine(output, "dark-quartz.png"), true, true));
       Save(window, slate, "Slate");
       captures.Add(Capture(window, "Slate", Path.Combine(output, "opaque-slate.png"), false, true));
+      // A single passing edit did not reproduce the earlier native input loss.
+      // Reopen the same modal repeatedly; any failed admission still ends Run.
+      for (int cycle = 1; cycle <= 4; cycle++) {
+        Console.WriteLine("Native theme repeated-edit cycle " + cycle + "/4");
+        Save(window, dark, "Dark Quartz");
+        Save(window, slate, "Slate");
+      }
       Save(window, dark, "Dark Quartz");
       Close(window, process);
       process = null;
