@@ -578,6 +578,8 @@ function WatchWorkspace() {
                           onValueChange={id => {
                             const plugin = languages.find(value => value.id === id);
                             if (plugin && (window.source.packageId !== plugin.id || window.source.packageVersion !== plugin.version)) {
+                              if (process.env.EXPO_PUBLIC_MLEARN_METRICS === '1')
+                                console.info(`annotation-ui phase=source_language_action timestamp_ms=${Date.now()}`);
                               void changeSource(client => client.setSourceLanguage(window.source.id, plugin.id), true);
                             }
                           }} />

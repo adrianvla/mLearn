@@ -51,6 +51,179 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Current performance continuation — 2026-10-26
+
+Published Reader recovery checkpoint is
+`38f92e7b51ea06ea98587026203bebef3875e744`; PR44 remains OPEN/draft.
+Its foundation `40234894640` and real desktop `40234894664` pass.
+Mobile `40234894606` completed: Android `121297520933` passes; iOS
+`121297521343` fails the same deferred `m01-watch, mp4 is not visible`
+assertion in 1m32s. Its original failed log is
+`mobile-38f92e7b-ios-failure.log`. Earlier `dcfb1d39` mobile finishes
+Android `121283773292` successfully; iOS `121283773472` fails the exact deferred
+`m01-watch, mp4 is not visible` assertion in 2m26s. Its original failed log is
+`mobile-dcfb-ios-failure.log`; no diagnostic variant was launched.
+
+Two fresh normal documented desktop processes now exercise the same original
+corpus video/subtitles, Japanese package and saved source settings. The sole
+subsequent product delta is a two-line, metrics-flagged
+`source_language_action` timestamp in the existing validated selector handler;
+it supplies the missing application-side start span, not another command or
+state owner. Its typecheck, ownership lint and LSP pass. Measured source is
+base `38f92e7b` plus diff SHA256
+`254e6d7df7928ee25373d5eadb4e09481cf000099353170668f0307a828b0dc6`.
+Exact file/native/input identities are retained in
+`performance-timestamped-source-identities.log` and
+`performance-38f92e7b-input-identities.log`.
+
+| Same-input observation | Fresh process 1 | Fresh process 2 | Existing comparison budget |
+| --- | ---: | ---: | ---: |
+| Resume to usable captions | 560 ms | 552 ms | 1000 ms |
+| Warm Home-to-Watch reopen | 113 ms | 110 ms | 250 ms |
+| First Inspector | 76 ms | 77 ms | 250 ms |
+| Warm Inspector | 64 ms | 55 ms | 250 ms |
+| Japanese recovery after package switch | 493 ms | 472 ms | 1000 ms |
+| First six-cue Transcript, pre-input upper bound | 158 ms | 157 ms | 1000 ms |
+| Warm Transcript, pre-input upper bound | 130 ms | 118 ms | 250 ms |
+
+These are fresh-process/warm-filesystem observations, not cold-filesystem
+measurements or a new product SLA. Transcript upper bounds include the native
+input-helper round trip; its actual request-to-frame spans are 119/115 ms first
+and 89/88 ms warm. The package switch deliberately exposes the English
+package's unsupported-language result for Japanese text before restoring the
+original Japanese package; it is not English recognition success.
+Logs are `performance-timestamped-normal-1.log` and `-2.log`.
+The earlier `performance-38f92e7b-normal-1.log` is a separately identified
+pre-marker baseline, not relabeled as the later source.
+
+The native host uses the documented dev profile with debug information and the
+existing optimized interpreter/host/SHA overrides; Metro remains development
+mode. Initial three-cue analysis makes one Japanese initialization and three
+bounded morphology calls. Warm reopen and pointer-only rerenders add neither;
+Knowledge remains a 29-key batch. The six-cue Transcript uses one 34-key batch
+and cache hits on reopen. Package switching evicts the previous owner and
+performs one genuine Japanese reinitialization on return. Both real Home returns
+are followed by read-only SQLite confirmation of Japanese package version
+`0.1.7-sudachi20260116-jmdict20261017-ocr2`, position 22000 ms,
+offset -6350 ms and rate 1. All owned apps and 8081/7780 listeners are released.
+
+Earlier optimized consuming-host preparation remains recorded: admission timed out
+after samples at 2.6/3.0 GiB, never reaching three consecutive healthy samples.
+Root incorrectly started the production UI export before that admission result;
+the export completed successfully, but no optimized native build, host,
+catalog server or inference was started in that inadmitted attempt.
+The preparation guard was released. A new read-only admission subsequently
+passes three consecutive healthy samples before optimized work resumes.
+The unchanged ceiling is 3 GiB charged / 25% system availability. Native
+footprint later reads 2618 MB charged / 2136 MB reclaimable, availability 60%,
+swap 2121.31 MiB and 45 GiB free disk. Allocation categories were inspected;
+charged/reclaimable totals do not establish a new leak, and no device/model
+workload is blamed for the OmO accounting changes.
+
+The optimized native candidate now uses ordinary embedded-UI app packaging,
+the existing release profile, one Cargo job, offline resources and the isolated
+M07qa identifier. The earlier `dev --release` HTTP-origin attempt was unsuitable:
+release host policy intentionally excludes localhost from media-capability
+initialization. That policy was not weakened. A private Metro temporary/cache
+directory produced a complete metrics-enabled export without deleting the
+shared cache; the earlier cached export omitted several action/frame markers
+and is excluded. All six required markers were verified in the new bundle.
+The passive observer changes no DOM, application state or native transport.
+It forwards only numeric timing lines through bounded loopback image requests
+already allowed by the production policy. The collector has a 128-event limit
+and one cancellable frame subscriber, registered before each measured action.
+
+The retained local unsigned candidate is
+`target/release/bundle/macos/mLearn M07 Performance QA.app`; its executable
+SHA256 is `712cd6618e9dcd809514872993cd59102c867f9544a01de80921fd02aa2b3420`.
+Production UI SHA256 is
+`ef12e474d5b51cebafb7b9667566f86c01d7a355ea1e33efcfa7c0b047cd8b91`;
+observer SHA256 is
+`c87c3d79dc74e4fe714e1a23cb7bf49317458aa5dc39aa4ca1b8a61689c00bfa`.
+The existing app bundle, exports and failed harness evidence remain retained.
+This is local verification, not a signed release or distribution.
+
+Two valid fresh optimized processes use the same original `test-video.mov`,
+subtitles, Japanese package and saved settings. Both measure the real `今度`
+Inspector, six-cue Transcript, explicit unsupported-English state and Japanese
+recovery through actual native controls. No English-success claim or direct
+speedup ratio is made.
+
+| Optimized observation | Fresh process 1 | Fresh process 2 | Existing comparison budget |
+| --- | ---: | ---: | ---: |
+| Resume to committed captions | 373 ms | 374 ms | 1000 ms |
+| Warm Home-to-Watch reopen | 114 ms | 104 ms | 250 ms |
+| First Inspector | 71 ms | 61 ms | 250 ms |
+| Warm Inspector | 56 ms | 44 ms | 250 ms |
+| Japanese recovery frame readiness | 300 ms | 290 ms | 1000 ms |
+| First six-cue Transcript, pre-input upper bound | 112 ms | 113 ms | 1000 ms |
+| Warm Transcript, pre-input upper bound | 96 ms | 99 ms | 250 ms |
+
+Transcript request-to-frame spans are 76/74 ms first and 68/70 ms warm.
+Package recovery records committed analysis readiness; normal options dismissal
+and visible restored annotations were checked separately. Raw observations are
+`performance-optimized-sample-1.log`, `performance-optimized-sample-2.log`,
+their `-ui.json` files and corresponding frame logs. Both collectors report
+zero drops/rejections and no script error or observer overflow. All measurements
+are fresh-process/warm-filesystem observations, not cold-filesystem results.
+
+Initial Japanese initialization is 230235/233118 us with three morphology calls and
+138805248 guest bytes. Warm uses hit the existing analysis cache; Transcript
+uses six cues and a 34-key Knowledge batch, then hits the cache on reopen.
+Returning from English performs a genuine Japanese reinitialization.
+The 15-minute run deadline expired after these measurements and interrupted
+the attempted final Home return; that return is not claimed. Read-only SQLite
+instead confirms the original package/version, 22000 ms, -6350 ms and rate 1.
+The second process returns Home normally and independently confirms the same
+persisted baseline. Repeated normal and optimized performance verification is
+complete; this does not close the remaining visual/platform/M07 gates.
+
+The resource guard now compares exact `proc_pid_rusage` physical-footprint
+bytes rather than `vmmap`'s rounded display. Its ceiling remains 3221225472
+bytes (3 GiB), with the same 25% minimum system availability. All 30 samples
+during the first process are below that ceiling: 3068667072–3095815360 bytes.
+After the first run root footprint is 3069224128 bytes, system availability
+74% and swap 2235.06 MiB. OmO's unexplained allocation is not declared fixed; no model,
+emulator or reference app was launched or blamed for it.
+
+#### Native desktop corpus crop cancellation — 2026-10-26
+
+The earlier NSOpenPanel access failure and expired picker request remain recorded;
+no successful picker interaction is claimed. The actual approved
+`~/mlearn-test-corpus/loadable/0.png` (1442060 bytes, 1023×1024 pixels) was instead
+imported by a genuine Finder drag into the existing Home image-import owner.
+Japanese was selected through the real control. Root created and closed only
+Finder window 1130; all three original user Finder windows remained present.
+The real imported page and thumbnail were visually inspected.
+Read-only persistence confirms one-page Japanese image document
+`document-e6c7ba37347da1e33b47ff53c8e273d327082cc8569734b20df9ea0e5f43d3ad`.
+The isolated profile has zero recognition admissions and zero recognition pages.
+
+Selecting crop closes Reader options normally. A real image-space drag opens
+recognition with selected-region geometry: left 77.28884301229692%, top
+8.608321377331421%, width 15.797504712323848%, height 21.52080344332855%.
+The provider remains unselected and Recognize is disabled; no OCR/inference,
+model download or injected application/DOM state was used. Cancelling returns
+to parent Reader options with Select crop unchecked. Closing and reopening
+options does not replay the old request or reopen recognition. This closes
+the bounded macOS crop/cancel/reopen gap, not model-quality or screen-reader
+verification. Actual VoiceOver/TalkBack and a new native uncertain-correction
+receipt scenario remain unclaimed; existing reviewed owner/web/native-seam
+evidence is not relabeled as those device workflows.
+
+Unmodified native capture:
+`.mlearn/m03-m07/m07-messenger/native-corpus-crop-cancel-options.png`,
+2160×1600, 1275386 bytes, SHA256
+`c53ab5f19b08a2e5aeab99da4ff17634bf1498229f8ff761fc72ec9fbfd171b5`.
+The second process continued into this bounded case after its performance
+trace was frozen. The exact guard later stopped at 3250889920 bytes, above the
+unchanged 3221225472-byte ceiling. Root immediately stopped the owned app and
+collector; no app/media/recognition worker, build or 8081/7780 listener remains.
+The owned desktop capture session was explicitly released. Post-cleanup OmO
+footprint is 3166856384 bytes, system availability 73%, swap 2211.06 MiB.
+No OmO allocation fix, model/device cause or full M07 completion is claimed.
+Final platform, visual and full-M07 gates remain open.
+
 #### Reader lifetime review continuation — 2026-10-25
 
 The same reviewer subsequently closes B1/B2 but rejects B3: the triggerless
