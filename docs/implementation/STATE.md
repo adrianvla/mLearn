@@ -51,7 +51,94 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Native Inspector Escape regression — 2026-10-26
+
+Actual original-video Japanese Inspector QA at 500×850 reproduced a keyboard
+ownership defect: one Escape while Knowledge was open closed both the popover
+and Inspector. Fresh native AX confirmed the original caption had focus and
+Inspector was gone. The source remained at the original package/version and was
+restored through normal controls to 22000 ms / -6350 ms / rate 1, independently
+confirmed read-only in SQLite before the owned app was stopped.
+
+The existing Reader-image browser suite now reproduces the same failure at
+1080 and 393 pixels (`escape-red.log`): both fail because Inspector disappears
+after the first Escape. Shared ContextPanel now uses the installed primitive's
+cancellable Escape callback to dismiss its current popover; Inspector closes
+only its Knowledge state and restores the real Knowledge button ref. A second
+Escape retains the existing source-trigger restoration. No global keyboard
+listener, claim mutation, renderer authority or alternate Inspector was added.
+Typecheck, architecture lint and fresh web export pass in
+`escape-green-build.log`. Inspector/test LSP are clean; ContextPanel's fresh
+diagnostics request times out and is not reported passed.
+
+The first full-file green attempt was cancelled after a proven QA-server asset
+inventory failure: current HTML requested the new `8429b6d9` bundle, present on
+disk, but the server registered before export returned 404. Its original logs
+and failures remain. Restarting only that owned ephemeral static listener after
+export serves the same asset with 200; the unchanged repaired source then passes
+all 36 Reader-image scenarios in 20 seconds (`escape-green-served.log`),
+including both Escape/focus regressions, footer geometry, crop/recovery and
+capture interactions. The owned 58359 listener is released; user-owned 4173 is
+untouched. The first native packaging invocation fails before compilation
+because preflight's inherited `CI=1` is not a valid Tauri `--ci` boolean.
+Only the invocation changes to `unset CI`; the same offline single-job
+consuming macOS build then passes in 2m55s
+(`escape-native-build-unset-ci.log`). The prior failure is retained.
+
+The original native 500×850 Japanese `度胸` scenario now passes on
+`mLearn M07 Escape QA.app`, executable SHA256
+`9af5964e0a7739e202e86513c1cb72e5f75adfdde6cdd84cf69db968a7f33a15`,
+with repaired UI SHA256
+`75246f2a0e861960a336053f4847a0f552ec618d38e0a192787e775fcf52e37e`.
+Actual AX first confirms the open Knowledge popover with its real claim action
+focused. First Escape removes only Knowledge, retains Inspector and focuses
+the real Knowledge button. Second Escape closes Inspector and focuses the
+original caption token. No claim, model operation or injected state is used.
+Full native capture `escape-native-narrow-first-escape.png` is 1000×1700,
+SHA256 `a393358bbd583028512d63e49448c5c5fb64fede209c9fd16049d0ff0dfd3d80`.
+The wide reference-comparison capture `escape-native-inspector-wide.png` is
+3024×1898, SHA256
+`fbfca0a83c177cf61206a7c15ab82f22d1dbb8118dcb86b050c5e97083f9580a`.
+Both actual files were inspected and opened in Preview with the approved
+Inspector reference. Earlier tool-returned wide PNGs are 2000×1255 inspection
+derivatives, not relabeled as full-resolution originals or pixel-exact proof.
+
+The app returns Home normally after restoring 22000 ms. Read-only SQLite again
+confirms the original Japanese version, 22000 ms / -6350 ms / rate 1.
+The owned app, static server and guards are released; 8081/7780/58359 are free.
+Post-run OmO footprint is 2539335704 bytes, system availability 71% and swap
+2853.25 MiB. No allocation fix or model/device cause is claimed.
+Product-only diff SHA256 is
+`17b064ca3fb82efc0101721e48205a83a6f27948f92616d00311153737c8c3a8`.
+This bounded keyboard repair is verified locally for continuation. Its source
+identity is the enclosing commit; the preceding bb9b595c CI does not certify
+this newer delta. Full M07 and matched visual gates remain open.
+
 #### Current performance continuation — 2026-10-26
+
+The measured two-line timestamp increment and evidence below are now published
+as `bb9b595cb58b4e7c00f58e1dffa243eb41bf9085`; PR44 remains OPEN/draft.
+Exact-source foundation `40252289538` passes all five jobs: OCR detector,
+Rust, web, Windows desktop and macOS desktop. Real Linux desktop
+`40252289537` / native job `121346606465` passes in 6m16s, including the
+Vocabulary/source-caption coexistence assertion. Both watcher filters returned
+1 after their successful jobs; direct source-bound GitHub metadata confirms
+success, not a workflow failure. Mobile `40252289555` now completes:
+Android `121346606706` passes; iOS `121346606850` fails only the existing
+`Exercise actual iOS UI and Rust persistence` step with the exact deferred
+`id: m01-watch, mp4 is not visible` assertion after 1m48s.
+Original failed output is retained in `mobile-bb9b595c-ios-failure.log`
+(59548 bytes). Both consuming applications compile; a watcher subscription
+deadline earlier expired while they were compiling, not because a CI step
+failed. Its renewed subscription is now terminal. No manual dispatch or iOS
+diagnostic variant was run.
+The stale shared-vocabulary/scoped-practice implementation task is reconciled
+as complete using its existing Watch/Reader consumers, owner/web regressions
+and retained native selected-Material/two-probe/exact-Return workflow.
+Full Watch visual comparison and full M07 verification remain open.
+The existing local M07 `REVIEW.md` now consolidates both performance matrices,
+exact resource-stop receipts and bounded persistence/storage observations;
+long-session storage growth and physical-device coverage remain unproven.
 
 Published Reader recovery checkpoint is
 `38f92e7b51ea06ea98587026203bebef3875e744`; PR44 remains OPEN/draft.

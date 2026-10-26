@@ -6,12 +6,13 @@ import { Text } from './Text';
 import { Button } from './Button';
 import type { TextAnchor } from './InlineWord';
 import type { TextBounds } from './InlineWord.types';
-export function ContextPanel({ title, anchor, onClose, children, footer, popover, sourceContext, alwaysShowContext = false, opaque = false }: PropsWithChildren<{
+export function ContextPanel({ title, anchor, onClose, children, footer, popover, onPopoverClose, sourceContext, alwaysShowContext = false, opaque = false }: PropsWithChildren<{
     title: string;
     anchor: TextAnchor;
     onClose: () => void;
     footer?: ReactNode;
     popover?: ReactNode;
+    onPopoverClose?: () => void;
     sourceContext?: string;
     alwaysShowContext?: boolean;
     opaque?: boolean;
@@ -58,7 +59,12 @@ export function ContextPanel({ title, anchor, onClose, children, footer, popover
                         const { width, height } = event.nativeEvent.layout;
                         setViewport(current => current?.width === width && current.height === height ? current : { width, height });
                     }}>
-                        <Primitive.Content asChild onCloseAutoFocus={event => {
+                        <Primitive.Content asChild onEscapeKeyDown={event => {
+                            if (popover && onPopoverClose) {
+                                event.preventDefault();
+                                onPopoverClose();
+                            }
+                        }} onCloseAutoFocus={event => {
                             event.preventDefault();
                             anchor.restoreFocus();
                         }}>

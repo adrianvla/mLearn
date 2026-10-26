@@ -735,6 +735,25 @@ test(`Inspector footer keeps shared pill actions on one scrolling row at ${width
   }
   await page.screenshot({ path: testInfo.outputPath(`inspector-footer-${width}.png`) });
 });
+
+test(`Escape dismisses Knowledge before its Inspector at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 });
+  await start(page);
+  const word = page.getByRole('button', { name: '東京: untracked', exact: true });
+  await word.click();
+  const inspector = page.getByTestId('inspector-panel');
+  const knowledge = inspector.getByRole('button', { name: /^Knowledge/ });
+  await knowledge.click();
+  const claim = inspector.getByRole('button', { name: 'Claim Reading known', exact: true });
+  await claim.focus();
+  await page.keyboard.press('Escape');
+  await expect(claim).toHaveCount(0);
+  await expect(inspector).toBeVisible();
+  await expect(knowledge).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(inspector).toHaveCount(0);
+  await expect(word).toBeFocused();
+});
 }
 
 test('source Inspector capture actions remain readable on their shared media material', async ({ page }, testInfo) => {

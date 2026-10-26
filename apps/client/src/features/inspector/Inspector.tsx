@@ -49,6 +49,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
     const [retry, setRetry] = useState<ClaimChange | null>(null);
     const [lookupVersion, setLookupVersion] = useState(0);
     const [expandedCapability, setExpandedCapability] = useState<string | null>(null);
+    const knowledgeTrigger = useRef<View>(null);
     const [showSource, setShowSource] = useState(false);
     const [showAlternatives, setShowAlternatives] = useState(false);
     const [showPronunciation, setShowPronunciation] = useState(false);
@@ -124,6 +125,10 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
     return (
         <ContextPanel title={entry?.headword ?? inspection.sourceForm} anchor={inspection.anchor} onClose={onClose} sourceContext={inspection.context} alwaysShowContext={inspection.showContext}
             opaque={inspection.sourceAnchor.locator.kind === 'image' || inspection.sourceAnchor.locator.kind === 'document'}
+            onPopoverClose={() => {
+                setExpandedCapability(null);
+                knowledgeTrigger.current?.focus();
+            }}
             popover={entry && activeCapability ? <View style={styles.adjustment}>
                     <View style={styles.pills}>
                         {entry.capabilities.map(cap => <Button key={cap.id} size="compact" variant="media"
@@ -151,7 +156,7 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                         <Button size="compact" label="Retry claim" disabled={busy} onPress={() => void commit(retry)} />
                     </> : null}
                 </View> : null}
-            footer={<>{entry && claim ? <Button size="compact" variant="pill"
+            footer={<>{entry && claim ? <Button ref={knowledgeTrigger} size="compact" variant="pill"
                 label={claim.label}
                 tone={claim.tone}
                 icon={claim.icon}
