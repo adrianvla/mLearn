@@ -109,6 +109,48 @@ verification, the full visual matrix and the M07 milestone remain open.
 This checkpoint preserves the partial result without self-acceptance,
 weakening assertions or restarting a workload automatically.
 
+Source-bound automatic CI for published `3da08793385f636eada913d8d0f9151782a7393c`
+is now terminal. Foundation `40271434272` passes OCR detector `121404899884`,
+Rust `121404900027`, web `121404900158`, macOS `121406482388` and Windows
+`121406482606`. Real Linux desktop `40271434338` / native `121404900072`
+passes. Mobile `40271434276` has Android `121404900267` passing and iOS
+`121404900058` failing the exact expressly deferred
+`Assertion is false: id: m01-watch, mp4 is not visible` after 1m13s.
+Original failed output is `mobile-3da08793-ios-failure.log`, 30449 bytes.
+No workflow is dispatched or rerun, and no assertion is relaxed.
+The Swift/Python fixture blobs are unchanged from decode-failing `e6986c8a`;
+both exports succeed on this run despite the same scaler service warning.
+That warning alone is not sufficient cause. The optional fixture investigation
+is dropped without a speculative fix; the original decode failure remains
+unexplained and preserved, not reported repaired.
+
+A second, materially different local replay avoids in-process screenshots:
+fresh three-sample admission is 2955014144/2956390400/2956603392 bytes,
+74% availability. The retained app is deliberately launched under a fresh
+guard, using only AX and an explicit interactive foreground-control grant.
+After activation, AX shows genuine Home, installed-language selection and
+real source continuation controls. The earlier blank frame is therefore not
+established as a startup defect. Continue test-video.mov is pressed once, but
+before Inspector is reached the OmO guard crosses 3243798528 bytes at 70%
+availability. The owned PID 96973/window 1233 is immediately terminated;
+the control grant is released and the desktop session closed. A first attempt
+to close through desktop.close inside computer.run is unavailable; the direct
+close action succeeds. Read-only SQLite still confirms Japanese package
+0.1.7 / 22000 ms / -6350 ms / rate 1. No claim or Capture write is performed.
+Evidence is `sense-selector-ax-admission.log` and
+`sense-selector-ax-resource.log`. No native selector pass is claimed.
+
+The second breach occurs without an in-process image request, so that image
+path is not a necessary cause. With all owned workloads stopped, resetting
+only the persistent JS evaluation kernel plus synchronous GC reduces reported
+JS heap to 3359744 bytes but leaves OmO physical footprint 3312414720 bytes
+(from 3332304896 before reset), still above the unchanged ceiling; availability
+is 70%, swap 3745.19 MiB. No app, device, server or model restarts during this
+recovery. Retained evaluation state does not explain or repair the multi-GiB
+allocation. Further substantial local verification remains held for the OmO
+resource blocker. Current status is 204/239 ledger items closed, including the
+dropped optional investigation, with 35 open; M07 is not verified complete.
+
 #### Exact-source CI closeout and resource hold — 2026-10-26
 
 Published source `e6986c8add4b5369d2d2ae514df7c2580ce737a1` is independently
