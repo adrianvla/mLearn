@@ -51,6 +51,21 @@ size: `Button.css:357–362` has greater specificity than SubtitleSync's nominal
 30px SVG rule. Preserve the existing40px desktop button and native44px touch
 targets; the glyph never owns hit geometry. The SVG path and muted opacity
 already match and do not need a second icon implementation.
+MediaOverlay owns synchronization's 10px body inset and 10px control gap,
+using the existing semantic spacing values; vertical inset stays 5px. Its
+controls slot keeps any error/retry feedback below the wrapping control row.
+The leading close disclosure expands the panel leftward without moving the
+source-anchored previous/offset/next controls. This matches both approved
+idle and hovered states; trailing close chrome must not shift a focused cue
+control. Dictionary-card overlays retain their existing leading dismissal.
+The synchronization header follows actual PanelHeader.css: a 1px transparent
+divider while hidden, then a 50px header with a 40px close and 5px leading
+inset. Native touch uses a 54px header around its unchanged 44px target.
+Padding belongs to the body, so both disclosure states keep cue controls fixed.
+Synchronization dismissal uses the shared mediaClose role, not the value/cue
+role's fixed secondary ink. SubtitleSync.css specifies a 70% white close glyph
+and Dark Quartz's 15% white intense hover surface. These belong to the shared
+media palette; cue controls reuse that hover while retaining secondary ink.
 
 Match viewport, scale, theme, data, media time and state. Compare full windows and individual UI regions using 1:1 side-by-side and overlay/difference inspection, then exercise the real interactions. A numerical match dominated by the video background is not evidence of matched chrome. Do not mask UI differences, rebaseline to v3 or substitute generated/staged UI.
 

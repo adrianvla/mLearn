@@ -680,8 +680,8 @@ function WatchWorkspace() {
             </View> : null}
             {showSynchronization && window ? <View style={styles.synchronization(viewport.width - sidebarInset < 720)}>
               <MediaOverlay variant="synchronization" closeLabel="Hide synchronization"
-                onClose={() => setSynchronizationOpen(false)}>
-                <Row>
+                onClose={() => setSynchronizationOpen(false)}
+                controls={<>
                     <Button label="Align previous subtitle" icon="previousCue" iconOnly size="compact" variant="mediaSync"
                         disabled={busy} onPress={() => alignSubtitle('previous')} />
                     <Button label={(window.source.subtitleOffsetMs / 1000).toFixed(2)}
@@ -691,7 +691,7 @@ function WatchWorkspace() {
                         }} />
                     <Button label="Align next subtitle" icon="nextCue" iconOnly size="compact" variant="mediaSync"
                         disabled={busy} onPress={() => alignSubtitle('next')} />
-                </Row>
+                </>}>
                 {playbackError ? <><Text tone="media" variant="caption" accessibilityRole="alert">{playbackError}</Text>
                     <Button label="Refresh synchronization" size="compact" variant="media" disabled={busy}
                         onPress={() => void changeSource(client => client.sourceWindow(id, latest.current.position))} /></> : null}

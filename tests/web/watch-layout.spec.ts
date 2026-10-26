@@ -49,10 +49,31 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     expect(cueGlyph.height).toBe(20);
     expect(nextCue.width).toBeGreaterThanOrEqual(40);
     expect(nextCue.height).toBeGreaterThanOrEqual(40);
+    const dismiss = page.getByRole('button', { name: 'Hide synchronization', exact: true, includeHidden: true });
+    // MediaOverlay's close wrapper and panel are the same owners in both
+    // disclosure states. A one-pixel header divider precedes the 220px body.
+    const panel = await dismiss.locator('..').locator('..').boundingBox();
+    if (!panel) throw new Error('Synchronization panel is not laid out');
+    expect(panel.width).toBe(221);
+    await synchronization.focus();
+    await expect(dismiss).toBeEnabled();
+    const closeBounds = await dismiss.boundingBox();
+    const previousCue = await page.getByRole('button', { name: 'Align previous subtitle', exact: true }).boundingBox();
+    const focusedNext = await page.getByRole('button', { name: 'Align next subtitle', exact: true }).boundingBox();
+    if (!closeBounds || !previousCue || !focusedNext) throw new Error('Focused synchronization controls are not laid out');
+    expect(closeBounds.width).toBe(40);
+    expect(closeBounds.height).toBe(40);
+    expect(closeBounds.x + closeBounds.width).toBeLessThanOrEqual(previousCue.x);
+    expect(focusedNext.x).toBe(nextCue.x);
+    await page.screenshot({ path: info.outputPath('focused-synchronization.png') });
+    await dismiss.hover();
+    await page.getByRole('button', { name: 'Home', exact: true }).focus();
+    await page.screenshot({ path: info.outputPath('hovered-synchronization.png') });
     // Without live cards, flex row's default start alignment must not move
     // synchronization away from the source's right edge on wide windows.
     expect(nextCue.x).toBeGreaterThan(sourceOverlays.x + sourceOverlays.width / 2);
-    await page.getByRole('button', { name: 'Subtitle synchronization', exact: true }).click();
+    await dismiss.click();
+    await expect(synchronization).toBeHidden();
     await translator.click();
     const overlay = page.getByTestId('live-word-cards');
     const cards = overlay.getByRole('button', { name: / · / });

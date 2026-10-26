@@ -3,12 +3,13 @@ import { Platform } from 'react-native';
 import type {} from '@mlearn/theme/runtime';
 import type { ResolvedTheme } from '@mlearn/theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'media' | 'mediaFloating' | 'mediaSelect' | 'mediaSync' | 'pill' | 'navigation' | 'segment' | 'select' | 'disclosure' | 'preview' | 'sourcePreview' | 'dictionary';
+export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'media' | 'mediaFloating' | 'mediaSelect' | 'mediaSync' | 'mediaClose' | 'pill' | 'navigation' | 'segment' | 'select' | 'disclosure' | 'preview' | 'sourcePreview' | 'dictionary';
 export type ButtonTone = 'neutral' | 'positive' | 'negative' | 'warning' | 'info';
 export type ButtonSize = 'default' | 'compact' | 'row';
 
 export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, tone: ButtonTone, selected = false) {
-  return variant === 'pill' || tone === 'warning' ? theme.pills[tone].text
+  return variant === 'mediaClose' ? theme.media.closeIcon
+    : variant === 'pill' || tone === 'warning' ? theme.pills[tone].text
     : (variant === 'navigation' || variant === 'segment') && !selected ? theme.colors.muted
     : variant === 'sourcePreview' ? theme.colors.muted
     : variant === 'dictionary' || variant === 'mediaSync' ? theme.media.muted
@@ -17,9 +18,9 @@ export function buttonForeground(theme: ResolvedTheme, variant: ButtonVariant, t
 
 export default StyleSheet.create(theme => ({
   root: (variant: ButtonVariant, size: ButtonSize, tone: ButtonTone, selected: boolean, iconOnly: boolean) => {
-    const transparent = variant === 'quiet' || variant === 'navigation' || variant === 'segment' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync'
+    const transparent = variant === 'quiet' || variant === 'navigation' || variant === 'segment' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'mediaClose'
       || variant === 'media' && iconOnly;
-    const borderless = variant === 'segment' || variant === 'navigation' && size === 'row' || variant === 'dictionary' || variant === 'pill' || variant === 'quiet' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync'
+    const borderless = variant === 'segment' || variant === 'navigation' && size === 'row' || variant === 'dictionary' || variant === 'pill' || variant === 'quiet' || variant === 'disclosure' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'mediaClose'
       || variant === 'media' && iconOnly;
     const selectedSurface = selected && (variant === 'quiet' || variant === 'secondary' || variant === 'navigation' || variant === 'segment');
     return {
@@ -57,7 +58,8 @@ export default StyleSheet.create(theme => ({
         } : {}),
         ...(variant === 'dictionary' ? { minHeight: 30, paddingVertical: 0,
           backgroundColor: theme.media.translucentPanel, backdropFilter: theme.media.backdrop } : {}),
-        ...(variant === 'mediaSync' ? { minHeight: 40, minWidth: iconOnly ? 40 : 100 * theme.textScale,
+        ...(variant === 'mediaSync' || variant === 'mediaClose' ? { minHeight: 40,
+          minWidth: iconOnly || variant === 'mediaClose' ? 40 : 100 * theme.textScale,
           paddingVertical: 5, paddingHorizontal: 5 } : {}),
         ...(variant === 'sourcePreview' ? { minHeight: 160, boxShadow: `inset 0 0 0 1px ${theme.colors.border}` } : {}),
       },
@@ -83,7 +85,8 @@ export default StyleSheet.create(theme => ({
       : variant === 'pill' ? theme.pills[tone].top
       : variant === 'sourcePreview' ? theme.surfaces.secondary
       : variant === 'mediaFloating' ? theme.media.border
-      : variant === 'media' || variant === 'mediaSelect' || variant === 'mediaSync' || variant === 'disclosure' ? theme.media.badge : theme.controls.hover,
+      : variant === 'mediaSync' || variant === 'mediaClose' ? theme.media.actionHover
+      : variant === 'media' || variant === 'mediaSelect' || variant === 'disclosure' ? theme.media.badge : theme.controls.hover,
     _web: variant === 'pill' ? { filter: 'brightness(1.08)' } : {},
   }),
   pressed: { transform: [{ scale: 0.98 }] },

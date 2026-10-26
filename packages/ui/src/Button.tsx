@@ -26,7 +26,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button({ label, det
   const selected = state.selected === true;
   const row = variant === 'navigation' && size === 'row';
   const name = props.accessibilityLabel ?? label;
-  const iconSize = row ? 40 : variant === 'sourcePreview' ? 32 : variant === 'mediaSync' ? 20 : variant === 'select' || variant === 'mediaSelect' ? 14 : size === 'default' && variant !== 'navigation' ? 20 : 18;
+  const iconSize = row ? 40 : variant === 'sourcePreview' ? 32 : variant === 'mediaSync' || variant === 'mediaClose' ? 20 : variant === 'select' || variant === 'mediaSelect' ? 14 : size === 'default' && variant !== 'navigation' ? 20 : 18;
   return (
     <Pressable {...props}
       {...(Platform.OS === 'web' && accessibilityRole === 'button' ? { 'aria-pressed': state.selected } : {})}

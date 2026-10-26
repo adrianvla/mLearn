@@ -51,7 +51,7 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
-#### CJK acquisition verified; native overlay capture pending — 2026-10-26
+#### CJK acquisition and synchronization anatomy verified — 2026-10-26
 
 Evidence base: `.mlearn/m03-m07/m07-messenger/`.
 
@@ -87,38 +87,57 @@ The first web-log fetch was refused while other foundation jobs were running;
 that response remains in `ci-9c5f9329-web-success.log`, not a test failure.
 The font-repair task is closed. macOS did not execute apt or install packages.
 
-Overlay anatomy remains a separate local candidate: MediaOverlay owns typed
-synchronization controls, 10 px body inset/gaps and leading close, with feedback
-below its wrapping row; Watch migrates its actual controls. First native build
-693 and app 695 proved cue geometry but exposed a 40 x 32 close and missing
-1 px header. Actual PanelHeader.css specifies a 1 px hidden / 50 px disclosed
-header, 5 px leading inset, divider and 40 x 40 close.
-Red run 706 proves 221 expected / 220 actual.
-The second shared repair moves padding into the body and uses mediaSync close
-semantics (54 px header / 44 px target on native touch). Green run 707 passes
-typecheck, ownership lint, export and three responsive cases in 4.0 seconds.
-Fresh LSP checks report no errors in the three changed TypeScript files.
-All six idle/focused 1200/500/320 px frames were inspected. Assertions cover
-221 px idle, 40 x 40 close, fixed cue positions, dismissal and card containment.
-Native build 716 passes in 7.24 seconds after fresh 1536 MiB admission, with
-one Cargo job under guard 715; peak RSS is 1,027,391,488 bytes.
-Bundle mLearn M07 Sync Header QA
-uses retained isolated identifier net.kikan.mlearn.v3dev.m07qa.
-Executable SHA256 d40209792640b22878b0c6c45293ac3e9e491515e49e76feb421374719b1a1a4;
-UI SHA256 bbf801a0384cf8c5ded620266709794d0901731e85ee49787f49f96289e2887c.
-Launch 719's fresh admission holds before launching the app; earlier readiness
-does not authorize a stale launch. Guard 715 is stopped after the build.
-Final native after proof, full Watch/sidebar/Inspector and final gates remain
-open; no budget/reserve reduction and no emulator/model/reference launch.
-All 146 renderer and 66 native guard samples are safe with pressure level 1.
-Their maximum OmO physical footprints are 4,509,839,312 / 4,453,052,416 bytes;
-minimum available memory is 5,260,820,480 / 5,551,833,088 bytes.
-Native guard swap used stays 4,168,548,352 bytes; both guards' swap-out stays
-16,247,193,600 bytes. Running safeguards do not override the held additional
-1536 MiB launch forecast. Readiness observer 720 only samples; it launches
-nothing. Process inspection finds no surviving mLearn executable; own
-descendants are the small observers/desktop helper, not a model or device.
-The unused desktop session is closed.
+MediaOverlay now owns typed synchronization controls, 10 px body inset/gaps
+and leading close, with feedback below its wrapping row; Watch migrates its
+actual controls without local button styles. First native build 693/app 695
+exposed a 40 x 32 close and missing header. Red run 706 proves 221 expected /
+220 actual. Actual PanelHeader.css specifies a 1 px hidden / 50 px disclosed
+header, 5 px leading inset, divider and 40 x 40 close. Padding now belongs
+to the body; native touch retains its 54 px header / 44 px target.
+The shared mediaClose role also restores SubtitleSync.css's 70% white close
+glyph and dark.css's 15% white intense hover; cue controls retain secondary ink.
+
+Final renderer run 764 passes all 78 checker and 136 client/package tests,
+typecheck, ownership lint, web export and three responsive cases in 3.9 seconds.
+Five changed-file LSP checks have no errors. All nine idle/focus/hover frames
+at 1200/500/320 px were inspected. Assertions protect 221 px idle width,
+40 x 40 close, unchanged cue positions, actual dismissal and card containment.
+Logs/frames are sync-close-role-green.log and sync-close-role-green-results/.
+Native build 766 passes in 7.58 seconds after 1536 MiB compiler admission,
+with one Cargo job and peak RSS 1,027,129,344 bytes. Earlier compiled bundles
+are retained. New bundle mLearn M07 Sync Close QA uses the same isolated
+identifier net.kikan.mlearn.v3dev.m07qa.
+Executable SHA256 dd48107c72cd8ae3ee9e48495706baef513decf74253736c78cf6ea5f919e2dd;
+UI SHA256 d33650594e56822aeb3998065e8eac9c8996c33b42f365bf052f022394cd2779.
+This binary consumes the seven-file candidate over 562cd3ef; the retained
+source-file hashes bind the precommit native proof to the checkpoint.
+
+Corrected app admission uses the established 1024 MiB allowance, not the
+1536 MiB compiler estimate; the separate 25% host reserve is unchanged.
+Guard 759 genuinely stopped on pressure/headroom: OmO footprint rose from
+4,530,630,608 to 10,938,134,504 bytes, pressure 1 to 2 and swap-out increased.
+The new app had not launched. Bounded same-PID diagnostics later show recovery;
+cause remains unestablished, not attributed to devices/models or declared fixed.
+Compact evidence is omo-footprint-spike-vmmap.log. Its historical peak is not
+an admission threshold. Three fresh samples in admission 770 pass with normal
+pressure and stable swap-out before deliberate app launch 771.
+
+Actual PID 80098/window 1412 resumes test-video.mov paused at 22 s / -6.35.
+Real global pointer hover reveals the 40 x 40 close at 1225,113 while
+previous/offset/next remain at 1280/1330/1440,113 with widths 40/100/40.
+Native hover full frame and 540 x 100 region are
+sync-close-role-native-hover.png / sync-close-role-native-hover-region-2x.png.
+The region was directly compared with the approved 600 x 150 reference crop.
+Backdrop differs over video versus Sidebar, so this is not full Watch parity.
+Actual close dismisses synchronization, Home return works, and read-only SQLite
+confirms original position/duration/offset/rate 22000/223042/-6350/1.0.
+Cmd+Q exits 771 with code 0; PS confirms absent. Control is released,
+desktop session closed and owned guard 769 stopped after verification.
+All 117 recovered guard samples are safe: pressure 1, maximum OmO footprint
+4,248,449,000 bytes, minimum available 6,623,264,768 bytes and unchanged
+swap-out 18,156,847,104. Raw evidence is
+sync-close-role-native-resource-recovered.jsonl. No model/device/reference
+was started. Full Watch/sidebar/Inspector and final milestone gates stay open.
 The planned isolated reference launch 680 also held before any process;
 reference source remains clean and settings SHA256 unchanged
 130fb58b57b132474dde4399188d9dc3480d759df834281177a8dcf88f52aa94.

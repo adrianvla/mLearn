@@ -78,6 +78,8 @@ export function resolveTheme(saved: ThemeDocument) {
       background: '#000000',
       text: '#E8E8E8',
       muted: '#A6A6A6',
+      closeIcon: '#FFFFFFB3',
+      actionHover: '#FFFFFF26',
       chrome: '#1C1C1CE6',
       // Keep the dark-media luminance while preserving copy contrast over white
       // page pixels. The blur remains shared with media and source inspection.
