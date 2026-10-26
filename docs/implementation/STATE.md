@@ -51,6 +51,93 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Resource admission corrected; native selector replay passes — 2026-10-26
+
+The maintainer requests fresh physical-footprint/host-pressure/swap-trend
+admission rather than RSS or historical-peak blocking. Audit confirms the old
+guard already reads `ri_phys_footprint`, not RSS; its defect is the fixed
+3 GiB process ceiling and the subsequent overly restrictive quiet-reserve
+gates despite normal host pressure. Those admission rules are superseded,
+not the original exhaustion evidence or platform acceptance requirements.
+The obsolete read-only observer is killed; its terminal status/notification
+are confirmed despite a terminal-metadata cleanup EPERM. No persistent
+workload launcher is introduced.
+
+Tracked owners are `tools/macos-resource-sample.c` and
+`tools/resource-guard.mjs`; the existing local resource-guard.sh delegates to
+them. The macOS sampler reads the same PID's current physical footprint and
+resident bytes, host pressure, total memory, free+inactive headroom estimate,
+swap usage and cumulative swap-out bytes with a monotonic timestamp.
+Speculative pages are not double-counted. Headroom is an estimate, corroborated
+by pressure and trends, not a promise that every inactive page is immediately
+free. RSS remains diagnostic and historical peaks are not admission inputs.
+Sampling failures, unknown pressure and inconsistent process/clock/counters
+fail closed.
+
+Admission requires three fresh samples, 5 seconds apart. It retains 25% of
+physical host memory as reserve, subtracts the explicit projected workload,
+and projects sustained footprint growth over 10 seconds from both recent
+intervals. Warning/critical pressure rejects work. Sustained swap-use growth
+of at least 8 MiB/s with swap-out traffic of at least 16 MiB/s over both
+intervals also rejects work; stable allocated swap alone does not.
+The native QA admission budget is 1 GiB. The running guard uses zero additional
+workload budget because existing allocations are already reflected in current
+host headroom; it still checks pressure, growth, swap and the host reserve.
+There is no artificial requirement that OmO become smaller than its healthy
+idle footprint. This corrects admission, not the underlying OmO allocation.
+
+The old guard's real healthy-host rejection is retained in
+`resource-correction-old-guard.log`. Strict native compilation
+(`clang -Wall -Wextra -Werror -O2`), bash syntax and both JS LSP checks pass.
+All 9 deterministic `tools/checks/resource-guard.test.mjs` cases pass, covering
+RSS divergence, footprint above the former cap, warning/critical pressure,
+oversized projected work, no double counting, sustained/transient growth,
+swap trends and malformed samples. No real memory-pressure stress is induced.
+Fresh same-PID measurement gives 3885.59 MiB from libproc and 3886 MiB from
+top MEM (0.42 MiB difference), normal pressure and non-growing swap.
+Three live admission samples pass with about 5.62 GB estimated headroom,
+a separate 4 GiB host reserve and the 1 GiB projected QA budget.
+
+Native QA then deliberately resumes the retained `mLearn M07 Sense QA.app`,
+unchanged executable SHA256
+`5b959d9912acc4763de1f8a48ba70b32eceddaac2bf5cf7136dc57bfc8f716a7`.
+On original test-video.mov/Japanese 0.1.7, the real `度胸` entry opens
+at 25.22s. Its compact selector changes native AX value 0 to 1 and shares the
+sense-heading row at 1512x949 and 500x850. The unsaved Capture editor retains
+`courage; bravery; pluck; nerve; grit; guts`, selected noun sense, original
+context/source and package revision. No learner claim or Save Material action
+is performed. Closing the editor retains selection and restores focus to its
+trigger; the narrow capture records that scrolled, focused state, not an
+initial-scroll reference verdict. All three full-resolution captures are
+inspected and opened in Preview.
+
+| Native evidence | Dimensions | SHA256 |
+| --- | --- | --- |
+| resource-corrected-native-sense-wide.png | 3024x1898 | `12f004d830698b512a56ef3fe7f5cadc6f01de3cd3778cec9ae72e65fdd07111` |
+| resource-corrected-native-sense-narrow.png | 1000x1700 | `b4036cc9a8ccd2147374befece21d8e19039da0c5b43cc411600532321eae458` |
+| resource-corrected-native-capture-editor.png | 3024x1898 | `b8c1489d552858bb7602108a470f1ebda2d044b952e4429d5f15fd7debde57e8` |
+
+The complete running-guard receipt has 76 safe samples: footprint
+4078153704–4332417024 bytes, minimum estimated headroom 5321588736 bytes,
+normal pressure throughout, and unchanged swap-used/swap-out counters.
+No guard stop occurs. This is a bounded functional replay, not a leak fix or
+long-session resource certification. Logs/captures are under
+`.mlearn/m03-m07/m07-messenger/` with `resource-correction-` and
+`resource-corrected-` prefixes.
+Normal slider/Home actions restore 22000 ms; read-only SQLite confirms the
+original Japanese package/version, -6350 ms and rate 1. App PID 40907, guard,
+control grant and desktop session are released; owned QA ports are clear.
+Existing profiles, models, binaries and the four original untracked files
+are preserved. Compact-selector verification closes with prior 38-case
+browser proof plus this native replay; the full M07/visual gates remain open.
+
+Reproduce the bounded guard checks with:
+`clang -Wall -Wextra -Werror -O2 tools/macos-resource-sample.c -o .mlearn/m03-m07/m07-messenger/macos-resource-sample`,
+`node --test tools/checks/resource-guard.test.mjs`, and
+`node tools/resource-guard.mjs <PID> once <sampler-path> 1024`.
+The sampler is an explicit local QA prerequisite, not a normal Cargo/test
+download or compilation step.
+
 #### Compact dictionary-sense selection — 2026-10-26
 
 The matched Inspector comparison identifies a concrete composition defect:
