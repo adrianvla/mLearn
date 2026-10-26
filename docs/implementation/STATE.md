@@ -87,6 +87,22 @@ The first web-log fetch was refused while other foundation jobs were running;
 that response remains in `ci-9c5f9329-web-success.log`, not a test failure.
 The font-repair task is closed. macOS did not execute apt or install packages.
 
+The later source-bound mobile run 40390043745 at eb754814 is not green:
+iOS job 121808342489 reaches the expressly deferred picker assertion,
+`id: m01-watch, mp4 is not visible`; log ci-eb754814-ios-failed.log is retained.
+Android job 121808342890 independently exceeds its 55-minute job limit,
+not an iOS dependency or matrix fail-fast. It starts at 19:48:41 UTC,
+enters actual UI at 20:38:20 and is cancelled at 20:43:50 on October 26.
+The check annotation explicitly reports the 55m0s execution limit.
+Cold preparation consumed 49m39s, leaving only 5m30s for the existing
+20-minute UI step. The bounded Android job allowance is now 90 minutes,
+matching the existing iOS allowance; UI limits, assertions, runners, pins,
+inputs and uploads are unchanged. Complete YAML parsing and exact budget/
+concurrency checks pass; YAML LSP is unavailable and was not installed.
+Observation receipt is ci-eb754814-android-deadline-observation.json.
+This is a configuration repair, not a passing Android workflow claim;
+the next ordinary source-bound run must execute the unchanged gate.
+
 MediaOverlay now owns typed synchronization controls, 10 px body inset/gaps
 and leading close, with feedback below its wrapping row; Watch migrates its
 actual controls without local button styles. First native build 693/app 695

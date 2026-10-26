@@ -115,7 +115,10 @@ jobs:
             test-results/mobile
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    # Cold run 40390043745 used 49m39s before UI; the 55-minute job limit
+    # cancelled that progressing step after 5m30s. Reserve its unchanged
+    # 20-minute UI allowance and evidence upload, as for the iOS job.
+    timeout-minutes: 90
     # Trace the first server lifetime: prior failures lost ADB before app launch.
     env:
       ADB_TRACE: transport,sockets,auth,services
