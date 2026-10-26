@@ -51,6 +51,71 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Exact-source CI closeout and resource hold — 2026-10-26
+
+Published source `e6986c8add4b5369d2d2ae514df7c2580ce737a1` is independently
+confirmed as local HEAD, origin/agent/m01 and draft PR44's head. PR44 remains
+OPEN against agent/h00. This is the verified bounded Escape repair below,
+not a completed M07 milestone or visual-conformity verdict.
+
+Foundation run `40260196003` passes all five jobs at that exact source:
+web `121370708107`, OCR detector `121370708327`, Rust `121370708347`,
+macOS `121371948286` and Windows `121371948294`. Desktop run `40260195990`,
+native job `121370708154`, also passes. Direct run metadata confirms the
+source and conclusions; both completion watchers terminate successfully.
+Mobile run `40260195939` is terminal: Android `121370707975` passes, while
+iOS `121370708175` fails in fixture generation before the UI driver starts.
+The original 38144-byte failed output is retained at
+`.mlearn/m03-m07/m07-messenger/mobile-e6986c8a-ios-failure.log`.
+At 03:24:46 UTC AVFoundation reports error -11821, `Cannot Decode`, with
+underlying OSStatus -16977, and the Swift fixture producer traps.
+The preceding AppleM2ScalerParavirtDriver service-matching warning is not a
+proven cause. This failure is distinct from the expressly deferred
+FileProvider assertion; neither the picker nor subsequent iOS synchronization
+behavior is certified by this run. The failed media directory is excluded
+from the workflow's artifact paths. No workflow was manually dispatched,
+rerun or weakened, and no picker diagnostic variant was launched.
+
+One unchanged local fixture-only reproduction succeeds in 20.66 seconds,
+exit 0, maximum RSS 253427712 bytes. It uses a fresh isolated output directory,
+no application, simulator, model or private corpus:
+`.mlearn/m03-m07/m07-messenger/fixture-decode-local-e6986c8a`.
+Both H.264/AAC exports, matching SRTs and the distinct-content assertion pass.
+English MP4 is 77170 bytes, SHA256
+`f17e8a6d23d4d1596259861d46ab696ed34a86322492539e35e680e495e22850`;
+Japanese MP4 is 77216 bytes, SHA256
+`483f8d11171ee40d29e1e42403656613c94fdc4c7d8753934e9f02b046883622`.
+The macOS 27 compiler emits existing AVAssetWriter API deprecation warnings.
+This local pass does not reproduce or resolve the hosted failure. No
+speculative fixture/product fix or new decoder dependency is introduced.
+
+Three-sample memory admission passes before that probe, but the independent
+guard records OmO PID 82251 rising from 2061348888 to 6740979736 physical
+footprint bytes, above the unchanged 3221225472-byte ceiling. Availability
+falls from 74% to 46%; swap remains 2597.19 MiB. The fixture has already
+exited; no fixture/Swift process survives. The guard is terminal. Evidence:
+`fixture-decode-admission.log`, `fixture-decode-resource.log` and
+`fixture-decode-omo-vmmap.log` under the same evidence directory.
+The bounded vmmap summary reports 2.7 GiB current footprint and a 12.8 GiB
+process-lifetime peak. App-Specific Tag 1 has 4.2 GiB resident, 1.9 GiB dirty
+and 1.1 GiB swapped; neither that tag nor the virtual address-space total
+identifies a root cause. Evaluation-kernel GC reduces reported JS heap use
+from 9767968 to 7531820 bytes but does not reclaim the multi-GiB footprint.
+Do not attribute the OmO allocation to the 253 MB fixture process.
+
+The recovery question times out; bounded read-only work continues on best
+judgment without restarting workloads. Subsequent ownership recovery samples
+small ranges from the 1094474945-byte session transcript. Output bounds do
+not establish bounded internal allocation: footprint later reads 3112808448
+bytes and swap 4145.19 MiB, versus 2101669840 bytes and 2573.19 MiB before
+that work. Transcript reading is a candidate trigger, not a proven cause.
+Further raw-transcript reads and substantial local verification are held
+while this unexplained OmO growth continues. All owned fixture, guard, CI
+and allocation-summary sessions are terminal; user-owned processes remain
+untouched. Profiles, models, compiled apps, source and original evidence
+are preserved. Remaining M07, visual, demonstration and cleanup gates stay
+open: status is `paused_incomplete`, not acceptance or a passing milestone.
+
 #### Native Inspector Escape regression — 2026-10-26
 
 Actual original-video Japanese Inspector QA at 500×850 reproduced a keyboard
