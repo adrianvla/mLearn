@@ -51,6 +51,64 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Compact dictionary-sense selection — 2026-10-26
+
+The matched Inspector comparison identifies a concrete composition defect:
+the full-width `Select sense ... for capture` row separates pronunciation
+from the sense heading/definitions and consumes scarce dictionary height.
+INS-10/MAT-01/MAT-03 still require selecting the meaning retained by Capture.
+The placement question times out; the maintainer directs continuation on best
+judgment. The existing selectedSense Button now shares the metadata row with
+the sense heading, using the existing compact media icon-only treatment and
+circle/checkCircle icons. Native targets retain the shared 44px minimum.
+No new primitive, styling layer, backend authority or capture semantics.
+DESIGN records the layout contract. Product diff SHA256 against `9223d3b4`:
+`b7514ce0d69f949023d722e4dd8327a9c6abddf7f08f2034912f4fae06c80289`.
+
+The existing Reader-image browser suite gains two-sense fixture data and one
+scenario at each of 1080/393px. Both fail before the product repair because
+the selector and sense heading occupy different rows (`sense-selector-red.log`).
+Both pre-edit images are inspected. After repair, typecheck, architecture lint
+and fresh export pass (`sense-selector-build.log`); Inspector and test LSP
+diagnostics are clean. All 38 Reader-image scenarios pass in a single 21.7s
+run (`sense-selector-green.log`). The new cases verify compact heading-row
+geometry, keyboard-exclusive selection and the actual Capture IPC payload's
+selected sense, meaning and original source. Both after images are inspected;
+the full-width rows are gone and the definitions remain readable.
+The full suite retains footer/Escape, crop, recovery, practice and source tests.
+The owned static server is stopped before export and recreated afterward,
+avoiding the previously demonstrated stale asset inventory.
+
+One offline, single-job unsigned consuming desktop build passes in 2m54s:
+`sense-selector-native-build.log`. New retained bundle is
+`target/release/bundle/macos/mLearn M07 Sense QA.app`, identifier
+`net.kikan.mlearn.v3dev.m07qa`; prior Escape/performance bundles are untouched.
+Executable SHA256 is
+`5b959d9912acc4763de1f8a48ba70b32eceddaac2bf5cf7136dc57bfc8f716a7`;
+UI `index-0f9505cc950af6bcaf6360acd19d13b4.js` SHA256 is
+`bcad37febb3efc2d9be3aeb9d9fde5fcd66997df8f73c17c6f1bc20ae282a525`.
+This build is not a native functional pass. The deliberately launched app
+PID 91430/window 1227 initially shows a blank window and only frame buttons
+in AX; no source, Inspector or selector interaction is reached.
+Before further native replay, the guard records OmO footprint 3272077312
+bytes, exceeding the unchanged 3221225472-byte ceiling. The owned app is
+immediately terminated and the desktop session closed. No startup cause is
+inferred from that interrupted observation, and no passing native screenshot
+or sense-selection replay is claimed.
+
+Fresh admission before the bounded work is stable at
+2483498984/2483466216/2482909160 bytes, 82% availability. The guard remains
+active through the serial browser/build/native sequence, then terminates 70;
+`sense-selector-admission.log` and `sense-selector-resource.log` preserve the
+samples. At termination availability is 73%, swap 3889.19 MiB; post-stop OmO
+footprint is 3236245504 bytes, availability 74%, and the QA port is clear.
+This remains an OmO resource incident, not evidence that the application
+caused the allocation. All owned app, server, build and guard sessions are
+terminal. Browser placement repair is complete; affected-surface native
+verification, the full visual matrix and the M07 milestone remain open.
+This checkpoint preserves the partial result without self-acceptance,
+weakening assertions or restarting a workload automatically.
+
 #### Exact-source CI closeout and resource hold — 2026-10-26
 
 Published source `e6986c8add4b5369d2d2ae514df7c2580ce737a1` is independently

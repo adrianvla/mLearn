@@ -22,8 +22,8 @@ async function readerOptions(page: Page) {
   return dialog;
 }
 
-async function start(page: Page, home = false, orientation: 'topToBottom' | 'vertical-rl' | null = null, pdf = false) {
-  await page.addInitScript(({ theme, orientation, pdf }) => {
+async function start(page: Page, home = false, orientation: 'topToBottom' | 'vertical-rl' | null = null, pdf = false, withSenses = false) {
+  await page.addInitScript(({ theme, orientation, pdf, withSenses }) => {
     const source: DocumentWindow = {
       source: { id: 'scan-book', title: 'Original image collection', documentPath: '/owned/collection.images',
         format: pdf ? 'pdf' : 'images', contentRevision: 'original-pixels', parserRevision: 'images-1', packageId: 'package', packageVersion: '1',
@@ -287,8 +287,18 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
             }
             case 'inspect_target': return JSON.stringify({ type: 'entry', packageVersion: '1', packageRevision: 'a'.repeat(64),
               entry: { targetId: 'line-0', headword: '東京', reading: 'とうきょう', partOfSpeech: 'noun', definition: 'Tokyo',
-                summary: 'Tokyo', senses: null, attribution: 'Fixture dictionary', capabilities: [{ id: 'reading', label: 'Reading' }] },
+                summary: 'Tokyo', senses: withSenses ? [
+                  { heading: 'noun', labels: ['noun'], definitions: ['Tokyo'], notes: [] },
+                  { heading: 'place', labels: ['place'], definitions: ['Tokyo metropolitan area'], notes: [] },
+                ] : null, attribution: 'Fixture dictionary', capabilities: [{ id: 'reading', label: 'Reading' }] },
               knowledge: { projections: [], claim: 'untracked' } });
+            case 'capture_materials': {
+              if (!object(request.batch) || !Array.isArray(request.batch.commands)) throw new Error('Missing capture batch');
+              return JSON.stringify({ type: 'material_captured', results: request.batch.commands.map(command => {
+                if (!object(command) || typeof command.commandId !== 'string') throw new Error('Missing capture command identity');
+                return { state: 'saved', commandId: command.commandId, materialId: 'captured-tokyo', committedRevision: 1, reused: false };
+              }) });
+            }
             case 'material_eligibility': return JSON.stringify({ type: 'material_eligibility', items: [{
               target: { packageId: 'package', targetId: 'line-0' }, availability: { state: 'existing', materialId: 'saved-tokyo', excluded: false } }] });
             case 'review': {
@@ -324,7 +334,7 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
         },
       },
     });
-  }, { theme: initialTheme, orientation, pdf });
+  }, { theme: initialTheme, orientation, pdf, withSenses });
   await page.goto(home ? '/' : '/reader?id=scan-book');
   if (home) {
     // The card's independent Continue preview covers its center. Activate the
@@ -696,6 +706,39 @@ test('narrow image fit keeps a real source and its interactive region inside the
 });
 
 for (const width of [1080, 393]) {
+test(`Inspector sense selection stays beside its heading and captures the chosen meaning at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 900 });
+  await start(page, false, null, false, true);
+  await page.getByRole('button', { name: '東京: untracked', exact: true }).click();
+  const inspector = page.getByTestId('inspector-panel');
+  const first = inspector.getByRole('button', { name: 'Select sense 1 for capture', exact: true });
+  const second = inspector.getByRole('button', { name: 'Select sense 2 for capture', exact: true });
+  await expect(second).toBeVisible();
+  const heading = await inspector.getByText('place', { exact: true }).boundingBox();
+  const selector = await second.boundingBox();
+  if (!heading || !selector) throw new Error('Sense heading and selection must be laid out');
+  await page.screenshot({ path: testInfo.outputPath('inspector-sense-selection.png') });
+  expect(selector.y).toBeLessThan(heading.y + heading.height);
+  expect(selector.y + selector.height).toBeGreaterThan(heading.y);
+  expect(selector.width).toBeLessThan(selector.height * 2);
+  await first.focus();
+  await page.keyboard.press('Enter');
+  await expect(first).toHaveAttribute('aria-pressed', 'true');
+  await second.focus();
+  await page.keyboard.press('Enter');
+  await expect(second).toHaveAttribute('aria-pressed', 'true');
+  await expect(first).toHaveAttribute('aria-pressed', 'false');
+  await inspector.getByRole('button', { name: 'Capture this context: 東京', exact: true }).click();
+  await expect(inspector.getByText('Saved · captured-tokyo · revision 1', { exact: true })).toBeVisible();
+  const captures = await page.evaluate(() => window.__imageReaderRequests.filter(request => request.type === 'capture_materials'));
+  expect(captures).toHaveLength(1);
+  expect(captures[0]).toMatchObject({ batch: { commands: [{ content: {
+    sense: { heading: 'place', labels: ['place'], definitions: ['Tokyo metropolitan area'], notes: [] },
+    meaning: 'Tokyo metropolitan area',
+    source: { sourceId: 'scan-book' },
+  } }] } });
+});
+
 test(`Inspector footer keeps shared pill actions on one scrolling row at ${width}px`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width, height: 900 });
   await start(page);

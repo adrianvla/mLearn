@@ -398,7 +398,14 @@ Layout: Inspector - the anchor chooses the bounded panel position; header and
 footer remain outside the scrolling dictionary body. Footer actions use the
 shared pill Button in one non-wrapping row; the footer owns horizontal scrolling
 when those actions exceed its width, including on mobile. Dictionary sense
-selection remains in the body pending a separate interaction design decision.
+selection stays beside each sense heading, using the shared compact icon-only
+media Button and its selected state instead of an additional full-width row.
+The shared control retains its native 44px target and keyboard access; choosing
+a sense still supplies the original sense and definitions to Capture.
+Layout: Inspector dictionary - sense metadata and selection form one wrapping
+heading row above definitions; the existing dictionary body remains the vertical
+scroll owner. This preserves pronunciation, sense heading and definition order
+from the approved image without removing required INS-10 selection.
 The attached correction
 popover owns its own bounded scroll region above the footer.
 Web backdrop layers sit beside interactive content rather than wrapping it.

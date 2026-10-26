@@ -191,12 +191,13 @@ export function Inspector({ inspection, packageId, client, onChanged, onClose, r
                 </> : null}
                 {entry.senses ? <View style={styles.dictionary}>
                     {entry.senses.map((sense, senseIndex) => <View key={senseIndex} style={styles.sense}>
-                        <Button label={`Select sense ${senseIndex + 1} for capture`} variant="media" size="compact"
-                            accessibilityState={{ selected: selectedSense === sense }}
-                            onPress={() => setSelectedSense(sense)} />
-                        {sense.heading ? <View style={styles.metadata}>
-                            <Badge label={sense.heading} />
-                        </View> : null}
+                        <View style={styles.metadata}>
+                            {sense.heading ? <Badge label={sense.heading} /> : null}
+                            <Button label={`Select sense ${senseIndex + 1} for capture`} variant="media" size="compact"
+                                icon={selectedSense === sense ? 'checkCircle' : 'circle'} iconOnly
+                                accessibilityState={{ selected: selectedSense === sense }}
+                                onPress={() => setSelectedSense(sense)} />
+                        </View>
                         {sense.definitions.map((definition, definitionIndex) => (
                             <View key={definitionIndex} style={styles.definitionRow}>
                                 <Text variant="inspectionBody" tone="media">•</Text>
