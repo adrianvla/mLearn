@@ -34,6 +34,17 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     await page.goto(`/watch?id=${encodeURIComponent(sourceId)}`);
     const translator = page.getByRole('button', { name: 'Live word translator', exact: true });
     await expect(translator).toBeEnabled();
+    await page.getByRole('button', { name: 'Subtitle synchronization', exact: true }).click();
+    const synchronization = page.getByRole('button', { name: /^Subtitle offset:/ });
+    await expect(synchronization).toBeVisible();
+    await page.screenshot({ path: info.outputPath('standalone-synchronization.png') });
+    const sourceOverlays = await page.getByTestId('watch-source-overlays').boundingBox();
+    const nextCue = await page.getByRole('button', { name: 'Align next subtitle', exact: true }).boundingBox();
+    if (!sourceOverlays || !nextCue) throw new Error('Synchronization overlay is not laid out');
+    // Without live cards, flex row's default start alignment must not move
+    // synchronization away from the source's right edge on wide windows.
+    expect(nextCue.x).toBeGreaterThan(sourceOverlays.x + sourceOverlays.width / 2);
+    await page.getByRole('button', { name: 'Subtitle synchronization', exact: true }).click();
     await translator.click();
     const overlay = page.getByTestId('live-word-cards');
     const cards = overlay.getByRole('button', { name: / · / });

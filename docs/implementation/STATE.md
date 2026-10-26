@@ -51,6 +51,128 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Watch comparison exposes standalone synchronization misalignment — 2026-10-26
+
+The alignment increment is now verified on genuine native wide/narrow
+windows. After the stopped release-LTO attempt below, stable recovery samples
+admit a different cached development-profile build with an explicit2048MiB
+budget and unchanged host reserve/pressure guards. No Cargo profile is edited;
+optimized Wasmi/sha2 dev overrides and safety checks remain. Build581 passes
+in1m10s, `watch-sync-dev-build.log`; reported build-command maximum RSS is
+1029144576 bytes (diagnostic, not whole-host peak). No Metro/reference/device/
+model workload is started. This is layout/function proof, not release performance.
+
+Separate bundle `target/debug/bundle/macos/mLearn M07 Watch Dev QA.app`
+retains isolated identifier `net.kikan.mlearn.v3dev.m07qa`.
+Executable SHA256:
+`45e06c95299fc027ec30dcdb1f46b24649d2b5b34f289da608908636e9be75c1`.
+Exported/consumed UI `index-d05d272db8f9939c3851fe637ac6b449.js` SHA256:
+`8be48af6dfda547629476f0b178b910afc83b5e0905d713ffb2ff02a3ece279c`.
+Local WatchScreen repair diff SHA256:
+`575340186d342ae79028c30f381546d2a2c413000e95739d9e3d33e3a927dd46`.
+Earlier retained release bundles are preserved.
+
+Fresh1024MiB admission precedes deliberate app46846/window1300.
+Actual Continue test-video.mov -> paused slider25.22s -> Subtitle
+synchronization produces the repaired right-aligned control at1512x949.
+Native next-cue bounds are global1557,73,40,40 in the window at100,30.
+The same source/control remains contained at500x850. Focusing offset reveals
+the real Hide synchronization button; pressing it removes the offset control.
+Slider22s then Home restores persisted Japanese
+0.1.7-sudachi20260116-jmdict20261017-ocr2/22000/-6350/rate1, confirmed
+read-only. No alignment/claim/Material mutation is made.
+Both actual captures are inspected/opened in Preview:
+`watch-final-sync-alone-wide-after.png`3024x1898 SHA256
+`3edc54ac01ced41c79b7989bfb1113929568890e965a1b278bc80ffa16d193c8`;
+`watch-final-sync-alone-narrow-after.png`1000x1700 SHA256
+`49f9d538c11fe94b25301eab2d491752320a3b7b750b719c81fe61567c9d078d`.
+
+Primary reference window is cropped only outside its complete chrome:
+original3248x2122 -> crop3024x1898 atx112/y76; originals remain untouched.
+Same-scale500x150 synchronization crops atx2524/y60 are inspected separately.
+`watch-sync-region-diff.json` has matching dimensions and13% similarity;
+it is not a visual pass. Alignment is corrected, but current double-arrow
+glyphs visibly exceed the edited target and control width differs.
+Button's mediaSync30px icon and Icon cueArrow are the next traced owners.
+Sidebar placement/composition and the full Watch/Inspector matrix stay open.
+
+All60build/native guard samples are safe/pressure1: maximum OmO footprint
+4388696112, minimum estimated headroom5460590592; swap used4445372416 to
+4420206592, cumulative swap-out unchanged16247193600 bytes. App584 and
+guard580 are stopped, control released, desktop session closed; app46846
+and ports8081/7780/58359 are absent. Post-stop sample physical3850530816,
+RSS4821286912, headroom6208569344, pressure1. Earlier genuine pressure stop
+and unexplained transient allocation below remain recorded, not dismissed.
+Alignment task is done; ledger210/244closed,34open. No whole-M07, visual or
+maintainer acceptance is claimed.
+
+Requested reference commit `4a86df32` is already an ancestor of current
+`88ebc0a3`; no fetch/reset/integration duplication is needed. Exact-head
+desktop run `40337839331` is directly confirmed completed/success.
+Foundation `40337839426` is terminal/cancelled at the same full SHA:
+Rust121624099959, detector121624100029, macOS121626968741 and
+Windows121626968853 pass. Web121624099468 exceeds the20minute job timeout
+during Linux CJK-font installation; its npm test/typecheck/lint/export and
+browser steps never run. Do not report that job green or infer an application
+failure. Original job log is retained as
+`ci-88ebc0a3-web-cancelled.log`: lines425–446 show the61.2MB
+fonts-noto-cjk download from azure.archive.ubuntu.com starting14:21:32UTC
+with no subsequent progress before cancellation14:35:06UTC. No assertion
+failed and no repository repair is inferred from that timeout.
+No rerun is dispatched.
+
+Fresh guarded native comparison reaches original test-video.mov at25.22s,
+offset-6350ms/rate1, in1512x949 and500x850 windows. The primary edited
+`watch-sidebar-subtitle-sync.png` and
+`watch-subtitles-sync-non-hovered-live-word-translator.png` are inspected.
+Current wide synchronization defaults to the left when live cards are closed;
+the edited targets place it at the right. Narrow placement is already correct.
+Genuine originals are `watch-final-vocabulary-wide.png`,
+`watch-final-sync-alone-wide-before.png` and
+`watch-final-sync-alone-narrow-before.png` in the existing M07 evidence folder.
+The current Vocabulary composition/content order and sidebar-inset
+synchronization remain incomplete comparisons, not a whole-Watch visual pass.
+
+Native source position is restored through the actual slider and Home.
+Read-only SQLite JSON fields confirm22000/-6350/rate1. App43685, its guard
+and computer session are stopped; no device or reference app is launched.
+All42native guard samples are safe/pressure1; footprint maximum4448022552
+bytes, minimum headroom5065506816, swap used3683844096 to3675455488 and
+cumulative swap-out unchanged15410167808. These are observed bounds, not
+leak repair or long-session certification. Initial direct local-wrapper
+invocations failed126 because it is not executable; explicit Bash invocation
+passed admission before launching the app.
+
+The existing real-core `watch-layout.spec.ts` now reproduces the missing wide
+alignment: after correcting the test locator to the actual offset-with-value
+accessible name, next-cue x179 fails the expected right-half boundary600.
+`watch-sync-placement-red.log` preserves that failure. One conditional
+`justifyContent` on WatchScreen's existing overlay row repairs the owner;
+the compact column and live-card flex owner are preserved.
+Typecheck, architecture lint and web export pass; all3existing responsive
+cases1200/500/320 pass in3.9s (`watch-sync-green.log`). All6standalone and
+focused-card screenshots are inspected. WatchScreen LSP is clean; test-file
+LSP freshness times out and is not claimed clean.
+
+One offline single-job consuming native build was freshly admitted but is
+stopped incomplete by the live guard: `watch-sync-native-build.log`,
+session569. Guard sample at167593530ms records physical footprint9652547632,
+RSS2884173824, host pressure2, estimated headroom2963423232, swap4301127680
+and cumulative swap-out16044228608 bytes. It rejects host pressure and
+insufficient projected headroom, exits70, and the owned build is killed.
+Cargo45099 and rustc45224 are absent afterward. Post-stop physical footprint
+4422168576, pressure1 and headroom6848970752 recover, but swap4462149632
+and swap-out16247193600 increased. The transient OmO allocation is unexplained;
+neither product causation nor resource repair is inferred. Do not replay the
+same substantial build while investigating this event. No new app is launched.
+The planned output is a separate
+`mLearn M07 Watch QA.app` under the same isolated m07qa identifier, preserving
+the earlier Sense/Escape/performance bundles. Exact invocation and native
+after-capture/restoration recipe were recorded in current PLAN before launch.
+The later development-profile replay above closes native alignment after
+proof. Checkpoint commit/push and broader Watch/Inspector/M07/visual/cleanup
+gates remain open.
+
 #### Resource admission corrected; native selector replay passes — 2026-10-26
 
 The maintainer requests fresh physical-footprint/host-pressure/swap-trend

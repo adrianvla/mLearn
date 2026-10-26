@@ -760,6 +760,7 @@ const styles = StyleSheet.create(theme => ({
     overlays: (compact: boolean) => ({
         position: 'absolute', zIndex: 2, left: theme.spacing.comfortable / 2,
         flexDirection: compact ? 'column-reverse' : 'row', gap: theme.spacing.small,
+        justifyContent: compact ? 'flex-start' : 'flex-end',
         alignItems: compact ? 'stretch' : 'flex-start',
     }),
     liveWords: { flexGrow: 1, flexShrink: 1, minWidth: 0, maxWidth: '100%' },

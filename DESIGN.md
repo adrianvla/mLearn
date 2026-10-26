@@ -38,6 +38,15 @@ The first-class consumers are all existing Home, Settings/package-management, Wa
 
 ## Evidence
 
+Layout: Watch source overlays use the existing bounded media overlay row,
+with live dictionary cards taking remaining width and synchronization at the
+trailing edge even when those cards are closed. At compact widths the same
+owners stack, with synchronization right-aligned above the cards. The player,
+caption scroll owner and sidebar scroll owner are unchanged. The edited
+`watch-subtitles-sync-non-hovered-live-word-translator.png` establishes the
+wide trailing placement; the current standalone row incorrectly defaulted to
+start alignment. Do not add a spacer control or independently positioned copy.
+
 Match viewport, scale, theme, data, media time and state. Compare full windows and individual UI regions using 1:1 side-by-side and overlay/difference inspection, then exercise the real interactions. A numerical match dominated by the video background is not evidence of matched chrome. Do not mask UI differences, rebaseline to v3 or substitute generated/staged UI.
 
 Unimplemented capabilities or missing trustworthy reference states stay explicitly incomplete; no fake actions/data. Preserve responsive and native touch/keyboard behavior and the repaired native performance. Do not confuse accessibility containment, code review or successful builds with visual conformity.
