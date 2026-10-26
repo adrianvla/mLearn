@@ -29,11 +29,28 @@ public sealed class MaterialCapture {
 public static class NativeMaterialQa {
   [StructLayout(LayoutKind.Sequential)]
   public struct Rect { public int Left, Top, Right, Bottom; }
+  [StructLayout(LayoutKind.Sequential)]
+  struct GuiThreadInfo {
+    public uint Size, Flags;
+    public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret;
+    public Rect CaretBounds;
+  }
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window, out Rect rect);
   [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll", SetLastError = true)] static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
   [DllImport("dwmapi.dll")] static extern int DwmFlush();
   [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
+
+  static void LogInputOwner(string stage, IntPtr expectedWindow) {
+    // Native keyboard ownership can differ from the WebView's UIA/DOM focus.
+    GuiThreadInfo info = new GuiThreadInfo { Size = (uint)Marshal.SizeOf(typeof(GuiThreadInfo)) };
+    bool available = GetGUIThreadInfo(0, ref info);
+    int error = available ? 0 : Marshal.GetLastWin32Error();
+    Console.WriteLine("Native theme " + stage + ": targetWindow=" + expectedWindow +
+      ", foreground=" + GetForegroundWindow() + ", guiAvailable=" + available + ", guiError=" + error +
+      ", active=" + info.Active + ", focus=" + info.Focus + ", caret=" + info.Caret + ", flags=" + info.Flags);
+  }
 
   // Subscribe before triggering the action; no timing sleeps or readiness polls.
   static AutomationElement Wait(string expected, AutomationElement root, Func<AutomationElement> query, Action trigger) {
@@ -158,16 +175,29 @@ public static class NativeMaterialQa {
     string input = document.Replace("\r\n", "\n");
     Exception inputFailure = null;
     string receivedInput = "";
+    string lastObservedInput = null;
+    LogInputOwner("before input " + theme, handle);
+    Console.WriteLine("Native theme editor " + theme + ": focused=" + editor.Current.HasKeyboardFocus);
     try {
       Wait("complete " + theme + " editor input", dialog, delegate {
         receivedInput = ((ValuePattern)editor.GetCurrentPattern(ValuePattern.Pattern)).Current.Value;
-        return receivedInput.Replace("\r\n", "\n") == input ? editor : null;
+        bool complete = receivedInput.Replace("\r\n", "\n") == input;
+        if (receivedInput != lastObservedInput) {
+          Console.WriteLine("Native theme value " + theme + ": characters=" + receivedInput.Length +
+            ", expectedInput=" + complete);
+          lastObservedInput = receivedInput;
+        }
+        return complete ? editor : null;
       }, delegate {
         Thread typing = new Thread(delegate() {
           try {
             Clipboard.SetText(input);
+            Console.WriteLine("Native theme clipboard " + theme + ": expectedInput=" +
+              String.Equals(Clipboard.GetText(), input, StringComparison.Ordinal));
+            LogInputOwner("before select-all " + theme, handle);
             SendKeys.SendWait("^a");
             SendKeys.SendWait("^v");
+            LogInputOwner("after paste " + theme, handle);
           } catch (Exception error) { inputFailure = error; }
         });
         typing.IsBackground = true;
@@ -175,6 +205,7 @@ public static class NativeMaterialQa {
         typing.Start();
         if (!typing.Join(10000)) throw new TimeoutException("Native editor input did not finish");
         if (inputFailure != null) throw inputFailure;
+        Console.WriteLine("Native theme input dispatched " + theme + ": editorFocused=" + editor.Current.HasKeyboardFocus);
       });
     } catch (TimeoutException error) {
       throw new InvalidOperationException("Incomplete native theme input. Expected: " +

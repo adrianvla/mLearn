@@ -51,6 +51,43 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
+#### Current source-bound platform follow-up — 2026-10-26
+
+Sidebar checkpoint `c4ce513b351121e4803178a6567487b6b677a3af` and the separate
+Android-budget checkpoint `4620a573` are pushed to existing OPEN/draft PR #44.
+Exact source tree is `e29ddeeca19cefea1729f8afbc1d26b9af4b3b8d`.
+Real desktop run `40405789588` passes. Foundation `40405789602` passes Rust,
+OCR detector, web and macOS, but Windows job `121865345557` fails its actual
+native-theme-material input stage. It is not an all-green foundation result.
+
+Artifact `12690653356`, `windows-native-materials`, is retained under
+`.mlearn/m03-m07/m07-messenger/ci-c4ce513-windows-materials/`.
+Source receipt matches exactly; failure desktop/UIA frame was inspected.
+Dark Quartz input/save and native DWM checks pass. Subsequent Slate input
+never replaces the complete Dark Quartz JSON, although UIA reports the editor
+focused. This does not establish a Settings reset, persistence or DWM defect.
+The existing native keyboard/clipboard path, complete-input equality and all
+material/restart assertions remain intact. A bounded diagnostic delta records
+own clipboard equality, observed value changes and native foreground/focus/
+caret handles alongside UIA focus. This is not a verified fix.
+PowerShell, Windows UIA and a `.ps1` language server are unavailable locally;
+diff checks pass, but actual Windows compilation/execution remains required.
+The diagnostic-only paths do not trigger mobile; that workflow explicitly has
+`cancel-in-progress: false`. Current mobile run `40405789643` remains observed.
+
+A deliberate isolated-reference measurement was admitted, then stopped
+immediately when its live guard observed OmO PID 82251 physical footprint
+9,471,160,344 bytes, RSS 1,868,644,352 bytes, pressure 2 and headroom
+3,421,011,968 bytes. The cause is unestablished, not attributed to Electron.
+The detached owned reference PID 96796 and its two identified children were
+released; all reference ports are absent. Its isolated settings hash and
+tracked source remain unchanged. No new reference capture is claimed.
+Bounded `vmmap -summary` reports current 3.2 GiB and historical peak 14.4 GiB;
+later normal pressure is recovery, not a diagnosed fix. Evidence is
+`watch-reference-header-{resource.jsonl,app.log,omo-vmmap.log}`.
+Substantial local verification stays held while the unexplained spike is
+investigated; independent source-bound remote verification continues.
+
 #### Sidebar synchronization placement and focus verified — 2026-10-26
 
 The same Watch synchronization controls now render within the open desktop
