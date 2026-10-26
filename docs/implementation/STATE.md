@@ -51,7 +51,9 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
-#### Bound recurring CJK-font acquisition; overlay anatomy candidate — 2026-10-26
+#### CJK acquisition verified; native overlay capture pending — 2026-10-26
+
+Evidence base: `.mlearn/m03-m07/m07-messenger/`.
 
 Three source-bound web jobs (88ebc0a3, be006f2c and cfafc611) exceed the
 20-minute job limit downloading the same 61.2 MB fonts-noto-cjk archive
@@ -69,8 +71,21 @@ Both install verified cached archives with --no-download; step limits are
 Both complete YAML files, exact acquisition shells, helper bash -n
 and diff checks pass (`cjk-shared-acquisition-checks.log`); Bash LSP is
 unavailable and no dependency was installed.
-Actual Ubuntu acquisition remains required; macOS did not execute apt or
-install packages. No manual workflow is dispatched.
+Checkpoint `9c5f9329f252f67cf505a421b3120677d2008c1e` is pushed to agent/m01;
+PR #44 read-back remains OPEN/draft at that head. Both automatic source-bound
+workflows now pass. Foundation run 40366543976 passes all five jobs:
+Rust 121725695205, detector 121725695675, web 121725695788, Windows 121728392909
+and macOS 121728392983. Web includes npm tests, typecheck, lint, export,
+authenticated fixtures and 119 browser tests. Its genuine 61.2 MB font download
+finishes in four seconds; installed version is 1:20230817+repack1-3.
+Real desktop run 40366543954 / job 121725694184 passes acquisition, Japanese
+glyph coverage, fixture decoding, actual build, IPC, plugin download and restart.
+It downloads 393 MB in 62 seconds, including the same font from the primary
+HTTPS archive. No assertion or package was removed. Raw successful logs are
+`ci-9c5f9329-web-complete.log` and `ci-9c5f9329-desktop-success.log`.
+The first web-log fetch was refused while other foundation jobs were running;
+that response remains in `ci-9c5f9329-web-success.log`, not a test failure.
+The font-repair task is closed. macOS did not execute apt or install packages.
 
 Overlay anatomy remains a separate local candidate: MediaOverlay owns typed
 synchronization controls, 10 px body inset/gaps and leading close, with feedback
@@ -95,6 +110,15 @@ Launch 719's fresh admission holds before launching the app; earlier readiness
 does not authorize a stale launch. Guard 715 is stopped after the build.
 Final native after proof, full Watch/sidebar/Inspector and final gates remain
 open; no budget/reserve reduction and no emulator/model/reference launch.
+All 146 renderer and 66 native guard samples are safe with pressure level 1.
+Their maximum OmO physical footprints are 4,509,839,312 / 4,453,052,416 bytes;
+minimum available memory is 5,260,820,480 / 5,551,833,088 bytes.
+Native guard swap used stays 4,168,548,352 bytes; both guards' swap-out stays
+16,247,193,600 bytes. Running safeguards do not override the held additional
+1536 MiB launch forecast. Readiness observer 720 only samples; it launches
+nothing. Process inspection finds no surviving mLearn executable; own
+descendants are the small observers/desktop helper, not a model or device.
+The unused desktop session is closed.
 The planned isolated reference launch 680 also held before any process;
 reference source remains clean and settings SHA256 unchanged
 130fb58b57b132474dde4399188d9dc3480d759df834281177a8dcf88f52aa94.
@@ -108,10 +132,14 @@ of Azure package acquisition, before any app build/test; its log records a font
 retry at 16:17:11 UTC and cancellation at 16:22:58 UTC on October 26.
 Older iOS job 121664227372 fails at 16:21:59 UTC at the expressly deferred
 picker gate, before metadata verification; its Android job 121664226842 passes.
-Mobile run 40351977298 remains in progress at cfafc611: iOS 121697307639 and
-Android 121697308039 started at 16:22:36 UTC. Observer 670 expired, not either
-job; observer 709 continues that run without rerunning or cancelling.
-Ledger: 211/246 closed, 35 open.
+Mobile run 40351977298 is now terminal at cfafc611: Android 121697308039
+passes; iOS 121697307639 fails at 17:24:42 UTC with the same expressly
+deferred `m01-watch, mp4 is not visible` picker assertion, before testing the
+source-row metadata candidate. Raw log: `ci-cfafc611-ios-failure.log`.
+That candidate remains native-unverified; this is not evidence against it.
+No FileProvider diagnostic variant was launched. The CI-only 9c5f9329 change
+triggers only the two workflows above, not another mobile run.
+Ledger: 212/246 closed, 34 open.
 
 #### iOS source-row metadata accessibility candidate — 2026-10-26
 
