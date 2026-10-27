@@ -60,37 +60,23 @@ pub(crate) fn projection(
     db: &Connection,
     key: &KnowledgeKey,
 ) -> Result<KnowledgeProjection, StorageError> {
-    let claim: Option<Option<bool>> = db
-        .query_row(
-            "SELECT claim FROM claims WHERE package_id=?1 AND target_id=?2 AND capability=?3",
-            params![key.package_id, key.target_id, key.capability],
-            |r| r.get(0),
-        )
-        .optional()?;
-    let assessed: Option<bool> = db.query_row(
-        "SELECT o.assessed FROM review_observations o JOIN review_attempts a ON a.id=o.attempt_id WHERE o.package_id=?1 AND o.target_id=?2 AND o.capability=?3 AND a.active=1 AND o.assessed IS NOT NULL ORDER BY a.sequence DESC LIMIT 1",
-        params![key.package_id, key.target_id, key.capability], |r| r.get(0),
-    ).optional()?;
-    let revision = db.query_row(
-        "SELECT revision FROM knowledge_revision WHERE id=1",
-        [],
-        |r| r.get(0),
+    let sql = format!(
+        "SELECT {},{},{},(SELECT revision FROM knowledge_revision WHERE id=1)",
+        crate::knowledge::claim_sql("?1", "?2", "?3"),
+        crate::knowledge::assessed_sql("?1", "?2", "?3"),
+        crate::knowledge::state_sql("?1", "?2", "?3"),
+    );
+    let (claim, assessed, status, revision) = db.prepare_cached(&sql)?.query_row(
+        params![key.package_id, key.target_id, key.capability],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, String>(2)?, r.get(3)?)),
     )?;
-    let claim = claim.flatten();
-    let status = match (claim, assessed) {
-        (Some(true), _) => "claimed_known",
-        (Some(false), _) => "claimed_unknown",
-        (None, Some(true)) => "assessed_known",
-        (None, Some(false)) => "assessed_unknown",
-        (None, None) => "untracked",
-    };
     Ok(KnowledgeProjection {
         key: key.clone(),
         claim,
         assessed,
         prediction: None,
         revision,
-        status: status.into(),
+        status,
     })
 }
 

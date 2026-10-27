@@ -1,0 +1,657 @@
+use mlearn_core::*;
+use mlearn_storage::{ProfileStore, StorageError};
+use std::collections::{BTreeMap, BTreeSet};
+
+const PACKAGE: &str = "example.language";
+
+fn level(first: bool) -> InlineLevel {
+    InlineLevel {
+        scale_id: format!("{PACKAGE}:stage"),
+        level: if first { "first" } else { "second" }.into(),
+        label: if first { "First stage" } else { "Second stage" }.into(),
+        rank: if first { 1 } else { 2 },
+        attribution: "Collection test curriculum".into(),
+    }
+}
+
+fn description() -> CollectionDescription {
+    let label = |id: &str| LinguisticLabel {
+        id: format!("{PACKAGE}:{id}"),
+        label: id.into(),
+        color: None,
+        attribution: "Collection test curriculum".into(),
+    };
+    CollectionDescription {
+        capabilities: vec![Capability {
+            id: format!("{PACKAGE}:meaning"),
+            label: "Meaning".into(),
+        }],
+        kinds: vec![label("lexeme")],
+        scopes: vec![label("even"), label("third")],
+        levels: vec![level(true), level(false)],
+    }
+}
+
+fn target(index: u32) -> CollectionTarget {
+    let mut scopes = Vec::new();
+    if index % 2 == 0 {
+        scopes.push(format!("{PACKAGE}:even"));
+    }
+    if index % 3 == 0 {
+        scopes.push(format!("{PACKAGE}:third"));
+    }
+    CollectionTarget {
+        summary: LexicalSummary {
+            target_id: format!("entry-{index:03}"),
+            headword: format!("Élément {:02}", index / 2),
+            reading: None,
+            summary: "Collection fixture".into(),
+            presentation: Some(LinguisticPresentation {
+                readings: vec![],
+                labels: vec![],
+                contours: vec![],
+                levels: Some(vec![level(index < 35)]),
+            }),
+        },
+        kind: format!("{PACKAGE}:lexeme"),
+        capabilities: vec![format!("{PACKAGE}:meaning")],
+        scopes,
+        extensions: BTreeMap::from([(
+            "org.future:properties".into(),
+            serde_json::json!({"schemaVersion": 7, "values": ["unfamiliar", {"x": 3}]}),
+        )]),
+    }
+}
+
+fn catalog(store: &mut ProfileStore, count: u32) {
+    store
+        .begin_collection_catalog(PACKAGE, "revision-one", &description(), count)
+        .unwrap();
+    let mut offset = 0;
+    while offset < count {
+        let end = (offset + 64).min(count);
+        store
+            .put_collection_catalog_page(
+                PACKAGE,
+                "revision-one",
+                offset,
+                &CollectionCatalogPage {
+                    items: (offset..end).map(target).collect(),
+                    next: (end < count).then_some(end),
+                    total: count,
+                },
+            )
+            .unwrap();
+        offset = end;
+    }
+}
+
+fn query(surface: CollectionSurface, filter: CollectionFilter) -> CollectionQuery {
+    CollectionQuery {
+        package_id: Some(PACKAGE.into()),
+        surface,
+        filter,
+        sort: CollectionSort::Default,
+        after: None,
+    }
+}
+
+fn ready(store: &ProfileStore, query: &CollectionQuery) -> CollectionPage {
+    match store.collection(query).unwrap() {
+        CollectionResult::Ready { page } => page,
+        other => panic!("Expected a prepared collection: {other:?}"),
+    }
+}
+
+fn save(store: &mut ProfileStore, index: u32) {
+    let value = target(index);
+    let saved = store
+        .create_material(&MaterialCreate {
+            command_id: format!("capture-{index}"),
+            distinct: false,
+            media_imports: vec![],
+            content: MaterialContent {
+                package_id: PACKAGE.into(),
+                target_id: Some(value.summary.target_id),
+                package_revision: Some("revision-one".into()),
+                sense: Some(LexicalSense {
+                    heading: "Fixture".into(),
+                    labels: vec![],
+                    definitions: vec!["Collection fixture".into()],
+                    notes: vec![],
+                }),
+                phrase: value.summary.headword.to_uppercase(),
+                reading: "".into(),
+                meaning: "Collection fixture".into(),
+                context: "word".into(),
+                notes: "".into(),
+                examples: vec![],
+                attachments: vec![],
+                source: Some(SourceAnchor {
+                    source_id: if index % 2 == 0 {
+                        "source-one"
+                    } else {
+                        "source-two"
+                    }
+                    .into(),
+                    content_revision: "source-v1".into(),
+                    package_id: PACKAGE.into(),
+                    package_version: "1".into(),
+                    text: "word".into(),
+                    locator: SourceLocator::Video {
+                        subtitle_revision: Some("subtitle-v1".into()),
+                        cue_index: Some(index),
+                        selection_start: 0,
+                        selection_end: 4,
+                        position_ms: index * 1000,
+                        subtitle_offset_ms: 0,
+                        playback_rate: 1.0,
+                    },
+                }),
+            },
+        })
+        .unwrap();
+    if index == 8 {
+        let material = match saved {
+            MaterialWriteResult::Saved { material, .. } => material,
+            other => panic!("{other:?}"),
+        };
+        store
+            .update_material(&MaterialEdit {
+                command_id: "exclude-eight".into(),
+                id: material.id,
+                expected_revision: material.revision,
+                content: material.content,
+                excluded: true,
+                media_imports: vec![],
+            })
+            .unwrap();
+    }
+}
+
+#[test]
+fn catalog_resume_is_atomic_and_preserves_namespaced_metadata() {
+    // Given an interrupted catalog with one committed page.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("profile.sqlite");
+    let mut store = ProfileStore::open(&path).unwrap();
+    store
+        .begin_collection_catalog(PACKAGE, "revision-one", &description(), 2)
+        .unwrap();
+    store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            0,
+            &CollectionCatalogPage {
+                items: vec![target(0)],
+                next: Some(1),
+                total: 2,
+            },
+        )
+        .unwrap();
+    let all = query(
+        CollectionSurface::Knowledge,
+        CollectionFilter::All { filters: vec![] },
+    );
+    assert!(matches!(
+        store.collection(&all).unwrap(),
+        CollectionResult::Preparing {
+            processed: 1,
+            total: 2
+        }
+    ));
+    let mut malformed = target(1);
+    malformed.capabilities.push("other.package:injected".into());
+    assert!(
+        store
+            .put_collection_catalog_page(
+                PACKAGE,
+                "revision-one",
+                1,
+                &CollectionCatalogPage {
+                    items: vec![malformed],
+                    next: None,
+                    total: 2,
+                }
+            )
+            .is_err()
+    );
+    drop(store);
+    // When the real owner resumes after restart.
+    let mut store = ProfileStore::open(&path).unwrap();
+    assert_eq!(
+        store
+            .begin_collection_catalog(PACKAGE, "revision-one", &description(), 2)
+            .unwrap(),
+        1
+    );
+    store
+        .put_collection_catalog_page(
+            PACKAGE,
+            "revision-one",
+            1,
+            &CollectionCatalogPage {
+                items: vec![target(1)],
+                next: None,
+                total: 2,
+            },
+        )
+        .unwrap();
+    // Then only the valid page is published and unfamiliar data is unchanged.
+    let page = ready(&store, &all);
+    assert_eq!(page.count, 2);
+    assert_eq!(page.items.len(), 2);
+    match &page.items[1] {
+        CollectionItem::Target {
+            target: actual,
+            knowledge,
+            material_count,
+        } => {
+            assert_eq!(actual, &target(1));
+            assert_eq!(*material_count, 0);
+            assert_eq!(knowledge[0].status, "untracked");
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn compound_counts_match_membership_on_both_surfaces() {
+    // Given overlapping curriculum groups, independent claims and saved sources.
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
+    catalog(&mut store, 70);
+    for index in 0..=12 {
+        save(&mut store, index);
+        if index % 4 < 2 {
+            store
+                .change_claim(&ClaimChange {
+                    command_id: format!("claim-{index}"),
+                    key: KnowledgeKey {
+                        package_id: PACKAGE.into(),
+                        target_id: format!("entry-{index:03}"),
+                        capability: format!("{PACKAGE}:meaning"),
+                    },
+                    claim: Some(index % 4 == 1),
+                })
+                .unwrap();
+        }
+    }
+    let filter = CollectionFilter::All {
+        filters: vec![
+            CollectionFilter::Any {
+                filters: vec![
+                    CollectionFilter::Scope {
+                        id: format!("{PACKAGE}:even"),
+                    },
+                    CollectionFilter::Scope {
+                        id: format!("{PACKAGE}:third"),
+                    },
+                ],
+            },
+            CollectionFilter::Level {
+                scale_id: format!("{PACKAGE}:stage"),
+                level: "first".into(),
+            },
+            CollectionFilter::Capability {
+                capability: format!("{PACKAGE}:meaning"),
+                states: vec![
+                    CollectionKnowledgeState::ClaimedUnknown,
+                    CollectionKnowledgeState::Untracked,
+                ],
+            },
+            CollectionFilter::Source {
+                source_id: "source-one".into(),
+            },
+            CollectionFilter::Material {
+                state: CollectionMaterialState::NotExcluded,
+            },
+            CollectionFilter::Not {
+                filter: Box::new(CollectionFilter::Text {
+                    text: "élément 02".into(),
+                }),
+            },
+        ],
+    };
+    // When the identical native predicate selects Knowledge and Material.
+    let expected = [
+        "entry-000",
+        "entry-002",
+        "entry-006",
+        "entry-010",
+        "entry-012",
+    ];
+    for surface in [CollectionSurface::Knowledge, CollectionSurface::Material] {
+        let page = ready(&store, &query(surface, filter.clone()));
+        let actual = page
+            .items
+            .iter()
+            .map(|item| match item {
+                CollectionItem::Target { target, .. } => target.summary.target_id.clone(),
+                CollectionItem::Material { material, .. } => {
+                    material.content.target_id.clone().unwrap()
+                }
+            })
+            .collect::<BTreeSet<_>>();
+        // Then overlap is deduplicated and count and rows have identical meaning.
+        assert_eq!(page.count, 5);
+        assert_eq!(actual, expected.iter().map(|id| id.to_string()).collect());
+    }
+}
+
+#[test]
+fn tied_sort_pages_are_bounded_and_reject_changed_membership() {
+    // Given more than two pages with repeated display labels.
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
+    catalog(&mut store, 70);
+    let mut selection = query(
+        CollectionSurface::Knowledge,
+        CollectionFilter::All { filters: vec![] },
+    );
+    selection.sort = CollectionSort::LabelAscending;
+    let first = ready(&store, &selection);
+    let mut ids = BTreeSet::new();
+    // When every cursor is followed, under one unchanged native revision.
+    for _ in 0..4 {
+        let page = ready(&store, &selection);
+        assert!(page.items.len() <= 24);
+        assert!(serde_json::to_vec(&page).unwrap().len() <= 262144);
+        assert_eq!(page.count, 70);
+        for item in page.items {
+            match item {
+                CollectionItem::Target { target, .. } => {
+                    assert!(ids.insert(target.summary.target_id))
+                }
+                other => panic!("{other:?}"),
+            }
+        }
+        selection.after = page.next;
+        if selection.after.is_none() {
+            break;
+        }
+    }
+    // Then no tied entry is lost or repeated.
+    assert_eq!(ids.len(), 70);
+    assert!(selection.after.is_none());
+    store
+        .change_claim(&ClaimChange {
+            command_id: "change-during-page".into(),
+            key: KnowledgeKey {
+                package_id: PACKAGE.into(),
+                target_id: "entry-000".into(),
+                capability: format!("{PACKAGE}:meaning"),
+            },
+            claim: Some(true),
+        })
+        .unwrap();
+    selection.after = first.next;
+    assert!(matches!(
+        store.collection(&selection),
+        Err(StorageError::Conflict)
+    ));
+}
+
+#[test]
+fn unsupported_scope_is_not_broadened_by_negation() {
+    // Given an installed catalog without the requested group.
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
+    catalog(&mut store, 2);
+    // When an unavailable scope occurs inside a negation.
+    let selection = query(
+        CollectionSurface::Knowledge,
+        CollectionFilter::Not {
+            filter: Box::new(CollectionFilter::Scope {
+                id: format!("{PACKAGE}:withdrawn"),
+            }),
+        },
+    );
+    // Then it is unresolved, not substituted by the entire catalog.
+    assert!(matches!(
+        store.collection(&selection),
+        Err(StorageError::Invalid(_))
+    ));
+}
+
+#[test]
+fn catalog_eviction_preserves_saved_content_and_learner_state() {
+    // Given independent authored Material, a claim and a rebuildable catalog.
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
+    catalog(&mut store, 2);
+    save(&mut store, 0);
+    let key = KnowledgeKey {
+        package_id: PACKAGE.into(),
+        target_id: "entry-000".into(),
+        capability: format!("{PACKAGE}:meaning"),
+    };
+    store
+        .change_claim(&ClaimChange {
+            command_id: "claim-before-eviction".into(),
+            key: key.clone(),
+            claim: Some(false),
+        })
+        .unwrap();
+    let material_query = query(
+        CollectionSurface::Material,
+        CollectionFilter::Text {
+            text: "élément".into(),
+        },
+    );
+    let before = ready(&store, &material_query);
+    // When optional package metadata is evicted.
+    store.evict_collection_catalog(PACKAGE).unwrap();
+    let after = ready(&store, &material_query);
+    // Then saved text remains readable without fabricated target metadata.
+    assert_eq!(after.count, 1);
+    assert_eq!(after.package_revision, None);
+    match (&before.items[0], &after.items[0]) {
+        (
+            CollectionItem::Material {
+                material: before, ..
+            },
+            CollectionItem::Material {
+                material: after,
+                target,
+                knowledge,
+            },
+        ) => {
+            assert_eq!(before, after);
+            assert_eq!(target, &None);
+            assert!(knowledge.is_empty());
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        store.knowledge(&[key]).unwrap()[0].status,
+        "claimed_unknown"
+    );
+    assert_eq!(store.collection_description(PACKAGE).unwrap(), None);
+    assert!(matches!(
+        store
+            .collection(&query(
+                CollectionSurface::Knowledge,
+                CollectionFilter::All { filters: vec![] },
+            ))
+            .unwrap(),
+        CollectionResult::Unavailable { .. }
+    ));
+}
+
+#[test]
+fn material_browse_can_keep_all_languages_without_broadening_package_filters() {
+    // Given saved content from two packages, including one without metadata.
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = ProfileStore::open(&dir.path().join("profile.sqlite")).unwrap();
+    catalog(&mut store, 2);
+    save(&mut store, 0);
+    let first = store
+        .materials(&MaterialQuery {
+            after: None,
+            query: String::new(),
+            source_id: None,
+            include_excluded: false,
+        })
+        .unwrap()
+        .items
+        .remove(0);
+    let mut content = first.content;
+    content.package_id = "other.language".into();
+    content.target_id = None;
+    content.package_revision = None;
+    content.sense = None;
+    content.source = None;
+    store
+        .create_material(&MaterialCreate {
+            command_id: "other-language".into(),
+            distinct: true,
+            media_imports: vec![],
+            content,
+        })
+        .unwrap();
+    // When Browse has no language restriction, then explicitly selects one.
+    let mut selection = query(
+        CollectionSurface::Material,
+        CollectionFilter::All { filters: vec![] },
+    );
+    selection.package_id = None;
+    let all = ready(&store, &selection);
+    selection.package_id = Some("other.language".into());
+    let scoped = ready(&store, &selection);
+    // Then all-language membership and the scoped count remain distinct.
+    assert_eq!(all.count, 2);
+    assert_eq!(scoped.count, 1);
+    let packages = all
+        .items
+        .into_iter()
+        .map(|item| match item {
+            CollectionItem::Material { material, .. } => material.content.package_id,
+            other => panic!("{other:?}"),
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        packages,
+        BTreeSet::from([PACKAGE.into(), "other.language".into()])
+    );
+    match &scoped.items[0] {
+        CollectionItem::Material {
+            material,
+            target,
+            knowledge,
+        } => {
+            assert_eq!(material.content.package_id, "other.language");
+            assert_eq!(target, &None);
+            assert!(knowledge.is_empty());
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn legacy_search_index_is_normalized_without_rewriting_material() {
+    // Given the pre-M10 search representation and unchanged authored content.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("profile.sqlite");
+    let mut store = ProfileStore::open(&path).unwrap();
+    save(&mut store, 0);
+    let mut search = MaterialQuery {
+        after: None,
+        query: String::new(),
+        source_id: Some("source-one".into()),
+        include_excluded: false,
+    };
+    let original = store.materials(&search).unwrap().items.remove(0);
+    drop(store);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.execute(
+        "UPDATE materials SET search_text=?2 WHERE id=?1",
+        rusqlite::params![original.id.0, original.content.phrase],
+    )
+    .unwrap();
+    db.pragma_update(None, "user_version", 11).unwrap();
+    drop(db);
+    // When startup rebuilds the old index and a differently cased query runs.
+    let store = ProfileStore::open(&path).unwrap();
+    search.query = "élément".into();
+    let lower = store.materials(&search).unwrap();
+    search.query = "ÉLÉMENT".into();
+    let upper = store.materials(&search).unwrap();
+    // Then both Unicode casings find the same unchanged authored item.
+    assert_eq!(lower.items, vec![original.clone()]);
+    assert_eq!(upper.items, vec![original]);
+}
+
+#[test]
+fn due_sort_preserves_numeric_and_missing_membership_across_pages() {
+    // Given real saved Material and serialized schedules spanning a page boundary.
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("profile.sqlite");
+    let mut store = ProfileStore::open(&path).unwrap();
+    catalog(&mut store, 70);
+    for index in 0..32 {
+        save(&mut store, index);
+    }
+    let db = rusqlite::Connection::open(&path).unwrap();
+    for index in 0..30 {
+        let id: String = db
+            .query_row(
+                "SELECT id FROM materials WHERE package_id=?1 AND target_id=?2",
+                rusqlite::params![PACKAGE, format!("entry-{index:03}")],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let schedule = ReviewSchedule {
+            due_at: i64::from(index) * 1000,
+            interval_seconds: 60,
+            revision: 1,
+            owner_attempt: None,
+        };
+        db.execute(
+            "INSERT INTO review_schedules VALUES(?1,'written',?2)",
+            rusqlite::params![id, serde_json::to_string(&schedule).unwrap()],
+        )
+        .unwrap();
+    }
+    drop(db);
+    // When ascending and descending due cursors cross both numeric and NULL rows.
+    for sort in [CollectionSort::DueAscending, CollectionSort::DueDescending] {
+        let mut selection = query(
+            CollectionSurface::Knowledge,
+            CollectionFilter::All { filters: vec![] },
+        );
+        selection.sort = sort;
+        let mut actual = Vec::new();
+        for _ in 0..4 {
+            let page = ready(&store, &selection);
+            assert_eq!(page.count, 70);
+            for item in page.items {
+                match item {
+                    CollectionItem::Target { target, .. } => actual.push(target.summary.target_id),
+                    other => panic!("{other:?}"),
+                }
+            }
+            selection.after = page.next;
+            if selection.after.is_none() {
+                break;
+            }
+        }
+        let mut scheduled = (0..30).filter(|index| *index != 8).collect::<Vec<_>>();
+        let mut missing = (0..70)
+            .filter(|index| *index >= 30 || *index == 8)
+            .collect::<Vec<_>>();
+        if sort == CollectionSort::DueDescending {
+            scheduled.reverse();
+            missing.reverse();
+        }
+        let expected = scheduled
+            .into_iter()
+            .chain(missing)
+            .map(|index| format!("entry-{index:03}"))
+            .collect::<Vec<_>>();
+        // Then excluded/unmeasured targets stay present but do not gain a due date.
+        assert_eq!(actual, expected);
+        assert!(selection.after.is_none());
+    }
+}

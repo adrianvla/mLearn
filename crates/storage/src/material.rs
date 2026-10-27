@@ -215,4 +215,5 @@ fn search_text(content: &mlearn_core::MaterialContent) -> String {
         content.notes,
         content.examples.join("\n")
     )
+    .to_lowercase()
 }

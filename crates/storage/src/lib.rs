@@ -1,3 +1,5 @@
+mod collection;
+mod collection_catalog;
 mod conversation;
 mod conversation_generation;
 mod conversation_read;
@@ -57,7 +59,7 @@ impl ProfileStore {
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let version: u32 =
             transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 11 {
+        if version > 12 {
             return Err(StorageError::Invalid(
                 "Profile was created by a newer application".into(),
             ));
@@ -98,6 +100,9 @@ impl ProfileStore {
         }
         if version < 11 {
             view_preferences::migrate_collapse(&transaction)?;
+        }
+        if version < 12 {
+            collection_catalog::migrate(&transaction)?;
         }
         // Schema version and initial row become durable together, including first startup.
         transaction.commit()?;

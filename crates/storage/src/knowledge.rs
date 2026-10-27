@@ -1,7 +1,23 @@
 use crate::{ProfileStore, StorageError};
 use mlearn_core::{ClaimChange, KnowledgeKey, KnowledgeProjection};
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{params, OptionalExtension};
 use sha2::{Digest, Sha256};
+
+pub(crate) fn claim_sql(package: &str, target: &str, capability: &str) -> String {
+    format!("(SELECT c.claim FROM claims c WHERE c.package_id={package} AND c.target_id={target} AND c.capability={capability})")
+}
+
+pub(crate) fn assessed_sql(package: &str, target: &str, capability: &str) -> String {
+    format!("(SELECT o.assessed FROM review_observations o JOIN review_attempts a ON a.id=o.attempt_id WHERE o.package_id={package} AND o.target_id={target} AND o.capability={capability} AND a.active=1 AND o.assessed IS NOT NULL ORDER BY a.sequence DESC LIMIT 1)")
+}
+
+/// Shared by point projections and collection membership. Expressions are
+/// native SQL identifiers/placeholders, never interpolated request text.
+pub(crate) fn state_sql(package: &str, target: &str, capability: &str) -> String {
+    let claim = claim_sql(package, target, capability);
+    let assessed = assessed_sql(package, target, capability);
+    format!("CASE {claim} WHEN 1 THEN 'claimed_known' WHEN 0 THEN 'claimed_unknown' ELSE CASE {assessed} WHEN 1 THEN 'assessed_known' WHEN 0 THEN 'assessed_unknown' ELSE 'untracked' END END")
+}
 
 impl ProfileStore {
     pub fn knowledge(

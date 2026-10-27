@@ -111,7 +111,7 @@ impl ProfileStore {
                     query.source_id,
                     query.after.as_ref().map(|id| id.0.as_str()).unwrap_or(""),
                     query.include_excluded,
-                    query.query
+                    query.query.to_lowercase()
                 ],
                 |r| r.get::<_, String>(0),
             )?

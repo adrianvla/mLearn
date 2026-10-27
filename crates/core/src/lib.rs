@@ -1,3 +1,4 @@
+mod collection;
 mod conversation;
 mod document;
 mod material;
@@ -9,6 +10,7 @@ mod review;
 mod review_policy;
 mod source;
 mod watch;
+pub use collection::*;
 pub use conversation::*;
 pub use document::*;
 pub use material::*;
