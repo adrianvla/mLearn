@@ -100,6 +100,28 @@ registered runtime root until cleanup. Compiled `target/miri-sdk`,
 `/Users/adrian/Library/Caches/org.rust-lang.miri` are retained as artifacts,
 not guessed-deleted as worker caches.
 
+### Catalog cursor and membership checkpoint — local `3c1a29c`
+
+The real producers require opaque package cursors, not numeric dictionary
+offsets. Japanese inline presentation also intentionally selects only the
+hardest JLPT level; that is not full source membership. The native contract
+now persists the package cursor atomically with processed ordinals and target
+rows, rejects stale or stalled progress, and indexes explicit level memberships
+separately from inline display.
+
+Schema 13 rebuilds only the old derived catalog cache. Tests retain Material,
+claims, receipts and preferences through the schema 12 upgrade and retained-table
+replays. The full storage suite passes all 99 tests, including 11 collection
+cases; the Core TypeScript-feature check and seven file diagnostics pass.
+Post-run OmO footprint 4037194880 bytes, available 6200639488, pressure 1,
+swapUsed 3832283136, swapOut 48338993152; disk available 23798092 KiB.
+The serial guard is stopped. This checkpoint is committed locally, not pushed;
+real package production, runtime jobs and client functionality remain open.
+
+At published `8a4f350`, foundation run 40592717257 and real desktop run
+40592717283 pass. Native-mobile run 40592717267 remains pending. The desktop
+pass does not explain or close the earlier `d9753b6` subtitle error.
+
 All substantial local runs were serial and passed fresh three-sample1GiB
 admission. Post-run OmO footprint4093637736 bytes, RSS2802679808,
 available6143328256, pressure1, swapUsed3932946432 and swapOut48338993152;
