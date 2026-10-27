@@ -13,11 +13,12 @@ type Props = PropsWithChildren<{
   floatingControls?: (focusTarget: () => View | null) => ReactNode;
 } & ({ trigger: ReactElement; focusTarget?: () => View | null } | { trigger?: never; focusTarget: () => View | null })>;
 export const dialogSidebarWidth = 320;
+export const dialogSidebarBreakpoint = 720;
 export const DialogPortalContext = createContext<HTMLElement | null>(null);
 export function Dialog({ open, onOpenChange, title, description, trigger, focusTarget, children, floatingControls, presentation = 'dialog', modal = true }: Props) {
   const { height, width } = useWindowDimensions();
   const webSidebar = presentation === 'sidebar' && Platform.OS === 'web';
-  const sidebar = webSidebar && width >= 720;
+  const sidebar = webSidebar && width >= dialogSidebarBreakpoint;
   const { theme } = useUnistyles();
   const [portal, setPortal] = useState<HTMLElement | null>(null);
   const closeTarget = useRef<View>(null);
@@ -54,7 +55,7 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
               // Native Content claims the initial responder by default.
               // Leave pan ownership to its ScrollView, not the wrapper.
               onStartShouldSetResponder={Platform.OS === 'web' ? undefined : () => false}>
-              <View ref={contentRef} style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
+              <View ref={contentRef} style={[styles.content(height), sidebar && styles.sidebarContent(height), { backgroundColor: sidebar ? theme.colors.background : theme.colors.surface, borderColor: theme.colors.border, borderRadius: sidebar ? 0 : theme.radius }]} testID="dialog-surface">
                 <View style={[styles.header, sidebar && styles.sidebarHeader]}>
                   <View style={styles.title}>
                     <Primitive.Title asChild><Text variant={sidebar ? 'sidebarTitle' : 'heading'} muted={sidebar}>{title}</Text></Primitive.Title>
@@ -63,7 +64,7 @@ export function Dialog({ open, onOpenChange, title, description, trigger, focusT
                   <Primitive.Close asChild><Button ref={closeTarget} label="Close" icon={sidebar ? 'chevronDown' : 'close'} iconOnly variant="quiet" size="compact" /></Primitive.Close>
                 </View>
                 {!sidebar ? descriptionText : null}
-                <ScrollView style={styles.scroll} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+                <ScrollView style={styles.scroll} contentContainerStyle={styles.body(sidebar)} keyboardShouldPersistTaps="handled">
                   {children}
                 </ScrollView>
                 {sidebar ? floatingControls?.(() => closeTarget.current) : null}
@@ -93,15 +94,16 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: sidebar ? 'flex-end' : 'center', justifyContent: 'center' }),
   sidebarOverlay: { alignItems: 'flex-end', padding: 0, backgroundColor: 'transparent' },
   sidebarBounds: { width: dialogSidebarWidth, maxWidth: '100%', height: '100%' },
-  sidebarContent: (height: number) => ({ height, maxHeight: height, padding: theme.spacing.medium,
+  sidebarContent: (height: number) => ({ height, maxHeight: height, padding: 0, gap: 0,
     borderTopWidth: 0, borderBottomWidth: 0, borderRightWidth: 0 }),
   header: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },
-  sidebarHeader: { alignItems: 'flex-start' },
+  sidebarHeader: { alignItems: 'flex-start', padding: theme.spacing.medium,
+    paddingBottom: theme.spacing.compact, backgroundColor: theme.colors.surface },
   title: { flex: 1, minWidth: 0, gap: theme.spacing.tiny },
   // Content crosses a third-party asChild/portal boundary. Resolve its palette
   // through useUnistyles so a surface mounted after a theme change cannot keep
   // the initial palette while its child controls use the active theme.
   content: (height: number) => ({ width: '100%', maxHeight: Math.max(0, height - 2 * theme.spacing.comfortable), flexShrink: 1, gap: theme.spacing.medium, padding: theme.spacing.large, borderWidth: 1 }),
   scroll: { flexShrink: 1, minHeight: 0 },
-  body: { gap: theme.spacing.medium },
+  body: (sidebar: boolean) => ({ gap: theme.spacing.medium, padding: sidebar ? theme.spacing.medium : 0 }),
 }));

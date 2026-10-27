@@ -6,7 +6,7 @@ import { StyleSheet } from 'react-native-unistyles';
 import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { Row } from '@mlearn/ui/layout';
-import { Dialog, dialogSidebarWidth } from '@mlearn/ui/dialog';
+import { Dialog, dialogSidebarBreakpoint, dialogSidebarWidth } from '@mlearn/ui/dialog';
 import { TextField } from '@mlearn/ui/text-field';
 import { Select } from '@mlearn/ui/select';
 import type { TextBounds } from '@mlearn/ui/inline-word';
@@ -73,7 +73,7 @@ function WatchWorkspace() {
     const [busy, setBusy] = useState(false);
     const [transcriptOpen, setTranscriptOpen] = useState(false);
     const [vocabulary, setVocabulary] = useState(false);
-    const sidebarInset = transcriptOpen && Platform.OS === 'web' && viewport.width >= 720 ? dialogSidebarWidth : 0;
+    const sidebarInset = transcriptOpen && Platform.OS === 'web' && viewport.width >= dialogSidebarBreakpoint ? dialogSidebarWidth : 0;
     const sourceCovered = transcriptOpen && (!vocabulary || sidebarInset === 0);
     const [playbackOpen, setPlaybackOpen] = useState(false);
     const [synchronizationOpen, setSynchronizationOpen] = useState(false);

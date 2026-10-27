@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Platform, View, useWindowDimensions } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import type { AnalyzedToken, CaptureExclusion, MaterialContent, MaterialCreate, MaterialCaptureResult, MaterialEligibility } from '@mlearn/contracts';
 import type { RuntimeClient } from '@mlearn/runtime-client';
@@ -7,6 +7,7 @@ import { Button } from '@mlearn/ui/button';
 import { Text } from '@mlearn/ui/text';
 import { Panel, Row } from '@mlearn/ui/layout';
 import { Badge } from '@mlearn/ui/badge';
+import { dialogSidebarBreakpoint } from '@mlearn/ui/dialog';
 import { InlineWord, type TextAnchor } from '@mlearn/ui/inline-word';
 import { LinguisticWord, Pronunciation } from '../linguistic';
 
@@ -20,7 +21,7 @@ export type CaptureCandidate = {
 type Entry = { readonly candidate: CaptureCandidate; readonly command: MaterialCreate; readonly result?: MaterialCaptureResult };
 
 /** One bounded availability read and one capture owner for every source surface. */
-export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows' }: {
+export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0, tone = 'content', onInspect, onLocate, presentation = 'rows', header }: {
   readonly client: RuntimeClient;
   readonly candidates: readonly CaptureCandidate[];
   readonly onOpenMaterial?: (id: string) => void;
@@ -29,7 +30,9 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   readonly onInspect?: (candidate: CaptureCandidate, anchor: TextAnchor) => void;
   readonly onLocate?: (candidate: CaptureCandidate) => void;
   readonly presentation?: 'rows' | 'cards';
+  readonly header?: ReactNode;
 }) {
+  const { width } = useWindowDimensions();
   const [availability, setAvailability] = useState<MaterialEligibility[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState('');
@@ -150,16 +153,20 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
   const secondary = tone === 'media' ? 'media' : 'secondary';
   const quiet = tone === 'media' ? 'media' : 'quiet';
   const cards = presentation === 'cards';
-  return <View style={styles.list}>
-    <View style={cards ? styles.batchActions : undefined}><Row><Button label={cards ? 'Capture view' : 'Capture all eligible in this view'} accessibilityLabel="Capture all eligible in this view"
+  const batchActions = <Row><Button label={cards ? 'Capture view' : 'Capture all eligible in this view'} accessibilityLabel="Capture all eligible in this view"
       variant={cards ? 'quiet' : primary}
       size="compact" disabled={pending || !eligible.length} onPress={() => begin(eligible)} />
-      {failed.length ? <Button label={`Retry failed captures (${failed.length})`} variant={primary} size="compact" disabled={pending} onPress={() => void capture(failed)} /> : null}</Row></View>
+      {failed.length ? <Button label={`Retry failed captures (${failed.length})`} variant={primary} size="compact" disabled={pending} onPress={() => void capture(failed)} /> : null}</Row>;
+  return <View style={styles.list}>
+    {cards ? <View style={styles.cardHeader(Platform.OS === 'web' && width >= dialogSidebarBreakpoint)}>
+      {header}<View style={styles.batchActions}>{batchActions}</View>
+    </View> : <View>{batchActions}</View>}
     {candidates.map(candidate => {
       const item = entries.find(entry => entry.candidate.key === candidate.key);
       const result = item?.result;
       const status = available(candidate);
       const excluded = status?.state === 'excluded' || status?.state === 'existing' && status.excluded;
+      const checking = !status ? <Text tone={tone} muted variant="caption">Checking capture availability…</Text> : null;
       const exclusion = status && candidate.content.targetId ? <Button label={cards ? excluded ? 'Allow' : 'Exclude'
         : excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`}
         accessibilityLabel={excluded ? `Allow capture ${candidate.content.phrase}` : `Exclude capture ${candidate.content.phrase}`}
@@ -175,7 +182,8 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
           : <Text tone={tone} selectable>{candidate.content.phrase}</Text>}
         {cards ? <View style={styles.meaning}><Text variant="caption" muted align="right" numberOfLines={1}>{candidate.content.meaning}</Text></View> : null}
         {!cards && status ? <Badge label={excluded ? 'Capture excluded' : status.state === 'existing' ? 'Existing Material' : 'Eligible'} /> : null}
-        {!status ? <Text tone={tone} muted variant="caption">Checking capture availability…</Text> : null}</View>
+        {!cards ? checking : null}</View>
+        {cards ? checking : null}
         {cards ? <Pronunciation reading={candidate.content.reading} presentation={candidate.presentation} size="compact" /> : null}
         <Row>
           {onLocate ? <Button label={`Locate ${candidate.content.phrase}`} icon="play" iconOnly={cards} variant={quiet} size="compact"
@@ -215,6 +223,14 @@ export function CaptureList({ client, candidates, onOpenMaterial, refreshKey = 0
 const styles = StyleSheet.create(theme => ({
   list: { gap: theme.spacing.compact, minWidth: 0 },
   batchActions: { alignSelf: 'flex-end' },
+  cardHeader: (wide: boolean) => ({ gap: theme.spacing.compact,
+    backgroundColor: wide ? theme.colors.surface : undefined,
+    paddingHorizontal: wide ? theme.spacing.medium : 0,
+    paddingBottom: wide ? theme.spacing.medium : 0,
+    marginHorizontal: wide ? -theme.spacing.medium : 0,
+    marginTop: wide ? -theme.spacing.medium : 0,
+    marginBottom: wide ? theme.spacing.medium + theme.spacing.tiny : 0,
+    borderBottomWidth: wide ? 1 : 0, borderBottomColor: theme.colors.border }),
   card: { gap: theme.spacing.small },
   wordHeading: (cards: boolean) => ({ flexDirection: 'row', flexWrap: cards ? 'nowrap' : 'wrap',
     alignItems: 'center', gap: cards ? theme.spacing.small : theme.spacing.compact }),

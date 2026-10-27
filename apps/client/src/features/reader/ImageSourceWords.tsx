@@ -72,8 +72,7 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
         onOpenChange(false);
         router.push({ pathname: '../review', params: { sessionId } });
     });
-    return <Dialog title="Page words" description="Source-linked words in the current analyzed regions."
-        presentation="sidebar" open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}>
+    const header = <>
         <Row>
             <Button label="Unknown words" variant="secondary" size="compact" accessibilityState={{ selected: unknownOnly }}
                 onPress={() => setUnknownOnly(true)} />
@@ -113,8 +112,11 @@ export function ImageSourceWords({ client, source, pages, onInspect, onLocate, o
              variant="secondary" size="compact" busy={practice.pending} disabled={!visible.length && !practice.retry}
              onPress={() => void practice.start()} />
         {practice.error ? <Text variant="caption" accessibilityRole="alert">{practice.error}</Text> : null}
+    </>;
+    return <Dialog title="Page words" description="Source-linked words in the current analyzed regions."
+        presentation="sidebar" open={open} onOpenChange={onOpenChange} focusTarget={focusTarget}>
         <CaptureList client={client} candidates={visible.map(word => word.candidate)}
-            presentation="cards"
+            presentation="cards" header={header}
             onInspect={(candidate, anchor) => {
                 const word = visible.find(word => word.candidate.key === candidate.key);
                 const sourceAnchor = candidate.content.source;

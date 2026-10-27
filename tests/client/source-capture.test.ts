@@ -321,13 +321,16 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
             if (request.type === 'cue_position') return JSON.stringify({ type: 'cue_position', position: {
               sourceId: source.id, subtitleRevision: source.subtitleRevision, cueIndex: request.cueIndex, positionMs: 1000
             } });
-            if (request.type === 'inspect_targets') return JSON.stringify({ type: 'dictionary', batch: {
+            if (request.type === 'inspect_targets') {
+              if (mode === 'dictionary' && reads++ === 0) throw new Error('Source dictionary unavailable');
+              return JSON.stringify({ type: 'dictionary', batch: {
               sourceId: source.id, subtitleRevision: source.subtitleRevision, packageId: source.packageId,
               packageVersion: source.packageVersion, packageRevision: analysis.packageRevision,
               items: request.targetIds.map(targetId => ({ state: 'available', summary: {
                 targetId, headword: targetId, reading: 'reading ' + targetId, summary: 'meaning ' + targetId, presentation: null
               } }))
-            } });
+              } });
+            }
             if (request.type === 'material_eligibility') {
               if (mode === 'availability' && reads++ === 0) throw new Error('Availability unavailable');
               return JSON.stringify({ type: 'material_eligibility', items: request.targets.map(target => ({
@@ -362,9 +365,9 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
               { start: 0, end: phrase.length }, 1000) }
         }));
         window.captureState = () => ({ commands, prepared: next, committed: receipts.size });
-        if (mode === 'transcript' || mode === 'vocabulary-focus') {
+        if (mode === 'transcript' || mode === 'vocabulary-focus' || mode === 'dictionary') {
           function SourceTranscript() {
-            const [vocabulary, setVocabulary] = React.useState(false);
+            const [vocabulary, setVocabulary] = React.useState(mode === 'dictionary');
             return <Transcript client={client} source={source} vocabulary={vocabulary} onVocabularyChange={setVocabulary}
             open={true} onOpenChange={() => {}} onSeek={() => {}} analysis={analysis}
             onAnalysis={() => {}} onInspect={inspection => {
@@ -408,8 +411,10 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
             export const Row = View;
             export const Panel = View;
             export const Platform = { OS: 'web' };
+            export const useWindowDimensions = () => ({ width: window.innerWidth, height: window.innerHeight });
+            export const dialogSidebarBreakpoint = 720;
             export const useRouter = () => ({ push() {} });
-            export const Dialog = ({ open, trigger, children }) => <>{trigger}{open ? <section>{children}</section> : null}</>;
+            export const Dialog = ({ open, trigger, description, children }) => <>{trigger}{open ? <section><p data-testid="dialog-description">{description}</p>{children}</section> : null}</>;
             export const TextField = ({ label, value, onChangeText }) => <input aria-label={label} value={value} onChange={event => onChangeText(event.target.value)} />;
             export const Select = ({ label, value, options, onValueChange }) => <select aria-label={label} value={value} onChange={event => onValueChange(event.target.value)}>
               {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -417,6 +422,12 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
             export const Text = ({ children, accessibilityRole }) => <span role={accessibilityRole}>{children}</span>;
             export const Button = React.forwardRef(({ label, accessibilityLabel, disabled, onPress }, ref) =>
               <button ref={ref} aria-label={accessibilityLabel ?? label} disabled={disabled} onClick={onPress}>{label}</button>);
+            export const Menu = React.forwardRef(({ label, actions, disabled }, ref) => {
+              const [open, setOpen] = React.useState(false);
+              return <><button ref={ref} disabled={disabled} onClick={() => setOpen(value => !value)}>{label}</button>
+                {open ? <div role="menu">{actions.map(action => <button key={action.id} role="menuitem"
+                  onClick={() => { setOpen(false); action.onPress(); }}>{action.label}</button>)}</div> : null}</>;
+            });
             export const InlineWordContent = ({ segments }) => <span>{segments.map(segment => segment.text).join('')}</span>;
             export const PronunciationReading = ({ reading }) => <span>{reading}</span>;
             export const InlineWord = ({ text, children, onActivate }) => <button onClick={event => {
@@ -436,7 +447,7 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
   assert.ok(script);
   const browser = await chromium.launch({ headless: true });
   try {
-    for (const mode of ['before', 'after', 'availability', 'cards', 'transcript', 'vocabulary-focus'] as const) await t.test(mode, async () => {
+    for (const mode of ['before', 'after', 'availability', 'cards', 'transcript', 'vocabulary-focus', 'dictionary'] as const) await t.test(mode, async () => {
       const page = await browser.newPage();
       page.setDefaultTimeout(3000);
       const errors: string[] = [];
@@ -448,8 +459,17 @@ test('CaptureList retries uncertain writes with their prepared identities, separ
           const mount = Reflect.get(window, 'mount');
           mount(mode);
         }, mode);
+        if (mode === 'dictionary') {
+          await expect(page.getByRole('alert')).toHaveText('Source dictionary unavailable');
+          await expect(page.getByTestId('dialog-description')).toHaveText('Words unavailable');
+          await page.getByRole('button', { name: 'Retry source dictionary', exact: true }).click();
+          await expect(page.getByRole('button', { name: 'Capture word0', exact: true })).toBeVisible();
+          await expect(page.getByRole('alert')).toHaveCount(0);
+          return;
+        }
         if (mode === 'vocabulary-focus') {
-          await page.getByRole('combobox', { name: 'Sidebar content', exact: true }).selectOption('vocabulary');
+          await page.getByRole('button', { name: 'Transcript', exact: true }).click();
+          await page.getByRole('menuitem', { name: 'Vocabulary', exact: true }).click();
           const inspected = page.evaluate(() => new Promise<void>((resolve, reject) => {
             const timeout = setTimeout(() => reject(new Error('Source inspection was not published')), 3000);
             window.addEventListener('source-inspected', () => { clearTimeout(timeout); resolve(); }, { once: true });

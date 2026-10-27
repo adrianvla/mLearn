@@ -51,7 +51,79 @@ launchers were released with retained read-back receipts.
 
 ### M07 current implementation
 
-#### Current sidebar hierarchy checkpoint — 2026-10-27
+#### Current sidebar composition: local verification complete — 2026-10-27
+
+Measured reference header/list/card regions use distinct materials; the old
+native pane used its surface role for both header and canvas. Dialog now owns
+the full-width header and inset list canvas, with one shared 720px breakpoint.
+CaptureList groups actual Watch/Reader controls and its batch action above the
+divider without moving command, pending or receipt state. This source passes
+typecheck, lint, export and all 50 browser cases in 29.9 seconds.
+
+The first consuming native build (7.57 seconds) confirms the division but
+exposes the missing surface beneath Panel's translucent card tint. Capture
+`sidebar-material-native-card-backing-before.png` preserves that result.
+The shared Panel repair passes typecheck/lint/export and all 50 browser cases
+in 29.2 seconds; wide and narrow captures were inspected. Its final dark native
+capture remains pending.
+The app exited normally before further work. Three idle footprint samples
+decrease from 3,187,242,112 to 3,160,290,432 bytes with normal pressure,
+6.56 GB headroom and unchanged swap-out. GC of the small JS heap does not
+identify the earlier OmO growth. Another workload needs fresh admission.
+
+The selector-placement question timed out. The agent is proceeding with the
+recommended player action menu, not treating silence as maintainer approval.
+A shared Menu owns keyboard/touch/focus through pinned RN Primitives 1.5.2;
+Transcript and Vocabulary remain real actions. The inside-pane selector is
+removed. Browser, native desktop and mobile workflows retain their assertions
+and use the new entry actions. Installation and both guarded dependency repairs
+pass; 14 packages are recorded in the generated lockfile.
+The first 1536 MiB admission held below the 4,294,967,296-byte reserve;
+event-driven admission then waited for three safe samples without lowering
+limits. Seven initial cases pass; both compact pointer handoffs fail.
+The bounded focus trace proves the drawer opens before the menu finishes
+restoring focus. Menu now delivers web choices from its close-focus event,
+restores the trigger first and clears queued choices on unmount. There is no
+timer, retry or weakened assertion.
+
+The pending capture also exposed a short-word wrap. A held eligibility reply
+reproduces two text lines before the repair and one afterward. The first
+line-height metric was invalid and is not reproduction evidence; the corrected
+text-node rectangles are. Loading copy now sits below a card's heading.
+Dictionary failure/retry already behaves correctly; new coverage passes
+without any dictionary product change.
+Final typecheck, lint, export and both desktop-driver syntax checks pass;
+all 51 affected browser cases pass in 30.1 seconds, alongside 79 infrastructure
+and 137 client/package cases. Pending, wide and 320px captures were inspected.
+Both adapted Maestro files parse cleanly; their final-source mobile execution
+remains pending. The consuming debug macOS build passes in 7.17 seconds.
+Renderer SHA-256 is
+`21e5389d05359823eaba1f1c51efa9e26e4acd41ce58472eecb196b251021952`;
+executable SHA-256 is
+`edc3ba1204cb2a3475909325c0260cbbeaff579200edc68295800704b52873f9`.
+
+Actual macOS keyboard selection opens Vocabulary; pointer selection switches
+to Transcript and exposes its real search field. ArrowDown/Escape restores
+the player trigger. Source-caption activation opens Inspector with Vocabulary
+retained; dismissal restores the original source token. The backed cards and
+distinct header/canvas are inspected in `sidebar-composition-native-vocabulary.png`;
+`sidebar-composition-native-synchronization.png` records the offset state.
+The first run reaches its deliberately bounded ten-minute deadline after
+those checks, so its final dismissal/normal exit are not claimed.
+The same binary is deliberately reused after fresh admission: restart retains
+19.849 seconds, rate 1 and offset -6350 ms. Options close returns to offset;
+widget dismissal returns to sidebar Close; pane dismissal returns to the
+player trigger. Home return and normal Cmd+Q exit pass (run 988, code 0).
+No rebuild, profile reset, model or device launch is used for this follow-up.
+
+Both owned app PIDs are absent; the live guard is stopped. Final OmO footprint
+is 3,176,461,392 bytes, RSS 4,141,793,280 bytes, available memory 6,398,623,744
+bytes, pressure normal and swap-out unchanged at 28,479,864,832 bytes.
+The first native main process was sampled at 186,582,312 bytes footprint.
+This is bounded local verification, not a diagnosed OmO memory fix, whole
+Watch conformity, mobile certification or maintainer acceptance.
+
+#### Published sidebar hierarchy checkpoint — 2026-10-27
 
 The next coherent visual batch places the actual count/description under the
 desktop sidebar title, using shared sidebarTitle/detail roles. The wide Close
@@ -82,7 +154,15 @@ cases. This is not whole Watch visual conformity.
 Published usability source is `79759b84bb9fbf2d931146328aca40057d8da32c`,
 tree `cfe0de1e5c1f27701383c21d6bae43a12e57c1b6`, read back on OPEN/draft
 PR #44. Its real desktop run `40422893910` passes. Exact-source foundation
-`40422893803` and mobile `40422893805` remain under read-only observation.
+`40422893803` passes all five jobs. Mobile `40422893805` is terminal:
+Android `121921399601` passes in 36m55s, including its unchanged 9m51s UI step;
+iOS `121921399896` repeats the original deferred
+`m01-watch, mp4 is not visible` assertion. The failed-step log is
+`ci-79759b8-mobile-failed.log`; no variant/rerun was launched.
+Hierarchy source `566ce549d35300a5912d2835e50c6432f1477deb` is also pushed;
+tree `b3e24aa130943e4adfea30576ec88e7556e6b8ad`, OPEN/draft PR #44.
+Its real desktop run `40424830700` and all five foundation `40424830953` jobs
+pass; mobile `40424830747` remains under exact-source read-only observation.
 The ledger remains 215/250; no M07 acceptance or merge is claimed.
 
 #### Published desktop sidebar usability repair — 2026-10-26

@@ -64,6 +64,8 @@ appId: net.kikan.mlearn.v3dev
 - tapOn: Close
 - tapOn: Transcript
 - tapOn:
+    id: menu-action-transcript
+- tapOn:
     id: transcript-search-input
 - inputText: 'c'
 - assertVisible:

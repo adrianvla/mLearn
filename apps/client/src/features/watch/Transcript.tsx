@@ -6,10 +6,10 @@ import type { TextAnchor } from '@mlearn/ui/inline-word';
 import type { RuntimeClient } from '@mlearn/runtime-client';
 import { Button } from '@mlearn/ui/button';
 import { Dialog } from '@mlearn/ui/dialog';
+import { Menu } from '@mlearn/ui/menu';
 import { Row } from '@mlearn/ui/layout';
 import { Text } from '@mlearn/ui/text';
 import { TextField } from '@mlearn/ui/text-field';
-import { Select } from '@mlearn/ui/select';
 import { AnnotatedText } from '../annotated-text';
 import type { Inspection } from '../inspector';
 import { cueAnchor, emptyMaterial, CaptureList, SourceCapture, useSourcePractice, type CaptureCandidate } from '../material';
@@ -182,15 +182,50 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
     onOpenChange(false);
     router.push({ pathname: '../review', params: { sessionId } });
   });
-  return <Dialog open={open} onOpenChange={onOpenChange} title={vocabulary ? 'Vocabulary' : 'Transcript'} presentation="sidebar" modal={false}
+  const sourceFeedback = <>
+    {pending ? <Text accessibilityLiveRegion="polite">Loading transcript…</Text> : null}
+    {analysisPending ? <Text accessibilityLiveRegion="polite">Analyzing transcript…</Text> : null}
+    {error ? <><Text accessibilityRole="alert">{error}</Text>
+      <Button label="Retry transcript" onPress={() => setReload(value => value + 1)} /></> : null}
+    {analysisError ? <><Text accessibilityRole="alert">{analysisError}</Text>
+      <Button label="Retry transcript analysis" onPress={() => void refreshAnalysis().catch((cause: unknown) =>
+        setAnalysisError(cause instanceof Error ? cause.message : String(cause)))} /></> : null}
+    {!pending && !error && page?.cues.length === 0 ? <Text>No matching cues in this subtitle file.</Text> : null}
+  </>;
+  const dictionaryFeedback = <>
+    {dictionaryPending ? <Text variant="caption" accessibilityLiveRegion="polite">Loading dictionary entries…</Text> : null}
+    {dictionaryError ? <><Text accessibilityRole="alert">{dictionaryError}</Text>
+      <Button label="Retry source dictionary" size="compact" onPress={() => setDictionaryReload(value => value + 1)} /></> : null}
+    {dictionaryItems.map(item => item.state === 'unavailable'
+      ? <Text key={item.targetId} variant="caption">{item.message}</Text> : null)}
+  </>;
+  const vocabularyControls = <>
+    <Row>
+      <Button label="Practice" accessibilityLabel={practice.retry ? 'Retry original Word Practice request' : 'Practice saved words in this view'}
+        size="compact" variant="secondary" busy={practice.pending} disabled={dictionaryPending || !resolvedCandidates.length && !practice.retry}
+        onPress={() => void practice.start()} />
+      <Button label="All" accessibilityLabel="All words" size="compact" variant="pill" accessibilityState={{ selected: !unknownOnly }}
+        onPress={() => setUnknownOnly(false)} />
+      <Button label="Unknown" accessibilityLabel="Unknown words" size="compact" variant="pill" accessibilityState={{ selected: unknownOnly }}
+        onPress={() => setUnknownOnly(true)} />
+    </Row>
+    {practice.error ? <Text accessibilityRole="alert">{practice.error}</Text> : null}
+    {sourceFeedback}
+    {dictionaryFeedback}
+  </>;
+  return <View>
+    <Menu ref={trigger} label="Transcript" icon="transcript" disabled={!source.subtitleRevision} actions={[
+      { id: 'transcript', label: 'Transcript', current: open && !vocabulary,
+        onPress: () => { onVocabularyChange(false); onOpenChange(true); } },
+      { id: 'vocabulary', label: 'Vocabulary', current: open && vocabulary,
+        onPress: () => { onVocabularyChange(true); onOpenChange(true); } },
+    ]} />
+    <Dialog open={open} onOpenChange={onOpenChange} title={vocabulary ? 'Vocabulary' : 'Transcript'} presentation="sidebar" modal={false}
     description={vocabulary ? dictionaryPending || dictionary?.identity !== dictionaryIdentity ? 'Loading words…'
       : dictionaryError ? 'Words unavailable' : `${resolvedCandidates.length} words in this range`
       : 'Exact, case-sensitive subtitle search.'}
     floatingControls={floatingControls}
-    trigger={<Button ref={trigger} label="Transcript" icon="transcript" iconOnly size="compact" variant="media" disabled={!source.subtitleRevision} />}>
-    <Select label="Sidebar content" value={vocabulary ? 'vocabulary' : 'transcript'}
-      options={[{ value: 'transcript', label: 'Transcript' }, { value: 'vocabulary', label: 'Vocabulary' }]}
-      onValueChange={value => onVocabularyChange(value === 'vocabulary')} />
+    focusTarget={() => trigger.current}>
     {!vocabulary ? <><TextField testID="transcript-search-input" label="Search transcript" variant="search" value={draft} onChangeText={setDraft}
       maxLength={128} autoCapitalize="none" autoCorrect={false} />
     <Row>
@@ -202,14 +237,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       <Button label="Next page" icon="chevronRight" iconOnly size="compact" variant="secondary" disabled={pending || page?.nextIndex == null}
         onPress={() => { setAfter(page?.nextIndex ?? null); setPage(null); }} />
     </Row></> : null}
-    {pending ? <Text accessibilityLiveRegion="polite">Loading transcript…</Text> : null}
-    {analysisPending ? <Text accessibilityLiveRegion="polite">Analyzing transcript…</Text> : null}
-    {error ? <><Text accessibilityRole="alert">{error}</Text>
-      <Button label="Retry transcript" onPress={() => setReload(value => value + 1)} /></> : null}
-    {analysisError ? <><Text accessibilityRole="alert">{analysisError}</Text>
-      <Button label="Retry transcript analysis" onPress={() => void refreshAnalysis().catch((cause: unknown) =>
-        setAnalysisError(cause instanceof Error ? cause.message : String(cause)))} /></> : null}
-    {!pending && !error && page?.cues.length === 0 ? <Text>No matching cues in this subtitle file.</Text> : null}
+    {!vocabulary ? sourceFeedback : null}
     {!vocabulary ? page?.cues.map(cue => <View key={cue.index} style={styles.cue}>
       <View style={styles.cueTime}><Button label={cueTime(cue.startMs - source.subtitleOffsetMs)}
         accessibilityLabel={`Go to cue ${cue.index + 1} at ${cueTime(cue.startMs - source.subtitleOffsetMs)}`}
@@ -218,24 +246,11 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       <AnnotatedText rawText={cue.text} variant="body" inspectionMode={source.inspectionTrigger}
         analysis={prepared?.cues.find(value => value.cue.index === cue.index && value.cue.text === cue.text) ?? null}
         annotations={prepared?.annotations ?? []} onInspect={(token, anchor) => void inspect(cue, token, anchor)} />
-    </View>) : <><Row>
-      <Button label="Practice" accessibilityLabel={practice.retry ? 'Retry original Word Practice request' : 'Practice saved words in this view'}
-        size="compact" variant="secondary" busy={practice.pending} disabled={dictionaryPending || !resolvedCandidates.length && !practice.retry}
-        onPress={() => void practice.start()} />
-      <Button label="All" accessibilityLabel="All words" size="compact" variant="pill" accessibilityState={{ selected: !unknownOnly }}
-        onPress={() => setUnknownOnly(false)} />
-      <Button label="Unknown" accessibilityLabel="Unknown words" size="compact" variant="pill" accessibilityState={{ selected: unknownOnly }}
-        onPress={() => setUnknownOnly(true)} />
-    </Row>
-    {practice.error ? <Text accessibilityRole="alert">{practice.error}</Text> : null}</>}
-    {dictionaryPending ? <Text variant="caption" accessibilityLiveRegion="polite">Loading dictionary entries…</Text> : null}
-    {dictionaryError ? <><Text accessibilityRole="alert">{dictionaryError}</Text>
-      <Button label="Retry source dictionary" size="compact" onPress={() => setDictionaryReload(value => value + 1)} /></> : null}
-    {dictionaryItems.map(item => item.state === 'unavailable'
-      ? <Text key={item.targetId} variant="caption">{item.message}</Text> : null)}
+    </View>) : null}
+    {!vocabulary ? dictionaryFeedback : null}
     {!vocabulary ? <SourceCapture client={client} source={source} onChanged={() => setCaptureRefresh(value => value + 1)} /> : null}
-    {resolvedCandidates.length ? <CaptureList client={client} candidates={resolvedCandidates} refreshKey={captureRefresh}
-      presentation={vocabulary ? 'cards' : 'rows'}
+    {resolvedCandidates.length || vocabulary ? <CaptureList client={client} candidates={resolvedCandidates} refreshKey={captureRefresh}
+      presentation={vocabulary ? 'cards' : 'rows'} header={vocabulary ? vocabularyControls : undefined}
       onInspect={vocabulary ? (candidate, anchor) => {
         const locator = candidate.content.source?.locator;
         if (locator?.kind !== 'video') return;
@@ -252,7 +267,7 @@ export function Transcript({ client, source, open, onOpenChange, onSeek, analysi
       } : undefined}
       onOpenMaterial={id => router.push({ pathname: '../materials', params: { id, sourceId: source.id } })} /> : null}
     {children}
-  </Dialog>;
+  </Dialog></View>;
 }
 
 const styles = StyleSheet.create(theme => ({

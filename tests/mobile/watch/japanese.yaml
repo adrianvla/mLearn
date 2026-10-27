@@ -46,6 +46,8 @@ appId: net.kikan.mlearn.v3dev
 - tapOn: Close Inspector
 # Transcript consumes the same real analysis/presentation, not fixture UI.
 - tapOn: Transcript
+- tapOn:
+    id: menu-action-transcript
 - extendedWaitUntil:
     visible: '昨日: untracked\. [ぁ-ゖァ-ヺー]+\. .+'
     timeout: 60000

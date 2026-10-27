@@ -39,7 +39,10 @@ export function Panel({ children, inset = 'standard', material = 'glass' }: Prop
   readonly inset?: 'standard' | 'compact' | 'spacious';
   readonly material?: 'glass' | 'solid' | 'card';
 }>) {
-  return <View style={styles.panel(inset, material)}>{children}</View>;
+  return <View style={styles.panel(inset, material)}>
+    {material === 'card' ? <View pointerEvents="none" style={styles.cardTint} /> : null}
+    {children}
+  </View>;
 }
 export function Stack({ children }: PropsWithChildren) { return <View style={styles.stack}>{children}</View>; }
 export function Section({ title, children }: PropsWithChildren<{ readonly title: string }>) {
@@ -101,10 +104,12 @@ const styles = StyleSheet.create((theme) => ({
     paddingRight: sidebar ? theme.spacing.section : theme.spacing.large, paddingTop: theme.spacing.medium, paddingBottom: theme.spacing.large, alignItems: 'center' }),
   shellContent: { width: '100%', maxWidth: 1184, gap: theme.spacing.comfortable },
   panel: (inset: 'standard' | 'compact' | 'spacious', material: 'glass' | 'solid' | 'card') => ({
-    backgroundColor: material === 'solid' ? theme.colors.surface : material === 'card' ? theme.surfaces.card : theme.surfaces.glass,
+    backgroundColor: material === 'solid' || material === 'card' ? theme.colors.surface : theme.surfaces.glass,
     borderRadius: theme.radius + 4, borderWidth: 1, borderColor: theme.colors.border,
-    padding: inset === 'compact' ? theme.spacing.small + theme.spacing.tiny / 2
+    padding: inset === 'compact' ? material === 'card' ? theme.spacing.compact : theme.spacing.small + theme.spacing.tiny / 2
       : inset === 'spacious' ? theme.spacing.large : theme.spacing.medium, gap: theme.spacing.compact }),
+  cardTint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    borderRadius: theme.radius + 4, backgroundColor: theme.surfaces.card },
   stack: { gap: theme.spacing.compact },
   section: { gap: theme.spacing.small },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.small },

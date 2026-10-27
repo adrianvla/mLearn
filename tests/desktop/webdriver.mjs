@@ -44,7 +44,7 @@ export async function clickControl(rpc, session, label) {
     const check=()=>{
       cancelAnimationFrame(frame);
       frame=requestAnimationFrame(()=>{
-        const control=Array.from(document.querySelectorAll('button,[role="button"],[role="combobox"],[role="option"]'))
+        const control=Array.from(document.querySelectorAll('button,[role="button"],[role="combobox"],[role="option"],[role="menuitem"]'))
           .find(node=>{
             const rect=node.getBoundingClientRect();
             return node.getAttribute('aria-label')===label && rect.width && rect.height &&

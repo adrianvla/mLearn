@@ -9,6 +9,7 @@
     "./icon": "./src/Icon.tsx",
     "./brand": "./src/brand.ts",
     "./select": "./src/Select.tsx",
+    "./menu": "./src/Menu.tsx",
     "./segmented-control": "./src/SegmentedControl.tsx",
     "./text": "./src/Text.tsx",
     "./badge": "./src/Badge.tsx",
@@ -29,6 +30,7 @@
   "dependencies": {
     "@mlearn/theme": "3.0.0-dev.0",
     "@rn-primitives/dialog": "1.5.2",
+    "@rn-primitives/dropdown-menu": "1.5.2",
     "@rn-primitives/portal": "1.5.2",
     "@rn-primitives/select": "^1.5.2"
   },

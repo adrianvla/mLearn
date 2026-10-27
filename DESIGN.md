@@ -98,6 +98,29 @@ receipts merely because the pane changes shape.
  owns this treatment for both Watch and Reader. Its batch action sits at the
  trailing edge above the cards; wide sidebar dismissal uses the reference
  downward chevron while retaining the existing Close action and focus return.
+ The approved Watch reference has distinct header, list canvas and card
+ materials (sampled solid RGB regions: 40/40/40, 26/26/26 and 47/47/47).
+ The native candidate incorrectly uses its surface color for both header and
+ canvas. Use the existing surface/background/card roles, not a route palette:
+ Dialog owns the full-width pane and body inset; CaptureList groups its
+ caller-supplied controls with batch actions above a full-width divider and
+ the reference's 32px list separation. Both Watch and Reader supply their
+ existing controls without moving capture state or command ownership.
+ Panel's card material places its existing tint over the surface role rather
+ than directly over whichever canvas happens to contain it. This preserves
+ the measured card fill when the sidebar canvas darkens, including native
+ rendering, while retaining custom-theme color/alpha values. Compact cards
+ use the reference's 12px inset through the shared compact spacing token.
+ The player Transcript action opens a shared action menu containing Transcript
+ and Vocabulary, replacing the unpictured selector inside the pane. This is
+ the agent's reference-based default after the placement question timed out,
+ not maintainer approval. Menu owns trigger/focus/keyboard/touch semantics
+ through the pinned RN Primitives menu; feature code supplies the two actions.
+ Panel's card material places its existing tint over the surface role rather
+ than directly over whichever canvas happens to contain it. This preserves
+ the measured card fill when the sidebar canvas darkens, including native
+ rendering, while retaining custom-theme color/alpha values. Compact cards
+ use the reference's 12px inset through the shared compact spacing token.
 Source playback/context inspection remains the primary activity; sidebar
 search, navigation, capture, exclusion and practice remain real secondary
 actions. Preserve selectors, pending/error recovery and close/focus return.

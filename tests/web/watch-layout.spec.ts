@@ -141,11 +141,21 @@ test(`focused live word card fits the ${width}px overlay when its close control 
     expect(focused.x + focused.width).toBeLessThanOrEqual(container.x + container.width);
     if (width === 1200) {
       await page.getByRole('button', { name: 'Subtitle synchronization', exact: true }).click();
-      await page.getByRole('button', { name: 'Transcript', exact: true }).click();
+      const transcriptTrigger = page.getByRole('button', { name: 'Transcript', exact: true });
+      await transcriptTrigger.focus();
+      await page.keyboard.press('ArrowDown');
+      await expect(page.getByRole('menu')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(transcriptTrigger).toBeFocused();
+      await page.keyboard.press('ArrowDown');
+      await expect(page.getByRole('menuitem', { name: 'Transcript', exact: true })).toBeFocused();
+      await page.keyboard.press('Enter');
       const sidebar = page.getByRole('dialog', { name: 'Transcript', exact: true });
       await expect(sidebar).toBeVisible();
-      await sidebar.getByRole('combobox', { name: /^Sidebar content:/ }).click();
-      await page.getByRole('option', { name: 'Vocabulary', exact: true }).click();
+      await transcriptTrigger.click();
+      await page.keyboard.press('End');
+      await expect(page.getByRole('menuitem', { name: 'Vocabulary', exact: true })).toBeFocused();
+      await page.keyboard.press('Enter');
       const vocabulary = page.getByRole('dialog', { name: 'Vocabulary', exact: true });
       await expect(vocabulary).toBeVisible();
       await expect(page.getByRole('button', { name: 'Home', exact: true })).toBeVisible();
@@ -231,6 +241,21 @@ test(`focused live word card fits the ${width}px overlay when its close control 
       await expect(playback).toBeVisible();
       await playback.getByRole('button', { name: 'Close', exact: true }).click();
       await expect(playbackTrigger).toBeFocused();
+    } else {
+      const transcriptTrigger = page.getByRole('button', { name: 'Transcript', exact: true });
+      await transcriptTrigger.click();
+      const menu = page.getByRole('menu');
+      await expect(menu).toBeVisible();
+      const menuBounds = await menu.boundingBox();
+      if (!menuBounds) throw new Error('Sidebar action menu is not laid out');
+      expect(menuBounds.x).toBeGreaterThanOrEqual(0);
+      expect(menuBounds.x + menuBounds.width).toBeLessThanOrEqual(width);
+      await page.getByRole('menuitem', { name: 'Vocabulary', exact: true }).click();
+      const vocabulary = page.getByRole('dialog', { name: 'Vocabulary', exact: true });
+      await expect(vocabulary).toBeVisible();
+      await page.screenshot({ path: info.outputPath('compact-menu-vocabulary.png') });
+      await vocabulary.getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(transcriptTrigger).toBeFocused();
     }
   } finally {
     await rm(directory, { recursive: true, force: true });

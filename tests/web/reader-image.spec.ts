@@ -9,6 +9,7 @@ declare global { interface Window {
   __imageOcrControl: { hold: boolean; fail: 'cancelled' | 'committed' | null;
     entered: Promise<void>; finished: Promise<void>; release?: () => void };
   __imageImportControl: { hold: boolean; entered: Promise<void>; release?: () => void };
+  __imageEligibilityControl: { hold: boolean; entered: Promise<void>; release?: () => void };
   __imageUriControl: { available: boolean };
   __documentAnalysisControl: { first: Promise<void>; second: Promise<void> };
 } }
@@ -104,12 +105,16 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
     let markPicker: () => void = () => {};
     const importControl: Window['__imageImportControl'] = { hold: false,
       entered: new Promise<void>(resolve => { markPicker = resolve; }) };
+    let markEligibility: () => void = () => {};
+    const eligibilityControl: Window['__imageEligibilityControl'] = { hold: false,
+      entered: new Promise<void>(resolve => { markEligibility = resolve; }) };
     const imageUriControl = { available: true };
     const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
     Object.assign(window, {
       isTauri: true, __MLEARN_MEDIA_BASE__: 'http://127.0.0.1/fixture-media/', __imageReaderRequests: requests,
       __imageOcrControl: ocrControl,
       __imageImportControl: importControl,
+      __imageEligibilityControl: eligibilityControl,
       __imageUriControl: imageUriControl,
       __documentAnalysisControl: documentAnalysisControl,
       __TAURI_INTERNALS__: {
@@ -299,8 +304,14 @@ async function start(page: Page, home = false, orientation: 'topToBottom' | 'ver
                 return { state: 'saved', commandId: command.commandId, materialId: 'captured-tokyo', committedRevision: 1, reused: false };
               }) });
             }
-            case 'material_eligibility': return JSON.stringify({ type: 'material_eligibility', items: [{
-              target: { packageId: 'package', targetId: 'line-0' }, availability: { state: 'existing', materialId: 'saved-tokyo', excluded: false } }] });
+            case 'material_eligibility': {
+              if (eligibilityControl.hold) {
+                markEligibility();
+                await new Promise<void>(resolve => { eligibilityControl.release = resolve; });
+              }
+              return JSON.stringify({ type: 'material_eligibility', items: [{
+                target: { packageId: 'package', targetId: 'line-0' }, availability: { state: 'existing', materialId: 'saved-tokyo', excluded: false } }] });
+            }
             case 'review': {
               if (!object(request.command) || request.command.kind !== 'start' || !object(request.command.start))
                 throw new Error('Source practice must use the shared native Start command');
@@ -872,6 +883,38 @@ test('held image lens samples original pixels, wheel zoom is transient and relea
   await page.keyboard.up('z');
   expect(await page.evaluate(() => window.__imageReaderRequests.some(request =>
     request.type === 'image_page_uri' && request.crop !== null))).toBe(true);
+});
+
+test('pending availability leaves a short source word on one readable line', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 850 });
+  await start(page);
+  await page.evaluate(() => { window.__imageEligibilityControl.hold = true; });
+  const entered = page.evaluate(() => window.__imageEligibilityControl.entered);
+  await readerOptions(page);
+  await page.getByRole('button', { name: 'Page words', exact: true }).click();
+  await entered;
+  const words = page.getByRole('dialog', { name: 'Page words', exact: true });
+  try {
+    await expect(words.getByText('Checking capture availability…', { exact: true })).toBeVisible();
+    const lines = await words.getByRole('button', { name: '東京: untracked', exact: true }).evaluate(node => {
+      const text = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      const tops = new Set<number>();
+      for (let current = text.nextNode(); current; current = text.nextNode()) {
+        if (!current.textContent?.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(current);
+        for (const rect of range.getClientRects()) {
+          if (rect.width && rect.height) tops.add(Math.round(rect.top * 100) / 100);
+        }
+      }
+      return tops.size;
+    });
+    await page.screenshot({ path: testInfo.outputPath('pending-source-word.png') });
+    expect(lines).toBe(1);
+  } finally {
+    await page.evaluate(() => { window.__imageEligibilityControl.hold = false; window.__imageEligibilityControl.release?.(); });
+  }
+  await expect(words.getByRole('button', { name: 'Open saved 東京', exact: true })).toBeVisible();
 });
 
 for (const viewport of [{ name: 'desktop', width: 1280, height: 900 }, { name: 'narrow', width: 390, height: 844 }]) {
